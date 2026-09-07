@@ -1522,18 +1522,23 @@ pub enum Node<P> {
     /// where it is operand A — which is the pair chain's rule for a
     /// carried contact, on a member instead of an operand.
     ///
-    /// A member-space declaration resolves at its step through
-    /// whatever merges the fold has performed. A declared merge
-    /// consumes the two faces it joins and publishes a `Merged` row in
-    /// their place, and a member's face that is inside such a row by
-    /// the time its pair's step runs resolves TO that row — the one
-    /// whose constituent set holds it. A merged face's name is a flat
-    /// constituent set (N3): a merge of a merged face lists the faces,
-    /// never the merge, so the row is the same whatever order the
-    /// merges happened in. Reordering the members therefore changes
-    /// nothing about whether a declaration resolves: a chain of
-    /// contacts (`a` to `c`, `c` to `d`) fuses in every order of the
-    /// three, with `Merged({a, c, d})` as the fused cap's row in each.
+    /// A member-space declaration resolves at its step through the
+    /// MERGES the fold has performed. A declared merge consumes the
+    /// two faces it joins and publishes a `Merged` row in their place,
+    /// and a member's face that is inside such a row by the time its
+    /// pair's step runs resolves TO that row — the one whose flat
+    /// constituent set holds it (N3: a merge of a merged face lists
+    /// the faces, never the merge, so the row is the same whatever
+    /// order the merges happened in). A chain of contacts (`a` to `c`,
+    /// `c` to `d`) fuses in every order of the three, with
+    /// `Merged({a, c, d})` as the fused cap's row in each.
+    ///
+    /// Merges are the whole of it. A member face the fold consumed
+    /// otherwise — split by a later member, swallowed by containment,
+    /// or inside a merged row that was later fragmented — is not
+    /// looked through, and a pair naming it resolves only in the
+    /// orders that reach it while it is still a row
+    /// (`work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise

@@ -18,6 +18,7 @@ use super::discriminate::{Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, edge_ends, ent, face_half_edges, name1, unique_shared_edge,
 };
+use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, Qualifier, RoleSeg, SplitHalf, StableName};
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
@@ -463,28 +464,6 @@ enum Descent {
     B(FaceKey),
 }
 
-/// The constituents of a merged face read through its descent
-/// wrappers, each re-wrapped by that same chain — or `None` when the
-/// name, peeled to its foot, is not a merged face.
-///
-/// Only a bare `FromA`/`FromB` chain is peeled: a foot that carries a
-/// tail (`[Merged(cs), Fragment(q)]`) is a FRAGMENT of a merged face,
-/// a legitimate constituent in its own right, and is left whole.
-fn merged_foot(name: &StableName) -> Option<Vec<StableName>> {
-    let rewrap = |inner: Vec<StableName>, side: fn(Box<StableName>) -> RoleSeg| {
-        inner
-            .into_iter()
-            .map(|c| name1(EntityKind::Face, name.node, side(Box::new(c))))
-            .collect()
-    };
-    match name.path.as_slice() {
-        [RoleSeg::Merged(cs)] => Some(cs.clone()),
-        [RoleSeg::FromA(inner)] => merged_foot(inner).map(|cs| rewrap(cs, RoleSeg::FromA)),
-        [RoleSeg::FromB(inner)] => merged_foot(inner).map(|cs| rewrap(cs, RoleSeg::FromB)),
-        _ => None,
-    }
-}
-
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
@@ -563,37 +542,40 @@ pub(crate) fn name_boolean<T: Decide>(
             descents.push(d);
             let up = operand_face_name(d)?;
             from_tie |= up.tied;
-            // A merged face's name is a FLAT constituent set (N3), and
-            // this loop is the one site that decides it. An operand
-            // face that is a merged face — read THROUGH its descent
-            // wrappers, since a face carried through untouched
-            // booleans is still that face — contributes its
-            // constituents, each re-wrapped by the chain the whole
-            // name carried and then by this constituent's descent
-            // side, exactly as a single name is; never its `Merged`
-            // name. So no published constituent set contains a merged
-            // face at any depth of wrapping, and no consumer has to
-            // flatten one. Re-wrapping crosses no space: each
-            // constituent stays a face name of the table its chain
-            // descends into, exactly as the wrapped `Merged` was.
-            match merged_foot(&up.name) {
+            // The constituent set is FLAT (N3), decided here: an
+            // operand face that is a merged face, read through its
+            // descent wrappers, contributes its constituents
+            // (re-wrapped by that chain, then by this side) and never
+            // its `Merged` name.
+            match merged::constituents_through_wrappers(&up.name) {
                 Some(cs) => constituents
                     .extend(cs.into_iter().map(|inner| wrap(d, inner, EntityKind::Face))),
                 None => constituents.push(wrap(d, up.name, EntityKind::Face)),
             }
         }
+        // The kernel's guarantee that the set is flat, held here for
+        // both emitters: a constituent that is itself a merged face
+        // (through any wrapping) is a name this loop cannot have
+        // built from a flat operand, so it is refused rather than
+        // published. `emit_union`'s `collapse` reads the same rule at
+        // the union's second door; the two are one rule at two doors.
+        if constituents
+            .iter()
+            .any(|c| merged::constituents_through_wrappers(c).is_some())
+        {
+            return Err(bug(NESTED_MERGED));
+        }
         merged_descents.insert(*kept, descents);
         constituents.sort_unstable();
-        // Review R8, RESOLVED at M4 PR 5: dedup makes the constituent
-        // SET the name — TWO merge groups with one constituent set
-        // (reachable only when BOTH kept faces are fragments of one
-        // operand face, glued to fragments of one partner: a
-        // disjoint-patch declared contact) collide LOUDLY at insert
+        // The constituent SET is the name (review R8): two merge
+        // groups with one set collide LOUDLY at insert
         // (`DuplicateName` → typed `NamingError`; pinned by
-        // `merged_same_constituent_groups_collide_loudly`). No silent
-        // aliasing is possible; a per-group discriminator upgrades
-        // this refusal to a success if the disjoint-patch class ever
-        // matters (REPORT'd, banked).
+        // `merged_same_constituent_groups_collide_loudly`). With the
+        // set flat, two groups collide whenever they list the same
+        // faces — a merge over a merged face and a merge over that
+        // face's constituents are ONE set, where nesting once kept
+        // them apart — and a per-group discriminator is what would
+        // upgrade the refusal to a success if that class ever matters.
         constituents.dedup();
         put(
             &mut t,
@@ -1770,5 +1752,99 @@ mod tests {
             })
         });
         assert!(!nested, "a merge over a merged face nested the merged name");
+    }
+
+    /// The mint's own guarantee: an operand whose merged face lists a
+    /// merged face — a table no emitter of this crate produces — is
+    /// refused at the merge-group loop, not published nested. The
+    /// pair boolean has no `collapse` after it, so this is the one
+    /// door that holds N3 for it.
+    #[test]
+    fn a_merge_over_a_nested_merged_face_refuses_at_the_mint() {
+        let plane = profile::SketchPlane::from_frame(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+        );
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| geom_core::Point2::new(x, y)),
+        );
+        let profile = profile::Profile::new(plane, vec![square])
+            .validate(geom_core::Tol::witness())
+            .unwrap();
+        let built = sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance(1.0_f64),
+            Tol::witness(),
+        )
+        .unwrap();
+        let ext_node = RecipeNodeId(1);
+        let ext_table = name_extrude(ext_node, &built).unwrap();
+        let mut laterals: Vec<(StableName, FaceKey)> = ext_table
+            .iter()
+            .filter_map(|(n, e)| match (n.path.first(), e) {
+                (Some(RoleSeg::Lateral(_)), Entry::Unique(r)) => match r.key {
+                    EntityKey::Face(f) => Some((n.clone(), f)),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+        laterals.sort();
+        let absorbed = laterals[0].1;
+        // The top cap named as a merged face whose ONE constituent is
+        // itself a merged face — the nested shape.
+        let inner = name1(
+            EntityKind::Face,
+            ext_node,
+            RoleSeg::Merged(vec![laterals[1].0.clone(), laterals[2].0.clone()]),
+        );
+        let nested = name1(EntityKind::Face, ext_node, RoleSeg::Merged(vec![inner]));
+        let top = ent(0, EntityKey::Face(built.top));
+        let top_name = ext_table.name_of(&top).unwrap().clone();
+        let mut a_table = NameTable::new();
+        for (n, e) in ext_table.iter() {
+            let name = if *n == top_name {
+                nested.clone()
+            } else {
+                n.clone()
+            };
+            match e {
+                Entry::Unique(r) => a_table.insert(name, *r).unwrap(),
+                Entry::Tied(es) => a_table.insert_tied(name, es.clone()).unwrap(),
+            }
+        }
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Absent,
+            merge_groups: vec![(built.top, vec![absorbed])],
+            ..topo::BooleanNaming::default()
+        };
+        let empty = NameTable::new();
+        let a = OperandCtx {
+            node: ext_node,
+            table: &a_table,
+            body: &built.body,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId(2),
+            table: &empty,
+            body: &built.body,
+        };
+        let err = name_boolean(
+            RecipeNodeId(9),
+            &built.body,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .expect_err("a nested merged face must refuse at the mint");
+        assert!(
+            matches!(err, NamingError::Emission { what } if what == NESTED_MERGED),
+            "{err:?}"
+        );
     }
 }

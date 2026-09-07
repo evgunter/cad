@@ -10,11 +10,11 @@ use crate::docm7_union_declare::{
     block, body_of, declared_union, failure, flush_pairs, member_face, run, table,
 };
 use crate::fixture;
-use crate::fixture::{Recorder, fname, len, wall};
+use crate::fixture::{Recorder, fname, insert, len, wall};
 
 use editor_core::{
-    BooleanOp, CapEnd, EntityKind, Entry, NameTable, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName,
+    BooleanOp, CapEnd, EntityKind, Entry, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, StableName, resolve,
 };
 use geom_core::Tol;
 
@@ -343,13 +343,15 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
 // A4 — the look-through is the union's alone, and what it refuses.
 // ---------------------------------------------------------------------
 
-/// **An accumulation-entity name does not look through.** A `Merged`
-/// row the fold minted at step 1 and absorbed into a wider merge at
-/// step 2 is no row at step 3, and a pair naming it there refuses as
-/// the unroutable pair it is — by set inclusion it would be found,
-/// and that is the rule the door does not have.
+/// **A fold row absorbed by a later merge keeps the vanished rung.**
+/// A `Merged` row the fold minted at step 1 and absorbed into a wider
+/// merge at step 2 is no row at step 3 — an accumulation-entity name
+/// does not look through — and a pair naming it there refuses
+/// `Vanished`, not `UnionDeclareStep`: the row vanished INTO a merge,
+/// and the merged row that lists its faces is N3's offer for it
+/// (`merge_offers`), so the routing diagnosis does not re-say it.
 #[test]
-fn an_accumulation_entity_name_does_not_look_through() {
+fn an_absorbed_fold_row_keeps_the_vanished_rung_and_does_not_look_through() {
     let doc = ProfileDoc::empty_derived("docm8_no_lookthrough", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
@@ -367,12 +369,14 @@ fn an_accumulation_entity_name_does_not_look_through() {
         v
     });
     let ev = run(&doc);
+    let absorbed = chain_merged(union, &[a, c], RoleSeg::Cap(CapEnd::Start));
     assert!(
         matches!(
             failure(&ev, union),
-            Some(NodeErrorKind::UnionDeclareStep { .. })
+            Some(NodeErrorKind::DeclareResolve { error })
+                if matches!(&**error, ResolveError::Vanished { name, .. } if *name == absorbed)
         ),
-        "expected the unroutable-pair refusal, got {:?}",
+        "expected the vanished rung on the absorbed row, got {:?}",
         failure(&ev, union)
     );
 }
@@ -403,4 +407,246 @@ fn a_member_face_in_no_table_and_no_merged_row_keeps_the_vanished_refusal() {
         "expected the vanished refusal, got {:?}",
         failure(&ev, union)
     );
+}
+
+// ---------------------------------------------------------------------
+// N3's offer over a flat set, and the mint's second consumer shapes.
+// ---------------------------------------------------------------------
+
+/// **The inner merged face a boolean over a boolean consumed still
+/// offers the outer row.** With the flat mint it is a constituent of
+/// nothing — the outer row lists its faces re-wrapped — and N3's
+/// "referencing one fails with the merged name offered" is kept by
+/// reading the set as COVERING it (`names/merged.rs`): every face it
+/// stood for is in the outer set. The offers are the base's.
+#[test]
+fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
+    let mut rec = Recorder::new();
+    let a = recorded_block(&mut rec, (0.0, 1.0));
+    let b = recorded_block(&mut rec, (0.5, 1.5));
+    let decl_ab = rec.insert(Node::declare_rest(
+        flush_segs()
+            .into_iter()
+            .map(|seg| (fname(a, seg.clone()), fname(b, seg)))
+            .collect(),
+    ));
+    let inner = rec.insert(Node::Boolean {
+        op: BooleanOp::Union,
+        a,
+        b,
+        declare: Some(decl_ab),
+    });
+    let c = recorded_block(&mut rec, (1.2, 2.2));
+    let inner_row = |seg: RoleSeg| {
+        merged(
+            inner,
+            vec![
+                from_a(inner, fname(a, seg.clone())),
+                from_b(inner, fname(b, seg)),
+            ],
+        )
+    };
+    let decl_ic = rec.insert(Node::declare_rest(
+        flush_segs()
+            .into_iter()
+            .map(|seg| (inner_row(seg.clone()), fname(c, seg)))
+            .collect(),
+    ));
+    let outer = rec.insert(Node::Boolean {
+        op: BooleanOp::Union,
+        a: inner,
+        b: c,
+        declare: Some(decl_ic),
+    });
+    let ev = run(&rec.doc);
+    assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
+    let ctx = RunCtx {
+        doc: &rec.doc,
+        eval: &ev,
+    };
+    for seg in flush_segs() {
+        let outer_row = merged(
+            outer,
+            vec![
+                from_a(outer, from_a(inner, fname(a, seg.clone()))),
+                from_a(outer, from_b(inner, fname(b, seg.clone()))),
+                from_b(outer, fname(c, seg.clone())),
+            ],
+        );
+        // The consumed operand face: the inner merge, wrapped once.
+        let consumed = from_a(outer, inner_row(seg.clone()));
+        match resolve(ctx, &consumed) {
+            Resolution::Failed(f) => assert!(
+                f.offers.contains(&outer_row),
+                "{seg:?}: the consumed inner merged face does not offer the outer row: {:?}",
+                f.offers
+            ),
+            other => panic!("{seg:?}: the consumed face resolved: {other:?}"),
+        }
+        // And a flat constituent — a name that was never a row of any
+        // table — offers the same row.
+        let constituent = from_a(outer, from_a(inner, fname(a, seg)));
+        match resolve(ctx, &constituent) {
+            Resolution::Failed(f) => assert!(f.offers.contains(&outer_row), "{:?}", f.offers),
+            other => panic!("{other:?}"),
+        }
+    }
+}
+
+/// **A merged face carried through a step as operand B, then merged
+/// again, is minted flat** — the `FromB` half of reading a name
+/// through its wrappers. A union's accumulation is always operand A
+/// and the corpus chains `Boolean { a: previous, b: new }`, so nothing
+/// else exercises it.
+#[test]
+fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
+    let doc = ProfileDoc::empty_derived("docm8_fromb", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl_ab) = insert(
+        doc,
+        Node::declare_rest(
+            flush_segs()
+                .into_iter()
+                .map(|seg| (fname(a, seg.clone()), fname(b, seg)))
+                .collect(),
+        ),
+    );
+    let (doc, inner) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl_ab),
+        },
+    );
+    // A far block, unioned with the merge as operand B, so the merged
+    // rows ride through as `mid:FromB(inner:Merged(..))`.
+    let (doc, far) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, mid) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: far,
+            b: inner,
+            declare: None,
+        },
+    );
+    let (doc, c) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
+    let carried = |seg: RoleSeg| {
+        from_b(
+            mid,
+            merged(
+                inner,
+                vec![
+                    from_a(inner, fname(a, seg.clone())),
+                    from_b(inner, fname(b, seg)),
+                ],
+            ),
+        )
+    };
+    let (doc, decl_mc) = insert(
+        doc,
+        Node::declare_rest(
+            flush_segs()
+                .into_iter()
+                .map(|seg| (carried(seg.clone()), fname(c, seg)))
+                .collect(),
+        ),
+    );
+    let (doc, outer) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: mid,
+            b: c,
+            declare: Some(decl_mc),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
+    let t = table(&ev, outer);
+    for seg in flush_segs() {
+        let want = merged(
+            outer,
+            vec![
+                from_a(outer, from_b(mid, from_a(inner, fname(a, seg.clone())))),
+                from_a(outer, from_b(mid, from_b(inner, fname(b, seg.clone())))),
+                from_b(outer, fname(c, seg.clone())),
+            ],
+        );
+        assert!(
+            matches!(t.lookup(&want), Some(Entry::Unique(_))),
+            "the FromB pass-through did not mint flat for {seg:?}: {want:?}"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------
+// The bound: merges only. Measured, not argued.
+// ---------------------------------------------------------------------
+
+/// **A declared member face SPLIT by a later member is still
+/// order-shaped** — the bound the look-through does not cross,
+/// asserted as measured. `a` and `c` meet flush along x; `s` sits on
+/// `a`'s top cap with its footprint strictly inside it, so folding `s`
+/// in fragments that cap. The orders that fold `s` last fuse; the
+/// orders that fold it before `c` refuse `Vanished` on `a`'s end cap
+/// (neither a row nor in any merged row's flat set); the orders that
+/// fold it before `a` refuse the emitter's seam-vertex `Emission`
+/// (`work/docm/two-emitter-refusals-a-legal-declared-union-reaches.md`).
+/// Filed as
+/// `work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`.
+#[test]
+fn a_member_face_split_by_a_later_member_is_still_order_shaped() {
+    let doc = ProfileDoc::empty_derived("docm8_split_order", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
+    let pairs = move |u: RecipeNodeId| {
+        let mut v = flush_pairs(u, (a, a), (c, c));
+        for seg in [wall(0), wall(2)] {
+            v.push((
+                member_face(u, a, fname(a, seg.clone())),
+                member_face(u, s, fname(s, seg)),
+            ));
+        }
+        v
+    };
+    #[derive(Debug, PartialEq)]
+    enum Outcome {
+        Fused,
+        VanishedEndCapOfA,
+        SeamVertexEmission,
+    }
+    let a_end = |u: RecipeNodeId| member_face(u, a, fname(a, RoleSeg::Cap(CapEnd::End)));
+    for (order, want) in [
+        (vec![a, c, s], Outcome::Fused),
+        (vec![c, a, s], Outcome::Fused),
+        (vec![a, s, c], Outcome::VanishedEndCapOfA),
+        (vec![s, a, c], Outcome::VanishedEndCapOfA),
+        (vec![c, s, a], Outcome::SeamVertexEmission),
+        (vec![s, c, a], Outcome::SeamVertexEmission),
+    ] {
+        let (docx, union, _) = declared_union(doc.clone(), &order, pairs);
+        let ev = run(&docx);
+        let got = match failure(&ev, union) {
+            None => Outcome::Fused,
+            Some(NodeErrorKind::DeclareResolve { error }) if matches!(&**error, ResolveError::Vanished { name, .. } if *name == a_end(union)) => {
+                Outcome::VanishedEndCapOfA
+            }
+            Some(NodeErrorKind::Naming(NamingError::Emission { what }))
+                if what.starts_with("seam vertex parentage") =>
+            {
+                Outcome::SeamVertexEmission
+            }
+            other => panic!("{order:?}: unexpected outcome {other:?}"),
+        };
+        assert_eq!(got, want, "{order:?}");
+        if got == Outcome::Fused {
+            let v = volume(&body_of(&ev, union));
+            assert!((v - 1.6).abs() < 1e-9, "{order:?}: volume {v}");
+        }
+    }
 }

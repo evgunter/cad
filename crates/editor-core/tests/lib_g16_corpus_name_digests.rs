@@ -57,10 +57,12 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// edges, in one pin.
 ///
 /// **That number moved once, at DOCM-3.** (`corner_table`'s moved
-/// when a merged face's constituent set became flat: its three
-/// legs' wall merges list the walls, not the earlier merge — see the
-/// A3 rows of `docm8_flat_merged`.) The die's cutting tool is one
-/// `Node::Union` over its 21 pips
+/// when a merged face's constituent set became flat: its legs' wall
+/// merges list the walls, not the earlier merge — one of them a
+/// merge over a merged face carried through two untouched booleans,
+/// the pass-through shape — pinned by
+/// `docm8_flat_merged::a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays`.)
+/// The die's cutting tool is one `Node::Union` over its 21 pips
 /// now instead of twenty chained pairwise unions, so every name in it
 /// below the tool is `FromMember { member, of }` — one segment, naming
 /// the pip — where it used to be a `FromA`/`FromB` descent as deep as

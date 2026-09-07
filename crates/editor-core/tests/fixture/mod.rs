@@ -605,8 +605,7 @@ pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluatio
                 .find(|c| is_merged_face(c));
             assert!(
                 nested.is_none(),
-                "node {id:?} published a merged face with a merged constituent {}: {name}",
-                nested.map(|c| c.to_string()).unwrap_or_default()
+                "node {id:?} published a merged face with a merged constituent {nested:?}: {name:?}"
             );
         }
     }

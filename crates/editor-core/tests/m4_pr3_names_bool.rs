@@ -19,7 +19,10 @@ use fixture::{ang, declare_x_offset_flush, insert, len, on_frame, scl};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3
-/// flatness rule on the way out.
+/// flatness rule on the way out. A tripwire over this suite's merged
+/// rows, not the guard: the mint refuses a nested constituent before
+/// a table is published, and the rows that carry the rule are
+/// `docm8_flat_merged`'s (the corpus walk and the mint-site rows).
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     let ev = evaluate::<f64>(
         doc,

@@ -143,11 +143,7 @@ pub(crate) fn collapse_name(
 /// segment the pair emitter does not mint.
 const FOREIGN: &str = "a union fold's table carries a segment the boolean emitter does not mint";
 
-/// The emission bug a nested merged face is: a `Merged` constituent
-/// that is itself a merged face, which the pair emitter's flat mint
-/// never produces.
-const NESTED_MERGED: &str =
-    "a union fold's table carries a merged face whose constituent is itself a merged face";
+use super::merged::NESTED_MERGED;
 
 /// One fold-table name, keyed by member.
 ///
@@ -204,18 +200,12 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // union's published table carries them.
         //
         // The constituent set is FLAT (N3): a constituent is never
-        // itself a merged face. The pair emitter's merge-group loop
-        // is the one site that decides that — an operand face that is
-        // a merged face, at any depth of descent wrapping,
-        // contributes its constituents, not its name — so a
-        // constituent that collapses to a bare merged face is a name
-        // that site never mints, and this rewrite REFUSES it as the
-        // emission bug it is rather than flattening it. Flattening
-        // here would make the accumulation's rows carry the fold
-        // tree in the one name the pair emitter is defined to keep
-        // free of it. A FRAGMENT of a merged face (`Merged` head, a
-        // `Fragment` tail) is a fragment, not a merge: a legitimate
-        // constituent, collapsed like any other.
+        // itself a bare merged face. The mint (`emit_topo`'s
+        // merge-group loop) holds that at the first door; this is the
+        // same rule read at the union's second door — a constituent
+        // that collapses to a bare merged face is refused as the
+        // emission bug it is, never flattened. A fragment of a merged
+        // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
         //
         // The sort-and-dedup makes the constituent SET the name, the
         // same choice the pair emitter's twin makes (`emit_topo.rs`,
