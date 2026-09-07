@@ -641,3 +641,123 @@ pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, 
         })
         .collect()
 }
+
+/// **No published merged face has a merged face among its
+/// constituents** — the N3 flatness rule, asserted over every name of
+/// every table an evaluation produced.
+///
+/// One walker for every suite that evaluates a document, so the rule
+/// is checked wherever a `Merged` can be minted — the pair boolean's
+/// own tables, the n-ary union's, and whatever wraps either — and not
+/// only in the rows written to look for it. The walk is over every
+/// name a segment embeds ([`embedded_names`]), so a merged face that
+/// reaches a table inside a blend's or a pattern's name is held to
+/// the same rule as one at a row's head; and a constituent is read
+/// through its descent wrappers ([`is_merged_face`]), so a merged
+/// face carried through untouched booleans before being merged again
+/// is nesting exactly as a bare one is.
+pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluation<T>) {
+    for (id, result) in &ev.nodes {
+        let editor_core::NodeResult::Ok(value) = result else {
+            continue;
+        };
+        for (name, _) in value.name_table.iter() {
+            let nested = merged_sets(name)
+                .into_iter()
+                .flat_map(|set| set.iter())
+                .find(|c| is_merged_face(c));
+            assert!(
+                nested.is_none(),
+                "node {id:?} published a merged face with a merged constituent {nested:?}: {name:?}"
+            );
+        }
+    }
+}
+
+/// True iff `name`, read through its `FromA`/`FromB` descent chain,
+/// is a bare merged face — the shape a flat constituent set never
+/// holds. A FRAGMENT of a merged face (`Merged` head with a
+/// `Fragment` tail at the foot) is a fragment, not a merge, and is a
+/// legitimate constituent.
+fn is_merged_face(name: &StableName) -> bool {
+    match name.path.as_slice() {
+        [RoleSeg::Merged(_)] => true,
+        [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)] => is_merged_face(inner),
+        _ => false,
+    }
+}
+
+/// Every `Merged` constituent set reachable from `name`, its own
+/// segments included.
+fn merged_sets(name: &StableName) -> Vec<&[StableName]> {
+    let mut out = Vec::new();
+    for seg in &name.path {
+        if let RoleSeg::Merged(set) = seg {
+            out.push(set.as_slice());
+        }
+        for inner in embedded_names(seg) {
+            out.extend(merged_sets(inner));
+        }
+    }
+    out
+}
+
+/// The names one role segment embeds — a derivation argument or a
+/// discrimination partner alike, since a merged face is held to the
+/// flatness rule wherever it is written.
+///
+/// The match is EXHAUSTIVE on purpose: a segment added to the
+/// vocabulary must be classified here before the suite compiles, so a
+/// new name-carrying segment cannot hide a merged face from the walk.
+fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
+    use editor_core::Qualifier;
+    match seg {
+        RoleSeg::FromA(x)
+        | RoleSeg::FromB(x)
+        | RoleSeg::FromMember { of: x, .. }
+        | RoleSeg::SectionEdge { face: x, .. }
+        | RoleSeg::SplitFragment { parent: x, .. }
+        | RoleSeg::CrossingVertex { edge: x, .. }
+        | RoleSeg::OnToolVertex { of: x, .. }
+        | RoleSeg::Instance { of: x, .. }
+        | RoleSeg::InPart { of: x }
+        | RoleSeg::FromTarget(x)
+        | RoleSeg::BlendFace(x)
+        | RoleSeg::CornerFace(x)
+        | RoleSeg::BandTrim { edge: x, .. }
+        | RoleSeg::BandFoot(x)
+        | RoleSeg::BandCross(x)
+        | RoleSeg::BandCut(x)
+        | RoleSeg::BandSlit(x) => vec![x.as_ref()],
+        RoleSeg::Seam { a: x, b: y }
+        | RoleSeg::TrimEdge {
+            edge: x,
+            support: y,
+        }
+        | RoleSeg::FootVertex {
+            vertex: x,
+            support: y,
+        }
+        | RoleSeg::CornerArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
+        RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
+        RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
+        RoleSeg::Fragment(Qualifier::OrderAlong { .. })
+        | RoleSeg::OutputBody
+        | RoleSeg::Cap(_)
+        | RoleSeg::Lateral(_)
+        | RoleSeg::RimEdge(..)
+        | RoleSeg::LateralEdge(_)
+        | RoleSeg::CapVertex(..)
+        | RoleSeg::Band(_)
+        | RoleSeg::BandRim(_)
+        | RoleSeg::BandRimPi(_)
+        | RoleSeg::BandPi(_)
+        | RoleSeg::Meridian(..)
+        | RoleSeg::MeridianVertex(..)
+        | RoleSeg::RevolveCap(_)
+        | RoleSeg::Pole(_)
+        | RoleSeg::AxisEdge(_)
+        | RoleSeg::SplitBody(_)
+        | RoleSeg::SectionFace { .. } => Vec::new(),
+    }
+}
