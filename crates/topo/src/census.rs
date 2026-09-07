@@ -1871,7 +1871,7 @@ fn torus_chart_window<T: Decide>(
     minor: T,
 ) -> Option<crate::boolean::boxes::TorusWindowPair<T>> {
     crate::boolean::boxes::torus_chart_window(
-        crate::boolean::boxes::face_window_steps(body, f)?,
+        &crate::boolean::boxes::face_window_steps(body, f)?,
         major,
         minor,
     )

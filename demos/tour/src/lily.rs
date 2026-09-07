@@ -4057,7 +4057,10 @@ mod verbs_gate_r1_probes {
                 0.0,
                 ring_c.z + 5.0 * theta.sin(),
             );
-            (p - on).norm() - STEM_R
+            // The UNSIGNED distance to the tube SURFACE: a point of
+            // the weld disc sits inside the tube's radius, so the
+            // signed form would report how far in, not how far off.
+            ((p - on).norm() - STEM_R).abs()
         };
         // The weld disc, sampled: its own plane's two in-plane
         // directions are ±y and the perpendicular to the end tangent.

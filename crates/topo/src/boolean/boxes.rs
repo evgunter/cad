@@ -867,6 +867,10 @@ pub(crate) fn torus_window_slack<T: Real>(
 /// window ends are tested with this rather than with
 /// [`Real::is_poison`] alone, which an infinity walks straight past on
 /// its way to a NaN sample.
+// `x − x` is the test, not a typo: it is the one expression that is
+// zero for every finite value and poison for `±∞` and for poison
+// itself, in a trait with no ordering and no `is_finite`.
+#[allow(clippy::eq_op)]
 fn not_finite<T: Real>(x: T) -> bool {
     (x - x).is_poison()
 }
@@ -1026,28 +1030,21 @@ pub(crate) fn face_window_steps<T: Real>(
 /// [`TorusChartWindow`]. A loop that yields NO half-edge (a lone
 /// vertex) abandons the window: it carries no chart image, so the walk
 /// cannot see what bounds the face's chart region.
-pub(crate) fn torus_chart_window<'a, T, L, H>(
-    loops: L,
+pub(crate) fn torus_chart_window<T: Real>(
+    loops: &[Vec<WindowStep<'_, T>>],
     major: T,
     minor: T,
-) -> Option<TorusWindowPair<T>>
-where
-    T: Real + 'a,
-    L: IntoIterator<Item = H>,
-    H: IntoIterator<Item = WindowStep<'a, T>>,
-{
+) -> Option<TorusWindowPair<T>> {
     let mut acc = TorusChartWindow::new();
     for lp in loops {
         acc.open_loop();
-        let mut any = false;
-        for step in lp {
-            any = true;
+        for &step in lp {
             acc.step(step);
         }
-        if any {
-            acc.close_loop();
-        } else {
+        if lp.is_empty() {
             acc.abandon();
+        } else {
+            acc.close_loop();
         }
     }
     acc.finish(major, minor)
@@ -1410,7 +1407,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // than narrowing it.
     let chart_window = |major: T, minor: T| -> Result<Option<TorusWindowPair<f64>>, BooleanError> {
         let steps = face_window_steps(body, face).ok_or(corrupt("face box: unwalkable loop"))?;
-        Ok(torus_chart_window(steps, major, minor).map(|(u, v)| {
+        Ok(torus_chart_window(&steps, major, minor).map(|(u, v)| {
             (
                 Span {
                     lo: u.lo.lo(),
@@ -3305,7 +3302,7 @@ mod tests {
         major: f64,
         minor: f64,
     ) -> Option<TorusWindowPair<f64>> {
-        torus_chart_window(face_window_steps(body, face)?, major, minor)
+        torus_chart_window(&face_window_steps(body, face)?, major, minor)
     }
 
     /// A torus face bounded by two LONE full-meridian circles
@@ -3460,7 +3457,7 @@ mod tests {
             // them one at a time, on real caches.
             let steps = face_window_steps(&body, face).expect("the fixture walks");
             assert!(
-                torus_chart_window(vec![steps[0].clone()], major, minor).is_none(),
+                torus_chart_window(&[steps[0].clone()], major, minor).is_none(),
                 "the WRAP guard alone must refuse the outer loop, which closes by \
                  going once round `v` (forward={forward})"
             );
@@ -3468,11 +3465,11 @@ mod tests {
                 torus_wall(center, axis, u_ref, major, minor, (0.3, 1.9), (-0.7, 0.8));
             let ok = face_window_steps(&wall, wall_face).expect("the wall walks");
             assert!(
-                torus_chart_window(vec![ok[0].clone()], major, minor).is_some(),
+                torus_chart_window(&[ok[0].clone()], major, minor).is_some(),
                 "that same wall windows as ONE loop"
             );
             assert!(
-                torus_chart_window(vec![ok[0].clone(), ok[0].clone()], major, minor).is_none(),
+                torus_chart_window(&[ok[0].clone(), ok[0].clone()], major, minor).is_none(),
                 "the RING guard alone must refuse it as TWO — a second loop can be \
                  pinned on another branch, and the hull would bound neither"
             );
