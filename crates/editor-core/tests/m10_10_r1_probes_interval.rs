@@ -1,14 +1,14 @@
 //! **R1's independent probes of M10-10**, on a document the unit never
-//! measured: an OBROUND BOSS — a racetrack outer loop of two straight
-//! legs closed by two authored-bulge semicircles — with a bore
-//! concentric with one of its end arcs, and the web between the two
-//! walls as the measure.
+//! measured: a CIRCULAR-SEGMENT BOSS — one straight chord closed by one
+//! authored-bulge MAJOR arc (`bulge = 2`, so `theta = 4*atan 2`) — with a
+//! bore inside it, and the web between the arc wall and the bore wall
+//! as the measure.
 //!
-//! It reaches the arc family by the CHAIN/BULGE route (`ArcTo { Bulge
-//! }` at bulge 1, the `SketchSegment::eval` pushforward the mechanism
-//! is about) rather than through `LoopProgram::Circle`, and its outer
-//! loop's arcs are joined to straight legs, which the plate's and the
-//! annulus's circles are not. The question every row answers is the
+//! It reaches the arc family by the CHAIN/BULGE route (`ArcTo { Bulge }`,
+//! the `SketchSegment::eval` pushforward the mechanism is about) at a
+//! bulge that is NOT the circle kernel's literal 1, which no measured
+//! document authors: the plate, the annulus and R1's split-bore disc
+//! all go through `LoopProgram::Circle`/`CircleSplit`. The question every row answers is the
 //! one the unit's acceptance asks: **what does a REAL study get today**,
 //! and is the ceiling still a multiple of ε.
 //!
@@ -40,12 +40,15 @@ use crate::fixture::Recorder;
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{bound, dials, nominal_box, render_over_band};
 
-/// The end radius's nominal, in metres.
-const END_R: f64 = 1.2e-3;
-/// The bore's nominal.
-const BORE_R: f64 = 0.5e-3;
-/// Half the distance between the two end-arc centres.
-const HALF_L: f64 = 2.0e-3;
+/// The chord half-length's nominal, in metres.
+const CHORD_HALF: f64 = 2.0e-3;
+/// The bore's nominal radius.
+const BORE_R: f64 = 0.3e-3;
+/// The authored bulge of the segment's arc — a MAJOR arc, so both
+/// junctions with the chord are corners rather than tangencies (the
+/// kernel refuses an undeclared tangency, which is how the first cut
+/// of this fixture died).
+const BULGE: f64 = 2.0;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("finite length")
@@ -59,18 +62,26 @@ fn plen(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)
 }
 
-/// **R1's obround boss**, as a function of the SCALE of its real study
-/// (`scale = 1.0` is the study a user would ask for: `end_r` uniform
-/// ±0.05 mm, `bore_r` normal at σ = 0.01 mm). Returns the document,
-/// the web measure and its assertion.
+/// **R1's circular-segment boss**, as a function of the SCALE of its
+/// real study (`scale = 1.0` is the study a user would ask for:
+/// `chord_half` uniform ±0.05 mm, `bore_r` normal at σ = 0.01 mm).
+/// Returns the document, the web measure and its assertion.
 ///
-/// The outer loop is `at(−L, −end_r) → line_to(L, −end_r) →
-/// arc_to(bulge 1 → (L, +end_r)) → line_to(−L, +end_r) → arc_to(bulge 1
-/// → start)`: two authored-bulge semicircles, each `θ = 4·atan(1)`,
-/// joined to two straight legs. The bore is concentric with the right
-/// end arc, so the web is exactly `end_r − bore_r` and its true range
-/// over the study is a closed form.
-pub(crate) fn obround(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+/// The outer loop is `at(−c, 0) → line_to(c, 0) → arc_to(bulge 2 →
+/// start)`: ONE authored-bulge major arc closing on one straight
+/// chord, with `θ = 4·atan(2)` — a turn no other M10 fixture authors
+/// (the plate, the annulus and R1's split-bore disc all go through
+/// `LoopProgram::Circle`/`CircleSplit`; the pad's arcs are fillets and
+/// the bracket's and the link's are its own). Rule D's multiple set on
+/// this document is `q = i/2` at `atan(2)` rather than at `atan(1)`,
+/// so the closed forms carry a bulge that is not the circle kernel's
+/// literal 1 and A0 cannot fold `abs(2)` into the same shape.
+///
+/// A bore sits inside the segment, off the arc's own centre, so the
+/// web is `R − d − bore_r` with `R` and the centre DERIVED from the
+/// chord and the bulge through the sagitta closed forms — the two
+/// spellings rule D is about.
+pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
@@ -85,8 +96,8 @@ pub(crate) fn obround(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     };
     declare(
         &mut r,
-        "end_r",
-        END_R,
+        "chord_half",
+        CHORD_HALF,
         Distribution::Uniform {
             lo: -5.0e-5 * scale,
             hi: 5.0e-5 * scale,
@@ -107,39 +118,29 @@ pub(crate) fn obround(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         v: [scl(0.0), scl(1.0), scl(0.0)],
     }));
 
-    let neg_r = Expr::neg(plen("end_r"));
-    let boss_loop = LoopProgram::Chain(vec![
-        ProgramStep::At([len(-HALF_L), neg_r.clone()]),
-        ProgramStep::LineTo(ProgramTarget::Point([len(HALF_L), neg_r])),
-        // Each end arc leaves its leg TANGENTIALLY — the semicircle's
-        // diameter is the leg's offset — so the junction is declared
-        // rather than measured (the kernel refuses the implicit one).
-        ProgramStep::Tangent,
+    let neg_c = Expr::neg(plen("chord_half"));
+    let seg_loop = LoopProgram::Chain(vec![
+        ProgramStep::At([neg_c, len(0.0)]),
+        ProgramStep::LineTo(ProgramTarget::Point([plen("chord_half"), len(0.0)])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point([len(HALF_L), plen("end_r")]),
-            b: scl(1.0),
-        }),
-        ProgramStep::Tangent,
-        ProgramStep::LineTo(ProgramTarget::Point([len(-HALF_L), plen("end_r")])),
-        ProgramStep::Tangent,
-        ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::StartArriving,
-            b: scl(1.0),
+            target: ProgramTarget::Start,
+            b: scl(BULGE),
         }),
     ]);
-    let boss_profile = r.insert(Node::Profile(ProfileProgram {
+    let seg_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
-        loops: vec![boss_loop],
+        loops: vec![seg_loop],
     }));
-    let thickness = Expr::div(plen("end_r"), scl(2.0)).expect("Length / Scalar");
-    let boss = r.insert(Node::Extrude {
-        profile: boss_profile,
+    let thickness = Expr::div(plen("chord_half"), scl(4.0)).expect("Length / Scalar");
+    let seg = r.insert(Node::Extrude {
+        profile: seg_profile,
         distance: thickness.clone(),
     });
+    let bore_centre_y = Expr::mul(plen("chord_half"), scl(0.2)).expect("Length * Scalar");
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Circle {
-            centre: [len(HALF_L), len(0.0)],
+            centre: [len(0.0), bore_centre_y],
             radius: plen("bore_r"),
         }],
     }));
@@ -157,7 +158,7 @@ pub(crate) fn obround(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             tol,
         );
         let env = r.doc.param_env::<f64>();
-        let walls = |node: RecipeNodeId| {
+        let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
                 node,
@@ -171,49 +172,38 @@ pub(crate) fn obround(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             .expect("the surface-kind atom is exact");
             faces.sort();
             assert!(!faces.is_empty(), "{node:?} has a cylindrical wall");
-            faces
+            SitedRef::new(node, faces.remove(0))
         };
-        let boss_walls = walls(boss);
-        println!(
-            "R1 obround: {} cylindrical walls on the boss, {} on the bore",
-            boss_walls.len(),
-            walls(bore).len()
-        );
-        // The boss's two end arcs are its cylindrical walls; the one
-        // concentric with the bore is whichever the selector lists
-        // last (the loop is walked from the left end).
-        let end = boss_walls.last().expect("an end arc").clone();
-        let bore_wall = walls(bore)[0].clone();
-        vec![SitedRef::new(boss, end), SitedRef::new(bore, bore_wall)]
+        vec![wall(seg), wall(bore)]
     };
     let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: len(0.6e-3),
+        bound: len(0.25e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });
     (r.doc, measure, assertion)
 }
 
 /// **THE E2E EXERCISE — what a real study gets today on a document
-/// nobody tuned for.** The obround's real study driven whole with the
+/// nobody tuned for.** The segment boss's real study driven whole with the
 /// algebra ON and OFF, with the receipt, the stackup, the assertion and
 /// the cost; then the whole-certifying bracket under both rule sets,
 /// the over-band SET at its refusing end (ceiling + δ, never a
 /// multiple), and the same set at the certifying end for contrast.
 #[test]
-#[ignore = "evidence-only: R1's own end-to-end obround study"]
-fn r1_the_obrounds_real_study_end_to_end() {
+#[ignore = "evidence-only: R1's own end-to-end circular-segment study"]
+fn r1_the_segment_bosss_real_study_end_to_end() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let at = |s: f64| obround(s, tol).0;
+    let at = |s: f64| segment_boss(s, tol).0;
 
     for (label, rules) in [
         ("algebra OFF", SymRules::without_the_algebra()),
         ("shipped    ", SymRules::shipped()),
     ] {
-        let (doc, measure, assertion) = obround(1.0, tol);
+        let (doc, measure, assertion) = segment_boss(1.0, tol);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let t = Instant::now();
         let v = drive(
@@ -252,6 +242,13 @@ fn r1_the_obrounds_real_study_end_to_end() {
                     tol,
                 );
                 println!("   assertion at the root box: {a:?}");
+                let (shapes, refusal, _) =
+                    replay(&doc, &ParamBox::of(&analyzed), rules, tol);
+                println!("   whole-study replay stops at {refusal:?}");
+                println!(
+                    "{}",
+                    render_over_band(&crate::m10_8_harness::over_band_set(&shapes))
+                );
             }
         }
     }
@@ -262,7 +259,7 @@ fn r1_the_obrounds_real_study_end_to_end() {
         ("shipped    ", SymRules::shipped()),
     ] {
         let t = Instant::now();
-        let (lo, hi, set) = bound(&at, rules, tol, 1.0e-2, 1.0e6, 16);
+        let (lo, hi, set) = bound(&at, rules, tol, 1.0e-11, 1.0e2, 20);
         println!(
             "== CEILING {label}: certifies x{lo:.4e}, refuses x{hi:.4e} \
              [= {:.4e}·eps .. {:.4e}·eps] in {:.1}s",
@@ -296,15 +293,15 @@ fn r1_the_obrounds_real_study_end_to_end() {
     }
 }
 
-/// **The per-predicate split at the obround's nominal**, algebra off and
+/// **The per-predicate split at the segment boss's nominal**, algebra off and
 /// on — which of the arc family's identity residuals rule D and the
 /// door reach on a document authored through the chain vocabulary
 /// rather than through `LoopProgram::Circle`.
 #[test]
-#[ignore = "evidence-only: R1's obround, per predicate at the nominal"]
-fn r1_the_obrounds_per_predicate_split_at_the_nominal() {
+#[ignore = "evidence-only: R1's circular-segment boss, per predicate at the nominal"]
+fn r1_the_segment_bosss_per_predicate_split_at_the_nominal() {
     let tol = Tol::witness();
-    let (doc, _, _) = obround(1.0, tol);
+    let (doc, _, _) = segment_boss(1.0, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let nominal = nominal_box(&analyzed);
     for (label, rules) in [
