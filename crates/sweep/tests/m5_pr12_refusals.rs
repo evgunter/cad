@@ -20,7 +20,7 @@ use sweep::blend::battery::{
 };
 use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, FaceKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, FaceSurface, VertexKey};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -528,6 +528,124 @@ fn trio_corner_independence() {
         }
         other => panic!("an in-band determinant must escalate, got {other:?}"),
     }
+}
+
+/// A cylinder whose top cap sits on a plane tilted off the rim
+/// circle's axis, so the cap–wall pair's two stored axes part by
+/// `departure` meters at the rim's own lever arm — the quantity
+/// `fillet3_support_coaxiality` meters.
+///
+/// The tilt is written through `topo`'s face-surface door because no
+/// BUILDER mints a parted curved pair: extrude derives the wall's axis
+/// and the cap's normal from one sketch normal, so every pair it
+/// builds is coaxial exactly and the predicate reads Zero. The blend
+/// is still asked for through the public battery, on a real body.
+fn tilted_cap(departure: f64) -> (Body<f64>, EdgeKey) {
+    let mut body = cylinder();
+    // The TOP rim: the arc whose stored carrier circle is the raised
+    // one. Its lever arm is that circle's own radius.
+    let (rim, lever) = body
+        .edges()
+        .find_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            match c.carrier() {
+                geom::Curve3::Circle { center, radius, .. } if center.z > 0.5 => {
+                    Some((k, *radius))
+                }
+                _ => None,
+            }
+        })
+        .expect("the raised rim of an extruded circle");
+    let sides = {
+        let e = body.get_edge(rim).expect("the rim resolves");
+        [e.he_plus, e.he_minus]
+    };
+    let cap = sides
+        .into_iter()
+        .find_map(|he| {
+            let h = body.get_half_edge(he)?;
+            let f = body.get_loop(h.parent_loop)?.face;
+            matches!(
+                body.get_surface(body.get_face(f)?.surface)?,
+                geom::Surface::Plane { .. }
+            )
+            .then_some(f)
+        })
+        .expect("the cap side of the rim");
+    let geom::Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    } = *body
+        .get_surface(body.get_face(cap).expect("the cap resolves").surface)
+        .expect("the cap's plane")
+    else {
+        panic!("the cap side is a plane")
+    };
+    // A turn about the plane's own `u_ref` keeps the frame orthonormal
+    // and right-handed, and parts the normal from the rim's axis by
+    // exactly `departure` at the lever arm.
+    let theta = (departure / lever).asin();
+    let tilted = geom::Surface::Plane {
+        origin,
+        normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
+        u_ref,
+    };
+    body.set_face_surface(cap, FaceSurface::New(tilted))
+        .expect("a plane for a planar cap");
+    (body, rim)
+}
+
+/// The battery's verdict on one rim of [`tilted_cap`]'s body.
+fn cap_rim_verdict(body: &Body<f64>, rim: EdgeKey) -> Result<(), BlendError> {
+    run_battery(
+        &BlendRequest {
+            body,
+            edges: vec![rim],
+            size: 0.05,
+        },
+        band(),
+    )
+    .map(|_| ())
+}
+
+#[test]
+fn trio_support_coaxiality() {
+    // Definitely parted: a millimetre off the axis at the rim's lever.
+    let (body, rim) = tilted_cap(1e-3);
+    let definite = cap_rim_verdict(&body, rim).unwrap_err();
+    assert!(
+        matches!(definite, BlendError::SpineUnsupported { .. }),
+        "a definitely non-coaxial pair is refused, not escalated: {definite:?}"
+    );
+    // Exactly on: the untouched extrusion, whose cap normal IS the
+    // wall's axis — the hypothesis holds, so the pair is not a
+    // coaxiality question at all (the polarity a coincidence
+    // predicate inverts, as `trio_chain_g1` records).
+    let (body, rim) = tilted_cap(0.0);
+    let exact = cap_rim_verdict(&body, rim);
+    let parted = match &exact {
+        Err(BlendError::SpineUnsupported { .. }) => true,
+        Err(BlendError::Escalated { source, .. }) => {
+            source.predicate == Some("fillet3_support_coaxiality")
+        }
+        _ => false,
+    };
+    assert!(
+        !parted,
+        "an exactly coaxial pair is not a coaxiality question: {exact:?}"
+    );
+    // In band: a departure strictly inside (ε, K·ε).
+    let (body, rim) = tilted_cap(in_band());
+    let escalated = cap_rim_verdict(&body, rim).unwrap_err();
+    match &escalated {
+        BlendError::Escalated {
+            site: BlendSite::Chain,
+            source,
+        } => assert_eq!(source.predicate, Some("fillet3_support_coaxiality")),
+        other => panic!("an in-band departure must escalate at the chain, got {other:?}"),
+    }
+    assert_same_recourse(&definite, &escalated, "canal-surface approximating blend");
 }
 
 /// **Every recourse sentence composes into a message.** A recourse is
