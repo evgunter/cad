@@ -256,3 +256,48 @@ bare `crates/viewer/src/pick.rs`, and each moved type name — and
 checked each hit's item status before deciding. What it still cannot
 reach is a row that names the module in prose without a path or a
 symbol, which is precisely the `session::op` README row's shape.
+
+## Three classes the line-number sweep cannot fix, from #2103's fix pass
+
+#2103's fix pass re-derived every `<file>.rs:<line>` citation in
+`work/view/`'s open items into the five files that PR changed:
+**25 citations corrected across 12 items, and 20 of the 25 were
+already wrong at the merge base** — `frame.rs:1440` was `:1537` and
+`frame.rs:1652` was `:1784`, both off by roughly eighty lines. So the
+general case this row names is not a residue of one split; it is the
+tracker's steady state between sweeps, and a sweep that runs only when
+a PR moves code will always find more than that PR moved.
+
+The same pass hit three citations it could not repair, and each is a
+different reason:
+
+**1. A citation whose SUBJECT is gone, not moved.**
+`work/view/cursor-projection-is-f32-in-a-module-whose-matrices-are-f64.md:16`
+cites `camera.rs:878-881` for a quoted passage — *"the matrix it
+transforms is the one `Camera::view_projection` produces…"* — that
+exists nowhere in the repository, at `e42cb5e46` or at head, checked
+over `crates/` and `docs/` at both. Re-deriving it needs a judgement
+about what the author meant, and guessing is #2083's defect in the
+other direction: a citation repaired to point somewhere plausible is
+worse than one visibly broken.
+
+**2. A citation into a file the sweeping PR did not touch.**
+`work/view/free-move-drag-dissolved-by-open.md:18` cites
+`session.rs:1319` for `clear_for_new_document`, which is at
+`session.rs:1583`. Nothing was wrong with the sweep — `session.rs` was
+simply outside its five files. **A citation sweep scoped to a PR's own
+diff cannot converge**, because the rows it leaves are the ones no
+future PR has a reason to look at either.
+
+**3. Text that is not a citation at all.**
+`work/view/vocabulary-macro-bodies-are-outside-rustfmt.md:27` embeds a
+pasted `cargo fmt` diff header (`Diff in crates/viewer/src/blend.rs:173:`).
+It is a captured tool transcript recording what the tool said at the
+time, and repointing it would fabricate output. A sweep that matches on
+`<file>.rs:<line>` cannot tell this shape from a citation, so it must
+be able to leave one alone — which means the sweep needs a disposition
+step and not only a matcher.
+
+Class 3 is the one that constrains the fix: any mechanical repointer
+built for this row will match transcripts, and a repointer that edits
+them is worse than no repointer.
