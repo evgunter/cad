@@ -1,7 +1,7 @@
 ---
 id: field-censuses-inside-view-survived-the-debug-sweep
 kind: issue
-title: seven hand-listed field censuses inside crates/viewer/src, across four hats, are the same class and were not swept
+title: eight hand-listed field censuses inside crates/viewer/src, across four hats, are the same class and were not swept
 status: closed
 opened: 2026-09-06
 refs: [2093]
