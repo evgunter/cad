@@ -359,3 +359,17 @@ recommended: `InstantiatePart` is a leaf whose body is
 placement-independent, so its reach from the part-local origin is a
 function of pinned content and reaches the solve without a
 wire-format change. `needs_ev: true` on the item.
+
+## The lever ruled; MSOLVE-6 specified and dispatched (2026-09-07)
+
+Ev ruled option B on PR 2086 after a reminder of A11's context (the
+five rules; "nothing in the walk is evaluated"; A11 never spoke of
+the lever's source). `docs/MSOLVE-6-SPEC.md`: the lever is
+`(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored lengths|`, each
+`R` the part body's reach from its own origin through the measure
+site's `reach_of`, read through one trait the evaluation implements
+lazily over the `PartCache`; the metre and the micron floor retire;
+A11 gains one sentence. Stop clauses: a corpus part with a face no
+bound can be stated for; a k-lint or decision-log row moved by
+evaluating a part before the first node. Rides PR 2086 with the
+ruling; the lane reads the spec from this branch until it lands.

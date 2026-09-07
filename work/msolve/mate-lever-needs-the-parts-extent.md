@@ -2,9 +2,10 @@
 id: mate-lever-needs-the-parts-extent
 kind: issue
 title: A mate's lever arm cannot reach the mated parts' extent
-status: open
+status: parked
 opened: 2026-09-03
-needs_ev: true
+needs_ev: false
+blocked_on: [MSOLVE-6]
 ---
 
 ERROR-DESIGN E3's amendment (ratified at revision E12) replaces the
@@ -51,3 +52,16 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Ruled (2026-09-07, PR 2086)
+
+Ev, on the `[ev]` PR: option B — the mated part's extent is resolved
+from its own evaluated body (an upper bound on the reach from the
+part-local origin, through the measure site's `reach_of`), reaches
+the solve through one reach trait the evaluation implements over the
+`PartCache`, and enters only as the lever a parallelism verdict is
+decided over. `SESSION_SCALE` and the micron floor retire at the mate
+site; A11 gains one sentence saying the solve reads no geometry
+except each mated part's own extent. The alternatives (an extent
+authored beside the datum; E3 revised to keep the session box) are
+rejected on the PR. Parked on MSOLVE-6, which lands it.
