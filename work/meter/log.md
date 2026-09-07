@@ -197,3 +197,33 @@ treatment the discipline asks of a lane's sweep — **state what the
 pattern could not match, before handing it over** — and a claim that an
 artefact has DRIFTED names the alternative hypothesis (it was correct
 for an older vocabulary) and says what would discriminate them.
+
+## D201 ruled: arm A, and it merges into D206's re-cut (2026-09-07)
+
+Ev on PR 2109: *"A works, but also it's a demo so it doesn't matter
+much"*. **Arm A** — the sweep reaches the `StableName` that already
+exists, `SceneBody` carries the evaluation, `tools/tess-meter` writes
+the column. `D201`'s `kind` moves `issue` → `unit`, which its own kind
+note said would happen once the design question was settled, and
+`needs_ev` is cleared. The program now has **no open Ev question**.
+
+The second clause is read as a scoping instruction: the unmeasured
+count (how many tour scenes can hand over an evaluation) does not gate
+the arm, an honestly ABSENT name on a scene that cannot is acceptable,
+and the `demos/` seam with Track X is drawn in the landing PR rather
+than asked about. No lane will be spent making tour scenes
+document-built to fill the column.
+
+**Sequencing decision, taken rather than asked.** `D201`'s column and
+`D206`'s constant both force a re-cut of
+`docs/tess-budget-data/tess-budget-baseline.csv`, and a re-cut is a
+full release sweep over every tour scene plus a PROPS coordination
+round. Landing them in plan order buys two of each for changes that fit
+in one, so **they become a single unit 6**, separable in the diff, with
+the sweep taken once after both are in. The column is also not additive
+the way it looks: `tools/tess-lint` pins column POSITIONS against
+`EXPECTED_HEADER`, so inserting one moves the blocks the parser
+polices, and both census tests re-derive — which is a second reason to
+pay that cost once. `D206` keeps the full falsification review the
+posture assigns it; `D201`'s half takes the style lane. Unit 8 shrinks
+to `C15` discharged by reading the new column.

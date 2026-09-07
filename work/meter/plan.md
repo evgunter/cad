@@ -81,19 +81,33 @@ budget data is a PROPS coordination, not a lane's call.
 5. `k-lint-predicate-roster-unpinned` — the `EPS_COUPLED_PREDICATES`
    roster pinned to the kernel's minted names in one direction; the
    PROPS seam drawn in the PR.
-6. `D206` — `SPLIT_SCAN_SAMPLES` raised to put the envelope under the
-   gate's margin, and the re-cut coordinated with PROPS.
+6. **`D206` + `D201` — ONE re-cut, not two.** `D206` raises
+   `SPLIT_SCAN_SAMPLES`; `D201` (ruled arm A by Ev, 2026-09-07) adds
+   the per-face `StableName` column. Both force a re-cut of
+   `docs/tess-budget-data/tess-budget-baseline.csv`, each a full
+   release sweep over every tour scene and each its own PROPS
+   coordination — so they land together, separable in the diff, with
+   the sweep taken once after both are in. Note the column is NOT
+   additive: `tools/tess-lint` pins column positions
+   (`IDENTITY_FIRST`, `SIZING_FIRST`, `DEV_SAMPLES`,
+   `INDICATOR_FIRST`) against `EXPECTED_HEADER`, so inserting one
+   moves the blocks the parser polices, and both census tests
+   re-derive. `D206` carries the program's full falsification review;
+   `D201`'s half takes the style lane, and Ev's *"it's a demo so it
+   doesn't matter much"* is a scoping instruction — an honestly ABSENT
+   name on a scene that cannot hand over an evaluation is an
+   acceptable outcome, not a reason to widen the lane into `demos/`.
 7. `k-report-baseline-fold-cert1-roster` — the next K-REPORT baseline
    re-derivation, folding `props_meridian_pole` and the re-shaped
    sphere rim margins; a runbook pass.
-8. `D201` → `C15` — the stable face-identity question (what a DURABLE
-   per-face name is, reaching `topo/src/entity.rs` and `demos/`; an
-   issue with a fence before a lane), then the meter emits it, then
-   `C15`'s residue is discharged by reading it. This is the program's
-   one Ev-gated fork and its long pole: `D201` goes out as an `[ev]` PR
-   before the slate's cheap end is exhausted, so the answer is in hand
-   when the lane is free. Unit 0 has already taken the tripwire half
-   that used to sit under this step.
+8. `C15` — discharged by READING the column unit 6 lands. The row's
+   residue is the same-shape face pairs the CSV could not tell apart;
+   once a `StableName` is in the sweep the census re-derives and the
+   row closes on evidence rather than on argument. Nothing here is a
+   design question any more: `D201` was the fork, Ev ruled it arm A on
+   2026-09-07 (PR 2109), and the implementation moved up into unit 6
+   to share its re-cut. Unit 0 took the tripwire half that used to sit
+   under this step.
 
 ## Exit shape
 
