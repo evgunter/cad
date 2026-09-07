@@ -715,13 +715,12 @@ pub enum Datum {
         /// **What a spin of zero means**, since this is measured FROM
         /// the carrier's stored `u_ref` and that reference is a
         /// convention: the frame the carrier stores is
-        /// `Vec3::orthonormal_basis`'s — the normal crossed with the
-        /// world axis of its smallest-magnitude component, ties to the
-        /// highest index (`z` before `y` before `x`), normalized. On a
-        /// vertical WALL that is the in-plane horizontal `(−n.y, n.x,
-        /// 0)`, so sketch +x runs level and sketch +y runs up; on a
-        /// horizontal CAP the tie at zero takes `k = y`, so sketch +x
-        /// is `±e_x` and +y is `e_y`. A carrier whose `u_ref` came from
+        /// `Vec3::orthonormal_basis`'s — the normal crossed with `e_z`
+        /// when `|n.z| ≤ max(|n.x|, |n.y|)` and with `e_y` otherwise,
+        /// normalized. On a vertical WALL that is the in-plane
+        /// horizontal `(−n.y, n.x, 0)`, so sketch +x runs level and
+        /// sketch +y runs up; on a horizontal CAP it is `±e_x`, with
+        /// sketch +y along `e_y`. A carrier whose `u_ref` came from
         /// somewhere else — an imported placement, say — is read as it
         /// is stored, and zero spin means that reference.
         spin: Expr,

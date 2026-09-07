@@ -20,11 +20,12 @@
 //! issue 1191's class.
 //!
 //! Every carrier is measured in its STORED chart. A planar face's
-//! `u_ref` is the axis-order orthonormal basis's, which decides at the
-//! equator — a vertical wall's `|n.z|` is the strict smallest magnitude
-//! — so a wall stores an exact in-plane horizontal and the engine has
-//! nothing to re-chart around. The `refines` door stays: it refuses a
-//! chart that halving cannot narrow, whatever made it wide.
+//! `u_ref` comes from the orthonormal basis's world-axis comparison,
+//! `|n.z| ≤ max(|n.x|, |n.y|)`, which decides at the equator — a
+//! vertical wall's `|n.z|` is zero and the other two are not — so a
+//! wall stores an exact in-plane horizontal and the engine has nothing
+//! to re-chart around. The `refines` door stays: it refuses a chart
+//! that halving cannot narrow, whatever made it wide.
 //!
 //! A rigid translation keeps the rest clean: its rotation is the
 //! identity, so every stored direction passes through exactly. It does

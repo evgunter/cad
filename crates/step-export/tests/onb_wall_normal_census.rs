@@ -30,51 +30,57 @@ use geom::Surface;
 use geom_core::{Tol, Vec3};
 use step_export::{StepOptions, step_string};
 
-/// The axis order's decision, at `f64`: which world axis the normal is
-/// crossed with, and whether the two smallest magnitudes TIE exactly.
+/// The world-axis choice, at `f64`: which axis the normal is crossed
+/// with, and whether it sits exactly ON the comparison's seam.
 ///
-/// The tie set is the construction's discontinuity, so an exact tie is
-/// the class that matters: at `f64` and at a point enclosure it DECIDES
-/// (the tie-break keys on the value, not on a zero's sign bit), and it
-/// is the only class an enclosure of positive width can fail to decide.
-/// Every axis-aligned normal is on it — two components exactly zero.
+/// The seam `|n.z| = max(|n.x|, |n.y|)` is the construction's one
+/// discontinuity — the 45° cone — and it is the only class an enclosure
+/// of positive width can fail to decide. No axis direction and no
+/// axis-aligned face is on it, which is the property the census is here
+/// to measure rather than assert.
 #[derive(Default, Clone, Copy)]
 struct TieClasses {
-    exact_tie: usize,
-    separated: usize,
-    by_axis: [usize; 3],
+    on_seam: usize,
+    off_seam: usize,
+    e_z_arm: usize,
+    e_y_arm: usize,
+    /// The same count for the rule this construction did NOT take: an
+    /// order over all THREE components, whose tie set is where the two
+    /// smallest magnitudes are equal. Every axis-aligned normal is on
+    /// that one, which is why it is not the rule.
+    three_way_tie: usize,
 }
 
 impl TieClasses {
     fn add(&mut self, n: Vec3<f64>) {
-        let (ax, ay, az) = (n.x.abs(), n.y.abs(), n.z.abs());
-        let k = if az <= ay && az <= ax {
-            2
-        } else if ay <= ax {
-            1
+        let other = n.x.abs().max(n.y.abs());
+        if n.z.abs() <= other {
+            self.e_z_arm += 1;
         } else {
-            0
-        };
-        self.by_axis[k] += 1;
-        let mut m = [ax, ay, az];
+            self.e_y_arm += 1;
+        }
+        if n.z.abs() == other {
+            self.on_seam += 1;
+        } else {
+            self.off_seam += 1;
+        }
+        let mut m = [n.x.abs(), n.y.abs(), n.z.abs()];
         m.sort_by(f64::total_cmp);
         if m[0] == m[1] {
-            self.exact_tie += 1;
-        } else {
-            self.separated += 1;
+            self.three_way_tie += 1;
         }
     }
 
     fn merge(&mut self, o: TieClasses) {
-        self.exact_tie += o.exact_tie;
-        self.separated += o.separated;
-        for k in 0..3 {
-            self.by_axis[k] += o.by_axis[k];
-        }
+        self.on_seam += o.on_seam;
+        self.off_seam += o.off_seam;
+        self.e_z_arm += o.e_z_arm;
+        self.e_y_arm += o.e_y_arm;
+        self.three_way_tie += o.three_way_tie;
     }
 
     fn planes(&self) -> usize {
-        self.exact_tie + self.separated
+        self.on_seam + self.off_seam
     }
 }
 
@@ -83,8 +89,10 @@ impl TieClasses {
 #[test]
 #[ignore = "tie census instrument; run explicitly"]
 fn axis_tie_census_over_the_fixture_corpus() {
-    println!("| fixture | planes | on an exact tie | separated | k = x | k = y | k = z |");
-    println!("| --- | --- | --- | --- | --- | --- | --- |");
+    println!(
+        "| fixture | planes | on the seam | off it | e_z arm | e_y arm | on a three-way tie |"
+    );
+    println!("| --- | --- | --- | --- | --- | --- | --- | --- |");
     let mut total = TieClasses::default();
     for (name, body) in common::fixture_corpus() {
         let mut c = TieClasses::default();
@@ -97,21 +105,21 @@ fn axis_tie_census_over_the_fixture_corpus() {
         println!(
             "| {name} | {} | {} | {} | {} | {} | {} |",
             c.planes(),
-            c.exact_tie,
-            c.separated,
-            c.by_axis[0],
-            c.by_axis[1],
-            c.by_axis[2]
+            c.on_seam,
+            c.off_seam,
+            c.e_z_arm,
+            c.e_y_arm,
+            c.three_way_tie
         );
     }
     println!(
         "| **step-export corpus** | {} | {} | {} | {} | {} | {} |",
         total.planes(),
-        total.exact_tie,
-        total.separated,
-        total.by_axis[0],
-        total.by_axis[1],
-        total.by_axis[2]
+        total.on_seam,
+        total.off_seam,
+        total.e_z_arm,
+        total.e_y_arm,
+        total.three_way_tie
     );
 }
 
@@ -200,7 +208,7 @@ fn the_direction_records_every_stored_frame_is_written_to() {
     println!(
         "| fixture | normal | stored u_ref | minted by the constructor? | on a tie? | `u_ref` DIRECTION record(s) |"
     );
-    println!("| --- | --- | --- | --- | --- | --- |");
+    println!("| --- | --- | --- | --- | --- | --- | --- |");
     for (name, body) in common::fixture_corpus() {
         let text = step_string(&body, &StepOptions::default(), tol).expect("fixture exports");
         for (_, surface) in body.surfaces() {

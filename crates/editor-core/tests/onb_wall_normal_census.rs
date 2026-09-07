@@ -28,51 +28,57 @@ use editor_core::{
 use geom::Surface;
 use geom_core::{Tol, Vec3};
 
-/// The axis order's decision, at `f64`: which world axis the normal is
-/// crossed with, and whether the two smallest magnitudes TIE exactly.
+/// The world-axis choice, at `f64`: which axis the normal is crossed
+/// with, and whether it sits exactly ON the comparison's seam.
 ///
-/// The tie set is the construction's discontinuity, so an exact tie is
-/// the class that matters: at `f64` and at a point enclosure it DECIDES
-/// (the tie-break keys on the value, not on a zero's sign bit), and it
-/// is the only class an enclosure of positive width can fail to decide.
-/// Every axis-aligned normal is on it — two components exactly zero.
+/// The seam `|n.z| = max(|n.x|, |n.y|)` is the construction's one
+/// discontinuity — the 45° cone — and it is the only class an enclosure
+/// of positive width can fail to decide. No axis direction and no
+/// axis-aligned face is on it, which is the property the census is here
+/// to measure rather than assert.
 #[derive(Default, Clone, Copy)]
 struct TieClasses {
-    exact_tie: usize,
-    separated: usize,
-    by_axis: [usize; 3],
+    on_seam: usize,
+    off_seam: usize,
+    e_z_arm: usize,
+    e_y_arm: usize,
+    /// The same count for the rule this construction did NOT take: an
+    /// order over all THREE components, whose tie set is where the two
+    /// smallest magnitudes are equal. Every axis-aligned normal is on
+    /// that one, which is why it is not the rule.
+    three_way_tie: usize,
 }
 
 impl TieClasses {
     fn add(&mut self, n: Vec3<f64>) {
-        let (ax, ay, az) = (n.x.abs(), n.y.abs(), n.z.abs());
-        let k = if az <= ay && az <= ax {
-            2
-        } else if ay <= ax {
-            1
+        let other = n.x.abs().max(n.y.abs());
+        if n.z.abs() <= other {
+            self.e_z_arm += 1;
         } else {
-            0
-        };
-        self.by_axis[k] += 1;
-        let mut m = [ax, ay, az];
+            self.e_y_arm += 1;
+        }
+        if n.z.abs() == other {
+            self.on_seam += 1;
+        } else {
+            self.off_seam += 1;
+        }
+        let mut m = [n.x.abs(), n.y.abs(), n.z.abs()];
         m.sort_by(f64::total_cmp);
         if m[0] == m[1] {
-            self.exact_tie += 1;
-        } else {
-            self.separated += 1;
+            self.three_way_tie += 1;
         }
     }
 
     fn merge(&mut self, o: TieClasses) {
-        self.exact_tie += o.exact_tie;
-        self.separated += o.separated;
-        for k in 0..3 {
-            self.by_axis[k] += o.by_axis[k];
-        }
+        self.on_seam += o.on_seam;
+        self.off_seam += o.off_seam;
+        self.e_z_arm += o.e_z_arm;
+        self.e_y_arm += o.e_y_arm;
+        self.three_way_tie += o.three_way_tie;
     }
 
     fn planes(&self) -> usize {
-        self.exact_tie + self.separated
+        self.on_seam + self.off_seam
     }
 }
 
@@ -92,7 +98,7 @@ fn eval(doc: &editor_core::ProfileDoc) -> editor_core::Evaluation<f64> {
 #[ignore = "wall-normal census instrument; run explicitly"]
 fn axis_tie_census_over_the_band4_corpus() {
     println!(
-        "| document | bodies | planes | on an exact tie | separated | k = x | k = y | k = z |"
+        "| document | bodies | planes | on the seam | off it | e_z arm | e_y arm | on a three-way tie |"
     );
     println!("| --- | --- | --- | --- | --- | --- | --- | --- |");
     let mut total = TieClasses::default();
@@ -117,11 +123,11 @@ fn axis_tie_census_over_the_band4_corpus() {
             "| {} | {bodies} | {} | {} | {} | {} | {} | {} |",
             doc.name,
             c.planes(),
-            c.exact_tie,
-            c.separated,
-            c.by_axis[0],
-            c.by_axis[1],
-            c.by_axis[2]
+            c.on_seam,
+            c.off_seam,
+            c.e_z_arm,
+            c.e_y_arm,
+            c.three_way_tie
         );
         total.merge(c);
         bodies_total += bodies;
@@ -130,11 +136,11 @@ fn axis_tie_census_over_the_band4_corpus() {
     println!(
         "| **Band 4 corpus ({docs} documents)** | {bodies_total} | {} | {} | {} | {} | {} | {} |",
         total.planes(),
-        total.exact_tie,
-        total.separated,
-        total.by_axis[0],
-        total.by_axis[1],
-        total.by_axis[2]
+        total.on_seam,
+        total.off_seam,
+        total.e_z_arm,
+        total.e_y_arm,
+        total.three_way_tie
     );
 }
 
@@ -152,7 +158,7 @@ fn face_frames_and_the_faces_they_could_sit_on() {
     println!(
         "| document | frame node | at | named faces on `at` | `at` planes | of those, on a tie |"
     );
-    println!("| --- | --- | --- | --- | --- | --- |");
+    println!("| --- | --- | --- | --- | --- | --- | --- |");
     let mut frames = 0usize;
     let mut on_tie_bodies = 0usize;
     for doc in corpus::documents() {
@@ -171,7 +177,7 @@ fn face_frames_and_the_faces_they_could_sit_on() {
                     }
                 }
             }
-            if c.exact_tie > 0 {
+            if c.on_seam > 0 {
                 on_tie_bodies += 1;
             }
             println!(
@@ -180,7 +186,7 @@ fn face_frames_and_the_faces_they_could_sit_on() {
                 id.0,
                 at.0,
                 c.planes(),
-                c.exact_tie
+                c.on_seam
             );
         }
     }
