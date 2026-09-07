@@ -181,6 +181,32 @@ invariant that survives is *the count must not move against your own
 merge base* — checked here as `#[test]` at 533 on both sides. A number
 in a brief goes stale the moment anything else lands.
 
+**A universal in prose owes the sweep rule that produces its
+population, written at the sentence.** #2103's style review found no
+broken code and four broken sentences, and the two that mattered were
+both universals: *"Every place in this crate that lists a value's
+fields by hand destructures the value instead"* (false —
+`BlendTool::clear`, two fields named by hand, in a file the PR edited)
+and *"every other one is over an enum and is exhaustive by its `match`
+already"* (false as an argument, because a `match` is exhaustive over
+VARIANTS and the class is FIELDS — `Display for CameraOp` drops
+`bounds` behind an unargued `..`). A sentence that certifies a
+population is where the next defect hides, because it tells the reader
+to stop looking. The sweep rule is what makes it falsifiable, and it
+belongs beside the claim rather than in the PR body that gets thrown
+away.
+
+**Settle a CI-scope question by RUNNING the filter, not by reading a
+manifest.** The same review reported `prose_census` as possibly sited
+where it cannot fire on its own inputs — its subject is every `Display`
+in the tree, its trigger looked like `pncad-py`'s dependent closure.
+The coupling was described exactly and the disposition was wrong:
+`crates/pncad-py/src/prose_census.rs:168-170` walks from the repository
+root, and `scripts/ci-filter.py:624-627` pins any crate whose read
+lands at the root into every non-docs closure, by construction. Two
+commands answered what the dependency graph could not. Counterpart to
+*prove a claim by compiling, not by grepping*.
+
 **Check the arithmetic, including the orchestrator's.** Five counts
 came back wrong across this wave — four from lanes (a receipt's `60`
 with no enumeration rule, "six move by -13" for five, "twelve lines"
