@@ -227,3 +227,53 @@ polices, and both census tests re-derive — which is a second reason to
 pay that cost once. `D206` keeps the full falsification review the
 posture assigns it; `D201`'s half takes the style lane. Unit 8 shrinks
 to `C15` discharged by reading the new column.
+
+## Unit 0 CLOSED and merged (2026-09-07)
+
+PR 2111 merged at `876bb74bd`, green on the full code tier (34 checks,
+12 `test (…)` jobs, 5 `k-lint (gate, …)` unifications). The first unit
+off this slate. `tess-lint-face-ordinal-join` is closed; the decision
+stands as **an ungated re-key is a NOTE**, with the rule-5 disanalogy
+and the accepted cost written at the site.
+
+The fix pass answered all 19 style findings and improved on two of
+them rather than patching what was reported:
+
+- The dead `noted.len() == 60` was **deleted, not repaired**, on the
+  right ground: 60 is `72 − 12` by construction, so no assertion over
+  it is reachable. Its replacement asserts the **twelve gating scenes
+  by NAME**, which is the stronger pin the sibling census in the same
+  file already used, and which answers the "named after a conclusion"
+  and "names computed and discarded" findings at the same time.
+- `Row::is_sized()` gives the four spellings of "carries a sized face"
+  one home — after the sweep the only `nurbs.is_some()` in `tools/` is
+  inside its body. The scene-level spelling genuinely cannot share it
+  (summed cell counts), and its agreement rested only on `parse`'s
+  cell-count floor, so that agreement is now ASSERTED over the whole
+  committed corpus instead of written down in a comment. That is the
+  class fix the reviewer asked for, done as a class.
+- The mutation counts were **re-derived rather than copied from the
+  review**: 5/6/2/9 under `--no-fail-fast`, against the shipped
+  4/5/1/8; each undercount was the `cli_contract` red that fail-fast
+  never reaches.
+
+Two residues filed as files, not sentences —
+`tess-budget-doc-note-finding-rule` (deferred to unit 2's lane, which
+holds `docs/TESS-BUDGET.md`) and `tess-lint-twinned-csv-fixture`.
+
+**A fourth orchestrator error, on the ledger fix.** The hosted matrix
+had gone red on unit 5 because `crates/test-utils/tests/reader_census.rs`
+gates every site reading Rust source; the orchestrator added the ledger
+line, took green, and did not read what the row was FOR. Its own doc
+says *"it is a new hand-rolled Rust reader — do not add the line. Use
+the shared lexer."* `predicate_roster.rs` does both: it reaches the
+shared lexer AND hand-rolls three helpers copied byte-for-byte from the
+ledger row two lines beneath it, so `Shared` is one level too coarse.
+The guard meant to catch that tests `contains("test_utils::source")`,
+which the bare `use` import satisfies with no call. Same shape as the
+other three: a result consistent with the framing, and no second
+question. Relayed to unit 5's fix pass, where hoisting the helpers into
+`crates/test-utils/src/source.rs` resolves it properly.
+
+Unit 1 (`D213` + `D214`) dispatched on the freed `lib.rs`, briefed that
+both item files' citations are stale against unit 0's merge.
