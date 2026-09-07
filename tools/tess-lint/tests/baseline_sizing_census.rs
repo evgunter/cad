@@ -11,8 +11,22 @@
 //!
 //! The sibling next door, `baseline_census.rs`, is the FACE-IDENTITY
 //! census over the same file — how many rows a rule-4 swap could wave
-//! through. Two censuses, two homes, one artefact: they are different
-//! questions and neither restates the other's numbers.
+//! through, and how much of the corpus is a scene where a re-key costs
+//! no comparison. Two censuses, two homes, one artefact.
+//!
+//! **They are separate files for a reason, and the reason is not the
+//! artefact.** They answer different questions for different readers:
+//! the neighbour guards `lib.rs`'s prose about rule 4, and fails when
+//! the corpus's identity structure moves; this one guards
+//! `docs/TESS-BUDGET.md`'s citation, and fails when the tour's mesh or
+//! its sizing moves. Folding them would put one file's failure under
+//! two unrelated headings. What the one-home rule forbids is two
+//! copies of ONE census, so **no figure is asserted twice**: the row
+//! count and the sized-row count are the neighbour's and are not
+//! restated here, and the sums below start where those leave off. The
+//! `include_str!` path is the one thing that does appear in both, for
+//! want of a shared `tests/` module; a reader changing the baseline's
+//! location has two sites to change and both are compile errors.
 //!
 //! # Why the pre-fix block reads as stale when it is not
 //!
@@ -94,9 +108,10 @@ fn sweep(rows: &[Row]) -> SceneTotals {
 }
 
 /// The census `docs/TESS-BUDGET.md` cites instead of transcribing:
-/// every figure the report header prints over the committed baseline,
-/// plus `opt_cells`, which the header does not print and the document
-/// needs to name the pre-fix block's split column.
+/// what the report header prints over the committed baseline, less
+/// the two face counts `baseline_census.rs` already pins, plus
+/// `opt_cells`, which the header does not print and the document
+/// needs in order to name the pre-fix block's split column.
 ///
 /// **Two of these are not independently exercisable and it is said
 /// rather than hidden**: the two factors are quotients of sums
@@ -110,12 +125,12 @@ fn the_committed_baseline_sizes_this_much() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
     let t = sweep(&rows);
 
-    // The corpus, and what of it the Hessian-sized lane carries. The
-    // percentages the report prints are these four numbers.
-    assert_eq!(t.faces, 1353, "faces in the committed baseline");
-    assert_eq!(t.triangles, 1_552_822, "triangles over all of them");
-    let sized = rows.iter().filter(|r| r.nurbs.is_some()).count();
-    assert_eq!(sized, 64, "of them Hessian-sized");
+    // What the Hessian-sized lane carries. The corpus these are over —
+    // rows, sized rows, the scenes holding them — is pinned in
+    // `baseline_census.rs` and is deliberately not restated here; the
+    // report prints its two percentages from that pair against this
+    // one.
+    assert_eq!(t.triangles, 1_552_822, "triangles over the whole sweep");
     assert_eq!(
         t.nurbs_triangles, 164_710,
         "triangles the Hessian-sized faces carry"
