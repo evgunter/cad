@@ -43,3 +43,38 @@ unrowed — found by a sweep, not placed by a track.
 ## Claimed by METER (2026-09-06)
 
 Moved from `work/code-quality/` to `work/meter/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track K; `docs/TESS-BUDGET.md` is METER's territory.
+
+## Orchestrator note (2026-09-07): the item's own table has since drifted
+
+Re-derived at this program's opening, against the baseline as committed
+today — cut `aba2625f8f84`, 2026-09-04, a re-cut later than the `a4eb03a`
+this item read:
+
+| the doc says | item said (`a4eb03a`) | baseline now (`aba2625f8f84`) |
+|---|---|---|
+| 1025 faces | 1306 | **1353** |
+| 1,149,528 triangles | 1,416,410 | **1,552,822** |
+| 64 NURBS faces (6.2%) | 64 (4.9%) | 64 (**4.7%**) |
+| carrying 782,104 triangles (68.0%) | 164,710 (11.6%) | 164,710 (**10.6%**) |
+
+`grid_cells` 46019, `opt_cells` 94154 and `span_opt_cells` 44446 are
+unmoved. **This is the item's own mechanism arriving on schedule**: a
+census transcribed into prose drifted again inside four days, and the
+transcription that drifted this time is the one in this file. It settles
+the judgement the item declined to make — the block is stale against
+re-cuts, not a description of a different sweep, because it is now
+stale against two of them in the same direction — and it settles the
+form of the fix: **cite, never restate.** A re-derived table committed
+here would be the third copy to go stale.
+
+**One reconciliation the lane owes before either side can cite the
+other.** `tools/tess-lint/src/main.rs`'s report header prints
+`grid_cells` / `patch_cells` / `span_opt_cells` as "used /
+whole-patch counterfactual / cheapest split per cell", while the doc
+block labels `opt_cells` "at the cheapest split" and `span_opt_cells`
+"sized per knot-span cell". The two documents disagree about which
+column "the cheapest split" names, so a citation written without
+noticing would point at the wrong number while looking right.
+
+**Confidence:** sure for the arithmetic (re-derived over the raw CSV);
+sure that the cut line reads `aba2625f8f84 2026-09-04`.

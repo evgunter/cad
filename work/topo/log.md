@@ -434,3 +434,19 @@ same-shell form's `Δh = +1` the operator's doc asserted for both.
 Three deviations declared, three residues filed inside the fence, the
 fuzz row put on the effort dial. Single style review dispatched on
 the frozen head.
+
+## S69 adjudicated (2026-09-06)
+
+Style review (single, Fable) on frozen `a137b800`: MERGEABLE, 0/1/4.
+Every claim reproduced — the fusion vector derived by hand and by
+counts, both ledger mutants, both halves of the postcondition mutant,
+the rows drawn at the reviewer's own seeds, the re-pinned hash
+recomputed, the coverage row red without the fusion row, sixteen
+postcondition sites re-swept. Findings: the proptest residue names the
+wrong regression path and the tracked corpus is orphaned
+(pre-existing); an over-broad "only doors that mint a shell" premise
+in three places; stale "two kill sites" prose in six; the two new
+enumerators run every step where the probe slot exists for exactly
+that shape (measured +40%); a third copy of the glue relation in test
+support. Eight-item fix pass to the same lane; `fuzz::replay()`'s
+wrong seed under `pinned()` relayed to S-TCOST.

@@ -33,7 +33,8 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use test_utils::fuzz;
-use viewer::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator, ThreadEvaluator};
+use viewer::evalseam::{EvalRequest, EvalService, InlineEvaluator, ThreadEvaluator};
+use viewer::generation::Generation;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
 use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};

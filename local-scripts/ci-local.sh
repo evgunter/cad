@@ -41,6 +41,17 @@
 # needs a C toolchain: the `interval` feature's backend is the in-repo,
 # pure-Rust `interval-transcendentals`.
 #
+# THE VERSIONS ABOVE ARE LITERALS AND THEY ARE CHECKED. ci.yml's
+# workflow-level `env:` block is the single source of truth for every pin;
+# these lines restate one because a developer whose box has no cargo-nextest
+# needs a command to paste, not a substitution to evaluate. What keeps them
+# honest is check-ci-mirror-parity.py's pin-literal claim, which reds when a
+# version named under local-scripts/ is one ci.yml no longer pins. So bumping
+# NEXTEST_VERSION reds this file until these lines follow it — which is the
+# point, and is what a developer told to install a retired version used to get
+# instead. The `0.98.4+` beside it is an admesh FLOOR, not a pin, and is
+# declared as one in that check's PIN_FREE table.
+#
 # THE HOSTED FIGURES QUOTED THROUGHOUT THIS FILE ARE UNGUARDED READINGS —
 # billed minutes, job durations, merge frequencies, cache sizes. They are
 # quoted to explain why a row is sited or filtered the way it is, and this
@@ -259,6 +270,7 @@ fi
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / viewer module kinds (vocabulary/driver boundary)
+# HOSTED MIRROR: mirror / viewer vocabularies are declared once (no hand-written ALL)
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
@@ -275,6 +287,8 @@ tier_blind_rows() {
   scripts/gates/probe-suite-census.sh --citations || rc=1
   scripts/gates/viewer-module-kinds.sh --selftest || rc=1
   scripts/gates/viewer-module-kinds.sh || rc=1
+  scripts/gates/viewer-vocab-declared-once.sh --selftest || rc=1
+  scripts/gates/viewer-vocab-declared-once.sh || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1

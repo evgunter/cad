@@ -43,7 +43,7 @@ One hazard worth recording separately, because it is mechanical and
 present today: **`DisplayFault::NonRigidFrame`'s `Display` contains a
 `"; "` of its own** (`display.rs:180`). Any reading of the joined line
 that counts separators — including the assertion at
-`crates/viewer/src/frame.rs:1122` — is wrong the moment that arm
+`crates/viewer/src/frame.rs:1141` — is wrong the moment that arm
 reaches the line. #1886's fix pass was asked to stop that assertion
 lying; the ambiguity it is a symptom of is this file.
 
@@ -51,3 +51,37 @@ lying; the ambiguity it is a symptom of is this file.
 
 VIEW's: `crates/viewer/src/frame.rs`. Sequence after #1883's answer on
 the news vocabulary.
+
+## #2026 multiplied the reachability again, by an order of magnitude
+
+This item's premise was *"`frame` had one notice producer and now has
+two, so two notices in one frame is an ordinary state rather than a
+hypothetical."* `status-line-writers-bypass-the-ranking` took the notice
+producers from four to eighteen — ten `tool_news` sites in
+`pane/create.rs`, `pick_refusal`, `unindexed_refusal`,
+`delta_refusal`, `delta_not_a_number`, `store_refusal`,
+`Disagreement::notice`, `fold_status`'s refused fold and the two
+`Withdrawal` notices — and every one of them now lands in the same
+`Vec<Message>` that `frame::frame_status` joins with
+`NOTICE_SEPARATOR`.
+
+**Multi-notice frames stopped being unusual.** A create-pane refusal
+and a camera fold refusal are one drag apart; a δ that will not parse
+and a pick the index refuses are one click apart. Before this unit the
+only way to get two was two withdrawals from one accepted edit.
+
+That does not change the finding — the ambiguity is the same
+ambiguity — but it changes what it costs and what a fix has to
+survive. The line a reader now has to disambiguate can be a camera
+refusal, a tool refusal and a preferences-store failure joined with
+`"; "`, each of which may contain a `"; "` or an em-dash of its own.
+The hazard recorded above (`DisplayFault::NonRigidFrame`'s embedded
+`"; "`) is one of several rather than the one.
+
+It also gains a second side, which belongs to
+`one-line-one-subject-loses-a-mixed-frames-expiry`: those notices no
+longer share a subject, so the joined sentence has a structure in the
+type as well as in the prose, and `joined_subject` throws it away to
+pick one `Subject`. Answering the separator without answering that
+would render a structure the value no longer has.
+

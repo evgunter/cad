@@ -69,7 +69,8 @@
 //! `f64`-bracket instantiation and `census`'s `reach_box` is its
 //! instantiation at the census's own scalar. **Neither re-derives an
 //! extent**: the per-kind arithmetic lives once, in [`slab_extent`],
-//! [`ball_extent`], [`torus_extent`] and [`conic_extent`], written
+//! [`cone_frustum_extent`], [`ball_extent`], [`torus_extent`],
+//! [`torus_window_extent`], [`conic_extent`] and [`arc_extent`], written
 //! against [`Span`] so a lane on the [`Bounds`] allowlist and a lane
 //! off it can both enter it — the first with `[lo(), hi()]`
 //! brackets at `f64`, the second with degenerate spans at its own
@@ -551,6 +552,504 @@ pub(crate) fn torus_extent<T: Real>(
     }
 }
 
+/// **The TORUS over a chart rectangle**, by the same certified
+/// subdivision [`arc_extent`] runs one dimension down: sample
+/// `S(u, v)` on the `(N + 1)²` grid over `[u₀, u₁] × [v₀, v₁]`, hull
+/// the samples, and widen by a bound on what the surface can do
+/// between them.
+///
+/// # Why a sampled rectangle and not a hull of the boundary
+///
+/// [`clip_to_boundary`] is sound on a cylinder because no world
+/// coordinate has an interior critical point on a cylinder chart. On a
+/// torus every direction `e` has FOUR: with `a(u) = e·ê(u)`,
+/// `e·S_u = −(R + r cos v)·|e_⊥|·sin(u − u*)` vanishes on two
+/// meridians and `e·S_v = r(−sin v·a(u) + cos v·e_n)` on two parallels
+/// each, giving a max, a min and two saddles. A face holding one of
+/// them bulges past its own boundary, so the boundary hull is not a
+/// bound and no cheap test says which faces hold one. Sampling the
+/// rectangle with a charge needs no such test.
+///
+/// # The charge is a proof
+///
+/// On one cell the bilinear interpolant of a C² function errs by at
+/// most `(h_u²·‖f_uu‖ + h_v²·‖f_vv‖)/8`: interpolate in `u` along the
+/// cell's two `v`-edges (the 1-D chord bound, `h_u²‖f_uu‖/8` each),
+/// then in `v` between those two interpolants — which are convex
+/// combinations, so they commute with `∂_v` and the second bound
+/// applies to their difference. The interpolant itself lies in the
+/// hull of the four corners, which the sample hull already contains.
+/// **The mixed derivative never enters.**
+///
+/// Per coordinate `i`, from the chart's own second derivatives
+/// (`geom::Surface::ders`): `S_uu = −(R + r cos v)·ê(u)`, so
+/// `|S_uu,i| ≤ (R + r)·√(1 − axisᵢ²)` — the [`perp_room`] of
+/// [`slab_extent`], with `axisᵢ²` bounded BELOW so the charge is
+/// bounded above; and `S_vv = −r(cos v·ê + sin v·n)`, so
+/// `|S_vv,i| ≤ r·√(êᵢ² + nᵢ²) ≤ r`.
+///
+/// # Rounding, per step
+///
+/// Same UNIT-AXIS premise as [`slab_extent`] and [`torus_extent`]:
+/// [`perp_room`] bounds one coordinate of a unit vector perpendicular
+/// to a unit axis, and the samples place `r·sin v` along `axis` as a
+/// length. A description whose axis is not unit is off before any
+/// rounding here could matter.
+///
+/// Undirected arithmetic throughout, as the module's policy states —
+/// [`Aabb::padded`]'s outward ulp plus [`sweep_pad`] dominates it.
+/// Sample parameters are exact `f64` products of the window ends; the
+/// window ends themselves arrive as the OUTER ends of the caller's
+/// brackets (each lane's own walk of [`TorusChartWindow`]); the radii
+/// enter as SPANS rather than at one end, so a bracketed description's whole family of tori
+/// is covered (the argument [`arc_extent`] makes for its semi-axes —
+/// `R + r·cos v` is not monotone in `r`, so one end would not do);
+/// the charge's `(R + r)` and `r` are taken at the brackets' upper
+/// ends, which bounds it above. Poison rides through as NaN ends and
+/// reaches the poison box.
+pub(crate) fn torus_window_extent<T: Real>(
+    center: &SpanBox<T>,
+    axis: &SpanBox<T>,
+    u_ref: &SpanBox<T>,
+    v_ref: &SpanBox<T>,
+    major: Span<T>,
+    minor: Span<T>,
+    (u, v): TorusWindowPair<T>,
+) -> SpanBox<T> {
+    let n = T::from_f64(ARC_SAMPLES as f64);
+    let (hu, hv) = ((u.hi - u.lo) / n, (v.hi - v.lo) / n);
+    let mut acc: Option<SpanBox<T>> = None;
+    for k in 0..=ARC_SAMPLES {
+        let (su, cu) = (u.lo + hu * T::from_f64(k as f64)).sin_cos();
+        for l in 0..=ARC_SAMPLES {
+            let (sv, cv) = (v.lo + hv * T::from_f64(l as f64)).sin_cos();
+            // `R + r·cos v` and `r·sin v`, in the description's own
+            // brackets: the trig factors are exact at the sample, the
+            // radii are not.
+            let rho = major.add(minor.mul(Span::exact(cv)));
+            let height = minor.mul(Span::exact(sv));
+            let at = |c: Span<T>, ur: Span<T>, vr: Span<T>, ax: Span<T>| {
+                c.add(
+                    ur.mul(Span::exact(cu))
+                        .add(vr.mul(Span::exact(su)))
+                        .mul(rho),
+                )
+                .add(ax.mul(height))
+            };
+            let one = SpanBox {
+                x: at(center.x, u_ref.x, v_ref.x, axis.x),
+                y: at(center.y, u_ref.y, v_ref.y, axis.y),
+                z: at(center.z, u_ref.z, v_ref.z, axis.z),
+            };
+            acc = Some(acc.map_or(one, |a: SpanBox<T>| SpanBox {
+                x: a.x.hull(one.x),
+                y: a.y.hull(one.y),
+                z: a.z.hull(one.z),
+            }));
+        }
+    }
+    let hulled = acc.unwrap_or(SpanBox {
+        x: Span::exact(poison_value::<T>()),
+        y: Span::exact(poison_value::<T>()),
+        z: Span::exact(poison_value::<T>()),
+    });
+    // The two channels' charges, each in [`subdivision_charge`]'s one
+    // spelling: `‖f_uu‖·h_u²/8` and `‖f_vv‖·h_v²/8`.
+    let outer = major.hi + minor.hi;
+    let charge = |a: Span<T>| {
+        subdivision_charge(outer * perp_room(a), hu) + subdivision_charge(minor.hi, hv)
+    };
+    SpanBox {
+        x: hulled.x.widen(charge(axis.x)),
+        y: hulled.y.widen(charge(axis.y)),
+        z: hulled.z.widen(charge(axis.z)),
+    }
+}
+
+/// Two boxes' INTERSECTION, coordinate by coordinate — the fold that
+/// makes a windowed torus box "never looser than the whole tube"
+/// structural rather than a claim about the window.
+///
+/// Both arguments are supersets of the same locus, so their
+/// intersection is one too, and it inherits [`torus_extent`]'s
+/// UNIT-AXIS premise from the argument it is folded against.
+///
+/// Poison propagates: [`Real::min`] and [`Real::max`] carry it. **A
+/// poisoned WINDOW never reaches here** — [`TorusChartWindow::finish`]
+/// turns a non-finite window end into `None`, and the arm then folds
+/// nothing but the whole tube — so the poison this fold carries is a
+/// poisoned DESCRIPTION's, which poisons both arguments alike.
+pub(crate) fn meet<T: Real>(a: SpanBox<T>, b: SpanBox<T>) -> SpanBox<T> {
+    let one = |x: Span<T>, y: Span<T>| Span {
+        lo: x.lo.max(y.lo),
+        hi: x.hi.min(y.hi),
+    };
+    SpanBox {
+        x: one(a.x, b.x),
+        y: one(a.y, b.y),
+        z: one(a.z, b.z),
+    }
+}
+
+/// One stored pcurve's CHART-CHANNEL extent over the span it is
+/// certified on: `hull(P(t₀), P(t₁))` widened per channel by the
+/// trigonometric part's chord dip `hypot(paᵢ, pbᵢ)·(t₁ − t₀)²/8`.
+///
+/// `P(t) = p0 + pa·cos t + pb·sin t + pl·t`, so `P″(t)` is
+/// `−(pa·cos t + pb·sin t)` and a C² function leaves the chord of an
+/// interval of width `h` by at most `max|P″|·h²/8` — [`arc_extent`]'s
+/// own charge, taken here on the chart's two channels instead of
+/// space's three. The linear channel contributes nothing to `P″` and
+/// is exact at the endpoints.
+///
+/// **Not [`geom_brep::Pcurve::chart_box`].** That enclosure is
+/// `p0 ± (|pa| + |pb| + |pl|·max(|t₀|, |t₁|))` — a ball about the
+/// CONSTANT term rather than a hull of the span the edge occupies. For
+/// an edge running `t ∈ [0, 22°]` on a linear channel it claims
+/// `p0 ± 22°`, which is twice the true reach and centred on the wrong
+/// point; a window built from it would not be the face's.
+///
+/// `None` for every other [`geom_brep::Pcurve`] variant: their images
+/// are not this family and this bound says nothing about them.
+pub(crate) fn harmonic_extent<T: Real>(
+    pcurve: &geom_brep::Pcurve<T>,
+    t0: T,
+    t1: T,
+) -> Option<(Span<T>, Span<T>)> {
+    let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
+        return None;
+    };
+    let at = |t: T| {
+        let (s, c) = t.sin_cos();
+        (
+            p0.x + pa.x * c + pb.x * s + pl.x * t,
+            p0.y + pa.y * c + pb.y * s + pl.y * t,
+        )
+    };
+    let (a, b) = (at(t0), at(t1));
+    let channel = |x: T, y: T, ca: T, cb: T| {
+        Span {
+            lo: x.min(y),
+            hi: x.max(y),
+        }
+        .widen(subdivision_charge(
+            (ca.powi(2) + cb.powi(2)).sqrt(),
+            t1 - t0,
+        ))
+    };
+    Some((channel(a.0, b.0, pa.x, pb.x), channel(a.1, b.1, pa.y, pb.y)))
+}
+
+/// A torus face's chart window: the `u` (major azimuth) and `v`
+/// (minor angle) channels' spans, in that order.
+pub(crate) type TorusWindowPair<T> = (Span<T>, Span<T>);
+
+/// One HALF-EDGE, as the window walk reads it: its stored certified
+/// pcurve cache, and whether the loop traverses it FORWARD (the
+/// `he_plus` side, so the certified span runs `t₀ → t₁`). `None` for a
+/// half-edge with no cache.
+pub(crate) type WindowStep<'a, T> = Option<(&'a geom_brep::PcurveCache<T>, bool)>;
+
+/// **A torus face's chart window, from its boundary's stored certified
+/// pcurves — the ONE walk, for every lane.**
+///
+/// The caller hands over its own arena traversal as loops of
+/// [`WindowStep`]s and nothing else: `boxes.rs`'s `face_box`, the
+/// census's `face_reach` and the construction rows all enter here, so
+/// the fail modes cannot drift between them the way two hand-written
+/// walks did.
+///
+/// # Why the window is a superset of the face's chart region
+///
+/// The face's region is the planar region its loops' chart images
+/// bound, in the lift the pcurve mint certified closed (the argument
+/// `boolean::solid_contain`'s `bool_torus_chart_closure` makes,
+/// verbatim), and a region lies inside the bounding rectangle of its
+/// own boundary.
+///
+/// **That argument needs the boundary to SAY which side is material,
+/// and two guards are what make it hold.** They are the Decide lane's
+/// (`solid_contain::torus_chart_windows`), carried here because the
+/// box contract is the same statement:
+///
+/// - **A face with a RING gets no window.** Two loops can be pinned on
+///   different branches, and their hull is then a rectangle neither
+///   bounds.
+/// - **A loop whose walk WRAPS a channel gets no window.** A loop of
+///   lone full circles closes by going once round a channel rather
+///   than by returning to where it started, and the two complementary
+///   annuli it can denote have the SAME pcurves and the same hull —
+///   so the hull cannot contain both, and nothing in the caches says
+///   which one this face is. Measured: a face bounded by two lone
+///   full meridians at `u = 0` and `u = 22°` windows to
+///   `[0, 22°] × [0, 2π]`, and in the orientation whose material is
+///   the 338° complement, 1591 of 1681 sampled surface points lie
+///   OUTSIDE that box. No kernel door mints such a face today — every
+///   torus constructor seams its walls — so this is a latent hole
+///   rather than a live one, and it is closed by refusing the class.
+///
+/// The wrap test is the loop's NET travel per channel: a loop that
+/// closes in the chart returns to its entry point, so the signed sum
+/// of `P(exit) − P(entry)` over its half-edges is zero, while a loop
+/// that wraps sums to `± τ`. Half a period separates the two, so the
+/// test needs no `Band` and no `decide`.
+///
+/// # The slack, and the bound it holds under
+///
+/// A cache certifies `sup |S(P(t)) − C(t)| ≤ envelope` in METRES
+/// ([`geom_brep::PcurveCertificate::envelope`]), so the carrier can
+/// sit up to `envelope` off the chart image's surface points. Pulling
+/// that back through the chart costs the inverse's Lipschitz
+/// constants: one radian of `u` moves a surface point by at least
+/// `R − r` (the tube's nearest approach to the axis) and one radian of
+/// `v` by exactly `r`.
+///
+/// **The factor of two is not "one for each end"** — [`Span::widen`]
+/// already touches both. It is the price of the segment between
+/// `S(P(t))` and `C(t)` LEAVING the surface: the chart inverse is
+/// Lipschitz on the surface, and a point `envelope` off it is pulled
+/// back only after being projected there, which can cost as much
+/// again. That argument holds while the displacement stays inside the
+/// tube's own scale — `envelope ≤ (R − r)/2` and `envelope ≤ r/2` —
+/// so [`torus_window_slack`] GUARDS both, and a cache whose envelope
+/// exceeds either gets no window at all.
+pub(crate) struct TorusChartWindow<T: Real> {
+    u: Option<Span<T>>,
+    v: Option<Span<T>>,
+    envelope: T,
+    /// The current loop's signed travel per channel; `None` once a
+    /// loop has been abandoned or has wrapped.
+    net: Option<(T, T)>,
+    loops: usize,
+    ok: bool,
+}
+
+/// The certified slack a torus chart window owes an envelope, or
+/// `None` when the envelope is too large for the argument that
+/// derives it ([`TorusChartWindow`], "the slack").
+///
+/// `envelope` is in metres and both radii are lengths, so the guard is
+/// a comparison of lengths and reads no angle.
+pub(crate) fn torus_window_slack<T: Real>(
+    envelope: T,
+    major: T,
+    minor: T,
+) -> Option<TorusWindowPair<T>> {
+    let half = T::from_f64(0.5);
+    let (tube, ring) = (minor, major - minor);
+    // **The comparison, in the terms [`Real`] has.** There is no
+    // ordering on a generic scalar here — an interval scalar cannot
+    // answer `<=` — so the guard is spelled through the totality
+    // policy the module already builds [`poison_value`] with:
+    // `√(bound − envelope)` is poison exactly when the envelope
+    // exceeds the bound, and at a bracketed scalar it is poison as
+    // soon as it MIGHT, which refuses in the direction that costs the
+    // whole tube rather than a wrong window.
+    let exceeded = |bound: T| (bound * half - envelope).sqrt().is_poison();
+    if exceeded(tube) || exceeded(ring) {
+        return None;
+    }
+    let two = T::from_f64(2.0);
+    Some((
+        Span {
+            lo: T::zero() - two * envelope / ring,
+            hi: two * envelope / ring,
+        },
+        Span {
+            lo: T::zero() - two * envelope / tube,
+            hi: two * envelope / tube,
+        },
+    ))
+}
+
+/// A value that is not FINITE, in the terms [`Real`] has: `x − x` is
+/// zero for a finite `x`, poison for `±∞` and poison for poison. The
+/// window ends are tested with this rather than with
+/// [`Real::is_poison`] alone, which an infinity walks straight past on
+/// its way to a NaN sample.
+// `x − x` is the test, not a typo: it is the one expression that is
+// zero for every finite value and poison for `±∞` and for poison
+// itself, in a trait with no ordering and no `is_finite`.
+#[allow(clippy::eq_op)]
+fn not_finite<T: Real>(x: T) -> bool {
+    (x - x).is_poison()
+}
+
+impl<T: Real> TorusChartWindow<T> {
+    /// An empty accumulator.
+    pub(crate) fn new() -> Self {
+        Self {
+            u: None,
+            v: None,
+            envelope: T::zero(),
+            net: Some((T::zero(), T::zero())),
+            loops: 0,
+            ok: true,
+        }
+    }
+
+    /// Open a loop. The FIRST loop is the face's outer one; every
+    /// later one is a ring, and a ring abandons the window.
+    pub(crate) fn open_loop(&mut self) {
+        self.loops += 1;
+        if self.loops > 1 {
+            self.ok = false;
+        }
+        self.net = Some((T::zero(), T::zero()));
+    }
+
+    /// One half-edge of the open loop.
+    pub(crate) fn step(&mut self, step: WindowStep<'_, T>) {
+        let Some((cache, forward)) = step else {
+            self.ok = false;
+            return;
+        };
+        let (t0, t1) = cache.params();
+        let Some((u, v)) = harmonic_extent(cache.pcurve(), t0, t1) else {
+            self.ok = false;
+            return;
+        };
+        let Some(travel) = harmonic_travel(cache.pcurve(), t0, t1, forward) else {
+            self.ok = false;
+            return;
+        };
+        self.u = Some(self.u.map_or(u, |a: Span<T>| a.hull(u)));
+        self.v = Some(self.v.map_or(v, |a: Span<T>| a.hull(v)));
+        self.envelope = self.envelope.max(cache.certificate().envelope);
+        self.net = self.net.map(|(a, b)| (a + travel.0, b + travel.1));
+    }
+
+    /// Close the open loop: it must return to where it entered the
+    /// chart rather than wrap a channel (the type docs).
+    pub(crate) fn close_loop(&mut self) {
+        let Some((nu, nv)) = self.net else {
+            self.ok = false;
+            return;
+        };
+        // Half a period separates a loop that closed (net zero) from
+        // one that wrapped (net `± τ`), and the test is the same
+        // poison spelling [`torus_window_slack`] uses — no ordering,
+        // no `Band`, no `decide`.
+        for n in [nu, nv] {
+            if not_finite(n) || (T::pi() - n.abs()).sqrt().is_poison() {
+                self.ok = false;
+            }
+        }
+        self.net = None;
+    }
+
+    /// Abandon the window outright — the caller's own arm for a loop
+    /// it cannot read at all (a lone vertex carries no chart image).
+    pub(crate) fn abandon(&mut self) {
+        self.ok = false;
+    }
+
+    /// The window, widened by the certificate slack — see the type
+    /// docs. `None` whenever any guard fired, and the arm then keeps
+    /// [`torus_extent`], the box every torus face had before this
+    /// window existed. **The only discrete step in the arm is "window
+    /// or no window", and its cost is not discrete**: no window widens
+    /// to the whole tube, never narrows.
+    pub(crate) fn finish(self, major: T, minor: T) -> Option<TorusWindowPair<T>> {
+        if !self.ok {
+            return None;
+        }
+        let (u, v) = (self.u?, self.v?);
+        let (su, sv) = torus_window_slack(self.envelope, major, minor)?;
+        let u = Span {
+            lo: u.lo + su.lo,
+            hi: u.hi + su.hi,
+        };
+        let v = Span {
+            lo: v.lo + sv.lo,
+            hi: v.hi + sv.hi,
+        };
+        if [u.lo, u.hi, v.lo, v.hi].into_iter().any(not_finite) {
+            return None;
+        }
+        Some((u, v))
+    }
+}
+
+/// One half-edge's SIGNED travel in each chart channel, in the
+/// direction the loop traverses it — `P(exit) − P(entry)`, the datum
+/// [`TorusChartWindow`]'s wrap guard sums. `None` for a pcurve outside
+/// the harmonic family.
+pub(crate) fn harmonic_travel<T: Real>(
+    pcurve: &geom_brep::Pcurve<T>,
+    t0: T,
+    t1: T,
+    forward: bool,
+) -> Option<(T, T)> {
+    let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
+        return None;
+    };
+    let at = |t: T| {
+        let (s, c) = t.sin_cos();
+        (
+            p0.x + pa.x * c + pb.x * s + pl.x * t,
+            p0.y + pa.y * c + pb.y * s + pl.y * t,
+        )
+    };
+    let (entry, exit) = if forward {
+        (at(t0), at(t1))
+    } else {
+        (at(t1), at(t0))
+    };
+    Some((exit.0 - entry.0, exit.1 - entry.1))
+}
+
+/// **The face's loops, as [`WindowStep`]s** — the one ARENA walk, so
+/// the boolean lane, the census lane and the construction rows read
+/// one traversal rather than three that can drift. `None` for a face
+/// or a loop this cannot walk at all.
+///
+/// A lone-vertex loop yields an EMPTY loop, which [`torus_chart_window`]
+/// abandons the window on: it carries no chart image.
+pub(crate) fn face_window_steps<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<Vec<Vec<WindowStep<'_, T>>>> {
+    let f = body.get_face(face)?;
+    let mut out = Vec::new();
+    for lk in loops_of(f) {
+        let l = body.get_loop(lk)?;
+        let mut steps = Vec::new();
+        if let LoopBoundary::Cycle { first } = l.boundary {
+            for he in body.loop_cycle(first)? {
+                let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
+                steps.push(body.pcurve(he).map(|c| (c, edge.he_plus == he)));
+            }
+        }
+        out.push(steps);
+    }
+    Some(out)
+}
+
+/// **The ONE walk**, over a face's loops of [`WindowStep`]s — see
+/// [`TorusChartWindow`]. A loop that yields NO half-edge (a lone
+/// vertex) abandons the window: it carries no chart image, so the walk
+/// cannot see what bounds the face's chart region.
+pub(crate) fn torus_chart_window<T: Real>(
+    loops: &[Vec<WindowStep<'_, T>>],
+    major: T,
+    minor: T,
+) -> Option<TorusWindowPair<T>> {
+    let mut acc = TorusChartWindow::new();
+    for lp in loops {
+        acc.open_loop();
+        for &step in lp {
+            acc.step(step);
+        }
+        if lp.is_empty() {
+            acc.abandon();
+        } else {
+            acc.close_loop();
+        }
+    }
+    acc.finish(major, minor)
+}
+
 /// The full conic's centre-±-amplitude box: a conic point's
 /// coordinate `i` is `center_i + a·û_i·cos t + b·v̂_i·sin t`, which
 /// over a full turn reaches exactly `√((a·û_i)² + (b·v̂_i)²)` from the
@@ -634,10 +1133,26 @@ pub(crate) fn conic_extent<T: Real>(
 ///   `knots_u().domain()`. What holds it up is construction: every
 ///   kernel-minted NURBS wall is iso-parameter bounded at the domain
 ///   edges. State the premise when you add a constructor that is not.
-/// - [`WholeTorus`](Self::WholeTorus) — **Torus.** The whole tube
-///   about the centre, `(R + r)` perpendicular to the axis and `r`
-///   along it ([`torus_extent`]) — reading nothing from the boundary,
-///   as the ball does.
+/// - [`TorusWindow`](Self::TorusWindow) — **Torus.** The sampled
+///   CHART RECTANGLE the face's boundary occupies
+///   ([`torus_window_extent`]), intersected with the whole tube
+///   ([`torus_extent`]); the whole tube alone when no window can be
+///   read.
+///
+///   A torus coordinate is not a chart coordinate the way a
+///   cylinder's azimuth is: `e·S` has four interior critical points
+///   on the chart (a max, a min and two saddles), so
+///   [`clip_to_boundary`]'s argument does NOT port and a torus face's
+///   box is the boundary hull only when no critical point lies in the
+///   face. That is a statement about the face's chart REGION, so the
+///   arm needs the region — and it reads it from the boundary's
+///   STORED CERTIFIED pcurves ([`TorusChartWindow`], filled by each
+///   lane's own arena walk), which is a read of certified data
+///   exactly as `EdgeCurve::params` is for
+///   [`arc_extent`]. No `decide` runs, no `Band` is consulted and
+///   nothing escalates: a face whose window cannot be read keeps the
+///   whole tube, which is what this arm claimed for every torus
+///   before.
 ///
 /// **Every surface kind has an arm**, and that is a statement this
 /// enum makes at the type level: there is no `NoSoundBox` on the face
@@ -649,8 +1164,8 @@ pub(crate) fn conic_extent<T: Real>(
 /// come out POISON (an unboxable boundary edge, a poisoned
 /// description); that is the value, not the rule.
 ///
-/// [`WholeBall`](Self::WholeBall), [`WholeTorus`](Self::WholeTorus)
-/// and the conic-fed
+/// [`WholeBall`](Self::WholeBall), a windowless
+/// [`TorusWindow`](Self::TorusWindow) and the conic-fed
 /// [`BoundaryHull`](Self::BoundaryHull) claim more than the trimmed
 /// face occupies on purpose — a cheap SUPERSET is what the contract
 /// asks for, and no cheaper one is known per kind. That looseness is
@@ -700,8 +1215,9 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
         /// The sphere's radius.
         radius: T,
     },
-    /// The whole tube about the centre — see the type docs.
-    WholeTorus {
+    /// The boundary's chart rectangle, sampled, meeting the whole
+    /// tube — see the type docs.
+    TorusWindow {
         /// The torus centre.
         center: Point3<T>,
         /// The unit axis direction.
@@ -710,6 +1226,10 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
         major_radius: T,
         /// The minor radius `r`.
         minor_radius: T,
+        /// The chart's `u = 0` direction — the seam meridian. The
+        /// window is read in THIS frame, so the arm carries it
+        /// rather than re-deriving a basis of its own.
+        u_ref: Vec3<T>,
     },
     /// The control net's hull — see the type docs.
     ControlNet(&'a NurbsSurface<T>),
@@ -759,12 +1279,13 @@ pub(crate) fn face_box_rule<T: Real>(surface: &Surface<T>) -> FaceBoxRule<'_, T>
             axis,
             major_radius,
             minor_radius,
-            ..
-        } => FaceBoxRule::WholeTorus {
+            u_ref,
+        } => FaceBoxRule::TorusWindow {
             center: *center,
             axis: *axis,
             major_radius: *major_radius,
             minor_radius: *minor_radius,
+            u_ref: *u_ref,
         },
     }
 }
@@ -875,22 +1396,70 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             }
             Ok(acc)
         };
+    // The torus arm's chart window, read through the ONE walk
+    // (`face_window_steps` -> `torus_chart_window`) the census lane and
+    // the construction rows also enter, so no fail mode can drift
+    // between them.
+    //
+    // The window is accumulated at the BODY's scalar and read out at
+    // this lane's `f64` brackets, each end taken outward
+    // (`lo()`/`hi()`), so a bracketed cache widens the window rather
+    // than narrowing it.
+    let chart_window = |major: T, minor: T| -> Result<Option<TorusWindowPair<f64>>, BooleanError> {
+        let steps = face_window_steps(body, face).ok_or(corrupt("face box: unwalkable loop"))?;
+        Ok(torus_chart_window(&steps, major, minor).map(|(u, v)| {
+            (
+                Span {
+                    lo: u.lo.lo(),
+                    hi: u.hi.hi(),
+                },
+                Span {
+                    lo: v.lo.lo(),
+                    hi: v.hi.hi(),
+                },
+            )
+        }))
+    };
     let boxed = match face_box_rule(surface) {
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
         FaceBoxRule::WholeBall { center, radius } => {
             aabb_of(ball_extent(&bracket_point(center), radius.hi()))
         }
-        FaceBoxRule::WholeTorus {
+        FaceBoxRule::TorusWindow {
             center,
             axis,
             major_radius,
             minor_radius,
-        } => aabb_of(torus_extent(
-            &bracket_point(center),
-            &bracket_vector(axis),
-            major_radius.hi(),
-            minor_radius.hi(),
-        )),
+            u_ref,
+        } => {
+            let (c, ax) = (bracket_point(center), bracket_vector(axis));
+            let whole = torus_extent(&c, &ax, major_radius.hi(), minor_radius.hi());
+            match chart_window(major_radius, minor_radius)? {
+                None => aabb_of(whole),
+                Some((u, v)) => aabb_of(meet(
+                    torus_window_extent(
+                        &c,
+                        &ax,
+                        &bracket_vector(u_ref),
+                        &bracket_vector(axis.cross(u_ref)),
+                        // BOTH ends of each radius bracket, not one:
+                        // `R + r·cos v` is not monotone in `r`, so a
+                        // bracketed description's whole family of tori
+                        // is covered only by entering the span.
+                        Span {
+                            lo: major_radius.lo(),
+                            hi: major_radius.hi(),
+                        },
+                        Span {
+                            lo: minor_radius.lo(),
+                            hi: minor_radius.hi(),
+                        },
+                        (u, v),
+                    ),
+                    whole,
+                )),
+            }
+        }
         FaceBoxRule::CylinderSlab {
             origin,
             axis,
@@ -2409,6 +2978,186 @@ mod tests {
         }
     }
 
+    /// A real TORUS patch face over `u ∈ [u0, u1] × v ∈ [v0, v1]`,
+    /// with the boundary the chart's own two families — parallels at
+    /// `v0`/`v1` (circles ⊥ the axis, centred on it) and meridians at
+    /// `u0`/`u1` (circles in a plane through the axis, centred on the
+    /// spine) — and its certified pcurves minted.
+    ///
+    /// Both families are exactly what `geom_brep::chart_pcurve`'s
+    /// torus arm has closed forms for, so the caches this fixture
+    /// stores are the ones a revolve or a tube mints; the box arm
+    /// reads them and nothing else.
+    ///
+    /// The descending sides run on a reversed carrier axis so their
+    /// own parameters increase, exactly as the split lane mints them.
+    fn torus_wall(
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        major: f64,
+        minor: f64,
+        (u0, u1): (f64, f64),
+        (v0, v1): (f64, f64),
+    ) -> (Body<f64>, FaceKey) {
+        let v_ref = axis.cross(u_ref);
+        let e = |u: f64| u_ref * u.cos() + v_ref * u.sin();
+        let on =
+            |u: f64, v: f64| center + e(u) * (major + minor * v.cos()) + axis * (minor * v.sin());
+        let mut body = Body::<f64>::new();
+        // The seed FIRST: a surface added before it has a face is
+        // orphan geometry, which `mvfs`'s tier-1 postcondition
+        // rejects.
+        let seed = body.mvfs(on(u0, v0)).unwrap();
+        let torus = body.add_surface(Surface::Torus {
+            center,
+            axis,
+            major_radius: major,
+            minor_radius: minor,
+            u_ref,
+        });
+        // A PARALLEL at `v`: the torus cut by the plane ⊥ the axis
+        // there. Ascending in `u` when `up`, descending otherwise.
+        let parallel = |body: &mut Body<f64>, v: f64, up: bool| {
+            let c = center + axis * (minor * v.sin());
+            let radius = major + minor * v.cos();
+            let plane = body.add_surface(Surface::Plane {
+                origin: c,
+                normal: axis,
+                u_ref,
+            });
+            let (carrier, t0, t1) = if up {
+                (
+                    Curve3::Circle {
+                        center: c,
+                        axis,
+                        radius,
+                        u_ref,
+                    },
+                    u0,
+                    u1,
+                )
+            } else {
+                (
+                    Curve3::Circle {
+                        center: c,
+                        axis: -axis,
+                        radius,
+                        u_ref: e(u1),
+                    },
+                    0.0,
+                    u1 - u0,
+                )
+            };
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: torus,
+                    s2: plane,
+                    witness: on((u0 + u1) * 0.5, v),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        // A MERIDIAN at `u`: the torus cut by the plane through the
+        // axis at that azimuth. Ascending in `v` when `up`.
+        let meridian = |body: &mut Body<f64>, u: f64, up: bool| {
+            let spine = center + e(u) * major;
+            let plane = body.add_surface(Surface::Plane {
+                origin: center,
+                normal: axis.cross(e(u)),
+                u_ref: e(u),
+            });
+            let (carrier, t0, t1) = if up {
+                (
+                    Curve3::Circle {
+                        center: spine,
+                        axis: e(u).cross(axis),
+                        radius: minor,
+                        u_ref: e(u),
+                    },
+                    v0,
+                    v1,
+                )
+            } else {
+                (
+                    Curve3::Circle {
+                        center: spine,
+                        axis: axis.cross(e(u)),
+                        radius: minor,
+                        u_ref: e(u) * v1.cos() + axis * v1.sin(),
+                    },
+                    0.0,
+                    v1 - v0,
+                )
+            };
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: torus,
+                    s2: plane,
+                    witness: on(u, (v0 + v1) * 0.5),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let bottom = parallel(&mut body, v0, true);
+        let e_b = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                on(u1, v0),
+                bottom,
+                Tol::witness(),
+            )
+            .unwrap();
+        let right = meridian(&mut body, u1, true);
+        let e_r = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_b.he_minus,
+                    he2: e_b.he_minus,
+                },
+                on(u1, v1),
+                right,
+                Tol::witness(),
+            )
+            .unwrap();
+        let top = parallel(&mut body, v1, false);
+        let e_t = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_r.he_minus,
+                    he2: e_r.he_minus,
+                },
+                on(u0, v1),
+                top,
+                Tol::witness(),
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+            .unwrap();
+        let left = meridian(&mut body, u0, false);
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                left,
+                FaceSurface::Shared(torus),
+                Tol::witness(),
+            )
+            .unwrap()
+            .face;
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, face)
+    }
+
     /// A CONE wall face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
     /// the cone of half-angle `alpha` about `z` with its apex at the
     /// origin. Rims are the cone's own circles, sides its generators.
@@ -2543,15 +3292,647 @@ mod tests {
         }
     }
 
-    /// **`WholeTorus`** — `(R + r)` perpendicular to the axis and `r`
-    /// along it, reading nothing from the boundary, so the trim the
+    /// The chart window a face's own stored caches state — the SAME
+    /// walk `face_box` runs, entered here so a row can see the window
+    /// itself. Not a second spelling: both go through
+    /// [`face_window_steps`] and [`torus_chart_window`].
+    fn read_window(
+        body: &Body<f64>,
+        face: FaceKey,
+        major: f64,
+        minor: f64,
+    ) -> Option<TorusWindowPair<f64>> {
+        torus_chart_window(&face_window_steps(body, face)?, major, minor)
+    }
+
+    /// A torus face bounded by two LONE full-meridian circles
+    /// (outer + ring, no seam parallel) — **the R1 review arm's
+    /// P6 fixture, construction unchanged**, adopted as the row
+    /// for the class it found.
+    ///
+    /// Both orientations give the SAME stored pcurves and the SAME
+    /// hull, yet they denote complementary annuli, so that hull
+    /// cannot contain both. Tier-1/2 validate and the mint accept
+    /// the body; no kernel door mints one.
+    fn lone_circle_annulus(forward: bool) -> (Body<f64>, FaceKey) {
+        let (center, axis, u_ref, major, minor) =
+            (Point3::origin(), Vec3::unit_z(), Vec3::unit_x(), 2.0, 0.5);
+        let (u0, u1) = (0.0, 22.0_f64.to_radians());
+        let v_ref = axis.cross(u_ref);
+        let e = |u: f64| u_ref * u.cos() + v_ref * u.sin();
+        let on =
+            |u: f64, v: f64| center + e(u) * (major + minor * v.cos()) + axis * (minor * v.sin());
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(on(u0, 0.0)).unwrap();
+        let torus = body.add_surface(Surface::Torus {
+            center,
+            axis,
+            major_radius: major,
+            minor_radius: minor,
+            u_ref,
+        });
+        let meridian = |body: &mut Body<f64>, u: f64| -> (EdgeCurveSpec<f64>, Surface<f64>) {
+            let spine = center + e(u) * major;
+            let plane = Surface::Plane {
+                origin: center,
+                normal: axis.cross(e(u)),
+                u_ref: e(u),
+            };
+            let pk = body.add_surface(plane.clone());
+            let ax = if forward {
+                e(u).cross(axis)
+            } else {
+                axis.cross(e(u))
+            };
+            (
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        s1: torus,
+                        s2: pk,
+                        witness: on(u, core::f64::consts::PI),
+                    },
+                    carrier: Curve3::Circle {
+                        center: spine,
+                        axis: ax,
+                        radius: minor,
+                        u_ref: e(u),
+                    },
+                    param_start: 0.0,
+                    param_end: core::f64::consts::TAU,
+                },
+                plane,
+            )
+        };
+        let (m0, cap0_plane) = meridian(&mut body, u0);
+        let cap0 = body
+            .mef(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                m0,
+                FaceSurface::New(cap0_plane),
+                Tol::witness(),
+            )
+            .expect("mef Lone: the circular edge at u0");
+        let eq_plane = body.add_surface(Surface::Plane {
+            origin: center,
+            normal: axis,
+            u_ref,
+        });
+        let strut_spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: torus,
+                s2: eq_plane,
+                witness: on((u0 + u1) * 0.5, 0.0),
+            },
+            carrier: Curve3::Circle {
+                center,
+                axis,
+                radius: major + minor,
+                u_ref,
+            },
+            param_start: u0,
+            param_end: u1,
+        };
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: cap0.he_plus,
+                    he2: cap0.he_plus,
+                },
+                on(u1, 0.0),
+                strut_spec,
+                Tol::witness(),
+            )
+            .expect("mev strut along the outer equator to u1");
+        let (m1, cap1_plane) = meridian(&mut body, u1);
+        let _cap1 = body
+            .mef(
+                MefSite::Chords {
+                    he1: strut.he_minus,
+                    he2: strut.he_minus,
+                },
+                m1,
+                FaceSurface::New(cap1_plane),
+                Tol::witness(),
+            )
+            .expect("mef Chords self-loop: the circular edge at u1");
+        body.kemr(strut.he_plus, strut.he_minus)
+            .expect("kemr: the strut dies and the u1 circle becomes a ring");
+        body.set_face_surface(seed.face, FaceSurface::Shared(torus))
+            .expect("the seed face is the torus annulus");
+        (body, seed.face)
+    }
+
+    /// **The two guards, on the fixture that needs them.** A face of
+    /// lone full circles gets NO window in either orientation, and its
+    /// box is exactly the whole tube — which contains both annuli, as
+    /// no windowed box could.
+    ///
+    /// The fixture and its measurement are the R1 review arm's (P6);
+    /// what it found is that the hull `[0, 22°] × [0, 2π]` leaves 1591
+    /// of 1681 sampled surface points outside the box in the
+    /// complementary orientation. Both guards fire here — the face
+    /// carries a RING, and each loop WRAPS the `v` channel — so either
+    /// alone would close it, and the row asserts the outcome rather
+    /// than which guard spoke.
+    #[test]
+    fn a_torus_face_of_lone_circle_loops_gets_no_window() {
+        let (major, minor) = (2.0, 0.5);
+        let (center, axis, u_ref) = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let v_ref = axis.cross(u_ref);
+        for forward in [true, false] {
+            let (mut body, face) = lone_circle_annulus(forward);
+            crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+            assert!(
+                body.get_face(face).unwrap().rings.len() == 1,
+                "the fixture's face carries the ring the guard is about"
+            );
+            assert!(
+                read_window(&body, face, major, minor).is_none(),
+                "a face of lone full circles must get no window (forward={forward})"
+            );
+            // **Each guard, separately.** On this face both fire, so
+            // the assertion above outlives either one; these two pin
+            // them one at a time, on real caches.
+            let steps = face_window_steps(&body, face).expect("the fixture walks");
+            assert!(
+                torus_chart_window(&[steps[0].clone()], major, minor).is_none(),
+                "the WRAP guard alone must refuse the outer loop, which closes by \
+                 going once round `v` (forward={forward})"
+            );
+            let (wall, wall_face) =
+                torus_wall(center, axis, u_ref, major, minor, (0.3, 1.9), (-0.7, 0.8));
+            let ok = face_window_steps(&wall, wall_face).expect("the wall walks");
+            assert!(
+                torus_chart_window(&[ok[0].clone()], major, minor).is_some(),
+                "that same wall windows as ONE loop"
+            );
+            assert!(
+                torus_chart_window(&[ok[0].clone(), ok[0].clone()], major, minor).is_none(),
+                "the RING guard alone must refuse it as TWO — a second loop can be \
+                 pinned on another branch, and the hull would bound neither"
+            );
+            let b = face_box(&body, face, pad()).unwrap();
+            let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
+            agrees_with_the_rule(
+                &b,
+                &Aabb {
+                    min_x: center.x - reach(axis.x) - pad(),
+                    min_y: center.y - reach(axis.y) - pad(),
+                    min_z: center.z - reach(axis.z) - pad(),
+                    max_x: center.x + reach(axis.x) + pad(),
+                    max_y: center.y + reach(axis.y) + pad(),
+                    max_z: center.z + reach(axis.z) + pad(),
+                },
+                major,
+                &format!("the lone-circle face's box (forward={forward})"),
+            );
+            // Both annuli, and the box holds them both — which is the
+            // whole reason no window may be claimed here.
+            for (lo, hi) in [
+                (0.0, 22.0_f64.to_radians()),
+                (22.0_f64.to_radians(), core::f64::consts::TAU),
+            ] {
+                for i in 0..=40 {
+                    let u = lo + (hi - lo) * f64::from(i) / 40.0;
+                    let radial = u_ref * u.cos() + v_ref * u.sin();
+                    for j in 0..=40 {
+                        let v = core::f64::consts::TAU * f64::from(j) / 40.0;
+                        let p =
+                            center + radial * (major + minor * v.cos()) + axis * (minor * v.sin());
+                        assert!(holds(&b, p), "the whole tube must hold both annuli: {p:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    /// **A face whose caches are a MIX abandons the window** rather
+    /// than narrowing to the half it can read. One half-edge's cache
+    /// is dropped from an otherwise fully cached fixture; the window
+    /// must go, not shrink.
+    #[test]
+    fn a_partly_cached_torus_face_gets_no_window() {
+        let (major, minor) = (2.0, 0.5);
+        let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
+        let (mut body, face) = torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            major,
+            minor,
+            u,
+            v,
+        );
+        let full = read_window(&body, face, major, minor).expect("the intact fixture windows");
+        let LoopBoundary::Cycle { first } = body
+            .get_loop(body.get_face(face).unwrap().outer)
+            .unwrap()
+            .boundary
+        else {
+            panic!("the fixture's face has a cycle")
+        };
+        let dropped = body.loop_cycle(first).unwrap()[1];
+        body.pcurves.remove(dropped);
+        assert!(
+            read_window(&body, face, major, minor).is_none(),
+            "a face with a MIX of cached and uncached half-edges must abandon the window, \
+             not narrow to {full:?}"
+        );
+        let b = face_box(&body, face, pad()).unwrap();
+        let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
+        agrees_with_the_rule(
+            &b,
+            &Aabb {
+                min_x: -reach(0.0) - pad(),
+                min_y: -reach(0.0) - pad(),
+                min_z: -reach(1.0) - pad(),
+                max_x: reach(0.0) + pad(),
+                max_y: reach(0.0) + pad(),
+                max_z: reach(1.0) + pad(),
+            },
+            major,
+            "the partly cached face's box",
+        );
+    }
+
+    /// **The certificate slack, and the bound it holds under.** The
+    /// slack is `2·envelope/(R − r)` in `u` and `2·envelope/r` in `v`,
+    /// and it is claimed only while the envelope stays inside the
+    /// tube's own scale — an envelope past `r/2` or `(R − r)/2` gets
+    /// NO window.
+    ///
+    /// The guard is unobservable on any minted fixture (an exact
+    /// harmonic image certifies at ~1e-16 m), so the row plants the
+    /// large envelope directly on the function that owns it.
+    #[test]
+    fn a_torus_windows_slack_is_guarded_by_the_bound_it_rests_on() {
+        let (major, minor) = (2.0, 0.5);
+        let (su, sv) = torus_window_slack(1e-9, major, minor).expect("a certified envelope");
+        assert!(
+            (su.hi - 2.0 * 1e-9 / (major - minor)).abs() < 1e-24,
+            "{su:?}"
+        );
+        assert!((sv.hi - 2.0 * 1e-9 / minor).abs() < 1e-24, "{sv:?}");
+        assert!((su.lo + su.hi).abs() < 1e-24 && (sv.lo + sv.hi).abs() < 1e-24);
+        // Past the tube bound `r/2`, and past the ring bound
+        // `(R − r)/2`, in turn — each alone must refuse.
+        assert!(torus_window_slack(minor * 0.5 + 1e-9, major, minor).is_none());
+        assert!(
+            torus_window_slack((major - minor) * 0.5 + 1e-9, major, major - 1e-3).is_none(),
+            "the ring bound refuses on its own"
+        );
+    }
+
+    /// **The COMPOSED answer against ground truth** — the window read
+    /// AND the extent, end to end on a real Euler-built body, checked
+    /// against the face's own locus and the §Geometry oracle rather
+    /// than against the read that produced it.
+    ///
+    /// The ceiling rows restate the construction; this one does not
+    /// look at it at all.
+    #[test]
+    fn a_real_torus_faces_box_holds_its_locus_and_stays_near_the_oracle() {
+        let (major, minor) = (5.0, 0.06);
+        let (center, axis, u_ref) = (
+            Point3::new(-major, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::unit_x(),
+        );
+        let v_ref = axis.cross(u_ref);
+        let (u, v) = ((0.0, 22.0_f64.to_radians()), (-1.1, 2.4));
+        let (body, face) = torus_wall(center, axis, u_ref, major, minor, u, v);
+        let b = face_box(&body, face, 0.0).unwrap();
+        for i in 0..=80 {
+            let uu = u.0 + (u.1 - u.0) * f64::from(i) / 80.0;
+            let radial = u_ref * uu.cos() + v_ref * uu.sin();
+            for j in 0..=80 {
+                let vv = v.0 + (v.1 - v.0) * f64::from(j) / 80.0;
+                let p = center + radial * (major + minor * vv.cos()) + axis * (minor * vv.sin());
+                assert!(
+                    holds(&b, p),
+                    "the face's own locus left its box at ({uu}, {vv})"
+                );
+            }
+        }
+        let n = ARC_SAMPLES as f64;
+        let (hu, hv) = ((u.1 - u.0) / n, (v.1 - v.0) / n);
+        let charge = (hu * hu * (major + minor) + hv * hv * minor) / 8.0;
+        for (e, lo, hi) in [
+            (Vec3::unit_x(), b.min_x, b.max_x),
+            (Vec3::unit_y(), b.min_y, b.max_y),
+            (Vec3::unit_z(), b.min_z, b.max_z),
+        ] {
+            let (o_lo, o_hi) = torus_oracle(center, axis, u_ref, major, minor, (u, v), e);
+            assert!(
+                lo <= o_lo + 1e-12 && hi >= o_hi - 1e-12,
+                "the box must contain the exact extremes along {e:?}"
+            );
+            assert!(
+                (lo - o_lo).abs() <= charge + 1e-9 && (hi - o_hi).abs() <= charge + 1e-9,
+                "and stay within the charge {charge} of them along {e:?}"
+            );
+        }
+    }
+
+    /// The chart windows the torus rows sweep: `u` spans of 22°,
+    /// 100°, 200°, 350° and the full turn, against `v` spans of 60°,
+    /// 200° and the full turn, each placed off the seam so no row
+    /// passes by symmetry.
+    fn torus_windows() -> Vec<((f64, f64), (f64, f64))> {
+        let d = |x: f64| x.to_radians();
+        let mut out = Vec::new();
+        for us in [
+            d(22.0),
+            d(100.0),
+            d(200.0),
+            d(350.0),
+            core::f64::consts::TAU,
+        ] {
+            for vs in [d(60.0), d(200.0), core::f64::consts::TAU] {
+                out.push(((d(37.0), d(37.0) + us), (d(-71.0), d(-71.0) + vs)));
+            }
+        }
+        out
+    }
+
+    /// The periodic distance from `x` to the window `[lo, hi]` —
+    /// zero when `x` is inside it, and otherwise the shorter way round
+    /// to an end. The oracle's `δ_u`, `δ_v`.
+    fn dist_tau(x: f64, lo: f64, hi: f64) -> f64 {
+        let tau = core::f64::consts::TAU;
+        if (x - lo).rem_euclid(tau) <= hi - lo {
+            return 0.0;
+        }
+        let to = |e: f64| {
+            let d = (x - e).rem_euclid(tau);
+            d.min(tau - d)
+        };
+        to(lo).min(to(hi))
+    }
+
+    /// **The §Geometry ORACLE**: the exact extremes of `e·S` over the
+    /// chart rectangle, in closed form — what the sampled
+    /// construction is measured against, and not what any lane
+    /// computes.
+    ///
+    /// At fixed `v`, `f = e·c + (R + r cos v)·a(u) + r sin v·e_n` is
+    /// affine in `a(u) = |e_⊥|·cos(u − u*)` with POSITIVE slope
+    /// (`R + r cos v > 0` on a ring torus), so `max_u f` sits at
+    /// `a_max = |e_⊥|·cos δ_u`; then `g(v) = R·a_max + r·A·cos(v − φ)`
+    /// with `A = hypot(a_max, e_n)` and `φ = atan2(e_n, a_max)`, whose
+    /// window extreme is at the `v` nearest `φ` (nearest `φ + π` for
+    /// the minimum, with `a_min` in place of `a_max`).
+    fn torus_oracle(
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        major: f64,
+        minor: f64,
+        ((u0, u1), (v0, v1)): ((f64, f64), (f64, f64)),
+        e: Vec3<f64>,
+    ) -> (f64, f64) {
+        let v_ref = axis.cross(u_ref);
+        let e_n = e.dot(axis);
+        let perp = (e - axis * e_n).norm();
+        let u_star = e.dot(v_ref).atan2(e.dot(u_ref));
+        let base = (center - Point3::origin()).dot(e);
+        let extreme = |a: f64, want_max: bool| {
+            let amp = a.hypot(e_n);
+            let phi = e_n.atan2(a);
+            let near = if want_max {
+                phi
+            } else {
+                phi + core::f64::consts::PI
+            };
+            let c = dist_tau(near, v0, v1).cos();
+            if want_max {
+                base + major * a + minor * amp * c
+            } else {
+                base + major * a - minor * amp * c
+            }
+        };
+        let a_max = perp * dist_tau(u_star, u0, u1).cos();
+        let a_min = -perp * dist_tau(u_star + core::f64::consts::PI, u0, u1).cos();
+        (extreme(a_min, false), extreme(a_max, true))
+    }
+
+    /// **The locus row.** Every point of the chart rectangle is inside
+    /// the box the arm's construction gives it, swept over the window
+    /// shapes, three `(R, r)` and two axes — and sampled at cell
+    /// MIDPOINTS as well as at the grid the construction itself
+    /// samples, so the CHARGE is what has to carry the row rather than
+    /// the samples.
+    ///
+    /// Kills two constructions at once: a boundary-hull-only box (a
+    /// window holding a pole of some coordinate loses the bulge) and
+    /// the uncharged sample hull (the midpoints leave it).
+    #[test]
+    fn a_torus_windows_locus_is_inside_its_box() {
+        for &(major, minor) in &[(2.0, 0.5), (0.01, 0.004), (60.0, 12.0)] {
+            for axis in [Vec3::unit_z(), Vec3::new(1.0, 2.0, 3.0).normalize()] {
+                let center = Point3::new(0.3 * major, -0.2 * major, 0.1 * major);
+                let (u_ref, _) = axis.orthonormal_basis();
+                let v_ref = axis.cross(u_ref);
+                for (u, v) in torus_windows() {
+                    let b = aabb_of(meet(
+                        torus_window_extent(
+                            &SpanBox::point(center),
+                            &SpanBox::vector(axis),
+                            &SpanBox::vector(u_ref),
+                            &SpanBox::vector(v_ref),
+                            Span::exact(major),
+                            Span::exact(minor),
+                            (Span { lo: u.0, hi: u.1 }, Span { lo: v.0, hi: v.1 }),
+                        ),
+                        torus_extent(
+                            &SpanBox::point(center),
+                            &SpanBox::vector(axis),
+                            major,
+                            minor,
+                        ),
+                    ));
+                    // Twice the construction's own grid, offset by half
+                    // a cell in both channels: no sample here is one of
+                    // the samples the hull was built from.
+                    let n = 2 * ARC_SAMPLES;
+                    for i in 0..n {
+                        let uu = u.0 + (u.1 - u.0) * (i as f64 + 0.5) / n as f64;
+                        let radial = u_ref * uu.cos() + v_ref * uu.sin();
+                        for j in 0..n {
+                            let vv = v.0 + (v.1 - v.0) * (j as f64 + 0.5) / n as f64;
+                            let p = center
+                                + radial * (major + minor * vv.cos())
+                                + axis * (minor * vv.sin());
+                            assert!(
+                                holds(&b, p),
+                                "the chart point (u = {uu}, v = {vv}) of the window \
+                                 {u:?}×{v:?} left the box (R = {major}, r = {minor}, \
+                                 axis {axis:?}): {b:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// **The window is TIGHT**, measured against the closed-form
+    /// oracle at the lily's own numbers — the 22° arc of a 5 m ring
+    /// with a 0.06 m tube, boxed as the full tube of the window rather
+    /// than as the whole ring.
+    ///
+    /// The ceiling row above pins the box to its construction; this
+    /// one pins the construction to the geometry, which is the half
+    /// that makes the arm worth having. The charge at
+    /// [`ARC_SAMPLES`] on this window is `(h_u²(R + r) + h_v²r)/8`,
+    /// and every side sits inside `charge + pad` of the exact extreme.
+    #[test]
+    fn the_torus_window_box_is_within_its_charge_of_the_closed_form_extremes() {
+        let (major, minor) = (5.0, 0.06);
+        let center = Point3::new(-major, 0.0, 0.0);
+        let axis = Vec3::new(0.0, -1.0, 0.0);
+        let u_ref = Vec3::new(1.0, 0.0, 0.0);
+        let v_ref = axis.cross(u_ref);
+        let (u, v) = ((0.0, 22.0_f64.to_radians()), (0.0, core::f64::consts::TAU));
+        let windowed = aabb_of(meet(
+            torus_window_extent(
+                &SpanBox::point(center),
+                &SpanBox::vector(axis),
+                &SpanBox::vector(u_ref),
+                &SpanBox::vector(v_ref),
+                Span::exact(major),
+                Span::exact(minor),
+                (Span { lo: u.0, hi: u.1 }, Span { lo: v.0, hi: v.1 }),
+            ),
+            torus_extent(
+                &SpanBox::point(center),
+                &SpanBox::vector(axis),
+                major,
+                minor,
+            ),
+        ));
+        let whole = aabb_of(torus_extent(
+            &SpanBox::point(center),
+            &SpanBox::vector(axis),
+            major,
+            minor,
+        ));
+        let n = ARC_SAMPLES as f64;
+        let (hu, hv) = ((u.1 - u.0) / n, (v.1 - v.0) / n);
+        let charge = (hu * hu * (major + minor) + hv * hv * minor) / 8.0;
+        // The two channels, separately: `h_u²(R + r)/8 ≈ 3.7e-4` and
+        // `h_v²r/8 ≈ 1.2e-3`.
+        assert!(
+            charge < 3.7e-4 + 1.2e-3,
+            "the charge on this window must stay at the spec's two terms: {charge}"
+        );
+        let sides = [
+            (
+                Vec3::unit_x(),
+                windowed.min_x,
+                windowed.max_x,
+                whole.min_x,
+                whole.max_x,
+            ),
+            (
+                Vec3::unit_y(),
+                windowed.min_y,
+                windowed.max_y,
+                whole.min_y,
+                whole.max_y,
+            ),
+            (
+                Vec3::unit_z(),
+                windowed.min_z,
+                windowed.max_z,
+                whole.min_z,
+                whole.max_z,
+            ),
+        ];
+        let mut coarse = 0;
+        for (e, lo, hi, wlo, whi) in sides {
+            let (o_lo, o_hi) = torus_oracle(center, axis, u_ref, major, minor, (u, v), e);
+            for (got, want, what) in [(lo, o_lo, "min"), (hi, o_hi, "max")] {
+                assert!(
+                    (got - want).abs() <= charge + 1e-12,
+                    "the {what} along {e:?} is {got}, the exact extreme {want} — \
+                     off by more than the charge {charge}"
+                );
+            }
+            if (wlo - o_lo).abs() > 3.0 || (whi - o_hi).abs() > 3.0 {
+                coarse += 1;
+            }
+        }
+        assert!(
+            coarse >= 2,
+            "the whole-ring box must be ≥ 3 m off on at least two sides, or this \
+             fixture is not the artifact the unit exists for"
+        );
+    }
+
+    /// **The window is the EDGE'S OWN SPAN**, not
+    /// `geom_brep::Pcurve::chart_box`'s ball about the constant term:
+    /// a 22° patch's `u` window is 22° wide and sits where the face
+    /// does, where `chart_box` would give `p0 ± 22°` — 44° wide and
+    /// centred on the wrong point.
+    #[test]
+    fn the_torus_window_is_the_edges_own_span_not_its_chart_box() {
+        let (major, minor) = (5.0, 0.06);
+        let (u0, u1) = (0.0, 22.0_f64.to_radians());
+        let (v0, v1) = (-0.4, 0.9);
+        let (body, face) = torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            major,
+            minor,
+            (u0, u1),
+            (v0, v1),
+        );
+        let (u, v) = read_window(&body, face, major, minor)
+            .expect("every half-edge stores a certified cache and the window reads");
+        // The slack is `2·envelope/(R − r)` and `2·envelope/r` on a
+        // fixture whose images are exact, so it is at the mint's own
+        // residual scale — orders below the spans themselves.
+        let slack = 1e-6;
+        for (got, want, what) in [
+            (u.lo, u0, "u lo"),
+            (u.hi, u1, "u hi"),
+            (v.lo, v0, "v lo"),
+            (v.hi, v1, "v hi"),
+        ] {
+            assert!(
+                (got - want).abs() < slack,
+                "the {what} window end is {got}, the edge's own span end {want}"
+            );
+        }
+        let chart_box_reach = u1;
+        assert!(
+            u.hi - u.lo < 1.5 * chart_box_reach,
+            "the window is the 22° span, not `chart_box`'s ±22°: {u:?}"
+        );
+    }
+
+    /// **`TorusWindow`**, both halves of the rule.
+    ///
+    /// *Windowless* — a face whose boundary stores no certified
+    /// pcurve gets `(R + r)` perpendicular to the axis and `r` along
+    /// it, reading nothing from the boundary, so the trim such a
     /// fixture carries must not appear in the box at all.
+    ///
+    /// *Windowed* — a face whose boundary DOES store them gets the
+    /// sampled chart rectangle met with that whole tube, and nothing
+    /// else: the box is the construction in the fixture's own
+    /// parameters, on all six faces in both directions.
     #[test]
     fn the_torus_arms_box_is_exactly_the_construction_its_rule_states() {
         let pad = pad();
         for &(major, minor) in &[(2.0, 0.5), (0.01, 0.004), (60.0, 12.0)] {
             for axis in [Vec3::unit_z(), Vec3::new(1.0, 2.0, 3.0).normalize()] {
                 let c = Point3::new(0.3 * major, -0.2 * major, 0.1 * major);
+                let u_ref = axis.orthonormal_basis().0;
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
                 body.set_face_surface(
                     face,
@@ -2560,7 +3941,7 @@ mod tests {
                         axis,
                         major_radius: major,
                         minor_radius: minor,
-                        u_ref: axis.orthonormal_basis().0,
+                        u_ref,
                     }),
                 )
                 .unwrap();
@@ -2578,7 +3959,51 @@ mod tests {
                         max_z: c.z + rz + pad,
                     },
                     major,
-                    &format!("the torus arm (R = {major}, r = {minor}, axis {axis:?})"),
+                    &format!("the windowless torus arm (R = {major}, r = {minor}, axis {axis:?})"),
+                );
+
+                let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
+                let (body, face) = torus_wall(c, axis, u_ref, major, minor, u, v);
+                let b = face_box(&body, face, pad).unwrap();
+                // The window comes from the fixture's own caches (the
+                // fidelity row is what pins it to `[u0, u1] × [v0, v1]`);
+                // the CONSTRUCTION is restated here rather than called,
+                // so this row can see a sample or a charge go missing.
+                let (wu, wv) = read_window(&body, face, major, minor).unwrap();
+                let v_ref = axis.cross(u_ref);
+                let n = ARC_SAMPLES;
+                let (hu, hv) = ((wu.hi - wu.lo) / n as f64, (wv.hi - wv.lo) / n as f64);
+                let mut want: Option<Aabb> = None;
+                for k in 0..=n {
+                    let uu = wu.lo + hu * k as f64;
+                    for l in 0..=n {
+                        let vv = wv.lo + hv * l as f64;
+                        let p = c
+                            + (u_ref * uu.cos() + v_ref * uu.sin()) * (major + minor * vv.cos())
+                            + axis * (minor * vv.sin());
+                        let one = Aabb::from_points([p]).unwrap();
+                        want = Some(want.map_or(one, |a: Aabb| a.hull(&one)));
+                    }
+                }
+                let charge = |a: f64| {
+                    (hu * hu * ((major + minor) * (1.0 - a * a).max(0.0).sqrt()) + hv * hv * minor)
+                        / 8.0
+                };
+                let want = want.unwrap();
+                let want = Aabb {
+                    min_x: (want.min_x - charge(axis.x)).max(c.x - rx),
+                    min_y: (want.min_y - charge(axis.y)).max(c.y - ry),
+                    min_z: (want.min_z - charge(axis.z)).max(c.z - rz),
+                    max_x: (want.max_x + charge(axis.x)).min(c.x + rx),
+                    max_y: (want.max_y + charge(axis.y)).min(c.y + ry),
+                    max_z: (want.max_z + charge(axis.z)).min(c.z + rz),
+                }
+                .padded(pad);
+                agrees_with_the_rule(
+                    &b,
+                    &want,
+                    major,
+                    &format!("the windowed torus arm (R = {major}, r = {minor}, axis {axis:?})"),
                 );
             }
         }
@@ -2642,7 +4067,9 @@ mod tests {
         // The census construction's charge on each fixture's rim arcs:
         // amplitude `r` times `(span / N)² / 8`. The cone's box is the
         // frustum over an axial window both lanes project identically;
-        // the ball, the tube and the control net read no edge box.
+        // the ball, the tube and the control net read no edge box, and
+        // a windowed torus reads its window from the same certified
+        // pcurves on both lanes.
         let charge = |r: f64, span: f64| subdivision_charge(r, span / ARC_SAMPLES as f64);
         /// One fixture: its name, the face, and the census charge on it.
         type Case = (&'static str, (Body<f64>, FaceKey), f64);
@@ -2656,6 +4083,22 @@ mod tests {
             ("cone", cone_wall(0.5, 0.0, 2.4, 0.4, 1.0), 0.0),
             ("sphere", relabelled(sphere), 0.0),
             ("torus", relabelled(torus), 0.0),
+            // A face whose boundary DOES store certified pcurves: the
+            // window read is a per-lane arena walk, so this case is
+            // what holds the census's walk of it against this module's.
+            (
+                "torus window",
+                torus_wall(
+                    Point3::new(0.4, -0.3, 0.2),
+                    tilt,
+                    tilt.orthonormal_basis().0,
+                    2.0,
+                    0.5,
+                    (0.3, 1.9),
+                    (-0.7, 0.8),
+                ),
+                0.0,
+            ),
             ("nurbs", (nurbs_body, nurbs_face), 0.0),
         ];
         for (what, (body, face), charge) in cases {

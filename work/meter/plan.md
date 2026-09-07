@@ -28,11 +28,45 @@ has one executable home and every other site points at it.**
 
 ## Review posture
 
-The S-TCOST posture: one style review per unit; no A/B rows. A re-cut
-of committed budget data is a PROPS coordination, not a lane's call.
+The S-TCOST posture, confirmed and sharpened by Ev in chat
+(2026-09-07): **no A/B protocol on this program** — no draws, no arms,
+no `docs/MODEL-AB-LOG.md` rows. The band stays claimed for bookkeeping
+only, which is what `program.md` already says it is for.
+
+**One style review per unit is the default**
+(`docs/prompts/reviewer-style-lane.md`, dispatched per
+`docs/REVIEW-STYLE-DISPATCH.md`). A full falsification review is
+reserved for the units where a wrong answer is expensive rather than
+merely wrong, and on this slate that means the two that move committed
+measurements other lanes read:
+
+- `D206` — the constant change is one line and its consequence is
+  every committed budget number. The claim to falsify is that
+  `SPLIT_SCAN_SAMPLES = 379` actually puts the one-sided envelope under
+  the gate's margin on the `ceil`'d column the gate READS, rather than
+  on the continuous objective `D105` bounded.
+- `k-report-baseline-fold-cert1-roster` — the re-derivation is
+  mechanical and its READING is not. `props_meridian_pole`'s in-band
+  population is benign by construction, and a baseline that records it
+  as a landing corrupts K attribution.
+
+Everything else takes the style lane alone. A re-cut of committed
+budget data is a PROPS coordination, not a lane's call.
 
 ## Unit order
 
+0. `tess-lint-face-ordinal-join` — **the cheap tripwire has landed and
+   the item does not know it.** `Kind::Rekeyed` with `Rekey::Absent` /
+   `Rekey::Column`, under `compare`'s rule-4 precondition, closes both
+   branches the item names: the wrong-face compare and the silent drop.
+   The item's body predates the fix (it is #746's text, 2026-08-20) and
+   `C15` and `D201` both already say the mis-join is closed. What the
+   unit owes is the verification and the one live question the closure
+   raises — an ordinal permutation on a scene with NO Hessian-sized
+   face lands in `notes` rather than `findings` (`compare`'s `gated`
+   split), which is exactly #738's `diefillet` case, so the ordinals
+   the item found permuted are today reported in the quietest voice the
+   lint has. Decide whether that is the right voice and record it.
 1. `D213` + `D214` — one lane in `tess-lint`: the `Row::nurbs` doc and
    `IDENTITY_COLUMNS`' reason corrected; the missing sizing block
    refused at parse rather than read as `Absent`.
@@ -52,12 +86,14 @@ of committed budget data is a PROPS coordination, not a lane's call.
 7. `k-report-baseline-fold-cert1-roster` — the next K-REPORT baseline
    re-derivation, folding `props_meridian_pole` and the re-shaped
    sphere rim margins; a runbook pass.
-8. `D201` → `tess-lint-face-ordinal-join` → `C15` — the stable
-   face-identity question first (what a DURABLE per-face name is,
-   reaching `topo/src/entity.rs` and `demos/`; an issue with a fence
-   before a lane), then the meter emits it, then the lint joins on it.
-   Until then, `Kind::Reordered` is the cheap tripwire the join item
-   names, and can land as its own small unit ahead of the rest.
+8. `D201` → `C15` — the stable face-identity question (what a DURABLE
+   per-face name is, reaching `topo/src/entity.rs` and `demos/`; an
+   issue with a fence before a lane), then the meter emits it, then
+   `C15`'s residue is discharged by reading it. This is the program's
+   one Ev-gated fork and its long pole: `D201` goes out as an `[ev]` PR
+   before the slate's cheap end is exhausted, so the answer is in hand
+   when the lane is free. Unit 0 has already taken the tripwire half
+   that used to sit under this step.
 
 ## Exit shape
 

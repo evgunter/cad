@@ -404,10 +404,29 @@ pub enum RoleSeg {
     /// tables carry `FromA`/`FromB` descent chains whose depth is the
     /// member's POSITION in the list. This segment is what the union's
     /// emitter mints instead: one wrapper, whatever the depth. A
-    /// member's names are therefore a function of the member's
+    /// member's own names are therefore a function of the member's
     /// identity alone — neither its position nor how many members
     /// precede it — which is what lets a member be dropped without
-    /// renaming the rest.
+    /// renaming the rest. A declaration written in these names keeps
+    /// that identity through the fold's MERGES: a member's face that a
+    /// declared merge has consumed resolves, at the step its pair is
+    /// fed to, to the accumulation's `Merged` row whose flat
+    /// constituent set holds it. A face consumed any other way — by a
+    /// split, by containment, or inside a merged row later fragmented
+    /// — is not looked through, and a pair naming it is order-shaped
+    /// ([`crate::Node::Union`] states the bound).
+    ///
+    /// That is a statement about the WRAPPER, and about nothing else.
+    /// Which of a union's names exist at all is still the pair verb's
+    /// answer at every step, and the pair verb is not symmetric in its
+    /// two operands: a declared merge keeps operand A's carrier and
+    /// splits operand A's rims, so reordering the member list moves
+    /// `Fragment(OrderAlong)` rows from one member to the other and
+    /// changes the merged face's carrier origin. Measured on a bare
+    /// [`crate::Node::Boolean`] with no union in the picture
+    /// (`work/docm/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
+    /// so it is the verb's asymmetry showing through a fold rather
+    /// than anything the fold or this segment adds.
     ///
     /// # Why the member EDGE and not just the inner name
     ///
@@ -443,8 +462,14 @@ pub enum RoleSeg {
         /// The B-side crossing entity's name.
         b: Box<StableName>,
     },
-    /// An F7 merged face: the sorted set of constituent names retires
-    /// into this name (N3; canonical order = name order).
+    /// An F7 merged face: the sorted, FLAT set of constituent names
+    /// retires into this name (N3; canonical order = name order). A
+    /// constituent is never itself a BARE merged face, through any
+    /// `FromA`/`FromB` wrapping — a merge of a merged face lists the
+    /// faces, never the merge. The one carve-out, stated here and
+    /// pointed at from every other site: a FRAGMENT of a merged face
+    /// (`[Merged(set), Fragment(q)]`) is a face in its own right, a
+    /// legitimate constituent, and is not nesting.
     Merged(Vec<StableName>),
     /// A fragment discriminator, composed AFTER the parent-bearing
     /// segment: `[FromA(f), Fragment(q)]` reads "the q-qualified
@@ -693,3 +718,68 @@ macro_rules! name_free_seg {
 }
 
 pub(crate) use name_free_seg;
+/// The [`RoleSeg`] variants a BOOLEAN emitter never mints, as a
+/// PATTERN rather than a predicate.
+///
+/// A union's value is a fold of the pair verb, so a fold table is a
+/// boolean table and this is the same list for both. Three matches
+/// classify segments by it and each does something different with the
+/// half it does recognize — the rewrite descends a name's head
+/// (`emit_union`'s `collapse`), rebuilds its tail, and the routing
+/// walk (`eval::wire`'s `latest_member`) reads member ids out of it.
+/// Only the negative answer is common, so only the negative answer is
+/// shared, and it is shared as an or-pattern for the reason
+/// [`name_free_seg`] is: none of the three loses its exhaustiveness,
+/// so a variant added to [`RoleSeg`] and not added here still stops
+/// every one of those builds. What changes is that "the boolean
+/// emitter does not mint this" is ONE decision at one site instead of
+/// three that can be made differently.
+///
+/// The seven it leaves out are the boolean table's own vocabulary:
+/// [`RoleSeg::OutputBody`], [`RoleSeg::FromA`], [`RoleSeg::FromB`],
+/// [`RoleSeg::FromMember`], [`RoleSeg::Seam`], [`RoleSeg::Merged`]
+/// and [`RoleSeg::Fragment`]. Each of the three sites decides those
+/// for itself, because that is exactly where they differ:
+/// `FromA`/`FromB` are the fold's INTERNAL space (descended through
+/// by the rewrite, denoting nothing to the routing walk), and a
+/// `Fragment` is a tail segment rather than a head one.
+macro_rules! never_in_a_boolean_table {
+    () => {
+        $crate::names::RoleSeg::Cap(_)
+            | $crate::names::RoleSeg::Lateral(_)
+            | $crate::names::RoleSeg::RimEdge(..)
+            | $crate::names::RoleSeg::LateralEdge(_)
+            | $crate::names::RoleSeg::CapVertex(..)
+            | $crate::names::RoleSeg::Band(_)
+            | $crate::names::RoleSeg::BandRim(_)
+            | $crate::names::RoleSeg::BandRimPi(_)
+            | $crate::names::RoleSeg::BandPi(_)
+            | $crate::names::RoleSeg::Meridian(..)
+            | $crate::names::RoleSeg::MeridianVertex(..)
+            | $crate::names::RoleSeg::RevolveCap(_)
+            | $crate::names::RoleSeg::Pole(_)
+            | $crate::names::RoleSeg::AxisEdge(_)
+            | $crate::names::RoleSeg::SplitBody(_)
+            | $crate::names::RoleSeg::SectionFace { .. }
+            | $crate::names::RoleSeg::SectionEdge { .. }
+            | $crate::names::RoleSeg::SplitFragment { .. }
+            | $crate::names::RoleSeg::CrossingVertex { .. }
+            | $crate::names::RoleSeg::OnToolVertex { .. }
+            | $crate::names::RoleSeg::FromTarget(_)
+            | $crate::names::RoleSeg::BlendFace(_)
+            | $crate::names::RoleSeg::CornerFace(_)
+            | $crate::names::RoleSeg::TrimEdge { .. }
+            | $crate::names::RoleSeg::FootVertex { .. }
+            | $crate::names::RoleSeg::CornerArc { .. }
+            | $crate::names::RoleSeg::BandFace(_)
+            | $crate::names::RoleSeg::BandTrim { .. }
+            | $crate::names::RoleSeg::BandFoot(_)
+            | $crate::names::RoleSeg::BandCross(_)
+            | $crate::names::RoleSeg::BandCut(_)
+            | $crate::names::RoleSeg::BandSlit(_)
+            | $crate::names::RoleSeg::InPart { .. }
+            | $crate::names::RoleSeg::Instance { .. }
+    };
+}
+
+pub(crate) use never_in_a_boolean_table;

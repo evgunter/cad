@@ -439,6 +439,17 @@ pub enum EditError {
         /// What it references.
         measure: RecipeNodeId,
     },
+    /// A node's `declare` input names a node that is not a
+    /// [`Node::Declare`]. The slot carries coincidence INTENT, which
+    /// only a `Declare` holds; a body or a datum wired there is a
+    /// mis-wire, refused where it is authored rather than at the
+    /// evaluation that would have found nothing to resolve.
+    DeclareInputNotDeclare {
+        /// The consuming node (the boolean or the union).
+        node: RecipeNodeId,
+        /// What its `declare` input names.
+        input: RecipeNodeId,
+    },
     /// A [`Node::Assertion`]'s bound is dimensioned differently from
     /// the measure it constrains — refused at the edit door, so a
     /// document never carries a comparison of metres with radians.
@@ -739,6 +750,23 @@ pub enum EditError {
         /// The offending target.
         node: RecipeNodeId,
     },
+    /// **A placement frame's ROTATION AXIS has no definite
+    /// direction** — the [`crate::AxisRefusal`]
+    /// [`crate::Frame::rotate_then_translate`] raises where the axis
+    /// is decided, carried into this vocabulary unaltered so an
+    /// author building a frame and setting it speaks ONE error type
+    /// from the constructor through the door.
+    ///
+    /// Its own arm rather than [`EditError::NonFinitePlacement`]:
+    /// that one's subject is the frame's coordinates, and a reader
+    /// told their frame is not finite goes looking at the frame,
+    /// which is exactly the mistaken subject this arm exists to stop
+    /// reporting. The cause is the axis, in the evaluation layer's
+    /// own words, with the role word naming the vector.
+    PlacementAxis {
+        /// The direction door's refusal, unaltered.
+        error: crate::eval::NodeRefusal,
+    },
     /// A mate's alignment datum carries a non-finite coordinate. The
     /// placement registry's own rule, one level out: an authored frame
     /// nothing can decide about never enters the document.
@@ -800,6 +828,23 @@ pub enum EditError {
 // ({slot:?}), which has a prose spelling (`SlotId::label`) it does not
 // use — that is a separate question, outside the amendment that
 // removed the other two, and it is filed rather than taken here.
+/// The AXIS's refusal, in the authoring vocabulary — what makes
+/// `Frame::rotate_then_translate(..)?` compose with
+/// `apply(.., DocEdit::SetPlacement { .. })?` in one function.
+///
+/// It converts from [`crate::AxisRefusal`] and from nothing else. A
+/// blanket `From<NodeErrorKind>` would make every node refusal in the
+/// crate convert into this arm through a bare `?`, which is a
+/// catch-all in the authoring vocabulary — the shape this arm was
+/// added to close.
+impl From<crate::AxisRefusal> for EditError {
+    fn from(error: crate::AxisRefusal) -> Self {
+        Self::PlacementAxis {
+            error: error.carried(),
+        }
+    }
+}
+
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -900,6 +945,12 @@ impl core::fmt::Display for EditError {
                 "assertion node {} references node {}, which is not a measure — an \
                  assertion constrains a measurement",
                 node.0, measure.0
+            ),
+            Self::DeclareInputNotDeclare { node, input } => write!(
+                f,
+                "node {}'s declare input names node {}, which is not a declaration — \
+                 wire a Declare node there, or leave the input empty",
+                node.0, input.0
             ),
             Self::AssertionDimension {
                 node,
@@ -1075,6 +1126,12 @@ impl core::fmt::Display for EditError {
                  mirrored placements are admitted only behind the equivariance audit",
                 node.0
             ),
+            Self::PlacementAxis { error } => {
+                write!(
+                    f,
+                    "the placement frame's rotation axis is unusable: {error}"
+                )
+            }
             Self::NonFinitePlacement { node } => write!(
                 f,
                 "the placement frame for node {} carries a non-finite coordinate",
@@ -1329,6 +1386,22 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     }
 }
 
+/// The `declare` edge's kind rule, in this door's vocabulary.
+///
+/// The rule itself is [`Node::bad_declare_input`], asked by this door
+/// and by the load door (`persist::check`) of one answer; what is here
+/// is only this door's word for the refusal.
+fn check_declare_input<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+    node: &Node<P>,
+) -> Result<(), EditError> {
+    match node.bad_declare_input(doc) {
+        Some(input) => Err(EditError::DeclareInputNotDeclare { node: id, input }),
+        None => Ok(()),
+    }
+}
+
 /// Reject cycles in the recipe DAG (spec D3/D6). Defensive: insertion
 /// referencing only existing nodes cannot cycle, but the invariant is
 /// checked. Iterative DFS, three-color, deterministic order.
@@ -1464,6 +1537,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
             let id = RecipeNodeId(new.next_id);
             check_node_inputs(id, node)?;
+            check_declare_input(&new, id, node)?;
             if let Node::Mate { alignment, .. } = node
                 && !alignment.is_finite()
             {

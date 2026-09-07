@@ -836,12 +836,28 @@ impl DisplayState {
     }
 
     /// Forget everything — what opening a different document does.
+    ///
+    /// **Destructured rather than field-cleared**, so a field added to
+    /// [`DisplayState`] is E0027 here rather than silently surviving
+    /// the door that opens a different document.
+    ///
+    /// `revision` is the field the walk does not forget, and the one
+    /// the pattern exists to keep visible: it is the chrome's rebuild
+    /// key, so it is bumped when the reset was visible and never reset
+    /// itself — a counter that went backwards would name a picture the
+    /// chrome has already drawn.
     pub fn clear(&mut self) {
-        if !self.hidden.is_empty() || !self.moves.is_empty() || self.free_move.is_some() {
-            self.revision += 1;
+        let Self {
+            hidden,
+            moves,
+            free_move,
+            revision,
+        } = self;
+        if !hidden.is_empty() || !moves.is_empty() || free_move.is_some() {
+            *revision += 1;
         }
-        self.hidden.clear();
-        self.moves.clear();
-        self.free_move = None;
+        hidden.clear();
+        moves.clear();
+        *free_move = None;
     }
 }
