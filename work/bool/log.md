@@ -356,3 +356,15 @@ specs on main since 2026-09-02, both sequenced behind this merge, not
 yet dispatched. BOOL-B3's remaining slots are BOOL-9 opus (slot 1) and
 BOOL-10 fable (slot 2).
 
+
+## BOOL-9 and BOOL-10 dispatched (2026-09-08)
+
+Ev, in chat 2026-09-08: go ahead. Both cut from main at `92a861dba`
+(BOOL-12 landed), beside each other: BOOL-9 (the RawLoop demotion,
+survey-first, L) on `bool/9-rawloop-demotion`, BOOL-10 (the
+`arc_continue` retirement and the declared-tangent-joints arc form, L,
+PR held for Ev) on `bool/10-arc-continue-retirement`. The seam between
+them is `crates/profile/src/lift.rs` (BOOL-9's; BOOL-10 reports, never
+edits) and the lattice verb files (BOOL-10's). Arms from block BOOL-B3
+per the private draw file, quoted before the arms were named. Ordinals
+claim at review dispatch.
