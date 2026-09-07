@@ -294,6 +294,19 @@ ERROR-DESIGN's own "Open after this doc" list.
   registered: the CENTRE the joint classifier asks about is re-derived
   by `build_seg`, not the constructor's node
   (`fillet-tangency-is-not-the-constructors-node`).
+- **M10-10 — the form-level mechanism (rule D: trig of `atan`
+  exact; A/B per node made affordable); after M10-9, block M10-B5
+  slot 1.** Opened from M10-9's staged walk: four identity residuals
+  stand between the plate and a macroscopic real margin, worth 2×
+  together for the first three and 1.68e5× for the fourth (0.263 of
+  the real study against `assert_bound`), so the family must go at
+  once and no per-identity door can. The arc's two spellings meet
+  once their `sin`/`cos` of `q · atan(bulge)` are written in closed
+  form — theorems of the reals, no value read — with rules A/B
+  closing the ring per node in the early walk, memoized and bounded;
+  the ring width measured. Acceptance is the exit condition itself:
+  the plate's real study certifies, ε-free, bounded by a genuine
+  flip. Ruled in chat ("1 sounds good!").
 
 Cross-program interfaces, named so "error" does not become a
 bucket: the PARAM-LINT unit (DISCIPLINES) is not ours and blocks

@@ -3939,6 +3939,52 @@ concludes. Method note applying to BOTH arms equally: a saturated
 serialized on the machine mutex; the account's weekly usage budget may
 force pauses — any interruption is recorded and 3(e) applied.
 
+## CURVED-TORUS PR-1 review ordinal fixed at dispatch (2026-09-06)
+
+CURVED-TORUS PR-1 (`work/curved/torus-operand-boxes-span-whole-ring.md`,
+PR #1907 open — frozen head `5c04d2c4`): **ordinal 2201** (CURVED band).
+Pre-draw fields at the spec (`docs/CURVED-TORUS-SPEC.md` §PR shape):
+difficulty **M**, task-class **NUMERIC**; implementer arm per block
+CURVED-B1 slot 1 (record branch-side on `curved/b1-block`, with the
+slot 1/2 reorder note). Protocol v6 dual: draw = `/dev/urandom` byte
+**107**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded before
+either review runs: CONCURRENT same-head on frozen `5c04d2c4`, both
+briefs authored and STORED with sha256 before either dispatches
+(4b619930a88c0150… r1 / a9c71ad69b2a2cd1… r2 — identical text modulo
+lane names, verified by diff), neither reviewer sees the other's
+report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR`
+per reviewer (fresh for both); the implementer's unit log entry is not
+written until the dual concludes. Method note applying to BOTH arms
+equally: a shared 8-core box; the implementer lane itself was paused
+twice by the account's usage limit and resumed from transcript
+(recorded here so 3(e) can be applied to the IMPLEMENTER arm if the
+protocol reads it that way at the blinded coding); the pair's own
+interruptions, if any, are recorded at merge.
+
+## TRIM-1 review ordinal fixed at dispatch (2026-09-06)
+
+TRIM-1 (`work/trim/interior-iso-curve-de-boor-extractor.md`, PR #2095
+open — frozen head `60476186`): **ordinal 2501** (TRIM band). Pre-draw
+fields at the spec (`docs/TRIM-1-SPEC.md` §PR shape, §Rulings):
+difficulty **L** (high end), task-class **NUMERIC**; implementer arm
+per block TRIM-B1 slot 1 (record branch-side on `trim/b1-block`).
+Protocol v6 dual: draw = `/dev/urandom` byte **95**, parity 1 ⇒
+**R1 = FABLE, R2 = OPUS**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `60476186`, both briefs authored and
+STORED with sha256 before either dispatches (fdb18386bbbaf1b2… r1 /
+0b04a62640ab58ba… r2 — identical text modulo lane names, verified by
+diff), neither reviewer sees the other's report, v6 item 5 isolation in
+both briefs, PRIVATE `CARGO_TARGET_DIR` per reviewer (fresh for both);
+the implementer's unit log entry is not written until the dual
+concludes. Method note applying to BOTH arms equally: a shared 8-core
+box; the implementer lane was paused three times by the account's
+usage limit and resumed from transcript (recorded for 3(e)); the
+reviewers may be paused likewise, recorded at merge.
+
+TRIM-3 PR-1 RECORDED AT MERGE (2026-09-07, PR #1911, sample #151 — prior highest #150 on main at merge; block TRIM-B1 slot 0 concluded; the block record stays on `trim/b1-block` until the block concludes):
+
+| T3A | 2026-09-07 | TRIM-3 PR-1 (PR #1911; spec docs/TRIM-3-SPEC.md §1/§2/§4/§9): the chart-boundary description — `topo::chart_boundary` walks each loop in the chart the consumer names (plane re-chart or the stored surface) through the existing `walk_loop`, minting `Segment`s by structure (Line-on-plane, `IsoLine`, `IsoArc`) and `Envelope`s (whole-span interval images plus certificate slack) otherwise; `ChartBound::metred(arms).certifies_outside(rect)` = five-axis SAT per edge + ray parity at the cell centre, six `decide` rows (`chart_bound_*`), every rounding keeping the cell; ring lifts per whole period. Fix pass from the dual: singular chart joints (sphere pole, cone apex) refuse typed (`SingularChartJoint`) after R1 measured a WRONG description dropping 210/750 material cells on a pole-touching sphere face; `assembled` refuses an outer spanning more than the period (`OuterSpansPeriod`) after R2 showed a lift certifying material at span = 3τ; the metred hull; the shared 16-member `SCHEDULE_2D` (the two-member truncation lost 8–20 % of certifiable cells to grazes); 18 real-body rows adopted from both reviewers' probes with a brute-force oracle; a dimension pin (`over_lever` vs `of`); T4 in band units; T5 realizable | M-low / NUMERIC (pre-logged at the spec) | OPUS (block TRIM-B1 slot 0) | **DUAL (ordinal 2500 — TRIM band's first claim; byte 237 parity 1 ⇒ R1 FABLE + R2 OPUS; CONCURRENT same-head on frozen 37a236b8; briefs stored with sha256 pre-dispatch; both reviewers disclosed command-line-only glimpses of the other lane's names, benign; v6 instrument).** R1 MERGEABLE-AFTER-FIXES, rubric 3/4/3/4/5, 1 MAJ + 3 MIN — unique finds: MAJOR-1 the pole-touching sphere face described WRONGLY (executed, 3-D oracle); `LoopWraps` IS minted by a head constructor (the apex cone); two-edge loops certify nothing; a 32×32-grid oracle over ~62,000 certified cells on plane/cylinder faces with 0 violations. R2 MERGEABLE-AFTER-FIXES, rubric 5/5/2/5/5, 2 MAJ + 3 MIN + 4 NOTE — unique finds: MAJOR-2 `assembled`'s unstated span-vs-period premise (executed at 3τ); the truncated parity schedule's measured graze cost; the unmetred hull (a PR-2 trap); F18's dimension claim unguarded; a 29,768-query oracle with 0 unsound certifications; the round-hole no-benefit note. CONVERGED: the arc-envelope minting path unpinned on real bodies (R1 MINOR-2 = R2 MAJOR-1, both by planting invisible mutants); the stale module header. **Tally: R1's MAJOR-1 and R2's MAJOR-2 are each unilateral and code-class (two candidates) — but R1 was KILLED by a transient Fable 429 mid-review and resumed from transcript, so per 3(e)'s letter the PAIR IS EXCLUDED from the tally and the clean count.** | 0 silent — eight deviations reported before review; deviation 7 (T6 hand-built) lacked a schedule (now the negative result in the row's doc) | 5 | R1 3 / R2 2 | R1 4 / R2 5 | substantial, ADJUDICATED — all eleven union items taken, none declined; both reviewer probe files adopted authorship-preserving; one CI red on the way was inherited (`work.py --selftest`'s date-pinned fixture expiring 2026-09-07, cleared by main) | impl CI 33969665310 GREEN (twelve `test` jobs, both lanes × three ε); fix CI 34077864908 GREEN (same matrix); merged #1911 at sample #151 | impl ~366k / fix ~564k / R1 ~354k / R2 ~292k | impl ~27 min agent time over ~10 h wall (two usage-limit pauses) / fix ~7.6 h wall (three slot acquisitions, the SSH-dropped pushes) / R1 ~1.6 h + a Fable-429 death and resume / R2 ~3.4 h |
+
 ## DOCM program rows (work/docm/; band 1800–1899; blocks named DOCM-B<n>)
 
 Block DOCM-B1 pre-draw fields (2026-09-04, logged before the draw):

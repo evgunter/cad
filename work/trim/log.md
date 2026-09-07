@@ -99,3 +99,22 @@ renames the mint the two `ssi` consumers call (`kv.coeffs(..)` →
 (`ssi/certify.rs` `box_chain`, `probe_tube_chart`) saying what the arm
 returns and that it is unreachable by construction. No arithmetic.
 Signed (PROPS orchestrator).
+
+## TRIM-3 PR-1 merged (2026-09-07) — the first TRIM unit
+
+PR #1911, ordinal 2500, sample #151; block TRIM-B1 slot 0 concluded.
+The dual (R1 Fable, R2 Opus) both MERGEABLE-AFTER-FIXES; adjudication
+on the PR (comment 5561699789); eleven union items all taken. Two
+soundness fixes from review: singular chart joints refuse typed (R1's
+wrong description on a pole-touching sphere face), and `assembled`
+refuses an outer spanning more than the period (R2's 3τ lift). The
+pair is EXCLUDED from the A/B tally under 3(e) (R1 killed by a Fable
+429 and resumed). Class findings filed at adjudication:
+`round-holes-get-no-chart-bound-benefit`; the spec gained an
+amendments section (two-edge loops, singular charts, the metred hull,
+the shared schedule). PR-2 (the clearance seam) is next on this item:
+its opening act is announcing the seam to SHELL and M10 on the away
+channel, and its consumer must re-chart every plane and read the
+METRED hull. Operations: `chart_region::SCHEDULE_2D` became
+`pub(crate)` for the new consumer — a visibility change on Track Q's
+file, doc-only otherwise, recorded here as the announcement.

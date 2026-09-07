@@ -2870,7 +2870,14 @@ enum PolyContainment {
 }
 
 /// The fixed 2-D ray schedule. Sixteen constant directions — axes
-/// plus oblique spread members. Distinct from the 3-D consumer's
+/// plus oblique spread members.
+///
+/// **Shared with [`crate::chart_bound`]**, which walks chart-space
+/// polygons of the same shape under its own K rows: the obliques are
+/// there because an axis-aligned ray grazes an axis-aligned polygon,
+/// and an extruded cap is exactly that, so a second consumer cutting
+/// its own two-member schedule would re-import the configuration these
+/// fourteen answer. `pub(crate)` for that consumer and no wider. Distinct from the 3-D consumer's
 /// table by dimension, not by drift: there is no 2-D projection of
 /// the space schedule that both stays exact and keeps the spread.
 /// **The 3-D `point_in_loop_arm` row is derived away here,
@@ -2881,7 +2888,7 @@ enum PolyContainment {
 /// `f64` structure, so there is no quantity for an arm predicate to
 /// decide — the re-derivation's honest conclusion is three rows, not
 /// four.
-const SCHEDULE_2D: [[f64; 2]; 16] = [
+pub(crate) const SCHEDULE_2D: [[f64; 2]; 16] = [
     [1.0, 0.0],
     [0.0, 1.0],
     [0.5, 1.0],

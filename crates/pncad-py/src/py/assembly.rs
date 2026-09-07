@@ -172,19 +172,34 @@ pub(crate) fn product_named(
 /// Why a mate reference named no product face.
 ///
 /// Payload attributes present on every arm, `None` where inapplicable:
-/// `width` (how many entities a tie holds) and `kind` (what a
-/// non-face reference did name).
+/// `at` (the operand a reference is read at when it is spelled there
+/// but the operand is not a product root), `width` (how many entities
+/// a tie holds) and `kind` (what a non-face reference did name).
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct RefusedRef(d::RefusedRef);
 
 #[pymethods]
 impl RefusedRef {
-    /// The stable tag: `ref_node_gone`, `ref_vanished`,
+    /// The stable tag: `ref_vanished`, `ref_read_below_a_root`,
     /// `ref_ambiguous`, `ref_not_a_face`.
     #[getter]
     fn variant(&self) -> &'static str {
         refused_ref_tag(&self.0)
+    }
+
+    /// The operand the reference is read at, when its own table
+    /// spells the name but it is not a root of the product — the
+    /// product spells that entity at its roots, under a pattern as
+    /// the instance row at the pattern node.
+    #[getter]
+    fn at(&self) -> Option<NodeId> {
+        match self.0 {
+            d::RefusedRef::ReadBelowARoot { at } => Some(NodeId(at)),
+            d::RefusedRef::Vanished
+            | d::RefusedRef::Ambiguous { .. }
+            | d::RefusedRef::NotAFace { .. } => None,
+        }
     }
 
     /// How many entities a tie holds. A mate declaration must name
