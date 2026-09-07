@@ -488,9 +488,16 @@ impl BlendTool {
 
     /// Drop every pick — the panel's `Clear picks` button, and what
     /// Cancel's whole-tool replacement amounts to for the picks alone.
+    ///
+    /// **Destructured rather than field-cleared**, so a field added to
+    /// [`BlendTool`] is E0027 here rather than surviving a door whose
+    /// whole contract is that the tool holds nothing afterwards — the
+    /// state a fresh tool is in, which is what lets the next click
+    /// start on any body.
     pub fn clear(&mut self) {
-        self.target = None;
-        self.edges.clear();
+        let Self { target, edges } = self;
+        *target = None;
+        edges.clear();
     }
 
     /// Release the target when the last edge leaves, keeping the

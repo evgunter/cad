@@ -323,9 +323,12 @@ impl Message {
 /// [`Message`] is E0027 here and its author has to decide whether the
 /// line says it. `subject` is the standing decision that it does not:
 /// the subject ROUTES the message — it is what retires it
-/// ([`StatusUpdate::Expire`]) and what ranks it — and a line that
-/// printed its own routing would be saying to the user what the
-/// chrome says to itself.
+/// ([`StatusUpdate::Expire`]) and what a joined rank-2 line takes as
+/// its own subject, so one recurring event can retire the joined
+/// sentence. It does not RANK: [`frame_status`] ranks by SOURCE — a
+/// refusal, else the frame's notices, else the batch's own verdict —
+/// and no rank reads a subject. A line that printed its own routing
+/// would be saying to the user what the chrome says to itself.
 impl core::fmt::Display for Message {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self { subject: _, text } = self;

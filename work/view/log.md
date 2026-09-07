@@ -5915,3 +5915,70 @@ The rule cannot see a macro-generated or proc-macro-derived impl; both
 are closed by inspection instead — `vocab.rs` is the crate's only
 `macro_rules!` and generates neither trait, and the manifest depends on
 no derive-Display crate.
+
+## The census row's fix pass: an eighth census, a false universal, and 21 citations (2026-09-07)
+
+The style review of #2103 found real defects in the row above. Taken:
+
+**An eighth census, in a file the PR had already edited.**
+`BlendTool::clear` (`blend.rs:497-501`) set two fields by hand under a
+doc that says *"Drop every pick"* — a census claim — 355 lines below
+the `BlendTarget` census the same PR converted. Converted. Its
+existence is what falsified the README's new universal, and the
+universal is now BACKED rather than merely repaired: the sweep rule is
+written down (every `fn` under `src/` naming two or more distinct
+`self.<field>` writes, read against its declaration), it produces
+**23 hits at head and none is a census**, and a converted census does
+not match the rule at all — which is why a clean sweep is the receipt.
+`DocSession::clear_for_new_document` is the case the rule matches and
+the design answers, in its own doc.
+
+**A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
+The closing sentence conflated the two, and two of the 31 enum
+`Display`s do drop a field. Swept with `{ .. }` / `, ..}`, catch-all
+and bare-binding arms, and tuple patterns below arity: zero catch-alls
+over a subject enum, zero tuple drops, exactly two `..`. Neither is
+converted — rendering either would move a rendering, and this PR's
+whole claim is that none did. `MateToolEvent::PickLost` already carried
+its argument; `CameraOp::Frame` carried none, and one is written at the
+arm now.
+
+**`Camera::coordinates` left its second `impl Camera` block.** It is a
+`fn` nested in `eq` — its only caller — so `impl Camera` is one block
+again and a reader sees the type's inherent surface in one place. Why
+it reads fields and not the six public accessors (an accessor call is a
+field read, so the E0027 tie would be gone) is now written at the
+helper, since without it the helper reads as an unexplained second
+census.
+
+**The receipts were witness-tree numbers.** The witness experiment was
+re-run on head and every E0027 line read back after the witness fields
+came out. The E0063 count was **ten** and is **11**, with the
+enumeration that produces it; the run is 18 errors, 7 x E0027 +
+11 x E0063.
+
+**Citations, as a class.** A behaviour-preserving move falsifies
+sentences about STRUCTURE, and this one moved five files plus the
+README. Every non-closed item under `work/view/` was swept for
+citations into them and each was re-derived by re-finding its SUBJECT
+at head, never by shifting its offset — the defect
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` closed on.
+**25 citations corrected across 12 items**, and **20 of the 25 were
+already wrong at this PR's merge base** — which is what re-deriving
+finds and shifting hides. Five were true at the merge base and this PR
+falsified them: `frame.rs:1689`, `camera.rs:948`, `display.rs:845` and
+`display.rs:839-846` (whose quoted spellings changed too), and
+`frame.rs:1122`. Three are left alone and reported instead: a quoted
+`camera.rs` passage that exists nowhere in the tree at base or head, a
+`session.rs` citation this PR did not touch, and a pasted `cargo fmt`
+transcript, which is a record of a run rather than a citation.
+
+**The lead the row closed over now has a file.** `## Where else to
+look` named `ViewerApp`'s two hand-written blocks and the `## Closed`
+section did not mention them. Both were read: neither is a census —
+`ViewerApp` has 32 fields and neither block's population comes from the
+declaration — but `perform_batch`'s reset-on-open arm draws from *the
+fields derived from the outgoing document* with nothing at the
+declaration marking that set, which is the `Derived` question one layer
+up rather than the destructuring one.
+`viewerapp-document-derived-state-has-no-boundary` carries it.
