@@ -83,3 +83,50 @@ Decisions taken at the read, unilaterally and logged:
   (`/home/user/blend-seed-target`); how many lanes fit is decided by
   disk once the seed's size is measured, at most two heavy at once.
   Lane commits carry no model trailer; orchestrator commits keep it.
+
+## Orchestration opens (2026-09-07)
+
+Ev: "go ahead! and use whatever branches you want." Dispatched:
+
+- **Unit 1** (`escalated-recourse-dispatch-has-no-coaxiality-arm`) on
+  `blend/1-coaxiality-arm`, and **unit 2**
+  (`sweep-top-field-docs-make-the-spatial-claim-capend-shed`) on
+  `blend/2-top-cap-doc`, in parallel — two lanes, private targets seeded
+  from the warm build. Both outside the experiment (single style review,
+  no row). Unit 2's rename alternative is DECLINED at dispatch: `.top` and
+  `.bottom` on the two bundles have 79 uses across 18 files on four
+  programs' ground, for a one-sentence honesty problem; the lane
+  re-measures and states the count in the PR. `Lofted.top`'s sentence
+  already reads relative to the stacking, so `loft.rs` (S-BOOL's) is
+  edited only if the lane finds the claim actually spatial.
+- **The `[ev]` question** on the K floor is
+  [#2119](https://github.com/evgunter/cad/pull/2119): recommendation, no
+  floor — D4's "any K > 1" stands, the crossover is one verb's fact stated
+  at its refusal, and what is owed is a nightly row at K = 1.1 asserting
+  the H6 invariant kernel-wide. `needs_ev` set; the session is subscribed.
+- **Specs for block BLEND-B1 written** while the E lanes run:
+  `docs/BLEND-6-SPEC.md` (units `ring-clearance-refuses-a-nested-trim-circle`
+  + `hostless-rim-on-a-ringed-host-refuses`, one unit; pre-draw **M /
+  NUMERIC**), `docs/BLEND-7-SPEC.md` (`ladder-rim-phase-may-retire-a-new-split-key`;
+  **S / STRUCTURAL**), `docs/BLEND-8-SPEC.md`
+  (`smooth-arm-siblings-disagree-on-the-in-band-case`; **M / STRUCTURAL**).
+  Block BLEND-B1 = slots 0, 1, 2 in that order; the draw is recorded
+  branch-side on `blend/b1-block` per the redaction shape and reaches main
+  when the block concludes.
+- **Decision logged (unit 8, a faithful elaboration, not a fork):** the
+  must-carry rule's in-band policy is the predicate's documented contract —
+  in-band escalates typed — so revolve's fold of `Err` into "conventional"
+  is drift and a revolve with an in-band smooth join will refuse
+  `SliverJoin`; the wrapper reads the certification schedule's stations
+  (revolve's choice, the "one set" argument), never fewer by symmetry. The
+  alternative (extrude's one-point read, or keeping revolve's silent build)
+  is recorded in the spec with the reason it lost.
+- **Decision logged (unit 6):** the clearance rule is "the two circles do
+  not cross", with the admissible side fixed by what the trim circle
+  replaces — containment for a host's circular outer boundary and for the
+  hostless annulus's rings, external separation for every other ring; the
+  hostless arm's ring-free refusal becomes a metered `fillet3_ring_clearance`
+  pass. The stale `work/fillet/` pointers in `crates/sweep/src` ride unit 6.
+- Seams owed at dispatch, not yet written: unit 6 → S-TCOST (the boss
+  fixture homed in `test_support`, two probe copies deleted); unit 8 →
+  PROPS (`dihedral.rs`).
