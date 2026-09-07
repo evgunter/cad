@@ -127,7 +127,7 @@ reason.
 
 Three implementers ran concurrently in isolated worktrees, on
 non-overlapping territory: `ciw/render-lane-merge-ref`,
-`ciw/one-pin-reader`, `ciw/perf-host-identity`. One style review each,
+`ciw/pin-reconciler`, `ciw/perf-host-identity`. One style review each,
 per the posture Ev set; no A/B row and no dual on any of them. PRs 1724,
 1723, 1722.
 
@@ -899,6 +899,143 @@ repository generates by construction, which is why the class recurs.
 Three duplicate pairs in one day (two within CIW's own slate, one
 across three programs) is not three accidents. The board is the only
 instrument that can see them and only an orchestrator reads it whole.
+
+## 2026-09-06 — unit 1 dispatched: one answer to what `ci.yml` pins
+
+`local-half-restates-ci-pins-as-literals` and
+`ruff-pin-read-shares-the-first-match-shape`, together on
+`ciw/pin-reconciler`. (`ciw/one-pin-reader` is PR 1723's branch and is not reused.) They are
+the two populations
+`nightly-pin-reading-idiom-four-copies` did not reach — a value retyped
+where nothing reconciles it, and a second first-match-at-any-indentation
+reader — and both end at `scripts/ci-pin.py`, which that unit built.
+
+They ride one branch because they are one question asked twice and
+because the ruff item's own text hands the `.claude/hooks/session-start.sh`
+sites to the other. Splitting them would make each PR argue half a
+population.
+
+**Style review only** (the posture Ev restated on 2026-09-06). Neither
+moves kernel logic; the risk is in what a reconciler's population
+derivation misses, and that is a reviewer question rather than a
+correctness-dual one.
+
+Two things the brief carries that the items do not settle, because they
+are the judgements the unit exists to make: whether the reconciler
+derives its population or writes a roster (the items argue derive, and
+say why a roster is the thing this repo keeps learning not to write),
+and whether `ci-local.sh:588-589`'s human-facing literal stays a literal
+(the item argues it should, and that the check reconciles it rather than
+the text reading the pin).
+
+## 2026-09-06 — unit 1 in review: the pin has one reader and its copies have a check
+
+PR #2070, branch `ciw/pin-reconciler`, code-tier run green (37 jobs, 12
+`test (…)`, all five `k-lint (gate, …)`; the three skips are the two cache
+primers and the nightly interval oracle).
+
+**Both judgements the brief left open went the way the items argued, and both
+cost something worth writing down.**
+
+*Derive, do not enumerate.* Claim 11 in `check-ci-mirror-parity.py` walks
+`local-scripts/` for every `x.y.z` and reads `ci.yml`'s block through a new
+`ci_pin.read_pins`, which shares `read_pin`'s anchoring rather than
+reimplementing it. What is still written by hand is the inverse table:
+`PIN_FREE` declares the three literals that are NOT pins, so a version literal
+added to that tree is an error until someone says what it is. That direction is
+the whole difference — a roster of pin COPIES falls behind the tree silently,
+a roster of exceptions fails closed and expires like `MIRROR_EXEMPT`. The
+admesh floor the item warned about is its first entry.
+
+*One arm was not enough.* A value-only reconciler is blind to a literal that
+drifts onto some OTHER pin's value, and this tree has five pins to drift
+between. So there is a second, name-anchored arm: a line naming a pinned tool
+and carrying a version must carry that tool's current pin, with the tool token
+derived from the pin's key. It has its own hole — `ci-local.sh:620`'s "against
+the pinned 0.9.140" names no tool — which is exactly what arm A covers. Neither
+arm subsumes the other and both are needed; that is written at `PIN_FREE` with
+the other four disclosed holes.
+
+*The human-facing literal stayed a literal*, as the item asked, and the reason
+is now written where a bumper meets it: `ci-local.sh`'s prereq note says the
+versions are checked and by what.
+
+**The ruff reader** now loads `ci-pin.py` by path and calls `read_pin`. The
+fixtures did not have to move — the planted ci.yml was already a column-0
+`env:` block — and two cases were added at that caller for the shapes the
+shared reader exists for.
+
+**Residues, both filed rather than mentioned.**
+`session-start-hook-restates-ci-pins` (the `.claude/` copies, which no hosted
+claim can reach, and whose fix has to decide what the hook does when the read
+refuses) and `seal-oracle-toolchain-read-first-match` (turned up by the
+third-idiom arm of the sweep: `sed … | head -1` against `Cargo.toml`'s
+`rust-version`, a different source of truth with the same shape).
+
+**What the sweep could not match** is in the PR body and, for the part the next
+author needs, in the two item files: a paraphrased pin, a version written in
+another form, and every source of truth that is not `ci.yml`'s `env:` block —
+`rust-toolchain.toml`, `Cargo.toml`'s MSRV, the FreeCAD AppImage pin. The
+provenance prose in `scripts/` and the workflows ("verified against the pinned
+0.9.140") was found and deliberately left alone: those sentences record what
+was measured, and making them track a bump would falsify the record. That is
+why claim 11's tree is `local-scripts/` and not `scripts/`.
+
+## 2026-09-06 — unit 1's fix pass: the reconciler's own subject was escaping it
+
+PR #2070 head `a08b32462`, code-tier run green (37 jobs, 12 `test (…)`, five
+`k-lint (gate, …)`), verified at step level: `pin reader selftest`, `CI half
+parity`, and `python lint` all green in the `mirror` job.
+
+**No MAJOR from either review, and four MINORs that were all real.** Two of
+them are worth keeping.
+
+*The most literal restatement possible was escaping the check written to catch
+restatements.* `NEXTEST_VERSION=0.16.0` in a local script passed arm A (0.16.0
+is sccache's pin) and passed arm B (the derived token `nextest` was matched
+with `_` as a word CHARACTER, so it did not match inside the key). Both
+reviewers reached it independently from different directions. The fix is small
+— every underscore-separated part of the key, case-insensitive, `_` a boundary
+— and the lesson is not: the shape a check is written for is the shape its
+author has stopped looking at.
+
+*A silent truncation under a loud refusal.* `read_pins` was documented as
+inheriting every refusal `read_pin` carries. It inherits the per-KEY ones; the
+BLOCK's own edge was a flush-left `#`, where `read_pin` refuses and `read_pins`
+just returned the entries above it — and claim 11 then issues a confident,
+wrong arm-A red for every restatement of the dropped pin. The correctness lane
+found five mutations of that anchoring surviving both self-tests, one of them
+returning a job-level pin as the workflow's. Every fixture's block happened to
+end at a blank line or EOF, so the edge was never exercised. **A fixture set
+that agrees with itself about where the interesting line is will agree with the
+code about it too.**
+
+**Also done:** the population is git's index rather than a directory walk
+(`*.local.*` is in this repo's `.gitignore` — a walk reds a developer's gate
+over a file the repo told them was theirs); `PIN_FREE` gained an inversion
+guard and now excuses arm B; the loader is one documented idiom with both
+callers catching every exception; `check-python-lint.py`'s pin cases run before
+`resolve_ruff` (below it they never ran on any box whose ruff differs from the
+pin — which is the box this row exists for); `ci.yml:313` stops restating the
+pin's value in the comment above it.
+
+**The blind-spot list lost its count.** It said FIVE; a style lane planted ten
+shapes and found four it did not contain, plus one it described wrongly. A
+stated blind spot is a work order; a COUNTED one reads as completeness and is
+worse than silence when it is short. It is now uncounted, corrected, longer,
+and says so.
+
+**Residues filed rather than mentioned:** `session-start-hook-restates-ci-pins`,
+`seal-oracle-toolchain-read-first-match`, and now
+`pinned-version-named-in-present-tense-prose` — the review was right that
+"measured against THE PINNED 0.9.140" asserts what is pinned now, which is a
+different sentence from a record of what was measured, and only the second is
+correct to leave alone.
+
+**One fence to route:** `scripts/ci-pin.py` is in `work/meta/program.md`'s
+`paths` (META opened 2026-09-04, after this unit was dispatched). This PR
+changes it, because a shared enumerating reader is what the reconciler stands
+on. Announced in the PR body and named to the orchestrator; the file is META's.
 
 ## 2026-09-06 — unit 2 dispatched: the python suite on a closure run
 

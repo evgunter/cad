@@ -33,12 +33,12 @@ compiler — the same defect one directory over". It is already there.
   (`crates/viewer/src/input.rs:63`), driving the `map_stream`
   consistency fuzz. A fourth button is silently never fuzzed.
 - `crates/viewer/tests/frame_policy.rs:775` — all three
-  `ChooserBackend`s (`crates/viewer/src/frame.rs:1440`) under "a chosen
+  `ChooserBackend`s (`crates/viewer/src/frame.rs:1537`) under "a chosen
   path is never this policy's business", which is a claim about the
   whole vocabulary.
 - `crates/viewer/tests/frame_policy.rs:484-489` — one
   `frame::cursor_status` call per `IdStep`
-  (`crates/viewer/src/frame.rs:1652`), all three, written out. The
+  (`crates/viewer/src/frame.rs:1784`), all three, written out. The
   weakest of the four: it is a list of calls rather than a list of
   variants, but the row's claim is still about the whole vocabulary and
   a fourth step would not be asked.

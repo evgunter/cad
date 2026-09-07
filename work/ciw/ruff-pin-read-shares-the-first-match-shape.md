@@ -2,9 +2,11 @@
 id: ruff-pin-read-shares-the-first-match-shape
 kind: issue
 title: check-python-lint.py reads ci.yml's ruff pin with the same first-match-at-any-indentation shape ci-pin.py replaced
-status: open
+status: review
 opened: 2026-09-04
 refs: [nightly-pin-reading-idiom-four-copies]
+branch: ciw/pin-reconciler
+pr: 2070
 ---
 
 Found by the sweep for `nightly-pin-reading-idiom-four-copies`, which
@@ -84,3 +86,32 @@ A sweep for this class wants to start from **`ci.yml`'s `env:` block as
 the population** — for each pinned name AND each pinned value, find every
 other occurrence in the tree — rather than from the shape of the idiom
 that happened to be in front of it.
+
+## Disposition (PR 2070)
+
+`scripts/check-python-lint.py` reads the pin through `scripts/ci-pin.py`'s
+`read_pin`, loaded by path from beside it; its own first-match regex is gone.
+The cost this item said to weigh first came out in favour: the coupling is on
+the gate of record, and so is the failure it removes — two readers of one pin
+can disagree, and the disagreement shows up as a spurious skip on a correctly
+installed box.
+
+The fixtures did not have to move. `check-python-lint.py`'s planted ci.yml is a
+workflow-level `env:` mapping key at column 0 with the pin inside it, which is
+exactly what the anchored reader accepts, and the no-pin fixture still refuses
+with a message naming `RUFF_VERSION`. Two cases were ADDED, so what this item
+is about is now checked at this caller and not only in `ci-pin.py`'s own tests:
+a second `RUFF_VERSION` under a job (refused, both lines named) and a pin that
+exists only under a job (refused as out of scope).
+
+### Fix pass (both reviews, 2026-09-06)
+
+`read_pins` inherited `read_pin`'s per-key refusals but not its refusal about
+the BLOCK: a flush-left `#` inside `env:` ended the scan, so `read_pin` refused
+loudly and `read_pins` silently returned a short block. `block_bounds` now ends
+the block only at the next column-0 KEY, which is what YAML does. Five
+mutations of that anchoring survived both self-tests — one of them returning a
+JOB-LEVEL pin as the workflow's, the exact defect this line of work exists to
+kill — and each now has a fixture. `check-python-lint.py`'s pin cases run
+BEFORE `resolve_ruff`, because below it they were skipped on every box whose
+ruff is not the pinned one, which is every box this row is about.

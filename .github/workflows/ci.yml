@@ -310,8 +310,11 @@ env:
   # sccache pin for the rig wired into the two build jobs below, which
   # is OFF: it runs only for the repo variable SCCACHE = "1". The
   # measurement that turned it off is docs/CI-MINUTES-2026-08.md F4.
-  # 0.16.0 is the version local-scripts/gate.sh already runs on the
-  # local gate box, so the rig and the local lane agree.
+  # This is the version local-scripts/gate.sh already runs on the local
+  # gate box, so the rig and the local lane agree — and that agreement is
+  # CHECKED: check-ci-mirror-parity.py's pin-literal claim reconciles
+  # gate.sh's sccache line against this value. The version is named once,
+  # here, rather than restated in the sentence about it.
   SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   # maturin rides the same pattern as nextest: pinned here (single source
@@ -1099,6 +1102,20 @@ jobs:
         run: |
           scripts/gates/viewer-module-kinds.sh --selftest
           scripts/gates/viewer-module-kinds.sh
+      # The viewer crate's closed-vocabulary rule: a membership list is
+      # declared once, and a hand-written one under crates/viewer/src
+      # reds unless `crates/viewer/README.md`'s "The lists that stay
+      # hand-written" table ratifies it. SITED HERE FOR THE SAME REASON
+      # AS THE ROW ABOVE, and more sharply: this gate's allowlist IS
+      # that README table and its vocabulary of kinds is that section's
+      # bullets, so a change set of only the README is exactly the
+      # change set it exists to judge — and TIER=docs skips every
+      # `if: run_build` job. TIER_BLIND names it, so this cannot drift
+      # back.
+      - name: viewer vocabularies are declared once (no hand-written ALL)
+        run: |
+          scripts/gates/viewer-vocab-declared-once.sh --selftest
+          scripts/gates/viewer-vocab-declared-once.sh
       # THE PYTHON LINTER RIDES THIS JOB, and the two properties that make
       # this job what it is are exactly the two ruff needs.
       #
@@ -1387,6 +1404,18 @@ jobs:
         run: |
           scripts/gates/bit-identity-punning.sh --selftest
           scripts/gates/bit-identity-punning.sh
+      # `Real::register_equal` (M10-9, ERROR-DESIGN E12's provenance
+      # reserve) hands every generic `T: Real` body a value COMPARISON,
+      # which is what evaluation-code discipline exists to keep out of
+      # that position — and it adds no bound, so `no extra bounds on
+      # Real` structurally cannot see it. The capability stays and the
+      # SITES are a list a reviewer can read; the gate's own header says
+      # what a ratified site owes (a theorem in its doc comment, a
+      # planted lie, the typed answer handled).
+      - name: register_equal call-site allowlist
+        run: |
+          scripts/gates/register-equal-allowlist.sh --selftest
+          scripts/gates/register-equal-allowlist.sh
       # The importer's negative-zero flush has one home and says so in
       # its own module doc. Four copies of it landed green in one crate
       # (S18) because nothing checked the claim.

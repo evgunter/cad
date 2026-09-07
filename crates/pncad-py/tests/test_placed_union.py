@@ -408,17 +408,14 @@ class TestThePlacementRuleRefuses(unittest.TestCase):
             doc.insert(Node.placed_union_at(box, []))
         self.assertEqual(caught.exception.variant, "empty_placement_list")
 
-    def test_a_non_finite_frame_refuses(self):
-        """A zero rotation axis normalizes to NaN, so the frame is
-        non-finite — refused, never read as "no rotation"."""
-        doc = Doc()
-        box = slab(doc, (0, 1), (0, 1), (0, 1))
-        poisoned = Frame.rotate_then_translate(
-            (0.0, 0.0, 0.0), 90 * deg, (0 * m, 0 * m, 0 * m)
-        )
+    def test_a_degenerate_rotation_axis_refuses_naming_the_axis(self):
+        """A zero rotation axis has no direction, and the constructor
+        says so — naming the AXIS and its role, where it used to build
+        a NaN frame and let the edit door report the frame."""
         with self.assertRaises(EditError) as caught:
-            doc.insert(Node.placed_union_at(box, [poisoned]))
-        self.assertEqual(caught.exception.variant, "non_finite_placement")
+            Frame.rotate_then_translate((0.0, 0.0, 0.0), 90 * deg, (0 * m, 0 * m, 0 * m))
+        self.assertEqual(caught.exception.variant, "placement_axis")
+        self.assertIn("placement rotation axis", str(caught.exception))
 
     def test_an_improper_frame_refuses(self):
         """A mirror is REPRESENTABLE so that it can be refused (A6,

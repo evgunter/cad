@@ -557,10 +557,11 @@ impl Subgroup {
 /// document.
 ///
 /// Every payload attribute is present on every arm, `None` where the
-/// arm does not carry it: `mate`, `side`, `head`, `instance`,
-/// `parent`, `child`, `residual`, `held`, `added`, `predicate`,
-/// `clash`, `what`. The human message is the kernel's own prose,
-/// available as `str(fault)`.
+/// arm does not carry it: `mate`, `side`, `head`, `placer`, `error`,
+/// `instance`, `parent`, `child`, `residual`, `held`, `added`,
+/// `predicate`, `clash`, `what`, `part`, `named`, `selected`. The
+/// human message is the kernel's own prose, available as
+/// `str(fault)`.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MateFault(pub(crate) d::MateFault);
@@ -588,7 +589,9 @@ impl MateFault {
             | F::Indeterminate { mate, .. }
             | F::Under { mate, .. }
             | F::DanglingHead { mate, .. }
+            | F::PlacerRefused { mate, .. }
             | F::SelfMate { mate, .. }
+            | F::PartSelectsAnotherCopy { mate, .. }
             | F::Unleverable { mate, .. } => Some(NodeId(*mate)),
             F::Band { .. } | F::Contradictory { .. } | F::PosesOfAnotherDocument { .. } => None,
         }
@@ -599,9 +602,10 @@ impl MateFault {
     fn side(&self) -> Option<MateSide> {
         use d::MateFault as F;
         match &self.0 {
-            F::Frame { side, .. } | F::DanglingHead { side, .. } => {
-                Some(MateSide::from_kernel(*side))
-            }
+            F::Frame { side, .. }
+            | F::DanglingHead { side, .. }
+            | F::PlacerRefused { side, .. }
+            | F::PartSelectsAnotherCopy { side, .. } => Some(MateSide::from_kernel(*side)),
             _ => None,
         }
     }
@@ -611,6 +615,31 @@ impl MateFault {
     fn head(&self) -> Option<NodeId> {
         match &self.0 {
             d::MateFault::DanglingHead { head, .. } => Some(NodeId(*head)),
+            _ => None,
+        }
+    }
+
+    /// The placer whose pose could not be derived — the pattern or
+    /// the transform on the reference's chain that refused.
+    #[getter]
+    fn placer(&self) -> Option<NodeId> {
+        match &self.0 {
+            d::MateFault::PlacerRefused { placer, .. } => Some(NodeId(*placer)),
+            _ => None,
+        }
+    }
+
+    /// **The evaluation's own refusal for that placer**, as the tag
+    /// every node failure crosses with (`EvaluationError.kind`) — the
+    /// same vocabulary, so a caller branches on one set of words
+    /// whether the refusal reached them from the node or from the
+    /// mate that placed it. `str(fault)` carries its prose.
+    #[getter]
+    fn error(&self) -> Option<&'static str> {
+        match &self.0 {
+            d::MateFault::PlacerRefused { error, .. } => {
+                Some(crate::tags::node_error_tag(error.kind()))
+            }
             _ => None,
         }
     }
@@ -686,6 +715,36 @@ impl MateFault {
             d::MateFault::Contradictory { clash, .. } => {
                 Some(Length(pncad::quantity::Length::from_meters(*clash)))
             }
+            _ => None,
+        }
+    }
+
+    /// The `Part` node whose index expression disagrees with the copy
+    /// the reference's name names.
+    #[getter]
+    fn part(&self) -> Option<NodeId> {
+        match &self.0 {
+            d::MateFault::PartSelectsAnotherCopy { part, .. } => Some(NodeId(*part)),
+            _ => None,
+        }
+    }
+
+    /// The copy that reference's NAME names — the authority on which
+    /// copy a mate is about.
+    #[getter]
+    fn named(&self) -> Option<u32> {
+        match &self.0 {
+            d::MateFault::PartSelectsAnotherCopy { named, .. } => Some(*named),
+            _ => None,
+        }
+    }
+
+    /// What the `Part`'s index expression evaluates to instead, at the
+    /// document's own parameter bindings.
+    #[getter]
+    fn selected(&self) -> Option<i64> {
+        match &self.0 {
+            d::MateFault::PartSelectsAnotherCopy { selected, .. } => Some(*selected),
             _ => None,
         }
     }

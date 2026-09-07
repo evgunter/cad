@@ -23,8 +23,8 @@ differently:
   with the `DisplayFault` that explains it. `DocSession` returns that
   report from `step` and `commit_action` (`session.rs:1213,1590`) and
   the chrome renders it.
-- `clear` (`crates/viewer/src/display.rs:839-846`) does
-  `self.hidden.clear()`, `self.moves.clear()`, `self.free_move = None`
+- `clear` (`crates/viewer/src/display.rs:849-862`) destructures and
+  does `hidden.clear()`, `moves.clear()`, `*free_move = None`
   and returns `()`. The same placements and the same hides, dropped by
   `Open` or `NewDocument` through
   `DocSession::clear_for_new_document`, are swallowed.

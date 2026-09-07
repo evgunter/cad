@@ -174,3 +174,176 @@ Instance(i) }`, sibling distinctness at every level, one walk per
 reference, `mate/member.rs` split out. (The preceding merge commit on
 this branch carried the log's conflict markers; this commit resolves
 them — merge-only, nothing rewritten.)
+
+## MSOLVE-2 landed, in review (2026-09-06)
+
+The lane opened PR 2039 and was cut off by a session limit while
+polling; the one red was the Python mirror of the new
+`MateFault::PartSelectsAnotherCopy`, which it finished on resumption.
+Green on the full matrix at `75d975d`. What the build measured: two
+inner siblings under ONE outer pattern are unbuildable (a pattern takes
+one body), so A2(a) holds the outer index across two chains; an
+inconsistent loop is built by naming a sibling lifted clear, because
+the gate verifies geometry, not the folded frames; the gate's
+`Vanished` on a mate read below a pattern reproduces one level deeper,
+pinned. The viewer cannot author a `Part` node at all (no `AddPart`
+op) — CHROME's, to be filed. Style review and correctness arm
+dispatched on that head.
+
+## MSOLVE-2 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1–C5 confirmed on documents of
+its own (two and three levels deep, transforms between and above,
+circular and linear rules at non-identity indices, the viewer's real
+rays), with one MAJOR the spec itself placed wrong: the `Part`-index
+check lived in the offset, which runs only for a tree edge's first
+mate, so a DECLARING mate whose `Part` gathers a different copy than
+its name names was silently green — and the gate did not catch it,
+because it looks the NAMED copy up and finds it seated while the body
+the `Part` gathers floats. Ruled: the per-reference checks that need
+evaluation (the `Part`'s index against the name, the index against
+the count) move to the solve's own walk site, for every reference of
+every mate, refusing typed there; the offset keeps the arithmetic.
+Style: no MAJOR; the loop rows never folded a non-identity outer map
+(fixed with the reviewer's rows), two spellings of "which mates weld"
+collapsed, the copied test helpers hoisted beside the shared oracle.
+
+## MSOLVE-2 MERGED (2026-09-06, PR 2039)
+
+Fix pass green on the full matrix at `ef8926c`. Item closed, spec
+deleted into the ledger, `nested-pattern-mate-heads-refuse` closed —
+the PR 1731 ruling is fully landed. One consequence the fix pass
+stated: a mate the per-reference checks refuse still welds its
+cluster (the partition is structural), so an instance no pair reaches
+rides its cluster's recorded frame with the mate's row red, as a
+dangling head already does. Next: MSOLVE-3 on
+`msolve/3-placer-refused`.
+
+## MSOLVE-3 dispatched (2026-09-06)
+
+MSOLVE-2 merged (PR 2039, `6dff151`). `msolve/3-placer-refused` cut
+from main in the same lane clone against `docs/MSOLVE-3-SPEC.md`,
+which predates MSOLVE-2's move of the count check to
+`check_reference`; the lane reads the tree as it is. Slate after it:
+the gate's `Vanished` below a pattern, the lever's extent (`[ev]`),
+the remap-inference record correction.
+
+## MSOLVE-3 landed, in review (2026-09-06)
+
+PR 2081 green on the full matrix at `885d257` (one red on the way: a
+`rotate_then_translate` caller in `demos/tour`, outside the first
+sweep's `crates/` scope — the repo's four workspaces have no local
+script that builds them all, stated in the PR). What the build
+measured: `check_reference` keeps `eval_count` for its two counts
+because the whole-node door would refuse a mate onto copy 0 of a
+broken pattern (a change to admission, out of scope); the carried
+refusal is an `Arc`-newtype over `NodeErrorKind` because the fault
+types derive `Clone`+`PartialEq` and the kernel error type cannot; the
+rider reaches no viewer call site at all. Style review and
+correctness arm dispatched on that head.
+
+## MSOLVE-3 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1–C5 confirmed with the carried
+kinds byte-identical to the placer's own on eight probes; three
+MINORs — the datum road attributed the datum's slot refusal to the
+pattern (ruled: `placer` names the refusing node, the datum when its
+slots refuse), a blanket `From<NodeErrorKind> for EditError` that
+turned any node error into "the placement axis is unusable" (the
+catch-all shape reopened one door over; ruled out), and no Python row
+for the carried error. Style: no MAJOR; the `need_*` slot readers
+copied into `mate/`, a hand-spelled `WrongOperand` payload the one
+row that could catch it did not compare, the untested explicit-rule
+arm, doc rot in `topo/src/query.rs` and the role lists. Filed: the
+four-workspace build hazard (CIW) and the `names/{flush,select}.rs`
+`map_err(|_| ..)` discards (SEAT), `work/issues/`.
+
+## MSOLVE-3 MERGED (2026-09-06, PR 2081)
+
+Fix pass green on the full matrix at `8a72887` (one red on the way:
+the rider row's axis-length probes assumed the default band; they come
+from the run's own band now). Item closed, spec deleted into the
+ledger, the catch-all finding and the placement rider closed. The
+slate that remains: the gate's `Vanished` on a mate read below a
+pattern, the lever's extent (`[ev]`), the remap-inference record
+correction.
+
+## Remap-inference record correction closed (2026-09-06)
+
+`mate1-sweep-inferred-a-remap-from-a-refuted-reachability` closed as
+a record correction: the finding is the record, its (b)-SKIP premise
+is ratified since PR 1914, and no code moves. Slate after MSOLVE-3
+merges: the gate's `Vanished` below a pattern (next unit) and the
+lever's extent (`[ev]`).
+
+## MSOLVE-5 specified (2026-09-06)
+
+The gate's `Vanished` below a pattern is a unit: `docs/MSOLVE-5-
+SPEC.md`. Ruled as a change to what the refusal says, not to what is
+admitted — the master-spelling pin in `mate1_member_vocab.rs` is
+ratified and keeps refusing; the gate asks the operand's own table
+first, so `Vanished` means vanished and a name spelled at a non-root
+refuses `ReadBelowARoot { at }`. No consumer walk. The dead `NodeGone`
+arm goes with it. Minting on copy 0 instead would reopen the pin and
+is not asked. Dispatches from main once PR 2081 is in.
+
+## MSOLVE-3 merged; MSOLVE-5 dispatched (2026-09-06)
+
+PR 2081 merged at `4568d7d` on a full green matrix. The lane clone
+cut `msolve/5-read-below-a-root` from main against `docs/MSOLVE-5-
+SPEC.md` (read from this branch until it lands; the lane merges main
+before its first push). The lever's extent is up on `[ev]` PR 2086.
+
+## MSOLVE-5 stop clause hit and ruled (2026-09-06)
+
+The lane (PR 2090, draft) reached the spec's third bullet with a real
+document: a mate reference naming a root instance's BODY is admitted
+at the door, placed by the walk, and at the gate the operand's table
+answers, `at` is a root, and the product is silent — because
+`carry_names` drops body rows. Ruled: the operand's entry decides its
+kind before the root question is asked — a non-face entry refuses
+`NotAFace { kind }` wherever it is read (the product's own answer for
+a non-face row it holds; a body never mints), a face entry at a
+non-root refuses `ReadBelowARoot { at }`, and a face entry at a root
+with the product silent is unreachable by construction and says so
+at the arm. Inside the fence; `NotAFace`'s meaning unchanged. The
+lane un-drafts and drives CI.
+
+## MSOLVE-5 landed, in review (2026-09-06)
+
+PR 2090 green at job level on `bc8a1ab` (the first run on that head
+was cancelled by the un-draft's concurrency rule; its `gate ok` reads
+failure for that reason only). What the build measured: the operand's
+table is read through the same door the interrogation functions use;
+`NodeGone` had no constructing site; the arm is authorable from
+Python through `placed_union(transform(...))`, so the Python row is
+real. Style review and correctness arm dispatched on that head.
+
+## MSOLVE-5 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1, C3, C4 confirmed (the solve
+and the product bit-identical to main on the issue's document — the
+one differing line is the unminted row's `why`); C2 PARTIAL, one
+MAJOR: a TIED non-face entry at the operand skips the kind question
+and answers `ReadBelowARoot` where the ruling says `NotAFace`
+(reachable through a split part's `TieRows`). Ruled: the kind comes
+from `name.kind`, which the table enforces for every candidate. Style:
+no MAJOR; the operand's table read by a hand match instead of
+`interrogate::value_of`; `Vanished`'s sentence not moved with its
+meaning; `ReadBelowARoot`'s sentence claiming a spelling the code
+never computed (the correctness arm's empty-boolean and discarded-half
+probes show the product may hold no trace at all); arm 4 and the
+not-live arm held by sentence, the latter with the wrong reason (the
+gather's Pass 1 refuses a poisoned root, not the solve); message
+substrings copied four times. Probes adopted: P1, P4, P6, P9b. Filed
+(`work/issues/`): the split root whose tie spans both halves refuses
+the gather (`carry_names` `DuplicateName`), and the assembly door's
+"only the head is raised" follow-up that lived in a comment.
+
+## MSOLVE-5 MERGED (2026-09-06, PR 2090)
+
+Fix pass green on the full matrix at `ae78e6e` (one run, no cancelled
+twin). Item closed, spec deleted into the ledger, the gate issue
+closed. Filed on the way: the tie-before-kind asymmetry between the
+product's own rows and the operand's (`work/issues/`). The slate that
+remains: the lever's extent, asked on `[ev]` PR 2086.

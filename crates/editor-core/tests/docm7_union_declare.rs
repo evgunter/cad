@@ -16,30 +16,37 @@ use editor_core::{
 use fixture::{ang, fname, insert, len, on_frame, scl, step, wall};
 use geom_core::Tol;
 
-fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(
+/// Evaluates, and holds every table the run produced to the N3
+/// flatness rule on the way out. A tripwire over this suite's merged
+/// rows, not the guard: the mint refuses a nested constituent before
+/// a table is published, and the rows that carry the rule are
+/// `docm8_flat_merged`'s (the corpus walk and the mint-site rows).
+pub(crate) fn run(doc: &ProfileDoc) -> Evaluation<f64> {
+    let ev = evaluate::<f64>(
         doc,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
         Tol::witness(),
-    )
+    );
+    fixture::assert_no_nested_merged(&ev);
+    ev
 }
 
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
+pub(crate) fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
     &ev.value(id)
         .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
         .name_table
 }
 
-fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErrorKind> {
+pub(crate) fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErrorKind> {
     match ev.nodes.get(&id) {
         Some(NodeResult::Failed(e)) => Some(&e.kind),
         _ => None,
     }
 }
 
-fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::Body<f64> {
+pub(crate) fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::Body<f64> {
     match &ev.value(id).expect("the node evaluated").payload {
         ValuePayload::Body(b) => (**b).clone(),
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => (**body).clone(),
@@ -48,7 +55,7 @@ fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::Body<f64> {
 }
 
 /// An axis-aligned block on the xy plane at height `z0`, extruded `dz`.
-fn block(
+pub(crate) fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
@@ -104,7 +111,7 @@ fn member_entity(
 
 /// The same, for the face case every row but the carried-contact one
 /// wants.
-fn member_face(union: RecipeNodeId, member: RecipeNodeId, of: StableName) -> StableName {
+pub(crate) fn member_face(union: RecipeNodeId, member: RecipeNodeId, of: StableName) -> StableName {
     member_entity(union, member, of, EntityKind::Face)
 }
 
@@ -119,7 +126,7 @@ fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
 /// The four flush pairs of two blocks that share their y-range and
 /// z-range and differ along x only, in one union's member space: the
 /// y-walls and both caps — `declare_x_offset_flush`'s pairs, lifted.
-fn flush_pairs(
+pub(crate) fn flush_pairs(
     union: RecipeNodeId,
     (m1, e1): (RecipeNodeId, RecipeNodeId),
     (m2, e2): (RecipeNodeId, RecipeNodeId),
@@ -152,7 +159,7 @@ fn flush_pairs(
 /// second union carrying the edge, one `Rebind` per name onto it, and
 /// the first deleted. `pairs` is asked for its names twice — once in
 /// each union's space — because that is what the rebinds move.
-fn declared_union(
+pub(crate) fn declared_union(
     doc: ProfileDoc,
     members: &[RecipeNodeId],
     pairs: impl Fn(RecipeNodeId) -> Vec<(StableName, StableName)>,
@@ -808,88 +815,6 @@ fn a_declared_union_replays_bit_identically() {
         declare.is_some(),
         "the declare edge did not survive the wire"
     );
-}
-
-// ---------------------------------------------------------------------
-// The order bound, measured (work/docm/member-space-declarations-are-
-// order-shaped-across-a-chain.md).
-// ---------------------------------------------------------------------
-
-/// **A CHAIN of declared contacts fuses or refuses by member order.**
-///
-/// Three blocks, `a` meeting `c` and `c` meeting `d`, both contacts
-/// declared in member space and nothing else. The orders that fold `c`
-/// in LAST fuse; the orders that fold it in second refuse, because the
-/// first step's declared merge consumed `c`'s faces and published
-/// `Merged` rows in their place, so the second contact's names are no
-/// longer operand rows when their step runs.
-///
-/// This asserts what the tree does TODAY, both halves, and it is the
-/// measurement `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`
-/// asks Ev to rule on — constituent look-through, flattened `Merged`
-/// rows, or a narrowed contract. It flips when the ruling lands.
-#[test]
-fn member_space_declarations_across_a_chain_are_order_shaped() {
-    let base = |label: &str| {
-        let doc = ProfileDoc::empty_derived(label, Tol::witness());
-        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-        let (doc, d) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
-        (doc, a, c, d)
-    };
-    let build = |label: &str, order: [usize; 3]| {
-        let (doc, a, c, d) = base(label);
-        let all = [a, c, d];
-        let members: Vec<RecipeNodeId> = order.iter().map(|i| all[*i]).collect();
-        let (doc, union, _) = declared_union(doc, &members, |u| {
-            let mut v = flush_pairs(u, (a, a), (c, c));
-            v.extend(flush_pairs(u, (c, c), (d, d)));
-            v
-        });
-        (doc, union)
-    };
-    // `c` folded in LAST: both contacts are still member faces at the
-    // step that needs them, and the chain fuses into one body.
-    for (label, order) in [
-        ("docm7_chain_adc", [0, 2, 1]),
-        ("docm7_chain_dac", [2, 0, 1]),
-    ] {
-        let (doc, union) = build(label, order);
-        let ev = run(&doc);
-        assert!(
-            failure(&ev, union).is_none(),
-            "{label}: the chain refused: {:?}",
-            failure(&ev, union)
-        );
-        let body = body_of(&ev, union);
-        let volume = topo::mass_properties(&body, Tol::witness())
-            .expect("mass")
-            .volume;
-        assert!(
-            (volume - 2.2).abs() < 1e-9,
-            "{label}: one fused body of the chain's volume, got {volume}"
-        );
-    }
-    // `c` folded in SECOND: its faces were merged away at step 1, so
-    // the second contact's names no longer resolve. The refusal is the
-    // vanished rung — the face existed and was consumed, which is what
-    // the diagnosis says — and NOT `UnionDeclareStep`: the pair was
-    // routed to the right step, and the step is not what is wrong.
-    for (label, order) in [
-        ("docm7_chain_acd", [0, 1, 2]),
-        ("docm7_chain_cda", [1, 2, 0]),
-    ] {
-        let (doc, union) = build(label, order);
-        let ev = run(&doc);
-        assert!(
-            matches!(
-                failure(&ev, union),
-                Some(NodeErrorKind::DeclareResolve { .. })
-            ),
-            "{label}: expected the vanished refusal, got {:?}",
-            failure(&ev, union)
-        );
-    }
 }
 
 // ---------------------------------------------------------------------

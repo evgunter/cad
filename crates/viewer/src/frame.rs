@@ -50,7 +50,7 @@
 //!
 //! * **It is a property of the FACT, not of a signature.**
 //!   [`unindexed_refusal`] takes a `&NotIndexed` and nothing else;
-//!   what makes it an outcome is that [`crate::pick::unindexed`]
+//!   what makes it an outcome is that [`crate::pickcache::unindexed`]
 //!   raises it for a `Select` and for nothing else, so the sentence
 //!   exists because the user clicked. Reading it off the door is
 //!   wrong; it has to be traced to whoever raises it.
@@ -170,8 +170,9 @@ use pncad::prelude::StableName;
 use crate::camera::CameraError;
 use crate::camera::Folded;
 use crate::display::{DisplayFault, Withdrawn};
-use crate::evalseam::Generation;
-use crate::pick::{IdMap, NotIndexed, PickError, PickIndex, PickIndexError};
+use crate::generation::Generation;
+use crate::pickcache::NotIndexed;
+use crate::pickindex::{IdMap, PickError, PickIndex, PickIndexError};
 use crate::prefs::StoreError;
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
@@ -316,9 +317,22 @@ impl Message {
     }
 }
 
+/// **The message's own words, and only those.**
+///
+/// Destructured rather than field-read, so a field added to
+/// [`Message`] is E0027 here and its author has to decide whether the
+/// line says it. `subject` is the standing decision that it does not:
+/// the subject ROUTES the message — it is what retires it
+/// ([`StatusUpdate::Expire`]) and what a joined rank-2 line takes as
+/// its own subject, so one recurring event can retire the joined
+/// sentence. It does not RANK: [`frame_status`] ranks by SOURCE — a
+/// refusal, else the frame's notices, else the batch's own verdict —
+/// and no rank reads a subject. A line that printed its own routing
+/// would be saying to the user what the chrome says to itself.
 impl core::fmt::Display for Message {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.text)
+        let Self { subject: _, text } = self;
+        f.write_str(text)
     }
 }
 
@@ -702,11 +716,17 @@ impl<'a> Withdrawal<'a> {
     }
 }
 
+/// **Destructured rather than field-read**, so a field added to
+/// [`Withdrawal`] is E0027 here rather than joining a value whose
+/// whole job is to word itself and going unworded.
 impl core::fmt::Display for Withdrawal<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let withdrawn = self.withdrawn;
+        let &Self {
+            kind: which,
+            withdrawn,
+        } = self;
         let fused = |w: &Withdrawn| matches!(w.cause, DisplayFault::FusedGeometry { .. });
-        let (kind, one, many, consequence) = match self.kind {
+        let (kind, one, many, consequence) = match which {
             WithdrawalKind::Superseded => (
                 "free move",
                 "a committed placement was discarded",
@@ -1074,7 +1094,7 @@ impl SeamSubject for NotIndexed {
 /// is visible at.
 ///
 /// What it REPORTS is seam state, which reads like a badge. What it
-/// IS, is an outcome: [`crate::pick::unindexed`] answers `Some` for a
+/// IS, is an outcome: [`crate::pickcache::unindexed`] answers `Some` for a
 /// SELECT and `None` for an observation, so half its input is this
 /// frame's own pick stream and the sentence exists because the user
 /// clicked and got no answer. A badge would be lit whenever the index
@@ -1352,7 +1372,7 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// when the cache holds no refusal.
 ///
 /// The purest read of the three: the refusal is held by
-/// [`crate::pick::PickCache`] under its one-attempt-per (generation,
+/// [`crate::pickcache::PickCache`] under its one-attempt-per (generation,
 /// δ) policy, so this asks the value that already knows and the badge
 /// stands for exactly as long as the policy holds the refusal.
 ///
@@ -1435,7 +1455,7 @@ pub enum Progress {
     },
     /// The document is evaluated and its index is being built: the
     /// picture is the last one that finished, and picks are refused
-    /// until this lands ([`crate::pick::unindexed`]).
+    /// until this lands ([`crate::pickcache::unindexed`]).
     Indexing,
 }
 
@@ -1444,7 +1464,7 @@ pub enum Progress {
 ///
 /// **Evaluation outranks indexing**, because an index built for a
 /// generation the session has already moved past is about to be
-/// discarded by [`crate::pick::PickCache::land`] anyway — restart
+/// discarded by [`crate::pickcache::PickCache::land`] anyway — restart
 /// without cancel means both can be in flight at once, and naming the
 /// index build there would tell a reader the wait was nearly over when
 /// a whole evaluation is still ahead of it.
@@ -1859,7 +1879,14 @@ impl core::fmt::Display for Disagreement {
     /// The path rides as `Debug` because `RoleSeg` has no `Display` in
     /// this workspace — the one rendering here that is not prose, and
     /// it is a derivation, not a sentence.
+    ///
+    /// Destructured rather than field-read, which is what holds the
+    /// paragraph above to the value: the argument is that BOTH halves
+    /// are load-bearing, and a third field added to
+    /// [`Disagreement`] and left out of this sentence would falsify it
+    /// silently. In the pattern it is E0027 instead.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { from_gpu, from_ray } = self;
         let show = |name: &Option<StableName>| match name {
             Some(name) => format!("{name} ({:?})", name.path),
             None => "nothing".to_owned(),
@@ -1867,8 +1894,8 @@ impl core::fmt::Display for Disagreement {
         write!(
             f,
             "picking paths disagree at the cursor: id buffer {}, ray {}",
-            show(&self.from_gpu),
-            show(&self.from_ray)
+            show(from_gpu),
+            show(from_ray)
         )
     }
 }

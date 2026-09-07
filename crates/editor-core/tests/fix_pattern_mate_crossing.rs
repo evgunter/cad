@@ -10,9 +10,9 @@
 //!   welds a cluster and AQ8's unreachability covers it — asserted in
 //!   both directions, exactly as `asm_r2b_assembly::row5_a` does for a
 //!   plain edge;
-//! - a mate whose end is a NESTED pattern head is outside the
-//!   vocabulary, welds nothing, and so genuinely reaches a cut's
-//!   opposite sides — and the AQ8 (b)-SKIP ruling makes it contribute
+//! - a mate whose end is a pattern head its name UNDERQUALIFIES — one
+//!   `Instance(i)` over a two-level nest — is outside the vocabulary,
+//!   welds nothing, and so genuinely reaches a cut's opposite sides — and the AQ8 (b)-SKIP ruling makes it contribute
 //!   no crossing. This is the reachable construction that tells a gate
 //!   asking the vocabulary apart from one merely matching a head's
 //!   spelling.
@@ -326,9 +326,17 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     assert_eq!(i, COPY, "the structural index is not in the map's domain");
 }
 
-/// A NESTED pattern head — a pattern of a pattern — is outside A11's
-/// member vocabulary, so the mate is not an edge, welds nothing, and
-/// its two ends DO reach opposite sides of an accepted cut.
+/// A head whose name qualifies FEWER copy levels than the walk meets
+/// is outside A11's member vocabulary, so the mate is not an edge,
+/// welds nothing, and its two ends DO reach opposite sides of an
+/// accepted cut.
+///
+/// A nested COPY is a member: the walk consumes one `Instance(i)`
+/// qualifier per pattern level, and a name that wears one at each
+/// level resolves through the nest. The name here wears ONE over a
+/// two-level nest — the name a nested pattern's table never mints —
+/// so the walk consumes the outer level and then meets the inner
+/// pattern where the name has already said its head is the instance.
 ///
 /// INVARIANT (AQ8 option (b), SKIP — `crates/editor-core/ASSEMBLY.md`'s
 /// AQ8 clause):
@@ -338,12 +346,8 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
 /// row that separates a gate asking the member vocabulary from one
 /// matching a head's SPELLING: admitting `Node::Pattern` by shape mints
 /// a record here, for a mate the cluster graph never welded.
-///
-/// Whether a nested head should instead RESOLVE is a live design
-/// question (issue 1411); this row pins today's answer at this door and
-/// settles nothing about it.
 #[test]
-fn a_nested_pattern_head_reaches_the_seam_and_still_contributes_no_crossing() {
+fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-nested"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(block_ref("fix-xs-n-leg")));
     let (doc, inner) = insert(
@@ -367,7 +371,7 @@ fn a_nested_pattern_head_reaches_the_seam_and_still_contributes_no_crossing() {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::End))),
+                in_copy(outer, 1, in_part(leg, CapEnd::End)),
                 in_part(top, CapEnd::Start),
             ),
         },
@@ -378,7 +382,7 @@ fn a_nested_pattern_head_reaches_the_seam_and_still_contributes_no_crossing() {
     assert_eq!(
         editor_core::clusters(&doc),
         vec![vec![leg], vec![top]],
-        "a nested head welds nothing, which is what makes the cut below legal"
+        "an underqualified head welds nothing, which is what makes the cut below legal"
     );
 
     // And so the cut IS accepted, with the mate's ends on opposite

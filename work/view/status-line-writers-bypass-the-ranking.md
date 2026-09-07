@@ -94,7 +94,7 @@ one a reader can see: it decides whether the sentence exists on a frame
 where nobody acted.
 
 Two entries above are that class and **stay news** under it:
-`frame::unindexed_refusal`, which `pick::unindexed` raises for a
+`frame::unindexed_refusal`, which `pickcache::unindexed` raises for a
 `Select` and for nothing else; and `crates/viewer/src/pane/viewport.rs`'s
 cursor action the pick index refused. Under the rival test both would
 have moved, and with them the whole class *"a refusal about a seam"* —
