@@ -765,27 +765,6 @@ impl<T: Decide> Body<T> {
         }
         let f2_shell = f2_data.shell;
         let cross_shell = f2_shell != f1_shell;
-        // The op's declared arena shift, fixed HERE — by the plan
-        // phase's own form decision, before any mutation. Reading it
-        // back off the mutation (`killed_shell.is_some()`) would make
-        // the postcondition follow the code down whichever branch it
-        // took, so a fusion that ran when it should not have could not
-        // fail it. `ArenaDelta` is one operator's signed shift
-        // (`crate::euler`), and a shift a site computes from its own
-        // effect is not one.
-        #[cfg(debug_assertions)]
-        let declared = if cross_shell {
-            ArenaDelta {
-                shells: -1,
-                faces: -1,
-                ..ArenaDelta::ZERO
-            }
-        } else {
-            ArenaDelta {
-                faces: -1,
-                ..ArenaDelta::ZERO
-            }
-        };
         let s1_solid = self
             .get_shell(f1_shell)
             .ok_or(EulerOpError::StaleKey {
@@ -869,7 +848,31 @@ impl<T: Decide> Body<T> {
             .then_some(f2_data.surface);
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, declared, "kfmrh");
+        {
+            // The declared arena shift is chosen by `cross_shell` —
+            // the PLAN phase's own form decision, taken before any
+            // mutation and never written again. Choosing it on
+            // `killed_shell.is_some()` instead would read the shift
+            // back out of the mutation being checked, so the
+            // postcondition would follow the code down whichever
+            // branch it took and a fusion that ran when it should not
+            // have could not fail it. `ArenaDelta` is one operator's
+            // signed shift (`crate::euler`), and a shift a site
+            // computes from its own effect is not one.
+            let declared = if cross_shell {
+                ArenaDelta {
+                    shells: -1,
+                    faces: -1,
+                    ..ArenaDelta::ZERO
+                }
+            } else {
+                ArenaDelta {
+                    faces: -1,
+                    ..ArenaDelta::ZERO
+                }
+            };
+            self.assert_euler_postcondition(before, declared, "kfmrh");
+        }
         Ok(KfmrhResult {
             ring,
             killed_face: f2,
