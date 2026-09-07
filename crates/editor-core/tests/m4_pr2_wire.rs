@@ -763,31 +763,30 @@ fn declare_passes_through_and_boolean_accepts_it() {
     };
     assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
 
-    // A non-Declare node on the declare edge: typed refusal.
+    // A non-Declare node on the declare edge: refused at the EDIT
+    // door, where the mis-wire is made.
     //
     // The node named here is the union ABOVE, not operand `a`: a
     // node's inputs are pairwise distinct (DM5), so a declare edge
-    // pointing at one of the operands is refused at the EDIT door and
-    // never reaches the evaluation this row is about. Any live
-    // non-`Declare` node makes the same point.
-    let (doc2, bad) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Some(boolean),
+    // pointing at one of the operands is refused for THAT reason and
+    // would say nothing about this one. Any live non-`Declare` node
+    // makes the same point.
+    let refused = doc.apply(
+        &editor_core::DocEdit::InsertNode {
+            node: Node::Boolean {
+                op: BooleanOp::Union,
+                a,
+                b,
+                declare: Some(boolean),
+            },
         },
+        Tol::witness(),
     );
-    let ev2 = run(&doc2);
-    match ev2.nodes.get(&bad) {
-        Some(NodeResult::Failed(e)) => assert!(matches!(
-            e.kind,
-            NodeErrorKind::WrongOperand {
-                expected: "declarations",
-                ..
-            }
-        )),
-        other => panic!("expected Failed, got {other:?}"),
-    }
+    assert!(
+        matches!(
+            refused,
+            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input == boolean
+        ),
+        "expected the declare edge's kind refusal, got {refused:?}"
+    );
 }

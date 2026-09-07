@@ -309,7 +309,14 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             )
         })
         .collect();
-    let tool = insert(doc, Node::Union { members }, tol);
+    let tool = insert(
+        doc,
+        Node::Union {
+            members,
+            declare: None,
+        },
+        tol,
+    );
     insert(
         doc,
         Node::Boolean {
