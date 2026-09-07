@@ -1414,3 +1414,17 @@ the unit's record is its item's `## Closed` section and its MERGED
 entry in `work/msolve/log.md` (no A/B row: the program runs none).
 
 - `MSOLVE-5-SPEC.md` — MSOLVE-5, the at-rest gate refuses a mate read below a product root in the operand's voice (#2090)
+
+## Per-merge deletion — TRIM-1's spec (2026-09-07)
+
+Recoverable at `git show 416ccdfc6:docs/TRIM-1-SPEC.md` (PR #2095's
+merge commit, the last head carrying it). Every clause met as written,
+with the rulings section answering the lane's three questions
+(rational cases (a)+(b) by bitwise weight tests; `iso_boundary_row`
+unchanged; the two riders carried). One thing the spec's acceptance did
+not foresee and the unit recorded: TRIM-2's opening measurement is
+re-cut — on the P-2 fixture the tessellation lane stops at
+`patch_bound::Degree1Crease` before any of the six filed sites. The
+unit's record is `work/trim/interior-iso-curve-de-boor-extractor.md`'s
+`## Closed` and the MERGED entry in `work/trim/log.md`; its A/B row is
+MODEL-AB-LOG T1.
