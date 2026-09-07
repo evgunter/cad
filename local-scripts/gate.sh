@@ -34,7 +34,10 @@
 # (or preview-merge) as usual, and gate the resulting sha/ref here.
 #
 # CACHING GUIDANCE FOR AGENTS' OWN WORKTREES (not this runner):
-#   * sccache v0.16.0 is at ~/.local/bin/sccache. Export
+#   * sccache v0.16.0 is at ~/.local/bin/sccache (the version literal is
+#     ci.yml's SCCACHE_VERSION restated, and check-ci-mirror-parity.py's
+#     pin-literal claim reds if this line stops naming the pinned one).
+#     Export
 #     RUSTC_WRAPPER=~/.local/bin/sccache from the worktree's FIRST
 #     build onward — flipping the wrapper mid-life re-fingerprints
 #     everything. Cold worktree + warm sccache: ~8-9 min matrix.

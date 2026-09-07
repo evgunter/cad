@@ -47,6 +47,74 @@ unrowed — found by a sweep, not placed by a track.
 
 Moved from `work/code-quality/` to `work/meter/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track K; `docs/TESS-BUDGET.md` is METER's territory.
 
+
+## Orchestrator note (2026-09-07) — RETRACTED 2026-09-07, it was wrong
+
+**The note below is kept as the record and its conclusion is false.**
+It read three of the block's cell lines against today's columns of the
+same NAME, concluded the block had drifted a second time, and told the
+lane the judgement was settled and the only open question was the form
+of the fix. The lane checked the premise instead of building on it and
+falsified it; `## Closed` below carries the real finding.
+
+**What the note missed, in one line:** the block has FOUR cell lines
+and the note (like the item's own table above it) compared only three.
+The fourth is `44,457 with both`, and today's `span_opt_cells` is
+**44,446** — a difference of 0.02%. `95,090 at the cheapest split`
+against today's `opt_cells` **94,154** is 1.0%. Those two are the
+schedule-INDEPENDENT optima, and they have not moved. The columns that
+moved several-fold are the schedule-DEPENDENT ones, which is what a
+FIX looks like, not what a re-cut looks like — a re-cut moves all four
+together.
+
+**The note's reasoning was also unsound where it was most confident.**
+"Stale against two successive re-cuts in the same direction" does not
+discriminate between the two hypotheses at all: under either one the
+gap grows monotonically as the corpus grows. It read like evidence and
+was not. What discriminates is WHICH columns moved, and the note never
+asked.
+
+The note is left standing rather than deleted because the item's own
+`## What` section above makes the same mis-mapping, and a reader who
+finds only the corrected text will not understand why two successive
+readers reached the wrong answer. Its retraction is the point.
+
+
+### The retracted note, as written
+
+Re-derived at this program's opening, against the baseline as committed
+today — cut `aba2625f8f84`, 2026-09-04, a re-cut later than the `a4eb03a`
+this item read:
+
+| the doc says | item said (`a4eb03a`) | baseline now (`aba2625f8f84`) |
+|---|---|---|
+| 1025 faces | 1306 | **1353** |
+| 1,149,528 triangles | 1,416,410 | **1,552,822** |
+| 64 NURBS faces (6.2%) | 64 (4.9%) | 64 (**4.7%**) |
+| carrying 782,104 triangles (68.0%) | 164,710 (11.6%) | 164,710 (**10.6%**) |
+
+`grid_cells` 46019, `opt_cells` 94154 and `span_opt_cells` 44446 are
+unmoved. **This is the item's own mechanism arriving on schedule**: a
+census transcribed into prose drifted again inside four days, and the
+transcription that drifted this time is the one in this file. It settles
+the judgement the item declined to make — the block is stale against
+re-cuts, not a description of a different sweep, because it is now
+stale against two of them in the same direction — and it settles the
+form of the fix: **cite, never restate.** A re-derived table committed
+here would be the third copy to go stale.
+
+**One reconciliation the lane owes before either side can cite the
+other.** `tools/tess-lint/src/main.rs`'s report header prints
+`grid_cells` / `patch_cells` / `span_opt_cells` as "used /
+whole-patch counterfactual / cheapest split per cell", while the doc
+block labels `opt_cells` "at the cheapest split" and `span_opt_cells`
+"sized per knot-span cell". The two documents disagree about which
+column "the cheapest split" names, so a citation written without
+noticing would point at the wrong number while looking right.
+
+**Confidence:** sure for the arithmetic (re-derived over the raw CSV);
+sure that the cut line reads `aba2625f8f84 2026-09-04`.
+
 ## Closed (2026-09-07, METER unit 2)
 
 **The item's premise is wrong and that is the unit's finding.** The
