@@ -4695,3 +4695,33 @@ not written until the dual concludes. Shared-box note applying to
 BOTH arms equally: one 4-core cloud box beside one other lane, `-j2`;
 R1's target is the implementer's warm one, R2's is seeded from an
 older warm build — wall-clock asymmetry only.
+
+## BLEND program rows (work/blend/; band 2900–2999; blocks named BLEND-B<n>)
+
+BLEND (FILLET's successor, opened 2026-09-06 from
+`docs/WORK-TRACKS-2026-09.md` addendum 2) inherits FILLET's full-dual
+posture. Its five E openers (units 1–5 of `work/blend/plan.md`) run
+outside the experiment — single style review, no row, no slot; only the
+H units record rows, under v6. Block BLEND-B1's draw and slot record live
+branch-side on `blend/b1-block` until the block concludes, per the
+block-draw redaction ruling; each ordinal claim at review dispatch goes
+to main on its own.
+
+Block BLEND-B1 pre-draw fields (2026-09-07, logged before the draw):
+slot 0 = BLEND-6 (`docs/BLEND-6-SPEC.md`,
+`ring-clearance-refuses-a-nested-trim-circle` +
+`hostless-rim-on-a-ringed-host-refuses`, one unit) — difficulty **M**,
+task-class **NUMERIC**; slot 1 = BLEND-7 (`docs/BLEND-7-SPEC.md`,
+`ladder-rim-phase-may-retire-a-new-split-key`) — **S / STRUCTURAL**;
+slot 2 = BLEND-8 (`docs/BLEND-8-SPEC.md`,
+`smooth-arm-siblings-disagree-on-the-in-band-case`) — **M / STRUCTURAL**.
+All three at their specs, written 2026-09-07 before this draw.
+
+Block BLEND-B1 draw (2026-09-07, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**13**, 13 mod 3 = 1 = fable's position ⇒ **fable at slot 1**.
+So: slot 0 BLEND-6 = OPUS, slot 1 BLEND-7 = FABLE, slot 2 BLEND-8 = OPUS.
+Recorded branch-side; this record reaches main when the block's last
+slot's reviews conclude.
+
+Block BLEND-B1 slot record (branch-side, appended as each slot concludes):
