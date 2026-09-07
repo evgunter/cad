@@ -26,14 +26,21 @@ use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, wall};
 use geom_core::Tol;
 use topo::validate_pseudomanifold;
 
+/// Evaluates, and holds every table the run produced to the N3
+/// flatness rule on the way out. A tripwire over this suite's merged
+/// rows, not the guard: the mint refuses a nested constituent before
+/// a table is published, and the rows that carry the rule are
+/// `docm8_flat_merged`'s (the corpus walk and the mint-site rows).
 fn run(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    editor_core::evaluate(
+    let ev = editor_core::evaluate(
         doc,
         None,
         &editor_core::CancelToken::new(),
         &editor_core::EvalOptions::default(),
         Tol::witness(),
-    )
+    );
+    fixture::assert_no_nested_merged(&ev);
+    ev
 }
 
 /// An axis-aligned block on the xy plane at height z0, extruded dz.

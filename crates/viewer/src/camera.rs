@@ -1,5 +1,5 @@
 //! The viewport camera: one state value, one typed operation
-//! vocabulary, one pure `apply`.
+//! vocabulary, one pure `apply`, and the projection algebra over it.
 //!
 //! # The state
 //!
@@ -31,6 +31,14 @@
 //! zero-scale dolly). Those are **refused typed** by [`apply`], never
 //! clamped and never silently dropped: a caller folding user input
 //! gets a [`CameraOpError`] it can show, and the camera it already had.
+//!
+//! # The one free transform
+//!
+//! [`cursor_projection`] is about no camera state at all — a matrix, a
+//! cursor and a viewport in, a matrix out. It is here because
+//! projection algebra is this module's subject, not because the doors
+//! meet at the type: it takes `f32` and every matrix here is `f64`
+//! (`work/view/cursor-projection-is-f32-in-a-module-whose-matrices-are-f64`).
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -107,14 +115,40 @@ pub struct Camera {
 /// comparison of the numbers.
 impl PartialEq for Camera {
     fn eq(&self, other: &Self) -> bool {
-        self.target.x == other.target.x
-            && self.target.y == other.target.y
-            && self.target.z == other.target.z
-            && self.distance == other.distance
-            && self.yaw == other.yaw
-            && self.pitch == other.pitch
-            && self.fov_y == other.fov_y
-            && self.scene_radius == other.scene_radius
+        // Every number equality is on, in declaration order — read by
+        // ONE pattern that both sides go through, because a census
+        // stated twice is a census that can disagree with itself.
+        //
+        // **Destructured rather than field-read.** A field added to
+        // `Camera` is E0027 in this pattern, so it cannot land outside
+        // equality without an author deciding it should be there — and
+        // a second pattern carries `Point3`'s three coordinates for the
+        // same reason, since expanding `target` by hand is where the
+        // census would otherwise stop at this crate's boundary. The tie
+        // is worth more here than in a dump: an `eq` that misses a
+        // field answers *wrong*, it does not merely say less. That tie
+        // is also why this reads the fields rather than the six public
+        // accessors below: an accessor call is a field READ, so a
+        // seventh field would leave a census built from them silently
+        // short, which is the whole property being bought.
+        //
+        // Nested in its only caller rather than sited in `impl Camera`:
+        // the helper exists for `eq` alone, and a second inherent block
+        // would leave a reader of `impl Camera` unable to see the type's
+        // surface in one place.
+        fn coordinates(camera: &Camera) -> [f64; 8] {
+            let &Camera {
+                target,
+                distance,
+                yaw,
+                pitch,
+                fov_y,
+                scene_radius,
+            } = camera;
+            let Point3 { x, y, z } = target;
+            [x, y, z, distance, yaw, pitch, fov_y, scene_radius]
+        }
+        coordinates(self) == coordinates(other)
     }
 }
 
@@ -308,6 +342,18 @@ impl core::fmt::Display for CameraOp {
             }
             Self::Pan { right, up } => write!(f, "pan by right {right}, up {up}"),
             Self::Dolly { factor } => write!(f, "dolly by a factor of {factor}"),
+            // `bounds` is dropped, and the sentence names it as the
+            // caller's own rather than rendering it. `Aabb` carries no
+            // `Display` in this workspace, so putting it here would set
+            // a six-number `Debug` derivation inside a prose line; and
+            // it is not the actionable half. The two errors that
+            // provoke this sentence say what was wrong with the box
+            // themselves — `CameraError::UnusableBounds` names an empty
+            // or NaN-bounded box, `CameraError::Unfittable` names the
+            // stand-off the fit needed — while `aspect` is rendered
+            // because the viewport shape is the half a reader can act
+            // on. A third `Frame` field would arrive under this
+            // argument, not under the `..`, so it is written here.
             Self::Frame { aspect, .. } => {
                 write!(f, "frame the given bounds at aspect {aspect}")
             }
@@ -847,6 +893,38 @@ pub fn fold<'a>(
         Some((_, error)) => Err(error),
         None => Ok(folded.camera),
     }
+}
+
+/// The view-projection that puts ONE source pixel over the whole 1×1
+/// target the GPU id pass renders into.
+///
+/// A pixel centred at `cursor_ndc` spans `2 / width` by `2 / height` of
+/// normalized device space, so translating that point to the origin and
+/// scaling by the viewport's pixel dimensions maps exactly that pixel
+/// onto the target's `[−1, 1]²`. In a column-major clip-space matrix
+/// the translation is a subtraction of `cursor · w`, which is why the
+/// `w` row participates.
+///
+/// **It is out of the render module because it is the one part of the
+/// id pass a machine with no GPU can check**: composed with
+/// [`Camera::project`] it says that the world point the ray path
+/// un-projects to is the point the id pass rasterizes at the centre of
+/// its target. That composition is the headless half of "both picking
+/// paths answer the same question".
+pub fn cursor_projection(
+    view_projection: &[[f32; 4]; 4],
+    cursor_ndc: [f32; 2],
+    viewport_px: [f32; 2],
+) -> [[f32; 4]; 4] {
+    let [cx, cy] = cursor_ndc;
+    let [sx, sy] = viewport_px;
+    let mut out = *view_projection;
+    for column in &mut out {
+        let w = column[3];
+        column[0] = (column[0] - cx * w) * sx;
+        column[1] = (column[1] - cy * w) * sy;
+    }
+    out
 }
 
 /// The centre and radius of a box's bounding sphere.

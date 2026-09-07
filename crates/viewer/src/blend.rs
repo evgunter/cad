@@ -125,9 +125,16 @@ impl BlendTarget {
     }
 }
 
+/// **Destructured rather than field-read**, so a field added to
+/// [`BlendTarget`] is E0027 here. The pair above is the scope an
+/// accumulator opens on and the scope a refusal names, and this
+/// sentence is how the refusal names it: a target that grew a third
+/// component while the sentence still named two would name the wrong
+/// scope.
 impl core::fmt::Display for BlendTarget {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "feature {} body {}", self.node.0, self.body)
+        let Self { node, body } = self;
+        write!(f, "feature {} body {body}", node.0)
     }
 }
 
@@ -481,9 +488,16 @@ impl BlendTool {
 
     /// Drop every pick — the panel's `Clear picks` button, and what
     /// Cancel's whole-tool replacement amounts to for the picks alone.
+    ///
+    /// **Destructured rather than field-cleared**, so a field added to
+    /// [`BlendTool`] is E0027 here rather than surviving a door whose
+    /// whole contract is that the tool holds nothing afterwards — the
+    /// state a fresh tool is in, which is what lets the next click
+    /// start on any body.
     pub fn clear(&mut self) {
-        self.target = None;
-        self.edges.clear();
+        let Self { target, edges } = self;
+        *target = None;
+        edges.clear();
     }
 
     /// Release the target when the last edge leaves, keeping the

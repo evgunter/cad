@@ -470,8 +470,10 @@ Lanes, each in its own order:
   to the declaration ladder; the M9-3 join-lane emission; a red-first
   witness is live) → `torus-declared-rest-lane-banked` (the 0/2π kissing
   arm; routed by `MATE-7-TANGENCY-DESIGN`) → item 5's consumer sweep.
-- *Torus lane completion*: `torus-operand-boxes-span-whole-ring` (retires
-  lily wall 1) → `circle-residual-harmonics-needs-torus-arm`.
+- *Torus lane completion*: `torus-operand-boxes-span-whole-ring` (RE-AIMS
+  lily wall 1 from a box artifact to the weld pair; it cannot retire it —
+  `docs/CURVED-TORUS-SPEC.md` §R3) → `circle-residual-harmonics-needs-torus-arm`
+  → `torus-operand-gate-admission`, which is the unit that can.
 - *Germ and pierce*: `arc-aware-point-in-loop` (BOOL-2/3's ignored probes
   show wrong-not-conservative answers; with #1077) →
   `pierce-ring-has-no-join-arm` → `boolean-refuses-on-arc-carrier-not-arc`

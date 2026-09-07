@@ -5200,3 +5200,887 @@ Four review items stay open and are not this pass's:
 `the-point3-to-gpu-corner-cast-is-at-three-sites` and
 `highlight-and-edge-overlay-disagree-on-hover-equals-selected` — the
 last two pre-existing. `generation-get-has-no-reader` still untouched.
+
+## #2083 MERGED; the citation class caught by a method, not a grep (2026-09-06)
+
+**#2083 merged at `62a51835a`.** Seventeen units on main this session.
+CI: 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`
+success, zero non-green. `#[test]` 533 at merge base `2beeb0b` and 533
+at head — checked here, against the branch's own base.
+
+Two commits, deliberately separate: the eleven marks lifted into
+`marks.rs`, then `pick.rs` renamed to `pickcache.rs`. The move's receipt
+(34 removed / 75 added at `6702d15`, empty set after filtering doc
+comments, `use` and blanks) was re-derived by the reviewer, and the
+reviewer added a check the dispatch had not asked for: `pickindex`'s
+`mod tests` references none of the moved members, so the split orphaned
+no coverage.
+
+### The naming answer overturned what the previous unit predicted
+
+#2079's lane parked the rename on the theory that the marks coming off
+would narrow `pickindex` to "the index". **It did not** — `op_for`,
+`op_under`, the miss rule and the priority rule are all still there.
+What the split exposed is that the complaint was about **a type having
+methods**: everything left is `PickIndex`, its keys, machinery, errors,
+answers or a private helper, and the "policy" is inherent `impl` on the
+type the module is named for. So `pickindex` was right and `pick` was
+not, and the answer is a straight rename rather than the swap the
+earlier framing implied — *a swap would put `PickIndex::scene_focused`
+in a module called `pick`*.
+
+The `NotIndexed`/`unindexed` objection, which #2079's lane had named as
+the reason even the easy half was unclean, **dissolves**: `Building`
+IS `PickCache::indexing`, `Absent` is defined by `PickCache::error`,
+and `unindexed`'s doc names `PickCache::indexing` as "the one value
+that knows". The refusal exists because the cache can be empty.
+
+**The rule the closure first rested on was withdrawn**, correctly: *"a
+module named for the type whose inherent `impl` is its spine is named
+correctly"* cannot fail for any module built on one big type — it would
+have certified `session.rs` before the 1c split. The rename stands on
+the six items that left, not on a rule that cannot fail.
+`a-module-named-for-its-spine-type-is-unfalsifiable` carries it.
+
+### The citation class, and the method that finally caught it
+
+**#2083 caught #2079 for shifting a line number instead of re-deriving
+it, and then did the same thing.** It wrote `:910` where its own prose
+had just called `:928` wrong — `:928 − 18`, the wrong number moved by a
+delta computed correctly somewhere else. Its claim that "the numbers
+here were all re-read" was false; a re-read of `:910` returns
+`mesh: part.mesh(),`.
+
+Re-deriving it **split the citation in two**, because the single
+parenthetical had been hiding two subjects in two files since before
+the branch: `PickIndex::scene_focused` at `pickindex.rs:894` and
+`SceneMesh::build_parts_focused` at `scene.rs:410`. Both verified here
+by reading the lines.
+
+**The method, and it should be program practice**: enumerate every
+`file:line` in every row the branch touches, `sed -n Np` each one, and
+read whether the subject is there. **39 citations, 39 verified.** No
+grep finds this class — a citation pointing at the wrong line still
+parses — which is why five instances got through today before anyone
+looked properly.
+
+It then caught two more nobody had named:
+
+- **its own header rewrites, in this fix pass, invalidated five of the
+  reviewer's fresh citations** — the same failure #2079's fix pass
+  committed, caught this time before publication;
+- it had written the post-fix receipt as "38/89" **by projection**;
+  measured, it is 35/90.
+
+Four counts were wrong and are corrected: four merge-base-wrong rows
+(not three), four of four out-of-fence rows already wrong (not three),
+the receipt now names the commit `6702d15` rather than the tree, and
+the filed item is `renamed-module-leaves-citations-in-TWO-other-
+programs` (chrome ×3, code-quality ×1), renamed from "three". **The
+orchestrator propagated the original three-and-three into a check-in
+before the fix pass corrected them** — repeating a lane's arithmetic
+without checking it, which is the same defect one level up.
+
+One disclosure moved to where it belongs: `new-document-owes-the-
+reframe-open-gets:54` carries a range the lane could not re-derive, and
+now says "range unverified" **in the item** rather than only in a PR
+body, which `work/README.md` says is not a slate.
+
+### The header this unit wrote from scratch
+
+`marks.rs`'s first draft opened with three universals its own module
+falsified: *"Every door here takes a `PickIndex` as an ARGUMENT"*
+(false for `cursor_projection`, which the PR's own table records as
+taking none), a section titled *"The four marks"* counting that matrix
+as a mark, and a claim that `Theme::marks` names "the same four" when
+it names a different four sharing only `focus`. All three gone;
+`cursor_projection` now has its own section saying it *is not a mark,
+and is here for want of a home*.
+
+The lane also cut a per-door tally from its own fix draft on the
+grounds that it was an inference over `gpu.rs`'s uniform block and
+"this was not the item to over-claim on" — which is the right instinct
+in a fix pass about over-claiming.
+
+### The rename sweep had been described but not run over `crates/`
+
+Confirmed: `work/` and `docs/` only. Two live sites named by the
+reviewer plus **two more** the bare-word instrument found
+(`session.rs:1104`, `generation.rs:10`); three triaged and left with
+reasons. The full tree hit list is in the PR body, which
+`reviewer-style-lane` §5 asks for and the first pass had not given.
+
+### Left open
+
+`cursor-projection-landed-in-marks-for-want-of-a-home` — the reviewer
+argues `camera` is its home (no index, no selection, no document, one
+production consumer, and its stated reason for living in `marks` is
+testability rather than subject; its doc composes with
+`Camera::project`, the very link the move had to widen to a full path).
+**I agree**, and it stays filed: moving it would be a third move in a
+PR whose warrant is two clean ones, and it needs its own commit and its
+own re-verification. The header rewrite above is what keeps the item
+honest rather than a nag.
+
+Also open: `a-module-named-for-its-spine-type-is-unfalsifiable`, and
+the two pre-existing prose findings the review filed (three
+`Point3<f64>` cast sites against a doc sentence naming two;
+`highlight`/`edge_overlay` called "twins" while disagreeing on whether
+a hover that IS the selection is reported as hovered).
+
+## Two things put where they belong: `cursor_projection` home, `Generation::get` gone (2026-09-06)
+
+The two "this is not where it belongs" rows from #2079's and #2083's
+reviews, in two commits because they are two different kinds of change
+and only one of them is certifiable by a sorted-line diff.
+
+**`cursor_projection` → `camera`, and the home was verified before the
+move rather than after.** The item PROPOSED `camera`; four checks made
+it a finding rather than a guess. `camera` already builds the matrix
+the function transforms (`view_projection`) and already answers in the
+frame its `cursor_ndc` is in (`project`, `ray_through`), so the subject
+is the module's. The signature is three arrays of `f32` and nothing
+else, so `camera` gains no import and its module kind is unchanged.
+`camera` already holds free `pub fn`s (`apply`, `fold`,
+`fold_recorded`), so a function outside `impl Camera` is the file's
+existing shape. And the doc link NARROWED —
+`[\`crate::camera::Camera::project\`]` back to `[\`Camera::project\`]`
+— which is #2083's tell running in reverse.
+
+**No shim, and no test-side re-pointing needed.** Every suite already
+spelled it `viewer::cursor_projection`; that crate-root re-export moved
+from the `pub use marks::{…}` list to `pub use camera::{…}`, so there
+stays exactly ONE path to the function. `session-shims-and-test-imports`
+is open because unit 1c left two spellings of every moved path; this
+left one. `gpu.rs` is the only production consumer and imports
+`crate::camera::cursor_projection`.
+
+**`Generation::get` deleted, and the precedent it looked like does not
+reach it.** `tool-kind-all-and-ordinal-have-no-production-reader` kept
+a `pub` item and documented the suites as its only readers — the item
+was preserved BECAUSE it had a reader. `get` has none anywhere: not
+`src`, not `tests`, not `examples`. What survives the deletion is the
+need its doc named: `Generation` derives `Debug`, so a log line and a
+debugger still show the counter, and the accessor was a second door
+onto what `Debug` already opens. `next`'s twelve-line ceiling paragraph
+lost the part describing a state nothing can construct and kept the
+part that is the reason for `saturating_add` over `+`.
+
+**The tracker pass found eighteen stale citations, and eleven of them
+predate this branch.** Re-derived, never shifted, every one verified by
+reading the line it names. **Seven this branch broke**: the six
+`marks.rs` citations in three open rows (`:132-135`, `:286`, `:200`,
+`:224-227`, `:118-121`, `:261`) all move by −13, the header section
+this commit deleted, and `camera.rs:908` moves to `:954` under the
+insert. **Eleven that were already wrong on `origin/main`** and would
+have gone on being wrong: `session-shims`'s `lib.rs:147` (`:163` on
+base, `:160` on head, so this branch moved a line that was already
+mis-cited), `two-datumkind`'s `lib.rs:124` (`:128`) and `forms.rs:55`
+(`:93`), `session-shims`'s `combine_ops.rs:1327` (`:1340`), and seven
+in `adjacent-same-typed-arguments-are-the-same-swap` — five
+`session.rs` citations all off by exactly four, `session/refuse.rs:308`
+(`:323`) and `frame.rs:1658` (`:1689`). Six of those seven are the
+brief's own warning working: they cite MULTI-LINE `fn` headers, which
+is exactly what a grep over a signature cannot re-find.
+
+That is the lesson worth keeping. The instrument was sold as a check on
+what your own diff shifted; run over every row a branch touches it
+finds more drift than the branch caused, because a row that has sat
+open through a few refactors accumulates it silently and nothing else
+reads those numbers. Eleven of eighteen here.
+
+One more, `work/tcost/loud-skip-marker-is-a-hand-kept-idiom`'s
+`lib.rs:103` and `lib.rs:92-100`, is outside this program's fence —
+the symbol it names, `app_lane_skipped_no_chrome_or_gpu_coverage_here`,
+is not in `crates/viewer/src/lib.rs` under any line number today — so
+it is in the PR body and this report rather than edited here.
+
+## The fix pass for #2089: the receipt was wrong about itself, twice in a row (2026-09-06)
+
+The entry above is left as written — it is the record of what this lane
+believed when it wrote it — and this one corrects it. Nothing in the
+code was wrong; every claim corrected here is prose or arithmetic in
+the durable record, which is the part a later reader trusts.
+
+### "There stays exactly ONE path to the function" is false
+
+`crates/viewer/src/lib.rs:55` is `pub mod camera;`, so
+`viewer::camera::cursor_projection` resolves beside
+`viewer::cursor_projection` — and both spellings existed through
+`marks` before the move. **What the move preserved is the COUNT of
+public paths, not a uniqueness that never held.** The contrast the
+entry above drew against `session-shims-and-test-imports` therefore
+does not land as written: that row's hazard is a `pub use` shim INSIDE
+a module, which is a lie about where an item lives, not a crate-root
+re-export, which is a convenience. Every item in `lib.rs`'s `pub use`
+blocks has two public paths for the same reason, which is the class the
+reviewer filed as
+`every-crate-root-reexport-is-a-second-path-not-the-only-one`. The
+sentence is corrected in the PR body and in the item's `## Closed`.
+
+### Every summary number in the citation receipt was wrong
+
+This is the second consecutive PR of this program's for which that is
+true — `citation-repoint-shifted-a-number-the-lane-knew-was-wrong`
+(#2083, closed) is the class row, and
+`the-citation-receipts-summary-numbers-are-not-re-derivable` is the new
+one. **Saying it plainly: the per-citation work was right both times
+and the summaries wrapped around it were wrong both times**, which is
+the more dangerous half, because a summary is what a reader quotes.
+
+- **"60 citations checked" had no enumeration rule behind it.** The
+  rule, stated so a second reader can re-derive it: a `path.ext:N`
+  regex, one hit per match, a `:a-b` span counting once and a `:a,:b`
+  comma-list twice, over the eight VIEW item files this branch's own
+  commits edit. At `abf518285` that gives **51** — the reviewer's
+  number, reproduced here exactly. At this fix pass's tip it gives
+  **57** over those eight, **64** counting the `work/issues/` row filed
+  below. A count without its rule is not a receipt.
+- **"The six `marks.rs` citations all move by −13" — five do.** The
+  sixth, `the-point3-to-gpu-corner-cast-is-at-three-sites`'s
+  `:132-135`, became `:119-121`: a three-line span, not a shifted
+  four-line one, because `marks.rs:135` on `bc44531e1` was
+  `#[derive(…)]` and was never part of the quoted sentence. So that
+  citation was **already** wrong on `main` and was filed in the wrong
+  bucket. **The split is 7 + 12, not 7 + 11.**
+- **"Twelve lines argued the ceiling … six instead of ten."** Nothing
+  in either tree is twelve, and the comparison was a paragraph against
+  a block. Re-derived: `next`'s rustdoc block is 10 lines on
+  `bc44531e1` (`generation.rs:33-42`) and 8 on head (`:36-43`); the
+  ceiling paragraph inside it is 8 (`:35-42`) and 6 (`:38-43`).
+- **"Two public items" — three**, all with readers: `Generation`,
+  `Generation::FIRST` (25 occurrences of that spelling tree-wide) and
+  `Generation::next` (`session.rs:1814`, `review_gui2_r2.rs:1563`).
+
+### The 51/51 was the joke, and the paragraph is now two lines
+
+`generation.rs` was 51 lines on base and 51 on head: the close deleted
+four lines of code and added a six-line paragraph about their absence,
+in a unit whose finding was that a reader-less `pub` item is a third of
+a 51-line leaf module's API — and then quoted 51 as an outcome. The
+paragraph does earn a place, because the next reader reaching for the
+counter needs to know `Debug` is the door and would otherwise re-add
+the accessor; it earns **two lines** (`generation.rs:27-28`), not six.
+The module is now **47**.
+
+### The subject check in the `camera` argument did not hold as stated
+
+Three of the four checks were exact. The fourth said `camera` "already
+answers in the frame its `cursor_ndc` is in", and it does not: the
+doors do not meet at the type — `f64` matrices and pixels with `+y`
+down against an `f32` NDC function — and the conversion happens two
+modules away in a driver. **The move is still right**; the other three
+checks carry it, and the module header no longer claims otherwise.
+`cursor-projection-is-f32-in-a-module-whose-matrices-are-f64` holds the
+type question. The placement prose also did not shrink in the first
+pass (19 lines before, 19 after); it is 14 now.
+
+### §6 has now produced nothing twice on the same row, so it is a file
+
+The stale TCOST loud-skip citations were reported out-of-fence in the
+PR body — and #1848's close, on this program's own slate, already
+reported the SAME row the same way on 2026-09-04, with the same
+nothing resulting. A merged PR body is not a slate, and a disclosure
+inside a closed item's prose is invisible to the re-homing sweep by
+`work/README.md`'s own account, so the second lane could not see the
+first. Filed as
+`work/issues/loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed`,
+which also records that one of the row's citations is not stale but
+REVERSED: VIEW fixed that marker at #1848, so `lib.rs` now says the
+opposite of what the row quotes it as saying.
+
+## #2089 MERGED; a unit that closed net-zero, and a §6 report that failed twice (2026-09-06)
+
+**#2089 merged at `aa4b64a17`.** Eighteen units on main this session.
+CI: 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`
+success, zero non-green. `#[test]` 534 at merge base `4887d865c` and
+534 at head — checked here, against the branch's own base, which had
+moved twice under the lane.
+
+Two commits: `cursor_projection` from `marks` to `camera`, and
+`Generation::get` deleted.
+
+### The unit's own arithmetic was the review's best finding
+
+The first pass deleted four lines of code and added a **six-line
+paragraph about their absence** — in a unit whose opening finding was
+that *a reader-less `pub` item is a third of a 51-line leaf module's
+API*. `generation.rs` was **51 lines on base and 51 on head**, and the
+PR quoted 51 as an outcome.
+
+The lane's answer is the right one: the paragraph earns its place at
+**two lines**, because a future reader reaching for the counter needs
+exactly one fact — `Debug` is the door — and everything else in the
+six-line version was argument for the deletion, which belongs in the
+item's `## Closed`. 51 → 47.
+
+### Every summary number was wrong while every checked fact was right
+
+The reviewer read all 51 resolvable citations and confirmed the eleven
+pre-existing stale ones individually. The summaries around them did not
+survive: *"60 citations"* had no enumeration rule behind it; *"the six
+`marks.rs` citations all move by −13"* was five, and the sixth had also
+**narrowed** — base `marks.rs:135` was a `#[derive(…)]` never part of
+the quoted sentence, so that one was already wrong on `main`, making
+the tally **7 + 12**, not 7 + 11; *"twelve lines … six instead of
+ten"* compared a paragraph to a block when nothing was twelve; *"two
+public items"* was three.
+
+**Second consecutive VIEW PR with this defect** —
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` (#2083) is
+the class row, and the corrected receipt now states the rule that
+produces its number so a second reader can re-derive it.
+
+**And re-running the receipt after the last edit paid again**: the
+`camera` prose trim moved `clamp_distance` from `:954` to `:948`,
+invalidating a citation the same lane had corrected two hours earlier
+in the same PR. Caught, re-derived. That is the third time today the
+rule has caught a lane invalidating its own freshly-published
+coordinates.
+
+### The claim that was false in three places
+
+*"Exactly one path to the function"* — `lib.rs:55` is
+`pub mod camera;`, so `viewer::camera::cursor_projection` and
+`viewer::cursor_projection` both resolve, and both existed through
+`marks` before. The move preserved the COUNT, not uniqueness, and the
+contrast drawn with `session-shims-and-test-imports` (a shim *inside a
+module*) was the wrong one. Corrected in the PR body and the item;
+**appended** as a correction to this log rather than rewritten, which
+is the convention this program has held all day.
+
+The class is the reviewer's:
+`every-crate-root-reexport-is-a-second-path-not-the-only-one` — every
+item in `lib.rs`'s `pub use` blocks has two public paths.
+
+### The `camera` argument was three-quarters true
+
+Three of the lane's four pre-move checks held exactly. The **subject**
+check did not: `Camera::view_projection` returns `[[f64;4];4]` against
+an `f32` argument, `Camera::project` answers `[f64;3]` against an
+`[f32;2]` NDC input, and `ray_through` takes pixels with `+y` down. The
+doors do not meet at the type; the conversion happens two modules away
+in a driver. **The move is still right** — the other three checks carry
+it — and the sentence claiming otherwise is rewritten to what is true,
+with the f32/f64 question left to
+`cursor-projection-is-f32-in-a-module-whose-matrices-are-f64` (which
+also names four spellings of the f64→f32 matrix cast with no home).
+
+### §6 failed twice on the same row, and now has a durable artifact
+
+The out-of-fence TCOST citations this unit reported had **already been
+reported once** — `loud-skip-marker-says-two-modules-and-there-are-six`
+(VIEW's own slate, closed 2026-09-04 at #1848) ends with the same
+report, *"reported rather than edited, since the issue is homed outside
+this program's fence"*. Same defect, same channel, second traverse, no
+durable artifact either time, and the answer was one grep away inside
+this program's own directory.
+
+Filed as
+`work/issues/loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed`,
+which is the cross-program home this repo already uses. It carries all
+four non-resolving citations (including the reviewer's third, which the
+first pass missed by reading two of the table's entries rather than the
+table), the two that do resolve, the #1848 pointer, and the finding:
+**§6's "report, don't file" produces nothing a later reader can find** —
+exactly the case §6 warns about when it says you cannot tell whether
+the item already exists.
+
+One of those citations turned out not to be stale but **reversed**:
+VIEW fixed that marker at #1848, so `lib.rs` now says the opposite of
+what TCOST's row quotes. A better finding than "stale", and one only a
+read-the-line pass produces.
+
+### Disclosed by the lane, worth keeping
+
+Mid-pass it ran `git checkout HEAD -- crates/viewer` to take a base
+measurement and clobbered its own uncommitted edits with it. It caught
+this on the next grep, re-applied, and **verified every coordinate came
+back identical** before committing, re-taking the reported measurements
+after the re-apply. Disclosed unprompted. The lesson for a successor:
+take base measurements in a separate worktree, never by checking out
+over live edits.
+
+## The debug walk stops being hand-maintained, and takes a sibling with it (2026-09-06)
+
+`debug-for-docsession-is-a-fourth-hand-maintained-walk` closed on
+`view/debug-walk`. Four `Debug` impls now open with an exhaustive
+`let Self { … } = self;`: `DocSession`, `Derived`, `LandedRun` and —
+the sibling — `PickCache`. A field added to any of the four is E0027 in
+its own walk, verified by adding a witness field to each and reading
+the compiler, four for four, then reverting. `DocSession` renders
+`Derived` as one field, so `Derived`'s members travel with their
+declaration rather than being listed twice.
+
+**`finish_non_exhaustive` now means exactly the `_` arms above it.**
+That is the answer to the question the item left open. `Derived` has
+none — all five fields render — so it `finish`es and the marker is
+gone. `LandedRun` keeps it for the evaluation and the document it
+answers; `DocSession` keeps it for five (`eval`, `requested_doc`,
+`tol`, `display`, `resolver`); `PickCache` for its `IndexService`. A
+field the walk will not carry is bound to `_` rather than left out of
+the pattern, which is what makes the marker's list one the compiler
+holds complete instead of a shrug.
+
+**The derive was available and was rejected.** `Doc`, `Evaluation`,
+`ProductError`, `ChecksReport` and `AtRestBadge` all derive `Debug`
+today, so the "blockers" the item named are not blockers — and that is
+the argument against it, not for it: a derive would print the whole
+recipe DAG and the whole result DAG at every `{:?}` on a session, and
+it cannot summarise, which is the one thing the existing walk's taste
+does (`states`, `gesture`).
+
+**The item's own sweep claim had gone stale in a day.** It recorded
+`impl.*Debug for` and `finish_non_exhaustive` at one hit each under
+`crates/viewer/src/`; both give two now, because `PickCache`'s impl
+landed at `83fcb9540` the day after the file was opened. The entry at
+line 1833 of this log carries the same claim, from the lane that made
+it, and it is overtaken rather than wrong: the class to sweep is still
+*hand-listed field census*, and the trait-shaped grep now finds two of
+them instead of one. A sweep is accurate as of its merge base, and this
+one was not re-run until the fix.
+
+**Seven out-of-fence instances, reported not filed.** `Span`,
+`SplineCoeffs`, `RationalCoeffs`, `CoeffWindow`, `RationalWindow`,
+the macro-generated NURBS curve windows, `SurfaceWindow` and
+`ParamSource` all hand-list their fields and end in `finish()` — the
+same silent absence, with the stronger claim of completeness on top.
+They are geom-core, geom and topo ground; §6 puts them in the report
+and the PR body.
+
+**Behaviour moved and says so.** `selection` and `hover` are now inside
+a `derived` block, `landed_generation` became `derived.landed` with its
+four verdicts beside it, and `derived.scratch` and `derived.bounds`
+render for the first time — those two are the fields this defect had
+already eaten. Nothing in the tree renders a `DocSession` or a
+`PickCache`, so no assertion moved; the rendering is unobserved and the
+PR says so rather than leaving a reader to find that out.
+
+## The fix pass for #2093: a receipt that carried a false negative, and the class sitting eleven lines away (2026-09-06)
+
+Seven items from the style review, five closed on the same branch, two
+annotated and left open. What the review proved and the lane had not:
+deleting both `session.rs` walks and running
+`cargo check --workspace --all-targets` gives zero errors, so the
+rendering change is unobserved by anything — mechanical where the lane
+offered a grep; and replacing both walks with `#[derive(Debug)]`
+compiles, so "the item was wrong about its blockers" is a fact and not
+a reading.
+
+**The receipt carried a false negative result.** It said *"every
+`impl Display` in `crates/viewer/src/` (20 of them) is a `match` over
+an enum's variants"*. The grep gives **36**, over 19 files, and **five**
+are over structs reading fields by hand — the three the review found
+plus `prefs.rs:304` and `blend.rs:128`. §5 makes the blind-spot
+sentence part of the receipt, so this was an unverified negative in the
+one place a reader trusts as verified: it told a reader that `Display`
+under `crates/viewer/src/` had been looked at and was clean. It had not
+been looked at. The re-derivation is under a stated rule with each
+subject resolved against its declaration, and the five go on
+`field-censuses-inside-view-survived-the-debug-sweep`.
+
+**Three miscounts.** "Seven outside it" over eight rows and nine
+concrete impls; `crates/topo/src/param_source.rs:84` carried under a
+sentence claiming every one ends in `finish()` when it is a `write!`
+over a one-field newtype; and
+"16; 15 resolve", which was neither reading of the lane's own rule
+(16 occurrences carry 14 resolutions, because the failing coordinate
+appears twice — the second time in the sentence saying it fails). The
+lane wrote a rule to avoid exactly this and then did not run it.
+
+**An instance of the item's own class sat eleven lines from the fix.**
+The item defines the class as *a hand-listed field census of any kind,
+not the `Debug` trait* — and the sweep grepped the trait.
+`PickCache::forget` cleared four of five fields by hand, eleven lines
+below the walk that was being fixed, in the file the sweep was reading,
+with a doc arguing that a missed field there installs an index of a
+document nobody is looking at. Taken. Two further in-fence instances
+(`impl PartialEq for Camera`, `DisplayState::clear`) stay filed; the
+lesson is that a grep over a trait is the wrong instrument for a class
+defined over a shape, and the item said so in its own text.
+
+**The lane's own argument cut against the walk it shipped.** It
+rejected the derive because *"a derive cannot summarise"* — and the
+walk inlined a whole unbounded `ChecksReport` into a dump that had
+carried `landed_generation` and nothing else, while printing
+`scratch: false` in place of a document. Both were fixed rather than
+either kept: `checks` is now its two counts, `resolver` is rendered as
+its presence like the three fields beside it, and the stated reason to
+reject the derive is DAG size, which is the reason that actually bites.
+The rule is now written down because it was being applied unevenly —
+**a `Vec`, a document or a DAG is summarised; a single value is
+printed.**
+
+**Prose that named an error and a door that do not exist.**
+`Derived::none` is a struct literal, so its error is E0063, not the
+E0027 the walks claimed by analogy; and there is no accessor for
+`resolver`, so the justification for omitting it covered two of its
+three subjects. The analogy is kept and made true; the `_`-arm
+justification is per field; `resolver` left the omitted list entirely.
+
+**One home plus pointers**, and one spelling. The argument lives in
+`crates/viewer/README.md` and the four doc comments state only their
+own `_` arms; all four walks are `core::fmt` now, including
+`DocSession`'s pre-existing `std::fmt` that the two new ones had
+matched.
+
+**Filed:** `work/issues/hand-listed-debug-censuses-in-geom-core-geom-and-topo.md`
+for the out-of-fence set, on the orchestrator's direction — nine impls
+across three crates, ending in `finish()`, which is a completeness
+claim over a hand-listed census and strictly worse than what #2093
+fixed. §6 makes the report the filing act outside the fence; this
+program established today that the report alone is not a durable
+artifact, and the orchestrator wrote the file rather than leaving the
+finding in a PR body. **Residue filed:**
+`finish-marker-cannot-say-summarised`, for `std`'s two-valued marker
+being asked to carry a three-way split.
+
+**Declined:** moving `DocSession`'s walk to its declaration, 1,779
+lines up. A pure move inside a mechanism PR is the mixing this program
+spent today learning not to do;
+`four-debug-walks-are-spelled-and-placed-two-ways` is retitled to that
+move and stays open for a pass allowed to make it.
+
+## #2093 MERGED; the class reached eleven lines and the sweep did not (2026-09-06)
+
+**#2093 merged at `55ef18a26`.** Nineteen units on main this session.
+CI: 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`
+success, zero non-green. `#[test]` 535 at merge base `9d411c942` and
+535 at head, checked here against the branch's own base.
+
+Five `Debug`/census walks now open with an exhaustive
+`let Self { … } = self;` — `Derived`, `LandedRun`, `DocSession`,
+`PickCache`'s walk, and `PickCache::forget`.
+
+### The review verified two claims by COMPILING, not by grepping
+
+Asked whether any test observed the dump, the reviewer did not grep for
+`{:?}`. It **deleted both `Debug` impls and compiled
+`cargo check --workspace --all-targets`** — zero errors, so nothing in
+the workspace requires either impl and the behaviour change is
+genuinely unobserved. Asked whether the rejected derive would even
+compile, it **replaced both walks with `#[derive(Debug)]`** and built
+it.
+
+That is a better instrument than the one the dispatch asked for, and it
+generalises: **prove a claim by compiling when the compiler can answer
+it.** A grep answers to the limit of a pattern; a build answers
+completely. It is the counterpart to this morning's *a grep over a
+signature is a grep over one line of it*.
+
+### The class reached eleven lines and the sweep did not
+
+The item defines its class as *a hand-listed field census of any kind,
+not the `Debug` trait*. The sweep grepped the trait. **`PickCache::forget`
+clears four of five fields by hand ELEVEN LINES below the walk the same
+PR fixed**, in the same file the sweep was reading, and its own doc
+argues that a missed `attempted` is what lets a late build install "an
+index of a document nobody is looking at". The lane took it and said
+so in those terms: *the class's own definition reaches eleven lines and
+I did not.*
+
+The other two survivors stay filed with a real distinction:
+`DisplayState::clear`'s deliberate `revision` exception means its `_`
+arm carries an argument that wants writing, not a mechanical
+destructure.
+
+### The unit's own argument cut against the walk it shipped
+
+It rejected the derive on *"a derive cannot summarise"* and then
+inlined an unbounded `ChecksReport` and a `Refused { message: String }`
+into a dump that had carried only `landed_generation`, while printing
+`scratch: false` in place of a document.
+
+The fix did not keep the argument. `checks` became its two counts —
+and the lane checked `ChecksReport`'s `Display` rather than deferring
+to it, finding it **is not a summary**: only its first line is, then
+`render_list` prints every finding. The rule the walks now state is
+the one they were applying unevenly: **a `Vec`, a document or a DAG is
+summarised; a single value is printed.** The stated reason to reject
+the derive is now DAG size, which is the true one.
+
+`Gesture` was named rather than fixed, with its own sentence corrected:
+its derive had been read as the answer where the unit's own argument
+reads it as the problem (`base: Doc`).
+
+### Numbers, again, and the rules that catch them
+
+Every corrected figure came with the rule that produces it:
+
+- the Display blind spot was *"20, all enum matches"* — an unverified
+  negative in the one place §5 makes a receipt. It is **36 across 19
+  files, 31 enums and 5 structs**, and the lane found two the reviewer
+  had not (`prefs.rs`'s `StoreError`, `blend.rs`'s `BlendTarget`);
+- the out-of-fence set is **eight rows, nine impls**, and one of the
+  eight is not the claimed shape;
+- the citation receipt is **46 occurrences, 25 distinct, 24 resolve** —
+  the earlier "16; 15" was neither reading of the lane's own rule;
+- `Derived::none` is a struct literal, so its error is **E0063**. The
+  re-run witness experiment produced E0027 at five sites and E0063 at
+  that one, and the analogy is now true in both walks and the README.
+
+Both receipt blind spots are stated, including the one that bites here:
+the rule cannot see a line number written as prose, and `log.md:1833`
+is the coordinate the sibling-check paragraph turns on.
+
+**The orchestrator's own miscount**: an earlier check-in attributed
+`83fcb9540` to #2083; it landed via **#2079**. Corrected in the
+check-in with an instruction not to propagate the old number. Five
+counts have come back wrong today, four from lanes and one from here.
+
+### The out-of-fence file, and the sharper hazard inside it
+
+Filed as directed, per §6's own text that the ORCHESTRATOR writes the
+`work/issues/` file:
+`work/issues/hand-listed-debug-censuses-in-geom-core-geom-and-topo.md`,
+with the corrected count and shape claim.
+
+The lane added something better than what it was sent for: **six
+hand-written `PartialEq` impls sit beside those `Debug`s**, and an `Eq`
+that misses a field answers *wrong* rather than merely printing less.
+That is the sharper half of the same class, and it would have been
+invisible to a sweep keyed on `Debug`.
+
+### Declined
+
+Moving `DocSession`'s walk 1,779 lines up to its declaration. It is a
+move inside a PR whose warrant is a mechanism change, and this program
+spent today learning not to mix those.
+`four-debug-walks-are-spelled-and-placed-two-ways` is retitled to that
+move and stays open. All four walks are `core::fmt` now, including the
+pre-existing `std::fmt` the new ones had copied.
+
+## The remaining seven field censuses get their tie, and the compiler names who was watching (2026-09-07)
+
+`field-censuses-inside-view-survived-the-debug-sweep` closes. All seven
+instances across the four hats convert to exhaustive destructuring:
+`impl PartialEq for Camera`, `DisplayState::clear`, and the five
+`impl Display` over structs (`StoreError`, `Message`, `Withdrawal`,
+`Disagreement`, `BlendTarget`).
+
+### The four hats needed four arguments, not one
+
+The `PartialEq` is the sharp one and it moved behind a private
+`Camera::coordinates`, so the census is stated ONCE and both sides of
+`eq` go through it — a census written twice is a census that can
+disagree with itself. That function carries a second pattern over
+`Point3`'s `x`, `y`, `z`, because reading `target.x` by hand was where
+the census stopped at the crate boundary and it did not have to.
+
+`DisplayState::clear` needed no `_` arm: it USES `revision`, bumping it
+when the reset was visible. The pattern's value there is that the
+exception is named at the site the exception lives at.
+
+The five `Display`s all convert, and the argument is deliberately not
+"we did it to the others". The cost is one line, not five, and two of
+the five come out shorter than they went in. What earns it is that four
+of these five renderings are meant to be a COMPLETE account of their
+value — `Disagreement`'s own doc argues exactly that, and the pattern
+is what holds that paragraph to the value rather than leaving it
+asserted. `Message` is the fifth and the opposite: its account is
+deliberately partial, and `subject: _` is now where that decision
+lives.
+
+### The compiler answered both behaviour questions
+
+Deleting `impl PartialEq for Camera` and driving to a fixpoint names
+every consumer of camera equality — seven sites, one of them
+`Folded`'s DERIVED `PartialEq`, which is transitive and invisible to
+any grep for `==`. Two of the others compare whole cameras to check
+that `camera::fold` agrees with sequential `apply` and that
+`map_stream`'s camera agrees with folding its own ops, so a coordinate
+outside `eq` is a coordinate those properties silently do not check.
+That is the concrete cost the item claimed abstractly.
+
+Perturbing all five renderings and running both suites in both feature
+configurations names every assertion on them: four lib tests on
+`Withdrawal`, one integration test on `Disagreement`, and nothing at
+all on `Message`, `StoreError` or `BlendTarget` — though deleting those
+three impls proves all three are rendered, at twelve sites. Rendered
+and unasserted is a different answer from unrendered, and only the
+compiler distinguishes them.
+
+### Witnesses
+
+Seven witness fields in one build: E0027 at all seven converted
+patterns, E0063 at ten struct literals. The `Point3` pattern was
+witnessed separately by dropping `z` from it (E0027, `camera.rs:128`).
+
+### Receipt
+
+Enumeration rule for the `Display` hat: every `impl … Display for T`
+under `crates/viewer/src`, `T`'s declaration looked up and classified
+struct or enum. 36 impls, 5 structs, 31 enums. `PartialEq` hat: 1.
+The rule cannot see a macro-generated or proc-macro-derived impl; both
+are closed by inspection instead — `vocab.rs` is the crate's only
+`macro_rules!` and generates neither trait, and the manifest depends on
+no derive-Display crate.
+
+## The census row's fix pass: an eighth census, a false universal, and 21 citations (2026-09-07)
+
+The style review of #2103 found real defects in the row above. Taken:
+
+**An eighth census, in a file the PR had already edited.**
+`BlendTool::clear` (`blend.rs:497-501`) set two fields by hand under a
+doc that says *"Drop every pick"* — a census claim — 355 lines below
+the `BlendTarget` census the same PR converted. Converted. Its
+existence is what falsified the README's new universal, and the
+universal is now BACKED rather than merely repaired: the sweep rule is
+written down (every `fn` under `src/` naming two or more distinct
+`self.<field>` writes, read against its declaration), it produces
+**23 hits at head and none is a census**, and a converted census does
+not match the rule at all — which is why a clean sweep is the receipt.
+`DocSession::clear_for_new_document` is the case the rule matches and
+the design answers, in its own doc.
+
+**A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
+The closing sentence conflated the two, and two of the 31 enum
+`Display`s do drop a field. Swept with `{ .. }` / `, ..}`, catch-all
+and bare-binding arms, and tuple patterns below arity: zero catch-alls
+over a subject enum, zero tuple drops, exactly two `..`. Neither is
+converted — rendering either would move a rendering, and this PR's
+whole claim is that none did. `MateToolEvent::PickLost` already carried
+its argument; `CameraOp::Frame` carried none, and one is written at the
+arm now.
+
+**`Camera::coordinates` left its second `impl Camera` block.** It is a
+`fn` nested in `eq` — its only caller — so `impl Camera` is one block
+again and a reader sees the type's inherent surface in one place. Why
+it reads fields and not the six public accessors (an accessor call is a
+field read, so the E0027 tie would be gone) is now written at the
+helper, since without it the helper reads as an unexplained second
+census.
+
+**The receipts were witness-tree numbers.** The witness experiment was
+re-run on head and every E0027 line read back after the witness fields
+came out. The E0063 count was **ten** and is **11**, with the
+enumeration that produces it; the run is 18 errors, 7 x E0027 +
+11 x E0063.
+
+**Citations, as a class.** A behaviour-preserving move falsifies
+sentences about STRUCTURE, and this one moved five files plus the
+README. Every non-closed item under `work/view/` was swept for
+citations into them and each was re-derived by re-finding its SUBJECT
+at head, never by shifting its offset — the defect
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` closed on.
+**25 citations corrected across 12 items**, and **20 of the 25 were
+already wrong at this PR's merge base** — which is what re-deriving
+finds and shifting hides. Five were true at the merge base and this PR
+falsified them: `frame.rs:1689`, `camera.rs:948`, `display.rs:845` and
+`display.rs:839-846` (whose quoted spellings changed too), and
+`frame.rs:1122`. Three are left alone and reported instead: a quoted
+`camera.rs` passage that exists nowhere in the tree at base or head, a
+`session.rs` citation this PR did not touch, and a pasted `cargo fmt`
+transcript, which is a record of a run rather than a citation.
+
+**The lead the row closed over now has a file.** `## Where else to
+look` named `ViewerApp`'s two hand-written blocks and the `## Closed`
+section did not mention them. Both were read: neither is a census —
+`ViewerApp` has 32 fields and neither block's population comes from the
+declaration — but `perform_batch`'s reset-on-open arm draws from *the
+fields derived from the outgoing document* with nothing at the
+declaration marking that set, which is the `Derived` question one layer
+up rather than the destructuring one.
+`viewerapp-document-derived-state-has-no-boundary` carries it.
+
+## 2026-09-07 — the const-ALL rule stops being prose
+
+`a-new-hand-written-all-table-meets-no-gate` closed on `view/all-gate`.
+PR 2046 converted nine vocabularies and left the tenth author
+unguarded; `scripts/gates/viewer-vocab-declared-once.sh` is the guard.
+It hits on a `const ALL` and on the un-named shape — any `const` array
+literal of two or more `Type::Variant` entries — under
+`crates/viewer/src`, and allowlists what `crates/viewer/README.md`'s
+new `#### The lists that stay hand-written` table carries.
+
+**The work was the siting, as the item said.** A ci.yml step in the
+`mirror` job, a line in `ci-local.sh`'s `tier_blind_rows`, and a
+`TIER_BLIND` entry; `gate-roster.sh` derives its roster from the
+directory and needed no edit, and now counts 21 gates. The
+tier-blindness argument is stronger here than for
+`viewer-module-kinds.sh`: that gate reads the README for two of its
+checks, this one reads it for its whole allowlist, so a docs-only PR
+is precisely the change class it exists to judge.
+
+**Two things this lane learned about the tooling.** `gate_rust_code`'s
+statement view cuts records at `;` and a Rust array TYPE carries one —
+`[(BooleanOp, &str); 3]` — so a `const` table splits in half and its
+initialiser lands in a record with no `const` in it. The gate
+reassembles items by bracket depth instead. And the `|| true` hazard
+this program re-minted at #1953 has an `awk` twin: a reader that dies
+inside a process substitution folds to "the document is empty", which
+here would have printed *"delete this row, its list is gone"* about
+four rows whose lists are fine. The readers write `lib.sh`'s marker and
+the gate reads it where it resumes, not only at `gate_ok`.
+
+**Left open on purpose.**
+`viewer-suites-hold-hand-written-complete-variant-lists` — the suites'
+four lists are inline arrays in a row, not `const` tables, so this scan
+would not see one of them if it were pointed at `tests/`. Scoping the
+gate to `src/` is the honest claim; the suites need their own decision
+per enum.
+
+**Two fences and a borrowed reader**, recorded because the next VIEW
+gate meets both. The branch touches `scripts/gates/*` (GATES') and
+three CIW wiring surfaces; ruled in — VIEW already authors
+`viewer-module-kinds.sh` in that directory, GATES' `keep_out` admits a
+new gate's wiring row as one announced line, and the `TIER_BLIND` entry
+cannot be split off because a TIER-blind gate without one reds parity
+itself. `work/issues/gate-wiring-fence-is-undrawn-for-the-parity-entry`
+carries the announcement and the proposal to write the clause down.
+Separately, `work/issues/gate-rust-reader-splits-an-array-type-at-its-semicolon`
+is the out-of-fence half of this unit: `lib.sh`'s statement view is
+what forced the gate's own item reader, and that reader should go when
+the shared one is fixed.
+
+### The correctness review of that gate, and what it cost (2026-09-07)
+
+A review of #2106 before merge found three defects that a green run
+could not have shown, and each is the same lesson at a different depth.
+
+**A guard is per STAGE, not per pipeline.** The fix that bought the
+resume-time marker read guarded `const_items`; the `awk` that decides
+what a HIT is runs after it, in the same process substitution, and had
+no guard at all. It survived an immediate death only by SIGPIPE
+upstream — which reds naming the wrong reader — and a classifier that
+consumes its input and THEN fails produced `OK` and exit 0 over two
+planted breaches whenever the roster held no data rows, which is a
+docs-tier edit away. The gate now states the RULE that produces its
+reader population (a command that reads the subject and whose status
+the shell discards, one entry per pipeline STAGE) and enumerates the
+six it yields, rather than asserting a universal over a list nobody
+re-derived.
+
+**`const` opens a generic parameter.** `fn stack<const N: usize>` and
+`struct Stack<const N: usize>` match an unanchored `const NAME:`
+opening, and the depth counter counts `()[]{}` and never `<>` — so
+accumulation began mid-signature and the item did not close until the
+next depth-zero `;`, which inside an `impl` is never. Both directions
+were live on a copy of the real tree: a hand-written `ALL` under a
+const-generic `struct` went green, and a const-generic `fn` above
+`BOOLEAN_OPS` produced two reds naming the wrong repair. The opening is
+now anchored to a declaration at the start of a line, one spelling
+shared by the test and the name extraction; the anchored population is
+the same 104 lines the unanchored one matched, under `gawk` and `mawk`
+alike.
+
+**A key that drops the type ratifies a name, not a list.** A roster row
+`Theme::ALL` keys on `theme.rs` and `ALL`, so a second
+`impl Badge { pub const ALL: … }` appended to that module was ratified
+by the row written for `Theme` — the item's own worked example, evaded
+by choosing its home. Using the type was considered and rejected: an
+associated constant's declaration says `[Self; 3]`, so its type is the
+enclosing `impl` header, which the lexed view does not delimit and only
+a parse would find, and three of the four rostered lists are free
+`const`s with no type to use. What holds instead is a COUNT — one row
+ratifies exactly one list, none is the retiring direction and more than
+one is a red — which is loud in the direction that matters and costs no
+parse. Its price is stated where it is paid: two same-named lists in
+one module cannot both be rostered.
+
+**And a self-test that cannot see the name a gate prints.** All twelve
+cases matched a name-independent fragment, so a broken name extraction
+shipped green over three garbage diagnoses. Four cases now match a
+fragment containing the subject, and
+`work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names` is
+the durable half — a harness affordance, not this gate's to build.

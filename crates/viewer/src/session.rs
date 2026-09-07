@@ -299,6 +299,33 @@ impl Derived {
     }
 }
 
+/// Exhaustive by destructuring; every field is carried, so this walk
+/// `finish`es. The rule the four walks share is one paragraph in
+/// `crates/viewer/README.md` ("The dump is held to the same
+/// declaration"), not restated here.
+///
+/// `scratch` is carried as its presence: it is a whole `Doc`, and that
+/// one is in flight is the fact — it is `Some` exactly while
+/// [`DocSession::gesture`] is.
+impl core::fmt::Debug for Derived {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            selection,
+            hover,
+            scratch,
+            landed,
+            bounds,
+        } = self;
+        f.debug_struct("Derived")
+            .field("selection", selection)
+            .field("hover", hover)
+            .field("scratch", &scratch.is_some())
+            .field("landed", landed)
+            .field("bounds", bounds)
+            .finish()
+    }
+}
+
 /// One completed evaluation, landed: the pair it answers and every
 /// verdict taken for that pair.
 ///
@@ -383,6 +410,45 @@ struct LandedRun {
     /// changing the shape; do not trust the figures to have stayed
     /// true.
     body: Option<Arc<Body<f64>>>,
+}
+
+/// Exhaustive by destructuring; the shared rule is
+/// `crates/viewer/README.md`'s.
+///
+/// The two `_` arms are the run's DATA — `evaluation` is the result
+/// DAG and `doc` is the recipe DAG it answers — and everything else
+/// here is a verdict ABOUT that pair. `checks` is a `Vec` per finding
+/// and is carried as its two counts; `body` is a gathered aggregate
+/// and is carried as its presence, which is whether the landing's
+/// gather is still memoized.
+impl core::fmt::Debug for LandedRun {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            evaluation: _,
+            doc: _,
+            generation,
+            fault,
+            at_rest,
+            checks,
+            body,
+        } = self;
+        let mut out = f.debug_struct("LandedRun");
+        out.field("generation", generation)
+            .field("fault", fault)
+            .field("at_rest", at_rest);
+        match checks {
+            Some(report) => out.field(
+                "checks",
+                &format_args!(
+                    "{} finding(s), {} skipped",
+                    report.findings.len(),
+                    report.skipped.len()
+                ),
+            ),
+            None => out.field("checks", &Option::<()>::None),
+        };
+        out.field("body", &body.is_some()).finish_non_exhaustive()
+    }
 }
 
 /// The A5 at-rest verdict for the landed pair — a mated document's
@@ -1876,16 +1942,38 @@ fn session_dir(path: &Path) -> PathBuf {
     }
 }
 
-impl std::fmt::Debug for DocSession {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+/// Exhaustive by destructuring; the shared rule is
+/// `crates/viewer/README.md`'s. [`Derived`] renders as ONE field, so
+/// its members travel with their declaration rather than being listed
+/// a second time here.
+///
+/// The four `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
+/// no content to print; `eval` is a `dyn` service and implements no
+/// `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
+/// not derived from the document, is as large as the document's hidden
+/// and moved sets, and has its own [`DocSession::display`] door to be
+/// dumped through.
+impl core::fmt::Debug for DocSession {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            history,
+            tol: _,
+            gesture,
+            eval: _,
+            generation,
+            requested_doc: _,
+            derived,
+            path,
+            display: _,
+            resolver,
+        } = self;
         f.debug_struct("DocSession")
-            .field("generation", &self.generation)
-            .field("landed_generation", &self.landed_generation())
-            .field("selection", &self.derived.selection)
-            .field("hover", &self.derived.hover)
-            .field("states", &self.history.len())
-            .field("gesture", &self.gesture.is_some())
-            .field("path", &self.path)
+            .field("generation", generation)
+            .field("states", &history.len())
+            .field("gesture", &gesture.is_some())
+            .field("path", path)
+            .field("resolver", &resolver.is_some())
+            .field("derived", derived)
             .finish_non_exhaustive()
     }
 }

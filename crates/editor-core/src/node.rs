@@ -1522,22 +1522,23 @@ pub enum Node<P> {
     /// where it is operand A — which is the pair chain's rule for a
     /// carried contact, on a member instead of an operand.
     ///
-    /// What re-deriving the routing does NOT do is make every order
-    /// resolve. A declared merge consumes the two faces it joins and
-    /// publishes a `Merged` row in their place, so a face declared at
-    /// one step is no longer an operand row at a later one: a
-    /// member-space declaration resolves at its step only while the
-    /// face it names is still an operand-table row there. A chain of
-    /// contacts (`a` to `c`, `c` to `d`) therefore fuses in the orders
-    /// that fold `c` in last, and in the orders that fold it in second
-    /// refuses the pair naming `c`'s face as a name that no longer
-    /// resolves — `c`'s face is inside a `Merged` row by then. The
-    /// recourse, declaring that `Merged` row instead, is itself
-    /// order-shaped, since which faces are in it depends on the order.
-    /// Measured by
-    /// `member_space_declarations_across_a_chain_are_order_shaped` and
-    /// filed as
-    /// `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`.
+    /// A member-space declaration resolves at its step through the
+    /// MERGES the fold has performed. A declared merge consumes the
+    /// two faces it joins and publishes a `Merged` row in their place,
+    /// and a member's face that is inside such a row by the time its
+    /// pair's step runs resolves TO that row — the one whose flat
+    /// constituent set holds it (N3: a merge of a merged face lists
+    /// the faces, never the merge, so the row is the same whatever
+    /// order the merges happened in). A chain of contacts (`a` to `c`,
+    /// `c` to `d`) fuses in every order of the three, with
+    /// `Merged({a, c, d})` as the fused cap's row in each.
+    ///
+    /// Merges are the whole of it. A member face the fold consumed
+    /// otherwise — split by a later member, swallowed by containment,
+    /// or inside a merged row that was later fragmented — is not
+    /// looked through, and a pair naming it resolves only in the
+    /// orders that reach it while it is still a row
+    /// (`work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise

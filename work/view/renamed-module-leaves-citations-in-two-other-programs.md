@@ -26,7 +26,7 @@ VIEW's directory name it, and one names the module path:
   `crates/viewer/src/pick.rs:1979-1983` and `pick.rs:600-607`. **Both
   were already wrong before this rename**: the row's subject is
   `edge_segments`, which #2079 moved to `pickindex.rs` and this unit's
-  first commit moved again to `crates/viewer/src/marks.rs:261`. The
+  first commit moved again to `crates/viewer/src/marks.rs:248`. The
   path is now wrong twice over;
 - `work/chrome/mispaired-ids-exempts-the-empty-window.md:32` — *"(`pick.rs`'s
   unit tests)"*. Those tests are `crates/viewer/src/pickindex.rs`'s

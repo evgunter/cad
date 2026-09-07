@@ -221,7 +221,7 @@ are never overridden here.
 | G3 mate definition | `src/matetool.rs` |
 | Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (both seams and both workers) with `src/generation.rs` (`Generation`, the counter both seams key their answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
-| GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `focus`, `cursor_projection`) and `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) |
+| GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `focus`), `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) and `camera::cursor_projection` (the id pass's 1×1 target transform, which is projection algebra rather than a mark) |
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
 
 ## Module boundaries
@@ -427,6 +427,136 @@ which is the walk applying to one gesture kind the opposite of what it
 says about the other. The behaviour is older than the block above and
 has its own item
 (`work/view/free-move-drag-dissolved-by-open.md`).
+
+**The dump is held to the same declaration.** This paragraph is the one
+home for the rule; the four walks that follow it state their own `_`
+arms and point here rather than restating it.
+
+`Debug` for `DocSession`, for `Derived` and for `LandedRun`
+destructures its own value exhaustively, so a new field stops the
+rendering compiling. The error is E0027, pattern-does-not-mention-field
+— a *different* error from `Derived::none`'s, which is a struct literal
+and so raises E0063, missing-field-in-initializer. The property is the
+same at both sites and the two errors are not, which is worth saying
+because a reader looking for one and finding the other concludes the
+mechanism is not there. `DocSession` renders `Derived` as one field
+rather than reaching through it, so those members travel with their
+declaration instead of being listed a second time.
+
+**A field the walk will not carry is bound to `_` rather than left out
+of the pattern**, which is what makes the omission a decision a reader
+can see, and those `_` arms are precisely what a `finish_non_exhaustive`
+here stands for — one reason each, never a blanket one:
+
+| walk | `_` arms | why |
+|---|---|---|
+| `LandedRun` | `evaluation`, `doc` | the result DAG and the recipe DAG it answers |
+| `DocSession` | `tol` | `Tol(())`, a ZST with no content |
+| | `eval` | a `dyn` service implementing no `Debug` |
+| | `requested_doc` | a whole recipe DAG |
+| | `display` | not derived from the document, as large as its hidden and moved sets, and reachable through `DocSession::display` |
+| `PickCache` | `seam` | a `dyn` service implementing no `Debug` |
+| `Derived` | — | none, so it `finish`es |
+
+**A carried field may be summarised, and several are.** `states` is the
+history's length, `gesture`, `scratch`, `resolver` and `body` are their
+presence, `index` is the generation it describes, and `checks` is its
+two counts — `ChecksReport` is a `Vec` per finding with no bound, and a
+dump that inlined it would be the thing these walks exist to keep
+readable. Summarising is what a `#[derive(Debug)]` cannot do at all,
+which is the reason these are written out rather than derived; the
+recipe and result DAGs are what makes that reason bite. What
+`finish`/`finish_non_exhaustive` cannot express is the difference
+between summarised and not-carried, and it is not asked to —
+`work/view/finish-marker-cannot-say-summarised.md` carries that.
+
+`PickCache::forget` takes the same destructuring for the same reason
+one seam further: it clears the four fields that describe a picture and
+must not miss a fifth, since a missed `attempted` is what lets a late
+build install an index of a document nobody is looking at.
+
+**The rule is a field census, not a `Debug` rule.** A CENSUS is a walk
+whose correctness argument is that its list IS the value's fields —
+*forget everything*, *drop every pick*, *every number equality is on*,
+*this sentence is the value's whole account*. Every census in this
+crate destructures the value instead of listing its fields by hand, so
+the list cannot fall behind the declaration; which trait the census
+sits in decides only what a missed field COSTS, and the sharpest cost
+is not a dump's. Eight of these are not dumps:
+
+| census | costs, if it misses a field |
+|---|---|
+| `PartialEq for Camera` | equality answers **wrong**. `camera::fold` is checked against sequential `apply` by comparing whole cameras, so a coordinate outside `eq` is a coordinate that property does not check |
+| `DisplayState::clear` | display state survives into a different document — the stale-across-`Open` defect the `Derived` walk closed |
+| `BlendTool::clear` | a pick survives `Clear picks`, so the tool is not the fresh tool the button promises and the next click is judged against something the panel says it is not holding |
+| `Display for StoreError` | a store's failure carries a fact the sentence does not say |
+| `Display for Message` | **nothing, by design** — this account is deliberately partial, and that is exactly why the tie is worth having: it makes the NEXT field's omission a decision someone made rather than one nobody noticed |
+| `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
+| `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
+| `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
+
+`Camera`'s census reaches one type further out: `target` is a
+`Point3<f64>` expanded coordinate by coordinate, so a second pattern
+names `x`, `y` and `z` rather than reading them — the boundary is where
+a census of this crate's fields would otherwise stop. It reads the
+fields and not the six public accessors beside it for the same reason
+it destructures at all: an accessor call is a field READ, so a census
+assembled from accessors is a hand list again and a seventh field
+would leave it silently short.
+
+Two of the eight name a field the walk deliberately does not spend.
+`DisplayState::clear` binds `revision` and does not clear it: the
+counter is the chrome's rebuild key, it is bumped when the reset was
+visible, and a counter that went backwards would name a picture the
+chrome has already drawn. `Display for Message` binds `subject: _` — a
+bare `_`, with the argument in the doc above the impl rather than at
+the arm — because the subject ROUTES the message: it is what retires
+it (`frame::StatusUpdate::Expire`) and what a joined rank-2 line takes
+as its own subject. It does not RANK; `frame::frame_status` ranks by
+SOURCE. A line that printed its own routing would say to the user what
+the chrome says to itself.
+
+**A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
+The five `Display`s above are the struct half of a population of 36
+`Display` impls under `src/`; the other 31 are over enums, and being a
+`match` settles nothing about their fields. Sweeping those 31 for a
+pattern that drops a field of the variant it renders — `{ .. }` or
+`, ..}` in a pattern, a catch-all `_ =>` or bare-binding arm over the
+subject enum, and a tuple variant matched at less than its arity —
+finds **no catch-all over a subject enum, no tuple-arity drop, and
+exactly two `..`**: `CameraOp::Frame` drops `bounds`, and
+`MateToolEvent::PickLost` drops `resolution`. Both stay dropped —
+rendering either would change what the chrome says — and both carry
+the argument for the drop, `MateToolEvent`'s at its impl (the payload
+stays typed and full in the value; the sentence is what a person
+reads) and `CameraOp`'s at the arm. That is the property this rule is
+after: an omission that is a decision someone made. The rule matched
+two more sites that are not instances, and the distinction is the same
+one: `frame.rs`'s `matches!(w.cause, DisplayFault::FusedGeometry { .. })`
+is a variant test on another type, and its `count =>` arm is a
+catch-all over `withdrawn.len()`, not over the subject.
+
+**What was swept for the writing hat, and what it could not see.**
+Every `fn` under `src/` naming two or more distinct `self.<field>`
+assignments, `.clear()`s or `.take()`s, each hit read against its
+struct's declaration: **23 hits, and none is a census**. A converted
+census does not match the rule at all — it has no `self.<field>` write
+left — so a clean sweep is the receipt. The 23 are bookkeeping, where
+the field list comes from the walk's INPUTS rather than from the
+declaration and a new field has no claim on it: `ViewerApp::sync_scene`
+installs a rebuild's eleven outputs, `BlendTool::load_all_edges` seats
+a computed pick set, `PickCache::sync` and `land` install a landing's
+fate, and the two `Drop`s in `evalseam` close a channel and leave the
+language's own drop glue to be exhaustive.
+`DocSession::clear_for_new_document` is the case the rule matches and
+the design answers: its two statements are `Derived::none()` and
+`display.clear()`, and its doc says so — the census is collapsed into
+one value rebuilt from nothing rather than a field-by-field walk each
+door has to remember. What neither rule can see: a census spelled
+through accessors rather than fields (no grep for `self.` finds one), a
+census over a value that is not `self`, and an impl written by a macro
+— `vocab.rs` holds the crate's only `macro_rules!` and it generates
+neither.
 
 ### The app's vocabularies
 
@@ -844,21 +974,73 @@ rather than an exception:
   cannot be projected from a declaration that is not here. That is the
   neighbouring MIRROR question and has its own tracker item.
 
-**A gate is owed, and it is filed rather than written here.** The
-argument this section first gave — that a gate would be "redundant for
-every converted one" — was wrong and is withdrawn: a converted
-vocabulary has no array literal left, so it is not a hit, and
-redundancy was never the objection. The cheap gate is real and would
-work: hit on any new `const ALL: [Self; N] = [ … ]` under
-`crates/viewer/src`, allowlist the three kinds above. What it costs is
-not the scan but the siting — a gate must fire on its own inputs, so
-it needs a `ci.yml` step, a `gate-roster.sh` registration and a
-`check-ci-mirror-parity.py` tier decision, none of which is a question
-about `const ALL`. It is
-`work/view/a-new-hand-written-all-table-meets-no-gate.md`, which is a
-named schedule; a paragraph is not one, and this crate's own
-`scripts/gates/viewer-module-kinds.sh` exists because a rule sold as
-mechanically checkable went its first life with nothing reading it.
+**A gate holds this, and the table below is its allowlist.**
+`scripts/gates/viewer-vocab-declared-once.sh` scans `crates/viewer/src`
+for a hand-written membership list in either of two shapes — a `const
+ALL`, and any `const` array literal of two or more `Type::Variant`
+entries, which is the same list under a different word — and reds on
+one the table does not carry. `static` opens an item in both arms, for
+the same reason the second shape exists. A converted vocabulary is not
+a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
+the nine are quiet without an entry. What the gate reads is this
+section rather than a list of its own: the ROWS below are the
+allowlist, and the KINDS they may claim are the **bolded bullets**
+above. Both are read only WITHIN this section, so the roster cannot
+drift onto another page's heading and go on being read; and the gate
+carries the NUMBER of bullets as its own constant, so a fourth kind is
+an amendment argued here AND an edit to that file, not a new word in a
+table cell.
+
+The roster retires itself in both directions — a list added without a
+row reds, and a row whose list has been converted reds too, because an
+allowlist entry with nothing behind it is a ratification the next thing
+written at that name inherits. It does not spread, either: **one row
+ratifies one list.** Two rows for one list red, and so does one row for
+a module that declares two lists under that name, because the row is
+keyed on the module and the name and cannot say which of the two it
+meant.
+
+The gate runs in the `mirror` job, which carries no `if:`, because half
+its subject is this page: a change set of only the README is TIER=docs,
+and sited under `if: run_build` the arms that exist for an edit to this
+table could not fire on an edit to this table.
+`scripts/check-ci-mirror-parity.py`'s `TIER_BLIND` names it, so the
+siting is enforced rather than remembered.
+
+What it does not see is `crates/viewer/tests/`, deliberately: the
+suites' hand-written variant lists are inline arrays in a row, not
+`const` tables, so this scan would not find one if it looked —
+`work/view/viewer-suites-hold-hand-written-complete-variant-lists.md`
+is theirs. Nor does it see a list that is not a `const` or `static`
+item, which is why each tool's seat list is named in the bullet above
+rather than in the table. What it decides is that a list is
+hand-written, never that the roster still says what was ratified here:
+a bullet and the cells claiming it, reworded together, are consistent
+and both green. The gate's own header states that blind spot; a review
+is what covers it.
+
+#### The lists that stay hand-written
+
+| List | Module | Kind |
+|---|---|---|
+| `BOOLEAN_OPS` | `forms` | A mirror of an enum declared in another crate |
+| `MATE_PRIMITIVES` | `forms` | A deliberately partial list |
+| `SUBJECTS_WITH_AN_EXPIRY_ISSUER` | `frame` | A deliberately partial list |
+| `Theme::ALL` | `theme` | A registry of struct constants |
+
+**This table is the roster**, not a summary of one. `Module` is the
+module the `const` is declared in, `List` is how it is written there
+(an associated constant carries its type, `Theme::ALL`), and `Kind` is
+the bolded bullet above that ratifies it, word for word.
+
+The type in `List` is for a reader, not for the gate: what the gate
+keys on is the module and the constant's own name, because an
+associated constant's declaration says `[Self; 3]` and the type it
+belongs to is the enclosing `impl` header, which only a parse would
+find. That is why one row ratifying two same-named lists in one module
+is a red rather than a silent second ratification — and why two lists
+that a module and a name cannot tell apart need one of them moved or
+renamed, not a second row.
 
 ### What the boundary does not decide
 

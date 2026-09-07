@@ -1381,3 +1381,65 @@ for every reference. The rule above; the unit's record is its item's
 A/B row: the program runs none).
 
 - `MSOLVE-2-SPEC.md` — MSOLVE-2, the member chain: nested copies through `Part`, sibling distinctness at every level (#2039)
+
+## Per-merge deletion — MSOLVE-3's spec (2026-09-06)
+
+Recoverable at `git show 8a7288747941ef53a8136f7fc98b89e8eb51c135:docs/MSOLVE-3-SPEC.md`
+(the MSOLVE-3 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Written before MSOLVE-2 restructured
+the vocabulary, so its "what the tree says now" names a `head_of` and a
+count arm that had moved by dispatch; the unit applied its intent to
+the sites that exist and says so in its PR. Two of its clauses were
+corrected by the reviews rather than met: the carried refusal is an
+`Arc` newtype over `NodeErrorKind` (the fault types derive equality
+the kernel error type cannot), and the placer named is the refusing
+node, which for a circular rule's axis is the datum. The rule above;
+the unit's record is its item's `## Closed` section and its MERGED
+entry in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-3-SPEC.md` — MSOLVE-3, the mate solve reports the evaluation's own refusal: `PlacerRefused`, and the placement axis decided (#2081)
+
+## Per-merge deletion — MSOLVE-5's spec (2026-09-06)
+
+Recoverable at `git show ae78e6e8d22005ca276bb16aac6cf49c42ae2da3:docs/MSOLVE-5-SPEC.md`
+(the MSOLVE-5 unit head, before the state-sync commit that deleted it;
+unamended). Its stop clause FIRED: the "operand answers, `at` a root,
+product silent" bullet is reachable through a root instance's BODY
+row, which `carry_names` drops. The orchestrator ruled on the PR's
+draft that the operand's entry decides its kind before the root
+question, so the spec's "`ReadBelowARoot` for ANY entry" narrowed to
+face entries and a non-face entry answers `NotAFace { kind }`
+wherever it is read; the unit's PR carries the ruling. The rule above;
+the unit's record is its item's `## Closed` section and its MERGED
+entry in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-5-SPEC.md` — MSOLVE-5, the at-rest gate refuses a mate read below a product root in the operand's voice (#2090)
+
+## Per-merge deletion — TRIM-1's spec (2026-09-07)
+
+Recoverable at `git show 416ccdfc6:docs/TRIM-1-SPEC.md` (PR #2095's
+merge commit, the last head carrying it). Every clause met as written,
+with the rulings section answering the lane's three questions
+(rational cases (a)+(b) by bitwise weight tests; `iso_boundary_row`
+unchanged; the two riders carried). One thing the spec's acceptance did
+not foresee and the unit recorded: TRIM-2's opening measurement is
+re-cut — on the P-2 fixture the tessellation lane stops at
+`patch_bound::Degree1Crease` before any of the six filed sites. The
+unit's record is `work/trim/interior-iso-curve-de-boor-extractor.md`'s
+`## Closed` and the MERGED entry in `work/trim/log.md`; its A/B row is
+MODEL-AB-LOG T1.
+
+## Per-merge deletion — DOCM-8's spec (2026-09-07)
+
+Recoverable at `git show 4b4ec3213b69cbeef7e10a312f7aa4714ad1ac09:docs/DOCM-8-SPEC.md`
+(the DOCM-8 unit head, before the state-sync commit that deleted it;
+AMENDED once, 2026-09-06, at its stop clause — item 1's flat mint reads
+a constituent's name through its descent wrappers, A2's walker peels
+them, the stop clause resolved; the amendment is commit `0cf4a650`).
+Its acceptance letter that "reordering the members changes nothing
+about whether a declaration resolves" is bounded in the unit's record
+to faces consumed by merges (a split, a containment, a fragmented
+merge stay order-shaped — filed). The rule above; the unit's record is
+its row in `MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-8-SPEC.md` — DOCM-8, a merged face's name is a flat constituent set; a member-space declaration resolves through the fold's merges (#2073)
