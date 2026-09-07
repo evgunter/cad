@@ -5740,3 +5740,112 @@ lines up. A pure move inside a mechanism PR is the mixing this program
 spent today learning not to do;
 `four-debug-walks-are-spelled-and-placed-two-ways` is retitled to that
 move and stays open for a pass allowed to make it.
+
+## #2093 MERGED; the class reached eleven lines and the sweep did not (2026-09-06)
+
+**#2093 merged at `55ef18a26`.** Nineteen units on main this session.
+CI: 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`
+success, zero non-green. `#[test]` 535 at merge base `9d411c942` and
+535 at head, checked here against the branch's own base.
+
+Five `Debug`/census walks now open with an exhaustive
+`let Self { … } = self;` — `Derived`, `LandedRun`, `DocSession`,
+`PickCache`'s walk, and `PickCache::forget`.
+
+### The review verified two claims by COMPILING, not by grepping
+
+Asked whether any test observed the dump, the reviewer did not grep for
+`{:?}`. It **deleted both `Debug` impls and compiled
+`cargo check --workspace --all-targets`** — zero errors, so nothing in
+the workspace requires either impl and the behaviour change is
+genuinely unobserved. Asked whether the rejected derive would even
+compile, it **replaced both walks with `#[derive(Debug)]`** and built
+it.
+
+That is a better instrument than the one the dispatch asked for, and it
+generalises: **prove a claim by compiling when the compiler can answer
+it.** A grep answers to the limit of a pattern; a build answers
+completely. It is the counterpart to this morning's *a grep over a
+signature is a grep over one line of it*.
+
+### The class reached eleven lines and the sweep did not
+
+The item defines its class as *a hand-listed field census of any kind,
+not the `Debug` trait*. The sweep grepped the trait. **`PickCache::forget`
+clears four of five fields by hand ELEVEN LINES below the walk the same
+PR fixed**, in the same file the sweep was reading, and its own doc
+argues that a missed `attempted` is what lets a late build install "an
+index of a document nobody is looking at". The lane took it and said
+so in those terms: *the class's own definition reaches eleven lines and
+I did not.*
+
+The other two survivors stay filed with a real distinction:
+`DisplayState::clear`'s deliberate `revision` exception means its `_`
+arm carries an argument that wants writing, not a mechanical
+destructure.
+
+### The unit's own argument cut against the walk it shipped
+
+It rejected the derive on *"a derive cannot summarise"* and then
+inlined an unbounded `ChecksReport` and a `Refused { message: String }`
+into a dump that had carried only `landed_generation`, while printing
+`scratch: false` in place of a document.
+
+The fix did not keep the argument. `checks` became its two counts —
+and the lane checked `ChecksReport`'s `Display` rather than deferring
+to it, finding it **is not a summary**: only its first line is, then
+`render_list` prints every finding. The rule the walks now state is
+the one they were applying unevenly: **a `Vec`, a document or a DAG is
+summarised; a single value is printed.** The stated reason to reject
+the derive is now DAG size, which is the true one.
+
+`Gesture` was named rather than fixed, with its own sentence corrected:
+its derive had been read as the answer where the unit's own argument
+reads it as the problem (`base: Doc`).
+
+### Numbers, again, and the rules that catch them
+
+Every corrected figure came with the rule that produces it:
+
+- the Display blind spot was *"20, all enum matches"* — an unverified
+  negative in the one place §5 makes a receipt. It is **36 across 19
+  files, 31 enums and 5 structs**, and the lane found two the reviewer
+  had not (`prefs.rs`'s `StoreError`, `blend.rs`'s `BlendTarget`);
+- the out-of-fence set is **eight rows, nine impls**, and one of the
+  eight is not the claimed shape;
+- the citation receipt is **46 occurrences, 25 distinct, 24 resolve** —
+  the earlier "16; 15" was neither reading of the lane's own rule;
+- `Derived::none` is a struct literal, so its error is **E0063**. The
+  re-run witness experiment produced E0027 at five sites and E0063 at
+  that one, and the analogy is now true in both walks and the README.
+
+Both receipt blind spots are stated, including the one that bites here:
+the rule cannot see a line number written as prose, and `log.md:1833`
+is the coordinate the sibling-check paragraph turns on.
+
+**The orchestrator's own miscount**: an earlier check-in attributed
+`83fcb9540` to #2083; it landed via **#2079**. Corrected in the
+check-in with an instruction not to propagate the old number. Five
+counts have come back wrong today, four from lanes and one from here.
+
+### The out-of-fence file, and the sharper hazard inside it
+
+Filed as directed, per §6's own text that the ORCHESTRATOR writes the
+`work/issues/` file:
+`work/issues/hand-listed-debug-censuses-in-geom-core-geom-and-topo.md`,
+with the corrected count and shape claim.
+
+The lane added something better than what it was sent for: **six
+hand-written `PartialEq` impls sit beside those `Debug`s**, and an `Eq`
+that misses a field answers *wrong* rather than merely printing less.
+That is the sharper half of the same class, and it would have been
+invisible to a sweep keyed on `Debug`.
+
+### Declined
+
+Moving `DocSession`'s walk 1,779 lines up to its declaration. It is a
+move inside a PR whose warrant is a mechanism change, and this program
+spent today learning not to mix those.
+`four-debug-walks-are-spelled-and-placed-two-ways` is retitled to that
+move and stays open. All four walks are `core::fmt` now, including the
+pre-existing `std::fmt` the new ones had copied.
