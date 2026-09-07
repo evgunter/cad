@@ -475,6 +475,89 @@ one seam further: it clears the four fields that describe a picture and
 must not miss a fifth, since a missed `attempted` is what lets a late
 build install an index of a document nobody is looking at.
 
+**The rule is a field census, not a `Debug` rule.** A CENSUS is a walk
+whose correctness argument is that its list IS the value's fields —
+*forget everything*, *drop every pick*, *every number equality is on*,
+*this sentence is the value's whole account*. Every census in this
+crate destructures the value instead of listing its fields by hand, so
+the list cannot fall behind the declaration; which trait the census
+sits in decides only what a missed field COSTS, and the sharpest cost
+is not a dump's. Eight of these are not dumps:
+
+| census | costs, if it misses a field |
+|---|---|
+| `PartialEq for Camera` | equality answers **wrong**. `camera::fold` is checked against sequential `apply` by comparing whole cameras, so a coordinate outside `eq` is a coordinate that property does not check |
+| `DisplayState::clear` | display state survives into a different document — the stale-across-`Open` defect the `Derived` walk closed |
+| `BlendTool::clear` | a pick survives `Clear picks`, so the tool is not the fresh tool the button promises and the next click is judged against something the panel says it is not holding |
+| `Display for StoreError` | a store's failure carries a fact the sentence does not say |
+| `Display for Message` | **nothing, by design** — this account is deliberately partial, and that is exactly why the tie is worth having: it makes the NEXT field's omission a decision someone made rather than one nobody noticed |
+| `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
+| `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
+| `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
+
+`Camera`'s census reaches one type further out: `target` is a
+`Point3<f64>` expanded coordinate by coordinate, so a second pattern
+names `x`, `y` and `z` rather than reading them — the boundary is where
+a census of this crate's fields would otherwise stop. It reads the
+fields and not the six public accessors beside it for the same reason
+it destructures at all: an accessor call is a field READ, so a census
+assembled from accessors is a hand list again and a seventh field
+would leave it silently short.
+
+Two of the eight name a field the walk deliberately does not spend.
+`DisplayState::clear` binds `revision` and does not clear it: the
+counter is the chrome's rebuild key, it is bumped when the reset was
+visible, and a counter that went backwards would name a picture the
+chrome has already drawn. `Display for Message` binds `subject: _` — a
+bare `_`, with the argument in the doc above the impl rather than at
+the arm — because the subject ROUTES the message: it is what retires
+it (`frame::StatusUpdate::Expire`) and what a joined rank-2 line takes
+as its own subject. It does not RANK; `frame::frame_status` ranks by
+SOURCE. A line that printed its own routing would say to the user what
+the chrome says to itself.
+
+**A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
+The five `Display`s above are the struct half of a population of 36
+`Display` impls under `src/`; the other 31 are over enums, and being a
+`match` settles nothing about their fields. Sweeping those 31 for a
+pattern that drops a field of the variant it renders — `{ .. }` or
+`, ..}` in a pattern, a catch-all `_ =>` or bare-binding arm over the
+subject enum, and a tuple variant matched at less than its arity —
+finds **no catch-all over a subject enum, no tuple-arity drop, and
+exactly two `..`**: `CameraOp::Frame` drops `bounds`, and
+`MateToolEvent::PickLost` drops `resolution`. Both stay dropped —
+rendering either would change what the chrome says — and both carry
+the argument for the drop, `MateToolEvent`'s at its impl (the payload
+stays typed and full in the value; the sentence is what a person
+reads) and `CameraOp`'s at the arm. That is the property this rule is
+after: an omission that is a decision someone made. The rule matched
+two more sites that are not instances, and the distinction is the same
+one: `frame.rs`'s `matches!(w.cause, DisplayFault::FusedGeometry { .. })`
+is a variant test on another type, and its `count =>` arm is a
+catch-all over `withdrawn.len()`, not over the subject.
+
+**What was swept for the writing hat, and what it could not see.**
+Every `fn` under `src/` naming two or more distinct `self.<field>`
+assignments, `.clear()`s or `.take()`s, each hit read against its
+struct's declaration: **23 hits, and none is a census**. A converted
+census does not match the rule at all — it has no `self.<field>` write
+left — so a clean sweep is the receipt. The 23 are bookkeeping, where
+the field list comes from the walk's INPUTS rather than from the
+declaration and a new field has no claim on it: `ViewerApp::sync_scene`
+installs a rebuild's eleven outputs, `BlendTool::load_all_edges` seats
+a computed pick set, `PickCache::sync` and `land` install a landing's
+fate, and the two `Drop`s in `evalseam` close a channel and leave the
+language's own drop glue to be exhaustive.
+`DocSession::clear_for_new_document` is the case the rule matches and
+the design answers: its two statements are `Derived::none()` and
+`display.clear()`, and its doc says so — the census is collapsed into
+one value rebuilt from nothing rather than a field-by-field walk each
+door has to remember. What neither rule can see: a census spelled
+through accessors rather than fields (no grep for `self.` finds one), a
+census over a value that is not `self`, and an impl written by a macro
+— `vocab.rs` holds the crate's only `macro_rules!` and it generates
+neither.
+
 ### The app's vocabularies
 
 | Module | Holds |
