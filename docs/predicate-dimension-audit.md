@@ -429,6 +429,7 @@ which is what actually moves the number.
 | chart_region.rs | chart_region_arm_inf | a chart lever arm — metres per chart unit, gated as a length (the collapsed-arm idiom, `pcurve_interval_meter`'s shape) | m | OK. The arm is a certified LOWER stretch bound (`certified_arms`), which is the side a positive-extent claim needs: an over-stated arm would inflate the metred region and certify a sliver, so the sup bounds (`geom_brep::chart_stretch_sup`) are deliberately not reachable from this lane. Definite-positive walks on; a collapsed arm is `ArmUnbounded`; an in-band arm escalates |
 | chart_region.rs (M9-2) | chart_region_seam_span | azimuth-span excess over one period (rad) × the chart's azimuth arm r | m | OK (new in M9-2) |
 | chart_bound.rs (TRIM-3) | chart_bound_gap | the separating-axis gap between a metred cell and a boundary edge, five axes under one name: the cell's four side axes take a coordinate difference of METRED chart quantities (`Margin::of`), and the segment's own normal axis takes the corner's signed offset `n·(c−A)` — an area (m²) — over `|n|`, the perpendicular distance the corner stands off the segment's line (`Margin::over_lever`) | m | OK (new in TRIM-3). One name, one population by construction: the five axes ask the same question (metres of clear space between a cell and one edge) and a positive on ANY of them separates, so splitting them would meter one decision as five |
+| chart_bound.rs (TRIM-3) | chart_bound_outer_span | the outer loop's own chart `u`-extent minus the chart's period — a chart-unit quantity (radians on an azimuth chart, knot units on a spline chart) through the chart's FIRST-channel lever arm (`Margin::levered`), so the margin is the metre excess by which the face wraps its own chart | m | OK (new in TRIM-3). Refusal-only and one-sided: a DEFINITE positive refuses the description, `Zero`/in-band/poison let it stand, and an inexact arm on a torus moves only where the refusal fires |
 | ray_parity.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_segment | a metred chord's own length — the degeneracy gate, through the `Margin::norm2` door | m | OK (new in TRIM-3) |
 | ray_parity.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_boundary | the cell centre's distance to a closed metred chord — perpendicular at an interior foot, endpoint otherwise | m | OK (new in TRIM-3) |
 | ray_parity.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_side | a polygon vertex's signed offset from the ray line, in metred chart coordinates | m | OK (new in TRIM-3) |
@@ -769,7 +770,8 @@ Flagged, NOT fixed here (dispositions):
   two readings would put two populations under one K row.
 
 - **F18** (added by TRIM-3, the chart-boundary outside test)
-  `topo/src/chart_bound.rs` `certifies_outside`: the five rows above.
+  `topo/src/chart_bound.rs` `certifies_outside` and `assembled`: the
+  six rows above.
   Every comparand is metres by construction, because the value they
   decide on is a `MetredBound` — the description scaled by the chart's
   arms (plane `(1, 1)`, cylinder `(r, 1)`, both exact) BEFORE any
@@ -780,16 +782,29 @@ Flagged, NOT fixed here (dispositions):
   reader asking "what dimension is a chart-boundary cell margin"
   should find the answer in the ledger.
 
+  **The claim has a guard, which is what a construction-based claim
+  owes.** "Metres by construction" rested on `metred` running before
+  any predicate and on `Margin::over_lever(n·(c−A), |n|)` dividing the
+  segment-normal area by the normal's length. The second half is the
+  fragile one: replacing that door with `Margin::of` decides a signed
+  AREA against the linear band and changes no verdict on any short
+  edge, so nothing stood against it. `t10_a_long_edge_guards_f18s_
+  dimensional_claim` is what does — a 10³ m edge and a gap of half the
+  coincidence threshold, where the honest margin is `ε/2` and the area
+  is `500·ε`, so the two doors disagree about dropping a cell that
+  meets the boundary.
+
   Two readings of a definite `Sign::Zero` are deliberately the SAME
-  here, which is why the five names are not five questions but two.
+  here, which is why the six names are not six questions but two.
   `chart_bound_gap` and the four parity rows all read `Zero` as *not
   certified* — the cell is kept — and that is the invariant
   `certifies_outside` states: a drop needs a definite sign at `≥ K·ε`,
   so `Zero`, an in-band margin and poison are one outcome. There is
   therefore no strict/non-strict split of the F17 kind to name, and
-  the five names exist only to keep five populations (a cell-to-edge
-  gap, a chord length, a point-to-chord distance, a side offset, a
-  crossing advance) from pooling.
+  the names exist only to keep their populations (a cell-to-edge gap,
+  a chord length, a point-to-chord distance, a side offset, a crossing
+  advance, and — asked once per description rather than once per cell
+  — an outer loop's period excess) from pooling.
 
   **The `pcurves.rs` closure rows take a second call site under this
   unit.** `chart_boundary` re-decides its loops' closure gap under the

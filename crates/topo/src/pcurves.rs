@@ -69,6 +69,16 @@
 //! chain of shared vertices, the per-sample choice does not exist at
 //! all, and the anchor's correctness is checked rather than assumed.
 //!
+//! # The chart-boundary description (TRIM-3)
+//!
+//! [`chart_boundary`] is the walk's second consumer: it runs the same
+//! [`walk_loop`] on a chart the CALLER names and turns each loop into
+//! a closed chord polygon — [`crate::chart_bound::ChartBound`], whose
+//! outside test is what a subdivision driver asks. It mints nothing
+//! and stores nothing; it reads a pcurve CACHE only for a
+//! `Fitted`/`General` image's certified envelope. The charts it
+//! describes and the ones it refuses are stated at the function.
+//!
 //! # Persistence and transfer posture
 //!
 //! Caches are minted at construction and are immutable with the body;
@@ -193,15 +203,49 @@ pub enum PcurveMintError {
         /// The face whose loop failed to close.
         face: FaceKey,
     },
+    /// A loop of the face passes through a point where the chart's
+    /// FIRST channel has no lever — a sphere pole or a cone apex.
+    ///
+    /// The walk accepts such a joint (it skips the branch shift there,
+    /// deliberately: every azimuth agrees at a pole, so there is no
+    /// branch to pick), and that is right for MINTING. It is not right
+    /// for a chart POLYGON: the joint's azimuth is whatever the
+    /// derivation happened to produce, the chord to it is drawn to a
+    /// point the face does not have an azimuth at, and the polygon
+    /// that results describes a different region from the face. A
+    /// quarter disc revolved 90° about its own edge measures the
+    /// difference — the region is a rectangle, the chord polygon a
+    /// triangle, and cells in the difference certify outside while
+    /// holding material.
+    SingularChartJoint {
+        /// The face whose loop meets the singularity.
+        face: FaceKey,
+        /// The loop.
+        r#loop: LoopKey,
+        /// The half-edge whose ENTRY sits at the singular point.
+        half_edge: HalfEdgeKey,
+    },
+    /// The outer loop's own chart span is definitely wider than the
+    /// chart's period, so the face wraps onto itself and its region is
+    /// not periodic within its own outer — the premise every ring lift
+    /// rests on (`chart_bound::RING_SHIFTS`).
+    OuterSpansPeriod,
     /// A loop's chart walk closed only by a whole period of the chart
     /// (or, on a sphere chart, through the involution): the walk is a
     /// LIFT, not a closed chart polygon, so it bounds no chart region
     /// and [`chart_boundary`] refuses rather than describing the
     /// polygon of an open lift.
     ///
-    /// No head constructor makes one — a closed wall carries a wrap
-    /// strut or a seam chain, and its walk closes exactly — so this is
-    /// a fence, not a path.
+    /// **What actually reaches it.** The claim that no head
+    /// constructor makes one is false, and was measured false: a
+    /// revolve whose profile touches the axis produces a cone face
+    /// whose loop runs through the apex, and its walk closes a period
+    /// off. That case is now [`PcurveMintError::SingularChartJoint`]'s
+    /// — it is refused one check earlier, for the sharper reason —
+    /// and what remains here is the genuine period-off closure: a wall
+    /// whose loop lifts the chart with no seam chain to close it. No
+    /// constructor in the tree is known to build one, and the variant
+    /// stays because "known" is not "cannot".
     LoopWraps {
         /// The face whose loop wraps the chart.
         face: FaceKey,
@@ -248,6 +292,21 @@ impl core::fmt::Display for PcurveMintError {
                 f,
                 "pcurve minting: the chart walk of a loop of face {face:?} did not close \
                  (its azimuth advance is neither zero nor one full period)"
+            ),
+            Self::SingularChartJoint {
+                face,
+                r#loop: lp,
+                half_edge,
+            } => write!(
+                f,
+                "chart boundary: loop {lp:?} of face {face:?} meets a chart singularity at \
+                 half-edge {half_edge:?} (a sphere pole or a cone apex), where the first \
+                 chart channel has no lever and the boundary has no chord polygon"
+            ),
+            Self::OuterSpansPeriod => write!(
+                f,
+                "chart boundary: the outer loop's chart span exceeds the chart's period, so \
+                 the face wraps onto itself and its region is not periodic within its own outer"
             ),
             Self::LoopWraps { face, r#loop: lp } => write!(
                 f,
@@ -1709,13 +1768,40 @@ fn chart_edge<T: PcurveFittedLane>(
 /// walk, exactly as [`mint_pcurves`] derives it, so a body that never
 /// ran the minting pass (every extrude) describes perfectly well.
 ///
+/// # Which charts this describes
+///
+/// **Plane, cylinder and torus.** Their first channel has a lever
+/// everywhere on the chart, so every joint of a loop has an azimuth
+/// and the chord polygon is a statement about the same region the face
+/// is.
+///
+/// **Sphere and cone are refused where a loop meets the singularity**
+/// ([`PcurveMintError::SingularChartJoint`]): at a pole or an apex the
+/// first channel has no lever, the walk deliberately skips the branch
+/// shift there, and the chord drawn to such a joint bounds a different
+/// region from the face. A sphere or cone face that stays clear of its
+/// singularity describes normally.
+///
+/// **A spline chart** describes when [`chart_u_period`] can answer for
+/// it. Note that a PLANE reaching the walk still has `τ` available as
+/// a per-joint shift through that function — `chart_u_period` defaults
+/// every non-spline chart to the azimuth period — so the walk's
+/// "the shift is never a multiple of τ on a plane" property is now
+/// load-bearing for this consumer as well as for minting. It holds
+/// because a plane joint's two chart points are the SAME vertex
+/// through an affine map, so the shift is exactly zero; the class is
+/// Track Q's and stays logged there.
+///
 /// # Errors
 ///
 /// [`PcurveMintError`] — the loop walk's own refusals (a corrupt key,
 /// a typed chart refusal such as [`PcurveCertifyError::UnsupportedCarrier`]
 /// for a `Nurbs` carrier on an analytic chart, a discontinuous or
-/// unclosed walk), plus [`PcurveMintError::LoopWraps`] for a walk that
-/// closes a whole period off.
+/// unclosed walk); [`PcurveMintError::SingularChartJoint`] for a loop
+/// through a pole or an apex; [`PcurveMintError::LoopWraps`] for a
+/// walk that closes a whole period off; and
+/// [`PcurveMintError::OuterSpansPeriod`] from
+/// [`crate::chart_bound::ChartBound::assembled`].
 pub fn chart_boundary<T: PcurveFittedLane>(
     body: &Body<T>,
     face: FaceKey,
@@ -1747,6 +1833,37 @@ pub fn chart_boundary<T: PcurveFittedLane>(
             // An empty loop bounds nothing to describe.
             continue;
         };
+        // THE SINGULAR-JOINT FENCE, before anything else is read off
+        // the walk. A joint where the first chart channel has no lever
+        // — a sphere pole, a cone apex — has no azimuth, so the walk
+        // skips its branch shift (`pcurve_loop_pole_joint`, the
+        // azimuth-free arm) and leaves whatever azimuth the derivation
+        // produced. Minting is right to do that: no downstream sample
+        // reads the azimuth AT the pole. A chord polygon does read it,
+        // as a vertex, and the polygon it draws bounds a different
+        // region from the face. Re-decided here on the walk's own row,
+        // and anything but a definite lever refuses.
+        for w in &walked {
+            let entry = w.pcurve.eval(if is_plus(body, w.half_edge)? {
+                w.t0
+            } else {
+                w.t1
+            });
+            if !matches!(
+                decide(
+                    "pcurve_loop_pole_joint",
+                    Margin::of(azimuth_arm(chart, entry.y)),
+                    band
+                ),
+                Ok(Sign::Positive)
+            ) {
+                return Err(PcurveMintError::SingularChartJoint {
+                    face,
+                    r#loop: *lp,
+                    half_edge: w.half_edge,
+                });
+            }
+        }
         // The walk certified that the loop CLOSES; it accepts a
         // closure one whole period off (the seam case) and, on a
         // sphere chart, one through the involution. Neither is a
@@ -1802,7 +1919,13 @@ pub fn chart_boundary<T: PcurveFittedLane>(
     // there is no honest description to return and no empty one that
     // would not be a claim.
     let outer = outer.ok_or(PcurveMintError::Corrupt)?;
-    Ok(ChartBound::assembled(outer, rings, period))
+    // The span check's lever: the chart's own first-channel arm. Every
+    // chart this function describes has a constant one except the
+    // torus, where the local lever at the outer's lowest latitude is
+    // the honest reading and an inexact one can only move where the
+    // refusal fires.
+    let u_arm = azimuth_arm(chart, outer.edges.first().map_or_else(T::zero, |e| e.a().y));
+    ChartBound::assembled(outer, rings, period, u_arm, band)
 }
 
 /// The at-rest pcurve pass the tier-3 validator runs (spec §5:

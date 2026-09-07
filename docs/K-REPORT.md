@@ -639,7 +639,7 @@ Adding a name carrier without recording it here still silently drops
 its rows from the roster; that is now a disclosed cost rather than an
 undetected one.
 
-**Roster addition (TRIM-3): the chart-boundary outside test.** Five
+**Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_parity::ParityRows` value, the carrier this document already
 lists, and `ParityRows`' own type docs say a new value is a roster
@@ -648,13 +648,16 @@ change and belongs here. `topo/src/chart_bound.rs` decides:
 | name | carrier |
 |---|---|
 | `chart_bound_gap` | a bare literal at the `decide` site (the five-axis separating-axis test) |
+| `chart_bound_outer_span` | a named `const &str` (escape route 3) at `ChartBound::assembled` |
 | `chart_bound_segment` | `ParityRows` field |
 | `chart_bound_boundary` | `ParityRows` field |
 | `chart_bound_side` | `ParityRows` field |
 | `chart_bound_advance` | `ParityRows` field |
 
 Their dimensions and dispositions are `docs/predicate-dimension-audit.md`'s
-**F18**. They pool with nothing: a chart-boundary cell margin is its own
+**F18**. `chart_bound_outer_span` is asked once per description rather
+than once per cell, so its population is orders of magnitude smaller
+than the other five and should not be read against them. They pool with nothing: a chart-boundary cell margin is its own
 population, which is exactly why the shared parity walk takes its row
 names from the caller.
 

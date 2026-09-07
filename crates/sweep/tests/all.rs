@@ -119,6 +119,8 @@ mod torax_axial;
 mod torax_interval;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
+#[path = "trim_3_chart_bound_bodies.rs"]
+mod trim_3_chart_bound_bodies;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]

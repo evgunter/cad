@@ -24,6 +24,7 @@ feeds a decision, every walk is bounded.
 | Contact vocabulary | `src/contact.rs` (`ContactClass`, `DeclaredContact`, `ContactVerdict`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`, `FIT_DEFERRAL`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`contact_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
+| Chart-boundary description | `src/chart_bound.rs` (`ChartBound`, `ChartLoop`, `ChartEdge`, `assembled`, `metred`, `MetredBound::certifies_outside`, `MetredRect`), `src/pcurves.rs` (`chart_boundary`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/null.rs` |
 | Booleans | `src/boolean/mod.rs` (reduction, classification, `ContactRecords`, `BooleanDeclarations`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Declared-REST zip (C7 join lane) | `src/boolean/rest.rs` |
