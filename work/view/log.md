@@ -6046,3 +6046,170 @@ is read against its own BODY, not against the brief that cited it.
 draws from the fields derived from the outgoing document and nothing at
 the declaration marks that set, which destructuring cannot reach), and
 the three citation classes above.
+
+## 2026-09-07 — the const-ALL rule stops being prose
+
+`a-new-hand-written-all-table-meets-no-gate` closed on `view/all-gate`.
+PR 2046 converted nine vocabularies and left the tenth author
+unguarded; `scripts/gates/viewer-vocab-declared-once.sh` is the guard.
+It hits on a `const ALL` and on the un-named shape — any `const` array
+literal of two or more `Type::Variant` entries — under
+`crates/viewer/src`, and allowlists what `crates/viewer/README.md`'s
+new `#### The lists that stay hand-written` table carries.
+
+**The work was the siting, as the item said.** A ci.yml step in the
+`mirror` job, a line in `ci-local.sh`'s `tier_blind_rows`, and a
+`TIER_BLIND` entry; `gate-roster.sh` derives its roster from the
+directory and needed no edit, and now counts 21 gates. The
+tier-blindness argument is stronger here than for
+`viewer-module-kinds.sh`: that gate reads the README for two of its
+checks, this one reads it for its whole allowlist, so a docs-only PR
+is precisely the change class it exists to judge.
+
+**Two things this lane learned about the tooling.** `gate_rust_code`'s
+statement view cuts records at `;` and a Rust array TYPE carries one —
+`[(BooleanOp, &str); 3]` — so a `const` table splits in half and its
+initialiser lands in a record with no `const` in it. The gate
+reassembles items by bracket depth instead. And the `|| true` hazard
+this program re-minted at #1953 has an `awk` twin: a reader that dies
+inside a process substitution folds to "the document is empty", which
+here would have printed *"delete this row, its list is gone"* about
+four rows whose lists are fine. The readers write `lib.sh`'s marker and
+the gate reads it where it resumes, not only at `gate_ok`.
+
+**Left open on purpose.**
+`viewer-suites-hold-hand-written-complete-variant-lists` — the suites'
+four lists are inline arrays in a row, not `const` tables, so this scan
+would not see one of them if it were pointed at `tests/`. Scoping the
+gate to `src/` is the honest claim; the suites need their own decision
+per enum.
+
+**Two fences and a borrowed reader**, recorded because the next VIEW
+gate meets both. The branch touches `scripts/gates/*` (GATES') and
+three CIW wiring surfaces; ruled in — VIEW already authors
+`viewer-module-kinds.sh` in that directory, GATES' `keep_out` admits a
+new gate's wiring row as one announced line, and the `TIER_BLIND` entry
+cannot be split off because a TIER-blind gate without one reds parity
+itself. `work/issues/gate-wiring-fence-is-undrawn-for-the-parity-entry`
+carries the announcement and the proposal to write the clause down.
+Separately, `work/issues/gate-rust-reader-splits-an-array-type-at-its-semicolon`
+is the out-of-fence half of this unit: `lib.sh`'s statement view is
+what forced the gate's own item reader, and that reader should go when
+the shared one is fixed.
+
+### The correctness review of that gate, and what it cost (2026-09-07)
+
+A review of #2106 before merge found three defects that a green run
+could not have shown, and each is the same lesson at a different depth.
+
+**A guard is per STAGE, not per pipeline.** The fix that bought the
+resume-time marker read guarded `const_items`; the `awk` that decides
+what a HIT is runs after it, in the same process substitution, and had
+no guard at all. It survived an immediate death only by SIGPIPE
+upstream — which reds naming the wrong reader — and a classifier that
+consumes its input and THEN fails produced `OK` and exit 0 over two
+planted breaches whenever the roster held no data rows, which is a
+docs-tier edit away. The gate now states the RULE that produces its
+reader population (a command that reads the subject and whose status
+the shell discards, one entry per pipeline STAGE) and enumerates the
+six it yields, rather than asserting a universal over a list nobody
+re-derived.
+
+**`const` opens a generic parameter.** `fn stack<const N: usize>` and
+`struct Stack<const N: usize>` match an unanchored `const NAME:`
+opening, and the depth counter counts `()[]{}` and never `<>` — so
+accumulation began mid-signature and the item did not close until the
+next depth-zero `;`, which inside an `impl` is never. Both directions
+were live on a copy of the real tree: a hand-written `ALL` under a
+const-generic `struct` went green, and a const-generic `fn` above
+`BOOLEAN_OPS` produced two reds naming the wrong repair. The opening is
+now anchored to a declaration at the start of a line, one spelling
+shared by the test and the name extraction; the anchored population is
+the same 104 lines the unanchored one matched, under `gawk` and `mawk`
+alike.
+
+**A key that drops the type ratifies a name, not a list.** A roster row
+`Theme::ALL` keys on `theme.rs` and `ALL`, so a second
+`impl Badge { pub const ALL: … }` appended to that module was ratified
+by the row written for `Theme` — the item's own worked example, evaded
+by choosing its home. Using the type was considered and rejected: an
+associated constant's declaration says `[Self; 3]`, so its type is the
+enclosing `impl` header, which the lexed view does not delimit and only
+a parse would find, and three of the four rostered lists are free
+`const`s with no type to use. What holds instead is a COUNT — one row
+ratifies exactly one list, none is the retiring direction and more than
+one is a red — which is loud in the direction that matters and costs no
+parse. Its price is stated where it is paid: two same-named lists in
+one module cannot both be rostered.
+
+**And a self-test that cannot see the name a gate prints.** All twelve
+cases matched a name-independent fragment, so a broken name extraction
+shipped green over three garbage diagnoses. Four cases now match a
+fragment containing the subject, and
+`work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names` is
+the durable half — a harness affordance, not this gate's to build.
+
+## 2026-09-07, orchestrator: #2106 merged, and what a correctness lane bought
+
+**#2106 is on main** (`24be3075d`), twenty-first unit, 37 jobs — 34
+success, 3 correctly skipped, zero failures. The unit closes
+`a-new-hand-written-all-table-meets-no-gate`, the schedule #2046 owed
+under §Q6.
+
+**This is the wave's one unit that was NOT style-only, and the posture
+was right.** The trigger for escalating it was not size or risk in the
+usual sense: it was that **a gate which silently never fires is
+indistinguishable from a gate that passes**, so the failure mode is a
+confident wrong answer by construction. The correctness lane found
+three MAJORs. One of them made the gate print `OK` and exit **0** over
+two planted breaches whenever the roster table was empty — a docs-tier
+edit away, and the #1953 class exactly, one program-generation after
+this program last re-minted it.
+
+**The fix pass then improved on its own review**, which is the part
+worth keeping:
+
+- it derived a **reader-population rule** — *a reader is any command
+  reading the gate's subject whose exit status the shell DISCARDS, i.e.
+  every STAGE of every pipeline inside a process substitution*. Stages
+  rather than pipelines is precisely what the old universal got wrong,
+  and the rule found a **second** unguarded reader the review had
+  missed;
+- it got the guard SHAPE right for a reason neither the review nor this
+  orchestrator had: a brace group, not `|| reader_failed` on the
+  pipeline, because `pipefail` reports the rightmost non-zero stage —
+  so guarding the pipeline would diagnose an upstream death as the
+  classifier and re-mint the bug inside its own fix;
+- it ran **negative controls**: the self-test must FAIL when the gate
+  is broken, verified three ways. That answers the review's MINOR-8,
+  which was itself found by accident when a broken name extraction left
+  a twelve-case self-test green over three garbage diagnoses.
+
+**Verified here rather than taken on report**: the killer case rebuilt
+by hand — roster emptied, breach planted — gives **exit 1 with five
+errors**; the gate green on the real tree; 21 gates and every self-test
+`FAIL=0` on the MERGED tree; `gate-roster` 22 registered;
+`check-ci-mirror-parity OK`.
+
+**Two rulings this unit needed.** The territory fork went four paths
+wide and is settled in
+`work/issues/gate-wiring-fence-is-undrawn-for-the-parity-entry.md`: the
+`TIER_BLIND` entry in `scripts/check-ci-mirror-parity.py` is ruled the
+same "one announced line" class as CIW's workflow files, because it is
+FORCED — a TIER-blind gate in the `mirror` job with no such row reds
+parity itself, so the entry cannot be split into a follow-up by its
+owning program. And the lane's §6 report, which it had recorded as
+"None": `gate_rust_code --statements` splits a Rust array type at the
+`;` inside it, filed as
+`gate-rust-reader-splits-an-array-type-at-its-semicolon` with the
+property its eventual fix must inherit — the shared reader does not
+track `<>` either.
+
+**The merge itself is a rule.** `gate ok` was green at `77505a340` and
+the merge was still refused: `main` had moved and #2103 had rewritten a
+neighbouring section of `crates/viewer/README.md`, the file this gate
+parses its allowlist from. Resolved by merging `main` IN — never
+rebasing, never force-pushing — with `work/view/log.md`'s two halves
+both kept in merge order, which is what an append-only file needs when
+two units land on one day. Green CI on an old head is not a merge
+criterion; it is a criterion about the head it ran on.

@@ -124,6 +124,12 @@ TIER_BLIND = (
     # under `if: run_build` the arms that exist for a table edit could not
     # fire on a table edit.
     "scripts/gates/viewer-module-kinds.sh",
+    # The viewer crate's closed-vocabulary gate. Its allowlist IS
+    # crates/viewer/README.md's "The lists that stay hand-written" table and
+    # the kinds a row may claim are that section's own bullets, so a docs-only
+    # change set can falsify it outright — and TIER=docs skips every
+    # `if: run_build` job.
+    "scripts/gates/viewer-vocab-declared-once.sh",
     "scripts/check-ci-mirror-parity.py",
     # Not because its inputs are prose — because a change WIDENING the
     # filter's docs branch classifies itself as docs, so the tier that would

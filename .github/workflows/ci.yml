@@ -1097,6 +1097,20 @@ jobs:
         run: |
           scripts/gates/viewer-module-kinds.sh --selftest
           scripts/gates/viewer-module-kinds.sh
+      # The viewer crate's closed-vocabulary rule: a membership list is
+      # declared once, and a hand-written one under crates/viewer/src
+      # reds unless `crates/viewer/README.md`'s "The lists that stay
+      # hand-written" table ratifies it. SITED HERE FOR THE SAME REASON
+      # AS THE ROW ABOVE, and more sharply: this gate's allowlist IS
+      # that README table and its vocabulary of kinds is that section's
+      # bullets, so a change set of only the README is exactly the
+      # change set it exists to judge — and TIER=docs skips every
+      # `if: run_build` job. TIER_BLIND names it, so this cannot drift
+      # back.
+      - name: viewer vocabularies are declared once (no hand-written ALL)
+        run: |
+          scripts/gates/viewer-vocab-declared-once.sh --selftest
+          scripts/gates/viewer-vocab-declared-once.sh
       # THE PYTHON LINTER RIDES THIS JOB, and the two properties that make
       # this job what it is are exactly the two ruff needs.
       #

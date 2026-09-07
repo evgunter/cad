@@ -130,7 +130,7 @@ should be visible on its own.
 | `view/homes` (`cursor_projection` to `camera`; `Generation::get` deleted) | #2089 | style + fix pass |
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
 | `view/censuses` (seven censuses in four hats, and an eighth) | #2103 | style + fix pass |
-| `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** — in flight |
+| `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -215,6 +215,25 @@ lane's miscount of the VIEW citations was propagated into a check-in
 before the fix pass established the real figure. A count is a claim
 like any other: it carries its enumeration rule, and it is re-derived
 rather than copied forward.
+
+**Green CI on an old head is not a merge criterion.** #2106 had
+`gate ok` green at `77505a340` and the merge was still refused: `main`
+had moved and #2103 had rewritten a neighbouring section of
+`crates/viewer/README.md`, the file that gate parses its allowlist
+from. Resolve by merging the base IN — never rebase, never
+force-push — re-run the receipts on the MERGED tree, and keep BOTH
+halves of an append-only file in merge order. `work/view/log.md`
+conflicted on both of the day's merges and will conflict on every day
+two units land.
+
+**Escalate to a correctness lane when the failure mode is a confident
+wrong answer, not when the diff is large.** #2106 was the wave's one
+non-style review, and the trigger was that a gate which silently never
+fires is indistinguishable from a gate that passes. It found the gate
+printing `OK` and exiting 0 over two planted breaches whenever its
+roster table was empty — a docs-tier edit away, and the #1953 class
+again. A style lane reads what the code says; only an adversarial one
+asks what it does when a reader dies.
 
 **Operational, the box's `awk` is now gawk.** #2106's fix pass
 `apt-get install`ed gawk to test a regex on two implementations, and
