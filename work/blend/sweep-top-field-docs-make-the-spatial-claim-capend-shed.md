@@ -1,9 +1,10 @@
 ---
 id: sweep-top-field-docs-make-the-spatial-claim-capend-shed
-kind: issue
+kind: unit
 title: Extruded.top and Lofted.top doc comments make the spatial claim CapEnd shed under a signed distance
-status: open
+status: dispatched
 opened: 2026-09-04
+branch: blend/2-top-cap-doc
 ---
 
 

@@ -139,11 +139,22 @@ pub struct Extruded<T: Real> {
     pub solid: SolidKey,
     /// Its single shell.
     pub shell: ShellKey,
-    /// The top cap (the swept face — on the sketch plane translated by
-    /// the extrusion vector; carries the profile's canonical winding
-    /// when extruding along `+n`, crate docs).
+    /// The cap at the **far end of the sweep**: the swept face, on the
+    /// sketch plane translated by the extrusion vector `w`. The name
+    /// is an end of the sweep, not a height — `w` is signed against
+    /// the sketch normal (`n · d` for [`Extrusion::Distance`]), so
+    /// under `w · n < 0` this cap lies on the `−n` side of the sketch
+    /// plane, below [`Extruded::bottom`]. Its outward normal runs
+    /// along `w`, and it carries the profile's canonical winding
+    /// exactly when `w · n > 0`; under `w · n < 0` the swept traversal
+    /// is reversed and [`Extruded::bottom`] carries that winding
+    /// instead (crate docs).
     pub top: FaceKey,
-    /// The bottom cap (on the sketch plane).
+    /// The cap at the **near end of the sweep**: the face on the
+    /// sketch plane itself, outward normal opposite the extrusion
+    /// vector. The name is an end of the sweep, not a height — under
+    /// `w · n < 0` it is the upper of the two caps, and the one
+    /// carrying the profile's canonical winding.
     pub bottom: FaceKey,
     /// Side-wall faces, per loop (outer first, then holes in canonical
     /// order), per segment in swept-traversal order.
