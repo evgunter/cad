@@ -1302,6 +1302,13 @@ impl fmt::Display for BlendError {
                     Some("fillet3_chain_g1" | "fillet3_chain_arm") => FILLET3_CHAIN_RECOURSE,
                     Some("fillet3_convexity_sign") => FILLET3_CONVEXITY_RECOURSE,
                     Some("fillet3_ring_clearance") => FILLET3_RING_RECOURSE,
+                    // The in-band arm carries the definite arm's
+                    // recourse: a pair whose axes part by an amount
+                    // too small to call belongs to the same door as
+                    // one whose axes part definitely — a spine that is
+                    // neither line nor circle is the canal family
+                    // either way.
+                    Some("fillet3_support_coaxiality") => FILLET3_SPINE_KIND_RECOURSE,
                     // Predicate 6's two classifications share the corner
                     // recourse: the trihedron's independence and the
                     // ruled band's transverse cap.

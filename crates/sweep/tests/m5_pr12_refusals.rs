@@ -549,9 +549,7 @@ fn tilted_cap(departure: f64) -> (Body<f64>, EdgeKey) {
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle { center, radius, .. } if center.z > 0.5 => {
-                    Some((k, *radius))
-                }
+                geom::Curve3::Circle { center, radius, .. } if center.z > 0.5 => Some((k, *radius)),
                 _ => None,
             }
         })

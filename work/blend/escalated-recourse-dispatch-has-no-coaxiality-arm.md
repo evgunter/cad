@@ -44,3 +44,11 @@ which is closed. Filed here as the owner of `blend/mod.rs`.
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). `blend/mod.rs` and `blend/battery.rs` are BLEND's ground; an E unit.
+
+## Landed
+
+`crates/sweep/tests/m5_pr12_refusals.rs`'s `trio_support_coaxiality`
+is the row: it reaches the in-band arm through `run_battery` on a
+cylinder whose cap plane parts from the rim circle's axis by `5ε` at
+the rim's lever arm, and `assert_same_recourse` pins the definite
+`SpineUnsupported` and the escalation to one sentence.
