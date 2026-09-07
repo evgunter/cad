@@ -71,6 +71,10 @@ mod cert5_r1_patch_probes;
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
+#[path = "interior_iso_column.rs"]
+mod interior_iso_column;
+#[path = "interior_iso_review.rs"]
+mod interior_iso_review;
 #[path = "intersect_table.rs"]
 mod intersect_table;
 #[path = "m4_remint_headroom.rs"]

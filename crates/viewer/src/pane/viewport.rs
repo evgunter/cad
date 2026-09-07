@@ -14,7 +14,9 @@ use crate::datums::{self, datum_view};
 use crate::frame::{self, IdStep};
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
-use crate::pick::{self, PickIndex};
+use crate::marks;
+use crate::pickcache;
+use crate::pickindex::PickIndex;
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
 
@@ -179,7 +181,7 @@ impl ViewerBehavior<'_> {
 
         // The cursor path: actions in, session operations out. Every
         // step of it — the un-projection, the ray service, the miss
-        // rule — lives in `pick::PickIndex::op_for`, so this is the
+        // rule — lives in `pickindex::PickIndex::op_for`, so this is the
         // same path a headless test drives.
         let actions = input::pick_stream(&self.input, &events);
         // **An open tool narrows the priority rule, it does not
@@ -207,7 +209,7 @@ impl ViewerBehavior<'_> {
                     Err(error) => self.notices.push(frame::pick_refusal(&error)),
                 }
             }
-        } else if let Some(refusal) = pick::unindexed(&actions, self.indexing) {
+        } else if let Some(refusal) = pickcache::unindexed(&actions, self.indexing) {
             // **Not indexed yet is not a miss.** There is no index to
             // ask, because one is being built on its own seam, and a
             // click that quietly did nothing here is the fail-quiet
@@ -220,13 +222,13 @@ impl ViewerBehavior<'_> {
         // selected. Recomputed every frame; nothing retains it.
         let highlight = self
             .index
-            .map(|index| pick::highlight(index, self.session.selection(), self.session.hover()));
+            .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
         let mut edges = self
             .index
             .map(|index| {
-                pick::edge_overlay(
+                marks::edge_overlay(
                     index,
                     self.display,
                     self.session.selection(),

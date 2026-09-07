@@ -127,7 +127,7 @@ reason.
 
 Three implementers ran concurrently in isolated worktrees, on
 non-overlapping territory: `ciw/render-lane-merge-ref`,
-`ciw/one-pin-reader`, `ciw/perf-host-identity`. One style review each,
+`ciw/pin-reconciler`, `ciw/perf-host-identity`. One style review each,
 per the posture Ev set; no A/B row and no dual on any of them. PRs 1724,
 1723, 1722.
 
@@ -900,6 +900,268 @@ Three duplicate pairs in one day (two within CIW's own slate, one
 across three programs) is not three accidents. The board is the only
 instrument that can see them and only an orchestrator reads it whole.
 
+## 2026-09-06 — unit 1 dispatched: one answer to what `ci.yml` pins
+
+`local-half-restates-ci-pins-as-literals` and
+`ruff-pin-read-shares-the-first-match-shape`, together on
+`ciw/pin-reconciler`. (`ciw/one-pin-reader` is PR 1723's branch and is not reused.) They are
+the two populations
+`nightly-pin-reading-idiom-four-copies` did not reach — a value retyped
+where nothing reconciles it, and a second first-match-at-any-indentation
+reader — and both end at `scripts/ci-pin.py`, which that unit built.
+
+They ride one branch because they are one question asked twice and
+because the ruff item's own text hands the `.claude/hooks/session-start.sh`
+sites to the other. Splitting them would make each PR argue half a
+population.
+
+**Style review only** (the posture Ev restated on 2026-09-06). Neither
+moves kernel logic; the risk is in what a reconciler's population
+derivation misses, and that is a reviewer question rather than a
+correctness-dual one.
+
+Two things the brief carries that the items do not settle, because they
+are the judgements the unit exists to make: whether the reconciler
+derives its population or writes a roster (the items argue derive, and
+say why a roster is the thing this repo keeps learning not to write),
+and whether `ci-local.sh:588-589`'s human-facing literal stays a literal
+(the item argues it should, and that the check reconciles it rather than
+the text reading the pin).
+
+## 2026-09-06 — unit 1 in review: the pin has one reader and its copies have a check
+
+PR #2070, branch `ciw/pin-reconciler`, code-tier run green (37 jobs, 12
+`test (…)`, all five `k-lint (gate, …)`; the three skips are the two cache
+primers and the nightly interval oracle).
+
+**Both judgements the brief left open went the way the items argued, and both
+cost something worth writing down.**
+
+*Derive, do not enumerate.* Claim 11 in `check-ci-mirror-parity.py` walks
+`local-scripts/` for every `x.y.z` and reads `ci.yml`'s block through a new
+`ci_pin.read_pins`, which shares `read_pin`'s anchoring rather than
+reimplementing it. What is still written by hand is the inverse table:
+`PIN_FREE` declares the three literals that are NOT pins, so a version literal
+added to that tree is an error until someone says what it is. That direction is
+the whole difference — a roster of pin COPIES falls behind the tree silently,
+a roster of exceptions fails closed and expires like `MIRROR_EXEMPT`. The
+admesh floor the item warned about is its first entry.
+
+*One arm was not enough.* A value-only reconciler is blind to a literal that
+drifts onto some OTHER pin's value, and this tree has five pins to drift
+between. So there is a second, name-anchored arm: a line naming a pinned tool
+and carrying a version must carry that tool's current pin, with the tool token
+derived from the pin's key. It has its own hole — `ci-local.sh:620`'s "against
+the pinned 0.9.140" names no tool — which is exactly what arm A covers. Neither
+arm subsumes the other and both are needed; that is written at `PIN_FREE` with
+the other four disclosed holes.
+
+*The human-facing literal stayed a literal*, as the item asked, and the reason
+is now written where a bumper meets it: `ci-local.sh`'s prereq note says the
+versions are checked and by what.
+
+**The ruff reader** now loads `ci-pin.py` by path and calls `read_pin`. The
+fixtures did not have to move — the planted ci.yml was already a column-0
+`env:` block — and two cases were added at that caller for the shapes the
+shared reader exists for.
+
+**Residues, both filed rather than mentioned.**
+`session-start-hook-restates-ci-pins` (the `.claude/` copies, which no hosted
+claim can reach, and whose fix has to decide what the hook does when the read
+refuses) and `seal-oracle-toolchain-read-first-match` (turned up by the
+third-idiom arm of the sweep: `sed … | head -1` against `Cargo.toml`'s
+`rust-version`, a different source of truth with the same shape).
+
+**What the sweep could not match** is in the PR body and, for the part the next
+author needs, in the two item files: a paraphrased pin, a version written in
+another form, and every source of truth that is not `ci.yml`'s `env:` block —
+`rust-toolchain.toml`, `Cargo.toml`'s MSRV, the FreeCAD AppImage pin. The
+provenance prose in `scripts/` and the workflows ("verified against the pinned
+0.9.140") was found and deliberately left alone: those sentences record what
+was measured, and making them track a bump would falsify the record. That is
+why claim 11's tree is `local-scripts/` and not `scripts/`.
+
+## 2026-09-06 — unit 1's fix pass: the reconciler's own subject was escaping it
+
+PR #2070 head `a08b32462`, code-tier run green (37 jobs, 12 `test (…)`, five
+`k-lint (gate, …)`), verified at step level: `pin reader selftest`, `CI half
+parity`, and `python lint` all green in the `mirror` job.
+
+**No MAJOR from either review, and four MINORs that were all real.** Two of
+them are worth keeping.
+
+*The most literal restatement possible was escaping the check written to catch
+restatements.* `NEXTEST_VERSION=0.16.0` in a local script passed arm A (0.16.0
+is sccache's pin) and passed arm B (the derived token `nextest` was matched
+with `_` as a word CHARACTER, so it did not match inside the key). Both
+reviewers reached it independently from different directions. The fix is small
+— every underscore-separated part of the key, case-insensitive, `_` a boundary
+— and the lesson is not: the shape a check is written for is the shape its
+author has stopped looking at.
+
+*A silent truncation under a loud refusal.* `read_pins` was documented as
+inheriting every refusal `read_pin` carries. It inherits the per-KEY ones; the
+BLOCK's own edge was a flush-left `#`, where `read_pin` refuses and `read_pins`
+just returned the entries above it — and claim 11 then issues a confident,
+wrong arm-A red for every restatement of the dropped pin. The correctness lane
+found five mutations of that anchoring surviving both self-tests, one of them
+returning a job-level pin as the workflow's. Every fixture's block happened to
+end at a blank line or EOF, so the edge was never exercised. **A fixture set
+that agrees with itself about where the interesting line is will agree with the
+code about it too.**
+
+**Also done:** the population is git's index rather than a directory walk
+(`*.local.*` is in this repo's `.gitignore` — a walk reds a developer's gate
+over a file the repo told them was theirs); `PIN_FREE` gained an inversion
+guard and now excuses arm B; the loader is one documented idiom with both
+callers catching every exception; `check-python-lint.py`'s pin cases run before
+`resolve_ruff` (below it they never ran on any box whose ruff differs from the
+pin — which is the box this row exists for); `ci.yml:313` stops restating the
+pin's value in the comment above it.
+
+**The blind-spot list lost its count.** It said FIVE; a style lane planted ten
+shapes and found four it did not contain, plus one it described wrongly. A
+stated blind spot is a work order; a COUNTED one reads as completeness and is
+worse than silence when it is short. It is now uncounted, corrected, longer,
+and says so.
+
+**Residues filed rather than mentioned:** `session-start-hook-restates-ci-pins`,
+`seal-oracle-toolchain-read-first-match`, and now
+`pinned-version-named-in-present-tense-prose` — the review was right that
+"measured against THE PINNED 0.9.140" asserts what is pinned now, which is a
+different sentence from a record of what was measured, and only the second is
+correct to leave alone.
+
+**One fence to route:** `scripts/ci-pin.py` is in `work/meta/program.md`'s
+`paths` (META opened 2026-09-04, after this unit was dispatched). This PR
+changes it, because a shared enumerating reader is what the reconciler stands
+on. Announced in the PR body and named to the orchestrator; the file is META's.
+
+## 2026-09-06 — unit 2 dispatched: the python suite on a closure run
+
+`closure-tier-skips-python-suite-on-geom-core-changes`, on
+`ciw/python-suite-closure`. Measured at the re-read rather than taken
+from the filing: `crates/geom-core/src/lib.rs` classifies `TIER=closure`
+with `RUN_PNCAD_PY=false` **while `pncad-py` is in `PKGS`**. So the
+wheel crate is built as a cargo target and the suite that exercises it
+is not run.
+
+That reading matters for the fix, because it rules out the obvious one.
+PR 1909's `JOB_ROOTS` subtracts the read reach again, deliberately, so
+that pinning a crate into the closure never silently switches a named
+job row permanently on. Widening the reach therefore cannot fix this and
+should not be attempted: the seam is between the cargo scope and the
+job-row signal, and the fix belongs on the signal.
+
+**Style review plus a correctness reviewer** — the second one earned,
+and the reason named in the PR: this changes what a hosted run executes,
+on the file S-TCOST owns, and the failure mode of getting it wrong is a
+gate that runs less than the tree says it does. That is the same class
+as the defect.
+
+**Announced cross-fence change**: `scripts/ci-filter.py` is S-TCOST's by
+this program's `keep_out`. Precedent for how to do it is PRs 1868 and
+1909 — the PR names the owner, says what moved, and invites S-TCOST to
+own the result.
+
+The unit may also conclude that the *doc* is what is wrong —
+`docs/prompts/implementer-discipline.md` §2 asserts the python suite
+runs on every code-tier run — but only with a cost number attached, and
+not on the strength of the filter being harder to change than the
+sentence.
+
+## 2026-09-06 — unit 2 delivered: the python suite on a closure run (PR 2071)
+
+The defect re-measured at merge base `e6e27e27b`: a
+`crates/geom-core/src/lib.rs` change gives `TIER=closure`,
+`PKGS` holding `pncad-py`, `RUN_PNCAD_PY=false`.
+
+**The filter was the wrong half**, and the doc was stale beside it. The
+axis keeps the seed shape Ev ruled on and its seed SET is widened from
+`{pncad-py, pncad, editor-core}` by every workspace member the façade
+names at the top of `crates/pncad/src/lib.rs` — derived there, `pub mod`
+read as well as `pub use` so the narrowed `pncad::profile` is not lost.
+Fails closed: a façade naming no member Bails and the suite runs.
+
+**What decided it was the cost number the doc answer needed.** The
+`python suite` job takes 115–125 s, needs only `filter`, and finishes
+692–917 s before the run ends — 35 code-tier runs, jobs API, 2026-09-06;
+run wall clock 856–1302 s, set by the serial build → test chain. It is
+off the critical path, so turning it on adds zero wall clock, and wall
+clock is the currency on a public repository. The C3 argument that a
+compile break reds the ordinary rows survives — `clippy
+(--all-features)` lints `-p pncad-py` at the `python` feature every
+code-tier run — but the `crates/pncad-py/tests/*.py` assertions run in
+no other job, and those are the suite's subject.
+
+The reach was not widened, as the dispatch required: `_read_reach` and
+`JOB_ROOTS` are untouched and the fix sits on the signal.
+
+Two findings outside the fence went into the PR body, not into another
+program's slate: ci.yml's `python-suite` clippy step still claims that
+half was "linted by NO row" (`clippy (--all-features)` lints it), and
+`work.py territory` reports zero cross-fence paths for a branch editing
+a file named in its own program's `keep_out`, because it reads `paths`
+only and `keep_out` is prose.
+
+### 2026-09-06 — unit 2, fix pass: the seed set comes off the graph, not the façade
+
+Both reviews landed the same MAJOR on the first attempt, and it was
+right: deriving the seed set from the members the façade NAMES at its
+top level shipped the original defect one re-export deeper. `bvh` is
+named nowhere in `crates/pncad/src/lib.rs` and reaches Python anyway —
+`crates/editor-core/src/lib.rs`'s `pub use bvh::Ray`,
+`crates/pncad/src/select.rs`'s re-export of it, a `#[pyclass] Ray` in
+`crates/pncad-py/src/py/pick.rs`, and 37 uses in
+`crates/pncad-py/tests/test_picking.py`. Worse, the premise selftest
+REQUIRED `bvh` to stay out, so the correction had to pay for the pin.
+Top-level naming is sufficient for reach and not necessary; the
+docstring promised reach and the code computed spelling.
+
+**The set is now `pncad-py`'s non-dev dependency closure**, from
+`cargo metadata`. No regex, no `FACADE_LIB`, no hand-list, and the
+`pub use X as Y` / `pub use X::{…}` blind spot the style review found
+disappears rather than being patched. `_member_graph` now returns two
+edge maps: the change closure walks upward where dev edges count
+(`cargo test -p X` builds them), and this walks downward where they do
+not (`maturin build` compiles no test target), which is what keeps
+`test-utils` out.
+
+**This is C3's closure condition restored**, up to dev edges — `seed
+under pncad-py` and `pncad-py in dependents(seed)` are one statement
+read from two ends — and every site that describes the axis now says
+so. The measurement is what licenses it and it has one home,
+`docs/CI-MINUTES-2026-08.md`'s entry of 2026-09-06; the other sites
+cite rather than restate.
+
+**The failure arm has a test now.** Both mutations the correctness lane
+found green — the arm answering `false`, and dropping the missing-member
+`Bail` — red the new case, which sits in the viewer fixture because that
+workspace has no `pncad-py` in it. The old blocks asserted only the
+other key there, which is why the hole existed.
+
+Verdicts after the fix: `geom-core`, `bvh`, `verbs`, `profile`,
+`quantity` true; `viewer`, `test-utils` false.
+
+Premise sweep (the class this repo keeps re-finding): the always-run
+verdict step in `ci.yml`, its `python-suite` job header and its
+clippy-siting note, two sites in `nightly.yml`, `ci-local.sh`, the
+discipline doc and `docs/CI-MINUTES-2026-08.md` all carried the
+three-name set or the "façade keeps `bvh` interior" reading. All
+rewritten; the minutes ledger gets a new dated entry rather than an
+edit to the 2026-09-03 one. `ci.yml`'s "that half was linted by NO row"
+was stale in the other direction — `clippy (--all-features)` reaches it
+— and now says what the `python`-alone row actually adds.
+
+**Retraction from the first pass of this unit.** The claim that
+`scripts/work.py territory` is blind to a `keep_out` fence is withdrawn:
+the zero it returned was taken on an UNCOMMITTED tree, and `territory`
+diffs `origin/main...HEAD`. On the committed branch it names both
+cross-fence paths — `scripts/ci-filter.py` (tcost) and
+`docs/prompts/implementer-discipline.md` (meta), the second of which the
+first pass never announced because of the same false reading. Run it
+after committing.
+
 ## 2026-09-06 — unit 2 reported; two findings placed, one held for the fix pass
 
 Unit 2's lane took the filter answer, not the doc-only one, and the cost
@@ -1013,3 +1275,34 @@ check: they cannot see the branch it came from.
 are `status: closed`. A dated citation inside a closed item is a record
 of what was true when the work was done, not a live thread, so there is
 nothing to route and no debt to pay at unit 2's merge.
+
+## 2026-09-07 — units 1 and 2 merged, and closed the same day
+
+PR 2070 (`cd7f03a4`) and PR 2071 (`1cc774c9`). Both verified on `main`
+rather than on their branches: `crates/bvh/src/lib.rs` classifies
+`RUN_PNCAD_PY=true`, and `check-ci-mirror-parity.py` passes with claim 11
+in its summary.
+
+**Unit 2 needed `main` merged in first**, and the conflict was
+`work/ciw/log.md` — a tail-append collision, both sides appending
+same-day entries, no code involved. That is the third instance today of
+the shape `dirty-pr-gets-no-actions-run` is about, and this one is on
+this program's own log. Resolved by keeping both threads; the whole tree
+was swept for markers and the battery re-run on the MERGED tree rather
+than on either diff, which is where `check-ci-mirror-parity`'s claim 11
+was seen passing over unit 2's edits to the file it now polices. A run
+was confirmed to have STARTED on the resolved head before the merge —
+the resolution came out of a conflict, and a conflicting PR gets no
+retroactive run, so "no run" and "queued" look identical.
+
+**Closed the same day, deliberately.** This program's slate was found
+two days stale on 2026-09-06 because thirteen rows sat at `review` with
+their PRs merged; leaving three more there would have been the same
+failure by the same orchestrator inside one week. The disposition of
+each is in its own file.
+
+Residues the two units filed, all open on this slate and none of them
+disclosed-only: `session-start-hook-restates-ci-pins`,
+`seal-oracle-toolchain-read-first-match`,
+`pinned-version-named-in-present-tense-prose`,
+`python-suite-axis-skips-only-two-members`.

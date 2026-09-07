@@ -326,7 +326,9 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Indeterminate { mate, .. }
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
+        | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }
+        | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. } => vec![*mate],
         // Neither names a mate: no band, no decisions, so no mate is
         // more at fault than any other; and a solve read against the

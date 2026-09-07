@@ -22,10 +22,23 @@
 //! is `Circle { u_ref: (q − c).normalize(), radius: r }`, so the
 //! endpoint residual is zero iff `‖q − c‖ = r`, whose normal form is an
 //! outer `sqrt` over nested `sqrt(…)²` atoms that no shipped rule
-//! reaches. MEASURED: the widest box of this plate that certifies whole
-//! is `7.81e2 · ε` of the real study (`7.81e-7` at the default ε) under
-//! M10-7's tier and under M10-8's shipped tier alike, and the first
-//! refusal beyond it is `carrier_endpoint_start`. On a straight-walled
+//! reaches. M10-9 gave the tier a door for exactly that residual — a
+//! constructor can REGISTER an identity it guarantees — and the swept
+//! arc carrier's builder registers both of the ones it guarantees: the
+//! rim `‖q − c‖ = r` and the span `carrier.eval(param_end) = q_to`.
+//! BOTH endpoint pinnings are discharged on this plate (16 of 16
+//! numeric decisions each, at the nominal). The ceiling did not move —
+//! and neither did what BOUNDS it. MEASURED: the widest box of this
+//! plate that certifies whole is `7.81e2 · ε` of the real study
+//! (`7.81e-7` at the default ε) under M10-7's tier, M10-8's shipped
+//! tier and M10-9's door alike; and just past it exactly one predicate
+//! is over the band, door open and door SHUT alike —
+//! `carrier_matches_mapped_source`, the carrier against the scaffold
+//! pushforward, enclosure `[0, 1.0001e-9]` against a band of
+//! `zero = 1e-9`. Two independently built objects, which is not
+//! something a node alias reaches. So the identities the door
+//! discharges were never what bounded this plate. On a
+//! straight-walled
 //! extrude, where no normalization stands between a carrier and its
 //! endpoint, the same measurement moves by a factor of about 3.9·10^9
 //! (at the default ε; the slab's ceiling is ε-dependent and the factor
@@ -429,16 +442,24 @@ fn real_study(tol: Tol) {
                  rim's endpoint pinning, whose residual is zero because ‖q − c‖ = r \
                  rather than by algebra — still widens with the box. At ±0.05 mm no \
                  leaf replays. MEASURED: the widest whole-certifying box is 7.81e2·ε of \
-                 this study (7.81e-7 at the default ε), the same under M10-7's tier and \
-                 under M10-8's shipped one; on a straight-walled extrude the same \
-                 measurement moves by ~3.9e9. WIDER than this plate, M10-8 moved the \
-                 family: its constant fold lifts a filleted L-bracket with bores from \
-                 3.7e1·ε to 3.9e2·ε (10.4x) and an annulus from 2.0e1·ε to 7.8e2·ε (39x), \
-                 and a ±0.1 study on a stepped shaft certifies whole. What it measured \
-                 and did not ship — rules A/B and a sign-gated sqrt(X)=R fold, built \
-                 behind dials — moves THIS ceiling by a factor of 1.0: the bound stays \
-                 carrier_endpoint_start, a nested sqrt(…)² only a per-node reduction at \
-                 a wider coefficient bound reaches."
+                 this study (7.81e-7 at the default ε), the same under M10-7's tier, \
+                 under M10-8's shipped one and under M10-9's registered-identity door; \
+                 on a straight-walled extrude the same measurement moves by ~3.9e9. \
+                 WIDER than this plate, M10-8 moved the family: its constant fold lifts \
+                 a filleted L-bracket with bores from 3.7e1·ε to 3.9e2·ε (10.4x) and an \
+                 annulus from 2.0e1·ε to 7.8e2·ε (39x), and a ±0.1 study on a stepped \
+                 shaft certifies whole. M10-9 then DISCHARGED both of this plate's \
+                 endpoint identities outright — the swept arc carrier's builder \
+                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
+                 q_to, and carrier_endpoint_start and _end each go 16-of-16 from \
+                 numeric to registered at the nominal — and the ceiling still did not \
+                 move. Nor did the bound: just past the ceiling exactly one predicate \
+                 is over the band with the door open and with it SHUT, \
+                 carrier_matches_mapped_source, the carrier against the scaffold \
+                 pushforward, enclosure [0, 1.0001e-9] against a band of zero = 1e-9. \
+                 An identity between two INDEPENDENTLY BUILT objects, which a \
+                 node-aliasing door does not reach; filed as \
+                 work/m10/plate-ceiling-is-now-the-scaffold-pushforward."
             );
         }
         Err(other) => panic!("unexpected stackup refusal: {other}"),

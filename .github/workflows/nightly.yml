@@ -581,17 +581,21 @@ jobs:
   # THE PYTHON SUITE, UNGATED — and the reason ci.yml is allowed to skip
   # it.
   #
-  # ci.yml's `python suite (wheel + guide + north-star)` is SEED-keyed
-  # since 2026-09-03 (S-TCOST unit C3): it runs when the change filter's
-  # SEEDS intersect {pncad-py, pncad, editor-core}, not when `pncad-py` is
-  # in the dependent closure — which it is on nearly every kernel change,
-  # because `pncad` re-exports the whole kernel. That skip is sound for
-  # the class it was reasoned about (a kernel change that BREAKS the
-  # re-exported Rust API still reds the offending crate's ordinary closure
-  # rows on the same PR, since the façade's Rust side is compiled by the
-  # ordinary build) and NOT sound for the one it was not: A KERNEL CHANGE
-  # THAT MOVES A NUMBER THE .py ASSERTIONS PIN. Nothing about that touches
-  # a seed, and the suite is where those pins live.
+  # ci.yml's `python suite (wheel + guide + north-star)` is SEED-keyed: it
+  # runs when the change filter's SEEDS intersect the members a BUILD OF
+  # THE WHEEL compiles (`pncad-py`'s non-dev dependency closure). Between
+  # 2026-09-03 and 2026-09-06 that set was three names and the skip was
+  # much wider; the argument that widened it, and the wall-clock
+  # measurement behind it, are at ci.yml's job header.
+  #
+  # WHAT IT STILL SKIPS, and therefore what this row is for: a seed that
+  # is above the wheel (`viewer`) or reaches the binding crate along a dev
+  # edge only (`test-utils`). Neither moves anything the .py assertions
+  # can see through the wheel — but neither claim is checked by any row,
+  # and an edge added to either crate would move it silently. THIS ROW IS
+  # WHAT MAKES THAT SAFE: it runs the suite over the whole tree once a
+  # day, so a skip that stopped being sound surfaces within a day rather
+  # than at whichever unlucky PR next seeds the wheel.
   #
   # So the skipped coverage is re-taken here, ungated, once a day — the
   # same arrangement, and the same sentence, as `viewer app feature`
@@ -664,11 +668,12 @@ jobs:
       # THE SAME CLIPPY ROW ci.yml's `python-suite` CARRIES, and the
       # reason it is duplicated here is the reason this whole job exists:
       # that copy inherits the seed key, so it does not run on a PR whose
-      # seeds miss {pncad-py, pncad, editor-core}, and the lints it would
-      # catch from FURTHER DOWN — `quantity`, the kernel through `pncad`'s
-      # re-exports, or a `stable` toolchain bump shipping a new lint —
-      # seed nothing at all. That is the same class of skip the suite
-      # below is re-taken for, so it is re-taken the same way: ungated,
+      # seeds miss the members a wheel build compiles, and the lints it
+      # would catch from a crate ABOVE the wheel (`viewer`), from a
+      # dev-only edge (`test-utils`), or from a `stable` toolchain bump
+      # shipping a new lint seed nothing at all. That is the same class
+      # of skip the suite below is re-taken for, so it is re-taken the
+      # same way: ungated,
       # once a day. The full argument for the command and for its siting
       # is at ci.yml's copy; it is not restated here, so that there is one
       # place to edit it.

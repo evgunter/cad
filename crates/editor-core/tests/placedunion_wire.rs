@@ -52,7 +52,9 @@ fn both_rules_round_trip() {
                 [0.0, 0.0, 1.0],
                 std::f64::consts::FRAC_PI_2,
                 [0.0, 40.0, 0.0],
-            ),
+                fixture::band(),
+            )
+            .expect("a literal axis has a definite direction"),
         ],
     ));
     let text = save(&r.doc, &[], Tol::witness()).expect("the document saves");

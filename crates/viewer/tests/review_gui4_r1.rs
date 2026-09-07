@@ -113,7 +113,7 @@ fn close(got: [f64; 3], want: [f64; 3], eps: f64, what: &str) {
 
 /// Pick one face through the real cursor path under the session's
 /// display view.
-fn pick(session: &DocSession, index: &viewer::pick::PickIndex, ray: &Ray) -> FaceSelection {
+fn pick(session: &DocSession, index: &viewer::pickindex::PickIndex, ray: &Ray) -> FaceSelection {
     let (_, eval) = session.landed_pair().expect("a landed evaluation");
     index
         .face_at_for(eval, ray, &session.display_view())
@@ -145,7 +145,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     // a mate solves, so a rotated instance can only be arranged from
     // outside. (A finding in its own right; here it is just why this
     // fixture exists.)
-    let rotated = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, [-0.05, 0.04, 0.0]);
+    let rotated = Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        FRAC_PI_2,
+        [-0.05, 0.04, 0.0],
+        common::band(),
+    )
+    .expect("a literal axis has a definite direction");
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-rotated-bench"), tol);
     let insert = |doc: &mut ProfileDoc, node: Node<ProfileProgram>| {
@@ -295,7 +301,8 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     // world x ∈ [0.06, 0.08], y ∈ [0, 0.02] before the probe; the turn
     // sends (x, y) ↦ (−y, x), and the shift moves it to a fresh spot.
     let shift = [0.20, -0.10, 0.0];
-    let probe = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, shift);
+    let probe = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, shift, common::band())
+        .expect("a literal axis has a definite direction");
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });

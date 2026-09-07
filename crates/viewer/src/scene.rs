@@ -284,7 +284,7 @@ impl SceneMesh {
     pub const FLAG_PROBE: u32 = 1;
 
     /// The per-corner flag marking the corners of what the side panel
-    /// is currently showing (`crate::pick::focus`).
+    /// is currently showing (`crate::marks::focus`).
     ///
     /// A second BIT rather than a second field: the two facts are
     /// independent — a probed part can be the selected one — and the
@@ -455,11 +455,11 @@ impl SceneMesh {
                     .ids
                     .get(index)
                     .copied()
-                    .unwrap_or(crate::pick::IdMap::NOTHING);
+                    .unwrap_or(crate::pickindex::IdMap::NOTHING);
                 // The probe flag is the PART's; the focus flag is the
                 // PATCH's, which is why it is computed here rather than
                 // beside `flag` above.
-                let flags_word = if id != crate::pick::IdMap::NOTHING && focus.contains(&id) {
+                let flags_word = if id != crate::pickindex::IdMap::NOTHING && focus.contains(&id) {
                     focus_patches += 1;
                     flag | Self::FLAG_FOCUS
                 } else {
@@ -746,7 +746,7 @@ pub fn product_of_evaluation(
 /// already paid for one ([`crate::session::DocSession::landed_body`]);
 /// a door that took `(doc, evaluation)` here would gather the same
 /// product a second time. Not per frame — the drawn picture is built
-/// by [`crate::pick::PickIndex`], per root, and never comes through
+/// by [`crate::pickindex::PickIndex`], per root, and never comes through
 /// here — but once for every caller that asks, which is the shape the
 /// landing already paid to avoid. [`scene_of`] is this function with a gather of
 /// its own, kept for callers that have no seam — the two share every
@@ -921,7 +921,7 @@ impl FittedDelta {
 /// # The count is the picture's, not an estimate of it
 ///
 /// The probe tessellates the GATHERED product, while the picture is
-/// built per root by `crate::pick::PickIndex`. Those are the same
+/// built per root by `crate::pickindex::PickIndex`. Those are the same
 /// number: measured across four δ on both multi-root gallery
 /// documents, gathered and per-root triangle counts agree exactly
 /// (0.000%), because the graft moves solids into one body without

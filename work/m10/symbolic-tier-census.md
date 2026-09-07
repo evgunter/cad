@@ -234,8 +234,10 @@ nested even-power atoms:
 `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`), the
 declared tangency `carrier_line_circle` on R2's pad
 (`work/m10/declared-tangency-needs-the-registered-identity-door`), and
-the real-margin class M10-7 named (`arc_diameter_clearance`,
-`line_span`: `work/m10/real-margin-dependency-widening`).
+the real-margin class M10-7 named (`arc_diameter_clearance`:
+`work/m10/real-margin-dependency-widening`). `line_span` was listed in
+that class until M10-9 read it; it is an IDENTITY, and the section
+below says why.
 
 The counts behind the column, at the nominal, theorem/gated/numeric:
 
@@ -265,3 +267,113 @@ bracket's whole-certifying ceiling moves 10.4× (`3.7e1 · ε` →
 at 229 s per leaf against 5.9 s — coefficient growth, not the ring's
 heap traffic, which the `i128`-inline integer removed. The bound is the
 measured trade (`geom_core::sym::COEFF_BITS`).
+
+## The registered bucket (M10-9): what a constructor's axiom discharges
+
+M10-9 opened the registered-identity door (ERROR-DESIGN E12's
+provenance reserve; `geom_core::sym::Sym::register_equal`) and gave the
+receipt a third discharge column beside `symbolic_zero` and
+`sign_gated`. A row lands in **registered** when the plain form and the
+early form both declined and the same walk with the session's registry
+applied answers — necessity, not contact, so no row moved out of the
+columns above.
+
+**One CONSTRUCTOR ships, with the two same-object identities it
+guarantees** (spec §2 amendment A1: the unit of scope is the
+constructor, not the identity) — the swept arc carrier's builder:
+
+- the RIM identity `‖q_from − c‖ = r`
+  (`sweep::swept::register_rim_identity`), called from the two sites
+  that build a circular carrier from a lamina vertex and an extruded
+  centre (`swept.rs`'s bottom rim edge, `extrude.rs`'s cylinder wall);
+- the SPAN identity `carrier.eval(param_end) = q_to`, componentwise
+  (`sweep::swept::register_span_identity`) — E12's reserve's own
+  example, same-object because `Curve3::eval`'s `Circle` arm delegates
+  to `Curve3::circle_at`, the `Real`-bounded door the constructor calls
+  too.
+
+Each proof is in its doc comment (the sagitta closed form; the bulge is
+`tan(θ/4)` by definition), each is counted in `registered`, and each
+has a planted lie pinned typed at the scalar.
+
+The counts, at each document's nominal, theorem/gated/**registered**/
+numeric, door OFF against door ON
+(`editor-core/tests/m10_9_evidence_interval::m10_9_per_predicate_split_at_the_nominal`):
+
+| document | predicate | door OFF | door ON |
+| --- | --- | --- | --- |
+| plate | `carrier_endpoint_start` | 32/0/**0**/16 | 32/0/**16**/0 |
+| plate | `carrier_endpoint_end` | 32/0/**0**/16 | 32/0/**16**/0 |
+| plate | `carrier_matches_mapped_source` | 180/0/**0**/72 | 180/0/**8**/64 |
+| R2 bracket | `carrier_endpoint_start` | 44/0/**0**/22 | 44/0/**20**/2 |
+| R2 bracket | `carrier_endpoint_end` | 46/0/**0**/20 | 46/0/**20**/0 |
+| R2 bracket | `carrier_matches_mapped_source` | 234/0/**0**/99 | 234/0/**8**/91 |
+| R1 annulus | `carrier_endpoint_start` | 8/0/**0**/16 | 8/0/**16**/0 |
+| R1 annulus | `carrier_endpoint_end` | 8/0/**0**/16 | 8/0/**16**/0 |
+| R1 annulus | `carrier_matches_mapped_source` | 72/0/**0**/72 | 72/0/**8**/64 |
+| R2 pad | `carrier_endpoint_start` | 28/0/**0**/32 | 28/0/**24**/8 |
+| R2 pad | `carrier_endpoint_end` | 32/0/**0**/28 | 32/0/**24**/4 |
+| R2 pad | `carrier_matches_mapped_source` | 144/0/**0**/144 | 144/0/**12**/132 |
+
+Totals, door OFF → ON: plate `registered` 0 → **40**, bracket 0 → **48**,
+annulus 0 → **40**, pad 0 → **60**. Every other row is unchanged on
+every document, and `symbolic_zero` is identical door on and off (plate
+723, bracket 790, annulus 248, pad 368). Three rows are worth naming
+because they are the ones the door was expected to reach and does not:
+
+- **`carrier_on_surface_1` / `_2`** — unchanged. These rest on
+  `u_ref·u_ref = 1`, which needs the SQUARED identity `v·v = r²`; the
+  two registrants state the unsquared distance and the far endpoint,
+  and the three are different nodes.
+- **`carrier_matches_mapped_source`** — only partly reached (8, 8, 8,
+  12), and **it is what bounds all five measured documents, door open
+  and door SHUT** (read as the over-band set at ceiling + δ). It is the
+  fenced SCAFFOLDING residual, the carrier against the `MappedCurve`
+  pushforward at the certifier's own samples: an identity between two
+  INDEPENDENTLY BUILT objects, which is not what a node alias can
+  reach (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+  The share the door DOES reach is one per curve — the `i = 0` sample
+  of the nine-sample schedule, where the mapped source evaluates to its
+  own start vertex verbatim. The other eight per curve are not reached:
+  the mapped source spells the arc through `atan`/`sin`/`cos` atoms
+  (`geom-brep`'s `SketchSegment::eval`, anchored on `a` rather than on
+  the centre) while the carrier spells it through the sagitta closed
+  form, so the two normal forms meet only where the trig collapses.
+- **`carrier_line_circle`** — unchanged (R2's pad, 24 numeric at the
+  nominal, door on or off). The `Fillet(r)` step declares the tangency
+  and the emitted VERTEX is the constructor's own node
+  (`path.rs:2605` stores `trims.t2` verbatim), but the CENTRE the
+  predicate asks about is re-derived by `build_seg` from `(a, b,
+  bulge)` (`seg.rs:140-148`) and the constructor does not hold the far
+  endpoint that closed form needs
+  (`work/m10/fillet-tangency-is-not-the-constructors-node`).
+
+## Two identity-shaped predicates the class column mis-filed
+
+M10-9's fix pass, reading the over-band set at ceiling + δ rather than
+one drive's first refusal, found two predicates that were counted as
+real margins and are not. Neither is REACHED by the door — both are
+listed here so the next unit's scope is honest about what is left.
+
+- **`line_span`** (`crates/profile/src/seg.rs:193-196`) — margin
+  `min(t, L − t)` with `t = (q − a)·û`. On a fillet the point `q` it is
+  asked about is the tangency FOOT, and `line_arc` builds that foot as
+  `line.a + line.unit · (C − line.a)·line.unit` (`seg.rs:509`) at a
+  place the construction has already put at the leg's END. So `t = L`
+  by construction and the margin is IDENTICALLY zero: an identity
+  residual whose two sides are dependency-widened, straddling zero for
+  exactly the reason an identity does, and reported as a real margin
+  only because a widened identity and a real coincidence look the same
+  from the funnel.
+- **`contact_at_shared_vertex`** (`crates/profile/src/validate.rs:1407`)
+  — the second spelling of the same identity: the endpoint contact
+  `line_span` classified is then measured against the shared vertex it
+  IS. `coincident` on two spellings of one point.
+
+Neither is what bounds any of the five measured documents (that is
+`carrier_matches_mapped_source` on all five), and neither is reachable
+by a node alias as the profile stands: `q` is built inside the funnel,
+from the segment the funnel re-derived, so the constructor holds
+neither operand. They belong to the same class as
+`carrier_line_circle` — an identity the representation loses on the
+way in — and not to the real-margin class.
