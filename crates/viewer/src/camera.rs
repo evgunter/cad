@@ -105,6 +105,31 @@ pub struct Camera {
     scene_radius: f64,
 }
 
+impl Camera {
+    /// Every number equality is on, in declaration order.
+    ///
+    /// **Destructured rather than field-read.** A field added to
+    /// [`Camera`] is E0027 in this pattern, so it cannot land outside
+    /// equality without an author deciding it should be there — and a
+    /// second pattern carries [`Point3`]'s three coordinates for the
+    /// same reason, since expanding `target` by hand is where the
+    /// census would otherwise stop at this crate's boundary. The tie
+    /// is worth more here than in a dump: an `eq` that misses a field
+    /// answers *wrong*, it does not merely say less.
+    fn coordinates(&self) -> [f64; 8] {
+        let &Self {
+            target,
+            distance,
+            yaw,
+            pitch,
+            fov_y,
+            scene_radius,
+        } = self;
+        let Point3 { x, y, z } = target;
+        [x, y, z, distance, yaw, pitch, fov_y, scene_radius]
+    }
+}
+
 /// Equality is on the state, coordinate by coordinate.
 ///
 /// Written out rather than derived because `Point3` carries no
@@ -115,14 +140,7 @@ pub struct Camera {
 /// comparison of the numbers.
 impl PartialEq for Camera {
     fn eq(&self, other: &Self) -> bool {
-        self.target.x == other.target.x
-            && self.target.y == other.target.y
-            && self.target.z == other.target.z
-            && self.distance == other.distance
-            && self.yaw == other.yaw
-            && self.pitch == other.pitch
-            && self.fov_y == other.fov_y
-            && self.scene_radius == other.scene_radius
+        self.coordinates() == other.coordinates()
     }
 }
 
