@@ -254,7 +254,7 @@ fn main() {
     // --- report -------------------------------------------------
     let faces = rows.len();
     let tris: usize = rows.iter().map(|r| r.triangles).sum();
-    let nurbs: Vec<&Row> = rows.iter().filter(|r| r.nurbs.is_some()).collect();
+    let nurbs: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
     let ntris: usize = nurbs.iter().map(|r| r.triangles).sum();
     println!("tess-lint: {fresh_path}: {faces} faces, {tris} triangles");
     #[allow(clippy::cast_precision_loss)]
