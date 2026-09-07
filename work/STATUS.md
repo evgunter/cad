@@ -765,6 +765,9 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | `step-adopt-let-ok-iso-discards` | 2026-09-06 | step-import adopt.rs takes let Ok(iso) at two recognizer sites - S394's undecided half (EXCH's file) |
 | `the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused` | 2026-09-06 | the prose word for a kind has four spellings and prose_census can only see one of them |
 | `viewer-cannot-author-a-part-node` | 2026-09-06 | The viewer has no AddPart op, so a Part { Instance(i) } node — the road to a nested copy the mate tool now admits — is reachable only from a file or the Python API |
+| `gate-rust-reader-splits-an-array-type-at-its-semicolon` | 2026-09-07 | gate_rust_code --statements cuts a Rust array type at its semicolon, so a statement-anchored matcher sees a const list as a declaration with nothing after the = |
+| `gate-selftest-cannot-observe-the-identity-a-gate-names` | 2026-09-07 | gate_selftest_case matches one substring of a gate's output, so a gate whose product is a file:line and an identifier can ship a wrong identifier with every case green |
+| `gate-wiring-fence-is-undrawn-for-the-parity-entry` | 2026-09-07 | a new gate's wiring is one announced line in CIW's files by written convention, but nothing extends that to the TIER_BLIND parity entry it cannot land without |
 
 ## Blocked
 

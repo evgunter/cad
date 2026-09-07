@@ -129,6 +129,8 @@ should be visible on its own.
 | `view/marks` (the second split, and the rename) | #2083 | style + fix pass |
 | `view/homes` (`cursor_projection` to `camera`; `Generation::get` deleted) | #2089 | style + fix pass |
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
+| `view/censuses` (the remaining seven, in four hats) | #2103 | style — **in flight** |
+| `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** — in flight |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -178,6 +180,53 @@ said the test counts "must still be 24/1 and 501/0/1"; they came back
 invariant that survives is *the count must not move against your own
 merge base* — checked here as `#[test]` at 533 on both sides. A number
 in a brief goes stale the moment anything else lands.
+
+**A universal in prose owes the sweep rule that produces its
+population, written at the sentence.** #2103's style review found no
+broken code and four broken sentences, and the two that mattered were
+both universals: *"Every place in this crate that lists a value's
+fields by hand destructures the value instead"* (false —
+`BlendTool::clear`, two fields named by hand, in a file the PR edited)
+and *"every other one is over an enum and is exhaustive by its `match`
+already"* (false as an argument, because a `match` is exhaustive over
+VARIANTS and the class is FIELDS — `Display for CameraOp` drops
+`bounds` behind an unargued `..`). A sentence that certifies a
+population is where the next defect hides, because it tells the reader
+to stop looking. The sweep rule is what makes it falsifiable, and it
+belongs beside the claim rather than in the PR body that gets thrown
+away.
+
+**Settle a CI-scope question by RUNNING the filter, not by reading a
+manifest.** The same review reported `prose_census` as possibly sited
+where it cannot fire on its own inputs — its subject is every `Display`
+in the tree, its trigger looked like `pncad-py`'s dependent closure.
+The coupling was described exactly and the disposition was wrong:
+`crates/pncad-py/src/prose_census.rs:168-170` walks from the repository
+root, and `scripts/ci-filter.py:624-627` pins any crate whose read
+lands at the root into every non-docs closure, by construction. Two
+commands answered what the dependency graph could not. Counterpart to
+*prove a claim by compiling, not by grepping*.
+
+**Check the arithmetic, including the orchestrator's.** Five counts
+came back wrong across this wave — four from lanes (a receipt's `60`
+with no enumeration rule, "six move by -13" for five, "twelve lines"
+for eight, "two public items" for three) and one from here, when a
+lane's miscount of the VIEW citations was propagated into a check-in
+before the fix pass established the real figure. A count is a claim
+like any other: it carries its enumeration rule, and it is re-derived
+rather than copied forward.
+
+**Operational, lane isolation**: `CARGO_TARGET_DIR` must be exported in
+EVERY command that can reach cargo, including one that only invokes a
+SCRIPT which shells out to it. Each Bash call is a fresh shell and
+inherits no earlier export, so a brief saying *before any cargo
+command* is read as being about the word `cargo` in the command line.
+`view/all-gate` reported this against itself: its `scripts/doc-gate.sh`
+run built into the worktree's own `target/` rather than the lane's
+private one. Harmless there — exclusive to that worktree, gitignored,
+nothing reached the branch — but the same slip under two lanes building
+at once is how disk reached 1.7G free on Sunday. Dispatches say
+*including a script that shells out to cargo* now.
 
 **Operational, for whoever reads the log's CI notes**: the slow interval
 shard is not a FIXED shard. `1/2` was slow on #2026/#2046 and `2/2` on
