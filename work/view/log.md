@@ -5982,3 +5982,67 @@ fields derived from the outgoing document* with nothing at the
 declaration marking that set, which is the `Derived` question one layer
 up rather than the destructuring one.
 `viewerapp-document-derived-state-has-no-boundary` carries it.
+
+## 2026-09-07, orchestrator: #2103 merged, and what its two rounds cost
+
+**#2103 is on main** (`574223e5d`), twentieth unit. Full code tier
+green before the merge: 37 jobs, `gate ok` success, 12 `test (…)`,
+5 `k-lint (gate, …)`. `#[test]` in `crates/viewer` 535 at the merge
+base and 535 at head.
+
+The unit went out as a style review because the class was settled by
+#2093 and the conversions looked mechanical. That was right about the
+CODE and wrong about what a review of it would find. **The review found
+no broken code and four broken sentences**, and both rounds since have
+been about prose:
+
+- every compiler claim survived independent re-derivation — seven
+  conversions byte-identical, `[f64; 8]` equality run against NaN,
+  `±0.0` and `±INFINITY`, the `Folded` observer set reproduced at
+  exactly seven by driving the compiler to a fixpoint, twelve rendering
+  sites by delete-and-compile;
+- two UNIVERSALS in `crates/viewer/README.md` were false. *"Every place
+  in this crate that lists a value's fields by hand destructures the
+  value instead"* missed `BlendTool::clear` — two fields named by hand,
+  in a file the PR edited, 355 lines below a census it had already
+  converted. *"Every other one is over an enum and is exhaustive by its
+  `match` already"* conflated two axes: a `match` is exhaustive over
+  VARIANTS, and `Display for CameraOp` drops `bounds` behind a `..`
+  that carried no argument at all.
+
+**The eighth census and the two `..` arms are the substance of the
+second round.** `BlendTool::clear` converts; `camera.rs:357` and
+`matetool.rs:353` do NOT — rendering either would change what the
+chrome says, and the PR's whole claim is that no rendering moved, so
+what they get is the argument for the drop rather than the field. That
+is the orchestrator's call and it is the §3 line: a behaviour change
+smuggled through a mechanical one is still a behaviour change, even
+when the mechanical one is right.
+
+**The citation sweep is the number worth carrying.** Re-deriving every
+`<file>.rs:<line>` in `work/view/`'s open items into the five files
+this PR changed corrected **25 citations across 12 items — and 20 of
+the 25 were already wrong at this PR's own merge base**, two of them by
+~80 lines. So `stale-file-citations-after-the-split` is not a residue
+of one split; it is the tracker's steady state between sweeps, and a
+sweep that only runs when a PR moves code will always find more than
+that PR moved. Three could not be repaired and are now three named
+classes on that row: a citation whose SUBJECT is gone rather than moved
+(repointing it fabricates), one into a file outside the sweeping PR's
+diff (so a diff-scoped sweep cannot converge), and a pasted TOOL
+TRANSCRIPT that is not a citation at all — which constrains any
+mechanical repointer, since one built for this row will match
+transcripts and one that edits them is worse than none.
+
+**The retitle was re-minted by the commit that made it.** The fix pass
+retitled the row from "three" to "seven", converted an eighth census,
+wrote the eighth row into the README table and the eighth section into
+the body — and left the title at seven. Corrected to eight before the
+merge. The rule it argues for is the one already on the plan: a title
+is read against its own BODY, not against the brief that cited it.
+
+**Residue, all filed rather than disclosed**:
+`viewerapp-document-derived-state-has-no-boundary` (new — the reset arm
+draws from the fields derived from the outgoing document and nothing at
+the declaration marks that set, which destructuring cannot reach), and
+the three citation classes above.

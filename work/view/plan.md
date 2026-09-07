@@ -129,7 +129,7 @@ should be visible on its own.
 | `view/marks` (the second split, and the rename) | #2083 | style + fix pass |
 | `view/homes` (`cursor_projection` to `camera`; `Generation::get` deleted) | #2089 | style + fix pass |
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
-| `view/censuses` (the remaining seven, in four hats) | #2103 | style — **in flight** |
+| `view/censuses` (seven censuses in four hats, and an eighth) | #2103 | style + fix pass |
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** — in flight |
 
 **Fifteen units on main. Two rules this wave earned**, both about
@@ -215,6 +215,19 @@ lane's miscount of the VIEW citations was propagated into a check-in
 before the fix pass established the real figure. A count is a claim
 like any other: it carries its enumeration rule, and it is re-derived
 rather than copied forward.
+
+**Operational, the box's `awk` is now gawk.** #2106's fix pass
+`apt-get install`ed gawk to test a regex on two implementations, and
+Debian alternatives moved `/usr/bin/awk` from mawk to gawk. **Left in
+place deliberately**: `scripts/gates/loop-boundary-discards.sh:222-234`
+records that a backslashed metacharacter made *"the gate's own clean
+fixture fail there and pass here"* — mawk shrugged where the hosted
+runner's awk warned and died — so a lane testing a gate under mawk is
+testing an awk CI does not run. A shared-box change other lanes did not
+ask for, hence this line. The repo convention stands whichever awk is
+installed: a metacharacter is a one-member bracket expression (`[(]`,
+`[|]`), never a backslash, because a backslash must survive both bash's
+escape pass and awk's `-v` processing and does not.
 
 **Operational, lane isolation**: `CARGO_TARGET_DIR` must be exported in
 EVERY command that can reach cargo, including one that only invokes a
