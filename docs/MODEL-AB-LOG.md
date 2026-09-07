@@ -3697,3 +3697,4 @@ the torus spec ratified first (#1874) while the merge-door spec lane
 was still measuring. The draw is untouched — a slot's arm does not
 depend on which unit takes it.
 slot 0 = VERBS-C5ARMS PR-2 (OPUS) — concluded 2026-09-05 at merge ae69dfeb2, ordinal 2200, sample #143 (pair EXCLUDED from the tally under 3(e): R2 interrupted twice by the usage limit; R1's unilateral MAJ-1 noted as a would-be candidate).
+slot 1 = CURVED-TORUS PR-1 (OPUS, after the reorder) — concluded 2026-09-07 at merge 8424e2021, ordinal 2201, sample #152 (R1's unilateral MAJOR a tally CANDIDATE; no reviewer interruption; implementer paused twice by the usage limit).
