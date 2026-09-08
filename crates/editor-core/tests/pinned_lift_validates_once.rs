@@ -18,11 +18,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::documents;
-use crate::fixture::on_frame;
 
 use editor_core::{
-    CancelToken, Datum, DatumValue, DocumentId, EvalOptions, EvalScalar, Node, NodeResult,
-    ProfileDoc, ProfileLift, ValuePayload, evaluate,
+    CancelToken, Datum, DatumValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
 };
 use geom_core::{Real, Sign, Tol};
 use profile::{
@@ -251,6 +249,8 @@ fn the_lifted_form_is_the_revalidated_form_at_interval() {
 #[cfg(feature = "interval")]
 #[test]
 fn a_margin_definite_at_f64_and_indeterminate_at_interval_is_pinned_and_guided_apart() {
+    use crate::fixture::on_frame;
+    use editor_core::{DocumentId, NodeResult, ProfileDoc, ProfileLift};
     use geom_core::{Band, Interval};
     let tol = Tol::witness();
     let d = Band::linear(tol).expect("the linear band").escalate();
