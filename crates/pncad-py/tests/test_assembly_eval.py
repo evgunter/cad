@@ -53,12 +53,12 @@ Four things the guard does NOT see, named rather than summarised:
    the_material_the_tour_asserts` and the placement row below pin the
    consequences a body can show; a change that moves neither is not
    caught here.
-2. The two DELIBERATE differences between this scene and the tour's,
-   which are `bench_scene`'s own subject: the tour's prisms are
-   parametric where Python's are drawn from literals, and the tour
-   patterns with `Node::Pattern` where Python uses
-   `Node.placed_union`. The guard would red if it compared recipes,
-   and it does not compare recipes.
+2. The ONE DELIBERATE difference between this scene and the tour's,
+   which is `bench_scene`'s own subject: the tour's prisms are
+   parametric where Python's are drawn from literals. The guard would
+   red if it compared recipes, and it does not compare recipes. (The
+   flat-pack's placed family used to be a second such difference; it
+   is `Node.pattern` on both sides now.)
 3. Anything in `assembly.rs` outside its constant block, `layout_doc`
    and `stand_doc` — the tour's own assertions above all.
 4. A rename or a reformat in the tour, which reds this guard as a false
@@ -233,18 +233,19 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
         """The tour's flat-pack oracle, reproduced: one post instance
         placed PATTERN_COUNT ways, plus the shelf.
 
-        The family denotes ONE body of PATTERN_COUNT posts' material.
-        That is `bench_scene`'s stated substitution — `placed_union`
-        where the tour spells `Node::Pattern`, whose value is a plural
-        payload — and over a disjoint arrangement the material is the
-        same sum either way.
+        The family is a `Node.pattern` — the tour's own node — so its
+        value is PLURAL: one body per placement, each a whole post,
+        nothing fused. That is what the count below reads, and it is
+        the shape every row further down has to answer over.
         """
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
         self.assertEqual(failures(evaluation), {})
         instance, family, shelf = evaluation.order()
         self.assertVolumes(volumes(evaluation, instance), [POST_VOLUME])
-        self.assertVolumes(volumes(evaluation, family), [PATTERN_COUNT * POST_VOLUME])
+        self.assertVolumes(
+            volumes(evaluation, family), [POST_VOLUME] * PATTERN_COUNT
+        )
         self.assertVolumes(volumes(evaluation, shelf), [SHELF_VOLUME])
 
     def test_the_stand_evaluates_through_the_store(self):
@@ -259,8 +260,8 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
 
     def test_one_part_document_is_evaluated_once_however_many_instances(self):
         """`part_evaluations` is the seam's sharing evidence: the
-        layout instantiates two documents and patterns one of them four
-        ways, and crosses the seam exactly twice."""
+        layout instantiates two documents and patterns one of them
+        PATTERN_COUNT ways, and crosses the seam exactly twice."""
         store, docs = opened()
         self.assertEqual(evaluate(docs["layout"], resolver=store).part_evaluations, 2)
         self.assertEqual(evaluate(docs["stand"], resolver=store).part_evaluations, 2)
@@ -622,15 +623,20 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         clear of the bench, and the pattern's extent along +y.
 
         The whole family's box, through the tessellator the binding
-        already exposes: `placed_union` denotes one body, so this is
-        the outline of all PATTERN_COUNT posts together and the row
-        below is what separates them.
+        already exposes. A pattern's value is PLURAL, so the outline is
+        taken over every body it denotes rather than over one fused
+        one — which is the same box, and the row below is what
+        separates the posts inside it.
         """
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
         family = evaluation.order()[1]
-        mesh = evaluation.value(family).body().tessellate(5 * mm)
-        axes = [[p[i].meters for p in mesh.positions] for i in range(3)]
+        positions = [
+            p
+            for body in evaluation.value(family).bodies()
+            for p in body.tessellate(5 * mm).positions
+        ]
+        axes = [[p[i].meters for p in positions] for i in range(3)]
         self.assertEqual(
             tuple((round(min(a), 9), round(max(a), 9)) for a in axes),
             (
