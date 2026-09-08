@@ -80,3 +80,10 @@ LIB's fence** (`work/lib/program.md`'s `paths` and its `keep_out`
 clause). It is filed on this slate because `docs/LIB-TEAPOT-SPEC.md`
 §8's stop clause routed an emitter gap here by name; re-homing it is
 the orchestrator's call.
+
+## Re-homed (2026-09-08, LIB orchestrator)
+
+Moved from `work/lib/` to `work/docm/`: the code named is the blend name emitter (`crates/editor-core/src/names/{role,emit_blend}.rs`), DOCM's territory; the file itself says re-homing is the orchestrator's call. Id, body and header
+are unchanged; the directory is the claim (`work/README.md`). LIB's
+half — the Python/façade rows that move when this closes — is named in
+the body and stays LIB's to execute once the kernel side lands.
