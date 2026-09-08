@@ -235,7 +235,9 @@ gate() {
   # directory matcher already refuses.
   local outlier
   for outlier in ${OUTLIER_GATES[@]+"${OUTLIER_GATES[@]}"}; do
-    esc=${outlier//./\\.}
+    # The whole ERE metacharacter set, not the dots alone: `+`, `(`, `[`
+    # and `{` in an entry's path went into these matchers unescaped.
+    esc=$(gate_ere_escape "$outlier")
     if [ ! -x "$outlier" ]; then
       gate_error "$(gate_name): OUTLIER_GATES names $outlier, which is not an executable file under $PWD — a named path that is not there is a roster entry watching nothing, and this list has no filesystem to derive itself from. Fix the path or drop the entry deliberately"
       rc=1

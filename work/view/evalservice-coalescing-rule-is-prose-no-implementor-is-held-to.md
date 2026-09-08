@@ -18,7 +18,7 @@ the contract underneath it is still unenforced.
 `!busy() && running()`, and the reason that combination is unreachable
 has two mechanisms. The first is local and checkable —
 `DocSession::request_eval` bumps the generation on every submit
-(`crates/viewer/src/session.rs:1818`), so `!busy()` means the newest
+(`crates/viewer/src/session.rs:1888`), so `!busy()` means the newest
 generation submitted is the one that landed. The second is not:
 
 > at most one request is ever outstanding, and a submit while one is
@@ -26,7 +26,7 @@ generation submitted is the one that landed. The second is not:
 > — `crates/viewer/src/evalseam.rs:34-38`
 
 That is module prose about the two shipped implementations. The
-session holds `Box<dyn EvalService>` (`crates/viewer/src/session.rs:176`),
+session holds `Box<dyn EvalService>` (`crates/viewer/src/session.rs:177`),
 so the claim is about every implementor, and:
 
 - `EvalService`'s own doc comments

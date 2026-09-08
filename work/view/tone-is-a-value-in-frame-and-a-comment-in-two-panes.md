@@ -20,7 +20,7 @@ not reach.**
   `ui.colored_label(chrome(self.theme.unresolved), …)` for `Failed`,
   with the rule stated in a comment. This is the site `Tone`'s doc
   cites as the rule's origin.
-- `crates/viewer/src/pane/create.rs:592-594` — a third copy.
+- `crates/viewer/src/pane/create.rs:581-585` — a third copy.
 
 So four spellings became one at the toolbar and three remain elsewhere,
 and the value that claims to state the rule is not what either of those
@@ -39,5 +39,5 @@ diff already touching four badges and twelve writers.
 
 `tree::RowStatus` grows a `tone()` beside its existing `badge()`, and
 `pane::features` reads it instead of matching the status a second time.
-`create.rs:592`'s copy is a separate read and wants looking at on its
+`create.rs:581`'s copy is a separate read and wants looking at on its
 own terms — it may not be the same rule.

@@ -18,7 +18,7 @@ prose, since a closed item is a record and not a slate.
 Checked, and it holds for one of the two:
 
 **`LandedRun`.** `crates/viewer/README.md:379-386` and
-`crates/viewer/src/session.rs:301-314` make the same argument in the
+`crates/viewer/src/session.rs:333-346` make the same argument in the
 same order — that the things a landing produces are statements about
 one (document, evaluation) pair, taken from that pair's single gather
 in `land`, so that one field read beside another run's would describe a
@@ -30,7 +30,7 @@ at rather than repeats — so the drift risk is concentrated in the first
 paragraph, where the two are closest.
 
 **`AtRestBadge`.** Not an instance. The README names it and does not
-argue it; `crates/viewer/src/session.rs:384-395` is its only home.
+argue it; `crates/viewer/src/session.rs:462-475` is its only home.
 
 ## Why it matters here and not everywhere
 
