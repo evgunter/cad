@@ -1,6 +1,10 @@
-//! **BLEND-6 (ring clearance) R2 review probes** — the two facts the
-//! unit's own rows leave unmeasured, both about the CONTAINMENT
-//! relation `CircleMargins::other_inside_trim`.
+//! **BLEND-6 (ring clearance) R2 review probes** — what the unit's own
+//! rows leave unmeasured about the two CONTAINMENT relations of
+//! `CircleMargins`. Every fixture the unit rows is COAXIAL: the ring or
+//! the boundary shares the trim circle's centre, so `‖cj − ci‖` is zero
+//! at every reading and two coaxial circles never cross. The fixture
+//! here is a cylinder with an off-axis spherical PIP, which puts a
+//! circle on the host plane that is neither.
 //!
 //! - **Every ring the unit's rows meter is CONCENTRIC with the trim
 //!   circle**, so the `‖cj − ci‖` term of both containment margins is
@@ -10,7 +14,11 @@
 //!   carries it through. It does NOT red when that term is deleted
 //!   (the margin stays positive without it); nothing can, for the
 //!   second bullet's reason, and that is the honest statement of what
-//!   this row buys.
+//!   this row buys. The third row is the LADDER twin: the pip rim's own
+//!   trim circle against the plate's boundary, `dc ≠ 0`, on both sides
+//!   of that zero — the one place in the tree where the outer-cycle
+//!   circle arm's two relations are told apart by a crossing rather
+//!   than by a nesting.
 //! - **Whether that non-coaxial ring reaches the exact backstop**
 //!   (`work/blend/containment-margin-backstop-unreachable-behind-the-screen.md`
 //!   names "a pip cut into the top of a pole-touching revolve" as the
@@ -173,6 +181,60 @@ fn an_off_axis_pip_does_not_reach_the_exact_containment_backstop() {
         panic!("the sampled screen answers first on this pair, got {err:?}");
     };
     assert_eq!(margin.predicate, "fillet3_face_clearance");
+    assert_eq!(margin.sign, Sign::Negative);
+    let read = margin.value().expect("a definite reading");
+    assert!(
+        (read - want).abs() <= 1e-15,
+        "the screen reads the containment margin (read {read}, derived {want})"
+    );
+}
+
+/// **A LADDER rim whose trim circle is NOT coaxial with its host's
+/// circular outer boundary, on both sides of the containment zero.**
+///
+/// The off-axis pip rim is a RING of the top face, so its rim is a
+/// ladder; its widened trim circle sits at `si = √((pr + r)² − r²)`
+/// about the PIP's centre, `dc` off the axis the host's outer boundary
+/// is centred on. The containment margin is therefore `1 − (dc + si)`
+/// with `dc ≠ 0` — the only fixture in the tree where the outer-cycle
+/// circle arm's `trim_inside_other` reads anything but `1 − si`, and
+/// the only one where the two circles can genuinely CROSS rather than
+/// merely nest the wrong way round (two coaxial circles never cross).
+///
+/// `dc = 0.65` clears by `+0.0036` and carves — the external-only form
+/// this unit replaced read `0.65 − 0.3464 − 1 = −0.696` there and
+/// refused it. `dc = 0.68` is `−0.0264` and refuses; that side, like
+/// every other refusing side of this unit's relations, is answered by
+/// predicate 2's sampled screen at the same reading.
+#[test]
+fn a_non_coaxial_ladder_trim_circle_carves_inside_its_boundary_and_refuses_outside() {
+    let (pr, r) = (0.30_f64, 0.05_f64);
+    let si = ((pr + r) * (pr + r) - r * r).sqrt();
+
+    let carves = pipped(0.65, pr);
+    let clear = 1.0 - (0.65 + si);
+    assert!(
+        clear > 0.0 && clear < 0.01,
+        "the containment margin is positive and small"
+    );
+    let arcs = rim_arcs_at(&carves, pr, 1.0);
+    assert_eq!(arcs.len(), 2, "the pip rim is two arcs");
+    let out = fillet_edges(&carves, &arcs, r, tol()).expect("the nested trim circle carves");
+    validate_geometric(&out.body, tol()).expect("tier-3 valid");
+
+    let refuses = pipped(0.68, pr);
+    let want = 1.0 - (0.68 + si);
+    assert!(
+        want < -0.02,
+        "the containment margin is definitely negative"
+    );
+    let arcs = rim_arcs_at(&refuses, pr, 1.0);
+    let err = fillet_edges(&refuses, &arcs, r, tol())
+        .expect_err("a trim circle crossing its host's boundary refuses")
+        .error;
+    let BlendError::FaceClearanceUncertified { margin, .. } = err else {
+        panic!("the sampled screen answers first on this pair, got {err:?}");
+    };
     assert_eq!(margin.sign, Sign::Negative);
     let read = margin.value().expect("a definite reading");
     assert!(
