@@ -2,8 +2,9 @@
 id: saturated-sphere-span-folds-short
 kind: issue
 title: "props/curved: a sphere meridian span past 2π folds SHORT — the saturated clamp leaves a sign whose zero set is not empty"
-status: open
+status: closed
 opened: 2026-09-02
+closed: 2026-09-08
 github: 1601
 refs: [1599, 723, MESH-12]
 ---
@@ -33,3 +34,12 @@ Refs #723 (the class), CERT-1, MESH-11.
 ## Home
 
 `work/mesh/` — although the issue names Track R / S-CERT ground, `work/mesh/MESH-12.md` is the unit that took it ("Issue 1601: a sphere meridian span past the per-edge winding bound refuses typed at the parse"), so it lives on S-MESH's slate.
+
+## Closed
+
+Closed by MESH-12 (PR 1617, merged 2026-09-08): a span past the per-edge
+winding bound now refuses typed at the parse under
+`props_meridian_span_winding` (and a reversed span under
+`props_meridian_span_forward`), both decided inside
+`sphere_meridian_pole_margins`; the saturating clamp is deleted; every
+consumer flips together; CERT-1's 3π row asserts the refusal.
