@@ -488,7 +488,8 @@ let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(
 let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, ContactClass::Rest);
-let (doc, decl) = declare_all(&doc, &findings, tol).expect("declarable");
+let (applied, decl) = declare_all(&doc, &findings, tol).expect("declarable");
+let doc = applied.doc;
 let (doc, uni) = insert(
     &doc,
     Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Some(decl) },
