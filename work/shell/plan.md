@@ -72,6 +72,14 @@ arm must agree with `ShellNaming`), `editor-core`'s recipe doors
    block's last; SHELL-B2 concluded. Follow-ups filed:
    `shell-doors-still-walk-the-whole-body` (lane) and
    `shelled-result-does-not-name-the-wall-it-built` (orchestrator).
+4d. **Next: SHELL-9, the closing mint** — the sphere half of
+   `void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`:
+   `shell` runs the pcurve mint every producer owes after the void
+   door transfers rows; spec `docs/SHELL-9-SPEC.md`; block SHELL-B3
+   slot 0. The drum half is TOPO's
+   (`work/topo/revert-does-not-mirror-plane-chart-images`); the
+   cone-hyperbola refusal is parked on
+   `offset-lane-has-no-conic-carrier` (Ev's fork).
 5. RULED B (Ev, #1737, 2026-09-04): **SHELL-3** — the clearance
    engine's body-level half moves into `topo` behind `interval`
    (joint with M10; no behaviour change, the M10-5/6 suites are the

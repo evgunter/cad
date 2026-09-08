@@ -598,3 +598,43 @@ idiom/tests/docs: not scored by either reviewer.
 Block SHELL-B2 concludes (record on main with this sync). The next
 SHELL kernel unit draws block SHELL-B3. SHELL-3 still waits on PROPS'
 sign-hull unit (branch idle since 01:11 UTC).
+
+## Stock-take after SHELL-8, and SHELL-9 cut (2026-09-08)
+
+SHELL-3 still waits on PROPS' sign-hull unit (no PR; branch idle
+since 01:11 UTC), and SHELL-4 on SHELL-3. Of the followups, two were
+weighed and placed rather than cut: the three-quarter-turn cone
+frustum's `TogetherEdgeDisagreement` is the cone-hyperbola class the
+axial door already names in its `Line` arm and pins on a conical
+wedge (an offset meridian cap cuts a cone in a hyperbola; the
+kernel routes conics to rung 3 at C5 R1, permanently until a PR
+moves it) — the item's premises corrected (the quarter-turn `wedge`
+is a cylinder) and parked on the new design question
+`offset-lane-has-no-conic-carrier`, Ev's fork, not a SHELL unit
+(#2219); and the same-surface latitude-seam void refusal from
+SHELL-7 was DIAGNOSED by a lane before any cut (branch
+`shell/9-probe`, four rows, ~12 min): two defects, not one. The
+collinear-cap drum fails inside `Body::revert` — a plane's normal is
+negated with `u_ref` fixed, which mirrors the plane chart, and
+neither the `Chart` images nor the cache rows on that plane are
+transformed, so a same-plane `Chart` circle fails `ChartResidual` on
+the reverted body — a class that reaches boolean subtract's
+`revert(B)` on a split planar face, so TOPO's:
+`work/topo/revert-does-not-mirror-plane-chart-images` (#2221). The
+two-arc sphere fails because `shell` never runs the closing pcurve
+mint the posture table says every producer runs after the void door
+`Transfers` rows — `topo::mint_pcurves` on the assembled body makes it
+tier-3 valid at `4/3·π(r−t)³`. That half is SHELL's, small and
+exact, and is **SHELL-9** (`docs/SHELL-9-SPEC.md`, branch
+`shell/9-closing-mint`): the verb runs the mint once before its
+closing validate, the sphere row flips to its closed form, the drum
+row stays refusing and names TOPO's item, and the whole corpus's
+cache rows are diffed at the merge base and head (a row that moves
+on a tier-3-valid body is a finding for TOPO's pcurve pass).
+Rejected: making `insert_voids` `Maintains` (a posture-table change
+in S-BOOL's and TOPO's files; the void door does not finish the body
+it would mint). Alternative not taken: waiting idle for sign-hull —
+the fix flips a closed-form row now and opens block SHELL-B3 on a
+clean covariate (pre-draw S / STRUCTURAL logged here, before the
+byte). Lane at `/home/user/shell-lanes/shell-9/`, private target and
+scratch beside.

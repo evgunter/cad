@@ -32,3 +32,14 @@ re-certification and the pcurve mint on the flipped cavity
 (`crates/topo/src/shell.rs`, `crates/topo/src/pcurves.rs`). SHELL's
 fence; not this unit's (the corner and the carrier are correct on
 both, measured).
+
+
+## Diagnosed (SHELL orchestrator, 2026-09-08)
+
+Two defects, measured by a diagnosis lane (`shell/9-probe` @
+`0cbb6593c`, `crates/sweep/tests/shell9_probe.rs`): the drum fails
+inside `Body::revert` (plane chart images and rows are not mirrored
+with the negated normal) — TOPO's,
+`work/topo/revert-does-not-mirror-plane-chart-images`; the sphere
+fails because `shell` runs no closing pcurve mint after the void
+door's `Transfers` — SHELL-9. This item closes when both have landed.
