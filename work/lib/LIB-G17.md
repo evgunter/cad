@@ -2,11 +2,12 @@
 id: LIB-G17
 kind: unit
 title: Node::Shell, the shell recipe door
-status: dispatched
+status: closed
 opened: 2026-08-29
 refs: [LIB-TUBE]
 branch: lib/g17-shell
 pr: 2150
+closed: 2026-09-08
 ---
 
 RECIPE-DOORS unit 3 of 3 (D5): `Node::Shell { target, thickness, open }` with
