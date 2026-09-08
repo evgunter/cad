@@ -5,7 +5,7 @@ title: replace_face::mint_offset does not discharge ConeOffset's mirror-nappe co
 status: open
 opened: 2026-08-29
 github: 1199
-refs: [1180]
+refs: [1180, SHELL-6]
 ---
 
 ## From GitHub issue 1199

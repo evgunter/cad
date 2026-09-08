@@ -377,3 +377,18 @@ them; recorded as not scored.
 samples #121, #122, #159); its branch-side record goes to main in this
 sync. The next kernel unit draws block SHELL-B2.
 
+
+## SHELL-6 cut (2026-09-08)
+
+The nappe home, the plan's next unit: spec `docs/SHELL-6-SPEC.md`,
+branch `shell/6-nappe-home`, block SHELL-B2 slot 0 — the block is
+drawn AFTER this entry and the item's pre-draw fields (S–M /
+STRUCTURAL-NUMERIC) are committed, so this row's covariate is clean.
+Decision bound by the spec: the nappe is decided ONCE per face from
+its corner stations (`nappe_signed`'s decide, moved) and every reader
+— both offset doors, the apex-window gate, `ConeOffset::displacement`
+— takes the decided value; `displacement` loses its per-point
+`copysign`. Rejected: leaving the mint nappe-blind with a second
+per-door turn (the shape 1199 found), and a per-point read (a third
+authority). The winding rename stays on its item. Lane at
+`/home/user/shell-lanes/shell-6/`, private target and scratch beside.
