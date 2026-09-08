@@ -13,10 +13,12 @@
 //! # What "reach" is
 //!
 //! [`body_reach`] answers `R`, an UPPER bound on the distance from the
-//! part-local origin to any point of the body, as an `f64`
-//! ([`Bounds::hi`] on an interval scalar). The maximum over the
-//! body's faces of each face's own bound, and the bound is stated per
-//! surface kind rather than assumed:
+//! part-local origin to any point of the body, at the body's own
+//! scalar `T` — the evaluation reads it back as an `f64` upper bound
+//! where it holds the ratified compound (`eval`'s `EvalScalar`, the
+//! bracket's `hi`). The maximum over the body's faces of each face's
+//! own bound, and the bound is stated per surface kind rather than
+//! assumed:
 //!
 //! * a **plane** or **cylinder** patch is bounded by its rim: the
 //!   distance from a point is convex along every line in a plane,
@@ -42,11 +44,12 @@
 //!
 //! Over-refusal is the safe direction, so every bound is an upper
 //! one and none is dropped: a face whose bound cannot be stated — a
-//! boundary that does not walk, an empty control net, a poisoned
-//! coordinate — refuses typed through [`Unbounded`], never a guess.
+//! boundary that does not walk, an empty or placeholder (all-poison)
+//! control net — refuses typed through [`Unbounded`], never a guess;
+//! a bound that reads back non-finite refuses where it is read.
 
 use geom::Surface;
-use geom_core::{Bounds, Decide, Point3};
+use geom_core::{Decide, Point3};
 use topo::Body;
 use topo::entity::FaceKey;
 
@@ -108,6 +111,9 @@ pub enum ReachRefusal {
     },
     /// The body has no faces, so it has no extent to lever over.
     NoExtent,
+    /// The body's reach read back non-finite — a poisoned coordinate
+    /// somewhere in the walk — so no bound can be stated.
+    NoFiniteBound,
 }
 
 /// **The refusing reach** — the reach of a door with no resolver in
@@ -155,12 +161,13 @@ impl From<Unbounded> for ReachRefusal {
 /// # Errors
 ///
 /// [`ReachRefusal::FaceUnbounded`], [`ReachRefusal::NoExtent`].
-pub fn part_reach<T: Decide + Bounds>(body: &Body<T>) -> Result<f64, ReachRefusal> {
+pub fn part_reach<T: Decide>(body: &Body<T>) -> Result<T, ReachRefusal> {
     body_reach(body)?.ok_or(ReachRefusal::NoExtent)
 }
 
 /// **An upper bound on the distance from the body's own origin to any
-/// point of it** — the reach `R` of a part (module docs).
+/// point of it** — the reach `R` of a part (module docs), at the
+/// body's own scalar.
 ///
 /// `Ok(None)` for a body with no faces, which has no extent to lever
 /// over; the caller says what that means for it (the solve refuses,
@@ -170,9 +177,9 @@ pub fn part_reach<T: Decide + Bounds>(body: &Body<T>) -> Result<f64, ReachRefusa
 ///
 /// [`Unbounded`], naming the first face whose reach cannot be stated
 /// — in the body's own face order, so the answer is deterministic.
-pub fn body_reach<T: Decide + Bounds>(body: &Body<T>) -> Result<Option<f64>, Unbounded> {
+pub fn body_reach<T: Decide>(body: &Body<T>) -> Result<Option<T>, Unbounded> {
     let origin = Point3::<T>::origin();
-    let mut reach: Option<f64> = None;
+    let mut reach: Option<T> = None;
     for (key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
             return Err(Unbounded {
@@ -181,23 +188,15 @@ pub fn body_reach<T: Decide + Bounds>(body: &Body<T>) -> Result<Option<f64>, Unb
             });
         };
         let kind = surface_kind(surface);
-        let refuse = Unbounded { face: key, kind };
-        let bound = face_reach(body, key, surface, origin).ok_or(refuse)?;
-        // The upper end of the bracket on an interval scalar, the
-        // value itself on `f64`. Poison (NaN) and an infinite bound
-        // are not bounds: refuse rather than lever over them.
-        let hi = bound.hi();
-        if !hi.is_finite() {
-            return Err(refuse);
-        }
-        reach = Some(reach.map_or(hi, |r| r.max(hi)));
+        let bound = face_reach(body, key, surface, origin).ok_or(Unbounded { face: key, kind })?;
+        reach = Some(reach.map_or(bound, |r| r.max(bound)));
     }
     Ok(reach)
 }
 
 /// One face's bound from `origin`, per surface kind (module docs).
 /// `None` where the bound cannot be stated.
-fn face_reach<T: Decide + Bounds>(
+fn face_reach<T: Decide>(
     body: &Body<T>,
     key: FaceKey,
     surface: &Surface<T>,
@@ -214,12 +213,20 @@ fn face_reach<T: Decide + Bounds>(
             minor_radius,
             ..
         } => Some(from(*center) + *major_radius + *minor_radius),
-        Surface::Nurbs(_) | Surface::Approx(_) => surface
-            .spline_chart()?
-            .control()
-            .iter()
-            .map(|p| from(*p))
-            .reduce(|a, b| a.max(b)),
+        // The placeholder net is all-poison by construction — a
+        // surface representable but not described — and describes no
+        // locus to bound.
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            let chart = surface.spline_chart()?;
+            if chart.is_placeholder() {
+                return None;
+            }
+            chart
+                .control()
+                .iter()
+                .map(|p| from(*p))
+                .reduce(|a, b| a.max(b))
+        }
     }
 }
 

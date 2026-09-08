@@ -456,6 +456,14 @@ pub enum LeverRefusal {
         /// Its part.
         part: crate::ident::DocRef,
     },
+    /// The part's reach read back non-finite — poison somewhere in
+    /// the walk — so no bound can be stated.
+    NoFiniteBound {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+    },
     /// The member stands on a node that is not a live instantiate
     /// node, so there is no part whose reach could be asked.
     NotAnInstance {
@@ -477,6 +485,7 @@ impl LeverRefusal {
                 kind,
             },
             ReachRefusal::NoExtent => Self::NoExtent { instance, part },
+            ReachRefusal::NoFiniteBound => Self::NoFiniteBound { instance, part },
         }
     }
 }
@@ -506,6 +515,12 @@ impl core::fmt::Display for LeverRefusal {
                 f,
                 "instance {}'s part {part} has no faces, so it has no extent to lever a \
                  verdict over",
+                instance.0
+            ),
+            Self::NoFiniteBound { instance, part } => write!(
+                f,
+                "instance {}'s part {part} has a reach that reads back non-finite, so no bound \
+                 on its extent can be stated",
                 instance.0
             ),
             Self::NotAnInstance { node } => write!(

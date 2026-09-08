@@ -194,6 +194,7 @@ fn declare(doc: &mut ProfileDoc, n: &str, value: f64, distribution: Distribution
             },
         },
         tol,
+        &RefusingReach,
     )
     .expect("the parameter applies");
     *doc = applied.doc;

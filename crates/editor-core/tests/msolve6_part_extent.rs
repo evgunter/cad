@@ -446,8 +446,8 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
     assert_eq!(refusal.kind, "nurbs");
     // The same answer through the door the solve reads.
     assert_eq!(
-        editor_core::mate::part_reach(&body),
-        Err(ReachRefusal::FaceUnbounded {
+        editor_core::mate::part_reach(&body).err(),
+        Some(ReachRefusal::FaceUnbounded {
             face: made.face,
             kind: "nurbs"
         })

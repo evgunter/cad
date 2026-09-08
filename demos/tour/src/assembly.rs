@@ -74,9 +74,9 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
-    InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PartResolver,
-    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply,
-    assemble, content_pin, evaluate, inline, load, mate_reach, mixed_pins, parse_expr,
+    InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach, Node, ParamName,
+    PartResolver, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef,
+    apply, assemble, content_pin, evaluate, inline, load, mate_reach, mixed_pins, parse_expr,
     product_named, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
@@ -178,10 +178,12 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-/// Applies an edit that mints nothing (a placement; see [`insert`]).
-fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
-    let applied =
-        apply(doc, e, tol, &RefusingReach).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
+/// Applies an edit that mints nothing, through `reach` — the scene
+/// builders pass the refusing one for a placement (see [`insert`]);
+/// the update door passes the workspace's, because a pin move on a
+/// mated document re-keys clusters through the parts' own extent.
+fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol, reach: &dyn MateReach) {
+    let applied = apply(doc, e, tol, reach).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
     *doc = applied.doc;
 }
 
@@ -278,6 +280,7 @@ fn prism_part(
                 value: DocParam::continuous(Dimension::Length, value),
             },
             tol,
+            &RefusingReach,
         );
         scope.insert(name, Dimension::Length);
     }
@@ -405,6 +408,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             .expect("the post lies down about +y"),
         },
         tol,
+        &RefusingReach,
     );
     let pattern = insert(
         &mut doc,
@@ -426,6 +430,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             frame: Frame::translation([FLAT_PACK_GAP, 0.9, 0.0]),
         },
         tol,
+        &RefusingReach,
     );
     (doc, pattern, shelf_i)
 }
@@ -459,6 +464,7 @@ fn stand_doc(
             frame: Frame::translation([0.0, (SHELF_DEPTH - POST_SECTION) / 2.0, 0.0]),
         },
         tol,
+        &RefusingReach,
     );
     let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
     let post_b = insert(&mut doc, Node::instantiate_part(post), tol);
@@ -862,6 +868,11 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 /// that stopped being typed, or stopped naming its subject, breaks
 /// this walk.
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
+    // Every edit here is on a MATED document, so it levers through
+    // the workspace's own reach: the parts' extent, the way the
+    // evaluation resolves them.
+    let opts = with_store(ws);
+    let reach = mate_reach::<f64>(&opts, tol);
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
     println!("\n-- the v1 boundary, walked: four refusals an author actually hits --");
@@ -879,8 +890,6 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         MatePrimitive::PlanarRest { offset: 0.0 },
         tol,
     );
-    let opts = with_store(ws);
-    let reach = mate_reach::<f64>(&opts, tol);
     let poses = solve_document(&under.doc, &reach, tol);
     let fault = poses
         .fault(under.mate_1)
@@ -952,6 +961,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         &mut tangent.doc,
         &DocEdit::DeleteNode { id: tangent.mate_2 },
         tol,
+        &reach,
     );
     let mut swapped = tangent.doc.clone();
     if let Some(Node::Mate {
@@ -962,6 +972,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             &mut swapped,
             &DocEdit::DeleteNode { id: tangent.mate_1 },
             tol,
+            &reach,
         );
         insert(
             &mut swapped,
@@ -1113,6 +1124,9 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // arena-key identity, so the correspondence is the composition of
     // the two recorded maps — split's, then inline's — and every
     // pre-split name must resolve through it.
+    // The store as it stands NOW — the new part was written above — is
+    // what the inline resolves the instance through.
+    let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
     let back =
         inline(&out.remainder, out.instance, &store, tol).expect("the instance inlines back");
     let back_ev = run(&back.doc, &with_store(ws), tol);
@@ -1204,6 +1218,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         Ok(posts) => {
             ws.create(&posts.part, tol)
                 .expect("the posts cell is stored");
+            let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
             match inline(&posts.remainder, posts.instance, &store, tol) {
                 Ok(_) => println!(
                     "   second cut: the patterned-post cell splits out AND inlines back \
@@ -1230,6 +1245,11 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
 /// it, the mixed-pin LINT in between, and re-verification at every
 /// evaluation.
 fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
+    // Every edit here is on a MATED document, so it levers through
+    // the workspace's own reach: the parts' extent, the way the
+    // evaluation resolves them.
+    let opts = with_store(ws);
+    let reach = mate_reach::<f64>(&opts, tol);
     println!("\n-- the update door: moving a pin is a recorded edit --");
     let before = run(&stand.doc, &with_store(ws), tol);
     let (before_body, _) = product_of(&stand.doc, &before, tol);
@@ -1249,6 +1269,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             value: DocParamValue::Continuous(SHELF_THICKNESS * 1.5),
         },
         tol,
+        &reach,
     );
     ws.resave(&thicker, tol).expect("the new version is stored");
 
@@ -1299,7 +1320,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             matches!(e, DocEdit::UpdateReference { .. }),
             "the elaboration is per-reference primitives and nothing else"
         );
-        edit(&mut updated, e, tol);
+        edit(&mut updated, e, tol, &reach);
     }
 
     let after = run(&updated, &with_store(ws), tol);
@@ -1349,6 +1370,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             value: DocParamValue::Continuous(POST_HEIGHT - 0.04),
         },
         tol,
+        &reach,
     );
     ws.resave(&shorter, tol).expect("the short post is stored");
     let short_pin = content_pin(&shorter, tol).expect("the pin computes");
@@ -1365,6 +1387,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             new_pin: short_pin,
         },
         tol,
+        &reach,
     );
     let lint = mixed_pins(&staged);
     assert_eq!(lint.len(), 1, "one id at two pins");
@@ -1403,7 +1426,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     assert_eq!(all.len(), 1, "one site is already on the new pin");
     let mut migrated = staged.clone();
     for e in &all {
-        edit(&mut migrated, e, tol);
+        edit(&mut migrated, e, tol, &reach);
     }
     assert!(
         mixed_pins(&migrated).is_empty(),
@@ -1450,6 +1473,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             value: DocParamValue::Continuous(POST_HEIGHT),
         },
         tol,
+        &reach,
     );
     ws.resave(&shorter, tol).expect("the post is restored");
     edit(
@@ -1459,6 +1483,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             value: DocParamValue::Continuous(SHELF_THICKNESS),
         },
         tol,
+        &reach,
     );
     ws.resave(&thicker, tol).expect("the shelf is restored");
     let restored = run(&stand.doc, &with_store(ws), tol);

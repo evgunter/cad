@@ -704,7 +704,7 @@ mate = doc.insert(
                   AxisSense.Aligned),
     )
 )
-fault = solve_document(doc).fault(mate)
+fault = solve_document(doc, resolver=store).fault(mate)
 assert fault.variant == "mate_under"
 assert fault.residual.variant == "planar"
 assert fault.residual.normal == (0.0, 0.0, 1.0)

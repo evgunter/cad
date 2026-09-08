@@ -2098,7 +2098,17 @@ fn reach_over_cache<T: EvalScalar>(
     let value = parts
         .get(part, tol)
         .map_err(|fault| crate::mate::ReachRefusal::PartUnresolved { fault })?;
-    crate::mate::part_reach(&value.body)
+    // The reach is an UPPER BOUND by definition, and the bracket's `hi`
+    // is that bound at the run's scalar (`EvalScalar` gathers the
+    // ratified compound; on `f64` the bracket is the value). It scales
+    // a margin in the refusal-safe direction and decides no topology:
+    // the solve still decides through `Decide`. A bracket that reads
+    // back non-finite is poison, not a bound.
+    let hi = crate::mate::part_reach(&value.body)?.hi();
+    if !hi.is_finite() {
+        return Err(crate::mate::ReachRefusal::NoFiniteBound);
+    }
+    Ok(hi)
 }
 
 /// The running evaluation's reach: its own cache, borrowed.

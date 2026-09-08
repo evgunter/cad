@@ -1244,7 +1244,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1301,7 +1301,7 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
@@ -1317,7 +1317,7 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     node: plate,
     slot: SlotId::Distance,
     expr: len(1.0),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 
 // Pass the PRIOR evaluation: the frame and the profile are
 // untouched, so their values are reused by content key and only the
@@ -1397,10 +1397,10 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 doc = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.25),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1476,7 +1476,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 let bigger = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.4),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
 assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
@@ -1537,7 +1537,7 @@ let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
 let declare = |doc: &Doc<ProfileProgram>, name: &str, value: DocParam| {
-    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol)
+    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 
@@ -1582,7 +1582,7 @@ assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
 doc = apply(&doc, &DocEdit::SetDocParamValue {
     name: ParamName::new("bore_r"),
     value: DocParamValue::Continuous(0.0045),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 assert!(doc.params()[&ParamName::new("bore_r")].distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

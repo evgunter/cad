@@ -625,7 +625,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(fault.predicate, "mate_clocking_redundant")
         # The clash is the tilt priced across the parts: 1e-8 rad over
         # tens of metres, well past the document's eps.
-        self.assertGreater(fault.clash.meters(), small.epsilon)
+        self.assertGreater(fault.clash.meters, small.epsilon)
 
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
