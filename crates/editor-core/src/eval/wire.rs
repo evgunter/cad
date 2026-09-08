@@ -563,7 +563,8 @@ fn compose_placed<T: Decide>(
 ///
 /// # Errors
 ///
-/// The kernel's own [`TransformError`] as [`NodeErrorKind::Transform`].
+/// The kernel's own [`topo::transform::TransformError`] as
+/// [`NodeErrorKind::Transform`].
 fn place<T: Decide + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     map: Option<&Affine3<T>>,
