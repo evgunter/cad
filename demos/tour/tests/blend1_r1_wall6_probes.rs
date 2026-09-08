@@ -79,18 +79,38 @@ fn lily_lantern(tol: Tol) -> Body<f64> {
     .body
 }
 
-/// **The rim at carrier radius `r`.** The scan finds ONE arc — a
-/// circular edge at that radius whose two supports are DISTINCT
-/// surfaces, so a chart seam is never the seed — and
-/// `query::rim_of` hands back the rim it belongs to.
+/// The lantern's four transverse rims as `(radius, station)` — the
+/// throat, the shoulder, the mouth and the lip — derived from the
+/// meridian constants above, which is where `lily_lantern` puts them.
+/// Carrier radii and stations are profile-intrinsic, so these are the
+/// authored numbers and not a read-back.
+fn transverse_rims() -> [(f64, f64); 4] {
+    let r_top = (GLOBE.powi(2) - TOP.powi(2)).sqrt();
+    let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
+    let shoulder = (r_top - NECK_R) / NECK_HALF_ANGLE.tan();
+    let t_mouth = shoulder + TOP + MOUTH;
+    [
+        (NECK_R, 0.0),
+        (r_top, shoulder),
+        (r_mouth, t_mouth),
+        (LIP_R, t_mouth + LIP_DROP),
+    ]
+}
+
+/// **The rim at carrier radius `r` and station `y`.** The scan finds
+/// ONE arc — a circular edge at that radius and station whose two
+/// supports are DISTINCT surfaces, so a chart seam is never the seed —
+/// and `query::rim_of` hands back the rim it belongs to.
 ///
-/// The `5e-4` is this probe's inherited slack and not a property of the
-/// rims: both reviewers measured the lily's rims bit-exact at their
-/// analytic radii, so the loose window admits nothing the exact one
-/// would miss here. It stays because narrowing it is a sweep over four
-/// disagreeing seed-finder tolerances across this tree, which is issue
-/// `rim-seed-finders-disagree-on-at-this-radius` and not this PR.
-fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
+/// `1e-9` on both halves, which is `sweep::test_support::arcs_at`'s
+/// window and its reason: the lantern's rims are the meridian's own
+/// vertices, stated analytically a few lines above, so this is a
+/// fixture-selection tolerance and not a kernel predicate. The station
+/// is what separates two rims of one radius, and the scan is spelled
+/// here rather than borrowed because this file drives the kernel from
+/// an outside consumer's seat, through the `pncad` façade, which
+/// carries no test vocabulary.
+fn rims_of_radius(body: &Body<f64>, r: f64, y: f64) -> Vec<EdgeKey> {
     let face_of = |he| {
         body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
             .unwrap()
@@ -101,7 +121,11 @@ fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match *c.carrier() {
-                Curve3::Circle { radius, .. } if (radius - r).abs() < 5e-4 => Some(k),
+                Curve3::Circle { radius, center, .. }
+                    if (radius - r).abs() < 1e-9 && (center.y - y).abs() < 1e-9 =>
+                {
+                    Some(k)
+                }
                 _ => None,
             }
         })
@@ -112,7 +136,7 @@ fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
         });
     seed.map_or_else(Vec::new, |seed| {
         pncad::prelude::query::rim_of(body, seed)
-            .unwrap_or_else(|e| panic!("the rim at radius {r} is one rim, got {e}"))
+            .unwrap_or_else(|e| panic!("the rim at radius {r}, station {y} is one rim: {e}"))
     })
 }
 
@@ -142,13 +166,13 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
 fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
     let tol = Tol::witness();
     let lant = lily_lantern(tol);
-    let r_top = (GLOBE.powi(2) - TOP.powi(2)).sqrt();
-    for (name, rim_r) in [
-        ("the lip rim", LIP_R),      // ~0.090
-        ("the shoulder rim", r_top), // ~0.183
-        ("the throat rim", NECK_R),  // ~0.052
+    let [throat, shoulder, _, lip] = transverse_rims();
+    for (name, (rim_r, rim_y)) in [
+        ("the lip rim", lip),           // ~0.090
+        ("the shoulder rim", shoulder), // ~0.183
+        ("the throat rim", throat),     // ~0.052
     ] {
-        let arcs = rims_of_radius(&lant, rim_r);
+        let arcs = rims_of_radius(&lant, rim_r, rim_y);
         assert_eq!(arcs.len(), 2, "{name} is seam-split into two arcs");
         let out = fillet_edges(&lant, &arcs, 0.02, tol)
             .unwrap_or_else(|e| panic!("{name} fillets whole at r = 0.02, got {e:?}"));
@@ -168,9 +192,12 @@ fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
 fn t3_the_mouth_rim_carves_and_adds_material() {
     let tol = Tol::witness();
     let lant = lily_lantern(tol);
-    let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
+    let (r_mouth, y_mouth) = transverse_rims()[2];
+    // A separate claim, with its own window: the mouth's exact radius is
+    // √(GLOBE² − MOUTH²) and this says which named number that is, to
+    // the three digits the name carries.
     assert!((r_mouth - 0.253).abs() < 5e-4, "the PR's fourth radius");
-    let arcs = rims_of_radius(&lant, r_mouth);
+    let arcs = rims_of_radius(&lant, r_mouth, y_mouth);
     assert_eq!(arcs.len(), 2, "the mouth rim is seam-split too");
     let v0 = pncad::topo::mass_properties(&lant, tol)
         .expect("mass properties")
@@ -201,8 +228,8 @@ fn t3_the_mouth_rim_carves_and_adds_material() {
 fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
     let tol = Tol::witness();
     let lant = lily_lantern(tol);
-    let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
-    let arcs = rims_of_radius(&lant, r_mouth);
+    let (r_mouth, y_mouth) = transverse_rims()[2];
+    let arcs = rims_of_radius(&lant, r_mouth, y_mouth);
     assert_eq!(arcs.len(), 2);
     match fillet_edges(&lant, &arcs[..1], 0.02, tol).map_err(|r| r.error) {
         Err(BlendError::UnsupportedCorner { corner, .. }) => {

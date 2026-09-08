@@ -53,8 +53,8 @@ use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
-    ROD_FILLET, ball_poled_z, cube, dome, lantern, one_edge_rim_at, rim_arcs_at,
-    rod_creases, rod_with_flat, sphere_zone, waisted,
+    ROD_FILLET, ball_poled_z, cube, dome, lantern, one_edge_rim_at, rim_arcs_at, rod_creases,
+    rod_with_flat, sphere_zone, waisted,
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};

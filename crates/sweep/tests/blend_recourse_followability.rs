@@ -63,9 +63,7 @@ use sweep::blend::{
     FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
     FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
-use sweep::test_support::{
-    cube, dome, one_edge_rim_at, prism, rim_arcs_at, spool, waisted,
-};
+use sweep::test_support::{cube, dome, one_edge_rim_at, prism, rim_arcs_at, spool, waisted};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, EdgeKey, query, validate_geometric};

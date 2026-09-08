@@ -221,7 +221,12 @@ fn closed_rims_meter_their_diameter_and_never_exceed_arc_length() {
         let r = rng.range(0.7, 1.6);
         for (body, expect_convexity, rim_r, rim_y) in [
             (dome(r), Convexity::Convex, r, 0.0),
-            (boss(r), Convexity::Concave, r * (3.0f64).sqrt() / 2.0, 0.5 * r),
+            (
+                boss(r),
+                Convexity::Concave,
+                r * (3.0f64).sqrt() / 2.0,
+                0.5 * r,
+            ),
         ] {
             let rim = sweep::test_support::one_edge_rim_at(&body, rim_r, rim_y);
             let req = BlendRequest {

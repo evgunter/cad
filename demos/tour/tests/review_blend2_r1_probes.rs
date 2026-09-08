@@ -110,6 +110,15 @@ fn rim_at(body: &Body<f64>, y: f64, rad: f64) -> Vec<EdgeKey> {
 /// The probe's own scan: every CLOSED edge whose carrier circle sits at
 /// latitude `y` with radius `rad`, which is where [`rim_at`] gets its
 /// seed.
+///
+/// `1e-9` on both halves, which is `sweep::test_support::arcs_at`'s
+/// window and its reason: a fixture states its rims analytically, so
+/// this is a fixture-selection tolerance and not a kernel predicate.
+/// The scan is spelled here rather than borrowed because this file
+/// drives the kernel from an outside consumer's seat — through the
+/// `pncad` façade, which carries no test vocabulary — and reaching for
+/// the kernel's own selectors would forfeit exactly the evidence the
+/// probe exists to take.
 fn arcs_at(body: &Body<f64>, y: f64, rad: f64) -> Vec<EdgeKey> {
     query::all_edges(body)
         .into_iter()

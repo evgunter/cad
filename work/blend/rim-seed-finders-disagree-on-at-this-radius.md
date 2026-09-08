@@ -72,3 +72,33 @@ tolerance and one reason, and the copies above deleted in its favour.
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). The one homed seed finder lands in `crates/sweep/src/test_support.rs` (BLEND's); the copies in `crates/sweep/tests/*` and `demos/tour/*` are deleted in its favour by announced seam with S-TCOST and code-quality Track X.
+
+## Landed
+
+One seed finder for "the circle at this radius", and it is the one that
+was already there: `test_support::arcs_at` (radius AND station, `1e-9`
+on both enclosure ends) with `rim_arcs_at` over it. No tolerance was
+chosen and no existing `1e-9` moved.
+
+`closed_plane_sphere_rim`'s `1e-6` is gone: it selected by radius alone,
+and every caller of it names a rim the fixture states at a station too
+(the dome's equator at `(1, 0)`, the boss's root ring at
+`(r·√3/2, r/2)`) — no caller had a fixture with two rims of one radius
+at different stations, so no wrapper was kept. `test_support` gains
+`one_edge_rim_at`, the single-key shape of `rim_arcs_at` for a fixture
+whose rim is one closed edge: a delegation, carrying no scan and no
+window of its own, so a caller that holds a key rather than a set does
+not roll its own destructuring.
+
+The copies in `crates/sweep/tests/*` are deleted in its favour, and
+where a copy returned a shape `arcs_at` does not, the shape is composed
+over it rather than rescanned. The tour keeps its own two selectors and
+its demo one, converged to `1e-9` with the home's reason stated and
+cited: `demos/tour` reaches the kernel only through the `pncad` façade,
+which carries no test vocabulary, and a `[dev-dependencies]` edge on
+`sweep` with `test-support` turns the feature on for the very `sweep`
+rlib the `demo-tour` binary links whenever the invocation builds test
+targets — measured, and that is what CI's tour row runs.
+
+What stays open is the question this issue says would close it: what a
+caller names a rim BY. `no-public-rim-arc-selector` still owns it.

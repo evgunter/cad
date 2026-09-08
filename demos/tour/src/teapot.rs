@@ -462,6 +462,18 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 /// is this scene's own read — a numeric description stated in the
 /// authored coordinates, which no kind predicate answers, with the
 /// circle kind subsumed by the same match.
+///
+/// The window is `1e-9` on both halves of the description, the one
+/// fixture-selection window in this tree (`sweep::test_support::arcs_at`
+/// states it, and its reason): the stations and radii are authored a
+/// few lines above, so this compares a stored number to the number that
+/// authored it. It selects; it decides nothing, and the door it feeds
+/// carries no tolerance at all.
+///
+/// That a scene has to scan carriers to name a rim at all is the
+/// consumer-door gap `no-public-rim-arc-selector` owns: `query::rim_of`
+/// takes a seed EDGE, so the library answers "which rim is this arc's"
+/// and leaves "which arc do I mean" to the caller.
 fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
     let hits: Vec<EdgeKey> = query::all_edges(body)
         .into_iter()
@@ -474,7 +486,7 @@ fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
                 return false;
             };
             matches!(*c.carrier(), Curve3::Circle { center, radius, .. }
-                if (center.y - y).abs() < 1e-12 && (radius - r).abs() < 1e-12)
+                if (center.y - y).abs() < 1e-9 && (radius - r).abs() < 1e-9)
         })
         .collect();
     assert_eq!(
