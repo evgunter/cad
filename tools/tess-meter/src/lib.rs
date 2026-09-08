@@ -978,10 +978,11 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// inherit from the lattice is false, and this is the counterexample.
 ///
 /// **How far over it goes is set by the DIVISION count, and the corpus's
-/// is small.** One missed division out of `n` is `1/n`, so the excess
-/// is bounded below by the coarsest axis of the answer and has nothing
-/// to do with how fine the aspect lattice is. `span_opt_cells` is a sum
-/// of per-ANALYSIS-CELL optima, and on the committed baseline the
+/// is small.** One missed division out of `n` costs `1/n`, so the
+/// SMALLEST excess a miss can cost is set by the coarsest axis of the
+/// answer, and nothing about how fine the aspect lattice is changes
+/// that quantum. `span_opt_cells` is a sum of per-ANALYSIS-CELL
+/// optima, and on the committed baseline the
 /// median per-cell optimum is **44.4 cells** — near seven divisions an
 /// axis if square — with **56 of the 64 sized faces averaging under
 /// 100** and eleven under 25. A whole division out of seven is 14%,
