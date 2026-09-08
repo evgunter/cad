@@ -149,3 +149,6 @@ fn every_suite_file_is_aggregated() {
 }
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
+
+#[path = "bool10r2_probes.rs"]
+mod bool10r2_probes;
