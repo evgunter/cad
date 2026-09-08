@@ -49,7 +49,7 @@
 //!    certified carrier and interval are kept verbatim. Transverse ⇒
 //!    upgrade; Smooth ⇒ the conventional description, an image at rest
 //!    in the wall's chart (D2's conventional split, as at the strut
-//!    join's under-determined case — the arm in [`upgrade_rim`] says
+//!    join's under-determined case — the arm in `upgrade_rim` says
 //!    why the second-order rule has nothing to add there);
 //!    Indeterminate ⇒ the typed [`ExtrudeError::SliverRim`].
 //!
@@ -116,15 +116,25 @@ pub enum Extrusion<T: Real> {
 pub struct Extruded<T: Real> {
     /// The built body — a closed solid, tiers 1–2 by construction.
     ///
-    /// Tier 3 holds for every profile whose joints are transverse, but
-    /// NOT unconditionally: extruding a profile with a DECLARED cusp
-    /// joint (`.cusp()`) builds a body whose rim edge subtends material
-    /// wedge 0, and the at-rest gate refuses that undeclared
-    /// (`topo::ValidationError::UndeclaredCusp`) — correctly, because
-    /// this builder emits no contact record for the profile's
-    /// declaration. Validate such a body through
-    /// `topo::validate_geometric_declared`, passing the caller's own
-    /// declaration.
+    /// **Tier 3 holds for every body whose joints and cap rims classify
+    /// definitely transverse, and these two shapes are the whole of
+    /// what it does not cover** — both minted here and refused by
+    /// `topo::validate_geometric`:
+    ///
+    /// - a DECLARED cusp joint (`.cusp()`) gives a rim edge subtending
+    ///   material wedge 0, refused undeclared
+    ///   (`topo::ValidationError::UndeclaredCusp`) — correctly, because
+    ///   this builder emits no contact record for the profile's
+    ///   declaration. Validate such a body through
+    ///   `topo::validate_geometric_declared`, passing the caller's own
+    ///   declaration;
+    /// - a cap rim the dihedral lever reads definitely SMOOTH keeps the
+    ///   conventional description (`upgrade_rim`'s smooth arm) and is
+    ///   refused as `topo::ValidationError::SliverDihedral` under
+    ///   `material_wedge_side`: a smooth cap–wall pair has no material
+    ///   side. There is nothing to do at the door — the refusal is the
+    ///   honest verdict on that body — and the run's K is what decides
+    ///   whether an admitted extrusion can reach it (crate docs).
     pub body: Body<T>,
     /// The solid.
     pub solid: SolidKey,
@@ -445,10 +455,12 @@ struct LoopBase {
 /// The sketch placement is the profile's own
 /// ([`profile::SketchPlane`]); the extrusion vector or signed distance
 /// is classified against the plane normal per the crate docs' direction
-/// conventions. On success the returned body passes tiers 1–3
-/// (`topo::validate`, `validate_closed`, `validate_geometric`) — the
-/// caller re-validates at rest per the workspace convention; tier 1 is
-/// debug-asserted after every operator, tier 2 on the finished body.
+/// conventions. On success the returned body is closed and passes
+/// tiers 1–2 (`topo::validate`, `validate_closed`) by construction —
+/// tier 1 debug-asserted after every operator, tier 2 on the finished
+/// body — and passes tier 3 (`validate_geometric`) except in the two
+/// cases [`Extruded::body`] names. The caller re-validates at rest per
+/// the workspace convention.
 ///
 /// # Errors
 ///
@@ -930,19 +942,12 @@ fn sweep_loop<T: Decide>(
                         // under-determine the locus, so the strut
                         // "keeps the conventional description BY THE
                         // PREDICATE" — the sentence above, unchanged.
-                        // **This call is that sentence translated, not
-                        // a new policy.** Pre-U2 the conventional
-                        // description WAS the pushforward, so doing
-                        // nothing here spelled it faithfully; U2 made
-                        // the conventional form a chart image, and
-                        // spelling the same sentence now means saying
-                        // which chart. Leaving the arm empty through
-                        // the collapse is what made `extrude` the one
-                        // verb still handing back a body tier 3
-                        // refuses (D3's transience fence) — caught by
-                        // the default-mode battery on
-                        // `survives_dihedral_band_sweep_at_the_strut_arm`,
-                        // whose two walls are DISTINCT planes, so the
+                        // The conventional form is a chart IMAGE, not
+                        // the scaffolding the mint left (D3's
+                        // transience fence), so spelling that sentence
+                        // means saying which chart.
+                        // `survives_dihedral_band_sweep_at_the_strut_arm`
+                        // is the row, on two DISTINCT planes, so the
                         // same-key lane above never sees it.
                         //
                         // **Why `k_prev`, and why the pick is free.**
@@ -1183,34 +1188,16 @@ fn upgrade_rim<T: Decide>(
             Ok(())
         }
         // A definitely-smooth cap rim keeps the CONVENTIONAL
-        // description by the predicate — an image at rest in the
-        // WALL's chart (D2's conventional split, as at the strut
-        // join's under-determined case), and a body carrying one is
-        // refused at rest when its wedge has no material side.
-        //
-        // **The wall, not the cap.** The wall is swept from this rim's
-        // own carrier — a line leg's wall is the Newell plane over the
-        // quad whose opposite edges ARE the two rim chords, and an arc
-        // leg's cylinder is built from the same registered rim
-        // identity the carrier is — so containment holds by
-        // construction, where the cap plane holds it as a property of
-        // a Newell fit over the whole loop. Certification meters
-        // `|C(t) − S(P(t))|` against the NAMED chart only, so the pick
-        // is load-bearing; tier 3's chart adjacency accepts either.
-        //
-        // **Nor does this arm consult the second-order rule its two
-        // siblings read** (`tangent_second_order`, the strut join
-        // above and `revolve::upgrade`'s latitude join). It would have
-        // nothing to say: a cylinder wall's normal is radial about the
-        // sketch normal and so perpendicular to the cap's ±n at every
-        // rim point, so an arc leg's rim is never smooth and every
-        // rim that reaches here is a plane pair, whose `κ_rel` is
-        // identically zero — the `TangentIntersection` outcome is
-        // unreachable. On a pair that is NOT actually tangent — a
-        // planted verdict, the mutant the review ran — `κ_rel` is
-        // `0/0` and the helper escalates under its own name, reporting
-        // a first-order fact as a second-order one. The first-order
-        // verdict is answered first-order.
+        // description by the predicate (D2's conventional split, as at
+        // the strut join's under-determined case), and the at-rest gate
+        // refuses the body when the wedge has no material side. It rests
+        // in its WALL's chart — the chart swept from the rim's own
+        // carrier; the cap plane certifies too, and `fillet_h6_cap_rim`
+        // pins the choice. The second-order rule the sibling smooth arms
+        // read has nothing to say here: only plane pairs reach this arm
+        // (a cylinder wall's normal is radial about the sketch normal,
+        // so it is perpendicular to the cap's ±n at every rim point),
+        // and a plane pair's `κ_rel` is identically zero.
         Ok(DihedralClass::Smooth) => {
             body.describe_at_rest(edge, wall, tol)?;
             Ok(())

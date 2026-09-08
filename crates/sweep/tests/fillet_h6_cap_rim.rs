@@ -1,6 +1,6 @@
-//! **The cap-rim dihedral is transverse by construction** — the
-//! executable form of the argument written at `extrude`'s cap-rim
-//! `Smooth` arm.
+//! **The cap-rim dihedral is transverse at the shipped K** — the
+//! executable form of the bound `extrude`'s two direction gates put on
+//! the cap–wall wedge, and of what happens below it.
 //!
 //! `extrude` admits only an extrusion vector trilean-parallel to the
 //! sketch plane's normal `n` (a definite in-plane component is
@@ -21,11 +21,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::cap_rims::{chart_counts, description, face_across, face_edges};
 use geom_brep::{DihedralClass, EdgeDescription, classify_dihedral, edge_extent};
 use geom_core::{Band, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
-use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
+use topo::{Body, EdgeKey, FaceKey};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -33,34 +34,6 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(plane, loops).validate(Tol::witness()).unwrap()
-}
-
-/// Every edge of a face, over its outer loop and every ring.
-fn face_edges(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
-    let fd = body.get_face(face).unwrap();
-    let mut edges = Vec::new();
-    for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
-            continue;
-        };
-        for he in body.loop_cycle(first).unwrap() {
-            edges.push(body.get_half_edge(he).unwrap().edge);
-        }
-    }
-    edges
-}
-
-/// The face on the other side of `edge` from `face`.
-fn face_across(body: &Body<f64>, edge: EdgeKey, face: FaceKey) -> FaceKey {
-    let e = body.get_edge(edge).unwrap();
-    let of = |he| {
-        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
-            .unwrap()
-            .face
-    };
-    let (plus, minus) = (of(e.he_plus), of(e.he_minus));
-    assert!(plus == face || minus == face, "edge is not on the face");
-    if plus == face { minus } else { plus }
 }
 
 /// The classifier's verdict at one cap rim, on the arm's own inputs.
@@ -91,46 +64,13 @@ fn verdict(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> Result<DihedralClas
 /// Asserts that every cap rim of `built` reached the transverse arm —
 /// by the stored description, and by the classifier re-run on the
 /// arm's inputs.
-/// Every cap rim's stored description beside the surface keys of the
-/// cap it was read from and of the wall across it: both caps, outer
-/// loop and rings.
-fn cap_rims(
-    built: &Extruded<f64>,
-) -> Vec<(topo::SurfaceKey, topo::SurfaceKey, EdgeDescription<f64>)> {
-    let body = &built.body;
-    [built.bottom, built.top]
-        .into_iter()
-        .flat_map(|cap| {
-            face_edges(body, cap).into_iter().map(move |edge| {
-                let surface = |f: FaceKey| body.get_face(f).unwrap().surface;
-                (
-                    surface(cap),
-                    surface(face_across(body, edge, cap)),
-                    body.get_curve_geom(body.get_edge(edge).unwrap().curve)
-                        .unwrap()
-                        .certified()
-                        .unwrap()
-                        .description()
-                        .clone(),
-                )
-            })
-        })
-        .collect()
-}
-
 fn assert_every_cap_rim_transverse(name: &str, built: &Extruded<f64>) {
     let body = &built.body;
     let mut rims = 0usize;
     for cap in [built.bottom, built.top] {
         for edge in face_edges(body, cap) {
             rims += 1;
-            let desc = body
-                .get_curve_geom(body.get_edge(edge).unwrap().curve)
-                .unwrap()
-                .certified()
-                .unwrap()
-                .description()
-                .clone();
+            let desc = description(body, edge);
             assert!(
                 matches!(desc, EdgeDescription::Intersection { .. }),
                 "{name}: cap rim {edge:?} did not take the transverse arm: {desc:?}",
@@ -337,8 +277,9 @@ fn every_extruded_cap_rim_is_transverse() {
     }
 }
 
-/// The two direction gates are what make the argument at the arm true,
-/// so their refusals are asserted beside it: a definite in-plane
+/// The two direction gates are what bound the cap–wall wedge, so their
+/// refusals are asserted beside the rows that rest on them: a definite
+/// in-plane
 /// component is `ObliqueExtrusion`, an in-band one escalates typed
 /// under its own predicate, and a sliver height escalates under the
 /// other. Neither builds a body, so neither reaches the rim upgrade.
@@ -427,20 +368,7 @@ fn print_the_arm_at_a_small_k() {
             // How many cap rims kept the conventional description,
             // and WHICH chart it rests in: the wall the rim's carrier
             // was swept into, or the cap it borders.
-            let (mut conventional, mut wall_chart, mut cap_chart) = (0usize, 0usize, 0usize);
-            for (cap, wall, d) in cap_rims(&built) {
-                if matches!(d, EdgeDescription::Intersection { .. }) {
-                    continue;
-                }
-                conventional += 1;
-                if let EdgeDescription::Chart(c) = &d {
-                    if c.seam {
-                        continue;
-                    }
-                    wall_chart += usize::from(c.surface == wall);
-                    cap_chart += usize::from(c.surface == cap);
-                }
-            }
+            let (conventional, wall_chart, cap_chart) = chart_counts(&built);
             println!("KPROBE non_intersection_rims={conventional}");
             println!("KPROBE wall_chart_rims={wall_chart}");
             println!("KPROBE cap_chart_rims={cap_chart}");
@@ -485,13 +413,14 @@ fn at_k(k: &str, arm_factor: &str) -> String {
     text
 }
 
-/// **The unreachability argument is K-conditional, and this is the
-/// measurement that pins both sides of it.**
+/// **Whether the `Smooth` arm is reachable at all is a question about
+/// the run's K, and this is the measurement that pins both sides of
+/// it.**
 ///
-/// The arm's bound is `sin θ ≥ K/√(K² + 1)` against a `Smooth` ceiling
-/// of `1/K`; they close at `K⁴ = K² + 1` — the crossover
-/// `K* = √φ ≈ 1.272`, named here because this row is where the two
-/// sides of it are measured. So:
+/// The gates bound the cap–wall tilt by `sin θ ≥ K/√(K² + 1)` against
+/// a `Smooth` ceiling of `1/K`; they close at `K⁴ = K² + 1` — the
+/// crossover `K* = √φ ≈ 1.272`, named here because this row is where
+/// the two sides of it are measured. So:
 ///
 /// - at the shipped **K = 10** the cap-rim `Smooth` arm is unreachable,
 ///   and this same body — the worst admitted tilt on the shortest

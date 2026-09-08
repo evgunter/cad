@@ -13,11 +13,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::EdgeDescription;
+use crate::common::cap_rims::chart_counts;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
-use sweep::{Extruded, Extrusion, extrude};
-use topo::{Body, EdgeKey, FaceKey, LoopBoundary, validate_geometric};
+use sweep::{Extrusion, extrude};
+use topo::validate_geometric;
 
 fn rect(plane: SketchPlane<f64>, sx: f64, sy: f64) -> ValidatedProfile<f64> {
     let p2 = Point2::<f64>::new;
@@ -32,62 +32,6 @@ fn rect(plane: SketchPlane<f64>, sx: f64, sy: f64) -> ValidatedProfile<f64> {
     )
     .validate(Tol::witness())
     .unwrap()
-}
-
-fn face_edges(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
-    let fd = body.get_face(face).unwrap();
-    let mut edges = Vec::new();
-    for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
-            continue;
-        };
-        for he in body.loop_cycle(first).unwrap() {
-            edges.push(body.get_half_edge(he).unwrap().edge);
-        }
-    }
-    edges
-}
-
-fn face_across(body: &Body<f64>, edge: EdgeKey, face: FaceKey) -> FaceKey {
-    let e = body.get_edge(edge).unwrap();
-    let of = |he| {
-        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
-            .unwrap()
-            .face
-    };
-    let (plus, minus) = (of(e.he_plus), of(e.he_minus));
-    if plus == face { minus } else { plus }
-}
-
-/// `(conventional, wall_chart, cap_chart)` over every cap rim.
-fn chart_counts(built: &Extruded<f64>) -> (usize, usize, usize) {
-    let body = &built.body;
-    let (mut conventional, mut wall_chart, mut cap_chart) = (0usize, 0usize, 0usize);
-    for cap in [built.bottom, built.top] {
-        let cap_surface = body.get_face(cap).unwrap().surface;
-        for edge in face_edges(body, cap) {
-            let wall_surface = body.get_face(face_across(body, edge, cap)).unwrap().surface;
-            let d = body
-                .get_curve_geom(body.get_edge(edge).unwrap().curve)
-                .unwrap()
-                .certified()
-                .unwrap()
-                .description()
-                .clone();
-            if matches!(d, EdgeDescription::Intersection { .. }) {
-                continue;
-            }
-            conventional += 1;
-            if let EdgeDescription::Chart(c) = &d {
-                if c.seam {
-                    continue;
-                }
-                wall_chart += usize::from(c.surface == wall_surface);
-                cap_chart += usize::from(c.surface == cap_surface);
-            }
-        }
-    }
-    (conventional, wall_chart, cap_chart)
 }
 
 /// The sketch plane under `RK_PLANE`: `xy` (default) or `tilted` (the

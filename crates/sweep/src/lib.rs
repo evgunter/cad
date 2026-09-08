@@ -90,11 +90,14 @@
 //!   every rim of a normal extrusion is definitely transverse, so the
 //!   upgrade is the only arm reached — matching tier 3's
 //!   prefer-intrinsic enforcement, under which definitely-transverse
-//!   edges must carry `Intersection` at rest. That is a fact about
-//!   the run's K rather than a geometric identity: a definitely-smooth
-//!   rim keeps the conventional description, an image at rest in the
-//!   wall's chart, and the body reaches the at-rest gate like any
-//!   other. Indeterminate is [`ExtrudeError::SliverRim`].
+//!   edges must carry `Intersection` at rest. It is a fact about the
+//!   run's K rather than a geometric identity, because the wedge's
+//!   lever is the rim CHORD: below `K = √φ ≈ 1.272` a chord the
+//!   profile door admits, times a tilt the direction gates admit,
+//!   reads under ε. A definitely-smooth rim then keeps the
+//!   conventional description — an image at rest in the wall's chart —
+//!   and the body reaches the at-rest gate, which refuses it as
+//!   `SliverDihedral`. Indeterminate is [`ExtrudeError::SliverRim`].
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share
