@@ -29,3 +29,10 @@ geom-core = { path = "../../crates/geom-core", features = ["probe"] }
 # trait's own docs carry the argument). Off by default and named only
 # here, so no shipped build of this crate can mint a table.
 profile = { path = "../../crates/profile", features = ["probe", "test-support"] }
+
+# `test-utils` for `source`, the lexer the roster pin reads
+# `crates/geom-brep/src/props/quad.rs` through (`tests/predicate_roster.rs`
+# says why the kernel's source is READ and not depended on). It is a
+# LEAF with zero dependencies of its own, so it adds one path entry and
+# nothing else to this excluded crate's surface.
+test-utils = { path = "../../crates/test-utils" }

@@ -2,9 +2,10 @@
 id: BOOL-10
 kind: unit
 title: the arc_continue retirement and the declared-joints arc form
-status: spec
+status: dispatched
 opened: 2026-09-01
 refs: [BOOL-9]
+branch: bool/10-arc-continue-retirement
 ---
 
 Q1 second-round extension: remove the `arc_continue` verb, its program step,
