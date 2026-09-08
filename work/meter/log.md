@@ -1087,3 +1087,72 @@ gated, which spelling produced a measured movement, which file a quoted
 figure lived in, what a census red means, how many tests a drill reds.
 None needed cleverness to catch. Each needed one `grep`, one control,
 or one header read.
+
+## Unit 10 CLOSED and merged — METER is out of planned units (2026-09-08)
+
+Merged at `9678901b6` (PR 2187), head `8f6b7fafd`, four full-matrix
+greens on the branch. `tools/tess-lint/tests/baseline_sizing_census.rs`
+is gone; its census lives in `baseline_census.rs` — one `BASELINE`
+const behind one `include_str!`, one header, seven `#[test]`s. Verified
+here before merging that the final push touched `work/` markdown ONLY
+and `tools/` is byte-identical to the reviewed head, which is what
+licensed merging without a third review round.
+
+**The name was the lane's call and it overruled both the item and the
+plan.** Both proposed `tests/baseline.rs`; the lane kept
+`baseline_census.rs` on a pointer census — 24 live mentions across 14
+files name it against 7 across 6 naming the deleted file, so a third
+name would have staled all 31. Choosing the name that costs the fewest
+stale pointers is the right instinct for this program, and the
+reviewer confirmed the winning side exact to the number.
+
+**Evidence of the right shape for the risk this unit actually carried.**
+A fold that drops a `#[test]` still compiles and still goes green, so
+a total is worthless: all seven were confirmed BY NAME from
+`cargo test -- --list`, and the reviewer went further with a PER-TEST
+mutation sweep — one targeted mutation per test, seven separate runs,
+all seven red individually.
+
+### The last two rounds were both the same defect at one remove
+
+Unit 10's two MAJORs were a missed sweep site and a false "no live
+figure" claim. Both were fixed with CAUSES rather than corrections, and
+both causes were tooling the lane had written and not checked:
+
+- The missed site came from re-sweeping `work/ docs/` instead of the
+  root, against a file the same merge had just created. The reviewer
+  reproduced the arithmetic exactly — 9 hits under those two
+  directories minus the item's own 3 = the 6 first reported; 10 from
+  the root minus 3 = 7. **A sweep result is only as wide as the command
+  actually typed.**
+- The literal-collision accounting was wrong TWICE, and each time the
+  cause was in the checker: first a function-body splitter that broke
+  on `///` lines rather than braces, so literals leaked between
+  neighbours; then a tokenizer that stopped at `5e-` and read the
+  exponent as its own token, manufacturing a `4`. Under Rust's
+  tokenization exactly one literal is shared, `72`. The item now states
+  the tokenization BEFORE the list, because **a shared-literal list is a
+  function of how you tokenize, so the tokenization is part of the
+  claim.**
+
+The lane kept both wrong passes on the record rather than tidying them
+away, under a heading that says "verified rather than assumed". That is
+the right call: a corrected paragraph that hides having been wrong is
+indistinguishable from one that was right the first time.
+
+**And a live site nobody had found**: `tools/tess-lint/src/lib.rs:2682`
+says *"Six of the 64 sized rows of the committed baseline sit exactly
+there."* `64` is asserted at `baseline_census.rs:437`; **"Six" is
+asserted nowhere at all** and is spelled as a word, so no figure sweep
+finds it. A re-cut moves it and nothing fires — worse than the document
+copies, which at least red a test somewhere. Found by reading, not by
+pattern.
+
+### Program state
+
+Eleven units merged (0-12 less the two that became other things), four
+of them today. **The slate stands at 40 files, 24 open** — it opened at
+eleven. Every one of today's four units closed on a MAJOR that was a
+false CLAIM rather than broken code; not one shipped a defect in an
+assertion. What is left is the exit walk, and it must RULE rather than
+drain.

@@ -149,6 +149,14 @@ budget data is a PROPS coordination, not a lane's call.
    blanking the token while keeping the width reddened NOTHING on
    either side. Needs `tools/tess-lint/*` free.
 
+## Where the units ended (2026-09-08)
+
+All twelve are merged. Units 8, 9, 10 and 12 landed on 2026-09-08 and
+each took three review rounds; every one closed on a MAJOR that was a
+false CLAIM rather than broken code. Unit 8 left `C15` OPEN with its
+residue guarded by execution; unit 12 overturned the finding that
+promoted it. The live state is `log.md`'s tail, never this list.
+
 ## Exit shape
 
 The twelve land (with `D201`'s answer either built or ratified as
