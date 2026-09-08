@@ -361,10 +361,17 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
 /// `ValidationError::StaleContactDeclaration`'s and `RingMeetsOuter`'s
 /// payloads — which record to withdraw, and how the ring meets the
 /// loop it should not be touching.
+///
+/// The `ring` argument is the third key type `RingMeetsOuter` names,
+/// beside the `FaceKey` and the `RingContact`: a caller matching that
+/// arm binds all three, and this signature is the pin that all three
+/// are spellable from the prelude in one import.
 fn stale_declaration_and_ring_contact_are_matchable(
     declaration: StaleDeclaration,
+    ring: LoopKey,
     contact: RingContact,
 ) -> (&'static str, &'static str) {
+    named::<LoopKey>(ring);
     let stale = match declaration {
         StaleDeclaration::VertexVertex { a, b } => {
             named::<VertexKey>(a);
@@ -462,6 +469,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
                 face_a: FaceKey::default(),
                 face_b: FaceKey::default(),
             },
+            LoopKey::default(),
             RingContact::Edge {
                 ring_edge: EdgeKey::default(),
                 outer_edge: EdgeKey::default(),

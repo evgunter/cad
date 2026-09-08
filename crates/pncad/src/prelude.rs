@@ -256,9 +256,23 @@ pub use geom_brep::SurfaceKind;
 // `PlaneRelation` rides here because it is the verdict a
 // `FlushFinding`'s evidence carries (SameOpposite = resting contact,
 // SameOriented = flush walls), so code inspecting findings names it.
+//
+// **The KEY set is four, not three.** `VertexKey`, `EdgeKey` and
+// `FaceKey` were here and `LoopKey` was not, and the missing one is
+// named by a refusal this prelude already carries:
+// `ValidationError::RingMeetsOuter` is `{ face: FaceKey, ring:
+// LoopKey, contact: RingContact }`, and `RingContactEscalated` beside
+// it carries a ring too. So the arm named three key types, two of
+// which a prelude consumer could spell. The claim a key makes here is
+// weaker than a payload enum's — a key is bound and passed on, never
+// branched on — but the inconsistency was inside ONE group of this
+// list rather than a rung below it, and it went unseen because
+// `LoopKey` is minted by `slotmap::new_key_type!`: a scan of `pub
+// struct` declarations cannot see a macro's output, so no payload
+// sweep this façade has run could report it.
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, FaceKey, Operand,
+    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, FaceKey, LoopKey, Operand,
     PlaneRelation, Surface, TransformError, VertexKey, intersect, intersect_with, subtract,
     subtract_with, transform_rigid, union, union_with,
 };

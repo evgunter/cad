@@ -805,9 +805,13 @@ FAMILIES = {
 #:   it back. `RolePath` and `RoleSeg` are the INSIDE of that text,
 #:   which nothing user-side may read (`Selector` and `NamePat`, both
 #:   bound, are how a name is classified without reading one);
-#:   `EdgeKey`/`FaceKey`/`VertexKey` are the arena keys the whole
-#:   curation exists to keep unnameable, and they reached the census
-#:   only because the prelude lifts `topo` wholesale.
+#:   `EdgeKey`/`FaceKey`/`LoopKey`/`VertexKey` are the arena keys the
+#:   whole curation exists to keep unnameable in Python, and they
+#:   reached the census only because the prelude lifts `topo`
+#:   wholesale. `LoopKey` joined its three siblings on the Rust list
+#:   because a validation refusal names all four and a Rust caller
+#:   could spell three of them; nothing about that reaches Python,
+#:   which holds names and never keys.
 #: - *Selector plumbing the audit already ruled on.* `TagPat` and
 #:   `Side` are Rust constructor plumbing covered by `SegPat.tag` /
 #:   `SegPat.group` / `SegPat.side`, and `CurveKindSet` /
@@ -1341,6 +1345,10 @@ NOT_BOUND = {
     # that, `surface_census.rs`).
     "ContinueTarget": SHAPE,
     "LoftError": SHAPE,
+    # The fourth arena key, joining the three above it in the same
+    # bullet and for their reason: a validation refusal names a ring
+    # beside its face, and Python holds neither.
+    "LoopKey": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
