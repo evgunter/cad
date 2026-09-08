@@ -630,10 +630,11 @@ fn the_shipped_optimizer_is_the_shipped_scan() {
 /// not fail.** It asserted that every member also stays inside the
 /// consumer's WHOLE margin on the continuous objective, which claim 2
 /// already forces: [`unfloored_ceiling`] is a tenth of that margin, and
-/// the pair reaches it at 185 samples, where [`floored_worst_excess`]
-/// is still 3.79% — so no coarsening can carry a member past the whole
-/// margin without reddening claim 2 first, and `GROWTH_TOLERANCE`'s own
-/// box (`[1.04, 1.06)`) cannot move the margin far enough to change
+/// claim 2 reds as soon as the count drops to 185, where
+/// [`floored_worst_excess`] is still 3.79% — so no coarsening can carry
+/// a member past the whole margin without reddening claim 2 first, and
+/// `GROWTH_TOLERANCE`'s own box (`[1.04, 1.06)`) cannot move the margin
+/// far enough to change
 /// that. The statement is a CONSEQUENCE of the two ceilings, and an
 /// assertion that no input can red is a comment wearing an `assert!`.
 /// What it is a consequence about is the CONTINUOUS objective;

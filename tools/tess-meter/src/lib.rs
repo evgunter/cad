@@ -988,7 +988,7 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// the direction, and the exhibit above. The regime, though, is a
 /// reading of the committed baseline and re-derivable from it:
 /// `span_opt_cells` is a sum of per-analysis-cell optima, its median
-/// per-cell optimum is **44**, and **56 of the 64 sized faces average
+/// per-cell optimum is **44.4**, and **56 of the 64 sized faces average
 /// under 100** — squarely the band where the excess runs furthest past
 /// the envelope, not the band above it.
 ///
