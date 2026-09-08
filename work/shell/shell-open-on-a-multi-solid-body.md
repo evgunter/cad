@@ -4,6 +4,7 @@ kind: issue
 title: shell_open on a multi-solid body refuses NotOneSolid: hollow, hollow, open is not three verbs
 status: open
 opened: 2026-09-08
+refs: [SHELL-8, SHELL-5]
 ---
 
 

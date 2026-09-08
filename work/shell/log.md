@@ -514,3 +514,22 @@ baseline. Rubric idiom/tests/docs: not scored by either reviewer.
 
 Block SHELL-B2 slot 1 concludes; slot 2 remains (record branch-side).
 
+
+## SHELL-8 cut (2026-09-08)
+
+The multi-solid operand, cut from SHELL-5's e2e friction: spec
+`docs/SHELL-8-SPEC.md`, branch `shell/8-multi-solid`, block SHELL-B2
+slot 2 (the arm is in the branch-side record; the pre-draw fields
+M / STRUCTURAL were logged after the block byte — disclosed on the
+item). Decision bound by the spec: shell is per solid by definition,
+so a multi-solid body shells EVERY solid — gates, door choice, moves,
+evidence, insertion and partition each per solid, the simultaneous
+doors' coverage precondition relaxed from the body to the solid (a
+corner belongs to one solid), and an additive N-ary void-door sibling
+(`insert_voids`) using the graft's existing N-ary form. Rejected: a
+designation of which solid to shell (no vocabulary for naming a
+solid; a user who wants one solid has a one-solid body), and
+extracting each solid into its own body (no such door exists and the
+clone-and-graft shape already carries N solids). The `insert_voids`
+sibling is an announced seam to S-BOOL. Sequencing: SHELL-3 still
+waits on PROPS' sign-hull unit (no PR; branch idle since 01:11 UTC).
