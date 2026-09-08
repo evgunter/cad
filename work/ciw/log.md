@@ -1427,3 +1427,37 @@ next reader does not re-derive it.
 `scripts/criterion-emit.py --selftest` is invoked only from `nightly.yml`,
 the same class one step milder, and its comment cites the calibrator as the
 precedent for that siting.
+
+## 2026-09-08 — unit 3 fix pass
+
+Both reviews landed two MAJORs, both in the new claim and both reproduced on
+the real tree; the rest of the unit held.
+
+**The claim counted `local-scripts/` as a caller**, and every hosted job
+prunes that tree — so a selftest running in NO CI passed, and the battery
+pinned that shape as an `_ok_case`. **And it matched one physical line**, so a
+`for` loop or a continuation in one `run:` block red two scripts with a false
+message. Second unit running on this program to ship its own defect one level
+in and pin it with a selftest; the rule taken from it is that a case pinning
+the boundary a unit is about gets checked against the failure the unit exists
+to prevent, not against the behaviour just written.
+
+**Shape taken: folded into claim 4** rather than kept as claim 12 or dropped.
+Fixing MAJOR-1 removes the caller population that made it a separate claim —
+callers are workflow files, which claims 1 and 9 already read — so what is
+left is claim 4's population, claim 4's `SCRIPT_RE`, claim 4's closure, and one
+extra question. It is now claim 4's second arm, in claim 4's loop. That also
+ends the contradiction with claim 11, which had landed the day before arguing
+that a population must be git's index and not a filesystem walk: there is no
+walk any more.
+
+**Battery**: `.py`, `.sh` and `demos/` declarers (the first version could not
+see the file class of the live defect), a caller commented out in place, a
+local-only caller, a mode named in another script — and four accepted shapes,
+including the loop and the continuation and a `scripts/gates/` member whose
+uninvoked selftest is the roster's finding, not ours. Six mutations of the
+checker itself, all killed.
+
+`nightly.yml`'s criterion comment said this calibrator "sets the precedent
+that those are not PR-gate rows" — false after this unit. Rewritten in place
+to point at `criterion-selftest-nightly-only`.

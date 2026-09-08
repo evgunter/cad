@@ -95,11 +95,19 @@ confession expired; its hosted-only reason is re-stated at the local row,
 where it is about the LANE rather than the path.
 
 **The general rule got a check, and it is not in `gate-roster.sh`.** That file
-is GATES' and PR 2077 was open on it. `scripts/check-ci-mirror-parity.py` gains
-CLAIM 12: a script under `scripts/` or `demos/` outside `scripts/gates/` that
-implements a `--selftest` mode nothing invokes. `scripts/gates/` stays the
-roster's ground and is excluded. Proven red by mutation on the real tree, and
-pinned by four selftest cases including a mention-is-not-a-caller case.
+is GATES' and PR 2077 was open on it. `scripts/check-ci-mirror-parity.py`'s
+CLAIM 4 gains a SECOND ARM, in claim 4's own loop: the same population, the
+same `SCRIPT_RE`, the same closure, asking of a script's `--selftest` mode what
+arm one asks of the script. `scripts/gates/` is outside both, as
+`gate-roster.sh`'s ground.
+
+It shipped wrong the first time and the review caught it. As first written it
+counted a `local-scripts/` line as a caller — and every hosted job DELETES
+that tree, so a selftest running in no CI at all passed, and an `_ok_case`
+pinned that shape as correct. It also matched one physical line, so a loop or
+a continuation in one `run:` block red two scripts with a false message. Both
+are fixed and both are proven by mutation on the real tree; the caller
+population is now workflow files only, read one `run:` block at a time.
 
 Residue, filed: `work/ciw/criterion-selftest-nightly-only` —
 `scripts/criterion-emit.py --selftest` is invoked only from `nightly.yml:1835`,

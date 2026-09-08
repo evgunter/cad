@@ -130,8 +130,9 @@ rather than an omission.** "Has this scheduled job ever fired?" is a question
 about run history; `scripts/check-ci-mirror-parity.py` is a static reader of
 tracked files, and answering it needs the Actions API. A check that needs a
 network call is a check that fails on a fork, offline, and in the local half —
-so the demotion rule stays prose. What IS a tree question got one: claim 12
-(see the sibling item) refuses a `--selftest` mode nothing invokes.
+so the demotion rule stays prose. What IS a tree question got one: claim 4
+grew a second arm (see the sibling item) refusing a `--selftest` mode no
+workflow invokes.
 
 **The nightly's variable length, read so nobody re-derives it.** Run
 `34024781262` (2026-09-06) concluded in 10 minutes and `34111341944`
