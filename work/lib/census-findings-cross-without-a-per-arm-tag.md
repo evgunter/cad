@@ -4,6 +4,7 @@ kind: issue
 title: a tier-3' census finding crosses to Python as prose with no per-arm tag
 status: open
 opened: 2026-09-04
+needs_ev: true
 ---
 
 
@@ -62,3 +63,37 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+The one refusal on the surface whose arm question has no answer under
+the standing shape, because ONE raise carries N findings.
+`Body.validate_pseudomanifold` raises a single `ValidationError` with
+`door` and `failure_count` and every finding joined into the message;
+which coincidence the census found is prose only, and a test pins that
+absence. LIB-CUR6 just carried `CensusSubject` (what a census refusal
+is ABOUT) on the Rust side, so the Rust caller now reads the subject
+whole while the Python caller reads a sentence.
+
+- **(A) A `findings` sequence attribute.** The refusal keeps `door`
+  and `failure_count` and gains `findings: list[ValidationFinding]`,
+  a frozen value class carrying `variant` (the `ValidationError` arm's
+  word) and the arm's payload where one is carried (a `CensusSubject`
+  projected as `subject_kind` plus the entity kind or the pair, in the
+  same opaque-name alphabet the rest of the surface speaks). The one
+  sequence-shaped payload on the surface, argued by the door's own
+  shape: it is the one door that reports MANY refusals at once, and
+  `failure_count` already says so. `CensusContact` and `CensusSubject`
+  leave `INTERIOR` together. Recommended.
+- **(B) Raise once per finding** — the door stops joining and raises
+  the first finding, or one exception per finding through a list
+  return. A behaviour change to a door whose `failure_count` semantics
+  are pinned, and a validator that reports one of N failures is less
+  useful than the join.
+- **(C) Leave it INTERIOR**, the census row's current argument: the
+  validate doors cross their failures as joined prose and no caller
+  has asked to branch on a coincidence kind.
+
+Recommendation: **(A)**, as the single exception to "`variant` is a
+scalar" — stated as such at the door, so it does not become a second
+convention.
