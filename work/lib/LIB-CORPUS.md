@@ -2,11 +2,12 @@
 id: LIB-CORPUS
 kind: unit
 title: the bench corpus is authored, not committed
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/corpus
 refs: [bench-corpus-staleness-hole]
 pr: 2182
+closed: 2026-09-08
 ---
 
 Ev's ruling (E) on `bench-corpus-staleness-hole`, executed.
