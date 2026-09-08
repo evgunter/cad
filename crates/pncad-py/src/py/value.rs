@@ -785,6 +785,34 @@ pub(crate) struct Evaluation {
     /// answer confidently against the wrong recipe. Pairing the two
     /// here makes that unspellable.
     doc: d::ProfileDoc,
+    /// The document's gathered product, materialized on the first ask
+    /// and kept for every later one
+    /// ([`crate::product_memo`], which holds the whole of the reasoning).
+    ///
+    /// It lives HERE because a product is a pure function of the pair
+    /// above and the run's tolerance, and this object is that pair: it
+    /// is frozen, so nothing can move under the memo, and the doors
+    /// that want a product — `run_checks`, `assemble`, `product`,
+    /// `product_named` — keep their signatures and share one gather.
+    product: crate::product_memo::ProductMemo,
+}
+
+impl Evaluation {
+    /// The (document, evaluation) pair and the memo over it, as the
+    /// arguments [`crate::product_memo`]'s doors take.
+    pub(crate) fn gathered<T>(
+        &self,
+        f: impl FnOnce(&crate::product_memo::ProductMemo, &d::ProfileDoc, &d::Evaluation<f64>) -> T,
+    ) -> T {
+        f(&self.product, &self.doc, &self.inner)
+    }
+
+    /// The DI3 pairing gate: `doc` must be the document this
+    /// evaluation is of. `Err` carries the two ids the caller's own
+    /// refusal arm names.
+    pub(crate) fn paired_with(&self, doc: &super::doc::Doc) -> Result<(), d::Mispaired> {
+        crate::product_memo::ProductMemo::paired(&self.inner, doc.inner.id())
+    }
 }
 
 #[pymethods]
@@ -1551,6 +1579,7 @@ pub(crate) fn evaluate(
         inner,
         params: doc.inner.param_env::<f64>(),
         doc: doc.inner.clone(),
+        product: crate::product_memo::ProductMemo::default(),
     }
 }
 

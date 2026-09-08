@@ -348,7 +348,7 @@ pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offs
 pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
-    HoleRim, RimNaming, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
+    HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;

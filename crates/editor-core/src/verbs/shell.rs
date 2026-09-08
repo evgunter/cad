@@ -21,7 +21,7 @@
 //! # Every field is direct per-instance data
 //!
 //! As in the sibling modules: function pointers and literals per
-//! instance, no match over a verb vocabulary anywhere in this file, so
+//! instance, no match over the kernel's verb vocabulary anywhere in this file, so
 //! a future verb never has to open it. There is one instance, and the
 //! struct is carried anyway: it is the seam where the lowering reads
 //! its four literals, and reading them off a struct is what keeps the
@@ -75,7 +75,7 @@ pub(crate) type ShellEmitter<T> = fn(
 ) -> Result<Arc<NameTable>, NamingError>;
 
 /// **The shell's correspondence**, as data — everything the lowering
-/// needs to turn a `Node::Shell` into a [`Verb`] and its result into a
+/// needs to turn a `Node::Shell` into a [`verbs::Verb`] and its result into a
 /// name table. Adding a field here is how the verb declares something
 /// the lowering must know; adding an arm to a match inside the
 /// lowering is not.
@@ -275,7 +275,9 @@ pub(crate) fn fold_shell_error<T: Real>(
             thickness: end(thickness, Infimum),
         },
         E::NotOneSolid { solids } => E::NotOneSolid { solids },
-        E::OperandAlreadyHollow { shells } => E::OperandAlreadyHollow { shells },
+        E::Roles { error } => E::Roles { error },
+        E::OperandOuterShells { outer } => E::OperandOuterShells { outer },
+        E::Partition { shell, error } => E::Partition { shell, error },
         // The pessimistic pair, which is the reading under which the two
         // offsets cross: the material as thin as the bracket admits,
         // the wall the offsets need as thick as it admits.

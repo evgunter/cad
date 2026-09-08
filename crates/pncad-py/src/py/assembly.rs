@@ -124,6 +124,13 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 /// the same ids for the same nodes, and a gather over the wrong one
 /// would succeed, in full, about other geometry.
 ///
+/// **One gather per evaluation.** The document's product is a pure
+/// function of the (document, evaluation) pair `evaluation` captured
+/// at `evaluate` and the run's tolerance, so it is gathered on the
+/// first ask and shared with every other door that wants one
+/// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
+/// how a caller asks several questions for the price of one gather.
+///
 /// Raises `ProductError`, typed: a root that failed, was poisoned or
 /// is absent from this evaluation; a document whose roots denote no
 /// body (`no_body_roots`); the kernel's graft and validity refusals.
@@ -136,9 +143,25 @@ pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyR
     // body is plain and `Body.validate_pseudomanifold` will report
     // any seam between two roots as undeclared. `assemble` is the
     // door that mints declarations over the same geometry.
-    d::product(&doc.inner, &evaluation.inner, tol)
+    evaluation
+        .paired_with(doc)
+        .map_err(|m| mispaired_product(py, m))?;
+    evaluation
+        .gathered(|memo, doc, ev| crate::product_memo::body(memo, doc, ev, tol))
         .map(|body| Body::plain(Arc::new(body)))
         .map_err(|err| product_err(py, &err))
+}
+
+/// A mispaired `(doc, evaluation)` as the gather's own refusal — the
+/// one the memo path cannot inherit from a gather it does not reach.
+fn mispaired_product(py: Python<'_>, m: d::Mispaired) -> PyErr {
+    product_err(
+        py,
+        &d::ProductError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        },
+    )
 }
 
 /// The product, with the stable names its entities answer to —
@@ -149,6 +172,13 @@ pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyR
 /// makes "the third post's top cap" one name rather than a coordinate.
 /// They cross as opaque text, like every other name in this library.
 ///
+/// **One gather per evaluation.** The document's product is a pure
+/// function of the (document, evaluation) pair `evaluation` captured
+/// at `evaluate` and the run's tolerance, so it is gathered on the
+/// first ask and shared with every other door that wants one
+/// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
+/// how a caller asks several questions for the price of one gather.
+///
 /// Raises `ProductError`, typed — including `product_naming` when two
 /// roots' rows would name one aggregate entity.
 #[pyfunction]
@@ -158,11 +188,15 @@ pub(crate) fn product_named(
     evaluation: &Evaluation,
 ) -> PyResult<(Body, Vec<String>)> {
     let tol = Tol::witness();
-    let (body, names) = d::product_named(&doc.inner, &evaluation.inner, tol)
+    evaluation
+        .paired_with(doc)
+        .map_err(|m| mispaired_product(py, m))?;
+    let (body, names) = evaluation
+        .gathered(|memo, doc, ev| crate::product_memo::body_and_names(memo, doc, ev, tol))
         .map_err(|err| product_err(py, &err))?;
     let names = names
         .iter()
-        .map(|(name, _)| name_text(py, name))
+        .map(|name| name_text(py, name))
         .collect::<PyResult<Vec<String>>>()?;
     Ok((Body::plain(Arc::new(body)), names))
 }
@@ -644,6 +678,13 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
 /// RESOLVED: an instantiate node with no resolver produced no body,
 /// so the gather refuses `root_failed` before the gate runs.
 ///
+/// **One gather per evaluation.** The document's product is a pure
+/// function of the (document, evaluation) pair `evaluation` captured
+/// at `evaluate` and the run's tolerance, so it is gathered on the
+/// first ask and shared with every other door that wants one
+/// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
+/// how a caller asks several questions for the price of one gather.
+///
 /// Raises `AssemblyError`, typed. Read `variant` before anything else
 /// — the two verdict arms are different facts:
 ///
@@ -666,8 +707,18 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
 #[pyfunction]
 pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Assembly> {
     let tol = Tol::witness();
-    let assembly =
-        d::assemble(&doc.inner, &evaluation.inner, tol).map_err(|err| assembly_err(py, &err))?;
+    evaluation.paired_with(doc).map_err(|m| {
+        assembly_err(
+            py,
+            &d::AssemblyError::Product(Box::new(d::ProductError::EvaluationOfAnotherDocument {
+                expected: m.expected,
+                found: m.found,
+            })),
+        )
+    })?;
+    let assembly = evaluation
+        .gathered(|memo, doc, ev| crate::product_memo::assembly(memo, doc, ev, tol))
+        .map_err(|err| assembly_err(py, &err))?;
     let names = assembly
         .names
         .iter()

@@ -153,6 +153,10 @@ needs one (`Band::new`, `Band::angular_at`, at the geometry layer).
 
 ## 2. One verb vocabulary
 
+(The kernel's. `profile::Verb`, the sketch program's, is a different
+vocabulary; the naming convention between the two is stated at both
+crates' module docs.)
+
 **V1 — the per-verb declaration is closed and kernel-side.** `Verb<T>`
 (`verbs/src/verb.rs`) holds an operation's parameters as data: `Fillet`
 and `Chamfer` (edge keys and a scalar), `Extrude` (a signed distance),
