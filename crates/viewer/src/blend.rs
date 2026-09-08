@@ -125,9 +125,16 @@ impl BlendTarget {
     }
 }
 
+/// **Destructured rather than field-read**, so a field added to
+/// [`BlendTarget`] is E0027 here. The pair above is the scope an
+/// accumulator opens on and the scope a refusal names, and this
+/// sentence is how the refusal names it: a target that grew a third
+/// component while the sentence still named two would name the wrong
+/// scope.
 impl core::fmt::Display for BlendTarget {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "feature {} body {}", self.node.0, self.body)
+        let Self { node, body } = self;
+        write!(f, "feature {} body {body}", node.0)
     }
 }
 
@@ -358,7 +365,7 @@ impl BlendTool {
     ///
     /// **One pass over the target's drawn edges**, testing set
     /// membership per drawn edge, rather than one
-    /// `crate::pick::edge_segments` search per held name: the search
+    /// `crate::marks::edge_segments` search per held name: the search
     /// scans the body's whole edge run for each name, so the obvious
     /// spelling costs `O(E²)` name comparisons every frame on a body
     /// with `E` edges — fine for a cube, not for a real part. This is
@@ -371,7 +378,7 @@ impl BlendTool {
     /// else.
     pub fn mark_segments(
         &self,
-        index: &crate::pick::PickIndex,
+        index: &crate::pickindex::PickIndex,
         display: &crate::display::DisplayView,
     ) -> Vec<[f32; 3]> {
         let Some(target) = self.target else {
@@ -383,7 +390,7 @@ impl BlendTool {
                 .edge_name_of(id)
                 .is_ok_and(|name| self.edges.contains(name))
             {
-                out.extend(crate::pick::edge_id_segments(index, display, id));
+                out.extend(crate::marks::edge_id_segments(index, display, id));
             }
         }
         out
@@ -459,7 +466,7 @@ impl BlendTool {
         &mut self,
         target: BlendTarget,
         eval: &Evaluation<f64>,
-        index: &crate::pick::PickIndex,
+        index: &crate::pickindex::PickIndex,
     ) -> Option<BlendEvent> {
         let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
             .into_iter()
@@ -481,9 +488,16 @@ impl BlendTool {
 
     /// Drop every pick — the panel's `Clear picks` button, and what
     /// Cancel's whole-tool replacement amounts to for the picks alone.
+    ///
+    /// **Destructured rather than field-cleared**, so a field added to
+    /// [`BlendTool`] is E0027 here rather than surviving a door whose
+    /// whole contract is that the tool holds nothing afterwards — the
+    /// state a fresh tool is in, which is what lets the next click
+    /// start on any body.
     pub fn clear(&mut self) {
-        self.target = None;
-        self.edges.clear();
+        let Self { target, edges } = self;
+        *target = None;
+        edges.clear();
     }
 
     /// Release the target when the last edge leaves, keeping the

@@ -20,9 +20,14 @@
 //! - `r1_cap_rim_widening_measures_the_face_not_the_chart`: the kept
 //!   half of the rim widening — the measured `u` map must land on the
 //!   face's own patch and match the carrier pointwise in metres.
-//! - `r1_wall_seam_arm_still_refuses_the_interior_column`: the
-//!   reverted half — a `Chart`-described wall-wall seam on the widened
-//!   chart must refuse typed, NOT mint the measured column.
+//! - `r1_wall_seam_arm_mints_and_certifies_the_interior_column`: the
+//!   measuring half — a `Chart`-described wall-wall seam on the widened
+//!   chart derives the EXACT class on its measured interior column, and
+//!   the certifier's de Boor collapse certifies it.
+//! - `r1_dual_scalar_wall_seam_arm_answers_no_boundary`: at a scalar
+//!   with no certified foot (`Dual64`) the same arm answers what it
+//!   answered before the measurement existed — no lane fabricates a
+//!   foot.
 //! - `r1_general_image_is_operand_order_blind`: the deriver must not
 //!   see the description's operand order.
 //! - `r1_dual_scalar_still_reaches_the_mint`: the lane bound is
@@ -459,16 +464,22 @@ fn r1_cap_rim_widening_measures_the_face_not_the_chart() {
     println!("R1: {rims} rim half-edges derive measured IsoLine maps on the face's own patch");
 }
 
-/// **The reverted half stays reverted.** The wall-wall seam on the
-/// widened chart (`Chart`-described, spline carrier — the OTHER seam
-/// of the same wall) is an interior column with no operand pair: the
-/// exact class does not apply and no fitted statement exists, so the
-/// arm must refuse TYPED — not mint the measured column, which is
-/// exactly what `an_interior_column_still_refuses` forbids the
-/// certification lane downstream.
+/// **The wall–seam arm measures its column and the exact class
+/// certifies it.** The wall-wall seam on the widened chart
+/// (`Chart`-described, spline carrier — the OTHER seam of the same
+/// wall) is an interior column with no operand pair: the arm derives
+/// its position from the carrier start's certified chart foot, mints
+/// the exact `IsoLine` on it, and `PcurveCache::certify` — the de Boor
+/// collapse behind the seam class's hull — certifies it against the
+/// face's chart at every ε. Its teeth: a derivation that re-offers a
+/// domain end reds on `p0.x`, and a certifier that still wanted a
+/// boundary row reds on the certificate.
 #[test]
-fn r1_wall_seam_arm_still_refuses_the_interior_column() {
+fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
+    let eps = Tol::witness().get().eps;
     let (mut body, seam_he, key) = widened_fixture(false, 1);
+    let chart = chart_of(&body, key);
+    let (du0, du1) = chart.knots_u().domain();
     // Same stored-cache trap as the rim row: detach, then derive.
     let hes: Vec<_> = body
         .edges()
@@ -484,22 +495,41 @@ fn r1_wall_seam_arm_still_refuses_the_interior_column() {
             if he_surface(&body, he) != key || he == seam_he {
                 continue;
             }
-            let (carrier, _, _) = carrier_of(&body, he);
+            let (carrier, t0, t1) = carrier_of(&body, he);
             if !matches!(carrier, Curve3::Nurbs(_)) {
                 continue;
             }
             seams += 1;
             let out = topo::pcurve_of(&body, he, band());
-            let Err(PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::IsoUnsupported { what },
-                ..
-            }) = out
-            else {
-                panic!("a Chart-described interior column refuses typed, never mints: {out:?}")
+            let Ok(pcurve @ Pcurve::IsoLine { p0, pl }) = out else {
+                panic!("a Chart-described interior column takes the exact class: {out:?}")
             };
+            assert_eq!(pl.x, 0.0, "a column holds u constant: {pl:?}");
             assert!(
-                what.contains("neither chart boundary"),
-                "and names the boundary assumption: {what}"
+                du0 < p0.x && p0.x < du1,
+                "on a column strictly INSIDE the chart's u domain [{du0}, {du1}]: {}",
+                p0.x
+            );
+            let window = pcurve.chart_box(t0, t1);
+            let cache = geom_brep::PcurveCache::certify(
+                pcurve,
+                t0,
+                t1,
+                &carrier,
+                &Surface::Nurbs(Arc::new(chart.clone())),
+                window,
+                band(),
+            )
+            .unwrap_or_else(|e| panic!("the interior column certifies exactly: {e}"));
+            assert!(
+                cache.certificate().envelope <= eps,
+                "its collapsed-row hull is inside ε = {eps:e}: {:e} m",
+                cache.certificate().envelope
+            );
+            println!(
+                "R1: chart seam {he:?} on u = {} of [{du0}, {du1}], envelope {:e} m @ eps={eps:e}",
+                p0.x,
+                cache.certificate().envelope
             );
         }
     }
@@ -507,6 +537,118 @@ fn r1_wall_seam_arm_still_refuses_the_interior_column() {
         seams >= 1,
         "the wall face has its other seam: found {seams}"
     );
+}
+
+/// **No lane fabricates a foot.** At `Dual64` — a scalar with no
+/// certified projection (`PcurveFittedLane`'s statically-refusing
+/// impl) — the wall–seam arm on the same widened chart refuses typed,
+/// naming the missing lane rather than a boundary it never measured. The dual body is the same loft at the same
+/// scale, its bowed wall re-charted with the same widened net lifted
+/// constant.
+#[test]
+fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
+    use geom_core::{Bounds, Dual, Dual64};
+    let widened = {
+        let body = prism(SCALE);
+        let (_, _, bowed, _) = flat_bowed_seam(&body, SCALE);
+        let Surface::Nurbs(n) = widened_u_chart_by(&chart_of(&body, bowed), 1) else {
+            panic!("the widened chart is a NURBS chart")
+        };
+        let control = n
+            .control()
+            .iter()
+            .map(|p| {
+                Point3::new(
+                    Dual::constant(p.x),
+                    Dual::constant(p.y),
+                    Dual::constant(p.z),
+                )
+            })
+            .collect();
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::<Dual64>::new(
+                n.knots_u().clone(),
+                n.knots_v().clone(),
+                control,
+                n.weights().to_vec(),
+            )
+            .unwrap(),
+        ))
+    };
+    let square = || -> sweep::Section {
+        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
+        vec![profile::ProfileLoop::new(vec![
+            v(-SCALE, -SCALE),
+            v(SCALE, -SCALE),
+            v(SCALE, SCALE),
+            v(-SCALE, SCALE),
+        ])]
+    };
+    let sections = vec![square(), square(), square()];
+    let places = vec![
+        Affine3::identity(),
+        Affine3::translation(Vec3::new(0.5 * SCALE, 0.0, 1.0 * SCALE)),
+        Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * SCALE)),
+    ];
+    let mut body = sweep::loft_body::<Dual64>(&sections, &places, 2, Tol::witness())
+        .expect("the offset square prism builds at Dual64")
+        .body;
+    let bowed = body
+        .faces()
+        .find_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(Surface::Nurbs(n))
+                if !n.is_placeholder()
+                    && n.control().iter().any(|p| p.y.lo() != -SCALE)
+                    && n.control().iter().any(|p| p.x.lo().abs() == SCALE) =>
+            {
+                Some(f.surface)
+            }
+            _ => None,
+        })
+        .expect("the dual loft has a bowed wall");
+    let (fk, _) = body
+        .faces()
+        .find(|(_, f)| f.surface == bowed)
+        .expect("the bowed wall has a face");
+    let key = body
+        .set_face_surface(fk, FaceSurface::New(widened))
+        .expect("the wall takes its widened chart");
+    let hes: Vec<_> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter(|he| {
+            let hed = body.get_half_edge(*he).unwrap();
+            let lp = body.get_loop(hed.parent_loop).unwrap();
+            body.get_face(lp.face).unwrap().surface == key
+        })
+        .collect();
+    for he in &hes {
+        body.detach_pcurve(*he);
+    }
+    let mut seams = 0;
+    for he in hes {
+        let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
+            panic!("the carrier is certified")
+        };
+        if !matches!(c.carrier(), Curve3::Nurbs(_)) {
+            continue;
+        }
+        seams += 1;
+        let out = topo::pcurve_of(&body, he, band());
+        let Err(PcurveMintError::Certify {
+            error: geom_brep::PcurveCertifyError::IsoUnsupported { what },
+            ..
+        }) = out
+        else {
+            panic!("a dual body has no foot to measure, so the arm refuses typed: {out:?}")
+        };
+        assert!(
+            what.contains("no lane measures a chart foot at this scalar"),
+            "naming the missing lane, not a fabricated column: {what}"
+        );
+    }
+    assert!(seams >= 1, "the wall face has its seams: found {seams}");
 }
 
 /// **The lane bound is signature churn, not capability loss.** The

@@ -383,3 +383,22 @@ Ratified as written, with these answers to §8 and the sequencing:
   sentence in §5 names the new file.
 - **Branches.** PR-1 `trim/3-chart-bound`, PR-2 `trim/3-window-seam`.
 - **Pre-log stands**: PR-1 **M-low / NUMERIC**, PR-2 **L / NUMERIC**.
+
+## Amendments from PR-1's dual (TRIM orchestrator, 2026-09-06)
+
+- **Two-edge loops certify nothing.** `certifies_outside` skips a loop
+  with fewer than three vertices (a disc cap, a ball lune, a D-shaped
+  face). Sound — a skipped loop certifies less — and PR-2 must not
+  expect cap tightening on such faces; E5/E6's cylinder rows are
+  unaffected (their caps are not the tightened windows).
+- **`chart_boundary` describes plane, cylinder and torus charts;
+  sphere and cone loops with a joint at the chart's singularity refuse
+  typed** (PR-1's fix pass). PR-2's §3(a) is plane and cylinder only, so
+  nothing in PR-2 changes; the cone/sphere/torus residue file covers
+  the rest.
+- **The metred hull.** PR-2's root rule intersects with the METRED
+  hull (widened by every envelope's certificate slack), not the raw
+  `hull` field.
+- **The parity schedule** is the shared 16-member `SCHEDULE_2D`, not a
+  two-member truncation; PR-2's cell-count expectations (E1–E3's
+  `outside > 0`) hold either way.

@@ -47,7 +47,7 @@ use viewer::camera::{self, Camera, CameraOp};
 use viewer::display::DisplayFault;
 use viewer::input::ViewportSize;
 use viewer::matetool::{MateTool, MateToolState};
-use viewer::pick::PickIndex;
+use viewer::pickindex::PickIndex;
 use viewer::session::{
     AtRestBadge, DocSession, FaceSelection, Hovered, ProfileShape, Refusal, Selection, SessionOp,
 };

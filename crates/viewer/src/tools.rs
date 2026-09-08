@@ -40,7 +40,7 @@ use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{BooleanTool, PatternTool, SplitTool, TransformTool};
 use crate::matetool::{MateTool, MateToolEvent};
-use crate::pick::PickKinds;
+use crate::pickindex::PickKinds;
 use crate::revolvetool::RevolveTool;
 use crate::seats::SeatEvent;
 use crate::session::{Selection, SessionOp};

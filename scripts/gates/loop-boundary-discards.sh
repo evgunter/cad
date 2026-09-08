@@ -195,6 +195,14 @@ REGISTER=(
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"
   "crates/topo/src/seqgen.rs|mef_chords_candidates||1|unaudited"
+  # The generator's copy of the per-shell glue walk. Its arm is
+  # movefac's arm above, deliberately: the row enumerates the sites
+  # that operator will partition, so it must partition them the same
+  # way. Left `unaudited` because the arm it mirrors is — inheriting a
+  # disposition that does not exist would be the register's own
+  # failure mode — and because the duplication is the open question,
+  # filed as work/topo/shell-glue-relation-has-three-implementations.md.
+  "crates/topo/src/seqgen.rs|shell_components||1|unaudited"
   "crates/topo/src/shell.rs|duplicate_in_loop||1|unaudited"
   "crates/topo/src/shell.rs|face_boundary_points||1|unaudited"
   "crates/topo/src/shell.rs|face_neighbours||1|unaudited"

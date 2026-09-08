@@ -12,11 +12,11 @@ After #2055 the crate carries two three-valued enums, one hop apart,
 that share two of their three variant names:
 
     crates/viewer/src/session.rs:448   enum Outstanding { Current, Evaluating, Canceled }
-    crates/viewer/src/frame.rs:1414    enum Progress    { Evaluating, Canceled { indexing: bool }, Indexing }
+    crates/viewer/src/frame.rs:1434    enum Progress    { Evaluating, Canceled { indexing: bool }, Indexing }
 
 and the function between them is close to their identity:
 
-    crates/viewer/src/frame.rs:1456-1462
+    crates/viewer/src/frame.rs:1471-1478
     Outstanding::Evaluating => Some(Progress::Evaluating),
     Outstanding::Canceled   => Some(Progress::Canceled { indexing }),
     Outstanding::Current if indexing => Some(Progress::Indexing),
@@ -46,7 +46,7 @@ seam as a bare positional `bool`, which the README ratifies
 the index seam's `bool`"*). Under the unit's own rule — *"a consumer
 is handed that fact and never the pair"* — the index seam is the one
 consumer input that is still a raw reading rather than a value, and
-`PickCache::indexing()` (`crates/viewer/src/pick.rs:2525`) is the
+`PickCache::indexing()` (`crates/viewer/src/pickcache.rs:376`) is the
 door that would mint one. It is not a swap hazard today because there
 is only one `bool` left; it is the asymmetry that makes the rule read
 as applied to half the signature.
