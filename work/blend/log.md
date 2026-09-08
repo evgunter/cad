@@ -351,3 +351,13 @@ Two orchestrator decisions corrected by reviewers in one day (units 3
 and 5): both were premises about what the tree does that the
 dispatcher did not measure — the reviewer-style lane's "the dispatch
 is a hypothesis" earning its keep.
+
+**Block BLEND-B1 opens — unit 6 dispatched (2026-09-08)** on
+`blend/6-ring-clearance` under `docs/BLEND-6-SPEC.md`, slot 0's arm per
+the branch-side draw (`blend/b1-block`); pre-draw **M / NUMERIC** at
+the spec. Seam announced to S-TCOST (`work/tcost/log.md`: the boss
+homed, the probe copies deleted, the refusal pins flipped). Runs
+beside unit K's and unit 5's fix passes. The dual dispatches on the
+frozen head when the lane reports; the ordinal (2900, the band's first
+claim) goes to main then, relabelling S-BLEND's old roster entry in the
+same commit.
