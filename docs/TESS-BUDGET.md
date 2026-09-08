@@ -314,8 +314,10 @@ what this document exists to record.
 
 **The tell, and exactly what it proves.** The two columns that are pure
 OPTIMA over the certified ellipse — `opt_cells` and `span_opt_cells` —
-are schedule-INDEPENDENT, and they still read within 1% of the figures
-below (94,154 against 95,090; 44,446 against 44,457). The two that
+are schedule-INDEPENDENT, and they still read within 2.2% and 0.7% of
+the figures below (93,066 against 95,090; 44,162 against 44,457) —
+gaps that also carry the meter's OWN resolution, since a finer split
+scan lowers an optimum column without a face moving. The two that
 describe a shipped schedule moved by ~3.4x. What that separates is a
 change of SIZING RULE from everything else: a re-cut driven by corpus
 growth, or by a certificate change, moves the optima too — `a4eb03ae`
@@ -355,15 +357,18 @@ CERT-10's four: 390,100 →
 110,811 is **3.52x**, and it is the inner selection rule changing, not
 the shipped grid getting smaller. It reads as the same selection change
 measured against the optimum: `uniform_cells / opt_cells` was 4.10x
-then, `patch_cells / opt_cells` is 1.18x now.
+then, `patch_cells / opt_cells` is 1.19x now.
 
 The genuine shipped-grid move is the other row — 154,129 `sized per
 knot-span cell` against today's `grid_cells` 46,019, **3.35x** — and it
 decomposes exactly: per-cell sizing sat 3.47x above the per-cell optimum
-under the AM-GM split (154,129 / 44,457) and sits 1.035x above it today
-(46,019 / 44,446), and 3.47 / 1.035 = 3.35. That closing of the
-recoverable factor is TESS-SPLIT, on the schedule the lane actually
-ships.
+under the AM-GM split (154,129 / 44,457) and sits 1.042x above it today
+(46,019 / 44,162), and 3.47 / 1.042 = 3.33 against the 3.35 the two
+grids give directly. **The 0.7% residual is the two DENOMINATORS, not
+the schedule**: the two readings measure the per-cell optimum with
+different scans, and the decomposition is exact only where they agree.
+That closing of the recoverable factor is TESS-SPLIT, on the schedule
+the lane actually ships.
 
 **Both moves are ~3.4x, and the two are separate events measured on
 separate columns.** A single "3–8x" over the pair is the mis-pairing

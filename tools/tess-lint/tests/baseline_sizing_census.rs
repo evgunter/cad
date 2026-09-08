@@ -58,13 +58,17 @@
 //!   (the document's decoder table says why);
 //! * the columns that are pure OPTIMA over the certified ellipse —
 //!   `opt_cells` and `span_opt_cells` — are schedule-independent, and
-//!   they sit within 1% of the pre-fix figures because the sized faces
-//!   are the same 64 faces.
+//!   they sit within 2.2% and 0.7% of the pre-fix figures because the
+//!   sized faces are the same 64 faces. Both gaps are wider than they
+//!   were, by the amount the split scan's own resolution moved when
+//!   `tess_meter::SPLIT_SCAN_SAMPLES` was raised: a finer scan finds
+//!   cheaper splits, so an optimum column falls without a face moving.
 //!
 //! **What that separates is a change of SIZING RULE from everything
-//! else, and no more than that.** Corpus growth and certificate
-//! changes move the optima too, so two columns still at 1% says the
-//! faces and their bounds are still the block's. It does not by itself
+//! else, and no more than that.** Corpus growth, certificate changes
+//! and the meter's own resolution all move the optima too, so two
+//! columns still within a few percent says the faces and their bounds
+//! are still the block's. It does not by itself
 //! say which sizing rule changed: a re-cut taken after a schedule
 //! change and the schedule change landing are one event. The dated
 //! record settles that — `docs/MODEL-AB-LOG.md`'s TESS-SPLIT row reads
@@ -79,6 +83,16 @@
 //! `twisted_duct_shadow_*` face 4s. Neither growth nor a schedule
 //! change; a certificate change, which is the third thing a re-cut
 //! can be.
+//!
+//! **The fourth thing moves the OPTIMA and nothing else, and it is not
+//! a reading about geometry at all**: the meter's own split scan. Its
+//! resolution sets how close `opt_cells` and `span_opt_cells` get to
+//! the cheapest grid the same certificates admit, so raising
+//! `tess_meter::SPLIT_SCAN_SAMPLES` lowers both columns over a corpus
+//! that did not move — 94,154 to 93,066 and 44,446 to 44,162 over the
+//! whole sweep, with `grid_cells`, `patch_cells` and every triangle
+//! count identical. A re-cut whose only movers are those two columns
+//! is that event and is never a schedule regression.
 //!
 //! # The retired vocabulary, which is what actually mis-reads
 //!
@@ -172,11 +186,11 @@ fn the_committed_baseline_sizes_this_much() {
     assert_eq!(t.grid_cells, 46_019.0, "grid cells the lane built");
     assert_eq!(t.patch_cells, 110_811.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 94_154.0,
+        t.opt_cells, 93_066.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 44_446.0,
+        t.span_opt_cells, 44_162.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -188,7 +202,7 @@ fn the_committed_baseline_sizes_this_much() {
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.0354).abs() < 5e-4,
+        (recoverable - 1.0420).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }
