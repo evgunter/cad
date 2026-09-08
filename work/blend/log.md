@@ -207,3 +207,13 @@ unit 2's fix pass clears `extrude.rs`; the one-sentence seam on
 "a door must not mint what the at-rest gate will reject" is thereby
 narrowed by ruling to a preference, not a rule: the gate is the
 instrument and a door may hand it a body to refuse.
+
+**Unit K dispatched (2026-09-08)** on `blend/k-no-floor` — the ruling
+executed: `ExtrudeError::SmoothCapRim` and its arm go, the smooth cap
+rim stores the conventional description by the predicate and refuses
+at rest, H6's rows flip to the build-plus-at-rest-refusal, the `K*`
+prose goes with the arm (closing
+`extrude-cap-rim-argument-and-k-star-have-five-homes`), and
+`Tolerance.k`'s doc gains the one sentence (PROPS' file; announced in
+`work/props/log.md`). E-shaped; single style review. Runs beside unit
+1's fix pass and unit 4.

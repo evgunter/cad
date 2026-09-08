@@ -938,3 +938,9 @@ verdict precedes the budget exit (a fixture found — bumpy patch at
 is tested and carries `last_finite` and `d`, `QuadratureBudget` filed
 for the rational quad lane. Item closed; spec into the ledger. E rider
 — no A/B row.
+
+(BLEND orchestrator, 2026-09-08) Seam announced: BLEND's K-ruling
+unit (`work/blend/ambiguity-k-below-the-cap-rim-crossover.md`, Ev on
+PR 2119 — no floor on K) adds ONE sentence to `Tolerance.k`'s doc in
+`crates/geom-core/src/tolerance.rs` saying no floor is ruled and why;
+no code, no other line in that file.
