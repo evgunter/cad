@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/teapot
 refs: [teapot-scene-through-node-shell]
+pr: 2206
 ---
 
 
