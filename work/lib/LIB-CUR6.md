@@ -2,10 +2,12 @@
 id: LIB-CUR6
 kind: unit
 title: curation 6 — the five re-sweep hits under the CUR3 test
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/cur6
 refs: [payload-rung-re-sweep-finds-five-more-uncurated-discriminants]
+pr: 2193
+closed: 2026-09-08
 ---
 
 The five hits LIB-CUR5's re-sweep filed
