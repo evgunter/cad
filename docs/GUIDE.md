@@ -473,7 +473,12 @@ profile's sketch plane. The three sections below are the corpus's
 `loft_prism`: squares at z = 0 and z = 2 with a trapezoid between
 them, whose non-parallel pair means the middle section is *not* an
 affine image of the ends, so the four walls are genuinely curved
-rather than ruled.
+rather than ruled. The degree is a STRUCTURAL slot, and both of the
+loft's inputs are editable in place once the node exists:
+`DocEdit.bind_v_degree_param(node, name)` makes the degree a named
+number that one `set_doc_param` moves — at degree 1 the same three
+sections enclose 8.75 m³ rather than 9 — and `DocEdit.set_members`
+restates the section list whole.
 
 ```python
 from pncad import Doc, Node, evaluate, m

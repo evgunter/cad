@@ -2000,6 +2000,25 @@ class Node:
         are the same face."""
 
     @staticmethod
+    def union(members: list[NodeId], declare: Optional[NodeId] = None) -> Node:
+        """The N-ARY union: two or more member bodies folded into ONE
+        body, in the LIST's order.
+
+        Not `boolean`, which is the binary operation over two named
+        operand slots, and not `placed_union`, whose members are one
+        prototype under a placement rule: here the members are
+        authored independently and the membership is a list, which
+        `DocEdit.set_members` rewrites on the live node. `declare` is
+        the same optional coincidence input `boolean` takes, fed at
+        the fold step its two members meet at; without one, members
+        that merely TOUCH refuse (`undeclared_contact`).
+
+        Refuses at `Doc.insert` on the list as stated: `too_few_members`
+        (with the `count` found), `duplicate_input`,
+        `unresolved_input`, `declare_input_not_declare`. Whether a
+        member is a BODY is the kernel's question at `evaluate`."""
+
+    @staticmethod
     def declare(findings: list[FlushFinding]) -> Node:
         """The `Declare` node built from INSPECTED findings; its
         inserted id feeds `Node.boolean`'s `declare=`. Nothing here
@@ -2498,6 +2517,23 @@ class DocEdit:
     @staticmethod
     def delete_node(id: NodeId) -> DocEdit: ...
     @staticmethod
+    def set_members(node: NodeId, members: list[NodeId]) -> DocEdit:
+        """Replace a node's whole LIST input — a `Node.union`'s
+        members, a `Node.loft`'s sections — with the list stated in
+        full.
+
+        The one edit that changes a live node's inputs: no positional
+        spelling and no per-entry arm, so nothing is inferred about
+        which old entry survived. Dropping a member is this edit
+        without it plus `delete_node` of the orphan; a union's
+        `declare` input is left as it was.
+
+        Every input check `Doc.insert` makes is remade of the
+        REWRITTEN node — `unresolved_input`, `duplicate_input`,
+        `too_few_members`, `would_cycle` — and a node carrying no list
+        refuses `set_members_on_non_list`."""
+
+    @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
     def set_doc_param(name: ParamName, value: DocParam) -> DocEdit:
@@ -2526,7 +2562,6 @@ class DocEdit:
         parameter carried, with no refusal. Refuses typed on an
         undeclared name (`doc_param_not_declared`) and on a kind
         mismatch (`doc_param_value_kind_mismatch`)."""
-    @staticmethod
     @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
         """Set the document's ordered PRODUCT ROOTS outright.
@@ -2590,6 +2625,21 @@ class DocEdit:
         crossing. Refuses on a node with no instance slot — every node
         but a Part selecting an instance — and on an unknown or wrongly
         dimensioned parameter."""
+
+    @staticmethod
+    def bind_v_degree_param(node: NodeId, name: ParamName) -> DocEdit:
+        """Bind `node`'s STRUCTURAL v-degree slot to the document
+        parameter `name` — a loft's v-direction interpolation degree
+        as a named, editable number.
+
+        The third sibling, and the same narrow shape: a degree is
+        neither a count of placements nor an index into them, it says
+        how the skin interpolates BETWEEN sections. Refuses on a node
+        with no v-degree slot — from Python, every node but a
+        `Node.loft` — and on an unknown or wrongly dimensioned
+        parameter. The kernel's rule on the VALUE
+        (`1 <= v_degree <= len(profiles) - 1`) is checked at
+        `evaluate`, bound or literal alike."""
 
 class Doc:
     """A parametric document: the recipe, not the geometry."""
