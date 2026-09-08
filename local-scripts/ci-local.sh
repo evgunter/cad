@@ -1074,8 +1074,10 @@ budget_meter() {
 # surface evaluations) would be paid for nothing. What it does read is
 # narrower than "the sizing columns" — `triangles` per scene and
 # `grid_cells / span_opt_cells` per face are what it COMPARES, and
-# `chart`, whether the row carries the sizing block at all, and
-# `u0`-`v1` / `nu` / `nv` are what it JOINS on. Re-cutting the baseline
+# `chart` and `u0`-`v1` / `nu` / `nv` are what it JOINS on — seven
+# columns, block presence not among them: `parse` refuses a row whose
+# sizing block and chart disagree, so "carries the block" is a function
+# of `chart` and joins on nothing of its own. Re-cutting the baseline
 # drops the flag.
 tesslint_gate() {
   scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only || return 1
