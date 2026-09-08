@@ -38,11 +38,12 @@ rows; the band is claimed for bookkeeping.
 E, first:
 
 1. `affine-lift-has-a-second-home-in-anchor-embed-affine` + `D368` —
-   one lane in `eval/anchor.rs`: `embed_affine` and the `wire.rs:1132`
-   site retire into `SketchPlane::map` / `Affine3::map`; the hand-lifted
-   `Vec3` at `:238` becomes `Vec3::map`; whether the fallible direction
-   wants a kernel `try_map` is put to PROPS by note, and `map_affine`
-   stays local until it is answered.
+   one lane in `eval/anchor.rs`: `embed_affine` and its two callers
+   retire into `SketchPlane::map`; the hand-lifted `Vec3` the row cites
+   is the walk inside `map_affine`, whose `from_f64` instance WAS
+   `embed_affine`, so `D368` closes by construction; whether the
+   fallible direction wants a kernel `try_map` is put to PROPS by note,
+   and `map_affine` stays local, parked on that answer.
 2. `node-tag-space-census-blind-to-tags-outside-sentinels` — the tag
    space declared once as a closed enum with `ALL`, the sites reading
    from it, the sentinels retired.
@@ -68,6 +69,23 @@ D, each an `[ev]` PR, announced on DOCM's board:
    the profile pre-pass and the mate solve decide before any bracket
    opens. A design choice made with the pre-pass's owner; the build
    moves every Profile node's log and the verdict-log goldens.
+
+8. `profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift`
+   — EVAL-7's residue, scheduled: under the pinned lift at the build
+   scalar the op re-validates the `Profile<f64>` the pre-pass already
+   validated, so the node's log (and `vdiff`'s populations) hold each
+   decision twice. The unit makes the Pinned arm reuse the pre-pass's
+   validated form (the validated type's lift is `crates/profile`'s door,
+   S-BOOL's glob, announced) and the m4 eps-audit populations return to
+   single counts.
+9. `interval-content-key-hashes-bits-the-pre-pass-does-not-read` —
+   EVAL-7's review found the memo hole (pre-existing): at the interval
+   scalar the key hashes a slot's interval bits while the pre-pass and
+   the pinned op read its nominal f64, which is not in the key, so two
+   documents with one box and different nominals hit each other's memo.
+   The nominal f64 of each slot joins the key (a format bump); the
+   review's probe is the red-first row. The file lands with EVAL-7's
+   fix pass.
 
 Standing, not units: `D360` (sweep topo refusal enums by variant name;
 a rule this program's lanes read first). Deferred with its

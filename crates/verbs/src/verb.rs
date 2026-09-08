@@ -144,7 +144,7 @@ pub enum Verb<T: Real> {
     },
 }
 
-/// **The verb vocabulary with the scalar and reference payload
+/// **The kernel's verb vocabulary with the scalar and reference payload
 /// dropped** — the closed set of operation names, addressable where no
 /// [`Verb`] value exists yet.
 ///
@@ -171,7 +171,7 @@ pub enum Verb<T: Real> {
 /// `sweep::blend::BlendKind` is a different thing that looks like this
 /// one: it is the label a blend REFUSAL carries, enumerating the two
 /// blend doors, and it lives in `sweep` because a `sweep` refusal
-/// carries it. It cannot serve here — the verb vocabulary grows past
+/// carries it. It cannot serve here — the kernel's verb vocabulary grows past
 /// the blend pair into ops `sweep` must not name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum VerbKind {
@@ -187,14 +187,11 @@ pub enum VerbKind {
     Boolean(BooleanOp),
     /// [`Verb::Split`].
     Split,
-    /// [`Verb::Shell`].
-    ///
-    /// **A kernel-only verb**: the document layer has no `Node` that
-    /// builds one, so every commitment keyed on this vocabulary has to
-    /// say what it means for a name no document can reach yet, rather
-    /// than skip it (`editor-core`'s content tag is the first —
-    /// `verb_content_tag` answers `None` here and the tag censuses read
-    /// that as closed data).
+    /// [`Verb::Shell`]. It shipped kernel-first, ahead of its document
+    /// node, and every commitment keyed on this vocabulary said what it
+    /// meant for a name no document could reach rather than skipping
+    /// it (`editor-core`'s content tag is an `Option` for that reason);
+    /// `Node::Shell` builds it now.
     Shell,
 }
 
@@ -354,9 +351,12 @@ mod all_census {
     /// **[`VerbKind::ALL`] is the WHOLE vocabulary**, pinned against a
     /// compile-time visit rather than reviewed.
     ///
-    /// The precedent this list cites (`profile::Verb::ALL`) is
-    /// macro-generated and cannot drift; this one is hand-written, so it
-    /// needs the guard the macro would otherwise have been. The match
+    /// The precedent this list cites, `profile::Verb::ALL`, is the
+    /// SKETCH program's `Verb` — spelled with its crate, as every
+    /// reader of either `Verb` spells it (the crate doc's convention)
+    /// — and is macro-generated, so it cannot drift; this one is
+    /// hand-written, so it needs the guard the macro would otherwise
+    /// have been. The match
     /// below is EXHAUSTIVE — over the vocabulary AND over the boolean's
     /// op, since each op is its own row — so a variant added to either
     /// enum makes this file fail to compile until it is visited here,

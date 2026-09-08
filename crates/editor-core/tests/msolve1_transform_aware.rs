@@ -27,7 +27,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, content_pin, load, product, save,
     solve_document,
 };
-use fixture::seat::{assert_seated, map_gap, seat_map};
+use fixture::seat::{assert_seated, map_gap, product_face_frame, seat_map};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
@@ -492,15 +492,12 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
 
     // (b) TRANSFORM over PATTERN over the instance. The mate names a
     // copy and is read at the transform; the walk admits it and the
-    // offset is T ∘ M(1) — the mate SOLVES and determines its pair.
-    //
-    // The document itself does not gather, and the reason is not the
-    // mate's: `Node::Transform` takes ONE BODY, and a pattern's value
-    // is `Instances`, so the transform refuses `WrongOperand` at the
-    // evaluation. That is the node vocabulary's fence, unchanged by
-    // this unit and unreachable past — so the row pins BOTH halves:
-    // the reference resolves and places, and the document refuses
-    // where a transform meets a multi-body value.
+    // offset is T ∘ M(1) — the mate SOLVES and determines its pair,
+    // and the document GATHERS: a transform is shape-preserving over
+    // its input's value, so the transform of the pattern is the
+    // pattern's instances under one map, and the named copy seats on
+    // the base in the product. Copies 0 and 2 are spaced to clear the
+    // slab, as in (a).
     {
         let mut store = StubStore::default();
         let base_ref = store.insert(
@@ -522,7 +519,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 count: Expr::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
-                    spacing: len(2.0),
+                    spacing: len(5.0),
                 },
             },
         );
@@ -555,18 +552,17 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             Some(MateRole::Determining),
             "the transform-of-pattern reference places its pair"
         );
-        let _ = (&a, &b);
         let ev = run(&doc, &opts);
-        let err = ev
-            .node_error(xf)
-            .expect("a transform over a pattern refuses at the evaluation");
         assert!(
-            matches!(
-                err.kind,
-                editor_core::NodeErrorKind::WrongOperand { expected, .. } if expected == "body"
-            ),
-            "expected the one-body operand refusal, got {:?}",
-            err.kind
+            ev.value(xf).is_some(),
+            "the transform of the pattern evaluates: {:?}",
+            ev.node_error(xf)
+        );
+        assert_seated(&doc, &ev, &a, &b, &seat_frame, "A3 transform-of-pattern");
+        assert!(
+            gate(&doc, &ev).is_ok(),
+            "A3 transform-of-pattern: the gate refused: {:?}",
+            gate(&doc, &ev).err()
         );
     }
 }
@@ -1068,34 +1064,48 @@ fn a8d_a_transform_operand_round_trips_through_persistence() {
 // ---- A10: a nested copy is a member ----
 
 /// **A10.** A nested pattern's copy is a MEMBER: the walk consumes
-/// both `Instance(i)` qualifiers and the solve places the mate.
+/// both `Instance(i)` qualifiers, the solve places the mate, and the
+/// document GATHERS — a pattern over an `Instances` value places
+/// every instance, so the outer pattern's value is the `2 × 3` copies
+/// laid out placement-major (output body `j·M + i`).
 ///
-/// The document itself does not gather, and the reason is not the
-/// mate's: `Node::Pattern` takes ONE BODY, and a pattern's value is
-/// `Instances`, so the outer pattern refuses `WrongOperand` at the
-/// evaluation. (`Node::Part { Instance(i) }` between them is the
-/// shape that builds — MSOLVE-2's own suite.) So the row pins both
-/// halves: the reference resolves and its pair is determined, and the
-/// document refuses where a pattern meets a multi-body value.
+/// **The walk's numbering and the flat index coincide**, asserted on
+/// the evaluated document: the name the walk reads as copies
+/// `(j, i) = (1, 1)` resolves in the outer pattern's table to flat
+/// body `1·3 + 1`, and that body's cap sits in the product exactly
+/// where the walk's offset — the outer map at 1 over the inner map at
+/// 1, LEFT of the placement the solve produced for the instance —
+/// puts the part's own cap. The seat itself is measured against the
+/// placer-free control, as every row here is.
 #[test]
 fn a10_a_nested_pattern_head_is_a_member() {
     let mut store = StubStore::default();
-    let base_ref = store.insert(block("msolve1-a10-base", 1.0), Tol::witness());
-    let top_ref = store.insert(block("msolve1-a10-top", 3.0), Tol::witness());
-    let _ = &store;
+    let base_ref = store.insert(
+        slab("msolve1-a10-base", BASE_WIDTH, BASE_HEIGHT),
+        Tol::witness(),
+    );
+    let top_ref = store.insert(block("msolve1-a10-top", TOP_HEIGHT), Tol::witness());
+    let opts = EvalOptions {
+        resolver: Some(Arc::new(store)),
+        ..EvalOptions::default()
+    };
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a10"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
-    let rule = || PatternKind::Linear {
-        direction: [scl(1.0), scl(0.0), scl(0.0)],
-        spacing: len(2.0),
+    // Spaced so that every copy but the mated one clears the slab —
+    // a sibling resting on the base uninvited is an undeclared contact
+    // the gate is right to refuse. Inner along x, outer along y.
+    const SPACING: f64 = 5.0;
+    let rule = |dir: [f64; 3]| PatternKind::Linear {
+        direction: dir.map(scl),
+        spacing: len(SPACING),
     };
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
             input: top,
             count: Expr::count(3),
-            kind: rule(),
+            kind: rule([1.0, 0.0, 0.0]),
         },
     );
     let (doc, outer) = insert(
@@ -1103,16 +1113,17 @@ fn a10_a_nested_pattern_head_is_a_member() {
         Node::Pattern {
             input: inner,
             count: Expr::count(2),
-            kind: rule(),
+            kind: rule([0.0, 1.0, 0.0]),
         },
     );
+    let a = in_part(base, CapEnd::End);
     let nested = in_copy(outer, 1, in_copy(inner, 1, in_part(top, CapEnd::Start)));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
             node: seat(
-                SitedRef::at_mint(in_part(base, CapEnd::End)),
-                SitedRef::new(outer, nested),
+                SitedRef::at_mint(a.clone()),
+                SitedRef::new(outer, nested.clone()),
             ),
         },
     );
@@ -1128,7 +1139,55 @@ fn a10_a_nested_pattern_head_is_a_member() {
         Some(MateRole::Determining),
         "the nested copy's reference places its pair"
     );
-    let _ = inner;
+
+    // The document gathers, and the named copy seats on the base.
+    let ev = run(&doc, &opts);
+    assert!(
+        ev.value(outer).is_some(),
+        "the pattern of the pattern evaluates: {:?}",
+        ev.node_error(outer)
+    );
+    assert_seated(&doc, &ev, &a, &nested, &control_seat("msolve1-a10"), "A10");
+    assert!(
+        gate(&doc, &ev).is_ok(),
+        "A10: the gate refused: {:?}",
+        gate(&doc, &ev).err()
+    );
+
+    // The numbering: the walk's (j, i) = (1, 1) is flat body 1·3 + 1.
+    let table = &ev.value(outer).expect("the outer").name_table;
+    let Some(editor_core::Entry::Unique(row)) = table.lookup(&nested) else {
+        panic!(
+            "the nested name resolves uniquely: {:?}",
+            table.lookup(&nested)
+        );
+    };
+    assert_eq!(row.body, 3 + 1, "copy (1, 1) is output body j·M + i");
+
+    // The pose: the copy's cap in the product is the walk's offset
+    // (outer map at 1 over inner map at 1: the authored spacing along
+    // both authored directions) left of the placement the solve
+    // produced for the instance, over the part's own cap frame — read
+    // off a document that instantiates the part alone, unplaced.
+    let placement = poses
+        .placement(&doc, top)
+        .expect("the instance is placed")
+        .affine::<f64>();
+    let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a10-alone"), Tol::witness());
+    let (alone, top_alone) = insert(alone, Node::instantiate_part(top_ref));
+    let local = product_face_frame(
+        &alone,
+        &run(&alone, &opts),
+        &in_part(top_alone, CapEnd::Start),
+    );
+    let offset = Affine3::translation(geom_core::Vec3::new(SPACING, SPACING, 0.0));
+    let expected = offset * placement * local;
+    let found = product_face_frame(&doc, &ev, &nested);
+    let gap = map_gap(&found, &expected);
+    assert!(
+        gap <= 1e-12,
+        "the copy's cap sits {gap} from the walk's offset over the solved placement"
+    );
 }
 
 /// **A8(e).** A cut that would sever a mate from its operand is
@@ -1377,4 +1436,247 @@ fn severed_operand_scene(
         cut = [mate].into_iter().collect();
     }
     (doc, mate, cut, xf)
+}
+
+// ---- A11: a transform BETWEEN two patterns ----
+
+/// **A11.** A transform between the two patterns: the walk's chain is
+/// `[outer(j), T, inner(i)]` and the evaluator's body is
+/// `M_o(j) ∘ T ∘ M_i(i)` — asserted on the product with a ROTATION,
+/// so the other order is a different map and the row can tell them
+/// apart.
+#[test]
+fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
+    let mut store = StubStore::default();
+    let base_ref = store.insert(
+        slab("msolve1-a11-base", BASE_WIDTH, BASE_HEIGHT),
+        Tol::witness(),
+    );
+    let top_ref = store.insert(block("msolve1-a11-top", TOP_HEIGHT), Tol::witness());
+    let opts = EvalOptions {
+        resolver: Some(Arc::new(store)),
+        ..EvalOptions::default()
+    };
+    let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a11"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
+    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let rule = |dir: [f64; 3], s: f64| PatternKind::Linear {
+        direction: dir.map(scl),
+        spacing: len(s),
+    };
+    let (doc, inner) = insert(
+        doc,
+        Node::Pattern {
+            input: top,
+            count: Expr::count(3),
+            kind: rule([1.0, 0.0, 0.0], 5.0),
+        },
+    );
+    let spin = std::f64::consts::FRAC_PI_2;
+    let (doc, t) = insert(doc, xform(inner, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], spin));
+    let (doc, outer) = insert(
+        doc,
+        Node::Pattern {
+            input: t,
+            count: Expr::count(2),
+            kind: rule([0.0, 1.0, 0.0], 20.0),
+        },
+    );
+    let a = in_part(base, CapEnd::End);
+    let nested = in_copy(outer, 1, in_copy(inner, 1, in_part(top, CapEnd::Start)));
+    let (doc, mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: seat(
+                SitedRef::at_mint(a.clone()),
+                SitedRef::new(outer, nested.clone()),
+            ),
+        },
+    );
+    let mate = mate.unwrap();
+    let poses = solve_document(&doc, Tol::witness());
+    assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
+    let ev = run(&doc, &opts);
+    assert!(ev.value(outer).is_some(), "{:?}", ev.node_error(outer));
+    assert_seated(&doc, &ev, &a, &nested, &control_seat("msolve1-a11"), "A11");
+    assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
+    let table = &ev.value(outer).unwrap().name_table;
+    let Some(editor_core::Entry::Unique(row)) = table.lookup(&nested) else {
+        panic!("{:?}", table.lookup(&nested))
+    };
+    assert_eq!(row.body, 3 + 1, "copy (1, 1) is flat body j·M + i");
+    let placement = poses.placement(&doc, top).unwrap().affine::<f64>();
+    let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a11-alone"), Tol::witness());
+    let (alone, top_alone) = insert(alone, Node::instantiate_part(top_ref));
+    let local = product_face_frame(
+        &alone,
+        &run(&alone, &opts),
+        &in_part(top_alone, CapEnd::Start),
+    );
+    let m_o = Affine3::translation(geom_core::Vec3::new(0.0, 20.0, 0.0));
+    let t_map = Affine3::rotation_about_axis(
+        geom_core::Point3::origin(),
+        geom_core::Vec3::new(0.0, 0.0, 1.0),
+        spin,
+    );
+    let m_i = Affine3::translation(geom_core::Vec3::new(5.0, 0.0, 0.0));
+    let expected = m_o * t_map * m_i * placement * local;
+    let found = product_face_frame(&doc, &ev, &nested);
+    let gap = map_gap(&found, &expected);
+    assert!(gap <= 1e-12, "outer ∘ T ∘ inner: gap {gap}");
+    let wrong = m_i * t_map * m_o * placement * local;
+    assert!(
+        map_gap(&found, &wrong) > 1.0,
+        "the two orders are distinguishable here"
+    );
+}
+
+// ---- A12: a Part over a nested pattern, and the mate read AT it ----
+
+/// What a `Part(k)` row expects: the mate seats (the `Part`'s `k` IS the
+/// flat body the name's chain says), or the solve refuses
+/// `PartSelectsAnotherCopy` naming the flat index the name says.
+#[derive(Clone, Copy)]
+enum PartCase {
+    Seats,
+    Refuses { named: u32 },
+}
+
+/// The nested document of A10 with a `Part(k)` over the outer pattern
+/// — through a transform when `via_transform` — and the mate read AT
+/// that part, naming copy `(j, i)`.
+fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCase) {
+    let label = format!("msolve1-a12-{k}-{j}-{i}-{via_transform}");
+    let mut store = StubStore::default();
+    let base_ref = store.insert(
+        slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
+        Tol::witness(),
+    );
+    let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
+    let opts = EvalOptions {
+        resolver: Some(Arc::new(store)),
+        ..EvalOptions::default()
+    };
+    let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
+    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let rule = |dir: [f64; 3]| PatternKind::Linear {
+        direction: dir.map(scl),
+        spacing: len(5.0),
+    };
+    let (doc, inner) = insert(
+        doc,
+        Node::Pattern {
+            input: top,
+            count: Expr::count(3),
+            kind: rule([1.0, 0.0, 0.0]),
+        },
+    );
+    let (doc, outer) = insert(
+        doc,
+        Node::Pattern {
+            input: inner,
+            count: Expr::count(2),
+            kind: rule([0.0, 1.0, 0.0]),
+        },
+    );
+    let (doc, of) = if via_transform {
+        insert(doc, xform(outer, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0))
+    } else {
+        (doc, outer)
+    };
+    let (doc, part) = insert(
+        doc,
+        Node::Part {
+            of,
+            select: editor_core::PartSelect::Instance(Expr::count(k)),
+        },
+    );
+    let a = in_part(base, CapEnd::End);
+    let nested = in_copy(outer, j, in_copy(inner, i, in_part(top, CapEnd::Start)));
+    let (doc, mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: seat(
+                SitedRef::at_mint(a.clone()),
+                SitedRef::new(part, nested.clone()),
+            ),
+        },
+    );
+    let mate = mate.unwrap();
+    let poses = solve_document(&doc, Tol::witness());
+    let ev = run(&doc, &opts);
+    let what = format!("Part({k}) naming ({j}, {i}), via transform: {via_transform}");
+    match expect {
+        PartCase::Seats => {
+            assert!(
+                poses.fault(mate).is_none(),
+                "{what}: {:?}",
+                poses.fault(mate)
+            );
+            assert_eq!(poses.role(mate), Some(MateRole::Determining), "{what}");
+            assert!(
+                ev.node_error(mate).is_none(),
+                "{what}: {:?}",
+                ev.node_error(mate)
+            );
+            assert!(
+                ev.value(part).is_some(),
+                "{what}: {:?}",
+                ev.node_error(part)
+            );
+            assert_seated(&doc, &ev, &a, &nested, &control_seat(&label), &what);
+            assert!(
+                gate(&doc, &ev).is_ok(),
+                "{what}: {:?}",
+                gate(&doc, &ev).err()
+            );
+        }
+        PartCase::Refuses { named } => {
+            let fault = poses.fault(mate).cloned();
+            assert!(
+                matches!(
+                    fault,
+                    Some(MateFault::PartSelectsAnotherCopy {
+                        part: p,
+                        named: n,
+                        selected,
+                        ..
+                    }) if p == part && n == named && selected == k
+                ),
+                "{what}: expected PartSelectsAnotherCopy(named {named}, selected {k}), got {fault:?}"
+            );
+            assert!(
+                ev.node_error(mate).is_some(),
+                "{what}: the mate node fails typed at the evaluation"
+            );
+        }
+    }
+}
+
+/// **A12.** A `Part(k)` over a nested pattern selects FLAT body `k`,
+/// and a mate read at it names a copy `(j, i)` whose flat index is
+/// `j·3 + i`: the solve compares the two in the `Part`'s own index
+/// space, so `k == j` with `i ≠ 0` is a disagreement (the `Part`
+/// gathers copy `(0, k)`, five units from the copy the name places),
+/// not an agreement — and the same through a transform above the
+/// outer pattern, which preserves the value's indices.
+#[test]
+fn a12_a_part_over_a_nested_pattern_agrees_in_the_flat_index() {
+    for (k, j, i, via) in [
+        (4, 1, 1, false),
+        (1, 0, 1, false),
+        (4, 1, 1, true),
+        (0, 0, 0, true),
+    ] {
+        part_over_nested(k, j, i, via, PartCase::Seats);
+    }
+    for (k, j, i, via, named) in [
+        (1, 1, 1, false, 4),
+        (0, 0, 1, false, 1),
+        (4, 0, 1, false, 1),
+        (1, 1, 1, true, 4),
+    ] {
+        part_over_nested(k, j, i, via, PartCase::Refuses { named });
+    }
 }

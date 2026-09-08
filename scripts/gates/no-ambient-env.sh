@@ -100,14 +100,10 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# THE RATIFIED READERS, as paths and held once: the filter's exemption is
-# built from this list and the clean fixture plants every entry of it.#
-# ONE LIST, AND ONE DIRECTION PROVED. The fixture->filter direction reds
-# the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is convention and not a check — a filter
-# naming a home no fixture plants stays green here, and catching that is
-# the subject-half residue's job
-# (`work/gates/whole-file-skips-do-not-check-their-subject.md`).
+# THE RATIFIED READERS, as paths and held once: the filter's exemption,
+# `gate_require_homes`'s subject check and the clean fixture all read
+# this list, and what that buys is argued at that check.
+ALLOWLISTED_SUBJECT='the ratified environment readers, the only files that may read the environment at runtime'
 ALLOWLISTED_HOMES=(
   crates/geom-core/src/tolerance.rs
   crates/test-utils/src/fuzz.rs
@@ -116,6 +112,7 @@ ALLOWLISTED_HOMES=(
 
 gate() {
   gate_require_crate_sources
+  gate_require_homes "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
     | gate_grep -P '\benv::vars?(_os)?\s*\(' \
@@ -192,6 +189,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, a block comment and a string literal naming the call" plant_prose_only
+  gate_selftest_homes --subject "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   printf '%s selftest OK: passes a clean fixture carrying every allowlisted reader, and prose/block-comment/string-literal mentions of the call; fires on a read, on one hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 

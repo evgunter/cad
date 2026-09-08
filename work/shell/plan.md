@@ -50,22 +50,22 @@ arm must agree with `ShellNaming`), `editor-core`'s recipe doors
    (PR #1756, 2026-09-04). LIB-G17 unparked.
 2. **SHELL-2** `transform-rigid-refuses-approx-face` — LANDED
    (PR #1758, 2026-09-04); the plan's old item 4, pulled forward.
-3. **Next: the hollow operand** — `shell-of-hollow-body-thicken-every-boundary`,
-   Ev's ruling verbatim in the body; retire `OperandAlreadyHollow`.
-   Consequence stated once: one thin solid per boundary shell — the
-   outer shell erodes inward and every void shell dilates outward,
-   both by `t`. Self-contained in `shell.rs`; takes block SHELL-B1's
-   slot 2. Spec to write.
-4. **The nappe home** — `mint-offset-ignores-cone-mirror-nappe` and
-   `shell-offset-three-followups` items 2–3: one nappe home both
-   consumers read (`replace_face::mint_offset` and
-   `offset_axial::nappe_signed`, both this program's now), with
-   `ConeOffset::displacement` in the sweep; predicate names for the
-   winding uses (four owners after VERBS-1031B's `merge_faces` site —
-   the validator's and `merge_faces`' sites are other programs'
-   files, so that half is announced on their boards before it lands).
-   Unblocked since RIMCAP PR-1 and 1031B merged (2026-09-04). Opens
-   block SHELL-B2.
+3. **SHELL-5** `shell-of-hollow-body-thicken-every-boundary` — LANDED
+   (PR #2159, 2026-09-08): one thin solid per operand shell, the
+   planar clearance gate grown by `t`, `RimNaming::side`. Block
+   SHELL-B1 concluded.
+4. **SHELL-6** `mint-offset-ignores-cone-mirror-nappe` — LANDED
+   (PR #2178, 2026-09-08): `face_nappe`/`group_nappe`, one home in the
+   offset lane; the live ε-scale sign defect closed. Block SHELL-B2
+   slot 0. The winding-predicate rename (`shell-offset-three-followups`
+   item 2) is NOT in it: three owners' files and a K-lint population
+   — it stays on that item until announced on TOPO's and S-BOOL's
+   boards.
+4b. **Next: SHELL-7, the one-surface corner** —
+   `axial-door-refuses-a-one-surface-seam-corner`: the axial door
+   moves a seam vertex along its one surface's own normal, so the
+   full-period torus shells (solid and hollow); spec
+   `docs/SHELL-7-SPEC.md`; block SHELL-B2 slot 1.
 5. RULED B (Ev, #1737, 2026-09-04): **SHELL-3** — the clearance
    engine's body-level half moves into `topo` behind `interval`
    (joint with M10; no behaviour change, the M10-5/6 suites are the

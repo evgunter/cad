@@ -87,21 +87,44 @@ pub enum OpGroup {
     Pattern,
     /// Instantiate-part (ASM-2A's cross-document wrapper).
     InstantiatePart,
+    /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
+    /// Its outer wall speaks as [`SegTag::FromTarget`], which groups
+    /// under [`OpGroup::Fillet`]: the tag names the SHAPE (an entity
+    /// carried through one op), and the minting node says which op.
+    Shell,
 }
 
-/// Which [`RoleSeg`] variant a segment is: the fieldless mirror of
-/// the role enum.
-///
-/// The mirror is hand-written and its [`SegTag::of`] match is
-/// EXHAUSTIVE with no wildcard arm, so adding a `RoleSeg` variant
-/// fails to compile here rather than silently falling through to "no
-/// tag" — fail-loud, at the site that must grow.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[allow(
-    missing_docs,
-    reason = "each variant mirrors the documented `RoleSeg` variant of the same name"
-)]
-pub enum SegTag {
+macro_rules! seg_tags {
+    ($($name:ident),* $(,)?) => {
+        /// Which [`RoleSeg`] variant a segment is: the fieldless mirror of
+        /// the role enum.
+        ///
+        /// The mirror is hand-written and its [`SegTag::of`] match is
+        /// EXHAUSTIVE with no wildcard arm, so adding a `RoleSeg` variant
+        /// fails to compile here rather than silently falling through to "no
+        /// tag" — fail-loud, at the site that must grow. The mirror is
+        /// declared through one macro so that [`SegTag::ALL`] is projected
+        /// from the same list as the variants and cannot fall behind one.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[allow(
+            missing_docs,
+            reason = "each variant mirrors the documented `RoleSeg` variant of the same name"
+        )]
+        pub enum SegTag {
+            $($name),*
+        }
+
+        impl SegTag {
+            /// Every tag, in declaration order — the row set a census
+            /// over the segment vocabulary iterates (the content key's
+            /// `seg_content_tags_are_injective`), enumerated from the
+            /// same declaration as the variants.
+            pub const ALL: &'static [SegTag] = &[$(SegTag::$name),*];
+        }
+    };
+}
+
+seg_tags! {
     // Shared
     OutputBody,
     // Extrude
@@ -147,6 +170,10 @@ pub enum SegTag {
     BandCross,
     BandCut,
     BandSlit,
+    // Shell
+    Inner,
+    Rim,
+    HoleRim,
     // Pattern
     Instance,
     // Instantiate part
@@ -235,6 +262,9 @@ impl SegTag {
             RoleSeg::BandCross(..) => Self::BandCross,
             RoleSeg::BandCut(..) => Self::BandCut,
             RoleSeg::BandSlit(..) => Self::BandSlit,
+            RoleSeg::Inner(..) => Self::Inner,
+            RoleSeg::Rim(..) => Self::Rim,
+            RoleSeg::HoleRim { .. } => Self::HoleRim,
             RoleSeg::Instance { .. } => Self::Instance,
             RoleSeg::InPart { .. } => Self::InPart,
         }
@@ -283,6 +313,7 @@ impl SegTag {
             | Self::BandCross
             | Self::BandCut
             | Self::BandSlit => OpGroup::Fillet,
+            Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
             Self::Instance => OpGroup::Pattern,
             Self::InPart => OpGroup::InstantiatePart,
         }
@@ -333,6 +364,9 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::BandCross(_)
         | RoleSeg::BandCut(_)
         | RoleSeg::BandSlit(_)
+        | RoleSeg::Inner(_)
+        | RoleSeg::Rim(_)
+        | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
         | RoleSeg::Instance { .. } => None,
     }
@@ -368,6 +402,9 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandCross(n)
         | RoleSeg::BandCut(n)
         | RoleSeg::BandSlit(n)
+        | RoleSeg::Inner(n)
+        | RoleSeg::Rim(n)
+        | RoleSeg::HoleRim { of: n, .. }
         | RoleSeg::SectionEdge { face: n, .. }
         | RoleSeg::SplitFragment { parent: n, .. }
         | RoleSeg::CrossingVertex { edge: n, .. }

@@ -257,9 +257,25 @@ SUBJECTS=(
   'crates/topo/src/null.rs ArenaDelta|assert_euler_postcondition|arena_counts 5 the arena delta the null-entity operators declare'
   'crates/topo/src/split.rs ArenaDelta|assert_euler_postcondition|arena_counts 5 the arena delta the split operators declare'
   'crates/topo/src/boolean/voids.rs ArenaDelta|assert_euler_postcondition|arena_counts 4 the arena delta the void transplant declares'
-  'crates/topo/src/movefac.rs ArenaDelta|assert_euler_postcondition|arena_counts 6 the arena delta the face-move operator declares'
+  'crates/topo/src/movefac.rs ArenaDelta|assert_euler_postcondition|arena_counts 10 the arena delta the face-move and shell-move operators declare'
 )
 GATE_SCAN_NOUN='debug-only symbol use'
+
+# THE ROW LIST TAKES ONE EXTRA ROW FOR A PLANTED TREE, AND ONLY FOR ONE
+# — `viewer-module-kinds.sh`'s hook for its exception list, for the same
+# reason. Every row above names a file of THIS repo, so a shape that can
+# only exist at a path the repo does not have (a `:` in it, which is
+# legal here and in git) is unreachable from any fixture: the subject
+# list is what decides what this gate reads. The hook is honoured only
+# when `--root` points somewhere OTHER than this repo, which only the
+# self-test does, so no environment can add a subject to a real pass —
+# and the pin comparison is already off under `--root`, so the extra
+# row's count is not a second thing to keep true.
+subjects_from_env() {
+  [ "$GATE_ROOT" = "$GATE_REPO_ROOT" ] && return 0
+  [ -n "${GATE_SELFTEST_EXTRA_SUBJECT:-}" ] || return 0
+  SUBJECTS+=("$GATE_SELFTEST_EXTRA_SUBJECT")
+}
 
 # `--pin-shift N` shifts every row's pinned count by N. It exists for
 # the self-test and for nothing else: a pin is a reading of THIS tree,
@@ -295,7 +311,7 @@ spelling_upper() { printf '%s' "$1" | tr 'a-z' 'A-Z'; }
 # brace depth over the code-only text, so a use is placed against the
 # item it is in rather than against the file it is in.
 debug_only_report() {
-  awk -v PAT="$1" '
+  gate_record_awk -v PAT="$1" '
     BEGIN {
       # A `debug_assert…!` macro, not a function whose name starts the
       # same way: the `!` is the whole distinction.
@@ -318,10 +334,17 @@ debug_only_report() {
       dsync = 1
     }
     {
-      p1 = index($0, ":"); r = substr($0, p1 + 1); p2 = index(r, ":")
-      if (p1 == 0 || p2 == 0) next
-      f = substr($0, 1, p1 - 1); ln = substr(r, 1, p2 - 1)
-      code = substr(r, p2 + 1)
+      # WHERE THE FILE COLUMN ENDS comes from `gate_record_split`
+      # (lib.sh, section THE COLUMNS OF A RECORD; no apostrophe may
+      # appear in this program, which is itself single-quoted, so
+      # possessives are written around). Read to the first colon, a path
+      # carrying one of its own left the LINE NUMBER on the front of the
+      # code text, where every matcher below reads it as code — and gave
+      # the diagnosis a truncated path to name. Not the per-file reset,
+      # which the paragraph below it explains cannot see a second file
+      # in one run of this reader.
+      if (!gate_record_split($0)) next
+      f = GR_FILE; ln = GR_LINE; code = GR_TEXT
       # The per-file reset. It carries no end-of-file check of its own:
       # `gate` invokes this reader once per subject, over the records of
       # that one subject, so the only file boundary a run ever meets is
@@ -519,6 +542,23 @@ gate_plant_clean() {
 plant() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" "pub fn agree(a: f64, b: f64) -> bool { $expr }"
+}
+
+# THE CLEAN TREE, UNALTERED — the negative control for the pair of cases
+# that add a subject through the environment.
+plant_nothing() { :; }
+
+# A LEAK IN THE SUBJECT WHOSE PATH CARRIES A COLON, appended under the
+# gated use the clean fixture wrote there, so it is line 3 and the case
+# can want the line as well as the path. Both halves are the point: the
+# reader takes the FILE column and the LINE column out of one record,
+# and read to the first colon it called the file
+# `crates/planted/src/a` and the line `b.rs` — which reassembles into
+# the same path in the message and loses the line number entirely, so a
+# reader of that diagnosis is sent to a file with no line to look at.
+plant_colon_path_leak() {
+  printf 'pub fn production_leak(a: f64, b: f64) -> bool { %s }\n' \
+    "$(spelling_use plane_bits_witness)" >> "$1/crates/planted/src/a:b.rs"
 }
 
 # THE CASE THE COUNTING FORM PASSED, and the reason this gate was
@@ -1062,9 +1102,24 @@ gate_selftest() {
     read -r path pat count noun <<< "$row"
     gate_selftest_case "the gate's subject is gone" plant_subject_gone "$path"
   done
+  # A SUBJECT WHOSE PATH CARRIES A COLON, which is legal here and in
+  # git and which no row above can be: every row names a file of this
+  # repo. The row reaches the gate through the environment (see
+  # `subjects_from_env`) and the clean fixture plants it from the same
+  # row, so the pair is a control and a leak over the same tree — and
+  # the leak case wants the PATH AND THE LINE the diagnosis carries,
+  # which is the whole of what the record reading decides here.
+  local saved_subjects=("${SUBJECTS[@]}")
+  export GATE_SELFTEST_EXTRA_SUBJECT='crates/planted/src/a:b.rs plane_bits_witness 1 the witness at a colon-carrying path'
+  SUBJECTS+=("$GATE_SELFTEST_EXTRA_SUBJECT")
+  selftest_subject_paths_are_distinct
+  gate_selftest_passes "a gated use in a subject whose path carries a colon" plant_nothing
+  gate_selftest_case "crates/planted/src/a:b.rs:3:" plant_colon_path_leak
+  unset GATE_SELFTEST_EXTRA_SUBJECT
+  SUBJECTS=("${saved_subjects[@]}")
   gate_selftest_pin 1
   gate_selftest_pin -1
-  printf '%s selftest OK, over %s subjects and the %s spellings they carry, each proved on its own: every shape case but `plant_subject_gone` plants its shape in EVERY subject and runs the gate ONCE, and reds unless a diagnosis line names each planted subject — every spelling plants its own leak, so a spelling the reader cannot match fails here; enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals, `cfg(test)` code, a longer identifier that merely contains a spelling (prefixed, suffixed, or both at once) and the same name in another case are not uses — the near misses run per SPELLING, because the reader takes the anchor at each end from that end of the spelling; an item ends at a `;` only at bracket depth zero, and only a `{` at bracket depth zero is the item ENTERING — so a statement-position attribute over a multi-line call whose arguments carry braces (nested, in more than one argument) covers that call and stops at its `;`, with a use below it firing as the ungated use it is; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; each row carries the use count it pins, proved against this tree in both directions; and a lost bracket depth (planted as code, both with braced items below the stray bracket and with nothing below it), a missing subject (asked one subject at a time, because the presence check ends at the first one gone) and a `grep` that cannot run are each a loud failure\n' \
+  printf '%s selftest OK, over %s subjects and the %s spellings they carry, each proved on its own: every shape case but `plant_subject_gone` plants its shape in EVERY subject and runs the gate ONCE, and reds unless a diagnosis line names each planted subject — every spelling plants its own leak, so a spelling the reader cannot match fails here; enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals, `cfg(test)` code, a longer identifier that merely contains a spelling (prefixed, suffixed, or both at once) and the same name in another case are not uses — the near misses run per SPELLING, because the reader takes the anchor at each end from that end of the spelling; an item ends at a `;` only at bracket depth zero, and only a `{` at bracket depth zero is the item ENTERING — so a statement-position attribute over a multi-line call whose arguments carry braces (nested, in more than one argument) covers that call and stops at its `;`, with a use below it firing as the ungated use it is; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; each row carries the use count it pins, proved against this tree in both directions; one further subject, added for the fixture alone at a path that CARRIES A COLON, is green while its use is gated and reds naming that path AND the line the leak sits on, which is the whole of what the record reading decides here; and a lost bracket depth (planted as code, both with braced items below the stray bracket and with nothing below it), a missing subject (asked one subject at a time, because the presence check ends at the first one gone) and a `grep` that cannot run are each a loud failure\n' \
     "$(gate_name)" "${#SUBJECTS[@]}" "$spellings"
 }
 
@@ -1079,4 +1134,5 @@ while [ $# -gt 0 ]; do
   esac
 done
 gate_parse_args ${GATE_ARGV[@]+"${GATE_ARGV[@]}"}
+subjects_from_env
 gate_main
