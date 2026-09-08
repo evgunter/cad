@@ -718,6 +718,101 @@ fn the_f64_seam_is_exact() {
     assert_eq!((q.x, q.y), (7.25, -0.0));
 }
 
+/// The lattice-backed polygon door: what it accepts, what it refuses,
+/// and that what it emits is the raw vertex table.
+///
+/// The refusals are the point of the door. A coordinate table minted
+/// straight into a loop carries no junction, so a corner that is
+/// tangent (or cusped) within the band is discovered a tier later, at
+/// `validate`. Here it is discovered at the corner.
+#[test]
+fn the_polygon_door_authors_through_the_lattice() {
+    let tol = Tol::witness();
+
+    let square: ProfileLoop<f64> =
+        polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)], tol).expect("a square authors");
+    assert_eq!(square.vertices().len(), 4);
+
+    let triangle: ProfileLoop<f64> =
+        polygon(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], tol).expect("a triangle authors");
+    assert_eq!(triangle.vertices().len(), 3);
+
+    // Three corners is the floor, and the arm says which count it
+    // refused — every sub-three table takes the same door.
+    for table in [
+        &[(0.0, 0.0), (1.0, 0.0)][..],
+        &[(0.0, 0.0)][..],
+        &[][..],
+    ] {
+        let given = table.len();
+        match polygon::<f64>(table, tol) {
+            Err(PathError::PolygonTooFewVertices { given: n }) => assert_eq!(n, given),
+            other => panic!("{given} vertices must refuse as PolygonTooFewVertices: {other:?}"),
+        }
+    }
+
+    // Three collinear points: the corner at (1, 0) departs along its
+    // own incoming tangent, which the lattice classifies AT THE
+    // CORNER. A raw vertex table would have accepted this and left it
+    // for validate.
+    match polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)], tol) {
+        Err(PathError::JunctionTangent { .. }) => {}
+        other => panic!("a collinear corner must refuse as JunctionTangent: {other:?}"),
+    }
+}
+
+/// **The identity claim**: the door changes how a polygon is SAID, not
+/// what it is. The emitted loop is the raw vertex table — every
+/// authored point in order, every bulge zero, no declared joints.
+///
+/// The claim is pinned against the table rather than against a call to
+/// the raw minting door, because that door is unreachable from here by
+/// construction: `RawLoop` is off the façade's presented surface
+/// (`no_raw_loop_minting_door_is_nameable_through_the_facade`) and this
+/// file may name no crate but `pncad` (the guard at the bottom). What
+/// is asserted is what `RawLoop::polygon` mints for the same points —
+/// its whole contract — read back through the façade's own readers.
+#[test]
+fn the_polygon_door_emits_the_raw_vertex_table() {
+    let tol = Tol::witness();
+    let table = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.5, 4.0), (0.0, 3.0)];
+    let loop_: ProfileLoop<f64> = polygon(&table, tol).expect("the outline authors");
+
+    let want: Vec<ProfileVertex<f64>> = table
+        .iter()
+        .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+        .collect();
+    let got = loop_.vertices();
+    assert_eq!(got.len(), want.len(), "one vertex per authored point");
+    for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+        assert_eq!((g.pos().x, g.pos().y), (w.pos().x, w.pos().y), "vertex {i}");
+        assert_eq!(g.bulge(), w.bulge(), "vertex {i} bulge");
+    }
+    assert!(
+        loop_.tangent_joints().is_empty(),
+        "a polygon declares no tangent joint"
+    );
+
+    // And the same loop the hand-spelled chain emits: the door IS that
+    // chain, not a second lowering of the same table.
+    let chain: ProfileLoop<f64> = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), tol)
+        .and_then(|t| t.line_to(p2(2.0, 3.0), tol))
+        .and_then(|t| t.line_to(p2(0.5, 4.0), tol))
+        .and_then(|t| t.line_to(p2(0.0, 3.0), tol))
+        .and_then(|t| t.line_to(Start, tol))
+        .expect("the hand-spelled chain authors")
+        .into();
+    let hand = chain.vertices();
+    assert_eq!(hand.len(), got.len());
+    for (i, (g, h)) in got.iter().zip(hand).enumerate() {
+        assert_eq!((g.pos().x, g.pos().y), (h.pos().x, h.pos().y), "vertex {i}");
+        assert_eq!(g.bulge(), h.bulge(), "vertex {i} bulge");
+    }
+    assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
+}
+
 /// The validation ladder as the corpus actually walks it.
 ///
 /// Tiers 1 and 2 run on every body. Tier 3 and tier 3′ are
@@ -4064,24 +4159,27 @@ fn every_facade_layer_is_whole_re_exported_or_per_name_guarded() {
 /// **The crate doc's claim about the authoring seams, guarded.**
 ///
 /// The claim is that every [`pncad::authoring`] seam is a single
-/// kernel constructor call except `validated`, which is the two-call
-/// form. Its predecessor was a COUNT ("six of the seven"), and the
-/// count went stale the moment the `polygon` door was removed —
-/// nothing was watching, so the sentence outlived the surface it
-/// described by two units.
+/// kernel constructor call except two — `validated`, the
+/// `Profile::new` + `Profile::validate` pair, and `polygon`, the
+/// PATHS-lattice chain a coordinate table lowers to.
 ///
-/// This watches the failure mode that actually happened: the roster
-/// moving under a sentence about it. Adding or removing a seam fails
-/// here, and so does a second seam chaining a follow-up kernel call
-/// onto its constructor. The chain is matched as `.validate(` and not
-/// as `).validate(`, because the receiver and the call it chains onto
-/// need not share a line: a chain rustfmt wrapped is the same hit.
+/// The failure mode this watches is the roster moving under a
+/// sentence about it: a prose COUNT is checked only when someone
+/// happens to look, so the roster is asserted by name here instead.
+/// Adding or removing a seam fails here, and so does a second seam
+/// chaining a `Profile::validate` onto its constructor. That chain is
+/// matched as `.validate(` and not as `).validate(`, because the
+/// receiver and the call it chains onto need not share a line: a
+/// chain rustfmt wrapped is the same hit.
 ///
 /// **Not guarded, stated:** "a single kernel constructor call" is
 /// about a body's SHAPE, and counting calls in source text is the
 /// kind of scan that reports its own parser rather than the code. The
-/// roster plus the chain check is what a text scan can honestly
-/// assert; the rest is the per-function rustdoc and its doctests.
+/// chain check reads ONE shape, `validated`'s; `polygon`'s multi-call
+/// shape is a lattice chain this scan does not look for, and what
+/// holds it to its documented behaviour is its own doctest and the
+/// door tests above. The roster plus the chain check is what a text
+/// scan can honestly assert; the rest is the per-function rustdoc.
 #[test]
 fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
     let code = code_without_comments(include_str!("../src/authoring.rs"));
@@ -4110,16 +4208,16 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
     seams.sort_unstable();
     assert_eq!(
         seams,
-        ["p2", "p3", "real", "v2", "v3", "validated"],
+        ["p2", "p3", "polygon", "real", "v2", "v3", "validated"],
         "the authoring seam roster moved — re-read the crate doc's \
          sentence about it before changing this list"
     );
     assert_eq!(
         chaining,
         ["validated"],
-        "`validated` is documented as the ONE two-call seam; another \
-         seam now chains a follow-up kernel call, so the crate doc's \
-         claim needs re-wording"
+        "`validated` is documented as the seam that chains \
+         `Profile::validate` onto its constructor; another seam now \
+         does too, so the crate doc's claim needs re-wording"
     );
 }
 
