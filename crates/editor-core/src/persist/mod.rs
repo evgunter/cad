@@ -134,7 +134,7 @@ struct FileBody {
 }
 
 /// A loaded document: the parsed snapshot, the parsed edit log, and
-/// the REPLAYED result (snapshot + edits through [`apply`]'s doors —
+/// the REPLAYED result (snapshot + edits through [`crate::edit::apply`]'s doors —
 /// the document's current state).
 #[derive(Debug)]
 pub struct Loaded {
@@ -278,7 +278,7 @@ pub enum PersistError {
     /// load, or an in-memory one at save (which would have written an
     /// unloadable file; shared-validator check).
     Snapshot(SnapshotError),
-    /// An edit in the log refused through the [`apply`] door — on
+    /// An edit in the log refused through the [`crate::edit::apply`] door — on
     /// LOAD replay, or at SAVE by the symmetric log-verification pass
     /// (a log that cannot replay would make an unloadable file; save
     /// refuses first).

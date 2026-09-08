@@ -73,7 +73,7 @@ use crate::ident::DocRef;
 /// edit door applies a group of edits to a succession of documents
 /// against one reach). The solve reads the instance's reference off
 /// its own document and names the instance when it wraps a refusal
-/// ([`LeverRefusal`]).
+/// ([`super::LeverRefusal`]).
 ///
 /// Answered lazily: a part no mate names is never asked for, and a
 /// part that is asked for is evaluated exactly once per evaluation
@@ -92,7 +92,7 @@ pub trait MateReach {
 
 /// Why a part's reach is not in hand ([`MateReach::reach`]). Named
 /// against the part alone; the solve adds the instance it was asking
-/// for ([`LeverRefusal::of`]).
+/// for ([`super::LeverRefusal::of`]).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReachRefusal {
     /// The part does not resolve: the evaluation layer's own typed
