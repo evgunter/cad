@@ -191,3 +191,19 @@ was 8), 10–13 shift by one. The reviewer's boolean NOTE (a definitely
 tilted boss refuses through the union as `ClassificationInvariant`, a
 row-4 sentence for a row-2 frontier) is filed on S-BOOL's slate as
 `union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`.
+
+**The K floor ruled (Ev, PR [#2119](https://github.com/evgunter/cad/pull/2119),
+2026-09-08):** no constraint on K, and the `SmoothCapRim` special
+refusal goes — "it seems like nothing bad happens if we just remove the
+special case". Reached after two rounds spelling out the geometry (the
+dihedral lever is the rim edge's chord; below `√φ` an admitted chord
+times an admitted tilt reads under ε) and what happens without the
+refusal (the at-rest gate refuses the same body as `SliverDihedral`,
+a smooth rim having no material side). The item becomes the unit that
+executes it (`kind: unit`, spec in its `## Ruling`); the nightly
+small-K row proposed under option 1 is not filed. Dispatches after
+unit 2's fix pass clears `extrude.rs`; the one-sentence seam on
+`Tolerance.k`'s doc (PROPS' file) is announced at dispatch. H6's
+"a door must not mint what the at-rest gate will reject" is thereby
+narrowed by ruling to a preference, not a rule: the gate is the
+instrument and a door may hand it a body to refuse.
