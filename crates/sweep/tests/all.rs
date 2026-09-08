@@ -572,12 +572,12 @@ mod shell7_common;
 
 #[path = "shell7_dump.rs"]
 mod shell7_dump;
-#[path = "shell8_r1_probes.rs"]
-mod shell8_r1_probes;
 #[path = "shell8_dump.rs"]
 mod shell8_dump;
 #[path = "shell8_multi_solid.rs"]
 mod shell8_multi_solid;
+#[path = "shell8_r1_probes.rs"]
+mod shell8_r1_probes;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;

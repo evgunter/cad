@@ -165,10 +165,16 @@ fn r1_axial_door_leaves_the_other_solid_deep_identical() {
 fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
     let t = 0.05;
     let (r, h) = (1.0, 2.0);
-    let alone = topo::shell(&vessel(r, h), t, tol()).expect("the vessel alone").body;
-    let far = topo::shell(&beside(&vessel(r, h), &boxy(2.0, 3.0, 4.0), 1.0e6), t, tol())
-        .expect("a box a million metres away does not reach the vessel")
+    let alone = topo::shell(&vessel(r, h), t, tol())
+        .expect("the vessel alone")
         .body;
+    let far = topo::shell(
+        &beside(&vessel(r, h), &boxy(2.0, 3.0, 4.0), 1.0e6),
+        t,
+        tol(),
+    )
+    .expect("a box a million metres away does not reach the vessel")
+    .body;
     let wall = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
     let boxwall = v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
     println!(
@@ -177,7 +183,10 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
         volume(&far),
         wall
     );
-    assert!((volume(&alone) - wall).abs() < 1e-12, "the vessel's own wall");
+    assert!(
+        (volume(&alone) - wall).abs() < 1e-12,
+        "the vessel's own wall"
+    );
     assert!(
         (volume(&far) - (wall + boxwall)).abs() < 1e-9,
         "the pair is the sum of the two walls"
@@ -248,7 +257,9 @@ fn r1_the_roles_read_is_whole_body_not_per_hollow_solid() {
     let n_mixed = count(&mixed);
     // The hollow solid alone.
     let lone = count(&hollow_box());
-    println!("[r1] chk_shell_volume_sign verdicts: plain-pair={n_plain}, hollow-alone={lone}, hollow+plain={n_mixed}");
+    println!(
+        "[r1] chk_shell_volume_sign verdicts: plain-pair={n_plain}, hollow-alone={lone}, hollow+plain={n_mixed}"
+    );
     assert_eq!(n_plain, 0, "a body of only plain solids reads nothing");
     assert!(
         n_mixed > lone,
@@ -264,7 +275,9 @@ fn r1_the_roles_read_is_whole_body_not_per_hollow_solid() {
 fn r1_a_hollow_and_a_plain_solid_shell_together() {
     let t = 0.02;
     let body = beside(&hollow_box(), &boxy(2.0, 3.0, 4.0), 10.0);
-    let out = topo::shell(&body, t, tol()).expect("the mixed body shells").body;
+    let out = topo::shell(&body, t, tol())
+        .expect("the mixed body shells")
+        .body;
     println!(
         "[r1] hollow+plain: solids={} shells={}",
         out.solids().count(),
@@ -296,8 +309,12 @@ fn r1_a_part_inside_another_solids_void() {
     let t = 0.05;
     let inner = crate::verbs_shell::brick(0.27, 1.73, 0.27, 2.73, 0.27, 3.73);
     let mut body = hollow_box();
-    let placed = topo::transform_rigid(&inner, &Affine3::translation(Vec3::new(0.0, 0.0, 0.0)), tol())
-        .expect("identity");
+    let placed = topo::transform_rigid(
+        &inner,
+        &Affine3::translation(Vec3::new(0.0, 0.0, 0.0)),
+        tol(),
+    )
+    .expect("identity");
     topo::graft_disjoint(&mut body, &placed, tol()).expect("the nested part grafts");
     println!(
         "[r1] nested operand: solids={} shells={} clearance=0.02 < t={t}",
@@ -357,7 +374,11 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
             )
         })
         .collect();
-    assert_eq!(ceiling.len(), 2, "the void ceiling chart, two faces at the seam");
+    assert_eq!(
+        ceiling.len(),
+        2,
+        "the void ceiling chart, two faces at the seam"
+    );
     let opened = topo::shell_open(&pair, t2, &ceiling, tol())
         .expect("the vessel's void ceiling opens beside a box")
         .body;
@@ -430,8 +451,8 @@ fn r1_e2e_two_parts_one_body() {
         .expect("both parts hollow in one call")
         .body;
     let wall_box = v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9);
-    let wall_ves = core::f64::consts::PI
-        * (1.0 * 1.0 * 2.0 - (1.0 - t) * (1.0 - t) * (2.0 - 2.0 * t));
+    let wall_ves =
+        core::f64::consts::PI * (1.0 * 1.0 * 2.0 - (1.0 - t) * (1.0 - t) * (2.0 - 2.0 * t));
     println!(
         "[r1] e2e hollow: solids={} shells={} volume={:.12} closed form {:.12}",
         hollow.solids().count(),
@@ -484,7 +505,11 @@ fn r1_e2e_two_parts_one_body() {
         closed
     );
     assert_eq!(opened.solids().count(), 4, "four thin solids");
-    assert_eq!(opened.shells().count(), 7, "eight shells less the fused one");
+    assert_eq!(
+        opened.shells().count(),
+        7,
+        "eight shells less the fused one"
+    );
     assert!(
         (volume(&opened) - closed).abs() < 1e-12,
         "the four-solid opened assembly is the closed form: {} vs {closed}",
@@ -497,7 +522,11 @@ fn r1_e2e_two_parts_one_body() {
     );
     let mesh = mesh::tessellate(&opened, 5e-3, tol()).expect("the opened assembly tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
-    println!("[r1] e2e tessellation: {} patches, {} positions, watertight", mesh.patches.len(), mesh.positions.len());
+    println!(
+        "[r1] e2e tessellation: {} patches, {} positions, watertight",
+        mesh.patches.len(),
+        mesh.positions.len()
+    );
 }
 
 /// **`shell_open`'s designation vocabulary, from a user's seat.** After
@@ -526,7 +555,9 @@ fn r1_naming_the_inner_wall_after_two_hollowings() {
                 let shell: ShellKey = d.shell;
                 rows.push(format!(
                     "z={:.2} n_z={:+.0} solid={:?} shell={shell:?} face={f:?}",
-                    origin.z, normal.z, solid_of(&twice, f)
+                    origin.z,
+                    normal.z,
+                    solid_of(&twice, f)
                 ));
             }
         }
@@ -535,7 +566,10 @@ fn r1_naming_the_inner_wall_after_two_hollowings() {
     for r in &rows {
         println!("[r1] candidate {r}");
     }
-    println!("[r1] {} z-normal candidate faces to choose from", rows.len());
+    println!(
+        "[r1] {} z-normal candidate faces to choose from",
+        rows.len()
+    );
 }
 
 /// **The closed form of the hollow-hollow-open row, re-derived.**
