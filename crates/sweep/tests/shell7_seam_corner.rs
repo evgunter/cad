@@ -362,28 +362,6 @@ fn a_corner_with_no_profile_constraint_refuses_typed_on_a_hand_split_wedge() {
     );
 }
 
-/// Every chart of `body` moved inward by `t` through the simultaneous
-/// door — the moves `shell` builds, spelled at the door itself.
-fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut charts: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
-}
-
 /// **Row 6: the LINE arm, on the operand that reaches it.** No door
 /// builds a vertex whose only surface is a cylinder, cone or cap
 /// plane, so the drum's cylinder seam is split by hand at mid-height:
@@ -391,17 +369,14 @@ fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
 /// wall's line `ρ = r`, no plane contains the axis at it, and its
 /// image is the perpendicular foot on the moved line — `(r − t, h/2)`
 /// exactly, the azimuth carried — with the two half-seams translated
-/// radially onto the moved wall.
+/// radially onto the moved wall. The split changes no geometry, so the
+/// wall's volume is the unsplit drum's closed form.
 ///
-/// Through the DIRECT door, and that is measured rather than chosen:
-/// `shell` on the split drum reaches this arm, solves every corner
-/// and assembles the thin solid, and its closing tier 3 then refuses
-/// the assembled body — a split seam leaves the wall's loop no
-/// iso-rectangle, `Body::split_edge`'s standing caveat, which is about
-/// the props inventory and not about any corner. The door's own
-/// verification (every corner metered against every moved surface,
-/// every edge read back onto its carrier, tier 2 on the result) is
-/// what this row stands on.
+/// A hand-made operand owes what every door's operand has: its pcurve
+/// rows. `Body::split_edge` mints none for its two children, and
+/// `shell`'s closing tier 3 says so (`Pcurve MissingCache` on both,
+/// measured) — so the operand is finished with `topo::mint_pcurves`,
+/// the pass every builder runs last, before it is shelled.
 #[test]
 fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
     let (r, h) = (1.0, 2.0);
@@ -410,13 +385,26 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
         same_surface && o.x > 0.0 && d.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
     });
     let split = split_mid(&mut body, seam);
+    topo::mint_pcurves(&mut body, tol()).expect("the split operand's pcurves mint");
+    assert_eq!(
+        topo::validate_geometric(&body, tol()),
+        Ok(()),
+        "the operand"
+    );
     let (rho0, h0) = axial(point(&body, split));
     assert!((rho0 - r).abs() <= 1e-15 && (h0 - h / 2.0).abs() <= 1e-15);
-    let mut cavity = body.clone();
-    let band = geom_core::Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(&body, T), band, tol())
-        .unwrap_or_else(|e| panic!("the split drum's charts offset together, got {e}"));
-    let (rho, hh) = axial(point(&cavity, split));
+    let out =
+        topo::shell(&body, T, tol()).unwrap_or_else(|e| panic!("the split drum shells, got {e}"));
+    let cavity = &out.body;
+    assert_eq!(topo::validate_geometric(cavity, tol()), Ok(()), "tier 3");
+    let (new, _) = out
+        .naming
+        .inner_vertices
+        .iter()
+        .copied()
+        .find(|(_, old)| *old == split)
+        .expect("the split vertex has an image");
+    let (rho, hh) = axial(point(cavity, new));
     assert!(
         (rho - (r - T)).abs() <= 1e-15 && hh == h / 2.0,
         "the foot on the moved wall: got ({rho}, {hh}), want ({}, {})",
@@ -424,16 +412,16 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
         h / 2.0
     );
     // The two half-seams: generator lines on the moved wall, ending at
-    // the split vertex.
+    // the split vertex's image.
     let mut halves = 0;
     for (e, data) in cavity.edges() {
         let start = cavity.get_half_edge(data.he_plus).expect("he").start;
         let end = cavity.half_edge_end(data.he_plus).expect("end");
-        if start != split && end != split {
+        if start != new && end != new {
             continue;
         }
         halves += 1;
-        let (c, (t0, t1)) = carrier(&cavity, e);
+        let (c, (t0, t1)) = carrier(cavity, e);
         let Curve3::Line { origin, dir } = c else {
             panic!("{e:?}: a cylinder seam is a line, got {c:?}");
         };
@@ -442,8 +430,16 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
                 && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15,
             "{e:?}: a generator on the moved wall, got {c:?}"
         );
-        let ends = (point(&cavity, start), point(&cavity, end));
+        let ends = (point(cavity, start), point(cavity, end));
         assert!(c.eval(t0).distance(ends.0) <= 1e-13 && c.eval(t1).distance(ends.1) <= 1e-13);
     }
     assert_eq!(halves, 2, "two half-seams end at the split vertex");
+    let props = topo::mass_properties(cavity, tol()).expect("props");
+    let want = PI * (r * r * h - (r - T) * (r - T) * (h - 2.0 * T));
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "the drum's wall: got {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
+    );
 }
