@@ -45,11 +45,12 @@ edge. `ref_read_below_a_root` is reached below too: `Node.mate` takes
 an operand, so a mate read at a transform that a `placed_union`
 consumes is authorable — the operand spells the name, the product
 lists only the union and spells that face as an instance row, and
-the gate names the operand. (`Node.Pattern` is the document the
-kernel's own row uses; it stays unbound, and `placed_union` wraps its
-rows the same way.) The other two are MEASURED as unreachable from
-Python authoring today, which is a finding about the doors and not a
-gap in this file:
+the gate names the operand. (`placed_union` is what puts the
+transform below a root there; the kernel's own row spells the same
+document with `Node::Pattern`, and both wrap the transform's rows the
+same way.) The other two are MEASURED as unreachable from Python
+authoring today, which is a finding about the doors and not a gap in
+this file:
 
 * `ref_vanished` — no product entity answers to the name, and the
   operand the mate reads at does not spell it either. Reaching it
@@ -61,16 +62,24 @@ gap in this file:
 
 Each is bound and tagged; a reach appears when some other door does.
 
-THE ONE SUBSTITUTION, STATED
-----------------------------
-The layout's placed posts are `Node.placed_union`, not `Node.Pattern`.
-`Pattern`'s value is a PLURAL payload and stays deliberately unbound
-(G8's reason, unchanged); `placed_union` says the same placed family as
-ONE node whose value is an ordinary body, and over a disjoint
-arrangement it gathers the same material. The volume assertion below is
-what holds that claim to the scene's own number rather than to a
-sentence about it. It is the same substitution rows 43-45 are `YES*`
-on.
+THE SPELLING OF THE PLACED FAMILY, MEASURED RATHER THAN CLAIMED
+---------------------------------------------------------------
+The layout's placed posts are `Node.pattern` — the tour's own node —
+and `bench_scene.layout`'s `posts=` says them with `Node.placed_union`
+instead. `TestBenchLayout` runs its whole battery against BOTH, which
+is what turns "the fused spelling says the same placed family" from a
+sentence into a reading: the material, the per-placement cap frames,
+the instance-qualified names, their denotations and an A5 gate that
+passes outright are the same for a PLURAL `instances` value as for a
+single body, and `test_the_two_spellings_differ_in_the_values_
+plurality_alone` is what keeps that from being a coincidence of two
+identical nodes.
+
+They part at exactly one door, and the row below measures it: a mate
+head stands on a PATTERN's copy and refuses on a `placed_union`'s,
+because fusing the family leaves no instance to be a member of. So the
+substitution the audit rows used to carry was not free, and the
+direction it cost in is the mate.
 """
 
 import tempfile
@@ -140,53 +149,177 @@ class BenchWorkspace(unittest.TestCase):
         return bench_scene.instance_face(self.ws, doc, node, side)
 
 
+#: The two nodes `bench_scene.layout`'s `posts=` admits, by the name
+#: this file reports a failure under. Every expectation below is
+#: asserted against BOTH: what the audit row used to carry was a CLAIM
+#: that the fused spelling says the same placed family as the tour's
+#: plural one, and a claim about two spellings is measured by running
+#: both, not by asserting one and writing a sentence about the other.
+SPELLINGS = {"pattern": Node.pattern, "placed_union": Node.placed_union}
+
+
 class TestBenchLayout(BenchWorkspace):
     """Row 47: the flat-pack. The posts on their side and the shelf
-    beside them, nothing touching — A5's disjoint half."""
+    beside them, nothing touching — A5's disjoint half.
 
-    def layout(self):
+    The layout has no mates, so the cluster, the solve and the minted
+    declarations are `TestBenchStand`'s expectations and not this
+    document's; what this one is held to is the material, the
+    placements, the names and a gate that passes OUTRIGHT with nothing
+    minted."""
+
+    def layout(self, posts=Node.pattern):
         doc, post_i, family, shelf_i = bench_scene.layout(
-            self.post_ref, self.shelf_ref
+            self.post_ref, self.shelf_ref, posts
         )
         return doc, family, post_i, shelf_i
 
     def test_the_layout_gathers_the_scenes_material_exactly(self):
-        doc, family, _, shelf_i = self.layout()
-        # The roots state the product: the family (which consumed the
-        # instance) and the shelf instance, in that order.
-        self.assertEqual(doc.roots, [family, shelf_i])
-        ev = evaluate(doc, resolver=self.ws)
-        volume = product(doc, ev).mass_properties().volume
-        self.assertAlmostEqual(
-            volume, PATTERN_COUNT * POST_VOLUME + SHELF_VOLUME, delta=1e-12
-        )
+        for name, posts in SPELLINGS.items():
+            with self.subTest(posts=name):
+                doc, family, _, shelf_i = self.layout(posts)
+                # The roots state the product: the family (which
+                # consumed the instance) and the shelf instance, in
+                # that order.
+                self.assertEqual(doc.roots, [family, shelf_i])
+                ev = evaluate(doc, resolver=self.ws)
+                volume = product(doc, ev).mass_properties().volume
+                self.assertAlmostEqual(
+                    volume, PATTERN_COUNT * POST_VOLUME + SHELF_VOLUME, delta=1e-12
+                )
 
     def test_every_patterned_post_answers_to_an_instance_qualified_name(self):
-        doc, family, _, _ = self.layout()
-        ev = evaluate(doc, resolver=self.ws)
-        caps = ev.select(
-            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
-        )
-        # One per placement, and the name NESTS rather than
-        # concatenating: pattern index, then instance, then the part's
-        # own cap. Four distinct names is the structural claim the
-        # volume cannot make.
-        self.assertEqual(len(caps), PATTERN_COUNT)
-        self.assertEqual(len(set(caps)), PATTERN_COUNT)
+        for name, posts in SPELLINGS.items():
+            with self.subTest(posts=name):
+                doc, family, _, _ = self.layout(posts)
+                ev = evaluate(doc, resolver=self.ws)
+                caps = ev.select(
+                    family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
+                )
+                # One per placement, and the name NESTS rather than
+                # concatenating: pattern index, then instance, then
+                # the part's own cap. Distinct names are the
+                # structural claim the volume cannot make.
+                self.assertEqual(len(caps), PATTERN_COUNT)
+                self.assertEqual(len(set(caps)), PATTERN_COUNT)
 
     def test_the_disjoint_layout_passes_the_at_rest_gate_outright(self):
-        doc, _, _, _ = self.layout()
-        assembly = assemble(doc, evaluate(doc, resolver=self.ws))
-        # No mate declares anything and nothing touches, so the
-        # kernel's at-rest door passes with nothing minted. That is
-        # exactly what "disjoint assemblies validate today" means.
-        self.assertEqual(assembly.minted, [])
-        self.assertGreater(len(assembly.names), 0)
+        for name, posts in SPELLINGS.items():
+            with self.subTest(posts=name):
+                doc, _, _, _ = self.layout(posts)
+                assembly = assemble(doc, evaluate(doc, resolver=self.ws))
+                # No mate declares anything and nothing touches, so the
+                # kernel's at-rest door passes with nothing minted.
+                # That is exactly what "disjoint assemblies validate
+                # today" means — and it is what a PLURAL value reaching
+                # the gate had to be measured against rather than
+                # assumed: the gate takes the family either way.
+                self.assertEqual(assembly.minted, [])
+                self.assertGreater(len(assembly.names), 0)
+                self.assertAlmostEqual(
+                    assembly.body.mass_properties().volume,
+                    PATTERN_COUNT * POST_VOLUME + SHELF_VOLUME,
+                    delta=1e-12,
+                )
+
+    def test_the_two_spellings_differ_in_the_values_plurality_alone(self):
+        """What the two nodes actually say, which is the difference the
+        rows either side of this one are measuring ACROSS.
+
+        `Node.pattern` answers the family unfused — N bodies, and no
+        single-body door at all — where `placed_union` answers one
+        body of the same material. Every expectation in this class
+        holds for both; this row is why that is a finding and not a
+        coincidence, and it is what a reader needs to know the two
+        spellings are not the same node under two names.
+        """
+        volumes = {}
+        for name, posts in SPELLINGS.items():
+            with self.subTest(posts=name):
+                doc, family, _, _ = self.layout(posts)
+                value = evaluate(doc, resolver=self.ws).value(family)
+                bodies = value.bodies()
+                volumes[name] = sum(b.mass_properties().volume for b in bodies)
+                if name == "pattern":
+                    self.assertEqual(value.kind, "instances")
+                    self.assertEqual(len(bodies), PATTERN_COUNT)
+                    # The plural value has no single-body door, and
+                    # says so typed rather than handing back the first.
+                    with self.assertRaises(pncad.EvaluationError):
+                        value.body()
+                else:
+                    self.assertEqual(value.kind, "body")
+                    self.assertEqual(len(bodies), 1)
+                    value.body()
         self.assertAlmostEqual(
-            assembly.body.mass_properties().volume,
-            PATTERN_COUNT * POST_VOLUME + SHELF_VOLUME,
-            delta=1e-12,
+            volumes["pattern"], volumes["placed_union"], delta=1e-12
         )
+
+    def test_a_mate_head_stands_on_a_patterned_copy_and_not_on_a_fused_one(self):
+        """The mate side of the substitution, measured — NOT the
+        scene, which declares nothing.
+
+        A mate head resolves to the instance that minted the material
+        it names, and a pattern's copy IS such a head: the member walk
+        composes the pattern's own step and the solve places the shelf
+        against that copy. `placed_union` fuses the family into one
+        body first, so no copy is left to stand a member on and the
+        head refuses `DanglingHead` — the same face, the same
+        placements, and only the node between them differs.
+
+        So the two spellings are NOT interchangeable at the mate door,
+        and the direction is the one the substitution was paying: the
+        tour's own node is the one that carries a mate.
+        """
+        outcome = {}
+        for name, posts in SPELLINGS.items():
+            with self.subTest(posts=name):
+                doc = Doc(f"pncad-mate-onto-{name}")
+                post_i = doc.insert(Node.instantiate_part(self.post_ref))
+                family = doc.insert(
+                    posts(
+                        post_i,
+                        PATTERN_COUNT,
+                        PatternKind.linear((0.0, 1.0, 0.0), SHELF_LENGTH * m),
+                    )
+                )
+                shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+                ev = evaluate(doc, resolver=self.ws)
+                cap = sorted(
+                    ev.select(
+                        family,
+                        cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart]),
+                    )
+                )[0]
+                bottom = one(
+                    ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart]))
+                )
+                mate = doc.insert(
+                    Node.mate(
+                        family,
+                        cap,
+                        shelf_i,
+                        bottom,
+                        ContactClass.Rest,
+                        seat(POST_SEAT, SEAT_A),
+                    )
+                )
+                solved = solve_document(doc)
+                outcome[name] = solved.fault(mate)
+                if name == "pattern":
+                    self.assertIsNone(solved.fault(mate))
+                    self.assertEqual(solved.role(mate), MateRole.Determining)
+                    self.assertEqual(pncad.clusters(doc), [[post_i, shelf_i]])
+                    minted = assemble(doc, evaluate(doc, resolver=self.ws)).minted
+                    self.assertEqual([d.mate for d in minted], [mate])
+                else:
+                    self.assertIsNotNone(solved.fault(mate))
+                    self.assertEqual(solved.role(mate), MateRole.Refused)
+                    # The cluster never formed, so the two instances
+                    # are still two.
+                    self.assertEqual(pncad.clusters(doc), [[post_i], [shelf_i]])
+        self.assertIsNone(outcome["pattern"])
+        self.assertIsNotNone(outcome["placed_union"])
 
     def test_a_patterned_caps_frame_is_where_the_placement_puts_it(self):
         """The scene's name-lookup stop: where does the first
@@ -206,50 +339,55 @@ class TestBenchLayout(BenchWorkspace):
         question is where a cap sits, and the answer is what
         identifies it.
         """
-        doc, family, post_i, _ = self.layout()
-        ev = evaluate(doc, resolver=self.ws)
-
         # Rung 1: the part's own cap, in the part's own coordinates.
         part_ev = evaluate(self.post)
         part_root = self.post.roots[0]
         part_cap = one(part_ev.select(part_root, cap_selector(CapEnd.End)))
         local = part_ev.face_frame(part_root, part_cap).origin
 
-        # Rung 2: the placement the layout gave that instance, applied
-        # as the affine map it is — the frame's own columns and
-        # origin, not a hand-written matrix.
-        frame = doc.placement(post_i)
-        cols, shift = frame.columns, frame.origin
-        placed = tuple(
-            sum(cols[j][axis] * local[j].meters for j in range(3)) + shift[axis].meters
-            for axis in range(3)
-        )
+        for name, posts in SPELLINGS.items():
+            with self.subTest(posts=name):
+                doc, family, post_i, _ = self.layout(posts)
+                ev = evaluate(doc, resolver=self.ws)
 
-        # Rung 3: the pattern steps +y once per instance.
-        expected = [
-            (placed[0], placed[1] + i * PATTERN_SPACING, placed[2])
-            for i in range(PATTERN_COUNT)
-        ]
+                # Rung 2: the placement the layout gave that instance,
+                # applied as the affine map it is — the frame's own
+                # columns and origin, not a hand-written matrix.
+                frame = doc.placement(post_i)
+                cols, shift = frame.columns, frame.origin
+                placed = tuple(
+                    sum(cols[j][axis] * local[j].meters for j in range(3))
+                    + shift[axis].meters
+                    for axis in range(3)
+                )
 
-        caps = ev.select(
-            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
-        )
-        read = sorted(
-            tuple(c.meters for c in ev.face_frame(family, cap).origin) for cap in caps
-        )
-        self.assertEqual(len(read), PATTERN_COUNT)
-        for got, want in zip(read, sorted(expected), strict=True):
-            for got_axis, want_axis in zip(got, want, strict=True):
-                self.assertAlmostEqual(got_axis, want_axis, delta=1e-12)
+                # Rung 3: the pattern steps +y once per instance.
+                expected = [
+                    (placed[0], placed[1] + i * PATTERN_SPACING, placed[2])
+                    for i in range(PATTERN_COUNT)
+                ]
 
-        # And the scene's own sentence, which is about instance 1 —
-        # the first instance a placement must actually have moved,
-        # because index 0 may be handed back verbatim. One step along
-        # +y puts its post between y = PATTERN_SPACING and
-        # y = PATTERN_SPACING + section, and one cap frame lies there.
-        low = PATTERN_SPACING
-        band = [o for o in read if low <= o[1] <= low + POST_SECTION]
-        self.assertEqual(len(band), 1, f"instance 1's cap alone: {read}")
+                caps = ev.select(
+                    family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
+                )
+                read = sorted(
+                    tuple(c.meters for c in ev.face_frame(family, cap).origin)
+                    for cap in caps
+                )
+                self.assertEqual(len(read), PATTERN_COUNT)
+                for got, want in zip(read, sorted(expected), strict=True):
+                    for got_axis, want_axis in zip(got, want, strict=True):
+                        self.assertAlmostEqual(got_axis, want_axis, delta=1e-12)
+
+                # And the scene's own sentence, which is about instance
+                # 1 — the first instance a placement must actually have
+                # moved, because index 0 may be handed back verbatim.
+                # One step along +y puts its post between
+                # y = PATTERN_SPACING and y = PATTERN_SPACING + section,
+                # and one cap frame lies there.
+                low = PATTERN_SPACING
+                band = [o for o in read if low <= o[1] <= low + POST_SECTION]
+                self.assertEqual(len(band), 1, f"instance 1's cap alone: {read}")
 
     def test_a_cap_name_denotes_one_face_and_says_so_before_it_is_read(self):
         """`denotation` is the door to ask BEFORE a frame: the frame
@@ -257,15 +395,17 @@ class TestBenchLayout(BenchWorkspace):
         says whether one is coming. The scene's names are all
         unique — which is a fact worth ASSERTING, because it is why
         every `face_frame` above answered at all."""
-        doc, family, _, _ = self.layout()
-        ev = evaluate(doc, resolver=self.ws)
-        caps = ev.select(
-            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
-        )
-        for cap in caps:
-            denotation = ev.denotation(family, cap)
-            self.assertFalse(denotation.tied)
-            self.assertEqual(denotation.candidates, 1)
+        for name, posts in SPELLINGS.items():
+            with self.subTest(posts=name):
+                doc, family, _, _ = self.layout(posts)
+                ev = evaluate(doc, resolver=self.ws)
+                caps = ev.select(
+                    family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
+                )
+                for cap in caps:
+                    denotation = ev.denotation(family, cap)
+                    self.assertFalse(denotation.tied)
+                    self.assertEqual(denotation.candidates, 1)
 
     def test_an_instance_carries_no_frame_until_one_is_set(self):
         doc = Doc("unplaced")

@@ -18,20 +18,22 @@ base dimensions, the same derived seats, the same pattern count and
 spacing, the same flat-pack offset. Every number here is checked
 against `assembly.rs` by `TestTheSceneIsTheToursOwn`.
 
-It is NOT the tour's documents byte for byte, and two differences are
-deliberate:
+It is NOT the tour's documents byte for byte, and ONE difference is
+deliberate: the tour's prisms are PARAMETRIC — `prism_part` declares
+each document's named dimensions and draws its profile from
+expressions over them. Putting an expression into an authoring step is
+a named gap in the bindings (`pncad.pyi`'s module docstring), so the
+prisms here are drawn from literal quantities and declare no
+parameters. The bodies are the same; the recipes are not.
 
-* The tour's prisms are PARAMETRIC — `prism_part` declares each
-  document's named dimensions and draws its profile from expressions
-  over them. Putting an expression into an authoring step is a named
-  gap in the bindings (`pncad.pyi`'s module docstring), so the prisms
-  here are drawn from literal quantities and declare no parameters.
-  The bodies are the same; the recipes are not.
-* The layout's placed family is `Node.placed_union`, where the tour
-  uses `Node::Pattern`. `Pattern`'s value is a plural payload and the
-  node is bound but not used here; `placed_union` says the same placed
-  family as ONE node whose value is an ordinary body, and over a
-  disjoint arrangement it gathers the same material.
+The layout's placed family is NOT such a difference: `layout` spells
+the posts with `Node.pattern`, the tour's own node, whose value is the
+plural family. `posts=` switches that one call site to
+`Node.placed_union`, which says the same family fused into one body —
+so a test can hold the two spellings against each other rather than
+assert that they agree. What the switch is for is that comparison
+(`test_assembly_author.TestBenchLayout`); what the scene ships is the
+pattern.
 
 A `Doc`'s identity is derived from its label, so the two part documents
 have the same identities whatever authored them, and a document
@@ -211,7 +213,7 @@ STAND_SEATS = ((POST_SEAT, SEAT_A), (SEAT_B, POST_SEAT))
 # ---- The assembly documents ----
 
 
-def layout(post_ref, shelf_ref):
+def layout(post_ref, shelf_ref, posts=Node.pattern):
     """The flat-pack: one post instance patterned along +y, plus the
     shelf, nothing touching — A5's disjoint half.
 
@@ -219,6 +221,13 @@ def layout(post_ref, shelf_ref):
     flat-pack shares one montage cell with the assembled bench: a
     layout document's placements ARE its subject, so where the parts
     sit has to be something this document SAYS.
+
+    `posts` is the node the placed family is said with, and the two it
+    admits take the same `(input, count, kind)`: `Node.pattern`, the
+    tour's own, whose value is the PLURAL family; and
+    `Node.placed_union`, whose value is that family fused into one
+    body. One count and one rule serve both, so nothing about the
+    scene moves with the switch.
 
     Answers the document and its three nodes, in document order.
     """
@@ -237,7 +246,7 @@ def layout(post_ref, shelf_ref):
         )
     )
     family = doc.insert(
-        Node.placed_union(
+        posts(
             post_i,
             PATTERN_COUNT,
             PatternKind.linear((0.0, 1.0, 0.0), PATTERN_SPACING * m),
