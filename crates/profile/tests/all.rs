@@ -78,6 +78,8 @@ mod bool12r2_probes;
 mod bool8_r1_probes;
 #[path = "bool9_probes.rs"]
 mod bool9_probes;
+#[path = "bool9r1_probes.rs"]
+mod bool9r1_probes;
 #[path = "canonical_invariance.rs"]
 mod canonical_invariance;
 #[path = "cert4r1_e2e.rs"]
