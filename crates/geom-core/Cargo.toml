@@ -39,6 +39,25 @@ interval = ["dep:interval-transcendentals"]
 # `Interval`, `Dual<f64>`, `Dual<Interval>` — Probe is not in it, so this
 # gate reopens no ratified decision.
 probe = []
+# **A TEST-ONLY FUNNEL DIAL, and the one door in this crate that lets an
+# INDETERMINATE answer pass as `Zero`** (`k_stats::identity_pass_*`).
+#
+# It exists to answer one question no other instrument can: what would
+# bound a document if a named identity residual WERE discharged — the
+# staged ceiling walk M10-9's reviews used to show that the two-hole
+# plate is four identity residuals from a macroscopic box
+# (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). Measuring
+# that needs the funnel to pass one predicate at a time, which is
+# exactly what the funnel must never do in a run that decides anything.
+#
+# So it is a CARGO FEATURE, not an env var and not a runtime flag: with
+# the feature off — every build that is not an evidence run — the code
+# path does not exist. The NAME ends in `-testing` deliberately: that is
+# the spelling `scripts/gates/test-features-dev-only.sh` recognises, so
+# the gate proves no non-dev dependency edge and no ordinary feature can
+# turn it on. Same shape, same name shape and same reason as `topo`'s
+# `sweep-testing` failure-injection doors.
+identity-pass-testing = []
 
 [dependencies]
 libm = { workspace = true }

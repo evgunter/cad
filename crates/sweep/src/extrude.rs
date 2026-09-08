@@ -1132,11 +1132,17 @@ fn side_surface<T: Decide>(
             // and deterministic either way: the residual gates bound
             // the drift and identical inputs replay identical bits.
             let c_world = place.transform_point(Point3::new(center.x, center.y, T::zero()));
+            let rim = qs[j] - c_world;
+            // The SAME rim identity the bottom rim carrier registers,
+            // at the same guarantee and through the same helper: this
+            // wall's `u_ref` is built from the same lamina vertex and
+            // the same extruded center (`swept::register_rim_identity`).
+            crate::swept::register_rim_identity(rim, radius);
             Ok(FaceSurface::New(Surface::Cylinder {
                 origin: c_world,
                 axis: turn_axis(turn, normal),
                 radius,
-                u_ref: (qs[j] - c_world).normalize(),
+                u_ref: rim.normalize(),
             }))
         }
     }

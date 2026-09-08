@@ -145,3 +145,159 @@ stale. That is this item's closing argument arriving a second time from
 a different direction: resolving a reference is not checking a claim,
 and here the reference resolved perfectly.
 
+
+## A third member: the `pick.rs` split (2026-09-06)
+
+`pick.rs` split at its layer boundary — the index and every query over
+it into `pickindex.rs`, the policy staying — and `Generation` left
+`evalseam.rs` for `generation.rs`. Every `crates/viewer/src/pick.rs:NNNN`
+citation in the tracker is therefore either in the wrong file or at the
+wrong line, on the same mechanics as the 1c split above: the numbers
+below `:2212` moved to another file entirely and everything above it
+shifted by 2,167.
+
+**VIEW's half, paid in the same PR**, corrected against the tree at the
+split's own commit. The first five were found by the file-and-line
+sweep; the last two were **missed by it and found by the style review**
+(`pick-split-sweep-missed-two-live-view-rows`), which is the part of
+this entry worth reading:
+
+| File | Was | Now |
+|---|---|---|
+| `adjacent-same-typed-arguments-are-the-same-swap.md:55` | `pick.rs:408`/`445` | `pickindex.rs:405`/`442` |
+| `ui-thread-work-after-the-index-seam.md:31` | `pick.rs:932` | `pickindex.rs:928` |
+| `outstanding-and-progress-are-two-three-state-enums-one-hop-apart.md:49` | `pick.rs:2525` | `pick.rs:359` (same file — `PickCache` stayed) |
+| `new-document-owes-the-reframe-open-gets.md:54` | `pick.rs:2270-2288` | `pick.rs:103-121` (same file) |
+| `pick-priority-filter-vocabulary.md:17` | `viewer::pick::EDGE_PICK_RADIUS_PX` | `viewer::pickindex::EDGE_PICK_RADIUS_PX` |
+| `focus-marking-is-per-node-not-per-segment.md:15,21,26,54` | `pick::focus` x3 and *"Viewer ground (`crates/viewer/src/pick.rs`)"* | `pickindex::focus`, `pickindex.rs:2076` — the item's whole subject moved |
+| `the-picture-key-never-became-a-type.md:18` | *"in `pick.rs` and `evalseam.rs`"* — a two-file list | a three-file list; `PickIndex::current_for` is `pickindex.rs:756` |
+
+Closed VIEW rows citing the old paths — `pick-and-parts-name-the-session
+-driver`, `pick-index-built-on-ui-thread`, `unindexed-refusal-is-an-
+outcome-not-a-read` — are **left as written**, under the rule this item
+already states: a closed row is a record of what was believed at a
+moment.
+
+### Announced, not edited
+
+Other programs' (`docs/prompts/implementer-discipline.md` §6):
+`work/chrome/mispaired-ids-exempts-the-empty-window.md:32` (the unit
+tests it names moved with the structure, into `pickindex.rs`),
+`work/chrome/pickindex-per-part-window-twins.md:18,40` (`pick.rs` named
+twice as the file the seven twins live in — they are `pickindex.rs`'s
+now, and the item's own id already reads as if it knew),
+`work/chrome/edge-cost-claims-name-a-search-that-is-gone.md:13,19`
+(`pick.rs:1979-1983` and `pick.rs:600-607`, both now `pickindex.rs`),
+`work/chrome/viewer-first-light-on-real-hardware.md:110`
+(`pick::PickIndex`), and
+`work/code-quality/run-on-whitespace-in-message-literals.md:9,23`
+(`crates/viewer/src/pick.rs:1771`, now `pickindex.rs:1774`), and —
+found only by the re-sweep, not by the first pass —
+`work/fix/error-types-with-no-display-class.md:73,87`, which names
+`crates/viewer/src/pick.rs` as the home of `PickError`'s missing
+`Display` (it is `pickindex.rs:1784`) and cites `pick.rs:676` for a
+comment about `HitTestError` that the line number had already outrun
+before this split.
+
+### What this member adds to the item's argument
+
+**The first draft of this section got it wrong, and the correction is
+the contribution.** It read: *"this split produced no rows where the
+claim went stale, only numbers, because a move that changes no
+behaviour cannot falsify a sentence about behaviour."* The premise is
+true. The conclusion does not follow, and the style review of #2079
+produced three counterexamples
+(`a-pure-move-falsifies-sentences-about-structure`):
+
+- `crates/viewer/README.md:323` — the `session::op` row named `pick` as
+  a `SessionOp` reader. Zero hits in `pick.rs` after the split; seven
+  in `pickindex.rs`, which the row did not name. In a file this unit
+  re-read and corrected two other rows of;
+- `the-picture-key-never-became-a-type.md:18` — a two-file list that
+  is a three-file list;
+- `focus-marking-is-per-node-not-per-segment.md:54` — a *"Viewer
+  ground"* naming the wrong file.
+
+**A tracker is not mostly sentences about behaviour.** It is mostly
+sentences about where things are and what names what, and those are
+exactly what a pure move falsifies. So the durable statement is:
+
+> A behaviour-preserving move cannot falsify a sentence about
+> behaviour, and reliably falsifies one about STRUCTURE — which is the
+> half a behaviour-preserving unit is least primed to look for, because
+> its whole discipline is aimed at the other one.
+
+That also relocates this item's two halves. They do not come apart on
+"numbers versus claims"; they come apart on **what a machine can
+reach**. A `<file>.rs:<line>` gate would have resolved every numeric
+citation in this member and caught none of the three above — the README
+row least of all, since it names a module in prose and cites nothing.
+
+### And the sweep's stated blind spot was not the one that bit
+
+#2079 disclosed its pattern and named its blind spot as *"a citation
+that names neither a path nor a moved symbol"*. Both missed rows name
+one: `pick::focus` and `crates/viewer/src/pick.rs` are inside the
+pattern. What actually happened has two causes, and the second is the
+one to carry:
+
+1. the first pass's `grep` over `work/view/*.md` was **malformed** —
+   an unescaped `|` in the shell, which printed `command not found`
+   above output that was read as a result. A grep that could not run
+   reads exactly like a grep that found nothing;
+2. even with it running, the **disposition** step only acted on the
+   `pick.rs:NNNN` shape. Bare paths and `module::symbol` citations
+   matched and were not carried through.
+
+So the honest blind spot is not a pattern gap: **the pattern was
+right and the reading of it was not.** The re-sweep that found the
+third announced row above ran three separate greps — `pick::`-any-symbol,
+bare `crates/viewer/src/pick.rs`, and each moved type name — and
+checked each hit's item status before deciding. What it still cannot
+reach is a row that names the module in prose without a path or a
+symbol, which is precisely the `session::op` README row's shape.
+
+## Three classes the line-number sweep cannot fix, from #2103's fix pass
+
+#2103's fix pass re-derived every `<file>.rs:<line>` citation in
+`work/view/`'s open items into the five files that PR changed:
+**25 citations corrected across 12 items, and 20 of the 25 were
+already wrong at the merge base** — `frame.rs:1440` was `:1537` and
+`frame.rs:1652` was `:1784`, both off by roughly eighty lines. So the
+general case this row names is not a residue of one split; it is the
+tracker's steady state between sweeps, and a sweep that runs only when
+a PR moves code will always find more than that PR moved.
+
+The same pass hit three citations it could not repair, and each is a
+different reason:
+
+**1. A citation whose SUBJECT is gone, not moved.**
+`work/view/cursor-projection-is-f32-in-a-module-whose-matrices-are-f64.md:16`
+cites `camera.rs:878-881` for a quoted passage — *"the matrix it
+transforms is the one `Camera::view_projection` produces…"* — that
+exists nowhere in the repository, at `e42cb5e46` or at head, checked
+over `crates/` and `docs/` at both. Re-deriving it needs a judgement
+about what the author meant, and guessing is #2083's defect in the
+other direction: a citation repaired to point somewhere plausible is
+worse than one visibly broken.
+
+**2. A citation into a file the sweeping PR did not touch.**
+`work/view/free-move-drag-dissolved-by-open.md:18` cites
+`session.rs:1319` for `clear_for_new_document`, which is at
+`session.rs:1583`. Nothing was wrong with the sweep — `session.rs` was
+simply outside its five files. **A citation sweep scoped to a PR's own
+diff cannot converge**, because the rows it leaves are the ones no
+future PR has a reason to look at either.
+
+**3. Text that is not a citation at all.**
+`work/view/vocabulary-macro-bodies-are-outside-rustfmt.md:27` embeds a
+pasted `cargo fmt` diff header (`Diff in crates/viewer/src/blend.rs:173:`).
+It is a captured tool transcript recording what the tool said at the
+time, and repointing it would fabricate output. A sweep that matches on
+`<file>.rs:<line>` cannot tell this shape from a citation, so it must
+be able to leave one alone — which means the sweep needs a disposition
+step and not only a matcher.
+
+Class 3 is the one that constrains the fix: any mechanical repointer
+built for this row will match transcripts, and a repointer that edits
+them is worse than no repointer.

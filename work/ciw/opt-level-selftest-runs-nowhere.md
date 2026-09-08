@@ -2,8 +2,10 @@
 id: opt-level-selftest-runs-nowhere
 kind: issue
 title: opt-level-calibrate.py --selftest is invoked by nothing in the tree - a guard that has never been shown to fire
-status: open
+status: review
 opened: 2026-09-04
+branch: ciw/demotion-verified
+pr: 2124
 ---
 
 
@@ -73,3 +75,41 @@ protects, matching the criterion lane's spelling). Whoever takes it
 should also decide whether `gate-roster.sh`'s outlier list is the right
 home for the general rule, so the next script in this position is caught
 by a check rather than by a lane that happened to look.
+
+## Disposition (PR 2124)
+
+`scripts/opt-level-calibrate.py --selftest` runs in `.github/workflows/ci.yml`'s
+`discipline` job, mirrored in `local-scripts/ci-local.sh`. **Per-PR, not
+nightly**, on the argument this item's sibling is about: a guard sited only in
+a scheduled workflow is exercised only on a schedule. The item's two candidate
+sites were both in `nightly.yml`; neither survives that, and the
+"closest to the append it protects" half does not survive the detail that the
+nightly runs `main`, which is reached only through the gate that now carries
+the selftest. Sited in `discipline` rather than `mirror` by
+`check-run-jobs.py`'s own argument: the script's inputs are `scripts/*.py`,
+which is not a docs-tier file class, so the change set that can break the
+selftest is exactly the change set `discipline` runs on.
+
+The path's `MIRROR_EXEMPT` entry is deleted — both halves name it now, so the
+confession expired; its hosted-only reason is re-stated at the local row,
+where it is about the LANE rather than the path.
+
+**The general rule got a check, and it is not in `gate-roster.sh`.** That file
+is GATES' and PR 2077 was open on it. `scripts/check-ci-mirror-parity.py`'s
+CLAIM 4 gains a SECOND ARM, in claim 4's own loop: the same population, the
+same `SCRIPT_RE`, the same closure, asking of a script's `--selftest` mode what
+arm one asks of the script. `scripts/gates/` is outside both, as
+`gate-roster.sh`'s ground.
+
+It shipped wrong the first time and the review caught it. As first written it
+counted a `local-scripts/` line as a caller — and every hosted job DELETES
+that tree, so a selftest running in no CI at all passed, and an `_ok_case`
+pinned that shape as correct. It also matched one physical line, so a loop or
+a continuation in one `run:` block red two scripts with a false message. Both
+are fixed and both are proven by mutation on the real tree; the caller
+population is now workflow files only, read one `run:` block at a time.
+
+Residue, filed: `work/ciw/criterion-selftest-nightly-only` —
+`scripts/criterion-emit.py --selftest` is invoked only from `nightly.yml:1835`,
+the same class one step milder, and its comment cites THIS script as the
+precedent for that siting.

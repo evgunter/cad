@@ -284,6 +284,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the gather counter's three gated sites, code view
     },
     Entry {
+        path: "tools/k-lint/tests/predicate_roster.rs",
+        disposition: Shared, // roster pinned to the kernel's mint: code view to locate, literal view to read
+    },
+    Entry {
         path: "tools/tess-meter/tests/derivations.rs",
         disposition: Shared, // cross-root const pins: code view to locate, literal view to read
     },
