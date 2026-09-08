@@ -2,11 +2,12 @@
 id: LIB-ARMS
 kind: unit
 title: the inner arm beside the op word on every Python refusal
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/arms
 refs: [lib-per-arm-error-tags, tag-inventory-prose-counts-are-stale, witness-bifurcation-arm-has-no-inner-word]
 pr: 2217
+closed: 2026-09-08
 ---
 
 The first unit under the standing rule ruled (A) on
