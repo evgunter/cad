@@ -760,8 +760,7 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 /// surgery objects to is not always a shape the caller REQUESTED — a
 /// support face's own ring has to be carried through the blend too —
 /// so a sentence that only described the request endorsed exactly what
-/// the caller had already done (issue 1278's dead-recourse class,
-/// `work/fillet/geometry-recourse-dead-at-line-ring.md`).
+/// the caller had already done (issue 1278's dead-recourse class).
 pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside the surgery's exact forms, which read planes and, \
      for a fillet, spheres, cylinders and cones as well, carried by lines and circles; \
      approximating any \
@@ -787,7 +786,7 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside th
 /// `blend_recourse_followability.rs`'s
 /// `the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`
 /// keeps that measured — as a property of that fixture, not of the
-/// door. See `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`.
+/// door (PR 1753).
 pub const FILLET3_RING_RECOURSE: &str =
     "reduce the blend size, or move the feature whose ring sits inside the blend's setback";
 /// The recourse for a support pair outside the analytic-arm table —

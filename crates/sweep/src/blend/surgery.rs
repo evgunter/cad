@@ -384,7 +384,7 @@ enum HostFoot {
 ///   sphere wall's two seam meridians and the remaining face carries
 ///   both rim arcs — and through no sweep or boolean door. It refuses at
 ///   the half-band gate on BOTH routes, and never carves:
-///   `work/fillet/curved-single-host-rim-refuses-at-the-half-band-gate.md`,
+///   `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`,
 ///   rowed by
 ///   `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both_routes`.
 /// - **A RINGED host refuses** even under [`Self::Struts`], on the
@@ -3789,7 +3789,7 @@ fn attach_contact<T: Decide + Bounds>(
         // tangent intersection of band and cap certifies and passes
         // tier 3 today (the `TangentParallel` margin `sin θ / |κ_rel|`
         // admits a 90° crossing —
-        // `work/fillet/tangent-parallel-certifier-passes-a-transverse-arc.md`).
+        // `work/props/tangent-parallel-certifier-passes-a-transverse-arc.md`).
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {

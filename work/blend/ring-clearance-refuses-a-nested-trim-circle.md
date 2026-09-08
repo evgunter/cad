@@ -1,9 +1,10 @@
 ---
 id: ring-clearance-refuses-a-nested-trim-circle
-kind: issue
+kind: unit
 title: fillet: ring clearance refuses a ladder rim whose widened trim circle is NESTED inside its host's circular outer boundary; the doc's 'neither occurs today' has a witness
-status: open
+status: dispatched
 opened: 2026-09-04
+branch: blend/6-ring-clearance
 ---
 
 
