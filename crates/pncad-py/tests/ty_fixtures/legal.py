@@ -206,8 +206,9 @@ turned: NodeId = doc.insert(
 
 # A datum read back. `origin` is a POSITION and carries `Length`s;
 # `direction` and `axes` are dimensionless and are bare. `in_plane` is
-# the one that is BOTH — its second pair is a direction and its first
-# is a position that nonetheless crosses bare (recorded at the stub).
+# the one that is BOTH — its first pair is a position and carries
+# `Length`s like every other position on this class, its second is a
+# direction and is bare.
 # Exercised here because the name-for-name check in `test_stubs.py`
 # compares NAMES and hands SIGNATURES to `ty`: a property this file
 # never mentions is a property neither of them reads.
@@ -216,7 +217,7 @@ turned_axis: Datum = evaluate(doc).value(
 ).datum()
 axis_kind: str = turned_axis.kind
 axis_at: tuple[Length, Length, Length] = turned_axis.origin
-axis_written_in_plane: tuple[tuple[float, float], tuple[float, float]] | None = (
+axis_written_in_plane: tuple[tuple[Length, Length], tuple[float, float]] | None = (
     turned_axis.in_plane
 )
 
