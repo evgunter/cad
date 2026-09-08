@@ -6,6 +6,7 @@ status: dispatched
 opened: 2026-08-29
 refs: [LIB-TUBE]
 branch: lib/g17-shell
+pr: 2150
 ---
 
 RECIPE-DOORS unit 3 of 3 (D5): `Node::Shell { target, thickness, open }` with
@@ -28,7 +29,7 @@ sequencing note is discharged (LIB-TUBE closed 2026-09-03). Full
 protocol (the 08-29 ruling's substantive class); needs the LIB-13
 block draw first. Spec at dispatch: `docs/LIB-G17-SPEC.md`.
 
-## Delivered (2026-09-06, PR pending)
+## Delivered (PR #2150)
 
 `Node::Shell { target, thickness, open }` with `SlotId::ShellThickness`;
 `open` ORDERED, first-occurrence-deduplicated at `Node::shell`, a wire
