@@ -208,15 +208,14 @@ unit 2's fix pass clears `extrude.rs`; the one-sentence seam on
 narrowed by ruling to a preference, not a rule: the gate is the
 instrument and a door may hand it a body to refuse.
 
-**Unit K dispatched (2026-09-08)** on `blend/k-no-floor` — the ruling
-executed: `ExtrudeError::SmoothCapRim` and its arm go, the smooth cap
+**Unit K queued (2026-09-08)** for `blend/k-no-floor`, dispatching
+when unit 2 merges (both edit `extrude.rs`) — the ruling executed: `ExtrudeError::SmoothCapRim` and its arm go, the smooth cap
 rim stores the conventional description by the predicate and refuses
 at rest, H6's rows flip to the build-plus-at-rest-refusal, the `K*`
 prose goes with the arm (closing
 `extrude-cap-rim-argument-and-k-star-have-five-homes`), and
 `Tolerance.k`'s doc gains the one sentence (PROPS' file; announced in
-`work/props/log.md`). E-shaped; single style review. Runs beside unit
-1's fix pass and unit 4.
+`work/props/log.md`). E-shaped; single style review.
 
 **Unit 4 landed (2026-09-08)** on PR [#2129](https://github.com/evgunter/cad/pull/2129),
 head `b0cbd30d`, green on the full matrix (a first run red on the
