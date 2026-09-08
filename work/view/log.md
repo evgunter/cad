@@ -6084,3 +6084,251 @@ shipped green over three garbage diagnoses. Four cases now match a
 fragment containing the subject, and
 `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names` is
 the durable half — a harness affordance, not this gate's to build.
+
+## The summarised field says so itself, and the marker is left alone (2026-09-08)
+
+`finish-marker-cannot-say-summarised` closed, on none of the three
+candidates it listed. Ev's ruling: the tree already held the right
+mechanism in one of the four walks. `LandedRun` carried `checks`
+through a `format_args!` that renders as something obviously a summary
+(`0 finding(s), 0 skipped`), while the other summarised fields
+rendered as `is_some()`, a `len()` or a mapped generation — and
+`scratch: false` is a `bool` a reader who knows `std` and not the
+README takes for the whole of a `Doc`. Every summarised presence now
+renders as an elision naming what it stands for — `Some(<Doc>)`,
+`Some(<Body>)`, `Some(<Gesture>)`, `Some(<DirResolver>)`,
+`Some(<PickIndex for Generation(1)>)` — and `states` and `checks` are
+untouched, because a count already reads as a count. `Derived` still
+`finish`es; the other three still `finish_non_exhaustive`; no key was
+renamed.
+
+**The distinction belongs at the FIELD, not at the marker.** The
+marker answers *are all fields shown?*, which is the only question a
+two-valued flag over a field SET can answer; the question a reader has
+at a summarised field is *is this value the whole field?*, and the
+value is where that gets answered. The three-way split was never the
+marker's to carry.
+
+**Nothing rendered these dumps, and the compiler said so, not a grep.**
+Deleting all four impls leaves the workspace building `--all-targets`
+under both of `viewer`'s feature configurations, with its one doctest
+unaffected: no `{:?}`, no `#[derive(Debug)]` over these types, no
+`T: Debug` bound reached them, so no test could have been asserting on
+one either. `crates/viewer/tests/debug_dumps.rs` is now the only
+reader and holds the seven summarised fields to their spellings; it is
+also the reason the README's new universal is not a claim over an
+unread population.
+
+**The sweep behind a universal is stated at the sentence.** The README
+paragraph now gives the rule that produces its list — read every
+`.field(…)` call in the four walks, 22 of them, and take the nine
+whose value argument is not the destructured binding — and, because
+nothing can hold the NEXT summarised field to the rule, the reason it
+has no guard is written where the claim is: the destructuring makes
+the compiler send a field's author to the walk, the rule is stated
+there for them to read, and nothing in the tree computes on a dump.
+
+**The citation pass found 26 of 29 already wrong at its merge base.**
+Three of the re-pointed citations were falsified by this change; every
+other one had been wrong at `92b2c303d`, some by hundreds of lines.
+Four rows were left alone deliberately — a receipt dated to a SHA is a
+record, and re-pointing it falsifies the record it is. The full table,
+its enumeration rule and its blind spot are in the closed item.
+
+## Corrections to the entry above, before it merged (2026-09-08)
+
+Appended rather than edited, because this file is the narrative record
+and not a slate: what the entry said is what it said.
+
+**"Nothing in the tree computes on a dump" denied its own premise two
+paragraphs earlier**, which named `tests/debug_dumps.rs` as the only
+reader of these dumps — a reader that computes on one is exactly what
+that suite is. The claim carrying the no-mechanical-guard argument is
+about PRODUCTION code: no shipped path reads a dump, so a lapse in a
+spelling costs a reader a misreading and can never cost an answer. The
+test suite is the one reader, and what it computes on a dump is the
+spellings themselves. `crates/viewer/README.md` now says it that way.
+
+**The spelling claim was true of six fields and not of the seventh.**
+`resolver: Some(<DirResolver>)` was asserted nowhere: the suite read
+`resolver: None` and refused `resolver: false`, which catches a
+regression to `is_some()` but not a rewrite of the elision's text —
+mutating it to `<Resolver>` left the suite green. `resolver` is written
+only by `Open` and `Save`, so reaching its present arm needs a file:
+the suite now saves into a tempdir the way `tests/doc_io.rs` does and
+reads both arms. The same mutation now fails a named assertion, and
+"holds the seven to their spellings" is true at the granularity of
+spelling, not only of field.
+
+**Four citations were falsified by this change, not three.** The three
+counted were tokens; the fourth is
+`viewerapp-document-derived-state-has-no-boundary`'s `(:1555-1560)`,
+the doc paragraph quoted in the same sentence as the `:1583-1586` that
+WAS re-pointed — a continuation left behind by the re-point it hangs
+off, which is worse than a visibly stale row because the sentence reads
+as freshly verified. It is `:1563-1568` at head. Two more citations the
+pass had passed or shifted were re-derived by subject in the same fix:
+`a-module-…`'s README range (a delta of +17 applied to a hunk that
+added 22 lines — the exact defect
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` closed at
+#2083, re-minted), and `outstanding-and-progress-…`'s
+`README.md:345-347`, passed as still true when its quoted phrase is at
+`:349-350`. The receipt's split is therefore **30 re-pointed / 6 still
+true**, of which 27 were already wrong at the merge base; and the split
+counts CITATIONS — by leading number the same 36 split 28/8, because
+two ranges had their ends re-derived while their anchors did not move.
+
+**A count fixed in one place contradicts itself.**
+`four-debug-walks-are-spelled-and-placed-two-ways` had `1953 − 173 =
+1780` re-derived in its body while its own title and closing paragraph
+still said 1,779 — #2103's defect re-minted. Both are 1,780 now; the
+1,779s in this file and in `debug-for-docsession-…` are records of what
+was said then and stay.
+
+## 2026-09-08 — the two-shape rule stops counting readers
+
+`bare-vocabularies-declare-their-words-a-second-time` closed on **Ev's
+ruling, which is neither answer the item framed**: two of the four bare
+vocabularies convert, and the README's rule is CORRECTED rather than
+deleted.
+
+**What was wrong with the rule, not with the population.** It asked
+"is there a single-value reader?" and answered "method". That sends
+`PathVerb` and `ArcMode` to the bare arm although a production loop
+walks their table and wants a word per entry — the labelled arm's whole
+purpose — because each *also* names one value's word on a combo's
+closed face. The corrected test is **does anything walk the table for
+its WORDS?**: a question about whether the words are table data, which
+a sweep can answer, where a count of readers cannot.
+
+**The sweep, stated at the sentence it produces.** Every loop over a
+vocabulary's `ALL` under `crates/viewer/src`, read for what it asks
+each entry for. Two exist and both ask for the word —
+`pane/create.rs:727` (`:738`, `:748`) and `widgets.rs:300` (`:301`) —
+so `PathVerb` (17) and `ArcMode` (6) are labelled and their loops now
+read `(option, label)` pairs. `ToolKind` and `Seat` have no `src/`
+reader of `ALL` at all and stay bare; the suites walk both lists for
+the VALUES (`tests/combine_ops.rs:1290`, `:1422`), and a seat's word
+reaches only an assertion message about the one seat that failed
+(`:1471`, `:1478`) — a walk that would still do its job if the words
+did not exist is not a reader of them.
+
+**The accessor is opt-in, which is what made this a unit.** Giving the
+labelled arm a `label()` unconditionally would hand one to the five
+labelled vocabularies that never ask for a single value's word: dead
+code under `-D warnings`, and an `#[allow(dead_code)]` over the arm
+would silence the report that an accessor has lost its last reader. So
+a vocabulary DECLARES the projection it wants — `pub(crate) fn label;`
+under its `ALL` — and the macro emits a `const fn` MATCH over the same
+tokens the array is built from. Not a scan of `ALL`: exhaustive by
+construction, no fallback arm to write, const-evaluable (which
+declaring it `const fn` is what checks), and the same codegen the
+hand-written match had.
+
+**The words are unchanged, proved by running.** A throwaway unit test
+printed `index, variant, word` for all 23 entries at the merge base and
+again after the conversion; the two outputs are byte-identical, same 23
+rows and same md5. That is the receipt #2103's lesson asks for — these
+words are on the user's screen, and a literal moving from a match arm
+into a declaration is exactly where a rendering goes quietly wrong.
+
+**Citations re-derived by subject, in the open rows that cite the files
+this branch touched.** Four were wrong at the merge base and none of
+the four was shifted by this branch:
+`hand-maintained-mirrors-of-a-kernel-enum-are-unforced` cited
+`forms.rs:44` for `BOOLEAN_OPS` (`:67`), `forms.rs:471` for
+`MATE_PRIMITIVES` (`:511` at the merge base, `:487` here) and
+`create.rs:887` for its production reader (`:892`);
+`revolve-tool-unreachable-no-axisinplane-form` cited `forms.rs:52` for
+`DatumKind` (`:93`) and `create.rs:354-363` for the four `DatumSpec`
+arms (`:358-371`); `tone-is-a-value-in-frame-and-a-comment-in-two-panes`
+cited `create.rs:592-594` for "a third copy" of the weak/coloured rule,
+which is the "Add profile" button — the copy is at `:581-585`. The
+`Was`/`Now` table in `stale-file-citations-after-the-split` is NOT
+re-pointed: it is dated to `d799235e`, where `forms.rs:52` and
+`create.rs:354-363` are exactly what it says they are, and rewriting a
+dated record would make it false about the tree it names.
+
+## 2026-09-08 — #2143's fix pass: the sweep rule did not produce its own population
+
+The style review returned **merge after named fixes** on #2143, and the
+first of them is this program's own rule broken by the PR that states
+it: *a universal in prose owes the sweep rule that produces its
+population, written at the sentence.* The entry above states the sweep
+as "every loop over a vocabulary's `ALL` under `crates/viewer/src`" and
+then says **two** exist. **Seven exist, and all seven ask for the
+word** — `pane/create.rs:309` (datum row), `:409` (profile row),
+`:727` (path verb), `:989` (pattern rule), `:995` (pattern output),
+`:1093` (blend kind) and `widgets.rs:300` (arc mode), each binding
+`(value, label)` and putting that label on the control it draws. "Two"
+was the count of vocabularies this unit CONVERTS, which is a fact about
+the diff and not about the population; and at head it is no longer even
+expressible as a restriction, because `PathVerb` and `ArcMode` are
+labelled now and sit among the seven indistinguishably. It was a
+REGRESSION as well as an error: the paragraph the rewrite deleted
+(`crates/viewer/README.md:940-941` at `92b2c303d` — *"the five labelled
+ones are labelled because their word appears nowhere but the radio row
+that draws them"*) was the only text accounting for the other five, and
+nothing replaced it.
+
+**The repair states the population, not a scoped sweep.** The other
+open shape was to scope the sweep to "a vocabulary whose shape is in
+question", and it is the wrong one here. The section's whole subject is
+which shape each of the NINE has, so a sweep that answers for a subset
+does not produce that population; and "in question" is a prior
+judgement, not a mechanical filter — the same defect as the "count the
+readers" rule this unit replaced, one level up. Stated as all seven,
+the sentence is re-runnable by a reader: grep the loops, get seven,
+check each binds a label, and the two that never appear are the two
+bare ones.
+
+**The sweep's scope now says `src/` AND `tests/`, because its reasoning
+already did.** The entry above declares the sweep `src/`-only and then
+rules `ToolKind` and `Seat` bare on evidence from
+`crates/viewer/tests/combine_ops.rs` — which is where the only
+word-touching walk of a bare vocabulary would live. A `src/`-only sweep
+has nothing to discriminate on exactly the two rows it is deciding, and
+a future tests-only word-walk goes unseen. The README carries the
+corrected scope; the suites' two word-reading walks
+(`tests/combine_ops.rs:896`, `:880`; `tests/blend_authoring.rs:831`)
+are over already-labelled vocabularies and confirm their shape rather
+than deciding it.
+
+**The `for … in <V>::ALL` shape is the blind spot, and it is wider than
+the entry above admitted.** Four walks reach a vocabulary's `ALL`
+without that spelling: `tests/combine_ops.rs:880`
+(`PatternOutputChoice::ALL.map`) and `tests/blend_authoring.rs:831`
+(`BlendKindChoice::ALL.map`) READ THE WORD; `tests/combine_ops.rs:1290`
+and `:1321` (`ToolKind::ALL.map`) and `tests/blend_authoring.rs:786`
+(`ToolKind::ALL.into_iter().filter(…).all(…)`) read values only. None
+is under `src/` and none reaches a BARE vocabulary for its word, so the
+ruling is unchanged — but that is the sentence the receipt owed, not
+"neither exists today".
+
+**`vocabulary!`'s accessor name is no longer a free parameter.** The
+matcher spelled it `$fvis:vis fn $word:ident;`, so the macro would
+project whatever identifier a site handed it — and the crate already
+spells this concept two ways (`ToolKind::label`, `Seat::name`). That is
+the family's own argument turned on itself: `vocabulary!` exists
+because a second hand-written copy of a list drifts, and a free
+parameter reintroduces the drift in what the readers have to call. The
+matcher is now a literal `fn label;` (`crates/viewer/src/vocab.rs:178`)
+with the visibility left free, because visibility is a fact about who
+may read the word rather than a second spelling of anything. It costs
+nothing today: `PathVerb` and `ArcMode` are the only declarers and both
+said `label` already, and `Seat::name` (`seats.rs:153`) and
+`ToolKind::label` (`tools.rs:85`) are hand-written methods in their own
+`impl` blocks that the bare arm never projects.
+
+**`PathVerb::label`'s doc is trimmed to its own subject.** Eleven lines
+for a one-line declaration, half of them about `ALL`'s completeness and
+about issue #1385's coverage gap — migrated from the deleted `impl`
+block rather than written for the new site. What is true of `label`
+stays; the `ALL` half moves onto `ALL`'s own doc, where its subject is.
+
+**The arithmetic.** `forms.rs` is 515 lines at `92b2c303d` and **486**
+here, **−29**; the entry above says −24 (and #2143's body said −23),
+both stated before this fix pass. No line at or above `:182` moves.
+`MATE_PRIMITIVES` is therefore at `forms.rs:482`, not `:487` as that
+entry and `hand-maintained-mirrors-of-a-kernel-enum-are-unforced` say;
+the item is re-pointed, and this line corrects the record here.
