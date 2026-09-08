@@ -2,10 +2,11 @@
 id: LIB-B-NOTATION
 kind: unit
 title: binding census family B-NOTATION
-status: review
+status: closed
 branch: lib/b-notation
 opened: 2026-09-06
 pr: 2189
+closed: 2026-09-08
 ---
 
 Queued mechanical census family (the B-RESOLVE shape): sweep the
