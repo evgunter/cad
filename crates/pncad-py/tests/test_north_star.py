@@ -1820,6 +1820,12 @@ class TestCrosslapGlued(unittest.TestCase):
         with self.assertRaises(EvaluationError) as caught:
             ev.value(glued)
         self.assertEqual(caught.exception.kind, "naming")
+        # WHICH naming refusal, beside the carrier's word: the emitter
+        # could not mint a name, which is a different wall from a
+        # duplicate or a missing upstream table and wants a different
+        # fix. That the emission arm is the one standing here is what a
+        # reader of this residue needs.
+        self.assertEqual(caught.exception.inner_kind, "emission")
 
 
 class TestCrosslapExploded(unittest.TestCase):
