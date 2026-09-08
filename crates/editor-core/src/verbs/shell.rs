@@ -75,7 +75,7 @@ pub(crate) type ShellEmitter<T> = fn(
 ) -> Result<Arc<NameTable>, NamingError>;
 
 /// **The shell's correspondence**, as data — everything the lowering
-/// needs to turn a `Node::Shell` into a [`Verb`] and its result into a
+/// needs to turn a `Node::Shell` into a [`verbs::Verb`] and its result into a
 /// name table. Adding a field here is how the verb declares something
 /// the lowering must know; adding an arm to a match inside the
 /// lowering is not.

@@ -99,7 +99,7 @@ pub(crate) type RecordReader<T> =
 pub(crate) struct ProfileVerb<T: Decide, A> {
     /// **Resolved arguments → the kernel verb.** The one place a
     /// document's evaluated distance, or its resolved axis and
-    /// classified revolution, becomes a [`Verb`] payload.
+    /// classified revolution, becomes a [`verbs::Verb`] payload.
     pub(crate) build: fn(A) -> Verb<T>,
     /// This verb's record reader — its family's own arm of the closed
     /// channel, its emitter, and its wall export.

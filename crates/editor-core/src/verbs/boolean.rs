@@ -58,12 +58,12 @@ pub(crate) type PairEmitter<T> = fn(
 
 /// **The boolean's correspondence**, as data — everything the
 /// two-operand lowering needs to turn a `Node::Boolean` into a
-/// [`Verb`] and its result into a name table. Adding a field here is
+/// [`verbs::Verb`] and its result into a name table. Adding a field here is
 /// how a pair verb declares something the lowering must know.
 pub(crate) struct PairVerb<T: Decide> {
     /// **Structural payload + resolved declarations → the kernel
     /// verb.** The one place a document's op selector and lowered
-    /// declaration set become a [`Verb`] payload, per instance.
+    /// declaration set become a [`verbs::Verb`] payload, per instance.
     pub(crate) build: fn(BooleanOp, BooleanDeclarations) -> Verb<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: PairEmitter<T>,

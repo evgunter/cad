@@ -403,6 +403,10 @@ macro_rules! transition_table {
         /// Which verb a step names — the `verb` half of a
         /// [`ReplayErrorKind::Transition`]. One value per [`Step`]
         /// variant, projected from the same declaration.
+        ///
+        /// The SKETCH program's verb, not the kernel's: that one is
+        /// `verbs::Verb` (an operation on a body), the two never meet
+        /// in one signature, and a reader of either spells the crate.
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub enum Verb {
             $( $(#[doc = $doc])* $name ),*

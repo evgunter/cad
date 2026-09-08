@@ -2,6 +2,12 @@
 //! operations that have been migrated onto it, with the run dispatch and
 //! the parameter→field flow that only the operation itself knows.
 //!
+//! **`Verb` here is the KERNEL's verb — an operation on a body.**
+//! [`profile::Verb`] is the sketch program's — which transition a
+//! [`profile::Step`] takes — and the two never meet in one signature;
+//! every reader outside the crate that owns one spells the crate
+//! (`verbs::Verb`, `profile::Verb`).
+//!
 //! # What it is NOT, yet
 //!
 //! It is not "every operation a recipe door can invoke", and reading it

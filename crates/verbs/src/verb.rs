@@ -351,9 +351,12 @@ mod all_census {
     /// **[`VerbKind::ALL`] is the WHOLE vocabulary**, pinned against a
     /// compile-time visit rather than reviewed.
     ///
-    /// The precedent this list cites (`profile::Verb::ALL`) is
-    /// macro-generated and cannot drift; this one is hand-written, so it
-    /// needs the guard the macro would otherwise have been. The match
+    /// The precedent this list cites, `profile::Verb::ALL`, is the
+    /// SKETCH program's `Verb` — spelled with its crate, as every
+    /// reader of either `Verb` spells it (the crate doc's convention)
+    /// — and is macro-generated, so it cannot drift; this one is
+    /// hand-written, so it needs the guard the macro would otherwise
+    /// have been. The match
     /// below is EXHAUSTIVE — over the vocabulary AND over the boolean's
     /// op, since each op is its own row — so a variant added to either
     /// enum makes this file fail to compile until it is visited here,
