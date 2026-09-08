@@ -133,7 +133,7 @@ should be visible on its own.
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
 | `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass — **merged** |
 | `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass — **merged** |
-| `view/gate-bullets` (the vocab gate's kind scan, anchored) | — | dispatched 2026-09-08 |
+| `view/gate-bullets` (the vocab gate's kind scan, anchored) | #2172 | style — **in flight** |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -244,6 +244,28 @@ word proof and overwrote four files of those exact names that another
 lane had left there. Nothing was lost that mattered, and the collision
 is silent by construction — a lane cannot tell whether a scratchpad
 file is its own. Dispatches carry a per-lane prefix now.
+
+**A §6 report filed against a tree a lane is still changing owes a
+re-derivation after that lane lands.** `gate-selftest-cannot-observe-
+the-identity-a-gate-names` was filed from a review report while #2106's
+fix pass was in flight; that fix pass then took the very finding as its
+MINOR-8 and added the name-bearing cases, so the report's worked
+example was false before it reached `main` — twelve rows where there
+were twenty, a line range pointing at a different function, and a
+universal about name-independence that four cases already contradicted.
+The mechanism claim survived; the example did not. **A report is a
+claim about a tree, and naming the tree it is true of is part of making
+it.**
+
+**File to `main` BEFORE dispatching a lane against the file.** The
+`view/gate-bullets` lane could not see its own item: it existed only on
+the orchestrator branch, so the lane had to merge that branch into its
+own to read the row it was closing. This is the second instance —
+#2106 cited two `work/issues/` paths that were likewise orchestrator-
+only, and needed #2107 landed ahead of it to resolve. **The orchestrator
+files and then sits on the file**, which is the same *disclosed but not
+scheduled* shape §Q6 forbids a lane, one level up. State-syncs land
+before the work that depends on them.
 
 **Asserted-somewhere is not asserted-here, and only a MUTATION tells
 them apart.** #2148 shipped a test file whose stated job was to hold
