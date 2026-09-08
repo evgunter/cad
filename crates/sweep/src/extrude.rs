@@ -993,7 +993,7 @@ fn sweep_loop<T: Decide>(
                         // verb still handing back a body tier 3
                         // refuses (D3's transience fence) — caught by
                         // the default-mode battery on
-                        // `survives_dihedral_band_sweep_at_the_strut_arm`,
+                        // `crates/sweep/tests/review_m2_pr4.rs::survives_dihedral_band_sweep_at_the_strut_arm`,
                         // whose two walls are DISTINCT planes, so the
                         // same-key lane above never sees it.
                         //
@@ -1009,7 +1009,7 @@ fn sweep_loop<T: Decide>(
                         // walls exactly, so either chart is a
                         // legitimate home and neither is a better
                         // statement about the locus.
-                        // `survives_dihedral_band_sweep_at_the_strut_arm`
+                        // `crates/sweep/tests/review_m2_pr4.rs::survives_dihedral_band_sweep_at_the_strut_arm`
                         // demonstrates it rather than trusting this
                         // paragraph: it re-describes the same strut in
                         // the OTHER wall's chart and watches that

@@ -30,9 +30,9 @@
 //! the blend RETIRED, so a consumer can check
 //! `output = (source − dead) ⊎ minted` rather than assume it — in BOTH
 //! directions, executed by
-//! `sweep/tests/m6_5_fillet_naming.rs::every_output_entity_is_a_recorded_mint_or_a_survivor`
+//! `crates/sweep/tests/m6_5_fillet_naming.rs::every_output_entity_is_a_recorded_mint_or_a_survivor`
 //! and
-//! `sweep/tests/verbs_arms1_annulus.rs::every_annulus_output_entity_is_a_recorded_mint_or_a_survivor`.
+//! `crates/sweep/tests/verbs_arms1_annulus.rs::every_annulus_output_entity_is_a_recorded_mint_or_a_survivor`.
 //! A survivor is thus a birth fact too — "this key was not minted and
 //! not retired" — not an inference from geometry.
 //!

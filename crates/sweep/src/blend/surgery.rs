@@ -1410,9 +1410,13 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   KEYS, whose live identity [`refresh_annulus_seams`] re-reads
 ///   immediately before that rim's own phase. Identity is all that
 ///   moves: every decision stays the plan's (#935; the one-call result
-///   is pinned equal to the sequential composition and its closed
-///   form — wall pairs and cap pairs both, `blend_tworims.rs` and
-///   `blend2_r2_probes.rs`).
+///   is pinned against the sequential composition — bit-equal on a
+///   shared-WALL pair by
+///   `crates/sweep/tests/blend_tworims.rs::a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call`,
+///   and, on a shared plane CAP, within one summation ulp of both
+///   orders and exactly on one of them, by
+///   `crates/sweep/tests/blend2_r2_probes.rs::r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call`;
+///   both volumes are read off closed-form faces only).
 /// - **A LADDER and an ANNULUS rim** sharing a support are refused:
 ///   an annulus carve consumes structure of the shared face beyond
 ///   its own rim (the seam split, the trimline carve of the face's
@@ -1900,7 +1904,8 @@ fn rim_trim_circles<T: Real>(
 /// the sampled gap is strictly larger, and a setback in between passes
 /// the screen and is refused HERE, at the front door. A 30°-turned
 /// dimpled prism does exactly that
-/// (`sweep/tests/review_fillet_e2_probes.rs`); the axis-aligned
+/// (`crates/sweep/tests/review_fillet_e2_probes.rs::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`);
+/// the axis-aligned
 /// fixtures this doc was written against do not, which is why it read
 /// as "front-door screened".
 ///
@@ -1926,7 +1931,9 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 
 /// The test-support door to [`ring_clearance`]: the same function, made
 /// nameable from this crate's `tests/` binaries for its two-tolerance
-/// trio pin (`tests/m6_surgery.rs`) and compiled into no shipped build.
+/// trio pin
+/// (`crates/sweep/tests/m6_surgery.rs::ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate`)
+/// and compiled into no shipped build.
 /// It lives here rather than in `test_support` because its signature
 /// carries the surgery's own `Decide + Bounds` compound, which the
 /// `Bounds` scope rule ratifies for the edge-blend seam alone —
@@ -3609,7 +3616,8 @@ fn edge_faces<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(FaceKey, FaceKey
 // ------------------------------------------------------------------
 // The surgery's ONE face-destroying door. Every `kef` in this file and
 // in `open/` is `kef_minted`; nothing else calls `Body::kef`
-// (`tests/review_fillet_t_r1_probes.rs` is the mechanical pin).
+// (`crates/sweep/tests/review_fillet_t_r1_probes.rs::every_kef_in_the_blend_surgery_goes_through_the_door`
+// is the mechanical pin).
 // ------------------------------------------------------------------
 
 /// **Every face of the body the surgery was handed**, read once before

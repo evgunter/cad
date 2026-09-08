@@ -158,9 +158,12 @@ pub enum SkinError {
     /// tangent turns one into the other. The second case is a `f64`
     /// knife edge and essentially unreachable: an exact half-turn path
     /// evaluates `|t₀ × t₁| ≈ 1.2e-16 > 0`, so the frame is BUILT from
-    /// a numerically ill-conditioned axis rather than refused (pinned,
-    /// executed, in `tests/review_m5_pr10.rs`). Under Q8 that surface
-    /// is still the definition — it is whatever that frame produced,
+    /// a numerically ill-conditioned axis rather than refused. The
+    /// build is what
+    /// `crates/sweep/tests/review_m5_pr10.rs::review_half_turn_path_builds_on_the_float_knife_edge`
+    /// executes — it asserts the `Ok` and fails loudly if the arm ever
+    /// fires; the magnitude above is not itself asserted. Under Q8 that
+    /// surface is still the definition — it is whatever that frame produced,
     /// not an approximation of something else — but it is not the
     /// surface a reader of "reversing paths refuse" would expect, so
     /// the claim is stated as it is rather than as it reads best. See
@@ -562,7 +565,8 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// bit-for-bit; and the final divide it removes was a division by
 /// exactly `1.0` in precisely the cases whose weights came out exact.
 /// A uniformly spaced loft therefore skins to bit-identical walls
-/// (pinned in `tests/m7_skin_integral.rs`).
+/// (pinned by
+/// `crates/sweep/tests/m7_skin_integral.rs::the_uniform_loft_is_bitwise_unchanged`).
 ///
 /// # Numbered note 5 (spec §2): the solve is DENSE, and where that lands
 ///

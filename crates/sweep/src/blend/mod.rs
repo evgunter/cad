@@ -577,9 +577,8 @@ pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet
 /// plane–sphere rim's spine curvature and its clearance run out
 /// together; a spine that folds while clearance is ample would be
 /// handed this sentence, and nothing here shows there is no such body.
-/// Measured in `sweep/tests/blend_recourse_followability.rs`, by the
-/// row named
-/// `the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.
+/// Measured by
+/// `crates/sweep/tests/blend_recourse_followability.rs::the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 (closed) / not classified
@@ -592,7 +591,7 @@ pub const FILLET3_SPINE_RECOURSE: &str =
 /// Endorsing "every edge of the corner" named a door that cannot serve
 /// the caller who was just refused, which is the A3-2 defect. Held to
 /// it by
-/// `sweep/tests/blend_recourse_followability.rs::the_chain_recourse_is_followed_by_requesting_every_terminating_corner`,
+/// `crates/sweep/tests/blend_recourse_followability.rs::the_chain_recourse_is_followed_by_requesting_every_terminating_corner`,
 /// which executes the one-corner request and the whole-body one
 /// together, so the hedge cannot drift from the door.
 pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous chain. Splitting the request at the break \
@@ -608,8 +607,8 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous
 /// CORNER — which answers with [`FILLET3_CORNER_RECOURSE`] first. The
 /// premise is about what the DOORS can express today; a chain door that
 /// admitted a non-rim G1 run would be where the witness comes from.
-/// Measured in `sweep/tests/blend_recourse_followability.rs`, by the
-/// row named `the_convexity_recourse_has_no_witness_in_this_suite`.
+/// Measured by
+/// `crates/sweep/tests/blend_recourse_followability.rs::the_convexity_recourse_has_no_witness_in_this_suite`.
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for a corner the corner patch does not cover — it
@@ -629,7 +628,7 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// edges at one all-convex cube corner terminate in exactly the
 /// endorsed vertex and still refuse — as a run-out, with this same
 /// sentence — at the corners they run to. Held to it by
-/// `sweep/tests/blend_recourse_followability.rs::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`,
+/// `crates/sweep/tests/blend_recourse_followability.rs::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`,
 /// beside the chain row that pins the partly-requested outcome.
 pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in FULLY REQUESTED trivalent vertices whose \
      three edges are all convex or all concave (over plane\u{2013}plane supports) — a \
@@ -660,7 +659,7 @@ pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in
 /// at a concave rim's seam vertex exactly as readily as at a convex
 /// one. The sentence conditions on nothing because the door it names
 /// serves both sides. Held to it by
-/// `sweep/tests/review_blend1_r2_probes.rs::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
+/// `crates/sweep/tests/review_blend1_r2_probes.rs::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
 /// which asserts the sentence and the whole-rim CARVE together, convex
 /// and concave, so neither half can drift alone.
 pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo::query::rim_of` on any one of its arcs hands you \
@@ -729,10 +728,9 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 /// Cut a square pocket through a cube's top face and request the twelve
 /// OUTER edges: `ring_circle` refuses at every radius, because the ring
 /// the pocket leaves is carried by lines. Witnessed by
-/// `sweep/tests/review_fillet_e2_probes.rs`, row
-/// `the_geometry_recourse_reaches_the_front_door_at_a_line_ring_and_cannot_be_followed`,
-/// and followed to its build by `blend_recourse_followability.rs`, row
-/// `the_geometry_recourse_names_a_ring_and_an_order_that_builds`.
+/// `crates/sweep/tests/review_fillet_e2_probes.rs::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`,
+/// and followed to its build by
+/// `crates/sweep/tests/blend_recourse_followability.rs::the_geometry_recourse_names_a_ring_and_an_order_that_builds`.
 ///
 /// That witness is why the sentence reads as it does. The shape the
 /// surgery objects to is not always a shape the caller REQUESTED — a
@@ -756,13 +754,12 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside th
 /// each boundary edge at nine places; a sampled gap is never smaller
 /// than the true one, so a setback between the two passes the screen
 /// and meets this exact check. Witnessed on a 30°-turned dimpled prism
-/// by `sweep/tests/review_fillet_e2_probes.rs`, row
-/// `the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`,
+/// by
+/// `crates/sweep/tests/review_fillet_e2_probes.rs::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`,
 /// which also follows the sentence: the reduced size builds.
 ///
 /// On a lattice-aligned fixture the screen does answer first, and
-/// `blend_recourse_followability.rs`'s
-/// `the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`
+/// `crates/sweep/tests/blend_recourse_followability.rs::the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`
 /// keeps that measured — as a property of that fixture, not of the
 /// door. See `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`.
 pub const FILLET3_RING_RECOURSE: &str =
@@ -850,7 +847,9 @@ pub enum BlendError {
     /// be refused here while a direction-aware test would admit it.
     /// The reviewer's witness is a unit hexagonal prism, which this
     /// refuses from `r = 0.5` although its cap survives to the apothem
-    /// `0.866` (pinned in `review_pr12_probes.rs`). The screen is kept
+    /// `0.866` (pinned by
+    /// `crates/sweep/tests/m5_pr12_fix_pass.rs::f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon`,
+    /// which also pins the wording). The screen is kept
     /// because it never goes the other way — it cannot pass a request
     /// whose face really is consumed, which is the direction the
     /// ordering claim depends on — and the error says what it tests
@@ -1476,9 +1475,10 @@ mod recourse_tests {
     /// ("supply a positive radius or setback", "request each edge
     /// once"), which is a recourse by the definition issue 1278 uses.
     /// That advice is owed a followability pin exactly like a named
-    /// sentence, and has one: `blend_recourse_followability.rs` rows
-    /// `a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
-    /// and `a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
+    /// sentence, and has one:
+    /// `crates/sweep/tests/blend_recourse_followability.rs::a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
+    /// and
+    /// `crates/sweep/tests/blend_recourse_followability.rs::a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
     /// execute both requests. Reading this row as "no advice" is what
     /// made an inventory keyed on the constants miss them.
     ///
@@ -1496,10 +1496,12 @@ mod recourse_tests {
     /// is hand-written for the same reason (Rust cannot enumerate a
     /// module's constants), so a recourse constant that appears in
     /// neither [`ALL_RECOURSES`] nor any `Display` arm is invisible to every row
-    /// here. `tests/review_d2_recourse_at_the_site.rs` restates the
-    /// list independently and reaches refusals through `fillet_edges`,
-    /// which is the check on whether a SITE picks the right class;
-    /// neither suite enumerates the constants.
+    /// here. The D2 site suite reads this same array and reaches
+    /// refusals through `fillet_edges`, which is the check on whether a
+    /// SITE picks the right class —
+    /// `crates/sweep/tests/review_d2_recourse_at_the_site.rs::a_run_out_refusal_gives_corner_advice_and_no_assembly_advice`
+    /// is the row that check rides on; neither suite enumerates the
+    /// constants.
     fn contract(err: &BlendError) -> Recourse {
         match err {
             BlendError::Band(_) => Recourse::None,

@@ -1,9 +1,10 @@
 ---
 id: sweep-doc-comments-cite-tests-unenforced
-kind: issue
+kind: unit
 title: Sixteen doc comments in sweep name a test file as their evidence, and nothing enforces any of them
-status: open
+status: dispatched
 opened: 2026-09-04
+branch: blend/5-doc-citations
 ---
 
 
@@ -49,3 +50,40 @@ its `naming.rs:32` finding.
 ## Claimed by BLEND (2026-09-06)
 
 Moved from `work/code-quality/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track T residue on `crates/sweep/src/*`; the `emit_blend.rs` site is EVAL's and announced.
+
+## Landed (BLEND unit 5)
+
+Every doc- or code-comment citation of a `sweep` test in
+`crates/sweep/src/**` now carries ONE spelling, the one a `cargo test`
+filter resolves:
+
+```
+crates/sweep/tests/<file>.rs::<row_name>
+```
+
+The corpus that spelling defines, and the grep that finds all of it:
+
+```
+rg -n 'crates/sweep/tests/[a-z0-9_]+\.rs::[a-z0-9_]+' crates/sweep/src
+```
+
+29 hits at the landing SHA, across eight files (`skin.rs` 2,
+`blend/mod.rs` 13, `blend/surgery.rs` 5, `blend/open/ruled.rs` 3,
+`blend/naming.rs` 2, `extrude.rs` 2, `blend/battery.rs` 1,
+`test_support.rs` 1). The complement — a citation naming a test file in
+any OTHER shape — is empty, and stays checkable with:
+
+```
+rg -n 'tests/[a-z0-9_]+\.rs' crates/sweep/src | grep -v 'crates/sweep/tests/[a-z0-9_]*\.rs::'
+```
+
+What the spelling does NOT buy is the instrument: nothing resolves the
+row name to a function, so a rename or a deletion still leaves the
+sentence exactly as true-looking as it was. The unit found one of each
+already rotted (`review_fillet_e2_probes.rs`'s line-ring row renamed;
+`review_pr12_probes.rs` cited for a claim only a printing probe
+reaches). That gate is GATES' ground — `scripts/gates/*`, resolving the
+citation to an existing `#[test] fn` — and is filed, not built here. It
+catches renames and deletions and cannot catch a narrowed assertion.
+`work/code-quality/doc-line-citations-rot-silently.md` is the sibling
+class for `file:line` citations.

@@ -1123,7 +1123,8 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// `Ruling` row folds it too, on both sides: the convex side carves the
 /// rod with a flat milled along it, the CONCAVE side carves a rod's
 /// section standing on a block's top edge (the sunk rod, built through
-/// the extrude door — `crates/sweep/tests/review_fillet_h7_r1_probes.rs`
+/// the extrude door —
+/// `crates/sweep/tests/review_fillet_h7_r1_probes.rs::a_sunk_rod_has_concave_ruled_creases_that_add_material`
 /// pins its material-adding band at `ΔV = +2·A·L`). The boolean
 /// cannot build either concave fixture (two parallel cylinders unioned
 /// refuse at the curved-pierce door; a block ∪ cylinder at the join
