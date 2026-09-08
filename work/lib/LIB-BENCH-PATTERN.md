@@ -2,11 +2,12 @@
 id: LIB-BENCH-PATTERN
 kind: unit
 title: the flat-pack posts as a pattern, measured through the mates and the gate
-status: review
+status: closed
 branch: lib/bench-pattern
 opened: 2026-09-08
 refs: [bench-flat-pack-star-is-now-a-pattern-job]
 pr: 2199
+closed: 2026-09-08
 ---
 
 Author the flat-pack layout's posts as `Node.pattern` beside the

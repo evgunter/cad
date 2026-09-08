@@ -3435,3 +3435,52 @@ a `file:line`. Also filed:
 refusal half is curated and its success half is not). No kernel crate
 touched; the lane ran the pinned ruff for real. Branch level with
 main at the merge.
+
+**LIB-BENCH-PATTERN MERGED (2026-09-08, #2199; mechanical under the
+08-29 ruling, no A/B row). The flat-pack posts measured as
+`Node.pattern` against `placed_union` through every layout door, and
+the pattern shipped.** `bench_scene.layout` grew a `posts=` switch
+over the two spellings (one count, one rule, one set of constants) and
+`TestBenchLayout` runs its whole battery under `subTest` against
+BOTH: over the flat-pack the plural `Instances` value answers exactly
+as the fused body does — `product` gathers `PATTERN_COUNT ×
+POST_VOLUME + SHELF_VOLUME`, `select` answers `PATTERN_COUNT` distinct
+instance-qualified cap names, each `face_frame` lands on the placement
+ladder's rung to 1e-12, every `denotation` is untied at one candidate,
+the tessellated outline is the same box, and `assemble` passes the A5
+gate outright with `minted == []`. The two spellings part at exactly
+ONE door and the pattern is the better side of it: on a document
+authored for the question, a mate head on a `Node.pattern` copy
+resolves, solves `Determining`, joins one cluster and mints — the
+`SlotId::Instance` walk (`editor-core/src/mate/member.rs`) reached
+from Python for the first time — while the same head on a
+`placed_union` copy refuses ("does not resolve to a live member") and
+the mate node's failure reds the product. The issue's premise that the
+LAYOUT carries mates over the posts was FALSE and its `## Closed` says
+so: the pattern is in the layout, whose expectations are the material,
+the outline, the per-placement frames, the names and a gate that
+passes with nothing minted; the cluster, gauge, solved translation,
+minted declarations and CERTIFYING gate are `TestBenchStand`'s, which
+carries no pattern and is untouched. `posts=` keeps `placed_union`
+reachable so the comparison stays executed rather than remembered.
+Audit: row 43 `**YES**`/`—` with the substitution sentence replaced by
+the measurement, headline "34 outright, and 3 more" (37 of 45
+unchanged — a row moved between the YES columns, not across the NO
+line), G8 `degrades 3`, G18's residue sentence records the row as
+written, and the gap-list arithmetic prose (the one sentence the tally
+guard does not check, already stale at `32 + 4 = 36`) corrected to
+`34 + 3 = 37, and 37 + 8 = 45`. Python tree: the scene's second
+"deliberate difference" deleted (parametric prisms stay), the eval
+seam row reads `[POST_VOLUME] * PATTERN_COUNT`, the outline row
+tessellates every body (`.body()` refuses typed on `instances`), the
+tour guard's blind spot (2) is one item, a docstring's "four ways"
+now names the constant (2). No kernel change; `demos/tour` untouched;
+the lane ran the pinned ruff for real. One inherited red on the first
+run (`render lanes / freecad montages` hung at its upload step with
+both lanes reporting `matches this render`; `rerun-failed-jobs` is
+403 for this integration) cleared by the main re-merge — green on the
+landed head, recorded in a PR comment. Orchestrator note: main gained
+EVAL's per-node nominal-environment work (`editor-core/src/eval/`,
+its tests) and an AB-LOG row after this head's last merge, none of
+which overlaps the diff, so it landed on that run's green without
+another chase.
