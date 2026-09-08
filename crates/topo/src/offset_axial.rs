@@ -388,14 +388,25 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
             seen.push(face);
         }
     }
+    // The scope is the SOLIDS the moves touch, and every face of each
+    // of them must be in the set: a corner belongs to one solid, so a
+    // solid named in part has corners whose answer depends on faces
+    // the door was not told about, while a solid named not at all has
+    // no corner this call can disturb.
+    let scope = crate::offset_together::scope_of_moves(body, moves)?;
     for (face, _) in body.faces() {
-        if !seen.contains(&face) {
+        if scope.holds_face(face) && !seen.contains(&face) {
             return Err(ReplaceFaceError::TogetherPartialSet { face });
         }
     }
 
     // ---- Decide: the axis, and every chart against it. ----
-    let frame = axial_frame(body)?;
+    //
+    // The axis is the SCOPE's, not the body's: a box standing beside a
+    // vessel has no axis of its own, and reading the seed or the
+    // extent off it would answer a question about the vessel with the
+    // box's geometry.
+    let frame = axial_frame(body, &scope)?;
     let mut charts: Vec<(FaceKey, MovedChart<T>)> = Vec::new();
     for m in moves {
         // **The cone's mirror nappe is a CONSUMER obligation, and this
@@ -457,6 +468,9 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
     // ---- Decide: every corner, before anything is written. ----
     let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
     for (vertex, _) in body.vertices() {
+        if !scope.holds_vertex(vertex) {
+            continue;
+        }
         let mut at: Vec<&MovedChart<T>> = Vec::new();
         for face in crate::offset_together::faces_at_vertex(body, vertex)? {
             let c = chart_of(face).ok_or(ReplaceFaceError::Corrupt)?;
@@ -479,6 +493,9 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
     for (edge, edge_data) in body.edges() {
+        if !scope.holds_edge(edge) {
+            continue;
+        }
         let (fa, fb) =
             crate::replace_face::edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
         let (ca, cb) = (
@@ -659,10 +676,27 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 /// therefore written for correctness rather than pinned by a fixture,
 /// which is stated here rather than left to be discovered as a gap.
 pub fn is_axial<T: Decide>(body: &Body<T>, band: Band) -> Result<bool, ReplaceFaceError<T>> {
-    let Ok(frame) = axial_frame(body) else {
+    let scope = crate::offset_together::Scope::whole(body).ok_or(ReplaceFaceError::Corrupt)?;
+    is_axial_in(body, &scope, band)
+}
+
+/// [`is_axial`] over the faces of the solids `scope` names, and nothing
+/// else. Axiality is a property of a solid — a box beside a vessel is
+/// not a body of revolution and each of the two is one — so the door
+/// decision is read per solid and a solid's answer never depends on
+/// what stands beside it.
+pub(crate) fn is_axial_in<T: Decide>(
+    body: &Body<T>,
+    scope: &crate::offset_together::Scope,
+    band: Band,
+) -> Result<bool, ReplaceFaceError<T>> {
+    let Ok(frame) = axial_frame(body, scope) else {
         return Ok(false);
     };
     for (face, f) in body.faces() {
+        if !scope.holds_face(face) {
+            continue;
+        }
         let Some(surface) = body.get_surface(f.surface) else {
             return Ok(false);
         };
@@ -678,16 +712,23 @@ pub fn is_axial<T: Decide>(body: &Body<T>, band: Band) -> Result<bool, ReplaceFa
     Ok(true)
 }
 
-/// The body's revolution axis and its radial extent, read off the first
-/// curved chart. An all-planar body has no axis and is not this door's.
-fn axial_frame<T: Real>(body: &Body<T>) -> Result<Frame<T>, ReplaceFaceError<T>> {
+/// The revolution axis of the solids `scope` names, and their radial
+/// extent, read off the first curved chart in scope. An all-planar
+/// scope has no axis and is not this door's.
+fn axial_frame<T: Real>(
+    body: &Body<T>,
+    scope: &crate::offset_together::Scope,
+) -> Result<Frame<T>, ReplaceFaceError<T>> {
     let first = body
         .faces()
-        .next()
+        .find(|(k, _)| scope.holds_face(*k))
         .map(|(k, _)| k)
         .ok_or(ReplaceFaceError::Corrupt)?;
     let mut seed: Option<(Point3<T>, Vec3<T>)> = None;
     for (face, f) in body.faces() {
+        if !scope.holds_face(face) {
+            continue;
+        }
         let Some(surface) = body.get_surface(f.surface) else {
             continue;
         };
@@ -730,7 +771,10 @@ fn axial_frame<T: Real>(body: &Body<T>) -> Result<Frame<T>, ReplaceFaceError<T>>
     // the length a direction error would move a corner by, which is the
     // geometry every alignment verdict here is about.
     let mut extent = T::zero();
-    for (_, v) in body.vertices() {
+    for (vertex, v) in body.vertices() {
+        if !scope.holds_vertex(vertex) {
+            continue;
+        }
         if let Some(p) = body.get_point(v.point) {
             extent = extent.max((*p - origin).norm());
         }

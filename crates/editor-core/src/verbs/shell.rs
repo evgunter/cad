@@ -274,7 +274,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Thickness { thickness } => E::Thickness {
             thickness: end(thickness, Infimum),
         },
-        E::NotOneSolid { solids } => E::NotOneSolid { solids },
+        E::NoSolid => E::NoSolid,
         E::Roles { error } => E::Roles { error },
         E::OperandOuterShells { outer } => E::OperandOuterShells { outer },
         E::Partition { shell, error } => E::Partition { shell, error },
@@ -292,6 +292,7 @@ pub(crate) fn fold_shell_error<T: Real>(
             gap: end(gap, Infimum),
             needed: end(needed, Supremum),
         },
+        E::ChartSpansSolids { face, other } => E::ChartSpansSolids { face, other },
         E::ChartSenseMixed { face, other } => E::ChartSenseMixed { face, other },
         E::Face { face, error } => E::Face {
             face,
