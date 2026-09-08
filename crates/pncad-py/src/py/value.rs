@@ -36,7 +36,9 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
-use crate::tags::{NODE_NOT_EVALUATED, export_error_tag, node_error_tag, step_import_error_tag};
+use crate::tags::{
+    NODE_NOT_EVALUATED, export_error_tag, node_error_tag, promoted_kind_tag, step_import_error_tag,
+};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 use pncad::topo;
@@ -1390,26 +1392,49 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
             py,
             ErrorClass::StepImport,
             "the file parsed to a wireframe, not a solid",
-            &[(
-                "variant",
-                PyString::new(py, "wireframe").unbind().into_any(),
-            )],
+            &[
+                (
+                    "variant",
+                    PyString::new(py, "wireframe").unbind().into_any(),
+                ),
+                ("promoted_kind", py.None()),
+            ],
         )),
         // The tag is the importer's own, through `crate::tags`. Every
         // arm of `StepImportError` is reachable here, and the entity
         // id and line that would tell them apart live in the message
         // prose — so one literal for all twenty-one would make them
         // indistinguishable to a caller.
+        //
+        // `promoted_kind` is the one arm's payload discriminant,
+        // beside the tag rather than in place of it: the word
+        // `recognition_ambiguous` names the condition, and which
+        // analytic kind's estimator declined is the second question,
+        // with its own recourse. `None` on every other arm, which is
+        // this surface's every-attribute-always-present rule.
         Err(err) => Err(typed_err(
             py,
             ErrorClass::StepImport,
             err.to_string(),
-            &[(
-                "variant",
-                PyString::new(py, step_import_error_tag(&err))
-                    .unbind()
-                    .into_any(),
-            )],
+            &[
+                (
+                    "variant",
+                    PyString::new(py, step_import_error_tag(&err))
+                        .unbind()
+                        .into_any(),
+                ),
+                (
+                    "promoted_kind",
+                    match &err {
+                        pncad::step_import::StepImportError::RecognitionAmbiguous {
+                            kind, ..
+                        } => PyString::new(py, promoted_kind_tag(kind))
+                            .unbind()
+                            .into_any(),
+                        _ => py.None(),
+                    },
+                ),
+            ],
         )),
     }
 }

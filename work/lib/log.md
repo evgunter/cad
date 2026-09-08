@@ -3389,3 +3389,49 @@ answer is one method call away on a carried type (M10's call).
 Orchestrator note: main gained EVAL/RESOLVE internals and tests between
 the green run on `528d9274` and the merge, overlapping nothing in this
 diff, so it landed on that run.
+
+**LIB-CUR6 MERGED (2026-09-08, #2193; mechanical under the 08-29
+ruling, no A/B row). The five re-sweep hits settled under the CUR3
+test, four carried and one argued at the entry.** `CensusSubject`
+carried into prelude group 5 (two arms, two recourses — an `Entity` is
+a carrier outside the certifiable inventory, a `FacePair` is a
+candidate contact; both payload types CUR5 curated, so the
+discriminant was the last thing in the way; the unordered-pair half
+deliberately unpinned since no curated name mints two distinct
+`FaceKey`s, said at the guard); `RevolvedKind` carried into group 3
+and CONSTRUCTED rather than fabricated — the row calls `revolve` twice
+and reaches both arms, whose fields are two disjoint sets of handles
+rather than a label; `PromotedKind` carried into group 7 with the
+item's carrier attribution CORRECTED (`SurfacePromotion` sits on an
+uncurated chain; the curated carrier is
+`StepImportError::RecognitionAmbiguous::kind`), the tag arriving
+beside `recognition_ambiguous` rather than forwarded
+(`StepImportError.promoted_kind`, `promoted_kind_tag` exhaustive,
+inventory row, Rust pin) and a stale runtime docstring ("`refused` or
+`wireframe`") fixed in passing; `ImportContact` carried as a REACH
+defect — `ImportOptions::declared_contacts` is a `pub Vec` whose
+element type no curated list spelled, so the import-side declaration
+channel was callable and not fillable, and the façade row now fills
+it; `MappedCurve` NOT carried, the third entry of the
+`BandField`/`MarginDiag` family and the first whose reason is the ARM:
+`Scaffold` is fenced to construction and refused at rest, its
+authoring form is on no list, every kernel consumer is a re-mint, and
+the rung is uncarried whole (`ChartCurve`, `Pcurve`), so carrying one
+arm would be the `Convexity` inconsistency in reverse — falsifier
+stated. Census: `PromotedKind` to `BOUND_AS`, `ImportContact`
+`different-shape` beside its absent argument, `CensusSubject` and
+`RevolvedKind` `INTERIOR` by the carrier rule with the measurement
+(the validate doors cross as prose; `Revolved` does not cross at all).
+Re-sweep at the merge base with blind spot (f) closed (bare-`pub`
+fields only), (g) new and closed (variant names read as payloads),
+(e) narrowed (a `pub enum` inside a `macro_rules!` body IS indexed),
+(h) new and open (crate-aware, not module-aware): six new hits, all in
+`profile`, filed as
+`payload-rung-re-sweep-finds-six-uncurated-profile-discriminants`;
+the lane's counts do not reconcile with CUR5's and it says so — the
+pattern is prose re-implemented each run, every row hand-verified to
+a `file:line`. Also filed:
+`a-successful-step-imports-own-report-is-uncurated` (`import_step`'s
+refusal half is curated and its success half is not). No kernel crate
+touched; the lane ran the pinned ruff for real. Branch level with
+main at the merge.

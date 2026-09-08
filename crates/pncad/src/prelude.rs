@@ -240,10 +240,35 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
 pub use sweep::blend::{BlendSite, CornerConfig, RunOutPolicy};
+// **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
+// value over: the payloads above are what a carried REFUSAL says, this
+// is what a carried RESULT says, and a curated list owes matchability
+// on both.
+//
+// `revolve` hands back a `Revolved` — the key bundle a downstream
+// pass addresses the new body by — and its `kind` field is the
+// ratified case split (the revolve module docs), which is not a label
+// on one shape but two disjoint sets of handles. A `Partial`
+// revolution has wedge CAPS (`start_cap`, `end_cap`) and both
+// meridian chains; a `Full` one has no caps at all, one seam chain,
+// and — in the wire case, where the profile touches the axis — a
+// second π-band whose walls, meridians and rims are four more fields
+// that exist on no other arm. So "which faces did my revolve make,
+// and which can I fillet" is answered by branching on this
+// discriminant and by nothing else: the fields are not `Option`s on
+// one struct that a caller could probe, they are arms.
+//
+// Every key kind the arms carry is already on this list (`FaceKey`,
+// `EdgeKey`, group 4), so the rung under it closes here rather than
+// stopping. And no Python tag moves: `Revolved` does not cross at all
+// — Python speaks the document layer, where a revolve is a
+// `Node.revolve` whose answer is a body — so there is nothing here to
+// split or pin, the `BlendError` reading on a value rather than a
+// refusal.
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
-    Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,
-    tube_along_arc_hollow,
+    Revolved, RevolvedKind, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body,
+    tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
@@ -294,6 +319,46 @@ pub use geom_brep::SurfaceKind;
 // layer's (body index, key) pair and its name-table entry, which are
 // body-lineage-scoped against the evaluation that minted them and
 // which `pncad`'s own guard forbids naming.
+//
+// **`MappedCurve` is NOT here, and that is measured — the third
+// entry of the `BandField` / `MarginDiag` family and the first whose
+// reason is the ARM rather than the payload.** It is
+// `EdgeDescription::Scaffold`'s payload: the sketch pushforward a D3
+// scaffolding description carries. Three measurements settle it.
+//
+// The arm is fenced to CONSTRUCTION and refused at rest. `Scaffold`
+// is the transient door — a pushforward standing in for an edge whose
+// surfaces do not exist yet — and tier 3 refuses one on any edge that
+// has two adjacent faces (`ValidationError::ScaffoldAtRest`). This
+// list carries the validation ladder in group 5, so the bodies a
+// prelude consumer holds are the ones the ladder passed, and the arm
+// names a state they do not occupy.
+//
+// Nothing here can state one either. The authoring form is
+// `EdgeDescriptionSpec`, which no curated list names, so a façade
+// caller can neither be handed a scaffold at rest nor write one. In
+// the kernel the discriminant has consumers and every one of them is
+// a re-MINT rather than a read — `transform`, the axial offset and
+// `replace_face` each match the three arms to rebuild the same arm
+// under a map — which is the construction half of the CUR3 rule, on
+// the side of the boundary that owns the scaffolding.
+//
+// And the rung is uncarried WHOLE, not at one arm.
+// `EdgeDescription::Chart` carries a `ChartCurve`, whose `pcurve`
+// field is a four-arm `Pcurve` — a real discriminant a reader of an
+// at-rest conventional edge would branch on — and neither is curated.
+// Carrying `MappedCurve` alone would make this refusal's read-back
+// matchable at the fenced arm and not at the one every at-rest
+// conventional edge actually has, which is the inconsistency the
+// `Convexity` carriage in group 3 closed, in reverse.
+//
+// This flips if a door ever hands a caller the description of a
+// TRANSIENT edge — the Euler scaffolding surface, which this façade
+// does not expose. When it does, the rung is carried WHOLE
+// (`ChartCurve`, `Pcurve` and `MappedCurve` together), because the
+// fenced arm is the last one a reader needs and not the first.
+// Stated so the next curation pass re-measures rather than
+// re-deriving.
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
@@ -307,7 +372,7 @@ pub use topo::{
 // `DeclaredContact` — the payload of `ValidationError::
 // ContactContradicted` — has been curated (through `crate::select`)
 // all along, so the surface already carried ONE payload of this
-// refusal and left its siblings a module hop away. These three are
+// refusal and left its siblings a module hop away. These four are
 // that inconsistency closed, not a new policy:
 //
 // - `CensusContact` is `UndeclaredContact`'s: which coincidence the
@@ -320,6 +385,21 @@ pub use topo::{
 //   lost its witness, so which record to withdraw.
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
 //   vertex-on-edge, or edge-along-edge.
+// - `CensusSubject` is what `CensusUnsupported` and
+//   `CensusLaneUnsupported` are ABOUT, and it is the sharpest of the
+//   four because both of its payload types are already on this list.
+//   `Entity(EntityId)` and `FacePair(FaceKey, FaceKey)` are not two
+//   spellings of one site: an entity subject is one carrier outside
+//   the certifiable inventory, and the recourse is that carrier's —
+//   simplify it, or certify it through a supported lane. A face PAIR
+//   is a candidate CONTACT, and its recourse is the declaration
+//   protocol: declare the coincidence, or separate the two faces.
+//   The pair is also unordered as a subject (its `PartialEq` says so
+//   rather than deriving the arena's order), which is a fact a caller
+//   resolving a refusal against its own records has to have. So the
+//   discriminant is the whole of what these two arms say, and until
+//   it was carried it was the ONLY thing between a caller and a
+//   subject whose parts this list already spelled.
 //
 // THE RUNG BELOW IS CARRIED TOO, and where it stops is one further
 // down. `CensusContact::ConformalPatch` carries a
@@ -328,8 +408,10 @@ pub use topo::{
 // `GeomRef`, which ride in group 4 with the keys they sum over. What
 // this list still stops at is the rung under THOSE — a
 // `ContactFinding` is a `DeclaredContact` plus a `ContactVerdict`,
-// both already here, and the sums' remaining key kinds are bound out
-// of an arm and never branched on. The rule is unchanged and only
+// both already here, a `CensusSubject` is an `EntityId` or two
+// `FaceKey`s, all three already here, and the sums' remaining key
+// kinds are bound out of an arm and never branched on. The rule is
+// unchanged and only
 // the reach moved: a caller binds a payload and branches on the
 // DISCRIMINANT, and every discriminant these refusals name is
 // spellable from this list.
@@ -339,8 +421,8 @@ pub use topo::{
 // a `door` and a `failure_count` and no per-arm tag at all, so there
 // is nothing here to split or pin.
 pub use topo::{
-    CensusContact, RingContact, StaleDeclaration, ValidationError, validate, validate_closed,
-    validate_geometric, validate_pseudomanifold,
+    CensusContact, CensusSubject, RingContact, StaleDeclaration, ValidationError, validate,
+    validate_closed, validate_geometric, validate_pseudomanifold,
 };
 
 // --- 6. Mass properties ---------------------------------------
@@ -349,7 +431,48 @@ pub use topo::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 // --- 7. Tessellation and export -------------------------------
 pub use mesh::{Mesh, TessellateError, tessellate};
 pub use step_export::{StepExportError, StepOptions, step_string, write_step};
-pub use step_import::{ImportOptions, StepImportError, import_step};
+// **`PromotedKind` is `StepImportError::RecognitionAmbiguous`'s
+// discriminant** — which analytic kind's estimator declined on a face
+// that could not import without promotion (D7 stage 1, ruling #256).
+// It is a `pub` field of a prelude-carried refusal, so the arm was
+// matchable and the fact it reports was not.
+//
+// A caller branches on it because the two kinds have different next
+// moves. `Plane` declining means the patch is not flat within ε_in
+// and the recourse is the tolerance or the emitting CAD's own
+// planarity; `Cylinder` declining means the axis estimator was
+// ill-conditioned — collinear azimuth samples — and the recourse is a
+// re-export with more of the patch, or the face left as NURBS. The
+// refusal's own prose names the kind, which is exactly the
+// `DanglingRef` situation this curation rung exists to close: a fact
+// readable only out of a message is not matchable.
+//
+// **`ImportContact` is a different defect and is carried for a
+// different reason: it is an INPUT, not a payload.**
+// `ImportOptions::declared_contacts` is a `pub Vec<ImportContact>` —
+// the import-side declaration channel (M9-2, D7 step 4), the position
+// anchored declarations a caller attaches to an import so they are
+// certified by the SAME tier-3′ gate a native declared-contact body
+// runs. `ImportOptions` was on this list and `ImportContact` was not,
+// which is not a matchability gap but a REACH one: a prelude caller
+// could name the options struct, could set `eps_in`, and could not
+// put a declaration in it, because filling a public field means
+// spelling its element type. Every other door on this list is
+// callable from it; this one was callable and not fillable, so the
+// declaration channel had no prelude caller at all.
+//
+// The rung under both closes here rather than stopping.
+// `PromotedKind`'s arms carry nothing, and an `ImportContact` is one
+// arm carrying three `f64` — the anchor position — so a caller states
+// a declaration in numbers it already holds.
+//
+// The Python halves differ, and the difference follows the carrier
+// each time. `StepImportError` projects a tag, so `PromotedKind`
+// projects its own beside it (`StepImportError.promoted_kind`);
+// `ImportOptions` does not cross at all — Python's `import_step`
+// takes only the text — so `ImportContact` has nothing to project
+// until that argument does.
+pub use step_import::{ImportContact, ImportOptions, PromotedKind, StepImportError, import_step};
 // `StlError` is the writers' own refusal type — what `write_ascii` and
 // `write_binary` return. The option errors beside it
 // (`BinaryHeaderError`, `SolidNameError`) refuse at option

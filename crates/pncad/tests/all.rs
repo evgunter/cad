@@ -370,6 +370,39 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
     }
 }
 
+/// `ValidationError::CensusUnsupported`'s and
+/// `CensusLaneUnsupported`'s payload — what the refusing arm was
+/// examining, and therefore whose recourse applies.
+///
+/// The two arms are two different repairs, which is the CUR3 test.
+/// An `Entity` subject is one carrier outside the certifiable
+/// inventory: simplify that carrier, or certify it through a
+/// supported lane. A `FacePair` is a candidate CONTACT, so the
+/// recourse is the declaration protocol — declare the coincidence, or
+/// separate the two faces. Both payload types are on the prelude, so
+/// the answer is read out whole rather than bound and re-rendered.
+///
+/// The pair is UNORDERED as a subject, which a caller resolving a
+/// refusal against its own records depends on. That half is NOT
+/// pinned here and the reason is the same stop every key row on this
+/// list hits: distinguishing `(a, b)` from `(b, a)` needs two
+/// distinct `FaceKey`s, and nothing on the curated lists mints one —
+/// `topo`'s own suites own that pin. What this signature pins is the
+/// discriminant, which is what a curated list owes.
+fn census_subject_is_matchable(subject: CensusSubject) -> (&'static str, Option<EntityId>) {
+    match subject {
+        CensusSubject::Entity(what) => {
+            named::<EntityId>(what);
+            ("entity", Some(what))
+        }
+        CensusSubject::FacePair(a, b) => {
+            named::<FaceKey>(a);
+            named::<FaceKey>(b);
+            ("face_pair", None)
+        }
+    }
+}
+
 /// `ValidationError::StaleContactDeclaration`'s and `RingMeetsOuter`'s
 /// payloads — which record to withdraw, and how the ring meets the
 /// loop it should not be touching.
@@ -484,6 +517,22 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     // by SIGNATURE rather than by value: nothing on this list can
     // build one, which is the rung below stopping.
     named::<fn(&Indeterminate) -> (Band, Option<&'static str>)>(escalation_is_readable);
+
+    // What a census refusal is ABOUT, and the two recourses it
+    // separates. Both payload types are prelude names, so the entity
+    // arm's subject comes back whole rather than as a rendered
+    // string.
+    assert_eq!(
+        census_subject_is_matchable(CensusSubject::Entity(EntityId::Face(FaceKey::default()))),
+        ("entity", Some(EntityId::Face(FaceKey::default())))
+    );
+    assert_eq!(
+        census_subject_is_matchable(CensusSubject::FacePair(
+            FaceKey::default(),
+            FaceKey::default()
+        )),
+        ("face_pair", None)
+    );
 
     assert_eq!(
         stale_declaration_and_ring_contact_are_matchable(
@@ -873,6 +922,157 @@ fn the_authoring_ladder_runs_on_one_dependency() {
 
     let step = step_string(&built.body, &StepOptions::default(), Tol::witness()).expect("step");
     assert!(step.starts_with("ISO-10303-21;"));
+}
+
+/// **A carried RESULT's discriminant, matched through the prelude —
+/// and CONSTRUCTED here rather than fabricated.**
+///
+/// `revolve` is a prelude door and its answer is a `Revolved`, whose
+/// `kind` is the ratified case split. The two arms are two disjoint
+/// sets of handles rather than one shape with a label: a partial
+/// revolution has wedge CAPS and both meridian chains, a full one has
+/// no caps, one seam chain, and the wire case's second π-band. So
+/// "which faces did my revolve make" is answered by this branch and
+/// by no other, and every key type the arms carry is on the same
+/// list.
+///
+/// Both arms are reached by calling the door, which makes this a
+/// construction pin and not only a naming one.
+#[test]
+fn a_revolve_result_is_matchable_through_the_prelude() {
+    // An off-axis rectangle, revolved about the sketch y axis: x is
+    // the radius, so the profile never touches the axis and the full
+    // case is the lamina one.
+    let rect: ClosedLoop<f64> = Open
+        .at(p2(1.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .and_then(|t| t.line_to(p2(2.0, 1.0), Tol::witness()))
+        .and_then(|t| t.line_to(p2(1.0, 1.0), Tol::witness()))
+        .and_then(|t| t.line_to(Start, Tol::witness()))
+        .expect("the rectangle authors");
+    let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], Tol::witness())
+        .expect("profile validates");
+    let axis = RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
+    };
+
+    let quarter = revolve(
+        &profile,
+        axis,
+        Revolution::Partial(std::f64::consts::FRAC_PI_2),
+        Tol::witness(),
+    )
+    .expect("a quarter revolution builds");
+    assert_eq!(revolved_kind_is_matchable(&quarter.kind), "partial");
+
+    let whole = revolve(&profile, axis, Revolution::Full, Tol::witness())
+        .expect("a full revolution builds");
+    assert_eq!(revolved_kind_is_matchable(&whole.kind), "full");
+}
+
+/// The case split, matched exhaustively with every field's type
+/// spelled from the prelude — the pin that a caller can read the
+/// handles out and not merely see which arm it got.
+fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
+    match kind {
+        RevolvedKind::Partial {
+            start_cap,
+            end_cap,
+            start_meridians,
+            end_meridians,
+        } => {
+            named::<FaceKey>(*start_cap);
+            named::<FaceKey>(*end_cap);
+            named::<&Vec<Vec<EdgeKey>>>(start_meridians);
+            named::<&Vec<Vec<EdgeKey>>>(end_meridians);
+            "partial"
+        }
+        RevolvedKind::Full {
+            meridians,
+            pi_walls,
+            pi_meridians,
+            pi_rims,
+        } => {
+            named::<&Vec<Vec<Option<EdgeKey>>>>(meridians);
+            named::<&Vec<Option<FaceKey>>>(pi_walls);
+            named::<&Vec<Option<EdgeKey>>>(pi_meridians);
+            named::<&Vec<Option<EdgeKey>>>(pi_rims);
+            "full"
+        }
+    }
+}
+
+/// **The import surface, on both sides of the call** — the refusal a
+/// caller matches, and the options a caller fills.
+///
+/// The two halves are two different curation defects and this pins
+/// each. `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the
+/// arm was matchable and the kind whose estimator declined was
+/// readable only out of the message prose. `ImportContact` is the
+/// element type of a `pub` field on the options struct, so the
+/// declaration channel was callable and not FILLABLE — the value
+/// below could not be written from this list at all.
+///
+/// What the `import_step` call pins is exactly that: the door accepts
+/// options a prelude caller filled. Whether an anchor RESOLVES is
+/// `step-import`'s own suite, on a file with vertices to resolve
+/// against; here the text is not a STEP file and the refusal is the
+/// parser's.
+#[test]
+fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::RecognitionAmbiguous {
+            id: 104,
+            surface: 105,
+            kind: PromotedKind::Plane,
+            margin: 1e-9,
+        }),
+        Some("plane")
+    );
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::RecognitionAmbiguous {
+            id: 142,
+            surface: 143,
+            kind: PromotedKind::Cylinder,
+            margin: 1e-9,
+        }),
+        Some("cylinder")
+    );
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::NothingToImport),
+        None
+    );
+
+    let options = ImportOptions {
+        eps_in: Some(1e-7),
+        declared_contacts: vec![ImportContact::VertexRest {
+            at: [0.0, 0.0, 0.5],
+        }],
+    };
+    assert!(matches!(
+        import_step("not a step file", &options, Tol::witness()),
+        Err(StepImportError::Syntax { .. })
+    ));
+}
+
+/// Which analytic kind's estimator declined, read off the arm that
+/// reports it — `None` on every other refusal.
+///
+/// The kinds are matched EXHAUSTIVELY, so a third one recognised
+/// kernel-side stops this compiling rather than arriving under an
+/// existing word. Their recourses differ, which is why the
+/// discriminant is worth a curated name: a plane that will not
+/// certify is a flatness question at ε_in, a cylinder that will not
+/// is an ill-conditioned axis and wants more of the patch.
+fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static str> {
+    match err {
+        StepImportError::RecognitionAmbiguous { kind, .. } => Some(match kind {
+            PromotedKind::Plane => "plane",
+            PromotedKind::Cylinder => "cylinder",
+        }),
+        _ => None,
+    }
 }
 
 /// The other arm of the ladder: a Boolean result carries its own

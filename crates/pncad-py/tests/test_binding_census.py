@@ -505,6 +505,29 @@ BOUND_AS = {
     # numbers the arm carries describe a mesh that violates its own
     # invariant, which is a bug report and not something to branch on.
     "MeshPickError": "NodePickError.index_variant",
+    # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
+    # analytic kind's stage-1 estimator declined on a face that could
+    # not import without promotion. It crosses by the carrier rule at
+    # `MeshPickError`'s spelling and for that entry's reason: the
+    # carrier's arm HAS a word of its own, `recognition_ambiguous`,
+    # which names the condition and which a caller branching on the
+    # import ladder needs to stay put. So the payload's discriminant
+    # arrives BESIDE it rather than in place of it, `None` on every
+    # other arm.
+    #
+    # Two values, and they are two different next moves: `plane`
+    # declining is a flatness question at the file's tolerance,
+    # `cylinder` declining is an ill-conditioned axis and wants more
+    # of the patch. The match that mints them is exhaustive, so a
+    # third promotable kind stops the bindings compiling instead of
+    # joining one of these.
+    #
+    # No Python test row: firing the arm needs a file with a
+    # multi-bound curved face on an ill-conditioned NURBS surface,
+    # which is a `step-import` fixture and not something an authoring
+    # door reaches. Both words are pinned in Rust, where the refusal
+    # constructs.
+    "PromotedKind": "StepImportError.promoted_kind",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
     # accounted by rule 1; these two are the family's shape entries,
@@ -1391,6 +1414,22 @@ NOT_BOUND = {
     "FaceKey": SHAPE,
     "ExtrudeError": SHAPE,
     "ImportOptions": SHAPE,
+    # The element type of `ImportOptions::declared_contacts`, curated
+    # at the prelude because filling a public field means spelling its
+    # element type and a Rust caller could not: the import-side
+    # declaration channel was callable and not FILLABLE. That defect
+    # is a Rust one and it does not reproduce here, which is why this
+    # entry is `different-shape` rather than a gap. It follows its
+    # carrier one bullet above — `ImportOptions` is `import_step`'s
+    # absent second argument — and an element type of an absent
+    # argument has strictly less to cross than the argument does.
+    #
+    # Read this entry beside `import_step` if that second argument is
+    # ever bound: at that moment `ImportContact` needs a Python
+    # spelling of its own (a constructor for the position anchor), and
+    # this row stops being honest in exactly the shape the
+    # `EvalOutcome` entry above records.
+    "ImportContact": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
     # `continue_to`'s target trait, absorbed into the verb exactly as
@@ -1555,6 +1594,23 @@ NOT_BOUND = {
     # .md`), so inventing a second vocabulary at the boundary would
     # fork a diagnosis the kernel already words.
     "CensusContact": INTERIOR,
+    # What the two census-unsupported arms are ABOUT — one entity, or
+    # the candidate face pair. `INTERIOR` by the carrier rule and by
+    # the measurement the `CensusContact` entry above records, which
+    # is this type's carrier too: `ValidationError` crosses through
+    # the validate doors as joined `Display` prose with a `door` and a
+    # `failure_count` and no per-arm tag, so an arm's subject reaches
+    # Python only inside that text, through the kernel's own
+    # rendering. `pncad-py` names neither `CensusSubject` nor either
+    # of its payload types anywhere.
+    #
+    # The Rust carriage this row records is a real closure even so,
+    # and the asymmetry is the point of writing the measurement down:
+    # a Rust caller matches the arm and reads the subject whole, while
+    # a Python caller reads the sentence. What would flip this entry
+    # is the same door that would flip `CensusContact`'s — a validate
+    # projection with per-arm tags — and both would move together.
+    "CensusSubject": INTERIOR,
     # The instantiation seam's declaration bookkeeping. `Relation` and
     # `Route` are the two halves of what a carried finding says, and
     # Python reads both without holding either type:
@@ -1594,6 +1650,16 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    # What an edge's locus IS, read back off a certified carrier.
+    # Python holds an opaque `Body` handle and no door on it answers a
+    # description, so nothing here is a thing Python can read.
+    #
+    # `MappedCurve` — the `Scaffold` arm's payload — is not a curated
+    # name and so not an entry here; the argument for stopping at that
+    # rung is written where this type is carried, in `prelude.rs`
+    # group 4, and it is an argument about the ARM rather than about
+    # the crossing: the scaffolding door is fenced to construction and
+    # tier 3 refuses it at rest.
     "EdgeDescription": INTERIOR,
     "Extruded": INTERIOR,
     "Extrusion": INTERIOR,
@@ -1693,6 +1759,20 @@ NOT_BOUND = {
     "PropsQuadLane": INTERIOR,
     "Revolution": INTERIOR,
     "Revolved": INTERIOR,
+    # `Revolved::kind` — the ratified case split, curated at the
+    # prelude because the two arms are two disjoint sets of handles
+    # and a Rust caller reading the wedge caps off a partial revolve
+    # has to branch. `INTERIOR` by the carrier rule and by the
+    # plainest measurement of it in this file: the carrier does not
+    # cross AT ALL. Python speaks the document layer, so a revolve is
+    # a `Node.revolve` whose answer is a body — no `Revolved` value
+    # reaches Python, and `pncad-py` names neither type anywhere.
+    #
+    # Not a `gap:` either: what a Python caller wants out of those
+    # handles is the FACES, and it asks for those by name through
+    # `Evaluation.select` rather than by key. A key bundle has nothing
+    # to project to a surface that holds names and never keys.
+    "RevolvedKind": INTERIOR,
     # `ValidationError::RingMeetsOuter`'s payload (LIB-CUR4).
     "RingContact": INTERIOR,
     # `BlendError::UnsupportedCorner`'s second field, the policy

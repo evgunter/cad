@@ -188,9 +188,21 @@ pyo3::create_exception!(
     StepImportError,
     PncadError,
     "A STEP text the importer refused, or one that parsed to a \
-     non-solid. Carries `variant` (`refused` or `wireframe`); \
-     per-variant field projection is deferred with the rest of the \
-     read-back surface."
+     non-solid. Carries `variant` — the importer's own refusal tag, \
+     one word per arm — or `wireframe`, which is not a refusal at \
+     all: the file parsed, to something this door does not adopt. \
+     Carries `promoted_kind` beside it, present on every arm and \
+     `None` where that arm does not carry it.\n\n\
+     `recognition_ambiguous` neither forwards nor withholds. The word \
+     names the CONDITION — a face that cannot import without \
+     promotion sits on a surface whose recognition estimator is \
+     ill-conditioned at the file's own tolerance — and \
+     `promoted_kind` says which analytic kind's estimator declined, \
+     `plane` or `cylinder`. The two lead different places: a plane \
+     that will not certify is a flatness question at the import \
+     tolerance, a cylinder that will not is an ill-conditioned axis \
+     and wants more of the patch. The entity ids and the conditioning \
+     margin are in the message."
 );
 pyo3::create_exception!(
     pncad,

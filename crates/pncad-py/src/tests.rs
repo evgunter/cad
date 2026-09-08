@@ -13,8 +13,8 @@ use crate::errors::{
     ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose,
 };
 use crate::tags::{
-    expr_dimension_error_tag, path_error_tag, persist_error_tag, step_import_error_tag,
-    workspace_error_tag,
+    expr_dimension_error_tag, path_error_tag, persist_error_tag, promoted_kind_tag,
+    step_import_error_tag, workspace_error_tag,
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
@@ -1365,6 +1365,35 @@ fn step_import_error_tags_are_stable() {
     );
 }
 
+/// The recognition arm's PAYLOAD tag, beside the arm's own.
+///
+/// Minted rather than reached, and the reason is the arm: firing
+/// `recognition_ambiguous` needs a file with a multi-bound curved face
+/// on a NURBS surface whose estimator is ill-conditioned at the
+/// declared tolerance, which is a fixture and `step-import`'s own
+/// suite's. What this pins is the wire spelling of both words and the
+/// fact that they arrive TOGETHER — the carrier's word naming the
+/// condition, the payload's naming which estimator declined.
+#[test]
+fn promoted_kind_tags_are_stable() {
+    let ambiguous = |kind| pncad::step_import::StepImportError::RecognitionAmbiguous {
+        id: 104,
+        surface: 105,
+        kind,
+        margin: 1e-9,
+    };
+    for (kind, word) in [
+        (pncad::step_import::PromotedKind::Plane, "plane"),
+        (pncad::step_import::PromotedKind::Cylinder, "cylinder"),
+    ] {
+        assert_eq!(promoted_kind_tag(&kind), word);
+        assert_eq!(
+            step_import_error_tag(&ambiguous(kind)),
+            "recognition_ambiguous"
+        );
+    }
+}
+
 #[test]
 fn path_error_tags_are_stable() {
     use pncad::prelude::{Open, Start, circle, p2, polygon};
@@ -2279,6 +2308,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "solid_invalid",
             "unknown_node",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "promoted_kind_tag",
+        values: &["cylinder", "plane"],
         delegates: &[],
     },
     TagEntry {
