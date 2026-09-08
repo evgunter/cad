@@ -2,9 +2,10 @@
 id: sweep-doc-comments-cite-tests-unenforced
 kind: unit
 title: Sixteen doc comments in sweep name a test file as their evidence, and nothing enforces any of them
-status: dispatched
+status: review
 opened: 2026-09-04
 branch: blend/5-doc-citations
+pr: 2155
 ---
 
 
