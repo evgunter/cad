@@ -155,49 +155,6 @@ pub fn dome_profile(r: f64) -> Vec<ProfileVertex<f64>> {
     ]
 }
 
-/// The one CLOSED plane–sphere rim of `body` whose circle carrier has
-/// radius `rim_r` (to 1e-6). Selection is by the analytically known
-/// radius, not by uniqueness: the dome carries two such rims.
-///
-/// # Panics
-///
-/// If the body does not carry exactly one.
-pub fn closed_plane_sphere_rim(body: &Body<f64>, rim_r: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let start = body.get_half_edge(e.he_plus)?.start;
-            if Some(start) != body.half_edge_end(e.he_plus) {
-                return None;
-            }
-            let surf = |he| -> Option<geom::Surface<f64>> {
-                let l = body.get_half_edge(he)?.parent_loop;
-                let f = body.get_loop(l)?.face;
-                body.get_surface(body.get_face(f)?.surface).cloned()
-            };
-            let (a, b) = (surf(e.he_plus)?, surf(e.he_minus)?);
-            let ps = |x: &geom::Surface<f64>, y: &geom::Surface<f64>| {
-                matches!(x, geom::Surface::Plane { .. })
-                    && matches!(y, geom::Surface::Sphere { .. })
-            };
-            if !(ps(&a, &b) || ps(&b, &a)) {
-                return None;
-            }
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                geom::Curve3::Circle { radius, .. } if (radius - rim_r).abs() < 1e-6 => Some(k),
-                _ => None,
-            }
-        })
-        .collect();
-    assert_eq!(
-        hits.len(),
-        1,
-        "exactly one closed plane–sphere rim of radius {rim_r}"
-    );
-    one_edge_rim(body, hits[0])
-}
-
 /// **The one-edge rim `seed` belongs to, through the kernel door.**
 ///
 /// The fixture-side spelling for a body whose latitude rims are single
@@ -263,6 +220,30 @@ pub fn rim_arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<Edg
         Some(seed) => topo::query::rim_of(body, *seed).unwrap_or_else(|e| {
             panic!("the rim at radius {rim_r}, station {rim_y} is one rim, got {e}")
         }),
+    }
+}
+
+/// **The ONE edge of the rim at radius `rim_r` and station `rim_y`** —
+/// [`rim_arcs_at`]'s answer for a fixture whose rim is a single closed
+/// edge, in the shape a caller that holds one key needs.
+///
+/// Carries no scan and no window of its own: the selection is
+/// [`arcs_at`]'s and the rim is [`topo::query::rim_of`]'s. What it adds
+/// is the fixture's claim that this rim is ONE edge, said once here
+/// instead of at every suite that wants a key rather than a set.
+///
+/// # Panics
+///
+/// If the rim at that radius and station is not exactly one edge — an
+/// empty answer (no arc sits there) included, because a caller holding
+/// a key has no way to say "no rim".
+#[must_use]
+pub fn one_edge_rim_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> EdgeKey {
+    match rim_arcs_at(body, rim_r, rim_y)[..] {
+        [only] => only,
+        ref many => {
+            panic!("the rim at radius {rim_r}, station {rim_y} is one closed edge, got {many:?}")
+        }
     }
 }
 

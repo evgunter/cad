@@ -163,14 +163,6 @@ fn boss(r: f64) -> Body<f64> {
     )
 }
 
-/// The closed plane–sphere rim whose circle carrier has radius
-/// `rim_r` (to 1e-6) — the dome ring carries TWO closed plane–sphere
-/// rims (equator and top edge), so selection is by the analytically
-/// known radius, not by uniqueness.
-fn closed_rim_of_radius(body: &Body<f64>, rim_r: f64) -> EdgeKey {
-    sweep::test_support::closed_plane_sphere_rim(body, rim_r)
-}
-
 fn is_cone_cylinder(a: &Surface<f64>, b: &Surface<f64>) -> bool {
     matches!(a, Surface::Cone { .. }) && matches!(b, Surface::Cylinder { .. })
 }
@@ -227,11 +219,11 @@ fn closed_rims_meter_their_diameter_and_never_exceed_arc_length() {
     let mut rng = fuzz::start("rim-r1 closed-rim honesty");
     for _ in 0..fuzz::scaled(4) {
         let r = rng.range(0.7, 1.6);
-        for (body, expect_convexity, rim_r) in [
-            (dome(r), Convexity::Convex, r),
-            (boss(r), Convexity::Concave, r * (3.0f64).sqrt() / 2.0),
+        for (body, expect_convexity, rim_r, rim_y) in [
+            (dome(r), Convexity::Convex, r, 0.0),
+            (boss(r), Convexity::Concave, r * (3.0f64).sqrt() / 2.0, 0.5 * r),
         ] {
-            let rim = closed_rim_of_radius(&body, rim_r);
+            let rim = sweep::test_support::one_edge_rim_at(&body, rim_r, rim_y);
             let req = BlendRequest {
                 body: &body,
                 edges: vec![rim],
@@ -360,7 +352,7 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
 #[test]
 fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
     let body = dome(1.0);
-    let rim = closed_rim_of_radius(&body, 1.0);
+    let rim = sweep::test_support::one_edge_rim_at(&body, 1.0, 0.0);
     let req = BlendRequest {
         body: &body,
         edges: vec![rim],
@@ -391,7 +383,7 @@ fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
 #[test]
 fn a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band() {
     let body = dome(1.0);
-    let rims = [closed_rim_of_radius(&body, 1.0)];
+    let rims = [sweep::test_support::one_edge_rim_at(&body, 1.0, 0.0)];
     let out = fillet_edges(&body, &rims[..1], 0.05, tol())
         .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one closed rim mints one band");

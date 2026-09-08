@@ -1,9 +1,10 @@
 ---
 id: rim-seed-finders-disagree-on-at-this-radius
-kind: issue
+kind: unit
 title: four disagreeing tolerances spell "the circle at this radius" across the tree
-status: open
+status: dispatched
 opened: 2026-09-05
+branch: blend/4-seed-finder
 ---
 
 ## The shape
