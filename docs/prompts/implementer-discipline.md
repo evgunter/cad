@@ -91,8 +91,10 @@ with a smaller subject. A script's inputs are `scripts/*.py` or `scripts/*.sh`
 — not a file class `scripts/ci-filter.py` reads as TIER=docs — so the change
 set that can break its selftest is exactly the change set the per-PR gate runs
 on, and that is where the row belongs. `scripts/check-ci-mirror-parity.py`'s
-claim 12 refuses a `--selftest` mode nothing invokes at all; that is the floor,
-not this rule.
+claim 4 has a second arm that refuses a `--selftest` mode NO WORKFLOW invokes
+— a row in `local-scripts/` does not count, because every hosted job deletes
+that tree. That is the floor, not this rule: it cannot tell a per-PR row from
+a nightly one, and you can.
 
 **Draft PRs do not run the gate at all.** Mark the PR ready for review when you
 want it gated; undrafting triggers a full run on the same head.

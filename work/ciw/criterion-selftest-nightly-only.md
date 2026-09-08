@@ -9,7 +9,7 @@ refs: [2124]
 
 
 Disclosed by the unit that wired `scripts/opt-level-calibrate.py --selftest`
-into the per-PR gate (PR TBD). It is the one other hit of that unit's sweep,
+into the per-PR gate (PR 2124). It is the one other hit of that unit's sweep,
 and it is a live instance of the same class rather than a tidy-up.
 
 ## The finding
@@ -42,10 +42,10 @@ question: it guards an append to `docs/perf-data/criterion/`, but that append
 runs on `main`, and `main` is reached through the gate that would now carry the
 selftest.
 
-## Not the same as claim 12
+## Not the same as claim 4's second arm
 
-`check-ci-mirror-parity.py`'s claim 12 (added by the same unit) refuses a
-`--selftest` mode that NOTHING invokes. This row is invoked, so claim 12 is
-silent on it and correctly so: "invoked from a scheduled workflow only" is a
+`check-ci-mirror-parity.py`'s claim 4 grew a second arm in the same unit: it
+refuses a `--selftest` mode no WORKFLOW invokes. This row is invoked by
+`nightly.yml`, so the arm is silent on it and correctly so: "invoked from a scheduled workflow only" is a
 judgement about siting, and the checker has no siting vocabulary for it that
 would not also condemn `nightly.yml`'s legitimately nightly-only guards.
