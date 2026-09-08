@@ -538,6 +538,7 @@ per_edge: list[str | HitTestError] = index.boundary_names(seamed)
 stored_name: str = seamed.all_faces(upright)[0]
 standing: Resolution = seamed.resolve(stored_name)
 state: str = standing.status
+which_arm: str | None = standing.variant
 carried_by: NodeId | None = standing.node
 in_body: int | None = standing.body
 denotes: EntityKind | None = standing.kind

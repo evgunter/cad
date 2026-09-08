@@ -348,23 +348,42 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         CensusContact::EdgeEdgeCross { .. } => true,
         CensusContact::EdgeEdgeOverlap { .. } => true,
         CensusContact::EdgeFaceOverlap { .. } => true,
-        // ONE RUNG, AND THIS IS WHERE IT STOPS. The arm binds its
-        // `ContactFinding` without naming it, which is exactly why the
-        // rung below is a banked finding and not this unit's scope:
-        // the DISCRIMINANT is matchable, and that is what the curated
-        // list owes. CUR3 stopped in the same place — `DanglingRef`'s
-        // arms carry `EntityId` and `GeomRef`, both still uncurated.
-        CensusContact::ConformalPatch { .. } => false,
+        // The arm the stop was named at, and its payload has a name
+        // now: a caller that reaches a conformal patch asks what the
+        // finding CLAIMS and what verdict decided it, instead of
+        // binding a value it cannot spell. Still undeclarable — the
+        // arm reports a coincidence the census found, and this
+        // function answers whether a declaration would certify it —
+        // and the difference is that the answer is now readable.
+        CensusContact::ConformalPatch { finding } => {
+            named::<ContactFinding>(finding);
+            named::<DeclaredContact>(finding.pair);
+            let _bridgeable = match finding.verdict {
+                // A finding is only minted on definite evidence, so
+                // this is the arm that arrives; the other is the
+                // shape of the verdict type and not of this payload.
+                ContactVerdict::Definite => false,
+                ContactVerdict::Bridged => true,
+            };
+            false
+        }
     }
 }
 
 /// `ValidationError::StaleContactDeclaration`'s and `RingMeetsOuter`'s
 /// payloads — which record to withdraw, and how the ring meets the
 /// loop it should not be touching.
+///
+/// The `ring` argument is the third key type `RingMeetsOuter` names,
+/// beside the `FaceKey` and the `RingContact`: a caller matching that
+/// arm binds all three, and this signature is the pin that all three
+/// are spellable from the prelude in one import.
 fn stale_declaration_and_ring_contact_are_matchable(
     declaration: StaleDeclaration,
+    ring: LoopKey,
     contact: RingContact,
 ) -> (&'static str, &'static str) {
+    named::<LoopKey>(ring);
     let stale = match declaration {
         StaleDeclaration::VertexVertex { a, b } => {
             named::<VertexKey>(a);
@@ -451,18 +470,194 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         }
     ));
 
+    // The two entity sums, matched by bare prelude name — the rung
+    // `DanglingRef`'s arms and three `BlendError` arms sit on.
+    assert_eq!(
+        entity_and_geometry_sites_are_matchable(
+            EntityId::Loop(LoopKey::default()),
+            GeomRef::Surface(Default::default()),
+        ),
+        ("loop", "surface")
+    );
+
+    // The escalation payload is reached by bare prelude name too, and
+    // by SIGNATURE rather than by value: nothing on this list can
+    // build one, which is the rung below stopping.
+    named::<fn(&Indeterminate) -> (Band, Option<&'static str>)>(escalation_is_readable);
+
     assert_eq!(
         stale_declaration_and_ring_contact_are_matchable(
             StaleDeclaration::Patch {
                 face_a: FaceKey::default(),
                 face_b: FaceKey::default(),
             },
+            LoopKey::default(),
             RingContact::Edge {
                 ring_edge: EdgeKey::default(),
                 outer_edge: EdgeKey::default(),
             },
         ),
         ("patch", "edge")
+    );
+}
+
+/// The two type-erased entity sums, matched through the prelude —
+/// what a dangling read-back reports its site as, and what three
+/// `BlendError` arms name directly.
+///
+/// Both are matched EXHAUSTIVELY, which is what a curated list owes
+/// about them: seven entity kinds and three geometry kinds, and a
+/// caller branches on which. Four of the seven keys and all three
+/// geometry keys are BOUND and never named here — they are the rung
+/// this list stops at, one module hop away at `pncad::topo::…`, and
+/// binding them without naming them is exactly what a consumer does.
+fn entity_and_geometry_sites_are_matchable(
+    site: EntityId,
+    geometry: GeomRef,
+) -> (&'static str, &'static str) {
+    let what = match site {
+        EntityId::Solid(_) => "solid",
+        EntityId::Shell(_) => "shell",
+        EntityId::Face(key) => {
+            named::<FaceKey>(key);
+            "face"
+        }
+        EntityId::Loop(key) => {
+            named::<LoopKey>(key);
+            "loop"
+        }
+        EntityId::HalfEdge(_) => "half_edge",
+        EntityId::Edge(key) => {
+            named::<EdgeKey>(key);
+            "edge"
+        }
+        EntityId::Vertex(key) => {
+            named::<VertexKey>(key);
+            "vertex"
+        }
+    };
+    let carrier = match geometry {
+        GeomRef::Point(_) => "point",
+        GeomRef::Curve(_) => "curve",
+        GeomRef::Surface(_) => "surface",
+    };
+    (what, carrier)
+}
+
+/// The escalation payload, read through the prelude alone.
+///
+/// `Indeterminate` is a STRUCT, so what a curated list owes about it
+/// is field access rather than a match: a caller holding an
+/// `Escalated` arm out of any of the thirteen refusals that carry one
+/// asks which band the margin was classified against and which
+/// predicate could not decide. `Band` is on the same list, which is
+/// what makes the pair readable in one import.
+///
+/// **No value is built here, and the reason IS the stop.** Building
+/// one means writing `margin:`, and that field's type is
+/// deliberately uncurated — so this function reads an escalation it
+/// is handed and cannot fabricate one, which is exactly the shape a
+/// consumer is left in. `margin` is bound and never named.
+fn escalation_is_readable(escalation: &Indeterminate) -> (Band, Option<&'static str>) {
+    let Indeterminate {
+        margin,
+        band,
+        predicate,
+    } = escalation;
+    let _ = margin;
+    (*band, *predicate)
+}
+
+/// The picking refusal's own payload, matched through `crate::select`
+/// — the list that carries it.
+///
+/// The import is the pin: `MeshPickError` is a `crate::select` name
+/// and not a prelude one, so the claim is that the SELECT list carries
+/// it, and dropping it from that list stops this file compiling even
+/// though `pncad::editor_core` does not exist to reach it another way.
+///
+/// The match is exhaustive for the reason every tag map in this tree
+/// is: an indexing invariant added kernel-side has to break a build
+/// rather than quietly join the one already here under a single word.
+#[test]
+fn the_pick_index_refusal_is_matchable_through_the_select_list() {
+    use pncad::select::MeshPickError;
+
+    let site = |e: MeshPickError| match e {
+        // The one arm, and its three numbers are the whole of what a
+        // report about a corrupt mesh can act on: no arena key, by the
+        // type's own contract.
+        MeshPickError::PositionOutOfRange {
+            patch,
+            triangle,
+            index,
+        } => {
+            named::<usize>(patch);
+            named::<usize>(triangle);
+            named::<u32>(index);
+            (patch, triangle, index)
+        }
+    };
+    assert_eq!(
+        site(MeshPickError::PositionOutOfRange {
+            patch: 2,
+            triangle: 7,
+            index: 41,
+        }),
+        (2, 7, 41)
+    );
+}
+
+/// The resolution verdict's three payloads, matched through
+/// `crate::select` — the list that carries them.
+///
+/// The two enums are matched arm by arm and exhaustively, which is
+/// the whole claim: a consumer branches on WHICH failure it got, and
+/// the six words below are six different repairs. `ResolutionFailure`
+/// is the struct that pairs one of them with the offers, and it is
+/// read by field for the same reason.
+///
+/// **What is bound and not named is the point of the stop.** The
+/// diagnosis, the tombstone, the tie witness and the recipe-edit
+/// reference are all reached here as `_` — a caller holds them and
+/// cannot spell them, which is exactly what the curated list decided.
+#[test]
+fn the_resolution_payloads_are_matchable_through_the_select_list() {
+    use pncad::select::{ResolutionFailure, ResolveError, ResolveIndeterminate};
+
+    // The repair each failure asks for, which is why the three stay
+    // three: rebind, refine among the candidates, or rebind onto a
+    // node that still exists.
+    fn repair(failure: &ResolutionFailure) -> (&'static str, usize) {
+        let word = match &failure.error {
+            ResolveError::Vanished { name, .. } => {
+                named::<&StableName>(name);
+                "vanished"
+            }
+            ResolveError::Ambiguous { candidates, .. } => {
+                named::<&Vec<StableName>>(candidates);
+                "ambiguous"
+            }
+            ResolveError::NodeGone { .. } => "node_gone",
+        };
+        (word, failure.offers.len())
+    }
+    named::<fn(&ResolutionFailure) -> (&'static str, usize)>(repair);
+
+    // ...and which node to look at, on the state where the NAME is
+    // fine and the run is not.
+    fn upstream(cause: ResolveIndeterminate) -> (&'static str, RecipeNodeId) {
+        match cause {
+            ResolveIndeterminate::TargetFailed { node } => ("target_failed", node),
+            ResolveIndeterminate::TargetPoisoned { through } => ("target_poisoned", through),
+            ResolveIndeterminate::TargetNotEvaluated { node } => ("target_not_evaluated", node),
+        }
+    }
+    assert_eq!(
+        upstream(ResolveIndeterminate::TargetPoisoned {
+            through: RecipeNodeId(4)
+        }),
+        ("target_poisoned", RecipeNodeId(4))
     );
 }
 
@@ -3118,23 +3313,39 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
 ///   briefly as the payloads of a resolution failure and then put them
-///   back: the panel renders the failure through its `Display`, so
-///   nothing consumed the payload types, and a door carried for a
-///   consumer that does not exist is a claim nobody is checking.
+///   back, on the reading that the panel renders the failure through
+///   its `Display`, so nothing consumed the payload types.
+///
+///   **That reading held for one consumer and there are two.** A Rust
+///   panel rendering `Display` has the payload one field away whenever
+///   it wants it; a Python caller holds a string and has nothing else.
+///   So the three types the arms ARE left this family — they are
+///   listed with the naming interior below, which is where the
+///   carriage is argued — and what stays here is what neither
+///   consumer reads: the diagnosis, the tombstone, the tie witness
+///   and the edit reference, bound out of an arm and branched on
+///   through the arm's own discriminant.
 /// - **Naming interior** (`Qualifier`, `Coset`, `Resolved`,
-///   `ResolveError`, `ResolutionFailure`, `ResolveIndeterminate`,
-///   `resolve_with_prior`): the shapes the name algebra and the
-///   resolution ladder work in, below the verdict that is the curated
-///   face.
+///   `resolve_with_prior`): the shapes the name algebra works in, and
+///   the one resolution payload that holds an `EntityRef` outright.
 ///
 ///   **The resolution VERDICT left this family at GUI-2** — exactly
 ///   three names: `resolve`, `RunCtx`, `Resolution`. It is not
 ///   plumbing behind a door; it IS the door for the question a
-///   consumer that stores names must ask on every re-evaluation, and
-///   `Resolution`'s arms answer it (`Resolved(_)` / `Failed(f)` /
-///   `Indeterminate(c)`) through pattern matching and `Display`,
-///   without naming a payload type. The ladder's own vocabulary stays
-///   here until something consumes it.
+///   consumer that stores names must ask on every re-evaluation.
+///
+///   **Its three ARMS have left too** (`ResolutionFailure`,
+///   `ResolveError`, `ResolveIndeterminate`), and the argument is the
+///   same one a rung down. The verdict answers THAT a stored name did
+///   not resolve; which of six things happened to it is a different
+///   question, and the six ask for different repairs — a rebind, a
+///   refinement among tied candidates, a look upstream at a named
+///   node. A consumer that could name only the verdict read those out
+///   of `Display` prose, which is not an interface. `Resolved` stays:
+///   its field is an `EntityRef`, so carrying it would name a key
+///   type, and what a caller wants from a resolved verdict is the
+///   node, the body index and the kind, all of them values it reaches
+///   by field access already.
 /// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
 ///   service's own machinery behind `evaluate`.
@@ -3203,14 +3414,23 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   direct `editor-core` edge — hands layer 3 the arena keys the
 ///   façade's curation exists to seal.
 ///
-///   **`MeshPick` and `MeshPickError` stay, and that is what closes
-///   #1098's lane at the façade.** They are the raw index a
-///   hand-assembled `PickTarget` needs, and `PickTarget::pick` is a
-///   `&MeshPick` — so with the index unnameable here, the target whose
-///   contract warns of a confidently wrong name has no constructor a
-///   façade consumer can reach, and `NodePick` is not merely the
-///   preferred door but the only one. `PickTarget` is carried because
-///   `pick_face`'s signature names it, not because it can be built.
+///   **`MeshPick` stays, and that is what closes the raw-target lane
+///   at the façade.** It is the raw index a hand-assembled
+///   `PickTarget` needs, and `PickTarget::pick` is a `&MeshPick` — so
+///   with the index unnameable here, the target whose contract warns
+///   of a confidently wrong name has no constructor a façade consumer
+///   can reach, and `NodePick` is not merely the preferred door but
+///   the only one. `PickTarget` is carried because `pick_face`'s
+///   signature names it, not because it can be built.
+///
+///   **`MeshPickError` left this list, and the construction argument
+///   above is untouched by that.** An index is BUILT and a refusal is
+///   RECEIVED, so nothing about carrying the payload gives a consumer
+///   a `MeshPick`. What it gives is the thing a curated list owes
+///   about a refusal it names: `NodePickError::Index` was the one arm
+///   of five whose payload could not be matched, while its siblings
+///   carry a curated `HitTestError`, a prelude-curated
+///   `TessellateError`, a `RecipeNodeId` and a `u32`.
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `param_env_over`, `SeedScalar`,
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
@@ -3243,7 +3463,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 94] = [
+const NOT_CARRIED: [&str; 90] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3274,7 +3494,6 @@ const NOT_CARRIED: [&str; 94] = [
     "Lane",
     "MeshPatchKey",
     "MeshPick",
-    "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",
@@ -3293,9 +3512,6 @@ const NOT_CARRIED: [&str; 94] = [
     "ProgramRefusal",
     "Qualifier",
     "RecipeEditRef",
-    "ResolutionFailure",
-    "ResolveError",
-    "ResolveIndeterminate",
     "Resolved",
     "Rgba8",
     "RunStatus",

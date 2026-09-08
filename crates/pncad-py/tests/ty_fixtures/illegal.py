@@ -386,6 +386,11 @@ where: NodeId = evaluate(doc).resolve("a face").node  # ty: error
 # `None` on a resolved verdict, so it is not a `str`.
 reason: str = evaluate(doc).resolve("a face").detail  # ty: error
 
+# `variant` is the ARM under the state, and a resolved verdict has
+# none — so binding it to a bare `str` makes the same claim `node`
+# above does, one vocabulary over.
+arm: str = evaluate(doc).resolve("a face").variant  # ty: error
+
 # `offers` is a list of NAMES — opaque texts — not of parsed
 # structures, and it is `None` where suggestions do not apply.
 rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
