@@ -1245,3 +1245,55 @@ should be split out in the same PR rather than left to be found later.
 Fifth comment from me on that PR, and the restraint I had set myself
 ("four is enough") was against volunteering more, not against
 answering a direct question from Ev.
+
+## Ev ruled BROAD; the ratification is merged (2026-09-08)
+
+*"broad seems fine then."* So `tools/README.md` is the READING-BOUNDARY
+rule, of which the cross-column admission is the largest instance
+rather than the subject. Merged at `d28c127bb` (PR 2147), head
+`72a7a8803`, 37 checks green.
+
+What landed, verified here before merging: `CC1` and `CC5` now open
+**"Scope: any reading"**; `CC2`, `CC3` and `CC4` each open **"Scope:
+the per-column admissions table"** — the labelling that was the whole
+cost of the broad reading and the reason it was recommended. `CC5`'s
+contradicting sentence (*"what falls out of it for a cross-column
+reading"*) is gone, and its forwarding survives and is now named as
+**the load-bearing half of the clause**: this page is the only one
+spanning the cargo roots, so citing it is what licenses a `k-lint` row
+to cite a `tess-lint` sentence at all, and *"a lane that declines
+`CC5` and reaches into `tess-lint` anyway has removed its own licence
+on the way."* `docs/DESIGN.md` reads **Ratified (Ev, 2026-09-08)**.
+
+**One citation was invalidated by the ruling and the lane fixed it.**
+`cut_line_pin.rs`'s header declined the clauses on the reason that
+they are stated over cross-COLUMN admissions and `CC1` names `parse`
+and `lint_csv` rather than the private `split_cut` — false under
+broad. It now routes through `CC1`, with `split_cut` inside the
+boundary because `parse` calls it before its first row, and through
+`CC5` to `Report`. The unit's verdict is unchanged; only the routing
+moved. That is the shape to expect from a scope ruling: **a citation
+can resolve perfectly and have become false**, which is why the
+clause-id pin cannot be the whole check.
+
+### The brief's "six code sites" was wrong, and the lane caught it
+
+There are **24 hits across 7 files** — I re-counted: `k-lint/src/lib.rs`
+4, `k-lint/src/main.rs` 2, `k-lint/tests/threshold_provenance.rs` 1,
+`tess-lint/src/lib.rs` 12, `tess-lint/src/main.rs` 2,
+`tess-lint/tests/cut_line_pin.rs` 1, `tess-meter/src/lib.rs` 2. My
+list omitted `tess-meter` and `tess-lint/src/main.rs` entirely. "Six"
+was six FILES when the item was written, before `cut_line_pin.rs`
+landed — a figure that was true once, copied forward, and never
+re-taken. The eighth instance today of the same class, and the lane's
+framing is right: it would have bitten the lane too had it swept only
+the directories I named.
+
+The lane also declined to file the one stale closed record it found
+(`cut-prefix-three-unpinned-spellings.md` states the narrow scope as
+fact) on the grounds that it records what a closed unit decided under
+the scope then in force, and dies with `work/meter/` at METER's close.
+Accepted — rewriting it would be archaeology, and there is no work
+behind it.
+
+**METER now has nothing blocked on Ev.** What remains is the exit walk.
