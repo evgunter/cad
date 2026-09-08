@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/small
 refs: [python-split-and-inline-outcomes-drop-the-maintenance, datum-in-plane-reads-back-a-length-pair-bare, guide-has-no-chamfer-or-tube-step]
+pr: 2240
 ---
 
 
