@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/corpus
 refs: [bench-corpus-staleness-hole]
+pr: 2182
 ---
 
 Ev's ruling (E) on `bench-corpus-staleness-hole`, executed.
