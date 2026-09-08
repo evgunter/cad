@@ -449,4 +449,38 @@ fn shell7_dump_corpus() {
         Err(e) => println!("[dump] drum, seam split: shell Err {e}"),
     }
     direct("drum, seam split, direct door", &drum, 0.05);
+    // The seam-posture class past the torus: the two shapes that pass
+    // the door and stop later, measured.
+    let cap = polyline(
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.5, 2.0), (0.0, 2.0)],
+        Revolution::Full,
+    );
+    dump("collinear cap, operand", &cap);
+    match topo::shell(&cap, 0.05, tol()) {
+        Ok(s) => dump("collinear cap", &s.body),
+        Err(topo::ShellError::NotValid { errors }) => {
+            println!("[dump] collinear cap: shell NotValid {errors:?}")
+        }
+        Err(e) => println!("[dump] collinear cap: shell Err {e}"),
+    }
+    direct("collinear cap, direct door", &cap, 0.05);
+    let v = PI / 4.0;
+    let (sn, cs) = v.sin_cos();
+    let ball = revolved(
+        ProfileLoop::new(vec![
+            ProfileVertex::new(p2(0.0, -1.0), ((FRAC_PI_2 + v) / 4.0).tan()),
+            ProfileVertex::new(p2(cs, sn), ((FRAC_PI_2 - v) / 4.0).tan()),
+            ProfileVertex::new(p2(0.0, 1.0), 0.0),
+        ]),
+        Revolution::Full,
+    );
+    dump("two-arc sphere, operand", &ball);
+    match topo::shell(&ball, 0.05, tol()) {
+        Ok(s) => dump("two-arc sphere", &s.body),
+        Err(topo::ShellError::NotValid { errors }) => {
+            println!("[dump] two-arc sphere: shell NotValid {errors:?}")
+        }
+        Err(e) => println!("[dump] two-arc sphere: shell Err {e}"),
+    }
+    direct("two-arc sphere, direct door", &ball, 0.05);
 }

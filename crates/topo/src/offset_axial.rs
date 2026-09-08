@@ -112,43 +112,48 @@
 //! corner's motion slides an endpoint ALONG its own edge as readily as
 //! it moves the edge.
 //!
-//! # Which refusals a fixture reaches, and which are direct-door only
+//! # Which refusals have a row, and what builds their operand
 //!
-//! Several `what:` strings here are unreachable through `shell` because
-//! an operand door refuses first, and that is said rather than left for
-//! a reader to test for. Reached by a shipped row: the tangency arm of
-//! [`ReplaceFaceError::TogetherAxialCorner`] (the bullet), the
-//! meridian-pair arm's parallel-caps refusal (the half-turn lune,
-//! `torax_axial`), the same arm's tangent-or-miss refusal (the narrow
-//! 20° lune, whose moved caps' meeting line stands `t/sin 10° ≈ 0.288`
-//! from the axis, outside the shrunk circle's `r − t = 0.25` reach —
-//! `torax_axial` again), `TogetherNotAxial`'s oblique-plane arm,
-//! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`), and
-//! the latitude mint's off-axis-centre refusal (the klein elbow's
-//! spiric rim, `torax_axial` and `verbs_shell`), and the
-//! no-profile-constraint refusal (a wedge whose axis edge is split by
-//! hand, `shell7_seam_corner` — no door builds a vertex with no
-//! profile constraint). **Direct-door only**,
-//! i.e. pinned by calling `offset_charts_together` rather than `shell`:
-//! the partial-set and chart-mixed gates, and the sphere lune's whole
-//! rim solve (`shell`'s closing tier 3 needs a volume the sphere flux
-//! arm's `props_band_coplanar` premise cannot yet give a lune — the
-//! operand's own standing wall, pinned with its payload in
-//! `torax_axial`). **Unreached by any fixture**, and written for
-//! correctness: the one-profile-beside-a-meridian refusal (a line
-//! profile with a moved cap, or a circle profile whose two moved caps
-//! still hold the axis — no door builds either; the klein elbow, its
-//! old fixture, solves through the carried arm and refuses at its rim
-//! carrier instead), the line-profile carried arm (no door builds a
-//! vertex whose only surface is a cylinder, cone or cap plane — the
-//! drum's seam split by hand is its row), the axis-pole station arm, its
-//! off-axis-circle arm, the three seam arms' refusing sides, the
-//! off-axis rim mint's four refusing predicates, and the
-//! over-determined-azimuth arm — no constructible body in this
-//! workspace has more than one plane through the axis at a corner that
-//! is not also all-planar, and a profile circle centred off the axis (a
-//! torus meridian, `ρ_c = R`) cannot contain an axis pole at all, since
-//! `R > r > 0` holds it `R − r` clear of it.
+//! A `what:` string with a row is one a test reaches; whether a DOOR
+//! builds the operand that reaches it is a separate fact, and the two
+//! lists keep them apart. Everything else is written for correctness
+//! and said so at the end.
+//!
+//! **A door builds the operand, and `shell` reaches the refusal:** the
+//! tangency arm of [`ReplaceFaceError::TogetherAxialCorner`] (the
+//! bullet); the meridian-pair arm's parallel-caps refusal (the
+//! half-turn lune) and its tangent-or-miss refusal (the narrow 20°
+//! lune, whose moved caps' meeting line stands `t/sin 10° ≈ 0.288`
+//! from the axis, past the shrunk circle's `r − t = 0.25`) — both
+//! `torax_axial`; `TogetherNotAxial`'s oblique-plane arm;
+//! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`,
+//! and `shell7_seam_corner`'s three-quarter-turn cone frustum); the
+//! latitude posture's off-axis-centre refusal (the klein elbow's
+//! spiric rim, `torax_axial`, `verbs_shell`).
+//!
+//! **A hand-made operand, or the door called directly:** the
+//! no-profile-constraint refusal (a wedge's axis edge split by
+//! `Body::split_edge`, `shell7_seam_corner`); the line-beside-a-
+//! meridian refusal (a wedge's wall/cap generator split the same way,
+//! `shell7_seam_corner`); the partial-set and chart-mixed gates and the
+//! sphere lune's whole rim solve (`offset_charts_together` called
+//! directly, `torax_axial` — `shell`'s closing tier 3 needs a volume
+//! the sphere flux arm's `props_band_coplanar` premise cannot yet give
+//! a lune).
+//!
+//! **The carried arms themselves have door-built rows**: a full tube's
+//! seam vertex (torus circle), a drum's collinear wall vertex
+//! (cylinder line), a frustum's collinear generator vertex (cone
+//! line), a cap's collinear vertex (station line) and a two-arc
+//! sphere's cocircular vertex (sphere circle) all shell through
+//! `shell7_seam_corner`. **No row at all**, written for correctness:
+//! the circle-beside-two-caps-still-on-the-axis refusal, the axis-pole
+//! station arm and its off-axis-circle arm (a torus meridian cannot
+//! contain a pole, `R − r > 0` keeps it clear), the seam arms'
+//! refusing sides, the off-axis rim mint's four refusing predicates,
+//! the re-author's out-of-plane refusal, and the over-determined-
+//! azimuth arm — no constructible body here has more than one plane
+//! through the axis at a corner that is not also all-planar.
 //!
 //! # What this door does not do
 //!
@@ -308,6 +313,13 @@ impl<T: Decide> Profile<T> {
     /// standing at a circle's own centre, which fixes no direction to
     /// move along: decided here, named by the caller in its corner's
     /// own words.
+    ///
+    /// A point `δ` OFF its own profile is SNAPPED: its image lies on
+    /// the moved curve exactly, `δ` from where the true surface point's
+    /// image would be, never amplified — so a concurrence meter on the
+    /// answer reads zero whatever `δ` was, and it is the edge layer
+    /// (the endpoint and midpoint meters) that sees a corner that does
+    /// not fit its edges.
     fn image_of(&self, rho: T, h: T, band: Band) -> Result<Option<(T, T)>, Indeterminate> {
         match *self {
             Self::Line { n, c } => {
@@ -537,6 +549,7 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                     &carrier,
                     (p_start, p_end),
                     edge,
+                    band,
                 )?,
                 carrier,
                 param_start: t0,
@@ -756,16 +769,8 @@ fn classify<T: Decide>(
             Err(source) => Err(ReplaceFaceError::Escalated { source }),
         }
     };
-    let on_axis = |p: Point3<T>| -> Result<bool, ReplaceFaceError<T>> {
-        match decide(
-            "offset_axial_centre",
-            Margin::of(frame.radial(p).norm()),
-            band,
-        ) {
-            Ok(Sign::Zero) => Ok(true),
-            Ok(_) => Ok(false),
-            Err(source) => Err(ReplaceFaceError::Escalated { source }),
-        }
+    let on_axis = |p: Point3<T>| {
+        centre_on_axis(frame, p, band).map_err(|source| ReplaceFaceError::Escalated { source })
     };
     let parallel = |v: Vec3<T>| v.normalize().cross(frame.dir).norm();
     Ok(match (structural, moved) {
@@ -1101,20 +1106,27 @@ fn solve_corner<T: Decide>(
             // corner's is: carried when no plane contains the axis
             // here (a seam corner, the seam's own datum), from the
             // moved cap when one does (a rim corner, the wedge's law).
-            // A LINE profile beside a moved cap is not carried: the cap
-            // fixes an azimuth and the line one coordinate, and the
-            // point along the line belongs to no surface here.
-            let carries = matches!(
-                (only, &meridians[..]),
-                (_, []) | (Profile::Circle { .. }, [_])
-            );
-            if !carries {
-                return Err(refuse(
-                    "one profile constraint and a plane containing the axis meet here off the \
-                     axis, and the plane fixes an azimuth but no point of the profile — a line \
-                     profile beside a meridian cap, or a circle profile whose two moved caps \
-                     still hold the axis",
-                ));
+            // Carrying a circle corner's angle about its centre beside
+            // a moved cap, and NOT carrying a line corner's station
+            // beside one, is a convention this door chooses rather
+            // than a geometric necessity — both are datums the operand
+            // fixed — and the line case refuses rather than guesses.
+            match (only, &meridians[..]) {
+                (_, []) | (Profile::Circle { .. }, [_]) => {}
+                (Profile::Line { .. }, [_, ..]) => {
+                    return Err(refuse(
+                        "a line profile and a plane containing the axis meet here off the \
+                         axis: the plane fixes an azimuth and the line one coordinate, and the \
+                         corner's station along the line is a datum this door does not carry",
+                    ));
+                }
+                (Profile::Circle { .. }, [_, _, ..]) => {
+                    return Err(refuse(
+                        "a circle profile meets more than one plane containing the axis here, \
+                         and the moved caps still hold the axis, so the corner is neither \
+                         the caps' meeting line nor a carried point",
+                    ));
+                }
             }
             carried = Some(
                 only.image_of(rho_old, h_old, band)
@@ -1218,9 +1230,16 @@ fn solve_corner<T: Decide>(
         Ok(_) => return Err(refuse("the solved corner is on or across the axis")),
         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
     }
-    // Every FURTHER profile constraint is VERIFIED against the answer,
-    // never assumed onto it: a corner placed off one of its own surfaces
-    // is a wrong body no tier catches.
+    // Every profile constraint is read against the answer. On a corner
+    // solved from a PAIR this is where a THIRD surface is verified —
+    // a corner placed off one of its own surfaces is a wrong body no
+    // tier catches — and for the pair itself, and for a CARRIED corner
+    // that [`Profile::image_of`] landed ON its one profile, the residual
+    // is rounding by construction and this meter decides nothing. The
+    // meter for those is the edge layer: every endpoint is read back
+    // onto its carrier and every carrier's midpoint onto both moved
+    // surfaces, which is where a corner that does not fit its edges
+    // is caught.
     for p in &profiles {
         let gap = p.residual(rho, h);
         match decide("offset_axial_concurrence", Margin::of(gap), band) {
@@ -1450,6 +1469,11 @@ fn cap_pair_corner<T: Decide>(
         Ok(_) => return Err(refuse("the solved corner is on or across the axis")),
         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
     }
+    // The root read back onto the circle it came from: the same shape
+    // as the corner solve's concurrence loop on its own pair, so it can
+    // see only a root the quadratic lost to rounding, never a corner
+    // off a surface — the full planes below and the edge layer are the
+    // meters that can.
     let gap = circle.residual(rho, h);
     match decide("offset_axial_concurrence", Margin::of(gap), band) {
         Ok(Sign::Zero) => {}
@@ -1598,7 +1622,28 @@ fn mint_carrier<T: Decide>(
 
     // A SEAM is not an intersection of two surfaces — the two are the
     // same surface — so it moves under that chart's OWN offset map.
+    //
+    // **Every same-surface circle in the LATITUDE posture — centred on
+    // the axis, in a plane normal to it — is a latitude circle, and
+    // takes the latitude rule whatever its surface is**: a cylinder's
+    // or a cone's collinear-vertex ring, a sphere authored as two
+    // cocircular arcs, a cap plane split by a collinear vertex, a full
+    // tube's equator. The posture is decided FIRST, by the one helper
+    // every centre-on-axis question here goes through; the arms below
+    // are the seams that are NOT latitudes — a generator line, a
+    // sphere's great circle, a torus's meridian circle — and each
+    // certifies its own posture.
     if ca.old_key == cb.old_key {
+        if let Curve3::Circle {
+            center: cc,
+            axis,
+            u_ref,
+            ..
+        } = old
+            && latitude_posture(frame, *cc, *axis, band)?.is_none()
+        {
+            return Ok(latitude_circle(frame, p_start, *axis, *u_ref));
+        }
         return match (&ca.old, old) {
             // A plane's and a cone's offsets are rigid translations, so
             // their seams translate with them.
@@ -1651,20 +1696,15 @@ fn mint_carrier<T: Decide>(
                     Err(source) => Err(ReplaceFaceError::Escalated { source }),
                 }
             }
-            // A torus's seam is one of TWO circles, told apart by where
-            // its centre stands. A MERIDIAN seam is centred on the
-            // tube-centre circle `(ρ, h) = (R, h_c)` and moves
-            // concentrically about it, for the same reason a sphere's
-            // does about the sphere's: the mint keeps `center`, `axis`,
+            // A torus's seam that is no latitude (its equators were
+            // taken above) is a MERIDIAN circle, centred on the
+            // tube-centre circle `(ρ, h) = (R, h_c)` and moved
+            // concentrically about it for the same reason a sphere's
+            // is about the sphere's: the mint keeps `center`, `axis`,
             // `major_radius` and `u_ref` and moves only the minor
             // radius, so the tube centre is the datum that does not
-            // move. A LATITUDE seam — an equator a full tube's two
-            // half-circle walls share — is centred ON the axis, and is
-            // the latitude circle every coaxial circle here is: it
-            // keeps its normal and `u_ref` and takes its corner's own
-            // station and radius. Each certificate is one length in
-            // the meridian half-plane, and a circle centred at neither
-            // place is not a torus seam this door knows.
+            // move. The certificate is one length in the meridian
+            // half-plane.
             (
                 Surface::Torus {
                     center,
@@ -1678,17 +1718,6 @@ fn mint_carrier<T: Decide>(
                     u_ref,
                 },
             ) => {
-                match decide(
-                    "offset_axial_seam_latitude",
-                    Margin::of(frame.radial(*cc).norm()),
-                    band,
-                ) {
-                    Ok(Sign::Zero) => {
-                        return latitude_carrier(edge, p_start, *axis, *u_ref, frame, band);
-                    }
-                    Ok(_) => {}
-                    Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-                }
                 let off = Vec3::new(
                     frame.radial(*cc).norm() - *major_radius,
                     frame.station(*cc) - frame.station(*center),
@@ -1703,8 +1732,8 @@ fn mint_carrier<T: Decide>(
                         u_ref: *u_ref,
                     }),
                     Ok(_) => Err(refuse(
-                        "a torus seam centred neither on the axis nor on the tube's own centre \
-                         circle",
+                        "a torus seam that is neither a latitude circle nor a meridian circle \
+                         about the tube's own centre",
                     )),
                     Err(source) => Err(ReplaceFaceError::Escalated { source }),
                 }
@@ -1862,20 +1891,10 @@ fn mint_carrier<T: Decide>(
         } => {
             // A LATITUDE circle: coaxial with the body, so its centre
             // stays on the axis and its radius is the corner's own.
-            match decide(
-                "offset_axial_latitude",
-                Margin::of(frame.radial(*center).norm()),
-                band,
-            ) {
-                Ok(Sign::Zero) => {}
-                Ok(_) => {
-                    return Err(refuse(
-                        "a circular edge between two charts whose centre is off the axis",
-                    ));
-                }
-                Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+            if let Some(what) = latitude_posture(frame, *center, *axis, band)? {
+                return Err(refuse(what));
             }
-            latitude_carrier(edge, p_start, *axis, *u_ref, frame, band)
+            Ok(latitude_circle(frame, p_start, *axis, *u_ref))
         }
         _ => Err(refuse(
             "an edge between two distinct charts whose carrier is neither a line nor a circle",
@@ -1883,41 +1902,76 @@ fn mint_carrier<T: Decide>(
     }
 }
 
-/// **The latitude rule**: a circle centred on the axis keeps its
-/// normal's sign and its `u_ref` — conventional data, which keeps the
-/// parameterization's sense — and takes the moved corner's own station
-/// and radius. The caller has decided the centre stands on the axis;
-/// the plane is verified here, since a coaxial circle tilted out of the
-/// cross-section is no latitude.
-fn latitude_carrier<T: Decide>(
-    edge: EdgeKey,
-    p_start: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
+/// **Does `p` stand on the axis?** The one door for that question —
+/// a surface's centre, origin or apex at classification, a circle's
+/// centre at the carrier mint — so it has one predicate name and one
+/// distribution. The quantity is `p`'s distance from the axis, a
+/// LENGTH in metres, and it is metered as one: the frame's extent
+/// levers the dimensionless sines here (a normal's misalignment), not
+/// a length that already carries its own scale.
+fn centre_on_axis<T: Decide>(
     frame: &Frame<T>,
+    p: Point3<T>,
     band: Band,
-) -> Result<Curve3<T>, ReplaceFaceError<T>> {
+) -> Result<bool, Indeterminate> {
+    Ok(matches!(
+        decide(
+            "offset_axial_centre",
+            Margin::of(frame.radial(p).norm()),
+            band
+        )?,
+        Sign::Zero
+    ))
+}
+
+/// **Is a circle in the LATITUDE posture** — centred on the axis, in a
+/// plane normal to it? `None` when it is; otherwise the predicate that
+/// failed, in the words a carrier refusal uses. A sphere's great-circle
+/// seam is centred on the axis too, and it is the plane that tells
+/// the two apart.
+fn latitude_posture<T: Decide>(
+    frame: &Frame<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<Option<&'static str>, ReplaceFaceError<T>> {
+    let escalated = |source| ReplaceFaceError::Escalated { source };
+    if !centre_on_axis(frame, center, band).map_err(escalated)? {
+        return Ok(Some(
+            "a circular edge between two charts whose centre is off the axis",
+        ));
+    }
     let tilt = axis.normalize().cross(frame.dir).norm();
     match decide(
         "offset_axial_latitude_tilt",
         Margin::levered(tilt, frame.extent),
         band,
     ) {
-        Ok(Sign::Zero) => {}
-        Ok(_) => {
-            return Err(ReplaceFaceError::TogetherAxialEdge {
-                edge,
-                what: "a circle centred on the axis whose plane is not normal to it",
-            });
-        }
-        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        Ok(Sign::Zero) => Ok(None),
+        Ok(_) => Ok(Some(
+            "a circle centred on the axis whose plane is not normal to it",
+        )),
+        Err(source) => Err(escalated(source)),
     }
-    Ok(Curve3::Circle {
+}
+
+/// **The latitude rule**: a circle in the latitude posture keeps its
+/// normal's sign and its `u_ref` — conventional data, which keeps the
+/// parameterization's sense — and takes the moved corner's own station
+/// and radius. The posture is [`latitude_posture`]'s to decide; this
+/// is only the mint.
+fn latitude_circle<T: Real>(
+    frame: &Frame<T>,
+    p_start: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+) -> Curve3<T> {
+    Curve3::Circle {
         center: frame.origin + frame.dir * frame.station(p_start),
         axis,
         radius: frame.radial(p_start).norm(),
         u_ref,
-    })
+    }
 }
 
 /// The moved endpoint's parameter on the moved carrier, with the point
@@ -2040,21 +2094,16 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 ///
 /// Nothing authored here is trusted: the attach layer re-derives the
 /// declaration against the carrier and refuses a mismatch.
-fn restate<T: Real>(
+fn restate<T: Decide>(
     description: EdgeDescription<T>,
     authority: EdgeAuthority<T>,
     mid: Point3<T>,
     carrier: &Curve3<T>,
     ends: (Point3<T>, Point3<T>),
     edge: EdgeKey,
+    band: Band,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
-    let carried = |mc: geom_brep::MappedCurve<T>| {
-        reauthor(mc, carrier, ends).ok_or(refuse(
-            "a declaring pushforward whose sketch arc has no moved circle to be re-authored \
-             about",
-        ))
-    };
+    let carried = |mc: geom_brep::MappedCurve<T>| reauthor(mc, carrier, ends, edge, band);
     let declared = match authority {
         EdgeAuthority::Derived => None,
         EdgeAuthority::Declared(mc) => Some(carried(mc)?),
@@ -2104,15 +2153,22 @@ fn restate<T: Real>(
 /// is the same trajectory of the moved point: the vector, the axis and
 /// the angle are the operand's own conventional data and are carried,
 /// and a revolved point's axis is this door's axis, so its rotation of
-/// the moved corner IS the moved latitude circle. `None` only for an
-/// arc whose moved carrier is no circle to subtend at.
-fn reauthor<T: Real>(
+/// the moved corner IS the moved latitude circle — and that premise,
+/// the moved corner standing IN the family's own sketch plane, is
+/// decided rather than assumed: the pulled-back point's out-of-plane
+/// coordinate is a length and is metered as one, and a corner the
+/// azimuth solve moved out of the plane refuses typed. Refuses also
+/// an arc whose moved carrier is no circle to subtend at.
+fn reauthor<T: Decide>(
     mapped: geom_brep::MappedCurve<T>,
     carrier: &Curve3<T>,
     ends: (Point3<T>, Point3<T>),
-) -> Option<geom_brep::MappedCurve<T>> {
+    edge: EdgeKey,
+    band: Band,
+) -> Result<geom_brep::MappedCurve<T>, ReplaceFaceError<T>> {
+    let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
     let (p_start, p_end) = ends;
-    match mapped {
+    Ok(match mapped {
         geom_brep::MappedCurve::PlacedSegment { segment, place } => {
             let inv = place.inverse();
             let flat = |p: Point3<T>| {
@@ -2120,14 +2176,17 @@ fn reauthor<T: Real>(
                 geom_core::Point2::new(q.x, q.y)
             };
             let (a, b) = (flat(p_start), flat(p_end));
-            Some(geom_brep::MappedCurve::PlacedSegment {
+            geom_brep::MappedCurve::PlacedSegment {
                 segment: match segment {
                     geom_brep::SketchSegment::Line { .. } => {
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { .. } => {
                         let Curve3::Circle { center, .. } = carrier else {
-                            return None;
+                            return Err(refuse(
+                                "a declaring pushforward whose sketch arc has no moved circle \
+                                 to be re-authored about",
+                            ));
                         };
                         let c = flat(*center);
                         let (u, v) = (a - c, b - c);
@@ -2140,15 +2199,15 @@ fn reauthor<T: Real>(
                     }
                 },
                 place,
-            })
+            }
         }
         geom_brep::MappedCurve::ExtrudedPoint { place, vec, .. } => {
             let q = place.inverse().transform_point(p_start);
-            Some(geom_brep::MappedCurve::ExtrudedPoint {
+            geom_brep::MappedCurve::ExtrudedPoint {
                 point: geom_core::Point2::new(q.x, q.y),
                 place,
                 vec,
-            })
+            }
         }
         geom_brep::MappedCurve::RevolvedPoint {
             place,
@@ -2158,15 +2217,25 @@ fn reauthor<T: Real>(
             ..
         } => {
             let q = place.inverse().transform_point(p_start);
-            Some(geom_brep::MappedCurve::RevolvedPoint {
+            match decide("offset_axial_reauthor_plane", Margin::of(q.z), band) {
+                Ok(Sign::Zero) => {}
+                Ok(_) => {
+                    return Err(refuse(
+                        "a revolved point's moved corner stands out of the family's own sketch \
+                         plane, so the same rotation does not pass through it",
+                    ));
+                }
+                Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+            }
+            geom_brep::MappedCurve::RevolvedPoint {
                 point: geom_core::Point2::new(q.x, q.y),
                 place,
                 axis_origin,
                 axis_dir,
                 angle,
-            })
+            }
         }
-    }
+    })
 }
 
 /// A point read as the vector from the origin — the form `n̂·x` needs.

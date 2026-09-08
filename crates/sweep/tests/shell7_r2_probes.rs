@@ -7,39 +7,15 @@
 use core::f64::consts::PI;
 
 use geom::Curve3;
-use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point3, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
-use topo::{Body, EdgeKey, ReplaceFaceError, ShellError, VertexKey};
+use topo::{Body, EdgeKey};
+
+use super::shell7_common::*;
 
 const R: f64 = 2.0;
 const SMALL_R: f64 = 0.5;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-fn tol() -> Tol {
-    Tol::witness()
-}
-
-fn axial(p: Point3<f64>) -> (f64, f64) {
-    ((p.x * p.x + p.z * p.z).sqrt(), p.y)
-}
-
-fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
-    *body
-        .get_point(body.get_vertex(v).expect("vertex").point)
-        .expect("point")
-}
-
-fn carrier(body: &Body<f64>, e: EdgeKey) -> (Curve3<f64>, (f64, f64)) {
-    let c = body
-        .get_curve_geom(body.get_edge(e).expect("edge").curve)
-        .and_then(|g| g.certified())
-        .expect("a certified curve");
-    (c.carrier().clone(), c.params())
-}
 
 fn try_revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Option<Body<f64>> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -60,125 +36,9 @@ fn try_revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Option<Body<f64>
     )
 }
 
-fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("the meridian validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        turn,
-        tol(),
-    )
-    .expect("the meridian revolves")
-    .body
-}
-
-fn wedge(r: f64, h: f64, turn: f64) -> Body<f64> {
-    revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
-        ]),
-        Revolution::Partial(turn),
-    )
-}
-
-fn tube_torus(major: f64, minor: f64) -> Body<f64> {
-    tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
-        major,
-        TubeWindow::Full,
-        minor,
-        tol(),
-    )
-    .expect("the solid torus builds")
-    .body
-}
-
-/// Split `edge` at its parameter midpoint; the new vertex.
-fn split_mid(body: &mut Body<f64>, edge: EdgeKey) -> VertexKey {
-    let (_, (t0, t1)) = carrier(body, edge);
-    body.split_edge(edge, (t0 + t1) * 0.5, tol())
-        .expect("the edge splits")
-        .vertex
-}
-
-fn corner_refusal(e: &ShellError<f64>) -> (VertexKey, usize, &'static str) {
-    let ShellError::Face { error, .. } = e else {
-        panic!("expected the axial door's refusal, got {e}");
-    };
-    let ReplaceFaceError::TogetherAxialCorner {
-        vertex,
-        surfaces,
-        what,
-    } = **error
-    else {
-        panic!("expected TogetherAxialCorner, got {error}");
-    };
-    (vertex, surfaces, what)
-}
-
-// ---------------------------------------------------------------------
-// P1 — claim 2: is `(Line profile, one meridian)` reachable, and is the
-// new `what` true of what reaches it?
-//
-// The unit calls this arm "unreached by any fixture ... no door builds
-// either". A quarter-turn wedge's WALL–CAP generator, split at its
-// midpoint, is a vertex whose surfaces are exactly the cylinder (a Line
-// profile) and one meridian cap. It reaches the arm.
-// ---------------------------------------------------------------------
-
-#[test]
-fn p1_a_line_profile_beside_one_meridian_cap_is_reachable_by_a_hand_split() {
-    let (r, h) = (1.0, 2.0);
-    let mut body = wedge(r, h, PI / 2.0);
-    // The generator where the cylinder wall meets a meridian cap: a
-    // LINE along the axis direction standing at radius r, whose two
-    // sides are DIFFERENT surfaces (unlike the drum's seam).
-    let hits: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(e, data)| {
-            let f = |he| {
-                let face = body
-                    .get_loop(body.get_half_edge(he).unwrap().parent_loop)
-                    .unwrap()
-                    .face;
-                body.get_face(face).unwrap().surface
-            };
-            if f(data.he_plus) == f(data.he_minus) {
-                return false;
-            }
-            match carrier(&body, *e).0 {
-                Curve3::Line { origin, dir } => {
-                    (axial(origin).0 - r).abs() <= 1e-12
-                        && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-12
-                }
-                _ => false,
-            }
-        })
-        .map(|(e, _)| e)
-        .collect();
-    assert_eq!(hits.len(), 2, "two wall/cap generators, got {hits:?}");
-    let split = split_mid(&mut body, hits[0]);
-    topo::mint_pcurves(&mut body, tol()).expect("pcurves mint");
-    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()), "operand");
-    let e = topo::shell(&body, 0.05, tol()).expect_err("the split wedge refuses");
-    let (vertex, surfaces, what) = corner_refusal(&e);
-    assert_eq!(vertex, split, "the refusal names the split vertex");
-    eprintln!("[p1] surfaces = {surfaces}, what = {what:?}");
-    assert!(
-        what.starts_with("one profile constraint and a plane containing the axis"),
-        "expected the line-beside-a-meridian refusal, got {what:?}"
-    );
-}
+// P1 (a line profile beside one meridian cap, reached by a hand split)
+// moved into `shell7_seam_corner` as an ordinary row, with the R1 lane's
+// identical finding.
 
 // ---------------------------------------------------------------------
 // P2 — claim 6: the closed form at a thickness approaching the tube's
@@ -212,14 +72,14 @@ fn p2_the_torus_at_a_thickness_approaching_its_minor_radius() {
 
 // ---------------------------------------------------------------------
 // P3 — claim 3: is the meridian seam / latitude seam decide confusable?
-// `offset_axial_seam_latitude` decides `|radial(centre)|` against the
+// `offset_axial_centre` decides `|radial(centre)|` against the
 // band with NO lever. A meridian seam's centre stands at radial R; a
 // latitude seam's at 0. Shrink R toward the band and see what happens.
 // ---------------------------------------------------------------------
 
 /// A full torus built through the REVOLVE door from two semicircular
 /// arcs — the fixture `shell7_seam_corner` uses — at a major radius
-/// small enough that `offset_axial_seam_latitude`'s unlevered
+/// small enough that `offset_axial_centre`'s unlevered
 /// `Margin::of(R)` could read Zero and route a MERIDIAN seam to
 /// `latitude_carrier`.
 #[test]

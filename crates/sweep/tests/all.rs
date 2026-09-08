@@ -567,14 +567,14 @@ mod shell6_r1_probes;
 #[path = "shell6_r2_probes.rs"]
 mod shell6_r2_probes;
 
+#[path = "shell7_common.rs"]
+mod shell7_common;
+
 #[path = "shell7_dump.rs"]
 mod shell7_dump;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
-
-#[path = "shell7_r1_probes.rs"]
-mod shell7_r1_probes;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;

@@ -17,59 +17,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_PI_2, PI};
 
 use geom::{Curve3, Surface};
-use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc};
-use topo::{Body, EdgeKey, ReplaceFaceError, ShellError, VertexKey};
+use geom_core::Vec3;
+use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use sweep::Revolution;
+use topo::{Body, ReplaceFaceError, ShellError};
+
+use super::shell7_common::*;
 
 const R: f64 = 2.0;
 const SMALL_R: f64 = 0.5;
 const T: f64 = 0.05;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-fn tol() -> Tol {
-    Tol::witness()
-}
-
-/// The tube door's full torus: `R = 2`, `r = 1/2`, about `y`, seam at
-/// `u_ref = x`; its two vertices are the outer and inner equators.
-fn tube_torus() -> Body<f64> {
-    tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
-        R,
-        TubeWindow::Full,
-        SMALL_R,
-        tol(),
-    )
-    .expect("the solid torus builds")
-    .body
-}
-
-/// A full revolve of a closed loop about `y`.
-fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("the meridian validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        turn,
-        tol(),
-    )
-    .expect("the meridian revolves")
-    .body
-}
 
 /// The same torus from the revolve door, its two seam vertices at the
 /// minor angles `v` and `v + π` (radians from the outer equator, up).
@@ -86,24 +46,6 @@ fn revolved_torus(v: f64) -> Body<f64> {
 /// `2π²R[r² − (r − t)²]`, the volume between two coaxial tori.
 fn wall_volume(r: f64, t: f64) -> f64 {
     2.0 * PI * PI * R * (r * r - (r - t) * (r - t))
-}
-
-fn axial(p: Point3<f64>) -> (f64, f64) {
-    ((p.x * p.x + p.z * p.z).sqrt(), p.y)
-}
-
-fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
-    *body
-        .get_point(body.get_vertex(v).expect("vertex").point)
-        .expect("point")
-}
-
-fn carrier(body: &Body<f64>, e: EdgeKey) -> (Curve3<f64>, (f64, f64)) {
-    let c = body
-        .get_curve_geom(body.get_edge(e).expect("edge").curve)
-        .and_then(|g| g.certified())
-        .expect("a certified curve");
-    (c.carrier().clone(), c.params())
 }
 
 /// The distinct minor radii stored on the body's torus charts.
@@ -149,7 +91,7 @@ fn shelled_to_closed_form(what: &str, body: &Body<f64>) -> topo::Shelled<f64> {
 /// **Row 1: the solid full torus shells.**
 #[test]
 fn the_solid_full_torus_shells() {
-    shelled_to_closed_form("tube torus", &tube_torus());
+    shelled_to_closed_form("tube torus", &tube_torus(R, SMALL_R));
 }
 
 /// **Row 3: the seam vertex moved exactly.** Each of the tube's two
@@ -160,7 +102,7 @@ fn the_solid_full_torus_shells() {
 /// `R ± (r − t)` — with their endpoints on them.
 #[test]
 fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
-    let body = tube_torus();
+    let body = tube_torus(R, SMALL_R);
     let out = shelled_to_closed_form("tube torus", &body);
     let cavity = &out.body;
     assert_eq!(out.naming.inner_vertices.len(), 2);
@@ -262,73 +204,6 @@ fn the_seam_vertex_at_each_minor_angle_shells_to_the_closed_form() {
     }
 }
 
-/// The quarter-turn wedge of `sf2b_axial`: a cylinder wall, two caps
-/// normal to the axis, two meridian caps, and an axis edge between the
-/// meridian caps.
-fn wedge(r: f64, h: f64) -> Body<f64> {
-    revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
-        ]),
-        Revolution::Partial(PI / 2.0),
-    )
-}
-
-/// The full drum of the same rectangle: its cylinder wall is swept in
-/// two half-turn bands on one surface, so two generator lines stand
-/// between the rims on that one cylinder — either is a seam to the
-/// door; the row splits the one at `u_ref`.
-fn drum(r: f64, h: f64) -> Body<f64> {
-    revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
-
-/// The one edge of `body` whose carrier is a LINE satisfying `pick`.
-fn line_edge(body: &Body<f64>, pick: impl Fn(Point3<f64>, Vec3<f64>, bool) -> bool) -> EdgeKey {
-    let hits: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(e, data)| {
-            // A seam is an edge whose two sides lie on one SURFACE —
-            // the door's own test — whether or not they are one face.
-            let same_surface = {
-                let f = |he| {
-                    let face = body
-                        .get_loop(body.get_half_edge(he).unwrap().parent_loop)
-                        .unwrap()
-                        .face;
-                    body.get_face(face).unwrap().surface
-                };
-                f(data.he_plus) == f(data.he_minus)
-            };
-            match carrier(body, *e).0 {
-                Curve3::Line { origin, dir } => pick(origin, dir, same_surface),
-                _ => false,
-            }
-        })
-        .map(|(e, _)| e)
-        .collect();
-    assert_eq!(hits.len(), 1, "exactly one such edge, got {hits:?}");
-    hits[0]
-}
-
-/// Split `edge` at its parameter midpoint; the new vertex.
-fn split_mid(body: &mut Body<f64>, edge: EdgeKey) -> VertexKey {
-    let (_, (t0, t1)) = carrier(body, edge);
-    body.split_edge(edge, (t0 + t1) * 0.5, tol())
-        .expect("the edge splits")
-        .vertex
-}
-
 /// **Row 5: the refusal that remains is reachable, and true.** A vertex
 /// with NO profile constraint — hand-made, since no door builds one:
 /// the wedge's axis edge, between its two meridian caps, split at its
@@ -337,7 +212,7 @@ fn split_mid(body: &mut Body<f64>, edge: EdgeKey) -> VertexKey {
 /// exactly that vertex with the corrected words.
 #[test]
 fn a_corner_with_no_profile_constraint_refuses_typed_on_a_hand_split_wedge() {
-    let mut body = wedge(1.0, 2.0);
+    let mut body = wedge(1.0, 2.0, FRAC_PI_2);
     let axis_edge = line_edge(&body, |o, d, _| {
         (o.x * o.x + o.z * o.z).sqrt() <= 1e-15 && d.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
     });
@@ -441,5 +316,331 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
         "the drum's wall: got {} (pad {}), want {want}",
         props.volume,
         props.volume_pad
+    );
+}
+
+// ---------------------------------------------------------------------
+// The seam-posture class, wider than the torus: every same-surface
+// circle centred on the axis in a plane normal to it is a latitude
+// circle, whatever its surface. The fixtures below are DOOR-BUILT
+// (a collinear profile vertex is a legal same-carrier continuation),
+// so each is also a door-built row for the carried corner arm on that
+// profile kind. Fixtures from the R1 review lane (the collinear drum,
+// the two-arc sphere), measured there as refusing at the seam arms.
+// ---------------------------------------------------------------------
+
+/// Tier 3, two shells, the volume closed form, and every vertex at
+/// `mid_h` moved to its foot / concentric point — the shape every
+/// collinear-vertex row asserts.
+fn shells_with_one_surface_vertices(
+    what: &str,
+    body: &Body<f64>,
+    t: f64,
+    want: f64,
+    mid: impl Fn((f64, f64)) -> Option<(f64, f64)>,
+) -> topo::Shelled<f64> {
+    assert_eq!(
+        topo::validate_geometric(body, tol()),
+        Ok(()),
+        "{what}: operand"
+    );
+    let out = topo::shell(body, t, tol()).unwrap_or_else(|e| panic!("{what}: shells, got {e}"));
+    assert_eq!(
+        topo::validate_geometric(&out.body, tol()),
+        Ok(()),
+        "{what}: tier 3"
+    );
+    assert_eq!(out.body.shells().count(), 2, "{what}: outer + cavity");
+    let props = topo::mass_properties(&out.body, tol()).expect("props");
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "{what}: volume got {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
+    );
+    let mut seen = 0;
+    for &(new, old) in &out.naming.inner_vertices {
+        let Some(image) = mid(axial(point(body, old))) else {
+            continue;
+        };
+        seen += 1;
+        assert_eq!(
+            distinct_surfaces_at(body, old),
+            1,
+            "{what}: {old:?} is a one-surface vertex"
+        );
+        let (rho, h) = axial(point(&out.body, new));
+        assert!(
+            (rho - image.0).abs() <= 1e-15 && (h - image.1).abs() <= 1e-15,
+            "{what}: {old:?} → ({rho}, {h}), want {image:?}"
+        );
+    }
+    assert!(seen >= 1, "{what}: at least one one-surface vertex");
+    out
+}
+
+/// **A drum with a collinear wall vertex** (R1's fixture): the wall is
+/// one cylinder in four faces, the mid-height ring is a same-surface
+/// latitude circle, and the mid vertices' only surface is the cylinder
+/// — the LINE arm through a door-built operand. Shells to the drum's
+/// closed form; each mid vertex moves to its foot `(r − t, h/2)`.
+#[test]
+fn a_collinear_wall_vertex_drum_shells_through_the_line_arm() {
+    let (r, h, t) = (1.0, 2.0, 0.05);
+    let body = polyline(
+        &[(0.0, 0.0), (r, 0.0), (r, h / 2.0), (r, h), (0.0, h)],
+        Revolution::Full,
+    );
+    let want = PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
+    shells_with_one_surface_vertices("collinear drum", &body, t, want, |(rho, hh)| {
+        ((hh - h / 2.0).abs() <= 1e-12 && (rho - r).abs() <= 1e-12).then_some((r - t, h / 2.0))
+    });
+}
+
+/// The cavity of a one-solid operand through the direct door, tier 3
+/// and its closed-form volume, with the one-surface vertices at their
+/// images — the door's own half of a row whose `shell` half stops
+/// downstream of it.
+fn cavity_at_closed_form(
+    what: &str,
+    body: &Body<f64>,
+    t: f64,
+    want: f64,
+    mid: impl Fn((f64, f64)) -> Option<(f64, f64)>,
+) -> Body<f64> {
+    assert_eq!(
+        topo::validate_geometric(body, tol()),
+        Ok(()),
+        "{what}: operand"
+    );
+    let mut cavity = body.clone();
+    let band = geom_core::Band::linear(tol()).expect("band");
+    topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol())
+        .unwrap_or_else(|e| panic!("{what}: the door takes it, got {e}"));
+    assert_eq!(
+        topo::validate_geometric(&cavity, tol()),
+        Ok(()),
+        "{what}: cavity tier 3"
+    );
+    let props = topo::mass_properties(&cavity, tol()).expect("props");
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "{what}: cavity volume got {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
+    );
+    let mut seen = 0;
+    for (v, _) in body.vertices() {
+        let Some(image) = mid(axial(point(body, v))) else {
+            continue;
+        };
+        seen += 1;
+        assert_eq!(
+            distinct_surfaces_at(body, v),
+            1,
+            "{what}: {v:?} is a one-surface vertex"
+        );
+        let (rho, h) = axial(point(&cavity, v));
+        assert!(
+            (rho - image.0).abs() <= 1e-15 && (h - image.1).abs() <= 1e-15,
+            "{what}: {v:?} → ({rho}, {h}), want {image:?}"
+        );
+    }
+    assert!(seen >= 1, "{what}: at least one one-surface vertex");
+    cavity
+}
+
+/// **A cap with a collinear vertex — the door takes it, `shell` stops
+/// at void insertion (measured, a STOP).** The top cap is one plane in
+/// four faces, its mid-radius ring a same-surface latitude circle on a
+/// PLANE, and the ring's vertices' only surface is that plane: the
+/// station-line arm, door-built. Through the direct door the cavity is
+/// tier-3 valid at `π(r−t)²(h−2t)` with the ring at its foot
+/// `(r/2, h − t)`. Through `shell` the same cavity is refused by the
+/// void-insertion door's graft re-certification (`ChartResidual`), a
+/// gap downstream of the corner and the carrier —
+/// `work/shell/void-insertion-refuses-a-cavity-with-a-same-surface-
+/// latitude-seam.md` — pinned here rather than widened around.
+#[test]
+fn a_collinear_cap_vertex_drum_is_taken_by_the_door_and_stops_at_void_insertion() {
+    let (r, h, t) = (1.0, 2.0, 0.05);
+    let body = polyline(
+        &[(0.0, 0.0), (r, 0.0), (r, h), (r / 2.0, h), (0.0, h)],
+        Revolution::Full,
+    );
+    let want = PI * (r - t) * (r - t) * (h - 2.0 * t);
+    cavity_at_closed_form("collinear cap", &body, t, want, |(rho, hh)| {
+        ((hh - h).abs() <= 1e-12 && (rho - r / 2.0).abs() <= 1e-12).then_some((r / 2.0, h - t))
+    });
+    let e = topo::shell(&body, t, tol()).expect_err("measured: stops at void insertion");
+    assert!(matches!(e, ShellError::Insert { .. }), "got {e}");
+}
+
+/// **A frustum with a collinear generator vertex**: the wall is one
+/// cone in four faces, the mid ring a same-surface latitude circle on
+/// a CONE, and the ring's vertices' only surface is that cone — the
+/// generator-line arm, door-built. The moved cone is the same cone with
+/// its apex slid by `t / sin α` along the axis, so the image is the
+/// foot of the old vertex on the moved generator.
+#[test]
+fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
+    let (r0, r1, h, t) = (1.0, 0.5, 2.0, 0.05);
+    let body = polyline(
+        &[
+            (0.0, 0.0),
+            (r0, 0.0),
+            ((r0 + r1) / 2.0, h / 2.0),
+            (r1, h),
+            (0.0, h),
+        ],
+        Revolution::Full,
+    );
+    // The cavity: the frustum's own closed form at the inset radii.
+    let tan_a = (r0 - r1) / h;
+    let alpha = tan_a.atan();
+    let apex = r0 / tan_a;
+    let apex_in = apex - t / alpha.sin();
+    let (c0, c1) = ((apex_in - t) * tan_a, (apex_in - (h - t)) * tan_a);
+    let frustum = |a: f64, b: f64, hh: f64| PI * hh / 3.0 * (a * a + a * b + b * b);
+    let want = frustum(r0, r1, h) - frustum(c0, c1, h - 2.0 * t);
+    // The foot of `(ρ, h/2)` on the moved generator `ρ cos α − (h_apex' − h) sin α = 0`
+    // read as `n·(ρ, h) = c` with `n = (cos α, sin α)`, `c = h_apex' sin α`.
+    let (sin_a, cos_a) = alpha.sin_cos();
+    shells_with_one_surface_vertices("collinear frustum", &body, t, want, |(rho, hh)| {
+        ((hh - h / 2.0).abs() <= 1e-12 && (rho - (r0 + r1) / 2.0).abs() <= 1e-12).then(|| {
+            let gap = cos_a * rho + sin_a * hh - apex_in * sin_a;
+            (rho - gap * cos_a, hh - gap * sin_a)
+        })
+    });
+}
+
+/// **A sphere authored as two cocircular arcs — the door takes it,
+/// `shell` stops at the assembly (measured, a STOP).** R1's fixture:
+/// one sphere in four faces with a same-surface LATITUDE seam at
+/// `v = π/4`, which the sphere's own seam arm could not take and the
+/// latitude posture does. Through the direct door the cavity is
+/// tier-3 valid at `4/3·π(r−t)³` with the seam vertices moved
+/// concentrically. Through `shell` the assembled thin solid fails tier
+/// 3 with a pcurve `LoopDiscontinuity` on a grafted half-edge — the
+/// same downstream gap as the collinear cap's, same item — pinned
+/// here rather than widened around.
+#[test]
+fn a_two_arc_sphere_is_taken_by_the_door_and_stops_at_the_assembly() {
+    let (r, t) = (1.0, 0.05);
+    let v = PI / 4.0;
+    let (s, c) = v.sin_cos();
+    let body = revolved(
+        ProfileLoop::new(vec![
+            ProfileVertex::new(p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
+            ProfileVertex::new(p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
+            ProfileVertex::new(p2(0.0, r), 0.0),
+        ]),
+        Revolution::Full,
+    );
+    let want = 4.0 / 3.0 * PI * (r - t).powi(3);
+    cavity_at_closed_form("two-arc sphere", &body, t, want, |(rho, hh)| {
+        (rho > 1e-6 && (hh - r * s).abs() <= 1e-9).then(|| {
+            let n = rho.hypot(hh);
+            (rho / n * (r - t), hh / n * (r - t))
+        })
+    });
+    let e = topo::shell(&body, t, tol()).expect_err("measured: stops at the assembly");
+    let ShellError::NotValid { errors } = &e else {
+        panic!("expected the assembled body's tier 3, got {e}");
+    };
+    assert!(
+        errors
+            .iter()
+            .any(|f| format!("{f:?}").contains("LoopDiscontinuity")),
+        "the measured pcurve loop discontinuity, got {errors:?}"
+    );
+}
+
+// ---------------------------------------------------------------------
+// The refusals that remain, and a standing one made visible.
+// ---------------------------------------------------------------------
+
+/// **A line profile beside one meridian cap refuses, where its circle
+/// twin is carried** (R1's row, R2's `p1` — the same operand from both
+/// review lanes): the quarter-turn wedge's wall/cap generator, split
+/// by hand at mid-height, is a vertex whose surfaces are exactly the
+/// cylinder and one meridian cap. Carrying its station along the line
+/// is a convention the door declines, and it says so.
+#[test]
+fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
+    let (r, h) = (1.0, 2.0);
+    let mut body = wedge(r, h, FRAC_PI_2);
+    let generator = line_edge(&body, |o, d, same| {
+        !same
+            && o.x > 0.5
+            && o.z.abs() < 1e-12
+            && (axial(o).0 - r).abs() <= 1e-12
+            && d.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
+    });
+    let split = split_mid(&mut body, generator);
+    topo::mint_pcurves(&mut body, tol()).expect("pcurves");
+    assert_eq!(distinct_surfaces_at(&body, split), 2, "wall + cap");
+    let e = topo::shell(&body, 0.05, tol()).expect_err("refuses");
+    let (vertex, surfaces, what) =
+        corner_refusal(&e).unwrap_or_else(|| panic!("not a corner refusal: {e}"));
+    assert_eq!(vertex, split);
+    assert_eq!(surfaces, 2);
+    assert!(
+        what.starts_with("a line profile and a plane containing the axis meet here off the axis"),
+        "got {what:?}"
+    );
+}
+
+/// **A partial two-arc torus stops at its spiric rim** (R1's row): the
+/// quarter-turn elbow of the two-arc profile has a [torus, meridian
+/// cap] corner whose azimuth the MOVED cap fixes — off the sketch
+/// plane — but the rim edge between the torus and the cap has no
+/// carrier (the klein elbow's spiric wall), and the door refuses there
+/// before any latitude seam or its re-author is reached. So no
+/// door-built operand reaches the re-author's out-of-plane decide; its
+/// presence is its row.
+#[test]
+fn a_partial_two_arc_torus_refuses_at_its_spiric_rim() {
+    let (big_r, r) = (2.0, 0.5);
+    let body = revolved(
+        RawLoop::new(vec![
+            ProfileVertex::new(p2(big_r + r, 0.0), 1.0),
+            ProfileVertex::new(p2(big_r - r, 0.0), 1.0),
+        ]),
+        Revolution::Partial(FRAC_PI_2),
+    );
+    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
+    let e = topo::shell(&body, 0.05, tol()).expect_err("refuses");
+    let (_, what) = edge_refusal(&e).unwrap_or_else(|| panic!("not an edge refusal: {e}"));
+    assert_eq!(
+        what,
+        "a circular edge between two charts whose centre is off the axis"
+    );
+}
+
+/// **A three-quarter-turn cone frustum refuses `TogetherEdgeDisagreement`**
+/// (R1's finding, `work/shell/partial-cone-frustum-three-quarter-turn-
+/// refuses-edge-disagreement.md`): `sf2b_axial` only turns the frustum
+/// a quarter, and at three quarters the wall/cap generator's two ends
+/// disagree by more than a millimetre — pinned here so the standing
+/// refusal is visible, with its measured gap.
+#[test]
+fn a_three_quarter_turn_cone_frustum_refuses_edge_disagreement() {
+    let body = polyline(
+        &[(0.0, 0.0), (1.0, 0.0), (0.5, 2.0), (0.0, 2.0)],
+        Revolution::Partial(3.0 * FRAC_PI_2),
+    );
+    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
+    let e = topo::shell(&body, 0.05, tol()).expect_err("measured: refuses");
+    let ShellError::Face { error, .. } = &e else {
+        panic!("expected the axial door's refusal, got {e}");
+    };
+    let ReplaceFaceError::TogetherEdgeDisagreement { gap, .. } = **error else {
+        panic!("expected TogetherEdgeDisagreement, got {error}");
+    };
+    println!("[measured] three-quarter frustum: edge disagreement gap = {gap}");
+    assert!(
+        (1.0e-3..2.0e-3).contains(&gap),
+        "the measured millimetre-scale gap, got {gap}"
     );
 }
