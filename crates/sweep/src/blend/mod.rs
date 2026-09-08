@@ -713,7 +713,7 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// in closed form under `fillet3_ring_clearance` — so the clause
 /// promises the carve subject to that clearance and to nothing else.
 /// A merged flat top that is an ANNULUS carves through this clause:
-/// `blend6_ring_clearance::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
+/// `ring_clearance_forms::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
 /// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single links ending either at \
      fully-requested trivalent corners, over plane\u{2013}plane supports, or, for a straight \
@@ -724,7 +724,9 @@ pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open cha
      coaxial surfaces of revolution (a pip's plane\u{2013}sphere rim, a solid of revolution's \
      latitude rim) also carve, on either material side, either with each support face \
      carrying one arc of the rim, or with one face carrying every arc as its whole \
-     outer cycle, its rings clearing the band (a chamfer has no closed-chain band); \
+     outer cycle and its rings clear of the band's setback (a ring that is not gets \
+     its own refusal, which says what to move); \
+     (a chamfer has no closed-chain band); \
      junction carry-through and \
      run-outs are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The

@@ -158,7 +158,7 @@ fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it
         "closed-form faces only"
     );
     assert!(
-        FILLET3_ASSEMBLY_RECOURSE.contains("its rings clearing the band"),
+        FILLET3_ASSEMBLY_RECOURSE.contains("its rings clear of the band's setback"),
         "the recourse makes the host's rings a clearance, not a disqualification: \
          {FILLET3_ASSEMBLY_RECOURSE}"
     );

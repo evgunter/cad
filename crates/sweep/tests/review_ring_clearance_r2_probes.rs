@@ -19,15 +19,17 @@
 //!   of that zero — the one place in the tree where the outer-cycle
 //!   circle arm's two relations are told apart by a crossing rather
 //!   than by a nesting.
-//! - **Whether that non-coaxial ring reaches the exact backstop**
-//!   (`work/blend/containment-margin-backstop-unreachable-behind-the-screen.md`
-//!   names "a pip cut into the top of a pole-touching revolve" as the
-//!   construction that would). Measured here: it does NOT. The boolean
-//!   door mints the off-axis pip only at azimuth 0 and π — every other
-//!   azimuth refuses `Join(SectionLoopMixed)` — and at those two the
-//!   ring's closest approach to the rim lands ON a sample of predicate
-//!   2's lattice, so the screen is exact and answers first exactly as
-//!   it does on a coaxial pair. The second row pins that measurement.
+//! - **Which DOOR reaches the exact backstop with such a ring.** Not
+//!   this one: the boolean mints the off-axis pip only at azimuth 0 and
+//!   π — every other azimuth refuses `Join(SectionLoopMixed)` — and at
+//!   those two the ring's closest approach to the rim lands ON a sample
+//!   of predicate 2's lattice, so the screen is exact and answers
+//!   first. The second row pins that, as a fact about the boolean
+//!   route. The EXTRUDE door does reach it, on a bored cylinder whose
+//!   two lattices are misaligned by construction:
+//!   `review_ring_clearance_r1_probes::r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_door`
+//!   and its ladder twin read `fillet3_ring_clearance` at `−0.01` for
+//!   each of the two relations.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -148,24 +150,29 @@ fn a_non_coaxial_ring_carries_through_the_hostless_annulus_trim() {
     );
 }
 
-/// **The off-axis pip does NOT reach the exact containment backstop**,
-/// which is the construction
-/// `work/blend/containment-margin-backstop-unreachable-behind-the-screen.md`
-/// names as the one that would.
+/// **The BOOLEAN route to the exact containment backstop is blocked**,
+/// and this row is what says so. It is a statement about ONE door, not
+/// about the backstop: the extrude door reaches
+/// `fillet3_ring_clearance` for both relations on a bored cylinder
+/// (`review_ring_clearance_r1_probes::r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_door`
+/// and its ladder twin), so the backstop is reachable — just not this
+/// way.
 ///
-/// With the ring `0.01` outside the trim circle the request refuses —
-/// but under `fillet3_face_clearance`, predicate 2's sampled screen,
-/// reading the containment margin exactly, as it does on a coaxial
-/// pair. The reason is that the boolean door only mints this pip at
-/// azimuth 0 (and π); every other azimuth refuses
-/// `Join(SectionLoopMixed)`, and at azimuth 0 the ring's closest point
+/// With the ring `0.01` outside the trim circle the request refuses,
+/// but under `fillet3_face_clearance`, predicate 2's sampled screen.
+/// The reason is the door: the split-join mints this pip only at
+/// azimuth 0 (and π) — every other azimuth refuses
+/// `Join(SectionLoopMixed)` — and at azimuth 0 the ring's closest point
 /// to the rim is a sample of both edges' lattices, so the sampled gap
-/// is the true one and the screen is not overestimating anything.
+/// is the true one and the screen is not overestimating anything. An
+/// off-axis EXTRUDED bore has no such constraint and misaligns the two
+/// lattices by construction, which is why that route reaches the exact
+/// form and this one does not.
 ///
-/// This row is the item's canary: it flips the day a construction
-/// reaches `fillet3_ring_clearance` here.
+/// The row flips the day the boolean door mints an off-axis pip at an
+/// azimuth off the rim's lattice.
 #[test]
-fn an_off_axis_pip_does_not_reach_the_exact_containment_backstop() {
+fn the_boolean_route_to_the_exact_containment_backstop_is_blocked() {
     let (dc, pr, r) = (0.5, 0.41, 0.1);
     let want = (1.0 - r) - (dc + pr);
     assert!(

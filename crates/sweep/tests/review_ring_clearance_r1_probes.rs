@@ -23,7 +23,9 @@ use geom_core::{Affine3, Point2, Sign, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{ball_poled_z, boss, prism, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{
+    ball_poled_z, bored_cylinder, boss, prism, revolved_about_y, rim_arcs_at, z_rim,
+};
 use sweep::{Extrusion, Revolution, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, EdgeKey, FaceKey, mass_properties, validate_geometric};
@@ -99,25 +101,6 @@ fn refusal(err: BlendError) -> (&'static str, Sign, f64) {
     };
     let v = margin.value().expect("a definite reading");
     (margin.predicate, margin.sign, v)
-}
-
-/// The circle edges of radius `r` whose centre lies at `z = z0`, with
-/// the circle's axis along `±z` (so a sphere's seam meridian of the
-/// same radius and centre is excluded) and, with `off_axis`, whose
-/// centre lies off the `z` axis — resolved to the one rim they seed.
-fn z_rim(body: &Body<f64>, r: f64, z0: f64, off_axis: bool) -> Vec<EdgeKey> {
-    let seed = body
-        .edges()
-        .find(|(_, e)| {
-            let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(c.carrier(), geom::Curve3::Circle { radius, center, axis, .. }
-                if (radius - r).abs() < 1e-9 && (center.z - z0).abs() < 1e-9
-                    && axis.z.abs() > 0.9
-                    && (center.x.hypot(center.y) > 0.1) == off_axis)
-        })
-        .map(|(k, _)| k)
-        .expect("the rim's seed edge");
-    topo::query::rim_of(body, seed).expect("one rim")
 }
 
 // ------------------------------------------------------------------
@@ -253,33 +236,6 @@ fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
 // C4: the non-coaxial ring that reaches the exact backstop.
 // ------------------------------------------------------------------
 
-/// **The bored cylinder — no boolean at all.** One extrude of a profile
-/// whose outer loop is the unit circle with its two vertices at
-/// azimuths `outer_phi` and `outer_phi + π`, and whose INNER loop is a
-/// circle of radius `a` centred at `(d, 0)` with its two vertices on
-/// the `x` axis. The top cap is one plane face: outer cycle the top rim
-/// (two arcs, mates two half-walls of one cylinder key — the hostless
-/// annulus), one RING the bore's top rim (a ladder rim inside a
-/// circular outer boundary, mate the bore's two half-walls). The bore's
-/// closest approach to the outer rim is its vertex at `(d + a, 0)`, and
-/// with `outer_phi = 11.25°` no sample of the outer rim's lattice
-/// (`outer_phi + k·22.5°`) lies at azimuth 0 — so predicate 2's sampled
-/// gap is strictly larger than the true `1 − (d + a)`.
-fn bored_cylinder(a: f64, d: f64, outer_phi: f64) -> Body<f64> {
-    let v = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
-    let outer = ProfileLoop::new(vec![
-        v(outer_phi.cos(), outer_phi.sin(), 1.0),
-        v(-outer_phi.cos(), -outer_phi.sin(), 1.0),
-    ]);
-    let inner = ProfileLoop::new(vec![v(d + a, 0.0, -1.0), v(d - a, 0.0, -1.0)]);
-    let pf = Profile::new(SketchPlane::xy(), vec![outer, inner])
-        .validate(tol())
-        .expect("a bored disc validates");
-    extrude(&pf, Extrusion::Distance(1.0), tol())
-        .expect("the bored disc extrudes")
-        .body
-}
-
 /// **The hostless ANNULUS rim's containment backstop, reached at the
 /// front door by an off-axis ring.** Top rim at `r = 0.1` → trim `0.9`;
 /// bore of radius `0.16` at `d = 0.75` reaches `0.91`: exact containment
@@ -291,7 +247,7 @@ fn bored_cylinder(a: f64, d: f64, outer_phi: f64) -> Body<f64> {
 #[test]
 fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_door() {
     let phi = 11.25f64.to_radians();
-    let body = bored_cylinder(0.16, 0.75, phi);
+    let body = bored_cylinder(0.16, 0.75, phi, tol());
     validate_geometric(&body, tol()).expect("the bored cylinder is tier-3 valid");
     let arcs = z_rim(&body, 1.0, 1.0, false);
     assert_eq!(arcs.len(), 2, "the top rim is two arcs");
@@ -308,7 +264,7 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
         (read - (0.9 - (0.75 + 0.16))).abs() < 1e-12,
         "the containment reading `si − (d + a)` (read {read})"
     );
-    let wide = bored_cylinder(0.14, 0.75, phi);
+    let wide = bored_cylinder(0.14, 0.75, phi, tol());
     let arcs = z_rim(&wide, 1.0, 1.0, false);
     let out = fillet_edges(&wide, &arcs, 0.1, tol()).expect("a contained off-axis ring carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
@@ -331,7 +287,7 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
     let phi = 11.25f64.to_radians();
     let (a, r) = (0.16, 0.03);
     let d = 0.82;
-    let body = bored_cylinder(a, d, phi);
+    let body = bored_cylinder(a, d, phi, tol());
     validate_geometric(&body, tol()).expect("the bored cylinder is tier-3 valid");
     let arcs = z_rim(&body, a, 1.0, true);
     assert_eq!(arcs.len(), 2, "the bore's top rim is two arcs");
@@ -349,7 +305,7 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
         "the containment reading `R − (d + si)` (read {read}, want {})",
         1.0 - (d + a + r)
     );
-    let wide = bored_cylinder(a, 0.80, phi);
+    let wide = bored_cylinder(a, 0.80, phi, tol());
     let arcs = z_rim(&wide, a, 1.0, true);
     let out = fillet_edges(&wide, &arcs, r, tol()).expect("a contained trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");

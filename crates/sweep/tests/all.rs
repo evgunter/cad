@@ -142,10 +142,6 @@ mod blend3_r2_probes;
 mod blend4_concave_fillet;
 #[path = "blend4_r1_probes.rs"]
 mod blend4_r1_probes;
-#[path = "blend6_r1_probes.rs"]
-mod blend6_r1_probes;
-#[path = "blend6_ring_clearance.rs"]
-mod blend6_ring_clearance;
 #[path = "blend6_verb_vocab.rs"]
 mod blend6_verb_vocab;
 #[path = "blend_margin_payload_interval.rs"]
@@ -270,8 +266,6 @@ mod review_blend4_r2_probes;
 mod review_blend6_r1_probes;
 #[path = "review_blend6_r2_probes.rs"]
 mod review_blend6_r2_probes;
-#[path = "review_blend6_ring_clearance_r2_probes.rs"]
-mod review_blend6_ring_clearance_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
@@ -450,6 +444,12 @@ mod mate7a_torus_rest;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+#[path = "review_ring_clearance_r1_probes.rs"]
+mod review_ring_clearance_r1_probes;
+#[path = "review_ring_clearance_r2_probes.rs"]
+mod review_ring_clearance_r2_probes;
+#[path = "ring_clearance_forms.rs"]
+mod ring_clearance_forms;
 
 #[path = "r1_probes_m9_3.rs"]
 mod r1_probes_m9_3;

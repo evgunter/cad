@@ -348,7 +348,7 @@ fn a_pole_touching_revolve_splits_the_walls_that_do_not_touch_the_axis_too() {
 /// hostless crossing. Its host's outer boundary is a circle CONTAINING
 /// the widened trim circle, which the ring-clearance pass clears on the
 /// containment relation; the carve's closed form is
-/// `blend6_ring_clearance`'s.
+/// `ring_clearance_forms`'s.
 #[test]
 fn a_repaired_boss_is_ring_hosted_and_takes_the_ladder_door() {
     for up in [true, false] {

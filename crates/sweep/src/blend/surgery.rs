@@ -440,14 +440,33 @@ impl<T: Real> RimPlan<'_, T> {
     /// the per-crossing datum it resolves to: [`HostFoot::Strut`] is
     /// minted at a crossing exactly when the host side is
     /// [`HostSide::Struts`].
+    ///
+    /// **Deriving rather than storing is deliberate.** A `HostSide`
+    /// field on [`RimPlan`] would be a second copy of a fact the
+    /// crossings already carry, and the two could disagree — which is
+    /// exactly the failure [`HostFoot`]'s own doc is about ("only one of
+    /// them can carry a key"). The derivation is total: every crossing
+    /// is minted by the routing that chose the mode, and the empty case
+    /// is refused below rather than defaulted.
     fn trim_replaces_host_boundary(&self) -> bool {
         let RimShape::Annulus(a) = &self.shape else {
             return false;
         };
-        !a.crossings.is_empty()
-            && a.crossings
-                .iter()
-                .all(|c| matches!(c.host, HostFoot::Strut))
+        if a.crossings.is_empty() {
+            // NOT a case: [`AnnulusRim::crossings`] is one entry per
+            // rim arc and a chain always carries its first link, so a
+            // resolved annulus rim has at least one. An empty vector
+            // would make `all` vacuously true here and quietly hand the
+            // whole rim the CONTAINMENT relation; say so loudly instead
+            // of letting the default fall either way.
+            unreachable!(
+                "annulus rim: `crossings` carries one entry per rim arc and a chain \
+                 always carries its first link"
+            )
+        }
+        a.crossings
+            .iter()
+            .all(|c| matches!(c.host, HostFoot::Strut))
     }
 
     /// The host support of the chain's FIRST link — the one every
@@ -1435,7 +1454,7 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   (the dome rim, a ladder) and a revolution-wall outer cycle (the
 ///   top rim, a hostless annulus); requesting the two together is a
 ///   mixed pair, and each rim carves ALONE. Rowed by
-///   `blend6_ring_clearance::the_bosss_two_rims_refuse_together_and_compose_sequentially`,
+///   `ring_clearance_forms::the_bosss_two_rims_refuse_together_and_compose_sequentially`,
 ///   which also follows the recourse: the two calls in sequence build
 ///   the same solid at the sum of the two closed forms.
 fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendError> {
@@ -1499,11 +1518,15 @@ struct LiveSeams {
 /// resolves its plan against its own source.
 ///
 /// **A HOSTLESS crossing re-reads its mate alone.** Its host foot is a
-/// strut this phase mints, which no earlier carve can have staled, and
-/// its host face carries the whole rim in its own outer cycle — so no
-/// second rim of the same call rests on that face and nothing there
-/// moves. What such a rim can share is its MATE wall, which is exactly
-/// the side still re-read.
+/// strut this phase mints, which no earlier carve can have staled. A
+/// second rim of the same call CAN rest on that host face — the host may
+/// carry rings, and a ring of it is itself a candidate rim (the boss's
+/// dome rim beside its top rim) — but such a pair is a LADDER and an
+/// ANNULUS sharing a support, which [`shared_support_gate`] refuses
+/// before any plan mutates, with the sequential recourse. So nothing on
+/// the host side can have moved by the time this runs, and what such a
+/// rim can share is its MATE wall, which is exactly the side still
+/// re-read.
 fn refresh_annulus_seams<T: Decide + Bounds>(
     body: &Body<T>,
     rim: &RimPlan<'_, T>,
@@ -1945,10 +1968,23 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 ///   the trim and the old rim — because a ring outside the trim then
 ///   sits in the excised strip.
 ///
-/// The three are not interchangeable and no two of them are the same
-/// question: a ring in the strip reads POSITIVE under `external` when
-/// the two circles are small and far apart on the face, and a boundary
-/// that contains the trim reads minus the sum of the radii under it.
+/// Choosing wrongly is not conservative in either direction: a ring in
+/// the excised strip reads POSITIVE under `external` when the two
+/// circles are small and far apart on the face, and a boundary that
+/// contains the trim reads minus the sum of the radii under it.
+///
+/// **The two containment readings are what predicate 2's boundary-pair
+/// screen computes, exactly.** For any two circles in one plane its
+/// `gap − setback_here − setback_there` IS the containment margin of
+/// whichever circle the setbacks belong to — coaxial or not — so this
+/// function is not a second opinion but the CLOSED FORM of that screen,
+/// and its whole margin over the screen is the sampling: `CHAIN_SAMPLES`
+/// points per edge bound the true gap from above, never below, so the
+/// screen answers first wherever its samples happen to land on the
+/// closest approach and this pass decides wherever they do not. Both
+/// halves are rowed (`ring_clearance_forms`, `review_ring_clearance_r1_probes`).
+/// `external` is the one reading with no screen counterpart, because the
+/// screen has no notion of which side of a boundary a strip lies on.
 struct CircleMargins<T> {
     /// `‖cj − ci‖ − si − aj`: separation of two circles that lie
     /// outside each other.
@@ -2001,6 +2037,16 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // A ring's EFFECTIVE radius: its own circle, widened to the trim
     // circle when the ring is itself a requested rim (a single call
     // may blend the box edges and the rims together).
+    //
+    // It applies to the EXTERNAL readers only, and not because nothing
+    // has tried the other: for a hostless annulus rim the widening
+    // would have to fire on a ring of that rim's own host, and a ring
+    // of a face being a second requested rim makes that face a shared
+    // support of a LADDER and an ANNULUS — which `shared_support_gate`
+    // refuses before this pass runs. So the containment reader below
+    // always sees the STORED ring circle, by construction rather than
+    // by the corpus, and widening it is unreachable rather than
+    // unexercised.
     let effective = |ring: LoopKey| -> Result<Option<(Point3<T>, T)>, BlendError> {
         for rim in rims {
             if rim.ladder_ring() == Some(ring) {
@@ -2109,20 +2155,22 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         // the annulus rim gets from this pass instead is the RING
         // meter above, which is a different question.
         //
-        // **This is an exactness step-down for the annulus rim, said
-        // plainly:** a ladder rim gets BOTH a sampled screen (predicate
-        // 2) and this closed-form backstop, and an annulus rim gets the
-        // sampled screen alone. What makes that hold today is that the
-        // pairs at issue are the ones the screen is exact on anyway —
-        // an annulus support's boundary is two coaxial latitude circles
-        // and one meridian seam, and `CHAIN_SAMPLES` points on a circle
-        // of a coaxial pair bound the true gap from above by a term
-        // that vanishes with the sample spacing, never from below. It
-        // stops holding the day an annulus support carries a boundary
-        // whose closest approach is BETWEEN samples — a non-coaxial
-        // ring, or a trimmed wall — which is also the day the outer
-        // sweep's own external-separation form becomes applicable
-        // again.
+        // **The exactness step-down is on this QUESTION, not on the
+        // annulus rim.** Both rim shapes get the closed-form RING meter
+        // above; what a ladder rim additionally gets is this walk, so
+        // its host's OUTER BOUNDARY is decided in closed form where an
+        // annulus rim's is left to predicate 2's sampled sweep alone.
+        // What makes that acceptable is that the pairs at issue are the
+        // ones the screen is exact on: an annulus support's boundary is
+        // two coaxial latitude circles and one meridian seam, and
+        // `CHAIN_SAMPLES` points on a circle of a coaxial pair bound the
+        // true gap from above by a term that vanishes with the sample
+        // spacing, never from below. It stops holding when an annulus
+        // support carries a boundary whose closest approach is BETWEEN
+        // samples — a non-coaxial ring, or a trimmed wall. Such bodies
+        // exist and are rowed (an off-axis bore's cap,
+        // `review_ring_clearance_r1_probes`), so this is a live gap on
+        // the boundary question, not a hypothetical one.
         let RimShape::Ladder { .. } = rim.shape else {
             continue;
         };
@@ -2136,8 +2184,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         // conservative direction — a body that hits it refuses
         // `RingClearance` loudly rather than passing silently, which is
         // why it is a false refusal and not a soundness hole.
-        // Anything else is already screened by predicate 2's sampled
-        // sweep and adds nothing exact here.
+        // A cycle edge of any OTHER carrier kind is skipped: this walk
+        // is the closed-form one, and nothing exact can be said about a
+        // NURBS boundary from stored data, so those pairs are left to
+        // predicate 2's sampled sweep, which meters them all.
         let outer = face_cycle(body, rim.host0()).ok_or_else(|| {
             not_intact(
                 EntityId::Face(rim.host0()),

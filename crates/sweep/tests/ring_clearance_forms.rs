@@ -27,13 +27,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Sign, Tol};
-use profile::ProfileVertex;
-use sweep::Revolution;
+use geom_core::{Sign, Tol};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    boss, plane_sphere_external_cut, revolved_about_y, rim_arcs_at, wedge_fill,
+    boss, domed_boss, narrowed_boss, plane_sphere_external_cut, rim_arcs_at, wedge_fill,
 };
 use topo::{Body, mass_properties, validate_geometric};
 
@@ -209,42 +207,17 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
 // The refusing rows, one per relation — and where the refusal lands.
 // ------------------------------------------------------------------
 
-/// A revolve of `(0,0) (rr,0) (rr,1) (0.5,1)[dome] (0,1.5)`, repaired:
-/// the boss with its flat top narrowed to outer radius `rr`.
+/// [`narrowed_boss`] after the repair every boolean consumer runs.
 fn narrowed(rr: f64) -> Body<f64> {
-    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-    let mut b = revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(rr, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(rr, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.5, 1.0), q),
-            ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    );
+    let mut b = narrowed_boss(rr, tol());
     b.merge_coplanar_faces(tol())
         .expect("the pole-split caps repair");
     b
 }
 
-/// A revolve of `(0,0) (1,0) (1,1) (a,1)[dome] (0,1+a)`, repaired: the
-/// boss with its dome grown to radius `a`, so the dome RING sits `1 − a`
-/// inside the top rim.
+/// [`domed_boss`] after the same repair.
 fn domed(a: f64) -> Body<f64> {
-    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-    let mut b = revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(a, 1.0), q),
-            ProfileVertex::new(Point2::new(0.0, 1.0 + a), 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    );
+    let mut b = domed_boss(a, tol());
     b.merge_coplanar_faces(tol())
         .expect("the pole-split caps repair");
     b
@@ -265,8 +238,14 @@ fn refusal_reading(err: BlendError) -> (String, f64) {
     )
 }
 
-/// **A LADDER rim whose widened trim circle CROSSES its host's circular
-/// outer boundary is refused, at exactly the containment margin's zero.**
+/// **A LADDER rim whose host's circular outer boundary is NESTED INSIDE
+/// its widened trim circle is refused, at the containment margin's
+/// zero.** The two circles here are CONCENTRIC and therefore never
+/// cross; the CROSSING case — `‖cj − ci‖ ≠ 0`, the two circles genuinely
+/// meeting — is
+/// `review_ring_clearance_r2_probes::a_non_coaxial_ladder_trim_circle_carves_inside_its_boundary_and_refuses_outside`,
+/// and the exact backstop reached at the front door is
+/// `review_ring_clearance_r1_probes::r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_door`.
 ///
 /// The radii are derived, not searched. The dome rim's ladder trim sits
 /// at `√((0.5 + r)² − r²)` — the ball rests in the void at height `r`
@@ -278,35 +257,39 @@ fn refusal_reading(err: BlendError) -> (String, f64) {
 /// margin's own zero is the boundary between them and the row pins both
 /// sides of it.
 ///
-/// **Where the refusal lands, measured.** Predicate 2's sampled screen
-/// answers first, and its reading is the containment margin to the bit:
-/// on a coaxial pair the screen's `gap − setback` — here
-/// `(rr − 0.5) − (√0.35 − 0.5)` — IS `rr − √0.35`, and nine samples on
-/// each of two arcs of a circle put a sample pair at a shared azimuth,
-/// so the sampled gap is the true one. The closed form in
-/// `ring_clearance_pass` is the exact backstop of that screen and agrees
-/// with it wherever both are defined; what changed is that the pass no
-/// longer CONTRADICTS the screen by reading external separation on a
-/// nested pair.
+/// **Which predicate answers, and how far its number is from the exact
+/// one.** Predicate 2's sampled screen answers first: on a coaxial pair
+/// its sampled gap is the true one (nine samples on each of two arcs of
+/// a circle put a sample pair at a shared azimuth), so `gap − setback`
+/// computes the same REAL as the containment margin — but by a different
+/// association, `(rr − 0.5) − (√0.35 − 0.5)` rather than `rr − √0.35`,
+/// and it is NOT the same double. Measured with the screen disabled: the
+/// exact backstop reads `−0.04160797830996166` (`0x…1be0`) against the
+/// screen's `−0.041607978309961546` (`0x…1bd0`), sixteen ulps apart. The
+/// assertion below is on the screen's value and the DERIVED double, which
+/// coincide here, and is tight enough to red if the backstop's value were
+/// the one delivered.
 #[test]
-fn a_ladder_trim_circle_crossing_its_boundary_refuses() {
+fn a_ladder_boundary_nested_inside_its_trim_circle_refuses() {
     let want = 0.55 - ((0.5 + 0.1f64).powi(2) - 0.01).sqrt();
     assert!(want < -0.04, "the derived margin is definitely negative");
     let body = narrowed(0.55);
     let arcs = rim_arcs_at(&body, 0.5, 1.0);
     let (predicate, read) = refusal_reading(
         fillet_edges(&body, &arcs, 0.1, tol())
-            .expect_err("a trim circle crossing its host's boundary refuses")
+            .expect_err("a boundary nested inside the trim circle refuses")
             .error,
     );
     assert_eq!(
         predicate, "fillet3_face_clearance",
         "the sampled screen answers first on this coaxial pair"
     );
-    assert!(
-        (read - want).abs() <= 1e-15,
-        "the reading is the containment margin `rr − √((0.5+r)² − r²)` \
-         (read {read}, derived {want})"
+    assert_eq!(
+        read.to_bits(),
+        want.to_bits(),
+        "the SCREEN's reading is the derived containment double \
+         `rr − √((0.5+r)² − r²)` exactly (read {read}, derived {want}); the exact \
+         backstop's own value on this pair is 16 ulps below it"
     );
     // The other side of the same zero: widen the flat top by 0.05 and
     // the containment margin turns positive and the carve goes through.
@@ -321,14 +304,16 @@ fn a_ladder_trim_circle_crossing_its_boundary_refuses() {
 }
 
 /// **A hostless ANNULUS rim whose host RING lies in the strip the carve
-/// excises is refused, at exactly the containment margin's zero.**
+/// excises is refused, at the containment margin's zero.**
 ///
 /// Derived the same way. A boss whose dome radius is `a` puts the ring
 /// at `a` and the top rim's annulus trim at `1 − r`, concentric, so the
 /// containment margin is `(1 − r) − a` and the ring sits inside the
 /// excised strip once `a > 1 − r`. At `r = 0.1` that is `0.9 − a`:
 /// `−0.02` at `a = 0.92` and `+0.05` at `a = 0.85`. The row pins both
-/// sides.
+/// sides. The same relation reached at the EXACT backstop, on a ring the
+/// screen cannot see exactly, is
+/// `review_ring_clearance_r1_probes::r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_door`.
 ///
 /// **The relation is what decides, not the sign.** The EXTERNAL form on
 /// the same pair reads `0 − 0.9 − a`, negative at every `a`, because
@@ -337,6 +322,11 @@ fn a_ladder_trim_circle_crossing_its_boundary_refuses() {
 /// host's rings, which is what the routing gate on a ringed host used to
 /// stand in for. The carving half of this row is what goes red if the
 /// forms are swapped.
+///
+/// Predicate 2's sampled screen answers first here too, and on THIS pair
+/// its double and the exact backstop's coincide (`0x…1480` both, measured
+/// with the screen disabled) — which the ladder row above shows is not a
+/// general fact, so the assertion names whose value it is checking.
 #[test]
 fn a_hostless_annulus_ring_in_the_excised_strip_refuses() {
     let body = domed(0.92);
@@ -350,9 +340,15 @@ fn a_hostless_annulus_ring_in_the_excised_strip_refuses() {
         predicate, "fillet3_face_clearance",
         "the sampled screen answers first on this coaxial pair"
     );
-    assert!(
-        (read - (0.9 - 0.92)).abs() <= 1e-15,
-        "the reading is the containment margin `(1 − r) − a` (read {read})"
+    // `0.9 - 0.92` as a literal is five ulps from the screen's own
+    // double, so the derived value is spelled the way the margin is:
+    // the trim radius less the ring's.
+    let want: f64 = (1.0 - 0.1) - 0.92;
+    assert_eq!(
+        read.to_bits(),
+        want.to_bits(),
+        "the SCREEN's reading is the derived containment double `(1 − r) − a` \
+         exactly (read {read}, derived {want})"
     );
     // The other side of the same zero.
     let wide = domed(0.85);
