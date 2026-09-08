@@ -883,6 +883,9 @@ at the parent of the commit that removed it):
 - `SEAT-4-SPEC.md` — SEAT-4 — the Verb substrate, carried by the blend pair (unit spec)
 - `SHELL-1-SPEC.md` — SHELL-1 — the `ShellNaming` birth channel: `shell`/`shell_open` return `Shelled<T>` (unit spec)
 - `SHELL-2-SPEC.md` — SHELL-2 — `transform_rigid` maps an `Approx` face through the scalar's re-certification lane (unit spec)
+- `SHELL-5-SPEC.md` — SHELL-5 — shell of a hollow body thickens every boundary: one thin solid per operand shell (unit spec)
+- `SHELL-6-SPEC.md` — SHELL-6 — the cone nappe has one home: `face_nappe` decides once, both offset doors and the displacement read it (unit spec)
+- `SHELL-7-SPEC.md` — SHELL-7 — the axial offset door takes a one-surface corner: the full-period torus shells (unit spec)
 - `TCOST-1-SPEC.md` — TCOST-1 — the per-file test gate (spec)
 - `VERBS-GERMARMS-SPEC.md` — VERBS-GERMARMS — the curved pierce ring lane + the cyl×cyl germ arm (two PRs)
 - `VERBS-SHELLFIX-SPEC.md` — VERBS-SHELLFIX — the two teapot-found shell defects (two PRs)
@@ -1296,6 +1299,52 @@ its A/B row is MODEL-AB-LOG SEAT9.
 
 - `SEAT-9-SPEC.md` — SEAT-9, the shell arm on `Verb` and ε travelling only as `Tol` down the offset-fit chain (#1995)
 
+## Sweep 7 — 2026-09-08: GATES leaves the tracker
+
+Sweep SHA: `5ce54b35bf355241de5fa5e3bb0cfeb264bf52af` — `main`'s tip immediately before the deletion,
+so every path below is recoverable at
+`git show 5ce54b35bf355241de5fa5e3bb0cfeb264bf52af:work/gates/<FILE>` and
+`git show 5ce54b35bf355241de5fa5e3bb0cfeb264bf52af:docs/GATES-EXIT-WALK.md`.
+
+GATES — the CI gate scripts, code-quality Track K's `scripts/gates/*`
+half — opened 2026-09-06 in the tracker-wide cut and closed 2026-09-08
+on Ev's ratification of `docs/GATES-EXIT-WALK.md` (PR #2185, "lgtm!").
+Per the sweep-5 rule the program's directory leaves whole:
+`program.md`, `plan.md`, `log.md`, and every closed item file
+(26 of them: `D102`, `D103`, `D109`, `D211`, `S13`, `S49`, `anchored-exact-text-skip-has-three-homes`, `bit-identity-debug-only-gate-ends-an-item-at-a-semicolon`, `bounds-allowlist-select-cuts-at-the-first-colon`, `bounds-tripwire-blind-to-named-alias`, `clippy-panic-gate-blind-in-macros`, `debug-only-assert-euler-postcondition-is-on-no-row`, `debug-only-bit-witness-callers-are-on-no-row`, `debug-only-counters-have-no-gate`, `debug-only-helpers-outside-the-subject-list`, `debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`, `gate-mod-path-resolved-textually`, `home-anchored-file-skip-is-unescaped`, `record-file-column-read-by-first-colon-split`, `test-module-resolution-has-three-homes`, `trait-generic-sole-bracket`, `unanchored-definition-skip`, `viewer-module-kinds-six-unreached-guards`, `whole-file-skips-are-hand-spelled-not-anchored`, `whole-file-skips-do-not-check-their-subject`, `window-view-emits-a-record-for-a-comment-only-line`). Twenty-six
+rows landed over twenty-five PRs (2029–2069, 2077, 2156, 2157, 2170,
+2174), each under one style review with a planted breach and a fix
+pass; one `[ev]` ruling ratified (PR 2067, the gates stay greps); one
+`[ev]` ruling open at the sweep (PR 2171, below). Infra-only: no A/B
+rows; the band 3100–3199 was claimed for bookkeeping and stays
+allocated.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `gates` | GATES — the CI gate scripts | 2026-09-08 | this row and the exit-walk row below; design at `scripts/gates/README.md` (the directory's page, listed in `docs/DESIGN.md`'s companion table) and in `scripts/gates/lib.sh`'s own headers |
+
+### Residue re-homed before the deletion
+
+Moved by `git mv` with ids kept (ownership is the directory):
+
+| item | to |
+| --- | --- |
+| `D212` | `work/code-quality/` — rides `G4`, Track V's, which lives there |
+| `directory-prefix-skips-have-no-subject-check` | `work/code-quality/` — open on its `crates/*/src/bin/` half, `blocked_on` `[ev]` PR 2171; the two-directory half closed with PR 2170 |
+
+Filed on other slates during the program and already there:
+`work-set-accepts-a-scalar-for-a-list-field` (META),
+`doc-gate-error-sites-outside-the-gate-population` (CIW),
+`bound-list-readers-have-three-homes` (code-quality). Nothing went to
+`work/issues/`. Track K's `scripts/gates/*` fence returns to
+code-quality with the two rows.
+
+### The exit walk's row
+
+| walk | program closed | ratified on | done-state now |
+| --- | --- | --- | --- |
+| `GATES-EXIT-WALK.md` | 2026-09-08 | PR #2185, in a PR comment | this row; the residue table above; `scripts/gates/README.md` |
+
 ## Sweep 7 — 2026-09-06: FILLET leaves the tracker
 
 Sweep SHA: `efe21acb8f599dd146fbaadc0251dc3981ebbf9a` — `main`'s tip immediately before the deletion,
@@ -1472,3 +1521,15 @@ face-2 red-first row is the bumpy patch at 1e-15 — and its face 4 is
 landed as `BoundNotFinite` carrying `last_finite`, per the review. The
 rule above; the unit's record is its `## Closed` and the MERGED entry
 in `work/props/log.md` (an E rider: no A/B row).
+
+## Per-merge deletion — LIB-G17's spec (2026-09-08)
+
+Recoverable at `git show 4a093c5cb4b9bd0a901111cdd89c230e9445a075:docs/LIB-G17-SPEC.md`
+(the frozen review head; the fix pass moved one decision the spec made —
+the f64 witness fold now lives on the lane, `crates/editor-core/src/lane.rs`,
+per the dual review's convergent finding, and the unit's record says so).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`, its
+MERGED entry in `work/lib/log.md`, and `work/lib/LIB-G17.md`'s Delivered
+and Fix pass sections.
+
+- `LIB-G17-SPEC.md` — LIB-G17, `Node::Shell`, the shell recipe door (#2150)

@@ -92,6 +92,12 @@ pub mod cavity;
 /// the one door both read. Body authoring, so it routes here.
 pub mod germ_pair;
 
+/// The cone-nappe fixtures and the corner walk the SHELL-6 suites
+/// share — two mirrored frustums, the coned tube, and the reader that
+/// takes a face's own corner stations. Body authoring plus the one
+/// reader three suites check a cone face with, so it routes here.
+pub mod cone_nappe;
+
 /// The closed-form volumes those suites meter against. Not a fixture
 /// and not a check of a body, but a truth derived WITHOUT the kernel;
 /// its module doc carries the rule for which per-suite spellings come

@@ -59,6 +59,7 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Sweep { .. } => "sweep",
         Node::Fillet { .. } => "fillet",
         Node::Chamfer { .. } => "chamfer",
+        Node::Shell { .. } => "shell",
         Node::Split { .. } => "split",
         Node::Boolean { op, .. } => match op {
             BooleanOp::Union => "boolean_union",

@@ -96,9 +96,9 @@ fn describe_cones(what: &str, body: &Body<f64>) {
 /// **BOTH cone nappes, through `shell`.** `sf2b_axial.rs` pins ONE
 /// orientation (a frustum NARROWING upward, whose wall sits below its
 /// apex). This row adds the mirror: a frustum WIDENING upward, whose
-/// wall sits above its apex. If `nappe_signed`'s sign were resolved the
-/// other way round, exactly one of these two would be wrong and the
-/// shipped acceptance row would not notice.
+/// wall sits above its apex. If the nappe turn were resolved the other
+/// way round, exactly one of these two would be wrong and the shipped
+/// acceptance row would not notice.
 #[test]
 fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
     let tol = Tol::witness();
@@ -140,40 +140,60 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
                     "{what}: the wall's closed form is {want}, got {v}"
                 );
             }
-            Err(e) => println!("[r2] {what}: REFUSED {e}"),
+            Err(e) => panic!("[r2] {what}: both nappes hollow through `shell`; got {e}"),
         }
     }
 }
 
-/// **The unfixed sibling: the per-chart door on a mirror-nappe cone.**
-/// `offset_axial` resolves the nappe at its own door; `replace_face`'s
-/// `mint_offset` does not, and `shell`'s `inward()` derives the sign
-/// from the face's SENSE. This row asks the public single-chart verb to
-/// pull the cone chart INWARD and reports which way it actually went.
+/// **The per-chart door on both cone nappes at the wall thickness.**
+/// Both doors read one nappe now (`topo::group_nappe`), so the question
+/// this row asked — which way the single-chart verb actually went — has
+/// one answer to pin AT THIS `|d|`: nowhere. The cone's offset moves
+/// its rim off every unmoved neighbour by the action's own axial
+/// component `|d|·sin α`, and at `|d| = t` that is four million times ε,
+/// so the caps refuse first on both nappes and both signs.
+///
+/// **The gap this asserts is blind to the turn** (R2's `r2p1` measures
+/// exactly how blind: the two signs' gaps differ in the last bits, far
+/// under any tolerance a row could state), so nothing here is evidence
+/// about the nappe. It is evidence about the GATE — #1199's
+/// measurement, re-taken — and the turn is pinned where it is
+/// observable, in `shell6_nappe_home`: below `ε/sin α` this same door
+/// builds, and the cone it stores is the turned mint bit for bit.
 #[test]
 fn r2_per_chart_door_on_a_mirror_nappe_cone() {
     let tol = Tol::witness();
     let h = 8.0 / 64.0;
+    let alpha = (2.0f64 / 64.0 / h).atan();
     for (what, r0, r1) in [
         ("narrowing upward", 4.0 / 64.0, 2.0 / 64.0),
         ("widening upward", 2.0 / 64.0, 4.0 / 64.0),
     ] {
         let body = frustum(r0, r1, h);
         let faces = cone_faces(&body);
-        let v0 = topo::mass_properties(&body, tol).expect("props").volume;
         for signed in [-T, T] {
             let mut work = body.clone();
             match topo::replace_faces_offset(&mut work, &faces, signed, band(), tol) {
-                Ok(()) => {
-                    let v = topo::mass_properties(&work, tol).expect("props").volume;
-                    let valid = topo::validate_geometric(&work, tol);
-                    println!(
-                        "[r2] per-chart {what} d={signed}: volume {v0} -> {v} ({}), tier3 {:?}",
-                        if v > v0 { "GREW" } else { "shrank" },
-                        valid.is_ok()
+                Ok(()) => panic!(
+                    "[r2] per-chart {what} d={signed}: BUILT — the caps' gate stopped standing \
+                     in front of the cone chart, which is the measurement this row carries"
+                ),
+                Err(topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => {
+                    println!("[r2] per-chart {what} d={signed}: REFUSED off-carrier by {gap}");
+                    assert!(
+                        (gap - T * alpha.sin()).abs() <= 1e-15,
+                        "{what} d={signed}: the gap is the action's axial component |d|·sin α \
+                         ({gap} vs {})",
+                        T * alpha.sin()
+                    );
+                    assert!(
+                        gap > band().zero(),
+                        "{what} d={signed}: and it is the ε comparison that refuses, so the \
+                         gap must stand above the band's zero ({gap} vs {})",
+                        band().zero()
                     );
                 }
-                Err(e) => println!("[r2] per-chart {what} d={signed}: REFUSED {e}"),
+                Err(e) => panic!("[r2] per-chart {what} d={signed}: REFUSED {e}"),
             }
         }
     }
