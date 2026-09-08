@@ -29,6 +29,7 @@
 //!                    2 corners  3 [plane ∩ plane ∩ plane]
 //! sphere lune        2 corners  3 [sphere ∩ meridian ∩ meridian]
 //! klein elbow        4 corners  2 [torus ∩ meridian]
+//! full torus         2 corners  1 [torus seam ∩ torus seam]
 //! ```
 //!
 //! There is no `plane ∩ curved ∩ curved` corner anywhere in it, and no
@@ -75,7 +76,15 @@
 //!    same line∩circle solve; ONE moved cap leaves the profile angle
 //!    free, and it is CARRIED — the old corner's point moved
 //!    concentrically with its circle, the same conventional datum the
-//!    sphere-seam mint below trusts;
+//!    sphere-seam mint below trusts. A corner ALL of whose faces lie
+//!    on ONE surface of revolution — a full torus's seam vertex, where
+//!    the tube's two half-circle walls meet along their meridian seams
+//!    and share their two equators — is a point OF that surface, and
+//!    the offset of a surface moves each of its points along its own
+//!    normal: so the corner is the old point's image under the one
+//!    profile's own offset, the concentric move on a circle and the
+//!    perpendicular foot on a line, with the azimuth carried as every
+//!    seam's is;
 //! 2. **the azimuth** — carried from the old vertex when no plane
 //!    contains the axis at this corner (the seam's own conventional
 //!    datum), solved as circle∩plane when exactly one does, or read
@@ -91,7 +100,8 @@
 //! A carrier here is NOT derived by routing its surface pair through
 //! the C5 table. It is the OLD carrier's kind and conventional frame
 //! with its position re-solved — a line keeps its direction and moves
-//! perpendicular to itself, a latitude circle keeps its normal and
+//! perpendicular to itself, a latitude circle (a rim between two
+//! charts, or a full tube's equator seam) keeps its normal and
 //! `u_ref` and takes the corner's own station and radius, a sphere
 //! seam's great circle keeps its centre and plane and takes the
 //! chart's radius, a sphere-wall rim keeps the cap plane's normal and
@@ -115,16 +125,23 @@
 //! `torax_axial` again), `TogetherNotAxial`'s oblique-plane arm,
 //! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`), and
 //! the latitude mint's off-axis-centre refusal (the klein elbow's
-//! spiric rim, `torax_axial` and `verbs_shell`). **Direct-door only**,
+//! spiric rim, `torax_axial` and `verbs_shell`), and the
+//! no-profile-constraint refusal (a wedge whose axis edge is split by
+//! hand, `shell7_seam_corner` — no door builds a vertex with no
+//! profile constraint). **Direct-door only**,
 //! i.e. pinned by calling `offset_charts_together` rather than `shell`:
 //! the partial-set and chart-mixed gates, and the sphere lune's whole
 //! rim solve (`shell`'s closing tier 3 needs a volume the sphere flux
 //! arm's `props_band_coplanar` premise cannot yet give a lune — the
 //! operand's own standing wall, pinned with its payload in
 //! `torax_axial`). **Unreached by any fixture**, and written for
-//! correctness: the one-profile-constraint refusal (its old fixture,
-//! the klein elbow, now solves through the carried-datum arm and
-//! refuses at its rim carrier instead), the axis-pole station arm, its
+//! correctness: the one-profile-beside-a-meridian refusal (a line
+//! profile with a moved cap, or a circle profile whose two moved caps
+//! still hold the axis — no door builds either; the klein elbow, its
+//! old fixture, solves through the carried arm and refuses at its rim
+//! carrier instead), the line-profile carried arm (no door builds a
+//! vertex whose only surface is a cylinder, cone or cap plane — the
+//! drum's seam split by hand is its row), the axis-pole station arm, its
 //! off-axis-circle arm, the three seam arms' refusing sides, the
 //! off-axis rim mint's four refusing predicates, and the
 //! over-determined-azimuth arm — no constructible body in this
@@ -172,7 +189,7 @@
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKind};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -275,6 +292,38 @@ impl<T: Real> Profile<T> {
         match *self {
             Self::Line { n, c } => n.0 * rho + n.1 * h - c,
             Self::Circle { rho_c, h_c, r } => Vec3::new(rho - rho_c, h - h_c, T::zero()).norm() - r,
+        }
+    }
+}
+
+impl<T: Decide> Profile<T> {
+    /// The image of `(ρ, h)` under this curve's OWN offset — the point
+    /// of the MOVED curve the old point's normal reaches: the
+    /// perpendicular foot on a line, the concentric point on a circle.
+    ///
+    /// This is what a corner does when every surface meeting it is one
+    /// surface of revolution, and it is ONE arithmetic whichever arm
+    /// asks — a seam corner with nothing else at it, or a rim corner
+    /// whose one moved cap fixes only the azimuth. `None` is a point
+    /// standing at a circle's own centre, which fixes no direction to
+    /// move along: decided here, named by the caller in its corner's
+    /// own words.
+    fn image_of(&self, rho: T, h: T, band: Band) -> Result<Option<(T, T)>, Indeterminate> {
+        match *self {
+            Self::Line { n, c } => {
+                let gap = n.0 * rho + n.1 * h - c;
+                Ok(Some((rho - gap * n.0, h - gap * n.1)))
+            }
+            Self::Circle { rho_c, h_c, r } => {
+                let v = Vec3::new(rho - rho_c, h - h_c, T::zero());
+                let len = v.norm();
+                Ok(
+                    match decide("offset_axial_datum_arm", Margin::of(len), band)? {
+                        Sign::Positive => Some((rho_c + v.x / len * r, h_c + v.y / len * r)),
+                        Sign::Zero | Sign::Negative => None,
+                    },
+                )
+            }
         }
     }
 }
@@ -1009,7 +1058,11 @@ fn solve_corner<T: Decide>(
     // supplies its station ([`cap_pair_corner`]); with ONE, the corner
     // keeps its own angular position on the moved circle — the carried
     // datum, the same one the sphere-seam mint below trusts — and the
-    // cap fixes the azimuth through the shared meridian solve. ----
+    // cap fixes the azimuth through the shared meridian solve. With
+    // NO plane through the axis, the corner is a point of its one
+    // surface — a full tube's seam vertex — and moves as that surface's
+    // offset moves every point of it: the same carried arm, for a
+    // LINE profile as for a circle, with the azimuth carried too. ----
     let mut carried: Option<(T, T)> = None;
     if profiles.len() < 2 {
         let pole = match decide("offset_axial_pole", Margin::of(rho_old), band) {
@@ -1019,8 +1072,8 @@ fn solve_corner<T: Decide>(
         };
         let [only] = profiles[..] else {
             return Err(refuse(
-                "fewer than two profile constraints meet here, so no point in the meridian \
-                 half-plane is determined",
+                "no profile constraint meets here, so no point in the meridian half-plane is \
+                 determined",
             ));
         };
         if let (Profile::Circle { .. }, &[cap0, cap1]) = (&only, &meridians[..]) {
@@ -1040,34 +1093,39 @@ fn solve_corner<T: Decide>(
             }
         }
         if !pole {
-            if let (Profile::Circle { rho_c, h_c, r }, [_]) = (only, &meridians[..]) {
-                // The carried-datum arm: the corner's `(ρ, h)` is the
-                // OLD corner's profile point moved CONCENTRICALLY with
-                // its circle — centre fixed, radius the moved circle's
-                // own — and the azimuth is the moved cap's, solved
-                // below exactly as the wedge's is. The datum is the
-                // corner's angle about the circle's own centre, which
-                // is a direction only while the old corner stands
-                // clear of that centre — decided, not assumed.
-                let v = Vec3::new(rho_old - rho_c, h_old - h_c, T::zero());
-                let n = v.norm();
-                match decide("offset_axial_datum_arm", Margin::of(n), band) {
-                    Ok(Sign::Positive) => {}
-                    Ok(_) => {
-                        return Err(refuse(
-                            "a rim corner standing at its own profile circle's centre, which \
-                             fixes no direction to carry it along",
-                        ));
-                    }
-                    Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-                }
-                carried = Some((rho_c + v.x / n * r, h_c + v.y / n * r));
-            } else {
+            // The carried arm: the corner's `(ρ, h)` is the OLD corner's
+            // profile point under the one profile's OWN offset —
+            // concentric with its circle, centre fixed and radius the
+            // moved circle's own, or the perpendicular foot on the
+            // moved line. The azimuth is solved below exactly as every
+            // corner's is: carried when no plane contains the axis
+            // here (a seam corner, the seam's own datum), from the
+            // moved cap when one does (a rim corner, the wedge's law).
+            // A LINE profile beside a moved cap is not carried: the cap
+            // fixes an azimuth and the line one coordinate, and the
+            // point along the line belongs to no surface here.
+            let carries = matches!(
+                (only, &meridians[..]),
+                (_, []) | (Profile::Circle { .. }, [_])
+            );
+            if !carries {
                 return Err(refuse(
-                    "one profile constraint meets here and the vertex is not on the axis, so \
-                     its station is determined but its radius is not",
+                    "one profile constraint and a plane containing the axis meet here off the \
+                     axis, and the plane fixes an azimuth but no point of the profile — a line \
+                     profile beside a meridian cap, or a circle profile whose two moved caps \
+                     still hold the axis",
                 ));
             }
+            carried = Some(
+                only.image_of(rho_old, h_old, band)
+                    .map_err(|source| ReplaceFaceError::Escalated { source })?
+                    .ok_or_else(|| {
+                        refuse(
+                            "a corner standing at its own profile circle's centre, which fixes no \
+                             direction to carry it along",
+                        )
+                    })?,
+            );
         } else {
             let h = match only {
                 Profile::Line { n, c } => {
@@ -1593,15 +1651,20 @@ fn mint_carrier<T: Decide>(
                     Err(source) => Err(ReplaceFaceError::Escalated { source }),
                 }
             }
-            // A torus's seam is a MERIDIAN circle about the TUBE's own
-            // centre, and the offset is concentric about it for the
-            // same reason a sphere's is about the sphere's: the mint
-            // keeps `center`, `axis`, `major_radius` and `u_ref` and
-            // moves only the minor radius, so the tube centre is the
-            // datum that does not move. The certificate is that this
-            // carrier really is that circle — its centre stands on the
-            // tube-centre circle `(ρ, h) = (R, h_c)`, which is one
-            // length in the meridian half-plane.
+            // A torus's seam is one of TWO circles, told apart by where
+            // its centre stands. A MERIDIAN seam is centred on the
+            // tube-centre circle `(ρ, h) = (R, h_c)` and moves
+            // concentrically about it, for the same reason a sphere's
+            // does about the sphere's: the mint keeps `center`, `axis`,
+            // `major_radius` and `u_ref` and moves only the minor
+            // radius, so the tube centre is the datum that does not
+            // move. A LATITUDE seam — an equator a full tube's two
+            // half-circle walls share — is centred ON the axis, and is
+            // the latitude circle every coaxial circle here is: it
+            // keeps its normal and `u_ref` and takes its corner's own
+            // station and radius. Each certificate is one length in
+            // the meridian half-plane, and a circle centred at neither
+            // place is not a torus seam this door knows.
             (
                 Surface::Torus {
                     center,
@@ -1615,6 +1678,17 @@ fn mint_carrier<T: Decide>(
                     u_ref,
                 },
             ) => {
+                match decide(
+                    "offset_axial_seam_latitude",
+                    Margin::of(frame.radial(*cc).norm()),
+                    band,
+                ) {
+                    Ok(Sign::Zero) => {
+                        return latitude_carrier(edge, p_start, *axis, *u_ref, frame, band);
+                    }
+                    Ok(_) => {}
+                    Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+                }
                 let off = Vec3::new(
                     frame.radial(*cc).norm() - *major_radius,
                     frame.station(*cc) - frame.station(*center),
@@ -1629,7 +1703,8 @@ fn mint_carrier<T: Decide>(
                         u_ref: *u_ref,
                     }),
                     Ok(_) => Err(refuse(
-                        "a torus seam that is not a meridian circle about the tube's own centre",
+                        "a torus seam centred neither on the axis nor on the tube's own centre \
+                         circle",
                     )),
                     Err(source) => Err(ReplaceFaceError::Escalated { source }),
                 }
@@ -1786,10 +1861,7 @@ fn mint_carrier<T: Decide>(
             ..
         } => {
             // A LATITUDE circle: coaxial with the body, so its centre
-            // stays on the axis and its radius is the corner's own. The
-            // curve's own frame — its normal's sign, its `u_ref` — is
-            // conventional data and is carried, which keeps the
-            // parameterization's sense.
+            // stays on the axis and its radius is the corner's own.
             match decide(
                 "offset_axial_latitude",
                 Margin::of(frame.radial(*center).norm()),
@@ -1803,31 +1875,49 @@ fn mint_carrier<T: Decide>(
                 }
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
-            let tilt = axis.normalize().cross(frame.dir).norm();
-            match decide(
-                "offset_axial_latitude_tilt",
-                Margin::levered(tilt, frame.extent),
-                band,
-            ) {
-                Ok(Sign::Zero) => {}
-                Ok(_) => {
-                    return Err(refuse(
-                        "a circular edge between two charts whose plane is not normal to the axis",
-                    ));
-                }
-                Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-            }
-            Ok(Curve3::Circle {
-                center: frame.origin + frame.dir * frame.station(p_start),
-                axis: *axis,
-                radius: frame.radial(p_start).norm(),
-                u_ref: *u_ref,
-            })
+            latitude_carrier(edge, p_start, *axis, *u_ref, frame, band)
         }
         _ => Err(refuse(
             "an edge between two distinct charts whose carrier is neither a line nor a circle",
         )),
     }
+}
+
+/// **The latitude rule**: a circle centred on the axis keeps its
+/// normal's sign and its `u_ref` — conventional data, which keeps the
+/// parameterization's sense — and takes the moved corner's own station
+/// and radius. The caller has decided the centre stands on the axis;
+/// the plane is verified here, since a coaxial circle tilted out of the
+/// cross-section is no latitude.
+fn latitude_carrier<T: Decide>(
+    edge: EdgeKey,
+    p_start: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    frame: &Frame<T>,
+    band: Band,
+) -> Result<Curve3<T>, ReplaceFaceError<T>> {
+    let tilt = axis.normalize().cross(frame.dir).norm();
+    match decide(
+        "offset_axial_latitude_tilt",
+        Margin::levered(tilt, frame.extent),
+        band,
+    ) {
+        Ok(Sign::Zero) => {}
+        Ok(_) => {
+            return Err(ReplaceFaceError::TogetherAxialEdge {
+                edge,
+                what: "a circle centred on the axis whose plane is not normal to it",
+            });
+        }
+        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+    }
+    Ok(Curve3::Circle {
+        center: frame.origin + frame.dir * frame.station(p_start),
+        axis,
+        radius: frame.radial(p_start).norm(),
+        u_ref,
+    })
 }
 
 /// The moved endpoint's parameter on the moved carrier, with the point
@@ -1961,8 +2051,8 @@ fn restate<T: Real>(
     let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
     let carried = |mc: geom_brep::MappedCurve<T>| {
         reauthor(mc, carrier, ends).ok_or(refuse(
-            "a declaring pushforward whose family is a trajectory this door cannot \
-             re-author in the sketch plane (a revolved point's rotation family)",
+            "a declaring pushforward whose sketch arc has no moved circle to be re-authored \
+             about",
         ))
     };
     let declared = match authority {
@@ -2009,8 +2099,13 @@ fn restate<T: Real>(
 /// A LINE takes the two points. An ARC takes them and the included
 /// angle they subtend at the moved carrier's own centre — the offset of
 /// a meridian arc is concentric, so the centre is the datum that does
-/// not move and the sweep is what the endpoints say it is. A ROTATION
-/// family is not a sketch curve at all and returns `None`.
+/// not move and the sweep is what the endpoints say it is. A POINT's
+/// trajectory — extruded along a vector, or revolved about an axis —
+/// is the same trajectory of the moved point: the vector, the axis and
+/// the angle are the operand's own conventional data and are carried,
+/// and a revolved point's axis is this door's axis, so its rotation of
+/// the moved corner IS the moved latitude circle. `None` only for an
+/// arc whose moved carrier is no circle to subtend at.
 fn reauthor<T: Real>(
     mapped: geom_brep::MappedCurve<T>,
     carrier: &Curve3<T>,
@@ -2055,7 +2150,22 @@ fn reauthor<T: Real>(
                 vec,
             })
         }
-        geom_brep::MappedCurve::RevolvedPoint { .. } => None,
+        geom_brep::MappedCurve::RevolvedPoint {
+            place,
+            axis_origin,
+            axis_dir,
+            angle,
+            ..
+        } => {
+            let q = place.inverse().transform_point(p_start);
+            Some(geom_brep::MappedCurve::RevolvedPoint {
+                point: geom_core::Point2::new(q.x, q.y),
+                place,
+                axis_origin,
+                axis_dir,
+                angle,
+            })
+        }
     }
 }
 
