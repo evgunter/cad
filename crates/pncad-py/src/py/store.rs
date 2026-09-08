@@ -89,7 +89,29 @@ fn workspace_err(py: Python<'_>, err: &ws::WorkspaceError) -> PyErr {
             first: a,
             second: b,
         } => (none(), id(which), path(a), path(b), none(), none()),
-        E::Header { path: at, .. } | E::Load { path: at, .. } | E::Pin { path: at, .. } => {
+        // The two paths of a SAVE-door duplicate ride the same pair of
+        // attributes as the scan's, the claimant first and the
+        // contested target second — so error handling reads
+        // `first`/`second` for any duplicate-id refusal without first
+        // branching on which door raised it. `create`'s own
+        // `duplicate_id` already answers a `second` that is not on
+        // disk, so "both exist" was never what the pair meant.
+        E::SaveWouldDuplicateId {
+            id: which,
+            existing,
+            requested,
+        } => (
+            none(),
+            id(which),
+            path(existing),
+            path(requested),
+            none(),
+            none(),
+        ),
+        E::Header { path: at, .. }
+        | E::Load { path: at, .. }
+        | E::Pin { path: at, .. }
+        | E::SaveTargetNotInStore { path: at } => {
             (path(at), none(), none(), none(), none(), none())
         }
         E::UnknownId { id: which } | E::Save { id: which, .. } => {
@@ -240,7 +262,7 @@ impl Workspace {
     /// A store IS a `PartResolver` (`pncad::workspace`'s own impl), so
     /// nothing is adapted here; what this door adds is a SNAPSHOT.
     /// The kernel wants an owned `Arc<dyn PartResolver>` and the
-    /// Python object is mutable through `create`/`resave`, so the scan
+    /// Python object is mutable through its write doors, so the scan
     /// is copied as of the call: the evaluation resolves against the
     /// store the caller passed, and a `create` made while it runs
     /// cannot change what it already resolved. The copy is the id →
@@ -361,6 +383,73 @@ impl Workspace {
         self.inner
             .resave(&doc.inner, tol)
             .map(|p| p.display().to_string())
+            .map_err(|err| workspace_err(py, &err))
+    }
+
+    /// Save `doc` at `target`, a save file of this store, and answer
+    /// its path — the ordinary "save at path", the FIRST of the two
+    /// acts a save is (ASSEMBLY-DESIGN A4).
+    ///
+    /// **The identity is kept.** A save says which VERSION of a part
+    /// is on disk, never which part it is — so a save beside the
+    /// original, which would leave two files claiming one identity,
+    /// refuses (`variant == "save_would_duplicate_id"`, with `first`
+    /// the file that already claims the id and `second` the file this
+    /// save would have written) and NOTHING is written. Without that
+    /// refusal the directory would then hold a duplicate, and every
+    /// later scan of it would refuse for every document in it. To
+    /// write the content as a SECOND part, use
+    /// `save_as_new_document`.
+    ///
+    /// Otherwise the scan says which act this is: at the id's own
+    /// scanned path it is a resave, and for an unclaimed id it is a
+    /// create at the caller's name (`create` forces `{id}.pncad`;
+    /// this door does not).
+    ///
+    /// `target` names a file in THIS store: a bare file name, or a
+    /// path whose parent is `root`, with the `.pncad` extension.
+    /// Anything else refuses (`variant ==
+    /// "save_target_not_in_store"`) — a different root is a different
+    /// store, and copying a document between stores is not this door.
+    ///
+    /// Raises `WorkspaceError`, typed.
+    fn save_at(&mut self, py: Python<'_>, doc: &super::doc::Doc, target: &str) -> PyResult<String> {
+        let tol = Tol::witness();
+        self.inner
+            .save_at(&doc.inner, target, tol)
+            .map(|p| p.display().to_string())
+            .map_err(|err| workspace_err(py, &err))
+    }
+
+    /// Save `doc` AS A NEW DOCUMENT — the same content under a fresh
+    /// random identity, at `{newid}.pncad` — and answer
+    /// `(new id, path)`. The SECOND of the two acts a save is
+    /// (ASSEMBLY-DESIGN A4): an explicit fork.
+    ///
+    /// **The original is untouched**, so every inbound `DocRef`
+    /// pinning the old id still resolves to it. That is what a fork
+    /// means, and it is why this act is spelled apart from `save_at`
+    /// rather than being what a save at a second path silently does.
+    ///
+    /// The fork's CONTENT PIN equals the original's: the pin's
+    /// preimage is `canonical_bytes`, the document's serde form with
+    /// the `id` key removed, so the same content under a fresh
+    /// identity is detectably the same version. The two save FILES
+    /// differ, in the `id:` header line and the snapshot's own id.
+    ///
+    /// The `doc` passed in is not modified: its identity is the
+    /// caller's value and the fresh one is answered here.
+    ///
+    /// Raises `WorkspaceError`, typed.
+    fn save_as_new_document(
+        &mut self,
+        py: Python<'_>,
+        doc: &super::doc::Doc,
+    ) -> PyResult<(String, String)> {
+        let tol = Tol::witness();
+        self.inner
+            .save_as_new_document(&doc.inner, tol)
+            .map(|(id, path)| (id.hex(), path.display().to_string()))
             .map_err(|err| workspace_err(py, &err))
     }
 
