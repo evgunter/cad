@@ -135,3 +135,98 @@ fn a_pre_bool10_arc_to_shape_does_not_load() {
         other => panic!("the pre-BOOL-10 arc shape must refuse Unreadable, got {other:?}"),
     }
 }
+
+// ------------------------------------------------------------------
+// The document layer at a NON-IDENTITY split count.
+// ------------------------------------------------------------------
+//
+// The tree's own rows only ever build `ProgramStep::ArcTo` through the
+// `arc_to(spec)` constructor, i.e. `splits: 1`. Measured by mutation
+// at the frozen head: discarding the count in `res_step`
+// (`splits: 1`) and dropping the `xn == yn` clause from
+// `step_bit_eq` leaves the whole 1142-row editor-core suite GREEN.
+// The rows below are the coverage that mutation walked through.
+
+use crate::fixture;
+
+use editor_core::{
+    LoopProgram, Node, ParamEnv, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, save,
+};
+use fixture::{frame, insert, len, scl};
+
+/// A one-leg chain: the half-disc's semicircle, declared split `n`.
+fn split_program(plane: RecipeNodeId, n: u32) -> ProfileProgram {
+    ProfileProgram {
+        plane,
+        loops: vec![LoopProgram::Chain(vec![
+            ProgramStep::At([len(0.0), len(-0.5)]),
+            ProgramStep::ArcTo {
+                spec: ProgramArcData::Bulge {
+                    target: ProgramTarget::Point([len(0.0), len(0.5)]),
+                    b: scl(1.0),
+                },
+                splits: n,
+            },
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])],
+    }
+}
+
+/// **The declared count survives resolution.** `res_step` must carry
+/// the document's `splits` into `profile::Step::ArcTo`, and the
+/// resolved program must replay into `n` pieces with `n - 1` declared
+/// joints. Discarding the count at resolution reds this row.
+#[test]
+fn the_document_split_count_survives_resolution_and_replay() {
+    for n in [2u32, 3, 5] {
+        let resolved = split_program(RecipeNodeId(0), n)
+            .resolve(&ParamEnv::<f64>::default())
+            .expect("the split program resolves at f64");
+        let profile::Step::ArcTo { splits, .. } = &resolved[0][1] else {
+            panic!("step 1 is the arc leg");
+        };
+        assert_eq!(*splits, n as usize, "the declared count reached the kernel");
+        let loop_ = profile::replay(&resolved[0], Tol::witness()).expect("the split replays");
+        assert_eq!(loop_.vertices().len(), n as usize + 1);
+        let joints: Vec<usize> = (1..n as usize).collect();
+        assert_eq!(loop_.tangent_joints(), joints.as_slice());
+    }
+}
+
+/// **Two programs differing ONLY in their split count are not
+/// bit-equal.** `ProfileProgram`'s bit equality must compare the
+/// counts; without the clause a document edit that changes only the
+/// split reads as no change at all.
+#[test]
+fn programs_differing_only_in_the_split_count_are_not_bit_equal() {
+    let plane = RecipeNodeId(0);
+    assert_ne!(
+        split_program(plane, 2),
+        split_program(plane, 3),
+        "a 2-way and a 3-way split must not compare bit-equal"
+    );
+    assert_eq!(
+        split_program(plane, 2),
+        split_program(plane, 2),
+        "bit equality is reflexive here"
+    );
+}
+
+/// **A split arc leg round-trips through the wire.** Save/load must
+/// carry `splits: n` unchanged; the tree's own corpus only ever
+/// persists `splits: 1`.
+#[test]
+fn a_split_arc_leg_round_trips_through_the_wire() {
+    let doc = ProfileDoc::empty_derived("bool10-r1-wire", Tol::witness());
+    let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let program = split_program(plane, 4);
+    let (doc, node) = insert(doc, Node::Profile(program.clone()));
+    let text = save(&doc, &[], Tol::witness()).expect("the split document saves");
+    assert!(text.contains("\"splits\": 4"), "the count is persisted");
+    let back = load(&text, Tol::witness()).expect("the split document loads");
+    let Some(Node::Profile(read)) = back.doc.node(node).cloned() else {
+        panic!("the profile node reads back");
+    };
+    assert_eq!(read, program, "the round trip preserves the declared split");
+}
