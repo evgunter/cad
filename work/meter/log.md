@@ -379,6 +379,7 @@ Three new items filed by the lane:
 `geom_core::k_stats` would close the criterion issue in the same PROPS
 edit), and the reader-census class above.
 
+**Unit 1 (`D213` + `D214`) landed the sizing block as one decision.**
 The two items pointed at the same seam from opposite sides and the
 answer was one edit: `parse` refuses the lane pairing in both
 directions (`SIZED_CHART_TAGS`, the consumer's mirror of
