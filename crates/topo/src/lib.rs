@@ -268,6 +268,8 @@ pub mod test_support {
 #[cfg(test)]
 mod r2_probes;
 #[cfg(test)]
+mod shell10_r2_probes;
+#[cfg(test)]
 mod tier3_tests;
 pub mod transform;
 pub mod validate;

@@ -605,6 +605,12 @@ mod shell7_r2_probes;
 #[path = "shell10_scoped_walks.rs"]
 mod shell10_scoped_walks;
 
+#[path = "shell10_r2_probes.rs"]
+mod shell10_r2_probes;
+
+#[path = "shell10_r2_cost.rs"]
+mod shell10_r2_cost;
+
 #[path = "shell9_probe.rs"]
 mod shell9_probe;
 
