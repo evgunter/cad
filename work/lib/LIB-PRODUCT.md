@@ -7,6 +7,7 @@ branch: lib/product
 refs: [python-check-and-assembly-doors-gather-twice]
 opened: 2026-09-08
 closed:
+pr: 2181
 ---
 
 Ev's ruling (5) on `python-check-and-assembly-doors-gather-twice`: a
