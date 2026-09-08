@@ -51,6 +51,22 @@
 //! registry, and a row that reports "cargo was not available" is not the
 //! row it claims to be.
 //!
+//! # Why this is a second cfg reader, and stays one
+//!
+//! `crates/pncad/tests/all.rs` has `code_without_cfg_gated`, which
+//! reads cfg regions out of the same `lib.rs`. It is not reusable here,
+//! and the reason is polarity rather than duplication. That guard asks
+//! *which names does the SHIPPED root surface export unconditionally*,
+//! so it drops EVERY cfg-gated item — a `#[cfg(not(test))]` export is
+//! not an unconditional one. This census asks *which lines does a
+//! shipped build COMPILE*, where a `#[cfg(not(test))]` region is
+//! precisely the code in question. On the one construct that matters
+//! most here the two answers must be opposite, so a shared
+//! implementation would be one parameterized by which question is being
+//! asked — a cfg evaluator, not a lexer, and above what
+//! `test_utils::source` is for. The Rust READING both do is shared: both
+//! go through that module's views.
+//!
 //! # What this census cannot see
 //!
 //! [`is_writer`] reads TEXT, and three routes to the door leave no text

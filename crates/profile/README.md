@@ -111,8 +111,9 @@ vocabulary through the `RawLoop` trait (`new`, `polygon`,
 `with_tangent_joints`), omitted from the `pncad::profile` façade;
 `ProfileLoop`'s fields are private, so outside this crate a loop exists
 only through the lattice, the `map` materialization door, or that
-trait — which is itself gated behind `test-support` and absent from
-every shipped build. `continue_to` is a lattice verb
+trait — whose item is declared `pub(crate)` in any build satisfying
+neither `test` nor `test-support` (`ProfileLoop`'s own docs are the one
+home for the door list). `continue_to` is a lattice verb
 the document vocabulary does not spell yet
 (`RecordedProgramError::VerbNotInDocumentVocabulary`).
 

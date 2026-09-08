@@ -75,10 +75,9 @@ sweep = { path = ".", features = ["test-support"] }
 # `profile` again, with `test-support` ON. The crate is an ordinary
 # dependency above; naming it a second time here adds the feature for
 # TEST builds only — cargo unions the two entries for this package's
-# test targets and for nothing else. The feature gates
-# `profile::RawLoop`, the vertex-table fixture door this crate's rows
-# build their loops with (the trait's own docs carry the argument), so
-# a shipped build of this crate still cannot mint a table.
+# test targets and for nothing else. It turns on the
+# `profile::RawLoop` fixture door (that trait's docs carry the
+# argument); a shipped build of this crate still cannot mint a table.
 profile = { path = "../profile", features = ["test-support"] }
 # `step-export` for one row: the standing `CurvedShellClassification`
 # gate, recorded on a curved two-shell body that only the shell verb

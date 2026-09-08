@@ -73,10 +73,9 @@ spade = { workspace = true }
 # named by [dev-dependencies] only, here and everywhere else — which is
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
-# `test-support` ON: `profile::RawLoop` — the vertex-table fixture door
-# this crate's rows build their loops with — is gated behind it (the
-# trait's own docs carry the argument). Off by default and named only
-# here, so no shipped build of this crate can mint a table.
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
 profile = { path = "../profile", features = ["test-support"] }
 # `test-support` ON: the corpus swept elbow this crate's rows tessellate
 # is `sweep::test_support`'s. Five of the body's six constructions now

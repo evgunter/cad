@@ -35,10 +35,9 @@ topo = { path = "../../crates/topo" }
 [dev-dependencies]
 mesh = { path = "../../crates/mesh", features = ["budget"] }
 geom-core = { path = "../../crates/geom-core" }
-# `test-support` ON: `profile::RawLoop` — the vertex-table fixture door
-# this crate's rows build their loops with — is gated behind it (the
-# trait's own docs carry the argument). Off by default and named only
-# here, so no shipped build of this crate can mint a table.
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
 profile = { path = "../../crates/profile", features = ["test-support"] }
 sweep = { path = "../../crates/sweep" }
 test-utils = { path = "../../crates/test-utils" }

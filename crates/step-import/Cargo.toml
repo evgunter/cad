@@ -55,10 +55,9 @@ step-export = { path = "../step-export" }
 # above.
 sweep = { path = "../sweep" }
 # review-probe only
-# `test-support` ON: `profile::RawLoop` — the vertex-table fixture door
-# this crate's rows build their loops with — is gated behind it (the
-# trait's own docs carry the argument). Off by default and named only
-# here, so no shipped build of this crate can mint a table.
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
 profile = { path = "../profile", features = ["test-support"] }
 # #653's import route: a face whose iso side the FILE states as two
 # collinear EDGE_CURVEs must still mesh watertight, which only the

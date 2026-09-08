@@ -326,12 +326,8 @@ fn structural_walls_are_named() {
         })
     );
 
-    // Two walls this list used to name are gone, and they are named
-    // here as demonstrations in `bool9_probes.rs` instead: a fully
-    // filleted outline (every joint declared) and a declared joint
-    // whose leaving segment closes the loop straight. Both were "the
-    // seam cannot be declared" wearing different clothes, and the seam
-    // can be declared now.
+    // The two walls this list no longer names are demonstrated in
+    // `bool9_probes.rs` instead.
 
     // A same-carrier arc run that reaches the seam: `arc_continue` has
     // no closing form, so the §5-1 class survives here as a wall even

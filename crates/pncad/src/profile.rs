@@ -44,8 +44,18 @@
 //! spent: the tour authors through the lattice in every scene and no
 //! longer depends on `profile` at all, and the door is now gated out of
 //! every shipped build, so a downstream crate cannot reach it however
-//! it depends. `profile`'s own `raw_door_census` suite compiles a
-//! downstream crate to say so.
+//! it depends: in a build satisfying neither `test` nor `test-support`
+//! the trait ITEM is declared `pub(crate)`, so there is no re-export of
+//! it that compiles and nothing to reach.
+//!
+//! What says so, precisely, because an earlier draft of this sentence
+//! overclaimed: `profile`'s `raw_door_census` suite reads source and
+//! manifests — it compiles no downstream crate. The compiling
+//! instruments are CI's wasm32 row, a non-dev `cargo check` of the
+//! kernel and `editor-core` on every code run, and the E0365 a
+//! re-export of the shut arm's trait now produces. A gate that compiles
+//! a downstream witness is filed, not built
+//! (`work/bool/raw-door-compile-proof-needs-a-gate.md`).
 //!
 //! Authoring goes through the lattice: [`Open`], [`Start`], the
 //! binders, [`circle`], [`circle_split`].

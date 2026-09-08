@@ -65,18 +65,9 @@
 //!
 //! What that costs, stated: nothing here can tell a hand-written table
 //! from an emitted one, so nothing here enforces the lattice's rules.
-//! It is not meant to. The enforcement is upstream, at the door — the
-//! raw table door is gated out of every shipped build
-//! ([`crate::RawLoop`]), so the tables that reach production callers
-//! come from the lattice's emission layer or from
-//! [`crate::ProfileLoop::map`], and this gate re-checks them anyway.
-//!
-//! Two materialization doors were anticipated and do not exist: a STEP
-//! import face loop (`crates/step-import` never names this crate) and a
-//! persisted-document read (deserialization can never mint a
-//! `ProfileLoop` — `editor-core/src/persist/wire.rs`'s header says so
-//! at the site). Nothing is marked for them because there is nothing
-//! there to mark.
+//! It is not meant to. The enforcement is upstream, at the doors, and
+//! [`crate::ProfileLoop`]'s own docs are the one home for what those
+//! are — this gate re-checks whatever comes through them anyway.
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!

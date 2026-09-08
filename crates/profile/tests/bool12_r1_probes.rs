@@ -426,13 +426,9 @@ fn r1_the_construct_from_arrival_form_would_derive_a_tangent_departure_on_the_st
 // Q4 (style lane): a premise the unit invalidated one layer down.
 // ------------------------------------------------------------------
 
-/// **The observation this row was written for, discharged.** It pinned
-/// `LiftRefusal::AllJointsDeclared` — "no sharp joint to seam the chain
-/// at" — against the stadium the algebra authors with all four joints
-/// declared. The premise was the entry's: `.at(p)` declares nothing, so
-/// a loop with no undeclared joint had no seam. The CLOSER declares it
-/// (`Start.arrives_tangent()`), so the stadium seams at 0 and lifts;
-/// the refusal is retired.
+/// **The all-declared loop the algebra authors lifts**, seamed at 0
+/// with the closing target carrying joint 0's declaration. (This row
+/// pinned the opposite until BOOL-9; the PR carries why.)
 #[test]
 fn r1_the_lift_layer_lifts_the_all_tangent_loop_the_algebra_authors() {
     let t = Tol::witness();

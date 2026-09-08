@@ -418,7 +418,9 @@ fn chain_form(
         // The seam joint is the one the entry cannot declare, so the
         // closing target carries its declaration instead.
         let target = if k + 1 == n {
-            if declared.get(rotation).copied().unwrap_or(false) {
+            // `declared` is per-vertex and `rotation < n`, both by
+            // construction at the caller — indexing is the honest read.
+            if declared[rotation] {
                 Target::StartArriving
             } else {
                 Target::Start

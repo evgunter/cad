@@ -1049,17 +1049,13 @@ interior continuation (BOOL-8), the declared point-target form with its
 structural closer (BOOL-11), the declared arrival that admits a
 subdivision or G1 seam (BOOL-12, §6's revised PQ4), and the raw-door
 demotion (BOOL-9). The last of those executes the companion sentence
-above: `ProfileLoop`'s vertex table is minted by the lattice's emission
-layer, by `ProfileLoop::map` (an exact `f64 → T` re-materialization of
-a table that already exists), and — behind
-`cfg(any(test, feature = "test-support"))`, absent from every shipped
-build — by `RawLoop`, for the fixtures a data-gate refusal row needs
-and the lattice must not be able to author. Two further materialization
-doors were anticipated and **do not exist**: a STEP-import face loop
-(`crates/step-import` never names `profile`) and a persisted-document
-read (deserialization can never mint a `ProfileLoop`;
-`editor-core/src/persist/wire.rs`'s header says so at the site), so
-nothing is marked for them.
+above: `ProfileLoop`'s vertex table has one private constructor and
+three doors onto it — the lattice's emission layer, `ProfileLoop::map`
+(a table that already exists, read at another scalar), and, declared
+`pub` only under `test`/`test-support`, the fixture door `RawLoop`.
+`crates/profile/src/lib.rs`'s docs on the type are the ONE home for
+that list, including the two anticipated doors that turned out not to
+exist; everything else points there rather than restating it.
 
 `validate` is unchanged and stays the data checker for materialized
 loops. The disagreement this item records was never one rule with two
