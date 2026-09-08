@@ -186,7 +186,7 @@ REGISTER=(
   "crates/topo/src/euler_ring.rs|mekr_empty_target||1|unaudited"
   "crates/topo/src/merge_faces.rs|loop_winding||1|unaudited"
   "crates/topo/src/movefac.rs|movefac||1|unaudited"
-  "crates/topo/src/offset_axial.rs|nappe_signed||1|unaudited"
+  "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
   "crates/topo/src/pcurves.rs|validate_pcurves||2|unaudited"
   "crates/topo/src/pcurves.rs|walk_loop||1|unaudited"
