@@ -27,27 +27,148 @@ fn inner_variant(py: Python<'_>, tag: Option<&'static str>) -> Py<PyAny> {
     }
 }
 
-/// Raise `EditError` carrying the refusal's stable tag.
+/// A number whose conversion into Python is INFALLIBLE — the integer
+/// and float widths this door carries, whose `IntoPyObject` error type
+/// is `Infallible`. The match is what says so: it has one arm because
+/// there is one, and nothing here degrades to `None` for a reason that
+/// cannot arise.
+fn infallible<'py, T>(converted: Result<Bound<'py, T>, std::convert::Infallible>) -> Py<PyAny> {
+    match converted {
+        Ok(value) => value.into_any().unbind(),
+    }
+}
+
+/// Every attribute an `EditError` carries, for one arm.
 ///
-/// `variant` is the CARRIER's word — which edit refused — and
+/// The names are the kernel's own field names where the kernel gives
+/// one concept one name; where two arms name one concept differently
+/// the concept's clearest word wins and `crate::edit_payload` states
+/// the mapping at the arm. Every attribute is present at every raise
+/// site of the class — the document layer's refusals, the declare
+/// sugar's, and the three the boundary builds itself — so `getattr`
+/// never raises and a caller need not branch on `variant` first.
+fn edit_fields(
+    py: Python<'_>,
+    variant: &str,
+    inner: Option<&'static str>,
+    payload: &crate::edit_payload::EditPayload<'_>,
+) -> [(&'static str, Py<PyAny>); 23] {
+    let none = || py.None();
+    // A field whose own construction failed degrades to `None` rather
+    // than replacing the kernel's refusal with a boundary one: the
+    // caller asked why the edit refused, and that answer must survive
+    // a failure to build one of its attributes.
+    let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
+    let opt = |v: Option<PyResult<Py<PyAny>>>| v.map_or_else(none, obj);
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    let word = |w: Option<&str>| w.map_or_else(none, text);
+    let node =
+        |n: Option<d::RecipeNodeId>| opt(n.map(|n| Py::new(py, NodeId(n)).map(Py::into_any)));
+    let kind = |k: Option<pncad::select::EntityKind>| {
+        opt(k.map(|k| Py::new(py, super::select::entity_kind(k)).map(Py::into_any)))
+    };
+    let num = |v: Option<Py<PyAny>>| v.unwrap_or_else(none);
+
+    [
+        ("variant", text(variant)),
+        ("inner_variant", inner_variant(py, inner)),
+        ("node", node(payload.node)),
+        ("input", node(payload.input)),
+        ("referenced_by", node(payload.referenced_by)),
+        ("slot", word(payload.slot)),
+        ("param", word(payload.param.map(|p| p.0.as_str()))),
+        (
+            "name",
+            opt(payload.name.map(|n| name_text(py, n).map(|s| text(&s)))),
+        ),
+        ("key", word(payload.key)),
+        ("expected", word(payload.expected)),
+        ("found", word(payload.found)),
+        ("kind", word(payload.kind)),
+        ("from_kind", kind(payload.from_kind)),
+        ("to_kind", kind(payload.to_kind)),
+        (
+            "count",
+            num(payload.count.map(|n| infallible(n.into_pyobject(py)))),
+        ),
+        (
+            "first",
+            num(payload.first.map(|n| infallible(n.into_pyobject(py)))),
+        ),
+        (
+            "again",
+            num(payload.again.map(|n| infallible(n.into_pyobject(py)))),
+        ),
+        (
+            "value",
+            num(payload.value.map(|v| infallible(v.into_pyobject(py)))),
+        ),
+        (
+            "offered",
+            num(payload.offered.map(|v| match v {
+                d::DocParamValue::Continuous(v) => infallible(v.into_pyobject(py)),
+                d::DocParamValue::Count(n) => infallible(n.into_pyobject(py)),
+            })),
+        ),
+        (
+            "determinant",
+            num(payload.determinant.map(|v| infallible(v.into_pyobject(py)))),
+        ),
+        (
+            "path",
+            opt(payload.path.map(|p| {
+                pyo3::types::PyTuple::new(py, p.iter().map(|i| u32::from(*i)))
+                    .map(|t| t.into_any().unbind())
+            })),
+        ),
+        ("value_path", word(payload.value_path)),
+        (
+            "pin",
+            opt(payload
+                .pin
+                .map(|p| Py::new(py, super::store::ContentPin(p)).map(Py::into_any))),
+        ),
+    ]
+}
+
+/// Raise `EditError` carrying the refusal's stable tag and the arm's
+/// payload.
+///
+/// `variant` is the CARRIER's word — which edit refused —
 /// `inner_variant` is the arm of the refusal that word holds, `None`
-/// where it holds none. Both are always present.
+/// where it holds none, and the rest is the arm's payload
+/// (`crate::edit_payload`). All of them are always present.
 pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
-    let tag = edit_error_tag(err);
     typed_err(
         py,
         ErrorClass::Edit,
         // `EditError` implements `Display`: the human message is real
         // prose; the machine payload is the `variant` tag (see
-        // `crate::tags`).
+        // `crate::tags`) and the arm's fields.
         err.to_string(),
-        &[
-            ("variant", PyString::new(py, tag).unbind().into_any()),
-            (
-                "inner_variant",
-                inner_variant(py, edit_inner_variant_tag(err)),
-            ),
-        ],
+        &edit_fields(
+            py,
+            edit_error_tag(err),
+            edit_inner_variant_tag(err),
+            &crate::edit_payload::edit_payload(err),
+        ),
+    )
+}
+
+/// Raise `EditError` for a refusal the BOUNDARY built — a name that
+/// would not serialize, an insert that minted no id, a placement rule
+/// spelled through the wrong constructor.
+///
+/// It has a `variant` and nothing else to carry, and the attributes
+/// the document layer's arms fill are present and `None`: the class's
+/// shape is one shape at every raise site, whichever side of the
+/// boundary decided it.
+fn boundary_edit_err(py: Python<'_>, variant: &'static str, message: String) -> PyErr {
+    typed_err(
+        py,
+        ErrorClass::Edit,
+        message,
+        &edit_fields(py, variant, None, &crate::edit_payload::EditPayload::NONE),
     )
 }
 
@@ -57,34 +178,26 @@ pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
 /// door's own prose (its `Edit` arm forwards the document layer's
 /// message, so one refusal keeps one voice), and the machine payload
 /// is the stable tag (`crate::tags::declare_error_tag` — the `Edit`
-/// arm carries the document layer's own tag through).
+/// arm carries the document layer's own tag through) plus that arm's
+/// fields.
 fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
+    // The `Edit` arm carries the document layer's refusal whole, so
+    // its inner arm and its payload cross too; the sugar's own two
+    // arms have neither.
+    let (inner, payload) = match err {
+        pncad::select::DeclareError::Edit(inner) => (
+            edit_inner_variant_tag(inner),
+            crate::edit_payload::edit_payload(inner),
+        ),
+        pncad::select::DeclareError::NoFindings | pncad::select::DeclareError::NoMintedId => {
+            (None, crate::edit_payload::EditPayload::NONE)
+        }
+    };
     typed_err(
         py,
         ErrorClass::Edit,
         err.to_string(),
-        &[
-            (
-                "variant",
-                PyString::new(py, crate::tags::declare_error_tag(err))
-                    .unbind()
-                    .into_any(),
-            ),
-            // The `Edit` arm carries the document layer's refusal
-            // whole, so its inner arm crosses too; the sugar's own two
-            // arms have none.
-            (
-                "inner_variant",
-                inner_variant(
-                    py,
-                    match err {
-                        pncad::select::DeclareError::Edit(inner) => edit_inner_variant_tag(inner),
-                        pncad::select::DeclareError::NoFindings
-                        | pncad::select::DeclareError::NoMintedId => None,
-                    },
-                ),
-            ),
-        ],
+        &edit_fields(py, crate::tags::declare_error_tag(err), inner, &payload),
     )
 }
 
@@ -488,17 +601,10 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 /// from either round-trips through the other.
 pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> PyResult<String> {
     serde_json::to_string(name).map_err(|err| {
-        typed_err(
+        boundary_edit_err(
             py,
-            ErrorClass::Edit,
+            "name_serialize",
             format!("a stable name failed to serialize: {err}"),
-            &[
-                (
-                    "variant",
-                    PyString::new(py, "name_serialize").unbind().into_any(),
-                ),
-                ("inner_variant", py.None().into_any()),
-            ],
         )
     })
 }
@@ -852,18 +958,7 @@ impl Doc {
         self.insert_node(node.inner.clone())
             .map_err(|err| edit_err(py, &err))?
             .ok_or_else(|| {
-                typed_err(
-                    py,
-                    ErrorClass::Edit,
-                    "an insert minted no node id",
-                    &[
-                        (
-                            "variant",
-                            PyString::new(py, "no_minted_id").unbind().into_any(),
-                        ),
-                        ("inner_variant", py.None().into_any()),
-                    ],
-                )
+                boundary_edit_err(py, "no_minted_id", "an insert minted no node id".to_owned())
             })
     }
 
@@ -2162,25 +2257,12 @@ impl Node {
     ) -> PyResult<Self> {
         let node = d::Node::placed_union(input.0, d::Expr::count(count), kind.0.clone())
             .ok_or_else(|| {
-                typed_err(
+                boundary_edit_err(
                     py,
-                    ErrorClass::Edit,
+                    crate::tags::placement_rule_fault_tag(&d::PlacementRuleFault::CountSpelling),
                     "an explicit placement rule carries its own placements, so it has no \
-                     count slot: use Node.placed_union_at",
-                    &[
-                        (
-                            "variant",
-                            PyString::new(
-                                py,
-                                crate::tags::placement_rule_fault_tag(
-                                    &d::PlacementRuleFault::CountSpelling,
-                                ),
-                            )
-                            .unbind()
-                            .into_any(),
-                        ),
-                        ("inner_variant", py.None().into_any()),
-                    ],
+                     count slot: use Node.placed_union_at"
+                        .to_owned(),
                 )
             })?;
         Ok(Self { inner: node })

@@ -690,6 +690,33 @@ try:
 except EditError as edit_refusal:
     which_edit: str = edit_refusal.variant
     which_edit_arm: str | None = edit_refusal.inner_variant
+    # ...and the arm's PAYLOAD beside them, every attribute present and
+    # each typed. A delete that would dangle carries the two node
+    # roles; the rest are `None` here, which is a value the stub types
+    # and not a missing attribute.
+    dangling: NodeId | None = edit_refusal.node
+    consumer: NodeId | None = edit_refusal.referenced_by
+    operand: NodeId | None = edit_refusal.input
+    which_slot: str | None = edit_refusal.slot
+    which_param: str | None = edit_refusal.param
+    which_name: str | None = edit_refusal.name
+    which_key: str | None = edit_refusal.key
+    wanted_dim: str | None = edit_refusal.expected
+    offered_dim: str | None = edit_refusal.found
+    which_attr: str | None = edit_refusal.kind
+    rebound_from: EntityKind | None = edit_refusal.from_kind
+    rebound_to: EntityKind | None = edit_refusal.to_kind
+    members: int | None = edit_refusal.count
+    first_at: int | None = edit_refusal.first
+    again_at: int | None = edit_refusal.again
+    refused_eps: float | None = edit_refusal.value
+    refused_value: float | int | None = edit_refusal.offered
+    det: float | None = edit_refusal.determinant
+    address: tuple[int, ...] | None = edit_refusal.path
+    inside_meta: str | None = edit_refusal.value_path
+    already: ContentPin | None = edit_refusal.pin
+    if dangling is not None:
+        narrowed_node: NodeId = dangling
 
 # The one refusal on this surface whose discriminant is a SEQUENCE.
 # `findings` is a list, its length is `failure_count`, and each entry's

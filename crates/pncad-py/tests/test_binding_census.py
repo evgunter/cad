@@ -799,6 +799,22 @@ BOUND_AS = {
     # `EditError.variant` — `duplicate_input` and `too_few_members`.
     # The third renderer is the load validator's `SnapshotError`, which
     # this façade does not carry at all.
+    # The edit door's PAYLOAD, projected at LIB-DOORS-1. `SlotId` is
+    # `EditError.slot`, one stable word per named slot — the
+    # measurement is that a caller who could read WHICH edit refused
+    # could not read which SLOT it refused at, and six arms carry one.
+    # `AttrKind` is `EditError.kind` at the two appearance arms;
+    # `ExprPath` is `EditError.path`, whose two halves ride the `node`
+    # and `slot` attributes that already name them, so the address
+    # crosses whole across three attributes rather than as a fourth
+    # type. All three were `NOT_CARRIED` at the façade under "the
+    # curated face is a different shape", and for `AttrKind` and
+    # `ExprPath` the reading did not hold: they are `EditError`
+    # payloads with no curated door of their own, which is the payload
+    # rule `ProgramRefusal` and `NamingError` moved under.
+    "AttrKind": "EditError.kind",
+    "ExprPath": "EditError.path",
+    "SlotId": "EditError.slot",
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "PlacementRuleFault": "EditError.variant",
@@ -983,7 +999,7 @@ FAMILIES: dict[str, str] = {
 #:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
 #:   `BOUND_AS` at that spelling) and whose `message` is the
 #:   exception's message — the resolver's own diagnosis, prose because
-#:   that is what it is;
+#:   that is what it is.
 #: - *An option struct that became keyword arguments.* `StepOptions` is
 #:   `Evaluation.step_string`'s six keywords, one per field and each
 #:   defaulting to the Rust default — a correspondence the crate's own
@@ -1048,9 +1064,15 @@ FAMILIES: dict[str, str] = {
 #:   `bulge_from_center`/`bulge_from_via` into the
 #:   `Center`/`Via` spec modes that are bound. `Dimension` is what
 #:   `DocParam.length`/`angle`/`count`/`scalar` choose between;
-#:   `SlotId` is what `DocEdit.bind_count_param` names implicitly;
 #:   `ProfileDoc` is the alias `Node.profile` builds from loops;
 #:   `SplitSide` is the position in `Value.split`'s tuple.
+#:
+#:   **`SlotId` left this bullet at LIB-DOORS-1** and is in `BOUND_AS`
+#:   below. Its sentence stayed true and stopped being the whole
+#:   answer: Python still ADDRESSES a slot through a door that names
+#:   it, and it now READS one off a refusal — `EditError.slot`, a
+#:   stable word per slot. Addressing and reading are two questions,
+#:   and a roster that compares names has to answer the second.
 #: - *A write sink Python does not need.* `write_step` takes a Rust
 #:   `Write`; `Evaluation.step_string` answers the text and Python
 #:   writes it. (`write_ascii`/`write_binary` are not here either, and
@@ -1301,6 +1323,11 @@ FAMILIES: dict[str, str] = {
 #: which four Count-dimensioned slots contradict. Closing the family
 #: added `DocEdit.bind_instance_param` beside it, one door per slot,
 #: keeping the shape decision rather than crossing the enum.
+#:
+#: That row has since moved into `BOUND_AS` (LIB-DOORS-1), and the
+#: paragraph above is unchanged by the move: the door-per-slot
+#: decision it records is about ADDRESSING a slot, and what moved is
+#: reading one off a refusal.
 #:
 #: The third thing is not a name at all, and is the measurement worth
 #: keeping here: closing this family REQUIRED binding a door the
@@ -1632,7 +1659,6 @@ NOT_BOUND = {
     "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     "Side": SHAPE,
-    "SlotId": SHAPE,
     "SolidName": SHAPE,
     "SplitSide": SHAPE,
     "StableName": SHAPE,
@@ -1645,10 +1671,12 @@ NOT_BOUND = {
     "Tolerance": SHAPE,
     "Vec2": SHAPE,
     "Vec3": SHAPE,
-    # The slot vocabulary's 3-vector families, beside `Axis3` and
-    # `SlotId` and for their reason: Python addresses a slot through
-    # its own spelling, so the Rust enum that groups three of them is
-    # not a name a Python caller needs.
+    # The slot vocabulary's 3-vector families, beside `Axis3`: Python
+    # addresses a slot through a door that names it, so the Rust enum
+    # grouping three of them is not a name a Python caller needs. The
+    # COMPONENT is not lost with it — `EditError.slot` spells the axis
+    # into the word (`origin_x`), so a family and its axis read off
+    # one string rather than off a type Python would have to hold.
     "VectorSlot": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
