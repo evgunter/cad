@@ -262,7 +262,7 @@ impl Workspace {
     /// A store IS a `PartResolver` (`pncad::workspace`'s own impl), so
     /// nothing is adapted here; what this door adds is a SNAPSHOT.
     /// The kernel wants an owned `Arc<dyn PartResolver>` and the
-    /// Python object is mutable through `create`/`resave`, so the scan
+    /// Python object is mutable through its write doors, so the scan
     /// is copied as of the call: the evaluation resolves against the
     /// store the caller passed, and a `create` made while it runs
     /// cannot change what it already resolved. The copy is the id →
