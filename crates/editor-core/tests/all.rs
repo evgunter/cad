@@ -122,6 +122,10 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "eval4_accept_funnel.rs"]
 mod eval4_accept_funnel;
+#[path = "eval6_placers_over_instances.rs"]
+mod eval6_placers_over_instances;
+#[path = "eval6_placers_over_instances_interval.rs"]
+mod eval6_placers_over_instances_interval;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]

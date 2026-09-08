@@ -1,23 +1,28 @@
 """AUTHORING an assembly from Python: the tour's bench, built from nothing.
 
-`test_assembly_eval.py` is this file's other half. It takes the tour's
-own committed corpus through the persistence door and evaluates it,
-because at LIB-G18a Python could evaluate an assembly and not write
-one. Here nothing arrives from disk that this file did not put there:
-two part documents are authored, written into a workspace, instantiated
-into two assembly documents, mated, solved, gathered and gated — the
-whole of the audit's rows 46 and 47 through the public doors.
+`test_assembly_eval.py` is this file's other half. It writes the same
+scene into a store and evaluates what it reads back; here nothing goes
+near disk that this file did not put there. Two part documents are
+authored, written into a workspace, instantiated into two assembly
+documents, mated, solved, gathered and gated — the whole of the audit's
+rows 46 and 47 through the public doors.
 
-THE ORACLE, AND WHERE IT COMES FROM
------------------------------------
+THE SCENE IS `bench_scene.py`, AND THE ORACLE COMES FROM THE TOUR
+-----------------------------------------------------------------
 `demos/tour/src/assembly.rs` is the scene these documents ARE, and its
-own assertions are the oracle: the layout's five disjoint solids of
-`4 x post + shelf`, the stand's cluster of three instances with the
-earliest as gauge, the far post's solved translation, the identity
-rotation two aligned frame-coincidence mates compose to, two minted
-declarations, and a gate that certifies. Every number below is that
-scene's, re-derived from the same five base dimensions rather than
+own assertions are the oracle: the layout's three disjoint solids of
+`PATTERN_COUNT x post + shelf`, the stand's cluster of three instances
+with the earliest as gauge, the far post's solved translation, the
+identity rotation two aligned frame-coincidence mates compose to, two
+minted declarations, and a gate that certifies. Every number below is
+that scene's, re-derived from the same base dimensions rather than
 copied as a total.
+
+The constants, the two part shapes and the two assembly recipes live
+in `bench_scene.py`, which both this file and `test_assembly_eval.py`
+build from — one definition, so the two cannot disagree about what the
+bench is. `test_assembly_eval.TestTheSceneIsTheToursOwn` is what holds
+that module to the tour, and its header names what that reaches.
 
 TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
 ---------------------------------------------------------------
@@ -27,7 +32,7 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
    solids is the sum the shell count is being used to check, plus the
    per-instance name set, which is structural. Binding a solid count
    is a `Body` question and not this unit's.
-2. Nothing else. "Instance 2's post cap sits at (x, y, z)" — the
+2. Nothing else. "Instance 1's post cap sits at (x, y, z)" — the
    scene's name-lookup stop — was the second entry here until
    LIB-B-READBACK bound `face_frame`; it is now asserted below,
    against the placement arithmetic rather than against a
@@ -58,7 +63,7 @@ Each is bound and tagged; a reach appears when some other door does.
 
 THE ONE SUBSTITUTION, STATED
 ----------------------------
-The layout's four posts are `Node.placed_union`, not `Node.Pattern`.
+The layout's placed posts are `Node.placed_union`, not `Node.Pattern`.
 `Pattern`'s value is a PLURAL payload and stays deliberately unbound
 (G8's reason, unchanged); `placed_union` says the same placed family as
 ONE node whose value is an ordinary body, and over a disjoint
@@ -68,12 +73,30 @@ sentence about it. It is the same substitution rows 43-45 are `YES*`
 on.
 """
 
-import math
 import tempfile
 import unittest
 from pathlib import Path
 
+import bench_scene
 import pncad
+from bench_scene import (
+    PATTERN_COUNT,
+    PATTERN_SPACING,
+    POST_HEIGHT,
+    POST_SEAT,
+    POST_SECTION,
+    POST_VOLUME,
+    SEAT_A,
+    SEAT_B,
+    SHELF_LENGTH,
+    SHELF_THICKNESS,
+    SHELF_VOLUME,
+    cap_selector,
+    mate_frame,
+    one,
+    prism,
+    seat,
+)
 from pncad import (
     Alignment,
     AxisSense,
@@ -82,17 +105,13 @@ from pncad import (
     Doc,
     DocEdit,
     DocRef,
-    EntityKind,
     Frame,
     MateFrame,
     MatePrimitive,
     MateRole,
-    NamePat,
     Node,
     PatternKind,
-    SegPat,
     SegTag,
-    Selector,
     Workspace,
     assemble,
     content_pin,
@@ -103,83 +122,6 @@ from pncad import (
     solve_document,
 )
 
-# The scene's five base dimensions, in metres.
-POST_SECTION = 0.12
-POST_HEIGHT = 0.5
-SHELF_LENGTH = 0.9
-SHELF_DEPTH = 0.30
-SHELF_THICKNESS = 0.04
-
-# Derived exactly as the scene derives them: where the shelf's
-# underside meets each post, in SHELF coordinates, and where a post's
-# top meets it in POST coordinates. The posts sit FLUSH with the
-# shelf's two ends, which is the obvious way to draw a bench.
-SEAT_A = (POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0)
-SEAT_B = (SHELF_LENGTH - POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0)
-POST_SEAT = (POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT)
-
-POST_VOLUME = POST_SECTION * POST_SECTION * POST_HEIGHT
-SHELF_VOLUME = SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
-
-PATTERN_COUNT = 4
-PATTERN_STEP = 0.2
-
-
-def prism(label, width, depth, height):
-    """A rectangular prism part document, rooted at the origin."""
-    doc = Doc(label)
-    profile = doc.insert(
-        Node.polygon(
-            [
-                (0 * m, 0 * m),
-                (width * m, 0 * m),
-                (width * m, depth * m),
-                (0 * m, depth * m),
-            ],
-            plane=doc.sketch_frame(elevation=0 * m),
-        )
-    )
-    doc.insert(Node.extrude(profile, height * m))
-    return doc
-
-
-def cap_selector(side, wrapper=None):
-    """A cap face, optionally seen through one or two name wrappers.
-
-    The whole point of the wrapper argument: a part's own cap name and
-    the same face seen through the instance that placed it are the SAME
-    query one nesting deeper. Nothing here reads inside a name.
-    """
-    pat = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
-    for tag in reversed(wrapper or []):
-        pat = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(tag).of([pat]))
-    return Selector.of(pat)
-
-
-def one(found):
-    assert len(found) == 1, f"expected exactly one name, got {found}"
-    return found[0]
-
-
-def mate_frame(origin):
-    """The scene's mate frames: +z axis, +x clocking reference."""
-    return MateFrame(
-        origin=(origin[0] * m, origin[1] * m, origin[2] * m),
-        axis=(0.0, 0.0, 1.0),
-        reference=(1.0, 0.0, 0.0),
-    )
-
-
-def seat(a_frame, b_frame, primitive=None):
-    """The scene's alignment: two frames meeting, axes aligned, no
-    clocking rider."""
-    return Alignment(
-        mate_frame(a_frame),
-        mate_frame(b_frame),
-        primitive or MatePrimitive.frame_coincidence(),
-        AxisSense.Aligned,
-    )
-
 
 class BenchWorkspace(unittest.TestCase):
     """A store holding the two part documents, authored here."""
@@ -188,59 +130,23 @@ class BenchWorkspace(unittest.TestCase):
         self.dir = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(self.dir, True))
         self.ws = Workspace(str(self.dir))
-        self.post = prism("pncad-demo-post", POST_SECTION, POST_SECTION, POST_HEIGHT)
-        self.shelf = prism(
-            "pncad-demo-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS
+        (self.post, self.post_ref), (self.shelf, self.shelf_ref) = bench_scene.parts(
+            self.ws
         )
-        self.ws.create(self.post)
-        self.ws.create(self.shelf)
-        self.post_ref = DocRef(self.post.id, content_pin(self.post))
-        self.shelf_ref = DocRef(self.shelf.id, content_pin(self.shelf))
 
     def instance_face(self, doc, node, side):
-        """A face of an instance's product, in the ASSEMBLY's names.
-
-        The mate-authoring flow, and the reason no name has to be
-        hand-composed: instantiate, evaluate against the store, then
-        SELECT on the instantiate node. What comes back is the part's
-        own name already wrapped at the instance that placed it, which
-        is what a mate reference is.
-        """
-        found = evaluate(doc, resolver=self.ws).select(
-            node, cap_selector(side, [SegTag.InPart])
-        )
-        return one(found)
+        """A face of an instance's product, in the ASSEMBLY's names —
+        the scene's own door, at this case's store."""
+        return bench_scene.instance_face(self.ws, doc, node, side)
 
 
 class TestBenchLayout(BenchWorkspace):
-    """Row 47: the flat-pack. Four posts on their side and the shelf
+    """Row 47: the flat-pack. The posts on their side and the shelf
     beside them, nothing touching — A5's disjoint half."""
 
     def layout(self):
-        doc = Doc("pncad-demo-layout")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        # The post is laid on its SIDE: a rotation, which is why the
-        # frame stores a general linear part and not a translation.
-        doc.apply(
-            DocEdit.set_placement(
-                post_i,
-                Frame.rotate_then_translate(
-                    (0.0, 1.0, 0.0),
-                    -math.pi / 2 * pncad.rad,
-                    (POST_HEIGHT * m, 0 * m, 0 * m),
-                ),
-            )
-        )
-        family = doc.insert(
-            Node.placed_union(
-                post_i,
-                PATTERN_COUNT,
-                PatternKind.linear((0.0, 1.0, 0.0), PATTERN_STEP * m),
-            )
-        )
-        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
-        doc.apply(
-            DocEdit.set_placement(shelf_i, Frame.translation((0 * m, 0.9 * m, 0 * m)))
+        doc, post_i, family, shelf_i = bench_scene.layout(
+            self.post_ref, self.shelf_ref
         )
         return doc, family, post_i, shelf_i
 
@@ -283,8 +189,8 @@ class TestBenchLayout(BenchWorkspace):
         )
 
     def test_a_patterned_caps_frame_is_where_the_placement_puts_it(self):
-        """The scene's name-lookup stop: where does instance 2's post
-        cap SIT?
+        """The scene's name-lookup stop: where does the first
+        NON-IDENTITY instance's post cap SIT?
 
         The oracle is the model asked twice, never a transcribed
         coordinate. The PART document answers where its own cap sits,
@@ -321,7 +227,7 @@ class TestBenchLayout(BenchWorkspace):
 
         # Rung 3: the pattern steps +y once per instance.
         expected = [
-            (placed[0], placed[1] + i * PATTERN_STEP, placed[2])
+            (placed[0], placed[1] + i * PATTERN_SPACING, placed[2])
             for i in range(PATTERN_COUNT)
         ]
 
@@ -336,11 +242,14 @@ class TestBenchLayout(BenchWorkspace):
             for got_axis, want_axis in zip(got, want, strict=True):
                 self.assertAlmostEqual(got_axis, want_axis, delta=1e-12)
 
-        # And the scene's own sentence, which is about instance 2:
-        # two 200 mm steps along +y put its post between y = 0.4 and
-        # y = 0.4 + section, and exactly one cap frame lies there.
-        band = [o for o in read if 0.4 <= o[1] <= 0.4 + POST_SECTION]
-        self.assertEqual(len(band), 1, f"instance 2's cap alone: {read}")
+        # And the scene's own sentence, which is about instance 1 —
+        # the first instance a placement must actually have moved,
+        # because index 0 may be handed back verbatim. One step along
+        # +y puts its post between y = PATTERN_SPACING and
+        # y = PATTERN_SPACING + section, and one cap frame lies there.
+        low = PATTERN_SPACING
+        band = [o for o in read if low <= o[1] <= low + POST_SECTION]
+        self.assertEqual(len(band), 1, f"instance 1's cap alone: {read}")
 
     def test_a_cap_name_denotes_one_face_and_says_so_before_it_is_read(self):
         """`denotation` is the door to ask BEFORE a frame: the frame
@@ -375,28 +284,9 @@ class TestBenchStand(BenchWorkspace):
     authored frame, and the other two poses are solved."""
 
     def stand(self, primitive=None, class_=ContactClass.Rest):
-        doc = Doc("pncad-demo-stand")
-        post_a = doc.insert(Node.instantiate_part(self.post_ref))
-        doc.apply(
-            DocEdit.set_placement(
-                post_a,
-                Frame.translation(
-                    (0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m)
-                ),
-            )
+        return bench_scene.stand(
+            self.ws, self.post_ref, self.shelf_ref, primitive, class_
         )
-        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
-        post_b = doc.insert(Node.instantiate_part(self.post_ref))
-        a_top = self.instance_face(doc, post_a, CapEnd.End)
-        b_top = self.instance_face(doc, post_b, CapEnd.End)
-        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        mate_1 = doc.insert(
-            Node.mate(post_a, a_top, shelf_i, s_bottom, class_, seat(POST_SEAT, SEAT_A, primitive))
-        )
-        mate_2 = doc.insert(
-            Node.mate(shelf_i, s_bottom, post_b, b_top, class_, seat(SEAT_B, POST_SEAT, primitive))
-        )
-        return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
 
     def test_the_mates_couple_the_three_instances_into_one_cluster(self):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
@@ -487,7 +377,7 @@ class TestBenchStand(BenchWorkspace):
         far = solved.placement(doc, post_b)
         want = (
             SEAT_B[0] - SEAT_A[0],
-            (SHELF_DEPTH - POST_SECTION) / 2.0,
+            bench_scene.GAUGE_OFFSET_Y,
             0.0,
         )
         for got, expected in zip(far.origin, want, strict=True):
@@ -828,7 +718,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         doc, post_i, _ = self.two_instances()
         # A part legitimately changes on disk. The assembly still pins
         # the old version and is never silently retargeted.
-        taller = prism("pncad-demo-post", POST_SECTION, POST_SECTION, POST_HEIGHT * 2)
+        taller = bench_scene.post(height=POST_HEIGHT * 2)
         self.ws.resave(taller)
         with self.assertRaises(pncad.EvaluationError) as caught:
             evaluate(doc, resolver=self.ws).value(post_i)
@@ -863,9 +753,7 @@ class TestPinUpdateDoor(BenchWorkspace):
 
     def thicker_shelf(self):
         """The shelf, changed on disk. Same id, new content, new pin."""
-        thicker = prism(
-            "pncad-demo-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS * 2
-        )
+        thicker = bench_scene.shelf(thickness=SHELF_THICKNESS * 2)
         self.ws.resave(thicker)
         return thicker
 
@@ -918,9 +806,7 @@ class TestPinUpdateDoor(BenchWorkspace):
         # lands is the version the store held at the call — a
         # snapshot, not a subscription. This is the contract stated at
         # the door, executed.
-        second = prism(
-            "pncad-demo-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS * 3
-        )
+        second = bench_scene.shelf(thickness=SHELF_THICKNESS * 3)
         self.ws.resave(second)
         for edit in edits:
             doc.apply(edit)
@@ -1028,9 +914,7 @@ class TestRefactorings(BenchWorkspace):
 
     def test_inline_crosses_the_seam_at_the_call_and_refuses_a_stale_pin(self):
         doc, _, shelf_i = self.layout()
-        thicker = prism(
-            "pncad-demo-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS * 2
-        )
+        thicker = bench_scene.shelf(thickness=SHELF_THICKNESS * 2)
         self.ws.resave(thicker)
         with self.assertRaises(pncad.InlineError) as caught:
             pncad.inline(doc, shelf_i, self.ws)
@@ -1124,9 +1008,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         doc.apply(
             DocEdit.set_placement(
                 post_a,
-                Frame.translation(
-                    (0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m)
-                ),
+                Frame.translation((0 * m, bench_scene.GAUGE_OFFSET_Y * m, 0 * m)),
             )
         )
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
