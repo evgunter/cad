@@ -383,3 +383,23 @@ fence). Reported, not fixed: LIB's `prose_census.rs` "two `Verb`
 types" sentence and `py/path.rs:24`; DOCM's `node.rs:1497`. The lane
 flagged that `crates/verbs/README.md` (the ratified page) carries no
 clause for the convention; the review is asked whether one is owed.
+
+## EVAL-5 reviewed; fix pass pushed (2026-09-08, PR 2168, `7c84f6b02`)
+
+Style review MERGEABLE-WITH-FIXES. MINOR: the two convention
+sentences disagreed on scope (the profile one bound the owning
+crate's own bare `Verb`) — both now say one rule: outside the owning
+crate, prose spells the crate and code imports at most one of the two
+per file; the rule is HELD by a test in `editor-core`'s `verbs`
+module (S4: an invariant nothing enforced), which walks the crate's
+sources. "Verb vocabulary" was a second collision the `\bVerb\b`
+sweep could not see (S2) — EVAL's files now say whose; profile's
+four are S-BOOL's. The paragraph moved to its own `# The name`
+section after the crate's positive statement (S7). One parenthetical
+on `crates/verbs/README.md`'s "One verb vocabulary" heading (S6; a
+naming clarification with no design implication). The item's stale
+reader list and the spec's wrong "already qualified" claim corrected
+on the item (two bare `use` imports in `viewer` and `pncad-py`, which
+the convention admits). Reported to LIB: `prose_census.rs` carries
+the "two `Verb` types" sentence four times, not two. Declined: the
+rename (S5) — S-BOOL's; the PR body recommends `StepVerb` to them.
