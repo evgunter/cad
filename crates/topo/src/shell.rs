@@ -8,6 +8,16 @@
 //!
 //! # The sealed arm, and what it deliberately does not run
 //!
+//! **Shelling is a PER-SOLID verb, and it applies to every solid the
+//! operand has.** `S − offset_inward(S, t)` is defined solid by solid,
+//! so on a body of `N` solids each `Sᵢ` becomes its own thin solids —
+//! one per boundary shell of `Sᵢ` — and the result body holds all of
+//! them. Nothing crosses between solids: a solid's cavity is inside
+//! its own material, its clearance is its own, its offset door is its
+//! own, and a designation names faces on any solid. An operand with no
+//! solid at all has nothing to thicken ([`ShellError::NoSolid`]).
+//! Everything below is stated for one solid and runs once per solid.
+//!
 //! `shell(body, t)` is `body − offset_inward(body, t)` BY DEFINITION,
 //! and that definition is boolean-family. Its EXECUTION is not: when
 //! every face's offset certifies, the two boundaries provably do not
@@ -20,7 +30,10 @@
 //! 1. one clone, every boundary face moved to its inward offset — the
 //!    result is the material to remove, a positively oriented closed
 //!    body. **Two doors do that, and which one runs is decided by the
-//!    body**: an ALL-PLANAR operand goes through
+//!    SOLID** — a box beside a vessel is neither all-planar nor axial
+//!    while each of the two is one of those, so a whole-body reading
+//!    would refuse the vessel's corners it solves alone: an
+//!    ALL-PLANAR solid goes through
 //!    [`crate::offset_planes_together`], which moves every chart at
 //!    once and solves each corner against all the moved planes meeting
 //!    it; anything with a curved face goes chart by chart through
@@ -30,8 +43,9 @@
 //!    the planar half of that class is repaired and the curved half is
 //!    not;
 //! 2. that body inserted through the shared void-insertion door
-//!    ([`crate::boolean::voids::insert_void`]) with carried evidence —
-//!    every shell of it, grafted under the operand's one solid;
+//!    ([`crate::boolean::voids::insert_voids`]) with carried evidence —
+//!    every shell of it, grafted under the operand solid its own solid
+//!    was cloned from, one destination per cavity solid;
 //! 3. **one thin solid per operand shell.** A hollow operand's clone
 //!    has a shell per operand shell, and once the door has reverted it
 //!    the outer shell's eroded twin faces inward — a cavity of the outer
@@ -83,8 +97,11 @@
 //! unbounded, so no per-face decide can see two walls marching through
 //! each other. That collision class is gated separately and in closed
 //! form by [`wall_clearance`], which walks every planar face of every
-//! shell — a void wall facing the outer wall, or two voids facing each
-//! other, across less than `2t` refuses exactly as two outer walls do —
+//! shell OF ONE SOLID — a void wall facing the outer wall, or two
+//! voids facing each other, across less than `2t` refuses exactly as
+//! two outer walls do, while two faces of DIFFERENT solids never gate
+//! at any separation, because there is no material between two solids
+//! to be too thin —
 //! with each face's footprint grown by `t` before the separation test,
 //! because an inward offset reaches past every concave edge by `t`: a
 //! pair whose operand footprints are disjoint by less than `2t` across
@@ -139,10 +156,12 @@
 //! correspondence anyway, so no consumer leans on the identity. Cavity
 //! entities are born in the cavity clone, whose keys are the operand's
 //! for the same reason, and cross into the result through
-//! [`crate::boolean::voids::insert_void`]'s graft map — the only
+//! [`crate::boolean::voids::insert_voids`]'s graft map — the only
 //! bridge, read at insertion time. [`ShellNaming::thickened`] says
 //! which result SOLID each operand shell's wall became: the operand's
-//! own solid for its outer shell, a minted one per void.
+//! own solid for its outer shell, a minted one per void. On a
+//! multi-solid operand every solid contributes its own rows, in
+//! shell-arena order.
 //!
 //! **The rows are HISTORICAL.** A result key a row names may have died
 //! in a LATER step: a designated face's inner twin is recorded when the
@@ -184,8 +203,14 @@
 //!
 //! The result is CLOSED, and the thin solid that carries the
 //! designation has one shell: the designated face is now annular — the
-//! rim, where the wall thickness shows. (A hollow operand's other thin
-//! solids keep their two.)
+//! rim, where the wall thickness shows. (Every other thin solid, of
+//! this operand solid or of any other, keeps its two.)
+//!
+//! A designation names a face on ANY solid, and each opens the thin
+//! solid that face's wall became. Which solid the surgery runs in is
+//! read off the RESULT — the thin solids are partitioned before it —
+//! so a void designation's face and its counterpart are found in the
+//! minted solid they moved to, and the lift's door is that solid's.
 //!
 //! **A designation on a VOID face** of a hollow operand runs the same
 //! four steps one solid over — the sealed construction has already put
@@ -248,13 +273,13 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol}
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::voids::{VoidContainment, VoidEvidence, VoidInsertError, insert_void};
+use crate::boolean::voids::{VoidContainment, VoidEvidence, VoidInsertError, insert_voids};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey as HeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
     VertexKey,
 };
 use crate::euler::EulerOpError;
-use crate::props::{PropsQuadLane, ShellRole, classify_shells};
+use crate::props::{PropsQuadLane, ShellRole};
 use crate::replace_face::ReplaceFaceError;
 use crate::validate::{ValidationError, validate_geometric};
 
@@ -276,40 +301,37 @@ pub enum ShellError<T: Real> {
         /// The thickness as given, echoed as data.
         thickness: T,
     },
-    /// The body is not a single solid. Shelling is a per-solid verb:
-    /// the moved clone is inserted into ONE solid and the thin solids
-    /// are partitioned out of it. A hollow operand — one solid, several
-    /// shells — is NOT this refusal; it thickens every boundary. A
-    /// multi-solid operand would need either a designation of which
-    /// solid to shell, which this verb does not take, or a per-solid
-    /// composition that inserts each solid's own clone into that solid;
-    /// neither exists yet, and the count is refused rather than guessed
-    /// at.
-    NotOneSolid {
-        /// How many solids the body carries.
-        solids: usize,
-    },
-    /// The operand's shells could not be told apart into one outer
+    /// The body carries no solid, so there is nothing to thicken.
+    /// This is an EMPTY operand, not an unsupported arity: shelling is
+    /// a per-solid verb and applies to every solid a body has, so any
+    /// positive count builds and only zero has no construction to run.
+    NoSolid,
+    /// A solid's shells could not be told apart into one outer
     /// boundary and its voids: a solid stores no such designation, so
     /// the roles are the decided signs of the shells' signed volumes,
-    /// and that decision refused. Read only on a hollow operand.
+    /// and that decision refused. Read once per HOLLOW solid, over
+    /// that solid's own shells only.
     Roles {
         /// The classifier's typed refusal, verbatim.
         error: crate::props::ShellClassifyError,
     },
-    /// The operand's one solid classifies to something other than
+    /// One of the operand's solids classifies to something other than
     /// exactly one outer shell — several material components filed
-    /// under one solid, or none. Not a shape this verb thickens.
+    /// under one solid, or none. Not a shape this verb thickens. The
+    /// roles are read per solid, so the count is that solid's own and
+    /// the refusal names which solid it is about.
     OperandOuterShells {
-        /// How many shells classified as outer boundaries.
+        /// The solid whose shells did not classify to one boundary.
+        solid: SolidKey,
+        /// How many of ITS shells classified as outer boundaries.
         outer: usize,
     },
     /// The re-partition of an operand void and its dilated twin into a
     /// solid of their own refused. Its preconditions hold by
     /// construction — the void is one of the sealed arm's decided void
     /// list, its twin is the graft map's answer for it, both sit under
-    /// the operand's one solid beside the outer shell and its twin —
-    /// so this is a kernel bug surfaced typed.
+    /// the void's OWN operand solid beside that solid's outer shell and
+    /// its twin — so this is a kernel bug surfaced typed.
     Partition {
         /// The operand void whose thin solid could not be minted.
         shell: ShellKey,
@@ -336,6 +358,24 @@ pub enum ShellError<T: Real> {
         gap: T,
         /// The wall the two offsets would need, `2t`.
         needed: T,
+    },
+    /// A chart is worn by faces of two different SOLIDS. A chart moves
+    /// as one and the door that moves it is its solid's, so such a
+    /// chart has neither a single door nor a single corner problem.
+    ///
+    /// **Reachable through public doors**, so this is a refusal rather
+    /// than an assertion of the impossible: a [`crate::subtract`] whose
+    /// cut DISCONNECTS its operand leaves the two components under one
+    /// solid still wearing the operand's own surface keys — a slab cut
+    /// in half keeps one plane key across both halves — and
+    /// [`crate::Body::move_shells_to_new_solid`] then files them as two
+    /// solids. The result is a valid body this verb cannot thicken
+    /// chart by chart, and it says so naming the pair.
+    ChartSpansSolids {
+        /// The chart's first face, in face-arena order.
+        face: FaceKey,
+        /// A face of the same chart on a different solid.
+        other: FaceKey,
     },
     /// A chart worn by several faces has faces with DIFFERENT
     /// orientation bits, so "inward" is not one direction for it. The
@@ -475,20 +515,19 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "shell: the wall thickness ({thickness:?} m) is not certifiably positive, so \
                  there is no thin solid to build"
             ),
-            Self::NotOneSolid { solids } => write!(
+            Self::NoSolid => write!(
                 f,
-                "shell: the operand carries {solids} solids — shelling is a per-solid verb and \
-                 this door takes no designation to pick one"
+                "shell: the operand carries no solid, so there is no material to thicken"
             ),
             Self::Roles { error } => write!(
                 f,
                 "shell: the operand's shells could not be told into one outer boundary and its \
                  voids: {error}"
             ),
-            Self::OperandOuterShells { outer } => write!(
+            Self::OperandOuterShells { solid, outer } => write!(
                 f,
-                "shell: the operand's solid classifies to {outer} outer shells, not one — not a \
-                 shape this verb thickens"
+                "shell: the operand's {solid:?} classifies to {outer} outer shells, not one — \
+                 not a shape this verb thickens"
             ),
             Self::Partition { shell, error } => write!(
                 f,
@@ -505,6 +544,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "shell: {face:?} and {other:?} face each other across {gap:?} m of material and \
                  the two walls need {needed:?} m — their inward offsets cross, so the cavity \
                  would self-intersect"
+            ),
+            Self::ChartSpansSolids { face, other } => write!(
+                f,
+                "shell: chart faces {face:?} and {other:?} lie on different solids — a chart \
+                 moves as one and its door is its solid's, so it cannot span two"
             ),
             Self::ChartSenseMixed { face, other } => write!(
                 f,
@@ -590,8 +634,10 @@ impl<T: Real> std::error::Error for ShellError<T> {}
 /// birth record its consumers name entities through.
 #[derive(Debug)]
 pub struct Shelled<T: Real> {
-    /// The thin solid — or, for a hollow operand, the thin solids, one
-    /// per operand shell, in one body.
+    /// The thin solids — one per operand SHELL of every operand SOLID,
+    /// in one body. A plain single-solid operand yields exactly one; a
+    /// hollow one yields `k + 1` for its `k` voids; a multi-solid
+    /// operand yields every solid's, side by side.
     pub body: Body<T>,
     /// The mint-time naming facts of the construction that built it.
     pub naming: ShellNaming,
@@ -617,8 +663,10 @@ pub struct Shelled<T: Real> {
 /// construction's own order.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ShellNaming {
-    /// Outer wall face (result) ← the source face it is. Every source
-    /// face that was not designated open, face-arena order.
+    /// Wall face (result) ← the source face it is: every source face
+    /// that was not designated open, of every shell of every solid —
+    /// void faces included, since a void's wall is a wall too —
+    /// in face-arena order.
     pub outer: Vec<(FaceKey, FaceKey)>,
     /// Inner (cavity) twin face (result) ← the source face it was
     /// offset from. Every source face, face-arena order — a designated
@@ -872,47 +920,77 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         _ => return Err(ShellError::Thickness { thickness }),
     }
 
-    // ---- Decide: one solid. ----
+    // ---- Decide: there is a solid to thicken. ----
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
-    let [solid] = solids[..] else {
-        return Err(ShellError::NotOneSolid {
-            solids: solids.len(),
-        });
-    };
+    if solids.is_empty() {
+        return Err(ShellError::NoSolid);
+    }
+    // The operand's own solid partition, read once: which solid every
+    // face, edge and vertex belongs to. Every per-solid step below is
+    // scoped through it, and the simultaneous doors take the same
+    // reading of the same body.
+    let partition = crate::offset_together::Scope::whole(body).ok_or(ShellError::Corrupt {
+        key: EntityId::Solid(solids[0]),
+    })?;
 
-    // ---- Decide: which operand shells are VOIDS. ----
+    // ---- Decide: which operand shells are VOIDS, per solid. ----
     //
     // A solid stores no outer designation (`ShellRole`'s docs): a
     // shell's role is the decided sign of its signed volume, and it is
     // read here, once, off the operand — the one flux read this verb
-    // makes, and only on a hollow operand. A single-shell solid's shell
-    // is its boundary by arity, so that domain reads nothing and its
-    // verdict log is untouched. Everything downstream that tells a void
-    // from the outer shell reads THIS list, never the result's geometry.
-    let operand_shells = body
-        .get_solid(solid)
-        .ok_or(ShellError::Corrupt {
-            key: EntityId::Solid(solid),
-        })?
-        .shells
-        .len();
-    let voids: Vec<ShellKey> = if operand_shells == 1 {
-        Vec::new()
-    } else {
-        let roles = classify_shells(body, tol).map_err(|error| ShellError::Roles { error })?;
+    // makes, and only where some solid is hollow. A single-shell solid's
+    // shell is its boundary by arity, so a body of only those reads
+    // nothing and its verdict log is untouched. Everything downstream
+    // that tells a void from the outer shell reads THIS list, never the
+    // result's geometry.
+    // The whole body's voids, gathered from the PER-SOLID reads. A
+    // solid's roles are its own: one outer boundary each, decided over
+    // its own shells and never over another solid's — so a plain
+    // neighbour's shell is never classified at all, and a
+    // classification that escalated on one could not refuse a solid
+    // this verb can answer for.
+    let mut voids: Vec<ShellKey> = Vec::new();
+    for &solid in &solids {
+        let shells = body
+            .get_solid(solid)
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Solid(solid),
+            })?
+            .shells
+            .clone();
+        // A single-shell solid's shell is its boundary by arity, so
+        // that solid reads nothing and its verdict log is untouched.
+        if shells.len() == 1 {
+            continue;
+        }
+        let roles = crate::props::classify_shells_of(body, &shells, tol)
+            .map_err(|error| ShellError::Roles { error })?;
         let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
         if outer != 1 {
-            return Err(ShellError::OperandOuterShells { outer });
+            return Err(ShellError::OperandOuterShells { solid, outer });
         }
-        roles
-            .iter()
-            .filter(|c| c.role == ShellRole::Void)
-            .map(|c| c.shell)
-            .collect()
-    };
+        voids.extend(
+            roles
+                .iter()
+                .filter(|c| c.role == ShellRole::Void)
+                .map(|c| c.shell),
+        );
+    }
 
-    // ---- Decide: every chart has ONE orientation. ----
+    // ---- Decide: every chart has ONE orientation, and ONE solid. ----
+    //
+    // A chart moves as one, and the door that moves it is its solid's,
+    // so a chart worn by faces of two solids has no single door and no
+    // single corner problem. The state is reachable — a disconnecting
+    // subtract leaves both components wearing one surface key, and the
+    // ownership door can file them as two solids — so the second gate
+    // is a refusal, not an assertion.
     let charts = chart_groups(body);
+    let chart_solid = |group: &[FaceKey]| -> Result<SolidKey, ShellError<T>> {
+        partition.solid_of(group[0]).ok_or(ShellError::Corrupt {
+            key: EntityId::Face(group[0]),
+        })
+    };
     for group in &charts {
         let sense = |f: FaceKey| -> Result<bool, ShellError<T>> {
             Ok(body
@@ -923,9 +1001,16 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
                 .sense)
         };
         let first = sense(group[0])?;
+        let home = chart_solid(group)?;
         for &member in &group[1..] {
             if sense(member)? != first {
                 return Err(ShellError::ChartSenseMixed {
+                    face: group[0],
+                    other: member,
+                });
+            }
+            if partition.solid_of(member) != Some(home) {
+                return Err(ShellError::ChartSpansSolids {
                     face: group[0],
                     other: member,
                 });
@@ -934,7 +1019,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     }
 
     // ---- Decide: the walls are thick enough to hold two offsets. ----
-    wall_clearance(body, thickness, band)?;
+    wall_clearance(body, &partition, thickness, band)?;
 
     // ---- Decide: the designation. ----
     check_designation(body, open_faces)?;
@@ -972,56 +1057,69 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     // torus walls included:
     // `offset_charts_together` solves those in the meridian
     // half-plane, and the branch below picks it.
-    let fallback = charts
-        .first()
-        .and_then(|g| g.first())
-        .copied()
-        .ok_or(ShellError::Corrupt {
-            key: EntityId::Solid(solid),
-        })?;
-    // The door is ONE decision for the whole verb (`offset_door`): the
-    // cavity and the rim lift read the same ladder, so a body is on the
-    // same door on the way in and on the way back out.
-    let door = offset_door(&cavity, band).map_err(|error| ShellError::Face {
-        face: offending_face(&cavity, &error).unwrap_or(fallback),
-        error: Box::new(error),
-    })?;
-    match door {
-        OffsetDoor::PlanesTogether | OffsetDoor::ChartsTogether => {
-            let mut moves: Vec<crate::offset_together::ChartMove<T>> =
-                Vec::with_capacity(charts.len());
-            for group in &charts {
-                moves.push(crate::offset_together::ChartMove {
-                    faces: group.clone(),
-                    distance: inward(&cavity, group[0], thickness)?,
-                });
-            }
-            // `ShellError::Face` carries ONE face, and on this branch the
-            // honest one is the face the door's own refusal is about — not
-            // the first chart's first face, which names the operand's arena
-            // order and nothing about the failure. The door's typed
-            // refusals carry a face, a vertex or an edge; the last two are
-            // resolved to a face they touch.
-            let outcome = if door == OffsetDoor::ChartsTogether {
-                crate::offset_charts_together(&mut cavity, &moves, band, tol)
-            } else {
-                crate::offset_planes_together(&mut cavity, &moves, band, tol)
-            };
-            outcome.map_err(|error| ShellError::Face {
-                face: offending_face(&cavity, &error).unwrap_or(fallback),
-                error: Box::new(error),
-            })?;
-        }
-        OffsetDoor::PerChart => {
-            for group in &charts {
-                let face = group[0];
-                let d = inward(&cavity, face, thickness)?;
-                crate::replace_faces_offset(&mut cavity, group, d, band, tol).map_err(|error| {
-                    ShellError::Face {
-                        face,
-                        error: Box::new(error),
-                    }
+    //
+    // **The door is ONE decision PER SOLID.** A body with a box beside
+    // a vessel is neither all-planar nor a body of revolution, and a
+    // whole-body reading would put both on the per-chart door — which
+    // refuses the vessel's corners it solves alone. The ladder is
+    // unchanged; what it reads is the solid's own faces. The cavity
+    // and the rim lift read the same ladder over the same solid, so a
+    // solid is on the same door on the way in and on the way back out.
+    // The operand's partition serves every solid: `cavity` is a clone,
+    // so it carries the same keys, and re-aiming the scope at one solid
+    // is a `Vec` swap rather than another walk over the whole body.
+    let mut scope = partition.clone();
+    for &solid in &solids {
+        scope.re_scope(&[solid]);
+        let mine: Vec<&Vec<FaceKey>> = charts.iter().filter(|g| scope.holds_face(g[0])).collect();
+        let fallback =
+            mine.first()
+                .and_then(|g| g.first())
+                .copied()
+                .ok_or(ShellError::Corrupt {
+                    key: EntityId::Solid(solid),
                 })?;
+        let door = offset_door(&cavity, &scope, band).map_err(|error| ShellError::Face {
+            face: offending_face(&cavity, &error).unwrap_or(fallback),
+            error: Box::new(error),
+        })?;
+        match door {
+            OffsetDoor::PlanesTogether | OffsetDoor::ChartsTogether => {
+                let mut moves: Vec<crate::offset_together::ChartMove<T>> =
+                    Vec::with_capacity(mine.len());
+                for group in &mine {
+                    moves.push(crate::offset_together::ChartMove {
+                        faces: (*group).clone(),
+                        distance: inward(&cavity, group[0], thickness)?,
+                    });
+                }
+                // `ShellError::Face` carries ONE face, and on this branch the
+                // honest one is the face the door's own refusal is about — not
+                // the first chart's first face, which names the operand's arena
+                // order and nothing about the failure. The door's typed
+                // refusals carry a face, a vertex or an edge; the last two are
+                // resolved to a face they touch.
+                let outcome = if door == OffsetDoor::ChartsTogether {
+                    crate::offset_charts_together(&mut cavity, &moves, band, tol)
+                } else {
+                    crate::offset_planes_together(&mut cavity, &moves, band, tol)
+                };
+                outcome.map_err(|error| ShellError::Face {
+                    face: offending_face(&cavity, &error).unwrap_or(fallback),
+                    error: Box::new(error),
+                })?;
+            }
+            OffsetDoor::PerChart => {
+                for group in &mine {
+                    let face = group[0];
+                    let d = inward(&cavity, face, thickness)?;
+                    crate::replace_faces_offset(&mut cavity, group, d, band, tol).map_err(
+                        |error| ShellError::Face {
+                            face,
+                            error: Box::new(error),
+                        },
+                    )?;
+                }
             }
         }
     }
@@ -1060,7 +1158,23 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     // The cavity is a CLONE of the operand, so a designated face's
     // counterpart carries the same key in the cavity's key space —
     // which is the space `VoidInserted` maps from.
-    let inserted = insert_void(&mut out, solid, cavity, &evidence, tol)
+    // **One destination per cavity solid, positionally.** The cavity is
+    // a CLONE of the operand and `out` is another, so all three arenas
+    // carry the same solid keys in the same slot order — which is the
+    // graft's positional contract exactly.
+    //
+    // This is an INVARIANT, not a refusal, and it is spelled as one: a
+    // `SlotMap` clone preserves every slot and version, so the three
+    // walks cannot disagree unless `Body::clone` itself stops being a
+    // clone. A typed refusal here would advertise a reachable state
+    // that is not one, and D9 forbids a panic exactly where a refusal
+    // is owed — which this is not.
+    debug_assert!(
+        cavity.solids().map(|(k, _)| k).eq(solids.iter().copied())
+            && out.solids().map(|(k, _)| k).eq(solids.iter().copied()),
+        "a clone reordered its solid arena",
+    );
+    let inserted = insert_voids(&mut out, &solids, cavity, &evidence, tol)
         .map_err(|error| ShellError::Insert { error })?;
 
     // ---- The record: the inner twins, read off the graft map at the
@@ -1111,7 +1225,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     // of their own. The pairing is the graft map's, and the twin goes
     // first so the minted solid lists its outer shell before its
     // cavity, as a solid born through the void door does.
-    for (shell, _) in body.shells() {
+    for (shell, data) in body.shells() {
         let owner = if voids.contains(&shell) {
             let twin = inserted.shell(shell).ok_or(ShellError::Corrupt {
                 key: EntityId::Shell(shell),
@@ -1119,7 +1233,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
             out.move_shells_to_new_solid(&[twin, shell])
                 .map_err(|error| ShellError::Partition { shell, error })?
         } else {
-            solid
+            data.solid
         };
         naming.thickened.push((owner, shell));
     }
@@ -1144,20 +1258,26 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     // The grouping is read ONCE, before any surgery: a chart's faces
     // merge into one, so a designation read after its own chart's turn
     // would name a key that no longer resolves.
-    let mut charts: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
+    //
+    // The RESULT's own partition, read once here rather than per
+    // designation: the thin solids have just been minted, so this is
+    // the first moment it exists, and every designation's lift is a
+    // re-aiming of it.
+    let result_partition =
+        crate::offset_together::Scope::whole(&out).ok_or(ShellError::Corrupt {
+            key: EntityId::Solid(solids[0]),
+        })?;
+    // A designation naming a face that no longer resolves is not a
+    // silent skip: `check_designation` has already refused a stale one,
+    // so every key here groups.
     for &designated in open_faces {
-        let chart = out
-            .get_face(designated)
-            .ok_or(ShellError::Corrupt {
+        if out.get_face(designated).is_none() {
+            return Err(ShellError::Corrupt {
                 key: EntityId::Face(designated),
-            })?
-            .surface;
-        match charts.iter_mut().find(|(key, _)| *key == chart) {
-            Some((_, faces)) => faces.push(designated),
-            None => charts.push((chart, vec![designated])),
+            });
         }
     }
-    for (_, group) in charts {
+    for (_, group) in group_by_chart(&out, open_faces.iter().copied()) {
         let designated = group[0];
         let sources: Vec<FaceKey> = group
             .iter()
@@ -1181,6 +1301,16 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         } else {
             RimShell::Outer
         };
+        // The solid the surgery happens in, read on the RESULT: the
+        // thin solids are already partitioned, so a void designation's
+        // face and its counterpart live in the minted solid the void
+        // and its twin moved to, not in the operand solid they came
+        // from. Both sides of the glue are in it by construction.
+        let lift_solid = result_partition
+            .solid_of(designated)
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Face(designated),
+            })?;
 
         // Lift the cavity's counterpart chart back onto the designated
         // face's own surface. The distance is read from the two PLANES
@@ -1194,11 +1324,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
                 key: EntityId::Face(sources[0]),
             })?
             .surface;
-        let lift_group: Vec<FaceKey> = out
-            .faces()
-            .filter(|(_, f)| f.surface == counterpart_chart)
-            .map(|(k, _)| k)
-            .collect();
+        let lift_group = faces_wearing(&out, counterpart_chart);
         let back = lift_to(&out, sources[0], designated)?;
         // **The lift is the same corner problem as the cavity**, with
         // one chart moving instead of all of them: the counterpart's
@@ -1220,7 +1346,16 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // (a corner transported once per MOVING chart) cannot arise.
         // Measured on the oblique prisms' caps (`verbs_shell`'s
         // `oblique_planar_prisms_open_at_their_cap`, closed forms).
-        let lift_door = offset_door(&out, band).map_err(|error| ShellError::Lift {
+        //
+        // **The solid is the designated face's own, read on the result.**
+        // The sealed arm has already partitioned the thin solids, so a
+        // void designation's face and its counterpart sit in a minted
+        // solid of their own — and the door that lifts them is that
+        // solid's, over that solid's charts, exactly as the cavity's
+        // door was its solid's.
+        let mut lift_scope = result_partition.clone();
+        lift_scope.re_scope(&[lift_solid]);
+        let lift_door = offset_door(&out, &lift_scope, band).map_err(|error| ShellError::Lift {
             face: designated,
             error: Box::new(error),
         })?;
@@ -1228,6 +1363,9 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
             OffsetDoor::ChartsTogether => {
                 let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::new();
                 for group in chart_groups(&out) {
+                    if !lift_scope.holds_face(group[0]) {
+                        continue;
+                    }
                     let key = out
                         .get_face(group[0])
                         .ok_or(ShellError::Corrupt {
@@ -1974,20 +2112,30 @@ enum OffsetDoor {
     PerChart,
 }
 
-/// The door for `body`. An UNDECIDED axis gate is not `PerChart`: it
-/// escalates typed, and the caller refuses with it rather than taking
-/// the other branch (`is_axial`'s docs).
-fn offset_door<T: Decide>(body: &Body<T>, band: Band) -> Result<OffsetDoor, ReplaceFaceError<T>> {
-    let all_planar = body.faces().all(|(_, f)| {
-        matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Plane { .. })
-        )
-    });
+/// The door for the solids `scope` names. A door is a property of a
+/// SOLID — a box beside a vessel is neither all-planar nor axial while
+/// each of the two is one of those — so the ladder reads that solid's
+/// own faces and nothing else. An UNDECIDED axis gate is not
+/// `PerChart`: it escalates typed, and the caller refuses with it
+/// rather than taking the other branch (`is_axial`'s docs).
+fn offset_door<T: Decide>(
+    body: &Body<T>,
+    scope: &crate::offset_together::Scope,
+    band: Band,
+) -> Result<OffsetDoor, ReplaceFaceError<T>> {
+    let all_planar = body
+        .faces()
+        .filter(|(k, _)| scope.holds_face(*k))
+        .all(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Plane { .. })
+            )
+        });
     if all_planar {
         return Ok(OffsetDoor::PlanesTogether);
     }
-    Ok(if crate::offset_axial::is_axial(body, band)? {
+    Ok(if crate::offset_axial::is_axial_in(body, scope, band)? {
         OffsetDoor::ChartsTogether
     } else {
         OffsetDoor::PerChart
@@ -2128,13 +2276,22 @@ fn rename_loop_surface<T: Decide>(
 /// a planar pair that crosses.
 fn wall_clearance<T: Decide>(
     body: &Body<T>,
+    partition: &crate::offset_together::Scope,
     thickness: T,
     band: Band,
 ) -> Result<(), ShellError<T>> {
     let two_t = thickness + thickness;
-    let planes = planar_faces(body)?;
+    let planes = planar_faces(body, partition)?;
     for (i, a) in planes.iter().enumerate() {
         for b in &planes[i + 1..] {
+            // **A pair of DIFFERENT solids never gates.** The gate is
+            // about a WALL — material between two offsets that would
+            // cross — and there is no material between two solids: two
+            // parts facing each other across space each thicken into
+            // their own material, however close they stand.
+            if a.solid != b.solid {
+                continue;
+            }
             // Facing each other: outward normals antiparallel.
             let anti = Margin::of(-(a.normal.dot(b.normal)) - T::one());
             if !matches!(
@@ -2173,6 +2330,9 @@ fn wall_clearance<T: Decide>(
 /// footprint of its boundary in that frame.
 struct PlanarFace<T: Real> {
     face: FaceKey,
+    /// The solid the face belongs to: the gate is a claim about ONE
+    /// solid's material, so a pair that straddles two is not a wall.
+    solid: SolidKey,
     origin: geom_core::Point3<T>,
     normal: geom_core::Vec3<T>,
     u_ref: geom_core::Vec3<T>,
@@ -2183,7 +2343,10 @@ struct PlanarFace<T: Real> {
 
 /// Every planar face of `body`, with its outward normal and projected
 /// footprint.
-fn planar_faces<T: Real>(body: &Body<T>) -> Result<Vec<PlanarFace<T>>, ShellError<T>> {
+fn planar_faces<T: Real>(
+    body: &Body<T>,
+    partition: &crate::offset_together::Scope,
+) -> Result<Vec<PlanarFace<T>>, ShellError<T>> {
     let mut out = Vec::new();
     for (face, data) in body.faces() {
         let Some(geom::Surface::Plane {
@@ -2216,6 +2379,9 @@ fn planar_faces<T: Real>(body: &Body<T>) -> Result<Vec<PlanarFace<T>>, ShellErro
         };
         out.push(PlanarFace {
             face,
+            solid: partition.solid_of(face).ok_or(ShellError::Corrupt {
+                key: EntityId::Face(face),
+            })?,
             origin: *origin,
             normal,
             u_ref: *u_ref,
@@ -2331,18 +2497,38 @@ fn face_boundary_points<T: Real>(
 /// The body's faces grouped by the surface they wear, in face-arena
 /// order — the unit a chart moves in.
 fn chart_groups<T: Real>(body: &Body<T>) -> Vec<Vec<FaceKey>> {
-    let mut keys: Vec<crate::geometry::SurfaceKey> = Vec::new();
-    let mut groups: Vec<Vec<FaceKey>> = Vec::new();
-    for (key, face) in body.faces() {
-        match keys.iter().position(|k| *k == face.surface) {
-            Some(i) => groups[i].push(key),
-            None => {
-                keys.push(face.surface);
-                groups.push(vec![key]);
-            }
+    group_by_chart(body, body.faces().map(|(k, _)| k))
+        .into_iter()
+        .map(|(_, faces)| faces)
+        .collect()
+}
+
+/// `faces` gathered by the chart each wears, in first-appearance order
+/// with each group in the order the faces arrived — the one grouping
+/// this verb does, wherever it does it.
+fn group_by_chart<T: Real>(
+    body: &Body<T>,
+    faces: impl Iterator<Item = FaceKey>,
+) -> Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> {
+    let mut out: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
+    for face in faces {
+        let Some(data) = body.get_face(face) else {
+            continue;
+        };
+        match out.iter_mut().find(|(k, _)| *k == data.surface) {
+            Some((_, group)) => group.push(face),
+            None => out.push((data.surface, vec![face])),
         }
     }
-    groups
+    out
+}
+
+/// Every face of `body` wearing `chart`, in face-arena order.
+fn faces_wearing<T: Real>(body: &Body<T>, chart: crate::geometry::SurfaceKey) -> Vec<FaceKey> {
+    body.faces()
+        .filter(|(_, f)| f.surface == chart)
+        .map(|(k, _)| k)
+        .collect()
 }
 
 /// The signed offset distance that moves `face` INTO the material: the

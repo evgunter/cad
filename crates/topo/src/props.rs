@@ -612,9 +612,41 @@ pub fn classify_shells<T: PropsQuadLane>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+    let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
+    classify_shells_of(body, &every, tol)
+}
+
+/// [`classify_shells`] restricted to `shells` — the same classification,
+/// made of exactly the shells named and no others, in shell-arena slot
+/// order.
+///
+/// **A shell's role is a property of that shell alone**: the signed
+/// volume its own faces integrate, decided at its own bracket. So a
+/// caller asking about one solid's shells is asking a question that
+/// does not involve any other solid's, and it should not pay another
+/// solid's refusal for it — a classification that escalates on a
+/// neighbour would otherwise refuse a body this caller can answer for.
+/// [`classify_shells`] is this door over every shell of the body.
+///
+/// A shell the body does not hold is skipped rather than refused: the
+/// list is a restriction, and a caller naming a stale key gets fewer
+/// rows, which its own arity check reads.
+///
+/// # Errors
+///
+/// [`ShellClassifyError`] — [`classify_shells`]'s, raised by the first
+/// NAMED shell that cannot be classified.
+pub fn classify_shells_of<T: PropsQuadLane>(
+    body: &Body<T>,
+    shells: &[ShellKey],
+    tol: Tol,
+) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
     let band = Band::linear(tol).map_err(|error| ShellClassifyError::Band { error })?;
     let mut out = Vec::new();
     for (shell_key, shell) in body.shells.iter() {
+        if !shells.contains(&shell_key) {
+            continue;
+        }
         let mut flux = T::zero();
         let mut area = T::zero();
         let mut flux_pad = 0.0f64;

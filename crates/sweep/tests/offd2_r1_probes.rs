@@ -221,8 +221,7 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 /// Shelling an ALREADY-HOLLOW body: the operand has two shells, the
 /// verb's cavity clone offsets both — the outer inward, the void
 /// OUTWARD — and the two clone shells land in the operand's solid
-/// beside the operand's own two. One solid, so `NotOneSolid` does not
-/// gate it, and it must not: the ruled semantics is "thicken EVERY
+/// beside the operand's own two. The ruled semantics is "thicken EVERY
 /// boundary" (issue #1056), never "offset the outer shell only".
 ///
 /// The wrong shape this row pins against is four shells under ONE
