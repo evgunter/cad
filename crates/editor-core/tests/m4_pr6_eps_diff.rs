@@ -140,20 +140,14 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     let flips = editor_core::diff_summaries(&old, &new);
     // GOLDEN. A legitimate re-pin is a ratified change to what a log
     // holds or to the predicate vocabulary or the fixture — never a
-    // number chased back into place. Re-pinned when declared tangency
-    // added validation probes (carrier_line_circle and chord_side
-    // instance counts grew), when the node's frame widened to its
-    // precompute (every population doubled: the pinned op re-validated
-    // the form the precompute had validated), and when the pinned op
-    // came to reuse the precompute's validated form (every population
-    // halved back: the node validates once); the FLIPS are the same
-    // predicates every time. Exactly ONE differing node — the profile —
-    // both runs Ok. The populations are the profile node's WHOLE log,
-    // which under the pinned lift is its pre-pass's one f64 validation.
-    // The ε re-classification reports as EXACTLY these net flips (the
-    // thin segment_straightness margin, twice decided per validation
-    // pass, plus the line_span probes the collapsed arc now answers at
-    // Zero), and the arc→straight branch change
+    // number chased back into place — and it moves the populations,
+    // never which predicates flip. Exactly ONE differing node — the
+    // profile — both runs Ok. The populations are the profile node's
+    // WHOLE log, which under the pinned lift is its pre-pass's one f64
+    // validation. The ε re-classification reports as EXACTLY these net
+    // flips (the thin segment_straightness margin, twice decided per
+    // validation pass, plus the line_span probes the collapsed arc now
+    // answers at Zero), and the arc→straight branch change
     // reports its reshaped decision structure as loud DIVERGENCE
     // rows (arc-only predicates leaving, chord probes recounting) —
     // never absorbed, never guessed about (vdiff module docs).

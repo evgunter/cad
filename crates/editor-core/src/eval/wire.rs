@@ -1331,24 +1331,28 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         });
     };
     let validated = match lane.lift {
-        // The build path: the precompute's VALIDATED form embedded bit
-        // for bit (`ValidatedProfile::map` under `from_f64` — exact,
-        // every decision carried, none remade: the validation is 2-D
-        // and reads point values only, so its verdicts at `T` are the
-        // f64 ones, D9), placed on the lane's plane. An authored frame
-        // places at its `f64` elaboration lifted; a DERIVED frame has
-        // no `f64` elaboration of its placement (DM1c: the document
-        // holds a face name, not nine numbers), so its placement is the
-        // lane's own value, read where every by-value reader of a frame
-        // reads it. The fork is by node kind; the numbers on both sides
-        // are the ones already computed, and the op decides nothing:
-        // the node's log under this lift is the precompute's.
+        // The build path: the precompute's VALIDATED form embedded
+        // through `from_f64` (`ValidatedProfile::lift_onto`), every
+        // decision carried as the f64 one and none remade. That is
+        // this lift's design, not predicate agreement: structure is
+        // selected once, at f64, identically for every lane
+        // (`ProfileLift`); a margin an `Interval` validation would
+        // escalate on is decided here by its f64 verdict, and the
+        // guided lift is where that margin escalates. Placed on the
+        // lane's plane: an authored frame at its `f64` elaboration
+        // lifted; a DERIVED frame has no `f64` elaboration of its
+        // placement (DM1c: the document holds a face name, not nine
+        // numbers), so its placement is the lane's own value, read
+        // where every by-value reader of a frame reads it. The fork is
+        // by node kind; the numbers on both sides are the ones already
+        // computed, and the op decides nothing: the node's log under
+        // this lift is the precompute's.
         super::ProfileLift::Pinned => {
             let plane = match &pre.placement_f64 {
                 Some(placement) => placement.map(T::from_f64),
                 None => frame_plane_lane(results, program.plane)?,
             };
-            pre.validated_f64.clone().map(T::from_f64).with_plane(plane)
+            pre.validated_f64.clone().lift_onto(plane)
         }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,

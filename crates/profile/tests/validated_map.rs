@@ -1,16 +1,17 @@
-//! **`ValidatedProfile::map` is total over the canonical form and
-//! decides nothing.** Over the crate's own fixtures — a hole, arcs,
-//! tangent joints, a fillet, the two-vertex lens, an outer loop the
-//! author wound the wrong way, a rotated start — the lift under
-//! `from_f64` answers every canonical-form accessor exactly as the
-//! `f64` form does (outer first, holes in input order, the segment
-//! kinds and turns, the joint set, the blend arcs, the canonical start
-//! and winding) and carries, scalar for scalar, the value a validation
-//! of the lifted RAW profile mints at the target scalar: the same bits
-//! in every value channel (`Dual64`'s value, `Interval`'s bounds — the
-//! re-derived arc carriers included), and a derivative channel that is
-//! zero either way. `with_plane` replaces the plane and nothing else.
-//! The `Interval` twin runs in the interval lane.
+//! **`ValidatedProfile::lift_onto` is total over the canonical form and
+//! decides nothing.** Over the crate's own fixtures — a hole, a hole
+//! listed before its outer, arcs, tangent joints, a fillet, the
+//! two-vertex lens, an outer loop the author wound the wrong way, a
+//! rotated start — the lift answers every canonical-form accessor
+//! exactly as the `f64` form does (outer first, holes in input order,
+//! the segment kinds and turns, the joint set, the blend arcs segment
+//! for segment, the canonical start and winding) and carries, scalar
+//! for scalar, the value a validation of the lifted RAW profile mints
+//! at the target scalar: the same bits in every value channel
+//! (`Dual64`'s value, `Interval`'s bounds — the rebuilt arc carriers
+//! included), and a derivative channel that is zero either way. At
+//! `f64` the lift is the identity. The `Interval` twin runs in the
+//! interval lane.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -39,6 +40,14 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
         (0.0, 1.0, 0.0),
         (0.0, 0.0, 0.0),
     ]);
+    let square = |x0: f64, y0: f64, s: f64| {
+        chain(&[
+            (x0, y0, 0.0),
+            (x0 + s, y0, 0.0),
+            (x0 + s, y0 + s, 0.0),
+            (x0, y0 + s, 0.0),
+        ])
+    };
     vec![
         ("annulus (a hole, all arcs)", annulus()),
         (
@@ -60,22 +69,18 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
             profile(vec![rotated]),
         ),
         (
-            "L with a rounded hole (holes in input order)",
+            "square with a rounded hole and a square hole (holes in input order)",
             profile(vec![
-                chain(&[
-                    (0.0, 0.0, 0.0),
-                    (6.0, 0.0, 0.0),
-                    (6.0, 6.0, 0.0),
-                    (0.0, 6.0, 0.0),
-                ]),
+                square(0.0, 0.0, 6.0),
                 rounded_hole(1.0, 1.0, 2.0, 1.0, 0.25),
-                chain(&[
-                    (3.0, 3.0, 0.0),
-                    (4.0, 3.0, 0.0),
-                    (4.0, 4.0, 0.0),
-                    (3.0, 4.0, 0.0),
-                ]),
+                square(3.0, 3.0, 1.0),
             ]),
+        ),
+        (
+            // The outer is listed LAST: "outer first" is a decision
+            // validation made from containment, carried by the lift.
+            "hole listed before its outer (outer first by decision)",
+            profile(vec![square(3.0, 3.0, 1.0), square(0.0, 0.0, 6.0)]),
         ),
     ]
 }
@@ -101,7 +106,9 @@ fn rounded_hole(x0: f64, y0: f64, w: f64, h: f64, r: f64) -> profile::ProfileLoo
 /// Every scalar a validated profile stores, in one fixed order: the
 /// plane's placement, then per loop each vertex's position and bulge,
 /// then each segment's endpoints, bulge and (for an arc) center and
-/// radius.
+/// radius. (`editor-core`'s `pinned_lift_validates_once` suite carries
+/// the same walk: `test-utils` is a dependency-free leaf and cannot
+/// host a walk over this crate's types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
     let m = &vp.plane().placement;
     let mut out = vec![
@@ -136,6 +143,30 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
 /// comparison.
 type Channel<T> = (&'static str, fn(T) -> f64);
 
+/// The kind and turn of a segment, as one character: `L`, `+`, `-`.
+fn shape<T: Real>(kind: SegmentKind<T>) -> char {
+    match kind {
+        SegmentKind::Line => 'L',
+        SegmentKind::Arc {
+            turn: Sign::Positive,
+            ..
+        } => '+',
+        SegmentKind::Arc { .. } => '-',
+    }
+}
+
+/// A loop's segment shapes in canonical order.
+fn shapes<T: Real>(segs: &[profile::ValidatedSegment<T>]) -> String {
+    segs.iter().map(|s| shape(s.kind)).collect()
+}
+
+/// A loop's blend arcs: canonical segment index and shape, in order.
+fn blends<T: Real>(arcs: Vec<profile::BlendArc<T>>) -> Vec<(usize, char)> {
+    arcs.into_iter()
+        .map(|b| (b.segment, shape(b.kind)))
+        .collect()
+}
+
 /// The lifted form against the form validation mints at `U` from the
 /// lifted raw profile: every value channel the same bits (`channels`
 /// projects each of them to `f64`), and every canonical-form accessor
@@ -143,7 +174,7 @@ type Channel<T> = (&'static str, fn(T) -> f64);
 fn lift_equals_revalidation<U: Real + Decide>(scalar: &str, channels: &[Channel<U>]) {
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
-        let lifted: ValidatedProfile<U> = at_f64.clone().map(U::from_f64);
+        let lifted: ValidatedProfile<U> = at_f64.clone().lift_onto(SketchPlane::xy());
         let revalidated: ValidatedProfile<U> = lift::<U>(&raw).validate(tol()).expect(name);
         let (l, r) = (scalars(&lifted), scalars(&revalidated));
         assert_eq!(
@@ -179,29 +210,20 @@ fn lift_equals_revalidation<U: Real + Decide>(scalar: &str, channels: &[Channel<
                 "{name} loop {li}: arity"
             );
             assert_eq!(
-                lu.segments().len(),
-                lf.segments().len(),
-                "{name} loop {li}: chain"
+                shapes(lu.segments()),
+                shapes(lf.segments()),
+                "{name} loop {li}: segment kinds and turns"
             );
             assert_eq!(
-                lu.blend_arcs().len(),
-                lf.blend_arcs().len(),
-                "{name} loop {li}: blend arcs"
+                blends(lu.blend_arcs()),
+                blends(lf.blend_arcs()),
+                "{name} loop {li}: blend arcs, segment for segment"
             );
-            for (k, (su, sf)) in lu.segments().iter().zip(lf.segments()).enumerate() {
-                match (su.kind, sf.kind) {
-                    (SegmentKind::Line, SegmentKind::Line) => {}
-                    (SegmentKind::Arc { turn: tu, .. }, SegmentKind::Arc { turn: tf, .. }) => {
-                        assert_eq!(tu, tf, "{name} loop {li} segment {k}: turn");
-                    }
-                    (u, f) => panic!("{name} loop {li} segment {k}: kind {u:?} vs {f:?}"),
-                }
-            }
         }
     }
 }
 
-/// At `f64` the lift is the identity, bit for bit — the re-derived
+/// At `f64` the lift is the identity, bit for bit — the rebuilt
 /// carriers included.
 #[test]
 fn the_lift_to_f64_is_the_identity() {
@@ -211,7 +233,12 @@ fn the_lift_to_f64_is_the_identity() {
         let bits = |vp: &ValidatedProfile<f64>| {
             scalars(vp).iter().map(|x| x.to_bits()).collect::<Vec<_>>()
         };
-        assert_eq!(bits(&at_f64.clone().map(|x| x)), bits(&at_f64), "{name}");
+        let plane = *at_f64.plane();
+        assert_eq!(
+            bits(&at_f64.clone().lift_onto::<f64>(plane)),
+            bits(&at_f64),
+            "{name}"
+        );
     }
 }
 
@@ -225,7 +252,7 @@ fn the_lift_to_dual_equals_validating_at_dual() {
     lift_equals_revalidation::<Dual64>("Dual64", &[("value", |d| d.value)]);
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
-        let lifted = at_f64.clone().map(Dual64::from_f64);
+        let lifted = at_f64.clone().lift_onto::<Dual64>(SketchPlane::xy());
         let revalidated = lift::<Dual64>(&raw).validate(tol()).expect(name);
         assert!(
             scalars(&lifted).iter().all(|d| d.deriv == 0.0)
@@ -259,7 +286,8 @@ fn the_lift_to_interval_equals_validating_at_interval() {
 /// The decided facts, read at `Dual64` on the fixtures whose input
 /// contradicts them: the clockwise rectangle comes back
 /// counterclockwise, the rotated one starts at its lex-min vertex, the
-/// annulus's hole arcs turn clockwise behind its outer.
+/// hole listed first comes back behind its outer, the annulus's hole
+/// arcs turn clockwise.
 #[test]
 fn the_carried_decisions_are_the_f64_ones() {
     // Twice the signed area of a polygonal loop (every segment a
@@ -275,7 +303,7 @@ fn the_carried_decisions_are_the_f64_ones() {
     };
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
-        let lifted = at_f64.clone().map(Dual64::from_f64);
+        let lifted = at_f64.clone().lift_onto::<Dual64>(SketchPlane::xy());
         assert_eq!(
             lifted.loops()[0].role(),
             LoopRole::Outer,
@@ -305,7 +333,10 @@ fn the_carried_decisions_are_the_f64_ones() {
             }
         }
     }
-    let ring = annulus().validate(tol()).unwrap().map(Dual64::from_f64);
+    let ring = annulus()
+        .validate(tol())
+        .unwrap()
+        .lift_onto::<Dual64>(SketchPlane::xy());
     for s in ring.loops()[1].segments() {
         assert!(
             matches!(
@@ -321,9 +352,10 @@ fn the_carried_decisions_are_the_f64_ones() {
     }
 }
 
-/// `with_plane` replaces the plane and nothing else.
+/// The plane is the caller's, taken as given, and nothing else moves
+/// with it.
 #[test]
-fn with_plane_replaces_the_plane_and_nothing_else() {
+fn the_plane_is_the_callers_and_nothing_else_moves_with_it() {
     let vp = profile(vec![rounded_rect(4.0, 2.0, 0.5)])
         .validate(tol())
         .unwrap();
@@ -336,7 +368,7 @@ fn with_plane_replaces_the_plane_and_nothing_else() {
         ),
         Vec3::new(1.0, 2.0, 3.0),
     ));
-    let moved = vp.with_plane(plane);
+    let moved = vp.lift_onto::<f64>(plane);
     assert_eq!(format!("{:?}", moved.plane()), format!("{plane:?}"));
     assert_eq!(format!("{:?}", moved.loops()), before);
     // The plane places; the 2-D data does not move with it.

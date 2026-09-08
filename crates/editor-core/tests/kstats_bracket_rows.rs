@@ -321,17 +321,16 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     );
 }
 
-/// **The Profile node's log under the pinned lift is the precompute's,
-/// at every scalar.** One frame, in the order made: the plane's two
-/// axis decisions first, then the program's replay, then the f64
-/// validation — and nothing after it, because the op lifts the
+/// The one-solid part's Profile log at `T` under the pinned lift,
+/// checked for the precompute's shape and returned for the rows below
+/// to compare across scalars. One frame, in the order made: the
+/// plane's two axis decisions first, then the program's replay, then
+/// the f64 validation — and nothing after it, because the op lifts the
 /// precompute's validated form instead of validating again. The
-/// precompute is an `f64` computation whatever the lane scalar, so the
-/// log at `Dual64` and at `Interval` is the `f64` log, verdict for
-/// verdict. The histogram moves legitimately only when
-/// `profile::validate`'s probes change (a predicate added, a probe
-/// count per segment pair changed) or the fixture does.
-fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass<T: EvalScalar>() -> Vec<Verdict> {
+/// histogram moves legitimately only when `profile::validate`'s probes
+/// change (a predicate added, a probe count per segment pair changed)
+/// or the fixture does.
+fn pinned_profile_log<T: EvalScalar>() -> Vec<Verdict> {
     let part_doc = part("kstats-order-part", 0.0, 1.0);
     let ev = evaluate::<T>(
         &part_doc,
@@ -365,11 +364,14 @@ fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass<T: EvalScalar>() 
     log.to_vec()
 }
 
+/// **The Profile node's log under the pinned lift is the precompute's,
+/// at every scalar.** The precompute is an `f64` computation whatever
+/// the lane scalar, so the log at `Dual64` (and, in its own row, at
+/// `Interval`) is the `f64` log, verdict for verdict.
 #[test]
 fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_f64_and_dual() {
-    let at_f64 = the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<f64>();
-    let at_dual =
-        the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<geom_core::Dual64>();
+    let at_f64 = pinned_profile_log::<f64>();
+    let at_dual = pinned_profile_log::<geom_core::Dual64>();
     assert_eq!(
         at_f64, at_dual,
         "the precompute decides at f64 under every lane"
@@ -379,9 +381,8 @@ fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_f64_and_dual()
 #[cfg(feature = "interval")]
 #[test]
 fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_interval() {
-    let at_f64 = the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<f64>();
-    let at_interval =
-        the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<geom_core::Interval>();
+    let at_f64 = pinned_profile_log::<f64>();
+    let at_interval = pinned_profile_log::<geom_core::Interval>();
     assert_eq!(
         at_f64, at_interval,
         "the precompute decides at f64 under every lane"
