@@ -578,6 +578,8 @@ mod shell8_dump;
 mod shell8_multi_solid;
 #[path = "shell8_r1_probes.rs"]
 mod shell8_r1_probes;
+#[path = "shell8_r2_probes.rs"]
+mod shell8_r2_probes;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
