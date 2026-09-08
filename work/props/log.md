@@ -788,6 +788,28 @@ reading list now names both `docs/prompts/` files as orchestrator
 reading. The item records the ruling with `needs_ev` cleared; the
 unit is `docs/PROPS-SIGN-HULL-SPEC.md` (block PROPS-B2 slot 1, dual).
 
+**budget-faces in review (2026-09-06)** — PR
+[#2008](https://github.com/evgunter/cad/pull/2008), branch
+`props/budget-faces` (head as on the PR), item
+`budgetexhausted-conflates-three-terminations` at `status: review`
+per the spec's §Landing (NOT merged; the orchestrator lands after the
+style review). `OffsetFitError::BudgetExhausted` is four faces:
+`BudgetExhausted` (rounds out, finite; lever `OFFSET_FIT_BUDGET`),
+`SampleCapReached` (the cap stopped the next round; lever
+`OFFSET_FIT_SAMPLE_CAP`, `rounds` says how many ran), `RefinementStalled`
+(untouched — measured as the only unmarked termination: 71 loop exits
+across the geom-brep suite, 0 stall verdicts, 0 schedule-exhaustion
+stops, every cap stop from a marking that grew), `BoundNeverFinite`
+(no `achieved` field; the lever is the limb's floors, not a knob).
+D2 row 1 at the enum. Two measured deviations argued in the body: the
+spec's `d = 1e-7` face-2 instance reads `achieved: inf` and is face 4
+(the face-2 red row is the bumpy patch at 1e-15, the item's own
+`budget: 6` after five rounds); `rounds` counts refinement rounds as
+the certificate does. Sweep: one hit of the shape outside the fence,
+`WitnessOutcome::BudgetExhausted`'s two caps, filed as
+`work/issues/witness-budget-exhausted-two-caps-one-name.md`. Territory:
+`crates/geom-brep/tests/offset_fit.rs` (tcost) only.
+
 **Sign-hull unit dispatched (2026-09-06).** `docs/PROPS-SIGN-HULL-SPEC.md`
 on main (#2004): option 1 — `b1 = normalize(e_k × n)`, `k` the
 smallest-magnitude component with ties to the highest index, the choice
@@ -908,3 +930,11 @@ certificate tightens or holds and every digit-pinning row
 re-baselines with its digits (a bound that grows is a MAJOR — stop).
 H / NUMERIC, block PROPS-B2 slot 2, dual; dispatch waits on disk
 (two lanes building on a 6 GB margin) — after MESH-12 lands.
+**Budget-faces MERGED (2026-09-08).** PR #2008 at `887f5e39d` (run
+34172448162 green). The fix pass answered all three MAJORs: the stall
+verdict precedes the budget exit (a fixture found — bumpy patch at
+`d = 1e-6`, tol ≤ 1e-9, red `BudgetExhausted { achieved: 6.9e-7 }`
+→ green `RefinementStalled { rounds: 6 }`), `BoundNotFinite` says what
+is tested and carries `last_finite` and `d`, `QuadratureBudget` filed
+for the rational quad lane. Item closed; spec into the ledger. E rider
+— no A/B row.
