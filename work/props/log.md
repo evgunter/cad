@@ -878,3 +878,12 @@ merge-forward lane pushed an EMPTY commit to carry it (R1 MINOR 4 /
 N3). Corrected by message to the sign-hull lane; no spec on main asks
 for it after the sign-hull spec's deletion at landing; no empty commit
 is ever pushed for it again.
+
+**Budget-faces MERGED (2026-09-08).** PR #2008 at `887f5e39d` (run
+34172448162 green). The fix pass answered all three MAJORs: the stall
+verdict precedes the budget exit (a fixture found — bumpy patch at
+`d = 1e-6`, tol ≤ 1e-9, red `BudgetExhausted { achieved: 6.9e-7 }`
+→ green `RefinementStalled { rounds: 6 }`), `BoundNotFinite` says what
+is tested and carries `last_finite` and `d`, `QuadratureBudget` filed
+for the rational quad lane. Item closed; spec into the ledger. E rider
+— no A/B row.

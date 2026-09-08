@@ -2,7 +2,8 @@
 id: budgetexhausted-conflates-three-terminations
 kind: issue
 title: BudgetExhausted conflates three terminations (rounds out, sample cap reached, unmarked) — a cap-named refusal would name the knob
-status: review
+status: closed
+closed: 2026-09-08
 opened: 2026-08-31
 github: 1321
 refs: [1319]
@@ -41,3 +42,24 @@ Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## Closed
+
+Landed on PR #2008 (head `887f5e39d`, run 34172448162 green), the
+offset_fit lane's E rider under `docs/PROPS-BUDGET-FACES-SPEC.md`
+(deleted at this merge; `docs/DOC-LEDGER.md`). Four faces:
+`BudgetExhausted` (rounds out, bound still falling — and the stall
+verdict now runs BEFORE the budget exit on every round, so a bound
+that stops improving on the last round is `RefinementStalled`, with a
+fixture), `SampleCapReached { cap, rounds, .. }`, `RefinementStalled`'s
+schedule-exhaustion arm as the third (measured: no path reaches a
+budget face from an unmarked round; the two-step structural argument
+at the site), and `BoundNotFinite { rounds, grid, d, tolerance,
+last_finite }` saying what `expiry` tests (finite-then-lost is
+structurally reachable, no fixture in 518 requests — stated at the
+variant). D2 row 1, once at the enum. The single style review's three
+MAJORs and every MINOR are in the fix pass; its probe is the suite
+`crates/geom-brep/tests/budget_faces.rs`. Sweep hits filed:
+`work/issues/witness-budget-exhausted-two-caps-one-name.md` (topo) and
+`work/props/quadrature-budget-conflates-its-lanes-and-budgets.md` (the
+rational quad lane's, before its dial decision).
