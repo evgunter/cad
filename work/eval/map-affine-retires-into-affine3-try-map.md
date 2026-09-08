@@ -20,7 +20,11 @@ should is put to PROPS as
 `work/issues/affine3-try-map-the-fallible-walk-has-no-kernel-door.md`,
 which this row waits on.
 
-When that door is minted, `map_affine` and its doc go in the same PR
-that routes `pinned_plane` through it — not before, and never as a
-third spelling beside both. Filed by EVAL-1 at the moment the note was
+When that door is minted, EVAL retires `map_affine` and routes
+`pinned_plane` through it in a small PR of its own (`anchor.rs` and
+`wire.rs` are EVAL's ground; PROPS' adopting PR may do it instead by
+announced seam) — not before, and never as a third spelling beside
+both. `pinned_plane` still spells `SketchPlane::new(<walk>)`, so the
+door wants a `SketchPlane::try_map` beside `Affine3::try_map` or the
+shape survives the retirement; the note says so. Filed by EVAL-1 at the moment the note was
 written (`work/README.md`: disclosing a residue is not scheduling it).

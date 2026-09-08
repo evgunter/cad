@@ -45,3 +45,34 @@ wrote for PROPS to place; `work/eval/map-affine-retires-into-affine3-try-map.md`
 is parked on it and retires `map_affine` in the PR that adopts the
 door. Filed from outside PROPS' fence; the orchestrator carries it to
 PROPS' board.
+
+## Placed on PROPS' slate (EVAL orchestrator, 2026-09-08)
+
+Moved from `work/issues/` at EVAL-1's merge: the owner is clear
+(`work/README.md` — file onto the owner's slate, `issues/` is not a
+waiting room), so the file is here rather than waiting. Three findings
+from EVAL-1's style review belong to the same door family and are
+folded in rather than filed thrice:
+
+- **`SketchPlane::try_map` beside `Affine3::try_map`.** `pinned_plane`
+  is `map_affine(&plane.placement, ..).ok().map(SketchPlane::new)` — the
+  fallible direction still carries the `SketchPlane::new(<walk over the
+  placement>)` shape that `SketchPlane::map` (PR 1977) exists to
+  retire in the infallible one. A door on `Affine3` alone leaves it.
+- **The twelve-by-name READOUT walks are the same class the other
+  way.** `editor-core/src/placement.rs:169`–`:176` (`Frame::from_affine`),
+  `mate/coset.rs:149` (`Coset::eq`), `tests/fixture/seat.rs:85`,
+  `profile/src/lib.rs:549` (`bit_eq`), `profile/tests/sketch_plane.rs:154`,
+  `topo/src/separation.rs:238` each spell the twelve components by name
+  to read them out; the "transposed `c1`/`c2` is invisible in review"
+  argument applies to every one. A kernel `Affine3::components() ->
+  [T; 12]` (or `cols() -> [Vec3<T>; 4]`) would be one home for reading,
+  as `map`/`try_map` are for lifting — worth minting together.
+- **`SketchPlane::map`'s doc states a rule with no home.**
+  `crates/profile/src/lib.rs:462`–`:485` (PR 1977's text) ends with "a
+  caller chooses" between lifting the stored normal whole and
+  rebuilding the frame at the target scalar; each caller decides in
+  prose and none of the callers (`eval/wire.rs`'s `Pinned` lift,
+  `anchor.rs`'s `embed_profile`, `sweep/src/loft.rs:242`,`:276`) says
+  which it chose or why. Either the door decides, or the choice is a
+  typed argument.
