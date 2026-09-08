@@ -377,3 +377,74 @@ them; recorded as not scored.
 samples #121, #122, #159); its branch-side record goes to main in this
 sync. The next kernel unit draws block SHELL-B2.
 
+
+## SHELL-6 cut (2026-09-08)
+
+The nappe home, the plan's next unit: spec `docs/SHELL-6-SPEC.md`,
+branch `shell/6-nappe-home`, block SHELL-B2 slot 0 — the block is
+drawn AFTER this entry and the item's pre-draw fields (S–M /
+STRUCTURAL-NUMERIC) are committed, so this row's covariate is clean.
+Decision bound by the spec: the nappe is decided ONCE per face from
+its corner stations (`nappe_signed`'s decide, moved) and every reader
+— both offset doors, the apex-window gate, `ConeOffset::displacement`
+— takes the decided value; `displacement` loses its per-point
+`copysign`. Rejected: leaving the mint nappe-blind with a second
+per-door turn (the shape 1199 found), and a per-point read (a third
+authority). The winding rename stays on its item. Lane at
+`/home/user/shell-lanes/shell-6/`, private target and scratch beside.
+
+## SHELL-6 MERGED (2026-09-08, PR #2178 — ordinal 2303, sample #160)
+
+The cone nappe has one home in the offset lane: `topo::offset_nappe`
+— `face_nappe` (the face's two extreme corner stations, enforcing the
+premise that every corner is on one nappe) and `group_nappe` (a
+chart's faces agreed, refusing `NappeStraddles` typed on either
+reading), read once per cone chart by both offset doors, the
+apex-window gate (one decide on the near end) and
+`ConeOffset::displacement` (its per-point `copysign` gone; the nappe
+passed in). `nappe_signed` is deleted, `mint_offset`'s caller turns
+`d` before the mint, and `d` at the per-chart door now means the same
+geometric thing on both nappes — which moved one baseline
+(`verbs_offd`'s apex-window crossing row asks for the inward `d` it
+always meant; both reviewers re-derived it: the kernel was wrong
+before, the row is right now). Both reviews APPROVE-WITH-FIXES.
+**What the reviews corrected in the record, by execution:** the
+per-chart cone offset is NOT unreachable — `ReanchorOffCarrier`
+meters `|d|·sin α` against ε, so below `ε / sin α` the door builds,
+and on the merge base it built a body that GREW on an inward request
+(R2, a merge-base control: 0.000894822126266624 →
+0.0008948221627270332). The defect this unit closes was live at ε
+scale, not latent behind a gate as issue record 1199 and both of
+#1180's review arms had it; above the threshold it was latent, and a
+neighbour that could hold both rims refuses `NeighborPairUnroutable`
+first (R1: `intersect::route` has no cone×{sphere, cone, torus} row).
+Spec §2.1 is landed at the ε-scale operand (R2's row adopted).
+**Unilateral, tally candidate (+1 pending the blinded coding):** R2's
+MAJOR — the dropped §2.1 was landable and its premise false — class
+test-gap, demonstrated by execution (R1 argued the same
+unreachability from the routing table and did not find the
+threshold); R2's second MAJOR (the live-defect record) traces to the
+same fact and dedups with it. **Convergent:** the `replace_face.rs`
+module header still stated the pre-unit contract; `offset_nappe.rs`
+claimed to be "the one place" the nappe is read tree-wide (four
+other predicates in three programs' files decide the same fact —
+filed as `work/issues/cone-nappe-is-decided-in-five-places`); the
+first-face-decides premise on both doors with the axial door writing
+per chart and no agreement gate (now `group_nappe`); a tautological
+assertion. Spec premises this unit falsified, mine: `ApexWindowStraddles`
+never existed; the `NappeError` shape (the doors' own error type is
+right); the sum of corner stations as the decide (a sum can say
+`Opening` for a face with corners on both nappes — R2's fixture; the
+extremes decide now). Two K rows moved and re-derived per the
+runbook (zero rows in every committed baseline). `offset_axial_side`
+adjudicated NOT redundant with `face_nappe` (it meters a corner
+against the MOVED apex; the reason is at the site). Friction recorded
+in the PR: the axial door's apex-reach refusal talks about a corner
+on the axis; `ReanchorOffCarrier` offers no route to the door that
+works. Rubric idiom/tests/docs: not scored by either reviewer.
+
+Block SHELL-B2 slot 0 concludes; slots 1 and 2 remain (record
+branch-side). Next on the plan: SHELL-3 at sign-hull's merge, and
+the follow-ups item 1 (the curved-rim narrowing, a PROPS seam) as
+the other candidate for slot 1.
+

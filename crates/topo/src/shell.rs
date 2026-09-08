@@ -2006,7 +2006,8 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::TogetherChartMixed { face, .. }
         | ReplaceFaceError::TogetherFaceRepeated { face }
         | ReplaceFaceError::TogetherAxialUnsupported { face, .. }
-        | ReplaceFaceError::TogetherNotAxial { face, .. } => Some(*face),
+        | ReplaceFaceError::TogetherNotAxial { face, .. }
+        | ReplaceFaceError::NappeStraddles { face, .. } => Some(*face),
         ReplaceFaceError::TogetherCorner { vertex, .. }
         | ReplaceFaceError::TogetherAxialCorner { vertex, .. } => {
             face_of_he(body.get_vertex(*vertex)?.emanating?)
