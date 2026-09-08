@@ -103,14 +103,20 @@ whichever way this row goes, that constant is what it replaces.
 
 ## Landed
 
-One reading, in `lib.sh`'s new §"THE RECORD'S COLUMNS":
+One reading, in `lib.sh`'s new §"THE COLUMNS OF A RECORD":
 `GATE_RECORD_LINE_RE=':[0-9]+:'` is where the FILE column ends, and
 three ways in read it — `gate_record_file` and `gate_record_text` for a
-pipeline stage, and `GATE_RECORD_AWK`'s `gate_record_split(rec)`
-(GR_FILE / GR_LINE / GR_TEXT) prepended to any `awk` program, taking the
-constant through `ENVIRON` the way the cfg regex does.
-`GATE_RECORD_PREFIX_RE` stays, built from the same constant, and now
-says at its definition that it is an ANCHOR and not a parser.
+pipeline stage, and `gate_record_awk`, the one way into the `awk`
+function `gate_record_split(rec)` (GR_FILE / GR_LINE / GR_TEXT): it
+puts the constant in the environment and prepends the snippet, so a
+caller writes its program and nothing else. Spelled by hand the call is
+two parts that must agree, and forgetting the env half is SILENT —
+`match(rec, "")` succeeds at position 1 and every record reads as an
+empty FILE column — so the function refuses an empty constant through
+the marker, and a scratch gate in `gate_selftest_clean` plants exactly
+that. `GATE_RECORD_PREFIX_RE` stays, built from the same constant, and
+now says at its definition that it is an ANCHOR and not a parser, with
+no caller today.
 
 The row's open sites, converted: `viewer-module-kinds.sh`'s union dedupe
 key; `lib.sh`'s `gate_test_only_mounts` (the `-oE` narrowing, and the
@@ -122,7 +128,8 @@ carry a colon is the one `read` hands the remainder to),
 
 The class was bigger than the row's grep. That grep cannot see a column
 read done inside an `awk` body with a hand-written `index()`/`substr()`
-pair — the row says so — and there were six of them, each the same
+pair — the row says so — and there were seven of them, in six gates,
+each the same
 first-colon split: `panic-free-macro-bodies.sh` (its `macro_bodies`
 reader AND its `PANIC_RE` fence, which is why a panic token in a macro
 body in such a file was seen by nothing), `interval-square-allowlist.sh`
@@ -145,10 +152,22 @@ subtree a declarer at `a:b.rs` mounts, in all three of its callers;
 `viewer-vocab-declared-once.sh` names it whole with its line;
 `interval-square-allowlist.sh` raises the binding-hop candidate in it;
 `no-extra-real-bounds.sh` stays quiet on a SOLE bound in a path whose
-tail the walk used to read as a predicate. `bit-identity-debug-only.sh`
-is converted with no fixture: its subjects are a baked row list a
-fixture tree cannot extend, so a colon-carrying path is unreachable
-there without an edit to that list.
+tail the walk used to read as a predicate; and `bit-identity-debug-only.sh`
+takes one further SUBJECT at such a path — its row list is what decides
+what it reads, so the fixture adds a row through the environment the way
+`viewer-module-kinds.sh` adds an exception entry (pins are not compared
+under `--root`, so the extra row costs nothing else) — green while the
+use is gated and red naming that path AND the leak's line, which is both
+columns the reading decides.
+
+One text for a reader that could not run, `gate_reader_died_refusal`:
+the class had four spellings (`gate_grep`'s, the shared Rust reader's,
+the record columns' and `viewer-vocab-declared-once.sh`'s
+`reader_failed`), so a CI reader met one event under four descriptions.
+Every `: >> "$GATE_MATCHER_FAILED"` site was swept: the other seven are
+not this class — four are a SKIP or a LIST being wrong, and three are a
+reader that read something it could not place — and they keep their own
+texts.
 
 Every gate's live stdout and stderr is byte-identical to the merge
 base's, statuses included, and every `--selftest` passes.

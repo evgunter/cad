@@ -384,19 +384,14 @@
 # `;` blindness is `lib.sh`'s -- the shared view every gate reads, so it
 # moves for all of them or for none. Nothing here is a mitigation.
 #
-# KNOWN GAP 8, AND IT IS ONE PATH SHAPE COSTING TWO THINGS. A record is
-# `FILE:LINE:TEXT` and a `:` is legal in a path here and in git, so
-# everything this gate reads about a record turns on where the FILE
-# column ends. It ends at the FIRST `:LINE:` -- `lib.sh`'s
-# `GATE_RECORD_LINE_RE`, read here by the diagnosis column and by both
-# halves of the reader's split -- and that reading is exact for every
-# path but one: a path carrying a `:LINE:` SHAPE OF ITS OWN,
-# `…/boxes.rs:12:x.rs`. Such a record is ambiguous at any reader,
-# because the two splits are both well-formed records, and this one
-# takes the SHORTER path. That the shape is unresolvable AT ALL is
-# registered once, at `lib.sh`'s §"THE RECORD'S COLUMNS"; what it costs
-# is per gate, and here it is two things, neither of them a scan hit
-# going quiet:
+# KNOWN GAP 8 IS WHAT ONE PATH SHAPE COSTS THIS GATE. The shape is
+# `…/boxes.rs:12:x.rs`, a path spelling a `:LINE:` of its own; that it
+# is unresolvable at ANY reader of a `FILE:LINE:TEXT` record, and that
+# the reading takes the shorter path, is registered once at `lib.sh`'s
+# §"THE COLUMNS OF A RECORD" and is not re-argued here. Everything this
+# gate decides about a record — the diagnosis column and both halves of
+# the reader's split — goes through that reading, so the cost lands in
+# two places, neither of them a scan hit going quiet:
 #
 #   * THE DIAGNOSIS NAMES THE WRONG FILE. `…/boxes.rs:12:x.rs` reads as
 #     `…/boxes.rs`, which is an allowlist entry: the record is exempt
@@ -413,9 +408,7 @@
 # plants in both directions (`plant_colon_path_beside_entry`,
 # `plant_colon_path_sole_bound`, `plant_colon_path_compound_bound`):
 # those are read exactly, this one needs a path that spells a line
-# number between two colons. Closing it means a reader that knows the
-# scan's own file list rather than parsing the record -- a different
-# instrument, and one every gate in this directory would want.
+# number between two colons.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -738,11 +731,11 @@ BOUNDS_ALIAS_ROSTER=(
 # scan did not, and a count keyed on its own regex would take a bound
 # the matcher stopped calling one.
 gate_bound_reader() {
-  GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk -v MODE="$1" "$GATE_RECORD_AWK"'
-    # Where the file column ends is `gate_record_split`, which `lib.sh`
-    # prepends to this program as `GATE_RECORD_AWK`; it reads
-    # `GATE_RECORD_LINE_RE` through ENVIRON rather than `-v`, since a
-    # `-v` assignment is read for escape sequences before it is a regex.
+  gate_record_awk -v MODE="$1" '
+    # Where the file column ends is `gate_record_split`, which
+    # `gate_record_awk` prepends to this program; the constant it reads
+    # reaches it through ENVIRON rather than `-v`, since a `-v`
+    # assignment is read for escape sequences before it is a regex.
     # (No apostrophe may appear in this program, which is itself
     # single-quoted.)
     BEGIN { Q = sprintf("%c", 39) }

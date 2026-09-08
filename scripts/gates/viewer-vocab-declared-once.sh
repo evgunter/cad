@@ -282,8 +282,11 @@ function flush(  i, ch, d, eq, init, n) {
   printf "%s|%s|%s|%s|%s\n", file, line, kw, name, init
 }
 {
-  # WHERE THE FILE COLUMN ENDS is gate_record_split, prepended to this
-  # program by its caller (lib.sh, section THE RECORD S COLUMNS). An
+  # WHERE THE FILE COLUMN ENDS comes from `gate_record_split`, which
+  # `gate_record_awk` prepends to this program (lib.sh, section THE
+  # COLUMNS OF A RECORD; no apostrophe may appear here, since the
+  # program is single-quoted where it is run, so possessives are written
+  # around). An
   # item is accumulated ACROSS records and closed when the file changes,
   # so a FILE column read to the first colon spliced two files whose
   # paths agree up to a colon into one item — and put the line number at
@@ -374,9 +377,12 @@ BEGIN { FS = "|" }
 # shell KEEPS is not one either — errexit and `pipefail` already end the
 # gate on it.
 reader_failed() {
-  gate_error "$(gate_name): the $1 exited $2, so what it did not read is unknown and the checks below it decided nothing — that is not a clean scan"
-  : >> "$GATE_MATCHER_FAILED"
-  exit "$2"
+  # THE TEXT IS `lib.sh`'s, and it is one text for every reader in this
+  # directory that could not run: a reader of a CI log met the same
+  # event under four descriptions before, and none of them was the
+  # canonical one. What stays here is WHICH reader — the caller names it
+  # and the self-test aims at that name.
+  gate_reader_died_refusal "the $1" "$2"
 }
 
 # THE MARKER IS READ WHERE THE CALLER RESUMES, not only at `gate_ok`.
@@ -403,8 +409,7 @@ viewer_sources() {
 
 const_items() {
   local status=0
-  gate_rust_code "$@" |
-    GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk "$GATE_RECORD_AWK$ITEM_AWK" || status=$?
+  gate_rust_code "$@" | gate_record_awk "$ITEM_AWK" || status=$?
   if [ "$status" -ne 0 ]; then
     reader_failed "const-item reader over $SRC" "$status"
   fi

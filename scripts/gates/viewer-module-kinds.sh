@@ -455,7 +455,7 @@ gate() {
   # site count would depend on which arms fired.
   #
   # THE KEY IS THE RECORD'S OWN FILE AND LINE, read by `lib.sh`'s
-  # `gate_record_split` (§"THE RECORD'S COLUMNS"). It used to be `awk
+  # `gate_record_split` (§"THE COLUMNS OF A RECORD"). It used to be `awk
   # -F: '{ k = $1 ":" $2 }'`, which is the FILE column read as
   # everything before the first colon — so for a module at `a:b.rs`
   # every record in the file shared ONE key whatever line it sat on,
@@ -476,7 +476,7 @@ gate() {
   # the distinction per stage — 1 becomes 0, anything else is diagnosed
   # and marks `GATE_MATCHER_FAILED` so `gate_ok` refuses to print.
   hits=$(printf '%s\n%s\n' "$lines_hits" "$tree_hits" | gate_grep -v '^[[:space:]]*$' |
-    GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk "$GATE_RECORD_AWK"'
+    gate_record_awk '
       { k = gate_record_split($0) ? GR_FILE ":" GR_LINE : $0 }
       !(k in seen) { seen[k] = 1; print }' | sort)
 

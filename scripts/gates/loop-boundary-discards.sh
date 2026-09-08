@@ -279,7 +279,7 @@ gate() {
   fi
   export LBD_ANCHOR="$ANCHOR_RE" LBD_LET="$LET_RE" LBD_ARM="$ARM_RE"
   if ! report=$(printf '%s\n' "$entries" "===" "$lineview" "===" "$winview" \
-    | GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk "$GATE_RECORD_AWK"'
+    | gate_record_awk '
       BEGIN {
         ANCHOR = ENVIRON["LBD_ANCHOR"]
         LETRE = ENVIRON["LBD_LET"]
@@ -297,8 +297,10 @@ gate() {
         next
       }
       {
-        # WHERE THE FILE COLUMN ENDS is gate_record_split, lib.sh
-        # section THE RECORD S COLUMNS. This reader keys a discard on
+        # WHERE THE FILE COLUMN ENDS comes from `gate_record_split`
+        # (lib.sh, section THE COLUMNS OF A RECORD; no apostrophe may
+        # appear in this program, which is itself single-quoted, so
+        # possessives are written around). This reader keys a discard on
         # `file ":" line` and its enclosing-fn state on `file` alone, so
         # a FILE column read to the first colon gave two files one key:
         # a discard in one was attributed to a register entry naming the

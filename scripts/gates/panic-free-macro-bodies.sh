@@ -119,14 +119,27 @@ PANIC_TOKENS='\.(unwrap|expect)[^A-Za-z0-9_]|[^A-Za-z0-9_](panic|todo|unimplemen
 # spell a token is not scanned as if it were code.
 #
 # THE FENCE OPENS AT THE FIRST `:LINE:`, `lib.sh`'s one reading of where
-# the FILE column ends (§"THE RECORD'S COLUMNS"), and NOT at
+# the FILE column ends (§"THE COLUMNS OF A RECORD"), and NOT at
 # `GATE_RECORD_PREFIX_RE` — that expression demands a FILE column with
 # no colon of its own, so a record from `a:b.rs` matched it nowhere and
 # every panic token in a macro body in such a file went UNSEEN. The
-# residue is the ambiguous path this file already registers as KNOWN GAP
-# 8 in `bounds-allowlist.sh`: a path spelling `:digits:` itself opens the
-# fence early, and a token in the tail of that path would be read as
-# body text.
+# residue is the ambiguous path `bounds-allowlist.sh` registers as its
+# KNOWN GAP 8 and `lib.sh` states in general: a path spelling `:digits:`
+# itself opens the fence early, and a token in the tail of that path
+# would be read as body text.
+#
+# IT IS NO LONGER `^`-ANCHORED, AND THAT IS A PROPERTY OF LEFTMOST
+# MATCHING RATHER THAN OF THE PATTERN. `^[^:]*` was the anchor and it is
+# the expression that cannot survive a colon in the path, so what is
+# left starts at a `:LINE:` wherever the record has one. `grep -E` is a
+# FILTER here — the question is whether the record matches anywhere, not
+# where — so "the fence opens at the FIRST `:LINE:`" holds because the
+# earliest `:digits:` of a well-formed record IS its line column, not
+# because the pattern says so. A match starting at a LATER one is not a
+# false hit: everything after a colon inside the BODY is still body, so
+# the token it finds is in the field this fence exists to pin. The one
+# reading that changes is the ambiguous path above, which is the same
+# residue the reading itself carries.
 PANIC_RE="$GATE_RECORD_LINE_RE[^:]*:.*($PANIC_TOKENS)"
 
 # One record per line of `macro_rules!` body, as
@@ -135,7 +148,7 @@ PANIC_RE="$GATE_RECORD_LINE_RE[^:]*:.*($PANIC_TOKENS)"
 # the in-body span of a line is emitted, so a call OUTSIDE the body
 # never reaches the matcher.
 macro_bodies() {
-  GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk "$GATE_RECORD_AWK"'
+  gate_record_awk '
     function scan(f, ln, t,   pos, seg, i, n, j, c, endpos, body) {
       pos = 1
       while (pos <= length(t)) {
@@ -179,11 +192,13 @@ macro_bodies() {
     }
     {
       # The view emits FILE:LINE:TEXT; a body cannot span two files, so
-      # the state resets with the filename. WHICH filename is
-      # gate_record_split, one reading for the whole directory: read to
-      # the first colon instead, a path carrying one of its own gave a
-      # truncated key that two files could share (their bodies then
-      # spliced) and handed the line number to the body text as if it
+      # the state resets with the filename. WHICH filename comes from
+      # `gate_record_split`, the one reading in this directory (no
+      # apostrophe may appear in this program, which is itself
+      # single-quoted, so possessives are written around): read to the
+      # first colon instead, a path carrying one of its own gave a
+      # truncated key that two files could share, splicing one body into
+      # the next, and handed the line number to the body text as if it
       # were code.
       if (!gate_record_split($0)) next
       f = GR_FILE; ln = GR_LINE; t = GR_TEXT

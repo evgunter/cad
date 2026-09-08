@@ -303,7 +303,7 @@ GATE_CENSUS_REGISTER_FILE=
 # binding is the site, and a value used twice is still one place where
 # the square was split.
 two_statement_candidates() {
-  GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk "$GATE_RECORD_AWK"'
+  gate_record_awk '
     # A REMEMBERED NAME IS DATA AND IT IS SPLICED INTO A REGEX, so it is
     # escaped first. Both names come from the code, and the only
     # metacharacter their character classes admit is a DOT: the operand
@@ -318,12 +318,14 @@ two_statement_candidates() {
     # single-quoted.)
     function esc(s,   t) { t = s; gsub(/[.]/, "[.]", t); return t }
     {
-      # WHERE THE FILE COLUMN ENDS is gate_record_split, lib.sh section
-      # THE RECORD S COLUMNS, and the binding memory is keyed on it: read
-      # to the first colon, two files whose paths agree up to a colon
-      # shared one key and a binding in one completed a square in the
-      # other, while the line number the key left behind arrived inside
-      # the statement text as if it were code.
+      # WHERE THE FILE COLUMN ENDS comes from `gate_record_split` in
+      # `lib.sh`, section THE COLUMNS OF A RECORD, and the binding
+      # memory is keyed on it (no apostrophe may appear in this program,
+      # which is itself single-quoted, so possessives are written
+      # around): read to the first colon, two files whose
+      # paths agree up to a colon shared one key and a binding in one
+      # completed a square in the other, while the line number the key
+      # left behind arrived inside the statement text as if it were code.
       if (!gate_record_split($0)) next
       file = GR_FILE; line = GR_LINE + 0
       txt = GR_TEXT; sub(/^ /, "", txt)
@@ -390,7 +392,7 @@ census() {
   # and a register is a claim about the tree it describes.
   files=$(printf '%s\n' "${GATE_PRODUCTION_FILES[@]}")
   if ! report=$(printf '%s\n===\n%s\n===\n%s\n' "$entries" "$files" "$cands" |
-    GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk "$GATE_RECORD_AWK"'
+    gate_record_awk '
     /^===$/ { phase++; next }
     phase == 0 {
       if ($0 == "") next
@@ -406,9 +408,12 @@ census() {
     phase == 1 { if ($0 != "") have[$0] = 1; next }
     {
       if ($0 == "") next
-      # The shape is this gate s own prefix; what follows it is a record,
-      # and where ITS file column ends is gate_record_split (lib.sh,
-      # section THE RECORD S COLUMNS). Read to the first colon, a
+      # The shape name is a prefix this gate puts on; what follows it is
+      # a record, and where ITS file column ends comes from
+      # `gate_record_split` (lib.sh, section THE COLUMNS OF A RECORD; no
+      # apostrophe may appear in this program, which is itself
+      # single-quoted, so possessives are written around). Read to the
+      # first colon, a
       # candidate in a colon-carrying path was attributed to a file that
       # does not exist, so no register entry could ever name it and the
       # UNREG arm reported a path nobody can look up.
