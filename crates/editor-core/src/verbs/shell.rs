@@ -352,6 +352,13 @@ fn fold_replace_face_error<T: Real>(
             v_max: end(v_max, Supremum),
             shift: end(shift, Supremum),
         },
+        // A straddling face's station bracket contains zero, so both
+        // ends read the same verdict — no nappe. The infimum is echoed,
+        // as the signed payloads above are.
+        R::NappeStraddles { face, station } => R::NappeStraddles {
+            face,
+            station: end(station, Infimum),
+        },
         R::ApexWindowUnknown { face } => R::ApexWindowUnknown { face },
         R::NeighborPairUnroutable {
             edge,
