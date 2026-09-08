@@ -37,23 +37,16 @@
 //! it. A would-be survivor whose key the records list as RETIRED
 //! refuses [`NamingError::Emission`].
 //!
-//! **That guard is unreachable BY CONSTRUCTION, and it is worth
-//! saying which construction.** The surgery mutates a clone of the
-//! target's own body, and `topo::Body`'s arenas are `slotmap::SlotMap`
-//! over `new_key_type!` keys, which bump a slot's VERSION on removal:
-//! a retired key is never reissued, so a retired key cannot reappear
-//! in the output arena at all. There is no input this code can be
-//! handed that reaches the refusal.
-//!
-//! It is kept because the property it rests on lives in another
-//! crate's choice of container. If a future body ever numbered its
-//! entities itself, or reused slots, an unrecorded mint would be named
-//! `FromTarget` of an unrelated entity — and whether that misnaming
-//! got caught would depend on whether the real owner of the name
-//! happened to collide at insertion. That is luck, not a guarantee.
-//! Same posture as `wire_blend`'s refusal of `naming: None` (the one
-//! generic blend lowering, which `wire_fillet` and `wire_chamfer`
-//! collapsed onto).
+//! That guard is unreachable while `topo::Body`'s arenas reissue no
+//! retired key. The kernel owns that statement: [`sweep::blend::naming`]'s
+//! module doc says what [`Retired`](sweep::blend::naming::Retired) is
+//! for in this consumer — a guard that cannot fire, holding the
+//! invariant against the arenas' numbering changing. It is kept here
+//! because the property it rests on lives in another crate's choice of
+//! container: were a retired key ever reissued, an unrecorded mint
+//! would be named `FromTarget` of an unrelated entity, caught only if
+//! the name's real owner happened to collide at insertion. Same
+//! posture as `wire_blend`'s refusal of `naming: None`.
 //!
 //! # An upstream tie PROPAGATES (B1)
 //!
@@ -250,21 +243,17 @@ pub(super) fn name_blend<T: geom_core::Real>(
             // arena key — UNLESS the records say that key was retired,
             // in which case the match is not provenance.
             //
-            // Unreachable by construction: the arenas are slotmaps
-            // whose keys carry a slot version, so a retired key is
-            // never reissued and cannot come back here. The guard
-            // holds the invariant against that container choice
-            // changing, not against a state reachable today (module
-            // docs).
+            // Unreachable while the arenas reissue no retired key —
+            // the kernel's statement, at `sweep::blend::naming`'s
+            // module doc, of what `Retired` is for here: a guard that
+            // cannot fire, holding the invariant against that changing.
             None => {
                 let dead = match key {
                     EntityKey::Edge(k) => retired_e.contains(&k),
                     EntityKey::Vertex(k) => retired_v.contains(&k),
-                    // `Retired` carries no face channel (the surgery's
-                    // one `kef` door refuses a source face, and states
-                    // why), so a face key here is a real survivor.
-                    // Asserted in both directions by
-                    // `sweep/tests/m6_5_fillet_naming.rs`.
+                    // `Retired` carries no face channel — its doc
+                    // (`sweep::blend::naming::Retired`) states why —
+                    // so a face key here is a real survivor.
                     EntityKey::Face(_) | EntityKey::Body => false,
                 };
                 if dead {
