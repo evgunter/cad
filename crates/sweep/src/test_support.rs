@@ -232,13 +232,17 @@ pub fn rim_arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<Edg
 /// is the fixture's claim that this rim is ONE edge, said once here
 /// instead of at every suite that wants a key rather than a set.
 ///
+/// `f64` where [`rim_arcs_at`] is generic: the interval lane blends the
+/// rim as the SET the door hands back, so the key shape has no caller
+/// there and buys no [`Bounds`] bracket read of its own.
+///
 /// # Panics
 ///
 /// If the rim at that radius and station is not exactly one edge — an
 /// empty answer (no arc sits there) included, because a caller holding
 /// a key has no way to say "no rim".
 #[must_use]
-pub fn one_edge_rim_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> EdgeKey {
+pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
     match rim_arcs_at(body, rim_r, rim_y)[..] {
         [only] => only,
         ref many => {
