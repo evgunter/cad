@@ -63,3 +63,10 @@ the sentence a reader reaches for on the day it does.
 
 Refs: `docs/K-REPORT.md` (M11 addendum, 2026-09-08),
 `crates/geom-brep/src/props/curved.rs:1708-1803`, PR 1220.
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.

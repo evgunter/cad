@@ -71,3 +71,10 @@ characterisation of what `muu/mvv` ratios real certified bounds
 produce, which nothing in the tree has.
 
 Fence: `tools/tess-lint/*` and `tools/tess-meter/*`, METER's.
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.
