@@ -28,6 +28,7 @@
 
 pub mod errors;
 pub mod identity;
+pub mod node_kind;
 pub mod tags;
 
 #[cfg(feature = "python")]

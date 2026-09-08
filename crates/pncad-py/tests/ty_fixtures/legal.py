@@ -463,6 +463,22 @@ corner: tuple[Length, Length, Length] = seamed.vertex_position(
 )
 denotes: Denotation = seamed.denotation(upright, cap_name)
 tied: bool = denotes.tied
+# The face's ORIENTATION SENSE rides beside the axis as a plain bool,
+# never folded into it, so the outward normal is formed by the reader.
+faces_along_axis: bool = where.sense
+outward: tuple[float, float, float] = (
+    where.axis if where.sense else (-where.axis[0], -where.axis[1], -where.axis[2])
+)
+# The carrier-kind read: a face name in, the stored tag out — a
+# `SurfaceKind`, the same enum `GeomPred.surface_kind` matches on, and
+# not a string.
+carrier: SurfaceKind = seamed.face_carrier_kind(upright, cap_name)
+is_flat: bool = carrier == SurfaceKind.Plane
+# A sketch frame DERIVED from that face: the body node, an opaque
+# name, and a DIMENSIONED spin. The result is a `Node` like any other
+# datum, and a profile takes its id as a plane.
+derived: Node = Node.datum_face_frame(upright, cap_name, 0.3 * rad)
+on_the_face: NodeId = doc.insert(derived)
 # The advisory checks: a report out of one door, a gate the caller
 # opens at the other, and the subject a finding names.
 report: ChecksReport = run_checks(doc, seamed)
@@ -546,3 +562,8 @@ gathered.validate()
 gathered.validate_closed()
 gathered.validate_geometric()
 gathered.validate_pseudomanifold()
+
+# The node-kind read door: an id in, one stable word out. It is the
+# NODE's kind and not its value's, so it is answerable with no
+# evaluation in hand at all.
+which_kind: str = doc.node_kind(upright)
