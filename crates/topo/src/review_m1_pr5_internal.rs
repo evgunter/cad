@@ -240,6 +240,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ("mekr_chord", "derives the spec, then calls `mekr`"),
     ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
     (
+        "insert_void",
+        "calls `insert_voids` with the one destination as a slice — same body, same assertion",
+    ),
+    (
         "set_edge_curve_nurbs_lane",
         "`set_edge_curve` with the NURBS certifier injected — same body, same assertion",
     ),
