@@ -714,7 +714,7 @@ fn axis_datum<P>(doc: &Doc<P>, axis: RecipeNodeId) -> Result<&Node<P>, NodeError
         Some(other) => Err(NodeErrorKind::WrongOperand {
             input: axis,
             expected: "datum axis",
-            found: crate::eval::node_value_kind(other),
+            found: crate::eval::node_value_kind(doc, other)?,
         }),
         None => Err(NodeErrorKind::MissingInput { input: axis }),
     }

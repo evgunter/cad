@@ -352,6 +352,22 @@ fn fold_replace_face_error<T: Real>(
             v_max: end(v_max, Supremum),
             shift: end(shift, Supremum),
         },
+        // The face's own station span, widened to the bracket that
+        // makes the refusal most true: the least corner read at its
+        // infimum and the greatest at its supremum is the widest span
+        // the operand admits, and a span that reaches across the apex
+        // is what this refuses.
+        R::NappeStraddles {
+            face,
+            station_min,
+            station_max,
+            what,
+        } => R::NappeStraddles {
+            face,
+            station_min: end(station_min, Infimum),
+            station_max: end(station_max, Supremum),
+            what,
+        },
         R::ApexWindowUnknown { face } => R::ApexWindowUnknown { face },
         R::NeighborPairUnroutable {
             edge,

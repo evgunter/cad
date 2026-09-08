@@ -73,7 +73,7 @@ use pncad::select::{
     DanglingRef, HitTestError, InterrogateError, MeshPickError, NodePickError, ReadbackError,
     Resolution, ResolveError, ResolveIndeterminate,
 };
-use pncad::step_import::StepImportError;
+use pncad::step_import::{PromotedKind, StepImportError};
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
 use pncad::stl::{BinaryHeaderError, SolidNameError, StlError};
@@ -694,6 +694,32 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::TierInvalid { .. } => "tier_invalid",
+    }
+}
+
+/// The stable tag for the analytic kind a stage-1 recognition
+/// estimator DECLINED on — what `StepImportError::RecognitionAmbiguous`
+/// carries.
+///
+/// The carrier's arm does not forward to this one and that is the
+/// decision, the `mesh_index` shape: `recognition_ambiguous` names
+/// the CONDITION — no answer exists at the interpretation budget —
+/// and a caller branching on the import's refusal ladder needs that
+/// word to stay put. Which kind's estimator declined is a second
+/// question, answered beside the tag rather than in place of it,
+/// because the two lead different places: a plane that will not
+/// certify is a flatness question at ε_in, a cylinder that will not is
+/// an ill-conditioned axis and wants more of the patch.
+///
+/// The match is exhaustive, so a third promotable kind recognised
+/// kernel-side stops this crate compiling instead of arriving under
+/// one of these two words. The face and surface entity ids and the
+/// conditioning margin stay in the kernel's own `Display`, which is
+/// where they already were.
+pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
+    match kind {
+        PromotedKind::Plane => "plane",
+        PromotedKind::Cylinder => "cylinder",
     }
 }
 
