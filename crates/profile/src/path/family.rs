@@ -777,18 +777,63 @@ pub trait TangentIncoming<T: ArcCarrierScalar> {
     fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>>;
     #[doc(hidden)]
     fn to_wire(&self) -> ArcData<T>;
+}
+
+/// The endpoint-free sharp LEG from a DIRECTED tip — `arc_to(spec)`
+/// with `Sweep`/`ArcLen`, plain or with its declared split. A trait
+/// of its own rather than [`TangentIncoming`] because the two modes
+/// serve BOTH as this leg and as a fused verb's incoming spec, and
+/// only the leg admits a declared split: a fillet trims the arc it
+/// authors, and a trimmed arc has no declared stations. So
+/// `Split<Sweep<_>>` is a `TangentLeg` and NOT a `TangentIncoming` —
+/// a split on a fused incoming is a missing impl, unrepresentable
+/// ([`Split`]'s doctests pin both halves). SEALED like [`PointLeg`]:
+/// the implementor set is the two modes and their [`Split`].
+pub trait TangentLeg<T: ArcCarrierScalar>: super::sealed::Sealed {
+    #[doc(hidden)]
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>>;
+    #[doc(hidden)]
+    fn to_wire(&self) -> ArcData<T>;
     /// The declared split count — `None` for the plain leg, `Some(n)`
     /// verbatim for [`Split`] (a declared `1` or `0` reaches the
     /// kernel's own refusal rather than passing as the plain leg).
     #[doc(hidden)]
+    fn splits(&self) -> Option<usize>;
+}
+
+impl<T> super::sealed::Sealed for Sweep<T> {}
+impl<T> super::sealed::Sealed for ArcLen<T> {}
+
+impl<T: ArcCarrierScalar> TangentLeg<T> for Sweep<T> {
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
+        TangentIncoming::leg(self, dp, tol)
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        TangentIncoming::to_wire(self)
+    }
     fn splits(&self) -> Option<usize> {
         None
     }
 }
 
-/// A split leg is admissible exactly where its spec is: the wrapper
-/// delegates the derivation and the wire record, and adds its count.
-impl<T: ArcCarrierScalar, S: TangentIncoming<T>> TangentIncoming<T> for Split<S> {
+impl<T: ArcCarrierScalar> TangentLeg<T> for ArcLen<T> {
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
+        TangentIncoming::leg(self, dp, tol)
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        TangentIncoming::to_wire(self)
+    }
+    fn splits(&self) -> Option<usize> {
+        None
+    }
+}
+
+/// A split leg is admissible exactly where its spec is a LEG: the
+/// wrapper delegates the derivation and the wire record and adds its
+/// count. The [`Splittable`](verbs::Splittable) bound is what keeps
+/// nesting out: `Split` is not in that sealed set, so
+/// `Split<Split<_>>` implements no leg trait.
+impl<T: ArcCarrierScalar, S: TangentLeg<T> + verbs::Splittable> TangentLeg<T> for Split<S> {
     fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
         self.spec.leg(dp, tol)
     }
@@ -1205,7 +1250,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
 
     /// The kernel behind the table's endpoint-free sharp-leg row
     /// (recording is the row's, not the kernel's).
-    pub(super) fn arc_to_kernel<S: TangentIncoming<T>>(
+    pub(super) fn arc_to_kernel<S: TangentLeg<T>>(
         mut self,
         spec: S,
         tol: Tol,
@@ -1471,7 +1516,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
 /// (`Sweep`/`ArcLen`) has no impl here — from a bare point there is no
 /// departure tangent to sweep about, so that pair is unrepresentable
 /// rather than refused. It reaches `arc_to` from the Directed tip
-/// instead ([`TangentIncoming`]).
+/// instead ([`TangentLeg`]).
 /// SEALED, on the same rule as the lattice markers: the admissible
 /// (state, mode) pairs ARE the matrix, so a foreign impl would mint a
 /// row the doctrine does not have. The six mode types below are the

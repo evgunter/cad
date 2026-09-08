@@ -10,9 +10,16 @@
 //! carried forward as its output), and [`ArcResolver`], whose `Guide`
 //! is the discrete-choice ledger and carries no geometry. A verb over
 //! the bare state that reaches for "what leg produced this point" has
-//! nothing in scope to read, and the compiler says so — the seal's
-//! proof, as a doctest (the first `compile_fail` in this tree that
-//! pins a sealing rather than a type shape):
+//! nothing in scope to read, and the compiler says so. The doctest
+//! below pins [`DirectedPoint`]'s SHAPE — the incoming-state currency
+//! has no carrier field — and nothing wider: it is not a universal
+//! over every function in the crate (a chain-side kernel in `path.rs`
+//! reads the tip's incoming carrier, and its readers are named
+//! below). The statement that IS true is PATHS-DESIGN §4's: no
+//! signature in this sealed verb module admits a `Core`, a previous
+//! leg or an incoming carrier. (Rustdoc on this toolchain does not
+//! check the error code written after `compile_fail`; the failure to
+//! compile is what is enforced.)
 //!
 //! ```compile_fail,E0609
 //! use profile::path::DirectedPoint;
@@ -408,9 +415,8 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
 /// A sharp arc LEG that declares its own split (PATHS-DESIGN §2c/§3,
 /// `arc_to(spec.split(n))`): the one leg `spec` authors, emitted as
 /// `n` arcs on the one carrier, its `n − 1` interior stations placed BY
-/// PARAMETER and each minted as a DECLARED TANGENT JOINT — every
-/// zero-turn joint is a declared tangent joint (Ev, in-chat,
-/// 2026-09-02), and the "one curve" fact is the leg's own step.
+/// PARAMETER and each minted as a DECLARED TANGENT JOINT — the "one
+/// curve" fact is the leg's own step, emission-layer bookkeeping.
 ///
 /// A wrapper rather than a field on the modes, because the count is
 /// orthogonal to the mode: every LEG mode splits the same way, and the
@@ -418,9 +424,13 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
 /// have no split there (a fillet trims the arc it authors; a trimmed
 /// arc has no declared stations), so a field would be a tag every
 /// fused arm had to refuse. Admissibility is DELEGATED to the wrapped
-/// mode's own matrix row — `Split<S>` is a leg exactly where `S` is —
-/// so a split on a pair the matrix does not admit is a missing impl,
-/// unrepresentable rather than refused:
+/// mode's own LEG row — `Split<S>` is a leg exactly where `S` is a
+/// leg, and is NOT a fused incoming anywhere — so a split on a pair
+/// the matrix does not admit is a missing impl, unrepresentable rather
+/// than refused. Both halves are pinned (rustdoc on this toolchain
+/// does not check the error code written after `compile_fail`; the
+/// failure to compile is what is enforced). The endpoint-full modes,
+/// which are a fused verb's POINT incoming:
 ///
 /// ```compile_fail,E0277
 /// use geom_core::{Point2, Tol};
@@ -431,6 +441,27 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
 /// let _ = Open.at(Point2::new(0.0, 0.0)).arc_fillet(spec, 0.1, Tol::witness());
 /// ```
 ///
+/// The endpoint-free modes, which are a fused verb's TANGENT incoming
+/// from a directed tip — the same tip their split LEG departs from:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Point2, Tol};
+/// use profile::{ArcSide, Open, Sweep};
+/// let spec = Sweep { r: 1.0, side: ArcSide::Left, angle: 0.8 }.split(3);
+/// let dir = Open.at(Point2::new(0.0, 0.0)).angle(0.0, Tol::witness()).unwrap();
+/// // `dir.arc_to(spec, tol)` is the leg; the fused incoming has no row.
+/// let _ = dir.arc_fillet(spec, 0.1, Tol::witness());
+/// ```
+///
+/// The wrapper's ONLY constructor is `.split(n)` on the five leg modes
+/// ([`Splittable`]), so a split cannot be nested — `Split` is not in
+/// that sealed set and has no `.split` of its own:
+///
+/// ```compile_fail,E0599
+/// use profile::{ArcSide, Sweep};
+/// let _ = Sweep { r: 1.0, side: ArcSide::Left, angle: 0.8 }.split(4).split(2);
+/// ```
+///
 /// A split on a STRAIGHT leg is unrepresentable the same way: `.split`
 /// exists on the arc spec types alone, and `line(len)` takes a length.
 /// The count is a DECLARATION, so the one that distinguishes nothing
@@ -439,50 +470,36 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
 #[derive(Clone, Copy, Debug)]
 pub struct Split<S> {
     /// The leg spec, exactly as the unsplit leg would author it.
-    pub spec: S,
-    /// The declared number of arcs (≥ 2).
-    pub n: usize,
+    pub(super) spec: S,
+    /// The declared number of arcs (`≥ 2`, refused at emission below).
+    pub(super) n: usize,
 }
 
-impl<T, Tgt> Bulge<T, Tgt> {
-    /// Declare this leg split into `n` arcs (see [`Split`]).
-    #[must_use]
-    pub fn split(self, n: usize) -> Split<Self> {
-        Split { spec: self, n }
-    }
+mod split_sealed {
+    pub trait Sealed {}
 }
 
-impl<T: Real, Tgt> Via<T, Tgt> {
-    /// Declare this leg split into `n` arcs (see [`Split`]).
-    #[must_use]
-    pub fn split(self, n: usize) -> Split<Self> {
-        Split { spec: self, n }
-    }
-}
+/// The leg specs that admit a declared split — the five sharp-leg
+/// modes and nothing else: not `Radius` (arrival-only), not a
+/// [`Split`] (so nesting is unbuildable). Sealed; it exists to bound
+/// the split leg's rows, and the `.split(n)` constructor it names is
+/// an inherent method on each mode, minted from one body below.
+pub trait Splittable: split_sealed::Sealed + Sized {}
 
-impl<T: Real, Tgt> Center<T, Tgt> {
-    /// Declare this leg split into `n` arcs (see [`Split`]).
-    #[must_use]
-    pub fn split(self, n: usize) -> Split<Self> {
-        Split { spec: self, n }
-    }
+macro_rules! splittable {
+    ($($ty:ident < $($g:ident $(: $b:path)?),* >),* $(,)?) => {$(
+        impl<$($g $(: $b)?),*> split_sealed::Sealed for $ty<$($g),*> {}
+        impl<$($g $(: $b)?),*> Splittable for $ty<$($g),*> {}
+        impl<$($g $(: $b)?),*> $ty<$($g),*> {
+            /// Declare this leg split into `n` arcs (see [`Split`]).
+            #[must_use]
+            pub fn split(self, n: usize) -> Split<Self> {
+                Split { spec: self, n }
+            }
+        }
+    )*};
 }
-
-impl<T> Sweep<T> {
-    /// Declare this leg split into `n` arcs (see [`Split`]).
-    #[must_use]
-    pub fn split(self, n: usize) -> Split<Self> {
-        Split { spec: self, n }
-    }
-}
-
-impl<T> ArcLen<T> {
-    /// Declare this leg split into `n` arcs (see [`Split`]).
-    #[must_use]
-    pub fn split(self, n: usize) -> Split<Self> {
-        Split { spec: self, n }
-    }
-}
+splittable!(Bulge<T, Tgt>, Via<T: Real, Tgt>, Center<T: Real, Tgt>, Sweep<T>, ArcLen<T>);
 
 /// Re-exported director construction so arrival builders normalize
 /// components through the ONE shared door.

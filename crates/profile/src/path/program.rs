@@ -1037,14 +1037,14 @@ transition_table! {
             /// departure (already junction-checked when the director bound),
             /// endpoint derived, terminating at a directed point.
             on [T: ArcCarrierScalar, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
-            fn arc_to [<S: super::family::TangentIncoming<T>>(
+            fn arc_to [<S: super::family::TangentLeg<T>>(
                 mut self,
                 spec: S,
                 tol: Tol,
             ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
                 self.core.record(Step::ArcTo {
-                    spec: super::family::TangentIncoming::to_wire(&spec),
-                    splits: super::family::TangentIncoming::splits(&spec).unwrap_or(1),
+                    spec: super::family::TangentLeg::to_wire(&spec),
+                    splits: recorded_split(super::family::TangentLeg::splits(&spec)),
                 });
                 self.arc_to_kernel(spec, tol)
             }
@@ -1970,16 +1970,33 @@ fn do_continue_to<T: Decide>(
 /// The sharp arc leg's mode dispatch: the endpoint-full modes from a
 /// Point tip — one row per admissible (state, mode) pair of the §2c
 /// matrix, each calling the one typed `arc_to(spec)` binder.
-/// The replay driver's ONE door for a step's split count: `1` is the
-/// plain leg, anything else the declared split — so a recorded `0`
+/// The recorded form of a leg's split count, and its ONE home: the
+/// step carries a plain `usize` in which [`PLAIN_LEG`] (`1`, the count
+/// that distinguishes nothing) is the unsplit leg and any other value
+/// the declared `n`. Every site that writes the field or reads it back
+/// goes through this pair, so a recorded `0` is not the plain leg: it
 /// reaches the kernel's own `ArcSplitCount` refusal, typed exactly as
 /// the surface's `.split(0)` is, rather than a driver-side stub.
+pub(crate) const PLAIN_LEG: usize = 1;
+
+/// The recorded count of a leg authored with `declared` (`None` for
+/// the plain leg).
+pub(crate) fn recorded_split(declared: Option<usize>) -> usize {
+    declared.unwrap_or(PLAIN_LEG)
+}
+
+/// The declared count a recorded field stands for (`None` for the
+/// plain leg).
+pub(crate) fn declared_split(recorded: usize) -> Option<usize> {
+    (recorded != PLAIN_LEG).then_some(recorded)
+}
+
+/// The replay driver's one door for a step's split count.
 macro_rules! split_or_plain {
     ($p:expr, $spec:expr, $splits:expr, $tol:expr) => {
-        if $splits == 1 {
-            $p.arc_to($spec, $tol)
-        } else {
-            $p.arc_to($spec.split($splits), $tol)
+        match declared_split($splits) {
+            None => $p.arc_to($spec, $tol),
+            Some(n) => $p.arc_to($spec.split(n), $tol),
         }
     };
 }

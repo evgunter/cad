@@ -224,89 +224,83 @@ fn the_equator_fixture_bits_are_as_claimed() {
 // 2. The wrapper's admissibility: what the seal actually admits.
 // ------------------------------------------------------------------
 
-/// **DEFECT (this row asserts the defect).** The PR argues that "a
-/// split on a fused verb's spec is a MISSING IMPL … unrepresentable
-/// rather than refused", and `verbs.rs`'s `Split` doc says the modes
-/// that also serve a fused verb "have no split there". They do:
-/// `TangentIncoming` is implemented for `Split<S>` by a BLANKET impl
-/// and `arc_fillet` takes `S: TangentIncoming<T>`, so
-/// `Sweep{..}.split(n)` compiles as a fused verb's incoming spec and
-/// the declared count is SILENTLY DROPPED — in the emitted geometry
-/// and in the recorded step alike.
+/// **RE-AIMED in the fix pass (was: asserts the defect).** This row
+/// recorded that `arc_fillet(Sweep{..}.split(n), r)` compiled through a
+/// blanket `TangentIncoming for Split<S>` and silently dropped the
+/// count. The fix pass deleted that impl: the fused incoming has no
+/// split row (a missing impl — `Split`'s doctest pins the E0277), and
+/// the tangent-departing modes reach the split through the LEG trait
+/// alone. What this row now asserts is the positive half from the
+/// same directed tip: the split LEG mints its stations as declared
+/// tangent joints on the leg's own carrier, and the plain fused verb
+/// still authors.
 #[test]
-fn a_declared_split_on_a_fused_incoming_is_silently_ignored() {
-    let chain = |n: Option<usize>| {
-        let sweep = Sweep {
-            r: 2.0,
-            side: ArcSide::Left,
-            angle: 0.8,
-        };
-        let dir = Open.at(p2(0.0, 0.0)).angle(0.0, t()).unwrap();
-        let opened = match n {
-            None => dir.arc_fillet(sweep, 0.25, t()),
-            Some(n) => dir.arc_fillet(sweep.split(n), 0.25, t()),
-        }
-        .unwrap();
-        opened
-            .toward(-1.0, 0.0, t())
-            .unwrap()
-            .to(p2(0.0, 3.0), t())
-            .unwrap()
-            .line_to(Start, t())
-            .unwrap()
+fn a_declared_split_is_the_legs_alone_not_the_fused_incomings() {
+    let sweep = Sweep {
+        r: 2.0,
+        side: ArcSide::Left,
+        angle: 0.8,
     };
-    let plain = chain(None);
-    let split = chain(Some(5));
-    assert_eq!(
-        bits(&plain),
-        bits(&split),
-        "a declared split on a fused incoming changed the geometry — \
-         if this reds, the hole this row records has been closed"
-    );
-    assert_eq!(
-        plain.loop_.tangent_joints(),
-        split.loop_.tangent_joints(),
-        "the declared stations were never minted"
-    );
+    let dir = || Open.at(p2(0.0, 0.0)).angle(0.0, t()).unwrap();
+    // The fused verb, plain: authors as before (its split form no
+    // longer compiles).
+    let fused = dir()
+        .arc_fillet(sweep, 0.25, t())
+        .unwrap()
+        .toward(-1.0, 0.0, t())
+        .unwrap()
+        .to(p2(0.0, 3.0), t())
+        .unwrap()
+        .line_to(Start, t())
+        .unwrap();
+    assert!(!fused.loop_.vertices().is_empty());
+    // The LEG, split in five: four stations, each a declared tangent
+    // joint, each on the leg's carrier (centre (0, 2), radius 2).
+    let split = dir()
+        .arc_to(sweep.split(5), t())
+        .unwrap()
+        .line_to(Start, t())
+        .unwrap();
+    let joints = split.loop_.tangent_joints();
+    assert_eq!(joints.len(), 4, "four declared stations: {joints:?}");
+    for &k in joints {
+        let v = split.loop_.vertices()[k].pos();
+        let r = ((v.x - 0.0).powi(2) + (v.y - 2.0).powi(2)).sqrt();
+        assert!(
+            (r - 2.0).abs() < 1e-12,
+            "station {k} at {v:?} is off the carrier: r = {r}"
+        );
+    }
 }
 
-/// **DEFECT (asserts the defect).** `Split`'s fields are public and
-/// its `TangentIncoming` impl is blanket over `S`, so a NESTED split
-/// type-checks — and the inner count is silently dropped, the outer
-/// one winning.
+/// **RE-AIMED in the fix pass (was: asserts the defect).** This row
+/// built a NESTED split through `Split`'s public fields and recorded
+/// that the inner count was dropped. The fix pass made the fields
+/// private and `.split(n)` on the five leg modes the ONLY constructor
+/// (`Splittable`, sealed; `Split` is not in it, so `Split<Split<_>>`
+/// implements no leg trait and `.split(4).split(2)` is the E0599
+/// `Split`'s doctest pins). What remains assertable at run time is the
+/// flat split the nesting used to mask: `sweep.split(2)` emits two
+/// pieces, one declared station.
 #[test]
-fn a_nested_split_silently_drops_the_inner_count() {
-    let sweep = || Sweep {
+fn a_split_cannot_be_nested_and_the_flat_split_stands() {
+    let sweep = Sweep {
         r: 1.0,
         side: ArcSide::Left,
         angle: 1.2,
     };
-    let nested = profile::Split {
-        spec: sweep().split(4),
-        n: 2,
-    };
-    let n = Open
-        .at(p2(0.0, 0.0))
-        .angle(0.0, t())
-        .unwrap()
-        .arc_to(nested, t())
-        .unwrap()
-        .line_to(Start, t())
-        .unwrap();
     let flat = Open
         .at(p2(0.0, 0.0))
         .angle(0.0, t())
         .unwrap()
-        .arc_to(sweep().split(2), t())
+        .arc_to(sweep.split(2), t())
         .unwrap()
         .line_to(Start, t())
         .unwrap();
-    assert_eq!(
-        bits(&n),
-        bits(&flat),
-        "the inner declared count was not dropped — if this reds, the \
-         nesting hole this row records has been closed"
-    );
+    // at, station, end (+ the closing line's return to `at`): the leg
+    // contributes two arc pieces and one declared joint.
+    assert_eq!(flat.loop_.tangent_joints(), &[1]);
+    assert_eq!(flat.loop_.vertices().len(), 3);
 }
 
 /// The `Via` split, which the PR's own rows never exercise: it must

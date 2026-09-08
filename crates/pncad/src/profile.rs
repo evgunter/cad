@@ -62,7 +62,7 @@ pub use ::profile::{
 // spec that leaves binders free completes through.
 pub use ::profile::path::{
     ArrivalSpec, LegEndIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt, RadiusArrivalDir,
-    TangentIncoming, ViaArrival, ViaArrivalStart,
+    Splittable, TangentIncoming, TangentLeg, ViaArrival, ViaArrivalStart,
 };
 
 // The data types (nameable, not mintable) and the bulge sugar that

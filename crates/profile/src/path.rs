@@ -387,14 +387,14 @@ pub use arc_fillet::ArcCarrierScalar;
 pub use family::FusedIncoming;
 pub use family::{
     ArrivalSpec, LegEndIncoming, PointIncoming, PointLeg, RadiusArrival, RadiusArrivalAt,
-    RadiusArrivalDir, TangentIncoming, ViaArrival, ViaArrivalStart,
+    RadiusArrivalDir, TangentIncoming, TangentLeg, ViaArrival, ViaArrivalStart,
 };
 /// The complete-loop program forms are declared as table rows (they
 /// are `Entry → Closed` transitions), so they are defined in
 /// [`program`]; this module is their public home.
 #[doc(inline)]
 pub use program::{circle, circle_split};
-pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Split, Sweep, Via};
+pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Split, Splittable, Sweep, Via};
 #[doc(hidden)]
 pub use verbs::{DirectedPoint, TangentArcLeg};
 
