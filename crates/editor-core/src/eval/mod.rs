@@ -2287,6 +2287,14 @@ where
             Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source),
         },
     };
+    // The NOMINAL environment, built once beside the lane one and for
+    // the same reason: the document's own f64 parameter values, under
+    // no box and no seed. It is the environment the profile pre-pass
+    // resolves a program in and the one the pinned op's f64 placement
+    // comes from, so it is an input to what those readers decide — and
+    // every node's content key fixes each of its slots in it
+    // ([`tag::slot`]).
+    let nominal_env = doc.param_env::<f64>();
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
@@ -2328,7 +2336,12 @@ where
             use rayon::prelude::*;
             let results: Vec<(RecipeNodeId, NodeStep<T>)> = level
                 .par_iter()
-                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior, &op_env, tol)))
+                .map(|&id| {
+                    (
+                        id,
+                        eval_node(doc, &env, &nominal_env, id, &nodes, prior, &op_env, tol),
+                    )
+                })
                 .collect();
             for (id, step) in results {
                 bookkeep(&step, &mut recomputed, &mut reused);
@@ -2341,7 +2354,7 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            let step = eval_node(doc, &env, id, &nodes, prior, &op_env, tol);
+            let step = eval_node(doc, &env, &nominal_env, id, &nodes, prior, &op_env, tol);
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
@@ -2538,6 +2551,7 @@ fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut 
 fn eval_node<T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::ParamEnv<T>,
+    nominal_env: &crate::expr::ParamEnv<f64>,
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
@@ -2624,7 +2638,7 @@ where
     // still f64-only is the resolution that STRUCTURE is selected from
     // — this one — which is the part the C6 sentence was ever about.
     let resolved_program = match node {
-        crate::node::Node::Profile(program) => match program.resolve(&doc.param_env::<f64>()) {
+        crate::node::Node::Profile(program) => match program.resolve(nominal_env) {
             Ok(r) => Some(r),
             Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
         },
@@ -2719,6 +2733,7 @@ where
     let content_key = content_key(
         node,
         &slot_values,
+        nominal_env,
         payload_values.as_deref(),
         resolved_program.as_deref(),
         lane_program.as_deref(),
@@ -2748,15 +2763,16 @@ where
     {
         // The profile's f64 precompute ran inside this frame, and the
         // reused value's log opens with the same decisions. A
-        // `Verdict` is (predicate, sign), and at f64 the inputs the
-        // content key fixes — the resolved program, the plane's slots
-        // through the frame's key, the tolerance — are exactly what
-        // the precompute decides from, so D9 makes the two sequences
-        // equal. At Interval the frame's key hashes the slots' BOUNDS
-        // while the precompute reads their nominal f64, which the key
-        // does not hold: a nominal edit under a compensating box hits
-        // with a stale placement, and the same-sign check below cannot
-        // see it (`work/eval/interval-content-key-hashes-bits-the-pre-pass-does-not-read.md`).
+        // `Verdict` is (predicate, sign), and the inputs the content
+        // key fixes — the resolved program, the plane's slots through
+        // the frame's key, the tolerance — are exactly what the
+        // precompute decides from, so D9 makes the two sequences
+        // equal. That holds at EVERY scalar because the frame's key
+        // fixes each of its slots at the document's nominal f64 as
+        // well as at the lane ([`tag::slot`]): the precompute reads
+        // the nominal, so a nominal edit under a compensating box —
+        // which leaves the interval bounds equal — moves the frame's
+        // key and this hit does not happen.
         // The reused value IS the record, so the fresh frame is
         // finished and dropped rather than spliced in, and the prefix
         // identity is asserted in every profile: one compare of a few
@@ -2907,7 +2923,11 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            VERSION = 6,
+            /// v7: every slot writes its nominal beside its lane bits
+            /// and the profile payload's loop and step lists write
+            /// their counts — two channels every existing node of
+            /// their kinds writes into.
+            VERSION = 7,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -2915,10 +2935,11 @@ mod tag {
             DOMAIN = 3,
         }
         /// The word before an optional datum — a solved placement, a
-        /// witness, an alignment length, a clocking angle — so that a
-        /// `None` cannot alias a `Some` whose payload happens to be
-        /// empty (a witness with no bytes): the payload's presence is
-        /// a word of its own, read before the payload.
+        /// witness, an alignment length, a clocking angle, a profile's
+        /// resolved program — so that a `None` cannot alias a `Some`
+        /// whose payload happens to be empty (a witness with no bytes,
+        /// a loop list of length zero): the payload's presence is a
+        /// word of its own, read before the payload.
         presence {
             ABSENT = 0,
             PRESENT = 1,
@@ -2929,27 +2950,57 @@ mod tag {
             CLEAR = 0,
             FAULTED = 1,
         }
-        /// The words that structure a profile node's program payload,
-        /// read where a loop or a stream may end: the resolved stream
-        /// is `NONE`, or per loop `LOOP_START` then the loop's steps;
-        /// the lane stream, when the lift's second pass ran, is `LANE`
-        /// then per loop `LOOP_START` and the loop's scalars, each
-        /// under `LANE_SCALAR`; then, per carrier loop whose radius is
-        /// flow-bearing, `CARRIER_RADIUS` and the radius expression.
+        /// The word before a slot's NOMINAL, written after that slot's
+        /// bits at the evaluation scalar: the slot's expression
+        /// evaluated in the document's f64 parameter environment — no
+        /// box, no seed — which is what a content key owes because two
+        /// readers of a frame node read exactly that value whatever
+        /// the evaluation scalar is (the profile pre-pass and the
+        /// pinned op's embedded placement). At f64 it repeats the
+        /// lane bits and at `Dual64` it repeats their value half; at
+        /// `Interval` it is the input the bounds do not determine,
+        /// since a nominal edit under a compensating box moves the
+        /// nominal while leaving `(lo, hi, dec)` equal.
         ///
-        /// The loop and step lists are not length-prefixed, so at a
-        /// resolved loop boundary the reader also admits the verb
-        /// vocabulary ([`super::verb_tag`]) — where `LANE` and the
-        /// `Cusp` verb are both `41`. No key moves on it: a `Cusp`
-        /// cannot end a loop (its tip is directed-incoming and no
-        /// closing verb accepts it), so the word after a `Cusp` is
-        /// always a verb tag, never `LOOP_START`; and at the end of
-        /// the stream the next word is the upstream-key count, `1`
-        /// for a profile, which no verb tag is. Recorded as EVAL's
-        /// residue `profile-program-stream-is-not-length-prefixed`;
-        /// the number does not change here.
+        /// `REFUSED` stands where the nominal does not evaluate at all
+        /// (a parameter out of the expression's domain at its nominal
+        /// but not over the box). Two different refusals of one slot
+        /// key alike, and that is sound rather than tolerated: every
+        /// reader of a nominal refuses on a nominal that refuses, so a
+        /// node whose value is `Ok` either never read that nominal or
+        /// read it successfully, and the memo serves `Ok` values only.
+        slot {
+            REFUSED = 0,
+            NOMINAL = 1,
+        }
+        /// The words that structure a profile node's program payload,
+        /// read where a loop or a stream may end. **Every list in it
+        /// is length-prefixed**: the resolved stream is its presence
+        /// word ([`presence`]) and, when present, the loop count, then
+        /// per loop `LOOP_START`, the loop's step count and its steps;
+        /// the lane stream, when the lift's second pass ran, is `LANE`,
+        /// the loop count, then per loop `LOOP_START`, the loop's
+        /// scalar count and its scalars, each under `LANE_SCALAR`;
+        /// then, per carrier loop whose radius is flow-bearing,
+        /// `CARRIER_RADIUS` and the radius expression.
+        ///
+        /// The counts are what make a loop boundary a SINGLE
+        /// vocabulary: a reader that has consumed a loop's declared
+        /// step count is at a loop boundary or at the end of the list
+        /// it counted, never at a word it must tell apart from the
+        /// verb vocabulary ([`super::verb_tag`]) — where `LANE` and
+        /// the `Cusp` verb are both `41`. It is single-vocabulary a
+        /// second way too, independently of the counts: a `Cusp`
+        /// cannot end a loop, its tip being directed-incoming with no
+        /// closing verb accepting it, so the word after a `Cusp` is
+        /// always a verb tag and never `LOOP_START`.
+        ///
+        /// What the counts do not cover is the END of the payload,
+        /// where the optional `LANE` and `CARRIER_RADIUS` sections
+        /// stop: there the next word is the upstream-key count, which
+        /// for a profile is `1` — its plane is its one input — and
+        /// neither `41` nor `45`.
         program {
-            NONE = 0,
             LOOP_START = 1,
             LANE = 41,
             LANE_SCALAR = 42,
@@ -3178,7 +3229,9 @@ impl SolveAnswer {
 }
 
 /// The content key (spec D4): op kind, structural params, evaluated
-/// expression values AS BITS, upstream keys — plus the ambient
+/// expression values AS BITS **and each of them again at the
+/// document's nominal f64** (the rule at [`tag::slot`]), upstream keys
+/// — plus the ambient
 /// tolerance (ε, k), which parameterizes every decision the kernel
 /// ops make, and a leading format version. M4 PR 4: the node's
 /// recorded witness datum (if any) is an input too — `solution
@@ -3187,15 +3240,17 @@ impl SolveAnswer {
 /// not read the witness, so the recompute reproduces identical
 /// results — W4's "semantically invisible", honestly re-derived
 /// rather than assumed).
-// The two arguments past the seventh are both INPUTS to the key,
-// which is the one thing a content key is allowed to grow: the lift's
-// lane-resolved program, and the measurement vocabulary's
-// payload-expression values — the same input the slot values are,
-// arriving by a second route because a `MeasureExpr` is not a slot.
+// The arguments past the node are all INPUTS to the key, which is the
+// one thing a content key is allowed to grow: the environment every
+// slot's nominal is read in, the lift's lane-resolved program, and the
+// measurement vocabulary's payload-expression values — the same input
+// the slot values are, arriving by a second route because a
+// `MeasureExpr` is not a slot.
 #[allow(clippy::too_many_arguments)]
 fn content_key<T>(
     node: &crate::node::Node<ProfileProgram>,
     slot_values: &slots::SlotValues<T>,
+    nominal_env: &crate::expr::ParamEnv<f64>,
     payload_values: Option<&[T]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
@@ -3362,20 +3417,25 @@ where
             // the day a frame's own key changes shape.
             // Present by eval_node's stage order (profiles resolve
             // before keying); written defensively — no panic paths in
-            // this crate — and the `NONE` marker keeps an (impossible)
+            // this crate — and the presence word keeps an (impossible)
             // absent-program key distinct from any real program's key
-            // rather than aliasing an empty one. The words are the
-            // profile-payload vocabulary's (`tag::program`).
+            // rather than aliasing an empty loop list, which the loop
+            // count alone could not do. The structural words are the
+            // profile-payload vocabulary's (`tag::program`), where the
+            // length-prefixing rule is stated.
             match resolved_program {
                 Some(resolved) => {
+                    h.write_tag(tag::presence::PRESENT);
+                    h.write_u64(resolved.len() as u64);
                     for steps in resolved {
                         h.write_tag(tag::program::LOOP_START);
+                        h.write_u64(steps.len() as u64);
                         for step in steps {
                             feed_step(&mut h, step);
                         }
                     }
                 }
-                None => h.write_tag(tag::program::NONE),
+                None => h.write_tag(tag::presence::ABSENT),
             }
             // The f64 stream above IS the structure identity and stays
             // in the key unconditionally, lane-independent as ever.
@@ -3385,8 +3445,10 @@ where
             // it has always been and cannot alias a lifted one's.
             if let Some(lane) = lane_program {
                 h.write_tag(tag::program::LANE);
+                h.write_u64(lane.len() as u64);
                 for steps in lane {
                     h.write_tag(tag::program::LOOP_START);
+                    h.write_u64(steps.len() as u64);
                     for step in steps {
                         feed_lane_step(&mut h, step);
                     }
@@ -3703,11 +3765,36 @@ where
         // written here rather than pinned by one.
         Node::Union { members, .. } => h.write_u64(members.len() as u64),
     }
-    // Evaluated slot values, in the node's deterministic slot order.
-    for (i, (_slot, val)) in slot_values.iter().enumerate() {
+    // Evaluated slot values, in the node's deterministic slot order,
+    // each followed by its NOMINAL — the whole rule at [`tag::slot`].
+    // A COUNT slot writes none: `eval_count` reads the document's
+    // exact `Count` binding at every scalar and a parameter box only
+    // ever moves a continuous one, so a count's lane word IS its
+    // nominal and a second copy could only ever repeat it.
+    //
+    // A `Profile` node has no slots here (its program expressions
+    // resolve in their own stage) and needs none: the resolved stream
+    // it feeds above is resolved at this same nominal environment.
+    for (i, (slot, val)) in slot_values.iter().enumerate() {
         h.write_u64(i as u64);
         match val {
-            slots::SlotVal::Scalar(v) => v.feed(&mut h),
+            slots::SlotVal::Scalar(v) => {
+                v.feed(&mut h);
+                match node
+                    .expr(*slot)
+                    .map(|e| crate::expr::eval::<f64>(e, nominal_env))
+                {
+                    Some(Ok(x)) => {
+                        h.write_tag(tag::slot::NOMINAL);
+                        h.write_f64_bits(x);
+                    }
+                    // The slot refused at the nominal, or — impossible,
+                    // since `slots()` is the domain of `expr()` — named
+                    // no expression at all. Both are "no nominal to
+                    // read", which is what the word says.
+                    Some(Err(_)) | None => h.write_tag(tag::slot::REFUSED),
+                }
+            }
             slots::SlotVal::Count(n) => h.write_i64(*n),
         }
     }
