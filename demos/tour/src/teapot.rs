@@ -188,13 +188,15 @@ use pncad::document::{
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::prelude::query;
 use pncad::prelude::{
     EntityKind, NamePat, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegPat, SegTag, Selector,
     StableName,
 };
 use pncad::profile::ArcSweep;
-use pncad::prelude::query;
-use pncad::select::{edge_frame, edge_name, face_carrier_kind, face_frame, select, vertex_position};
+use pncad::select::{
+    edge_frame, edge_name, face_carrier_kind, face_frame, select, vertex_position,
+};
 use pncad::topo::{Body, BooleanError, Operand};
 
 use crate::{SceneBody, Stop, View};
@@ -1147,7 +1149,13 @@ fn r1_probes(tol: Tol) {
         let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
         let sel: Vec<StableName> = set.iter().map(|&v| band_rim(lid, v)).collect();
         let node = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
-        let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
         let ans = describe(&ev, node);
         let census = match ev.value(node).map(|v| v.payload.clone()) {
             Some(ValuePayload::Body(b)) => format!(
@@ -1161,12 +1169,17 @@ fn r1_probes(tol: Tol) {
         println!("R1/one-request rims {set:?}: {ans} [{census}]");
     }
 
-
     // ---- the 8756e1838 cross-check, re-run: role name == scanned key ----
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("r1-xcheck", tol);
     let (plane, axis) = frame_and_axis(&mut doc, tol);
     let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
     let lid_body = body_at(&ev, lid);
     for &(v, radius, station, what) in &LID_RIMS {
         let hits: Vec<_> = query::all_edges(&lid_body)
@@ -1214,7 +1227,13 @@ fn r1_probes(tol: Tol) {
         ),
         tol,
     );
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
     println!("R1/mouth BandPi only: {}", describe(&ev, only_pi));
     println!("R1/mouth Band only:   {}", describe(&ev, only_band));
     println!("R1/mouth swapped:     {}", describe(&ev, swapped));
@@ -1251,7 +1270,13 @@ fn r1_probes(tol: Tol) {
         },
         tol,
     );
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
     let unplaced_root = face_frame(&ev, sb, &band(sb, 0)).expect("root annulus, unplaced");
     let root = face_frame(&ev, placed, &band(sb, 0)).expect("root annulus, placed");
     let d = root.origin - SPOUT_ROOT;
