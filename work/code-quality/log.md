@@ -150,3 +150,9 @@ at describing a state that should not exist.
 - **The `carried_by:` key is not needed and is not added.** `parent:`
   already says it, lint already resolves it, and a row in the right
   directory needs no pointer at all.
+
+(BLEND orchestrator, 2026-09-08) Track X seam executed on PR 2129:
+`demos/tour/tests/` gains one `#[path]`-shared rim-selector module
+(`common/rim_select.rs`) that both blend probe suites use; the lily
+fixture returns its rims; `demos/tour/src/teapot.rs`'s scan keeps its
+window at `1e-9` with one sentence of reason. No scene moved.

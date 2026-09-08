@@ -156,11 +156,12 @@ pub enum SkinError {
     /// — plus the exactly-anti-parallel case, where the minimal
     /// rotation is not unique because every axis perpendicular to the
     /// tangent turns one into the other. The second case is a `f64`
-    /// knife edge and essentially unreachable: an exact half-turn path
-    /// evaluates `|t₀ × t₁| ≈ 1.2e-16 > 0`, so the frame is BUILT from
-    /// a numerically ill-conditioned axis rather than refused (pinned,
-    /// executed, in `tests/review_m5_pr10.rs`). Under Q8 that surface
-    /// is still the definition — it is whatever that frame produced,
+    /// knife edge and essentially unreachable: at an exact half-turn
+    /// `|t₀ × t₁|` does not evaluate to zero, so the frame is BUILT
+    /// from a numerically ill-conditioned axis rather than refused
+    /// (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`,
+    /// which is also the one home for that magnitude). Under Q8 that
+    /// surface is still the definition — it is whatever that frame produced,
     /// not an approximation of something else — but it is not the
     /// surface a reader of "reversing paths refuse" would expect, so
     /// the claim is stated as it is rather than as it reads best. See
@@ -562,7 +563,8 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// bit-for-bit; and the final divide it removes was a division by
 /// exactly `1.0` in precisely the cases whose weights came out exact.
 /// A uniformly spaced loft therefore skins to bit-identical walls
-/// (pinned in `tests/m7_skin_integral.rs`).
+/// (pinned by
+/// `m7_skin_integral::the_uniform_loft_is_bitwise_unchanged`).
 ///
 /// # Numbered note 5 (spec §2): the solve is DENSE, and where that lands
 ///
@@ -1030,9 +1032,11 @@ fn first_strip_parameters(
 /// EXACT `f64` comparison — structure selection, not a predicate: no
 /// topology depends on it, so it never routes through `k_stats`. The
 /// consequence is that `sin > 0.0` separates only the exactly-zero
-/// case. At a genuine half-turn `sin` evaluates to ≈ `1.2e-16`, not
-/// `0`, so the anti-parallel arm does not fire and the frame is built
-/// from an axis whose DIRECTION is decided by cancellation.
+/// case. At a genuine half-turn `sin` does not evaluate to `0`, so the
+/// anti-parallel arm does not fire and the frame is built from an axis
+/// whose DIRECTION is decided by cancellation
+/// (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`,
+/// which states the magnitude and executes the build).
 ///
 /// No band is asserted here, deliberately (D4 ¶1: a band needs a
 /// margin with a stated meaning and a stated lever arm). `sin` is a
@@ -1135,10 +1139,11 @@ pub fn sweep_places(
             //
             // C6 knife edge (see the fn docs): `sin > 0.0` is an exact
             // structure comparison, so this arm fires only on an
-            // EXACT zero. A float half-turn gives sin ≈ 1.2e-16 and
+            // EXACT zero. A float half-turn gives a NONZERO sin and
             // takes the branch above instead, building from an
-            // ill-conditioned axis. Pinned as executed behaviour, not
-            // asserted as intent.
+            // ill-conditioned axis
+            // (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`).
+            // Pinned as executed behaviour, not asserted as intent.
             return Err(SkinError::PathTangentReversal { station: i });
         };
         places.push(Affine3::translation(path.eval(t) - base_point) * turn * place);

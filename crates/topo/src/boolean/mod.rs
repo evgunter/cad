@@ -125,7 +125,9 @@ pub use rest::{
     flush_pair_relation, tangent_locus,
 };
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
-pub use voids::{VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void};
+pub use voids::{
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void, insert_voids,
+};
 
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
