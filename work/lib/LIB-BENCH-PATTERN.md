@@ -6,6 +6,7 @@ status: review
 branch: lib/bench-pattern
 opened: 2026-09-08
 refs: [bench-flat-pack-star-is-now-a-pattern-job]
+pr: 2199
 ---
 
 Author the flat-pack layout's posts as `Node.pattern` beside the
