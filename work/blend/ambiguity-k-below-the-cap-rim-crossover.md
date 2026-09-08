@@ -2,9 +2,10 @@
 id: ambiguity-k-below-the-cap-rim-crossover
 kind: unit
 title: Tol accepts K below the cap-rim crossover K* = 1.272, where two doors behave differently and one refuses
-status: dispatched
+status: review
 opened: 2026-09-05
 branch: blend/k-no-floor
+pr: 2149
 ---
 
 ## Finding (FILLET-H6's lane, PR 1891 — recorded, deliberately not fixed there)
@@ -154,3 +155,30 @@ and the at-rest refusal at K = 1.1; every `K*` sentence in
 fix pass files closes on this unit). The nightly small-K row proposed
 under option 1 is NOT filed: the ruling reads small K as acceptable
 as-is, with tier 3 as the instrument. E-shaped: single style review.
+
+## Landed (BLEND unit K, PR 2149, 2026-09-08)
+
+`Tol` keeps `K > 1` and gains no floor. `ExtrudeError::SmoothCapRim` and the
+refusal arm in `upgrade_rim` are gone: a definitely-smooth cap rim keeps the
+conventional description by the predicate — an image at rest in the WALL's
+chart, through `topo::Body::describe_at_rest`, the door the strut join's
+under-determined case already uses. The wall rather than the cap because the
+wall is swept from the rim's own carrier (a line leg's quad has the two rim
+chords as opposite edges; an arc leg's cylinder is the carrier's own registered
+rim identity), so containment holds by construction, and certification meters
+the named chart only.
+
+The body then reaches the at-rest gate, which refuses it there: at K = 1.1
+`extrude(rect(2, 1.002·K·ε), Vector(ε, 0, K·ε))` returns `Ok` with four smooth
+short rims and `validate_geometric` gives four
+`SliverDihedral { material_wedge_side }` — a smooth cap–wall pair has no
+material side. `fillet_h6_cap_rim`'s re-exec row asserts all of it, including
+the chart the four rims rest in. `Tolerance.k`'s doc carries the ruling in one
+sentence.
+
+Every `K*` sentence in `extrude.rs` and `lib.rs` went with the arm, closing
+`extrude-cap-rim-argument-and-k-star-have-five-homes` on the same PR; the
+constant is now spelled once in `crates/`, at the row that measures both sides
+of it. Every extrude and revolve fixture at K = 10 is bit-identical between
+base and head across all eight `bitdump` files. The nightly small-K row is not
+filed, per the ruling.
