@@ -146,6 +146,21 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
   built on it was 1.00 by arithmetic rather than by check, and neither
   of its two numbers counted a realised candidate. It is gone rather
   than re-derived — see "Why there is no realisation column", below.
+* `name` — the face's durable name, where the sweep could reach one:
+  `editor_core::StableName` (N1) rendered through its ratified
+  structural serialization with `,` swapped for `;` so the token is one
+  CSV field. It is EMPTY on every face whose scene was not built from
+  an evaluated document, which is most of the tour — the tour holds
+  `Body`s, and only the scenes that still hold the evaluation when they
+  hand the body over can name their faces. Empty is the honest answer
+  there, not a gap: nothing joins on this column yet, and the ordinal
+  is still the join key. **Its coverage is disjoint from the case a
+  join would fix**: 286 of 1353 rows carry a name, none of them one of
+  the 64 SIZED rows, and none of them one of the 14 rows in the seven
+  same-shape pairs the per-face join cannot tell apart. The six
+  nameable scenes are the three heatsinks and the three die stops, and
+  none contributes a sized face — so the column is populated where the
+  ordinal was never ambiguous and empty where it is.
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
   gate's per-face recoverable-slack ratio, now carrying the split
@@ -305,8 +320,10 @@ what this document exists to record.
 
 **The tell, and exactly what it proves.** The two columns that are pure
 OPTIMA over the certified ellipse — `opt_cells` and `span_opt_cells` —
-are schedule-INDEPENDENT, and they still read within 1% of the figures
-below (94,154 against 95,090; 44,446 against 44,457). The two that
+are schedule-INDEPENDENT, and they still read within 2.2% and 0.7% of
+the figures below (93,066 against 95,090; 44,162 against 44,457) —
+gaps that also carry the meter's OWN resolution, since a finer split
+scan lowers an optimum column without a face moving. The two that
 describe a shipped schedule moved by ~3.4x. What that separates is a
 change of SIZING RULE from everything else: a re-cut driven by corpus
 growth, or by a certificate change, moves the optima too — `a4eb03ae`
@@ -346,15 +363,18 @@ CERT-10's four: 390,100 →
 110,811 is **3.52x**, and it is the inner selection rule changing, not
 the shipped grid getting smaller. It reads as the same selection change
 measured against the optimum: `uniform_cells / opt_cells` was 4.10x
-then, `patch_cells / opt_cells` is 1.18x now.
+then, `patch_cells / opt_cells` is 1.19x now.
 
 The genuine shipped-grid move is the other row — 154,129 `sized per
 knot-span cell` against today's `grid_cells` 46,019, **3.35x** — and it
 decomposes exactly: per-cell sizing sat 3.47x above the per-cell optimum
-under the AM-GM split (154,129 / 44,457) and sits 1.035x above it today
-(46,019 / 44,446), and 3.47 / 1.035 = 3.35. That closing of the
-recoverable factor is TESS-SPLIT, on the schedule the lane actually
-ships.
+under the AM-GM split (154,129 / 44,457) and sits 1.042x above it today
+(46,019 / 44,162), and 3.47 / 1.042 = 3.33 against the 3.35 the two
+grids give directly. **The 0.7% residual is the two DENOMINATORS, not
+the schedule**: the two readings measure the per-cell optimum with
+different scans, and the decomposition is exact only where they agree.
+That closing of the recoverable factor is TESS-SPLIT, on the schedule
+the lane actually ships.
 
 **Both moves are ~3.4x, and the two are separate events measured on
 separate columns.** A single "3–8x" over the pair is the mis-pairing
@@ -540,8 +560,11 @@ never a typed value, and a sweep taken outside a git checkout records
 none and says so rather than pretending.
 
 **A re-keyed face is read before it is re-cut, and for the same
-reason.** The per-face join is by ORDINAL — the only per-face name the
-CSV carries — so `tess-lint` checks at each ordinal that both sides
+reason.** The per-face join is by ORDINAL. The CSV also carries a
+`name` column — the face's durable derivation-path name, on the scenes
+the sweep can reach an evaluation for — but no rule keys on it yet,
+and it is empty on every row a re-key could be manufactured out of
+(above), so `tess-lint` checks at each ordinal that both sides
 describe one face (chart, trim box, whole-patch divisions, and whether
 the row carries the sizing block at all) and stops comparing a scene
 from the first ordinal where they do not. The finding names that

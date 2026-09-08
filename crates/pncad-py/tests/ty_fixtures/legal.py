@@ -61,6 +61,7 @@ from pncad import (
     Resolution,
     PinMultiplicity,
     ParamName,
+    PartSelect,
     PatternKind,
     SolvedPoses,
     SplitOutcome,
@@ -73,6 +74,7 @@ from pncad import (
     Selector,
     Severity,
     SketchPlane,
+    SplitHalf,
     Start,
     SurfaceKind,
     Workspace,
@@ -364,6 +366,21 @@ listed: PatternKind = PatternKind.explicit([here, turned])
 fin_group: NodeId = doc.insert(Node.placed_union(plate, 5, stepped))
 listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
 count_bound: DocEdit = DocEdit.bind_count_param(fin_group, ParamName("fins"))
+
+# LIB-B-PART: the same rule vocabulary over an UNFUSED family, and the
+# projection that takes one body back out of it. The selector is one
+# type with two constructors, and each takes what its arm holds — a
+# `SplitHalf` for the half, a plain `int` for the index (the
+# structural-slot exception `placed_union`'s count already rides).
+family: NodeId = doc.insert(Node.pattern(plate, 5, stepped))
+by_index: PartSelect = PartSelect.instance(2)
+one_copy: NodeId = doc.insert(Node.part(family, by_index))
+cut: NodeId = doc.insert(Node.split(plate, spin_axis))
+by_half: PartSelect = PartSelect.split_half(SplitHalf.Above)
+upper_half: NodeId = doc.insert(Node.part(cut, by_half))
+# The index is a STRUCTURAL slot of its own, so it has a door of its
+# own beside the count's.
+index_bound: DocEdit = DocEdit.bind_instance_param(one_copy, ParamName("which"))
 
 # LIB-G15: the workspace store. Identity crosses as the canonical hex
 # text, the pin as a value, and a reference as the pair of them.
