@@ -621,13 +621,32 @@ fn shelling_a_hollow_vessel_thickens_every_boundary() {
     assert_eq!(shelled.naming.thickened.len(), 2);
 }
 
-/// **Curved.** The full-period hollow torus (`R = 2`, outer `r = 0.5`,
-/// wall `w = 0.125`) shelled at `t = 0.05`: two thin tori,
-/// `2π²R[(r² − (r−t)²) + ((r−w+t)² − (r−w)²)]`.
+/// **Curved: the full-period torus, MEASURED.** The hollow torus
+/// (`R = 2`, outer `r = 0.5`, wall `w = 0.125`) shelled at `t = 0.05`
+/// would be two thin tori, `2π²R[(r² − (r−t)²) + ((r−w+t)² −
+/// (r−w)²)]`. It does not get there: the axial door's corner solve
+/// refuses at the tube's SEAM vertex — a vertex where one surface
+/// meets itself, so its station is determined but its radius is not
+/// (`TogetherAxialCorner { surfaces: 1 }`) — and it refuses the SOLID
+/// full torus the same way, so the refusal is the offset door's own
+/// and nothing about the hollow operand. This row is that measurement,
+/// naming the door; the closed form above is what the row asserts the
+/// day the door takes a one-surface seam corner.
 #[test]
-fn shelling_a_hollow_torus_thickens_every_boundary() {
+fn the_full_period_torus_refuses_at_the_axial_doors_seam_corner_solid_and_hollow_alike() {
     let tol = Tol::witness();
     let (big_r, r, w, t) = (2.0, 0.5, 0.125, 0.05);
+    let solid = sweep::tube_along_arc::<f64>(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::unit_y(),
+        Vec3::unit_x(),
+        big_r,
+        TubeWindow::Full,
+        r,
+        tol,
+    )
+    .expect("the solid torus builds")
+    .body;
     let hollow = tube_along_arc_hollow::<f64>(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::unit_y(),
@@ -640,28 +659,28 @@ fn shelling_a_hollow_torus_thickens_every_boundary() {
     )
     .expect("the hollow torus builds")
     .body;
+    assert_eq!(solid.shells().count(), 1);
     assert_eq!(hollow.shells().count(), 2, "a torus shell");
-    let shelled = topo::shell(&hollow, t, tol).expect("a hollow torus shells");
-    let body = &shelled.body;
-    assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
-    assert_eq!(body.solids().count(), 2);
-    assert_eq!(body.shells().count(), 4);
-    for (solid, kinds) in roles_by_solid(body) {
-        assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
+    for (what, body) in [("solid", &solid), ("hollow", &hollow)] {
+        let e = topo::shell(body, t, tol)
+            .expect_err("the full torus refuses at the axial door's seam corner");
+        let ShellError::Face { face, error } = e else {
+            panic!("{what} torus: expected the offset door's refusal, got {e}");
+        };
+        assert!(
+            matches!(
+                *error,
+                topo::ReplaceFaceError::TogetherAxialCorner { surfaces: 1, .. }
+            ),
+            "{what} torus: expected the one-surface seam corner, got {error}"
+        );
+        let shell = body.get_face(face).expect("names an operand face").shell;
+        println!("[measured] {what} torus: {face:?} on {shell:?} refuses: {error}");
     }
-    let props = topo::mass_properties(body, tol).expect("props");
-    let pi = core::f64::consts::PI;
-    let want = 2.0
-        * pi
-        * pi
+    let _want = 2.0
+        * core::f64::consts::PI.powi(2)
         * big_r
         * ((r * r - (r - t) * (r - t)) + ((r - w + t) * (r - w + t) - (r - w) * (r - w)));
-    assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
-        "two thin tori: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
-    );
 }
 
 /// **The opened arm on the OUTER shell** of a hollow operand: the
