@@ -520,17 +520,30 @@ fn a_stall_on_the_budgets_last_round_is_the_stall_not_the_budget() {
     }
 }
 
-/// **The never-finite face.** At `d = 1e-7` and `1e-8` on the quarter
-/// cylinder the certificate limb answers `+∞` on every grid the loop
-/// reaches — the small-`|d|` denominator's componentwise floor never
-/// clears zero — and the cap stops it after four refinement rounds
-/// with no finite bound ever produced. A refusal that "carries the
-/// achieved bound" must not carry `inf` there: the face says there is
-/// no number, and prints none.
+/// **The never-finite face, and where it starts.** At `d = 1e-8` and
+/// `1e-9` on the quarter cylinder the certificate limb answers `+∞`
+/// on every grid the loop reaches — the sign witness does not pass on
+/// the cells that carry the sup — and the cap stops it after four
+/// refinement rounds with no finite bound ever produced. A refusal
+/// that "carries the achieved bound" must not carry `inf` there: the
+/// face says there is no number, and prints none.
+///
+/// One decade up the face is not reached: `d = 1e-7` certifies at
+/// `5.855e-7` on the fifth round's 1144 cells. The row pins that
+/// boundary, because the two faces are one decade apart and a change
+/// that moved either would otherwise move it silently.
 #[test]
 fn a_bound_that_never_became_finite_refuses_with_no_number() {
     let base = quarter_cylinder(1.0, 1.0);
-    for d in [1e-7_f64, 1e-8] {
+    let (_, cert) = fit_offset_at(&base, 1e-7, 1e-3, band())
+        .unwrap_or_else(|e| panic!("d = 1e-7 no longer certifies: {e}"));
+    assert_eq!((cert.rounds, cert.cells), (5, 1144));
+    assert!(
+        (cert.hull_sup - 5.8550e-7).abs() < 5e-11,
+        "d = 1e-7 certifies at {:e}",
+        cert.hull_sup
+    );
+    for d in [1e-8_f64, 1e-9] {
         match fit_offset_at(&base, d, 1e-3, band()) {
             Err(OffsetFitError::BoundNotFinite {
                 rounds,
@@ -576,29 +589,28 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
 }
 
 /// **The small-`|d|` row, and the limit it pins.** The certificate's
-/// normal component divides `|X|` by `w²·(‖E‖ + |d|)`. Bounding that
-/// denominator below by `2|d|` alone made the reported accuracy scale
-/// like `1/|d|` and, once `dist` reached `|d|`, collapsed every cell
-/// to `+∞` — a micron-scale offset on a metre-scale patch certified
-/// as `inf`. The composite therefore carries `Ẽ` and takes a DIRECT
-/// mignitude lower bound on `‖E‖`, which is what makes the row below
-/// finite at all.
+/// normal component divides `|X|` by `w̃²·(‖E‖ + |d|)`, and the
+/// composite bounds `‖E‖` below directly rather than falling back on
+/// `2|d|` for that denominator: a fallback that scales the reported
+/// accuracy like `1/|d|` and collapses every cell to `+∞` as soon as
+/// `dist` reaches `|d|`, which is a micron-scale offset on a
+/// metre-scale patch certifying as `inf`.
 ///
-/// What it does NOT do is make the bound scale with `|d|`: at
-/// `d = 1e-6` the certified sup sits near `3.2e-4` — sound, finite,
-/// and hundreds of times `|d|`. Recentring the composite's nets was
-/// the restructure expected to move this, and at the origin it did
-/// not: the remaining slack is not rounding on large intermediates.
-/// Measured per cell, the sup is 96% its `τ²/‖E‖` term (`3.10e-4` of
-/// `3.22e-4`), and that term is large because `‖E‖` is bounded below
-/// by a componentwise mignitude assembly reading `1.58e-8` where
-/// `‖E‖ ≈ 1e-6` — each component of `E ≈ d·n` straddles zero as the
-/// normal rotates across the cell. What moves this row is a lower
-/// bound that reads the three components together.
+/// The floor on `‖E‖` reads the three components TOGETHER, through
+/// the sign witness `D` (module docs), which is what keeps the bound
+/// near `|d|`'s own scale: at `d = 1e-6` the certified sup is
+/// `1.707e-5`, seventeen times `|d|`, on the same 308-cell grid a
+/// componentwise floor certified at `3.222e-4`. The sup cell's
+/// decomposition and the two readings of `‖E‖` behind that factor are
+/// `offset_fit`'s own row.
 ///
 /// The row pins both halves: a reachable tolerance certifies, and an
 /// unreachable one refuses typed rather than reporting a number it
-/// cannot support.
+/// cannot support. `1e-9` is the second half — the fit's own absolute
+/// accuracy does not reach it, and the grid the bound wants exceeds
+/// the sample cap first, at `achieved = 3.754e-7`. That bound is
+/// carried by `τ` (`2.05e-7` of it), the tangential term, which
+/// divides by the regularity floor rather than by `‖E‖`.
 #[test]
 fn a_micron_scale_offset_certifies_and_names_its_limit() {
     let base = quarter_cylinder(1.0, 1.0);
@@ -614,6 +626,16 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
     assert!(
         worst <= cert.hull_sup,
         "d = {d}: certified sup {} UNDER-reports the sampled max {worst}",
+        cert.hull_sup
+    );
+    assert!(
+        (cert.hull_sup - 1.7072e-5).abs() < 5e-9,
+        "the certified sup is {:e}",
+        cert.hull_sup
+    );
+    assert!(
+        cert.hull_sup < 20.0 * d,
+        "the bound is {:e}, no longer within twenty times |d|",
         cert.hull_sup
     );
     eprintln!(
@@ -633,6 +655,11 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
         Err(OffsetFitError::SampleCapReached {
             achieved, rounds, ..
         }) => {
+            assert_eq!(rounds, 5);
+            assert!(
+                (achieved - 3.7544e-7).abs() < 5e-11,
+                "the cap stop carries {achieved:e}"
+            );
             eprintln!(
                 "small-d: 1e-9 refused typed at the cap after {rounds} rounds, achieved = {achieved:.3e}"
             );

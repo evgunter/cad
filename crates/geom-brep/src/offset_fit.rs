@@ -120,14 +120,38 @@
 //! parameter; here it is answered by
 //! [`geom_core::spline::compose::patch`].
 //!
-//! **The small-`|d|` denominator, and the limit that remains.** The
-//! normal component divides `|X|` by `w̃²·(‖E‖ + |d|)`. Bounding that
-//! below by `2|d|` alone is both loose and brittle: once `dist`
-//! reaches `|d|` the cell collapses to `+∞`, so a micron-scale offset
-//! on a metre-scale patch certified as `inf`. The composite therefore
-//! carries `Ẽ` and takes a DIRECT mignitude lower bound on `‖E‖` —
-//! the same inf-side shape meter 1 uses on the cross product — which
-//! makes the small-`|d|` case finite and tightens every other row.
+//! **The small-`|d|` denominator.** The normal component divides
+//! `|X|` by `w̃²·(‖E‖ + |d|)`. Bounding that below by `2|d|` alone is
+//! both loose and brittle: once `dist` reaches `|d|` the cell
+//! collapses to `+∞`, so a micron-scale offset on a metre-scale patch
+//! certifies as `inf`. The composite therefore carries `Ẽ` and bounds
+//! `‖E‖` below DIRECTLY, which makes the small-`|d|` case finite and
+//! tightens every other row.
+//!
+//! It bounds it two ways and takes the larger. The first is the
+//! componentwise mignitude assembly on `Ẽ`'s cell hulls — the same
+//! inf-side shape meter 1 uses on the cross product. The second reads
+//! the three components TOGETHER, through the sign witness the
+//! composite already carries: `|E·n| ≤ ‖E‖` for any `E`, and with
+//! `n = m/‖m‖`,
+//!
+//! ```text
+//! ‖E‖ ≥ |E·n| = |E·m| / ‖m‖ = |D| / (w̃ · ‖M̃‖)
+//! ```
+//!
+//! — `mig(D)` from below over the cell (positive on every cell that
+//! passes the witness, since the witness is `D` definite) against the
+//! sup of `M̃`'s three cell hulls from above. The two disagree by
+//! orders of magnitude exactly where a good fit lives: `E ≈ d·n`, so
+//! every component of `E` straddles zero as the normal rotates across
+//! the cell and the componentwise assembly collapses, while the
+//! projection reads `‖E‖ ≈ |d|`. On the quarter cylinder at
+//! `d = 1e-6` the sup cell's two readings are `1.58e-8` and
+//! `5.61e-7`, and the cell's bound is `1.71e-5` rather than
+//! `3.22e-4`.
+//!
+//! The `τ²/‖E‖` term takes the same floor, or `|d| − dist` when that
+//! is larger — three lower bounds on one norm, whose max is one too.
 //!
 //! **Recentring, and what it did and did not buy.** Every net above
 //! is built against one origin — the base control net's bbox midpoint
@@ -140,16 +164,9 @@
 //! metre patch a kilometre from the origin certified as `inf` and now
 //! certifies at the same `3.2e-4` the patch gives at the origin.
 //!
-//! It did NOT make the bound scale with `|d|`, and the reason is not
-//! the one that motivated the recentring. At the origin the small-`d`
-//! sup is 96% its `τ²/‖E‖` term, and that term is large because the
-//! lower bound on `‖E‖` is assembled from the componentwise
-//! mignitudes of `Ẽ`'s cell hulls: on a patch whose normal rotates
-//! across the cell each component straddles zero, so the assembly
-//! reads `1.6e-8` where `‖E‖ ≈ |d| = 1e-6`. A lower bound that saw
-//! the components together rather than one at a time is what would
-//! move this row; it is not a rounding problem and recentring cannot
-//! reach it.
+//! What it does not reach is the floor on `‖E‖`: that one is not a
+//! rounding problem at any origin, and it is answered above by the
+//! projection through the sign witness rather than by recentring.
 //!
 //! **Where the regularity floor enters.** `τ` and `D` both divide by
 //! `‖m‖`, and `X`'s reading divides by `w̃²`. Both weight hulls are

@@ -359,7 +359,12 @@ A9.10's downward knot-removal compression is not built.
 that steers, and `hull_sup`, the certified bound via
 `spline::compose::patch` over the rationalized composites
 `X = Ẽ·Ẽ − d²·w̃²` and `Y = Ẽ × M̃`, which are small exactly when the
-fit is good. A rational base refuses typed.
+fit is good, plus the sign witness `D = Ẽ·M̃`. `D` does double duty:
+it proves `E·n` carries `d`'s sign, and it floors `‖E‖` at
+`|D|/(w̃·‖M̃‖)` — the reading of the three components TOGETHER, which
+is what keeps a small-`|d|` bound near `|d|`'s own scale where the
+componentwise mignitude of `Ẽ` collapses on a rotating normal. A
+rational base refuses typed.
 
 **O4 — What shell is.** `shell(B, t) := B − offset_inward(B, t)` by
 definition, boolean-family; its execution never runs the crossing
