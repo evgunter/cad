@@ -652,9 +652,16 @@ nothing computes with it:
   `EPS_COUPLED_PREDICATES`, is a deliberate allow-list that fails
   **loud** — an ε-coupled predicate missing from it *keeps flagging*
   under the metre rules until someone rules. A roster omission
-  therefore cannot silently weaken the gate. (Its neighbour `tess-lint`
-  *does* diff a committed baseline; k-lint deliberately does not, and
-  that difference is what makes this ruling possible.)
+  therefore cannot silently weaken the gate **so long as the tight eps
+  rows run**: `tools/k-lint/src/lib.rs:165` and
+  `tests/review_probes.rs:68` measure a new ε-coupled family as silent
+  across ~96% of its range at the 1e-6 row, so the loudness is the
+  1e-9 and 1e-12 rows' and not the roster's. Every code-tier run gates
+  all three (2026-09-04); a run narrowed to `eps=1e-6` does not, and a
+  reader of this sentence at such a run is reading a claim its
+  evidence does not cover. (Its neighbour `tess-lint` *does* diff a
+  committed baseline; k-lint deliberately does not, and that
+  difference is what makes this ruling possible.)
 - A gate would have to be fed a machine-readable roster, which is the
   maintenance burden this decision declines; a reporting register would
   commit a second copy of a number the sweep already produces on every
