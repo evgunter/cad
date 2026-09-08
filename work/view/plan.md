@@ -131,7 +131,7 @@ should be visible on its own.
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
 | `view/censuses` (seven censuses in four hats, and an eighth) | #2103 | style + fix pass |
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
-| `view/summarised` (a summarised field renders as a summary) | #2148 | style — **in flight** |
+| `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass |
 | `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass |
 
 **Fifteen units on main. Two rules this wave earned**, both about
@@ -243,6 +243,28 @@ word proof and overwrote four files of those exact names that another
 lane had left there. Nothing was lost that mattered, and the collision
 is silent by construction — a lane cannot tell whether a scratchpad
 file is its own. Dispatches carry a per-lane prefix now.
+
+**A count fixed in ONE place contradicts itself, which is worse than
+one uniformly stale.** #2148 re-derived `1,779` to `1,780` at
+`four-debug-walks-are-spelled-and-placed-two-ways.md:42`, wrote the
+rule that produces it beside it, and left the file's own `title:` and
+line 68 at 1,779 — so the file is now wrong by a rule it states. That
+is #2103's retitle defect re-minted five days later by a different
+lane. A citation fix is class-wide over the file or it makes the file
+worse: a uniformly stale number is at least consistent, and a reader
+who spots one instance distrusts all of them; a half-fixed one invites
+belief in whichever copy they read first.
+
+**Re-derive means find the SUBJECT, and a delta is not a subject.**
+The same PR re-pointed `crates/viewer/README.md:787-797` to `804-814`
+— `787+17` — where the true shift was +22 and the subject sits at
+`809-819`; the words the citing row quotes are at `816`, outside the
+range it now names. `citation-repoint-shifted-a-number-the-lane-knew-
+was-wrong` closed that exact defect at #2083, two days earlier. Two
+re-mints of two-day-old closures in one PR is the measure of how weakly
+a closed row holds: **a closed item is a record, not a guard**, and the
+only instrument that has caught either class is a reviewer re-deriving
+the citation by hand.
 
 **The rule a unit states is the first rule to check the unit against.**
 #2143 wrote *a universal in prose owes the sweep rule that produces its
