@@ -548,3 +548,39 @@ carries no row for the page. The criterion for such a row is Ev's
 ratification, not a program close: `scripts/gates/README.md`'s row
 landed in the commit recording Ev's ratification while `work/gates`
 was still open. No row is added here.
+
+## Unit 4 — the cut line's two halves, pinned (2026-09-08)
+
+`cut-prefix-three-unpinned-spellings` closed on `meter/cut-prefix-pin`.
+`tools/tess-lint/tests/cut_line_pin.rs` reads
+`scripts/tess_budget_cut.sh` as text and holds its three spellings of
+the prefix to `CUT_PREFIX`, each located separately so each reds
+alone.
+
+**The finding was the shape, and it had moved under the filing.**
+`split_cut` grew a shape check between the filing and the lane, so the
+open question became whether the two constraints are the SAME. They
+were not: this crate admitted uppercase hex, an over-long object name
+and arbitrary whitespace after the prefix — three spellings
+`tess_budget_cut.sh` cannot emit and its `CUT_RE` does not match. The
+asymmetry costs in one direction only, and it is the bad one: the
+script's already-stamped arm would not recognise such a line, so it
+re-stamps a file that already carries a cut. `split_cut` is tightened
+to the script's language and a truth table now runs both readings
+side by side, the script's own regex extracted from its text and run
+by `grep -E`. Routed by `CC1` (the boundary) and `CC5` (the test and
+the voice), with the note that both clauses are stated over
+cross-column readings and a cut line is not one — what transfers is
+`CC5`'s test, which `CC5` defers to `tess_lint::Report` for.
+
+**Residue:** `cut-regex-unanchored-admits-a-line-the-lint-refuses`.
+`CUT_RE` has no end anchor, so it calls a cut-line-plus-junk a valid
+stamp while the lint refuses the file — and the script's refusal to
+re-stamp then blocks its own repair arm. One line in `scripts/`, which
+is CIW's; pinned meanwhile as the one row of the truth table where the
+two halves disagree.
+
+**Left, deliberately:** `cut-line-commit-names-no-baseline-change`.
+Same seam, different defect, and its substance is what the verdict
+PRINTS rather than what the parser admits. A doc-only rider would
+half-close it.

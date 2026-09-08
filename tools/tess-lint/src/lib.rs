@@ -701,7 +701,7 @@ pub const CHART_TAGS: [&str; 7] = [
 /// meter-side pin, and by nothing the gate actually parses.
 pub const SIZED_CHART_TAGS: [&str; 2] = ["nurbs", "approx"];
 
-/// The provenance line `scripts/tess_budget_sweep.sh` writes above
+/// The provenance line `scripts/tess_budget_cut.sh` writes above
 /// [`EXPECTED_HEADER`]: `# tess-budget-cut: <commit> <date>`.
 ///
 /// It exists so that a scene the baseline does not cover can be told
@@ -709,6 +709,12 @@ pub const SIZED_CHART_TAGS: [&str; 2] = ["nurbs", "approx"];
 /// it both read as "absent", and the one that matters — a scene the
 /// corpus gained before this cut and nobody folded — is
 /// indistinguishable from the one that does not.
+///
+/// **This is the only spelling.** That script writes the line,
+/// validates it with a regex of its own, and strips it before
+/// re-stamping; `tests/cut_line_pin.rs` reads the script as text and
+/// holds all three of those to this constant, and holds what
+/// [`split_cut`] admits to what that regex admits.
 pub const CUT_PREFIX: &str = "# tess-budget-cut:";
 
 /// The tree a sweep was taken from, as the sweep script recorded it.
@@ -749,22 +755,35 @@ fn split_cut(text: &str) -> Result<(Option<Cut>, usize), ParseError> {
     if !first.starts_with('#') {
         return Ok((None, 0));
     }
-    let rest = first.strip_prefix(CUT_PREFIX).ok_or_else(|| ParseError {
-        line: 1,
-        text: format!("comment line is not a `{CUT_PREFIX} <commit> <date>` record: {first}"),
-    })?;
-    let fields: Vec<&str> = rest.split_whitespace().collect();
+    // ONE space after the prefix, and single-space separation after
+    // that: the writer emits exactly that, so anything else is a line
+    // the producer could not have written.
+    let rest = first
+        .strip_prefix(CUT_PREFIX)
+        .and_then(|r| r.strip_prefix(' '))
+        .ok_or_else(|| ParseError {
+            line: 1,
+            text: format!("comment line is not a `{CUT_PREFIX} <commit> <date>` record: {first}"),
+        })?;
+    let fields: Vec<&str> = rest.split(' ').collect();
     let [commit, date] = fields[..] else {
         return Err(ParseError {
             line: 1,
             text: format!("expected `{CUT_PREFIX} <commit> <date>`, got: {first}"),
         });
     };
-    // Enough of a shape check that a placeholder cannot pass as a
-    // reading: a commit is hex (plus the dirty marker) and a date
-    // starts with its calendar day.
+    // A commit is an abbreviated git object name — LOWERCASE hex, at
+    // most a whole name long, plus the dirty marker — and a date
+    // starts with its calendar day. Each bound refuses a spelling the
+    // writer could not have produced, which is what keeps this
+    // reading inside the one `scripts/tess_budget_cut.sh` recognises
+    // as a stamp: a line this crate reads as a cut but that script
+    // does not would let a re-stamp walk the record past the rows it
+    // describes, the inversion that script's first arm exists to
+    // prevent.
     let hex = commit.strip_suffix("-dirty").unwrap_or(commit);
-    let commit_ok = hex.len() >= 7 && hex.chars().all(|c| c.is_ascii_hexdigit());
+    let commit_ok =
+        (7..=40).contains(&hex.len()) && hex.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f'));
     let date_ok = date.len() >= 10
         && date.as_bytes()[..10].iter().enumerate().all(|(i, &b)| {
             if i == 4 || i == 7 {
