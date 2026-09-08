@@ -2,11 +2,11 @@
 id: LIB-PRODUCT
 kind: unit
 title: the gathered product memoized on the Python Evaluation
-status: review
+status: closed
 branch: lib/product
 refs: [python-check-and-assembly-doors-gather-twice]
 opened: 2026-09-08
-closed:
+closed: 2026-09-08
 pr: 2181
 ---
 
