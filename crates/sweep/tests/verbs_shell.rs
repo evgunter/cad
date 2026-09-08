@@ -16,7 +16,9 @@
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow};
+use sweep::{
+    Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
+};
 use topo::{Body, FaceKey, LoopBoundary, ShellError, ShellKey, ShellRole, SolidKey};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -426,10 +428,7 @@ fn the_hollow_boxs_record_names_both_walls_and_their_thin_solids() {
     assert_eq!(operand_faces.len(), 12, "six walls, six cavity walls");
     assert_eq!(
         record.outer,
-        operand_faces
-            .iter()
-            .map(|&f| (f, f))
-            .collect::<Vec<_>>(),
+        operand_faces.iter().map(|&f| (f, f)).collect::<Vec<_>>(),
         "outer: one row per operand face of both shells, equal columns, arena order"
     );
     assert_eq!(
@@ -452,7 +451,11 @@ fn the_hollow_boxs_record_names_both_walls_and_their_thin_solids() {
             "the twin of {src:?} sits {inward} into the material, not the wall {t}"
         );
     }
-    assert_eq!(record.thickened.len(), 2, "one thickened row per operand shell");
+    assert_eq!(
+        record.thickened.len(),
+        2,
+        "one thickened row per operand shell"
+    );
     assert_eq!(
         record.thickened,
         vec![
@@ -487,13 +490,19 @@ fn the_clearance_gate_reads_across_shells() {
         panic!("expected the wall-clearance gate, got {e}");
     };
     assert!((gap - 0.25).abs() < 1e-12, "the wall is 0.25, got {gap}");
-    assert!((needed - 0.30).abs() < 1e-12, "two walls need 0.30, got {needed}");
+    assert!(
+        (needed - 0.30).abs() < 1e-12,
+        "two walls need 0.30, got {needed}"
+    );
     let shell_of = |f: FaceKey| hollow.get_face(f).expect("names an operand face").shell;
     let mut named = vec![shell_of(face), shell_of(other)];
     named.sort();
     let mut both = vec![outer, void];
     both.sort();
-    assert_eq!(named, both, "one face of the outer shell and one of the void");
+    assert_eq!(
+        named, both,
+        "one face of the outer shell and one of the void"
+    );
 }
 
 /// A `6 × 4 × 4` box with two voids of `1.2 × 2 × 2` side by side,
@@ -672,17 +681,27 @@ fn opening_the_hollow_boxs_outer_top_cups_the_outer_wall_only() {
     let body = &opened.body;
     assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2);
-    assert_eq!(body.shells().count(), 3, "the outer wall fused into one shell; the void's two");
+    assert_eq!(
+        body.shells().count(),
+        3,
+        "the outer wall fused into one shell; the void's two"
+    );
     let roles = roles_by_solid(body);
     let (operand_solid, _) = hollow.solids().next().expect("one solid");
     for (solid, kinds) in roles {
         if solid == operand_solid {
             assert_eq!(kinds, vec![ShellRole::Outer], "the cup is one shell");
         } else {
-            assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "B untouched");
+            assert_eq!(
+                kinds,
+                vec![ShellRole::Outer, ShellRole::Void],
+                "B untouched"
+            );
         }
     }
-    let rim = body.get_face(top).expect("the designated face survives as the rim");
+    let rim = body
+        .get_face(top)
+        .expect("the designated face survives as the rim");
     assert_eq!(rim.rings.len(), 1);
     let props = topo::mass_properties(body, tol).expect("props");
     let want = (OUTER_TERM() - 1.9 * 2.9 * t) + INNER_TERM();
@@ -717,15 +736,24 @@ fn opening_the_hollow_boxs_void_ceiling_cups_the_inner_wall_only() {
     let ceiling = plane_face_at(&hollow, 4.0 - 0.25);
     assert_eq!(hollow.get_face(ceiling).expect("the ceiling").shell, void);
     let sealed = topo::shell(&hollow, t, tol).expect("sealed");
-    let opened = topo::shell_open(&hollow, t, &[ceiling], tol).expect("opens at the void's ceiling");
+    let opened =
+        topo::shell_open(&hollow, t, &[ceiling], tol).expect("opens at the void's ceiling");
     let body = &opened.body;
     assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2);
-    assert_eq!(body.shells().count(), 3, "the outer wall's two shells; the void's wall fused");
+    assert_eq!(
+        body.shells().count(),
+        3,
+        "the outer wall's two shells; the void's wall fused"
+    );
     let (operand_solid, _) = hollow.solids().next().expect("one solid");
     for (solid, kinds) in roles_by_solid(body) {
         if solid == operand_solid {
-            assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "A untouched");
+            assert_eq!(
+                kinds,
+                vec![ShellRole::Outer, ShellRole::Void],
+                "A untouched"
+            );
         } else {
             assert_eq!(kinds, vec![ShellRole::Outer], "the inner cup is one shell");
         }
@@ -741,9 +769,16 @@ fn opening_the_hollow_boxs_void_ceiling_cups_the_inner_wall_only() {
     assert_eq!(record.rims.len(), 1);
     let rim_row = &record.rims[0];
     assert_eq!(rim_row.sources, vec![ceiling]);
-    assert!(body.get_face(ceiling).is_none(), "the designated void face dies");
+    assert!(
+        body.get_face(ceiling).is_none(),
+        "the designated void face dies"
+    );
     assert!(record.dead.faces.contains(&ceiling));
-    assert_eq!(record.dead.shells, vec![void], "the operand's void shell fused away");
+    assert_eq!(
+        record.dead.shells,
+        vec![void],
+        "the operand's void shell fused away"
+    );
     assert_eq!(
         Some(rim_row.rim),
         record.inner_of(ceiling),

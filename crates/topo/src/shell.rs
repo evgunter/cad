@@ -1231,7 +1231,11 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // shell the designation is on — decided once, in the sealed arm
         // — never off the result's geometry; the disjointness check
         // below and tier 3's windings are what verify it.
-        let (host, guest) = if on_void { (source, rim) } else { (rim, source) };
+        let (host, guest) = if on_void {
+            (source, rim)
+        } else {
+            (rim, source)
+        };
         let (host_surface, host_sense) = {
             let data = out.get_face(host).ok_or(ShellError::Corrupt {
                 key: EntityId::Face(host),

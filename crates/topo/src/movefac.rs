@@ -511,16 +511,10 @@ mod tests {
                     key: EntityId::Shell(ShellKey::default()),
                 },
             ),
-            (
-                &[only, only],
-                EulerOpError::ShellRepeated { shell: only },
-            ),
+            (&[only, only], EulerOpError::ShellRepeated { shell: only }),
             (
                 &[only, other],
-                EulerOpError::ShellsAcrossSolids {
-                    shell: only,
-                    other,
-                },
+                EulerOpError::ShellsAcrossSolids { shell: only, other },
             ),
             (
                 &[only],
@@ -532,7 +526,11 @@ mod tests {
         for (shells, want) in rows {
             let err = body.move_shells_to_new_solid(shells).unwrap_err();
             assert_eq!(err, want, "shells {shells:?}");
-            assert_eq!(deep_snapshot(&body), before, "shells {shells:?}: body untouched");
+            assert_eq!(
+                deep_snapshot(&body),
+                before,
+                "shells {shells:?}: body untouched"
+            );
         }
     }
 

@@ -245,7 +245,11 @@ fn probe_shell_of_a_hollow_thickens_every_boundary() {
         Ok(()),
         "tier 3"
     );
-    assert_eq!(shelled.solids().count(), 2, "one thin solid per operand shell");
+    assert_eq!(
+        shelled.solids().count(),
+        2,
+        "one thin solid per operand shell"
+    );
     assert_eq!(shelled.shells().count(), 4, "two shells per thin solid");
     let roles = topo::classify_shells(&shelled, Tol::witness()).expect("classifies");
     for (solid, _) in shelled.solids() {
@@ -269,7 +273,10 @@ fn probe_shell_of_a_hollow_thickens_every_boundary() {
         "two walls: got {}, want {want}",
         props.volume
     );
-    println!("[probe] MAJ-2: shell-of-hollow thickens every boundary: volume {}", props.volume);
+    println!(
+        "[probe] MAJ-2: shell-of-hollow thickens every boundary: volume {}",
+        props.volume
+    );
 }
 
 // ---------------------------------------------------------------------
