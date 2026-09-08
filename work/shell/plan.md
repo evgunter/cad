@@ -1,15 +1,19 @@
 # SHELL — shell, offset and transform (plan)
 
-**STATUS: OPEN (2026-09-03); DISPATCHING (2026-09-04).** Opened
-2026-09-03 from `docs/WORK-TRACKS-2026-09.md` (SHELL section), which
-is this program's charter until this plan supersedes it. Live state is
+**STATUS: OPEN (2026-09-03); DISPATCHING (2026-09-04); second
+orchestrator session opened 2026-09-08.** Opened 2026-09-03 from
+`docs/WORK-TRACKS-2026-09.md` (SHELL section), which is this program's
+charter until this plan supersedes it. Live state is
 `work/shell/log.md`'s tail and the item files beside this plan, never
 this file.
 
 Branch prefix (the #396 convention): **`shell/`** — unit branches
-`shell/<unit>-<slug>`. The orchestrator branch for the opening session
-is `claude/shell-orchestrator-track-qxa7vk` (the session's designated
-branch; it plays the `shell/orchestrator` role). Away-channel tag
+`shell/<unit>-<slug>`. Each orchestrator session's designated
+branch plays the `shell/orchestrator` role (the opening session's was
+`claude/shell-orchestrator-track-qxa7vk`; the second session's is
+`claude/work-shell-readiness-y31rxk`); the branch-side A/B block
+record lives on the session's branch and reaches main when the block
+concludes or at the next session's opening. Away-channel tag
 `(SHELL orchestrator)`. A/B ordinal band **SHELL = 2300–2399**,
 claimed in `docs/MODEL-AB-LOG.md`'s banding entry.
 
@@ -20,53 +24,71 @@ them the naming record and the clearance gate their consumers wait
 on. Every item here is VERBS' "open shell residue this wave has not
 scheduled" plus the M10-5 clearance engine's first kernel consumer.
 
-## Opening condition — superseded
+## Opening condition — superseded, then met
 
 The charter said "dispatches at VERBS' exit". Ev directed the program
-to open ahead of that (in-chat, 2026-09-04: pick up the `shell` track
-as its orchestrator). VERBS stays live on its Wave-2 remainder; the
-shell files and VERBS' seven shell items moved here by header edit and
-`git mv`, and `crates/topo/src/offset_axial.rs` stays VERBS' until
-VERBS-RIMCAP merges (its PR-1 rewrites that file).
+to open ahead of that (in-chat, 2026-09-04); VERBS' seven shell items
+moved here by header edit and `git mv`. VERBS closed later the same
+day (exit walk ratified at #1793, tracker retired at #1799), so
+`crates/topo/src/offset_axial.rs` — held back while VERBS-RIMCAP PR-1
+(#1674) rewrote it — is this program's territory from 2026-09-08.
 
 ## Territory
 
-`crates/topo/src/{shell,replace_face,transform,offset_together}.rs`,
+`crates/topo/src/{shell,replace_face,transform,offset_together,offset_axial}.rs`,
 `crates/geom-brep/src/{offset,offset_meters}.rs`,
-`crates/sweep/tests/verbs_shell*.rs`, `crates/editor-core/src/clearance.rs`.
-Not this program's: `offset_fit.rs` (S-CERT, then PROPS),
-`offset_axial.rs` (VERBS until RIMCAP), `crates/verbs` (SEAT),
-`editor-core`'s recipe doors (LIB).
+`crates/sweep/tests/verbs_shell*.rs`, `crates/editor-core/src/clearance.rs`
+(shared with M10 until SHELL-3 lands, and with PROPS' sign-hull unit
+while it is in flight). Not this program's: `offset_fit.rs` (PROPS),
+`crates/verbs` (the closed SEAT's vocabulary; its shell `VerbRecord`
+arm must agree with `ShellNaming`), `editor-core`'s recipe doors
+(LIB).
 
 ## Unit order
 
-1. **SHELL-1** `shell-needs-shellnaming-birth-channel` — E/M; the
-   `ShellNaming` record written by the doors (`Shelled<T>` result in
-   the `Extruded`/`BooleanBody` shape). Spec `docs/SHELL-1-SPEC.md`.
-   Unblocks LIB-G17; the shape SEAT's shell `VerbRecord` arm consumes.
-2. `shell-offset-three-followups` items 2–3 and
-   `mint-offset-ignores-cone-mirror-nappe` — one nappe home both
-   consumers read; predicate names for the winding uses (VERBS-1031B
-   is adding a fourth `bool_ring_run_winding` site in `merge_faces`,
-   so the rename sweep counts four owners, not three).
-3. `shell-of-hollow-body-thicken-every-boundary` — Ev's ruling
-   verbatim in the body; retire `OperandAlreadyHollow`.
-4. `transform-rigid-refuses-approx-face` — shape 1 (a certifier at the
-   transform door) or 2 (a per-scalar lane re-deriving the certificate);
-   the composition law is pinned.
-5. `shell-offset-three-followups` item 1 — the props inventory's
-   curved-face-with-ring reading.
-6. RULED B (Ev, #1737, 2026-09-04): **SHELL-3** — the clearance
+1. **SHELL-1** `shell-needs-shellnaming-birth-channel` — LANDED
+   (PR #1756, 2026-09-04). LIB-G17 unparked.
+2. **SHELL-2** `transform-rigid-refuses-approx-face` — LANDED
+   (PR #1758, 2026-09-04); the plan's old item 4, pulled forward.
+3. **SHELL-5** `shell-of-hollow-body-thicken-every-boundary` — LANDED
+   (PR #2159, 2026-09-08): one thin solid per operand shell, the
+   planar clearance gate grown by `t`, `RimNaming::side`. Block
+   SHELL-B1 concluded.
+4. **SHELL-6** `mint-offset-ignores-cone-mirror-nappe` — LANDED
+   (PR #2178, 2026-09-08): `face_nappe`/`group_nappe`, one home in the
+   offset lane; the live ε-scale sign defect closed. Block SHELL-B2
+   slot 0. The winding-predicate rename (`shell-offset-three-followups`
+   item 2) is NOT in it: three owners' files and a K-lint population
+   — it stays on that item until announced on TOPO's and S-BOOL's
+   boards.
+4b. **Next: SHELL-7, the one-surface corner** —
+   `axial-door-refuses-a-one-surface-seam-corner`: the axial door
+   moves a seam vertex along its one surface's own normal, so the
+   full-period torus shells (solid and hollow); spec
+   `docs/SHELL-7-SPEC.md`; block SHELL-B2 slot 1.
+5. RULED B (Ev, #1737, 2026-09-04): **SHELL-3** — the clearance
    engine's body-level half moves into `topo` behind `interval`
    (joint with M10; no behaviour change, the M10-5/6 suites are the
-   differential) — then **SHELL-4** — `shell` runs E7's
-   self-intersection question on the cavity clone at certifying
-   scalars and refuses typed; `shell-curved-wall-clearance-window`
-   closes on SHELL-4's refusing row. `shell-curved-clearance-consumer`
-   closes when both land.
-7. `tour-hollow-tube-scene` — E; the tess-budget re-baseline by the
-   runbook.
-8. `tier3-approx-regrid-per-face-cost` (PERF's) stays parked on an
+   differential; draft spec `docs/SHELL-3-SPEC.md`) — then **SHELL-4**
+   — `shell` runs E7's self-intersection question on the cavity clone
+   at certifying scalars and refuses typed;
+   `shell-curved-wall-clearance-window` closes on SHELL-4's refusing
+   row, `shell-curved-clearance-consumer` when both land. **SHELL-3
+   dispatches after PROPS' sign-hull unit merges** (it edits ~130
+   lines of `clearance.rs`; a move and an in-file edit do not run
+   concurrently), and asks M10's orchestrator for the co-review at
+   dispatch.
+6. `shell-offset-three-followups` item 1 — the props inventory's
+   curved-face-with-ring reading (a PROPS seam; announced first).
+7. `clearance-refusal-names-one-face-twice-across-bodies` — rides
+   SHELL-3 or SHELL-4, whichever touches the raise sites; the
+   `Display` half is owed either way.
+8. `no-approx-faced-body-is-both-movable-and-valid` — the OFF-C rows
+   marked decorative can be strengthened on the loft now that
+   `transform_rigid` maps described NURBS carriers; the cache walls
+   are MESH's and EXCH's (filed there) and this row closes when the
+   rows are strengthened.
+9. `tier3-approx-regrid-per-face-cost` (PERF's) stays parked on an
    `Approx`-heavy fixture this program produces.
 
 ## Adjacent, not taken

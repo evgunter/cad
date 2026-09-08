@@ -219,33 +219,64 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 }
 
 /// Shelling an ALREADY-HOLLOW body: the operand has two shells, the
-/// verb's cavity clone offsets both and inserts BOTH as voids beside
-/// the operand's existing void — nested/overlapping voids unless
-/// something refuses. One solid, so `NotOneSolid` does not gate it.
+/// verb's cavity clone offsets both — the outer inward, the void
+/// OUTWARD — and the two clone shells land in the operand's solid
+/// beside the operand's own two. One solid, so `NotOneSolid` does not
+/// gate it, and it must not: the ruled semantics is "thicken EVERY
+/// boundary" (issue #1056), never "offset the outer shell only".
+///
+/// The wrong shape this row pins against is four shells under ONE
+/// solid — the void's dilated twin inserted as a cavity of the outer
+/// wall, overlapping the void it was offset from, with strict-inside
+/// evidence asserted for a shell that was never in material (volume
+/// 4.362, tier-3 valid). The right shape is two solids: the outer
+/// wall with its eroded twin as a cavity, and the wall around the
+/// void with the dilated twin as its OUTER shell.
 #[test]
-fn probe_shell_of_a_hollow_fails_loud() {
+fn probe_shell_of_a_hollow_thickens_every_boundary() {
     let hollow = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, Tol::witness())
         .expect("the first shell is the PR's own green row")
         .body;
-    let r = topo::shell(&hollow, 0.05, Tol::witness());
-    // **MAJ-2, closed (ordinal 82 -> fix pass).** At `259fde04` this
-    // returned Ok with FOUR shells, tier-3 valid, volume 4.362: the
-    // verb offset the operand's VOID shell too and inserted both
-    // cavity-clone shells as new voids beside the existing one, with
-    // `Carried { Positive }` asserted for a shell that was never in
-    // material. `NotOneSolid` did not gate it — a hollow body is ONE
-    // solid with two shells.
-    //
-    // The operand gate refuses it now. The ratified semantics for when
-    // this is answered rather than refused is "thicken EVERY boundary"
-    // (issue #1056) — offsetting only the outer shell is explicitly
-    // not the answer.
-    let e = r.expect_err("a hollow operand has no single boundary to erode");
-    assert!(
-        matches!(e, ShellError::OperandAlreadyHollow { shells: 2 }),
-        "expected the already-hollow gate naming two shells, got {e}"
+    let shelled = topo::shell(&hollow, 0.05, Tol::witness())
+        .expect("a hollow operand thickens every boundary")
+        .body;
+    assert_eq!(
+        topo::validate_geometric(&shelled, Tol::witness()),
+        Ok(()),
+        "tier 3"
     );
-    println!("[probe] MAJ-2: shell-of-hollow refuses LOUD: {e}");
+    assert_eq!(
+        shelled.solids().count(),
+        2,
+        "one thin solid per operand shell"
+    );
+    assert_eq!(shelled.shells().count(), 4, "two shells per thin solid");
+    let roles = topo::classify_shells(&shelled, Tol::witness()).expect("classifies");
+    for (solid, _) in shelled.solids() {
+        let mut kinds: Vec<topo::ShellRole> = roles
+            .iter()
+            .filter(|c| c.solid == solid)
+            .map(|c| c.role)
+            .collect();
+        kinds.sort_by_key(|r| format!("{r:?}"));
+        assert_eq!(
+            kinds,
+            vec![topo::ShellRole::Outer, topo::ShellRole::Void],
+            "{solid:?}: one outer boundary and one cavity"
+        );
+    }
+    let props = topo::mass_properties(&shelled, Tol::witness()).expect("props");
+    let v = |w: f64, d: f64, h: f64| w * d * h;
+    let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5));
+    assert!(
+        (props.volume - want).abs() <= 1e-12,
+        "two walls: got {}, want {want}",
+        props.volume
+    );
+    println!(
+        "[probe] MAJ-2: shell-of-hollow thickens every boundary: volume {}",
+        props.volume
+    );
 }
 
 // ---------------------------------------------------------------------

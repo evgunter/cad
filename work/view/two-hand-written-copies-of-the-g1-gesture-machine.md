@@ -14,19 +14,19 @@ the two gestures may be in flight together.
 
 ## What happens
 
-`session::Gesture` (`crates/viewer/src/session.rs:155`) and
+`session::Gesture` (`crates/viewer/src/session.rs:162`) and
 `display::FreeMoveGesture` (`crates/viewer/src/display.rs:390`) are two
 hand-written implementations of ONE state machine — G1's
 preview/commit shape — with the same four operations and the same three
 rules:
 
 - **begin** refuses if one is already in flight, and validates its
-  target first (`session.rs:969-995`, `display.rs:562-570`);
+  target first (`session.rs:1376-1402`, `display.rs:562-570`);
 - **preview** replaces the last rather than composing, and refuses if
-  none is in flight (`session.rs:997-1037`, `display.rs:585-598`);
+  none is in flight (`session.rs:1404-1444`, `display.rs:585-598`);
 - **commit** lands exactly one value, and **a gesture that never
   previewed commits nothing** — the no-move rule, written twice
-  (`session.rs:1045-1048`, `display.rs:610-620`);
+  (`session.rs:1450-1463`, `display.rs:610-620`);
 - **cancel** takes the gesture and restores the prior picture.
 
 They carry two refusal vocabularies for the same three states —
@@ -34,7 +34,7 @@ They carry two refusal vocabularies for the same three states —
 `DisplayFault::NoFreeMove` / `DisplayFault::FreeMoveInFlight` — and the
 relationship between the copies is reconciled in PROSE, by hand, at
 `display.rs:601-602` ("the no-move rule the document gestures follow")
-and `session.rs:669-671` ("Same rule as a no-move commit").
+and `session.rs:1028-1030` ("Same rule as a no-move commit").
 
 ## Why it is worth a file
 

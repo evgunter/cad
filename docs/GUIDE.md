@@ -1207,6 +1207,70 @@ body = evaluate(doc).value(blended).body()
 body.validate()
 ```
 
+### Hollowing a body: shell, with the faces you open named
+
+A shell offsets every face of a body inward by a wall thickness and
+inserts the offset boundary as a cavity; the faces you name in `open`
+are re-authored as annular RIMS instead, so a box opened at its top
+is a cup. `Node.shell(target, thickness, open)` is the door, and
+`open` is face names as text exactly as `Node.fillet` takes edge
+names — carried, never composed, frozen at authoring time.
+
+One thing the blend selection does not have: **`open` is ordered.** A
+chart's rim is its FIRST designated face (the chart's other faces
+merge onto it and the rim's name is that face's), so name first the
+face you want to carry the rim's identity. An empty list is the
+SEALED hollow — a closed thin solid with a cavity and no rim — which
+is legal and not a refusal. And a face is designated together with
+every face on its chart: a full revolve's cap is two half-faces on
+one plane, and naming one of them refuses (`shell`, the kernel's
+partial-chart gate) rather than silently opening both.
+
+```python
+from pncad import (
+    CapEnd, Doc, EntityKind, EvaluationError, NamePat, Node,
+    OpGroup, SegPat, SegTag, Selector, evaluate, m,
+)
+
+L, T = 1.0, 0.125
+
+doc = Doc()
+square = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)], plane=doc.sketch_frame())
+)
+box = doc.insert(Node.extrude(square, L * m))
+
+# The top, by ROLE: the extrude's end cap. One name, carried to the
+# door unread.
+faces = NamePat.of_kind(EntityKind.Face)
+top = evaluate(doc).select(box, Selector.of(faces.seg(SegPat.tag(SegTag.Cap).side(CapEnd.End))))
+assert len(top) == 1
+cup = doc.insert(Node.shell(box, T * m, top))
+
+# The cavity is (L-2T) x (L-2T) x (L-T): the opened top loses no wall.
+body = evaluate(doc).value(cup).body()
+body.validate()
+inner = L - 2 * T
+assert body.mass_properties().volume == L**3 - inner * inner * (L - T)
+
+# The cup's own vocabulary: one rim (named for the top it replaced)
+# and five cavity twins group as the SHELL's; the five outer faces are
+# carried through and speak as `FromTarget`, the blend's group, because
+# the tag names the shape and the minting node says which op.
+ev = evaluate(doc)
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))) == 1
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))) == 6
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))) == 5
+
+# A wall that is not a wall is the kernel's refusal, not the binding's.
+flat = doc.insert(Node.shell(box, 0 * m, top))
+try:
+    evaluate(doc).value(flat)
+    raise AssertionError("a zero wall should not hollow")
+except EvaluationError as refusal:
+    assert refusal.kind == "shell"
+```
+
 ## 3. Parametric models
 
 Section 2's Rust walk built a solid by calling operations. That is a
@@ -1607,6 +1671,54 @@ decision you can rely on:
   the distribution. `SetDocParamValue` writes the number and carries
   the declaration forward, which is why the panel, the drag gesture and
   the Python binding (`DocEdit.set_doc_param_value`) all speak it.
+
+The same three consumables are the Python surface, with one difference
+that is a decision rather than a translation: the offsets are TYPED
+quantities in the parameter's own dimension, and the mass columns hang
+off the box rather than being free functions, so the name, the
+distribution and the interval always come from one axis.
+
+```python
+from pncad import (AnalysisPolicy, DEFAULT_QUANTILE_MASS, Distribution, Doc,
+                   DocEdit, DocParam, DocParamValue, MeasureUnavailable,
+                   ParamName, analyzed_box, mm)
+
+doc = Doc("guide-distributions")
+# A measured bore: 4 mm, one micron of spread, normal.
+doc.apply(DocEdit.set_doc_param(ParamName("bore_r"),
+    DocParam.length(4 * mm, Distribution.normal(0.001 * mm))))
+# Vendor stock: the catalogue gives limits and states no shape.
+doc.apply(DocEdit.set_doc_param(ParamName("plate_t"),
+    DocParam.length(10 * mm, Distribution.band(-0.1 * mm, 0.1 * mm))))
+# Unannotated: FIXED, on purpose.
+doc.apply(DocEdit.set_doc_param(ParamName("web_t"), DocParam.length(3 * mm)))
+
+boxed = analyzed_box(doc, AnalysisPolicy())          # or analyzed_box(doc)
+bore = boxed.get(ParamName("bore_r"))
+assert abs(bore.offsets[1].in_unit(mm) / 0.001 - 3.0) < 0.01
+assert abs(boxed.tail_mass(ParamName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
+assert boxed.get(ParamName("plate_t")).offsets[0] == -0.1 * mm
+assert boxed.get(ParamName("web_t")).is_fixed       # unannotated is FIXED
+assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]
+
+# The band refuses to price anything its shape would decide, and the
+# refusal NAMES the parameter rather than quietly assuming uniform.
+try:
+    boxed.box_mass(ParamName("plate_t"), -0.05 * mm, 0.05 * mm)
+    raise AssertionError("a band prices nothing shape-dependent")
+except MeasureUnavailable as refused:
+    assert refused.param == "plate_t"
+
+# Moving a value KEEPS the annotation; `Doc.params` reads it back.
+doc.apply(DocEdit.set_doc_param_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm)))
+assert doc.params.get(ParamName("bore_r")).distribution == Distribution.normal(0.001 * mm)
+```
+
+`Distribution`'s constructors run the same `check` the edit and load
+doors run, so a broken invariant refuses where it is written, as
+`DistributionFault`. What does NOT cross is the certified half — the
+E6 driver, the E4/E5 stackup, the E10 reports — which lives behind the
+`interval` feature the wheel is not built with.
 
 ## 4. The rest of the documentation
 

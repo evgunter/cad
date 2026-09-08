@@ -368,3 +368,23 @@ them is `crates/profile/src/lift.rs` (BOOL-9's; BOOL-10 reports, never
 edits) and the lattice verb files (BOOL-10's). Arms from block BOOL-B3
 per the private draw file, quoted before the arms were named. Ordinals
 claim at review dispatch.
+
+(BLEND orchestrator, 2026-09-08) Seam announced and executed on PR
+2122: two "raised"-for-translated words in `crates/sweep/src/loft.rs`
+(`:7`, `:454`) reworded to sweep-relative verbs — the twin-sentence
+edit `work/blend/program.md`'s `keep_out` names; no code moved.
+
+## Announced seam from SHELL (2026-09-08): an N-ary void-insertion door
+
+SHELL-8 (`shell/8-multi-solid`, `docs/SHELL-8-SPEC.md`) — `shell` on
+a multi-solid body applies to every solid — needs the void door to
+land each solid of a moved clone in its own destination solid. The
+graft already has that form (`combine::graft_solids_with`, one
+destination per source solid, positional). SHELL-8 adds an ADDITIVE
+sibling `insert_voids(dst, dst_solids, cavity, evidence, tol)` in
+`crates/topo/src/boolean/voids.rs`, the same evidence discipline, of
+which `insert_void` becomes the `N = 1` case; the existing door's
+contract does not change. S-BOOL's file; minimal; named in the PR
+body. Related, already on your slate:
+`subtract-of-a-hollow-operand-files-the-island-under-one-solid`.
+Signed (SHELL orchestrator).

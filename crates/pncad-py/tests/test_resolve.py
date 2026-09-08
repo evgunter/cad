@@ -35,9 +35,10 @@ WHAT IS NOT COVERED, stated rather than implied. The `ambiguous` arm
 (an N2 tie) and a NON-EMPTY `offers` list (a merged name for a retired
 constituent, a collapsed over-tie group's survivor) are not
 constructed here: no door on this Python surface authors a tie row or
-a merge, so there is no honest way to reach them from this side. They
-would cross as `failed` with different prose, which is the whole of
-what `Resolution` distinguishes anyway.
+a merge, so there is no honest way to reach them from this side. The
+other five arms of `variant` ARE reached below, one test apiece, and
+`ambiguous` is the one word in that vocabulary no test on either side
+of the boundary provokes.
 
 NOTHING HERE READS INSIDE A NAME. Every name is opaque text, compared
 with other opaque texts and never parsed.
@@ -47,6 +48,7 @@ import unittest
 
 from pncad import (
     BooleanOp,
+    CancelToken,
     Doc,
     DocEdit,
     EntityKind,
@@ -65,6 +67,19 @@ DELTA = 0.5 * m / 1000.0
 
 #: Every state `Resolution.status` is allowed to take.
 STATES = frozenset({"resolved", "failed", "indeterminate"})
+
+#: Every arm `Resolution.variant` is allowed to take — the two
+#: kernel vocabularies underneath the two non-resolved states.
+VARIANTS = frozenset(
+    {
+        "vanished",
+        "ambiguous",
+        "node_gone",
+        "target_failed",
+        "target_poisoned",
+        "target_not_evaluated",
+    }
+)
 
 
 def square(doc, side=1.0, at=(0.0, 0.0)):
@@ -251,6 +266,10 @@ class TestAFailedVerdict(unittest.TestCase):
             with self.subTest(name=name):
                 verdict = after.resolve(name)
                 self.assertEqual(verdict.status, "failed")
+                # The arm, which is the word a repair branches on:
+                # there is nothing to refine here, so the rebind is
+                # onto a different feature entirely.
+                self.assertEqual(verdict.variant, "node_gone")
                 self.assertIn("no longer in the document", verdict.detail)
                 # Nothing structural offers itself for a node that is
                 # simply gone, and the empty list is the answer — not
@@ -284,6 +303,10 @@ class TestAFailedVerdict(unittest.TestCase):
 
         verdict = after.resolve(vanished[0])
         self.assertEqual(verdict.status, "failed")
+        # ...and it is the OTHER failure: the node still evaluates and
+        # the name is gone from its table, which is a different repair
+        # from a node that left the document.
+        self.assertEqual(verdict.variant, "vanished")
         self.assertIn("no longer resolves in this evaluation", verdict.detail)
         self.assertIsInstance(verdict.offers, list)
 
@@ -385,6 +408,8 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
             with self.subTest(name=name):
                 verdict = self.broken.resolve(name)
                 self.assertEqual(verdict.status, "indeterminate")
+                # The arm says which node to look at: this one's own.
+                self.assertEqual(verdict.variant, "target_failed")
                 self.assertIn("failed this evaluation", verdict.detail)
                 # Not a rebind candidate: there is nothing to rebind to
                 # and nothing to suggest.
@@ -403,8 +428,37 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
             with self.subTest(name=name):
                 verdict = self.broken.resolve(name)
                 self.assertEqual(verdict.status, "indeterminate")
+                # ...and here it says to look one node further up,
+                # which is the whole difference between the two arms
+                # of one state.
+                self.assertEqual(verdict.variant, "target_poisoned")
                 self.assertIn("poisoned by the failure at node", verdict.detail)
                 self.assertIn("the repair is upstream", verdict.detail)
+
+    def test_a_run_that_never_reached_the_node_is_the_third_arm(self):
+        """The state's third way in, and the only one where nothing at
+        all is wrong: a canceled run holds the completed PREFIX, so a
+        name whose minting node is past it is unanswerable this run and
+        answers again on the next.
+
+        Different arm, same state and the same recourse shape — which
+        is why `variant` is worth reading beside `status`: "the node
+        failed" and "the run stopped short" send a reader to
+        different places."""
+        stopped = CancelToken()
+        stopped.cancel()
+        partial = evaluate(self.good_doc, cancel=stopped)
+        self.assertTrue(partial.canceled)
+
+        for name in self.good.all_faces(self.good_blend):
+            with self.subTest(name=name):
+                verdict = partial.resolve(name)
+                self.assertEqual(verdict.status, "indeterminate")
+                self.assertEqual(verdict.variant, "target_not_evaluated")
+                self.assertIsNone(verdict.offers)
+                # And it is not a claim about the document: the same
+                # name resolves on the run that finished.
+                self.assertEqual(self.good.resolve(name).status, "resolved")
 
     def test_indeterminate_carries_no_location(self):
         """There is no location to carry: the run produced no value for
@@ -458,9 +512,26 @@ class TestTheVerdictSurface(unittest.TestCase):
         not carry it, so `getattr` never raises and a caller never has
         to branch on `status` before reading."""
         for state, verdict in self.verdicts.items():
-            for attribute in ("status", "node", "body", "kind", "detail", "offers"):
+            for attribute in (
+                "status",
+                "variant",
+                "node",
+                "body",
+                "kind",
+                "detail",
+                "offers",
+            ):
                 with self.subTest(state=state, attribute=attribute):
                     getattr(verdict, attribute)
+
+    def test_the_variant_is_the_arm_and_none_only_where_there_is_none(self):
+        """A second vocabulary beside `status`, drawn from the state's
+        own arms — and `None` exactly on `resolved`, the state with
+        nothing underneath it to say."""
+        self.assertIsNone(self.verdicts["resolved"].variant)
+        for state in ("failed", "indeterminate"):
+            with self.subTest(state=state):
+                self.assertIn(self.verdicts[state].variant, VARIANTS)
 
     def test_offers_distinguishes_empty_from_inapplicable(self):
         """A list on `failed` — empty when nothing structural offers

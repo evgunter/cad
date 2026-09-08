@@ -57,6 +57,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::authoring::polygon;
 use pncad::geom_core::{Affine3, Point2, Point3, Vec3};
 use pncad::prelude::{Open, Start, Via};
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
@@ -222,12 +223,12 @@ pub fn narration(tol: Tol) {
 ///
 /// The same section as `common/mod.rs::quad`, by value; not the same
 /// code. That one is a test fixture and spells its vertex table
-/// directly, behind the door that exists for fixtures; this builds it
-/// through the PATHS lattice ([`crate::paths::path_polygon`]), which is
-/// the spelling this tour is here to show and the only one a consumer
-/// has.
+/// directly, behind the door that exists for fixtures; this one goes
+/// through the façade's polygon door, which classifies every corner at
+/// authoring — the spelling this tour is here to show, and the only one
+/// a consumer has.
 fn quad(pts: [(f64, f64); 4], tol: Tol) -> Section {
-    vec![crate::paths::path_polygon(&pts, tol)]
+    vec![polygon(&pts, tol).expect("the quad section")]
 }
 
 /// **The placement a path sweep starts from**: the plane through the

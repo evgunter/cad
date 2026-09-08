@@ -65,6 +65,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::authoring::polygon;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Point2, Tol, Vec3};
 use pncad::prelude::{SurfaceKindSet, query};
@@ -151,7 +152,7 @@ const V_MATED: f64 = 2.0 * PLATE_VOL;
 /// contort itself — no mismatched radii between the two plates, no
 /// one-plate-only rounding — to manufacture a shape that dodges it.
 fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
-    crate::paths::path_polygon(
+    polygon(
         &[
             (0.0, 0.0),
             (PLATE.0, 0.0),
@@ -160,6 +161,7 @@ fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
         ],
         tol,
     )
+    .expect("the plate outline")
 }
 
 /// The radius-0.5 circle about `(cx, PEG_Y)`, authored as THREE 120°

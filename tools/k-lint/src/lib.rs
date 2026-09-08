@@ -62,10 +62,18 @@
 //! saw (`path_junction_turn`, +293 samples/row, every |m| ≥ 2.5 m), and
 //! since #661 pooled the six `bool_sector_*` / `split_sector_*` names
 //! into `sector_{arm,reflex,straight}` it also DROPS six the baseline
-//! still lists — 233 committed here, 231 at today's main. Neither
-//! direction reaches this lint, which lints the fresh rows it was
-//! handed and never compares them to the committed files; the thresholds
-//! below are the only thing the baseline supplies. The baseline is
+//! still lists — 233 committed here, and 281 at the tip
+//! `docs/K-REPORT.md`'s M11 addendum counted (2026-09-08), 61 names in
+//! and 13 out. **Only the second is dated.** The committed 233 is a
+//! property of files `docs/k-report-data/README.md` rule 1 freezes, and
+//! `tests/threshold_provenance.rs` re-counts it off them on every gate
+//! run rather than carrying it as a figure. The tip count has no such
+//! guard and cannot have one here, and it is the shape that addendum's
+//! standing note warns about: a roster size phrased as though it were
+//! live reads as current forever and goes stale on the next merge.
+//! Neither direction reaches this lint, which lints the fresh rows it
+//! was handed and never compares them to the committed files; the
+//! thresholds below are the only thing the baseline supplies. The baseline is
 //! re-cut when the DISTRIBUTION moves — a new floor, a filled gap, an
 //! ε-coupled family — not on every merge and not on a rename.
 //!
@@ -539,6 +547,15 @@ pub const ACCEPTED_OUTCOMES: [&str; 8] = [
 /// predicates and `m < proximity_above_threshold(band_escalate)` for the
 /// rest — making the verdict incoherent rather than wrong in a stated
 /// direction. [`lint_csv`] checks it where the two admissions meet.
+///
+/// **Where a cross-column invariant goes, in which voice, and when it
+/// is owed at all is written once for both instruments** —
+/// `tools/README.md`, clauses `CC1`–`CC5`. This enum
+/// carries two of its dispositions: the band relation is `CC3`,
+/// checked at the reading boundary because neither column is the
+/// other's condition, and [`Self::Margin`] is `CC2`, folded into this
+/// table's own signature because `outcome` IS prior to the margin's
+/// policy and [`lint_csv`] has already validated it.
 #[derive(Clone, Copy, Debug)]
 enum Admissible {
     /// A classified margin: any FINITE value, of either sign — a margin
@@ -776,7 +793,10 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         let band_zero = admit(bz, 1)?;
         let band_escalate = admit(be, 2)?;
         // The band property no per-column policy can state, because it
-        // is a RELATION between two columns that each admit alone.
+        // is a RELATION between two columns that each admit alone —
+        // `CC3` of the rule the two instruments share
+        // (`tools/README.md`), checked at this crate's
+        // reading boundary, which is this function.
         if band_zero >= band_escalate {
             return Err(ParseError {
                 line: i + 1,
@@ -830,6 +850,45 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The page this crate's cross-column citations NAME, read here so
+    /// they cannot rot silently.
+    ///
+    /// Those citations are plain text — a path and a clause id in a
+    /// doc comment — and nothing else in either cargo root validates
+    /// either half. The `include_str!` makes the PATH load-bearing:
+    /// move or delete `tools/README.md` and this crate stops
+    /// compiling. [`every_clause_this_crate_cites_is_on_the_page`]
+    /// makes the CLAUSE IDS load-bearing, which is the half a path
+    /// cannot reach.
+    const RULE_PAGE: &str = include_str!("../../README.md");
+
+    /// Every clause id this crate cites is a heading on
+    /// [`RULE_PAGE`], and the page carries no clause this crate has
+    /// not seen.
+    ///
+    /// The second direction is the one worth having: a `CC6` written
+    /// on the page without a row here reds this test, so a clause
+    /// cannot arrive without the crates citing the range being told.
+    /// The list is written out rather than scraped from this file's
+    /// own text — a test that reads the thing it is checking asserts
+    /// nothing.
+    #[test]
+    fn every_clause_this_crate_cites_is_on_the_page() {
+        const CITED: [&str; 5] = ["CC1", "CC2", "CC3", "CC4", "CC5"];
+        for id in CITED {
+            assert_eq!(
+                RULE_PAGE.matches(&format!("\n## `{id}` ")).count(),
+                1,
+                "{id}: one clause heading on tools/README.md"
+            );
+        }
+        assert_eq!(
+            RULE_PAGE.matches("\n## `CC").count(),
+            CITED.len(),
+            "the page's clauses are exactly the ones this crate cites"
+        );
+    }
 
     #[test]
     fn clean_definite_and_zero_pass() {

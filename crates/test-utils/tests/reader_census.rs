@@ -92,7 +92,11 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/editor-core/src/eval/mod.rs",
-        disposition: Shared, // node-tag-space census, code view
+        disposition: Shared, // node-kind vocabulary census, code view
+    },
+    Entry {
+        path: "crates/editor-core/src/verbs/mod.rs",
+        disposition: Shared, // the two-Verb naming convention, code view
     },
     Entry {
         path: "crates/editor-core/tests/all.rs",
@@ -158,7 +162,8 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/pncad-py/src/tests.rs",
-        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to read
+        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to
+                             // read; the kind words in src/node_kind.rs: literal view alone
     },
     Entry {
         path: "crates/pncad/tests/all.rs",

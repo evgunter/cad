@@ -215,7 +215,7 @@ its ground stated under *What this partition leaves out*.
 
 | Track | Territory (the fence) | Block | Claimed by |
 |---|---|---|---|
-| **K** | `scripts/gates/` less `gate-roster.sh` and `probe-suite-census.sh`, `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | **`gates` (`scripts/gates/*`, the two roster gates included) and `meter` (`tools/*`, the documents), whole, 2026-09-06** |
+| **K** | `scripts/gates/` less `gate-roster.sh` and `probe-suite-census.sh`, `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | **`meter` (`tools/*`, the documents), whole, 2026-09-06; the `scripts/gates/*` half was `gates`' from 2026-09-06 to 2026-09-08 and is back here, its residue two rows** |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/`, `crates/topo/src/props.rs` | `D220`–`D239` / `S290`–`S309` | `cert` (`CERT-M3`) |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | `cert` (`CERT-N3`) |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | **`topo`, whole track, 2026-09-04** |

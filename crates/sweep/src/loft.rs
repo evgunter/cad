@@ -4,7 +4,7 @@
 //! The topology is EXTRUDE'S with different geometry (item 6(i)):
 //! bottom cap from section 0, top cap from section k−1, one NURBS wall
 //! per profile segment ([`crate::skin::LoftGeometry`]), wall–wall
-//! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts raised
+//! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts swept
 //! per vertex. The three edge classes:
 //!
 //! - **Cap–wall rims** need no new GEOMETRY (item 6(ii)): the wall's
@@ -438,7 +438,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         bases.push(hole_hes);
     }
 
-    // ---- Phases 3–4: raise struts and close the wall quads, per
+    // ---- Phases 3–4: sweep struts and close the wall quads, per
     // loop. Struts are SCAFFOLDING lines here (mev_line) and upgrade
     // to the seam class in phase 6, once their walls' keys exist. ----
     let mut side_faces: Vec<Vec<FaceKey>> = Vec::with_capacity(bloops.len());
@@ -497,8 +497,8 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     }
 
     // ---- Phase 5: the swept seed face survives as the top cap. ----
-    let raised = cap_points(&tloops[0], &tq[0], tplace);
-    let top_plane = newell_plane(&raised, band).map_err(LoftError::CapPlane)?;
+    let far_loop = cap_points(&tloops[0], &tq[0], tplace);
+    let top_plane = newell_plane(&far_loop, band).map_err(LoftError::CapPlane)?;
     body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
 
     // Both cap planes exist now, so both rims are at REST in them and

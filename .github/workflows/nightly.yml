@@ -1822,12 +1822,22 @@ jobs:
       # to hold.
       - name: run the six rows
         run: cd benches && cargo bench
-      # THE SELFTEST RUNS FIRST, HERE, and not in the merge gate. The
-      # extractor is a reporting-lane tool — `scripts/opt-level-calibrate.py`
-      # sets the precedent that those are not PR-gate rows — and what it
-      # actually guards against is writing a MALFORMED entry into an
-      # append-only history, which is a failure of this job and of no other.
-      # It is stdlib python against a temp-dir fixture: no minutes.
+      # THE SELFTEST RUNS FIRST, HERE. What it guards against is writing a
+      # MALFORMED entry into an append-only history, which is a failure of
+      # this job and of no other; it is stdlib python against a temp-dir
+      # fixture, so it costs no minutes.
+      #
+      # THIS IS THE ONLY PLACE IT RUNS, AND THAT IS A KNOWN DEFECT, not the
+      # argument it used to be. The paragraph here once cited
+      # `scripts/opt-level-calibrate.py` as the precedent that a reporting
+      # lane's selftest is not a PR-gate row. That precedent is gone: that
+      # script's `--selftest` runs per-PR in ci.yml's `discipline`, on the
+      # reasoning that a guard sited only in a scheduled workflow is exercised
+      # only on a schedule — a PR that breaks it merges green and the break
+      # surfaces at the next fire, to nobody. The same is true of this row
+      # today. `work/ciw/criterion-selftest-nightly-only` carries the move,
+      # which is not a one-liner: it expires this script's MIRROR_EXEMPT
+      # entry in scripts/check-ci-mirror-parity.py.
       - name: emit the history entry
         env:
           CRITERION_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest
