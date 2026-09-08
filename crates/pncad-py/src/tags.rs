@@ -839,7 +839,6 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
         ExtrudeError::CosurfaceEscalated { .. } => "cosurface_escalated",
         ExtrudeError::SliverJoin { .. } => "sliver_join",
         ExtrudeError::SliverRim { .. } => "sliver_rim",
-        ExtrudeError::SmoothCapRim { .. } => "smooth_cap_rim",
         ExtrudeError::CapPlane { .. } => "cap_plane",
         ExtrudeError::SidePlane { .. } => "side_plane",
         ExtrudeError::Op { .. } => "op",

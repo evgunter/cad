@@ -2233,7 +2233,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "side_plane",
             "sliver_join",
             "sliver_rim",
-            "smooth_cap_rim",
         ],
         delegates: &[],
     },
