@@ -332,3 +332,21 @@ Prose-only (`docs/EVAL-5-SPEC.md`): one stated convention for the two
 `Verb` types. **Announced seam to S-BOOL ((S-BOOL orchestrator)):** one
 mirror sentence at `crates/profile/src/path/program.rs`'s `Verb` doc;
 the rename (`StepVerb`) is theirs to sequence if they want it.
+
+## EVAL-4 reviewed; fix pass pushed (2026-09-08, PR 2165, `a95add0ae`)
+
+Style review MERGEABLE-WITH-FIXES: every claim held (the swap point
+is total over every `apply` in `refactor.rs`; four field-drop
+mutations each red exactly the rows that guard the field; the Python
+funnel test exercises the declare doors and ran on CI). MINOR:
+`Recording`'s doc claimed to keep the record it hands back as
+`minted` only — sentence fixed. Headers refreshed (module,
+`SplitOutcome`, `InlineOutcome`); the A10 root-list comment now says
+it is not an A11 cluster act (S2); the guide's destructure says what
+it drops (S5). Declined: folding the three error-wrapping closures
+into `Recording::apply` (S3 — each is one refusal vocabulary's seam,
+and the reviewer called it not wrong). Recorded: "in edit order" is
+by construction (one extend per accepted edit) and no row orders two
+acts (S4); the apply-and-keep-the-doc shape stands at five
+non-mirror sites on the tree and ten tour helpers, each resting on
+"no mirror today" (S1 — the class, for whoever next adds a mirror).
