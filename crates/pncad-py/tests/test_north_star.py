@@ -2264,6 +2264,20 @@ class TestBudfillet(unittest.TestCase):
         self.assertLess(removed, cap)
 
 
+def teapot_frame_and_axis(doc):
+    """u = +X (the radius), v = +Y (the axis) — the sketch frame the
+    teapot scene's world placement comes from — and the axis of
+    revolution in that frame's own coordinates."""
+    frame = doc.sketch_frame(plane=SketchPlane.xy())
+    return frame, y_axis(doc, frame)
+
+
+def fully_revolved(doc, frame, axis, meridian):
+    """One full turn of `meridian` about `axis`, drawn on `frame`."""
+    profile = doc.insert(Node.profile(meridian, plane=frame))
+    return doc.insert(Node.revolve(profile, axis, 2 * math.pi * rad))
+
+
 class TestTeapot(unittest.TestCase):
     """Tour scene `teapot` (rows 27 and 44, demos/tour/src/teapot.rs):
     `shell`'s designated demo, as ONE document — a revolved pot
@@ -2318,9 +2332,15 @@ class TestTeapot(unittest.TestCase):
     Y_TOP: ClassVar[float] = 8.0 / 64.0 + 1.0 / 32.0 + 18.0 / 256.0
     R_VENT: ClassVar[float] = 1.0 / 256.0
     ROLL: ClassVar[float] = 2.0 / 256.0
-    #: The meridian VERTEX each rolled rim stands at, with its own
-    #: (radius, station): a vertex `v` starts segment `v`.
-    RIMS: ClassVar[tuple] = ((1, 14.0 / 256.0), (2, 3.0 / 64.0), (4, 5.0 / 256.0))
+    #: Each rolled rim as `(meridian VERTEX, radius, station)` — a
+    #: vertex `v` starts segment `v`, so these are the flange's rim,
+    #: the dome's foot and the knob's top. All three are pinned below:
+    #: a row that only counted bands could not tell which rims rolled.
+    RIMS: ClassVar[tuple] = (
+        (1, 14.0 / 256.0, 8.0 / 64.0 + 1.0 / 32.0),
+        (2, 3.0 / 64.0, 8.0 / 64.0 + 1.0 / 32.0 + 6.0 / 256.0),
+        (4, 5.0 / 256.0, 8.0 / 64.0 + 1.0 / 32.0 + 18.0 / 256.0),
+    )
 
     # ---- the spout and the handle ----
     SPOUT_LEN: ClassVar[float] = 8.0 / 64.0
@@ -2393,18 +2413,44 @@ class TestTeapot(unittest.TestCase):
     def annulus(ro, ri):
         return math.pi * (ro * ro - ri * ri)
 
+    #: The spout meridian's tip annulus, in program order (root
+    #: annulus, outer cone, TIP annulus, bore) — the face the
+    #: placement's rotation MOVES.
+    SEG_SPOUT_TIP: ClassVar[int] = 2
+
+    def placed(self, p):
+        """`p` under the placement the authored DIRECTION states: the
+        3-4-5 turn about +z written as the matrix whose columns are
+        SPOUT_DIR's own components, then the translation. Independent
+        of the angle the document stores, which is the point."""
+        c0 = (self.SPOUT_DIR[1], -self.SPOUT_DIR[0], 0.0)
+        c1 = self.SPOUT_DIR
+        c2 = (0.0, 0.0, 1.0)
+        return tuple(
+            c0[i] * p[0] + c1[i] * p[1] + c2[i] * p[2] + self.SPOUT_ROOT[i]
+            for i in range(3)
+        )
+
+    def dome_foot_band_station(self):
+        """Where the dome-foot band's spine rides: the flange cone's
+        inward offset line meeting the dome sphere's offset circle —
+        a line and a circle, one quadratic, the root inside the
+        flange's span. The scene's own third closed form."""
+        alpha = math.atan((self.R_FLANGE - self.R_NECK) / (self.Y_FLANGE - self.LID_BASE))
+        sin_a, cos_a = math.sin(alpha), math.cos(alpha)
+        off0 = (self.R_FLANGE - self.ROLL * cos_a, self.LID_BASE - self.ROLL * sin_a)
+        direction = (-sin_a, cos_a)
+        rho = self.DOME_R - self.ROLL
+        px, py = off0[0], off0[1] - self.DOME_C
+        b = px * direction[0] + py * direction[1]
+        c = px * px + py * py - rho * rho
+        u = -b + math.sqrt(b * b - c)
+        return off0[1] + u * direction[1]
+
     def close(self, got, want, what):
         self.assertLess(abs((got - want) / want), 1e-12, f"{what}: {got} vs {want}")
 
     # ---- the document ----
-
-    def frame_and_axis(self, doc):
-        """u = +X (the radius), v = +Y (the axis) — the sketch frame
-        the scene's world placement comes from — and the axis of
-        revolution in that frame's own coordinates."""
-        frame = doc.sketch_frame(plane=SketchPlane.xy())
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
-        return frame, axis
 
     def vessel_meridian(self):
         """Base disc, foot, belly, mouth disc — the shoulders and the
@@ -2456,9 +2502,19 @@ class TestTeapot(unittest.TestCase):
             .line_to(Start)
         )
 
-    def revolved(self, doc, frame, axis, meridian):
-        profile = doc.insert(Node.profile(meridian, plane=frame))
-        return doc.insert(Node.revolve(profile, axis, 2 * math.pi * rad))
+    def mouth_segment(self, ev, node, bands):
+        """The mouth disc's index among the revolve's `Band` faces,
+        READ OFF the body rather than transcribed: it is the one whose
+        carrier is a plane standing at the mouth's own station, and it
+        has to be the only one."""
+        hits = [
+            i
+            for i, name in enumerate(bands)
+            if ev.face_carrier_kind(node, name) == SurfaceKind.Plane
+            and abs(ev.face_frame(node, name).origin[1].meters - self.Y_MOUTH) < 1e-12
+        ]
+        self.assertEqual(len(hits), 1, "one band stands on the mouth plane")
+        return hits[0]
 
     def seg_faces(self, ev, node, tag):
         """The revolve's faces of one band role, in the canonical order
@@ -2480,10 +2536,10 @@ class TestTeapot(unittest.TestCase):
     def teapot(self, doc):
         """The scene's four bodies and its two refused joins, as one
         document. Returns the nodes the rows below read."""
-        frame, axis = self.frame_and_axis(doc)
+        frame, axis = teapot_frame_and_axis(doc)
 
         # ---- the vessel: one revolve, two hollows ----
-        pot = self.revolved(doc, frame, axis, self.vessel_meridian())
+        pot = fully_revolved(doc, frame, axis, self.vessel_meridian())
         ev = evaluate(doc)
         bands = self.seg_faces(ev, pot, SegTag.Band)
         bands_pi = self.seg_faces(ev, pot, SegTag.BandPi)
@@ -2492,15 +2548,32 @@ class TestTeapot(unittest.TestCase):
         # The mouth is the mouth-disc segment's TWO half-faces, the
         # `Band` half first: the first designated face of a chart
         # carries the rim's identity.
-        mouth = [bands[self.SEG_MOUTH], bands_pi[self.SEG_MOUTH]]
+        seg_mouth = self.mouth_segment(ev, pot, bands)
+        self.assertEqual(
+            seg_mouth,
+            self.SEG_MOUTH,
+            "the mouth disc is the meridian's fourth segment in program order",
+        )
+        mouth = [bands[seg_mouth], bands_pi[seg_mouth]]
         sealed = doc.insert(Node.shell(pot, self.WALL * m, []))
         cup = doc.insert(Node.shell(pot, self.WALL * m, mouth))
 
         # ---- the lid: three rims, by name ----
-        sharp = self.revolved(doc, frame, axis, self.lid_meridian())
+        sharp = fully_revolved(doc, frame, axis, self.lid_meridian())
         ev = evaluate(doc)
         rims = self.rim_edges(ev, sharp)
         self.assertEqual(len(rims), 6, "an annular profile mints one rim per vertex")
+        # WHICH rims roll, pinned before they do: each selected name's
+        # own circle stands at the station its meridian vertex was
+        # authored at. A row that only counted bands afterwards could
+        # not tell one rim from another — rolling vertex 3 instead of
+        # 4 leaves the census, the torus count and the Pappus bound
+        # untouched, because vertex 3 stands at R_KNOB too.
+        for v, _radius, station in self.RIMS:
+            got = ev.edge_frame(sharp, rims[v]).origin
+            self.assertAlmostEqual(
+                got[1].meters, station, delta=1e-12, msg=f"rim at vertex {v}"
+            )
         first = doc.insert(Node.fillet(sharp, self.ROLL * m, [rims[self.RIMS[0][0]]]))
         ev = evaluate(doc)
         carried = ev.select(
@@ -2521,9 +2594,10 @@ class TestTeapot(unittest.TestCase):
         # is the rotation about +z whose cosine and sine ARE the
         # direction's own components.
         turn = math.atan2(-self.SPOUT_DIR[0], self.SPOUT_DIR[1])
+        spout_body = fully_revolved(doc, frame, axis, self.spout_meridian())
         spout = doc.insert(
             Node.transform(
-                self.revolved(doc, frame, axis, self.spout_meridian()),
+                spout_body,
                 tuple(c * m for c in self.SPOUT_ROOT),
                 (0.0, 0.0, 1.0),
                 turn * rad,
@@ -2550,7 +2624,7 @@ class TestTeapot(unittest.TestCase):
             doc.insert(Node.boolean(BooleanOp.Union, cup, handle)),
             doc.insert(Node.boolean(BooleanOp.Union, cup, spout)),
         ]
-        return sealed, cup, sharp, lid, spout, handle, joins
+        return sealed, cup, sharp, lid, spout_body, spout, handle, joins
 
     # ---- the rows ----
 
@@ -2593,6 +2667,60 @@ class TestTeapot(unittest.TestCase):
         )
         self.assertEqual(len(rim), 1, "one designated chart, one rim")
         self.assertEqual(len(ev.all_faces(cup)), 13, "5 outer + the rim + 7 cavity")
+
+    def test_the_mouths_designation_is_a_CHART_and_its_ORDER_is_meaning(self):
+        """Both halves or neither, and which one is named FIRST decides
+        whose name the rim wears.
+
+        A full revolve cuts the mouth disc at the two seam meridians,
+        so the chart is two half-discs; the kernel's rim surgery lifts
+        a chart as a whole and refuses a partial designation. Naming
+        one half is therefore not "most of the mouth" — it is a
+        refusal. Naming both in the other order is not a different
+        shape — it is the same body with a different name on its rim,
+        which is what makes the order MEANING rather than style."""
+        doc = Doc()
+        frame, axis = teapot_frame_and_axis(doc)
+        pot = fully_revolved(doc, frame, axis, self.vessel_meridian())
+        ev = evaluate(doc)
+        bands = self.seg_faces(ev, pot, SegTag.Band)
+        bands_pi = self.seg_faces(ev, pot, SegTag.BandPi)
+        seg = self.mouth_segment(ev, pot, bands)
+        half, half_pi = bands[seg], bands_pi[seg]
+
+        # Half a chart is a refusal, from either side.
+        for one in (half, half_pi):
+            node = doc.insert(Node.shell(pot, self.WALL * m, [one]))
+            with self.assertRaises(EvaluationError) as caught:
+                evaluate(doc).value(node)
+            self.assertEqual(caught.exception.kind, "shell")
+            self.assertIn("chart", str(caught.exception))
+
+        # Both halves, in each order: two documents, one shape.
+        forward = doc.insert(Node.shell(pot, self.WALL * m, [half, half_pi]))
+        backward = doc.insert(Node.shell(pot, self.WALL * m, [half_pi, half]))
+        ev = evaluate(doc)
+        faces = NamePat.of_kind(EntityKind.Face)
+        rims = {}
+        for node in (forward, backward):
+            body = ev.value(node).body()
+            body.validate()
+            rim = ev.select(node, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))
+            self.assertEqual(len(rim), 1, "one designated chart, one rim")
+            origin = ev.face_frame(node, rim[0]).origin
+            self.assertAlmostEqual(origin[1].meters, self.Y_MOUTH, delta=1e-12)
+            self.assertAlmostEqual(origin[0].meters, 0.0, delta=1e-12)
+            rims[node] = rim[0]
+        # The rim wears the FIRST designated face's name, so the two
+        # orders mint two different names for one annulus.
+        self.assertIn(half, rims[forward])
+        self.assertIn(half_pi, rims[backward])
+        self.assertNotEqual(rims[forward], rims[backward])
+        # And the geometry does not know the difference: exactly equal,
+        # not merely close.
+        a = ev.value(forward).body().mass_properties()
+        b = ev.value(backward).body().mass_properties()
+        self.assertEqual((a.volume, a.surface_area), (b.volume, b.surface_area))
 
     def test_the_lid_rolls_the_three_rims_it_names(self):
         doc = Doc()
@@ -2638,6 +2766,23 @@ class TestTeapot(unittest.TestCase):
             [GeomPred.surface_kind(SurfaceKind.Torus)],
         )
         self.assertEqual(len(tori), 3, "three rims, three bands")
+        # And they are the three bands the SCENE's rims carve, said by
+        # their spine stations against the closed forms — the knob's
+        # ball rides one roll below its top, the flange's one roll
+        # above the underside, and the dome's foot where the cone's
+        # offset line cuts the sphere's offset circle. A band count
+        # alone cannot say WHICH rims rolled; these can.
+        self.assertEqual(
+            sorted(round(ev.face_frame(lid, n).origin[1].meters, 12) for n in tori),
+            sorted(
+                round(y, 12)
+                for y in (
+                    self.Y_TOP - self.ROLL,
+                    self.LID_BASE + self.ROLL,
+                    self.dome_foot_band_station(),
+                )
+            ),
+        )
         # Each convex rim's roll REMOVES material, and less than the
         # corner square swept round its own rim (Pappus).
         removed = sharp_props.volume - rolled.mass_properties().volume
@@ -2650,16 +2795,48 @@ class TestTeapot(unittest.TestCase):
 
     def test_the_spout_is_placed_and_the_handle_is_a_tube(self):
         doc = Doc()
-        _sealed, _cup, _sharp, _lid, spout, handle, _joins = self.teapot(doc)
+        _sealed, _cup, _sharp, _lid, spout_body, spout, handle, _joins = self.teapot(doc)
         ev = evaluate(doc)
 
-        # The 3-4-5 turn is not a binary-exact angle; the ROTATION it
-        # builds is exact all the same, and this is the row that says
-        # so — the closed forms below are stated in the spout's OWN
-        # frame, so the placement is what has to have left them alone.
+        # WHERE the placement PUT it, measured off the placed body —
+        # not re-derived from the same trigonometry the placement used,
+        # and not read at a point the rotation fixes. The subject is
+        # the spout meridian's own tip annulus, named at the revolve
+        # that minted it and read at the TRANSFORM (a transform
+        # contributes no role segment, so a carried name read there is
+        # the placed face), against the exact image under the matrix
+        # whose columns are the authored direction's own components.
+        # Delete the `Node.transform` and this goes red on both counts.
+        bands = ev.select(
+            spout_body,
+            Selector.of(
+                NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Band))
+            ),
+        )
+        tip = bands[self.SEG_SPOUT_TIP]
+        before = ev.face_frame(spout_body, tip).origin
+        after = ev.face_frame(spout, tip)
+        exact = self.placed(tuple(c.meters for c in before))
+        for got, want, axis in zip(after.origin, exact, "xyz", strict=True):
+            self.assertAlmostEqual(
+                got.meters, want, delta=1e-15, msg=f"the placed tip annulus's {axis}"
+            )
+        # It stands OFF the turn's fixed axis, so that residual is
+        # about the ROTATION and not only about the translation.
+        self.assertGreater(math.hypot(before[0].meters, before[1].meters), 1e-3)
+        # And it FACES the way the direction says.
+        self.assertAlmostEqual(
+            abs(sum(a * b for a, b in zip(after.axis, self.SPOUT_DIR, strict=True))),
+            1.0,
+            delta=1e-15,
+            msg="the placed tip annulus's normal is SPOUT_DIR",
+        )
+        # The angle's cosine and sine are a libm's answer, so they are
+        # REPORTED and not asserted: on this platform they come back
+        # as the direction's own components, and a bitwise pin here
+        # would gate CI on one platform's last ulp.
         turn = math.atan2(-self.SPOUT_DIR[0], self.SPOUT_DIR[1])
-        self.assertEqual(math.cos(turn), self.SPOUT_DIR[1])
-        self.assertEqual(math.sin(turn), -self.SPOUT_DIR[0])
+        print(f"      spout turn: cos {math.cos(turn)!r}, sin {math.sin(turn)!r}")
 
         v_spout = self.frustum_volume(
             self.SPOUT_R0, self.SPOUT_R1, self.SPOUT_LEN
@@ -2712,9 +2889,18 @@ class TestTeapot(unittest.TestCase):
             refusal = caught.exception
             self.assertEqual(refusal.kind, "boolean")
             text = str(refusal)
-            self.assertIn("germ pair", text)
-            self.assertIn(f"is a {pair[0]}", text)
-            self.assertIn(f"({pair[1]})", text)
+            # The GERM-PAIR sentence, whole. `assertIn("(plane)")`
+            # would match any parenthesised word in ~800 characters of
+            # recourse prose; this is the clause that names the pair
+            # with no seam lane, and it names it in order.
+            self.assertIn(f"no seam lane for the ({pair[0]}, {pair[1]}) germ pair", text)
+            # And the pair-scoped sentence above it, which is where the
+            # wall-7 lesson lives: the face the gate NAMED is the first
+            # whose box may meet, not the wall the spout pierces.
+            self.assertRegex(
+                text,
+                rf"is a {pair[0]} and its box MAY INTERSECT face \S+ \({pair[1]}\)",
+            )
 
 
 class TestTorusvessel(unittest.TestCase):
@@ -2764,10 +2950,21 @@ class TestTorusvessel(unittest.TestCase):
 
     def boundary(self, t):
         """`(volume, area)` of the solid the vessel's boundary bounds,
-        moved inward by `t`. Every station moves along its own inward
-        normal, so the three runs keep their heights and only the radii
-        move; the band's volume is `pi∫rho^2 du` term by term and its
-        area is Pappus on the arc, `4 pi r' (R theta0 + a')`."""
+        moved inward by `t`.
+
+        **This is `demos/tour/src/torusvessel.rs::boundary` restated at
+        `sense = +1`, not an independent derivation.** The scene's form
+        carries both senses of the band — bellied and waisted — and
+        this row authors only the bellied vessel, so the sign is fixed
+        and the `s` factors fall out. Restating rather than deriving is
+        the same choice every row in this file makes: the oracle is the
+        SCENE's, and what this row adds is that the Python document
+        answers it.
+
+        Every station moves along its own inward normal, so the three
+        runs keep their heights and only the radii move; the band's
+        volume is `pi∫rho^2 du` term by term and its area is Pappus on
+        the arc, `4 pi r' (R theta0 + a')`."""
         big_r = self.R_BELLIED
         r, a = self.R_TUBE - t, self.A_HALF - t
         theta0 = math.asin(a / r)
@@ -2818,10 +3015,8 @@ class TestTorusvessel(unittest.TestCase):
             .line_to((0 * m, self.Y_MOUTH * m))
             .line_to(Start)
         )
-        frame = doc.sketch_frame(plane=SketchPlane.xy())
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
-        profile = doc.insert(Node.profile(meridian, plane=frame))
-        operand = doc.insert(Node.revolve(profile, axis, 2 * math.pi * rad))
+        frame, axis = teapot_frame_and_axis(doc)
+        operand = fully_revolved(doc, frame, axis, meridian)
         return operand, doc.insert(Node.shell(operand, self.WALL * m, []))
 
     def test_a_torus_walled_vessel_hollows_through_the_document(self):
