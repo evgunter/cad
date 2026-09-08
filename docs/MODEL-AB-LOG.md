@@ -4725,3 +4725,12 @@ Recorded branch-side; this record reaches main when the block's last
 slot's reviews conclude.
 
 Block BLEND-B1 slot record (branch-side, appended as each slot concludes):
+Reorder (2026-09-08, before any slot-1 dispatch): slot 1 =
+`closed-chain-junctions-pair-with-a-rotated-link` (`docs/BLEND-7-SPEC.md`,
+to be written; pre-draw fields logged there before dispatch) — a
+pristine three-arc rim refuses `ChainNotG1`, found by unit 1's style
+review; the ladder unit (`ladder-rim-phase-may-retire-a-new-split-key`,
+now `docs/BLEND-8-SPEC.md`) moves to block BLEND-B2's first slot and the
+smooth-arm unit's spec is now `docs/BLEND-9-SPEC.md` (slot 2, unchanged).
+The draw is untouched — a slot's arm does not depend on which unit
+takes it.
