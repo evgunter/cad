@@ -155,14 +155,16 @@ fn key(r: &Row) -> (&str, [String; IDENTITY_COLUMNS.len()]) {
     (r.scene.as_str(), identity_readings(r))
 }
 
+/// Rows bucketed under [`key`]: one entry per distinct
+/// `(scene, identity)`, holding every row that reads that way.
+type Groups<'a> = HashMap<(&'a str, [String; IDENTITY_COLUMNS.len()]), Vec<&'a Row>>;
+
 /// The given rows grouped by [`key`] — the ONE spelling in this file
 /// of "rows this CSV cannot tell apart".
 ///
 /// The census below counts these groups; the swap tests read their
 /// members. Sharing the grouping is what stops the two from ever
 /// disagreeing about which rows those are.
-type Groups<'a> = HashMap<(&'a str, [String; IDENTITY_COLUMNS.len()]), Vec<&'a Row>>;
-
 fn groups<'a>(rows: &[&'a Row]) -> Groups<'a> {
     let mut out = Groups::new();
     for &r in rows {
@@ -193,6 +195,16 @@ fn census(rows: &[&Row]) -> (usize, usize, Vec<String>) {
 /// The MEMBERS of what [`census`] counts: a group of `k` contributes
 /// its `k·(k−1)/2` pairs, off the same [`groups`], so a corpus that
 /// moves moves both readings together.
+///
+/// # Panics
+///
+/// If there is no such pair. Every claim in this file ranges over the
+/// list this returns, so an empty one would pass them all while
+/// saying nothing; the refusal is what makes that dependence a
+/// failure rather than a silence. It lives here rather than at each
+/// caller because one home is the point, and it is advertised here
+/// because a caller for whom emptiness were legitimate would
+/// otherwise meet it as a surprise.
 fn indistinguishable_pairs<'a>(rows: &[&'a Row]) -> Vec<(&'a Row, &'a Row)> {
     let mut pairs: Vec<(&Row, &Row)> = Vec::new();
     for g in groups(rows).values() {
@@ -205,11 +217,8 @@ fn indistinguishable_pairs<'a>(rows: &[&'a Row]) -> Vec<(&'a Row, &'a Row)> {
     pairs.sort_by(|x, y| {
         (x.0.scene.as_str(), x.0.face, x.1.face).cmp(&(y.0.scene.as_str(), y.0.face, y.1.face))
     });
-    // Every claim below ranges over this list, so an empty one would
-    // pass them all while saying nothing. On this corpus it cannot be
-    // empty — the census above pins the count, and no number is
-    // repeated here — and the guard is what makes that dependence a
-    // failure rather than a silence.
+    // On this corpus it cannot be empty — the census above pins the
+    // count, and no number is repeated here.
     assert!(
         !pairs.is_empty(),
         "no indistinguishable pair for the swap-cost claims to be over: they would pass vacuously"
@@ -217,27 +226,39 @@ fn indistinguishable_pairs<'a>(rows: &[&'a Row]) -> Vec<(&'a Row, &'a Row)> {
     pairs
 }
 
-/// The committed corpus with ONE pair's two ordinals exchanged: the
-/// undetected swap, in the shape a fresh sweep would hand the gate.
+/// The committed baseline with ONE pair's two MEASUREMENTS exchanged,
+/// re-parsed: the undetected swap, in the text a fresh sweep would
+/// have written.
 ///
-/// A transposition WITHIN one scene, so `(scene, face)` stays unique
-/// across the result. That is the property [`parse`] guarantees and
-/// [`compare`]'s per-face index needs, and it is why a permutation
-/// that did not itself come from a parse may be handed to the gate.
-fn with_pair_swapped(rows: &[Row], scene: &str, a: usize, b: usize) -> Vec<Row> {
-    rows.iter()
-        .map(|r| {
-            let mut r = r.clone();
-            if r.scene == scene {
-                if r.face == a {
-                    r.face = b;
-                } else if r.face == b {
-                    r.face = a;
-                }
-            }
-            r
-        })
-        .collect()
+/// The exchange is made on the CSV text and the result goes back
+/// through [`parse`], which is what [`compare`] documents as its
+/// input — so nothing here has to reconcile a hand-built `Vec<Row>`
+/// against that precondition, and no `Row` is built by hand at all.
+/// Face `a` comes back carrying what face `b` measured, with the
+/// ordinals left in the ascending order a sweep writes them in; that
+/// is also the harder permutation, since it moves the addends of the
+/// scene's floating sums rather than only their labels.
+fn with_pair_swapped(scene: &str, a: usize, b: usize) -> Vec<Row> {
+    let (pa, pb) = (format!("{scene},{a},"), format!("{scene},{b},"));
+    let mut lines: Vec<String> = BASELINE.lines().map(str::to_string).collect();
+    // The FIRST line under each prefix is the only one: [`parse`]
+    // refuses a repeated `(scene, face)`, so re-checking here would be
+    // a second reading of a guarantee the corpus already carries — and
+    // an assertion nothing could make fail.
+    let only = |lines: &[String], p: &str| {
+        lines
+            .iter()
+            .position(|l| l.starts_with(p))
+            .expect("the pair's rows are in the text they were parsed from")
+    };
+    let (ia, ib) = (only(&lines, &pa), only(&lines, &pb));
+    let (ma, mb) = (
+        lines[ia][pa.len()..].to_string(),
+        lines[ib][pb.len()..].to_string(),
+    );
+    lines[ia] = pa + &mb;
+    lines[ib] = pb + &ma;
+    parse(&lines.join("\n")).expect("two rows' measurements exchanged still parses")
 }
 
 /// The census itself. Every quantity `lib.rs` used to transcribe, and
@@ -458,12 +479,13 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
 }
 
 /// What an undetected swap costs the GATE, executed rather than
-/// argued: each pair the CSV cannot tell apart is swapped in a copy of
-/// the committed corpus, that copy is handed to [`compare`] as the
-/// fresh side, and the [`Report`] must come back empty.
+/// argued: each pair the CSV cannot tell apart is swapped in the
+/// baseline's own text, re-parsed, handed to [`compare`] as the fresh
+/// side, and the [`Report`] must come back empty.
 ///
-/// **Two assertions, and both are reachable** — which is the whole
-/// reason they are in this order:
+/// **Two assertions, over every pair rather than pair by pair**, so a
+/// re-cut that moves five of them names five. **Both are reachable**,
+/// which is the whole reason they are in this order:
 ///
 /// * the [`Report`] is red exactly when some pair's two recoverable
 ///   slacks differ by more than [`tess_lint::GROWTH_TOLERANCE`]. A
@@ -489,38 +511,48 @@ fn an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
+    // Both readings are collected over EVERY pair before either is
+    // asserted, so a re-cut that moves five of them names five. The
+    // order of the two asserts is what keeps both reachable: the gate
+    // one can only fire past `GROWTH_TOLERANCE`, so a sub-tolerance
+    // drift reaches the second and nothing else.
+    let (mut visible, mut drifted) = (Vec::new(), Vec::new());
     for (a, b) in indistinguishable_pairs(&sized) {
-        let swapped = with_pair_swapped(&rows, &a.scene, a.face, b.face);
-        let report = compare(&rows, &swapped);
-        assert_eq!(
-            report,
-            Report::default(),
-            "swapping {} faces {} and {} — two rows no IDENTITY_COLUMNS entry \
-             separates — is no longer invisible to the gate",
-            a.scene,
-            a.face,
-            b.face
-        );
-
-        let (na, nb) = (
-            a.nurbs.expect("filtered to sized rows"),
-            b.nurbs.expect("filtered to sized rows"),
-        );
-        assert_eq!(
-            a.recoverable(),
-            b.recoverable(),
-            "{} faces {} and {} no longer read one recoverable slack: \
-             grid_cells/span_opt_cells is {}/{} against {}/{}. The swap still \
-             costs the gate nothing, but the margin that made it free has gone",
-            a.scene,
-            a.face,
-            b.face,
-            na.grid_cells,
-            na.span_opt_cells,
-            nb.grid_cells,
-            nb.span_opt_cells
-        );
+        let report = compare(&rows, &with_pair_swapped(&a.scene, a.face, b.face));
+        if report != Report::default() {
+            visible.push(format!(
+                "{} faces {}/{}: {report:?}",
+                a.scene, a.face, b.face
+            ));
+        }
+        if a.recoverable() != b.recoverable() {
+            let (na, nb) = (
+                a.nurbs.expect("filtered to sized rows"),
+                b.nurbs.expect("filtered to sized rows"),
+            );
+            drifted.push(format!(
+                "{} faces {}/{}: grid_cells/span_opt_cells {}/{} against {}/{}",
+                a.scene,
+                a.face,
+                b.face,
+                na.grid_cells,
+                na.span_opt_cells,
+                nb.grid_cells,
+                nb.span_opt_cells
+            ));
+        }
     }
+
+    assert!(
+        visible.is_empty(),
+        "swapping these pairs — rows no IDENTITY_COLUMNS entry separates — is no \
+         longer invisible to the gate: {visible:#?}"
+    );
+    assert!(
+        drifted.is_empty(),
+        "these pairs no longer read one recoverable slack: {drifted:#?}. The swap \
+         still costs the gate nothing, but the margin that made it free has gone"
+    );
 }
 
 /// What the `name` column contributes to these pairs, which today is
@@ -543,17 +575,26 @@ fn no_indistinguishable_pair_is_separated_by_the_name_column() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
-    for (a, b) in indistinguishable_pairs(&sized) {
-        assert_eq!(
-            a.name, b.name,
-            "`name` now separates {} faces {} and {} ({:?} against {:?}), and no \
-             other identity column does. C15 is dischargeable for this pair: the \
-             sweep hands the gate a durable per-face identity here, so the join \
-             has something to key on besides the ordinal. Re-key rule 4 over the \
-             rows that carry a name and re-cut this census",
-            a.scene, a.face, b.face, a.name, b.name
-        );
-    }
+    let separated: Vec<String> = indistinguishable_pairs(&sized)
+        .into_iter()
+        .filter(|(a, b)| a.name != b.name)
+        .map(|(a, b)| {
+            format!(
+                "{} faces {}/{}: {:?} against {:?}",
+                a.scene, a.face, b.face, a.name, b.name
+            )
+        })
+        .collect();
+
+    assert!(
+        separated.is_empty(),
+        "`name` now tells these pairs apart, and no IDENTITY_COLUMNS entry does — \
+         `name` is not one of them, which is what makes this the C15 case and not \
+         a re-key: {separated:#?}. C15 is dischargeable for them: the sweep hands \
+         the gate a durable per-face identity here, so the join has something to \
+         key on besides the ordinal. Re-key rule 4 over the rows that carry a name \
+         and re-cut this census"
+    );
 }
 
 /// Why reading the `name` column discharges nothing today: the rows it
