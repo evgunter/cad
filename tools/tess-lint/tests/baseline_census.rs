@@ -102,19 +102,35 @@
 //! the equality that is the margin behind it.
 //!
 //! **The report does not move either, and there is no reported-side
-//! figure to threshold.** A swap exchanges two whole rows of one
-//! scene, so every aggregate the report folds sees the same multiset;
-//! the printed report is byte-identical for every pair. `worst_dev`
-//! does reach a reader, through `SceneTotals::total_slack` — which is
-//! `measured_triangles / extrapolated_triangles`, triangle-weighted,
-//! and NOT the per-row `delta / worst_dev` that shares its name — and
-//! `worst_cert` reaches none at all. What an undetected swap actually
-//! costs is a wrong-face ATTRIBUTION in columns nothing compares, not
-//! a moved number anywhere; `work/meter/C15.md` carries the method
-//! that shows it. Nothing is asserted about that here because there
-//! is no quantity to assert, and the one report line that does read a
-//! face ordinal lives in `main.rs`, which a test of this library
-//! cannot run without twinning its selection by hand.
+//! figure to threshold** — but the two halves of that are not one
+//! argument, for the reason the rule-1 bullet above gives. A swap
+//! exchanges two whole rows of one scene, so every aggregate the
+//! report folds sees the same multiset: EXACT for the integer sums,
+//! and no more than suggestive for the floating ones, where
+//! `extrapolated_triangles` is the standing counterexample. That the
+//! PRINTED report comes back byte-identical for all seven pairs is a
+//! separate thing — a measurement over one corpus, which survives in
+//! part because that last-bit move dies at the `{:.1}x` the column
+//! prints at. `work/meter/C15.md` carries the method.
+//!
+//! `worst_dev` does reach a reader, through `SceneTotals::total_slack`
+//! — which is `measured_triangles / extrapolated_triangles`,
+//! triangle-weighted, and NOT the per-row `delta / worst_dev` that
+//! shares its name — and `worst_cert` reaches none at all. So what an
+//! undetected swap costs is a wrong-face ATTRIBUTION in columns
+//! nothing compares, not a moved number anywhere.
+//!
+//! **Nothing guards that, and it is a choice rather than a
+//! constraint.** One report line does read a face ordinal — the
+//! worst-realized-aspect line — and a test here could reach it:
+//! `tests/cli_contract.rs` runs the binary through
+//! `CARGO_BIN_EXE_tess-lint` and reads its stdout, with nothing
+//! twinned. What such a guard would pin is WHICH face happens to
+//! carry the corpus's worst aspect, a reading that moves on any
+//! re-cut for reasons that have nothing to do with this row; and the
+//! wrong-face attribution it would be guarding is the defect the pair
+//! claims below already carry. So it is left unwritten deliberately,
+//! not because it cannot be written.
 //!
 //! # When this test fails
 //!
@@ -235,9 +251,12 @@ fn indistinguishable_pairs<'a>(rows: &[&'a Row]) -> Vec<(&'a Row, &'a Row)> {
 /// input — so nothing here has to reconcile a hand-built `Vec<Row>`
 /// against that precondition, and no `Row` is built by hand at all.
 /// Face `a` comes back carrying what face `b` measured, with the
-/// ordinals left in the ascending order a sweep writes them in; that
-/// is also the harder permutation, since it moves the addends of the
-/// scene's floating sums rather than only their labels.
+/// ordinals left in the ascending order a sweep writes them in — the
+/// text a producer would have emitted. That the rows arrive through
+/// the parser is the whole reason for the shape; it buys no stronger
+/// permutation than relabelling two rows in place would, because
+/// `totals` folds a scene through a `BTreeMap` keyed by ordinal and
+/// so is permuted identically either way.
 fn with_pair_swapped(scene: &str, a: usize, b: usize) -> Vec<Row> {
     let (pa, pb) = (format!("{scene},{a},"), format!("{scene},{b},"));
     let mut lines: Vec<String> = BASELINE.lines().map(str::to_string).collect();
