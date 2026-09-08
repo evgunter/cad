@@ -92,18 +92,38 @@ at a time, each edit confirmed in `git diff` and each run confirmed to
 have recompiled. `tools/tess-lint` from its own root, its own
 `CARGO_TARGET_DIR`. Green baseline: 54 lib, 14 `cli_contract`.
 
-| edit | lib tests | `cli_contract` | `cargo clippy -D warnings` |
-|---|---|---|---|
-| drop the `name` field from the sized row (width changes) | 42 red | 9 red | red |
-| keep the width, blank the token (`{FIXTURE_NAME}` -> nothing) | 1 red | 0 red | **red** |
-| keep the width, change the const's VALUE on one side | **0 red** | **0 red** | **green** |
+**One edit at a time, and the whole grid measured** — three mutations
+x two sides x {lib tests, `cli_contract` tests, `cargo clippy
+--all-targets -- -D warnings`}. Nothing here is inferred from a
+neighbouring cell.
 
-The first two rows confirm the filing. The third is the one the filing
-did not measure and it is the twinning's actual failure mode: with two
-constants, one side's token can be respelled to anything and no test
-and no lint anywhere in the tree sees it. The blank-token row's clippy
-red is not a content check either — it is `dead_code` firing because
-that particular spelling of the mutation removes the const's last use.
+| edit, made on the LIB side only | lib | `cli_contract` | clippy |
+|---|---|---|---|
+| drop the `name` field from the sized row (width changes) | 42 red | 0 red | green |
+| keep the width, blank the token (`{FIXTURE_NAME}` -> nothing) | 1 red | 0 red | green |
+| keep the width, change the const's VALUE | **0 red** | **0 red** | **green** |
+
+| edit, made on the `cli_contract` side only | lib | `cli_contract` | clippy |
+|---|---|---|---|
+| drop the `name` field from the sized row (width changes) | 0 red | 9 red | red |
+| keep the width, blank the token (`{FIXTURE_NAME}` -> nothing) | 0 red | **0 red** | red |
+| keep the width, change the const's VALUE | **0 red** | **0 red** | **green** |
+
+The `42 red / 9 red` and `1 red / 0 red` cells confirm the filing. The
+third row of each is the one the filing did not measure and it is the
+twinning's actual failure mode: with two constants, one side's token
+can be respelled to anything and no test and no lint anywhere in the
+tree sees it.
+
+**The clippy column is side-specific, and it is reachability rather
+than content.** Every red in it is `error: constant FIXTURE_NAME is
+never used` at `tests/cli_contract.rs:75:7` (`-D dead-code` implied by
+`-D warnings`): on that side the token in the row literal was the
+const's ONLY use, so removing it either way makes the const dead. The
+same two edits on the lib side leave the const used by unit 6's own
+assertion and clippy stays green — and the value-drift row keeps the
+use on both sides, so clippy is green there whatever the value says.
+A lint that tracks reachability cannot see a wrong value.
 
 ## Closed
 
@@ -120,13 +140,44 @@ private and making them public is non-test code.
 file rather than beside one mounting site, so it runs in both binaries:
 it reads each head field by the header's index for that column and
 asserts the sized row is named and the unsized row is not. After the
-fold, blanking the token reds **2 lib / 1 `cli_contract`**
-(`src/tests/csv_fixture.rs:149`, "the fixture's `name` field"), and
-dropping the field reds **43 lib / 10 `cli_contract`**
-(`csv_fixture.rs:143`) — the extra red in each is the fixture's own
-test, which names the fixture and prints the offending row instead of
-surfacing as a `ParseError` inside a test about something else. The
-third mutation no longer exists: there is one constant.
+fold, blanking the token reds **2 lib / 1 `cli_contract`** and dropping
+the field reds **44 lib / 10 `cli_contract`**; the value-drift mutation
+cannot be written, because there is one constant.
+
+**The token has two readers and the tree now says so in both places.**
+`csv_fixture.rs`'s test says the FIXTURE writes the token at the column
+the header names, in both binaries; `parses_both_chart_shapes`
+(`src/lib.rs`) says `parse` READS it back out of that column into
+`Row::name`, on the crate side only. Blanking the token reds both, so
+neither is the sole reader and neither comment claims to be.
+
+**What the fixture's test does NOT assert, and why.** It does not
+compare the fixture's header line with `EXPECTED_HEADER`: `scene`
+interpolates that constant to build the line, so the two sides are one
+expression and the assertion could not fail — the crate's header can be
+rewritten wholesale with such a row staying green. What is typed out is
+everything below that line, and the width and head-field checks read
+the crate's header as the oracle against those row literals. A column
+appended to `EXPECTED_HEADER` reds the width check.
+
+**The blind spot the sweep named had a live instance inside the fence,
+and it is folded.** `a_half_filled_sizing_row_is_harness_breakage`
+typed its own 29-column sized row — sharing no literal with the fixture
+and living inside one file, which is exactly the pair of blind spots
+the sweep disclosed. It now blanks one sizing column of the fixture
+through `with_column`, and names the column it blanks. Measured both
+ways: append a column to `EXPECTED_HEADER` and update the ONE fixture
+literal, and the folded tree reds exactly one test —
+`the_policed_block_is_the_headers_sizing_block`, the schema pin, which
+is the right reason. The same drill before the fold also red
+`a_half_filled_sizing_row_is_harness_breakage` with `29 fields,
+expected 30`: right test, wrong reason.
+
+The two other hand-typed rows in the module (`a_short_row_is_harness_breakage`
+and `a_cut_line_shifts_the_reported_line_numbers`) stay typed: both are
+deliberately SHORTER than the header, that shortness is their subject,
+and a column added to the schema leaves them short and reporting the
+same thing.
 
 **Why a mounted module and not an `include!`.** The first attempt used
 `include!`, and `crates/test-utils/tests/reader_census.rs` reddened
@@ -139,3 +190,12 @@ ledger line. That is also why the file sits under `src/`: a `#[path]`
 on a module inside an inline `mod tests` resolves against `src/tests/`,
 and a relative path cannot open through a directory that does not
 exist.
+
+## Residue
+
+`work/meter/tess-lint-recourse-quote-half-pinned` — the half-pin on
+`docs/TESS-BUDGET.md`'s quoted recourse sentence, disclosed in
+`tools/tess-lint/tests/cli_contract.rs`'s own header since
+`d829ddfee` and never given a file. This unit's sweep dispositioned it
+as *"a pin, not a twin"*, which rules on the twinning class and says
+nothing about the unfiled residue; the file is that.
