@@ -611,6 +611,9 @@ mod shell10_r2_probes;
 #[path = "shell10_r2_cost.rs"]
 mod shell10_r2_cost;
 
+#[path = "shell10_r2_dump.rs"]
+mod shell10_r2_dump;
+
 #[path = "shell9_probe.rs"]
 mod shell9_probe;
 
