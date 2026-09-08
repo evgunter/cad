@@ -185,7 +185,7 @@ use pncad::document::{
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
 };
-use pncad::geom::Surface;
+use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::{
@@ -193,7 +193,8 @@ use pncad::prelude::{
     StableName,
 };
 use pncad::profile::ArcSweep;
-use pncad::select::{edge_frame, face_carrier_kind, face_frame, select, vertex_position};
+use pncad::prelude::query;
+use pncad::select::{edge_frame, edge_name, face_carrier_kind, face_frame, select, vertex_position};
 use pncad::topo::{Body, BooleanError, Operand};
 
 use crate::{SceneBody, Stop, View};
@@ -1120,7 +1121,161 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
         .collect()
 }
 
+// ================= R1 REVIEW PROBES (not for merge) =================
+fn r1_probes(tol: Tol) {
+    // ---- lid: one-request rolls, adjacent vs non-adjacent ----
+    for set in [
+        vec![1u32, 2, 4],
+        vec![1, 4],
+        vec![2, 4],
+        vec![1, 2],
+        vec![2, 3],
+        vec![1, 3],
+        vec![3, 4],
+        vec![0, 1],
+        vec![4, 5],
+        vec![0, 5],
+        vec![3, 5],
+        vec![0, 2],
+        vec![2, 5],
+        vec![0, 3],
+        vec![1, 5],
+        vec![0, 4],
+    ] {
+        let mut doc: Doc<ProfileProgram> = Doc::empty_derived("r1-lid", tol);
+        let (plane, axis) = frame_and_axis(&mut doc, tol);
+        let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
+        let sel: Vec<StableName> = set.iter().map(|&v| band_rim(lid, v)).collect();
+        let node = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
+        let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+        let ans = describe(&ev, node);
+        let census = match ev.value(node).map(|v| v.payload.clone()) {
+            Some(ValuePayload::Body(b)) => format!(
+                "{}/{}/{}",
+                b.vertices().count(),
+                b.edges().count(),
+                b.faces().count()
+            ),
+            _ => "-".to_string(),
+        };
+        println!("R1/one-request rims {set:?}: {ans} [{census}]");
+    }
+
+
+    // ---- the 8756e1838 cross-check, re-run: role name == scanned key ----
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("r1-xcheck", tol);
+    let (plane, axis) = frame_and_axis(&mut doc, tol);
+    let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    let lid_body = body_at(&ev, lid);
+    for &(v, radius, station, what) in &LID_RIMS {
+        let hits: Vec<_> = query::all_edges(&lid_body)
+            .into_iter()
+            .filter(|&k| {
+                let Some(c) = lid_body
+                    .get_edge(k)
+                    .and_then(|e| lid_body.get_curve_geom(e.curve))
+                    .and_then(|g| g.certified())
+                else {
+                    return false;
+                };
+                matches!(*c.carrier(), Curve3::Circle { center, radius: r, .. }
+                    if (center.y - station).abs() < 1e-12 && (r - radius).abs() < 1e-12)
+            })
+            .collect();
+        let name = edge_name(&ev, lid, 0, hits[0]).expect("the scanned rim is named");
+        println!(
+            "R1/xcheck {what}: {} scanned edge(s); name==band_rim({v}) -> {}",
+            hits.len(),
+            *name == band_rim(lid, v)
+        );
+    }
+
+    // ---- mouth designations ----
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("r1-mouth", tol);
+    let (plane, axis) = frame_and_axis(&mut doc, tol);
+    let bel = revolved(&mut doc, plane, axis, vessel_meridian(), tol);
+    let only_pi = insert(
+        &mut doc,
+        Node::shell(bel, len(WALL), vec![band_pi(bel, SEG_MOUTH)]),
+        tol,
+    );
+    let only_band = insert(
+        &mut doc,
+        Node::shell(bel, len(WALL), vec![band(bel, SEG_MOUTH)]),
+        tol,
+    );
+    let swapped = insert(
+        &mut doc,
+        Node::shell(
+            bel,
+            len(WALL),
+            vec![band_pi(bel, SEG_MOUTH), band(bel, SEG_MOUTH)],
+        ),
+        tol,
+    );
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    println!("R1/mouth BandPi only: {}", describe(&ev, only_pi));
+    println!("R1/mouth Band only:   {}", describe(&ev, only_band));
+    println!("R1/mouth swapped:     {}", describe(&ev, swapped));
+    let rims = faces_where(&ev, swapped, SegPat::tag(SegTag::Rim));
+    println!("R1/mouth swapped rim faces: {} -> {:?}", rims.len(), rims);
+    if let Some(n) = rims.first() {
+        println!(
+            "R1/mouth swapped rim frame: {:?}",
+            face_frame(&ev, swapped, n).map(|f| f.origin)
+        );
+    }
+    // the operand's mouth-plane chart size (the tour's retired pin)
+    let bel_body = body_at(&ev, bel);
+    let on_plane = bel_body
+        .faces()
+        .filter(|(_, f)| {
+            matches!(bel_body.get_surface(f.surface),
+                Some(Surface::Plane { origin, .. }) if (origin.y - Y_MOUTH).abs() < 1e-12)
+        })
+        .count();
+    println!("R1/operand faces on the mouth plane: {on_plane}");
+
+    // ---- the spout: the PLACED body, measured ----
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("r1-spout", tol);
+    let (plane, axis) = frame_and_axis(&mut doc, tol);
+    let sb = revolved(&mut doc, plane, axis, spout_meridian(), tol);
+    let placed = insert(
+        &mut doc,
+        Node::Transform {
+            input: sb,
+            translation: [len(SPOUT_ROOT.x), len(SPOUT_ROOT.y), len(SPOUT_ROOT.z)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(spout_turn()),
+        },
+        tol,
+    );
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    let unplaced_root = face_frame(&ev, sb, &band(sb, 0)).expect("root annulus, unplaced");
+    let root = face_frame(&ev, placed, &band(sb, 0)).expect("root annulus, placed");
+    let d = root.origin - SPOUT_ROOT;
+    println!(
+        "R1/spout unplaced root centre {:?} n {:?}",
+        unplaced_root.origin, unplaced_root.axis
+    );
+    println!(
+        "R1/spout PLACED root centre {:?}; |placed - SPOUT_ROOT| = {:e}",
+        root.origin,
+        d.norm()
+    );
+    println!(
+        "R1/spout placed root normal {:?}; SPOUT_DIR {:?}; cross-norm {:e}, dot {:e}",
+        root.axis,
+        SPOUT_DIR,
+        root.axis.cross(SPOUT_DIR).norm(),
+        root.axis.dot(SPOUT_DIR)
+    );
+}
+// ================= END R1 REVIEW PROBES =================
+
 pub fn stops(tol: Tol) -> Vec<Stop> {
+    r1_probes(tol);
     let r = build_doc(tol);
     let ev = evaluate::<f64>(
         &r.doc,
