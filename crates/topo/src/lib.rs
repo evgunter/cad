@@ -343,7 +343,7 @@ pub use query::{
     ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimError,
     SEL_DATUM_DISTANCE, SurfaceKindSet, UnitVec3, UnitVec3Error,
 };
-pub use readback::{DanglingRef, Pose, ReadbackError};
+pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
