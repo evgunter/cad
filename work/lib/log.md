@@ -3762,3 +3762,91 @@ running as LIB-DOORS-2, `path` behind the kernel `PathError`
 discriminant. Merged main twice mid-unit incl. LIB-FINDINGS (two ty
 fixture conflicts, both hunks kept). No kernel crate touched; the lane
 ran the pinned ruff for real.
+
+**LB20 — wave 4 planned from a full slate survey (2026-09-08, after
+LIB-FINDINGS and LIB-DOORS-1 landed).** The ruled queue emptied twice
+today; a read-only survey of every open LIB item (33) sorted them by
+class and by the files a fix touches. MECHANICAL, grouped into lanes
+that do not collide (two builds live at a time): LIB-PROJ (the ten
+`MateFault` accessors exhaustive + the pick indices as attributes;
+owns `py/mate.rs`, `py/pick.rs`) DISPATCHED beside LIB-DOORS-2;
+LIB-CUR7 (`meta-unversioned-arm-has-no-inner-word` + the six profile
+discriminants; owns the façade lists and `tags.rs`) and LIB-DOORS-3
+(the n-ary union / `SetMembers` doors + the `VDegree` structural slot;
+owns `py/doc.rs`'s constructors) after DOORS-2 lands; LIB-SMALL (the
+split/inline maintenance getter, `Datum.in_plane`'s length pair, the
+guide's chamfer and tube steps, the audit's `arc_continue` line once
+BOOL-10 merges); LIB-HASH (the 23 comparable enums hash) ALONE in a
+gap. DESIGN, asked as four unrelated `[ev]` PRs per Ev's standing ask,
+each recommending (A): #2230 (does per-arm projection generalise past
+the two named types; the census alphabet declares same-spelled types),
+#2231 (the authoring seat: a probe body the product skips; builders
+for a revolve's role names), #2232 (what a curated door owes on its
+SUCCESS side: the import report, the gate's enclosure, the advisory
+lane), #2233 (dimensioned seats: written notation at node slots;
+equality/hash on a poisoned or signed-zero quantity). KERNEL-SIDE,
+RE-HOMED by territory with a `## Re-homed` note each: the blend-slit
+collision, the blend selection's load-only check and the persist
+path's stringification to DOCM; the mouth chart and the shell corpus
+hold to SHELL; the predicate-name pins to BOOL. STAYING in LIB by
+assignment or by expiry: the mate-frame door and the two recourse
+sentences (S-MATE's hand-off gives refusal prose to LIB), the
+witness-bifurcation arm (an expiry on M6), the façade guard's readers
+(Track E), `correspondence-structs-coincide` (a verb-seat hold with no
+owner). `path`'s door waits on the kernel `PathError` discriminant.
+Orchestrator note for the record: the per-arm maps are a standing
+tripwire — main's own kernel PRs tripped them three times today (a
+shell arm renamed, an extrude arm retired, a shell arm added), each
+fixed by one map row; and reviewer scratch must live in each lane's
+own directory (the item-5 lesson, `build-slot-banner-leaks…`).
+
+**LIB-DOORS-2 MERGED (2026-09-08, #2228; mechanical under the 08-29
+ruling, no A/B row). The second unit under Ev's ruling (A) on
+`pncad-py-seven-doors-lack-field-projection`: the `persist`, `frame`
+and `stl` doors project every arm's payload as attributes, present on
+every arm and `None` where the arm carries none, each from ONE
+exhaustive match with no wildcard, on the single door function every
+raise site of the class already went through.** `persist_err` (thirteen
+arms, fifteen fields beside `variant`; `py/store.rs`'s pin doors ride
+the same door): the four NESTED arms — a profile-program fault, a
+distribution fault, a snapshot invariant, a replayed edit's `EditError`
+— cross as their own word on `inner_variant` with the nested payload
+left as the inner door's surface, which minted `program_fault_tag`
+(2) and `snapshot_error_tag` (19, delegating the product-root arm to
+`root_fault_tag`); `detail` and `document` each carry one concept
+under the kernel's several spellings; the recursive `NonFiniteSite`
+crosses as one sentence on `site`, not a field per rung. `frame_err`
+(two arms, nine fields): the degenerate arm's `input` is NOT a second
+attribute — it IS the per-input `variant` — while the classifier's
+own shape crosses when the margin landed in band (`margin` or
+`margin_low`/`margin_high`, `zero`/`escalate`, `predicate`; a poisoned
+margin carries the band and no number) and nothing when it was a
+definite zero; the `band` arm carries `inner_variant`/`field`/`value`
+via the new `band_field_tag` (2). `stl_err` (six fields): the three
+kernel enums plus the boundary's own `not_utf8` unified as a private
+four-arm `StlRefusal` so the projection is one match — the stated
+deviation, crossing nothing. Reachability: five persist arms, three
+frame arms and three STL arms driven from Python with the payload
+asserted; the arms no Python door can reach (the persist door's four
+nested arms, the frame door's `band` — every constructor derives its
+band from the tolerance witness, so `Band::linear` cannot fail there —
+the STL writers' four) pinned in Rust with the reason per arm. Census:
+six rows to `BOUND_AS` with the measurement (`ProgramFault`,
+`SnapshotError`, `NonFiniteSite`, `SolidNameError`,
+`BinaryHeaderError`, `Indeterminate`). **The curation consequence:**
+`prelude.rs` argued `MarginDiag`'s and `BandField`'s non-carriage on
+"no attribute on any bound exception carries a margin, an enclosure
+bound or a band", and the frame door made that sentence false — the
+count of thirteen prelude refusals is intact (`FrameError` is a
+`geom_core` refusal, not one of them), the sentence is not. Both
+prose notes corrected in the PR; the re-measure the prelude asks for
+is filed as
+`margin-diag-non-curation-was-measured-on-a-count-that-moved` (a
+curation question, not a binding one; nothing unreachable). No shipped
+`variant` moved; 23 new tag literals, all on `inner_variant` or
+`field`. The carrying item stays open with a second `## Progress`
+line: what remains is `path` (behind the kernel `PathError`
+discriminant) and `step_import` (argued at its site). No kernel crate
+touched beyond the prelude's prose. A deleted arm fails to compile
+(three `E0004`s, one per door; run, reverted). Merged main twice
+mid-unit; the lane ran the pinned ruff for real.

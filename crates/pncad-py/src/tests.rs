@@ -1461,6 +1461,141 @@ fn persist_error_tags_are_stable() {
     assert_eq!(persist_error_tag(&unreadable), "unreadable");
 }
 
+/// The persistence door's four NESTED arms, by construction: each
+/// wraps a refusal of another layer, and the word that rides out on
+/// `inner_variant` is the inner refusal's own.
+///
+/// Constructed rather than driven through `load`, and the reason is
+/// per arm:
+///
+/// * `profile_program` — a `ProgramFault` is a profile-program
+///   structure fault. A file carrying one is reachable, but building
+///   the tampered bytes means hand-assembling a lattice-violating
+///   step order, which pins the WIRE shape rather than the tag.
+/// * `distribution` — the same fault the edit door refuses, so a
+///   parsed file that reaches it has to smuggle a distribution the
+///   authoring doors cannot mint.
+/// * `snapshot` — reachable from Python (`tests/test_document.py`
+///   drives one), pinned here for the arms a tamper cannot select.
+/// * `edit_replay` — needs a save file whose LOG replays into a
+///   refusal, and the save door verifies the log symmetrically, so
+///   the file has to be assembled by hand.
+///
+/// What each pins is the tag the exhaustive map mints, which is what
+/// `inner_variant` carries; the projection itself is one positional
+/// tuple over the same arms, so an arm reaching Python unprojected is
+/// a compile error, not a missing test.
+#[test]
+fn the_persist_doors_nested_arms_carry_their_own_word() {
+    use crate::tags::{
+        distribution_fault_tag, edit_error_tag, program_fault_tag, snapshot_error_tag,
+    };
+    use pncad::document::{
+        DistributionFault, DistributionField, EditError, PersistError, ProgramFault, RecipeNodeId,
+        SnapshotError,
+    };
+
+    let program = ProgramFault::Lattice {
+        loop_: 0,
+        step: 1,
+        state: pncad::profile::TipState::Entry,
+        verb: None,
+    };
+    assert_eq!(program_fault_tag(&program), "lattice");
+
+    let distribution = DistributionFault::NonFinite {
+        field: DistributionField::Sigma,
+    };
+    assert_eq!(distribution_fault_tag(&distribution), "non_finite");
+
+    let snapshot = SnapshotError::OrderMismatch;
+    assert_eq!(snapshot_error_tag(&snapshot), "order_mismatch");
+
+    let replayed = EditError::UnknownNode {
+        id: RecipeNodeId(7),
+    };
+    let carrier = PersistError::EditReplay {
+        index: 3,
+        error: replayed.clone(),
+    };
+    assert_eq!(persist_error_tag(&carrier), "edit_replay");
+    assert_eq!(edit_error_tag(&replayed), "unknown_node");
+}
+
+/// The frame door's `band` arm, by construction: it is the one arm no
+/// Python door can reach.
+///
+/// Every `Frame` constructor derives its band from the process
+/// tolerance witness, whose invariant is ε finite and strictly
+/// positive with K > 1, so `Band::linear` cannot fail there and no
+/// argument a Python caller can pass changes that. The three
+/// `BandError` arms are therefore pinned here, with the payload each
+/// carries: which threshold (`field`), the rejected number (`value`),
+/// and the attempted pair a band could not be formed from.
+#[test]
+fn the_frame_doors_band_arm_is_construction_only() {
+    use crate::tags::{band_error_tag, band_field_tag, frame_error_tag};
+    use pncad::geom_core::{BandError, BandField, FrameError};
+
+    let invalid = FrameError::Band(BandError::InvalidValue {
+        field: BandField::Escalate,
+        value: f64::INFINITY,
+    });
+    assert_eq!(frame_error_tag(&invalid), "band");
+    let FrameError::Band(inner) = invalid else {
+        panic!("the arm just built is the band arm")
+    };
+    assert_eq!(band_error_tag(&inner), "invalid_value");
+    assert_eq!(band_field_tag(&BandField::Escalate), "escalate");
+    assert_eq!(band_field_tag(&BandField::Zero), "zero");
+
+    assert_eq!(
+        band_error_tag(&BandError::InvalidLeverArm { value: 0.0 }),
+        "invalid_lever_arm"
+    );
+    assert_eq!(
+        band_error_tag(&BandError::Empty {
+            zero: 1.0,
+            escalate: 1.0,
+        }),
+        "empty"
+    );
+}
+
+/// The STL writers' four arms, by construction: none is reachable
+/// from Python.
+///
+/// `Mesh.to_stl_ascii` and `Mesh.to_stl_binary` write into a `Vec<u8>`
+/// and tessellate their own mesh, so `io` has no failing sink,
+/// `degenerate_triangle` and `index_out_of_range` need a mesh that
+/// broke its own contract, and `too_many_triangles` needs more than
+/// `u32::MAX` facets. The two OPTION refusals are the reachable half
+/// and are driven through the real doors in `tests/test_mesh.py`.
+#[test]
+fn the_stl_writers_arms_are_construction_only() {
+    use crate::tags::stl_error_tag;
+    use pncad::stl::StlError;
+
+    assert_eq!(
+        stl_error_tag(&StlError::DegenerateTriangle {
+            triangle: [0, 1, 2]
+        }),
+        "degenerate_triangle"
+    );
+    assert_eq!(
+        stl_error_tag(&StlError::IndexOutOfRange { index: 9 }),
+        "index_out_of_range"
+    );
+    assert_eq!(
+        stl_error_tag(&StlError::TooManyTriangles { count: 1 << 33 }),
+        "too_many_triangles"
+    );
+    assert_eq!(
+        stl_error_tag(&StlError::Io(std::io::Error::other("sink"))),
+        "io"
+    );
+}
+
 /// The shell node's refusal tags, exercised by CONSTRUCTION for every
 /// arm buildable without geometry: the op family at its f64 witness,
 /// the mis-kinded open name, the lane refusal. `shell_open_resolve`
@@ -2642,6 +2777,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "band_field_tag",
+        values: &["escalate", "zero"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "binary_header_error_tag",
         values: &["binary_header_sniffs_ascii", "binary_header_too_long"],
         delegates: &[],
@@ -3330,6 +3470,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "program_fault_tag",
+        values: &["lattice", "slot_dimension"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "program_refusal_tag",
         values: &["geometry", "resolve", "transition", "validate"],
         delegates: &[],
@@ -3537,6 +3682,30 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "v_z",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "snapshot_error_tag",
+        values: &[
+            "assertion_bound",
+            "blend_selection_not_canonical",
+            "count_continuous",
+            "dangling_input",
+            "declare_input",
+            "epsilon_invalid",
+            "forward_input",
+            "id_beyond_counter",
+            "input_list",
+            "mate_alignment",
+            "measure_refs",
+            "metadata_unversioned",
+            "order_mismatch",
+            "placement_frame",
+            "placement_not_gauge",
+            "placement_rule",
+            "placement_site",
+            "witness_site",
+        ],
+        delegates: &["root_fault_tag"],
     },
     TagEntry {
         function: "solid_name_error_tag",

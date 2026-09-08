@@ -112,21 +112,28 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // whichever arm it is, and `COINCIDENCE_RECOURSE` states them once
 // for all of them.
 //
-// The boundary measurement agrees: no consumer of these refusals
-// reads the discriminant. Every one of the thirteen crosses into
-// Python as a single tag plus the kernel's own prose (`escalated`,
-// `in_band`, `pair_in_band`, `mate_indeterminate`), and no attribute
-// on any bound exception carries a margin, an enclosure bound or a
-// band. So a curated `MarginDiag` would publish a three-arm type
-// whose arms nothing branches on, which is `BandField`'s situation
-// with a different reason for it: there the discriminant was constant,
-// here it varies and is not a decision.
+// The boundary measurement agrees for the thirteen: no consumer of
+// THOSE refusals reads the discriminant. Every one of them crosses
+// into Python as a single tag plus the kernel's own prose
+// (`escalated`, `in_band`, `pair_in_band`, `mate_indeterminate`),
+// carrying no margin, no enclosure bound and no band. So a curated
+// `MarginDiag` would publish a three-arm type whose arms none of them
+// branches on, which is `BandField`'s situation with a different
+// reason for it: there the discriminant was constant, here it varies
+// and is not a decision.
 //
-// This flips if a door ever projects the escalation's own shape — a
-// caller told "the enclosure straddles" can subdivide where one told
-// "the margin is in band" can only widen ε. Stated so the next
-// curation pass re-measures rather than re-deriving. Either way
-// `Indeterminate`, `MarginDiag` and `Band` sit at ONE root together
+// **ONE door now projects the escalation's shape, and it is not one
+// of the thirteen.** `geom_core`'s own `FrameError::Degenerate`
+// carries an `Option<Indeterminate>`, and the Python frame
+// constructors project it — `margin`, or the enclosure's two bounds,
+// beside the band's `zero` and `escalate` and the deciding
+// `predicate`. That binding reads `MarginDiag`'s three arms through
+// `pncad::geom_core`, which is the module hop this paragraph already
+// names as the fallback, so nothing about the PRELUDE's carriage
+// follows from it mechanically — but the count the non-carriage was
+// measured on has moved, and the next curation pass should
+// re-measure rather than re-derive. Either way `Indeterminate`,
+// `MarginDiag` and `Band` sit at ONE root together
 // (`pncad::geom_core`), so the fallback is a module hop and never a
 // second crate.
 pub use geom_core::{

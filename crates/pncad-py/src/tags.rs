@@ -62,10 +62,10 @@ use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
     MateFault, MeasureNodeFault, MeasureUnavailableAt, NodeErrorKind, ParseError, PersistError,
-    PlacementRuleFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault,
-    SlotId, SplitError, UpdateError,
+    PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation,
+    RootFault, SlotId, SnapshotError, SplitError, UpdateError,
 };
-use pncad::geom_core::{BandError, FrameError, FrameInput};
+use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{
@@ -513,6 +513,19 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
         },
         FrameError::Band(_) => "band",
+    }
+}
+
+/// The stable tag for WHICH band threshold a
+/// `BandError::InvalidValue` is about.
+///
+/// The kernel's `BandField` has a `name()` of its own for messages;
+/// this is the FFI spelling, which is this crate's to own, and it is
+/// word for word that one.
+pub fn band_field_tag(field: &BandField) -> &'static str {
+    match field {
+        BandField::Zero => "zero",
+        BandField::Escalate => "escalate",
     }
 }
 
@@ -1298,6 +1311,53 @@ pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
         F::PartProduct { .. } => "part_product",
         F::ReferenceCycle { .. } => "part_reference_cycle",
         F::DepthExceeded => "part_depth_exceeded",
+    }
+}
+
+/// The stable tag for a PROFILE-PROGRAM structure fault — the inner
+/// arm of [`PersistError::ProfileProgram`].
+///
+/// The fault's own payload (the slot, the two dimensions, the loop and
+/// step counters) is the profile layer's surface and stays in the
+/// message; what crosses here is the word a caller branches on.
+pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
+    match fault {
+        ProgramFault::SlotDimension { .. } => "slot_dimension",
+        ProgramFault::Lattice { .. } => "lattice",
+    }
+}
+
+/// The stable tag for a document-snapshot invariant refusal — the
+/// inner arm of [`PersistError::Snapshot`].
+///
+/// Nineteen arms, each naming a different invariant the parsed (or
+/// in-memory) snapshot broke. The arm's own payload is node ids,
+/// names and counts the snapshot door owns; the word is what the
+/// persistence door carries out.
+pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
+    match err {
+        SnapshotError::OrderMismatch => "order_mismatch",
+        SnapshotError::BlendSelectionNotCanonical { .. } => "blend_selection_not_canonical",
+        SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
+        SnapshotError::DanglingInput { .. } => "dangling_input",
+        SnapshotError::ForwardInput { .. } => "forward_input",
+        SnapshotError::DeclareInput { .. } => "declare_input",
+        SnapshotError::WitnessSite { .. } => "witness_site",
+        SnapshotError::CountContinuous { .. } => "count_continuous",
+        SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
+        // The product-root list's own invariant vocabulary, carried
+        // through: a root fault is the same fact here as at the edit
+        // door, so it keeps the tag it has there.
+        SnapshotError::Roots(fault) => root_fault_tag(fault),
+        SnapshotError::PlacementSite { .. } => "placement_site",
+        SnapshotError::PlacementFrame { .. } => "placement_frame",
+        SnapshotError::PlacementNotGauge { .. } => "placement_not_gauge",
+        SnapshotError::MateAlignment { .. } => "mate_alignment",
+        SnapshotError::PlacementRule { .. } => "placement_rule",
+        SnapshotError::MeasureRefs { .. } => "measure_refs",
+        SnapshotError::InputList { .. } => "input_list",
+        SnapshotError::AssertionBound { .. } => "assertion_bound",
+        SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",
     }
 }
 
