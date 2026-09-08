@@ -177,9 +177,9 @@ pub(super) fn build_partial<T: Decide>(
     }
 
     // ---- Phase 4: the swept face survives as the end cap. ----
-    let raised = cap_points(&loops[0], &rpoints[0], place_end);
+    let far_loop = cap_points(&loops[0], &rpoints[0], place_end);
     let end_plane =
-        newell_plane(&raised, band).map_err(|source| RevolveError::CapPlane { source })?;
+        newell_plane(&far_loop, band).map_err(|source| RevolveError::CapPlane { source })?;
     let end_surface = body.set_face_surface(end_face, FaceSurface::New(end_plane))?;
 
     // ---- Phase 5: rim upgrades (both cap planes exist): loops in

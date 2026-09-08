@@ -1039,6 +1039,36 @@ impl Evaluation {
             .map_err(|err| super::readback::readback_err(py, &err))
     }
 
+    /// **What KIND of surface carries the face I selected?** — the
+    /// face's stored carrier tag, copied out.
+    ///
+    /// A tag READ, never a verdict: `SurfaceKind.Plane` comes back
+    /// because the body RECORDS a plane there, and "is this face
+    /// planar" is a comparison the caller makes against the answer.
+    /// No tolerance enters and nothing is decided — the same split
+    /// [`Self::face_frame`] keeps between a value and a predicate.
+    ///
+    /// It is the door [`Self::face_frame`] cannot be: a NURBS carrier
+    /// has no canonical frame and the frame door refuses it
+    /// (`no_canonical_frame`), while its kind is still readable here.
+    /// It is also how a caller checks a face BEFORE building a
+    /// `Node.datum_face_frame` on it, which refuses a non-planar
+    /// carrier at `evaluate`.
+    ///
+    /// Raises `ReadbackError` as [`Self::face_frame`] does, with
+    /// `wrong_kind` for an edge or vertex name.
+    fn face_carrier_kind(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::select::SurfaceKind> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::face_carrier_kind(&self.inner, node.0, &name)
+            .map(super::select::surface_kind)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
     /// **How does this name resolve — uniquely, or as a tie?** The
     /// referencing question, answered without exposing what it
     /// resolves to.
