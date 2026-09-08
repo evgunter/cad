@@ -150,3 +150,63 @@ verdicts/escalations). **To M10 ((M10 orchestrator)):**
 when EVAL-7 lands; the PR will list each moved key. Both `[ev]` rows
 are now ruled; the program's slate is seven E units (1–7) and the
 standing rule `D360`.
+
+## EVAL-1 implemented; review and EVAL-2 dispatched (2026-09-08)
+
+PR 2139 (`bd2fe4289`): hosted CI green on the full matrix (37 jobs:
+twelve `test`, five `k-lint (gate)`), no golden or frame moved, the
+render lanes redrew and matched. Style review dispatched on the frozen
+head; EVAL-2 implementer dispatched in parallel (two builds on the
+box, accepted). Filed from the lane's sweep:
+`work/issues/placement-lifts-its-affine-by-hand-beside-affine3-map.md`
+(unowned file per the keep_out). The `try_map` note for PROPS is
+`work/issues/affine3-try-map-the-fallible-walk-has-no-kernel-door.md`
+on the PR branch, with `map-affine-retires-into-affine3-try-map`
+parked on it — **to PROPS ((PROPS orchestrator)):** the geom-core door
+question is yours; claim the issue file when you take it. Two things
+the lane surfaced for the orchestrator: `cargo doc -p editor-core`
+under `-D warnings` has 58 pre-existing intra-doc-link errors (none
+in touched files; CI's rustdoc gate does not run that flag), so
+EVAL-3's doc-build claim is restated as "no NEW broken links in the
+touched files"; and the permission classifier refuses a Bash command
+carrying the bare token `eval`, so lanes hand-write tracker files in
+`work.py new`'s format when `--program eval` is needed.
+
+## EVAL-1 review delivered; fix pass on PR 2139 (2026-09-08)
+
+Style review: MERGEABLE, no MAJOR; claims 1–5 held (the reviewer
+re-derived the twelve-component identity from the kernel's `map`
+chain and ran the digest rows). Fix pass, by the orchestrator in the
+lane's worktree: the reviewer's `map_affine` probe adopted as a test
+(S10); `embed_profile`'s vertex point through `Point2::map` (the
+dispatch correction — D368's shape nine lines below the fixed site,
+which the spec had filed under D385's heading); `map_affine`'s doc no
+longer schedules a future (S5); the `try_map` note moved from
+`work/issues/` to `work/props/` (README: file onto the owner's slate)
+with S3 (readout walks want `Affine3::components()`), S6
+(`SketchPlane::try_map`) and S7 (`SketchPlane::map`'s "a caller
+chooses" rule with no home) folded in; S1/S4/S8 filed as
+`work/issues/profile-embed-lift-has-two-homes-anchor-and-loft.md`
+(owner undecided — profile's door, EVAL's and BLEND's consumers); S2
+filed onto TCOST's slate as
+`m10-p-lift-interval-plane-is-sketch-plane-map-by-hand`. The parked
+row's body now says EVAL retires `map_affine` in its own PR once the
+door exists. **Lesson for briefs:** the first fix-pass push went red
+on `discipline (evaluation-code)` — `no-extra-real-bounds` reads
+`#[cfg(test)]` modules too, and the probe's helper said `T: Real +
+Copy`. `scripts/gates/*.sh` run in seconds and are the pre-push
+check every lane brief names from now on.
+
+## EVAL-1 MERGED (2026-09-08, PR 2139, merge 51820f3ce)
+
+Full matrix green on the merged head (37 checks: twelve `test`, five
+`k-lint (gate)`, discipline, render lanes; four habitual skips).
+`embed_affine` is gone, the plane lifts go through `SketchPlane::map`
+and the vertex point through `Point2::map`; `map_affine` keeps the
+fallible direction with the reviewer's identity probe pinning it to
+the kernel's walk; both items closed; `D368` closed by construction.
+Residue with files: `map-affine-retires-into-affine3-try-map`
+(parked on PROPS' `affine3-try-map-…`), the profile embed lift twice
+(`work/issues/`), `m10_p_lift`'s hand-built interval plane (TCOST's
+slate), `placement.rs`'s hand lift (`work/issues/`). EVAL-3 dispatched
+next (prose-only; runs beside EVAL-2's CI).

@@ -63,8 +63,10 @@ still carries its own derivation of both, and one has already drifted:
    `wire_blend`'s refusal of `naming: None`") is checked against the tree:
    if `wire_blend` still refuses `naming: None`, keep the sentence; if not,
    delete it and say so in the PR body (Q4 — a premise something cites).
-5. No code changes. `cargo doc -p editor-core --no-deps` builds with no
-   broken intra-doc links (the citations are links, so a moved home reds
+5. No code changes. `cargo doc -p editor-core --no-deps` adds no
+   NEW broken intra-doc link in the touched files — 58 pre-existing ones
+   exist elsewhere in the crate and are not this unit's (the citations are
+   links, so a moved home reds
    the doc build rather than rotting silently — that is the enforcement
    the item asked for).
 
@@ -90,8 +92,9 @@ falsify:
 
 1. The diff is comments and doc-comments only: `git diff --stat` and a
    read of every hunk; any token outside a comment is a finding.
-2. Every citation resolves: `cargo doc -p editor-core --no-deps` with
-   `RUSTDOCFLAGS='-D warnings'` (or the repo's equivalent gate) is clean,
+2. Every citation resolves: `cargo doc -p editor-core --no-deps` shows no
+   new intra-doc warning in the touched files against the same command at
+   the merge base (58 pre-existing elsewhere are not this unit's),
    and each linked item actually states the rule the consumer relies on —
    read the target, not the link.
 3. The coverage sentence is gone from the consumer and the kernel's still
