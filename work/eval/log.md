@@ -210,3 +210,61 @@ Residue with files: `map-affine-retires-into-affine3-try-map`
 (`work/issues/`), `m10_p_lift`'s hand-built interval plane (TCOST's
 slate), `placement.rs`'s hand lift (`work/issues/`). EVAL-3 dispatched
 next (prose-only; runs beside EVAL-2's CI).
+
+## EVAL-2 implemented; two reviews dispatched (2026-09-08)
+
+PR 2153 (`aecc5ffda`): full matrix green (37 checks); key dump at
+base and head over 1053 rows diffs to zero; acceptance grep returns
+nothing; `D365` claimed by `git mv` (**announced to DOCM ((DOCM
+orchestrator))** in the PR body — DOCM's `plan.md:35`/`:65` still
+list it under Track V, DOCM's file to fix). Correctness and style
+reviews dispatched on the frozen head; the correctness lane
+reproduces the dump on documents the implementer's did not reach
+(assemblies, mates) and attacks the filed residue
+(`profile-program-stream-is-not-length-prefixed`: `LANE` and
+`verb_tag(Cusp)` are both 41 at one grammar position, argued
+unreachable). One rustdoc red on the way (an intra-doc link to a
+`#[cfg(test)]` const), fixed before the run of record.
+
+## EVAL-3 implemented, reviewed, fix pass pushed (2026-09-08, PR 2160)
+
+Prose-only; full matrix green on `e0365893c`; doc-link location set
+identical at base and head. Style review MERGEABLE, no MINOR. Fix
+pass by the orchestrator (`875685d22`): the two archaeology comments
+the lane filed as an item, plus a third the review added, fixed in
+this PR and the item closed here (the file was heavier than the fix);
+the guard's site comment collapsed to one line pointing at the module
+doc (S5); `emit_chamfer` cites `sweep::blend::naming` for
+one-surgery-two-verbs (S3); the item's `## Closed` trimmed to a
+pointer (S8). Recorded, not built: **the mechanism behind "a retired
+key is never reissued" is stated nowhere on the tree** — `topo::Body`'s
+arena doc is its home (TOPO's ground; (TOPO orchestrator), one
+sentence at the `SlotMap` declaration), and until it is written the
+kernel's sentence and the consumer's citation are both conditionals
+(S1); the kernel's `naming.rs` "What consumes these rows" paragraph
+describes its consumer by unlinked path (S2, BLEND's); `wire.rs:1836`
+is a third consumer-cites-a-cannot-fire shape (S7).
+
+## EVAL-2 reviews adjudicated; fix pass to the implementer (2026-09-08)
+
+Correctness: MERGEABLE — the key dump reproduced independently over
+1074 rows (corpus at f64, bumped, `Dual64`; an assembly with mates;
+a resolving `Cusp` profile) at zero diff; every census went red under
+a duplicated number; the 41/41 residue is unreachable for a stronger
+reason than the item gave (a `Cusp` cannot end a loop — its tip is
+`DirectedIncoming` — so the word after it is a verb tag, never
+`LOOP_START`). Style: MERGEABLE. Converging MINORs: the contact-class
+tag has a twin in `topo::ContactClass::content_tag` (exhaustive)
+beside `eval`'s wildcard function; the hand-kept `ALL`/`GROUPS` and
+the `winding`/`side`/`target` closures are declared but uncensused
+(a swapped arm or a dropped const stays green). Fix pass sent to the
+implementer with eleven items: the twin collapses onto topo's
+function; projections become censused functions; a `tag_groups!`
+macro projects `ALL`/`GROUPS`; the v2…v6 archaeology becomes the
+bump invariant at `tag::format::VERSION`; the census rename
+completes; `presence`'s wrong sentence and the borrowed fault bit;
+`u64`-written tags; the residue item's argument. **Lesson (correctness
+NOTE-1):** two worktrees sharing one `CARGO_TARGET_DIR` resolve to one
+artifact hash and the second reads `Fresh` — a base-vs-head proof
+needs separate targets or a `touch`, and the printed package PATH is
+the confirmation, not the word `Compiling`.

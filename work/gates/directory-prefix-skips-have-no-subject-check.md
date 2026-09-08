@@ -6,6 +6,8 @@ status: review
 opened: 2026-09-08
 refs: [whole-file-skips-do-not-check-their-subject]
 branch: gates/dir-prefix-subject
+pr: 2170
+blocked_on: [2171]
 ---
 
 ## Finding
