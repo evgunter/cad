@@ -269,3 +269,82 @@ arm, claims:
   typed, carried unaltered; no `unwrap_or`/`.ok()` on the road.
 - **C4** Exactly-once evaluation of a mated part; no k-lint or
   decision-log row moved; the memo key flips with a verdict.
+
+## Amendment — the edit door (ruled by Ev on `[ev]` PR 2118, 2026-09-08)
+
+The spec's stop clause (iii) fired on `mate/solve.rs::reconcile`, the
+keying maintenance `edit::apply` runs: it solves the PRIOR document to
+read a moved gauge's relative pose and re-mint the cluster frame, and
+`apply` held no resolver. Ev ruled **option (a) with the replay
+refinement**: the edit door takes a reach, and replay never solves
+because the log records what the maintenance decided. Precisely:
+
+1. **`apply` takes the reach.** `apply(doc, edit, tol, &dyn MateReach)`
+   (and `Doc::apply`). The maintenance asks the reach ONLY when it
+   needs a relative pose — a cluster whose gauge moved (`Split`,
+   `GaugeRewrite`) or whose prior frame must be composed with a solved
+   pose. Edits that leave every cluster's gauge in place (a `Join`, an
+   appearance edit, a declare, anything on an unmated document) never
+   touch the reach; `reconcile` computes the before/after clusters
+   first and solves only when a row needs it, so the store is asked
+   exactly when a frame is minted from a solve and never otherwise.
+2. **A refused maintenance solve refuses the edit, typed.** The
+   `unwrap_or_default()` that reads a refused prior solve as the
+   identity goes: `EditError` gains an arm carrying the `MateFault`
+   (and the gauge it was solving for), so a mate-graph edit on a
+   document whose parts cannot be levered, or do not resolve, refuses
+   at the door instead of recording a frame nothing decided. This
+   closes the pre-existing silent-identity finding.
+3. **The log records the maintenance; replay re-applies it.** The
+   persisted form (`persist`'s `SerBody { snapshot, edits }`) and
+   every replay door (`Doc::replay`, `persist::load` and `save`'s
+   verification replay, the viewer's `History::replayed`) carry, per
+   logged edit, the `ClusterMaintenance` rows `apply` returned for it
+   (`Applied.maintenance`). Replay applies the edit WITHOUT running
+   the maintenance and then applies the recorded rows to the
+   placement registry — it re-plays what was decided (D9) and never
+   re-decides against whatever store is present. Replay therefore
+   keeps its store-free signature; `load`, `save` and undo/redo take
+   no reach. Design the entry type so an edit with no rows is the
+   common case and costs nothing on the wire.
+4. **Old logs.** A persisted entry that predates the rows (a bare
+   `DocEdit`) replays as an edit with no rows. Where the edit would
+   have needed a solved frame (a gauge that moved on a mated
+   document), that replay REFUSES typed (`PersistError` /
+   `EditError`, naming the log index) rather than solving or reading
+   the identity; a migration door — `load` with a reach, or a
+   `replay_with(reach)` beside `replay` — re-derives the rows through
+   the maintenance and re-saves. Old logs whose edits never moved a
+   gauge load unchanged. State in the PR which fixture documents and
+   which `demos/` files needed migrating and re-save them with the
+   repo's tooling, never by hand.
+5. **Doors.** The viewer's `commit_action` and gesture preview pass
+   the session's resolver (its `Option` resolves through the same
+   `NoResolver` reach when absent, so an in-memory document refuses
+   a mate-graph edit typed rather than silently); the Python
+   `Doc.apply` and `Doc.insert_node` gain `resolver=` like `evaluate`
+   already has (absent → the refusing reach → a mate-graph edit that
+   needs a frame refuses typed, everything else unaffected);
+   `refactor::split`, `names::declare`, `resolve`'s wrapper and the
+   `demos/tour` helpers thread the reach from the caller that has a
+   workspace, or take the refusing reach where none exists and the
+   edit cannot move a gauge (say which, per site, in the PR).
+6. **Docs.** DESIGN.md D2's "pure edit entry point" and D7's replay
+   contract, and `edit.rs`'s own docs, gain the qualifier: `apply` is
+   pure over the document AND the reach, a function of the parts'
+   pinned content; replay is pure over the log. A11 rule 2 says the
+   maintenance solves with the parts' reach when a gauge moves. Ev
+   ruled these on PR 2118; list every sentence touched in the PR.
+7. **Rows.** `asm_r2a` 4b/4c green with the fixture reach; a
+   mate-graph edit on a document whose part does not resolve refuses
+   `EditError` carrying the `MateFault` (new); an edit that moves no
+   gauge on a mated document with the refusing reach succeeds (the
+   reach is not asked — pin it with a counting reach); a saved
+   document with a split replays bit-identically from its recorded
+   rows with no store; an old-format log whose edit moved a gauge
+   refuses typed at load and migrates through the door in (4).
+
+Acceptance A1–A7 and the correctness claims C1–C4 stand; add **C5**:
+replay of every fixture and `demos/` document reproduces the live
+registry bit for bit with no store in hand, and the reach is asked
+by `apply` only on edits that mint a frame from a solve.

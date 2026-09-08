@@ -27,9 +27,9 @@ orchestrator after the MESH-11 entry's "slate decision, put to Ev"
 
 ## Closed
 
-PR 1617 merged on 2026-09-08 at the landing head `267e2510f` (main merged
-forward by S-MESH; PROPS's fix pass `6859ece19` underneath, green since
-2026-09-06). Two duals ran under ordinal 1210 — S-MESH's on `0e053a727`
+PR 1617 merged on 2026-09-08 at head `832b4804b` merged with main (S-MESH's
+landing merge `267e2510f` and state-sync; PROPS's fix pass `0e4a1b57a`…`38a3ed8b8`
+underneath, green: run 34172610937). Two duals ran under ordinal 1210 — S-MESH's on `0e053a727`
 (2026-09-03; its fix pass died with a rate limit) and PROPS's on
 `3daab7d80` (2026-09-06; its fix pass landed); the A/B row MESH12 in
 `docs/MODEL-AB-LOG.md` (sample #157) records both and says which the
