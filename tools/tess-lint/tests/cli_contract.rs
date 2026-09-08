@@ -23,7 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::process::{Command, Output};
-use tess_lint::EXPECTED_HEADER as HEADER;
+use tess_lint::{CUT_PREFIX, EXPECTED_HEADER as HEADER};
 
 /// A one-plane, one-NURBS scene. `tris` is the wall's triangle count
 /// and `span_opt` the cheapest per-cell grid, which together move the
@@ -274,7 +274,7 @@ fn the_gate_names_the_tree_the_baseline_was_cut_from() {
     let stamped = csv(
         "cut-base.csv",
         &format!(
-            "# tess-budget-cut: 1a2b3c4d5e6f 2026-08-30T12:00:00+00:00\n{}",
+            "{CUT_PREFIX} 1a2b3c4d5e6f 2026-08-30T12:00:00+00:00\n{}",
             scene(100, 2.5e1)
         ),
     );
@@ -303,7 +303,7 @@ fn the_gate_names_the_tree_the_baseline_was_cut_from() {
 fn a_malformed_cut_line_exits_one() {
     let bad = csv(
         "badcut.csv",
-        &format!("# tess-budget-cut: nonsense\n{}", scene(100, 2.5e1)),
+        &format!("{CUT_PREFIX} nonsense\n{}", scene(100, 2.5e1)),
     );
     let out = run(&[bad.to_str().unwrap()]);
     assert_eq!(out.status.code(), Some(1), "{}", out_of(&out));
