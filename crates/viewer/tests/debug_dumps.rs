@@ -82,6 +82,36 @@ fn an_absent_summarised_field_renders_as_none() {
     }
 }
 
+/// **A resolver bound by `Save` renders as an elision too.** It is the
+/// one presence no edit reaches: `resolver` is written only by `Open`
+/// and by `Save`, so the row that holds its spelling has to put a file
+/// under the session. Both arms are read here, so the pair is the
+/// field's own before and after.
+#[test]
+fn a_bound_resolver_renders_as_an_elision_naming_what_is_there() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let unbound = format!("{session:?}");
+    assert!(
+        unbound.contains("resolver: None"),
+        "resolver: None not in {unbound}"
+    );
+
+    // A document with no backing file has no resolver; saving it binds
+    // one to the file's own directory.
+    let dir = common::tempdir("debug-dumps-resolver");
+    let saved = session.perform(SessionOp::Save(dir.join("plate.pncad")));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+
+    let dump = format!("{session:?}");
+    assert!(
+        dump.contains("resolver: Some(<DirResolver>)"),
+        "resolver: Some(<DirResolver>) not in {dump}"
+    );
+    assert!(!dump.contains("resolver: true"), "resolver: true in {dump}");
+}
+
 /// **A held index renders as an elision around the generation it
 /// describes**, not as the generation: `index` is an index, and a dump
 /// that said `Some(Generation(1))` would name a field this cache does
@@ -94,7 +124,8 @@ fn a_held_pick_index_renders_as_an_elision_around_its_generation() {
     assert_eq!(session.pump(), vec![Landing::Landed]);
     let mut cache = PickCache::inline();
 
-    assert!(format!("{cache:?}").contains("index: None"));
+    let empty = format!("{cache:?}");
+    assert!(empty.contains("index: None"), "index: None not in {empty}");
     assert_eq!(
         cache.sync(session.index_inputs(), delta()),
         CacheStep::Submitted

@@ -1,7 +1,7 @@
 ---
 id: four-debug-walks-are-spelled-and-placed-two-ways
 kind: issue
-title: DocSession's Debug walk sits 1,779 lines below its declaration while the other three sit beside theirs
+title: DocSession's Debug walk sits 1,780 lines below its declaration while the other three sit beside theirs
 status: open
 opened: 2026-09-06
 refs: [2093]
@@ -65,7 +65,7 @@ pre-existing one, which is what they had matched. `session.rs` keeps
 `std::fmt` nowhere.
 
 **The placement is declined, deliberately.** `DocSession`'s walk still
-sits at the end of the file, 1,779 lines below its declaration, under
+sits at the end of the file, 1,780 lines below its declaration, under
 three unrelated free functions. Moving it is a pure move inside a PR
 whose warrant is a mechanism change, and this program spent 2026-09-06
 learning what mixing those costs. Nothing is broken — the compiler

@@ -6134,3 +6134,53 @@ other one had been wrong at `92b2c303d`, some by hundreds of lines.
 Four rows were left alone deliberately — a receipt dated to a SHA is a
 record, and re-pointing it falsifies the record it is. The full table,
 its enumeration rule and its blind spot are in the closed item.
+
+## Corrections to the entry above, before it merged (2026-09-08)
+
+Appended rather than edited, because this file is the narrative record
+and not a slate: what the entry said is what it said.
+
+**"Nothing in the tree computes on a dump" denied its own premise two
+paragraphs earlier**, which named `tests/debug_dumps.rs` as the only
+reader of these dumps — a reader that computes on one is exactly what
+that suite is. The claim carrying the no-mechanical-guard argument is
+about PRODUCTION code: no shipped path reads a dump, so a lapse in a
+spelling costs a reader a misreading and can never cost an answer. The
+test suite is the one reader, and what it computes on a dump is the
+spellings themselves. `crates/viewer/README.md` now says it that way.
+
+**The spelling claim was true of six fields and not of the seventh.**
+`resolver: Some(<DirResolver>)` was asserted nowhere: the suite read
+`resolver: None` and refused `resolver: false`, which catches a
+regression to `is_some()` but not a rewrite of the elision's text —
+mutating it to `<Resolver>` left the suite green. `resolver` is written
+only by `Open` and `Save`, so reaching its present arm needs a file:
+the suite now saves into a tempdir the way `tests/doc_io.rs` does and
+reads both arms. The same mutation now fails a named assertion, and
+"holds the seven to their spellings" is true at the granularity of
+spelling, not only of field.
+
+**Four citations were falsified by this change, not three.** The three
+counted were tokens; the fourth is
+`viewerapp-document-derived-state-has-no-boundary`'s `(:1555-1560)`,
+the doc paragraph quoted in the same sentence as the `:1583-1586` that
+WAS re-pointed — a continuation left behind by the re-point it hangs
+off, which is worse than a visibly stale row because the sentence reads
+as freshly verified. It is `:1563-1568` at head. Two more citations the
+pass had passed or shifted were re-derived by subject in the same fix:
+`a-module-…`'s README range (a delta of +17 applied to a hunk that
+added 22 lines — the exact defect
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` closed at
+#2083, re-minted), and `outstanding-and-progress-…`'s
+`README.md:345-347`, passed as still true when its quoted phrase is at
+`:349-350`. The receipt's split is therefore **30 re-pointed / 6 still
+true**, of which 27 were already wrong at the merge base; and the split
+counts CITATIONS — by leading number the same 36 split 28/8, because
+two ranges had their ends re-derived while their anchors did not move.
+
+**A count fixed in one place contradicts itself.**
+`four-debug-walks-are-spelled-and-placed-two-ways` had `1953 − 173 =
+1780` re-derived in its body while its own title and closing paragraph
+still said 1,779 — #2103's defect re-minted. Both are 1,780 now; the
+1,779s in this file and in `debug-for-docsession-…` are records of what
+was said then and stay.

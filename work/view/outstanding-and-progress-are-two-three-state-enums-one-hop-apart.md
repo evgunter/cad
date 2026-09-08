@@ -42,7 +42,7 @@ the reading level that the types removed at the calling level.
 
 Related and one step further: `frame::progress` still takes the index
 seam as a bare positional `bool`, which the README ratifies
-(`crates/viewer/README.md:345-347`, *"takes the folded value beside
+(`crates/viewer/README.md:349-350`, *"takes the folded value beside
 the index seam's `bool`"*). Under the unit's own rule — *"a consumer
 is handed that fact and never the pair"* — the index seam is the one
 consumer input that is still a raw reading rather than a value, and

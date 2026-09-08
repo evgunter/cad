@@ -488,9 +488,10 @@ arm renders `None`, which is the whole field. `viewer`'s
 only reader of these dumps in the tree. What holds the NEXT summarised
 field to the rule is not a check: the destructuring makes the compiler
 send whoever adds a field to the walk, the rule is stated here and in
-each impl's own doc comment for them to read when they arrive, and
-nothing in the tree computes on a dump — so a lapse costs a reader a
-misreading and can never cost an answer.
+each impl's own doc comment for them to read when they arrive, and no
+PRODUCTION path computes on a dump — the only reader is that suite, and
+what it reads a dump for is these spellings — so a lapse costs a reader
+a misreading and can never cost an answer.
 
 `PickCache::forget` takes the same destructuring for the same reason
 one seam further: it clears the four fields that describe a picture and
