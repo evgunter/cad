@@ -351,9 +351,10 @@ certify-and-insert loop that refines the cells carrying the sup until
 every cell certifies or the loop refuses naming what stopped it —
 `BudgetExhausted` (the round budget) or `SampleCapReached` (the
 per-direction sample cap), each carrying the achieved bound;
-`RefinementStalled` when the strongest step gains nothing;
-`BoundNeverFinite`, carrying no bound, when no grid reaches a finite
-one; A9.10's downward knot-removal compression is not built.
+`RefinementStalled` when the strongest step gains nothing, on the last
+round as on any other; `BoundNotFinite`, carrying the last finite bound
+any grid reached or none, when the last grid's bound is not finite;
+A9.10's downward knot-removal compression is not built.
 `OffsetCertificate` has two limbs: `on_locus_max`, a sampled residual
 that steers, and `hull_sup`, the certified bound via
 `spline::compose::patch` over the rationalized composites

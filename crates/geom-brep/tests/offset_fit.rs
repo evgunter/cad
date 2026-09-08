@@ -23,7 +23,8 @@
 //!   certificate and NAMES the limb; a collapsed control row (the
 //!   sphere-pole shape) refuses at the regularity floor; `|d|` past
 //!   the curvature reach refuses at the collapse meter; an
-//!   unreachable tolerance refuses typed at the budget.
+//!   unreachable tolerance refuses typed, naming what stopped the
+//!   loop (on the bumpy patch, the sample cap).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -531,27 +532,42 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
     let base = quarter_cylinder(1.0, 1.0);
     for d in [1e-7_f64, 1e-8] {
         match fit_offset_at(&base, d, 1e-3, band()) {
-            Err(OffsetFitError::BoundNeverFinite {
+            Err(OffsetFitError::BoundNotFinite {
                 rounds,
                 grid,
+                d: dd,
                 tolerance,
+                last_finite,
             }) => {
                 assert_eq!(rounds, 4, "d = {d}: four rounds ran before the cap");
                 assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
-                let msg = OffsetFitError::BoundNeverFinite {
+                assert_eq!(dd, d);
+                assert!(
+                    last_finite.is_none(),
+                    "d = {d}: a round reached a finite bound: {last_finite:?}"
+                );
+                let msg = OffsetFitError::BoundNotFinite {
                     rounds,
                     grid,
+                    d: dd,
                     tolerance,
+                    last_finite,
                 }
                 .to_string();
+                // The type cannot print an `inf` here — the face has no
+                // bound field — so the row asserts what the message DOES
+                // say: that no round produced a finite bound, which knobs
+                // it disowns, the `d` it was asked for, and no constant.
                 assert!(
-                    !msg.contains("inf"),
-                    "d = {d}: the message prints a number where there is none: {msg}"
+                    msg.contains("without any round producing a finite sup bound"),
+                    "d = {d}: {msg}"
                 );
                 assert!(
                     msg.contains("neither the round budget nor the sample cap"),
                     "d = {d}: the message does not disown both knobs: {msg}"
                 );
+                assert!(msg.contains(&format!("d = {d} m")), "d = {d}: {msg}");
+                assert!(!msg.contains("OFFSET_FIT_"), "d = {d}: names a knob: {msg}");
                 assert!(msg.contains("nothing uncertified is returned"), "{msg}");
             }
             other => panic!("d = {d}: a never-finite bound did not refuse as one: {other:?}"),
@@ -691,7 +707,7 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// 1e7        4.1422e-4               1.286x
 /// 1e8        4.4346e-7               0.0014x — TIGHTER
 /// 1e9        5.1654e-6
-/// 1e10       refused: BoundNeverFinite — no grid reached a finite bound
+/// 1e10       refused: BoundNotFinite, last_finite None — no grid reached one
 /// ```
 ///
 /// So the band is asserted where the claim is meaningful — out to
@@ -780,7 +796,13 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
     // grid it reaches produces a finite bound, so the refusal carries
     // none rather than an `inf`.
     match fit_offset_at(&shifted(1.0e10), d, 1e-2, band()) {
-        Err(OffsetFitError::BoundNeverFinite { rounds, grid, .. }) => {
+        Err(OffsetFitError::BoundNotFinite {
+            rounds,
+            grid,
+            last_finite,
+            ..
+        }) => {
+            assert!(last_finite.is_none(), "a grid reached {last_finite:?}");
             eprintln!(
                 "recentred shift=1e10: refused typed, never finite after {rounds} rounds on {grid:?}"
             );
@@ -887,7 +909,7 @@ fn the_stall_refusal_carries_its_grid_rounds_and_bound() {
     );
     // And it is a DIFFERENT sentence from budget exhaustion's.
     let budget = OffsetFitError::BudgetExhausted {
-        budget: 6,
+        budget: OFFSET_FIT_BUDGET,
         grid: (11, 7),
         achieved: 4.25e-4,
         tolerance: 1e-6,
