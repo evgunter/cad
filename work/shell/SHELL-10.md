@@ -6,6 +6,7 @@ status: dispatched
 opened: 2026-09-08
 branch: shell/10-scoped-walks
 refs: [shell-doors-still-walk-the-whole-body, SHELL-8, SHELL-9]
+pr: 2229
 ---
 
 
