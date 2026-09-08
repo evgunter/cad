@@ -40,16 +40,19 @@ L, H, T = 1.0, 1.0, 0.125
 H_BUMPED, T_BUMPED = 1.5, 0.25
 
 
-def closed_forms(l, h, t):
-    inner = l - 2 * t
-    return (l * l * h - inner * inner * (h - t), 2 * l * l + 4 * l * h + 4 * inner * (h - t))
+def closed_forms(side, h, t):
+    inner = side - 2 * t
+    return (
+        side * side * h - inner * inner * (h - t),
+        2 * side * side + 4 * side * h + 4 * inner * (h - t),
+    )
 
 
-def blank(doc, l, h):
-    """A box `l × l × h` on the document's sketch frame."""
+def blank(doc, side, h):
+    """A box `side × side × h` on the document's sketch frame."""
     square = doc.insert(
         Node.polygon(
-            [(0 * m, 0 * m), (l * m, 0 * m), (l * m, l * m), (0 * m, l * m)],
+            [(0 * m, 0 * m), (side * m, 0 * m), (side * m, side * m), (0 * m, side * m)],
             plane=doc.sketch_frame(),
         )
     )
@@ -68,8 +71,8 @@ def top_of(doc, box):
     return faces[0]
 
 
-def cup(doc, l=L, h=H, t=T):
-    box = blank(doc, l, h)
+def cup(doc, side=L, h=H, t=T):
+    box = blank(doc, side, h)
     return box, doc.insert(Node.shell(box, t * m, [top_of(doc, box)]))
 
 

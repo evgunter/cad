@@ -3108,10 +3108,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
 ///   placement off a derived frame — a lane fact, decided by the type),
 ///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
-///   `PairingViolation`; and the third lane seam `MinClearanceLane`
+///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry).
+///   can carry; and the fourth, `ShellLane` — which scalars can form
+///   the shell door's call at all, a lane fact decided by the type: a
+///   dual does not certify, and the door validates what it built).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   behind the `interval` feature (M10-6): the driver and its box,
@@ -3187,6 +3189,7 @@ const NOT_CARRIED: [&str; 91] = [
     "SectionScalar",
     "SeedError",
     "SeedScalar",
+    "ShellLane",
     "SideVerdict",
     "StructureFlip",
     "SummaryDelta",
