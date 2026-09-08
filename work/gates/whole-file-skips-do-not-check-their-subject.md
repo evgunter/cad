@@ -199,7 +199,13 @@ it.
 | the marker dropped from `gate_no_homes_refusal` | `gate_empty_home_list_case` reds over `empty-homes OK: nothing matched` |
 | **filter→fixture**, re-run | both gates red "the gate FAILED on a clean fixture" through the shared refusal |
 
-Live output still byte-identical for all seven, stdout and stderr. All
-21 gates `--selftest` and live green; `scripts/work.py lint` ok. The
-whole `--selftest` sweep is ~87 s against ~90 s before the fix pass —
-the 26 added cases are inside run-to-run noise.
+Live output still byte-identical for all seven, stdout and stderr —
+measured the way a merge makes necessary: `origin/main`'s copies of the
+gates extracted and pointed at THIS tree with `--root`, so the only
+variable is the gate code. Compared against the pre-merge capture
+instead, all seven "differ" in their scanned-file count alone (440 ->
+443, 403 -> 406), which is PR 2157's three new sources arriving in the
+tree and not a gate deciding anything differently. All 21 gates
+`--selftest` and live green after the merge; `scripts/work.py lint` ok.
+The whole `--selftest` sweep is ~87 s against ~90 s before the fix pass
+— the added cases are inside run-to-run noise.
