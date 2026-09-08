@@ -728,7 +728,7 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// of it.** In decreasing order of cost:
 ///
 /// - **The asserting setters.** `set_face_surface` and `set_edge_curve`
-///   each run a whole-body tier-1 [`crate::validate`] as a
+///   each run a whole-body tier-1 [`validate`](crate::validate()) as a
 ///   postcondition, and a door performs one per moved face and one per
 ///   re-described edge. A scoped planar call on a unit box pays 18 of
 ///   them (6 + 12); the axial door pays 16; `shell_open` on the
