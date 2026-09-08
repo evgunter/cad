@@ -18,8 +18,8 @@ result's material disconnected from A's wall, so it is a solid of its
 own, not a shell of A's solid. The containment fallback hands
 `insert_void` the whole of B — the door's docs say "positively
 oriented single-solid closed body" and its graft attaches every shell
-under the destination solid — so a hollow B's cavity lands as an
-inward-facing… no: as an OUTWARD-facing shell of A. `shell` on a hollow
+under the destination solid — so after the door's reversal B's cavity
+lands as an OUTWARD-facing shell of A's solid. `shell` on a hollow
 operand meets the same one-solid state transiently and re-homes each
 void twin with `Body::move_shells_to_new_solid` (SHELL-5); the boolean
 fallback could re-home the same way, paired off B's own shell roles.
