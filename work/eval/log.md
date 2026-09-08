@@ -279,3 +279,20 @@ two-verbs. Both the unit item and the residue item are closed. Open
 residues from its review are in the previous entry (the reissue
 mechanism's home at `topo::Body`, TOPO's; the kernel's
 consumer-describing paragraph, BLEND's).
+
+## EVAL-2 fix pass green; state-sync pushed (2026-09-08, PR 2153)
+
+Fix pass `812cb3b50`: every one of the eleven items landed (contact
+class through `topo::ContactClass::content_tag` at every site;
+`winding_tag`/`side_tag`/`target_tag`/`split_half_tag` as censused
+functions with committed-number pins and a `closed_list!` that makes
+an exhaustive match the row set; `tag_groups!` projects `ALL` and
+`GROUPS`, unconditional; the format-version rule at its declaration;
+the census rename completed and the three census modules made one;
+`tag::fault`; `u64`-written sub-tags through `write_tag`; the
+residue's argument rewritten on the `Cusp` tip state). Key dump
+re-taken at the moved base from a `git archive` export under its own
+target: 1053 rows, zero diff. Full matrix green. Meta-read by the
+orchestrator of the macro, the contact-class sites and the acceptance
+grep (empty). State-sync merged main (which brought code: k-lint
+tests) so the merged head runs once more before the merge.
