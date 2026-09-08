@@ -704,6 +704,13 @@ impl Value {
     /// not a measure" and told a caller nothing about what to do.
     /// `Value.assertion` already carried its reason through; this door
     /// now does the same.
+    ///
+    /// The absence raises `MeasureUnavailableAt` and not
+    /// `EvaluationError`: it is the kernel's own typed reason, and it
+    /// carries the verb, the scalar this build ran at and the DOOR
+    /// that can answer, so the recourse is in the refusal rather than
+    /// in a reader's memory. `EvaluationError` is for a node that
+    /// FAILED, and this one did not.
     fn measure(&self, py: Python<'_>) -> PyResult<Measurement> {
         match &self.payload {
             d::ValuePayload::Measure { value, dim } => Ok(Measurement {
@@ -712,12 +719,9 @@ impl Value {
                 length: (*dim == d::Dimension::Length)
                     .then(|| Length(pncad::quantity::Length::from_meters(*value))),
             }),
-            d::ValuePayload::MeasureUnavailable { reason, .. } => Err(eval_err(
-                py,
-                format!("this measure has no value in this build: {reason}"),
-                "measure_unavailable",
-                self.node,
-            )),
+            d::ValuePayload::MeasureUnavailable { reason, .. } => {
+                Err(super::measure::measure_unavailable_at_err(py, reason))
+            }
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a measure", other.kind_name()),
