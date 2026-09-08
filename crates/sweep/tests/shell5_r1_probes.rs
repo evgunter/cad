@@ -484,13 +484,57 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         props.volume, props.surface_area
     );
 
-    // 3a. open the inner wall ON THE RESULT: what a user would try first.
-    // Refused: the verb is single-solid, and a twice-hollowed body has
-    // two (`work/shell/shell-open-on-a-multi-solid-body.md`).
-    let e = topo::shell_open(&twice.body, 0.05, &[ceiling], tol())
-        .expect_err("a multi-solid body has no single solid to open");
-    println!("[e2e] opening the twice-hollowed body: refuses {e}");
-    assert!(matches!(e, ShellError::NotOneSolid { solids: 2 }), "{e}");
+    // 3a. open the inner wall ON THE RESULT: what a user tries first,
+    // and what now builds. Shelling is per solid and applies to every
+    // solid, so the twice-hollowed body's two thin solids each shell
+    // again and the designated ceiling's wall opens.
+    let three = topo::shell_open(&twice.body, 0.01, &[ceiling], tol())
+        .expect("hollow, hollow, open is three verbs");
+    let props = topo::mass_properties(&three.body, tol()).expect("props");
+    println!(
+        "[e2e] hollow, hollow, open: solids={} shells={} tier3={:?} volume={} thickened={:?}",
+        three.body.solids().count(),
+        three.body.shells().count(),
+        topo::validate_geometric(&three.body, tol()),
+        props.volume,
+        three.naming.thickened
+    );
+    println!("[e2e] roles={:?}", roles_by_solid(&three.body));
+    // The twice-hollowed body's two solids — [V(2,3,4) hollowed to
+    // V(1.9,2.9,3.9)] and [V(1.6,2.6,3.6) hollowed to V(1.5,2.5,3.5)]
+    // — each thicken every boundary at `t = 0.01`, giving four thin
+    // solids, and the designated ceiling's wall loses its lid.
+    let want = (v(2.0, 3.0, 4.0) - v(1.98, 2.98, 3.98))
+        + (v(1.92, 2.92, 3.92) - v(1.9, 2.9, 3.9))
+        + (v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58))
+        + (v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5))
+        - 1.52 * 2.52 * 0.01;
+    assert!(
+        (props.volume - want).abs() < 1e-12,
+        "{} vs {want}",
+        props.volume
+    );
+    assert_eq!(three.body.solids().count(), 4);
+    // Eight thin-solid shells less the one the rim fusion consumed.
+    assert_eq!(three.body.shells().count(), 7);
+    assert_eq!(topo::validate_geometric(&three.body, tol()), Ok(()));
+    // One `thickened` row per operand shell, every solid's included.
+    assert_eq!(three.naming.thickened.len(), 4);
+    // The opened wall is a cup: one shell, where every other thin solid
+    // keeps its two.
+    let opened_solid = three.naming.rims[0].rim;
+    let opened_solid = three
+        .body
+        .get_shell(three.body.get_face(opened_solid).unwrap().shell)
+        .unwrap()
+        .solid;
+    let counts: Vec<usize> = three.body.solids().map(|(_, s)| s.shells.len()).collect();
+    assert_eq!(counts.iter().filter(|&&n| n == 1).count(), 1, "{counts:?}");
+    assert_eq!(
+        three.body.get_solid(opened_solid).unwrap().shells.len(),
+        1,
+        "the designated ceiling's wall is the cup"
+    );
     // 3b. the way that works: fold the opening into the second shell.
     let opened =
         topo::shell_open(&first.body, 0.05, &[ceiling], tol()).expect("open the inner wall");

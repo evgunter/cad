@@ -559,6 +559,8 @@ mod review_fillet_h7_r2_probes;
 #[path = "review_fillet_t_r2_probes.rs"]
 mod review_fillet_t_r2_probes;
 
+#[path = "review_blend4_r4_probes.rs"]
+mod review_blend4_r4_probes;
 #[path = "shell5_r1_dump.rs"]
 mod shell5_r1_dump;
 #[path = "shell5_r1_probes.rs"]
@@ -577,6 +579,16 @@ mod shell7_common;
 
 #[path = "shell7_dump.rs"]
 mod shell7_dump;
+#[path = "shell8_common.rs"]
+mod shell8_common;
+#[path = "shell8_dump.rs"]
+mod shell8_dump;
+#[path = "shell8_multi_solid.rs"]
+mod shell8_multi_solid;
+#[path = "shell8_r1_probes.rs"]
+mod shell8_r1_probes;
+#[path = "shell8_r2_probes.rs"]
+mod shell8_r2_probes;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;

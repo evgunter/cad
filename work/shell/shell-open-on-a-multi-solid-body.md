@@ -2,8 +2,10 @@
 id: shell-open-on-a-multi-solid-body
 kind: issue
 title: shell_open on a multi-solid body refuses NotOneSolid: hollow, hollow, open is not three verbs
-status: open
+status: closed
 opened: 2026-09-08
+refs: [SHELL-8, SHELL-5]
+closed: 2026-09-08
 ---
 
 
@@ -24,3 +26,16 @@ that solid and partitions per solid. The opened arm on a multi-solid
 body has the extra question of which solid a designated face's
 counterpart lives in, which the graft map answers once the composition
 is per solid.
+
+
+**Closed by SHELL-8.** Shelling is per solid and applies to every solid
+of the operand: each solid's own gates, offset door, clearance, moves,
+evidence, insertion and partition, and a designation names a face on
+any of them. `ShellError::NotOneSolid` is retired; only an operand with
+NO solid refuses (`ShellError::NoSolid`), which is an empty operand
+rather than an unsupported arity. The question the issue left open —
+which solid a designated face's counterpart lives in — is answered on
+the RESULT: the thin solids are partitioned before the rim surgery, so
+both sides of the glue are found in the solid the designated face is in
+there, and the lift's door is that solid's. "Hollow, hollow, open" is
+three verbs (`crates/sweep/tests/shell5_r1_probes.rs`, step 3a).
