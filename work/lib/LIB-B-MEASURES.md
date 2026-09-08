@@ -2,10 +2,11 @@
 id: LIB-B-MEASURES
 kind: unit
 title: binding census family B-MEASURES
-status: review
+status: closed
 branch: lib/b-measures
 opened: 2026-09-06
 pr: 2198
+closed: 2026-09-08
 ---
 
 Queued mechanical census family (the B-RESOLVE shape): sweep the
