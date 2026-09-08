@@ -872,3 +872,48 @@ The reviewer also ruled the question I put to it (S2): dropping the
 two numbers from the row was right, leaving the PREDICATE unguarded is
 the over-correction — a reading of a committed artefact sitting as
 prose is the shape the row itself forbids. Sent back with the MAJOR.
+
+## Three reviews, three instances of one defect: the claim of uniqueness (2026-09-08)
+
+Units 8, 9 and 12 were reviewed within a few hours of each other, and
+each review's MAJOR was the same sentence in different words: **a claim
+that some site is the only one of its kind, made without sweeping for
+the others.**
+
+- **Unit 8** — a doc identified `Row::total_slack` (`delta / worst_dev`,
+  printed by nothing) with what the report prints,
+  `SceneTotals::total_slack` (triangle-weighted). Two functions, one
+  name. The orchestrator wrote that one.
+- **Unit 9** — the same shape survived into the unit that exists to fix
+  ambiguous naming: `Row::recoverable` and `SceneTotals::recoverable`,
+  differing by aggregation, and the unit attached the column formula to
+  the sweep-level one only. So `grid_cells / span_opt_cells` now has
+  THREE English names in one report.
+- **Unit 12** — `csv_fixture.rs:36-38` says the fixture's own test is
+  *"the only thing in either root that can see its token"*, while
+  `src/lib.rs:1768-1771` says it is *"the only thing that can catch
+  `parse` reading it out of the wrong column"*. Both about the same
+  value; the second is unit 6's. The tree carried two sole-reader
+  claims about one field, and blanking the token reds both.
+
+**And the sibling shape, also three for three: a PR disclosing a blind
+spot in its own sweep and claiming or implying it was empty.** Unit 9's
+*"there are none in this file today"* — `main.rs:233`'s `line()` helper
+is one, and the figure it hides is the very quotient the unit renamed
+elsewhere. Unit 12's blind spot — a second full-width sized-row literal
+at `src/lib.rs:1983-1990`, inside the fence, which reds for the WRONG
+reason when the header moves. Unit 8's was the orchestrator's rather
+than the lane's: an experiment with a negative control and no positive
+one, which could show the harness was not lying but never that it could
+see.
+
+**The rule these three suggest**, and it is cheap: *a uniqueness claim
+is a sweep result, so it is not writable without running the sweep —
+and "my pattern could not match X" is a work order to find X another
+way, never a boundary.* Every one of the six instances was one grep or
+one control run from being caught, and none of them was caught by the
+lane that wrote it.
+
+Worth carrying to the exit walk: this is a candidate for the standing
+discipline docs rather than a METER row, since nothing about it is
+specific to the instruments.
