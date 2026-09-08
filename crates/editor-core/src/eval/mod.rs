@@ -453,44 +453,68 @@ impl<T: Decide> ValuePayload<T> {
 /// believe. What checks it is behavioural and partial: the mate
 /// suite's `msolve3_placer_refused` compares the refusal this word
 /// lands in against the one the operand's own evaluation raises, for
-/// the two families a circular rule's axis is actually authored as —
-/// a datum and a body. The other families are by inspection, and this
-/// sentence is where that is said.
+/// the families a circular rule's axis is actually authored as — a
+/// datum, a body, a transform of a pattern, and a transform of a
+/// transform of a body. The other families are by inspection, and
+/// this sentence is where that is said.
 ///
-/// **One kind this cannot answer from the node alone:** a `Transform`
-/// is shape-preserving over its input's value (`Body → Body`,
-/// `Instances → Instances`), so its family is its INPUT's, and a
-/// reader holding only the node answers "body" — right for every
-/// transform of a body, and the one-body word for a transform of a
-/// pattern, whose evaluation says "instances". Reading through the
-/// input needs the document, which this signature does not carry
-/// (`work/eval/node-value-kind-answers-a-transform-by-node-kind.md`).
-pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
+/// **A placer answers with its input's family.** A `Transform` is
+/// shape-preserving over its input's value (`Body → Body`,
+/// `Instances → Instances`), so its family is its INPUT's, read
+/// through the document; a `Pattern` lands in `Instances` whatever it
+/// patterns. The walk follows only a transform's `input` edge, which
+/// the edit door fixes at insert to a node that is already live
+/// ([`crate::EditError::UnresolvedInput`]) and no edit rewrites, over
+/// a recipe checked acyclic at every edit that adds an edge
+/// ([`crate::EditError::WouldCycle`]) — so it terminates with no guard
+/// of its own.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingInput`] naming a transform's input that is
+/// no live node: the refusal that transform's own evaluation raises,
+/// and the only word the evaluation has for the shape — the operand
+/// never lands in a family, so its consumer is poisoned through the
+/// transform rather than refused with one. Unreachable through
+/// `apply`, which takes a node's dependents with it on delete; refused
+/// typed anyway.
+pub(crate) fn node_value_kind<P>(
+    doc: &Doc<P>,
+    node: &crate::node::Node<P>,
+) -> Result<&'static str, NodeErrorKind> {
     use crate::node::Node;
-    match node {
-        Node::Datum(_) => "datum",
-        Node::Profile(_) => "profile",
-        Node::Boolean { .. } => "boolean",
-        Node::Split { .. } => "split",
-        Node::Pattern { .. } => "instances",
-        Node::Declare { .. } => "declarations",
-        Node::Mate { .. } => "mate",
-        Node::Measure { .. } => "measure",
-        Node::Assertion { .. } => "assertion",
-        Node::Extrude { .. }
-        | Node::Revolve { .. }
-        | Node::Tube { .. }
-        | Node::HollowTube { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Fillet { .. }
-        | Node::Chamfer { .. }
-        | Node::Shell { .. }
-        | Node::Transform { .. }
-        | Node::Union { .. }
-        | Node::PlacedUnion { .. }
-        | Node::Part { .. }
-        | Node::InstantiatePart { .. } => "body",
+    let mut at = node;
+    loop {
+        return Ok(match at {
+            Node::Transform { input, .. } => {
+                at = doc
+                    .node(*input)
+                    .ok_or(NodeErrorKind::MissingInput { input: *input })?;
+                continue;
+            }
+            Node::Datum(_) => "datum",
+            Node::Profile(_) => "profile",
+            Node::Boolean { .. } => "boolean",
+            Node::Split { .. } => "split",
+            Node::Pattern { .. } => "instances",
+            Node::Declare { .. } => "declarations",
+            Node::Mate { .. } => "mate",
+            Node::Measure { .. } => "measure",
+            Node::Assertion { .. } => "assertion",
+            Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Shell { .. }
+            | Node::Union { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Part { .. }
+            | Node::InstantiatePart { .. } => "body",
+        });
     }
 }
 
