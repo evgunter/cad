@@ -25,13 +25,13 @@ own derivation, in four places:
 - `crates/sweep/src/extrude.rs:1237-1279` — the `Smooth` arm of `upgrade_rim`,
   the longest and most specific of the four (it is the only one that also
   carries the arc-leg-cannot-reach-this argument and the second-order aside).
-- `crates/sweep/src/lib.rs:88-99` — the crate docs' cap–wall rim bullet.
+- `crates/sweep/src/lib.rs:89-99` — the crate docs' cap–wall rim bullet.
 
 Two of the four already name a third as the home: `extrude.rs:55-57` says the
 argument "is written at the arm in `upgrade_rim`", and `lib.rs:99` says "the
 argument is at `extrude::upgrade_rim`'s arm". They then write it out anyway.
 The same K-and-ε reasoning therefore has to be kept consistent across four
-independently maintained copies; the crate's own convention (`lib.rs:24`,
+independently maintained copies; the crate's own convention (`lib.rs:23`,
 "stated once — owned here") is the rule it violates.
 
 ## 2. `K* ≈ 1.272` is spelled in seven places, one of them user-facing
