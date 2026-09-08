@@ -2,9 +2,9 @@
 id: transform-refuses-a-patterns-instances-value
 kind: issue
 title: Node::Transform takes one body, so a transform over a pattern refuses WrongOperand although one rigid map of N instances is well-defined
-status: open
+status: spec
 opened: 2026-09-05
-needs_ev: true
+branch: eval/6-placers-over-instances
 ---
 
 
@@ -101,3 +101,14 @@ on its own slate, announces the `denotes_body` arm to CHROME, and
 MSOLVE's pins flip from "refuses" to "evaluates"; under 2, EVAL files
 the walk-side refusal on MSOLVE's board and closes this row as
 ratified. Either is one small PR.
+
+## Ruled (Ev, PR 2137, 2026-09-08)
+
+Answer 1: **the placers are shape-preserving over the value** —
+`Transform` and `Pattern` accept `Instances` and yield `Instances`; no
+payload or schema change; `Boolean` still takes one body, and that
+asymmetry is stated at `ValuePayload::Instances`. This row becomes the
+unit that executes it: `docs/EVAL-6-SPEC.md`, branch
+`eval/6-placers-over-instances`, with a correctness arm. The viewer's
+seat gate (`denotes_body`) is CHROME's and is announced to them in the
+spec; MSOLVE's two pins flip from "refuses" to "gathers".
