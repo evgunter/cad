@@ -295,7 +295,7 @@ spelling_upper() { printf '%s' "$1" | tr 'a-z' 'A-Z'; }
 # brace depth over the code-only text, so a use is placed against the
 # item it is in rather than against the file it is in.
 debug_only_report() {
-  awk -v PAT="$1" '
+  GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk -v PAT="$1" "$GATE_RECORD_AWK"'
     BEGIN {
       # A `debug_assert…!` macro, not a function whose name starts the
       # same way: the `!` is the whole distinction.
@@ -318,10 +318,14 @@ debug_only_report() {
       dsync = 1
     }
     {
-      p1 = index($0, ":"); r = substr($0, p1 + 1); p2 = index(r, ":")
-      if (p1 == 0 || p2 == 0) next
-      f = substr($0, 1, p1 - 1); ln = substr(r, 1, p2 - 1)
-      code = substr(r, p2 + 1)
+      # WHERE THE FILE COLUMN ENDS is gate_record_split, lib.sh section
+      # THE RECORD S COLUMNS. Read to the first colon, a path carrying
+      # one of its own gave a truncated file key — so the per-file reset
+      # below never fired between two such files and one file s brace
+      # depth decided the other s enclosure — and left the line number
+      # on the front of the code text, where a matcher reads it.
+      if (!gate_record_split($0)) next
+      f = GR_FILE; ln = GR_LINE; code = GR_TEXT
       # The per-file reset. It carries no end-of-file check of its own:
       # `gate` invokes this reader once per subject, over the records of
       # that one subject, so the only file boundary a run ever meets is

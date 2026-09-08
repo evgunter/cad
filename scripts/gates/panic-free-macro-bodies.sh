@@ -114,12 +114,20 @@ set -euo pipefail
 # `macro_bodies` appends a trailing space.
 PANIC_TOKENS='\.(unwrap|expect)[^A-Za-z0-9_]|[^A-Za-z0-9_](panic|todo|unimplemented|dbg)[[:space:]]*!'
 # THE MATCH IS FENCED TO THE BODY FIELD. A record is
-# `FILE:LINE:MACRO:BODY`, and the first three fields hold no colon, so
-# the prefix below consumes them exactly: a path or a macro name that
-# happens to spell a token is not scanned as if it were code. The first
-# two fields are `lib.sh`'s record prefix, which every view emits and
-# this gate extends by one field.
-PANIC_RE="$GATE_RECORD_PREFIX_RE[^:]*:.*($PANIC_TOKENS)"
+# `FILE:LINE:MACRO:BODY`; the LINE and MACRO fields hold no colon, so
+# the fence below consumes them exactly and a macro name that happens to
+# spell a token is not scanned as if it were code.
+#
+# THE FENCE OPENS AT THE FIRST `:LINE:`, `lib.sh`'s one reading of where
+# the FILE column ends (§"THE RECORD'S COLUMNS"), and NOT at
+# `GATE_RECORD_PREFIX_RE` — that expression demands a FILE column with
+# no colon of its own, so a record from `a:b.rs` matched it nowhere and
+# every panic token in a macro body in such a file went UNSEEN. The
+# residue is the ambiguous path this file already registers as KNOWN GAP
+# 8 in `bounds-allowlist.sh`: a path spelling `:digits:` itself opens the
+# fence early, and a token in the tail of that path would be read as
+# body text.
+PANIC_RE="$GATE_RECORD_LINE_RE[^:]*:.*($PANIC_TOKENS)"
 
 # One record per line of `macro_rules!` body, as
 # `FILE:LINE:MACRO:BODY-TEXT` — the `grep -rn` shape the filters below
@@ -127,7 +135,7 @@ PANIC_RE="$GATE_RECORD_PREFIX_RE[^:]*:.*($PANIC_TOKENS)"
 # the in-body span of a line is emitted, so a call OUTSIDE the body
 # never reaches the matcher.
 macro_bodies() {
-  awk '
+  GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk "$GATE_RECORD_AWK"'
     function scan(f, ln, t,   pos, seg, i, n, j, c, endpos, body) {
       pos = 1
       while (pos <= length(t)) {
@@ -171,9 +179,14 @@ macro_bodies() {
     }
     {
       # The view emits FILE:LINE:TEXT; a body cannot span two files, so
-      # the state resets with the filename.
-      p1 = index($0, ":"); f = substr($0, 1, p1 - 1); rest = substr($0, p1 + 1)
-      p2 = index(rest, ":"); ln = substr(rest, 1, p2 - 1); t = substr(rest, p2 + 1)
+      # the state resets with the filename. WHICH filename is
+      # gate_record_split, one reading for the whole directory: read to
+      # the first colon instead, a path carrying one of its own gave a
+      # truncated key that two files could share (their bodies then
+      # spliced) and handed the line number to the body text as if it
+      # were code.
+      if (!gate_record_split($0)) next
+      f = GR_FILE; ln = GR_LINE; t = GR_TEXT
       if (f != curf) { curf = f; state = 0; depth = 0 }
       scan(f, ln, t)
     }
@@ -448,6 +461,27 @@ RS
 # THE RECORD'S OWN PREFIX. A matcher run over the whole
 # `FILE:LINE:MACRO:BODY` record reads the path as if it were code, and a
 # path may hold a token: this plants the file name that spells one.
+# A MACRO BODY IN A FILE WHOSE PATH CARRIES A COLON, which is legal here
+# and in git. Both halves of this gate read the record's FILE column —
+# the reader, which keys its per-file state on it and cuts the body text
+# after it, and the matcher, whose fence opens at the line number — and
+# read to the first colon both were wrong at once: the reader handed the
+# body the line number as if it were code and gave two files one key,
+# and the matcher then found no `LINE` field where it expected one and
+# matched NOTHING. Blind, which is why this is a must-FIRE case and its
+# green twin is `plant_token_in_the_path` above.
+plant_colon_path_macro_body() {
+  cat > "$1/crates/clean/src/a:b.rs" <<'RS'
+macro_rules! take {
+    ($n:ident) => {
+        pub fn $n(v: Option<u32>) -> u32 {
+            v.unwrap()
+        }
+    };
+}
+RS
+}
+
 plant_token_in_the_path() {
   cat > "$1/crates/clean/src/todo!.rs" <<'RS'
 macro_rules! fine {
@@ -497,6 +531,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_after_a_braced_format_string
   gate_selftest_case "$want" plant_after_a_brace_char_literal
   gate_selftest_case "$want" plant_second_macro_after_a_clean_one
+  gate_selftest_case "$want" plant_colon_path_macro_body
   gate_selftest_passes "the same call in a plain fn beside the macro" plant_plain_fn_only
   gate_selftest_passes "a #[cfg(test)] macro item and one in a #[cfg(test)] module" plant_cfg_test_macro
   gate_selftest_passes "unreachable!, which the workspace stanza omits" plant_unreachable
@@ -504,7 +539,7 @@ gate_selftest() {
   gate_selftest_passes "a token in the FILE PATH rather than the body" plant_token_in_the_path
   gate_selftest_passes "the tokens in comments and string literals" plant_prose_only
   gate_selftest_test_module_homes "$want" plant_macro_panic_at
-  printf '%s selftest OK: 11 planted spellings fire (the row repro, .unwrap, panic!, todo!, unimplemented!, dbg!, a space before the bang, a paren-delimited definition, a body after a braced format string, a body after a brace char literal and raw string, and a second macro after a clean one); the same call in a plain fn, both inline #[cfg(test)] spellings, unreachable!, the unwrap_or/expect_err/assert! near misses, a token spelled by the FILE PATH and comment/string-literal mentions stay green; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
+  printf '%s selftest OK: 12 planted spellings fire (the row repro, .unwrap, panic!, todo!, unimplemented!, dbg!, a space before the bang, a paren-delimited definition, a body after a braced format string, a body after a brace char literal and raw string, a second macro after a clean one, and a body in a file whose PATH carries a colon, which both the reader and the matcher read the FILE column out of); the same call in a plain fn, both inline #[cfg(test)] spellings, unreachable!, the unwrap_or/expect_err/assert! near misses, a token spelled by the FILE PATH and comment/string-literal mentions stay green; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
     "$(gate_name)"
 }
 

@@ -387,13 +387,16 @@
 # KNOWN GAP 8, AND IT IS ONE PATH SHAPE COSTING TWO THINGS. A record is
 # `FILE:LINE:TEXT` and a `:` is legal in a path here and in git, so
 # everything this gate reads about a record turns on where the FILE
-# column ends. It ends at the FIRST `:LINE:` -- one constant, read by
-# the diagnosis column and by both halves of the reader's split -- and
-# that reading is exact for every path but one: a path carrying a
-# `:LINE:` SHAPE OF ITS OWN, `…/boxes.rs:12:x.rs`. Such a record is
-# ambiguous at any reader, because the two splits are both well-formed
-# records, and this one takes the SHORTER path. Two costs follow, and
-# neither is a scan hit going quiet:
+# column ends. It ends at the FIRST `:LINE:` -- `lib.sh`'s
+# `GATE_RECORD_LINE_RE`, read here by the diagnosis column and by both
+# halves of the reader's split -- and that reading is exact for every
+# path but one: a path carrying a `:LINE:` SHAPE OF ITS OWN,
+# `…/boxes.rs:12:x.rs`. Such a record is ambiguous at any reader,
+# because the two splits are both well-formed records, and this one
+# takes the SHORTER path. That the shape is unresolvable AT ALL is
+# registered once, at `lib.sh`'s §"THE RECORD'S COLUMNS"; what it costs
+# is per gate, and here it is two things, neither of them a scan hit
+# going quiet:
 #
 #   * THE DIAGNOSIS NAMES THE WRONG FILE. `…/boxes.rs:12:x.rs` reads as
 #     `…/boxes.rs`, which is an allowlist entry: the record is exempt
@@ -518,34 +521,6 @@ gate_allowlist_paths() {
   for entry in "${BOUNDS_ALLOWLIST[@]}"; do
     printf '%s\n' "${entry%% *}"
   done
-}
-
-# WHERE THE FILE COLUMN ENDS: the FIRST `:LINE:` of a record. ONE
-# spelling of that reading for the whole file — the diagnosis column
-# below and both halves of `gate_bound_reader`'s split read it from
-# here, so the three cannot drift into three different answers about the
-# same record. It is not `lib.sh`'s `GATE_RECORD_PREFIX_RE`, which is
-# `^[^:]*:[0-9]+:` — the FILE column with no colon of its own in it, a
-# reading that matches NOWHERE in a record from a colon-carrying path.
-# `lib.sh`'s own parser use of that expression (`gate_test_only_mounts`,
-# `lib.sh:1195-1196`) is the repair site the residue row
-# `record-file-column-read-by-first-colon-split` schedules; this
-# constant is local because there is no shared helper for the reading
-# yet, and that row is where one gets argued.
-BOUNDS_RECORD_LINE_RE=':[0-9]+:'
-
-# THE FILE COLUMN OF A RECORD, FOR THE DIAGNOSIS AND NOTHING ELSE. What
-# is EXEMPT is decided by the anchor above, on the record; this only
-# names, one line per file, what the anchor let through. A path carrying
-# a `:` of its own — legal here and in git — is named whole rather than
-# truncated at that colon.
-#
-# WHAT IT CANNOT NAME is a path that carries a `:LINE:` shape ITSELF
-# (`foo:12:bar.rs`), which is ambiguous in a `FILE:LINE:TEXT` record and
-# not resolvable at any reader: it names the shorter path. That is
-# KNOWN GAP 8, where the same shape's other cost is registered.
-gate_record_file_column() {
-  sed -E "s/$BOUNDS_RECORD_LINE_RE.*\$//"
 }
 
 # THE LIST IS READ BEFORE IT IS USED, and a malformed entry is refused
@@ -763,12 +738,14 @@ BOUNDS_ALIAS_ROSTER=(
 # scan did not, and a count keyed on its own regex would take a bound
 # the matcher stopped calling one.
 gate_bound_reader() {
-  BOUNDS_RECORD_LINE_RE="$BOUNDS_RECORD_LINE_RE" awk -v MODE="$1" '
-    # Where the file column ends comes from the constant above, through
-    # ENVIRON rather than `-v` for the reason `lib.sh` states of its own
-    # record patterns: a `-v` assignment is read for escape sequences
-    # before it is a regex.
-    BEGIN { Q = sprintf("%c", 39); LN = ENVIRON["BOUNDS_RECORD_LINE_RE"] }
+  GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk -v MODE="$1" "$GATE_RECORD_AWK"'
+    # Where the file column ends is `gate_record_split`, which `lib.sh`
+    # prepends to this program as `GATE_RECORD_AWK`; it reads
+    # `GATE_RECORD_LINE_RE` through ENVIRON rather than `-v`, since a
+    # `-v` assignment is read for escape sequences before it is a regex.
+    # (No apostrophe may appear in this program, which is itself
+    # single-quoted.)
+    BEGIN { Q = sprintf("%c", 39) }
     # A BRACKET DOOR IS NAMED, NOT LISTED — the property the header
     # states: any identifier ending in `Bounds` or `Enclosure`, so an
     # alias nobody has written yet is already covered.
@@ -791,17 +768,16 @@ gate_bound_reader() {
     {
       # THE SPLIT IS THE FIRST `:LINE:`, ON BOTH SIDES OF IT. The path
       # half and the text half are one reading of one record, so they
-      # take the same constant: a path carrying a `:` of its own —
-      # legal here and in git — keeps that colon in the PATH and out of
-      # the TEXT. Stripping the text half by a pattern that reads the
-      # column as "everything before the first colon" instead matches
-      # nothing in such a record, leaves the path standing in the text,
-      # and the walk below then reads the PATH as code: `a:Bounds.rs`
-      # arrives as a target `a` keyed with `Bounds` and `rs` beside it,
-      # which is a compound bound on a file that writes a sole one.
-      line = $0
-      path = line; sub(LN ".*$", "", path)
-      if (match(line, LN)) line = substr(line, RSTART + RLENGTH)
+      # come out of one call: a path carrying a `:` of its own — legal
+      # here and in git — keeps that colon in the PATH and out of the
+      # TEXT. Stripping the text half by a pattern that reads the column
+      # as "everything before the first colon" instead matches nothing
+      # in such a record, leaves the path standing in the text, and the
+      # walk below then reads the PATH as code: `a:Bounds.rs` arrives as
+      # a target `a` keyed with `Bounds` and `rs` beside it, which is a
+      # compound bound on a file that writes a sole one.
+      if (gate_record_split($0)) { path = GR_FILE; line = GR_TEXT }
+      else { path = $0; line = $0 }
       # --- the trait DECLARATION, which is not the grouping question ---
       isdecl = 0; name = ""
       if (match(line, /(^|[^A-Za-z0-9_])trait[ \t]+[A-Za-z_][A-Za-z0-9_]*/)) {
@@ -1039,7 +1015,7 @@ gate() {
   mapfile -t allowed < <(gate_allowlist_paths)
   hits=$(printf '%s\n' "$records" | gate_grep -v '^$' |
     gate_grep -vE "$(gate_record_anchor_any "${allowed[@]}")" |
-    gate_record_file_column | sort -u)
+    gate_record_file | sort -u)
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
