@@ -2,10 +2,11 @@
 id: blend-recourses-under-describe-their-doors
 kind: unit
 title: Two blend recourse sentences under-describe the doors they endorse
-status: review
+status: closed
 opened: 2026-09-04
 branch: blend/3-spine-recourse
 pr: 2141
+closed: 2026-09-08
 ---
 
 Neither of these is a DEAD recourse: following either sentence
@@ -130,3 +131,17 @@ the arm table to the map row.
 `test_support::spool`'s doc said the fixture's spine "is neither a line
 nor a circle"; its torus–plane rim's spine IS a circle, and the refusal
 is on kind. Corrected.
+
+## Closed (2026-09-08, PR 2141)
+
+§1 closed with the class: `FILLET3_SPINE_KIND_RECOURSE` names the four
+kinds the arm table traces and then the two families, in the door's
+order (the review corrected the first cut, which named families
+alone and endorsed a coaxial torus–plane rim the door refuses on
+kind); `FILLET3_GEOMETRY_RECOURSE` names the four kinds;
+`FILLET3_ASSEMBLY_RECOURSE`'s open clause names the ruled link ending
+at transverse caps. One row maps every fillet arm to a family through
+`is_coaxial_torus`/`is_ruled`/`is_plane_plane` and its kinds through
+`BlendArm::kinds()`; the followability row follows one request per
+family. Four stale negative asserts of the class in the suites turned
+positive (the last one found by CI, not the sweep — said in the PR).
