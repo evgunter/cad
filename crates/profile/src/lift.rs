@@ -454,10 +454,13 @@ fn chain_form(
             program.push(if here.bulge == 0.0 {
                 Step::LineTo(target)
             } else {
-                Step::ArcTo(crate::path::program::ArcData::Bulge {
-                    target,
-                    b: here.bulge,
-                })
+                Step::ArcTo {
+                    spec: crate::path::program::ArcData::Bulge {
+                        target,
+                        b: here.bulge,
+                    },
+                    splits: 1,
+                }
             });
         }
     }
@@ -496,10 +499,14 @@ fn repair_same_carrier(
             return Ok(program);
         }
         match program.get(error.step) {
-            Some(Step::ArcTo(crate::path::program::ArcData::Bulge {
-                target: Target::Point(p),
+            Some(Step::ArcTo {
+                spec:
+                    crate::path::program::ArcData::Bulge {
+                        target: Target::Point(p),
+                        ..
+                    },
                 ..
-            })) => {
+            }) => {
                 let p = *p;
                 let saved = program.clone();
                 if let Some(slot) = program.get_mut(error.step) {
@@ -511,10 +518,14 @@ fn repair_same_carrier(
                     Err(_) => return Ok(saved),
                 }
             }
-            Some(Step::ArcTo(crate::path::program::ArcData::Bulge {
-                target: Target::Start,
+            Some(Step::ArcTo {
+                spec:
+                    crate::path::program::ArcData::Bulge {
+                        target: Target::Start,
+                        ..
+                    },
                 ..
-            })) => {
+            }) => {
                 return Err(LiftRefusal::SameCarrierClose {
                     joint: origin.get(error.step).copied().unwrap_or_default(),
                 });

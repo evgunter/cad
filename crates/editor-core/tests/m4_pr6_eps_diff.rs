@@ -68,7 +68,7 @@ fn thin_profile_doc() -> ProfileDoc {
                 ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 0.0))),
                 ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 1.0))),
                 // The (1,1) → (0,1) segment's thin bulge.
-                ProgramStep::ArcTo(ProgramArcData::Bulge {
+                ProgramStep::arc_to(ProgramArcData::Bulge {
                     target: ProgramTarget::Point(lpt(0.0, 1.0)),
                     b: Expr::literal(2e-6, Dimension::Scalar).unwrap(),
                 }),

@@ -330,6 +330,9 @@ pub struct TangentArcLeg<T: Real> {
     pub end_dir: Dir<T>,
     /// The chord length, meters (the junction-lever cap).
     pub chord: T,
+    /// The SIGNED sweep, radians (CCW positive) — the leg's own
+    /// authored extent, which a declared split divides by parameter.
+    pub sweep: T,
 }
 
 pub(crate) fn tangent_arc_leg<T: Decide>(
@@ -363,7 +366,91 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
         bulge,
         end_dir,
         chord,
+        sweep: signed,
     })
+}
+
+// ------------------------------------------------------------------
+// The declared split: a leg spec wrapped with its count.
+// ------------------------------------------------------------------
+
+/// A sharp arc LEG that declares its own split (PATHS-DESIGN §2c/§3,
+/// `arc_to(spec.split(n))`): the one leg `spec` authors, emitted as
+/// `n` arcs on the one carrier, its `n − 1` interior stations placed BY
+/// PARAMETER and each minted as a DECLARED TANGENT JOINT — every
+/// zero-turn joint is a declared tangent joint (Ev, in-chat,
+/// 2026-09-02), and the "one curve" fact is the leg's own step.
+///
+/// A wrapper rather than a field on the modes, because the count is
+/// orthogonal to the mode: every LEG mode splits the same way, and the
+/// modes that also serve as a fused verb's incoming or arrival spec
+/// have no split there (a fillet trims the arc it authors; a trimmed
+/// arc has no declared stations), so a field would be a tag every
+/// fused arm had to refuse. Admissibility is DELEGATED to the wrapped
+/// mode's own matrix row — `Split<S>` is a leg exactly where `S` is —
+/// so a split on a pair the matrix does not admit is a missing impl,
+/// unrepresentable rather than refused:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Point2, Tol};
+/// use profile::{Bulge, Open};
+/// let spec = Bulge { p: Point2::new(1.0, 0.0), b: 0.5 }.split(2);
+/// // A fused verb's incoming arc is trimmed by its fillet: it admits
+/// // no declared stations, so the wrapper has no incoming row.
+/// let _ = Open.at(Point2::new(0.0, 0.0)).arc_fillet(spec, 0.1, Tol::witness());
+/// ```
+///
+/// A split on a STRAIGHT leg is unrepresentable the same way: `.split`
+/// exists on the arc spec types alone, and `line(len)` takes a length.
+/// The count is a DECLARATION, so the one that distinguishes nothing
+/// refuses (`n < 2`, [`PathError::ArcSplitCount`] — the shape
+/// `circle_split` has) rather than passing as the plain leg.
+#[derive(Clone, Copy, Debug)]
+pub struct Split<S> {
+    /// The leg spec, exactly as the unsplit leg would author it.
+    pub spec: S,
+    /// The declared number of arcs (≥ 2).
+    pub n: usize,
+}
+
+impl<T, Tgt> Bulge<T, Tgt> {
+    /// Declare this leg split into `n` arcs (see [`Split`]).
+    #[must_use]
+    pub fn split(self, n: usize) -> Split<Self> {
+        Split { spec: self, n }
+    }
+}
+
+impl<T: Real, Tgt> Via<T, Tgt> {
+    /// Declare this leg split into `n` arcs (see [`Split`]).
+    #[must_use]
+    pub fn split(self, n: usize) -> Split<Self> {
+        Split { spec: self, n }
+    }
+}
+
+impl<T: Real, Tgt> Center<T, Tgt> {
+    /// Declare this leg split into `n` arcs (see [`Split`]).
+    #[must_use]
+    pub fn split(self, n: usize) -> Split<Self> {
+        Split { spec: self, n }
+    }
+}
+
+impl<T> Sweep<T> {
+    /// Declare this leg split into `n` arcs (see [`Split`]).
+    #[must_use]
+    pub fn split(self, n: usize) -> Split<Self> {
+        Split { spec: self, n }
+    }
+}
+
+impl<T> ArcLen<T> {
+    /// Declare this leg split into `n` arcs (see [`Split`]).
+    #[must_use]
+    pub fn split(self, n: usize) -> Split<Self> {
+        Split { spec: self, n }
+    }
 }
 
 /// Re-exported director construction so arrival builders normalize

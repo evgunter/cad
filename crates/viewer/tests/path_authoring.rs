@@ -114,7 +114,7 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
     let template = ProfileShape::Path {
         steps: vec![
             PathStep::At([-radius, 0.0]),
-            PathStep::ArcTo(ArcSpec::Bulge {
+            PathStep::arc_to(ArcSpec::Bulge {
                 target: PathTarget::Point([radius, 0.0]),
                 b: 1.0,
             }),
@@ -369,26 +369,26 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
         PathStep::Turn(0.25),
         PathStep::Line(0.01),
         PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
-        PathStep::ArcTo(arc),
-        PathStep::ArcTo(ArcSpec::Bulge {
+        PathStep::arc_to(arc),
+        PathStep::arc_to(ArcSpec::Bulge {
             target: PathTarget::Start,
             b: 0.5,
         }),
-        PathStep::ArcTo(ArcSpec::Via {
+        PathStep::arc_to(ArcSpec::Via {
             q: [0.005, 0.005],
             target: PathTarget::Point([0.01, 0.0]),
         }),
-        PathStep::ArcTo(ArcSpec::Center {
+        PathStep::arc_to(ArcSpec::Center {
             c: [0.0, 0.0],
             winding: ArcSweep::Ccw,
             target: PathTarget::Point([0.01, 0.0]),
         }),
-        PathStep::ArcTo(ArcSpec::Sweep {
+        PathStep::arc_to(ArcSpec::Sweep {
             r: 0.01,
             side: ArcSide::Right,
             angle: 1.0,
         }),
-        PathStep::ArcTo(ArcSpec::ArcLen {
+        PathStep::arc_to(ArcSpec::ArcLen {
             r: 0.01,
             side: ArcSide::Left,
             len: 0.005,
@@ -458,7 +458,7 @@ fn ordinal(step: &PathStep) -> usize {
         PathStep::Turn(_) => 5,
         PathStep::Line(_) => 6,
         PathStep::LineTo(_) => 7,
-        PathStep::ArcTo(_) => 8,
+        PathStep::ArcTo { .. } => 8,
         PathStep::TangentArcTo(_) => 9,
         PathStep::ArcContinue(_) => 10,
         PathStep::Fillet(_) => 11,

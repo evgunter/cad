@@ -3644,7 +3644,14 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
         Step::Turn(delta) => f(h, *delta),
         Step::Line(len) => f(h, *len),
         Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
-        Step::ArcTo(data) => spec(h, data),
+        Step::ArcTo { spec: data, splits } => {
+            spec(h, data);
+            // The declared split count: a structural int under its own
+            // tag (3), as `CircleSplit`'s `n` is fed — two legs that
+            // differ only in their split are different geometry.
+            h.write_tag(3);
+            h.write_u64(*splits as u64);
+        }
         Step::Fillet { radius } => f(h, *radius),
         Step::FilletArc { radius, spec: sp } => {
             f(h, *radius);
@@ -3755,7 +3762,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
         }
         Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
-        Step::ArcTo(s) => spec(h, s),
+        Step::ArcTo { spec: s, .. } => spec(h, s),
         Step::Fillet { radius } => f(h, radius),
         Step::FilletArc { radius, spec: s } => {
             f(h, radius);

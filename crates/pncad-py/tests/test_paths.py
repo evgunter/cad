@@ -164,6 +164,27 @@ class TestTheLatticeWalks(unittest.TestCase):
         )
         self.assertEqual(loop.vertex_count, 3)
 
+    def test_a_split_arc_leg_declares_its_stations(self):
+        # The half-disc's equator as ONE leg that declares its split:
+        # the semicircle about the origin in two arcs, the pole station
+        # a declared tangent joint on the one carrier.
+        loop = (
+            Open.at((1 * m, 0 * m))
+            .arc_to(Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=2)
+            .line_to(Start)
+        )
+        self.assertEqual(loop.vertex_count, 3)
+
+    def test_a_declared_split_below_two_arcs_refuses(self):
+        # `splits=1` is the plain leg; a DECLARED count below 2 through
+        # the kernel's own `.split(n)` refuses typed.
+        self.refuses(
+            "arc_split_count",
+            lambda: Open.at((1 * m, 0 * m)).arc_to(
+                Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=0
+            ),
+        )
+
     def test_the_fused_verb_authors_both_carriers_and_closes(self):
         # The rocker eye's lens: the entry side rides the left lobe's
         # carrier, one fillet rounds the tip, and the arrival rides the

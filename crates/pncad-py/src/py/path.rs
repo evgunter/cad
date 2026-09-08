@@ -773,29 +773,43 @@ macro_rules! point_state {
         /// The SHARP arc leg, one verb over the endpoint-full modes:
         /// `Bulge(p, b)` chord-relative, `Via(q, p)` through a point,
         /// `Center(c, winding, p)` about a centre. `p=Start` closes.
-        fn arc_to(&self, py: Python<'_>, spec: PointSpec) -> PyResult<Py<PyAny>> {
+        /// `splits` DECLARES the leg split into that many arcs on the
+        /// one carrier, its interior stations declared tangent joints;
+        /// 1 is the plain leg, and a count below 2 that was declared
+        /// refuses `arc_split_count`.
+        #[pyo3(signature = (spec, splits = 1))]
+        fn arc_to(&self, py: Python<'_>, spec: PointSpec, splits: usize) -> PyResult<Py<PyAny>> {
             let tol = Tol::witness();
             let path = self.0.clone();
+            macro_rules! leg {
+                ($spec:expr) => {
+                    if splits == 1 {
+                        path.arc_to($spec, tol)
+                    } else {
+                        path.arc_to($spec.split(splits), tol)
+                    }
+                };
+            }
             match spec {
                 PointSpec::Bulge(Bulge { p: Tgt::Point(t), b }) => {
-                    out_point(py, path.arc_to(pf::Bulge { p: t, b }, tol))
+                    out_point(py, leg!(pf::Bulge { p: t, b }))
                 }
                 PointSpec::Bulge(Bulge { p: Tgt::Start, b }) => {
-                    out_closed(py, path.arc_to(pf::Bulge { p: pf::Start, b }, tol))
+                    out_closed(py, leg!(pf::Bulge { p: pf::Start, b }))
                 }
                 PointSpec::Via(Via { q, p: Tgt::Point(t) }) => {
-                    out_point(py, path.arc_to(pf::Via { q, p: t }, tol))
+                    out_point(py, leg!(pf::Via { q, p: t }))
                 }
                 PointSpec::Via(Via { q, p: Tgt::Start }) => {
-                    out_closed(py, path.arc_to(pf::Via { q, p: pf::Start }, tol))
+                    out_closed(py, leg!(pf::Via { q, p: pf::Start }))
                 }
                 PointSpec::Center(Center { c, winding, p: Tgt::Point(t) }) => out_point(
                     py,
-                    path.arc_to(pf::Center { c, winding: winding.to_kernel(), p: t }, tol),
+                    leg!(pf::Center { c, winding: winding.to_kernel(), p: t }),
                 ),
                 PointSpec::Center(Center { c, winding, p: Tgt::Start }) => out_closed(
                     py,
-                    path.arc_to(pf::Center { c, winding: winding.to_kernel(), p: pf::Start }, tol),
+                    leg!(pf::Center { c, winding: winding.to_kernel(), p: pf::Start }),
                 ),
             }
         }
@@ -1214,17 +1228,29 @@ impl PathDirected {
 
     /// The SHARP arc leg from a bound direction: the endpoint-free
     /// modes, the arc analogs of `line(len)` — tangent-departing, the
-    /// endpoint DERIVED from radius, side and extent.
-    fn arc_to(&self, py: Python<'_>, spec: TangentSpec) -> PyResult<Py<PyAny>> {
+    /// endpoint DERIVED from radius, side and extent. `splits` declares
+    /// the leg split into that many arcs (1 = the plain leg; a declared
+    /// count below 2 refuses `arc_split_count`).
+    #[pyo3(signature = (spec, splits = 1))]
+    fn arc_to(&self, py: Python<'_>, spec: TangentSpec, splits: usize) -> PyResult<Py<PyAny>> {
         let tol = Tol::witness();
+        macro_rules! leg {
+            ($path:expr, $s:expr) => {
+                if splits == 1 {
+                    $path.arc_to($s, tol)
+                } else {
+                    $path.arc_to($s.split(splits), tol)
+                }
+            };
+        }
         match &self.0 {
             Directed::Plain(p) => {
                 let path = p.clone();
-                out_point(py, tangent_incoming!(spec, |s| path.arc_to(s, tol)))
+                out_point(py, tangent_incoming!(spec, |s| leg!(path, s)))
             }
             Directed::WithIncoming(p) => {
                 let path = p.clone();
-                out_point(py, tangent_incoming!(spec, |s| path.arc_to(s, tol)))
+                out_point(py, tangent_incoming!(spec, |s| leg!(path, s)))
             }
         }
     }

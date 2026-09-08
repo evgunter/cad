@@ -171,8 +171,16 @@ pub enum PathStep {
     /// `line_to(target)` — a straight leg to an authored point, or to
     /// `Start`, which closes.
     LineTo(PathTarget),
-    /// `arc_to(spec)` — a sharp (non-tangent) arc leg.
-    ArcTo(ArcSpec),
+    /// `arc_to(spec)` — a sharp (non-tangent) arc leg, with its
+    /// declared split count: 1 is the plain leg, `n ≥ 2` splits the
+    /// leg into `n` arcs whose interior stations are declared tangent
+    /// joints on the one carrier.
+    ArcTo {
+        /// The arc.
+        spec: ArcSpec,
+        /// The declared split count (structural; 1 = unsplit).
+        splits: u32,
+    },
     /// `tangent_arc_to(target)` — an arc leaving along the bound
     /// direction and ending at `target`.
     TangentArcTo(PathTarget),
@@ -213,6 +221,15 @@ pub enum PathStep {
     FarEndTo([f64; 2]),
     /// `.to(Start)` — the seam fillet's close.
     CloseTo,
+}
+
+impl PathStep {
+    /// The plain (unsplit) sharp arc leg: `arc_to(spec)` with a split
+    /// count of 1.
+    #[must_use]
+    pub fn arc_to(spec: ArcSpec) -> Self {
+        Self::ArcTo { spec, splits: 1 }
+    }
 }
 
 /// One loop of the add-profile door: a template shape, or a PATH
@@ -433,7 +450,10 @@ fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionEr
         PathStep::Turn(d) => ProgramStep::Turn(n.angle(d)?),
         PathStep::Line(len) => ProgramStep::Line(n.length(len)?),
         PathStep::LineTo(target) => ProgramStep::LineTo(program_target(target, n)?),
-        PathStep::ArcTo(spec) => ProgramStep::ArcTo(program_arc(spec, n)?),
+        PathStep::ArcTo { spec, splits } => ProgramStep::ArcTo {
+            spec: program_arc(spec, n)?,
+            splits,
+        },
         PathStep::TangentArcTo(target) => ProgramStep::TangentArcTo(program_target(target, n)?),
         PathStep::ArcContinue(p) => ProgramStep::ArcContinue(n.point(p)?),
         PathStep::Fillet(r) => ProgramStep::Fillet(n.length(r)?),

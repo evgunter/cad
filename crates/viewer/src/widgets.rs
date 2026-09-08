@@ -206,6 +206,18 @@ pub(crate) fn unit_vec3_row(
 /// the axis it is, because a row of a path form holds several points
 /// and a bare pair of numbers says which of them it belongs to only
 /// by position.
+/// The declared split count of an arc leg — a structural integer, not
+/// a quantity, so no unit and no drag speed in written units: a count
+/// with the plain leg (1) as its floor, so the form cannot reach the
+/// kernel's `ArcSplitCount` refusal from here.
+pub(crate) fn split_field(ui: &mut egui::Ui, splits: &mut u32) {
+    ui.add(
+        egui::DragValue::new(splits)
+            .range(1..=u32::MAX)
+            .prefix("split "),
+    );
+}
+
 pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut [f64; 2]) {
     for (axis, component) in ["x", "y"].into_iter().zip(point) {
         named_field(ui, axis, unit, FIELD_DRAG_SPEED, component);
@@ -401,7 +413,10 @@ pub(crate) fn path_step_fields(
         PathStep::LineTo(target) | PathStep::TangentArcTo(target) => {
             target_fields(ui, length_unit, target);
         }
-        PathStep::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, spec),
+        PathStep::ArcTo { spec, splits } => {
+            arc_fields(ui, salt, "", length_unit, angle_unit, spec);
+            split_field(ui, splits);
+        }
         // The two mixed verbs read in the order their names do, so the
         // row is the step spelled left to right.
         PathStep::FilletArc { radius, spec } => {

@@ -394,7 +394,7 @@ pub use family::{
 /// [`program`]; this module is their public home.
 #[doc(inline)]
 pub use program::{circle, circle_split};
-pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
+pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Split, Sweep, Via};
 #[doc(hidden)]
 pub use verbs::{DirectedPoint, TangentArcLeg};
 
@@ -1087,6 +1087,16 @@ pub enum PathError<T: Real> {
         /// The refused subdivision count.
         n: usize,
     },
+    /// A declared arc split ([`Split`](verbs::Split)) whose count is
+    /// below 2. One arc declares nothing the plain leg does not already
+    /// say and zero is no leg at all; the split is a DECLARATION, so the
+    /// count that distinguishes nothing refuses rather than passing as
+    /// the unsplit leg (D2 — [`CircleSplitCount`](Self::CircleSplitCount)'s
+    /// shape). Structural, never classified: `n` is a count.
+    ArcSplitCount {
+        /// The refused split count.
+        n: usize,
+    },
     /// An [`arc_continue`](PartialPath::arc_continue) reached with no
     /// incoming ARC carrier: the declared-subdivision step splits the
     /// carrier the chain is already running on, so a straight incoming
@@ -1258,6 +1268,8 @@ pub enum PathErrorKind {
     DegenerateArcSpec,
     /// [`PathError::CircleSplitCount`].
     CircleSplitCount,
+    /// [`PathError::ArcSplitCount`].
+    ArcSplitCount,
     /// [`PathError::ArcContinueNeedsArcCarrier`].
     ArcContinueNeedsArcCarrier,
     /// [`PathError::ArcContinueOffCarrier`].
@@ -1309,6 +1321,7 @@ impl<T: Real> PathError<T> {
             Self::NonpositiveCircleRadius { .. } => PathErrorKind::NonpositiveCircleRadius,
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
+            Self::ArcSplitCount { .. } => PathErrorKind::ArcSplitCount,
             Self::ArcContinueNeedsArcCarrier => PathErrorKind::ArcContinueNeedsArcCarrier,
             Self::ArcContinueOffCarrier { .. } => PathErrorKind::ArcContinueOffCarrier,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
@@ -1548,6 +1561,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "circle_split needs at least 2 arcs (got n = {n}): a single vertex cannot \
                  carry a full turn (bulge diverges), so the smallest subdivision of a \
                  closed carrier is two arcs"
+            ),
+            Self::ArcSplitCount { n } => write!(
+                f,
+                "arc_to(spec.split(n)) needs at least 2 arcs (got n = {n}): a split into one \
+                 declares nothing the plain leg does not, so the count that distinguishes \
+                 nothing refuses rather than passing silently — drop .split for one arc"
             ),
             Self::ArcContinueNeedsArcCarrier => write!(
                 f,
@@ -2001,6 +2020,43 @@ impl<T: Real> Core<T> {
         Ok(())
     }
 
+    /// Emits a declared split's interior pieces — the stations of
+    /// [`split_stations`], each pushed as an arc vertex and DECLARED a
+    /// tangent joint — and returns the bulge every piece carries (the
+    /// caller's final piece included) with the last piece's chord (the
+    /// tip's lever). `None` is the plain leg: nothing emitted, the
+    /// leg's own bulge and chord handed back. A count below 2 refuses
+    /// [`PathError::ArcSplitCount`].
+    #[allow(clippy::too_many_arguments)]
+    fn emit_split(
+        &mut self,
+        at: Point2<T>,
+        end: Point2<T>,
+        bulge: T,
+        chord: T,
+        carrier: ArcData<T>,
+        split: Option<SplitLeg<T>>,
+    ) -> Result<(T, T), PathError<T>> {
+        let Some(split) = split else {
+            return Ok((bulge, chord));
+        };
+        if split.n < 2 {
+            return Err(PathError::ArcSplitCount { n: split.n });
+        }
+        let (centre, sweep) = match split.carrier {
+            SplitCarrier::Chord => split_carrier_from_chord(at, end, bulge),
+            SplitCarrier::About { centre, sweep } => (centre, sweep),
+        };
+        let piece = (sweep / (T::from_f64(4.0) * T::from_f64(split.n as f64))).tan();
+        let mut last = at;
+        for station in split_stations(at, end, centre, sweep, split.n) {
+            self.push_arc(station, piece, carrier)?;
+            self.declare_last();
+            last = station;
+        }
+        Ok((piece, (end - last).norm_squared().sqrt()))
+    }
+
     /// The current chain end.
     fn head(&self) -> Result<Point2<T>, PathError<T>> {
         self.verts
@@ -2092,6 +2148,123 @@ fn arc_carrier<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> ArcData<T> {
         center: mid + n_hat * apothem,
         radius: l * (T::one() + bulge.powi(2)) / (four * bulge.abs()),
     }
+}
+
+// ------------------------------------------------------------------
+// The declared split: station placement.
+// ------------------------------------------------------------------
+
+/// The carrier a declared split places its stations on — the leg's
+/// OWN, as its mode determines it.
+#[derive(Clone, Copy, Debug)]
+enum SplitCarrier<T: Real> {
+    /// Derived from the chord and the bulge (the `Bulge` and `Via`
+    /// legs, whose centre is nobody's authored datum), by the
+    /// SYMMETRIC closed form: the midpoint as `(a + b)/2` component by
+    /// component, so the leg authored backwards derives the same
+    /// centre bit for bit.
+    Chord,
+    /// The mode's own centre and signed sweep — `Center`'s AUTHORED
+    /// centre, the tangent legs' derived one — never a bulge round
+    /// trip, which would put an authored centre 1e-17 off itself.
+    About { centre: Point2<T>, sweep: T },
+}
+
+/// A declared split of the arc leg being emitted (the `n` of
+/// [`Split`](verbs::Split), with where its stations go).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SplitLeg<T: Real> {
+    carrier: SplitCarrier<T>,
+    n: usize,
+}
+
+impl<T: Real> SplitLeg<T> {
+    /// A split whose carrier is derived from the leg's chord and bulge.
+    pub(super) fn chord(n: usize) -> Self {
+        Self {
+            carrier: SplitCarrier::Chord,
+            n,
+        }
+    }
+
+    /// A split about the mode's own centre, through its signed sweep.
+    pub(super) fn about(centre: Point2<T>, sweep: T, n: usize) -> Self {
+        Self {
+            carrier: SplitCarrier::About { centre, sweep },
+            n,
+        }
+    }
+}
+
+/// The chord's unit LEFT normal and its length.
+fn chord_normal<T: Real>(d: Vec2<T>) -> (Vec2<T>, T) {
+    let l = d.norm_squared().sqrt();
+    (Vec2::new(-d.y, d.x) * (T::one() / l), l)
+}
+
+/// The split carrier of a chord-and-bulge leg: [`arc_carrier`]'s
+/// closed form with the symmetric midpoint, and the sweep 4·atan(b).
+/// Under reversal (a↔b, b↦−b) the normal and the apothem both negate
+/// exactly and the midpoint is commutative, so the centre is the same
+/// bits from either end.
+fn split_carrier_from_chord<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> (Point2<T>, T) {
+    let (n_hat, l) = chord_normal(b - a);
+    let four = T::from_f64(4.0);
+    let half = T::from_f64(0.5);
+    let mid = Point2::new((a.x + b.x) * half, (a.y + b.y) * half);
+    let apothem = l * (T::one() - bulge.powi(2)) / (four * bulge);
+    (mid + n_hat * apothem, bulge.atan() * four)
+}
+
+/// **The placement contract of a declared split** (Ev, in-chat,
+/// 2026-09-07). The `n − 1` interior stations of the arc from `at` to
+/// `end` about `centre` through the signed `sweep` are placed BY
+/// PARAMETER — station `k` sits at `k/n` of the sweep — and each is
+/// computed from its NEARER endpoint, so the reversed leg (end → at,
+/// sweep negated) places the same stations bit for bit:
+///
+/// - `2k < n`: rotate `at − centre` about the centre by `+k·θ/n`;
+/// - `2k > n`: rotate `end − centre` about the centre by `−(n−k)·θ/n`;
+/// - `2k = n` (even `n`): the MIDDLE station is `centre + R·m̂`, with
+///   `m̂` the chord's unit normal on the arc's side (the right normal
+///   of `end − at` for a CCW sweep, the left for CW) and `R` the mean
+///   of the two endpoint radii. This is exact whenever the chord is
+///   axis-aligned — every symmetric meridian a revolve is authored
+///   with — where a station computed by rotation would sit
+///   `cos(π/2) ≈ 6e-17` off the axis, a vertex a revolve may read as
+///   off-axis.
+///
+/// Every piece carries the bulge tan(θ/4n), exactly. Nothing here reads
+/// the chain: the inputs are the leg's own authored data and the
+/// binding bits of its start (§2c).
+fn split_stations<T: Real>(
+    at: Point2<T>,
+    end: Point2<T>,
+    centre: Point2<T>,
+    sweep: T,
+    n: usize,
+) -> Vec<Point2<T>> {
+    let n_t = T::from_f64(n as f64);
+    let rotate = |v: Vec2<T>, angle: T| {
+        let (s, c) = angle.sin_cos();
+        centre + Vec2::new(v.x * c - v.y * s, v.x * s + v.y * c)
+    };
+    (1..n)
+        .map(|k| {
+            if 2 * k < n {
+                rotate(at - centre, T::from_f64(k as f64) * sweep / n_t)
+            } else if 2 * k > n {
+                rotate(end - centre, -(T::from_f64((n - k) as f64) * sweep / n_t))
+            } else {
+                let (n_hat, _) = chord_normal(end - at);
+                let m_hat = n_hat * (-(sweep / sweep.abs()));
+                let r_mean = ((at - centre).norm_squared().sqrt()
+                    + (end - centre).norm_squared().sqrt())
+                    * T::from_f64(0.5);
+                centre + m_hat * r_mean
+            }
+        })
+        .collect()
 }
 
 /// §4 item 1, one generic function: classifies the departure `dep`
@@ -3689,9 +3862,24 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     }
 
     fn arc_to_point(
+        self,
+        p: Point2<T>,
+        bulge: T,
+        tol: Tol,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.arc_leg_to_point(p, bulge, None, tol)
+    }
+
+    /// The sharp arc leg to an authored point, plain (`split: None`)
+    /// or with its declared split: the split's pieces are emitted
+    /// between the tip and `p`, and the tip lands at `p` exactly as
+    /// the unsplit leg's does (same end tangent, same carrier; the
+    /// lever arm is the last piece's chord).
+    pub(super) fn arc_leg_to_point(
         mut self,
         p: Point2<T>,
         bulge: T,
+        split: Option<SplitLeg<T>>,
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         if self.core.pending.is_some() {
@@ -3711,8 +3899,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             self.core.start_ang = Some(start_t);
         }
         let carrier = arc_carrier(at, p, bulge);
-        self.core.push_arc(p, bulge, carrier)?;
-        let arm = arc_arm(&carrier, chord);
+        let (seg_bulge, last_chord) = self.core.emit_split(at, p, bulge, chord, carrier, split)?;
+        self.core.push_arc(p, seg_bulge, carrier)?;
+        let arm = arc_arm(&carrier, last_chord);
         Ok(in_state(
             self.core,
             leg_end_tip(p, end_t, arm, Some(carrier)),
@@ -3724,9 +3913,22 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// already fixed by the authored bulge, so the CHECK form applies
     /// unchanged — one end is authored, the other is checked.
     fn arc_to_start(
+        self,
+        bulge: T,
+        declared: bool,
+        tol: Tol,
+    ) -> Result<ClosedLoop<T>, PathError<T>> {
+        self.arc_leg_to_start(bulge, declared, None, tol)
+    }
+
+    /// The sharp arc seam, plain or with its declared split (the
+    /// pieces are emitted before the seam is classified; the seam's
+    /// lever is the last piece's chord).
+    pub(super) fn arc_leg_to_start(
         mut self,
         bulge: T,
         declared: bool,
+        split: Option<SplitLeg<T>>,
         tol: Tol,
     ) -> Result<ClosedLoop<T>, PathError<T>> {
         if self.core.pending.is_some() {
@@ -3747,7 +3949,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
         let start_ang = *self.core.start_ang.get_or_insert(start_t);
         let carrier = arc_carrier(at, start_pos, bulge);
-        let arm = arc_arm(&carrier, chord);
+        let (seg_bulge, last_chord) = self
+            .core
+            .emit_split(at, start_pos, bulge, chord, carrier, split)?;
+        let arm = arc_arm(&carrier, last_chord);
         if declared {
             seam_arrival_check(end_t, arm, start_ang, tol)?;
             self.core.declare_seam();
@@ -3763,7 +3968,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 tol,
             )?;
         }
-        self.core.set_leaving(bulge, FirstSeg::Arc)?;
+        self.core.set_leaving(seg_bulge, FirstSeg::Arc)?;
         Ok(self.core.build())
     }
 }

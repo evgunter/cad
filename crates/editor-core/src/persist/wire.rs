@@ -286,8 +286,14 @@ enum WireStep {
     /// `continue_to(target)` — the declared point-target straight
     /// continuation.
     ContinueTo(WireTarget),
-    /// `arc_to(spec)` — the unified §2c arc-spec record.
-    ArcTo(WireArcData),
+    /// `arc_to(spec)` — the unified §2c arc-spec record, with the
+    /// leg's declared split count (1 = the plain leg).
+    ArcTo {
+        /// The arc spec.
+        spec: WireArcData,
+        /// The declared split count (structural).
+        splits: u32,
+    },
     /// `tangent_arc_to(target)`.
     TangentArcTo(WireTarget),
     /// `arc_continue(target)` — the declared-subdivision step.
@@ -470,7 +476,10 @@ impl WireStep {
             P::Line(e) => WireStep::Line(e.clone()),
             P::LineTo(t) => WireStep::LineTo(WireTarget::from_target(t)),
             P::ContinueTo(t) => WireStep::ContinueTo(WireTarget::from_target(t)),
-            P::ArcTo(spec) => WireStep::ArcTo(WireArcData::from_spec(spec)),
+            P::ArcTo { spec, splits } => WireStep::ArcTo {
+                spec: WireArcData::from_spec(spec),
+                splits: *splits,
+            },
             P::TangentArcTo(t) => WireStep::TangentArcTo(WireTarget::from_target(t)),
             P::ArcContinue(p) => WireStep::ArcContinue(p.clone()),
             P::Fillet(e) => WireStep::Fillet(e.clone()),
@@ -508,7 +517,10 @@ impl WireStep {
             WireStep::Line(e) => P::Line(e),
             WireStep::LineTo(t) => P::LineTo(t.into_target()),
             WireStep::ContinueTo(t) => P::ContinueTo(t.into_target()),
-            WireStep::ArcTo(spec) => P::ArcTo(spec.into_spec()),
+            WireStep::ArcTo { spec, splits } => P::ArcTo {
+                spec: spec.into_spec(),
+                splits,
+            },
             WireStep::TangentArcTo(t) => P::TangentArcTo(t.into_target()),
             WireStep::ArcContinue(p) => P::ArcContinue(p),
             WireStep::Fillet(e) => P::Fillet(e),

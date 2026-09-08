@@ -174,7 +174,7 @@ fn chain_steps() -> Vec<ProgramStep> {
     steps.extend(
         ArcMode::ALL
             .iter()
-            .map(|mode| ProgramStep::ArcTo(mode_witness(*mode))),
+            .map(|mode| ProgramStep::arc_to(mode_witness(*mode))),
     );
     steps.extend([
         ProgramStep::TangentArcTo(ProgramTarget::Start),
@@ -368,7 +368,7 @@ fn every_target_form_is_a_document_program() {
             profile::Step::LineTo(t)
             | profile::Step::ContinueTo(t)
             | profile::Step::TangentArcTo(t) => Some(t),
-            profile::Step::ArcTo(spec) => spec.target(),
+            profile::Step::ArcTo { spec, .. } => spec.target(),
             _ => None,
         })
         .map(|t| match t {
@@ -405,14 +405,14 @@ fn every_arc_mode_is_a_document_program() {
     for mode in ArcMode::ALL {
         let program = ProfileProgram {
             plane: SCAFFOLD_PLANE,
-            loops: vec![LoopProgram::Chain(vec![ProgramStep::ArcTo(mode_witness(
+            loops: vec![LoopProgram::Chain(vec![ProgramStep::arc_to(mode_witness(
                 *mode,
             ))])],
         };
         let resolved = program
             .resolve(&ParamEnv::<f64>::default())
             .expect("a one-step mode witness resolves at f64");
-        let profile::Step::ArcTo(spec) = &resolved[0][0] else {
+        let profile::Step::ArcTo { spec, .. } = &resolved[0][0] else {
             panic!("the witness for {mode:?} lifted to something other than an arc leg");
         };
         assert_eq!(
@@ -428,7 +428,7 @@ fn every_arc_mode_is_a_document_program() {
         .iter()
         .flat_map(|loop_| loop_.iter())
         .flat_map(|step| match step {
-            profile::Step::ArcTo(spec)
+            profile::Step::ArcTo { spec, .. }
             | profile::Step::FilletArc { spec, .. }
             | profile::Step::ArcFillet { spec, .. } => vec![spec.mode()],
             profile::Step::ArcFilletArc { spec, spec2, .. } => vec![spec.mode(), spec2.mode()],

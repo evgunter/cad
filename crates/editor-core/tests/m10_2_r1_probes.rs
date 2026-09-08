@@ -409,7 +409,7 @@ fn ball(doc: &ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
     let p2 = |x: f64, y: f64| [len(x), len(y)];
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(p2(0.0, c - r)),
-        ProgramStep::ArcTo(ProgramArcData::Bulge {
+        ProgramStep::arc_to(ProgramArcData::Bulge {
             target: ProgramTarget::Point(p2(0.0, c + r)),
             b: scl(1.0),
         }),

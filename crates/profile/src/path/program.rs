@@ -990,8 +990,16 @@ transition_table! {
     }
     #[doc = " `arc_to(spec)` — the sharp arc leg, every mode in the one"]
     #[doc = " unified [`ArcData`] record; the mode the author wrote is"]
-    #[doc = " what is kept, because the VQ contracts rely on it."]
-    verb ArcTo(ArcData<T>) bind (spec) rows {
+    #[doc = " what is kept, because the VQ contracts rely on it. `splits`"]
+    #[doc = " is the leg's DECLARED split count: 1 for the plain leg, `n ≥ 2`"]
+    #[doc = " for `arc_to(spec.split(n))`, whose `n − 1` interior stations"]
+    #[doc = " are declared tangent joints on the one carrier."]
+    verb ArcTo {
+        #[doc = " The arc spec, in the mode the author wrote."]
+        spec: ArcData<T>,
+        #[doc = " The declared split count (structural; 1 = the plain leg)."]
+        splits: usize,
+    } bind { spec, splits } rows {
         row {
             /// **§2c**: the SHARP arc leg from a point tip — one verb over the
             /// endpoint-full `ArcData` modes (`Bulge{p, b}` chord-relative,
@@ -1017,8 +1025,10 @@ transition_table! {
                 <S as super::family::PointLeg<T, F>>::leg_from(self, spec, tol)
             }
             arms {
-                DynTip::PlainPoint(p0) => do_arc_to_point(p0, spec, TipState::PlainPoint, tol),
-                DynTip::DirectedPoint(p0) => do_arc_to_point(p0, spec, TipState::DirectedPoint, tol),
+                DynTip::PlainPoint(p0) =>
+                    do_arc_to_point(p0, spec, splits, TipState::PlainPoint, tol),
+                DynTip::DirectedPoint(p0) =>
+                    do_arc_to_point(p0, spec, splits, TipState::DirectedPoint, tol),
             }
         }
         row {
@@ -1032,14 +1042,17 @@ transition_table! {
                 spec: S,
                 tol: Tol,
             ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.core
-                    .record(Step::ArcTo(super::family::TangentIncoming::to_wire(&spec)));
+                self.core.record(Step::ArcTo {
+                    spec: super::family::TangentIncoming::to_wire(&spec),
+                    splits: super::family::TangentIncoming::splits(&spec).unwrap_or(1),
+                });
                 self.arc_to_kernel(spec, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => do_arc_to_directed(p0, spec, TipState::DirectedPlain, tol),
+                DynTip::DirectedPlain(p0) =>
+                    do_arc_to_directed(p0, spec, splits, TipState::DirectedPlain, tol),
                 DynTip::DirectedIncoming(p0) =>
-                    do_arc_to_directed(p0, spec, TipState::DirectedIncoming, tol),
+                    do_arc_to_directed(p0, spec, splits, TipState::DirectedIncoming, tol),
             }
         }
     }
@@ -1999,9 +2012,24 @@ fn do_continue_to<T: Decide>(
 /// The sharp arc leg's mode dispatch: the endpoint-full modes from a
 /// Point tip — one row per admissible (state, mode) pair of the §2c
 /// matrix, each calling the one typed `arc_to(spec)` binder.
+/// The replay driver's ONE door for a step's split count: `1` is the
+/// plain leg, anything else the declared split — so a recorded `0`
+/// reaches the kernel's own `ArcSplitCount` refusal, typed exactly as
+/// the surface's `.split(0)` is, rather than a driver-side stub.
+macro_rules! split_or_plain {
+    ($p:expr, $spec:expr, $splits:expr, $tol:expr) => {
+        if $splits == 1 {
+            $p.arc_to($spec, $tol)
+        } else {
+            $p.arc_to($spec.split($splits), $tol)
+        }
+    };
+}
+
 fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
     p: PartialPath<T, HasPos<F>, NoAng>,
     spec: ArcData<T>,
+    splits: usize,
     state: TipState,
     tol: Tol,
 ) -> Applying<T> {
@@ -2019,52 +2047,75 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
         ArcData::Bulge {
             target: Target::Point(q),
             b,
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(Bulge { p: q, b }, tol)?,
-        ))),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(split_or_plain!(
+            p,
+            Bulge { p: q, b },
+            splits,
+            tol
+        )?))),
         ArcData::Bulge {
             target: Target::Start,
             b,
-        } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b }, tol)?)),
+        } => Ok(Applied::Closed(split_or_plain!(
+            p,
+            Bulge { p: Start, b },
+            splits,
+            tol
+        )?)),
         // The sharp arc seam with its tangent joint declared.
         ArcData::Bulge {
             target: Target::StartArriving,
             b,
-        } => Ok(Applied::Closed(p.arc_to(
+        } => Ok(Applied::Closed(split_or_plain!(
+            p,
             Bulge {
                 p: Start.arrives_tangent(),
                 b,
             },
-            tol,
+            splits,
+            tol
         )?)),
         ArcData::Via {
             q,
             target: Target::Point(t),
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(Via { q, p: t }, tol)?,
-        ))),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(split_or_plain!(
+            p,
+            Via { q, p: t },
+            splits,
+            tol
+        )?))),
         ArcData::Via {
             q,
             target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_to(Via { q, p: Start }, tol)?)),
+        } => Ok(Applied::Closed(split_or_plain!(
+            p,
+            Via { q, p: Start },
+            splits,
+            tol
+        )?)),
         ArcData::Center {
             c,
             winding,
             target: Target::Point(t),
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(Center { c, winding, p: t }, tol)?,
-        ))),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(split_or_plain!(
+            p,
+            Center { c, winding, p: t },
+            splits,
+            tol
+        )?))),
         ArcData::Center {
             c,
             winding,
             target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_to(
+        } => Ok(Applied::Closed(split_or_plain!(
+            p,
             Center {
                 c,
                 winding,
                 p: Start,
             },
-            tol,
+            splits,
+            tol
         )?)),
         ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
             violation(state, Verb::ArcTo)
@@ -2076,15 +2127,16 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
 fn do_arc_to_directed<T: ArcCarrierScalar, F: Flavor>(
     p: PartialPath<T, HasPos<F>, HasAng>,
     spec: ArcData<T>,
+    splits: usize,
     state: TipState,
     tol: Tol,
 ) -> Applying<T> {
     match spec {
         ArcData::Sweep { r, side, angle } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(super::Sweep { r, side, angle }, tol)?,
+            split_or_plain!(p, super::Sweep { r, side, angle }, splits, tol)?,
         ))),
         ArcData::ArcLen { r, side, len } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(super::ArcLen { r, side, len }, tol)?,
+            split_or_plain!(p, super::ArcLen { r, side, len }, splits, tol)?,
         ))),
         // Spelled out rather than `_`: a mode the table gains must be
         // ADJUDICATED at every dispatcher, not silently refused here.
