@@ -4,6 +4,7 @@ kind: issue
 title: no facade door mints a revolve's role names, so every consumer hand-spells the StableName
 status: open
 opened: 2026-09-08
+needs_ev: true
 ---
 
 
@@ -54,3 +55,30 @@ kernel must never depend on demo tooling, and the corpus must never
 depend on the tour — so it is disclosed rather than shared, and it is
 a second reason a name BUILDER would earn its place: the two copies
 would at least say the names the same way.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+Five sites now hand-spell a revolve's role names field by field
+(`StableName { kind, node, path: vec![RoleSeg::Band(ProfileEdgeRef {
+loop_index: 0, segment })] }`) because the façade carries the
+VOCABULARY and the doors that ANSWER names, and nothing that MINTS one
+— and authoring a selection (a shell's open list, a fillet's frozen
+selection) is exactly where a name must be written before any
+evaluation exists to select against. What shape should the builders
+take?
+
+- **(A) Free functions beside the vocabulary in `pncad::select`** —
+  `band(node, seg)`, `band_pi(node, seg)`, `band_rim(node, vertex)`,
+  `meridian_vertex(end, node, vertex)`, and `carried(node, inner)` for
+  the `FromTarget` wrapper a survivor takes — each returning a
+  `StableName`, at the seat that already carries `SegPat::tag(…)` for
+  the matching direction. Mechanical afterwards; the five consumers
+  convert. Recommended.
+- **(B) A builder type or a method chain on the node id**
+  (`node.band(seg)`) — reads well at the call site, but puts an OO seam
+  on an id type and a second way to say what (A) says.
+- **(C) Leave hand-spelling** and document the shape; five copies stay
+  five.
+
+Recommendation: **(A)**. Small, in LIB's fence, and it is what the two
+duplicated vessel spellings (tour and corpus) would at least share.
