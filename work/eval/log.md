@@ -296,3 +296,16 @@ target: 1053 rows, zero diff. Full matrix green. Meta-read by the
 orchestrator of the macro, the contact-class sites and the acceptance
 grep (empty). State-sync merged main (which brought code: k-lint
 tests) so the merged head runs once more before the merge.
+
+## EVAL-2 blocked on a semantic merge with LIB-G17 (2026-09-08)
+
+PR 2153 green at `9e3b54ed6` but unmergeable: `Node::Shell` landed
+(LIB-G17) with `verb_content_tag(Shell) = Some(35)`, `RoleSeg::HoleRim`
+at seg tag 44, and three new payload literals (42/43/44) in
+`feed_blend` renamed `feed_scalar_join` — all inside the vocabularies
+EVAL-2 declared. Resolution handed back to the implementer as a
+semantic merge (structure ours, meaning theirs, every literal
+declared, the key dump re-taken at the new base with a shell document
+added). The `keep_out`'s announced seam (LIB-G17 reaches `crates/verbs`
+and, it turns out, the content key) landed while the unit was in
+review; the cost is one merge round.
