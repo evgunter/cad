@@ -127,7 +127,9 @@ fn plane_of(ev: &Evaluation<Interval>) -> String {
 fn keys(ev: &Evaluation<Interval>) -> (ContentKey, ContentKey) {
     (
         ev.value(FRAME).expect("the frame evaluates").content_key,
-        ev.value(PROFILE).expect("the profile evaluates").content_key,
+        ev.value(PROFILE)
+            .expect("the profile evaluates")
+            .content_key,
     )
 }
 
