@@ -5,8 +5,9 @@
 //! part document and leaves an [`Node::InstantiatePart`] of it behind;
 //! [`inline`] is the inverse — it splices a referenced document's
 //! recipe into the host and deletes the instance. Both are PURE
-//! functions returning new document values plus the ordinary recorded
-//! [`DocEdit`]s that produce them — the input documents are untouched,
+//! functions returning new document values, the ordinary recorded
+//! [`DocEdit`]s that produce them, and the cluster-record maintenance
+//! those edits performed — the input documents are untouched,
 //! so undo is this layer's undo everywhere else: keeping the prior
 //! value. There is no compound edit arm; atomicity is purity (no
 //! partially-refactored document is ever observable).
@@ -522,9 +523,10 @@ impl core::fmt::Display for InlineError {
 
 impl core::error::Error for InlineError {}
 
-/// What [`split`] produced: the two documents and the recorded edits
+/// What [`split`] produced: the two documents, the recorded edits
 /// that produce each (the part's from the empty document under the
-/// caller's id, the remainder's from the input document). Undo of the
+/// caller's id, the remainder's from the input document), and the
+/// cluster-record maintenance each edit list performed. Undo of the
 /// refactoring is the caller keeping the input value — the input is
 /// untouched.
 #[derive(Debug, Clone)]
@@ -568,7 +570,8 @@ pub struct SplitOutcome {
 
 /// What [`inline`] produced: the host with the referenced document's
 /// recipe spliced in and the instance gone, plus the recorded edits
-/// that produce it. Undo is the caller keeping the input value.
+/// that produce it and the cluster-record maintenance they performed.
+/// Undo is the caller keeping the input value.
 #[derive(Debug, Clone)]
 pub struct InlineOutcome {
     /// The host document after the splice.
@@ -592,9 +595,11 @@ pub struct InlineOutcome {
 /// A document under reconstruction by recorded edits: the value so
 /// far, the edits that produce it, and the cluster-record maintenance
 /// those edits performed. The ONE place a refactoring takes an
-/// accepted edit up, which is what keeps every [`apply`] result whole
-/// — document, record and maintenance — so an outcome built from one
-/// reports what its edits did, never only what they produced.
+/// accepted edit up, which is what keeps each [`apply`] result's
+/// document and maintenance together — the record's minted id goes
+/// back to the caller, and its `structural` bit is a fact of the edit
+/// already in the list — so an outcome built from one reports what
+/// its edits did, never only what they produced.
 struct Recording {
     doc: ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
@@ -1553,7 +1558,9 @@ pub fn split(
     }
     // A10 on the remainder: the instance takes the FIRST cut root's
     // list position (the cut material's product order collapses onto
-    // the instance); automatic maintenance appended it instead.
+    // the instance); A10's automatic root-list bookkeeping appended it
+    // instead — the list's own move, not one of the A11 cluster-record
+    // acts the outcome's `maintenance` fields hold.
     let mut desired: Vec<RecipeNodeId> = Vec::new();
     let mut placed = false;
     for &r in doc.roots() {

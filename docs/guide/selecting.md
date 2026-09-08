@@ -489,6 +489,9 @@ let findings = find_flush_candidates(&ev, base, block, tol).expect("definite fin
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, ContactClass::Rest);
 let (applied, decl) = declare_all(&doc, &findings, tol).expect("declarable");
+// `applied` is the accepted edit whole: the document, and the
+// cluster-record maintenance the insert performed. A caller that keeps
+// a mirror of that record takes both together; this one keeps none.
 let doc = applied.doc;
 let (doc, uni) = insert(
     &doc,
