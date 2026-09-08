@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/proj
 refs: [mate-fault-accessors-wildcard-into-silence, mesh-index-numbers-cross-as-prose-under-a-projecting-door]
+pr: 2236
 ---
 
 Two one-file projection repairs under the ratified rule (A) on
