@@ -13,7 +13,7 @@ when the block concludes (PROPS-B1's shape, #1978).
 
 | slot | unit | pre-draw difficulty (logged at spec) | arm |
 |---|---|---|---|
-| 0 | (next kernel unit in dispatch order) | — | OPUS |
+| 0 | sphere-pole-side — `docs/PROPS-SPHERE-POLE-SIDE-SPEC.md` (`rimless-polar-cap-refuses-degenerateface` + `two-face-sphere-split-measures-zero-volume`) | H / NUMERIC | OPUS — spec 2026-09-08, dispatch waits on disk |
 | 1 | (next kernel unit in dispatch order) | — | OPUS |
 | 2 | (next kernel unit in dispatch order) | — | FABLE |
 
