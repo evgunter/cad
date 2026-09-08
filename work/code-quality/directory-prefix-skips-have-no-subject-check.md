@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-08
 refs: [2156]
 branch: gates/bin-skip-by-file
-pr: PENDING
+pr: 2213
 blocked_on: []
 closed: 2026-09-08
 ---
