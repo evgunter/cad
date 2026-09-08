@@ -56,6 +56,8 @@ mod shared;
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
+#[path = "budget_faces.rs"]
+mod budget_faces;
 #[path = "cert1_r1_probes.rs"]
 mod cert1_r1_probes;
 #[path = "cert1_sphere_polar.rs"]
