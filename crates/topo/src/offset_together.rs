@@ -136,8 +136,10 @@ struct MovedPlane<T: Real> {
 
 /// **Offset every chart of `body` at once** (module docs).
 ///
-/// `moves` names each chart and its signed distance; every face of the
-/// body must appear exactly once across them.
+/// `moves` names each chart and its signed distance. Every face of
+/// every SOLID the moves touch must appear exactly once across them,
+/// and no solid may be touched in part; a solid the moves do not name
+/// is not offset and its geometry is not written.
 ///
 /// # Errors
 ///
@@ -689,14 +691,25 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// A corner is the meeting of charts that belong to ONE solid — two
 /// solids of a body share no vertex, no edge and no face — so the
 /// coherent unit for a simultaneous solve is the solid, not the body.
-/// A scope names the solids the move set touches, and both doors read
-/// and write nothing outside it: the coverage gate asks that every
-/// face of every named solid appear in the moves, the corner walk
-/// visits the named solids' vertices, and the edge walk their edges.
+/// A scope names the solids the move set touches, and it is what both
+/// doors SOLVE and WRITE over: the coverage gate asks that every face
+/// of every named solid appear in the moves, the corner walk visits
+/// the named solids' vertices, and the edge walk their edges, so no
+/// entity outside the scope is offset or re-authored.
+///
+/// **Constructing one is still a whole-body structural walk**, and so
+/// are the two passes each door closes with (`mint_pcurves` and
+/// `validate_closed`, over the whole clone). A corrupt shell, face,
+/// loop or half-edge ANYWHERE refuses the construction, whichever
+/// solids are named. That is a read, not a write — the scope bounds
+/// what moves, not what is looked at — and it is stated here because
+/// "the doors touch only the named solid" is true of the offset and
+/// false of the bookkeeping around it.
 ///
 /// The scope is total on the entities a shell owns, lone vertices
 /// included: an empty loop's vertex is reached through the loop's own
 /// face rather than through an orbit it has no half-edge for.
+#[derive(Clone)]
 pub(crate) struct Scope {
     solids: Vec<SolidKey>,
     faces: SecondaryMap<FaceKey, SolidKey>,
@@ -749,6 +762,15 @@ impl Scope {
         self.faces.get(face).copied()
     }
 
+    /// The same partition, re-aimed at `solids`. The three maps are the
+    /// BODY's own and say nothing about which solids are in scope, so
+    /// re-scoping is a swap of one `Vec` rather than a second walk over
+    /// every shell, face, loop and half-edge.
+    pub(crate) fn re_scope(&mut self, solids: &[SolidKey]) {
+        self.solids.clear();
+        self.solids.extend_from_slice(solids);
+    }
+
     /// Is `face` on a solid this scope names?
     pub(crate) fn holds_face(&self, face: FaceKey) -> bool {
         self.faces
@@ -777,11 +799,14 @@ pub(crate) fn scope_of_moves<T: Real>(
     body: &Body<T>,
     moves: &[ChartMove<T>],
 ) -> Result<Scope, ReplaceFaceError<T>> {
-    let whole = Scope::whole(body).ok_or(ReplaceFaceError::Corrupt)?;
+    // ONE structural walk: the partition is the body's and the scope is
+    // a list over it, so the moves' solids are read off the partition
+    // that is then re-aimed at them.
+    let mut scope = Scope::whole(body).ok_or(ReplaceFaceError::Corrupt)?;
     let mut solids: Vec<SolidKey> = Vec::new();
     for m in moves {
         for &face in &m.faces {
-            let solid = whole
+            let solid = scope
                 .solid_of(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
             if !solids.contains(&solid) {
@@ -789,5 +814,6 @@ pub(crate) fn scope_of_moves<T: Real>(
             }
         }
     }
-    Scope::of_solids(body, &solids).ok_or(ReplaceFaceError::Corrupt)
+    scope.re_scope(&solids);
+    Ok(scope)
 }

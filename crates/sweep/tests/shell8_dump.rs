@@ -12,19 +12,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Tol;
+use geom_core::Vec3;
 use topo::{Body, FaceKey, VertexKey};
 
+use crate::shell8_common::{cap, face_of_he, tol};
 use crate::verbs_shell::{hollow_box, outer_and_void, two_void_box, vessel};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
-
-fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
-}
 
 fn faces_at(body: &Body<f64>, v: VertexKey) -> Vec<FaceKey> {
     let Some(em) = body.get_vertex(v).unwrap().emanating else {
@@ -101,36 +93,6 @@ fn dump(label: &str, body: &Body<f64>) {
     );
 }
 
-/// The whole CHART of `shell` whose plane is normal to `axis` (a unit
-/// world direction) and sits at `value` along it — every face wearing
-/// it, since a full revolve splits a cap into two half-discs and the
-/// rim surgery lifts a chart as one.
-fn cap(
-    body: &Body<f64>,
-    shell: topo::ShellKey,
-    axis: geom_core::Vec3<f64>,
-    value: f64,
-) -> Vec<FaceKey> {
-    for &face in &body.get_shell(shell).unwrap().faces {
-        let f = body.get_face(face).unwrap();
-        let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
-            continue;
-        };
-        if normal.cross(axis).norm() > 1e-9 {
-            continue;
-        }
-        if (geom_core::Vec3::new(origin.x, origin.y, origin.z).dot(axis) - value).abs() < 1e-9 {
-            let chart = f.surface;
-            return body
-                .faces()
-                .filter(|(_, g)| g.surface == chart)
-                .map(|(k, _)| k)
-                .collect();
-        }
-    }
-    panic!("no cap of {shell:?} normal to {axis:?} at {value}")
-}
-
 fn opened(label: &str, body: &Body<f64>, t: f64, faces: &[FaceKey]) {
     match topo::shell_open(body, t, faces, tol()) {
         Ok(s) => dump(label, &s.body),
@@ -142,8 +104,8 @@ fn opened(label: &str, body: &Body<f64>, t: f64, faces: &[FaceKey]) {
 /// each of its walls in turn.
 #[test]
 fn shell8_dump_hollow_and_opened_corpus() {
-    let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
-    let y = geom_core::Vec3::new(0.0, 1.0, 0.0);
+    let z = Vec3::new(0.0, 0.0, 1.0);
+    let y = Vec3::new(0.0, 1.0, 0.0);
 
     // ---- The planar hollow box: `PlanesTogether` on the way in, the
     // per-chart door on the lift. ----

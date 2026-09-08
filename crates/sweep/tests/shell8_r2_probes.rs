@@ -279,12 +279,12 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
 }
 
 // ---------------------------------------------------------------------
-// Claim 3 — the roles read: once over the body when any solid is hollow,
-// nothing when none is; the outer count is the solid's own.
+// Claim 3 — the roles read: once per HOLLOW solid over that solid's own
+// shells, nothing for a plain one; the outer count is the solid's own.
 // ---------------------------------------------------------------------
 
 #[test]
-fn r2_roles_are_read_over_the_whole_body_only_when_some_solid_is_hollow() {
+fn r2_roles_are_read_per_hollow_solid_and_never_for_a_plain_one() {
     let pair = beside(&hollow_box(), &boxy(2.0, 3.0, 4.0), 10.0);
     let bracket = Bracket::open();
     topo::shell(&pair, 0.05, tol()).expect("shells");
@@ -295,8 +295,8 @@ fn r2_roles_are_read_over_the_whole_body_only_when_some_solid_is_hollow() {
         .count();
     println!("[r2] hollow+plain: chk_shell_volume_sign verdicts = {signs}");
     assert_eq!(
-        signs, 3,
-        "every shell of the body is classified, the plain solid's included"
+        signs, 2,
+        "only the HOLLOW solid's two shells are classified; the plain          neighbour's is its boundary by arity and is never read"
     );
 
     let plain = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0);
@@ -346,8 +346,16 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
     let (body, _) = beside_raw(&host, &boxy(2.0, 3.0, 4.0), Vec3::new(10.0, 0.0, 0.0));
     let e = topo::shell(&body, 0.05, tol()).expect_err("two outer shells in one solid refuse");
     println!("[r2] two-outer beside plain: {e}");
+    // **The count is that SOLID's own, and the refusal names it.** The
+    // roles are read per hollow solid, so the plain neighbour's shell
+    // is never classified: a whole-body read would have counted three
+    // outer shells here and named none of them.
+    let host_solid_in_body = body.solids().next().unwrap().0;
     assert!(
-        matches!(e, ShellError::OperandOuterShells { outer: 2 }),
+        matches!(
+            e,
+            ShellError::OperandOuterShells { solid, outer: 2 } if solid == host_solid_in_body
+        ),
         "{e}"
     );
 }

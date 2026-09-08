@@ -15,96 +15,15 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+use geom_core::{Point3, Vec3};
 use sweep::{TubeWindow, tube_along_arc};
-use topo::{Body, FaceKey, ShellError, SolidKey};
+use topo::{Body, ShellError, SolidKey};
 
+use crate::shell8_common::{
+    band, beside, bits, charts_of, deep_dump, edge_rows, outer_and_void_of, points, solid_of,
+    solid_of_vertex, tol, top_chart, volume,
+};
 use crate::verbs_shell::{boxy, hollow_box, v, vessel};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
-
-fn band() -> Band {
-    Band::linear(tol()).expect("a band")
-}
-
-/// `body` with `other` placed `dx` along `+x` beside it, as a second
-/// solid of one body — the public disjoint-graft door, which is what a
-/// user assembling two parts reaches for.
-fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> {
-    let mut out = body.clone();
-    let placed =
-        topo::transform_rigid(other, &Affine3::translation(Vec3::new(dx, 0.0, 0.0)), tol())
-            .expect("a rigid map");
-    topo::graft_disjoint(&mut out, &placed, tol()).expect("the placed copy grafts");
-    assert_eq!(
-        topo::validate_geometric(&out, tol()),
-        Ok(()),
-        "the two-solid operand is valid"
-    );
-    out
-}
-
-fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol()).expect("props").volume
-}
-
-/// Every vertex point of `body`, in arena order — the bitwise reading
-/// the untouched-solid rows compare.
-fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, Point3<f64>)> {
-    body.vertices()
-        .map(|(k, v)| (k, *body.get_point(v.point).unwrap()))
-        .collect()
-}
-
-/// The solid a face belongs to.
-fn solid_of(body: &Body<f64>, face: FaceKey) -> SolidKey {
-    let shell = body.get_face(face).unwrap().shell;
-    body.get_shell(shell).unwrap().solid
-}
-
-/// Every face of `solid`, in arena order.
-fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(k, _)| solid_of(body, *k) == solid)
-        .map(|(k, _)| k)
-        .collect()
-}
-
-/// The chart groups of `solid`: faces by surface key, in arena order.
-fn charts_of(body: &Body<f64>, solid: SolidKey) -> Vec<Vec<FaceKey>> {
-    let mut out: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for face in faces_of(body, solid) {
-        let key = body.get_face(face).unwrap().surface;
-        match out.iter_mut().find(|(k, _)| *k == key) {
-            Some((_, v)) => v.push(face),
-            None => out.push((key, vec![face])),
-        }
-    }
-    out.into_iter().map(|(_, v)| v).collect()
-}
-
-/// The planar face of `body` whose plane is normal to `+z` and sits at
-/// `z`, restricted to `solid` — the whole chart wearing it.
-fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKey> {
-    for face in faces_of(body, solid) {
-        let f = body.get_face(face).unwrap();
-        let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
-            continue;
-        };
-        if normal.x.abs() > 1e-9 || normal.y.abs() > 1e-9 || (origin.z - z).abs() > 1e-9 {
-            continue;
-        }
-        let chart = f.surface;
-        return body
-            .faces()
-            .filter(|(_, g)| g.surface == chart)
-            .map(|(k, _)| k)
-            .collect();
-    }
-    panic!("no z = {z} cap on {solid:?}")
-}
 
 // ---------------------------------------------------------------------
 // Row 2 — two disjoint boxes in one body
@@ -337,7 +256,6 @@ fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
         .expect("one solid's charts move together");
     let after = points(&work);
     assert_eq!(before.len(), after.len(), "no vertex minted or killed");
-    let bits = |p: &Point3<f64>| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits());
     let mut moved = 0usize;
     for ((k, b), (k2, a)) in before.iter().zip(after.iter()) {
         assert_eq!(k, k2, "the vertex arena kept its order");
@@ -355,14 +273,6 @@ fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
     assert_eq!(moved, 8, "the named solid's eight corners moved");
 }
 
-/// The solid a vertex belongs to, through its emanating half-edge.
-fn solid_of_vertex(body: &Body<f64>, vertex: topo::VertexKey) -> SolidKey {
-    let he = body.get_vertex(vertex).unwrap().emanating.unwrap();
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    let face = body.get_loop(lp).unwrap().face;
-    solid_of(body, face)
-}
-
 // ---------------------------------------------------------------------
 // The empty operand
 // ---------------------------------------------------------------------
@@ -375,4 +285,95 @@ fn a_body_with_no_solid_refuses_typed() {
     let e = topo::shell(&empty, 0.05, tol()).expect_err("nothing to thicken");
     println!("[8] empty operand: {e}");
     assert!(matches!(e, ShellError::NoSolid), "{e}");
+}
+
+// ---------------------------------------------------------------------
+// The lift's scope — the row the §3 STOP owes
+// ---------------------------------------------------------------------
+
+/// **The rim lift re-authors the designated face's solid, and no
+/// other.** The lift's simultaneous door names every chart of the solid
+/// it is lifting in, the untouched ones at distance zero; read over the
+/// whole RESULT body it named the other thin solids' charts too, and
+/// re-derived their edges — same geometry, but a re-authored
+/// description, which on the vessel's axis-parallel rim edges flips the
+/// sign of the `Harmonic` pcurve's `1.2246467991473532e-16` term.
+///
+/// So: shell the hollow vessel SEALED, and shell it OPENED on one wall.
+/// Every solid the designation is not in must carry, edge for edge and
+/// key for key, exactly the rows the sealed arm wrote — the sealed body
+/// is the oracle, since both are the same construction up to the rim
+/// surgery.
+///
+/// **This is the row that goes red under `Scope::whole` at the lift.**
+/// It is the whole content of the §3 STOP: the lift now touches only
+/// its own solid.
+#[test]
+fn the_lift_re_authors_only_the_designated_faces_solid() {
+    let t = 0.02;
+    let hollow = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
+        .expect("the vessel hollows")
+        .body;
+    let (hollow_solid, _) = hollow.solids().next().expect("one solid");
+    let (outer, void) = outer_and_void_of(&hollow, hollow_solid);
+    let y = Vec3::new(0.0, 1.0, 0.0);
+
+    let sealed = topo::shell(&hollow, t, tol()).expect("sealed");
+    for (label, designation) in [
+        (
+            "outer lid",
+            crate::shell8_common::cap(&hollow, outer, y, 2.0),
+        ),
+        (
+            "void ceiling",
+            crate::shell8_common::cap(&hollow, void, y, 1.9),
+        ),
+    ] {
+        let opened = topo::shell_open(&hollow, t, &designation, tol()).expect("opens");
+        // The solid the surgery ran in, read off the rim the record
+        // reports rather than guessed from geometry.
+        let rim = opened.naming.rims[0].rim;
+        let rim_solid = solid_of(&opened.body, rim);
+
+        let sealed_rows: Vec<(topo::EdgeKey, String)> = edge_rows(&sealed.body);
+        let mut compared = 0usize;
+        for (key, row) in edge_rows(&opened.body) {
+            // An edge of the designated solid is expected to differ —
+            // that solid is what the surgery re-authored.
+            if solid_of(&opened.body, face_of_he_pub(&opened.body, key)) == rim_solid {
+                continue;
+            }
+            let Some((_, want)) = sealed_rows.iter().find(|(k, _)| *k == key) else {
+                panic!("[8] {label}: {key:?} has no sealed counterpart");
+            };
+            assert_eq!(
+                &row, want,
+                "[8] {label}: {key:?} is outside the designated solid and was re-authored"
+            );
+            compared += 1;
+        }
+        println!(
+            "[8] lift scope, {label}: {compared} edges outside the rim's solid, all identical"
+        );
+        assert!(compared >= 8, "[8] {label}: only {compared} edges compared");
+
+        // And deeper: every solid but the rim's is deep-identical to
+        // the sealed body's same solid — faces, surfaces, carriers,
+        // parameters, descriptions and vertex BITS.
+        for (solid, _) in opened.body.solids() {
+            if solid == rim_solid {
+                continue;
+            }
+            assert_eq!(
+                deep_dump(&opened.body, solid),
+                deep_dump(&sealed.body, solid),
+                "[8] {label}: {solid:?} is not the sealed arm's own"
+            );
+        }
+    }
+}
+
+/// The face an edge's positive half belongs to.
+fn face_of_he_pub(body: &Body<f64>, edge: topo::EdgeKey) -> topo::FaceKey {
+    crate::shell8_common::face_of_he(body, body.get_edge(edge).unwrap().he_plus)
 }

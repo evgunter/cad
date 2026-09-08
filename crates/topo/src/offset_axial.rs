@@ -204,7 +204,7 @@ use crate::offset_together::ChartMove;
 use crate::props::PropsQuadLane;
 use crate::replace_face::ReplaceFaceError;
 
-/// The revolution axis every accepted surface shares, with the body's
+/// The revolution axis every accepted surface shares, with the scope's
 /// own radial extent — the length that levers every direction test
 /// here, so a verdict about alignment is a statement about the geometry
 /// being judged.
@@ -347,8 +347,10 @@ impl<T: Decide> Profile<T> {
 /// **Offset every chart of an axial `body` at once** (module docs).
 ///
 /// `moves` names each chart and its signed distance along the chart's
-/// stored outward direction; every face of the body must appear exactly
-/// once across them.
+/// stored outward direction. Every face of every SOLID the moves touch
+/// must appear exactly once across them, and no solid may be touched in
+/// part; a solid the moves do not name is not offset and its geometry
+/// is not written.
 ///
 /// # Errors
 ///
@@ -643,13 +645,13 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 /// surface is a plane, cylinder, cone, sphere or TORUS, the curved ones
 /// share one axis LINE, and every plane is normal to it or contains it.
 ///
-/// `shell` reads this to pick its branch, so a body outside it keeps
-/// exactly the posture it had.
+/// `shell` reads this per SOLID to pick that solid's branch, so a solid
+/// outside it keeps exactly the posture it had.
 ///
 /// # Errors
 ///
 /// **An ESCALATION is not a `false`.** The gate's own tests are
-/// margined — a normal's misalignment levered by the body's extent, a
+/// margined — a normal's misalignment levered by the scope's extent, a
 /// centre's distance from the axis — and a margin that lands in the
 /// ambiguity band means this body's kinds are not DECIDED either way
 /// (D4 ¶3). Answering `false` there would turn "I cannot tell" into a
@@ -658,7 +660,7 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 /// the undecided geometry that actually stopped it. So the escalation
 /// is returned typed and the caller refuses with it. Every other
 /// verdict — a NURBS or fitted wall, a skew cylinder, a torus whose own
-/// axis is NOT the body's, an all-planar body with no axis at all — is
+/// axis is NOT the scope's, an all-planar scope with no axis at all — is
 /// a definite `false` and stays one. A COAXIAL torus is no longer one
 /// of them: it is inside the roster this door takes, and the table at
 /// the top of this module carries its meridian circle.
@@ -767,9 +769,27 @@ fn axial_frame<T: Real>(
     // subtracting and re-adding `2.0`. Measured on the byte-dump
     // harness, which now reports the curved fixtures unchanged.
     let origin = seed_origin - dir * (vec_of(seed_origin)).dot(dir);
-    // The extent is the body's own furthest vertex from the axis point:
-    // the length a direction error would move a corner by, which is the
-    // geometry every alignment verdict here is about.
+    // The extent is the SCOPE's own furthest vertex from the axis
+    // point: the length a direction error would move a corner by, which
+    // is the geometry every alignment verdict here is about. A box
+    // standing beside a vessel would lever the vessel's margins by its
+    // own distance away, which is a fact about the assembly and not
+    // about the vessel's charts.
+    //
+    // **The scoping of THIS walk is unpinnable, and that is stated
+    // rather than left to be discovered.** `extent` feeds only
+    // `Margin::levered(x, extent)`, and every margin that reads it is
+    // EXACTLY zero on any body of revolution this workspace builds —
+    // the caps' normals, the wall's axis and the frame's direction are
+    // minted from one `AxisFrame`, so the sines and dot products are
+    // exact zeros rather than small numbers. A zero margin decides the
+    // same at every lever, so deleting the guard below leaves the whole
+    // suite green. What would pin it is an operand whose own alignment
+    // margin is NON-zero and small enough that the lever decides the
+    // verdict — a tilted revolve, which `revolve` refuses to build (its
+    // 2-D axis must be `±x`/`±y`) — or a hand-built body of that shape.
+    // The same posture the axis gate's third outcome is documented
+    // under: written for correctness rather than pinned by a fixture.
     let mut extent = T::zero();
     for (vertex, v) in body.vertices() {
         if !scope.holds_vertex(vertex) {

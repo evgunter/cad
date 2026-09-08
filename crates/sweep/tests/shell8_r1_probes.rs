@@ -229,15 +229,18 @@ fn r1_a_scope_of_two_of_three_solids() {
 // Claim 3 — the roles read
 // ---------------------------------------------------------------------
 
-/// **What the roles read actually reads.** The spec says the roles read
-/// runs "per solid, on hollow solids only". The implementation runs
-/// `classify_shells` ONCE over the WHOLE body whenever ANY solid is
-/// hollow — so a PLAIN solid standing beside a hollow one has its shell
-/// classified too, and pays a `chk_shell_volume_sign` verdict for it,
-/// even though the per-solid loop `continue`s past single-shell solids
-/// and never reads the answer. Counted here.
+/// **The roles read is PER HOLLOW SOLID, counted at the funnel.** A
+/// shell's role is the decided sign of its own signed volume, so a
+/// solid's roles involve no other solid's shells — and a plain
+/// neighbour, whose single shell is its boundary by arity, is never
+/// classified at all. Counted as `chk_shell_volume_sign` verdicts: a
+/// body of only plain solids reads nothing, a hollow solid reads its
+/// own two, and a plain solid standing beside it adds none.
+///
+/// What this rules out is a classification escalating on a solid the
+/// caller did not ask about and refusing one it did.
 #[test]
-fn r1_the_roles_read_is_whole_body_not_per_hollow_solid() {
+fn r1_the_roles_read_is_per_hollow_solid() {
     use geom_core::k_stats::Bracket;
     let count = |body: &Body<f64>| -> usize {
         let bracket = Bracket::open();
@@ -261,9 +264,16 @@ fn r1_the_roles_read_is_whole_body_not_per_hollow_solid() {
         "[r1] chk_shell_volume_sign verdicts: plain-pair={n_plain}, hollow-alone={lone}, hollow+plain={n_mixed}"
     );
     assert_eq!(n_plain, 0, "a body of only plain solids reads nothing");
-    assert!(
-        n_mixed > lone,
-        "the plain solid's shell is classified too: {n_mixed} > {lone}"
+    assert_eq!(lone, 2, "the hollow solid's own two shells");
+    // **The read is PER HOLLOW SOLID.** A plain neighbour adds nothing:
+    // its shell is its boundary by arity, so it is never classified,
+    // and a classification that escalated on it could not refuse the
+    // hollow solid's shelling. This row asserted the whole-body read
+    // (`n_mixed > lone`, measured 3 > 2) and is re-pinned to the
+    // per-solid one.
+    assert_eq!(
+        n_mixed, lone,
+        "the plain neighbour is not classified: {n_mixed} should equal {lone}"
     );
 }
 
@@ -550,16 +560,17 @@ fn r1_naming_the_inner_wall_after_two_hollowings() {
     // the whole search a user must do to pick "the inner wall".
     let mut rows: Vec<String> = Vec::new();
     for (f, d) in twice.faces() {
-        if let Some(geom::Surface::Plane { origin, normal, .. }) = twice.get_surface(d.surface) {
-            if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9 {
-                let shell: ShellKey = d.shell;
-                rows.push(format!(
-                    "z={:.2} n_z={:+.0} solid={:?} shell={shell:?} face={f:?}",
-                    origin.z,
-                    normal.z,
-                    solid_of(&twice, f)
-                ));
-            }
+        if let Some(geom::Surface::Plane { origin, normal, .. }) = twice.get_surface(d.surface)
+            && normal.x.abs() < 1e-9
+            && normal.y.abs() < 1e-9
+        {
+            let shell: ShellKey = d.shell;
+            rows.push(format!(
+                "z={:.2} n_z={:+.0} solid={:?} shell={shell:?} face={f:?}",
+                origin.z,
+                normal.z,
+                solid_of(&twice, f)
+            ));
         }
     }
     rows.sort();

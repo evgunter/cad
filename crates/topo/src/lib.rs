@@ -335,7 +335,8 @@ pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, pcurve_of};
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
-    ShellClassification, ShellClassifyError, ShellRole, classify_shells, mass_properties,
+    ShellClassification, ShellClassifyError, ShellRole, classify_shells, classify_shells_of,
+    mass_properties,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
