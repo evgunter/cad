@@ -3189,9 +3189,14 @@ mod product_memo_rows {
         let doc = sketch_only("memo-refusal-subject");
         let ev = evaluated(&doc);
         let memo = ProductMemo::default();
-        let report =
-            product_memo::checks_report(&memo, &doc, &ev, &d::ChecksConfig::default(), Tol::witness())
-                .expect("no body roots is a subject, not a refusal");
+        let report = product_memo::checks_report(
+            &memo,
+            &doc,
+            &ev,
+            &d::ChecksConfig::default(),
+            Tol::witness(),
+        )
+        .expect("no body roots is a subject, not a refusal");
         assert!(report.findings.is_empty());
     }
 

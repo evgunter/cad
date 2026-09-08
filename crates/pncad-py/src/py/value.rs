@@ -802,11 +802,7 @@ impl Evaluation {
     /// arguments [`crate::product_memo`]'s doors take.
     pub(crate) fn gathered<T>(
         &self,
-        f: impl FnOnce(
-            &crate::product_memo::ProductMemo,
-            &d::ProfileDoc,
-            &d::Evaluation<f64>,
-        ) -> T,
+        f: impl FnOnce(&crate::product_memo::ProductMemo, &d::ProfileDoc, &d::Evaluation<f64>) -> T,
     ) -> T {
         f(&self.product, &self.doc, &self.inner)
     }
