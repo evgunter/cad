@@ -13,7 +13,7 @@ use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use sweep::Revolution;
 use topo::{Body, FaceKey};
 
-use super::shell7_common::{drum, p2, polyline, revolved, tol, tube_torus, tube_torus_hollow};
+use super::shell7_common::{drum, p2, revolved, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::beside;
 use super::verbs_shell::{boxy, tube, vessel};
 

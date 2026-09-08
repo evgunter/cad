@@ -124,6 +124,27 @@ fn r2_e2e_two_arc_sphere_hollows_and_tessellates() {
     let body = two_arc_sphere();
     let out = topo::shell(&body, t, tol()).expect("shells");
     let want = 4.0 / 3.0 * PI * (r * r * r - (r - t) * (r - t) * (r - t));
+    // The two closed forms the spec, the PR and the item file quote, as
+    // this tree's f64 actually evaluates them, beside the measured
+    // volumes: the cavity number quoted as `3.591364001828733` is
+    // `3.591364001828731` here.
+    println!(
+        "[r2] closed forms: cavity {:?} (powi {:?}), thin {:?}; measured thin {:?}",
+        4.0 / 3.0 * PI * (r - t) * (r - t) * (r - t),
+        4.0 / 3.0 * PI * (r - t).powi(3),
+        want,
+        topo::mass_properties(&out.body, tol())
+            .expect("props")
+            .volume
+    );
+    let mut cavity = body.clone();
+    let band = geom_core::Band::linear(tol()).expect("band");
+    topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
+        .expect("the cavity");
+    println!(
+        "[r2] measured cavity volume {:?}",
+        topo::mass_properties(&cavity, tol()).expect("props").volume
+    );
     consume("two-arc sphere shelled", &out.body, want, 2);
 }
 
