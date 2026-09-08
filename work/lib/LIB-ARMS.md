@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/arms
 refs: [lib-per-arm-error-tags, tag-inventory-prose-counts-are-stale, witness-bifurcation-arm-has-no-inner-word]
+pr: 2217
 ---
 
 The first unit under the standing rule ruled (A) on
