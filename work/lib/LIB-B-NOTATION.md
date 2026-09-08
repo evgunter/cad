@@ -5,6 +5,7 @@ title: binding census family B-NOTATION
 status: review
 branch: lib/b-notation
 opened: 2026-09-06
+pr: 2189
 ---
 
 Queued mechanical census family (the B-RESOLVE shape): sweep the
