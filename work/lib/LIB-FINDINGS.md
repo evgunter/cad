@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/findings
 refs: [census-findings-cross-without-a-per-arm-tag, two-validation-payload-discriminants-still-uncrossed]
+pr: 2225
 ---
 
 The unit under Ev's ruling (A) on
