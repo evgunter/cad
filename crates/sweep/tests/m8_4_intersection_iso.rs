@@ -448,18 +448,24 @@ const INTERIOR_COLUMN_SCALE: f64 = 1.0 / 1024.0;
 /// ε-conditional (`prism`'s docs: the attachment's certified sup is a
 /// LENGTH and shrinks with the model while ε does not).
 ///
-/// **What this row does NOT claim, and why.** The whole-body mint is
-/// blocked on this chart by a DIFFERENT arm: a chart wide enough for a
-/// seam to be an interior column is by construction wider than the face
-/// it trims, so the face's cap rims are not on a chart boundary either,
-/// and the rim arms — which map `u` affinely onto the chart's whole
-/// knot domain and pick `v` from the carrier's start point — refuse
-/// with `"the carrier's start point lies on neither chart boundary"`.
-/// That is asserted below, at a half-edge that is NOT this one, so the
-/// row states exactly whose blocker it is. The certificate is therefore
-/// taken at `PcurveCache::certify_general` directly — the same door
-/// `mint_pcurves` calls, with the same operands — rather than through
-/// the pass.
+/// **The whole body then mints and validates at rest.** A chart wide
+/// enough for a seam to be an interior column is wider than the face
+/// it trims, so nothing on the face is on a chart boundary: the cap
+/// rims measure their `u` map, and the OTHER seam — `Chart`-described
+/// on the neighbour's own image, a spline carrier with no operand
+/// pair — measures its column and certifies it EXACTLY, by the de Boor
+/// collapse (`geom_brep::interior_iso_u`) rather than a boundary row.
+/// The `Intersection` seam keeps `General`: nothing is downgraded. The
+/// certificate is first taken at `PcurveCache::certify_general`
+/// directly — the same door `mint_pcurves` calls, with the same
+/// operands — and then the pass itself is run.
+///
+/// **What this row does NOT claim.** The body validates; the face's
+/// TRIM REGION is not an axis-aligned rectangle of its chart, and the
+/// quadrature and tessellation lanes refuse it typed. Which of their
+/// filed refusals this body actually reaches is asserted at the end —
+/// the opening measurement of the unit that lifts them
+/// (`work/trim/general-pcurve-face-props-and-tess-refuse.md`).
 #[test]
 fn an_interior_column_intersection_mints_a_general_image() {
     let eps = Tol::witness().get().eps;
@@ -539,32 +545,106 @@ fn an_interior_column_intersection_mints_a_general_image() {
         cert.ssi.is_some(),
         "and it is the FULL C2 certificate, not the closed-form lane's: {cert:?}"
     );
-    // ---- Whose blocker the whole-body mint is. ----
-    let mint = topo::mint_pcurves(&mut body, Tol::witness());
-    match mint {
-        Ok(()) => panic!(
-            "the rim arms learned to read a trimmed chart — good news, and this row's \
-             blocker clause is now stale: fold the mint back into the assertions above"
-        ),
-        Err(PcurveMintError::Certify { half_edge, error }) => {
-            assert_ne!(
-                half_edge, he,
-                "the interior column is not what blocks the body: {error:?}"
-            );
-            let geom_brep::PcurveCertifyError::IsoUnsupported { what } = error else {
-                panic!("the rim arms refuse TYPED, naming the class: {error:?}")
-            };
-            assert!(
-                what.contains("neither chart boundary"),
-                "and the blocker is the rim arms' boundary assumption: {what}"
-            );
-        }
-        other => panic!("no other posture is honest for this body: {other:?}"),
+    // ---- The whole body, through the pass. ----
+    topo::mint_pcurves(&mut body, Tol::witness())
+        .unwrap_or_else(|e| panic!("every half-edge of the trimmed chart mints at rest: {e:?}"));
+    let bowed_hes: Vec<_> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter(|h| he_surface(&body, *h) == key)
+        .collect();
+    for h in &bowed_hes {
+        assert!(
+            body.pcurve(*h).is_some(),
+            "the bowed face's cache set is complete: {h:?} carries none"
+        );
     }
+    assert!(
+        matches!(body.pcurve(he).unwrap().pcurve(), Pcurve::General(_)),
+        "the Intersection seam keeps its General image — no downgrade: {:?}",
+        body.pcurve(he).unwrap().pcurve()
+    );
+    // The other seam: Chart-described on the neighbour's image, spline
+    // carrier, no operand pair — the EXACT class on the interior
+    // column `u = 1`, minted by the wall–seam arm's measured foot.
+    let mut chart_seams = 0;
+    for h in &bowed_hes {
+        if *h == he {
+            continue;
+        }
+        let (carrier, _, _) = seam_carrier(&body, *h);
+        if !matches!(carrier, Curve3::Nurbs(_)) {
+            continue;
+        }
+        chart_seams += 1;
+        let cache = body.pcurve(*h).unwrap();
+        let Pcurve::IsoLine { p0, pl } = cache.pcurve() else {
+            panic!(
+                "the Chart-described seam takes the exact class: {:?}",
+                cache.pcurve()
+            )
+        };
+        assert_eq!(pl.x, 0.0, "a column holds u constant: {pl:?}");
+        assert!(
+            (p0.x - 1.0).abs() < 1e-9,
+            "on the chart's interior knot column u = 1 of [0, 3]: {p0:?}"
+        );
+        assert!(
+            cache.certificate().envelope <= eps,
+            "and its collapsed-row hull is inside ε: {:e}",
+            cache.certificate().envelope
+        );
+        println!(
+            "M8-4 chart seam {h:?} @ eps={eps:e}: IsoLine on u = {}, envelope {:e} m, {:?}",
+            p0.x,
+            cache.certificate().envelope,
+            cache.certificate().statement
+        );
+    }
+    assert_eq!(
+        chart_seams, 1,
+        "the wall has exactly one Chart-described seam"
+    );
+    let findings = topo::pcurves::validate_pcurves(&body, band());
+    assert!(
+        findings.is_empty(),
+        "the body validates at rest: {findings:?}"
+    );
     println!(
         "M8-4 interior column @ eps={eps:e}: General on u = 2 of [0, 3], envelope {:e} m, {:?}",
         cert.envelope, cert.statement
     );
+
+    // ---- The opening measurement for the unit that lifts the trimmed
+    // region's refusals: which refusal each lane actually reaches on
+    // this body. Quadrature reaches the filed "non-iso pcurve" site
+    // (`topo/src/props.rs`, the General image on the seam).
+    // Tessellation does NOT reach a trimmed-region site at all: the
+    // widened chart has interior knots in its degree-1 `u` direction,
+    // and `mesh`'s patch-bound gate refuses that C⁰ crease first
+    // (`geom_brep::patch_bound::PatchBoundError::Degree1Crease`). ----
+    let props = topo::mass_properties(&body, Tol::witness());
+    let Err(topo::MassPropsError::Face {
+        source: geom_brep::PropsError::QuadratureUnsupported { what },
+        ..
+    }) = props
+    else {
+        panic!("the trimmed face's quadrature lane moved — re-pin this row: {props:?}")
+    };
+    assert!(
+        what.contains("carries a non-iso pcurve"),
+        "quadrature refuses at the non-iso-pcurve site: {what}"
+    );
+    println!("M8-4 mass_properties on the trimmed chart: {what}");
+    let tess = mesh::tessellate(&body, 1e-5, Tol::witness());
+    let Err(mesh::TessellateError::UnsupportedNurbsFace { note, .. }) = tess else {
+        panic!("the trimmed face's tessellation lane moved — re-pin this row")
+    };
+    assert!(
+        note.contains("C⁰ crease"),
+        "tessellation refuses at the crease gate before any trimmed-region site: {note}"
+    );
+    println!("M8-4 tessellate on the trimmed chart: {note}");
 }
 
 /// **The mate the MINT would find**, by `topo::pcurves::mate_surface`'s

@@ -2,10 +2,13 @@
 id: unanchored-definition-skip
 kind: issue
 title: bounds-allowlist.sh's CertifiedBounds definition skip is unanchored, so the moved lines stay exempt while the subject check goes silent
-status: open
+status: closed
 opened: 2026-09-03
 track: K
 refs: [D106]
+branch: gates/bounds-small
+pr: 2029
+closed: 2026-09-06
 ---
 
 
@@ -92,6 +95,67 @@ than assume two is the population.
 file's header, and the change here is to the gate's matcher pipeline and
 its self-test fixtures — a file a concurrent Track K lane was converting
 at the time.
+
+## Repair (branch `gates/bounds-small`)
+
+`DEFINITION_HOME`/`DEFINITION_HOME_RE` and the two declaration texts sit
+together in the `SEALED_HOME_RE` shape, and `gate_definition_skip` joins
+the path to each pattern (`^$DEFINITION_HOME_RE:[0-9]+:…$`). The subject
+check keeps `[ -f "$f" ] || return 0`: with the skip anchored, a moved
+`real.rs` carries the two lines to a path the skip does not match and the
+SCAN reds on them, so the abstention costs nothing.
+`plant_definition_lines_elsewhere` plants that case the way
+`plant_sealed_decl_elsewhere` does; reverting the anchor makes it fail
+(measured on a scratch copy of the gate).
+
+The anchor's POSITIVE direction is `plant_definition_lines_at_home` —
+`real.rs` carrying the two definition lines and nothing else, which must
+PASS. Without it `--selftest` stayed green under an anchor narrowed to a
+path that never matches, and only the live pass reds; it also covers an
+escaping drift between `DEFINITION_*` and its `_RE` twin. The twin's
+equivalent is `no-extra-real-bounds.sh`'s `plant_sealed_home_clean`.
+Measured: over-narrowing the anchor on a scratch copy fires it.
+
+Hit-set diff on the live tree: byte identical, 163 matcher records over
+26 files. The two definition lines are the only records the skip drops,
+and `real.rs` is where they are.
+
+**The enumeration this row asked for**, over every `scripts/gates/*.sh`.
+Content-keyed skips — a filter keyed on the TEXT of a source line — are
+three, and only they are in this row's class:
+
+- `bounds-allowlist.sh`'s `gate_definition_skip` — unanchored; fixed
+  here.
+- `no-extra-real-bounds.sh:133` — anchored (`^$SEALED_HOME_RE:…`); the
+  twin this fix copies.
+- `viewer-module-kinds.sh:485` — anchored (`^$SRC/$exfile:[0-9]+:.*`),
+  and its subject guard is a RED rather than an abstention: an exception
+  entry naming a file not in the tree is diagnosed at `:458`.
+
+Everything else matching `grep -v` under `scripts/gates/` is a different
+instrument and not this row's class: PATH filters, which are anchored by
+construction (`bit-identity-consumer.sh:38-41`,
+`bit-identity-punning.sh:23`, `evalscalar-allowlist.sh:34`,
+`interval-square-allowlist.sh:217-219`, `no-ambient-env.sh:108-110`,
+`witness-not-ambient.sh:114-117`, `signed-zero-one-home.sh:109`, whose
+home is proved by `gate_require_file`); path lists built at runtime
+(`interval-square-allowlist.sh:203` and `witness-not-ambient.sh:118`
+filter FILE NAMES, not source text); SHAPE filters (`interval-square-allowlist.sh:194`); comment-line
+strips over a script or workflow (`gate-roster.sh:121`,
+`probe-suite-census.sh:659,678`); blank-line strips
+(`no-extra-real-bounds.sh:138`, `viewer-module-kinds.sh:449,499`); a
+test-listing filter (`probe-suite-census.sh:861`); and `grep -v` inside
+FIXTURE planters, which edit a fixture rather than skip a scan
+(`gate-roster.sh:361`, `viewer-module-kinds.sh:753,789`).
+
+Three patterns were swept: `grep -v`/`-vE`/`-vF` (the list above),
+`grep -qxF`/`-qF` (all presence assertions — subject checks, not skips),
+and `next` inside the gates' awk readers (all structural — an empty
+record, a missing colon, a statement with no `Real` — none an exemption
+for a named line). **What the sweep could not match**: a skip spelled as
+a bash `case`/`[[ ]]` test on a record, or one whose needle is built at
+runtime from a file the gate reads, since neither carries any of the
+three tokens.
 
 ## Claimed by GATES (2026-09-06)
 

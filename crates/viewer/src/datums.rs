@@ -4,7 +4,7 @@
 //!
 //! # Why this is a value and not a paint routine
 //!
-//! G1's rule, the same one [`crate::pick::edge_overlay`] obeys: a test
+//! G1's rule, the same one [`crate::marks::edge_overlay`] obeys: a test
 //! asserts which segments a datum draws and where they are, and what
 //! colour they come out is the theme's answer and the shader's. That
 //! matters more here than for an edge mark, because a datum's geometry
@@ -299,7 +299,7 @@ impl DatumKind {
 
 /// One datum's wireframe: which node it came from, what kind it is,
 /// and its segments as a LINE LIST — two positions per segment, the
-/// shape [`crate::pick::EdgeOverlay`] carries and the renderer
+/// shape [`crate::marks::EdgeOverlay`] carries and the renderer
 /// consumes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DatumDraw {

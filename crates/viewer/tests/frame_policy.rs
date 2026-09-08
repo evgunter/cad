@@ -29,14 +29,16 @@ use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{DisplayFault, DisplayView};
-use viewer::evalseam::{Generation, IndexDone, IndexRequest, IndexService, InlineIndexer};
+use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer};
 use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
+use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
-use viewer::pick::{self, CacheStep, IdMap, IndexLanding, PickCache, PickIndex};
+use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
+use viewer::pickindex::{self, IdMap, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
 use viewer::session::{
-    AtRestBadge, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp,
+    AtRestBadge, DocSession, FaceSelection, Hovered, Outstanding, Refusal, Selection, SessionOp,
 };
 
 fn delta() -> DisplayTolerance {
@@ -226,7 +228,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
     for (message, what) in [
         (frame::delta_refusal(&delta), "a δ the display refused"),
         (
-            frame::unindexed_refusal(&pick::NotIndexed::Building),
+            frame::unindexed_refusal(&pickcache::NotIndexed::Building),
             "a pick against an index still building",
         ),
         (
@@ -261,7 +263,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
 
     for (message, what) in [
         (
-            frame::pick_refusal(&pick::PickError::Camera(projection)),
+            frame::pick_refusal(&pickindex::PickError::Camera(projection)),
             "a cursor action the pick index refused",
         ),
         (
@@ -294,7 +296,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
     let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
-    let build = pick::PickIndexError::DrawnTwice {
+    let build = pickindex::PickIndexError::DrawnTwice {
         node: RecipeNodeId(3),
         body: 0,
     };
@@ -395,7 +397,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
          will not form is a READ, and both are about the camera"
     );
     assert_eq!(
-        frame::unindexed_refusal(&pick::NotIndexed::Building).subject(),
+        frame::unindexed_refusal(&pickcache::NotIndexed::Building).subject(),
         frame::index_badge(Some(&build))
             .expect("a held refusal badges")
             .subject(),
@@ -722,23 +724,23 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
     // nothing". The probe's decision logic is a pure function of the
     // two readings, so these rows hold whatever is on the CI box's
     // PATH.
-    use frame::ChooserBackend;
+    use frame::{ChooserBackend, SessionBus, Zenity};
     assert_eq!(
-        frame::chooser_backend_of(true, false),
+        frame::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
         ChooserBackend::ZenityPresent
     );
     assert_eq!(
-        frame::chooser_backend_of(true, true),
+        frame::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
         ChooserBackend::ZenityPresent,
         "zenity needs no portal"
     );
     assert_eq!(
-        frame::chooser_backend_of(false, true),
+        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
         ChooserBackend::PortalPossible,
         "a session bus makes a portal POSSIBLE — a hint, never a verdict"
     );
     assert_eq!(
-        frame::chooser_backend_of(false, false),
+        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
         ChooserBackend::Absent
     );
     assert!(ChooserBackend::ZenityPresent.usable());
@@ -1093,7 +1095,7 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
         index.ids_of(&face.name).len() > 1,
         "the name is drawn twice"
     );
-    let marked = viewer::pick::highlight(&index, &Selection::Face(face.clone()), None);
+    let marked = viewer::marks::highlight(&index, &Selection::Face(face.clone()), None);
     let key = index
         .ids()
         .key_of(marked.selected)
@@ -1533,18 +1535,18 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
 fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
     let click = [input::PickAction::Select([10.0, 10.0])];
     assert_eq!(
-        pick::unindexed(&click, true),
-        Some(pick::NotIndexed::Building),
+        pickcache::unindexed(&click, true),
+        Some(pickcache::NotIndexed::Building),
     );
     assert_eq!(
-        pick::unindexed(&click, false),
-        Some(pick::NotIndexed::Absent),
+        pickcache::unindexed(&click, false),
+        Some(pickcache::NotIndexed::Absent),
         "a refused build is not a build that is still running, and the \
          sentence must not promise an answer that is not coming",
     );
     for indexing in [true, false] {
         assert_eq!(
-            pick::unindexed(
+            pickcache::unindexed(
                 &[
                     input::PickAction::Hover([10.0, 10.0]),
                     input::PickAction::ClearHover,
@@ -1554,13 +1556,16 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
             None,
             "an observation asked every frame is not a refusal to report",
         );
-        assert_eq!(pick::unindexed(&[], indexing), None);
+        assert_eq!(pickcache::unindexed(&[], indexing), None);
     }
     assert_ne!(
-        pick::NotIndexed::Building.to_string(),
-        pick::NotIndexed::Absent.to_string(),
+        pickcache::NotIndexed::Building.to_string(),
+        pickcache::NotIndexed::Absent.to_string(),
     );
-    for refusal in [pick::NotIndexed::Building, pick::NotIndexed::Absent] {
+    for refusal in [
+        pickcache::NotIndexed::Building,
+        pickcache::NotIndexed::Absent,
+    ] {
         assert!(
             refusal.to_string().contains("index"),
             "and each sentence says which of the two answers it is",
@@ -1569,48 +1574,36 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
 }
 
 /// One indicator for one wait, and the ranking that decides which.
+///
+/// The six points are the whole domain: the three states a session can
+/// owe, times the index seam's two.
 #[test]
 fn the_chrome_has_one_progress_state_and_evaluation_outranks_indexing() {
-    // busy, running, indexing.
-    assert_eq!(frame::progress(false, false, false), None);
+    assert_eq!(frame::progress(Outstanding::Current, false), None);
     assert_eq!(
-        frame::progress(true, true, false),
+        frame::progress(Outstanding::Evaluating, false),
         Some(frame::Progress::Evaluating)
     );
     assert_eq!(
-        frame::progress(true, false, false),
+        frame::progress(Outstanding::Canceled, false),
         Some(frame::Progress::Canceled { indexing: false }),
         "a spinner over no running work would be a lie",
     );
     assert_eq!(
-        frame::progress(true, false, true),
+        frame::progress(Outstanding::Canceled, true),
         Some(frame::Progress::Canceled { indexing: true }),
         "a cancel with an index build still running is one state that \
          carries the work, not a second indicator beside it",
     );
     assert_eq!(
-        frame::progress(false, false, true),
+        frame::progress(Outstanding::Current, true),
         Some(frame::Progress::Indexing)
     );
     assert_eq!(
-        frame::progress(true, true, true),
+        frame::progress(Outstanding::Evaluating, true),
         Some(frame::Progress::Evaluating),
         "an index for a superseded generation is about to be discarded",
     );
-    // The last two of the eight. `busy` is "the picture is older than
-    // the document" and `running` is "the seam has work", so a seam
-    // with work outstanding always has a generation the picture has
-    // not caught up to: NOT busy while running is unreachable through
-    // `DocSession`. The function is total anyway, and what it answers
-    // there is written down rather than left to be discovered.
-    for indexing in [false, true] {
-        assert_eq!(
-            frame::progress(false, true, indexing),
-            frame::progress(false, false, indexing),
-            "with the picture current, a running evaluation the session \
-             cannot report changes nothing",
-        );
-    }
 }
 
 // --- the pairing sweep ----------------------------------------------

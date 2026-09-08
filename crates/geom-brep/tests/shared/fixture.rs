@@ -22,6 +22,7 @@
 
 use core::f64::consts::FRAC_PI_2;
 
+use geom::curves::fit::interpolate_columns;
 use geom::{NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::ChartWindow;
 use geom_core::spline::KnotVector;
@@ -149,4 +150,46 @@ pub(crate) fn wide_window() -> ChartWindow<f64> {
         v_min: -10.0,
         v_max: 10.0,
     }
+}
+
+/// A non-analytic bicubic patch: a height field with no closed form
+/// as any analytic kind, interpolated through the loft door.
+pub(crate) fn bumpy_patch() -> NurbsSurface<f64> {
+    let n = 7;
+    let params: Vec<f64> = (0..n)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let t = i as f64 / (n - 1) as f64;
+            t
+        })
+        .collect();
+    let height = |u: f64, v: f64| 0.35 * (2.4 * u).sin() * (1.9 * v + 0.4).cos() + 0.2 * u * v;
+    let rows: Vec<Vec<f64>> = params
+        .iter()
+        .map(|u| {
+            let mut row = Vec::with_capacity(n * 3);
+            for v in &params {
+                row.extend_from_slice(&[*u, *v, height(*u, *v)]);
+            }
+            row
+        })
+        .collect();
+    let (ku, r) = interpolate_columns(&params, 3, &rows).unwrap();
+    let mut rows_v: Vec<Vec<f64>> = Vec::with_capacity(n);
+    for l in 0..n {
+        let mut row = Vec::with_capacity(ku.control_count() * 3);
+        for rr in &r {
+            row.extend_from_slice(&rr[l * 3..l * 3 + 3]);
+        }
+        rows_v.push(row);
+    }
+    let (kv, p) = interpolate_columns(&params, 3, &rows_v).unwrap();
+    let (cu, cv) = (ku.control_count(), kv.control_count());
+    let mut control = Vec::with_capacity(cu * cv);
+    for i in 0..cu {
+        for row in p.iter().take(cv) {
+            control.push(Point3::new(row[i * 3], row[i * 3 + 1], row[i * 3 + 2]));
+        }
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).unwrap()
 }

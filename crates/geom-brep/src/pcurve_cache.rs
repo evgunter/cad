@@ -160,7 +160,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::{KnotVector, SpanLocate};
+use geom_core::spline::{KnotVector, SpanLocate, SplineError};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
 use crate::certify::CERT_SAMPLES;
@@ -194,7 +194,7 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// it at all.
 ///
 /// [`Pcurve::IsoLine`] (M6-3) and [`Pcurve::IsoArc`] (M8-3) are the two
-/// NURBS-chart boundary rungs: both images are exactly straight in UV,
+/// NURBS-chart iso rungs: both images are exactly straight in UV,
 /// and they are separate variants because their MOVING CHANNEL differs
 /// — `IsoLine`'s is the carrier's own parameter, `IsoArc`'s is the
 /// chart's rational-quadratic Bézier parameter, related to the arc
@@ -270,7 +270,11 @@ pub enum Pcurve<T: Real> {
     /// so no zero-test on `T` ever has to run. Every loft/sweep wall
     /// boundary stores this form: wall–wall seams as `u = const`
     /// lines, cap–wall rims as `v = const` lines (the definitional
-    /// payoff — no fit anywhere).
+    /// payoff — no fit anywhere). A `u = const` line may sit on an
+    /// INTERIOR column of its chart (a chart wider than the face it
+    /// trims): the certificate's hull then rests on the de Boor
+    /// collapse rather than a boundary row, and the variant is the same
+    /// one — nothing reads "boundary" off it.
     IsoLine {
         /// The chart point at `t = 0`.
         p0: Point2<T>,
@@ -665,10 +669,18 @@ pub enum FittedMagnitude {
         /// The last distance seen.
         last_distance: f64,
     },
+    /// A certified foot point of an edge ENDPOINT would not converge:
+    /// the last distance the projection saw, in metres. There is no
+    /// schedule parameter — the endpoint is not a schedule position —
+    /// so this arm carries none rather than a placeholder.
+    EndpointFootDistance {
+        /// The last distance seen.
+        last_distance: f64,
+    },
 }
 
 /// Typed pcurve-certification failure (D4 ¶3): actionable, closed enum.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PcurveCertifyError {
     /// The face's chart is outside the certified lane. Plane and
     /// cylinder charts have exact closed-form images for every carrier
@@ -713,15 +725,20 @@ pub enum PcurveCertifyError {
     FittedMateMissing,
     /// An iso image was offered outside the iso lane's certified
     /// inventory, with the exact boundary named. The refused set is:
-    /// a chart that is still the mvfs placeholder; an INTERIOR
-    /// (non-boundary) iso; a DIAGONAL line in UV; a degenerate iso
-    /// (neither chart channel moves); an image that leaves the chart's
-    /// parameter domain, where the hull bound does not hold; a carrier
-    /// whose spline structure is not the chart's own boundary row, or
-    /// whose weights are not positive (the convex-hull hypothesis
-    /// itself); a seam-class image over a non-spline carrier; a LINE
-    /// cap rim on a RATIONAL column (the Greville hull is a
-    /// linear-precision fact the rational basis does not have). A
+    /// a chart that is still the mvfs placeholder; a non-boundary ROW
+    /// under the cap and arc-rim classes (the seam class certifies an
+    /// interior COLUMN by the de Boor collapse, `crate::nurbs_iso`, and
+    /// refuses a column outside the domain); an
+    /// interior column of a chart whose weight net varies along both
+    /// parameters (the collapsed row's weights are computed, so no
+    /// stored carrier shares its space); a DIAGONAL line in UV; a
+    /// degenerate iso (neither chart channel moves); an image that
+    /// leaves the chart's parameter domain, where the hull bound does
+    /// not hold; a carrier whose spline structure is not the traversed
+    /// column's, or whose weights are not positive (the convex-hull
+    /// hypothesis itself); a seam-class image over a non-spline
+    /// carrier; a LINE cap rim on a RATIONAL column (the Greville hull
+    /// is a linear-precision fact the rational basis does not have). A
     /// rational CHART and an ARC-parameterized cap rim are not in that
     /// set — both certify, through the seam and arc-rim classes. Nor is
     /// an intersection locus that is not a boundary column: since
@@ -732,21 +749,21 @@ pub enum PcurveCertifyError {
         /// The refused class, named.
         what: &'static str,
     },
+    /// The chart's own row or column would not re-wrap as a curve —
+    /// unreachable for a chart that already validated, and surfaced
+    /// with the spline layer's own refusal rather than swallowed
+    /// (D4 ¶2).
+    ChartRow {
+        /// The spline layer's typed refusal.
+        source: SplineError,
+    },
     /// The fitted lane's SSI certificate refused, **flattened to its
     /// three actionable parts** rather than nested whole.
     ///
     /// The triple IS the actionable content — which limb, why, and the
     /// offending margin — which is what a consumer can act on and what
-    /// this module's other refusals carry. Nesting `SsiError` whole
-    /// would additionally have cost this enum its `Copy` (that error
-    /// nests fit and spline refusals which are not `Copy`), rippling
-    /// through `topo::pcurves::PcurveMintError` and its containers for
-    /// no gain in what a caller can do. That is an avoided ripple, not
-    /// a demonstrated dependency: no `src` site is known to exercise
-    /// this enum's `Copy` today — every flow here moves through
-    /// `map_err` — so the honest statement is "the flattened form is
-    /// the right shape and keeps the existing error stack unchanged",
-    /// not "`Copy` is required".
+    /// this module's other refusals carry; nesting `SsiError` whole
+    /// would add nothing a caller can act on.
     FittedCertificate {
         /// The SSI limb that refused, when the refusal names one.
         limb: Option<SsiLimb>,
@@ -858,6 +875,11 @@ impl core::fmt::Display for PcurveCertifyError {
                 f,
                 "pcurve certification: the iso-line lane refuses this class — {what}"
             ),
+            Self::ChartRow { source } => write!(
+                f,
+                "pcurve certification: the chart's own row or column is not valid spline \
+                 structure — {source}"
+            ),
             Self::FittedCertificate {
                 limb,
                 what,
@@ -880,6 +902,9 @@ impl core::fmt::Display for PcurveCertifyError {
                     ),
                     Some(FittedMagnitude::LastFootDistance { t, last_distance }) => format!(
                         " (the projection's last distance was {last_distance:e} m at t = {t:e})"
+                    ),
+                    Some(FittedMagnitude::EndpointFootDistance { last_distance }) => format!(
+                        " (the projection's last distance at the endpoint was {last_distance:e} m)"
                     ),
                     None => String::new(),
                 }
@@ -968,24 +993,30 @@ pub enum EnvelopeStatement {
     /// certified at the [`CERT_SAMPLES`] schedule, as
     /// [`PcurveCertificate::max_residual`] records.
     OnLocusHull,
-    /// `sup |S(P(t)) − C(t)|` for the two NURBS-chart boundary rungs —
+    /// `sup |S(P(t)) − C(t)|` for the two NURBS-chart iso rungs —
     /// [`Pcurve::IsoLine`] (M6-3) and [`Pcurve::IsoArc`] (M8-3, whose
-    /// chart column is rational by construction) — by the boundary-row
-    /// **control-difference hull**: the traversed iso is a boundary
-    /// row of the chart's own control net (a copy, no arithmetic —
-    /// `crate::nurbs_iso`), so `S ∘ P` and the carrier-side comparison
-    /// live in the same spline space and the partition-of-unity hull
-    /// `sup |Σ Nᵢ·Δcᵢ| ≤ max |Δcᵢ|` bounds their difference over the
-    /// whole domain — nothing sampled. The hull needs the two curves to
-    /// share a spline space and (when rational) strictly positive
-    /// weights, not a non-rational chart; M8-3 moved that hypothesis
-    /// from a blanket chart-level gate to the class arms that use it.
-    /// The banded axis/side/domain
-    /// snap slacks (the trilean-admitted ε-shell around the exact
-    /// axis-aligned family, metered through the chart's
-    /// derivative-net stretch bounds) are folded in explicitly,
-    /// exactly as the cylinder lane's winding snap slack is; every
-    /// slack is exactly zero on the minted path.
+    /// chart column is rational by construction) — by the traversed
+    /// row's **control-difference hull**. The traversed iso is a curve
+    /// in the chart's own spline space with an explicit control
+    /// polygon — a BOUNDARY row is a copy of the control net (no
+    /// arithmetic), an INTERIOR column is the de Boor collapse of the
+    /// net at the fixed parameter (`crate::nurbs_iso`; exact in ℝ, and
+    /// at the interval scalar each collapsed control point encloses the
+    /// exact one, so the hull's upper end still bounds the sup) — so
+    /// `S ∘ P` and the carrier-side comparison live in one spline space
+    /// and the partition-of-unity hull `sup |Σ Nᵢ·Δcᵢ| ≤ max |Δcᵢ|`
+    /// bounds their difference over the whole domain — nothing sampled.
+    /// The hull needs the two curves to share a spline space and (when
+    /// rational) strictly positive weights, not a non-rational chart;
+    /// M8-3 moved that hypothesis from a blanket chart-level gate to
+    /// the class arms that use it. The banded axis/side/domain snap
+    /// slacks (the trilean-admitted ε-shell around the exact
+    /// axis-aligned family, metered through the chart's derivative-net
+    /// stretch bounds) are folded in explicitly, exactly as the
+    /// cylinder lane's winding snap slack is; a boundary row pays its
+    /// snap to the domain end, a collapsed row is taken at the stored
+    /// parameter itself and pays the channel's drift alone. Every slack
+    /// is exactly zero on the minted path.
     MapResidualIsoHull,
 }
 
@@ -1242,10 +1273,7 @@ fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure
             limb: Some(SsiLimb::OnLocus),
             what: "an edge endpoint has no certified foot on this chart, so where its \
                    image sits cannot be measured",
-            magnitude: Some(FittedMagnitude::LastFootDistance {
-                t: f64::NAN,
-                last_distance,
-            }),
+            magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
         }),
         Err(_) => Err(PcurveCertifyError::UnsupportedChart {
             chart: "the mvfs placeholder is not a surface to derive a chart image on",
@@ -3517,7 +3545,7 @@ fn run_iso_arc_checks<T: Decide>(
     let (cv0, cv1) = (T::from_f64(cv0f), T::from_f64(cv1f));
     // The moving channel is u and the fixed one v (the cap class'
     // geometry).
-    let (end, slack_v) = side_of(
+    let Some((end, slack_v)) = side_of(
         p0.y,
         cv0,
         cv1,
@@ -3525,9 +3553,16 @@ fn run_iso_arc_checks<T: Decide>(
         pd.y.abs() * stretch_v,
         band,
         &esc,
-    )?;
+    )?
+    else {
+        return Err(bad(
+            "an arc rim on a row that is not a chart boundary — the arc-rim class compares \
+             the chart's boundary column against the circle's rational-quadratic form, and \
+             no construction mints a rim off a boundary",
+        ));
+    };
     let b = crate::nurbs_iso::boundary_iso_v(payload, end)
-        .map_err(|_| bad("the chart's boundary column failed to re-wrap as a curve"))?;
+        .map_err(|source| PcurveCertifyError::ChartRow { source })?;
     // --- The construction's EXACT structure (C6). ---
     let spans = breaks.control_count().saturating_sub(1);
     if spans == 0 || b.knots().degree() != 2 {
@@ -3671,7 +3706,14 @@ fn run_iso_arc_checks<T: Decide>(
     // Which traversal this is, is the SAME two-way boundary question
     // `side_of` answers for the fixed channel — asked of the moving
     // one's start, and refused typed when the answer is neither.
-    let (reversed, slack_start) = side_of(p0.x, cu0, cu1, stretch_u, T::zero(), band, &esc)?;
+    let Some((reversed, slack_start)) = side_of(p0.x, cu0, cu1, stretch_u, T::zero(), band, &esc)?
+    else {
+        return Err(bad(
+            "an arc rim whose u-start is on neither domain end — the class is a \
+             FULL-DOMAIN traversal of the chart's column, forward or reversed, and a \
+             start that is not a domain end is neither",
+        ));
+    };
     let forward = !reversed;
     if !forward {
         chat.reverse();
@@ -3729,13 +3771,19 @@ fn run_iso_arc_checks<T: Decide>(
     })
 }
 
-/// Which boundary a banded-constant chart channel sits on, plus the
-/// slack the admission costs: `w` is the channel value at `t0`,
-/// `(lo, hi)` the channel's own DOMAIN ends, `drift` its whole-span
-/// motion bound, `arm` the stretch that meters both into metres.
-/// `Zero` at `lo` → the start row, at `hi` → the end row; anything
-/// else is an interior iso, refused typed. Shared by the iso-line and
-/// iso-arc classes.
+/// Which boundary a banded-constant chart channel sits on, if either,
+/// plus the slack the admission costs: `w` is the channel value at
+/// `t0`, `(lo, hi)` the channel's own DOMAIN ends, `drift` its
+/// whole-span motion bound, `arm` the stretch that meters both into
+/// metres. `Zero` at `lo` → `Some((false, slack))`, the start row; at
+/// `hi` → `Some((true, slack))`, the end row; two definite non-zero
+/// verdicts → `None`, NOT a boundary — a value strictly inside the
+/// domain or outside it, which this decider does not distinguish. A
+/// decider, not a refusal: what a non-boundary value means differs
+/// per class (the seam class meters it against the domain and
+/// collapses the row inside; the cap and arc classes have no
+/// construction off a boundary), so each call site owns its own text.
+/// Escalations escalate. Shared by the iso-line and iso-arc classes.
 ///
 /// **The domain, not the unit square (#327).** A chart the kernel
 /// BUILT is normalized to `[0, 1]²` and `(lo, hi) = (0, 1)` reads
@@ -3750,23 +3798,26 @@ fn side_of<T: Decide>(
     drift: T,
     band: Band,
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
-) -> Result<(bool, T), PcurveCertifyError> {
+) -> Result<Option<(bool, T)>, PcurveCertifyError> {
     if let Sign::Zero =
         decide("pcurve_iso_boundary", Margin::metered(w - lo, arm), band).map_err(esc)?
     {
-        return Ok((false, (w - lo).abs() * arm + drift));
+        return Ok(Some((false, (w - lo).abs() * arm + drift)));
     }
     if let Sign::Zero =
         decide("pcurve_iso_boundary", Margin::metered(w - hi, arm), band).map_err(esc)?
     {
-        return Ok((true, (w - hi).abs() * arm + drift));
+        return Ok(Some((true, (w - hi).abs() * arm + drift)));
     }
-    Err(PcurveCertifyError::IsoUnsupported {
-        what: "an INTERIOR iso (the fixed channel sits on neither chart boundary): \
-               boundary rows are control-net copies, an interior iso needs the de Boor \
-               collapse extractor — which arrives with the construction that first \
-               mints one",
-    })
+    Ok(None)
+}
+
+/// Whether every entry of a weight vector is the same `f64` bit for
+/// bit — a constant weight vector cancels out of the rational basis,
+/// so two curves over one knot vector with constant weights share a
+/// spline space whatever the two constants are.
+fn constant_weights(w: &[f64]) -> bool {
+    w.windows(2).all(|pair| pair[0] == pair[1])
 }
 
 /// **The iso lane's five checks** (M6-3), same fixed order as the
@@ -3776,7 +3827,7 @@ fn side_of<T: Decide>(
 /// check 4, where it is load-bearing per class (the seam class needs
 /// strictly positive weights and one shared spline space; the rim class
 /// still needs weights of exactly 1, for linear precision). Check 4's
-/// sup bound is the boundary-row control-difference hull
+/// sup bound is the traversed row's control-difference hull
 /// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
 /// axis/side/domain snap slacks folded in — the cylinder lane's
 /// winding-snap idiom transposed. Every slack is exactly zero on the
@@ -3849,10 +3900,12 @@ fn run_iso_checks<T: Decide>(
         Sign::Zero
     );
     let envelope = match (u_moves, v_moves) {
-        // The SEAM class: u banded-constant on a boundary, v traverses
-        // the carrier's own parameter. sup |S(P(t)) − C(t)| ≤
-        //   |S(u(t), v(t)) − S(side, v(t))|   (u snap slack)
-        // + |S(side, v(t)) − B(v(t))|         (exactly 0: B IS S(side, ·))
+        // The SEAM class: u banded-constant, v traverses the carrier's
+        // own parameter. With `u*` the row's parameter (a domain end
+        // for a boundary row, `u_start` itself for a collapsed one):
+        // sup |S(P(t)) − C(t)| ≤
+        //   |S(u(t), v(t)) − S(u*, v(t))|     (u snap + drift slack)
+        // + |S(u*, v(t)) − B(v(t))|           (exactly 0: B IS S(u*, ·))
         // + |B(v(t)) − C(v(t))|               (control hull, same basis)
         // + |C(v(t)) − C(t)|                  (parameter-map slack).
         (false, true) => {
@@ -3886,7 +3939,14 @@ fn run_iso_checks<T: Decide>(
             }
             let u_start = p0.x + pl.x * t0;
             let (cu0, cu1) = payload.knots_u().domain();
-            let (end, slack_u) = side_of(
+            // The traversed column: a boundary row is a control-net
+            // COPY and pays the boundary snap `|u_start − side|·stretch`;
+            // an interior column is the de Boor COLLAPSE at `u_start`
+            // itself, so there is nothing to snap and the slack is the
+            // channel's drift alone. Both rows are `S(u_start, ·)` in
+            // the chart's own `v` space, which is all the hull below
+            // ever used.
+            let (b, slack_u) = match side_of(
                 u_start,
                 T::from_f64(cu0),
                 T::from_f64(cu1),
@@ -3894,21 +3954,76 @@ fn run_iso_checks<T: Decide>(
                 du_extent.value(),
                 band,
                 &esc,
-            )?;
-            let b = crate::nurbs_iso::boundary_iso_u(payload, end).map_err(|_| {
-                PcurveCertifyError::IsoUnsupported {
-                    what: "the chart's boundary row failed to re-wrap as a curve \
-                           (corrupt chart structure)",
+            )? {
+                Some((end, slack_u)) => (
+                    crate::nurbs_iso::boundary_iso_u(payload, end)
+                        .map_err(|source| PcurveCertifyError::ChartRow { source })?,
+                    slack_u,
+                ),
+                None => {
+                    // Not a boundary: inside the domain it is a column
+                    // the collapse bounds; outside it the collapse is a
+                    // span's polynomial EXTENSION, which the chart does
+                    // not have — metered through the same stretch the
+                    // boundary decide used, refused typed.
+                    let outside = (T::from_f64(cu0) - u_start)
+                        .max(u_start - T::from_f64(cu1))
+                        .max(T::zero());
+                    match decide(
+                        "pcurve_iso_domain",
+                        Margin::metered(outside, stretch_u),
+                        band,
+                    )
+                    .map_err(esc)?
+                    {
+                        Sign::Zero => {}
+                        Sign::Positive | Sign::Negative => {
+                            return Err(PcurveCertifyError::IsoUnsupported {
+                                what: "the iso line's fixed channel sits outside the chart's \
+                                       u domain — not a boundary column, and the collapsed row \
+                                       bounds the chart on its domain only",
+                            });
+                        }
+                    }
+                    let row =
+                        crate::nurbs_iso::interior_iso_u(payload, u_start).map_err(|error| {
+                            match error {
+                                crate::nurbs_iso::IsoRowError::WeightsNotSeparable { .. } => {
+                                    PcurveCertifyError::IsoUnsupported {
+                                        what: "an interior column of a chart whose weight net \
+                                           varies in both directions — the collapsed row's \
+                                           weights are computed, not structure, so no \
+                                           carrier shares its rational space; the composite \
+                                           route is banked",
+                                    }
+                                }
+                                crate::nurbs_iso::IsoRowError::Structure { source } => {
+                                    PcurveCertifyError::ChartRow { source }
+                                }
+                                crate::nurbs_iso::IsoRowError::Interior { .. }
+                                | crate::nurbs_iso::IsoRowError::Escalated { .. } => unreachable!(
+                                    "interior_iso_u decides nothing and refuses no parameter"
+                                ),
+                            }
+                        })?;
+                    (row, du_extent.value())
                 }
-            })?;
+            };
+            // One spline space: the knots bitwise, and the weights
+            // either bitwise (a boundary row's, or a collapsed row's
+            // with the net's weights constant along `u`) or both
+            // constant (a collapsed row wrapped polynomial, whose
+            // carrier's constant cancels the same way).
+            let shared_weights = b.weights() == c.weights()
+                || (constant_weights(b.weights()) && constant_weights(c.weights()));
             if b.knots().knots() != c.knots().knots()
                 || b.knots().degree() != c.knots().degree()
-                || b.weights() != c.weights()
+                || !shared_weights
             {
                 return Err(PcurveCertifyError::IsoUnsupported {
-                    what: "the seam carrier is not the chart's own boundary row (its \
-                           knot/weight structure differs) — the hull comparison needs \
-                           one spline space",
+                    what: "the seam carrier is not the chart's own column (its knot/weight \
+                           structure differs from the traversed row's) — the hull \
+                           comparison needs one spline space",
                 });
             }
             let mut hull = T::zero();
@@ -3956,7 +4071,7 @@ fn run_iso_checks<T: Decide>(
             };
             let v_start = p0.y + pl.y * t0;
             let (cv0, cv1) = payload.knots_v().domain();
-            let (end, slack_v) = side_of(
+            let Some((end, slack_v)) = side_of(
                 v_start,
                 T::from_f64(cv0),
                 T::from_f64(cv1),
@@ -3964,13 +4079,17 @@ fn run_iso_checks<T: Decide>(
                 dv_extent.value(),
                 band,
                 &esc,
-            )?;
-            let b = crate::nurbs_iso::boundary_iso_v(payload, end).map_err(|_| {
-                PcurveCertifyError::IsoUnsupported {
-                    what: "the chart's boundary column failed to re-wrap as a curve \
-                           (corrupt chart structure)",
-                }
-            })?;
+            )?
+            else {
+                return Err(PcurveCertifyError::IsoUnsupported {
+                    what: "a LINE cap rim on a row that is not a chart boundary — the exact \
+                           class certifies non-boundary COLUMNS (the seam class) only; the \
+                           cap class's interior row arrives with its first minting \
+                           construction",
+                });
+            };
+            let b = crate::nurbs_iso::boundary_iso_v(payload, end)
+                .map_err(|source| PcurveCertifyError::ChartRow { source })?;
             // **This class keeps a rational gate, and it is the real
             // one** (M8-3). The hull below compares the column's
             // control points against the LINE sampled at the Greville

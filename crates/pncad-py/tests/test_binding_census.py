@@ -443,6 +443,20 @@ BOUND_AS = {
     "edge_frame": "Evaluation.edge_frame",
     "face_frame": "Evaluation.face_frame",
     "vertex_position": "Evaluation.vertex_position",
+    # The FIFTH read-back door, and the one that is not a frame.
+    # `face_carrier_kind` answers a face's stored `SurfaceKind` tag
+    # through the same node ladder the three above walk — a VALUE the
+    # way a `Pose` is, and the one "is this face planar" is a
+    # comparison of. It is where `face_frame` declines: a NURBS
+    # carrier has no canonical frame and refuses there, and its kind
+    # is still readable here. It left the `gap` roster at
+    # LIB-B-FACE-FRAME, which closed the family that chartered it.
+    #
+    # `SurfaceKind` itself is spelled identically and is accounted by
+    # rule 1; it already crossed INTO the kernel for
+    # `GeomPred.surface_kind`, and this door is the first to cross it
+    # back out.
+    "face_carrier_kind": "Evaluation.face_carrier_kind",
     # PICKING, the fourth door onto a name. `pick_face` is a free
     # function taking the evaluation, so it arrives as an `Evaluation`
     # method beside the three read-back doors above — the same shift,
@@ -719,20 +733,6 @@ FAMILIES = {
         "caller cannot yet do is WRITE one — the same asymmetry "
         "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
         "edge, because no existing write door silently drops a measure"
-    ),
-    "B-FACE-FRAME": (
-        "the derived sketch frame's Python surface (DOCM-1, "
-        "DOCM-REFERENCES-DESIGN DM1/DM1a/DM2); closing it binds "
-        "`Datum.face_frame` (a `FaceFrame` constructor taking the body "
-        "node, a face `StableName` and a spin angle), `Pose.sense` (the "
-        "face's orientation sense the read-back now carries beside its "
-        "axis, so a Python caller forms the outward normal as "
-        "`sense * axis` exactly as Rust does), and the carrier-kind read "
-        "`face_carrier_kind` (a face name in, its stored `SurfaceKind` "
-        "tag out — the value \"is this face planar\" is a comparison "
-        "of). Today Python can evaluate and read a document that "
-        "carries a derived frame, and cannot author one or ask a face "
-        "its kind"
     ),
     "B-PART": (
         "the projection node's Python surface (DOCM-2, "
@@ -1062,6 +1062,45 @@ FAMILIES = {
 #: answers which node carries a name, so it resolves names
 #: `denotation` refuses `no_such_name` for at the node a caller
 #: happened to ask.
+#: **B-FACE-FRAME is CLOSED and no longer a `gap` id here**
+#: (LIB-B-FACE-FRAME). It cited exactly ONE name on this roster —
+#: `face_carrier_kind`, now `Evaluation.face_carrier_kind` in
+#: `BOUND_AS` — and its charter named THREE doors. The gap between
+#: those two numbers is a BLIND SPOT of this census rather than an
+#: accounting error, and it is worth writing down at the closure
+#: because nothing here would ever have reported it.
+#:
+#: `Pose.sense` is a FIELD of a curated type. This file's alphabet is
+#: top-level names plus the `Class.member` spellings `BOUND_AS` points
+#: AT, so a curated type Python spells identically is accounted WHOLE,
+#: by rule 1, and a field it fails to project is invisible. That is
+#: the same blind spot `py/select.rs`'s growth tripwire records for
+#: enum VARIANTS ("the tripwire sees the KERNEL enum and this file's
+#: mirror, not `pncad.pyi`", issue #1309), one level out: this census
+#: compares NAMES, and a name's insides are nobody's roster. `sense`
+#: was real missing surface — the read-back carried the bool and
+#: Python could not read it, so the outward normal was unformable.
+#:
+#: `Datum.face_frame` is the other half, and it is stranger. The
+#: curated authoring name is `Datum` (the `editor_core` enum), Python
+#: declares a top-level `Datum`, and rule 1 accounts it on SPELLING
+#: ALONE — which is exactly what rule 1 claims to do and no more. The
+#: two are not the same type: Rust's is the AUTHORING enum whose arms
+#: Python spells as `Node.datum_*` constructors, Python's is the
+#: READ-side value `Value.datum()` answers with. So a whole authoring
+#: arm went unbound behind a name-for-name match. The module docstring
+#: says outright that semantics are not checked ("nothing here
+#: verifies that Python's `Frame` is the `Frame` the façade
+#: curates"); this is that sentence with a bill attached, banked as
+#: `work/lib/datum-crosses-name-for-name-as-two-types.md`.
+#:
+#: What closing it bound: `Node.datum_face_frame(at, face, spin)` — a
+#: DAG input, an opaque face name and an angle with no default —
+#: `Evaluation.face_carrier_kind`, and `Pose.sense`. The positive form
+#: is `tests/test_face_frame.py`, where the three meet: the frame's
+#: origin is the pose's, its normal is `sense * axis`, its +x is
+#: `u_ref` turned by the spin about that normal, and the face whose
+#: kind reads `Torus` is the face the frame refuses.
 #: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
 #: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
 #: `EvalError` — and closing it moved NINE, because the three could
@@ -1409,6 +1448,19 @@ NOT_BOUND = {
     # .md`), so inventing a second vocabulary at the boundary would
     # fork a diagnosis the kernel already words.
     "CensusContact": INTERIOR,
+    # The instantiation seam's declaration bookkeeping. `Relation` and
+    # `Route` are the two halves of what a carried finding says, and
+    # Python reads both without holding either type:
+    # `Attribution.relation` is `carried_refuted` / `carried_declined`
+    # for a declaration a document below authored, and
+    # `Attribution.of` / `.via` are its route. The same pair rides
+    # `AssemblyError` with `variant == "carried_mint_refusal"` and
+    # `Assembly.carried`'s rows. `CarriedDeclarations` is the
+    # evaluation VALUE channel's bundle, behind `Product` and
+    # `NodeValue`, both interior.
+    "CarriedDeclarations": INTERIOR,
+    "Relation": INTERIOR,
+    "Route": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     "ContactRefusal": INTERIOR,
@@ -1445,6 +1497,22 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # The one thing `Frame::rotate_then_translate` refuses, and the
+    # only thing `EditError::PlacementAxis` converts from — a type so
+    # that no other node refusal can reach a caller wearing the axis's
+    # words. Python never holds one: the constructor raises EditError
+    # with variant `placement_axis` and the axis's own prose, which is
+    # the whole of what the type carries.
+    "AxisRefusal": INTERIOR,
+    # The wrapper `MateFault::PlacerRefused` and
+    # `EditError::PlacementAxis` carry an evaluation refusal in, so the
+    # document layer's two error enums can hold one unaltered. Python
+    # never holds the wrapper: both doors project the refusal as the
+    # SAME tag word a node failure crosses with — `MateFault.error`
+    # and `EvaluationError.kind` are one vocabulary — and the prose is
+    # the fault's own `str()`. Nothing in Python hands one out and no
+    # bound door takes one.
+    "NodeRefusal": INTERIOR,
     # DI3's pairing payload: the two document ids behind a refused
     # pair — a prior the memo dropped (`Evaluation.prior_refused` on
     # the Rust side), a gather handed the wrong evaluation, a solve
@@ -1566,10 +1634,14 @@ NOT_BOUND = {
     "MinClearanceRefusal": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureUnavailableAt": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
-    # --- gap: the derived sketch frame's read door (census-owned) --
-    # The Rust door is DOCM-1's; its Python twin, with `Datum.face_frame`
-    # and `Pose.sense`, is LIB's and the family charters all three.
-    "face_carrier_kind": f"{GAP}: B-FACE-FRAME the derived frame's surface",
+    # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
+    # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
+    # exactly ONE name here — `face_carrier_kind` — which is now in
+    # `BOUND_AS` as `Evaluation.face_carrier_kind`. The family's other
+    # two charter names were never rows and could not be; the closure
+    # paragraph in this constant's docstring says why, because that
+    # gap between a three-door charter and a one-row roster is the
+    # measurement worth keeping.
     # --- gap: the projection node's selector (census-owned) --
     # The Rust node is DOCM-2's; its Python twin, `Node.part`, is
     # LIB's and the family charters it.

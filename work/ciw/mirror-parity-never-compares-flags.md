@@ -2,12 +2,13 @@
 id: mirror-parity-never-compares-flags
 kind: issue
 title: check-ci-mirror-parity compares which checks each half names, never their flags, so the two halves can drift on what a red run reports
-status: review
+status: closed
 opened: 2026-08-30
 github: 1295
 refs: [1128, 1232]
 pr: 1759
 branch: ciw/parity-reads-flags
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 1295
@@ -87,3 +88,11 @@ a comment in `ci-local.sh`.
 ## Home
 
 `work/issues/` — `scripts/check-ci-mirror-parity.py` and `local-scripts/ci-local.sh` are S-QA territory and S-QA is closed.
+
+## Closed 2026-09-06
+
+PR 1759. `scripts/check-ci-mirror-parity.py` compares the `SEMANTIC_FLAGS`
+subset between the two halves of every `HOSTED MIRROR` pair, with
+`FLAG_EXEMPT` (`:284`) carrying the declared asymmetries and their reasons.
+The "declare your asymmetry in a sentence" shape is kept; no second
+mechanism was added.

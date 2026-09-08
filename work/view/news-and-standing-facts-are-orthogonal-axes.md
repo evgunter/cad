@@ -2,10 +2,11 @@
 id: news-and-standing-facts-are-orthogonal-axes
 kind: issue
 title: News and standing fact are orthogonal to subject, and three facts of one class got two answers
-status: review
+status: closed
 pr: 1957
 opened: 2026-09-05
 branch: view/axes-and-badges
+closed: 2026-09-06
 ---
 
 
@@ -35,18 +36,23 @@ that seam succeeds — got two different answers in the same diff:
 - `crates/viewer/src/frame.rs`, `projection_refusal` —
   `Subject::Camera`, news.
 
-And `status-line-writers-bypass-the-ranking` classifies all three as
+And `status-line-writers-bypass-the-ranking` classified all three as
 **standing facts wanting a badge**, while #1883's ruling names the
 projection refusal among its four *news* instances. No rule anywhere
-distinguishes them, so the sweep has nothing to sort by.
+distinguished them, so the sweep had nothing to sort by. (Settled
+since: provenance is the test, ruled on
+`unindexed-refusal-is-an-outcome-not-a-read`; the sweep re-sorted its
+list against it and closed at #2026.)
 
 ## Why it is worth more than any line of that diff
 
-`status-line-writers-bypass-the-ranking` sorts nineteen writers into
+`status-line-writers-bypass-the-ranking` had to sort its writers into
 news and standing facts. If the two axes are orthogonal, that sort is
 under-determined for every writer whose fact outlives its frame *and*
-has a subject — which is most of the standing-fact list. The sweep
-needs the rule before it writes twenty sites against it.
+has a subject — which was most of the standing-fact list. The sweep
+needed the rule before it wrote its sites against it, and got it: the
+census settled at **eighteen** writers, seventeen of which #2026
+routed through the ranking.
 
 ## The shape of an answer
 
@@ -145,9 +151,13 @@ them true, not this ruling.
 
 ### What it unblocks
 
-`status-line-writers-bypass-the-ranking` — the twenty-writer sweep,
-the largest item on this board — which has been waiting for a rule to
-sort on since #1849 filed it.
+`status-line-writers-bypass-the-ranking` — the largest item on this
+board, waiting for a rule to sort on since #1849 filed it. It got one,
+re-derived its census to **eighteen** writers on it, and closed at
+#2026 with seventeen of them routed through the ranking. (The counts
+this file quotes — nineteen, twenty — are what was believed when it was
+written; the membership test they were wrong about is stated on that
+item.)
 
 
 ## What landed
@@ -184,3 +194,31 @@ for Ev.
   `frame-module-has-eight-concerns-and-no-holds-row` records what
   deferring it cost.
 - Two residues the unit introduces are `projection-fault-has-no-sweeper`.
+
+## CLOSED — #1957 merged (VIEW orchestrator, 2026-09-06)
+
+Merged at `8fec47fb`. The rule is in `crates/viewer/src/frame.rs`'s
+header and `crates/viewer/README.md`, `Badge` carries a subject, and
+the three seam refusals that are reads became badges.
+
+**The rule as built states its own limit**, which is what the sweep
+needed and what the ruling alone could not give it. All three reasons
+the mechanical restatement cannot decide alone are written where the
+sweep will read them: held-state is a property of the FACT and not of
+a door's signature; tracing to the raiser does not settle it either
+(`Disagreement` reads only held state and is still a message, so *a
+reader consults* is load-bearing); and **whether a fact is held is a
+choice the author makes**, with this unit's own two new fields as the
+worked case.
+
+Ev's #1945 ruling then names the axis all three are shadows of:
+**provenance** — what caused the sentence to exist — and not what it is
+about.
+
+Residue, both in `projection-fault-has-no-sweeper`: the sweeper
+regression's cheap arm is **fixed here** (a pane with no extent reaches
+no `view_projection`, so it holds no projection refusal), and the
+tabbed-away arm stays open because it needs a third piece of app-gated
+state that this unit's own header condemns. Neither new field has a row
+for its set/clear discipline, which cannot be rowed until that
+discipline is a value.

@@ -219,9 +219,9 @@ are never overridden here.
 | G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
-| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs`, `src/scene.rs` |
+| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (both seams and both workers) with `src/generation.rs` (`Generation`, the counter both seams key their answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
-| GQ7 picking | `src/pick.rs` (`EDGE_PICK_RADIUS_PX`, `PickKinds`), `crates/bvh` (`Bvh::ray`) |
+| GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `focus`), `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) and `camera::cursor_projection` (the id pass's 1×1 target transform, which is projection algebra rather than a mark) |
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
 
 ## Module boundaries
@@ -320,16 +320,44 @@ vocabulary is not a forbidden import path.
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
 | `session::refuse` | `Refusal` with its `rank`/`preferred` ladder, its `Display`, and the recourse composers `affordance`/`exists_wording`/`offer_wording`; `NodeKindWanted` and `admits`, since they are a `Refusal` payload and its predicate |
-| `session::op` | `SessionOp` and `OpOutcome` — already the crate's shared vocabulary, read by `tools`, `pick`, `frame`, `blend`, `combine`, `matetool`, `revolvetool` |
+| `session::op` | `SessionOp` and `OpOutcome` — already the crate's shared vocabulary, read by `tools`, `pickindex`, `frame`, `blend`, `combine`, `matetool`, `revolvetool` |
 | `session::author` | `DatumSpec`, `PatternRuleSpec`, `datum_node`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
 
-`session` itself keeps `DocSession`, its `Gesture`, `Landing`,
-`AtRestBadge`, `perform` and the operation doors. Those are the driver
-and cannot leave it: every door returns a `Refusal` and mutates the
-session, and `perform`'s dispatch is the one place an operation becomes
-state.
+`session` itself keeps `DocSession`, its `Gesture`, `perform` and the
+operation doors, plus the three values the session states about itself
+— `Landing`, `AtRestBadge` and `Outstanding`. None of them can leave:
+every door returns a `Refusal` and mutates the session, and `perform`'s
+dispatch is the one place an operation becomes state.
+
+**This page is the one home for the argument below.** The types
+themselves carry their invariant and a pointer here; the reasoning is
+written once.
+
+`Outstanding` is the third of those values and the one with a rule
+attached. The session answers two questions about work — is the picture
+older than the document (`busy`), and does the seam have work
+(`running`) — and each is useful alone, so both stay. **Read together
+they are one three-state fact, and a consumer is handed that fact and
+never the pair.** Two adjacent `bool`s that mean different things
+transpose silently: the swap type-checks, the chrome it produces is
+plausible, and a row that covers the consumer by repeating the same
+positional convention agrees with a transposed call site rather than
+contradicting it. So `DocSession::outstanding` reads the two by name —
+there is no argument list for them to be positions in — and
+`frame::progress` takes the folded value beside the index seam's
+`bool`, two arguments of different types that no call site can
+transpose. The fold itself is covered by driving a session into each of
+the three states (`tests/eval_seam.rs`), because a row that names the
+states says nothing about which session state produces which.
+
+`frame`'s `Zenity` and `SessionBus` are the same rule at the other end
+of that file: two independent environment readings that `ChooserBackend`
+ranks, named so the pair cannot be transposed either. That is the whole
+population of adjacent same-typed `bool` parameters in this crate;
+`work/view/adjacent-same-typed-arguments-are-the-same-swap.md` carries
+the wider class, where the types are not `bool`.
 
 ### What the session knows because of the document is one value
 
@@ -400,13 +428,143 @@ says about the other. The behaviour is older than the block above and
 has its own item
 (`work/view/free-move-drag-dissolved-by-open.md`).
 
+**The dump is held to the same declaration.** This paragraph is the one
+home for the rule; the four walks that follow it state their own `_`
+arms and point here rather than restating it.
+
+`Debug` for `DocSession`, for `Derived` and for `LandedRun`
+destructures its own value exhaustively, so a new field stops the
+rendering compiling. The error is E0027, pattern-does-not-mention-field
+— a *different* error from `Derived::none`'s, which is a struct literal
+and so raises E0063, missing-field-in-initializer. The property is the
+same at both sites and the two errors are not, which is worth saying
+because a reader looking for one and finding the other concludes the
+mechanism is not there. `DocSession` renders `Derived` as one field
+rather than reaching through it, so those members travel with their
+declaration instead of being listed a second time.
+
+**A field the walk will not carry is bound to `_` rather than left out
+of the pattern**, which is what makes the omission a decision a reader
+can see, and those `_` arms are precisely what a `finish_non_exhaustive`
+here stands for — one reason each, never a blanket one:
+
+| walk | `_` arms | why |
+|---|---|---|
+| `LandedRun` | `evaluation`, `doc` | the result DAG and the recipe DAG it answers |
+| `DocSession` | `tol` | `Tol(())`, a ZST with no content |
+| | `eval` | a `dyn` service implementing no `Debug` |
+| | `requested_doc` | a whole recipe DAG |
+| | `display` | not derived from the document, as large as its hidden and moved sets, and reachable through `DocSession::display` |
+| `PickCache` | `seam` | a `dyn` service implementing no `Debug` |
+| `Derived` | — | none, so it `finish`es |
+
+**A carried field may be summarised, and several are.** `states` is the
+history's length, `gesture`, `scratch`, `resolver` and `body` are their
+presence, `index` is the generation it describes, and `checks` is its
+two counts — `ChecksReport` is a `Vec` per finding with no bound, and a
+dump that inlined it would be the thing these walks exist to keep
+readable. Summarising is what a `#[derive(Debug)]` cannot do at all,
+which is the reason these are written out rather than derived; the
+recipe and result DAGs are what makes that reason bite. What
+`finish`/`finish_non_exhaustive` cannot express is the difference
+between summarised and not-carried, and it is not asked to —
+`work/view/finish-marker-cannot-say-summarised.md` carries that.
+
+`PickCache::forget` takes the same destructuring for the same reason
+one seam further: it clears the four fields that describe a picture and
+must not miss a fifth, since a missed `attempted` is what lets a late
+build install an index of a document nobody is looking at.
+
+**The rule is a field census, not a `Debug` rule.** A CENSUS is a walk
+whose correctness argument is that its list IS the value's fields —
+*forget everything*, *drop every pick*, *every number equality is on*,
+*this sentence is the value's whole account*. Every census in this
+crate destructures the value instead of listing its fields by hand, so
+the list cannot fall behind the declaration; which trait the census
+sits in decides only what a missed field COSTS, and the sharpest cost
+is not a dump's. Eight of these are not dumps:
+
+| census | costs, if it misses a field |
+|---|---|
+| `PartialEq for Camera` | equality answers **wrong**. `camera::fold` is checked against sequential `apply` by comparing whole cameras, so a coordinate outside `eq` is a coordinate that property does not check |
+| `DisplayState::clear` | display state survives into a different document — the stale-across-`Open` defect the `Derived` walk closed |
+| `BlendTool::clear` | a pick survives `Clear picks`, so the tool is not the fresh tool the button promises and the next click is judged against something the panel says it is not holding |
+| `Display for StoreError` | a store's failure carries a fact the sentence does not say |
+| `Display for Message` | **nothing, by design** — this account is deliberately partial, and that is exactly why the tie is worth having: it makes the NEXT field's omission a decision someone made rather than one nobody noticed |
+| `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
+| `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
+| `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
+
+`Camera`'s census reaches one type further out: `target` is a
+`Point3<f64>` expanded coordinate by coordinate, so a second pattern
+names `x`, `y` and `z` rather than reading them — the boundary is where
+a census of this crate's fields would otherwise stop. It reads the
+fields and not the six public accessors beside it for the same reason
+it destructures at all: an accessor call is a field READ, so a census
+assembled from accessors is a hand list again and a seventh field
+would leave it silently short.
+
+Two of the eight name a field the walk deliberately does not spend.
+`DisplayState::clear` binds `revision` and does not clear it: the
+counter is the chrome's rebuild key, it is bumped when the reset was
+visible, and a counter that went backwards would name a picture the
+chrome has already drawn. `Display for Message` binds `subject: _` — a
+bare `_`, with the argument in the doc above the impl rather than at
+the arm — because the subject ROUTES the message: it is what retires
+it (`frame::StatusUpdate::Expire`) and what a joined rank-2 line takes
+as its own subject. It does not RANK; `frame::frame_status` ranks by
+SOURCE. A line that printed its own routing would say to the user what
+the chrome says to itself.
+
+**A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
+The five `Display`s above are the struct half of a population of 36
+`Display` impls under `src/`; the other 31 are over enums, and being a
+`match` settles nothing about their fields. Sweeping those 31 for a
+pattern that drops a field of the variant it renders — `{ .. }` or
+`, ..}` in a pattern, a catch-all `_ =>` or bare-binding arm over the
+subject enum, and a tuple variant matched at less than its arity —
+finds **no catch-all over a subject enum, no tuple-arity drop, and
+exactly two `..`**: `CameraOp::Frame` drops `bounds`, and
+`MateToolEvent::PickLost` drops `resolution`. Both stay dropped —
+rendering either would change what the chrome says — and both carry
+the argument for the drop, `MateToolEvent`'s at its impl (the payload
+stays typed and full in the value; the sentence is what a person
+reads) and `CameraOp`'s at the arm. That is the property this rule is
+after: an omission that is a decision someone made. The rule matched
+two more sites that are not instances, and the distinction is the same
+one: `frame.rs`'s `matches!(w.cause, DisplayFault::FusedGeometry { .. })`
+is a variant test on another type, and its `count =>` arm is a
+catch-all over `withdrawn.len()`, not over the subject.
+
+**What was swept for the writing hat, and what it could not see.**
+Every `fn` under `src/` naming two or more distinct `self.<field>`
+assignments, `.clear()`s or `.take()`s, each hit read against its
+struct's declaration: **23 hits, and none is a census**. A converted
+census does not match the rule at all — it has no `self.<field>` write
+left — so a clean sweep is the receipt. The 23 are bookkeeping, where
+the field list comes from the walk's INPUTS rather than from the
+declaration and a new field has no claim on it: `ViewerApp::sync_scene`
+installs a rebuild's eleven outputs, `BlendTool::load_all_edges` seats
+a computed pick set, `PickCache::sync` and `land` install a landing's
+fate, and the two `Drop`s in `evalseam` close a channel and leave the
+language's own drop glue to be exhaustive.
+`DocSession::clear_for_new_document` is the case the rule matches and
+the design answers: its two statements are `Derived::none()` and
+`display.clear()`, and its doc says so — the census is collapsed into
+one value rebuilt from nothing rather than a field-by-field walk each
+door has to remember. What neither rule can see: a census spelled
+through accessors rather than fields (no grep for `self.` finds one), a
+census over a value that is not `self`, and an impl written by a macro
+— `vocab.rs` holds the crate's only `macro_rules!` and it generates
+neither.
+
 ### The app's vocabularies
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while the two `const` tables mirror an enum in another crate, cannot be projected from a declaration that is not here, and say so. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
-| `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge` and the doors that build them), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
+| `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build them, and the two that spend them — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
 
 ### Two axes: which channel, and what retires it
 
@@ -426,10 +584,10 @@ provenance wins because it is the only one a reader can SEE, in whether
 the sentence exists on a frame where nobody acted.
 
 **"Held state" is the mechanical shadow of that, a strong indicator and
-not a decision procedure**, and the sweep that sorts twenty writers on
-this rule needs the three ways it falls short. It is a property of the FACT and not of a
+not a decision procedure**, and the sweep that sorted eighteen writers
+on this rule needed the three ways it falls short. It is a property of the FACT and not of a
 signature — `frame::unindexed_refusal` takes a `&NotIndexed`, and what
-makes it an outcome is that `pick::unindexed` raises it for a `Select`
+makes it an outcome is that `pickcache::unindexed` raises it for a `Select`
 and nothing else. Tracing to the raiser does not settle it either:
 `frame::Disagreement` reads only held state and is recomputed every
 frame the cursor holds still, and what sorts it onto the line is *a
@@ -466,13 +624,34 @@ rebuild lands, `pane::viewport` clears `projection_fault` where a
 matrix forms); that is work about the seam, not about the chrome, and
 no writer decides the fate of anyone else's sentence.
 
-Twenty writers still assign the message field rather than answering
-`frame::frame_status`'s ranking, and two more — `frame::fold_status`
-and `frame::cursor_status` — answer in the vocabulary and apply it at
-`pane::viewport` without asking it. Each of the twenty names its
-subject — `Message` is the only spelling there is — but naming a
-subject is not asking the ranking, and routing them through it is
-tracked as its own item.
+**Seventeen of the eighteen writers that can put a sentence on the line
+now come through the ranking.** All eighteen used to reach the field
+without it —
+sixteen assignments, one struct-literal initializer at startup, and
+`frame::fold_status`, which answers in the vocabulary and applied its
+verdict at `pane::viewport` without asking. Each named its subject —
+`Message` is the only spelling there is — but naming a subject is not
+asking the ranking. Seventeen now push onto the frame's `notices`,
+which is why `ViewerBehavior` carries that field.
+
+**The eighteenth is the startup initializer**, `app::ViewerApp::new`'s
+`status: frame::startup_notices(…)`: the preferences file's complaints
+written into the field before the first frame, where the session's
+first accepted act silently deletes them. Joining the notices is not
+the fix — a complaint about the file as it stands is a read of held
+state, so it wants a badge, and badging it means holding it and
+deciding what retires it. That is
+`work/view/startup-notices-need-holding-to-badge.md`.
+
+**Applying a verdict outside the ranking is not the same as writing
+one**, and the difference is what the count turns on. A retirement has
+nothing to say and must NOT be ranked: `frame::cursor_status` returns
+only `Keep` or `Expire`, so it can never put a sentence on the line and
+was never one of these writers, and `frame::dialog_status`'s one
+`Show` arm is unreachable behind a disabled button at both of its call
+sites. `frame::deliver` is the door that splits the two: news to the
+notices, retirement to the field; `frame::apply` stays the door a
+retirement belongs at.
 
 **The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
 (`Advisory` for a report, `Actionable` for a verdict a reader may need
@@ -528,12 +707,12 @@ values the receiving module already defines, and none names `egui`.
 
 ### What a vocabulary reads, it is handed
 
-`pick` and `parts` each took a `&DocSession` as a read-only argument —
+`pickcache` and `parts` each took a `&DocSession` as a read-only argument —
 `PickCache::sync`, `PartChooser::opened` and `PartChooser::rescan` —
 which made the rule above false of the tree at five sites, and false
 before `viewer-module-kinds.sh` existed to find them. Ev ruled
 (`#1883`) to **hoist the read**, not to widen the rule: the session
-mints `pick::IndexInputs` (the landed pair, its generation, ε) and
+mints `pickcache::IndexInputs` (the landed pair, its generation, ε) and
 `parts::PartCensus` (the directory scanned and what the scan answered),
 and the two vocabularies take those. *No vocabulary may name a driver*
 stays unqualified.
@@ -567,6 +746,64 @@ withdrawal of the offer: a per-seam entry ended when its seam did, in
 the same change, which a file-granular one would not have. That
 argument is made where the entries were deleted, in
 `scripts/gates/viewer-module-kinds.sh`.
+
+### The seam modules are a chain; the crate is not acyclic
+
+The rule above is about what a module NAMES and says nothing about
+cycles between vocabularies, so a cycle here breaks no clause — and
+`evalseam` and `pickcache` held one anyway, because the index seam's payload
+and the policy that drives the seam were the same file. **Neither of
+the obvious repairs reaches it**: a third module for the index seam
+relocates the cycle (`IndexDone` carries a `PickIndex`), and hoisting
+the seam's request and answer types does the same. What the cycle is a
+symptom of is that one file held two layers with the seam running
+between them.
+
+So the modules are a chain, each naming only what is below it:
+
+    generation  ←  pickindex  ←  evalseam  ←  pickcache
+
+- `generation` is `Generation` and nothing else, depending on
+  nothing. It is a request counter, not part of either seam's
+  machinery, and six modules compare one;
+- `pickindex` is the index and every query over it — the structure a
+  build produces;
+- `evalseam` keeps BOTH seams and therefore **both sets of threads**,
+  which is the property that made this shape win: *the one place in
+  this crate that owns a thread* stays one sentence;
+- `pickcache` is the index's LIFECYCLE over the seam — what a build is
+  handed, when one is asked for, and what a pick means while there is
+  none.
+
+The two moves only work together. `Generation` alone leaves
+`PickIndex` beside `PickCache`, so `evalseam → pickcache → evalseam`
+survives on the seam types; the split alone leaves `pickindex` needing
+`Generation` from `evalseam`, which needs `pickindex`. (Ev, 2026-09-06.)
+
+**The chain above is four modules, and the crate around them still
+holds a ring** — said here because a picture of a chain is exactly the
+sentence that stops the next reader looking:
+
+    pickcache.rs:61   use crate::pickindex::{PickIndex, PickIndexError}
+    pickindex.rs:81   use crate::session::{…, SessionOp}
+    session.rs:78     use crate::pickcache       (for `IndexInputs`)
+
+`pickcache → pickindex → session → pickcache` is live, it predates the
+seam split — at that split's merge base the same ring was two modules
+long, this file naming `session` and `session` naming it — and it is
+held open **on purpose**, by the hoist argued for in *What a vocabulary reads, it is
+handed* below: the session mints `pickcache::IndexInputs` so that the
+vocabulary names no driver, and the price of not widening the rule is
+that the driver's own module names the vocabulary back.
+
+So the two rings are different diagnoses and only the first is fixed
+here. `evalseam ↔ pickcache` was **one file holding two layers** with a seam
+running between them, which no placement of the seam could repair —
+that is what this section is about. `pickcache ↔ session` is **a vocabulary
+and its driver trading a minted value**, which is the boundary rule
+working rather than failing. Nothing in this section generalises to the
+second, and `work/view/seam-split-leaves-a-cycle-through-the-session`
+is where the question of whether it should be broken at all is kept.
 
 ### `Refusal`'s delegation discipline
 
@@ -655,13 +892,155 @@ which named five tool types by hand to erase them again, are gone with
 the erasure they existed for.
 
 `ToolKind::ALL` remains for the test suites that sweep the kinds, which
-are now its only readers: `Tools::open_kind` asks the open value which
-kind it is instead of scanning the list for the first field that is set,
-and the chrome names each kind it offers literally rather than
-iterating. A kind missing from `ALL` therefore narrows those sweeps
-rather than making its tool permanently unreachable. `ALL` is still the
-one list a compiler cannot force, and `ToolKind::ordinal` is still what
-makes its completeness checkable by a row.
+are its only readers: `Tools::open_kind` asks the open value which kind
+it is instead of scanning the list for the first field that is set, and
+the chrome names each kind it offers literally rather than iterating. A
+kind missing from `ALL` would narrow those sweeps rather than make its
+tool unreachable — and a kind cannot be missing from it, because `ALL`
+is projected from `ToolKind`'s own declaration (**Closed vocabularies
+are declared once**, below). `ToolKind::ordinal` and the row that read
+it against the list are gone with the hand-written list they existed to
+check. `ALL` stays `pub`: the suites that read it are integration
+tests, which see only this crate's public surface, and a suite-local
+copy would be the hand-written list again with nothing forcing it.
+
+### Closed vocabularies are declared once
+
+**Nine** enums here are closed vocabularies: a fixed set of choices the
+chrome offers, which something walks in order — a radio row, a combo's
+options, a suite's sweep. Each carried a hand-written `const ALL`
+beside it, and that second copy of the membership was free to fall
+behind the first: adding a variant compiled, the radio row silently
+lost a button, and every sweep keyed on the list quietly narrowed.
+(Ten `const ALL` tables existed under `src/`; nine were of this kind.
+The number is stated twice here because this program's counts have
+gone wrong before, and both figures are the same census.)
+
+**The enum and its `ALL` are now one declaration.** `src/vocab.rs`'s
+`vocabulary!` takes one list of variants and expands it into both, so a
+variant cannot reach the enum without reaching the list — the same
+construction `crates/profile/src/path/program.rs` uses for the arc-mode
+and verb vocabularies ("ONE declaration, THREE projections"), and no
+new dependency in a crate whose default-feature graph is deliberately
+the kernel's. Order is the declaration's, because these lists are read
+in order and several say so in their own docs; where a form wants an
+order the type did not grow in, the **enum** is written in the form's
+order and says why.
+
+**Two shapes, and a rule that says which.** A LABELLED vocabulary
+writes each variant's word in the declaration and projects
+`[(Self, &'static str); N]`; a BARE one projects `[Self; N]` and keeps
+its wording in a `label`/`name` method beside it. The rule is not
+taste: **a word goes in the table when the row that iterates the table
+is its only reader, and in a method when anything asks a single value
+for its word** — a method can be called on one value and a table can
+only be iterated. `PathVerb`, `ArcMode`, `ToolKind` and `Seat` are
+bare because their words are asked for one at a time (the combo's
+*current* verb, a refusal sentence naming one seat); the five labelled
+ones are labelled because their word appears nowhere but the radio row
+that draws them.
+
+That leaves the ordered word list declared twice in the four bare ones
+— the `ALL` order and the `label` match's arms. That is *not* the
+defect this section is about, because a match is exhaustiveness-forced
+and cannot silently miss a variant; it is a second ordered copy, and
+whether the labelled arm should absorb it is
+`work/view/bare-vocabularies-declare-their-words-a-second-time.md`.
+
+**What the macro cannot express**, stated because it is a one-way
+door: fieldless variants only, and no explicit discriminants — the
+labelled arm spends `= …` on the word, so `#[repr]` numbering means
+un-converting the enum. `src/vocab.rs`'s own doc carries both, and the
+rustfmt cost below.
+
+**rustfmt does not reach inside the invocation**, so the variants and
+variant docs of all nine are formatted by hand. Demonstrated rather
+than assumed, and not fixable by making the body parse: `src/vocab.rs`
+records the experiment and
+`work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
+
+Three kinds of list stay hand-written, and each is a different answer
+rather than an exception:
+
+- **A registry of struct constants** (`Theme::ALL`) is not an
+  enumeration of variants at all — there is no exhaustiveness for a
+  match to borrow, and its doc already argues it is the single list.
+- **A deliberately partial list** claims no completeness, so forcing it
+  would force the wrong thing: `SUBJECTS_WITH_AN_EXPIRY_ISSUER` names
+  two of five `Subject`s, each tool's seat list names its own seats,
+  and `MATE_PRIMITIVES` offers three of four mate primitives because
+  the fourth exists to be refused. Each says why in its own doc.
+- **A mirror of an enum declared in another crate** (`BOOLEAN_OPS`)
+  cannot be projected from a declaration that is not here. That is the
+  neighbouring MIRROR question and has its own tracker item.
+
+**A gate holds this, and the table below is its allowlist.**
+`scripts/gates/viewer-vocab-declared-once.sh` scans `crates/viewer/src`
+for a hand-written membership list in either of two shapes — a `const
+ALL`, and any `const` array literal of two or more `Type::Variant`
+entries, which is the same list under a different word — and reds on
+one the table does not carry. `static` opens an item in both arms, for
+the same reason the second shape exists. A converted vocabulary is not
+a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
+the nine are quiet without an entry. What the gate reads is this
+section rather than a list of its own: the ROWS below are the
+allowlist, and the KINDS they may claim are the **bolded bullets**
+above. Both are read only WITHIN this section, so the roster cannot
+drift onto another page's heading and go on being read; and the gate
+carries the NUMBER of bullets as its own constant, so a fourth kind is
+an amendment argued here AND an edit to that file, not a new word in a
+table cell.
+
+The roster retires itself in both directions — a list added without a
+row reds, and a row whose list has been converted reds too, because an
+allowlist entry with nothing behind it is a ratification the next thing
+written at that name inherits. It does not spread, either: **one row
+ratifies one list.** Two rows for one list red, and so does one row for
+a module that declares two lists under that name, because the row is
+keyed on the module and the name and cannot say which of the two it
+meant.
+
+The gate runs in the `mirror` job, which carries no `if:`, because half
+its subject is this page: a change set of only the README is TIER=docs,
+and sited under `if: run_build` the arms that exist for an edit to this
+table could not fire on an edit to this table.
+`scripts/check-ci-mirror-parity.py`'s `TIER_BLIND` names it, so the
+siting is enforced rather than remembered.
+
+What it does not see is `crates/viewer/tests/`, deliberately: the
+suites' hand-written variant lists are inline arrays in a row, not
+`const` tables, so this scan would not find one if it looked —
+`work/view/viewer-suites-hold-hand-written-complete-variant-lists.md`
+is theirs. Nor does it see a list that is not a `const` or `static`
+item, which is why each tool's seat list is named in the bullet above
+rather than in the table. What it decides is that a list is
+hand-written, never that the roster still says what was ratified here:
+a bullet and the cells claiming it, reworded together, are consistent
+and both green. The gate's own header states that blind spot; a review
+is what covers it.
+
+#### The lists that stay hand-written
+
+| List | Module | Kind |
+|---|---|---|
+| `BOOLEAN_OPS` | `forms` | A mirror of an enum declared in another crate |
+| `MATE_PRIMITIVES` | `forms` | A deliberately partial list |
+| `SUBJECTS_WITH_AN_EXPIRY_ISSUER` | `frame` | A deliberately partial list |
+| `Theme::ALL` | `theme` | A registry of struct constants |
+
+**This table is the roster**, not a summary of one. `Module` is the
+module the `const` is declared in, `List` is how it is written there
+(an associated constant carries its type, `Theme::ALL`), and `Kind` is
+the bolded bullet above that ratifies it, word for word.
+
+The type in `List` is for a reader, not for the gate: what the gate
+keys on is the module and the constant's own name, because an
+associated constant's declaration says `[Self; 3]` and the type it
+belongs to is the enclosing `impl` header, which only a parse would
+find. That is why one row ratifying two same-named lists in one module
+is a red rather than a silent second ratification — and why two lists
+that a module and a name cannot tell apart need one of them moved or
+renamed, not a second row.
 
 ### What the boundary does not decide
 
@@ -870,7 +1249,7 @@ received, which is the previous document's, and three things say so
 rather than letting it pass for the current one: the toolbar shows one
 progress state and it reads `indexing…` (`frame::progress` — one
 value, so an evaluation and an index build cannot light two spinners
-for one wait), a click is refused typed as `pick::NotIndexed`, which
+for one wait), a click is refused typed as `pickcache::NotIndexed`, which
 is a different answer from *nothing under the cursor*, and a hover is
 left alone because it is an observation pushed on every frame and not
 an act.

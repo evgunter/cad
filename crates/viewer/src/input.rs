@@ -122,7 +122,7 @@ pub enum ViewportEvent {
 /// The **cursor** half of the input mapping, beside [`CameraOp`]'s
 /// navigation half: a value naming a query, with no ray and no scene
 /// in it. Turning one into a selection needs a camera and an
-/// evaluation, which is [`crate::pick::PickIndex`]'s job.
+/// evaluation, which is [`crate::pickindex::PickIndex`]'s job.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PickAction {
     /// Move the transient hover to whatever is under this cursor.

@@ -310,8 +310,11 @@ env:
   # sccache pin for the rig wired into the two build jobs below, which
   # is OFF: it runs only for the repo variable SCCACHE = "1". The
   # measurement that turned it off is docs/CI-MINUTES-2026-08.md F4.
-  # 0.16.0 is the version local-scripts/gate.sh already runs on the
-  # local gate box, so the rig and the local lane agree.
+  # This is the version local-scripts/gate.sh already runs on the local
+  # gate box, so the rig and the local lane agree — and that agreement is
+  # CHECKED: check-ci-mirror-parity.py's pin-literal claim reconciles
+  # gate.sh's sccache line against this value. The version is named once,
+  # here, rather than restated in the sentence about it.
   SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   # maturin rides the same pattern as nextest: pinned here (single source
@@ -797,13 +800,15 @@ jobs:
           printf 'seeds: %s\n' "$SEEDS"
           printf 'tier: %s\n' "$TIER"
           if [ "$RUN_PNCAD_PY" = true ]; then
-            echo 'RUN: the seeds intersect {pncad-py, pncad, editor-core} (or the tier is unscopable).'
+            echo 'RUN: a seed is a member a build of the wheel compiles (or the tier is unscopable).'
             echo 'RUN: the wheel is built and the unittest suite discovered over crates/pncad-py/tests.'
           else
-            echo 'SKIP: no seed in {pncad-py, pncad, editor-core} — the wheel is NOT built on this run,'
-            echo 'and the `python suite (wheel + guide + north-star)` job below is skipped entirely.'
-            echo 'The nightly lane re-takes the whole suite ungated; a break in the re-exported Rust API'
-            echo 'still reds the offending crate ordinary closure rows in this same run.'
+            echo 'SKIP: no seed is a member a wheel build compiles — every seed is either above the'
+            echo 'wheel in the graph or reaches the binding crate along a dev edge only, so nothing'
+            echo 'the suite can observe moved. The wheel is NOT built on this run and the'
+            echo '`python suite (wheel + guide + north-star)` job below is skipped entirely.'
+            echo 'The seed set is printed by the classify step above; the nightly lane re-takes the'
+            echo 'whole suite ungated once a day.'
           fi
 
       # DOES THIS RUN GATE ANYTHING AT ALL (#1204). A draft run zeroes every
@@ -1097,6 +1102,20 @@ jobs:
         run: |
           scripts/gates/viewer-module-kinds.sh --selftest
           scripts/gates/viewer-module-kinds.sh
+      # The viewer crate's closed-vocabulary rule: a membership list is
+      # declared once, and a hand-written one under crates/viewer/src
+      # reds unless `crates/viewer/README.md`'s "The lists that stay
+      # hand-written" table ratifies it. SITED HERE FOR THE SAME REASON
+      # AS THE ROW ABOVE, and more sharply: this gate's allowlist IS
+      # that README table and its vocabulary of kinds is that section's
+      # bullets, so a change set of only the README is exactly the
+      # change set it exists to judge — and TIER=docs skips every
+      # `if: run_build` job. TIER_BLIND names it, so this cannot drift
+      # back.
+      - name: viewer vocabularies are declared once (no hand-written ALL)
+        run: |
+          scripts/gates/viewer-vocab-declared-once.sh --selftest
+          scripts/gates/viewer-vocab-declared-once.sh
       # THE PYTHON LINTER RIDES THIS JOB, and the two properties that make
       # this job what it is are exactly the two ruff needs.
       #
@@ -1220,6 +1239,21 @@ jobs:
         run: |
           scripts/gates/no-extra-real-bounds.sh --selftest
           scripts/gates/no-extra-real-bounds.sh
+      # clippy does not lint inside a `macro_rules!` body, so the
+      # panic-family stanza in [workspace.lints.clippy] — the
+      # enforcement of D9's "no panic on any input" — stops at every
+      # macro. This gate is that stanza reaching the one place clippy
+      # cannot look.
+      - name: panic family inside macro bodies
+        run: |
+          scripts/gates/panic-free-macro-bodies.sh --selftest
+          scripts/gates/panic-free-macro-bodies.sh
+      # Every LoopBoundary discard is a register entry at a pinned
+      # count, and the entry says whether its arm has been named.
+      - name: LoopBoundary deferral register
+        run: |
+          scripts/gates/loop-boundary-discards.sh --selftest
+          scripts/gates/loop-boundary-discards.sh
       # Test-aggregation discipline: one [[test]] target per crate. Each
       # extra one is a full codegen+link of the ~40-rlib graph — 96% of
       # this workflow's build job, measured (bazel-verdict report).
@@ -1322,6 +1356,36 @@ jobs:
       # are prose or `local-scripts/`.
       - name: run-job gate selftest (the one required check's seven paths)
         run: python3 scripts/check-run-jobs.py --selftest
+      # THE OPT-LEVEL CALIBRATOR'S OWN TESTS, and the row exists because until
+      # it was written the script's `--selftest` was invoked by NOTHING: the
+      # three real modes run in nightly.yml and the guard over them ran
+      # nowhere, so its greenness was a statement about nothing. What it drives
+      # is the population no real run produces on demand — shard summing, a
+      # cancelled shard, a renamed step, the docs-tier skip, the schema-1/2/3
+      # readers, the cadence triggers, the argmin over three arms, the one-arm
+      # refusal, the environment block's host-identity degradation — and the
+      # `record` mode those feed APPENDS TO AN APPEND-ONLY HISTORY under
+      # docs/perf-data/opt-level/, where a malformed entry cannot be
+      # overwritten out.
+      #
+      # SITED PER-PR AND NOT IN nightly.yml, deliberately, and this is the
+      # whole argument. A guard that runs only on a schedule is exercised at
+      # the next fire, to nobody, and a row that fails to run at all reports
+      # the same green as a row that ran and passed — which is the defect this
+      # row exists to close, not one to reproduce one level out. The selftest
+      # is a fixture battery over the script's own code paths: the only thing
+      # that can break it is a change to `scripts/opt-level-calibrate.py`, a
+      # tree change a PR gate sees now and a schedule sees hours later. The
+      # nightly runs main, and main is reached through this gate, so a
+      # second copy at 03:00 would re-prove a tree this row already proved.
+      #
+      # SITED IN THIS JOB and not in `mirror`, by `check-run-jobs.py`'s
+      # argument above: the script's inputs are `scripts/*.py`, which
+      # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
+      # set that can break it is exactly the change set this job runs on.
+      # No toolchain and no cargo — stdlib python against its own fixtures.
+      - name: opt-level calibrator selftest (the guard over an append-only history)
+        run: python3 scripts/opt-level-calibrate.py --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: it is what lets the wasm32 guard below run the interval
       # leg ONLY, and it is what made this lane a stand-in for the default
@@ -1370,6 +1434,18 @@ jobs:
         run: |
           scripts/gates/bit-identity-punning.sh --selftest
           scripts/gates/bit-identity-punning.sh
+      # `Real::register_equal` (M10-9, ERROR-DESIGN E12's provenance
+      # reserve) hands every generic `T: Real` body a value COMPARISON,
+      # which is what evaluation-code discipline exists to keep out of
+      # that position — and it adds no bound, so `no extra bounds on
+      # Real` structurally cannot see it. The capability stays and the
+      # SITES are a list a reviewer can read; the gate's own header says
+      # what a ratified site owes (a theorem in its doc comment, a
+      # planted lie, the typed answer handled).
+      - name: register_equal call-site allowlist
+        run: |
+          scripts/gates/register-equal-allowlist.sh --selftest
+          scripts/gates/register-equal-allowlist.sh
       # The importer's negative-zero flush has one home and says so in
       # its own module doc. Four copies of it landed green in one crate
       # (S18) because nothing checked the claim.
@@ -3627,21 +3703,38 @@ jobs:
   # it selected almost nothing while buying a SECOND compile of the kernel
   # under the non-default `python` feature on almost every code-tier run.
   #
-  # The condition is now the change filter's SEEDS — the members whose OWN
-  # files moved — intersecting {pncad-py, pncad, editor-core}: the binding
-  # layer, the façade every binding call goes through, and the document
-  # model the guide and north-star scripts drive. The .py tests and .pyi
-  # stub live under `crates/pncad-py/`, so they seed that member like any
-  # other source.
+  # The condition is the change filter's SEEDS — the members whose OWN files
+  # moved — intersecting the members a BUILD OF THE WHEEL COMPILES, which is
+  # `pncad-py`'s non-dev dependency closure, derived from `cargo metadata` by
+  # `scripts/ci-filter.py`'s `pncad_py_seeds` and printed by the classify
+  # step. The .py tests and .pyi stub live under `crates/pncad-py/`, so they
+  # seed that member like any other source.
   #
-  # WHAT THE SKIP GIVES UP is re-taken daily: nightly.yml's `python suite
-  # (ungated re-take)` runs this suite with no filter at all, so a kernel
-  # change that moves a NUMBER the .py assertions pin — reaching the
-  # bindings through `pncad`'s re-exports without seeding anything here —
-  # surfaces within a day rather than at whichever unlucky PR next touches
-  # the façade. A change that BREAKS the re-exported Rust API still reds
-  # that crate's ordinary closure rows on the offending PR, in the same
-  # run, because the façade's Rust side is compiled by the ordinary build.
+  # WHICH IS THE OLD CLOSURE CONDITION, RESTORED ON A MEASUREMENT (2026-09-06).
+  # "A seed is under the wheel" and "pncad-py is in the dependent closure of
+  # the seeds" are one statement read from two ends, so this is what C3
+  # withdrew, minus dev edges. C3 withdrew it on cost, and the cost was
+  # re-taken: this job needs only `filter`, so it runs beside the serial
+  # build -> test chain that sets the run's length and finishes far inside it.
+  # It adds ZERO wall clock, which is the currency here — minutes are free on
+  # a public repository. The figures, the sample and what the sample does not
+  # show live in docs/CI-MINUTES-2026-08.md's entry of that date and are not
+  # restated here, so the two cannot drift. A gate that is almost always true
+  # costs nothing when the row it gates is free, and what it buys is the only
+  # execution of `crates/pncad-py/tests/*.py` any run has.
+  #
+  # THE THREE-NAME SET IT REPLACES ({pncad-py, pncad, editor-core}) called a
+  # crate unreachable whenever the façade did not re-export it whole. That is
+  # not what reach means: `bvh::Ray` arrives in Python through
+  # `editor-core`'s `pub use bvh::Ray`, `pncad::select`'s re-export and a
+  # `#[pyclass] Ray` in `crates/pncad-py/src/py/pick.rs` that
+  # `tests/test_picking.py` drives in 37 places.
+  #
+  # WHAT STILL SKIPS IT: `viewer`, which sits OVER the wheel rather than under
+  # it, and `test-utils`, which reaches the binding crate along a dev edge
+  # that `maturin build` does not follow. Both are re-taken daily by
+  # nightly.yml's `python suite (ungated re-take)`, which runs with no filter
+  # at all.
   #
   # RECORDED, NEVER SILENT: the verdict is printed by an always-run step
   # in the `filter` job, with the seeds it was decided from. That siting
@@ -3697,9 +3790,17 @@ jobs:
       # (`src/lib.rs`, `#[cfg(feature = "python")] mod py;`), so the
       # `clippy` job's `cargo clippy $cargo_scope --all-targets`, which
       # runs at DEFAULT features, has every one of those lines `#[cfg]`-ed
-      # away before clippy sees them. Until this row that half was linted
-      # by NO row: the `clippy` job cannot see it, and the wheel build
-      # below compiles it without linting it.
+      # away before clippy sees them, and the wheel build below compiles
+      # that half without linting it.
+      #
+      # `clippy (--all-features)` DOES reach it — `--all-features` turns on
+      # this crate's `python` and `extension-module` — so this is not the
+      # only row that lints the PyO3 surface. It is the only one that lints
+      # it at `python` ALONE: that job unifies `python` with `interval`,
+      # `probe` and `extension-module` in one selection, which is ONE POINT
+      # of the powerset and not this one, and a lint that fires only without
+      # those companions has no other row it can red. Its own header argues
+      # exactly that shape for itself.
       #
       # WHY NOT IN THE `clippy` JOB. That job is on the Rust critical
       # path, and a `--features python` row there is a SECOND compile of
@@ -3732,14 +3833,17 @@ jobs:
       # is it.
       #
       # WHAT THE SITING GIVES UP is this job's seed key and its `push`
-      # skip: on a PR whose seeds miss {pncad-py, pncad, editor-core} the
-      # row does not run. A lint introduced BY the binding code, or by
-      # `pncad`/`editor-core`, seeds the axis and is caught on its own PR;
-      # one reaching `src/py/` from further down (`quantity`, the kernel
-      # through `pncad`'s re-exports) or from a `stable` toolchain bump
-      # shipping a new lint seeds nothing, and waits for nightly.yml's
-      # `python suite (ungated re-take)`, which carries this same step
-      # ungated once a day.
+      # skip: on a PR whose seeds miss the python-suite seed set the row
+      # does not run. That set is every member a build of the wheel
+      # compiles, derived from `cargo metadata` by `scripts/ci-filter.py`'s
+      # `pncad_py_seeds` and printed by the change filter, so a lint
+      # reaching `src/py/` from anywhere under the wheel — `quantity` and
+      # the whole re-exported kernel included — seeds the axis and is
+      # caught on its own PR. What still seeds nothing is a member above
+      # the wheel (`viewer`), one that reaches it along a dev edge only
+      # (`test-utils`), and a `stable` toolchain bump shipping a new lint;
+      # those wait for nightly.yml's `python suite (ungated re-take)`,
+      # which carries this same step ungated once a day.
       - name: clippy (pncad-py, python feature)
         run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: install maturin (pinned, official prebuilt)

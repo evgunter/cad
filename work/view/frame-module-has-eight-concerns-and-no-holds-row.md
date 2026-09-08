@@ -138,3 +138,56 @@ the units that read it.
 not pretend to cover the eight concerns honestly — it says so in the
 row itself. The second move above is still open and is still not a
 lane's call.
+
+## It grew again, and the ledger stopped being written (#2026, 2026-09-06)
+
+984 lines when this item was filed, 1,131 at #1886, 2,037 at #1933,
+2,298 at #1957 — and **2,475** at this unit's head. #2026 is the fourth
+unit in a row to grow the file and the first not to write the row at
+all: the count above stops at #1957 because the two units since simply
+did not add to it, which is the accumulation this item names arriving
+in the ledger kept to watch for it.
+
+**What #2026 added, and to which concern.** Concern 1, the status-line
+vocabulary — already the largest — gained a second DOOR (`frame::deliver`
+beside `frame::apply`, splitting a policy's verdict into news for the
+frame's notices and retirement for the field) and a 45-line row
+asserting the two halves against each other. Neither is a ninth concern
+and neither is unreasonable on its own; that is the point. The `Holds`
+row now exists to write it against, and this unit's first draft did not
+extend it — the row was extended in the fix pass, with `deliver`.
+
+## Evidence, not work: ~80 lines of environment probing in a per-frame module
+
+Recorded here because it belongs to the split this item owns and to
+nothing else on the board. `crates/viewer/src/frame.rs:1526-1733` —
+`ChooserBackend`, `chooser_backend_of`, `chooser_backend`,
+`zenity_on_path`, `session_bus_hinted`, `prefs_path`, `prefs_path_in`
+and `running_under_wsl`, a 208-line span of which ~80 are code — is
+startup environment probing: a `PATH`
+walk for zenity, two `DBUS_SESSION_BUS_ADDRESS`/`XDG_*` reads, an XDG
+config-directory resolution and two `WSL_*` variable reads.
+
+The module's first line is **"The per-frame policies the viewport runs
+— as values, so they are replayable."** Environment probing is neither
+of those things: it runs once at startup rather than per frame, and it
+reads ambient process state, which is what not-replayable means.
+
+**This is not a proposal to move it, and the ruling it would fight is
+not the one it looks like.** `scripts/gates/no-ambient-env.sh` ratifies
+that the viewer's ambient reads have ONE home and names this file as
+that home, and `prefs_path`'s own doc argues it. That ruling settles
+*where the ambient door is*. What it does not do — and never claimed to
+— is make the charter sentence at the top of the module true of what
+sits under it. Being the sanctioned home for a concern is a reason the
+concern is here; it is not a reason the module is one module.
+
+So this is the cleanest available argument for the second move: two
+things co-located by two separate good reasons, with a header sentence
+that can only describe one of them. A split honours both — the ambient
+door stays one door and stops being filed under "per-frame policies,
+replayable".
+
+Evidence for the split, not a task. Nothing here asks a lane to move
+it.
+

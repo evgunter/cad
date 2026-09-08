@@ -1434,3 +1434,12 @@ files) and `crates/sweep/tests/*` (ten files) to the door — test rows
 as ordinary tests, one call replacing five `.count()`s and a sum per
 site; nothing else in those files moves. Lands on
 `topo/census-door`; say here if a TCOST lane is live on any of them.
+
+## Finding relayed by TOPO (2026-09-06, from S69's review)
+
+`crates/test-utils/src/fuzz.rs:283-288`: `fuzz::replay()` reports the
+PROCESS's random seed while `fuzz::pinned()` ignores it, so a pinned
+row's failure message says "reproduce with CAD_FUZZ_SEED=<random>"
+naming a seed the row never used (executed on
+`review_m1_pr4.rs:1544`'s coverage row). This program's file; not
+filed by TOPO.

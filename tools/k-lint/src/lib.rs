@@ -280,6 +280,27 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// argument is in the module docs ("The ε-coupled families"). An
 /// explicit allow-list on purpose: a new ε-coupled predicate is NOT on
 /// it and keeps flagging under the metre rules until someone rules.
+///
+/// **PINNED TO ONE FILE'S SPELLING — read `tests/predicate_roster.rs`
+/// for what that does and does not cover**, because the pin's reach is
+/// narrower than this sentence can honestly summarise. It reads
+/// `crates/geom-brep/src/props/quad.rs` across the cargo-root boundary
+/// and reds if a name here stops being minted there; if a rostered
+/// mint's margin stops deriving from the whole identifier `target_len`
+/// in its own enclosing function, or that binding stops being
+/// `QUAD_TARGET_LEN_FACTOR * eps` (rule (4)'s premise, not just its
+/// key); if a mint acquires such a margin and is neither rostered nor
+/// excused there by name; or if any `classify_len` in that file drops
+/// out of the parse.
+///
+/// **What no test here can see** is a predicate the kernel adds to this
+/// class by a route that is not `target_len`, or in a file that table
+/// does not list. Membership is a property, that property is written
+/// nowhere a test can evaluate over a name — `target_len` is this one
+/// family's spelling of it, not the criterion — and
+/// `work/meter/k-lint-eps-coupled-criterion-unwritten` is where the
+/// criterion is scheduled. The allow-list's fail-loud posture above is
+/// why the residue is a diagnosis gap and not an open gate.
 pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 
 /// Rule (4)'s floor for [`EPS_COUPLED_PREDICATES`], in units of ε:
@@ -443,6 +464,15 @@ pub struct Scan {
     /// sample, for the same reason as `symbolic_zero`, and reported as
     /// its own number because the two claims differ in kind.
     pub sign_gated: usize,
+    /// How many of [`Scan::scanned`] were `registered` — decisions the
+    /// symbolic tier answered through a REGISTERED IDENTITY (a
+    /// constructor's axiom about what it built, verified at the leaf's
+    /// witness; ERROR-DESIGN E12's provenance reserve). Never a rule
+    /// sample, for the same reason as the two columns above, and its
+    /// own number because the claim differs in kind from both: those
+    /// two are theorems of exact arithmetic, this one additionally
+    /// rests on the registrant's argument.
+    pub registered: usize,
     pub flags: Vec<Flag>,
     /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
     /// enough that rule (2)'s definite arm was capped at the baseline
@@ -471,7 +501,7 @@ const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,ou
 /// `tests::the_accepted_outcomes_are_exactly_the_recorders` pins this
 /// list against `SampleOutcome::ALL` variant by variant, so the next
 /// variant reds a test here instead of silently disarming a gate.
-pub const ACCEPTED_OUTCOMES: [&str; 7] = [
+pub const ACCEPTED_OUTCOMES: [&str; 8] = [
     "zero",
     "positive",
     "negative",
@@ -479,6 +509,7 @@ pub const ACCEPTED_OUTCOMES: [&str; 7] = [
     "invalid",
     "symbolic_zero",
     "sign_gated",
+    "registered",
 ];
 
 /// What a numeric column of the sweep may say.
@@ -622,7 +653,15 @@ pub fn lint_sample(
         // never classified against the band, so it is no rule's
         // sample either; it counts in `Scan::sign_gated`, apart from
         // the unconditional column, because the two claims differ.
-        "symbolic_zero" | "sign_gated" => {}
+        // A `registered` row is the same tier's answer through the
+        // registered-identity door: zero because a CONSTRUCTOR stated
+        // that two of the expression's nodes are one real and the
+        // leaf's witness agreed. Still never classified against the
+        // band — no rule has a comparison to make — and still its own
+        // column (`Scan::registered`), because an axiom about a
+        // construction is not a theorem of the arithmetic and reading
+        // the three together as one number would hide exactly that.
+        "symbolic_zero" | "sign_gated" | "registered" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
             if is_eps_coupled(predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
@@ -657,6 +696,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut scanned = 0usize;
     let mut symbolic = 0usize;
     let mut sign_gated = 0usize;
+    let mut registered = 0usize;
     let mut proximity_capped = None;
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
@@ -754,6 +794,9 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         if out == "sign_gated" {
             sign_gated += 1;
         }
+        if out == "registered" {
+            registered += 1;
+        }
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
         if band_zero >= AMBIENT_BAND_MIN && proximity_capped.is_none() {
@@ -778,6 +821,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         scanned,
         symbolic,
         sign_gated,
+        registered,
         flags,
         proximity_capped,
     })

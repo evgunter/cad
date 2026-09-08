@@ -709,6 +709,17 @@ whose unit had merged; each unit's record is its row in
 - `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
 - `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
 
+## Per-merge deletion — M10-9's spec (2026-09-06)
+
+Recoverable at `git show 4f8262ad9:docs/M10-9-SPEC.md` (the M10-9 unit
+head, before the state-sync commit that deleted it; its §2 names
+`line_span` as the dependency-widening class, which the unit's own
+fix pass measured false — the MERGED entry in `work/m10/log.md` is
+the correction of record). The rule above; the unit's record is its
+row in `MODEL-AB-LOG.md` and that entry.
+
+- `M10-9-SPEC.md` — M10-9, the registered-identity door: discharge by provenance (E12's reserve, taken), with amendment A1 (#2048)
+
 ## Per-merge deletion — M10-8's spec (2026-09-05)
 
 Recoverable at `git show f5fb7fe92:docs/M10-8-SPEC.md` (the M10-8 unit
@@ -1042,6 +1053,24 @@ record is its row in `MODEL-AB-LOG.md` and its item's `## Closed`
 section.
 
 - `PROPS-1-SPEC.md` — PROPS-1, the lost-correlation members of the linalg audit: `mirror_across_plane` and `reject_from` (#1918)
+## Per-merge deletion — TOPO-D265's spec (2026-09-06)
+
+Recoverable at `git show 7253e5efb66c479aa27c7381b878be0d1a2bd52a:docs/TOPO-D265-SPEC.md`
+(the D265 unit head after the review fix pass, before the state-sync
+commit that deleted it). Two of its stated facts were falsified by the
+unit and are corrected in the unit's record, not here: `merge_group`
+has **nine** sites that can return an `EulerOpError`, not the two the
+spec named (`kev` and `kemr`) — four lookups, `loop_winding` through
+`merged_outline_ring`, and four operator calls; and the spec's
+expectation that the site-level argument would sweep nearly every
+variant into corruption is wrong at one cell — the **(R) column is not
+empty**, because `kef`'s `SameFace` is reachable on a tier-1-valid
+nested group, the absorption's own ring drain having re-homed the dying
+loop onto the survivor. The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its item's `## Closed` section.
+
+- `TOPO-D265-SPEC.md` — TOPO-D265, the merge door's arena-fault class, made true at the door (#2013)
+
 ## Per-merge deletion — TOPO-S330's spec (2026-09-05)
 
 Recoverable at `git show 57cd299d8225afe4454bd068fa9e374439975363:docs/TOPO-S330-SPEC.md`
@@ -1324,3 +1353,122 @@ its MERGED entry in `work/msolve/log.md` (no A/B row: the program runs
 none).
 
 - `MSOLVE-4-SPEC.md` — MSOLVE-4, a mate's memo key carries the solve's answer (#1960)
+
+## Per-merge deletion — DOCM-7's spec (2026-09-06)
+
+Recoverable at `git show 1f566daa82b616655cacb91bb7c9f886109df89f:docs/DOCM-7-SPEC.md`
+(the DOCM-7 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Its D9 sentence ("the order is the
+list's, the result is not") is measured false at the B-rep and name
+level by both reviews (the pair verb is asymmetric in its operands)
+and across a chain of contacts by acceptance (the chained-order gap);
+both are the unit's own filed issues, and DM4 carries the measured
+limit. The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-7-SPEC.md` — DOCM-7, `Node::Union`'s declaration channel in member space (#2028)
+
+## Per-merge deletion — DOCM-6's spec (2026-09-06)
+
+Recoverable at `git show aaf013910bfa7cc01b1a925c0f7e4de88eb60dab:docs/DOCM-6-SPEC.md`
+(the DOCM-6 unit head, before the state-sync commit that deleted it;
+§Ruling carried Ev's 2026-09-06 inner-mint-refusal ruling; no stop
+clause fired). Two of its letters are corrected in the unit's record:
+its fence's "not the at-rest gate's verdicts" and A5's "unchanged on
+every fixture" — the `Uncertified` predicate accepting a carried
+decline moves one verdict, ruled the contract's and rowed; and its
+"`ASSEMBLY.md` D-1 paragraph" — the clause is A5 (D-1 is ASM-R2b's
+id). The rule above; the unit's record is its row in `MODEL-AB-LOG.md`
+and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-6-SPEC.md` — DOCM-6, the instantiation seam carries mate identity and mint health (#2035)
+## Per-merge deletion — MSOLVE-2's spec (2026-09-06)
+
+Recoverable at `git show ef8926c2df3f39e5f351f4dd972931dc037e7519:docs/MSOLVE-2-SPEC.md`
+(the MSOLVE-2 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Two clauses were corrected by
+measurement rather than met, and the argument is in the unit's PR:
+A2(a)'s "different inner index, same outer index" under one outer
+pattern is unbuildable (a pattern takes one body), so the row holds the
+outer index across two chains; and item 3 placed the `Part`-index check
+in the offset, which runs only for a tree edge's first mate — the
+correctness review found a declaring mate's mismatch silently green,
+and the checks that need evaluation moved to the solve's own walk site
+for every reference. The rule above; the unit's record is its item's
+`## Closed` section and its MERGED entry in `work/msolve/log.md` (no
+A/B row: the program runs none).
+
+- `MSOLVE-2-SPEC.md` — MSOLVE-2, the member chain: nested copies through `Part`, sibling distinctness at every level (#2039)
+
+## Per-merge deletion — MSOLVE-3's spec (2026-09-06)
+
+Recoverable at `git show 8a7288747941ef53a8136f7fc98b89e8eb51c135:docs/MSOLVE-3-SPEC.md`
+(the MSOLVE-3 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Written before MSOLVE-2 restructured
+the vocabulary, so its "what the tree says now" names a `head_of` and a
+count arm that had moved by dispatch; the unit applied its intent to
+the sites that exist and says so in its PR. Two of its clauses were
+corrected by the reviews rather than met: the carried refusal is an
+`Arc` newtype over `NodeErrorKind` (the fault types derive equality
+the kernel error type cannot), and the placer named is the refusing
+node, which for a circular rule's axis is the datum. The rule above;
+the unit's record is its item's `## Closed` section and its MERGED
+entry in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-3-SPEC.md` — MSOLVE-3, the mate solve reports the evaluation's own refusal: `PlacerRefused`, and the placement axis decided (#2081)
+
+## Per-merge deletion — MSOLVE-5's spec (2026-09-06)
+
+Recoverable at `git show ae78e6e8d22005ca276bb16aac6cf49c42ae2da3:docs/MSOLVE-5-SPEC.md`
+(the MSOLVE-5 unit head, before the state-sync commit that deleted it;
+unamended). Its stop clause FIRED: the "operand answers, `at` a root,
+product silent" bullet is reachable through a root instance's BODY
+row, which `carry_names` drops. The orchestrator ruled on the PR's
+draft that the operand's entry decides its kind before the root
+question, so the spec's "`ReadBelowARoot` for ANY entry" narrowed to
+face entries and a non-face entry answers `NotAFace { kind }`
+wherever it is read; the unit's PR carries the ruling. The rule above;
+the unit's record is its item's `## Closed` section and its MERGED
+entry in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-5-SPEC.md` — MSOLVE-5, the at-rest gate refuses a mate read below a product root in the operand's voice (#2090)
+
+## Per-merge deletion — TRIM-1's spec (2026-09-07)
+
+Recoverable at `git show 416ccdfc6:docs/TRIM-1-SPEC.md` (PR #2095's
+merge commit, the last head carrying it). Every clause met as written,
+with the rulings section answering the lane's three questions
+(rational cases (a)+(b) by bitwise weight tests; `iso_boundary_row`
+unchanged; the two riders carried). One thing the spec's acceptance did
+not foresee and the unit recorded: TRIM-2's opening measurement is
+re-cut — on the P-2 fixture the tessellation lane stops at
+`patch_bound::Degree1Crease` before any of the six filed sites. The
+unit's record is `work/trim/interior-iso-curve-de-boor-extractor.md`'s
+`## Closed` and the MERGED entry in `work/trim/log.md`; its A/B row is
+MODEL-AB-LOG T1.
+
+## Per-merge deletion — DOCM-8's spec (2026-09-07)
+
+Recoverable at `git show 4b4ec3213b69cbeef7e10a312f7aa4714ad1ac09:docs/DOCM-8-SPEC.md`
+(the DOCM-8 unit head, before the state-sync commit that deleted it;
+AMENDED once, 2026-09-06, at its stop clause — item 1's flat mint reads
+a constituent's name through its descent wrappers, A2's walker peels
+them, the stop clause resolved; the amendment is commit `0cf4a650`).
+Its acceptance letter that "reordering the members changes nothing
+about whether a declaration resolves" is bounded in the unit's record
+to faces consumed by merges (a split, a containment, a fragmented
+merge stay order-shaped — filed). The rule above; the unit's record is
+its row in `MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-8-SPEC.md` — DOCM-8, a merged face's name is a flat constituent set; a member-space declaration resolves through the fold's merges (#2073)
+
+## Per-merge deletion — PROPS budget-faces' spec (2026-09-08)
+
+Recoverable at `git show 887f5e39d3b868cc748da50c8d81d02df74601dd:docs/PROPS-BUDGET-FACES-SPEC.md`
+(the unit head, before the state-sync commit that deleted it). Its
+face-2 instance (`d = 1e-7` on the quarter cylinder as a finite cap
+stop) did not survive measurement — that instance is face 4, and the
+face-2 red-first row is the bumpy patch at 1e-15 — and its face 4 is
+landed as `BoundNotFinite` carrying `last_finite`, per the review. The
+rule above; the unit's record is its `## Closed` and the MERGED entry
+in `work/props/log.md` (an E rider: no A/B row).

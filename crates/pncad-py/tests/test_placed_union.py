@@ -310,11 +310,28 @@ class TestTheDieTool(unittest.TestCase):
         # pairwise tool this replaces spends the same seven upstream
         # and then six transforms, five unions and the subtract, so
         # the group's saving is the eleven it collapses into one.
-        # Which of the nine is the group is not asserted by counting
-        # kinds here (the document layer exposes no node-kind read
-        # door); it is settled outright by the byte pin below, whose
-        # text names every node's kind.
         self.assertEqual(len(doc), 9)
+
+        # The claim itself, counted BY KIND — the mirror of
+        # `crates/editor-core/tests/lib_placedunion.rs`'s
+        # `the_die_tool_is_one_node_and_still_cuts`, which counts
+        # `Node::PlacedUnion` / `Node::Boolean{Union}` /
+        # `Node::Transform` over `doc.order()` and asserts (1, 0, 0).
+        # The byte pin below still holds and its text still names
+        # every node's kind; it is no longer what settles this, and a
+        # structural claim no longer routes through the persistence
+        # door.
+        kinds = [doc.node_kind(n) for n in doc.order()]
+        self.assertEqual(
+            (
+                kinds.count("placed_union"),
+                kinds.count("boolean_union"),
+                kinds.count("transform"),
+            ),
+            (1, 0, 0),
+        )
+        self.assertEqual(doc.node_kind(tool), "placed_union")
+        self.assertEqual(doc.node_kind(pipped), "boolean_subtract")
 
         # An ordinary BODY out of the group — the property that lets a
         # boolean consume it at all.
@@ -408,17 +425,14 @@ class TestThePlacementRuleRefuses(unittest.TestCase):
             doc.insert(Node.placed_union_at(box, []))
         self.assertEqual(caught.exception.variant, "empty_placement_list")
 
-    def test_a_non_finite_frame_refuses(self):
-        """A zero rotation axis normalizes to NaN, so the frame is
-        non-finite — refused, never read as "no rotation"."""
-        doc = Doc()
-        box = slab(doc, (0, 1), (0, 1), (0, 1))
-        poisoned = Frame.rotate_then_translate(
-            (0.0, 0.0, 0.0), 90 * deg, (0 * m, 0 * m, 0 * m)
-        )
+    def test_a_degenerate_rotation_axis_refuses_naming_the_axis(self):
+        """A zero rotation axis has no direction, and the constructor
+        says so — naming the AXIS and its role, where it used to build
+        a NaN frame and let the edit door report the frame."""
         with self.assertRaises(EditError) as caught:
-            doc.insert(Node.placed_union_at(box, [poisoned]))
-        self.assertEqual(caught.exception.variant, "non_finite_placement")
+            Frame.rotate_then_translate((0.0, 0.0, 0.0), 90 * deg, (0 * m, 0 * m, 0 * m))
+        self.assertEqual(caught.exception.variant, "placement_axis")
+        self.assertIn("placement rotation axis", str(caught.exception))
 
     def test_an_improper_frame_refuses(self):
         """A mirror is REPRESENTABLE so that it can be refused (A6,

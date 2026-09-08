@@ -21,6 +21,7 @@ from pncad import (
     import_step,
     load,
     m,
+    rad,
 )
 
 
@@ -98,6 +99,77 @@ class TestDocumentEditing(unittest.TestCase):
             ev.value(stray[-1])
         self.assertEqual(caught.exception.reason, "unknown_node")
         self.assertEqual(caught.exception.node, stray[-1])
+
+
+class TestNodeKindReadDoor(unittest.TestCase):
+    """`Doc.node_kind` — the read half of the `Node.*` constructors.
+
+    The vocabulary itself is pinned Rust-side
+    (`the_node_kind_vocabulary_matches_its_committed_roster`, which
+    reads `src/node_kind.rs` and `pncad.pyi`). What is executed here is
+    the MAPPING that pin cannot make: which node answers which word,
+    driven through real documents.
+    """
+
+    def test_each_authored_node_answers_its_own_word(self):
+        doc = Doc()
+        frame = doc.sketch_frame()
+        profile = doc.insert(
+            Node.polygon(
+                [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)], plane=frame
+            )
+        )
+        solid = doc.insert(Node.extrude(profile, 1 * m))
+        self.assertEqual(doc.node_kind(frame), "datum")
+        self.assertEqual(doc.node_kind(profile), "profile")
+        self.assertEqual(doc.node_kind(solid), "extrude")
+
+    def test_a_boolean_answers_a_word_per_operation(self):
+        doc = Doc()
+        a = unit_box(doc, 2 * m, 2 * m, 2 * m)
+        b = slab(doc, (1 * m, 3 * m), (1 * m, 3 * m), (1 * m, 3 * m))
+        # One payload shape, three kernel operations, three words —
+        # which is what lets a caller say "this recipe spends no
+        # subtract" without reading the saved text.
+        cut = doc.insert(Node.boolean(BooleanOp.Subtract, a, b))
+        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b))
+        common = doc.insert(Node.boolean(BooleanOp.Intersect, a, b))
+        self.assertEqual(doc.node_kind(cut), "boolean_subtract")
+        self.assertEqual(doc.node_kind(fused), "boolean_union")
+        self.assertEqual(doc.node_kind(common), "boolean_intersect")
+
+    def test_it_is_the_nodes_kind_and_not_its_values(self):
+        doc = Doc()
+        solid = unit_box(doc, 2 * m, 2 * m, 2 * m)
+        moved = doc.insert(
+            Node.transform(solid, (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 0 * rad)
+        )
+        ev = evaluate(doc)
+        # Two different recipes, one value kind: `Value.kind` is the
+        # PAYLOAD's shape and cannot tell an extrude from a rigid
+        # placement of it. The node's kind can, and answers with no
+        # evaluation in hand at all.
+        self.assertEqual(ev.value(solid).kind, "body")
+        self.assertEqual(ev.value(moved).kind, "body")
+        self.assertEqual(doc.node_kind(solid), "extrude")
+        self.assertEqual(doc.node_kind(moved), "transform")
+
+    def test_an_unknown_node_refuses_through_the_edit_vocabulary(self):
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        # A second, LARGER document mints ids the first never used.
+        other = Doc()
+        unit_box(other, 1 * m, 1 * m, 1 * m)
+        unit_box(other, 1 * m, 1 * m, 1 * m)
+        stray = [n for n in other.order() if n not in doc.order()]
+        self.assertTrue(stray, "the larger document minted unused ids")
+
+        # `unknown_node`, the word the document layer already speaks
+        # for this state — a refusal rather than a word or `None`,
+        # because "no such node" must not read as a kind.
+        with self.assertRaises(EditError) as caught:
+            doc.node_kind(stray[-1])
+        self.assertEqual(caught.exception.variant, "unknown_node")
 
 
 class TestEvaluation(unittest.TestCase):
@@ -677,8 +749,9 @@ class TestBooleanDeclareArgument(unittest.TestCase):
     """LIB-PYBUNDLE rider (c): `Node.boolean` grew `declare=`, the
     DATA door for a declared contact. The protocol that BUILDS a
     declaration is still unbound, so the only thing the argument can
-    be handed today is another node — and the kernel refuses one that
-    is not a `Declare`, typed, rather than ignoring it."""
+    be handed today is another node — and the EDIT door refuses one
+    that is not a `Declare`, typed, rather than ignoring it or letting
+    a document carry the mis-wire to its evaluation."""
 
     def test_the_default_is_the_undeclared_lane(self):
         doc = Doc()
@@ -697,7 +770,7 @@ class TestBooleanDeclareArgument(unittest.TestCase):
         # evaluation this row is about. Any live non-`Declare` node
         # makes the same point.
         c = slab(doc, (5 * m, 6 * m), (5 * m, 6 * m), (5 * m, 6 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=c))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(fused)
-        self.assertEqual(caught.exception.kind, "wrong_operand")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=c))
+        self.assertEqual(caught.exception.variant, "declare_input_not_declare")
+        self.assertIn("is not a declaration", str(caught.exception))
