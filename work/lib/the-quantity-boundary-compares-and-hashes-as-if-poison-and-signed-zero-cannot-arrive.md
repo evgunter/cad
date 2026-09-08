@@ -5,6 +5,7 @@ title: the quantity boundary compares and hashes as if poison and signed zero ca
 status: open
 opened: 2026-09-03
 refs: [1668]
+needs_ev: true
 ---
 
 Banked at LIB-B-FORMAT. Found by BINDING the display formatter: it is
@@ -118,3 +119,25 @@ A boundary micro-unit on `py/quantity.rs`, not a kernel change:
 Both are behaviour changes on doors that already carry pins, which is
 why they wait for a unit that owns them rather than riding a family
 sweep.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+Two semantics calls on the quantity boundary, both pinned as they
+stand: `==` on a non-finite quantity RAISES a bare `ValueError` (IEEE
+and the Python data model say `False`), and `-0.0 * m == 0.0 * m` is
+`True` with unequal hashes (a `set` can hold both). The kernel is
+deliberate — the newtypes do not refuse non-finite floats; the
+fail-loud doors are where values enter recipe data — so the binding
+assumed what the kernel does not promise.
+
+- **(A) `==`/`!=` answer plain IEEE equality and `__hash__` folds the
+  zero before `to_bits`; ORDERING on a non-finite quantity keeps
+  refusing, as a typed `PncadError` arm rather than a bare
+  `ValueError`.** Equality and hashing obey the data model everywhere
+  library code relies on it; the one loud door left is the one that
+  is defensible (sorting poison). Recommended.
+- **(B) Everything answers IEEE** — ordering too (`<` on NaN is
+  `False`); quiet where the rest of the boundary is loud.
+- **(C) Leave both**, and document the raise.
+
+Recommendation: **(A)**.

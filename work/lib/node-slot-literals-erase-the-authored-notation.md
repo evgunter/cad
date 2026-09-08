@@ -4,6 +4,7 @@ kind: issue
 title: node-slot literals record the canonical row, whatever unit the caller wrote
 status: open
 opened: 2026-09-08
+needs_ev: true
 ---
 
 
@@ -75,3 +76,27 @@ Whether the written seat is a second argument, an overload of the
 existing one, or a `Node.written_*` sibling family; and whether the
 kernel's canonical fallback stays reachable at each door for a caller
 who genuinely has no notation to record.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+Fifteen node constructors and two selector vocabularies take a
+`Length`/`Angle` into a node slot through `Expr::literal`, which stamps
+the canonical unit — so `Node.extrude(profile, 25 * mm)` reads back
+`0.025 m` while `Doc.parse_expr("25 mm")` remembers. LIB-B-NOTATION
+bound `WrittenLength`/`WrittenAngle` for document parameters; this is
+the same erasure one vocabulary over, and the fix is a seat at each
+door. Which seat?
+
+- **(A) The same argument accepts either type**: `Length |
+  WrittenLength` (and `Angle | WrittenAngle`) at every dimensioned
+  slot door — a `WrittenLength` records its notation through
+  `Expr::written_length`, a `Length` takes the canonical fallback as
+  today. No new arguments, no doubled family, the two spellings of one
+  authoring agree, and the canonical path stays reachable for a caller
+  with no notation. Recommended.
+- **(B) A second optional `notation=` argument** on each door — the
+  unit rides beside the number, twice.
+- **(C) A `Node.written_*` sibling family** — fifteen doors doubled.
+
+Recommendation: **(A)**; it is the shape `DocParam` already has
+(`Doc.set_doc_param` takes either), so the lattice stays one lattice.
