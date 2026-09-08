@@ -363,6 +363,40 @@ rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
 # The status is a stable tag STRING, not the kind enum: "which of the
 # three states" and "what kind of entity" are different questions.
 tag: EntityKind = evaluate(doc).resolve("a face").status  # ty: error
+
+# The derived sketch frame. The SPIN is an angle, and the typed
+# quantity boundary is what stops a bare number meaning radians by
+# convention — the `place.rs` rule the datum doors are written to: a
+# dimensionless direction crosses as floats, anything with a dimension
+# crosses typed.
+Node.datum_face_frame(solid, "a face", 0.3)  # ty: error
+
+# ...and a LENGTH is not an angle, however plausible the arithmetic
+# looks.
+Node.datum_face_frame(solid, "a face", 1 * m)  # ty: error
+
+# The face is opaque TEXT, never the `NodeId` that minted it — the
+# same confusion the read doors refuse, on the authoring side.
+Node.datum_face_frame(solid, solid, 0 * rad)  # ty: error
+
+# There is no default spin: which way a sketch faces on a face is an
+# authoring decision, and the door does not choose one.
+Node.datum_face_frame(solid, "a face")  # ty: error
+
+# The carrier-kind read answers the `SurfaceKind` enum, not the tag as
+# a string: "which surface variant" is a value to compare, not prose
+# to parse.
+kind_text: str = evaluate(doc).face_carrier_kind(solid, "a face")  # ty: error
+
+# ...and it is node-scoped like the frame doors, so it takes the node
+# the name was minted for. Dropping it is the `resolve` confusion in
+# the other direction.
+evaluate(doc).face_carrier_kind("a face")  # ty: error
+
+# The orientation sense is a BOOL beside the axis, never a signed
+# direction: folding it in is exactly what the field exists to stop.
+pose_here = evaluate(doc).face_frame(solid, "a face")
+signed: tuple[float, float, float] = pose_here.sense  # ty: error
 # The two evaluators are not interchangeable and neither takes text:
 # an expression is a VALUE, built by the document that declares the
 # parameters it references.

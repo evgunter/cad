@@ -2806,6 +2806,28 @@ rather than hidden: the draw byte was read in the same tool call as
 the last spec read, minutes before the difficulty sentence was written
 down; the difficulty is the G16 precedent's and was not moved.
 
+**B-FACE-FRAME MERGED (2026-09-08, #2074; mechanical under the 08-29
+ruling, no A/B row). Census family B-FACE-FRAME CLOSED — sketch on a
+face, from Python.** `Node.datum_face_frame(at, face, spin)` (the
+`datum_*` prefix convention, spin a typed `Angle` with no default),
+`Evaluation.face_carrier_kind` (the fifth read-back door and the first
+that is not a frame; `SurfaceKind` crosses OUT for the first time, and
+the crossing retires the tripwire's dead twin), `Pose.sense`. 26 tests,
+every number an oracle against the read door's pose. The unit's real
+yield is a census blind spot measured at the closure: a three-door
+charter had a one-row roster because `Pose.sense` is a FIELD of a
+rule-1-accounted type and `Datum` matches name-for-name across two
+different types (the authoring enum and the read-side value), so a
+whole authoring arm hid behind the census's own rule. Banked with
+files: `datum-crosses-name-for-name-as-two-types`,
+`pncad-py-comparable-enums-do-not-hash` (23 of 23). Fixed in passing:
+`run-python-tests.sh` read a hardcoded `$root/target`, so every lane
+that set `CARGO_TARGET_DIR` as the discipline requires saw it exit 1 on
+a successful build. Outside the fence, reported: `local-scripts/
+bt-testbin.sh` and `bt-symbols.sh` carry the same defect. Relaunched
+lane (the 07:29 kill); the dead tree's derived scope was read and
+corrected, not applied. Orchestrator merged main into the branch after
+the report (415 commits, clean) and landed on the re-run.
 **LIB-MECH2 MERGED (2026-09-08, #2072; mechanical under the 08-29
 ruling, no A/B row).** Two banked findings closed. (1) Both LB13
 boundary guards in `crates/pncad/tests/all.rs` read `pub use`
