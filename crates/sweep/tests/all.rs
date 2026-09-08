@@ -567,8 +567,8 @@ mod shell6_r1_probes;
 #[path = "shell6_r2_probes.rs"]
 mod shell6_r2_probes;
 
-#[path = "shell7_measure.rs"]
-mod shell7_measure;
+#[path = "shell7_dump.rs"]
+mod shell7_dump;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;

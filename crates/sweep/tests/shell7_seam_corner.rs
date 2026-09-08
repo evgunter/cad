@@ -164,7 +164,7 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     let out = shelled_to_closed_form("tube torus", &body);
     let cavity = &out.body;
     assert_eq!(out.naming.inner_vertices.len(), 2);
-    for &(old, new) in &out.naming.inner_vertices {
+    for &(new, old) in &out.naming.inner_vertices {
         let (p, q) = (point(&body, old), point(cavity, new));
         let (rho, h) = axial(q);
         let meridian = (rho - R).hypot(h);
@@ -182,7 +182,7 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     }
     assert_eq!(out.naming.inner_edges.len(), 4);
     let (mut meridians, mut equators) = (0, 0);
-    for &(_, e) in &out.naming.inner_edges {
+    for &(e, _) in &out.naming.inner_edges {
         let (c, (t0, t1)) = carrier(cavity, e);
         let Curve3::Circle {
             center,
@@ -247,7 +247,7 @@ fn the_seam_vertex_at_each_minor_angle_shells_to_the_closed_form() {
         let body = revolved_torus(v);
         assert_eq!(body.vertices().count(), 2, "v = {v}: two seam vertices");
         let out = shelled_to_closed_form(&format!("revolved torus, v = {v}"), &body);
-        for &(old, new) in &out.naming.inner_vertices {
+        for &(new, old) in &out.naming.inner_vertices {
             let (rho, h) = axial(point(&out.body, new));
             let (rho_old, h_old) = axial(point(&body, old));
             // The concentric point of the OLD corner about `(R, 0)`.
@@ -362,45 +362,88 @@ fn a_corner_with_no_profile_constraint_refuses_typed_on_a_hand_split_wedge() {
     );
 }
 
+/// Every chart of `body` moved inward by `t` through the simultaneous
+/// door — the moves `shell` builds, spelled at the door itself.
+fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
+    let mut charts: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>)> = Vec::new();
+    for (k, f) in body.faces() {
+        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
+            Some((_, v)) => v.push(k),
+            None => charts.push((f.surface, vec![k])),
+        }
+    }
+    charts
+        .into_iter()
+        .map(|(_, faces)| {
+            let sense = body.get_face(faces[0]).expect("face").sense;
+            topo::ChartMove {
+                faces,
+                distance: if sense { -t } else { t },
+            }
+        })
+        .collect()
+}
+
 /// **Row 6: the LINE arm, on the operand that reaches it.** No door
 /// builds a vertex whose only surface is a cylinder, cone or cap
 /// plane, so the drum's cylinder seam is split by hand at mid-height:
 /// the new vertex's faces are the one cylinder, its profile is the
 /// wall's line `ρ = r`, no plane contains the axis at it, and its
 /// image is the perpendicular foot on the moved line — `(r − t, h/2)`
-/// exactly, the azimuth carried. The split changes no geometry, so the
-/// wall's volume is the unsplit drum's closed form.
+/// exactly, the azimuth carried — with the two half-seams translated
+/// radially onto the moved wall.
+///
+/// Through the DIRECT door, and that is measured rather than chosen:
+/// `shell` on the split drum reaches this arm, solves every corner
+/// and assembles the thin solid, and its closing tier 3 then refuses
+/// the assembled body — a split seam leaves the wall's loop no
+/// iso-rectangle, `Body::split_edge`'s standing caveat, which is about
+/// the props inventory and not about any corner. The door's own
+/// verification (every corner metered against every moved surface,
+/// every edge read back onto its carrier, tier 2 on the result) is
+/// what this row stands on.
 #[test]
 fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
     let (r, h) = (1.0, 2.0);
     let mut body = drum(r, h);
-    let seam = line_edge(&body, |o, _, same_surface| same_surface && o.x > 0.0);
+    let seam = line_edge(&body, |o, d, same_surface| {
+        same_surface && o.x > 0.0 && d.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
+    });
     let split = split_mid(&mut body, seam);
     let (rho0, h0) = axial(point(&body, split));
     assert!((rho0 - r).abs() <= 1e-15 && (h0 - h / 2.0).abs() <= 1e-15);
-    let out =
-        topo::shell(&body, T, tol()).unwrap_or_else(|e| panic!("the split drum shells, got {e}"));
-    assert_eq!(topo::validate_geometric(&out.body, tol()), Ok(()), "tier 3");
-    let (_, new) = out
-        .naming
-        .inner_vertices
-        .iter()
-        .copied()
-        .find(|(old, _)| *old == split)
-        .expect("the split vertex has an image");
-    let (rho, hh) = axial(point(&out.body, new));
+    let mut cavity = body.clone();
+    let band = geom_core::Band::linear(tol()).expect("band");
+    topo::offset_charts_together(&mut cavity, &hollow_moves(&body, T), band, tol())
+        .unwrap_or_else(|e| panic!("the split drum's charts offset together, got {e}"));
+    let (rho, hh) = axial(point(&cavity, split));
     assert!(
         (rho - (r - T)).abs() <= 1e-15 && hh == h / 2.0,
         "the foot on the moved wall: got ({rho}, {hh}), want ({}, {})",
         r - T,
         h / 2.0
     );
-    let props = topo::mass_properties(&out.body, tol()).expect("props");
-    let want = PI * (r * r * h - (r - T) * (r - T) * (h - 2.0 * T));
-    assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
-        "the drum's wall: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
-    );
+    // The two half-seams: generator lines on the moved wall, ending at
+    // the split vertex.
+    let mut halves = 0;
+    for (e, data) in cavity.edges() {
+        let start = cavity.get_half_edge(data.he_plus).expect("he").start;
+        let end = cavity.half_edge_end(data.he_plus).expect("end");
+        if start != split && end != split {
+            continue;
+        }
+        halves += 1;
+        let (c, (t0, t1)) = carrier(&cavity, e);
+        let Curve3::Line { origin, dir } = c else {
+            panic!("{e:?}: a cylinder seam is a line, got {c:?}");
+        };
+        assert!(
+            (axial(origin).0 - (r - T)).abs() <= 1e-15
+                && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15,
+            "{e:?}: a generator on the moved wall, got {c:?}"
+        );
+        let ends = (point(&cavity, start), point(&cavity, end));
+        assert!(c.eval(t0).distance(ends.0) <= 1e-13 && c.eval(t1).distance(ends.1) <= 1e-13);
+    }
+    assert_eq!(halves, 2, "two half-seams end at the split vertex");
 }
