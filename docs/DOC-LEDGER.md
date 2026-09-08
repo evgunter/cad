@@ -1461,3 +1461,14 @@ merge stay order-shaped — filed). The rule above; the unit's record is
 its row in `MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
 
 - `DOCM-8-SPEC.md` — DOCM-8, a merged face's name is a flat constituent set; a member-space declaration resolves through the fold's merges (#2073)
+
+## Per-merge deletion — PROPS budget-faces' spec (2026-09-08)
+
+Recoverable at `git show 887f5e39d3b868cc748da50c8d81d02df74601dd:docs/PROPS-BUDGET-FACES-SPEC.md`
+(the unit head, before the state-sync commit that deleted it). Its
+face-2 instance (`d = 1e-7` on the quarter cylinder as a finite cap
+stop) did not survive measurement — that instance is face 4, and the
+face-2 red-first row is the bumpy patch at 1e-15 — and its face 4 is
+landed as `BoundNotFinite` carrying `last_finite`, per the review. The
+rule above; the unit's record is its `## Closed` and the MERGED entry
+in `work/props/log.md` (an E rider: no A/B row).
