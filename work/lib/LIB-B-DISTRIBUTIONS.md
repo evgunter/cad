@@ -5,6 +5,7 @@ title: binding census family B-DISTRIBUTIONS
 status: review
 branch: lib/b-distributions
 opened: 2026-09-06
+pr: 2192
 ---
 
 Queued mechanical census family (the B-RESOLVE shape): sweep the
