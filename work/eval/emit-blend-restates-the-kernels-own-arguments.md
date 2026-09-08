@@ -2,9 +2,12 @@
 id: emit-blend-restates-the-kernels-own-arguments
 kind: issue
 title: editor-core's emit_blend re-derives two arguments that now have their home in sweep's kernel types, and one is already narrower
-status: open
+status: closed
 opened: 2026-09-04
 track: V
+pr: 2160
+branch: eval/3-emit-blend-cites
+closed: 2026-09-08
 ---
 
 
@@ -61,3 +64,12 @@ parked there.
 ## Claimed by EVAL (2026-09-06)
 
 Moved from `work/code-quality/` to `work/eval/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track V; `names/emit_blend.rs` is EVAL's ground.
+
+## Closed (2026-09-08, PR 2160)
+
+Both restatements are citations of `sweep::blend::naming` (its
+module doc for the reissue conditional, `Retired`'s doc for the
+no-face-channel rule); the consumer's coverage sentence is gone. The
+argument is the PR body's; the review's residue (the mechanism behind
+"no reissue" is stated nowhere on the tree — `topo::Body`'s doc is its
+home) is the orchestrator's log line.

@@ -383,6 +383,36 @@
 # different question from what a parameter was handed, and the cutter's
 # `;` blindness is `lib.sh`'s -- the shared view every gate reads, so it
 # moves for all of them or for none. Nothing here is a mitigation.
+#
+# KNOWN GAP 8, AND IT IS ONE PATH SHAPE COSTING TWO THINGS. A record is
+# `FILE:LINE:TEXT` and a `:` is legal in a path here and in git, so
+# everything this gate reads about a record turns on where the FILE
+# column ends. It ends at the FIRST `:LINE:` -- one constant, read by
+# the diagnosis column and by both halves of the reader's split -- and
+# that reading is exact for every path but one: a path carrying a
+# `:LINE:` SHAPE OF ITS OWN, `…/boxes.rs:12:x.rs`. Such a record is
+# ambiguous at any reader, because the two splits are both well-formed
+# records, and this one takes the SHORTER path. Two costs follow, and
+# neither is a scan hit going quiet:
+#
+#   * THE DIAGNOSIS NAMES THE WRONG FILE. `…/boxes.rs:12:x.rs` reads as
+#     `…/boxes.rs`, which is an allowlist entry: the record is exempt
+#     from the scan AND counted into that entry's pin, so the pin moves
+#     and reds naming `boxes.rs` -- the entry, not the file that gained
+#     the bound. The exemption and the count stay in step (they are one
+#     anchor); what is lost is the name in the message.
+#   * THE WALK READS A TAIL OF THE PATH AS CODE, because the text half
+#     starts after the shorter split: `x.rs:5: …` is handed to the bound
+#     reader with `x` and `rs` in it. A cry-wolf, and it needs the path
+#     to end in a `…Bounds`/`…Enclosure` name to reach a verdict.
+#
+# POPULATION ZERO, and narrower than the plain colon path this file
+# plants in both directions (`plant_colon_path_beside_entry`,
+# `plant_colon_path_sole_bound`, `plant_colon_path_compound_bound`):
+# those are read exactly, this one needs a path that spells a line
+# number between two colons. Closing it means a reader that knows the
+# scan's own file list rather than parsing the record -- a different
+# instrument, and one every gate in this directory would want.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -479,12 +509,43 @@ BOUNDS_ALLOWLIST=(
   "crates/profile/src/path/arc_fillet.rs 3 LIB-G2's LB3 (ruled 2026-08-08), in the file's module docs"
 )
 
-# The paths alone, for the SCAN's exclusion filter.
+# The paths alone, for the SCAN's exclusion filter, which reads them
+# through `gate_record_anchor_any` — the same builder the per-entry count
+# check reads one path through. See the select in `gate()` for why the
+# two halves have to be one predicate.
 gate_allowlist_paths() {
   local entry
   for entry in "${BOUNDS_ALLOWLIST[@]}"; do
     printf '%s\n' "${entry%% *}"
   done
+}
+
+# WHERE THE FILE COLUMN ENDS: the FIRST `:LINE:` of a record. ONE
+# spelling of that reading for the whole file — the diagnosis column
+# below and both halves of `gate_bound_reader`'s split read it from
+# here, so the three cannot drift into three different answers about the
+# same record. It is not `lib.sh`'s `GATE_RECORD_PREFIX_RE`, which is
+# `^[^:]*:[0-9]+:` — the FILE column with no colon of its own in it, a
+# reading that matches NOWHERE in a record from a colon-carrying path.
+# `lib.sh`'s own parser use of that expression (`gate_test_only_mounts`,
+# `lib.sh:1195-1196`) is the repair site the residue row
+# `record-file-column-read-by-first-colon-split` schedules; this
+# constant is local because there is no shared helper for the reading
+# yet, and that row is where one gets argued.
+BOUNDS_RECORD_LINE_RE=':[0-9]+:'
+
+# THE FILE COLUMN OF A RECORD, FOR THE DIAGNOSIS AND NOTHING ELSE. What
+# is EXEMPT is decided by the anchor above, on the record; this only
+# names, one line per file, what the anchor let through. A path carrying
+# a `:` of its own — legal here and in git — is named whole rather than
+# truncated at that colon.
+#
+# WHAT IT CANNOT NAME is a path that carries a `:LINE:` shape ITSELF
+# (`foo:12:bar.rs`), which is ambiguous in a `FILE:LINE:TEXT` record and
+# not resolvable at any reader: it names the shorter path. That is
+# KNOWN GAP 8, where the same shape's other cost is registered.
+gate_record_file_column() {
+  sed -E "s/$BOUNDS_RECORD_LINE_RE.*\$//"
 }
 
 # THE LIST IS READ BEFORE IT IS USED, and a malformed entry is refused
@@ -702,11 +763,12 @@ BOUNDS_ALIAS_ROSTER=(
 # scan did not, and a count keyed on its own regex would take a bound
 # the matcher stopped calling one.
 gate_bound_reader() {
-  GATE_RECORD_PREFIX_RE="$GATE_RECORD_PREFIX_RE" awk -v MODE="$1" '
-    # The record prefix comes from `lib.sh`, through ENVIRON for the
-    # reason stated there: a `-v` assignment is read for escape
-    # sequences before it is a regex.
-    BEGIN { Q = sprintf("%c", 39); PFX = ENVIRON["GATE_RECORD_PREFIX_RE"] }
+  BOUNDS_RECORD_LINE_RE="$BOUNDS_RECORD_LINE_RE" awk -v MODE="$1" '
+    # Where the file column ends comes from the constant above, through
+    # ENVIRON rather than `-v` for the reason `lib.sh` states of its own
+    # record patterns: a `-v` assignment is read for escape sequences
+    # before it is a regex.
+    BEGIN { Q = sprintf("%c", 39); LN = ENVIRON["BOUNDS_RECORD_LINE_RE"] }
     # A BRACKET DOOR IS NAMED, NOT LISTED — the property the header
     # states: any identifier ending in `Bounds` or `Enclosure`, so an
     # alias nobody has written yet is already covered.
@@ -727,9 +789,19 @@ gate_bound_reader() {
              t == "use" || t == "mod" || t == "return" || t == "match"
     }
     {
+      # THE SPLIT IS THE FIRST `:LINE:`, ON BOTH SIDES OF IT. The path
+      # half and the text half are one reading of one record, so they
+      # take the same constant: a path carrying a `:` of its own —
+      # legal here and in git — keeps that colon in the PATH and out of
+      # the TEXT. Stripping the text half by a pattern that reads the
+      # column as "everything before the first colon" instead matches
+      # nothing in such a record, leaves the path standing in the text,
+      # and the walk below then reads the PATH as code: `a:Bounds.rs`
+      # arrives as a target `a` keyed with `Bounds` and `rs` beside it,
+      # which is a compound bound on a file that writes a sole one.
       line = $0
-      path = line; sub(/:[0-9]+:.*$/, "", path)
-      sub(PFX, "", line)
+      path = line; sub(LN ".*$", "", path)
+      if (match(line, LN)) line = substr(line, RSTART + RLENGTH)
       # --- the trait DECLARATION, which is not the grouping question ---
       isdecl = 0; name = ""
       if (match(line, /(^|[^A-Za-z0-9_])trait[ \t]+[A-Za-z_][A-Za-z0-9_]*/)) {
@@ -931,15 +1003,43 @@ gate() {
   gate_require_crate_sources
   gate_exact_skip_subject
   local records hits
+  local -a allowed=()
   # The shared CODE-ONLY view in its STATEMENT record shape, so comment
   # text and literal bodies never reach the matcher and a declaration
   # arrives with its whole `where` clause whatever the line breaks (see
   # the header). Read ONCE: the scan, the census and the per-entry count
   # are three questions about one record set.
   records=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" | gate_matcher)
+  # THE EXEMPTION IS THE COUNT CHECK'S PREDICATE, NOT A SECOND READING OF
+  # THE FILE COLUMN. `gate_allowlist_counts` attributes a record to an
+  # entry with `gate_record_anchor "$path"`, and the scan drops exactly
+  # what that anchor claims: `gate_record_anchor_any` over the same
+  # paths, negated. GIVEN A NON-EMPTY LIST the two are one predicate —
+  # a record is exempt from the scan if and only if it is attributed to
+  # some entry's pin — so an exemption granted here is a count somewhere,
+  # and the entry that grants it is the entry that carries it. Planted
+  # as `plant_colon_path_beside_entry`.
+  #
+  # THE QUANTIFIER IS LOAD-BEARING. An EMPTY list is `gate_grep -vE ''`,
+  # which drops every record and would green this gate over nothing;
+  # `gate_record_anchor_any` refuses no homes for that reason, and the
+  # refusal is `lib.sh`'s to make terminal — it prints from a command
+  # substitution here, so the status this gate sees is the substitution's
+  # and the diagnosis lands on a gate that then goes green. What holds
+  # the quantifier today is that the list is a LITERAL array in this
+  # file, not a check: `gate_allowlist_wellformed` reads the entries it
+  # is given and has nothing to say about there being none.
+  #
+  # WHAT THE EQUIVALENCE STILL DOES NOT BUY is the entry NAMING the file
+  # it exempted. A path carrying a `:LINE:` shape of its own —
+  # `…/boxes.rs:12:x.rs` — satisfies the `boxes.rs` anchor, so it is
+  # exempt from the scan AND counted into that entry's pin: the pin moves
+  # and reds, naming `boxes.rs` rather than the file that gained the
+  # bound. Registered at KNOWN GAP 8.
+  mapfile -t allowed < <(gate_allowlist_paths)
   hits=$(printf '%s\n' "$records" | gate_grep -v '^$' |
-    cut -d: -f1 | sort -u |
-    gate_grep -vxF -f <(gate_allowlist_paths))
+    gate_grep -vE "$(gate_record_anchor_any "${allowed[@]}")" |
+    gate_record_file_column | sort -u)
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
@@ -1424,6 +1524,46 @@ plant_trait_generic_sole_bracket_ratified() {
   printf 'pub trait ArrivalSpec<T: CertifiedBounds> {}\n' >> "$1/crates/topo/src/props.rs"
 }
 
+# A COMPOUND BOUND IN A FILE WHOSE PATH CARRIES A COLON, beside a
+# ratified entry whose path is a PREFIX of it. `boxes.rs:x.rs` is a
+# different file from `boxes.rs` — a `:` is legal in a path here and in
+# git — and no entry names it, so its bound is an ordinary scan hit. The
+# entry's own file is left at its pinned count by the clean fixture, so
+# the count check is silent and what fires here is the SCAN alone: the
+# exemption is decided on the record, by the anchor the pin is attributed
+# through, so a file that is not the entry cannot be dropped as one.
+#
+# THE CASE IS ASSERTED ON THE PATH AND NOT ON THE SCAN'S SENTENCE, which
+# every other must-FIRE case here already pins. Firing at all is the
+# harness' own assertion -- a planted violation that PASSES fails the
+# case -- so what the WANT adds is the other half of the same column
+# reading: the diagnosis NAMES the colon-carrying file whole, rather than
+# naming the ratified entry it merely begins with.
+plant_colon_path_beside_entry() {
+  printf 'pub fn f<T: Decide + Bounds>(_t: T) {}\n' \
+    > "$1/crates/topo/src/boolean/boxes.rs:x.rs"
+}
+
+# THE READER'S OWN HALF OF THE SAME SPLIT, planted in both directions on
+# one path. `a:Bounds.rs` carries a colon AND ends in a bracket door's
+# name, so a text half taken as "the record less everything up to its
+# first colon" hands the walk `Bounds.rs:1: pub fn c<T: Bounds>…` — the
+# PATH read as code, a target keyed with `Bounds` and `rs` beside it, and
+# a SOLE bracket bound reported as a compound one. That is the cry-wolf
+# direction, and the must-NOT-fire case below is the whole guard for it;
+# the must-FIRE case beside it says the same split has not gone blind in
+# the other direction, and that the file is named whole when it does
+# fire.
+plant_colon_path_sole_bound() {
+  printf 'pub fn c<T: Bounds>(_t: T) {}\n' \
+    > "$1/crates/topo/src/boolean/a:Bounds.rs"
+}
+
+plant_colon_path_compound_bound() {
+  printf 'pub fn c<T: Decide + Bounds>(_t: T) {}\n' \
+    > "$1/crates/topo/src/boolean/a:Bounds.rs"
+}
+
 # THE PIN'S TWO DIRECTIONS, one fixture each, on a file the list
 # ratifies and the clean fixture writes at its pinned count. The GAIN is
 # what the pin exists for: a second compound bound riding a ratification
@@ -1543,6 +1683,8 @@ gate_selftest() {
   gate_selftest_case "is not on this gate's alias roster" plant_bracket_only_alias_in_ratified_file
   gate_selftest_case "$want" plant_alias_declaration_moved
   gate_selftest_case "FILE NOT IN THE TREE" plant_roster_file_gone
+  gate_selftest_case "crates/topo/src/boolean/boxes.rs:x.rs" plant_colon_path_beside_entry
+  gate_selftest_case "crates/topo/src/boolean/a:Bounds.rs" plant_colon_path_compound_bound
   gate_selftest_case "MORE than the entry argues for" plant_ratified_file_gains_a_bound
   gate_selftest_case "FEWER than the entry argues for" plant_ratified_file_loses_a_bound
   gate_selftest_case "MORE than the entry argues for" plant_second_bound_on_one_record
@@ -1565,7 +1707,9 @@ gate_selftest() {
     plant_trait_generic_sole_bracket_ratified
   gate_selftest_passes "one ratified compound bound replaced by another at the same count" \
     plant_ratified_file_swaps_a_bound
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through gate_exact_skip_subject), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  gate_selftest_passes "a SOLE bracket bound in a file whose path carries a colon and ends in a bracket door's name, where a text half cut at the first colon hands the path itself to the walk" \
+    plant_colon_path_sole_bound
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through gate_exact_skip_subject), and on the equivalent spelling of dual.rs Bounds impl (GAP 2), on a compound bound in a file whose PATH carries a colon beside a ratified entry (boxes.rs:x.rs), which is a different file from the entry whose path it begins with, and on one in a colon-carrying path that ends in a bracket door name (a:Bounds.rs), named whole in both diagnoses; fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), a SOLE bracket bound in a colon-carrying path that ends in a bracket door name, where the file column ending at the first `:LINE:` is what keeps the path out of the text the walk reads, and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
