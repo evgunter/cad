@@ -210,3 +210,125 @@ Residue with files: `map-affine-retires-into-affine3-try-map`
 (`work/issues/`), `m10_p_lift`'s hand-built interval plane (TCOST's
 slate), `placement.rs`'s hand lift (`work/issues/`). EVAL-3 dispatched
 next (prose-only; runs beside EVAL-2's CI).
+
+## EVAL-2 implemented; two reviews dispatched (2026-09-08)
+
+PR 2153 (`aecc5ffda`): full matrix green (37 checks); key dump at
+base and head over 1053 rows diffs to zero; acceptance grep returns
+nothing; `D365` claimed by `git mv` (**announced to DOCM ((DOCM
+orchestrator))** in the PR body — DOCM's `plan.md:35`/`:65` still
+list it under Track V, DOCM's file to fix). Correctness and style
+reviews dispatched on the frozen head; the correctness lane
+reproduces the dump on documents the implementer's did not reach
+(assemblies, mates) and attacks the filed residue
+(`profile-program-stream-is-not-length-prefixed`: `LANE` and
+`verb_tag(Cusp)` are both 41 at one grammar position, argued
+unreachable). One rustdoc red on the way (an intra-doc link to a
+`#[cfg(test)]` const), fixed before the run of record.
+
+## EVAL-3 implemented, reviewed, fix pass pushed (2026-09-08, PR 2160)
+
+Prose-only; full matrix green on `e0365893c`; doc-link location set
+identical at base and head. Style review MERGEABLE, no MINOR. Fix
+pass by the orchestrator (`875685d22`): the two archaeology comments
+the lane filed as an item, plus a third the review added, fixed in
+this PR and the item closed here (the file was heavier than the fix);
+the guard's site comment collapsed to one line pointing at the module
+doc (S5); `emit_chamfer` cites `sweep::blend::naming` for
+one-surgery-two-verbs (S3); the item's `## Closed` trimmed to a
+pointer (S8). Recorded, not built: **the mechanism behind "a retired
+key is never reissued" is stated nowhere on the tree** — `topo::Body`'s
+arena doc is its home (TOPO's ground; (TOPO orchestrator), one
+sentence at the `SlotMap` declaration), and until it is written the
+kernel's sentence and the consumer's citation are both conditionals
+(S1); the kernel's `naming.rs` "What consumes these rows" paragraph
+describes its consumer by unlinked path (S2, BLEND's); `wire.rs:1836`
+is a third consumer-cites-a-cannot-fire shape (S7).
+
+## EVAL-2 reviews adjudicated; fix pass to the implementer (2026-09-08)
+
+Correctness: MERGEABLE — the key dump reproduced independently over
+1074 rows (corpus at f64, bumped, `Dual64`; an assembly with mates;
+a resolving `Cusp` profile) at zero diff; every census went red under
+a duplicated number; the 41/41 residue is unreachable for a stronger
+reason than the item gave (a `Cusp` cannot end a loop — its tip is
+`DirectedIncoming` — so the word after it is a verb tag, never
+`LOOP_START`). Style: MERGEABLE. Converging MINORs: the contact-class
+tag has a twin in `topo::ContactClass::content_tag` (exhaustive)
+beside `eval`'s wildcard function; the hand-kept `ALL`/`GROUPS` and
+the `winding`/`side`/`target` closures are declared but uncensused
+(a swapped arm or a dropped const stays green). Fix pass sent to the
+implementer with eleven items: the twin collapses onto topo's
+function; projections become censused functions; a `tag_groups!`
+macro projects `ALL`/`GROUPS`; the v2…v6 archaeology becomes the
+bump invariant at `tag::format::VERSION`; the census rename
+completes; `presence`'s wrong sentence and the borrowed fault bit;
+`u64`-written tags; the residue item's argument. **Lesson (correctness
+NOTE-1):** two worktrees sharing one `CARGO_TARGET_DIR` resolve to one
+artifact hash and the second reads `Fresh` — a base-vs-head proof
+needs separate targets or a `touch`, and the printed package PATH is
+the confirmation, not the word `Compiling`.
+
+## EVAL-3 MERGED (2026-09-08, PR 2160, merge bb30d5a3f)
+
+Green on the merged head (the state-sync merge brought code from
+main under it, so it got its own run). `emit_blend` cites the kernel
+homes of its two arguments; three archaeology comments across the
+emitters state their invariants; `emit_chamfer` cites one-surgery-
+two-verbs. Both the unit item and the residue item are closed. Open
+residues from its review are in the previous entry (the reissue
+mechanism's home at `topo::Body`, TOPO's; the kernel's
+consumer-describing paragraph, BLEND's).
+
+## EVAL-2 fix pass green; state-sync pushed (2026-09-08, PR 2153)
+
+Fix pass `812cb3b50`: every one of the eleven items landed (contact
+class through `topo::ContactClass::content_tag` at every site;
+`winding_tag`/`side_tag`/`target_tag`/`split_half_tag` as censused
+functions with committed-number pins and a `closed_list!` that makes
+an exhaustive match the row set; `tag_groups!` projects `ALL` and
+`GROUPS`, unconditional; the format-version rule at its declaration;
+the census rename completed and the three census modules made one;
+`tag::fault`; `u64`-written sub-tags through `write_tag`; the
+residue's argument rewritten on the `Cusp` tip state). Key dump
+re-taken at the moved base from a `git archive` export under its own
+target: 1053 rows, zero diff. Full matrix green. Meta-read by the
+orchestrator of the macro, the contact-class sites and the acceptance
+grep (empty). State-sync merged main (which brought code: k-lint
+tests) so the merged head runs once more before the merge.
+
+## EVAL-2 blocked on a semantic merge with LIB-G17 (2026-09-08)
+
+PR 2153 green at `9e3b54ed6` but unmergeable: `Node::Shell` landed
+(LIB-G17) with `verb_content_tag(Shell) = Some(35)`, `RoleSeg::HoleRim`
+at seg tag 44, and three new payload literals (42/43/44) in
+`feed_blend` renamed `feed_scalar_join` — all inside the vocabularies
+EVAL-2 declared. Resolution handed back to the implementer as a
+semantic merge (structure ours, meaning theirs, every literal
+declared, the key dump re-taken at the new base with a shell document
+added). The `keep_out`'s announced seam (LIB-G17 reaches `crates/verbs`
+and, it turns out, the content key) landed while the unit was in
+review; the cost is one merge round.
+
+## EVAL-4 implemented; style review dispatched (2026-09-08, PR 2165)
+
+Head `eca39b5ce`, full matrix green with the python suite run
+(`RUN_PNCAD_PY: true` in the filter's log). `declare`/`declare_all`
+return `(Applied, id)`; `pncad-py`'s second copy of the declare body
+collapses onto the sugar; `refactor.rs` (FIX seam, announced on the
+PR) gains one private `Recording` swap point under `rem_apply`,
+`part_apply` and inline's `step`, with `SplitOutcome` carrying both
+sides' maintenance and `InlineOutcome` its own — the unit went one
+door further than the spec asked, and stated why. Filed from its
+survey onto the owners' slates:
+`work/lib/python-split-and-inline-outcomes-drop-the-maintenance.md`
+((LIB orchestrator)) and
+`work/docm/replay-and-load-keep-the-document-without-its-maintenance.md`
+((DOCM orchestrator)).
+
+## EVAL-5 dispatched (2026-09-08)
+
+Prose-only (`docs/EVAL-5-SPEC.md`): one stated convention for the two
+`Verb` types. **Announced seam to S-BOOL ((S-BOOL orchestrator)):** one
+mirror sentence at `crates/profile/src/path/program.rs`'s `Verb` doc;
+the rename (`StepVerb`) is theirs to sequence if they want it.

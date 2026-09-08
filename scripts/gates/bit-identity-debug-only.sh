@@ -257,7 +257,7 @@ SUBJECTS=(
   'crates/topo/src/null.rs ArenaDelta|assert_euler_postcondition|arena_counts 5 the arena delta the null-entity operators declare'
   'crates/topo/src/split.rs ArenaDelta|assert_euler_postcondition|arena_counts 5 the arena delta the split operators declare'
   'crates/topo/src/boolean/voids.rs ArenaDelta|assert_euler_postcondition|arena_counts 4 the arena delta the void transplant declares'
-  'crates/topo/src/movefac.rs ArenaDelta|assert_euler_postcondition|arena_counts 6 the arena delta the face-move operator declares'
+  'crates/topo/src/movefac.rs ArenaDelta|assert_euler_postcondition|arena_counts 10 the arena delta the face-move and shell-move operators declare'
 )
 GATE_SCAN_NOUN='debug-only symbol use'
 
