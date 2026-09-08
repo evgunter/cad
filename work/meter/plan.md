@@ -157,6 +157,67 @@ false CLAIM rather than broken code. Unit 8 left `C15` OPEN with its
 residue guarded by execution; unit 12 overturned the finding that
 promoted it. The live state is `log.md`'s tail, never this list.
 
+## The exit walk — planned, not started (2026-09-08)
+
+All twelve units are merged and the slate stands at **23 open items**,
+having opened at eleven. It grew because every unit's sweeps and every
+reviewer's class findings landed real defects with citations; it did
+not drift. So METER cannot exit by draining, and `work/README.md` does
+not ask it to: the walk RULES on where residue goes, and a closed
+program's directory is deleted once the walk is ratified.
+
+**The residue coheres on one territory, and that is the walk's central
+ruling.** Roughly nineteen of the twenty-three are `tools/*` — the
+instruments themselves:
+
+- **k-lint (6)** — the header unpinned against five producers, the
+  ε-coupled criterion unwritten, the gate described as diffing
+  committed baselines when nothing does, `props_quad_last_round`
+  ε-coupled but unrostered, the roster parsing kernel source because
+  the fence forbade two cheaper shapes, rule 1's prose over-claiming.
+- **tess-lint / tess-meter (9)** — the growth margin unprotected from
+  `ceil` quantisation (`D206`'s surviving premise), six columns
+  reaching the gate unparsed, `worst_cert = 0` carrying two meanings,
+  the retune figure naming an unrecorded draw, the finding lines
+  rendering figures through a helper under prose names, the
+  constraint-activity line likewise, the cut line stamping a HEAD it
+  need not describe, the partition assert that cannot fail, the
+  recourse quote pinned from one side.
+- **`docs/TESS-BUDGET.md` (4)** — two identity-column enumerations
+  naming a retired entry, the note-vs-finding rule's fourth home, four
+  sizing figures carried present-tense, and the stale pointers to the
+  file unit 10 deleted.
+
+`work/README.md` names this case exactly: *"a dozen items on one
+territory are a successor's opening slate, and the closing program
+opens it."* Nineteen on `tools/*` is that, twice over. **The walk's
+main ruling is therefore to open a successor program for the
+instruments, not to scatter the residue.** `work/issues/` is the last
+resort and *"an unsorted pile of related items there is what the sweep
+exists to prevent"* — nineteen coherent rows are the pile that rule
+forbids.
+
+**The four that are not the successor's**, to be re-homed by charter
+rather than by convenience — each needs its owner checked against that
+program's `paths`, not guessed:
+
+- `C15` — open by ruling, and what closes it is corpus-side: a sized
+  tour scene becoming document-built, which is `demos/` and Track X,
+  not an instrument change. Unit 8 left it guarded by execution.
+- `reader-census-shared-disposition-survives-partial-reversion` —
+  `crates/test-utils/`, so S-TCOST's or CIW's.
+- `cert1-notes-pr-body-tracked-on-main` — a stray file on `main`;
+  hygiene, owner to be identified.
+- `tools-readme-is-unratified-and-owes-a-design-row` — blocked on Ev
+  (#2147) and cannot be re-homed until he rules.
+
+**Opening a program is not a lane's call and probably not the
+orchestrator's alone.** The walk should propose the successor —
+charter, `paths`, fence, opening slate — and go to Ev with it, the way
+`D201` and the `CC1`–`CC5` ratification did. Drafting `docs/METER-EXIT-WALK.md`
+is the next action; ratification, then the directory sweep and the
+`docs/DOC-LEDGER.md` entry with its recovery SHA, is what closes METER.
+
 ## Exit shape
 
 The twelve land (with `D201`'s answer either built or ratified as

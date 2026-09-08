@@ -1156,3 +1156,50 @@ eleven. Every one of today's four units closed on a MAJOR that was a
 false CLAIM rather than broken code; not one shipped a defect in an
 assertion. What is left is the exit walk, and it must RULE rather than
 drain.
+
+## The dead pointers routed, and the exit walk planned (2026-09-08)
+
+**Routing.** Unit 8's dead-pointer sweep found `D103` and `D107` cited
+at `work/code-quality/` paths that no longer resolve — both rows moved
+in the 2026-09-06 cut, to `work/gates/D103.md` and `work/topo/D107.md`.
+Verified here: five files for `D103` (eight occurrences), one for
+`D107` (two). The sharpest is that the `D107` citations are inside
+`work/code-quality/` itself — a row citing a sibling that is no longer
+its sibling. `work/code-quality/` still exists and still holds other
+rows, so the directory being present is not evidence a path in it
+resolves, which is presumably how these survived.
+
+**Filed to `work/meta/`, and I filed it in the wrong place first.** I
+put it in `work/issues/` reasoning that no single program owns all six
+sites. That is wrong on `work/README.md`'s own terms: `issues/` is for
+an owner *undecided or disputed*, not *plural*, and the page says an
+unsorted pile of related items there is what the sweep exists to
+prevent. The right home was findable rather than inferable — META's
+`keep_out` says in as many words that *"a stale citation in another
+program's slate is routed to its owner and never fixed across the
+fence"* and NAMES the standing instance,
+`stale-track-t-citations-in-fillet-and-cert`, which is the same shape
+held in `work/meta/`. Moved. The day's rule applies to conventions too:
+the precedent was written down and I reasoned about the shape instead
+of reading it.
+
+**The walk is planned in `plan.md` and deliberately not started.** The
+slate is 23 open items against eleven at opening, and it grew from real
+findings rather than drift. The central ruling: **roughly nineteen of
+the twenty-three are `tools/*`** — six k-lint, nine tess-lint/tess-meter,
+four `docs/TESS-BUDGET.md` — and `work/README.md` says a dozen items on
+one territory are a successor's opening slate, which the closing
+program opens. So the walk opens a successor for the instruments rather
+than scattering them; nineteen coherent rows in `work/issues/` are
+exactly the pile that page forbids.
+
+Four are not the successor's and want their owner checked against that
+program's `paths` rather than guessed: `C15` (corpus-side, `demos/`,
+Track X), the reader-census disposition (`crates/test-utils/`),
+`cert1-notes-pr-body-tracked-on-main` (hygiene on `main`), and the
+`tools/README.md` ratification, which cannot be re-homed until Ev
+rules on #2147.
+
+**Opening a program is not the orchestrator's call alone.** The walk
+should propose the successor — charter, `paths`, fence, opening slate —
+and go to Ev, the way `D201` and the `CC1`–`CC5` ratification did.
