@@ -37,9 +37,9 @@ shipped lattice does not contain `t = 26` and reports **70**. That is
 the shipped pair, from the instrument alone.
 
 **It is not a corner case, and the corpus is in the wrong band.** One
-missed division out of `n` is `1/n`, so the excess is bounded below by
-the COARSEST AXIS of the answer and has nothing to do with how fine the
-aspect lattice is. `span_opt_cells` is a sum of per-ANALYSIS-CELL
+missed division out of `n` costs `1/n`, so the smallest excess a miss
+can cost is set by the COARSEST AXIS of the answer, and nothing about
+how fine the aspect lattice is changes that quantum. `span_opt_cells` is a sum of per-ANALYSIS-CELL
 optima, and on `docs/tess-budget-data/tess-budget-baseline.csv` the
 median per-cell optimum is **44.4 cells** — near seven divisions an axis
 if square — with **56 of the 64 sized faces averaging under 100** and

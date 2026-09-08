@@ -636,7 +636,7 @@ CONTINUOUS excess, and a `ceil`'d miss costs a whole division —
 `muu = 100, mvv = 0.1` over a `1 × 10` box at `δ_s = 1` admits 65 cells
 at `t = 26` and the shipped scan reports 70, **7.6923%** against a
 4.9939% envelope and against the gate's whole 5% margin. One missed
-division out of `n` is `1/n`, and the corpus's median
+division out of `n` costs `1/n`, and the corpus's median
 per-analysis-cell optimum is 44.4 cells — near seven divisions an
 axis, where one whole division is 14%. So `D206`'s premise
 survives its own closure, re-filed as
