@@ -1,6 +1,6 @@
-# BLEND-8 — the must-carry rule's in-band policy has one home (spec)
+# BLEND-9 — the must-carry rule's in-band policy has one home (spec)
 
-**Program:** BLEND (`work/blend/plan.md`, unit 8). **Item:**
+**Program:** BLEND (`work/blend/plan.md`, unit 9). **Item:**
 `work/blend/smooth-arm-siblings-disagree-on-the-in-band-case.md`.
 **Track:** kernel change — the standard v6 unit (binding spec, drawn implementer
 arm, cross-model dual review, union fix pass, record-at-merge; §Review).

@@ -192,7 +192,7 @@ a finding to report, not a gate to widen.
 
 ## Out of scope
 
-`ladder-rim-phase-may-retire-a-new-split-key` (unit 7, the same file's rim
+`ladder-rim-phase-may-retire-a-new-split-key` (unit 8, the same file's rim
 phase); the hostless arm's "Frontier arm 2" (an outer cycle wider than the
 request — stays refused, its row stays); class (2) of the outer walk; any
 change to predicate 2's screen; the curved single-host rim (closed as a

@@ -1,6 +1,6 @@
-# BLEND-7 — the ladder rim phase retires only a source key (spec)
+# BLEND-8 — the ladder rim phase retires only a source key (spec)
 
-**Program:** BLEND (`work/blend/plan.md`, unit 7). **Item:**
+**Program:** BLEND (`work/blend/plan.md`, unit 8). **Item:**
 `work/blend/ladder-rim-phase-may-retire-a-new-split-key.md`.
 **Track:** kernel change — the standard v6 unit (binding spec, drawn implementer
 arm, cross-model dual review, union fix pass, record-at-merge; §Review).

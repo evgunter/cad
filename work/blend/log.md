@@ -149,3 +149,45 @@ user-facing literal. DECLINED: the rename (taste; the count stands).
 when its report arrived, before the fix pass — a resumed agent cannot
 run without it, so the fix pass went to a fresh lane. Rule from here:
 a lane's worktree is reclaimed at MERGE, not at report.
+
+**Unit 1 reviewed (2026-09-08): MERGEABLE** for the arm, single style
+review on frozen `c3b2c9f0` of PR [#2123](https://github.com/evgunter/cad/pull/2123).
+Red-first confirmed; both mutants (arm deleted, arm routed to the wrong
+constant) red on exactly the trio row; no public constructor mints an
+in-band parted pair (per door: extrude, revolve, tube, the boolean's own
+gate answers first). Adjudicated TAKE, fix pass on a fresh lane with the
+implementer's arm: the reviewer's eight probe rows (the stronger
+two-arc trio replaces the re-keyed fixture's zero leg, which pinned a
+downstream refusal on a tier-3-invalid body described as untouched);
+the convexity-sign in-band routing FIXED here rather than deferred —
+the reviewer's Q6 reading adopted: the D4 pair rule applied at the
+predicate's own site is the same one-line shape this unit shipped, and
+the lane's "design statement" reason dissolved for coaxiality the same
+way — with `trio_convexity_sign`, `trio_corner_independence` and
+`trio_chain_g1` each tied by `assert_same_recourse` (the class: two of
+six trios did not tie, the PR body's "the one trio row" was false);
+the hand-kept 14-of-15 recourse list replaced by `ALL_RECOURSES`; the
+stale "six constants" count; the two `issue 1355` citations re-aimed at
+the migrated ruling. Three class issues filed by the fix pass (the
+three homes of escalation-recourse dispatch across sweep and profile;
+the coincidence recourse every escalation renders first; `blend/mod.rs`'s
+recourse prose accumulation). DECLINED: substring-vs-constant in
+`assert_same_recourse` (the family's idiom).
+
+**MAJOR outside the unit's fence, on BLEND's ground — a pristine
+three-arc rim refuses.** `walk_chains` lists a closed chain's junctions
+as `[closing vertex, j01, j12]` and the G1 check pairs `junctions[i]`
+with `ring[i], ring[i+1]`, so every junction is judged against a link
+that does not touch it; a two-arc rim is immune and is the only closed
+rim any suite builds. Filed as
+`closed-chain-junctions-pair-with-a-rotated-link` with the reviewer's
+witness adopted as a characterization row. **Reorder (before any
+slot-1 dispatch):** it takes block BLEND-B1 slot 1 ahead of the ladder
+unit, which moves to BLEND-B2's first slot; the draw is untouched (a
+slot's arm does not depend on which unit takes it). Plan renumbered:
+unit 7 = the junction unit (`docs/BLEND-7-SPEC.md`, to write), 8 = the
+ladder (`BLEND-8-SPEC.md`, was 7), 9 = the smooth arms (`BLEND-9-SPEC.md`,
+was 8), 10–13 shift by one. The reviewer's boolean NOTE (a definitely
+tilted boss refuses through the union as `ClassificationInvariant`, a
+row-4 sentence for a row-2 frontier) is filed on S-BOOL's slate as
+`union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`.
