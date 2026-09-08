@@ -96,10 +96,71 @@ class EditError(PncadError):
     `variant` is which edit refused; `inner_variant` is the arm of the
     refusal that edit carries, `None` where it carries none. See
     EvaluationError for why the second word is a second attribute.
+
+    Everything after those two is the refusing arm's PAYLOAD, and
+    every field is present on every arm — `None` where that arm does
+    not carry it — so `getattr` never raises and a caller need not
+    branch on `variant` first. The names are the kernel's own field
+    names where the kernel gives one concept one name; where two arms
+    name one concept differently, the concept has ONE attribute:
+
+    - `node` is the node the refusal is ABOUT, under all three kernel
+      spellings (`id` at the doors that take a target, `node` at the
+      doors that write one, `at` where the fault is a position in the
+      graph). `input` is a node the subject NAMES — an operand that
+      does not resolve, an input reached twice, the measure an
+      assertion constrains. `referenced_by` is a node DOWNSTREAM of
+      `node` that references it: the live consumer a delete would
+      dangle, the descendant root that makes an ancestor redundant.
+    - `expected` and `found` are the DIMENSION pair — what the door
+      required and what it was offered — under every spelling the
+      kernel gives them (`expected`/`found`, `declared`/`referenced`,
+      `measured`/`bound`). They are dimension words (`length`,
+      `angle`, `count`, `scalar`), the same alphabet `Expr.dimension`
+      answers in.
+    - `count` is how many entries a short list would have had. It is
+      NOT `found`: a count and a dimension are two types, and one
+      attribute carries one.
+    - `slot` is the named expression slot (`distance`, `count`,
+      `origin_x`); a slot is a NAME, never an index. `param` is a
+      document parameter's name and `name` a stable name's text.
+    - `path` is an expression address's child indices below the slot,
+      and `value_path` where inside a metadata value an offending
+      float sits — different addresses in different trees, so they are
+      two attributes.
+    - `from_kind` and `to_kind` are a rebind's two entity kinds.
+      Neither keeps the kernel's bare word because `from` is a Python
+      keyword.
+
+    An arm carrying a NESTED refusal projects the carrier's own
+    payload and nothing more: `inner_variant` names the arm of the
+    refusal it holds, and the fields inside it belong to that type's
+    own door.
     """
 
     variant: str
     inner_variant: Optional[str]
+    node: Optional[NodeId]
+    input: Optional[NodeId]
+    referenced_by: Optional[NodeId]
+    slot: Optional[str]
+    param: Optional[str]
+    name: Optional[str]
+    key: Optional[str]
+    expected: Optional[str]
+    found: Optional[str]
+    kind: Optional[str]
+    from_kind: Optional[EntityKind]
+    to_kind: Optional[EntityKind]
+    count: Optional[int]
+    first: Optional[int]
+    again: Optional[int]
+    value: Optional[float]
+    offered: Optional[float | int]
+    determinant: Optional[float]
+    path: Optional[tuple[int, ...]]
+    value_path: Optional[str]
+    pin: Optional[ContentPin]
 
 class EvaluationError(PncadError):
     """A node produced no value, or produced the wrong kind.

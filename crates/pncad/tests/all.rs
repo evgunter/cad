@@ -3851,7 +3851,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ExprPath`, `ParamValue`,
+///   (`ProfilePayload`, `ParamValue`,
 ///   `BifurcationKind`,
 ///   `MetaValue`, `MetaError`, `MetaVersionError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
@@ -3869,6 +3869,20 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   can hold one to name. (`ClassAdmission`/`class_admission` left this family
 ///   at GUI-4: a mate-authoring consumer needs the admission table
 ///   BEFORE committing, so `crate::document` carries them now.)
+///
+///   **`AttrKind` and `ExprPath` were in it too, and the reading did
+///   not hold for them either.** Both are `EditError` payloads —
+///   `RebindAppearanceCollision` and `AppearanceNotSet` name a display
+///   attribute's KIND, `PathOffTree` names an expression ADDRESS — and
+///   neither has a curated door of its own, so the same payload rule
+///   carries them. Carrying them is not carrying their
+///   neighbourhoods: `Attr`, `AttrSet` and the appearance records stay
+///   out, because no curated carrier answers in those.
+///   `MetaVersionError` stays for `BifurcationKind`'s reason turned
+///   the other way: it is a nested REFUSAL rather than a leaf value,
+///   the arm that holds it carries no inner word to name it by, and
+///   giving it one is the per-arm-tag question rather than the
+///   payload one.
 ///
 ///   **The A5 gate used to be in this family and was wrong to be.**
 ///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
@@ -3973,14 +3987,13 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 87] = [
+const NOT_CARRIED: [&str; 85] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
     "AppearanceRecord",
     "AppearanceResolution",
     "Attr",
-    "AttrKind",
     "BracketEnd",
     "AttrSet",
     "AxisScalar",
@@ -3997,7 +4010,6 @@ const NOT_CARRIED: [&str; 87] = [
     "Entry",
     "Epoch",
     "EvalScalar",
-    "ExprPath",
     "FlipEvidence",
     "FlipSet",
     "Implicated",

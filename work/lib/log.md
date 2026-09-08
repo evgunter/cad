@@ -3713,3 +3713,52 @@ moved). Residue filed:
 these are not them). Not taken: the six doors' payload attributes
 (LIB-DOORS-1 ran beside this unit). No kernel crate touched; the lane
 ran the pinned ruff for real.
+
+## Announced seam from SHELL (2026-09-08): `ShellError::Pcurve` arm in editor-core's fold
+
+SHELL-9 (PR #2223) adds `ShellError::Pcurve { source: PcurveMintError }`
+(the closing pcurve mint's typed refusal — unreachable by any
+committed fixture, stated so) and extends the one exhaustive fold,
+`crates/editor-core/src/verbs/shell.rs`'s `fold_shell_error`, with
+the arm; `pncad-py`'s census and tags need nothing (the field is not
+`Real`-typed; every `ShellError` folds to the `"shell"` tag). Same
+shape as SHELL-5's `ShellError` change. No action asked. Signed
+(SHELL orchestrator).
+
+**LIB-DOORS-1 MERGED (2026-09-08, #2227; mechanical under the 08-29
+ruling, no A/B row). The first door under Ev's ruling (A) on
+`pncad-py-seven-doors-lack-field-projection`: `EditError`'s 58 arms
+flatten into one record of 21 payload fields, published beside
+`variant`/`inner_variant` as 23 attributes on every raise site of the
+class — the document layer's, the declare sugar's `Edit` arm, and the
+three the boundary builds itself — present on every arm, `None` where
+the arm carries none.** One exhaustive match with no wildcard in a new
+Python-independent `edit_payload.rs` (a stated deviation from the two
+worked examples, which sit inside the `python`-gated module: the drift
+alarm has to ring on the interpreter-less CI row and the construction
+pins have to be able to run there), a struct with `..Self::NONE` rather
+than a 1218-entry positional tuple with exhaustiveness kept twice (the
+match, and `presence`'s `..`-less destructuring). One attribute per
+CONCEPT: `node`/`input`/`referenced_by` under the kernel's three
+spellings of a subject node, `expected`/`found` carrying
+`declared`/`referenced` and `measured`/`bound` as dimension words, a
+short list's `found` spelled apart as `count`, `from_kind`/`to_kind`
+(a Python keyword), `path` vs `value_path` (two trees). `slot` is a
+WORD not an index — `SlotId` is a named per-node-type enum (D5: never
+an index) — so `slot_id_tag` (40 literals, the axis spelled into the
+word, `Profile{..}` stopping at `profile`) and `attr_kind_tag` (3)
+join the table. Façade moved twice under its own payload rule
+(`AttrKind`, `ExprPath` out of `NOT_CARRIED`, 87→85; `MetaVersionError`
+deliberately NOT — a nested refusal whose arm has no inner word, the
+per-arm question, filed `meta-unversioned-arm-has-no-inner-word`, the
+one arm of 58 the construction pin cannot build). Nine arms reached
+from Python by real edits, the rest pinned in Rust with the reason per
+arm; a deleted match arm fails to compile (run, reverted); no shipped
+`variant`/`inner_variant` moved. Census: `SlotId`, `AttrKind`,
+`ExprPath` to `BOUND_AS` with the measurement (addressing a slot and
+reading one off a refusal are two questions). The item stays open with
+a `## Progress` line: the edit door done, `persist`/`frame`/`stl`
+running as LIB-DOORS-2, `path` behind the kernel `PathError`
+discriminant. Merged main twice mid-unit incl. LIB-FINDINGS (two ty
+fixture conflicts, both hunks kept). No kernel crate touched; the lane
+ran the pinned ruff for real.

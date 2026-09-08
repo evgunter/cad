@@ -43,7 +43,21 @@ pyo3::create_exception!(
      dimension mismatch, ...). Carries `variant`, which edit refused, \
      and `inner_variant`, the arm of the refusal that edit carries — \
      `None` where it carries none. `EvaluationError` states why the \
-     second word is a second attribute."
+     second word is a second attribute.\n\n\
+     The rest is the refusing arm's PAYLOAD, present on every arm and \
+     `None` where that arm does not carry it: `node`, `input` and \
+     `referenced_by` (the node the refusal is about, a node it names, \
+     a node downstream that references it), `slot`, `param`, `name`, \
+     `key`, `expected` and `found` (the dimension the door required \
+     and the one it was offered), `kind`, `from_kind`, `to_kind`, \
+     `count`, `first`, `again`, `value`, `offered`, `determinant`, \
+     `path`, `value_path` and `pin`.\n\n\
+     ONE ATTRIBUTE PER CONCEPT. Where two arms name one concept \
+     differently the concept's clearest word wins — `expected`/ \
+     `found` carry `declared`/`referenced` and `measured`/`bound` \
+     too. Where two arms name two concepts the same they are spelled \
+     apart: a short list's `found` is a COUNT and rides `count`, \
+     because one attribute carries one type."
 );
 pyo3::create_exception!(
     pncad,

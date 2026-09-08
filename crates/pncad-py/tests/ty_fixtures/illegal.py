@@ -597,6 +597,13 @@ try:
     doc.apply(DocEdit.delete_node(solid))
 except EditError as _refused:
     _edit_arm: str = _refused.inner_variant  # ty: error
+    # The arm's payload is optional for the same reason and reads the
+    # same way: every attribute is present on every arm, so the one a
+    # caller wants is `None` wherever the arm does not carry it and a
+    # bare read has not narrowed anything. The node id is the payload's
+    # most-reached attribute and the one worth pinning.
+    _dangling: NodeId = _refused.node  # ty: error
+    _which_slot: str = _refused.slot  # ty: error
 
 # The validator's findings are a SEQUENCE, not a scalar word. Reading
 # one as a `str` is the mistake the exception's shape exists to make
