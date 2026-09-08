@@ -140,6 +140,53 @@ accounted for, so the roster after this unit is one entry shorter and
 reports nothing about the three doors that closed it. The positive
 form is `crates/pncad-py/tests/test_part_select.py`.
 
+## Outcome
+
+The family closed, and it took FOUR doors where the charter named
+three things:
+
+- `PartSelect.split_half(half)` / `PartSelect.instance(index)` — the
+  selector pair, as a class of static constructors, which is
+  `PatternKind`'s shape and what makes the name-for-name accounting of
+  rule 1 true rather than convenient.
+- `Node.part(of, select)`.
+- `Node.pattern(input, count, kind)` — NOT in the charter, and
+  required by it: `PartSelect.instance` selects out of a plural
+  `instances` payload, exactly one node emits one, and that node was
+  unbound. Binding the selector alone would have shipped an
+  unreachable half and one unconstructible refusal tag.
+- `DocEdit.bind_instance_param(node, name)` — `SlotId::Instance`'s
+  door, `bind_count_param`'s sibling.
+
+`crates/pncad-py/tests/test_part_select.py` is the positive form: 20
+tests whose numbers are all oracles against the split's or the
+pattern's OWN value (a Part's mass is the side's mass, read off
+`Value.split` / `Value.bodies` rather than transcribed), the two
+halves rejoined into the box through the flush protocol, the names
+shown passing through verbatim, all four `wrong_operand` crossings,
+both chartered refusals, and the memo's statement that an index edit
+recomputes one node.
+
+Census delta, exactly as predicted: `PartSelect` leaves `NOT_BOUND`
+entirely under rule 1, the `B-PART` charter leaves `FAMILIES`, and the
+closure paragraph records why a three-name charter had a one-row
+roster — twice over, plus the door the charter never mentioned.
+
+Three claims outside the census moved with it, and each had a test or
+a sentence asserting the old state: `test_north_star.py`'s
+`assertFalse(hasattr(Node, "pattern"))`, the stub's "deliberately
+absent" list, and the audit page's G8 row. G8's CONCLUSION is
+untouched — no scene flips and `PlacedUnion` is still what the heat
+sink is authored with; what moved is the sentence that said binding
+the pattern node would buy nothing, which stopped being true when its
+consumer bound.
+
+One fix taken rather than banked: `bind_count_param`'s prose claimed
+`Count` was "the only structural slot there is", which four
+Count-dimensioned slots contradict. One finding banked:
+`work/lib/structural-slots-without-a-binding-door.md` (`VDegree` and
+`Stations`, the two structural slots still without a door).
+
 ## Home
 
 LIB's, filed by DOCM at DOCM-2's review (the Python surface is outside

@@ -266,6 +266,21 @@ pub(crate) enum SplitHalf {
     Below,
 }
 
+impl SplitHalf {
+    /// The kernel half this mirrors.
+    ///
+    /// ONE mapping, two callers: the side vocabulary a selector
+    /// pattern takes, and the projection `PartSelect.split_half`
+    /// authors. A second copy would be a second answer to "which half
+    /// is Above".
+    pub(crate) fn to_kernel(self) -> s::SplitHalf {
+        match self {
+            Self::Above => s::SplitHalf::Above,
+            Self::Below => s::SplitHalf::Below,
+        }
+    }
+}
+
 /// Which support of a rim blend.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
@@ -304,8 +319,7 @@ impl SideArg {
             Self::Meridian(MeridianEnd::End) => s::Side::Meridian(s::MeridianEnd::End),
             Self::Meridian(MeridianEnd::Seam) => s::Side::Meridian(s::MeridianEnd::Seam),
             Self::Meridian(MeridianEnd::Pi) => s::Side::Meridian(s::MeridianEnd::Pi),
-            Self::Split(SplitHalf::Above) => s::Side::Split(s::SplitHalf::Above),
-            Self::Split(SplitHalf::Below) => s::Side::Split(s::SplitHalf::Below),
+            Self::Split(half) => s::Side::Split(half.to_kernel()),
             Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
             Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }

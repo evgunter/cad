@@ -734,15 +734,6 @@ FAMILIES = {
         "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
         "edge, because no existing write door silently drops a measure"
     ),
-    "B-PART": (
-        "the projection node's Python surface (DOCM-2, "
-        "DOCM-REFERENCES-DESIGN DM3); closing it binds `Node.part` (a "
-        "`PartSelect` constructor pair: a split's half by `SplitHalf`, "
-        "a pattern's instance by a Count expression) and the "
-        "`SlotId.Instance` structural slot it carries. Today Python can "
-        "evaluate and read a document that carries a Part — its value "
-        "is a plain body — and cannot author one"
-    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -1101,6 +1092,46 @@ FAMILIES = {
 #: origin is the pose's, its normal is `sense * axis`, its +x is
 #: `u_ref` turned by the spin about that normal, and the face whose
 #: kind reads `Torus` is the face the frame refuses.
+#: **B-PART is CLOSED and no longer a `gap` id here**
+#: (LIB-B-PART), and it is B-FACE-FRAME's lesson arriving twice more,
+#: once at each level this file cannot see into. It cited ONE name —
+#: `PartSelect`, which is now spelled identically in `pncad.pyi` and
+#: so leaves this roster entirely under rule 1 — and its charter named
+#: THREE things.
+#:
+#: `Node.part` is an ARM of a curated enum. `Node` is curated and the
+#: stub declares a top-level `Node`, so rule 1 accounts it WHOLE, and
+#: which of its two dozen arms Python spells as a constructor is
+#: invisible here. That is the same blind spot as `Pose.sense` one
+#: level over: a FIELD there, a VARIANT here, and the census compares
+#: NAMES, whose insides are nobody's roster.
+#:
+#: `SlotId.Instance` is a field of a `different-shape` row, and the
+#: shape argument is what hid it: "`SlotId` is what
+#: `DocEdit.bind_count_param` names implicitly" is true and remains
+#: true, and it means a slot with NO door is unreportable. `Instance`
+#: had none — `bind_count_param` hardcodes `SlotId::Count`, and its
+#: own prose claimed that was "the only structural slot there is",
+#: which four Count-dimensioned slots contradict. Closing the family
+#: added `DocEdit.bind_instance_param` beside it, one door per slot,
+#: keeping the shape decision rather than crossing the enum.
+#:
+#: The third thing is not a name at all, and is the measurement worth
+#: keeping here: closing this family REQUIRED binding a door the
+#: charter never mentioned. `PartSelect.instance` selects out of a
+#: plural `Instances` payload, exactly one node emits one
+#: (`Node::Pattern`), and that node was deliberately unbound because
+#: no downstream door consumed its value. `Node.part` IS that door, so
+#: binding the selector without the source would have shipped an
+#: unreachable half and an unconstructible refusal tag. Nothing in
+#: this file could have reported that: both names are arms behind
+#: `Node`. What found it was reading the kernel for the family's
+#: INPUTS, and that is a step this census cannot prompt.
+#:
+#: What closing it bound: `Node.part(of, select)`,
+#: `PartSelect.split_half` / `PartSelect.instance`, `Node.pattern`,
+#: and `DocEdit.bind_instance_param`. The positive form is
+#: `tests/test_part_select.py`.
 #: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
 #: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
 #: `EvalError` — and closing it moved NINE, because the three could
@@ -1642,10 +1673,15 @@ NOT_BOUND = {
     # paragraph in this constant's docstring says why, because that
     # gap between a three-door charter and a one-row roster is the
     # measurement worth keeping.
-    # --- gap: the projection node's selector (census-owned) --
-    # The Rust node is DOCM-2's; its Python twin, `Node.part`, is
-    # LIB's and the family charters it.
-    "PartSelect": f"{GAP}: B-PART the projection node's surface",
+    # B-PART IS GONE FROM THIS ROSTER, closed at LIB-B-PART, and the
+    # id left `FAMILIES` with it. It cited exactly ONE name here —
+    # `PartSelect` — which now leaves the roster ENTIRELY rather than
+    # moving to `BOUND_AS`: `pncad.pyi` declares a top-level
+    # `PartSelect` with the same two arms, so rule 1 accounts it, the
+    # way it accounts the sibling selector vocabulary `PatternKind`.
+    # The closure paragraph in this constant's docstring says what the
+    # family's other two charter names were, and why neither was ever
+    # a row.
     "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
     "WrittenLength": f"{GAP}: B-NOTATION authored notation",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
