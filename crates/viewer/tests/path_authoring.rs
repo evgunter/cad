@@ -21,6 +21,7 @@ use crate::common;
 
 use common::{insert, len, shape};
 use pncad::document::{Doc, ValuePayload};
+use pncad::document::{LoopProgram, ProgramStep};
 use pncad::geom_core::Tol;
 use pncad::profile::{ArcSide, ArcSweep, SketchPlane, TipState, Verb};
 use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
@@ -465,6 +466,54 @@ fn ordinal(step: &PathStep) -> usize {
         PathStep::ArcFilletArc { .. } => 13,
         PathStep::FarEndTo(_) => 14,
         PathStep::CloseTo => 15,
+    }
+}
+
+/// **The split count reaches the document layer from the form's
+/// `PathStep` and the preview draws the split leg** (R1-MINOR-1's
+/// guard at the GUI end): a semicircle split in three lowers to
+/// `ProgramStep::ArcTo { splits: 3 }` — the count is carried, not
+/// dropped to the plain leg — and its preview stays on the carrier.
+#[test]
+fn a_declared_split_count_reaches_the_document_layer_and_the_preview() {
+    let radius = 0.01;
+    let template = ProfileShape::Path {
+        steps: vec![
+            PathStep::At([-radius, 0.0]),
+            PathStep::ArcTo {
+                spec: ArcSpec::Bulge {
+                    target: PathTarget::Point([radius, 0.0]),
+                    b: 1.0,
+                },
+                splits: 3,
+            },
+            PathStep::LineTo(PathTarget::Start),
+        ],
+    };
+    let carried = match shape(&template) {
+        LoopProgram::Chain(steps) => steps
+            .iter()
+            .find_map(|s| match s {
+                ProgramStep::ArcTo { splits, .. } => Some(*splits),
+                _ => None,
+            })
+            .expect("the arc leg lowers"),
+        other => panic!("a chain, not {other:?}"),
+    };
+    assert_eq!(carried, 3, "the form's count reaches the document layer");
+    let drawn = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        Tol::witness(),
+        CHORD,
+    )
+    .expect("the split half disc closes");
+    for point in &drawn.loops[0].points {
+        let from_centre = (point[0] * point[0] + point[1] * point[1]).sqrt();
+        assert!(
+            (from_centre - radius).abs() <= CHORD || point[1].abs() <= CHORD,
+            "{point:?} is off the carrier and off the diameter",
+        );
     }
 }
 

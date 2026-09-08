@@ -252,6 +252,16 @@ impl WireTarget {
 /// later; a format that has reached someone's disk (Band 4, once a
 /// document ships) cannot.
 ///
+/// The arc leg's `splits` is such a change, made deliberately and
+/// recorded here: the field is REQUIRED on read — a document in the
+/// pre-BOOL-10 `"ArcTo": {"Bulge": …}` shape, or one without the
+/// field, refuses `Unreadable` rather than defaulting to the plain
+/// leg (D365's append-only rule is about tags; an optional field
+/// would make a silent default the format's word). Of the 28
+/// checked-in documents, 19 carry an `ArcTo`: the 3 live ones were
+/// regenerated through their own generators, and the 16 BOOL-13
+/// goldens are asserted-unreadable history already and are unaffected.
+///
 /// It cannot go short of `ProgramStep`: [`WireStep::from_step`] and
 /// [`WireStep::into_step`] are exhaustive on `ProgramStep` and on
 /// `WireStep` respectively, so neither can gain a variant the other
@@ -287,7 +297,8 @@ enum WireStep {
     /// continuation.
     ContinueTo(WireTarget),
     /// `arc_to(spec)` — the unified §2c arc-spec record, with the
-    /// leg's declared split count (1 = the plain leg).
+    /// leg's declared split count (1 = the plain leg; REQUIRED on read,
+    /// see the enum docs).
     ArcTo {
         /// The arc spec.
         spec: WireArcData,

@@ -36,6 +36,7 @@ from pncad import (
     Open,
     Start,
     Radius,
+    Sweep,
     Via,
     circle,
     circle_split,
@@ -378,13 +379,32 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
         )
 
     def test_a_declared_split_below_two_arcs_refuses(self):
-        # `splits=1` is the plain leg; a DECLARED count below 2 through
-        # the kernel's own `.split(n)` refuses typed.
+        # `splits=None` is the plain leg; a count GIVEN is declared, and
+        # one below 2 refuses typed through the kernel's own `.split(n)`.
         self.refuses(
             "arc_split_count",
             lambda: Open.at((1 * m, 0 * m)).arc_to(
                 Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=0
             ),
+        )
+
+    def test_an_explicit_split_of_one_refuses_like_rust(self):
+        # One rule on every authoring surface: an EXPLICIT `splits=1` is
+        # a declaration of one piece, which distinguishes nothing from
+        # the plain leg and refuses exactly as Rust's `.split(1)` does.
+        # The plain leg is spelled by leaving the keyword out.
+        self.refuses(
+            "arc_split_count",
+            lambda: Open.at((1 * m, 0 * m)).arc_to(
+                Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=1
+            ),
+        )
+        # The same rule on the tangent-departing surface.
+        self.refuses(
+            "arc_split_count",
+            lambda: Open.at(ORIGIN)
+            .angle(0 * deg)
+            .arc_to(Sweep(1 * m, ArcSide.Left, 1 * rad), splits=1),
         )
 
     def test_coordinates_are_typed_quantities(self):

@@ -153,7 +153,7 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
-        RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
+        RecordedProgramError::SplitCount(_) => "split_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
     }
 }

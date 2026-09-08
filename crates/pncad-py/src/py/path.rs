@@ -773,20 +773,27 @@ macro_rules! point_state {
         /// The SHARP arc leg, one verb over the endpoint-full modes:
         /// `Bulge(p, b)` chord-relative, `Via(q, p)` through a point,
         /// `Center(c, winding, p)` about a centre. `p=Start` closes.
-        /// `splits` DECLARES the leg split into that many arcs on the
-        /// one carrier, its interior stations declared tangent joints;
-        /// 1 is the plain leg, and a count below 2 that was declared
-        /// refuses `arc_split_count`.
-        #[pyo3(signature = (spec, splits = 1))]
-        fn arc_to(&self, py: Python<'_>, spec: PointSpec, splits: usize) -> PyResult<Py<PyAny>> {
+        /// `splits=None` is the plain leg. A count GIVEN is a
+        /// declaration — the leg split into that many arcs on the one
+        /// carrier, its interior stations declared tangent joints — and
+        /// one rule holds on every authoring surface: a declared count
+        /// below 2, `splits=1` included, refuses `arc_split_count`
+        /// exactly as Rust's `.split(1)` does (a declaration of one
+        /// piece distinguishes nothing).
+        #[pyo3(signature = (spec, splits = None))]
+        fn arc_to(
+            &self,
+            py: Python<'_>,
+            spec: PointSpec,
+            splits: Option<usize>,
+        ) -> PyResult<Py<PyAny>> {
             let tol = Tol::witness();
             let path = self.0.clone();
             macro_rules! leg {
                 ($spec:expr) => {
-                    if splits == 1 {
-                        path.arc_to($spec, tol)
-                    } else {
-                        path.arc_to($spec.split(splits), tol)
+                    match splits {
+                        None => path.arc_to($spec, tol),
+                        Some(n) => path.arc_to($spec.split(n), tol),
                     }
                 };
             }
@@ -1211,18 +1218,23 @@ impl PathDirected {
 
     /// The SHARP arc leg from a bound direction: the endpoint-free
     /// modes, the arc analogs of `line(len)` — tangent-departing, the
-    /// endpoint DERIVED from radius, side and extent. `splits` declares
-    /// the leg split into that many arcs (1 = the plain leg; a declared
-    /// count below 2 refuses `arc_split_count`).
-    #[pyo3(signature = (spec, splits = 1))]
-    fn arc_to(&self, py: Python<'_>, spec: TangentSpec, splits: usize) -> PyResult<Py<PyAny>> {
+    /// endpoint DERIVED from radius, side and extent. `splits=None` is
+    /// the plain leg; a count given is DECLARED, and one below 2 —
+    /// `splits=1` included — refuses `arc_split_count`, the one rule
+    /// every authoring surface keeps.
+    #[pyo3(signature = (spec, splits = None))]
+    fn arc_to(
+        &self,
+        py: Python<'_>,
+        spec: TangentSpec,
+        splits: Option<usize>,
+    ) -> PyResult<Py<PyAny>> {
         let tol = Tol::witness();
         macro_rules! leg {
             ($path:expr, $s:expr) => {
-                if splits == 1 {
-                    $path.arc_to($s, tol)
-                } else {
-                    $path.arc_to($s.split(splits), tol)
+                match splits {
+                    None => $path.arc_to($s, tol),
+                    Some(n) => $path.arc_to($s.split(n), tol),
                 }
             };
         }

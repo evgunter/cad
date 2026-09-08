@@ -1412,16 +1412,18 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 /// this file at compile rather than reaching a typed refusal.
 ///
 /// Two of the three arms are unreachable through the authoring
-/// algebra — they exist because the door takes a `&[Step<f64>]`, which
-/// a caller can also hand-build.
+/// algebra and exist because the door takes a `&[Step<f64>]`, which a
+/// caller can also hand-build; the third is reachable from such a
+/// hand-built step alone.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RecordedProgramError {
     /// A literal argument the expression layer refused.
     Literal(DimensionError),
-    /// A subdivision count too large for the program's `u32` field.
-    /// Unreachable from `circle_split`, whose vertices would exhaust
-    /// memory first.
-    SubdivisionCount(usize),
+    /// A split count too large for the program's `u32` field —
+    /// `circle_split`'s `n` or an arc leg's `splits`. Unreachable from
+    /// `circle_split` and from `.split(n)`, whose vertices would exhaust
+    /// memory first; reachable from a hand-built `Step::ArcTo`.
+    SplitCount(usize),
     /// A complete-loop carrier step recorded inside a chain.
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
@@ -1438,8 +1440,8 @@ impl core::fmt::Display for RecordedProgramError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Literal(err) => write!(f, "a recorded literal was refused: {err}"),
-            Self::SubdivisionCount(n) => {
-                write!(f, "the subdivision count {n} does not fit a u32")
+            Self::SplitCount(n) => {
+                write!(f, "the split count {n} does not fit a u32")
             }
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
@@ -1569,7 +1571,7 @@ impl LoopProgram {
             return Ok(Self::CircleSplit {
                 centre: pt_lit(centre)?,
                 radius: len_lit(*radius)?,
-                n: u32::try_from(*n).map_err(|_| RecordedProgramError::SubdivisionCount(*n))?,
+                n: u32::try_from(*n).map_err(|_| RecordedProgramError::SplitCount(*n))?,
                 phase: ang_lit(*phase)?,
             });
         }
@@ -1592,7 +1594,7 @@ impl LoopProgram {
                 Step::ArcTo { spec, splits } => ProgramStep::ArcTo {
                     spec: spec_lit(spec)?,
                     splits: u32::try_from(*splits)
-                        .map_err(|_| RecordedProgramError::SubdivisionCount(*splits))?,
+                        .map_err(|_| RecordedProgramError::SplitCount(*splits))?,
                 },
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
                 Step::Fillet { radius } => ProgramStep::Fillet(len_lit(*radius)?),

@@ -163,7 +163,6 @@ vocabulary! {
         ArcTo,
         /// An arc leg leaving along the bound direction.
         TangentArcTo,
-        /// A structural vertex on the incoming carrier.
         /// Round the corner: line in, line out.
         Fillet,
         /// Round it with an arc on the arrival side.
