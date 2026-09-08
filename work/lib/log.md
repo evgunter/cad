@@ -3296,3 +3296,42 @@ conflict — kept both entries in landing order).
   `census-findings-cross-without-a-per-arm-tag`) stay queued behind
   them: the last three are one design question about per-arm
   projection and go to Ev as one `[ev]` PR when the wave clears.
+
+**LIB-B-NOTATION MERGED (2026-09-08, #2189; mechanical under the 08-29
+ruling, no A/B row). Census family B-NOTATION CLOSED — a parameter
+authored in millimetres remembers the millimetres.** Measured first,
+with the bytes: at the merge base `DocParam.length(25 * mm)` saved
+`"display_unit": "m"`, the canonical row, because a Python `Length`
+wraps the arithmetic type and erases at the multiply — and it cannot
+be taught the unit, since `quantity::written` deliberately defines no
+arithmetic on an authored value (no notation for the sum of a
+millimetre and an inch). So the notation crosses as the SECOND type,
+the pair the census's two rows always named: `WrittenLength` /
+`WrittenAngle` bound at their own spelling (`in_unit` multiplies and
+remembers, `canonical_in` records a notation for a value already
+computed, `length`/`angle`/`meters`/`radians`/`unit`, equality on both
+halves, no arithmetic), `DocParam.written_length` / `written_angle`
+(total — a mis-dimensioned written value is UNREPRESENTABLE at the
+type, so the row is a ty fixture, and the persist walk's `display_unit`
+refusal is pinned as the one reachable from Python), and
+`DocParam.unit` answering the symbol (`""` for the dimensionless row,
+`None` for a Count). Both roster rows leave under rule 1; the charter
+leaves `FAMILIES`. The unit's real yield is the third census lesson:
+this was the first family whose roster was honest about its own
+entries, and closing it still required two doors the roster could not
+see — `Doc.params`, a METHOD of a rule-1 type (Python had NO door
+answering a parameter back, so the memory would have been observable
+only by parsing saved JSON), and `LengthUnit.__eq__`/`__hash__` (with
+`AngleUnit`'s), a MISSING DUNDER invisible to both rosters because
+`test_stubs.py` checks only stub-declared operators (`mm == mm` held by
+identity alone). Not taken, argued: `Expr::written_length` needs no
+door because `Doc.parse_expr("25 mm")` already records the notation and
+`Expr.text` reads it back; `DocParamValue` gets no written door because
+the notation rides with the declaration (pinned both ways). 30 rows
+reading the saved bytes wherever the claim is about what a document
+records. Filed: `node-slot-literals-erase-the-authored-notation` (52
+node-slot literal sites in 18 doors record the canonical row — the same
+erasure one vocabulary over, and the typed doors disagree with the text
+door about one authoring). The lane ran the pinned ruff for real.
+Orchestrator merged main (SAVEFORK, overlapping `pncad.pyi` and the
+legal fixture — additive hunks, clean merge) and landed on the re-run.
