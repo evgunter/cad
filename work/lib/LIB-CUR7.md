@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/cur7
 refs: [meta-unversioned-arm-has-no-inner-word, payload-rung-re-sweep-finds-six-uncurated-profile-discriminants]
+pr: 2237
 ---
 
 
