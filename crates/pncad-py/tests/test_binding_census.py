@@ -575,6 +575,45 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
+    # THE TIER-3′ CENSUS VOCABULARY, at the one door on this surface
+    # whose discriminant crosses in a SEQUENCE.
+    #
+    # THE MEASUREMENT, because both entries were `INTERIOR` and both
+    # arguments were true when written. The validate doors crossed
+    # their failures as joined `Display` prose with a `door` and a
+    # `failure_count` and no per-arm tag whatsoever, so which
+    # coincidence the census found was not a thing Python could read
+    # at all — the finding reached a caller only inside that text,
+    # through the kernel's own rendering. Those rows also said what
+    # would flip them: "a validate projection with per-arm tags — and
+    # both would move together". That door exists now, and they do.
+    #
+    # `ValidationError.findings` is a list of `ValidationFinding`s, one
+    # per failure, `len(findings) == failure_count`. `CensusContact` is
+    # `UndeclaredContact`'s payload and its arm is `contact_kind`;
+    # `CensusSubject` is what `CensusUnsupported` and
+    # `CensusLaneUnsupported` are ABOUT and its arm is `subject_kind`,
+    # with `entity_kind` beside it for the `Entity` arm's carrier.
+    # Each is minted by an exhaustive match in `src/tags.rs`, so a
+    # kernel arm added without a word stops the bindings compiling.
+    #
+    # THE SEQUENCE IS THE EXCEPTION AND IS ARGUED AS ONE. Every other
+    # mapping on this list is a scalar attribute because every other
+    # refusal reports ONE fault; `validate*` is the one door that
+    # reports many at once, which `failure_count` has said since it was
+    # bound. `ValidationFinding`'s docstring, `pncad.pyi` and the
+    # README all state that at the door, so it does not read as a
+    # second convention.
+    #
+    # What still has no Python spelling is the arm's FIELDS — which
+    # vertex, which face — and that is the payload question rather
+    # than this one: no arena key crosses to a surface that holds
+    # names. The two remaining `ValidationError` payload
+    # discriminants, `StaleDeclaration` and `RingContact`, stay
+    # `INTERIOR` below and are filed as
+    # `work/lib/two-validation-payload-discriminants-still-uncrossed.md`.
+    "CensusContact": "ValidationFinding.contact_kind",
+    "CensusSubject": "ValidationFinding.subject_kind",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
     # accounted by rule 1; these two are the family's shape entries,
@@ -1517,10 +1556,15 @@ NOT_BOUND = {
     # the keys themselves and for exactly their reason: a Python
     # caller holds opaque NAME text and never a key, so a sum over
     # keys has nothing to project either. What the sums' arms say
-    # DOES reach Python, at the one door where it is the answer rather
-    # than the site: `ReadbackError.variant` is `dangling_entity` or
-    # `dangling_geometry`, which is which of the two came back empty,
-    # and `DanglingRef` is the `BOUND_AS` entry that records it.
+    # DOES reach Python, at the two doors where the arm is the answer
+    # rather than the site: `ReadbackError.variant` is
+    # `dangling_entity` or `dangling_geometry`, which is which of the
+    # two came back empty (`DanglingRef` is the `BOUND_AS` entry that
+    # records it), and `ValidationFinding.entity_kind` is which KIND of
+    # carrier a census refusal's entity subject is. Both project the
+    # discriminant and neither projects the key, which is why this row
+    # does not move: the sum is still a sum over things Python cannot
+    # hold.
     "EntityId": SHAPE,
     "GeomRef": SHAPE,
     "Mat3": SHAPE,
@@ -1639,45 +1683,6 @@ NOT_BOUND = {
     "BooleanResult": INTERIOR,
     "BooleanResultKind": INTERIOR,
     "BooleanValue": INTERIOR,
-    # The tier-3′ census vocabulary, curated at LIB-CUR4 beside the
-    # `ValidationError` the prelude already carried. Same rule as the
-    # blend four above, and the validate doors are the starker case:
-    # they cross their failures as joined `Display` prose with a `door`
-    # and a `failure_count` and NO per-arm tag whatsoever, so which
-    # coincidence the census found is not a thing Python can read at
-    # all today. `DeclaredContact` below is the sibling that settles
-    # the category — it is `ValidationError::ContactContradicted`'s
-    # payload, it has been curated all along, and it sits at
-    # `INTERIOR`.
-    #
-    # LIB-B-VALIDATE4 bound the door that PRODUCES those arms and left
-    # this disposition standing, with one sharper thing to say for it.
-    # A census finding does reach Python — inside the joined message,
-    # through the kernel's own `Debug` rendering of this type, keys and
-    # all. So the sentence above is exact rather than comfortable:
-    # nothing here is a thing Python can READ, and the reason a tag
-    # map was not written to fix that is that the rendering is the
-    # KERNEL's (`work/lib/tier-3-prime-findings-render-through-debug
-    # .md`), so inventing a second vocabulary at the boundary would
-    # fork a diagnosis the kernel already words.
-    "CensusContact": INTERIOR,
-    # What the two census-unsupported arms are ABOUT — one entity, or
-    # the candidate face pair. `INTERIOR` by the carrier rule and by
-    # the measurement the `CensusContact` entry above records, which
-    # is this type's carrier too: `ValidationError` crosses through
-    # the validate doors as joined `Display` prose with a `door` and a
-    # `failure_count` and no per-arm tag, so an arm's subject reaches
-    # Python only inside that text, through the kernel's own
-    # rendering. `pncad-py` names neither `CensusSubject` nor either
-    # of its payload types anywhere.
-    #
-    # The Rust carriage this row records is a real closure even so,
-    # and the asymmetry is the point of writing the measurement down:
-    # a Rust caller matches the arm and reads the subject whole, while
-    # a Python caller reads the sentence. What would flip this entry
-    # is the same door that would flip `CensusContact`'s — a validate
-    # projection with per-arm tags — and both would move together.
-    "CensusSubject": INTERIOR,
     # The instantiation seam's declaration bookkeeping. `Relation` and
     # `Route` are the two halves of what a carried finding says, and
     # Python reads both without holding either type:
@@ -1694,18 +1699,20 @@ NOT_BOUND = {
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     # The contact vocabulary's fourth quarter, curated beside the
-    # three that were already here. `INTERIOR` by the same carrier
-    # rule and the same measurement the CUR4 entries above record: a
-    # finding has exactly one route to Python and it is prose: it is
-    # `CensusContact::ConformalPatch`'s payload, and the validate
-    # doors cross their failures as joined `Display` text with a
-    # `door` and a `failure_count` and no per-arm tag at all.
+    # three that were already here. `INTERIOR` by the carrier rule,
+    # measured one rung DOWN from where its carrier now crosses: it is
+    # `CensusContact::ConformalPatch`'s payload, and `CensusContact`
+    # itself reaches Python as `ValidationFinding.contact_kind` —
+    # `conformal_patch`, the word — while what that arm CARRIES stays
+    # behind it. The finding is a declared pair and a verdict, and
+    # projecting it would be projecting a payload's payload; the
+    # discriminant is what a curated list owes and it crosses.
     # (`FlushFinding`, which Python DOES hold, is the detector's own
     # type and not this one — a pair, a class and the evidence — so it
     # settles nothing here either way.) `DeclaredContact` and
     # `ContactVerdict` — this type's two fields — sit at `INTERIOR`
     # beside it, which is the sibling test the `CensusContact` entry
-    # above names.
+    # names.
     "ContactFinding": INTERIOR,
     "ContactRefusal": INTERIOR,
     "ContactVerdict": INTERIOR,
@@ -1840,13 +1847,21 @@ NOT_BOUND = {
     # `Evaluation.select` rather than by key. A key bundle has nothing
     # to project to a surface that holds names and never keys.
     "RevolvedKind": INTERIOR,
-    # `ValidationError::RingMeetsOuter`'s payload (LIB-CUR4).
+    # `ValidationError::RingMeetsOuter`'s payload (LIB-CUR4). The
+    # `ring_meets_outer` arm crosses as a `ValidationFinding.variant`
+    # now; WHICH way the ring meets the loop does not, and the two
+    # census payloads that do are the ruling's named pair rather than
+    # every payload of every arm. Filed as
+    # `work/lib/two-validation-payload-discriminants-still-uncrossed.md`.
     "RingContact": INTERIOR,
     # `BlendError::UnsupportedCorner`'s second field, the policy
     # `CornerConfig::policy` assigns (LIB-CUR4).
     "RunOutPolicy": INTERIOR,
     "SegmentKind": INTERIOR,
     # `ValidationError::StaleContactDeclaration`'s payload (LIB-CUR4).
+    # `stale_contact_declaration` crosses as a variant word; WHICH
+    # record lost its witness does not. `RingContact`'s note above
+    # carries the argument and the file for both.
     "StaleDeclaration": INTERIOR,
     "StepArg": INTERIOR,
     "Surface": INTERIOR,
