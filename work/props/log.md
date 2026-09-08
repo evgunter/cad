@@ -856,3 +856,14 @@ merge-forward lane pushed an EMPTY commit to carry it (R1 MINOR 4 /
 N3). Corrected by message to the sign-hull lane; no spec on main asks
 for it after the sign-hull spec's deletion at landing; no empty commit
 is ever pushed for it again.
+
+## MESH-12 landed by S-MESH (2026-09-08)
+
+Ev, in chat 2026-09-08, with PROPS paused: S-MESH merged main forward onto
+PROPS's fix-pass head `6859ece19` (`267e2510f`, no conflicts), waited for
+CI, and merged PR 1617 with the A/B row as the last commit. The row
+records BOTH duals under ordinal 1210 — S-MESH's on `0e053a727`
+(2026-09-03, disclosed on the PR) and PROPS's on `3daab7d80` — and
+names PROPS's as the sample, since its fix pass is what landed. The
+sphere lane's sequencing blocker is cleared. Signed (S-MESH
+orchestrator).
