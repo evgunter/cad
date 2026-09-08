@@ -459,16 +459,39 @@ here stands for — one reason each, never a blanket one:
 | `Derived` | — | none, so it `finish`es |
 
 **A carried field may be summarised, and several are.** `states` is the
-history's length, `gesture`, `scratch`, `resolver` and `body` are their
-presence, `index` is the generation it describes, and `checks` is its
-two counts — `ChecksReport` is a `Vec` per finding with no bound, and a
-dump that inlined it would be the thing these walks exist to keep
-readable. Summarising is what a `#[derive(Debug)]` cannot do at all,
-which is the reason these are written out rather than derived; the
-recipe and result DAGs are what makes that reason bite. What
-`finish`/`finish_non_exhaustive` cannot express is the difference
-between summarised and not-carried, and it is not asked to —
-`work/view/finish-marker-cannot-say-summarised.md` carries that.
+history's length and `checks` is its two counts (`ChecksReport` is a
+`Vec` per finding with no bound, and a dump that inlined it would be
+the thing these walks exist to keep readable); `scratch`, `body`,
+`gesture` and `resolver` are their presence, rendered as the elisions
+`Some(<Doc>)`, `Some(<Body>)`, `Some(<Gesture>)` and
+`Some(<DirResolver>)`; and `index` is the generation it describes
+inside one, `Some(<PickIndex for Generation(4)>)`. Summarising is what
+a `#[derive(Debug)]` cannot do at all, which is the reason these are
+written out rather than derived; the recipe and result DAGs are what
+makes that reason bite.
+
+**A summarised field renders as a summary**, so the marker only ever
+has to answer the question it can answer. A count, a pair of counts and
+an elision are each something no value of the field's own type renders
+as, which is the property being bought: `scratch: false` was a `bool` a
+reader who knows `std` and not this page could take for the whole of a
+`Doc`, and `index: Some(Generation(4))` was an `Option<Generation>`
+this cache does not have. `finish`/`finish_non_exhaustive` says whether
+every FIELD is shown; whether the value shown is the whole field is
+answered at the field, which is the only place a two-valued marker
+could not have said it. **The sweep behind that list**: in each of the
+four walks read every `.field(…)` call — 22 — and take the ones whose
+value argument is not the destructured binding itself. Nine calls,
+seven fields: `checks` and `index` each spend two arms, and the absent
+arm renders `None`, which is the whole field. `viewer`'s
+`tests/debug_dumps.rs` holds the seven to their spellings, and is the
+only reader of these dumps in the tree. What holds the NEXT summarised
+field to the rule is not a check: the destructuring makes the compiler
+send whoever adds a field to the walk, the rule is stated here and in
+each impl's own doc comment for them to read when they arrive, and no
+PRODUCTION path computes on a dump — the only reader is that suite, and
+what it reads a dump for is these spellings — so a lapse costs a reader
+a misreading and can never cost an answer.
 
 `PickCache::forget` takes the same destructuring for the same reason
 one seam further: it clears the four fields that describe a picture and
@@ -927,25 +950,60 @@ in order and several say so in their own docs; where a form wants an
 order the type did not grow in, the **enum** is written in the form's
 order and says why.
 
-**Two shapes, and a rule that says which.** A LABELLED vocabulary
+**Two shapes, and the test that says which.** A LABELLED vocabulary
 writes each variant's word in the declaration and projects
 `[(Self, &'static str); N]`; a BARE one projects `[Self; N]` and keeps
-its wording in a `label`/`name` method beside it. The rule is not
-taste: **a word goes in the table when the row that iterates the table
-is its only reader, and in a method when anything asks a single value
-for its word** — a method can be called on one value and a table can
-only be iterated. `PathVerb`, `ArcMode`, `ToolKind` and `Seat` are
-bare because their words are asked for one at a time (the combo's
-*current* verb, a refusal sentence naming one seat); the five labelled
-ones are labelled because their word appears nowhere but the radio row
-that draws them.
+its wording in a `label`/`name` method beside it. The test is neither
+taste nor a count of readers: **does anything walk the table for its
+WORDS?** If something does, the words are table data — they belong in
+the declaration, and the walk reads each entry's word off the entry it
+already holds. If nothing does, they are not table data at all and a
+method beside the enum is the whole of it. Being asked for one value's
+word does not force the split: a labelled vocabulary declares
+`fn label;` under its `ALL` and the macro projects that accessor from
+the same list as a match, so the closed face of a combo is served
+without a second ordered reading.
 
-That leaves the ordered word list declared twice in the four bare ones
-— the `ALL` order and the `label` match's arms. That is *not* the
-defect this section is about, because a match is exhaustiveness-forced
-and cannot silently miss a variant; it is a second ordered copy, and
-whether the labelled arm should absorb it is
-`work/view/bare-vocabularies-declare-their-words-a-second-time.md`.
+**The sweep that produces the population** is a walk of every loop over
+a vocabulary's `ALL` — one of the nine declared by `vocabulary!`, so a
+loop over `Theme::ALL` or `pncad`'s `Axis3::ALL` is outside it — read
+for what the loop asks each entry for. It reads `src/` **and**
+`tests/`, because the discriminator is about the words and a word read
+in a suite is still a word read off the table; a sweep scoped to `src/`
+would have nothing to discriminate on the two vocabularies it rules
+bare, and the first tests-only word-walk would arrive unseen.
+
+**Seven of the nine are walked under `src/`, and all seven ask for the
+word.** Each binds `(value, label)` and puts that label on the control
+it draws: `pane::create`'s datum row (`:309`), profile row (`:409`),
+path-verb combo (`:727`), pattern-rule row (`:989`), pattern-output row
+(`:995`) and blend-kind row (`:1093`), and `widgets::arc_fields`' mode
+picker (`:300`). So all seven are LABELLED, and there is no shorter
+account of them than the sweep itself: their words are table data
+because a table walk reads them. `PathVerb` and `ArcMode` additionally
+declare `fn label;` under their `ALL`, for a combo's closed face; the
+other five are never asked for one value's word and carry no accessor.
+
+**`ToolKind` and `Seat` are the remaining two, and are BARE**, because
+no loop under `src/` walks their lists at all: a kind's word appears
+inside a sentence `tools` composes, and a seat's inside the refusal
+sentences `seats` and `session::refuse` write — wording read against
+that discipline rather than against a row of buttons. The suites do
+walk both lists, and walk them for the VALUES: `tests/combine_ops.rs`
+maps kinds to booleans and drives one op per seat, where the seat's
+word reaches only an assertion message about the single seat that
+failed. A walk that would still do its job if the words did not exist
+is not a reader of them. The suites also walk two ALREADY-labelled
+lists for their words (`tests/combine_ops.rs`'s pattern-output row,
+`tests/blend_authoring.rs`' blend-kind row), which confirms the shape
+those two already have rather than deciding it — and is the only thing
+the `tests/` half of the scope has yet had to report.
+
+**Neither shape holds a second ordered list of the words.** A labelled
+vocabulary's `ALL` and its `label` are projected from one list of
+tokens, so the order and the reading are each declared once; a bare one
+carries no word in its table, and its method is the only place its
+words are written.
 
 **What the macro cannot express**, stated because it is a one-way
 door: fieldless variants only, and no explicit discriminants — the
