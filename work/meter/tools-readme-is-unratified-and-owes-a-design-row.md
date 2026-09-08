@@ -4,6 +4,7 @@ kind: issue
 title: tools/README.md carries clause law six code sites cite and has no ratification
 status: open
 opened: 2026-09-08
+needs_ev: true
 ---
 
 
