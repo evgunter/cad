@@ -2,8 +2,10 @@
 id: tess-lint-twinned-csv-fixture
 kind: unit
 title: tess-lint's test CSV fixture is hand-twinned across the crate/integration boundary, in three literals with a silent half
-status: open
+status: closed
+branch: meter/12-twinned-csv-fixture
 opened: 2026-09-07
+closed: 2026-09-08
 ---
 
 Filed by the style-review fix pass on `meter/join-gated-voice` (PR 2111)
@@ -80,3 +82,46 @@ route to the same shape, which is what a third consumer would look
 like.
 
 Fence: `tools/tess-lint/*`, METER's.
+
+## Re-measured on `main` after unit 6 (2026-09-08)
+
+The table above was measured at `meter/split-scan-and-face-name`. Both
+mutations were reproduced on `8c6770a` (unit 6 merged), one side edited
+at a time, each edit confirmed in `git diff` and each run confirmed to
+have recompiled. `tools/tess-lint` from its own root, its own
+`CARGO_TARGET_DIR`. Green baseline: 54 lib, 14 `cli_contract`.
+
+| edit | lib tests | `cli_contract` | `cargo clippy -D warnings` |
+|---|---|---|---|
+| drop the `name` field from the sized row (width changes) | 42 red | 9 red | red |
+| keep the width, blank the token (`{FIXTURE_NAME}` -> nothing) | 1 red | 0 red | **red** |
+| keep the width, change the const's VALUE on one side | **0 red** | **0 red** | **green** |
+
+The first two rows confirm the filing. The third is the one the filing
+did not measure and it is the twinning's actual failure mode: with two
+constants, one side's token can be respelled to anything and no test
+and no lint anywhere in the tree sees it. The blank-token row's clippy
+red is not a content check either — it is `dead_code` firing because
+that particular spelling of the mutation removes the const's last use.
+
+## Closed
+
+Landed as METER unit 12. `tools/tess-lint/tests/support/csv_fixture.rs`
+is the fixture's one home: `FIXTURE_NAME`, `unsized_row` and the
+two-face `scene` are one text, `include!`d by the crate's test module
+and by `tests/cli_contract.rs`. The cure is the item's first, and it
+took the second `unsized_row` spelling with it — the header-derived
+index is the one both cargo roots can compute, since `NAME` and
+`IDENTITY_FIRST` are private and making them public is non-test code.
+
+`the_fixture_fills_the_head_block_the_header_declares` is included with
+the fixture rather than written beside one includer, so it runs in both
+binaries: it reads each head field by the header's index for that
+column and asserts the sized row is named and the unsized row is not.
+After the fold, blanking the token reds **2 lib / 1 `cli_contract`**
+(`tests/support/csv_fixture.rs`, "the fixture's `name` field"), and
+dropping the field reds **43 lib / 10 `cli_contract`** — the extra red
+in each is the fixture's own test, which names the fixture and prints
+the offending row instead of surfacing as a `ParseError` inside a test
+about something else. The third mutation no longer exists: there is one
+constant.
