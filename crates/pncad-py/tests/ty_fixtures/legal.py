@@ -14,6 +14,7 @@ from pncad import (
     analyzed_box,
     Alignment,
     Angle,
+    AngleUnit,
     ArcSweep,
     Assembly,
     AxisSense,
@@ -34,9 +35,9 @@ from pncad import (
     ClassAdmission,
     ClusterMaintenance,
     Datum,
+    DocParam,
     Denotation,
     Distribution,
-    DocParam,
     HitTestError,
     Expr,
     TubeWindow,
@@ -52,6 +53,7 @@ from pncad import (
     Frame,
     GeomPred,
     Length,
+    LengthUnit,
     Body,
     Mesh,
     MateFault,
@@ -100,6 +102,8 @@ from pncad import (
     m,
     mixed_pins,
     mm,
+    WrittenAngle,
+    WrittenLength,
     pi_rad,
     product,
     product_named,
@@ -605,9 +609,9 @@ spread: Distribution = Distribution.normal(1 * mm)
 window: Distribution = Distribution.truncated_normal(1 * mm, -2 * mm, 2 * mm)
 declared_form: str = spread.kind
 annotated: DocParam = DocParam.length(4 * mm, spread)
-plain: DocParam = DocParam.length(4 * mm)
+unannotated: DocParam = DocParam.length(4 * mm)
 carried: Distribution | None = annotated.distribution
-read_back: DocParam | None = doc.doc_param(ParamName("bore_r"))
+read_back: DocParam | None = doc.params.get(ParamName("bore_r"))
 
 # The box is derived on request from a document and a policy, and the
 # policy is optional because the ±3σ convention is the default.
@@ -621,3 +625,18 @@ axis_names: list[ParamName] = boxed.names
 # declare, so the caller's variable is optional whichever way it goes.
 tail: float | None = boxed.tail_mass(ParamName("bore_r"))
 leaf: float | None = boxed.box_mass(ParamName("bore_r"), -1 * mm, 1 * mm)
+# Authored notation: the value and the unit it was WRITTEN in, kept
+# together. `in_unit` multiplies (`25 * mm` that remembers the `mm`);
+# `canonical_in` takes a quantity whose arithmetic has already
+# happened and says which notation to record it in. The unit reads
+# back as the typed unit, and the parameter as its symbol.
+thickness: WrittenLength = WrittenLength.in_unit(25.0, mm)
+computed: WrittenLength = WrittenLength.canonical_in((20 * mm) + (5 * mm), mm)
+plain: Length = thickness.length
+notation: LengthUnit = thickness.unit
+turned: WrittenAngle = WrittenAngle.in_unit(90.0, deg)
+turn_notation: AngleUnit = turned.unit
+declared: DocParam = DocParam.written_length(thickness)
+spun: DocParam = DocParam.written_angle(turned)
+symbol: str | None = declared.unit
+table: dict[ParamName, DocParam] = doc.params

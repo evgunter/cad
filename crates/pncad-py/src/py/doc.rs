@@ -560,21 +560,30 @@ impl Doc {
         self.inner.order().iter().copied().map(NodeId).collect()
     }
 
+    /// **The document's named parameters**, by name (`Doc::params`).
+    ///
+    /// The read side of `DocEdit.set_doc_param`, and the only door
+    /// that answers a whole parameter back: `Doc.eval` answers a
+    /// parameter reference's NUMBER, with the dimension and the
+    /// authored notation both erased, so a consumer showing a
+    /// parameter — or checking that one it wrote is still written the
+    /// way it wrote it — had nowhere to look.
+    ///
+    /// A snapshot, not a view: the map is built here and mutating it
+    /// changes no document.
+    #[getter]
+    fn params<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for (name, param) in self.inner.params() {
+            out.set_item(ParamName(name.clone()), DocParam(param.clone()))?;
+        }
+        Ok(out)
+    }
+
     /// The document's tolerance.
     #[getter]
     fn epsilon(&self) -> f64 {
         self.inner.epsilon()
-    }
-
-    /// One declared document parameter, or `None` when the document
-    /// declares no such name.
-    ///
-    /// The read half of `DocEdit.set_doc_param`: what the document
-    /// records right now, declaration and all — the dimension, the
-    /// value and any distribution (ERROR-DESIGN E1/E2) the parameter
-    /// carries, whether it was authored here or came off a file.
-    fn doc_param(&self, name: &ParamName) -> Option<DocParam> {
-        self.inner.params().get(&name.0).cloned().map(DocParam)
     }
 
     /// Bit-exact document equality (D9's replay currency).
@@ -2040,6 +2049,34 @@ impl DocParam {
         )
     }
 
+    /// A continuous Length parameter that REMEMBERS the notation it
+    /// was authored in — `25 mm` stays `mm` in the document and in
+    /// the file, where `length` records the canonical metre row.
+    ///
+    /// Total: a `WrittenLength` holds a length unit, so there is no
+    /// dimension for the notation to disagree with and no refusal
+    /// here. The mismatch the save/load validator watches for
+    /// (`PersistError` `display_unit`) is unreachable through this
+    /// door, which is the reason to author through it.
+    ///
+    /// No `distribution`: the kernel's own notation doors carry none
+    /// (`DocParam::written_length` writes `distribution: None`), and
+    /// this binding does not reach past them to build the payload by
+    /// hand. A parameter that wants both is authored through
+    /// [`Self::length`] today.
+    #[staticmethod]
+    fn written_length(value: &super::quantity::WrittenLength) -> Self {
+        Self(d::DocParam::written_length(value.0))
+    }
+
+    /// A continuous Angle parameter that remembers its notation —
+    /// [`Self::written_length`]'s mirror, total for its reason and
+    /// carrying no annotation for its reason.
+    #[staticmethod]
+    fn written_angle(value: &super::quantity::WrittenAngle) -> Self {
+        Self(d::DocParam::written_angle(value.0))
+    }
+
     /// A continuous dimensionless parameter, with an optional
     /// dimensionless distribution.
     #[staticmethod]
@@ -2087,6 +2124,24 @@ impl DocParam {
     #[getter]
     fn dimension(&self) -> &'static str {
         crate::errors::dimension_tag(self.0.dim())
+    }
+
+    /// The notation this parameter was authored in, as the unit's own
+    /// SYMBOL — `"mm"`, `"deg"`, `"m"`.
+    ///
+    /// A symbol rather than a unit object because the display unit a
+    /// parameter carries is a one-byte code into the table
+    /// (`UnitSym`), and a notation reaches Python as its symbol; a
+    /// `Scalar` parameter names the dimensionless row, whose symbol is
+    /// empty and reads as the absence it is. `None` is the different
+    /// answer: a `Count` carries no notation at all, because a count
+    /// is an integer and has none to carry.
+    #[getter]
+    fn unit(&self) -> Option<&'static str> {
+        match &self.0 {
+            d::DocParam::Continuous { display_unit, .. } => Some(display_unit.def().symbol()),
+            d::DocParam::Count { .. } => None,
+        }
     }
 
     /// Rust's `PartialEq`, mirrored — which is IEEE comparison of the

@@ -15,8 +15,9 @@ built here declared nothing about spread, and one read back from a
 file carried an annotation no Python caller could see, restate or
 price. Four doors close it — the `Distribution` value class, the
 `distribution=` argument on the three continuous `DocParam`
-constructors, `Doc.doc_param` reading a declaration back, and
-`analyzed_box` with the two mass columns on the box it answers.
+constructors, `DocParam.distribution` reading the annotation back off
+the declaration `Doc.params` answers with, and `analyzed_box` with the
+two mass columns on the box it derives.
 
 THE SHARP EDGE, and what "closing" it means. `DocEdit.set_doc_param`
 is create-or-REPLACE: a `DocParam` rebuilt from a dimension and a
@@ -27,8 +28,8 @@ kernel's semantics and this unit invents no edit to change it — and
 then pins the two ways a Python caller now has out of it, which is
 what did not exist before: restate the annotation on the rebuilt
 `DocParam`, or move the number through `set_doc_param_value`, which
-carries the whole declaration forward. `Doc.doc_param` is what makes
-the difference VISIBLE from Python at all.
+carries the whole declaration forward. `Doc.params` — LIB-B-NOTATION's
+read door — is what makes the difference VISIBLE from Python at all.
 
 DELIBERATELY NOT ASSERTED HERE. The kernel's free `tail_mass` /
 `box_mass` / `std_deviation` do not cross — only the box-keyed
@@ -94,14 +95,14 @@ FORMS = {
 
 class TestTheFourForms(unittest.TestCase):
     """Each form authored onto a parameter and read back, through both
-    read doors: the declaration `Doc.doc_param` answers with, and the
+    read doors: the declaration `Doc.params` answers with, and the
     axis `analyzed_box` derives from it."""
 
     def test_every_form_authors_and_reads_back_identically(self):
         for name, dist in FORMS.items():
             with self.subTest(form=dist.kind):
                 doc = declared(**{name: DocParam.length(4 * mm, dist)})
-                back = doc.doc_param(ParamName(name))
+                back = doc.params.get(ParamName(name))
                 self.assertEqual(back.distribution, dist)
                 self.assertEqual(back.distribution.kind, dist.kind)
                 self.assertEqual(back.dimension, "length")
@@ -129,16 +130,16 @@ class TestTheFourForms(unittest.TestCase):
 
     def test_an_unannotated_parameter_declares_none(self):
         doc = declared(plain=DocParam.length(4 * mm))
-        self.assertIsNone(doc.doc_param(ParamName("plain")).distribution)
-        self.assertIsNone(doc.doc_param(ParamName("nope")))
+        self.assertIsNone(doc.params.get(ParamName("plain")).distribution)
+        self.assertIsNone(doc.params.get(ParamName("nope")))
 
     def test_a_count_parameter_carries_no_annotation_and_has_no_door(self):
         """A structural count is fixed under any error analysis, so
         `DocParam.count` takes no distribution and the parameter reads
         back with none."""
         doc = declared(holes=DocParam.count(4))
-        self.assertIsNone(doc.doc_param(ParamName("holes")).distribution)
-        self.assertEqual(doc.doc_param(ParamName("holes")).dimension, "count")
+        self.assertIsNone(doc.params.get(ParamName("holes")).distribution)
+        self.assertEqual(doc.params.get(ParamName("holes")).dimension, "count")
         with self.assertRaises(TypeError):
             DocParam.count(4, Distribution.normal(1.0))
 
@@ -536,10 +537,10 @@ class TestTheSharpEdge(unittest.TestCase):
         change — rebuild the parameter from a dimension and a number —
         applies cleanly and silently drops the spread."""
         doc = self.annotated()
-        self.assertEqual(doc.doc_param(ParamName("bore_r")).distribution, self.SPREAD)
+        self.assertEqual(doc.params.get(ParamName("bore_r")).distribution, self.SPREAD)
         doc.apply(DocEdit.set_doc_param(ParamName("bore_r"), DocParam.length(4.5 * mm)))
         self.assertIsNone(
-            doc.doc_param(ParamName("bore_r")).distribution,
+            doc.params.get(ParamName("bore_r")).distribution,
             "create-or-replace replaced the whole declaration",
         )
         self.assertTrue(
@@ -555,7 +556,7 @@ class TestTheSharpEdge(unittest.TestCase):
         doc.apply(
             DocEdit.set_doc_param_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm))
         )
-        back = doc.doc_param(ParamName("bore_r"))
+        back = doc.params.get(ParamName("bore_r"))
         self.assertEqual(back.distribution, self.SPREAD)
         self.assertEqual(analyzed_box(doc).get(ParamName("bore_r")).nominal, 4.5 * mm)
 
@@ -564,13 +565,13 @@ class TestTheSharpEdge(unittest.TestCase):
         distribution, so a caller who really is redeclaring — a new
         dimension, a new spread — can say the whole thing."""
         doc = self.annotated()
-        carried = doc.doc_param(ParamName("bore_r")).distribution
+        carried = doc.params.get(ParamName("bore_r")).distribution
         doc.apply(
             DocEdit.set_doc_param(
                 ParamName("bore_r"), DocParam.length(4.5 * mm, carried)
             )
         )
-        self.assertEqual(doc.doc_param(ParamName("bore_r")).distribution, self.SPREAD)
+        self.assertEqual(doc.params.get(ParamName("bore_r")).distribution, self.SPREAD)
 
     def test_the_edit_door_refuses_a_broken_annotation_typed(self):
         """`Distribution`'s constructors run the kernel's check, so the
@@ -579,7 +580,7 @@ class TestTheSharpEdge(unittest.TestCase):
         doc = self.annotated()
         with self.assertRaises(DistributionFault):
             DocParam.length(4 * mm, Distribution.normal(0 * m))
-        self.assertEqual(doc.doc_param(ParamName("bore_r")).distribution, self.SPREAD)
+        self.assertEqual(doc.params.get(ParamName("bore_r")).distribution, self.SPREAD)
 
 
 class TestTheRoundTrip(unittest.TestCase):
@@ -594,8 +595,8 @@ class TestTheRoundTrip(unittest.TestCase):
         back = load(doc.save()).doc
         self.assertTrue(back.bit_eq(doc), "the annotation round-trips bit for bit")
         self.assertEqual(
-            back.doc_param(ParamName("bore_r")).distribution,
-            doc.doc_param(ParamName("bore_r")).distribution,
+            back.params.get(ParamName("bore_r")).distribution,
+            doc.params.get(ParamName("bore_r")).distribution,
         )
 
         boxed = analyzed_box(back)
@@ -627,7 +628,7 @@ class TestTheRoundTrip(unittest.TestCase):
         written as, through a save and a load."""
         doc = declared(draft=DocParam.angle(2 * deg, Distribution.normal(0.1 * deg)))
         back = load(doc.save()).doc
-        spread = back.doc_param(ParamName("draft")).distribution
+        spread = back.params.get(ParamName("draft")).distribution
         self.assertEqual(spread.dimension, "angle")
         self.assertAlmostEqual(spread.sigma.in_unit(deg), 0.1, delta=1e-12)
         drafted = analyzed_box(back).get(ParamName("draft"))

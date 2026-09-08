@@ -1709,9 +1709,9 @@ try:
 except MeasureUnavailable as refused:
     assert refused.param == "plate_t"
 
-# Moving a value KEEPS the annotation; `Doc.doc_param` reads it back.
+# Moving a value KEEPS the annotation; `Doc.params` reads it back.
 doc.apply(DocEdit.set_doc_param_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm)))
-assert doc.doc_param(ParamName("bore_r")).distribution == Distribution.normal(0.001 * mm)
+assert doc.params.get(ParamName("bore_r")).distribution == Distribution.normal(0.001 * mm)
 ```
 
 `Distribution`'s constructors run the same `check` the edit and load

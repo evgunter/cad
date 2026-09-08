@@ -115,8 +115,7 @@ restate it.
 ### What the census still cannot see after this unit
 
 That `analyzed_box`, `AnalysisPolicy`, `AnalyzedBox`, `AnalyzedParam`,
-`Doc.doc_param`, `DocParam.distribution` and the two mass columns
-exist at all — all of them behind names the census's own file list
+`DocParam.distribution` and the two mass columns exist at all — all of them behind names the census's own file list
 excludes. The positive form is
 `crates/pncad-py/tests/test_distributions.py`.
 
@@ -136,8 +135,12 @@ The family closed. Bound at these spellings:
 - `DocParam.length(value, distribution=None)` and its two siblings —
   the annotation beside the unit, on the same constructor. `count`
   takes none and cannot.
-- `DocParam.distribution` and `Doc.doc_param(name)` — the read side,
-  which is what makes the sharp edge visible from Python at all.
+- `DocParam.distribution` — the read side. A keyed `Doc.doc_param`
+  read door was written and then DELETED at the `origin/main` merge:
+  LIB-B-NOTATION landed `Doc.params`, a whole-table snapshot whose own
+  prose calls it "the only door that answers a whole parameter back",
+  and `doc.params.get(name)` answers the same question. Two doors for
+  one question is not worth the keyed lookup.
 - `analyzed_box(doc, policy=None)` answering an `AnalyzedBox`, with
   `AnalysisPolicy`, `AnalyzedParam` and `DEFAULT_QUANTILE_MASS`.
 - `AnalyzedBox.tail_mass(name)` and `AnalyzedBox.box_mass(name, lo,
