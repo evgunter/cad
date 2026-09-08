@@ -27,9 +27,21 @@
 use tess_lint::{Cut, Kind, Observation, Rekey, Row, SceneTotals, compare, cut, parse, totals};
 
 /// The gate ran and the budget distribution moved.
+///
+/// **`tools/k-lint`'s `main.rs` spells this pair with the same two
+/// names and the same two values, and the two are NOT one item.**
+/// Separate cargo roots by design, so there is nothing to share; what
+/// is shared is the RULE about which voice an event leaves in, and
+/// that has one home (`tools/README.md`, `CC5`). A reader who moves
+/// one of these numbers is moving one instrument's exit codes and
+/// should say so.
 const EXIT_FINDINGS: i32 = 2;
 
 /// The lint could not run: no inputs, unreadable file, malformed CSV.
+/// Distinct from [`EXIT_FINDINGS`] on purpose — blurring the two would
+/// let a sweep-format drift read as a geometry finding, or vice versa.
+/// Every cross-column admission `tess_lint::parse` refuses leaves
+/// here (`tools/README.md`, `CC5`).
 const EXIT_HARNESS: i32 = 1;
 
 /// Reads a sweep and the tree it was cut from, or exits in the

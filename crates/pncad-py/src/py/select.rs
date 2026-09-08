@@ -356,6 +356,25 @@ pub(crate) enum SurfaceKind {
     Approx,
 }
 
+/// Crossing helper: the kernel kind as the Python mirror.
+///
+/// Exhaustive over the KERNEL enum with no wildcard arm, so a kernel
+/// kind this file does not mirror stops the build — the direction the
+/// tripwire module at the foot of this file asserts for every other
+/// mirrored enum, and which this one asserts by being called, exactly
+/// as [`entity_kind`] does.
+pub(crate) fn surface_kind(kind: KSurfaceKind) -> SurfaceKind {
+    match kind {
+        KSurfaceKind::Plane => SurfaceKind::Plane,
+        KSurfaceKind::Cylinder => SurfaceKind::Cylinder,
+        KSurfaceKind::Cone => SurfaceKind::Cone,
+        KSurfaceKind::Sphere => SurfaceKind::Sphere,
+        KSurfaceKind::Torus => SurfaceKind::Torus,
+        KSurfaceKind::Nurbs => SurfaceKind::Nurbs,
+        KSurfaceKind::Approx => SurfaceKind::Approx,
+    }
+}
+
 impl SurfaceKind {
     fn to_kernel(self) -> KSurfaceKind {
         match self {
@@ -789,12 +808,12 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
 )]
 mod growth_tripwire {
     use super::{
-        CapEnd, Cmp, CurveKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg,
-        SplitHalf, SurfaceKind, s,
+        CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, SplitHalf, s,
     };
 
-    // `EntityKind`'s tripwire is `super::entity_kind`, which is the
-    // same exhaustive match with a caller — a mirror that CROSSES
+    // `EntityKind`'s and `SurfaceKind`'s tripwires are
+    // `super::entity_kind` and `super::surface_kind`, which are the
+    // same exhaustive matches with a caller — a mirror that CROSSES
     // needs no dead twin to assert what the crossing already asserts.
 
     fn seg_tag(k: s::SegTag) -> SegTag {
@@ -877,18 +896,6 @@ mod growth_tripwire {
             s::CurveKind::Circle => CurveKind::Circle,
             s::CurveKind::Ellipse => CurveKind::Ellipse,
             s::CurveKind::Nurbs => CurveKind::Nurbs,
-        }
-    }
-
-    fn surface_kind(k: KSurfaceKind) -> SurfaceKind {
-        match k {
-            KSurfaceKind::Plane => SurfaceKind::Plane,
-            KSurfaceKind::Cylinder => SurfaceKind::Cylinder,
-            KSurfaceKind::Cone => SurfaceKind::Cone,
-            KSurfaceKind::Sphere => SurfaceKind::Sphere,
-            KSurfaceKind::Torus => SurfaceKind::Torus,
-            KSurfaceKind::Nurbs => SurfaceKind::Nurbs,
-            KSurfaceKind::Approx => SurfaceKind::Approx,
         }
     }
 
