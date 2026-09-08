@@ -77,8 +77,8 @@ type OpResult<T> = Result<OpOut<T>, NodeErrorKind>;
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
 /// The LANE half of an evaluation's environment: where profile
-/// geometry comes from at `T`, and the parameter environment it is
-/// elaborated over. The two travel together because they are one
+/// geometry comes from at `T`, and the parameter environments it is
+/// elaborated over. They travel together because they are one
 /// decision — a guided elaboration is guided over SOME environment,
 /// and a call site that could pass the lift without the environment
 /// could elaborate the lift's second pass over a different box than
@@ -92,6 +92,12 @@ pub(crate) struct LaneEnv<'a, T> {
     /// The evaluation's parameter environment — nominals, or nominals
     /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
     pub params: &'a crate::expr::ParamEnv<T>,
+    /// The document's own f64 parameter environment, under no box and
+    /// no seed. It is what every f64-pinned reader below decides from
+    /// — the profile plane read, the pre-pass's program resolution,
+    /// the placement the pinned lift embeds — and therefore what a
+    /// content key owes ([`super::tag::slot`]).
+    pub nominal: &'a crate::expr::ParamEnv<f64>,
     /// The E4 seed this evaluation carries, by name (`None` on the
     /// build path). Consulted by the one place the lift cannot reach:
     /// a C6/D9-pinned section refuses a seed it would otherwise embed

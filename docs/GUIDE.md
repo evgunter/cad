@@ -1672,6 +1672,54 @@ decision you can rely on:
   the declaration forward, which is why the panel, the drag gesture and
   the Python binding (`DocEdit.set_doc_param_value`) all speak it.
 
+The same three consumables are the Python surface, with one difference
+that is a decision rather than a translation: the offsets are TYPED
+quantities in the parameter's own dimension, and the mass columns hang
+off the box rather than being free functions, so the name, the
+distribution and the interval always come from one axis.
+
+```python
+from pncad import (AnalysisPolicy, DEFAULT_QUANTILE_MASS, Distribution, Doc,
+                   DocEdit, DocParam, DocParamValue, MeasureUnavailable,
+                   ParamName, analyzed_box, mm)
+
+doc = Doc("guide-distributions")
+# A measured bore: 4 mm, one micron of spread, normal.
+doc.apply(DocEdit.set_doc_param(ParamName("bore_r"),
+    DocParam.length(4 * mm, Distribution.normal(0.001 * mm))))
+# Vendor stock: the catalogue gives limits and states no shape.
+doc.apply(DocEdit.set_doc_param(ParamName("plate_t"),
+    DocParam.length(10 * mm, Distribution.band(-0.1 * mm, 0.1 * mm))))
+# Unannotated: FIXED, on purpose.
+doc.apply(DocEdit.set_doc_param(ParamName("web_t"), DocParam.length(3 * mm)))
+
+boxed = analyzed_box(doc, AnalysisPolicy())          # or analyzed_box(doc)
+bore = boxed.get(ParamName("bore_r"))
+assert abs(bore.offsets[1].in_unit(mm) / 0.001 - 3.0) < 0.01
+assert abs(boxed.tail_mass(ParamName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
+assert boxed.get(ParamName("plate_t")).offsets[0] == -0.1 * mm
+assert boxed.get(ParamName("web_t")).is_fixed       # unannotated is FIXED
+assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]
+
+# The band refuses to price anything its shape would decide, and the
+# refusal NAMES the parameter rather than quietly assuming uniform.
+try:
+    boxed.box_mass(ParamName("plate_t"), -0.05 * mm, 0.05 * mm)
+    raise AssertionError("a band prices nothing shape-dependent")
+except MeasureUnavailable as refused:
+    assert refused.param == "plate_t"
+
+# Moving a value KEEPS the annotation; `Doc.params` reads it back.
+doc.apply(DocEdit.set_doc_param_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm)))
+assert doc.params.get(ParamName("bore_r")).distribution == Distribution.normal(0.001 * mm)
+```
+
+`Distribution`'s constructors run the same `check` the edit and load
+doors run, so a broken invariant refuses where it is written, as
+`DistributionFault`. What does NOT cross is the certified half — the
+E6 driver, the E4/E5 stackup, the E10 reports — which lives behind the
+`interval` feature the wheel is not built with.
+
 ## 4. The rest of the documentation
 
 - **`docs/guide/examples.md`** — the corpus as the example set: every

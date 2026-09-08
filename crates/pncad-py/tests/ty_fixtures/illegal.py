@@ -6,6 +6,8 @@ declares unrepresentable, plus the typed-quantity boundary.
 """
 
 from pncad import (
+    AnalysisPolicy,
+    analyzed_box,
     ArcSide,
     ChecksConfig,
     Severity,
@@ -13,9 +15,10 @@ from pncad import (
     CancelToken,
     Cmp,
     CurveKind,
+    Distribution,
     Doc,
-    DocEdit,
     DocParam,
+    DocEdit,
     DocRef,
     EntityKind,
     Frame,
@@ -499,6 +502,29 @@ verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: err
 doc.node_kind(Node.extrude(solid, 1 * m))  # ty: error
 which: Node = doc.node_kind(solid)  # ty: error
 
+# A structural count is FIXED under any error analysis, so the count
+# constructor takes no annotation — the one `DocParam` door that does
+# not, and the type is what says so rather than a runtime check.
+DocParam.count(4, Distribution.normal(1.0))  # ty: error
+
+# A distribution is a frozen value: an annotation is restated by
+# building a new one, never by editing the one a document handed back.
+Distribution.normal(1 * mm).kind = "band"  # ty: error
+
+# The mass doors are keyed by a `ParamName`, not by its text — the
+# same distinction `Doc.doc_param` draws, and the reason a name is a
+# type here at all.
+analyzed_box(doc).tail_mass("bore_r")  # ty: error
+
+# The policy is the ANALYSIS's knob and takes a bare mass, not a
+# quantity: a share of a distribution's mass is dimensionless.
+AnalysisPolicy(1 * mm)  # ty: error
+
+# Two refusals in one line, and both are the point. A name the
+# document does not declare is not an axis, so `get` answers an
+# OPTION that has to be narrowed; and an axis speaks its parameter's
+# dimension, so its nominal is a quantity rather than a bare float.
+nominal_as_float: float = analyzed_box(doc).get(ParamName("h")).nominal  # ty: error
 # THE MIS-DIMENSIONED WRITTEN VALUE IS UNREPRESENTABLE, not refused.
 # A `WrittenLength` holds a LENGTH unit, so "a length written in
 # degrees" is not a value the type can hold and no door has to refuse
