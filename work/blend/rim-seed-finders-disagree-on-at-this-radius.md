@@ -2,10 +2,11 @@
 id: rim-seed-finders-disagree-on-at-this-radius
 kind: unit
 title: four disagreeing tolerances spell "the circle at this radius" across the tree
-status: review
+status: closed
 opened: 2026-09-05
 branch: blend/4-seed-finder
 pr: 2129
+closed: 2026-09-08
 ---
 
 ## The shape
@@ -110,3 +111,16 @@ builds test targets — measured, and that is what CI's tour row runs.
 
 What stays open is the question this issue says would close it: what a
 caller names a rim BY. `no-public-rim-arc-selector` still owns it.
+
+## Closed (2026-09-08, PR 2129)
+
+One home, no tolerance chosen: every seed finder converges on
+`test_support::arcs_at`/`rim_arcs_at` (and the single-key
+`one_edge_rim_at`) at the home's `1e-9` with its reason; the `1e-6`
+and `5e-4` windows were slack and are gone; the tour keeps one
+test-side selector home and the teapot's scene scan with its reason
+and the pointer to the API gap (a rim is named by a seed edge, never
+by geometry — the names vocabulary is the real answer, this item's
+own text). Residues filed: `seed-finder-home-reads-only-the-y-station`
+(four z-poled scans cannot converge on a home that reads `center.y`),
+`test-support-has-become-four-modules`.

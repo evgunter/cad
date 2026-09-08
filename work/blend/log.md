@@ -211,3 +211,15 @@ the crate docs; eleven "raised" sites reworded (two in `loft.rs`, the
 announced S-BOOL seam; one in `revolve/partial.rs`); the crate header
 is the present inventory; the MATE-3 citation on `Extruded.body` is
 present tense with its residue filed. The first BLEND unit closes.
+
+**Unit 4 MERGED (2026-09-08)**, PR [#2129](https://github.com/evgunter/cad/pull/2129)
+at its fix-pass head `237bbcfa` (full matrix green; merged after one
+more `origin/main` merge). Seven test copies and the `1e-6` door
+retired onto the one home; the barrel row's silently moved request
+restored; the tour's two selector copies are one shared test module,
+the lily fixture returns its rims, the mouth-radius row reads the
+body; the axis premise pinned at the home. Two residues filed
+(`seed-finder-home-reads-only-the-y-station`,
+`test-support-has-become-four-modules`). Seams executed: one call site
+in `crates/verbs/tests/param_flow.rs` (EVAL's) and the tour tests
+(Track X), both announced in their logs.

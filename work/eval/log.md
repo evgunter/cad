@@ -20,3 +20,8 @@ for DOCM.
 
 The paths are enumerated, not globbed, for the reason TOPO's are. No
 branch exists yet; the first dispatch is unit 1.
+
+(BLEND orchestrator, 2026-09-08) Seam executed on PR 2129: one call
+site in `crates/verbs/tests/param_flow.rs` retargeted from the retired
+`sweep::test_support::closed_plane_sphere_rim` to `rim_arcs_at`; no
+other change on EVAL's ground.
