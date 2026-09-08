@@ -29,6 +29,10 @@
 pub mod errors;
 pub mod identity;
 pub mod node_kind;
+// The gathered product memoized on an evaluation: the behaviour
+// behind four bound doors, Python-independent so the default build
+// tests it.
+pub mod product_memo;
 pub mod tags;
 
 #[cfg(feature = "python")]

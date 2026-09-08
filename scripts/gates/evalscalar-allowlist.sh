@@ -35,14 +35,9 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # THE EVALUATION-SERVICE SEAM, as paths and held once: the filter's
-# exemption is built from this list and the clean fixture plants every
-# entry of it.#
-# ONE LIST, AND ONE DIRECTION PROVED. The fixture->filter direction reds
-# the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is convention and not a check — a filter
-# naming a home no fixture plants stays green here, and catching that is
-# the subject-half residue's job
-# (`work/gates/whole-file-skips-do-not-check-their-subject.md`).
+# exemption, `gate_require_homes`'s subject check and the clean fixture
+# all read this list, and what that buys is argued at that check.
+SEAM_SUBJECT='the evaluation-service seam, the one place an EvalScalar bound is ratified'
 SEAM_HOMES=(
   crates/editor-core/src/eval/mod.rs
   crates/editor-core/src/eval/parts.rs
@@ -50,6 +45,7 @@ SEAM_HOMES=(
 
 gate() {
   gate_require_crate_sources
+  gate_require_homes "$SEAM_SUBJECT" "${SEAM_HOMES[@]}"
   local hits
   hits=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" \
     | gate_grep -E '(:|\+)[[:space:]]*(editor_core::)?EvalScalar([^A-Za-z0-9_]|$)' \
@@ -140,6 +136,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, doc comments, a string literal and a longer name starting with EvalScalar" plant_prose_only
+  gate_selftest_homes --subject "$SEAM_SUBJECT" "${SEAM_HOMES[@]}"
   printf '%s selftest OK: passes a clean fixture carrying every seam file, prose/doc/string mentions and `EvalScalarish`; fires in both bound positions, on a rustfmt-wrapped plus, on a bound hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 

@@ -734,7 +734,11 @@ impl OpPlacement {
             | E::NullScaffoldCurve { .. }
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
-            | E::CrossSolid { .. } => Self::TheEnumsVerdict,
+            | E::CrossSolid { .. }
+            | E::NoShellsNamed
+            | E::ShellRepeated { .. }
+            | E::ShellsAcrossSolids { .. }
+            | E::SolidWouldEmpty { .. } => Self::TheEnumsVerdict,
         }
     }
 }

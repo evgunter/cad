@@ -50,10 +50,12 @@
 //!
 //! No geometry and no numeric behavior. The **authoring** surface is
 //! re-exports and thin wrappers that do nothing but call into the
-//! kernel: every [`authoring`] seam but one is a single kernel
-//! constructor call, and [`validated`] is that one — the two-call
-//! form (`Profile::new` then `Profile::validate`) the demo corpus
-//! wrote by hand at every scene.
+//! kernel: every [`authoring`] seam but two is a single kernel
+//! constructor call. The two are the fallible pair — [`validated`],
+//! the two-call form (`Profile::new` then `Profile::validate`) the
+//! demo corpus wrote by hand at every scene, and [`polygon`], the
+//! PATHS-lattice chain a coordinate table lowers to, which classifies
+//! every corner at authoring and so can refuse one.
 //!
 //! **[`workspace`] is not that, deliberately.** It is a real
 //! subsystem: it scans a directory of save files, reads each one's
@@ -85,6 +87,7 @@
 //! module is named in a section about what the façade contains.
 //!
 //! [`validated`]: authoring::validated
+//! [`polygon`]: authoring::polygon
 //!
 //! # Start here
 //!

@@ -21,17 +21,17 @@ and each is now projected from that enum's own declaration by
 the enum without reaching the list. That mechanism needs the
 declaration to be HERE.
 
-`forms::BOOLEAN_OPS` (`crates/viewer/src/forms.rs:44`) is not:
+`forms::BOOLEAN_OPS` (`crates/viewer/src/forms.rs:67`) is not:
 `BooleanOp` is declared at `crates/topo/src/boolean/mod.rs:138`. The
 table lists all three of that enum's variants today and **nothing
 forces it to keep doing so** — a fourth operation added in `topo` would
 leave this table three long and the boolean form three buttons wide,
 with no compile error and no red row anywhere. It is `pub(crate)` with
-a production reader (`crates/viewer/src/pane/create.rs:887`), so it is
+a production reader (`crates/viewer/src/pane/create.rs:892`), so it is
 NOT an instance of the reader-count class that
 `tool-kind-all-and-ordinal-have-no-production-reader` was about.
 
-`forms::MATE_PRIMITIVES` (`crates/viewer/src/forms.rs:471`, reader
+`forms::MATE_PRIMITIVES` (`crates/viewer/src/forms.rs:482`, reader
 `pane/create.rs:132,147`) is the same shape one step weaker. It lists
 three of `MatePrimitive`'s four variants
 (`crates/editor-core/src/mate.rs:155`) **on purpose** — `Clocking`
