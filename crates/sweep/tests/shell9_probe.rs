@@ -23,6 +23,7 @@ use sweep::Revolution;
 use topo::{Body, EdgeKey, VoidContainment, VoidEvidence};
 
 use super::shell7_common::*;
+use super::shell9_rows::rows;
 
 fn collinear_cap_drum() -> Body<f64> {
     let (r, h) = (1.0, 2.0);
@@ -60,10 +61,16 @@ fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
     cavity
 }
 
-/// Re-certifies every edge of `body` exactly as the graft does
+/// Re-certifies every edge of `body` as the graft does
 /// (`combine.rs`'s recertify arm: the description with its image
 /// verbatim, carrier and params verbatim, endpoints from `he_plus`,
 /// surfaces from the body itself). Returns the refusals.
+///
+/// A MIRROR of that arm, and it can drift from it: if the graft's
+/// meter changes, this reads a different meter. The drum row's
+/// `insert_voids` assertion (`Recertify`, the door's own verdict) is
+/// what catches a drift there — this helper's count of failing edges
+/// would disagree with a door that no longer refuses, or refuses more.
 fn recertify_like_the_graft(body: &Body<f64>) -> Vec<(EdgeKey, geom_brep::CertifyError)> {
     let band = geom_core::Band::linear(tol()).expect("band");
     let mut failures = Vec::new();
@@ -112,6 +119,11 @@ fn recertify_like_the_graft(body: &Body<f64>) -> Vec<(EdgeKey, geom_brep::Certif
     failures
 }
 
+/// The evidence `shell` hands the void door — every cavity shell
+/// `Carried { Positive }` (`shell.rs`, "The evidence"). A restatement,
+/// and it can drift: a door that starts demanding a different
+/// certificate refuses these rows at `insert_voids` while `shell`'s
+/// own rows (`shell7_seam_corner`) keep passing, which is the signal.
 fn evidence_for(cavity: &Body<f64>) -> VoidEvidence {
     VoidEvidence {
         shells: cavity
@@ -140,14 +152,6 @@ fn plane_edges(body: &Body<f64>) -> Vec<EdgeKey> {
                 if matches!(body.get_surface(c.surface), Some(Surface::Plane { .. })))
         })
         .map(|(k, _)| k)
-        .collect()
-}
-
-/// Every stored pcurve row of `body`, in half-edge-slot order, as the
-/// text a bit-for-bit comparison reads: key, parameter window, image.
-fn rows(body: &Body<f64>) -> Vec<String> {
-    body.pcurves()
-        .map(|(he, cache)| format!("{he:?} {:?} {:?}", cache.params(), cache.pcurve()))
         .collect()
 }
 

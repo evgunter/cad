@@ -17,7 +17,7 @@ two cocircular arcs (one sphere in four faces, a latitude seam at
 `v = π/4`) — pass `topo::offset_charts_together` after the fix pass:
 the cavity alone is tier-3 valid at the closed form
 (`π(r−t)²(h−2t) = 5.387046002743097`; `4/3·π(r−t)³ =
-3.591364001828733`). `topo::shell` on the same operands refuses
+3.591364001828731`, measured `…733`). `topo::shell` on the same operands refuses
 DOWNSTREAM of the door: the cap at the void-insertion door's graft
 re-certification (`ShellError::Insert`, "certification:
 ChartResidual residual at sample 1 definitely exceeds the tolerance
@@ -53,7 +53,7 @@ the last surgery and before `validate_geometric` — the producer's
 half of the void door's `Transfers` posture, as the boolean and the
 revolve already ran it. The two-arc sphere shells to its closed form
 (`shell7_seam_corner::a_two_arc_sphere_shells_to_its_closed_form`:
-cavity `4/3·π(r−t)³ = 3.591364001828733`, thin solid
+cavity `4/3·π(r−t)³ = 3.591364001828731` (measured `…733`), thin solid
 `4/3·π(r³ − (r−t)³) = 0.5974262029576595` to `1e-12`, tier-3 valid,
 tessellates); the mint's refusal is typed as `ShellError::Pcurve`.
 The drum half stays open on TOPO's

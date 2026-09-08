@@ -76,7 +76,7 @@ producer-mints convention; `shell` follows it too.
    diagnosis prints that assert nothing. Flip
    `shell7_seam_corner::a_two_arc_sphere_is_taken_by_the_door_and_stops_at_the_assembly`
    to the `shells_with_one_surface_vertices` shape at
-   `4/3·π(r−t)³ = 3.591364001828733` (`r = 1`, `t = 0.05`), with the
+   `4/3·π(r−t)³ = 3.591364001828731` (`r = 1`, `t = 0.05`; the measured cavity volume is `…733`), with the
    seam vertices moved concentrically as its `cavity_at_closed_form`
    half already checks. Keep
    `a_collinear_cap_vertex_drum_is_taken_by_the_door_and_stops_at_void_insertion`

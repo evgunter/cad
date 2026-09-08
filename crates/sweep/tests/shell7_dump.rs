@@ -107,7 +107,7 @@ fn dump(label: &str, body: &Body<f64>) {
         "[dump] {label}: tier3={:?}",
         topo::validate_geometric(body, tol())
     );
-    super::shell9_rows::rows(label, body);
+    super::shell9_rows::print_rows(label, body);
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {

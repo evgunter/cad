@@ -258,27 +258,26 @@ fn r2_the_closing_mint_launders_an_invalid_operand() {
     );
     println!("[r2] maimed operand findings: {findings:?}");
 
-    let out = topo::shell(&maimed, 0.2, tol());
-    match &out {
-        Ok(s) => {
-            println!("[r2] shell TOOK the tier-3-invalid operand");
-            assert_eq!(
-                topo::validate_geometric(&s.body, tol()),
-                Ok(()),
-                "and returned a valid body"
-            );
-            let rows: Vec<String> = s
-                .body
-                .pcurves()
-                .map(|(he, c)| format!("{he:?} {:?} {:?}", c.params(), c.pcurve()))
-                .collect();
-            assert_eq!(
-                rows, good_rows,
-                "bit-identical to the sound operand's result"
-            );
-        }
-        Err(e) => println!("[r2] shell refused the maimed operand: {e}"),
-    }
+    // Measured, and pinned as measured: the verb takes the
+    // tier-3-invalid operand and returns a valid body whose rows are
+    // the sound operand's, bit for bit. A gate on the operand's rows
+    // would flip this row; that is a posture-table decision
+    // (`work/shell/shell-launders-a-stale-operand-row.md`).
+    let s = topo::shell(&maimed, 0.2, tol()).expect("the verb takes the tier-3-invalid operand");
+    assert_eq!(
+        topo::validate_geometric(&s.body, tol()),
+        Ok(()),
+        "and returns a valid body"
+    );
+    let rows: Vec<String> = s
+        .body
+        .pcurves()
+        .map(|(he, c)| format!("{he:?} {:?} {:?}", c.params(), c.pcurve()))
+        .collect();
+    assert_eq!(
+        rows, good_rows,
+        "bit-identical to the sound operand's result"
+    );
 }
 
 /// **Claim 7, sharper — a WRONG row, not a missing one.** One face's
@@ -293,14 +292,24 @@ fn r2_the_closing_mint_launders_a_stale_row() {
     let mut maimed = v.clone();
     maimed.attach_pcurve(rows[0].0, rows[1].1.clone());
     let findings = pcurve_findings(&maimed);
-    println!("[r2] stale-row operand findings: {findings:?}");
-    let out = topo::shell(&maimed, 0.2, tol());
-    println!(
-        "[r2] shell on the stale-row operand: {}",
-        match &out {
-            Ok(s) => format!("Ok, tier3 = {:?}", topo::validate_geometric(&s.body, tol())),
-            Err(e) => format!("Err {e}"),
-        }
+    assert_eq!(
+        findings.len(),
+        2,
+        "the wrong row breaks two loop walks: {findings:?}"
+    );
+    assert!(
+        findings.iter().all(|f| f.contains("LoopDiscontinuity")),
+        "{findings:?}"
+    );
+    // Measured, and pinned as measured: the closing mint clears the map
+    // before re-deriving, so the wrong row is laundered — the verb
+    // returns `Ok` and a tier-3-valid body. Same disposition as the
+    // row above.
+    let s = topo::shell(&maimed, 0.2, tol()).expect("the verb takes the stale-row operand");
+    assert_eq!(
+        topo::validate_geometric(&s.body, tol()),
+        Ok(()),
+        "and returns a tier-3-valid body"
     );
 }
 

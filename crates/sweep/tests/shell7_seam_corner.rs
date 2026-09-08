@@ -525,10 +525,12 @@ fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
 /// form.** R1's fixture: one sphere in four faces with a same-surface
 /// LATITUDE seam at `v = π/4`, which the sphere's own seam arm could
 /// not take and the latitude posture does. Through the direct door the
-/// cavity is tier-3 valid at `4/3·π(r−t)³` with the seam vertices
-/// moved concentrically; through `shell` the thin solid is tier-3
-/// valid at `4/3·π(r³ − (r−t)³)` with the same vertices at the same
-/// images, and tessellates. What sits between the two is the void
+/// cavity is tier-3 valid at `4/3·π(r−t)³` (`3.591364001828731` in
+/// f64; measured `…733`) with the seam vertices moved concentrically;
+/// through `shell` the thin solid is tier-3 valid at
+/// `4/3·π(r³ − (r−t)³) = 0.5974262029576595` to `1e-12` with the same
+/// vertices at the same images, and tessellates watertight. What sits
+/// between the two is the void
 /// door's `Transfers` posture: the reverted cavity's stored pcurve
 /// rows arrive on the twins with a one-period azimuth wrap mid-chain
 /// (`shell9_probe`, the sphere rows), and the verb's closing mint
@@ -562,7 +564,8 @@ fn a_two_arc_sphere_shells_to_its_closed_form() {
         "two-arc sphere: volume {} vs the closed form {want}",
         props.volume
     );
-    mesh::tessellate(&out.body, 1e-3, tol()).expect("the thin sphere tessellates");
+    let mesh = mesh::tessellate(&out.body, 1e-3, tol()).expect("the thin sphere tessellates");
+    mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
 // ---------------------------------------------------------------------

@@ -106,9 +106,11 @@
 //! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
 //! staged result before commit, and only when the input carried
 //! caches), and [`crate::transform`] (which re-derives when the operand
-//! carried caches). **Downstream crates hold the same posture and are
-//! part of the list**: `sweep`'s loft, fillet build and fillet surgery,
-//! and `step_import`'s assembly all re-mint on the body they return.
+//! carried caches), and [`crate::shell`](mod@crate::shell) (on the
+//! assembled thin solid). **Downstream crates hold the same posture and
+//! are part of the list**: `sweep`'s revolve and tube, loft, fillet
+//! build and fillet surgery, and `step_import`'s assembly all re-mint
+//! on the body they return.
 //!
 //! **Transfers the map** — the graft (`boolean::combine`, and
 //! [`crate::graft_disjoint`] through it) remaps each row onto the

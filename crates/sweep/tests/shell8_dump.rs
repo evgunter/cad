@@ -91,7 +91,7 @@ fn dump(label: &str, body: &Body<f64>) {
         "[dump8] {label}: tier3={:?}",
         topo::validate_geometric(body, tol())
     );
-    super::shell9_rows::rows(label, body);
+    super::shell9_rows::print_rows(label, body);
 }
 
 fn opened(label: &str, body: &Body<f64>, t: f64, faces: &[FaceKey]) {

@@ -143,30 +143,26 @@
 //!
 //! # The closing mint
 //!
-//! **This verb is a PRODUCER, and it runs the producer's closing
-//! pcurve mint** ([`crate::pcurves::mint_pcurves`], once, on the
-//! assembled body, after the last surgery and before the closing
-//! `validate_geometric`). The void door's posture is `Transfers`
+//! The void door's posture is `Transfers`
 //! (`crate::pcurves::staleness_posture::DECLARED`, the `insert_voids`
-//! row): the cavity is reverted — its rows keep their keys and go
-//! stale in CONTENT, a one-period azimuth wrap the forward walk parked
-//! at a loop's closure landing mid-chain once the loop runs backwards
-//! — and grafted with those rows copied verbatim onto the twins, and
-//! the contract on that row is that the producer's final mint pass
-//! re-derives every row of the merged body. The boolean and the
-//! revolve run that pass on the bodies they hand back; so does this
-//! verb. One pass at the end suffices: nothing between the void door
-//! and the validate reads a stored row — the partition re-parents
-//! shells; the rim surgery's lift doors are whole-body `Maintains`
-//! passes of their own, its Euler steps kill and split edges both of
-//! whose half-edges lie on the designated PLANAR chart (which stores
-//! nothing), and its re-descriptions swap a surface key with the
-//! carrier and window untouched — and the pass clears the map before
-//! re-deriving, so every row the result carries is minted against the
-//! result's own carriers, surfaces and loops. Its refusal
-//! is [`ShellError::Pcurve`] — a body every earlier gate accepted
-//! whose rows cannot be re-derived is a kernel finding, surfaced
-//! typed.
+//! row): the reverted cavity's rows go stale in content and the graft
+//! copies them verbatim, and that row's contract is that the producer's
+//! final mint re-derives every row of the merged body. This verb is a
+//! producer and runs [`crate::pcurves::mint_pcurves`] once, on the
+//! assembled body, before `validate_geometric`. One pass suffices:
+//! nothing between the door and the validate reads a stored row, the
+//! lift doors mint their own clone whole-body, and every other step is
+//! `Neither` for rows. Two consequences are stated because nothing
+//! enforces them: the pass CLEARS the map first, so **a stale or
+//! missing row on the OPERAND is invisible to this verb** — an operand
+//! that fails tier 3 on its own rows shells to a valid body whose rows
+//! are the sound operand's (`shell9_r2_probes`, the laundering rows;
+//! `work/shell/shell-launders-a-stale-operand-row.md`, a posture-table
+//! question for every producer that spells this mint) — and a face
+//! whose carrier class the pass cannot derive stops carrying rows
+//! rather than refusing (`UnsupportedCarrier`; not known to be
+//! reachable through this verb). The refusal is
+//! [`ShellError::Pcurve`], a kernel finding by construction.
 //!
 //! # The record
 //!
@@ -216,7 +212,9 @@
 //! 1. the sealed shell, exactly as above — so the evidence handed to
 //!    the void door is the strict one, before anything is opened;
 //! 2. per designated CHART, its CAVITY counterpart offset back OUTWARD
-//!    by `t` ([`crate::replace_face_offset`] again), which lands it on
+//!    by `t` (the same door ladder as the cavity's —
+//!    [`crate::offset_charts_together`] for a solid of revolution,
+//!    [`crate::replace_faces_offset`] otherwise), which lands it on
 //!    the designated face's own surface and — because the door
 //!    re-describes a moved face's boundary against its untouched
 //!    neighbours — extends the cavity's side walls up to meet it;
@@ -1678,12 +1676,13 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
 
     // ---- The closing mint (module docs, "The closing mint"). ----
     //
-    // The void door TRANSFERS the pcurve map: the reverted cavity's
-    // rows arrive on the twins verbatim, and a row whose loop now runs
-    // the other way is stale in content while its key is live. This is
-    // the producer's half of that posture — one pass, on the assembled
-    // body, after the last write and before the validate, which then
-    // reads rows this body minted rather than rows it inherited.
+    // Placed where the boolean places its own, after the last write.
+    // The position is NOT pinned by any row: moved to just before the
+    // partition the whole suite stays green (every step after the door
+    // is `Neither` for rows and the lift doors mint their clone
+    // whole-body). What would pin it is a designated CURVED chart,
+    // whose rim surgery would write rows after the door; that
+    // designation refuses `OpenFaceRingUnsupported` today.
     mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
 
     // ---- One validation. ----
