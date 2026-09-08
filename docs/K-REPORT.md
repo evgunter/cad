@@ -1,4 +1,4 @@
-# K report — the ambiguity constant K = 10 (M2 telemetry, with the M3/M4/M5 snapshots, the #89 close, and the two M7 addenda)
+# K report — the ambiguity constant K = 10 (M2 telemetry, the #89 close, and the dated addenda that follow it)
 
 **Status: FINAL** (M2 PR 7 deliverable; orchestrator-finalized
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all
@@ -1565,6 +1565,15 @@ inventory method above. The population under each name is unchanged —
 for the mate solve's re-derivation of both rule kinds from the
 recipe.
 
+**The chain of counts in this subsection stops here, at a predicted
+232, and is superseded by a MEASUREMENT.** A sweep at `ada6bba9`
+carries **279** names at all three ε rows (59 in, 13 out against M7's
+committed 233) — the M11 addendum below reports the roster and the
+command that produced it. Each delta recorded above is still an
+accurate account of what its own change did; what none of them is any
+longer is the current count, and extending the arithmetic a fifth time
+would have been the wrong way to find that out.
+
 **Effect on the emitted stream** (the SECTOR rename above — the SEAT-DV
 and SEAT-DN paragraphs between are later additions to this section, and
 move nothing in this stream). Margins, order, bands and outcomes are
@@ -2056,3 +2065,192 @@ hosted log in the PR body; the `registered` column is non-zero there
 and zero on every straight-walled fixture, which is the same fact the
 inertness pin makes locally
 (`m10_9_pins_interval::m10_9_the_door_is_inert_on_straight_geometry`).
+
+## M11 addendum (2026-09-08): the CERT-1 roster fold — measured, and neither calibration witness moved
+
+Issue 1251 scheduled this: PR 1220 (S-CERT's CERT-1) added a recorded
+predicate name and re-shaped two others' margins, and nothing had
+re-derived the baseline since. It is written down here because the
+runbook asks a distribution change to be **READ** rather than restored,
+and because two of the movements are benign **by construction** — a
+reader who scores them as findings corrupts K attribution in the
+direction this report cares about most.
+
+### What was run
+
+```sh
+scripts/k_probe_sweep.sh <outdir>      # no --gzip; nothing committed
+cd tools/k-lint && cargo run -- <outdir>/k-eps-{1e-6,1e-9,1e-12}.csv
+```
+
+At `ada6bba9`, dev profile, `--features probe` (`probe,interval` for the
+E6 driver leg — the script's own `feats_for`). **The configuration is
+the `k-lint (gate)` job's own**: that job carries no `env:` block at
+all, so it runs cargo's default dev/test profile — it is the one lane
+deliberately excluded from the archive jobs' opt-level bump — and
+`rust-toolchain.toml` pins the compiler at 1.97.0 for both. So this is
+not a local substitute taken under a different configuration; it is the
+same configuration, and it cost 618 s wall.
+
+### The gate verdict
+
+| ε | samples | rule 1 | rule 2 | rule 3 |
+| --- | --: | --: | --: | --: |
+| 1e-6 | 2 068 116 | 0 | 0 | 0 |
+| 1e-9 | 2 068 140 | 0 | 0 | 0 |
+| 1e-12 | 2 068 164 | 0 | 0 | 0 |
+
+Clean, and the committed `m7-eps-*.csv.gz` re-lint clean at the same
+tip (1 792 902 / 926 / 950 samples, 0 flags) — the M7 acceptance table
+above still holds.
+
+### `props_meridian_pole`, measured
+
+**7 940 samples per ε row, and the same split at all three rows:**
+
+| outcome | samples | extreme |
+| --- | --: | --- |
+| `zero` | 7 552 | largest \|m\| **8.16278e-17 m** (862 of them bitwise 0) |
+| `negative` | 388 | smallest \|m\| **5.47723e-2 m** |
+| `positive` | 0 | — |
+| `indeterminate` / `invalid` | **0** | — |
+
+Two populations ~15 decades apart with nothing between them, which is
+the shape `geom-brep/tests/rim_dim_scale_twins.rs` pins. `zero` is the
+ordinary case rather than the exceptional one: a sphere face whose
+meridian arc *ends* at a pole reads the chord from the pole direction
+to the nearer span end as zero, and most of this corpus's sphere faces
+are half-caps. The 388 definite samples sit 1 370× above
+`BASELINE_FLOOR_MARGIN` (4.0e-5). Carried by eight shapes —
+`corpus/die_composed_tour` 7 272, `corpus/die_tool` 432, `demo/lily`
+72, `corpus/die_composed` 64, `corpus/die_pips` 32, `corpus/die_fillet`
+32, `demo/vase` 24, `demo/budrim` 12.
+
+**The in-band population this name is allowed to have is EMPTY here,
+and that is a measurement, not an assumption.** It is stated as a
+number because the alternative — an absence read off a green — is what
+this report's own M10 addendum refuses to do.
+
+### The reading that is the point of this addendum
+
+`props_meridian_pole` is decided at two doors with two dispositions.
+[`require_one_chart_branch`] REFUSES on a definite `Positive`.
+[`sphere_meridian_span_levels`] **FOLDS**: everything but a definite
+`Negative` — `Positive`, `Zero` and *the indeterminate band alike* —
+pushes the pole latitude into the face's extent. The decide still
+records, so an in-band sample here reaches this report through the
+funnel exactly like any other; what it does **not** mean is that a run
+could not decide something it had to. The fold is continuous across the
+decision (a latitude is quadratic at its extremum, so the two choices
+at a `Zero` differ by ~band²/2), and an in-band margin therefore
+carries no information a refusal could report — PR 1220's body is where
+that argument is made and `docs/predicate-dimension-audit.md`'s row is
+where it is kept.
+
+**So: an in-band sample on `props_meridian_pole` is not a landing.**
+The M7 addendum's caveat 1 gains a sibling, and the two together are
+the trigger protocol:
+
+1. before treating a landing as ε-vs-scale or K pressure, check the
+   margin's **dimension** against the predicate's comparand (M7,
+   2026-08-05);
+2. and check the deciding site's **disposition** — a site that folds on
+   its indeterminate arm records an expected in-band population, and
+   the escalating sites are the ones whose in-band samples are
+   evidence about K.
+
+**Rule 1 keeps gating this name, and must.** The wrong repair is a
+name-shaped exemption in `tools/k-lint`: that is a threshold adjusted
+to restore a number, and it would blind the row to every *other*
+predicate's landing on the same corpus. The right repair is the reading
+above, which is why it is written here rather than compiled.
+
+**The fold itself is pinned, so the reading does not rest on prose
+alone.** `geom-brep/tests/cert1_sphere_polar.rs`'s
+`a_split_vertex_a_hair_off_the_pole_still_certifies` drives a split
+vertex to three offsets from the pole — 1e-6 rad, 1e-7 rad, and one
+derived from the run's own band so the row means the same at every ε
+— and asserts the face still certifies its exact area. The middle
+offset puts the margin *in band* by construction, so the indeterminate
+arm is executed rather than argued. If a future edit made that arm
+escalate, that test goes red before this section goes stale.
+
+### The re-shaped rim margins, measured
+
+`level_coincides`' metric is the direction chord for both recording
+channels, and a chord is nonnegative by construction — so these
+populations have no `negative` arm at this tip.
+
+| name | samples (1e-9) | shape |
+| --- | --: | --- |
+| `props_rim_level` | 790 | all `zero`; 492 bitwise 0, 298 residuals, largest **1.24127e-15 m** |
+| `props_rim_level_group` | 306 | 262 `positive` (smallest \|m\| **1.90693e-2 m**), 44 `zero`, every one bitwise 0 |
+
+**The near-zero cluster is the expected consequence of the re-shaping,
+not a regression.** A sphere rim sitting at its own extreme used to
+difference `Unit(sin v, 0)` pairs and cancel to bitwise 0; it now
+completes the pair with `cos v` and records that second component's
+rounding residual. The residuals land on exactly the shapes that carry
+spheres and tori (`die_composed_tour` 140, `demo/lily` 93, `die_tool`
+16, `demo/bossplate` 12, `demo/vase` 12, `budrim` 9, `die_composed` 6,
+`sheave` 4, `hollow_tube_elbow` 4, `tube_ring` 2) and on no other shape
+in the corpus. It is a *growth* of a cluster the torus arm already had
+at M7, not a new kind of population.
+
+**Its headroom, since a near-zero cluster is rule 2's own subject.**
+Rule 2's coincidence-proximity arm fires at `|m| > band_zero/100`,
+which at the tightest row is 1e-14. `props_rim_level`'s largest
+residual is 8.1× under it and `props_meridian_pole`'s is 122× under it.
+Neither is the binding constraint: the whole distribution's tightest
+zero-side point is `pm_census_ee_span` at **5.32907e-15**, 1.88× under
+the threshold — and that value is **identical in the committed M7
+snapshot**, so the zero-side ceiling did not move at all.
+
+### What did not move, stated as the reason no new era is cut
+
+Both constants' witnesses are **pointwise identical** between
+`m7-eps-*.csv.gz` and this sweep, at every ε row:
+
+| constant | witness | 1e-6 | 1e-9 | 1e-12 |
+| --- | --- | --- | --- | --- |
+| `BASELINE_FLOOR_MARGIN` = 4.0e-5 | `volume_backstop` | 4.79652e-5 | 4.79652e-5 | 4.79652e-5 |
+| `EPS_COUPLED_FLOOR_RATIO` = 1.5e2 | `props_quad_converged` | 839.524·ε | 164.674·ε | 335.953·ε |
+
+(The 8.9% headroom quoted at `EPS_COUPLED_FLOOR_RATIO` is 164.674 at
+the 1e-9 row, unchanged.) The definite side's other floor-adjacent
+names are unchanged too, and the two sub-1e-16 definite margins
+(`canonical_order_x`, `split_join_order_u`) carry tie-break bands below
+`AMBIENT_BAND_MIN` and are outside every rule, exactly as at M7.
+
+**Disposition of `docs/k-report-data/`: no new file.** Its rule 1 cuts
+a new era when the *distribution* moves — a new floor, a filled gap, an
+ε-coupled family — and none of the three did: both floors' witnesses
+are bit-identical, the zero-side ceiling is bit-identical, and the gap
+between the two sides is the same gap. The roster grew and the corpus
+grew, which rule 1 explicitly does not treat as a trigger. M7 therefore
+remains the era the shipped thresholds were cut from, which is what
+`tools/k-lint/tests/threshold_provenance.rs` re-derives them against on
+every `k-lint (gate)` run. **What would cut one**: any movement in
+either witness above, a rule-1 flag anywhere in the corpus or tour
+population, or the zero-side ceiling crossing `band_zero/100` at the
+1e-12 row — that last one currently has 1.88× of room and is the
+nearest thing this distribution has to a live edge.
+
+### The census count, measured rather than extrapolated
+
+A sweep at this tip carries **279 distinct predicate names** at all
+three ε rows, against the committed M7 snapshot's 233: **59 in, 13
+out**. The 13 are the six pooled sector spellings (#652), the two
+`carrier_on_{iso_curve,seam_surface}` names, the three `demo_flush_*`
+names and the two `revolve_axis_*_in_plane` names. `props_meridian_pole`
+is **one** of the 59 — the census note's running chain above stops at a
+predicted 232 and is superseded here by a count, not continued by more
+arithmetic. The M2-era instrument's own population (`crates/sweep/tests/k_report.rs`,
+ten M2 acceptance shapes, ridden beside the linted CSV)
+reads 17 470 samples over 110 names at this tip, of which 24 are
+`props_meridian_pole`, all `zero`.
+
+**Nothing above re-cuts a committed row and nothing above rewrites a
+dated figure.** The M2-era, M4, M5 and M7 numbers in this report
+describe the snapshots they name and still describe them correctly; the
+figures here describe `ada6bba9` and are dated as such.

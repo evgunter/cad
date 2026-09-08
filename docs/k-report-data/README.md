@@ -16,6 +16,16 @@ reader who arrives by `grep` knows which era a row belongs to.
 | `m5-eps-*.csv.gz` | M5, curved corpus | 2026-08-03 | M5 addendum |
 | `m7-eps-*.csv.gz` | M7, current lint baseline | 2026-08-07 | M7 addendum (floor refresh) |
 
+**M7 is still the current one, and that is checked rather than
+assumed.** A fresh sweep at `ada6bba9` (2026-09-08) re-derives both
+calibrated constants' witnesses — `volume_backstop` at 4.79652e-5 and
+`props_quad_converged` at 164.674·ε — **pointwise identical** to M7's
+at all three ε rows, and the zero side's ceiling
+(`pm_census_ee_span`, 5.32907e-15) is identical too. So no new era was
+cut, even though the roster has since grown from 233 names to 279:
+K-REPORT's M11 addendum is that reading, and rule 1 below is why a
+roster growth on its own is not a re-cut.
+
 ## The two rules that govern this directory
 
 1. **These rows are what the sweep script wrote. Nothing is ever
