@@ -23,8 +23,8 @@
 //!   — declared contact is M9's territory, and a scene that faked one
 //!   here would be claiming a certification nothing issued.
 //! - **the spout** — a cone-frustum tube, built about its own axis and
-//!   placed by `transform_rigid`.
-//! - **the handle** — one `tube_along_arc` window, its two roots
+//!   placed by `Node::Transform`.
+//! - **the handle** — one `Node::Tube` window, its two roots
 //!   driven through the belly wall — 11.2 mm past it, measured, which
 //!   is what makes the union a real request and is also why a teapot
 //!   built this way would leak (see `HANDLE_OVER`).
@@ -153,22 +153,32 @@
 //!    requests, and the difference is the NAME emitter.**
 //!    `fillet_edges` rolls all three rims in one request. The same
 //!    three rims through `Node::Fillet` refuse `Naming(Duplicate)`,
-//!    and the duplicate says which: two of them — the flange's rim and
-//!    the dome's foot — are the two ends of ONE meridian segment (the
-//!    flange cone), so both bands slit that segment's seam meridian,
-//!    and `RoleSeg::BandSlit` names a slit by *the source edge whose
+//!    and the duplicate says which: the flange's rim and the dome's
+//!    foot are the two ends of ONE meridian segment (the flange cone),
+//!    so both of their bands slit THAT segment's seam meridian, and
+//!    `RoleSeg::BandSlit` names a slit by *the source edge whose
 //!    severed piece became it*. Two slits, one source name.
+//!
+//!    **The shape is "two bands slitting one meridian", not "two
+//!    adjacent rims"**, and this lid is where the difference shows: a
+//!    band slits exactly one of its two supports' seams, so the rims
+//!    at vertices 1 and 2 collide while `{2, 3}` and `{3, 4}` —
+//!    adjacent pairs both — compose in one request. Adjacency is
+//!    necessary and not sufficient. `tests/teapot_document.rs` is that
+//!    table, executed, beside the equality the split owes: the two
+//!    requests build the kernel's one-request body, same census, same
+//!    three bands bit for bit, same mass — and a different face ORDER,
+//!    which is the whole of what the conversion moved.
 //!
 //!    The scene therefore asks TWICE — the flange's rim, then the
 //!    dome's foot and the knob's top against the carried names — which
-//!    is what a user would have to do and is the same geometry by
-//!    every number in the note below (9/18/9, three ring-free tori at
-//!    the three closed-form spine stations, the same ΔV). Recorded
-//!    rather than worked around: the roll of any two adjacent latitude
-//!    rims on any solid of revolution has this shape, and what the
-//!    vocabulary is missing is a discriminator on `BandSlit` saying
-//!    WHICH band slit the edge — the way `BandTrim` already carries
-//!    its `RimSupport`.
+//!    is what a user would have to do. The one-request refusal is
+//!    ATTEMPTED live in [`per_rim_answers`] and pinned there, so the
+//!    day the vocabulary grows the discriminator this wants — one on
+//!    `BandSlit` saying WHICH band slit the edge, the way `BandTrim`
+//!    already carries its `RimSupport` — the scene goes red and says
+//!    to go back to one request and re-cut the tess-budget baseline
+//!    back with it.
 //!
 //! # What this scene deliberately does NOT do
 //!
@@ -273,8 +283,10 @@ const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
 /// the lid's profile ANNULAR, and therefore what makes its latitude
 /// rims closed edges. See the module docs' finding 3.
 const R_VENT: f64 = 1.0 / 256.0;
-/// The roll, asked once for all three of the lid's rims — the radius
-/// is per REQUEST, not per edge.
+/// The roll, one radius for all three of the lid's rims — per
+/// REQUEST rather than per edge, which is what lets the two requests
+/// the naming gap forces (the module docs' sixth finding) be one
+/// parameter.
 const ROLL: f64 = 2.0 / 256.0;
 
 // ---------------------------------------------------------------------
@@ -604,7 +616,8 @@ struct Recipe {
     cup: RecipeNodeId,
     /// The lid before its rims roll.
     plain_lid: RecipeNodeId,
-    /// The lid with its three rims rolled in ONE fillet request.
+    /// The lid with its three rims rolled — in TWO fillet requests at
+    /// one radius, for the reason the sixth finding gives.
     lid: RecipeNodeId,
     /// The spout about its OWN axis — the node whose bands name the
     /// root annulus the placement is measured on.
@@ -700,7 +713,7 @@ fn build_doc(tol: Tol) -> Recipe {
 
     // ---- the lid ----
     let plain_lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
-    // THREE rims, THREE DIFFERENT coaxial arms, ONE call. The radius
+    // THREE rims, THREE DIFFERENT coaxial arms. The radius
     // is per REQUEST, not per edge, and each later rim's seam-piece
     // identities are re-read against the partially-carved body, so the
     // convenient spelling is the door's grain.
@@ -714,13 +727,15 @@ fn build_doc(tol: Tol) -> Recipe {
     // GAP (the module docs' sixth finding): the KERNEL door rolls all
     // three rims in one request and the document layer cannot NAME
     // that output. The flange's rim and the dome's foot stand at the
-    // two ends of the flange cone, so both bands slit that segment's
+    // two ends of the flange cone, so both bands slit THAT segment's
     // seam meridian, and `RoleSeg::BandSlit` carries only the source
-    // edge it severed — two slits, one name, `Naming(Duplicate)`. So
-    // the roll is TWO requests at one radius, which is what a user
-    // would have to write; the second names its rims as the first
-    // carried them through, since a survivor is `FromTarget` of the
-    // name it had.
+    // edge it severed — two slits, one name, `Naming(Duplicate)`. The
+    // test is which meridian a band slits, not whether two rims are
+    // adjacent: `{2, 3}` and `{3, 4}` are adjacent and compose in one
+    // request (`tests/teapot_document.rs`). So the roll is TWO
+    // requests at one radius, which is what a user would have to
+    // write; the second names its rims as the first carried them
+    // through, since a survivor is `FromTarget` of the name it had.
     let first = insert(
         &mut doc,
         Node::fillet(
@@ -1455,7 +1470,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     for (what, answer) in per_rim_answers(tol) {
         println!("   {what}: {answer}");
     }
-    // THREE rims, THREE DIFFERENT coaxial arms, ONE call. The lid is
+    // THREE rims, THREE DIFFERENT coaxial arms. The lid is
     // the tour's carrier of the curved-support fillet family now that
     // `bud` is off the sheet: the flange rim is cone × plane(⊥), the
     // dome's foot is sphere × cone, and the knob's top is
@@ -2007,10 +2022,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              THREE closed latitude rims roll, in TWO requests where the kernel door \
              takes one — the flange's rim, then the dome's foot and the knob's top — \
              because the flange's rim and the dome's foot are the two ends of ONE \
-             meridian segment, both bands slit that segment's seam, and a `BandSlit` is \
+             meridian segment, both bands slit THAT segment's seam, and a `BandSlit` is \
              named by the source edge it severed, so one request cannot NAME its own \
-             output (the module docs' sixth finding; the kernel geometry is the same \
-             either way and every number here says so). Their supports are three \
+             output. The test is the shared MERIDIAN and not adjacency: the adjacent \
+             pairs at the knob compose in one request, and `tests/teapot_document.rs` \
+             tabulates which do and pins the two spellings' bodies equal — same census, \
+             the same three bands bit for bit, the same mass, a different face order. \
+             Their supports are three \
              DIFFERENT coaxial arms: the flange's rim is cone x plane(perp), the dome's \
              foot is SPHERE x CONE — the arm no plane-supported scene reaches — and the \
              knob's top is cylinder x plane. Every band is a ring-free TORUS, which is \
