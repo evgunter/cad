@@ -50,7 +50,6 @@ mod klein;
 mod letterforms;
 mod lily;
 mod mate7a_r2_probes;
-mod paths;
 #[cfg(feature = "probe")]
 mod probe;
 mod projectbox;
