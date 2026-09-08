@@ -5,6 +5,8 @@ title: the four bare vocabularies list their words a second time in a label matc
 status: closed
 opened: 2026-09-06
 closed: 2026-09-08
+pr: 2143
+branch: view/labelled
 ---
 
 
