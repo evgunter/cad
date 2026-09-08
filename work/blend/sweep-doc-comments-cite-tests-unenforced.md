@@ -52,39 +52,38 @@ its `naming.rs:32` finding.
 
 Moved from `work/code-quality/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track T residue on `crates/sweep/src/*`; the `emit_blend.rs` site is EVAL's and announced.
 
+
 ## Landed (BLEND unit 5)
 
-Every doc- or code-comment citation of a `sweep` test in
-`crates/sweep/src/**` now carries ONE spelling, the one a `cargo test`
-filter resolves:
+Every doc- or code-comment citation of a `sweep` test row in
+`crates/sweep/src/**` now carries ONE spelling — the one
+`cargo test -p sweep --test all -- <filter>` actually resolves, because
+`tests/all.rs` mounts each suite as a module of one binary:
 
 ```
-crates/sweep/tests/<file>.rs::<row_name>
+<module>::<row_name>
 ```
 
-The corpus that spelling defines, and the grep that finds all of it:
+Measured, on this tree: the path spelling
+`crates/sweep/tests/m7_skin_integral.rs::the_uniform_loft_is_bitwise_unchanged`
+selects **0** tests; `m7_skin_integral::the_uniform_loft_is_bitwise_unchanged`
+selects **1**. A path-shaped citation is grep-resolvable and
+cargo-inert, so it is not the spelling.
 
-```
-rg -n 'crates/sweep/tests/[a-z0-9_]+\.rs::[a-z0-9_]+' crates/sweep/src
-```
+**The instrument is a row, not a gate.**
+`crates/sweep/tests/review_blend5_r5_probes.rs::every_test_citation_in_the_sweep_docs_resolves_to_a_test_row`
+reads every `<module>::<row>` in the prose of `crates/sweep/src/**`
+(through `test_utils::source::comments_only`), and requires that
+`crates/sweep/tests/<module>.rs` declare `<row>` as a `#[test]`. A
+rename or a deletion of a cited row turns it red; a helper name in a
+citation turns it red too (it caught one when it landed,
+`review_blend6_r1_probes::seeds`). Its floor asserts the corpus is
+non-empty: 45 citations at the landing SHA. Nothing is filed for GATES.
 
-29 hits at the landing SHA, across eight files (`skin.rs` 2,
-`blend/mod.rs` 13, `blend/surgery.rs` 5, `blend/open/ruled.rs` 3,
-`blend/naming.rs` 2, `extrude.rs` 2, `blend/battery.rs` 1,
-`test_support.rs` 1). The complement — a citation naming a test file in
-any OTHER shape — is empty, and stays checkable with:
-
-```
-rg -n 'tests/[a-z0-9_]+\.rs' crates/sweep/src | grep -v 'crates/sweep/tests/[a-z0-9_]*\.rs::'
-```
-
-What the spelling does NOT buy is the instrument: nothing resolves the
-row name to a function, so a rename or a deletion still leaves the
-sentence exactly as true-looking as it was. The unit found one of each
-already rotted (`review_fillet_e2_probes.rs`'s line-ring row renamed;
-`review_pr12_probes.rs` cited for a claim only a printing probe
-reaches). That gate is GATES' ground — `scripts/gates/*`, resolving the
-citation to an existing `#[test] fn` — and is filed, not built here. It
-catches renames and deletions and cannot catch a narrowed assertion.
-`work/code-quality/doc-line-citations-rot-silently.md` is the sibling
-class for `file:line` citations.
+What it does NOT buy, stated: a row that still exists and asserts LESS
+than the sentence says resolves green. That half needs a reader, and
+this unit found four instances of it by reading. The corpus is
+`crates/sweep/src/**` citing `crates/sweep/tests/**` only; a citation to
+another crate's suite (`admit.rs` naming a `test-utils` row) is outside
+it and the row says so. `work/code-quality/doc-line-citations-rot-silently.md`
+is the sibling class for `file:line` citations.

@@ -789,8 +789,12 @@ pub fn corner_config<T: Decide + Bounds>(
 /// inward normals — the box, and every prism's opposite cap edges) and
 /// CONSERVATIVE when they meet at an angle, because each blend then
 /// eats along its own inward normal rather than along the gap. The
-/// reviewer's witness is a unit hexagonal prism: this refuses from
-/// `r = 0.5` although the cap survives to the apothem `0.866`.
+/// reviewer's witness is a unit hexagonal prism: this builds up to
+/// `r = 0.499` and refuses from `r = 0.51` against a gap of exactly
+/// `1.0`, the hexagon's SIDE
+/// (`m5_pr12_fix_pass::f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon`).
+/// That the cap survives to the apothem `0.866` is the witness's
+/// premise, derived from the hexagon and asserted by no row.
 ///
 /// The screen is kept in that shape deliberately. Its error is worded
 /// as "cannot certify" rather than "consumes", so no false fact is
@@ -1124,7 +1128,7 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// rod with a flat milled along it, the CONCAVE side carves a rod's
 /// section standing on a block's top edge (the sunk rod, built through
 /// the extrude door —
-/// `crates/sweep/tests/review_fillet_h7_r1_probes.rs::a_sunk_rod_has_concave_ruled_creases_that_add_material`
+/// `review_fillet_h7_r1_probes::a_sunk_rod_has_concave_ruled_creases_that_add_material`
 /// pins its material-adding band at `ΔV = +2·A·L`). The boolean
 /// cannot build either concave fixture (two parallel cylinders unioned
 /// refuse at the curved-pierce door; a block ∪ cylinder at the join

@@ -49,12 +49,15 @@
 //! the surface pass, and the combinatorics are the same on a concave
 //! chain — the cap face then GAINS the region under the arc rather
 //! than losing it, which is what "the band adds material" means here.
-//! Both sides are pinned through the extrude door: the rod with a flat
+//! Both sides are pinned through the extrude door: a D-profile rod
 //! (convex, `ΔV = −2·A·L`,
-//! `crates/sweep/tests/fillet_h7_transverse_cap.rs::the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form`)
+//! `fillet_h7_transverse_cap::the_d_profile_rod_carves_through_a_cap_arc_past_pi`)
 //! and a rod's section standing on a block's top edge (concave,
 //! `ΔV = +2·A·L`,
-//! `crates/sweep/tests/review_fillet_h7_r1_probes.rs::a_sunk_rod_has_concave_ruled_creases_that_add_material`).
+//! `review_fillet_h7_r1_probes::a_sunk_rod_has_concave_ruled_creases_that_add_material`).
+//! The convex side has a boolean-built twin beside it — the rod with a
+//! flat, `rod ∖ box`, at
+//! `fillet_h7_transverse_cap::the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form`.
 //! The boolean builds neither
 //! concave fixture — the parallel-cylinder union refuses at its
 //! curved-pierce door, the block ∪ cylinder at its join lane — which is
@@ -161,7 +164,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
         // checked, deliberately: the cut-off `mef` runs on the cap's
         // outer cycle and leaves the old face's rings on the old face,
         // so a bored rod's cap keeps its bore
-        // (`crates/sweep/tests/review_fillet_h7_r1_probes.rs::a_cap_carrying_a_ring_keeps_it_through_the_cut_off`).
+        // (`review_fillet_h7_r1_probes::a_cap_carrying_a_ring_keeps_it_through_the_cut_off`).
         let (hp, hm) = halves_of(body, edge)
             .ok_or_else(|| not_intact(EntityId::Edge(edge), "a ruled link's edge"))?;
         for (face, half) in [(l.face_a, hp), (l.face_b, hm)] {

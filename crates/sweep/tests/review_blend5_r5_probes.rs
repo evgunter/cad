@@ -2,15 +2,18 @@
 //! `crates/sweep/src/**` that names a test row as its evidence is a
 //! citation, and these rows RESOLVE every one of them.
 //!
-//! **Two spellings are live in the tree, and each row here reads one.**
-//! The path spelling `crates/sweep/tests/<file>.rs::<row>` is the one
-//! unit 5 normalised to; the module spelling `<file>::<row>` (no
-//! `.rs`, no path) is what `cargo test -p sweep --test all --
-//! <file>::<row>` actually filters on, because `tests/all.rs` mounts
-//! every suite as a module of one binary. A rename or a deletion of a
-//! cited row goes red here in either spelling; a row that still exists
-//! and asserts less than the sentence says is the half no resolver can
-//! see, and is not claimed.
+//! **One spelling, `<module>::<row>`** — no `.rs`, no path. It is what
+//! `cargo test -p sweep --test all -- <module>::<row>` filters on,
+//! because `tests/all.rs` mounts every suite as a module of one
+//! binary; a path spelling reads as a filter that selects nothing. A
+//! rename or a deletion of a cited row goes red here. A row that still
+//! exists and asserts less than the sentence says is the half no
+//! resolver can see, and is not claimed.
+//!
+//! The corpus is `crates/sweep/src/**` citing `crates/sweep/tests/**`.
+//! A citation to another crate's suite — `admit.rs`'s
+//! `reader_census::…`, in `test-utils` — is outside it: this row can
+//! only read its own crate's `tests/` directory.
 //!
 //! Prose is read through `test_utils::source::comments_only`, so a
 //! citation inside a string literal or a `#[doc = "…"]` attribute is
@@ -60,35 +63,6 @@ fn sweep_prose() -> Vec<(String, String)> {
 /// The line number (1-based) of byte offset `at` in `text`.
 fn line_of(text: &str, at: usize) -> usize {
     text[..at].matches('\n').count() + 1
-}
-
-/// Every `crates/sweep/tests/<file>.rs::<row>` in the prose.
-fn path_citations() -> Vec<Citation> {
-    const NEEDLE: &str = "crates/sweep/tests/";
-    let mut out = Vec::new();
-    for (rel, prose) in sweep_prose() {
-        let mut from = 0;
-        while let Some(i) = prose[from..].find(NEEDLE) {
-            let start = from + i + NEEDLE.len();
-            let file_end = ident_end(&prose, start);
-            from = file_end;
-            if !prose[file_end..].starts_with(".rs::") {
-                continue;
-            }
-            let row_start = file_end + ".rs::".len();
-            let row_end = ident_end(&prose, row_start);
-            if row_end == row_start {
-                continue;
-            }
-            out.push(Citation {
-                at: format!("src/{rel}:{}", line_of(&prose, start)),
-                suite: prose[start..file_end].to_owned(),
-                row: prose[row_start..row_end].to_owned(),
-            });
-            from = row_end;
-        }
-    }
-    out
 }
 
 /// Every backticked `<module>::<row>` in the prose whose `<module>.rs`
@@ -148,23 +122,10 @@ fn declares_test_row(code: &str, row: &str) -> bool {
     false
 }
 
-/// Whether `code` declares `fn <row>(` at all — a module path may name a
-/// helper (`review_blend6_r1_probes::seeds`), which is a citation of a
-/// FUNCTION and resolves as one.
-fn declares_fn(code: &str, row: &str) -> bool {
-    let needle = format!("fn {row}(");
-    let mut from = 0;
-    while let Some(i) = code[from..].find(&needle) {
-        let at = from + i;
-        from = at + needle.len();
-        if at == 0 || code.as_bytes()[at - 1].is_ascii_whitespace() {
-            return true;
-        }
-    }
-    false
-}
-
-fn resolve(tests: &Path, cites: &[Citation], must_be_test: bool) -> Vec<String> {
+/// Every citation resolved, one message per miss. A citation must name
+/// a `#[test]`: a module path can also name a helper
+/// (`review_blend6_r1_probes::seeds`), and a helper is not evidence.
+fn resolve(tests: &Path, cites: &[Citation]) -> Vec<String> {
     let mut misses = Vec::new();
     for c in cites {
         let suite = tests.join(format!("{}.rs", c.suite));
@@ -172,59 +133,42 @@ fn resolve(tests: &Path, cites: &[Citation], must_be_test: bool) -> Vec<String> 
             misses.push(format!("{}: no suite file tests/{}.rs", c.at, c.suite));
             continue;
         };
-        let code = code_only(&text);
-        let ok = if must_be_test {
-            declares_test_row(&code, &c.row)
-        } else {
-            declares_fn(&code, &c.row)
-        };
-        if !ok {
+        if !declares_test_row(&code_only(&text), &c.row) {
             misses.push(format!(
-                "{}: tests/{}.rs declares no {}`fn {}`",
-                c.at,
-                c.suite,
-                if must_be_test { "`#[test]` " } else { "" },
-                c.row
+                "{}: tests/{}.rs declares no `#[test] fn {}`",
+                c.at, c.suite, c.row
             ));
         }
     }
     misses
 }
 
-/// **Every path-spelled citation resolves.** The corpus is the one
-/// grep PR 2155 hands to the gate; a rename or a deletion of a cited
-/// row is what goes red.
+/// **Every test citation in the `sweep` docs resolves to a `#[test]`.**
+///
+/// A doc or code comment under `crates/sweep/src/**` that names a row
+/// as its evidence writes it `<module>::<row>`, and this row walks all
+/// of them: the suite file must exist under `crates/sweep/tests/` and
+/// must declare `<row>` as a `#[test]`. A rename or a deletion of a
+/// cited row goes red here, which is the half of the class that can be
+/// mechanised; whether the row still ASSERTS what the sentence says is
+/// the half that cannot, and is not claimed.
+///
+/// The floor keeps it non-vacuous: the corpus was 45 citations when
+/// this row was written, so a reader that silently stopped matching
+/// would fail here rather than pass over an empty list.
 #[test]
-fn every_path_spelled_test_citation_in_the_sweep_docs_resolves_to_a_test_row() {
-    let tests = crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let cites = path_citations();
-    assert!(
-        cites.len() >= 8,
-        "the corpus is not empty: unit 5 left one citation per touched file at least, \
-         found {}",
-        cites.len()
-    );
-    let misses = resolve(&tests, &cites, true);
-    assert!(
-        misses.is_empty(),
-        "{} of {} path-spelled citations do not resolve:\n{}",
-        misses.len(),
-        cites.len(),
-        misses.join("\n")
-    );
-}
-
-/// **Every module-spelled citation resolves too.** This spelling is
-/// the `cargo test` filter, and it is what unit 5's sweeps did not
-/// see: the corpus here is the count of the OTHER spelling still live.
-#[test]
-fn every_module_spelled_test_citation_in_the_sweep_docs_resolves_to_a_test_row() {
+fn every_test_citation_in_the_sweep_docs_resolves_to_a_test_row() {
     let tests = crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
     let cites = module_citations(&tests);
-    let misses = resolve(&tests, &cites, false);
+    assert!(
+        cites.len() >= 40,
+        "the corpus is not empty and the reader still matches: found {} citations",
+        cites.len()
+    );
+    let misses = resolve(&tests, &cites);
     assert!(
         misses.is_empty(),
-        "{} of {} module-spelled citations do not resolve:\n{}",
+        "{} of {} citations do not resolve:\n{}",
         misses.len(),
         cites.len(),
         misses.join("\n")
