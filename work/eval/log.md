@@ -592,3 +592,11 @@ and `docs/EVAL-9-SPEC.md` (the nominal joins the key; the profile
 stream's counts ride the same format bump, closing EVAL-2's residue;
 **to DOCM ((DOCM orchestrator))**: `memo.rs`'s slot hashing untouched,
 the feed lives at `content_key`).
+
+## Units 8 and 9 dispatched (2026-09-08)
+
+Both in their own worktrees off the orchestrator branch, in parallel
+(different files: unit 8 on `wire.rs`'s `Pinned` arm, `anchor.rs`,
+`crates/profile` and the kstats/m4/m10_6 rows; unit 9 on
+`content_key`, `mod tag` and a new interval row); whichever merges
+second merges main first. Correctness arms on both.
