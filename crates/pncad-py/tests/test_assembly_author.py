@@ -453,7 +453,12 @@ class TestBenchStand(BenchWorkspace):
         and `declare_all`. A door that swaps the document without the
         record leaves the reading describing an EARLIER edit, which is
         worse than no reading — it is a plausible one about the wrong
-        subject."""
+        subject.
+
+        The recorded refactorings are the fifth and sixth doors, and
+        they answer for a whole edit LIST rather than one edit:
+        `test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed`
+        is their half of the same funnel."""
         doc, (post_a, _shelf_i, post_b), (mate_1, mate_2) = self.stand()
         # `insert`: the stand's second mate joins post_b's cluster into
         # post_a's, and that join is what the door just accepted.
@@ -490,6 +495,65 @@ class TestBenchStand(BenchWorkspace):
         self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
         doc.declare_all(findings)
         self.assertEqual(doc.last_maintenance, [])
+
+    def test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed(
+        self,
+    ):
+        """`split` and `inline` mint document VALUES rather than
+        swapping one in place, and each value is produced by applying a
+        list of edits that moves the mate graph. The document and what
+        its edits did to the placement registry cross together, so
+        `last_maintenance` on a refactoring's document reads that
+        refactoring's own record.
+
+        An empty list would be indistinguishable from "nothing moved",
+        which is why the scene is a whole cluster: cutting it out
+        DISSOLVES it in the remainder and RE-FORMS it in the part, so
+        both halves have something to report."""
+        doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
+        self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i, post_b]])
+
+        outcome = pncad.split(
+            doc, [post_a, shelf_i, post_b, mate_1, mate_2], random_document_id()
+        )
+        # The part is built from empty by inserting the cut nodes, and
+        # each mate welds two members as it lands: one join per mate.
+        part = outcome.part
+        self.assertEqual([r.variant for r in part.last_maintenance], ["join", "join"])
+        # The remainder loses the cluster: deleting the mates splits it.
+        remainder = outcome.remainder
+        self.assertEqual(
+            [r.variant for r in remainder.last_maintenance], ["split", "split"]
+        )
+        # The record is a fact about the document handed back, not a
+        # fact about `outcome`: reading the same getter again answers
+        # the same. And the door is PURE, so the input's own reading is
+        # untouched — still the join the stand's second mate performed,
+        # never the refactoring's.
+        self.assertEqual(
+            [r.variant for r in outcome.part.last_maintenance], ["join", "join"]
+        )
+        self.assertEqual([r.variant for r in doc.last_maintenance], ["join"])
+
+        # `inline`, splicing the part back. The instance inherited the
+        # cluster's gauge frame, and a part whose roots are plain
+        # recipe geometry has nowhere local to put one — the kernel
+        # refuses that rather than dropping the pose — so the frame is
+        # returned to the identity first, through the door that keeps
+        # the reading honest.
+        self.ws.create(outcome.part)
+        remainder.apply(
+            DocEdit.set_placement(
+                outcome.instance, Frame.translation((0 * m, 0 * m, 0 * m))
+            )
+        )
+        spliced = pncad.inline(remainder, outcome.instance, self.ws)
+        # The part's own mates weld their spliced members as they land,
+        # and the instance's delete drops its cluster's row.
+        self.assertEqual(
+            [r.variant for r in spliced.doc.last_maintenance],
+            ["join", "join", "drop"],
+        )
 
     def test_only_the_gauge_carries_an_authored_frame(self):
         doc, (post_a, shelf_i, post_b), _ = self.stand()
