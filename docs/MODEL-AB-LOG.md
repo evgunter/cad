@@ -189,9 +189,11 @@ amended:
      **VERBS 100–199 · PCURVE 200–299 · LIB 300–399 · GUI 400–499
      (claimed 2026-08-27 at the GUI program's opening —
      `docs/GUI-LOG.md`) · M10 500–599 (claimed 2026-08-29 at the
-     M10 program's opening — `docs/M10-LOG.md`) · BLEND 600–699
+     M10 program's opening — `docs/M10-LOG.md`) · S-BLEND 600–699
      (claimed 2026-08-29 at the S-BLEND program's opening —
-     `docs/S-BLEND-LOG.md`) · S-CERT 700–799 (claimed 2026-08-29
+     `docs/S-BLEND-LOG.md`; labelled BLEND until 2026-09-08, when the
+     successor program BLEND's first claim below made the name
+     ambiguous) · S-CERT 700–799 (claimed 2026-08-29
      at the S-CERT program's opening — `docs/S-CERT-LOG.md`;
      opened concurrently with S-BLEND, both drew 600 within the
      hour, BLEND's claim reached main first, S-CERT renumbered per
@@ -4938,3 +4940,23 @@ touch) and the lane re-ran the same head by draft/undraft (the rerun
 API is 403 for this integration) to green — recorded here as the
 lane's action, judged at the row. Sample number assigned at merge in
 main's merge order.
+
+BLEND-6 review ordinal fixed at dispatch (2026-09-08, PR #2215 open —
+frozen head `41b45adc4`): **ordinal 2900** (BLEND band; first
+claimant). Pre-draw fields at the spec (`docs/BLEND-6-SPEC.md`):
+difficulty **M**, task-class **NUMERIC** — logged 2026-09-07 before
+block BLEND-B1's draw. Implementer arm per block BLEND-B1 slot 0
+(record branch-side on `blend/b1-block`). Protocol v6 dual: draw =
+`/dev/urandom` byte **67**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `41b45adc4`, both briefs authored and STORED with sha256 on
+`blend/b1-block` (`work/blend/logs/blend-6-review-brief-{r1,r2}.md`,
+identical modulo lane names and paths, verified by diff) before
+either dispatches; neither reviewer sees the other's report; v6 item
+5 isolation in both briefs; PRIVATE `CARGO_TARGET_DIR` per reviewer,
+seeded from one warm build, on one four-core cloud box beside the
+idle implementer worktree — a method note on both arms equally; the
+implementer's unit log entry is not written until the dual concludes.
+The spec's two measured errors (the dome rim's convexity label and its
+oracle; the "nothing meters them today" premise) are stated in both
+briefs as the lane's corrections to be verified, not as premises.
