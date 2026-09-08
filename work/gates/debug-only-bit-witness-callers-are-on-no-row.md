@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-06
 branch: gates/bit-witness-callers
 pr: 2069
-closed: 2026-09-06
+closed: 2026-09-08
 ---
 
 

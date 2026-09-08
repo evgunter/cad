@@ -7,7 +7,7 @@ opened: 2026-09-06
 refs: [home-anchored-file-skip-is-unescaped]
 branch: gates/whole-file-skips
 pr: 2077
-closed: 2026-09-06
+closed: 2026-09-08
 ---
 
 ## Finding

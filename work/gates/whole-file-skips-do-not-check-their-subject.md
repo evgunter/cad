@@ -7,7 +7,7 @@ branch: gates/skip-subject-check
 pr: 2156
 opened: 2026-09-06
 refs: [whole-file-skips-are-hand-spelled-not-anchored]
-closed: 2026-09-06
+closed: 2026-09-08
 ---
 
 ## Finding
