@@ -744,6 +744,86 @@ class TestLoftPrism(unittest.TestCase):
         self.assertFalse(ev.succeeded(overdegree), "degree 3 needs four sections")
 
 
+class TestTheVDegreeParamBinding(unittest.TestCase):
+    """`bind_v_degree_param` — the loft's own structural slot, bound.
+
+    `TestLoftPrism`'s scene twice over, because the degree is what the
+    scene is FOR: the same three sections skinned at degree 2 enclose
+    9 m^3 (the quadratic Lagrange interpolant through the trapezoid),
+    and at degree 1 they enclose 8.75 — two prismatoids ruled straight
+    between consecutive sections, whose slice area is linear in the
+    span parameter, giving 2 * (4 + 4.75) / 2 per span. So the
+    parameter is not a round trip through a slot: moving it moves a
+    measured quantity by a quarter of a cubic metre."""
+
+    DEGREE_2 = 9.0
+    DEGREE_1 = 8.75
+
+    def volume(self, doc, node):
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(node), "the loft evaluated")
+        return ev.value(node).body().mass_properties()
+
+    def test_one_set_doc_param_moves_the_skin(self):
+        doc = Doc()
+        prism = prism_loft(doc, [0.0, 1.0, 2.0])
+        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(2)))
+        doc.apply(DocEdit.bind_v_degree_param(prism, ParamName("skin")))
+
+        bound = self.volume(doc, prism)
+        self.assertLessEqual(
+            abs(bound.volume - self.DEGREE_2), bound.volume_pad + 1e-9
+        )
+
+        # The whole point: ONE edit, and the solid is a different
+        # solid. A literal degree would have been a re-authoring.
+        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(1)))
+        ruled = self.volume(doc, prism)
+        self.assertLessEqual(
+            abs(ruled.volume - self.DEGREE_1), ruled.volume_pad + 1e-9
+        )
+        self.assertLess(ruled.volume, bound.volume - 0.2)
+
+    def test_the_kernel_still_checks_the_value(self):
+        """Binding moves WHERE the degree comes from, not what the
+        kernel will accept: degree 3 through three sections refuses at
+        evaluation, bound exactly as it does literal."""
+        doc = Doc()
+        prism = prism_loft(doc, [0.0, 1.0, 2.0])
+        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(2)))
+        doc.apply(DocEdit.bind_v_degree_param(prism, ParamName("skin")))
+        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(3)))
+        self.assertFalse(evaluate(doc).succeeded(prism))
+
+    def test_the_door_names_its_own_slot(self):
+        """One door per structural slot: a loft has no count and no
+        instance, and the count door aimed at one says which slot it
+        went looking for."""
+        doc = Doc()
+        prism = prism_loft(doc, [0.0, 1.0, 2.0])
+        doc.apply(DocEdit.set_doc_param(ParamName("skin"), DocParam.count(2)))
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.bind_count_param(prism, ParamName("skin")))
+        self.assertEqual(caught.exception.variant, "unknown_slot")
+        self.assertEqual(caught.exception.slot, "count")
+
+        # And the v-degree door aimed at a node that has no skin.
+        box = doc.insert(
+            Node.extrude(
+                doc.insert(
+                    Node.polygon(
+                        [(x * m, y * m) for x, y in PRISM_SQUARE],
+                        plane=doc.sketch_frame(),
+                    )
+                ),
+                1 * m,
+            )
+        )
+        with self.assertRaises(EditError) as absent:
+            doc.apply(DocEdit.bind_v_degree_param(box, ParamName("skin")))
+        self.assertEqual(absent.exception.variant, "unknown_slot")
+        self.assertEqual(absent.exception.slot, "v_degree")
+
 class TestNonuniformLoft(unittest.TestCase):
     """Tour scene `nonuniform_loft` (demos/tour/src/skinned.rs, row
     19): `loft_prism`'s OWN sections and height with only the middle
@@ -3678,6 +3758,20 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # a plural payload fed nothing, and `part` is what it feeds.
         # The positive form is `tests/test_part_select.py`.
         #
+        # `union` JOINED this list with `DocEdit.set_members` and
+        # `DocEdit.bind_v_degree_param`, and the three are why this
+        # roster exists: none of them is visible to
+        # `test_binding_census.py`, which accounts `Node` and
+        # `DocEdit` WHOLE under its rule 1 and so can never report a
+        # missing ARM behind a bound name. `union` is the n-ary fold
+        # over a member LIST, `set_members` the edit that rewrites
+        # one, and `bind_v_degree_param` the third door naming a
+        # structural slot. `Stations` is the fourth such slot and has
+        # no door: its only node is the sweep, which has no
+        # constructor to aim an edit at. The positive forms are
+        # `tests/test_union.py` and `TestTheVDegreeParamBinding`
+        # above.
+        #
         # `measure` and `assertion` JOINED it at LIB-B-MEASURES, which
         # closed B-MEASURES. They are the last two of the kernel's
         # twenty-five recipe node kinds to become constructible from
@@ -3698,15 +3792,16 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "loft", "mate", "measure", "part", "pattern",
                 "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
-                "split", "transform", "tube",
+                "split", "transform", "tube", "union",
             ],
         )
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
-                "bind_count_param", "bind_instance_param", "delete_node",
-                "insert_node",
-                "set_doc_param", "set_doc_param_value", "set_placement",
+                "bind_count_param", "bind_instance_param",
+                "bind_v_degree_param", "delete_node",
+                "insert_node", "set_doc_param", "set_doc_param_value",
+                "set_members", "set_placement",
                 "set_roots", "set_tolerance", "update_reference",
             ],
         )

@@ -305,10 +305,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ProfileProgramRefused { .. } => "profile_program_refused",
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
-        // The list-input door's three (DM4/DM5). Tags only: the Python
-        // SURFACE for `Node.union` and `SetMembers` is LIB's build,
-        // and this match is exhaustive, so the crate's compile is what
-        // requires these rows and nothing else here changes.
+        // The list-input door's three (DM4/DM5), reached from Python
+        // through `Node.union` and `DocEdit.set_members` — the node
+        // whose members are a list and the edit that rewrites one.
         EditError::DuplicateInput { .. } => "duplicate_input",
         EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",

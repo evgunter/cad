@@ -1712,6 +1712,11 @@ impl Node {
     /// sections different planes (`elevation=`, or `plane=` for
     /// anything else).
     ///
+    /// The degree crosses as a literal here and is the node's
+    /// `VDegree` slot — `DocEdit.bind_v_degree_param` is what makes it
+    /// a named, editable number, and `DocEdit.set_members` is what
+    /// rewrites the section list without re-authoring the node.
+    ///
     /// Nothing is pre-checked here. An empty or one-element list, a
     /// degree outside `1 ≤ d ≤ len − 1`, a section that is not a
     /// profile, sections whose loops do not correspond — every one of
@@ -2128,6 +2133,45 @@ impl Node {
                 op: op.to_document(),
                 a: a.0,
                 b: b.0,
+                declare: declare.map(|d| d.0),
+            },
+        }
+    }
+
+    /// **The n-ary union**: two or more member bodies folded into ONE
+    /// body, in the LIST's order (D9 — the fold order is the list's,
+    /// and the list is data).
+    ///
+    /// Not `Node.boolean`, which is the BINARY operation over two
+    /// named operand slots, and not `Node.placed_union`, whose
+    /// members are one prototype under a placement rule. Here every
+    /// member is authored on its own and the membership is a list, so
+    /// `DocEdit.set_members` can rewrite it on the live node — which
+    /// is the whole reason this node exists rather than a chain of
+    /// booleans, whose shape can only be re-authored.
+    ///
+    /// `declare` is the same optional coincidence-intent input
+    /// `Node.boolean` carries, consumed the same way one step further
+    /// in: the fold's steps are pairs, and a declared pair is fed at
+    /// the step its two members meet at. Without one, members that
+    /// merely TOUCH refuse (`EvaluationError`,
+    /// `kind == "undeclared_contact"`), exactly as a binary boolean's
+    /// operands do.
+    ///
+    /// Refuses at `Doc.insert`, of the list as stated: fewer than two
+    /// members (`too_few_members`, carrying the `count` it found), a
+    /// member repeated (`duplicate_input`, naming it), a member id the
+    /// document does not hold (`unresolved_input`), a `declare` input
+    /// that is not a `Node.declare` (`declare_input_not_declare`).
+    /// Whether a member is a BODY is not asked here — that is the
+    /// kernel's question at `evaluate`, as it is at every other
+    /// operand seat.
+    #[staticmethod]
+    #[pyo3(signature = (members, declare=None))]
+    fn union(members: Vec<NodeId>, declare: Option<NodeId>) -> Self {
+        Self {
+            inner: d::Node::Union {
+                members: members.iter().map(|m| m.0).collect(),
                 declare: declare.map(|d| d.0),
             },
         }
@@ -2856,9 +2900,11 @@ impl DocParamValue {
 /// GUI, the bindings, macro recording and headless tests.
 ///
 /// The exposed edits are `insert_node`, `delete_node`,
-/// `set_tolerance`, `set_doc_param`, and `bind_count_param` /
-/// `bind_instance_param`, the structural-slot edit narrowed to one
-/// named slot and a parameter reference. The remaining variants (continuous
+/// `set_members`, `set_tolerance`, the document-parameter pair
+/// (`set_doc_param` / `set_doc_param_value`), `set_roots`,
+/// `set_placement`, `update_reference`, and `bind_count_param` /
+/// `bind_instance_param` / `bind_v_degree_param`, the structural-slot
+/// edit narrowed to one named slot and a parameter reference. The remaining variants (continuous
 /// slot edits, re-witnessing, appearance, rebinds, expression paths)
 /// are mechanical additions once the surface they need is curated —
 /// each waits on an expression vocabulary, which is the reason the
@@ -2888,6 +2934,39 @@ impl DocEdit {
     fn delete_node(id: &NodeId) -> Self {
         Self {
             inner: d::DocEdit::DeleteNode { id: id.0 },
+        }
+    }
+
+    /// **Replace a node's whole LIST input** — a `Node.union`'s
+    /// members, a `Node.loft`'s sections — with the list stated in
+    /// full.
+    ///
+    /// The one edit that changes a live node's inputs, and it can be
+    /// that because it is unambiguous by construction: there is no
+    /// positional spelling and no per-entry arm, so nothing is
+    /// inferred about which of the old entries survived or moved.
+    /// Dropping one member is this edit without it plus a
+    /// `DocEdit.delete_node` of the orphan, one committed action. A
+    /// union's `declare` input is left as it was: a member-space pair
+    /// re-routes to the step its two members now meet at rather than
+    /// being invalidated by the rewrite.
+    ///
+    /// Every check `Doc.insert` makes of a node's inputs is remade
+    /// here, of the REWRITTEN node, so this edit cannot reach a state
+    /// an insert would have refused: `unresolved_input` for a member
+    /// the document does not hold, `duplicate_input` for a repeat,
+    /// `too_few_members` for a list under the node's floor (carrying
+    /// the `count` it found), and `would_cycle` for a member
+    /// downstream of the node itself — the one refusal an insert gets
+    /// for free and this edit does not. A node carrying no list at all
+    /// refuses `set_members_on_non_list`.
+    #[staticmethod]
+    fn set_members(node: &NodeId, members: Vec<NodeId>) -> Self {
+        Self {
+            inner: d::DocEdit::SetMembers {
+                node: node.0,
+                members: members.iter().map(|m| m.0).collect(),
+            },
         }
     }
 
@@ -2980,11 +3059,14 @@ impl DocEdit {
     /// dimension — each arrives as its own typed `EditError`.
     ///
     /// A door per slot, not a `slot=` argument: the structural slots
-    /// are the Count-dimensioned ones and there is more than one of
-    /// them (`Instance` is the other with a door —
-    /// [`DocEdit::bind_instance_param`]), so a shared door would cross
-    /// the slot vocabulary as an enum, which is exactly what the
-    /// bindings decline to do.
+    /// are the Count-dimensioned ones and there are four of them.
+    /// Three have doors — this one, `Instance`
+    /// ([`DocEdit::bind_instance_param`]) and `VDegree`
+    /// ([`DocEdit::bind_v_degree_param`]) — and `Stations` has none,
+    /// because its only node is the sweep and no Python constructor
+    /// mints one to aim an edit at. A shared door would cross the slot
+    /// vocabulary as an enum, which is exactly what the bindings
+    /// decline to do.
     #[staticmethod]
     fn bind_count_param(node: &NodeId, name: &ParamName) -> Self {
         Self {
@@ -3019,6 +3101,35 @@ impl DocEdit {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::Instance,
+                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+            },
+        }
+    }
+
+    /// Bind `node`'s STRUCTURAL v-degree slot to the document
+    /// parameter `name` — the edit that makes a loft's v-direction
+    /// interpolation degree a named, editable number.
+    ///
+    /// The third of the sibling doors, and the same narrow shape for
+    /// the same reason. A degree is neither a count of placements nor
+    /// an index into them: it says how the skin interpolates BETWEEN
+    /// the sections, so a document whose degree is a literal is a
+    /// re-authoring away from every other degree, and one bound here
+    /// moves under a single `set_doc_param` like any other named
+    /// number.
+    ///
+    /// Refuses typed on a node with no v-degree slot — from Python
+    /// that is every node but a `Node.loft` — and on an unknown or
+    /// wrongly dimensioned parameter. The kernel's rule on the VALUE
+    /// (`1 <= v_degree <= len(profiles) - 1`) is untouched by the
+    /// binding: a bound degree is checked at `evaluate`, where a
+    /// literal one is checked too.
+    #[staticmethod]
+    fn bind_v_degree_param(node: &NodeId, name: &ParamName) -> Self {
+        Self {
+            inner: d::DocEdit::SetStructuralParam {
+                node: node.0,
+                slot: d::SlotId::VDegree,
                 expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
             },
         }
