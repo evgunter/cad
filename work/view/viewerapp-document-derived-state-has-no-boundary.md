@@ -46,7 +46,7 @@ material about the last document surviving into the next one.
 
 The layer below has already answered this exact question, differently.
 `DocSession::clear_for_new_document`
-(`crates/viewer/src/session.rs:1583-1586`) is two statements,
+(`crates/viewer/src/session.rs:1591-1594`) is two statements,
 `Derived::none()` and `display.clear()`, and its doc says why
 (`:1555-1560`): *"one value rebuilt from nothing ([`Derived`]) rather
 than a field-by-field walk each door has to remember"*. The

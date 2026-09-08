@@ -6084,3 +6084,53 @@ shipped green over three garbage diagnoses. Four cases now match a
 fragment containing the subject, and
 `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names` is
 the durable half — a harness affordance, not this gate's to build.
+
+## The summarised field says so itself, and the marker is left alone (2026-09-08)
+
+`finish-marker-cannot-say-summarised` closed, on none of the three
+candidates it listed. Ev's ruling: the tree already held the right
+mechanism in one of the four walks. `LandedRun` carried `checks`
+through a `format_args!` that renders as something obviously a summary
+(`0 finding(s), 0 skipped`), while the other summarised fields
+rendered as `is_some()`, a `len()` or a mapped generation — and
+`scratch: false` is a `bool` a reader who knows `std` and not the
+README takes for the whole of a `Doc`. Every summarised presence now
+renders as an elision naming what it stands for — `Some(<Doc>)`,
+`Some(<Body>)`, `Some(<Gesture>)`, `Some(<DirResolver>)`,
+`Some(<PickIndex for Generation(1)>)` — and `states` and `checks` are
+untouched, because a count already reads as a count. `Derived` still
+`finish`es; the other three still `finish_non_exhaustive`; no key was
+renamed.
+
+**The distinction belongs at the FIELD, not at the marker.** The
+marker answers *are all fields shown?*, which is the only question a
+two-valued flag over a field SET can answer; the question a reader has
+at a summarised field is *is this value the whole field?*, and the
+value is where that gets answered. The three-way split was never the
+marker's to carry.
+
+**Nothing rendered these dumps, and the compiler said so, not a grep.**
+Deleting all four impls leaves the workspace building `--all-targets`
+under both of `viewer`'s feature configurations, with its one doctest
+unaffected: no `{:?}`, no `#[derive(Debug)]` over these types, no
+`T: Debug` bound reached them, so no test could have been asserting on
+one either. `crates/viewer/tests/debug_dumps.rs` is now the only
+reader and holds the seven summarised fields to their spellings; it is
+also the reason the README's new universal is not a claim over an
+unread population.
+
+**The sweep behind a universal is stated at the sentence.** The README
+paragraph now gives the rule that produces its list — read every
+`.field(…)` call in the four walks, 22 of them, and take the nine
+whose value argument is not the destructured binding — and, because
+nothing can hold the NEXT summarised field to the rule, the reason it
+has no guard is written where the claim is: the destructuring makes
+the compiler send a field's author to the walk, the rule is stated
+there for them to read, and nothing in the tree computes on a dump.
+
+**The citation pass found 26 of 29 already wrong at its merge base.**
+Three of the re-pointed citations were falsified by this change; every
+other one had been wrong at `92b2c303d`, some by hundreds of lines.
+Four rows were left alone deliberately — a receipt dated to a SHA is a
+record, and re-pointing it falsifies the record it is. The full table,
+its enumeration rule and its blind spot are in the closed item.

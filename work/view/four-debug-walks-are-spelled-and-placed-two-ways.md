@@ -35,13 +35,19 @@ not the two it wrote from scratch. `session.rs:1952` (`DocSession`,
 
 ## Three walks sit beside their declarations and the fourth does not
 
-`Derived`'s walk is at `session.rs:302-333`, three lines below
-`Derived::none` (which ends at `:299`); `LandedRun`'s is at `:421-448`, directly below its
-struct; `PickCache`'s is at `pickcache.rs:163-186`, directly below
-its struct. `DocSession`'s is at `session.rs:1941-1974` — the last
-thing in a 1974-line file, 1,779 lines below the declaration at `:173`,
-under three unrelated free functions (`assembly_shaped`, `badge`,
-`session_dir`).
+`Derived`'s walk is at `session.rs:302-331`, three lines below
+`Derived::none` (which ends at `:299`); `LandedRun`'s is at
+`:419-460`, directly below its struct; `PickCache`'s is at
+`pickcache.rs:163-195`, directly below its struct. `DocSession`'s is
+at `session.rs:1953-2000` — the last thing in a 2,000-line file, 1,780
+lines below the declaration at `:173`, under three unrelated free
+functions (`assembly_shaped`, `badge`, `session_dir`). Each range runs
+from the walk's doc comment to its closing brace, and the distance is
+that start minus the declaration line; all five numbers were
+re-derived by subject on 2026-09-08 (four of them were already stale
+before that pass, and the `std::fmt` citations in the section above
+are left as written because they name lines in #2093's diff, not in
+the tree).
 
 The property the PR is buying is that **a reader adding a field is
 made to visit the walk**. The compiler enforces that for all four, so

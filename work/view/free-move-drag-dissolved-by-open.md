@@ -15,7 +15,7 @@ this field.
 
 ## What happens
 
-`DocSession::clear_for_new_document` (`crates/viewer/src/session.rs:1319`)
+`DocSession::clear_for_new_document` (`crates/viewer/src/session.rs:1591`)
 calls `self.display.clear()` (`:1321`), and `DisplayState::clear`
 sets `*free_move = None` (`crates/viewer/src/display.rs:861`). So an
 in-flight FREE-MOVE drag is silently dissolved by `Open` and by
