@@ -7,6 +7,7 @@ opened: 2026-09-06
 refs: [2093, debug-walk-inlines-an-unbounded-report-while-summarising-a-bool]
 closed: 2026-09-08
 branch: view/summarised
+pr: 2148
 ---
 
 Residue of #2093, disclosed by the style review of that PR
