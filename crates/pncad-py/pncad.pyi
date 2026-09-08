@@ -91,18 +91,47 @@ class PncadError(Exception):
     """Base class for every refusal this module raises."""
 
 class EditError(PncadError):
-    """The document layer refused an edit."""
+    """The document layer refused an edit.
+
+    `variant` is which edit refused; `inner_variant` is the arm of the
+    refusal that edit carries, `None` where it carries none. See
+    EvaluationError for why the second word is a second attribute.
+    """
 
     variant: str
+    inner_variant: Optional[str]
 
 class EvaluationError(PncadError):
     """A node produced no value, or produced the wrong kind.
 
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
-    `node_failed`, or `poisoned`. `kind` (the `NodeErrorKind`'s
-    stable tag), `through` (the nearest failed ancestor) and
-    `finding` (the refusal-menu payload) are always present, `None`
-    where the reason has none (attributes never go missing).
+    `node_failed`, or `poisoned`. `kind` (which door refused),
+    `inner_kind` (the arm of the kernel refusal that door holds),
+    `through` (the nearest failed ancestor) and `finding` (the
+    refusal-menu payload) are always present, `None` where the reason
+    has none (attributes never go missing).
+
+    TWO WORDS BECAUSE THERE ARE TWO ENUMS, and each is projected where
+    it lives. `kind` is the carrier's discriminant — `revolve`,
+    `tube`, `shell`, `boolean` — fixed by the node's kind before any
+    payload is read, which is what a caller branching on the op ladder
+    holds. `inner_kind` is the kernel refusal's OWN arm, which exists
+    only once the carrier has said which refusal it holds:
+    `wall_exceeds_radius` under `tube`, `sliver_rim` under `revolve`,
+    `open_faces_disconnect` under `shell`. Neither is a coarser
+    spelling of the other, which is why the second is an attribute
+    rather than a longer first word: folding them into one vocabulary
+    would move every `kind` value already shipped and leave a caller
+    splitting words by prefix to get back the question it started
+    with.
+
+    `inner_kind` is `None` on an arm whose refusal has no arms of its
+    own — a payload of numbers, ids or nothing at all — and on the
+    three arms whose `kind` is ALREADY the payload's word (a mate
+    fault, a part fault, a placement-rule fault read their
+    discriminant straight through). A payload FIELD that is a value
+    rather than a fault — which split half, which entity kind — is a
+    different question and is not this attribute's.
 
     `finding` is the boolean's refusal MENU: when
     `kind == "undeclared_contact"`, it carries the candidate
@@ -115,6 +144,7 @@ class EvaluationError(PncadError):
     reason: str
     node: NodeId
     kind: Optional[str]
+    inner_kind: Optional[str]
     through: Optional[NodeId]
     finding: Optional[FlushFinding]
 

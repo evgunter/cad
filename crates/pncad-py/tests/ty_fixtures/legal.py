@@ -46,11 +46,13 @@ from pncad import (
     TubeWindow,
     Doc,
     DocEdit,
+    EditError,
     DocRef,
     InlineOutcome,
     InterfaceRecord,
     EntityKind,
     Evaluation,
+    EvaluationError,
     FlushFinding,
     FlushRung,
     Frame,
@@ -665,3 +667,20 @@ requirement: NodeId = doc.insert(
     Node.assertion(sink, AssertionDir.AtLeast, doc.parse_expr("0.5 mm"))
 )
 which_way: str = AssertionDir.AtMost.symbol
+
+# The two words a refusal carries, typed. Both are OPTIONAL strings and
+# the stub says so: `kind` is which door refused, `inner_kind` the arm
+# of the refusal that door holds, and a caller that has not narrowed
+# either is holding `str | None`.
+try:
+    evaluate(doc).value(upright)
+except EvaluationError as node_refusal:
+    which_door: str | None = node_refusal.kind
+    which_arm: str | None = node_refusal.inner_kind
+    if which_arm is not None:
+        narrowed: str = which_arm
+try:
+    doc.apply(DocEdit.delete_node(upright))
+except EditError as edit_refusal:
+    which_edit: str = edit_refusal.variant
+    which_edit_arm: str | None = edit_refusal.inner_variant
