@@ -15,7 +15,7 @@ when the block concludes (PROPS-B1's shape, #1978).
 |---|---|---|---|
 | 0 | coeffs-window — `docs/PROPS-COEFFS-SPEC.md` (`coefficients-carry-their-knot-vector`, ruling A one level down) | L / STRUCTURAL | FABLE — MERGED 2026-09-05 at 55d541ae5 (#1985) BEFORE the dual (orchestrator spec defect); dual concluded on the merged head — ordinal 2403, sample #144, no tally candidate (the one MAJOR converged with the other arm's MINOR); fix pass as its own PR |
 | 1 | sign-hull — `docs/PROPS-SIGN-HULL-SPEC.md` (`interval-orthonormal-basis-sign-hull`, Ev's option-1 ruling on #1944; the (c′) dispatch of 2026-09-06 was withdrawn within the hour on the retraction, before any push) | M / NUMERIC | OPUS — dispatched 2026-09-06 |
-| 2 | (next kernel unit in dispatch order) | — | OPUS |
+| 2 | mignitude-floor — `docs/PROPS-MIGNITUDE-FLOOR-SPEC.md` (`offset-fit-mignitude-floor-on-norm-e`) | H / NUMERIC | OPUS — dispatched 2026-09-08 |
 
 Dual reviews draw their R1/R2 parity byte at review dispatch and record
 it in the row; ordinals claim from 2403 at review dispatch on main.
