@@ -274,3 +274,15 @@ four-things accumulation. DECLINED: the panic-vs-empty semantics of
 
 **Unit K dispatched (2026-09-08)** on `blend/k-no-floor` after unit 2
 merged; runs beside unit 3 and unit 4's fix pass.
+
+**Unit 3 landed (2026-09-08)** on PR [#2141](https://github.com/evgunter/cad/pull/2141),
+head `4a10b8f9`, green on the full matrix. The spine-kind sentence
+names the two families the arm table has and points at the payload's
+roster for the pairs; a row maps every fillet arm to a family by its
+band kind and goes red on a missing phrase or a third band (mutant
+shown red); the followability row follows one request per family.
+Filed on this slate: `assembly-recourse-omits-the-transverse-cap-open-chain`
+(the sibling sentence, same shape, one constant over). Style review
+dispatched on the frozen head. The box hit zero bytes free mid-unit
+(three lane targets plus a workspace-scoped fix pass); rule 13 in the
+lane rules now scopes local runs to the touched crates.
