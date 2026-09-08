@@ -59,11 +59,11 @@
 
 use pncad::analysis::{AnalysisPolicyError, MeasureUnavailable, ParamBoxError, SeedError};
 use pncad::document::{
-    AssemblyError, Attribution, CheckEvidence, ChecksError, DimensionError, Distribution,
-    DistributionFault, DistributionField, EditError, EvalError, InlineError, MateFault,
-    MeasureNodeFault, MeasureUnavailableAt, NodeErrorKind, ParseError, PersistError,
+    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
+    Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
+    MateFault, MeasureNodeFault, MeasureUnavailableAt, NodeErrorKind, ParseError, PersistError,
     PlacementRuleFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault,
-    SplitError, UpdateError,
+    SlotId, SplitError, UpdateError,
 };
 use pncad::geom_core::{BandError, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -203,6 +203,95 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::BadValue(_) => "bad_value",
         R::Band => "band",
         _ => "unclassified",
+    }
+}
+
+/// The stable tag for a NAMED expression slot — `EditError.slot`, the
+/// address a refusal is about.
+///
+/// A slot is a per-node-type NAME, never an index, so the word is the
+/// slot's own identity and not a position: `distance`, `count`,
+/// `origin_x`. The seven vector families spell their component into
+/// the word rather than beside it, because `origin` alone names three
+/// slots and a caller branching on it could not tell which expression
+/// refused.
+///
+/// `profile` is the one arm that stops one level, and it stops for the
+/// reason [`profile_error_tag`]'s family does: what is left below it —
+/// the loop index, the step index and which of the step's arguments —
+/// is two integers and a third enum, and no `&'static str` carries an
+/// integer. The address is in the refusal's prose; the word says the
+/// slot is a profile program's.
+pub fn slot_id_tag(slot: &SlotId) -> &'static str {
+    match slot {
+        SlotId::Origin(axis) => match axis {
+            Axis3::X => "origin_x",
+            Axis3::Y => "origin_y",
+            Axis3::Z => "origin_z",
+        },
+        SlotId::Normal(axis) => match axis {
+            Axis3::X => "normal_x",
+            Axis3::Y => "normal_y",
+            Axis3::Z => "normal_z",
+        },
+        SlotId::Direction(axis) => match axis {
+            Axis3::X => "direction_x",
+            Axis3::Y => "direction_y",
+            Axis3::Z => "direction_z",
+        },
+        SlotId::U(axis) => match axis {
+            Axis3::X => "u_x",
+            Axis3::Y => "u_y",
+            Axis3::Z => "u_z",
+        },
+        SlotId::V(axis) => match axis {
+            Axis3::X => "v_x",
+            Axis3::Y => "v_y",
+            Axis3::Z => "v_z",
+        },
+        SlotId::Translation(axis) => match axis {
+            Axis3::X => "translation_x",
+            Axis3::Y => "translation_y",
+            Axis3::Z => "translation_z",
+        },
+        SlotId::RotationAxis(axis) => match axis {
+            Axis3::X => "rotation_axis_x",
+            Axis3::Y => "rotation_axis_y",
+            Axis3::Z => "rotation_axis_z",
+        },
+        SlotId::Distance => "distance",
+        SlotId::Radius => "radius",
+        SlotId::ChamferDistance => "chamfer_distance",
+        SlotId::ShellThickness => "shell_thickness",
+        SlotId::RevolveAngle => "revolve_angle",
+        SlotId::Spin => "spin",
+        SlotId::TubeMajorRadius => "tube_major_radius",
+        SlotId::TubeMinorRadius => "tube_minor_radius",
+        SlotId::TubeWindowStart => "tube_window_start",
+        SlotId::TubeWindowEnd => "tube_window_end",
+        SlotId::TubeWall => "tube_wall",
+        SlotId::RotationAngle => "rotation_angle",
+        SlotId::Spacing => "spacing",
+        SlotId::Step => "step",
+        SlotId::Count => "count",
+        SlotId::Instance => "instance",
+        SlotId::VDegree => "v_degree",
+        SlotId::Stations => "stations",
+        SlotId::Profile { .. } => "profile",
+    }
+}
+
+/// The stable tag for an APPEARANCE attribute's kind — the `kind` an
+/// appearance refusal names.
+///
+/// The attribute's own vocabulary, not the entity's: `EntityKind` says
+/// what a name denotes and this says which of the three display
+/// attributes a rebind collided on or a clear did not find.
+pub fn attr_kind_tag(kind: &AttrKind) -> &'static str {
+    match kind {
+        AttrKind::Color => "color",
+        AttrKind::Label => "label",
+        AttrKind::Visibility => "visibility",
     }
 }
 

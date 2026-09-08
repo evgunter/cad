@@ -26,6 +26,7 @@
 //! that line are ordinary Rust that the default workspace build
 //! compiles and tests.
 
+pub mod edit_payload;
 pub mod errors;
 pub mod identity;
 pub mod node_kind;
