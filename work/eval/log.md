@@ -728,3 +728,28 @@ the nominal and is now incomplete; untouched by EVAL. **For the exit
 walk / Ev**: `docs/DESIGN.md`'s list of the content key's inputs
 (~1071) needs the nominal added — a DESIGN revision, carried to the
 `[ev]` PR.
+
+## EVAL-8 MERGED (2026-09-08, PR 2186, merge 51729fc1d)
+
+Green on the fix-pass head (`d285b8301`; the state-sync commit on top
+is docs-only). Under the pinned lift the op reuses the pre-pass's
+validated form: `ValidatedProfile<f64>::lift_onto(plane)` in
+`crates/profile` — **announced seam to S-BOOL ((S-BOOL
+orchestrator))**: the door plus `seg::ChordFrame`/`arc_carrier`
+factored out of `build_seg` (bit-identical), the README V6 sentence,
+`tests/validated_map.rs`, and one paragraph dropped from
+`resolve/vdiff.rs`'s module doc. The door carries the f64 decisions by
+the pinned lift's design, not by predicate agreement; the one
+behaviour change (a margin definite at f64 and indeterminate at
+`Interval` is now served under `Pinned` with the f64 log and refused
+under `Guided`) is pinned by a row. `anchor::embed_profile` is
+retired. **Re-baselined by ruling, to M10 ((M10 orchestrator))**:
+`kstats_bracket_rows` `PROFILE_LOG` 144 → 75, `asm2a_instantiate`
+799 → 730, `m4_pr6_eps_diff` populations halved back to their
+pre-EVAL-7 literal (byte-identical to `525f16043`'s); the
+certification keys did NOT move (their rows run under `Guided`).
+Lessons: a lane that reads a truncated CI summary pushes red — it
+happened twice on this unit (the interval-additivity gate, then
+clippy on imports gated only by use); the brief's pre-push list now
+names the additivity script and clippy in BOTH feature sets, and
+"verified" means the untruncated output was read.
