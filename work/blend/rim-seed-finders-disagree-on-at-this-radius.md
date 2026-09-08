@@ -1,9 +1,12 @@
 ---
 id: rim-seed-finders-disagree-on-at-this-radius
-kind: issue
+kind: unit
 title: four disagreeing tolerances spell "the circle at this radius" across the tree
-status: open
+status: closed
 opened: 2026-09-05
+branch: blend/4-seed-finder
+pr: 2129
+closed: 2026-09-08
 ---
 
 ## The shape
@@ -71,3 +74,53 @@ tolerance and one reason, and the copies above deleted in its favour.
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). The one homed seed finder lands in `crates/sweep/src/test_support.rs` (BLEND's); the copies in `crates/sweep/tests/*` and `demos/tour/*` are deleted in its favour by announced seam with S-TCOST and code-quality Track X.
+
+## Landed
+
+One seed finder for "the circle at this radius", and it is the one that
+was already there: `test_support::arcs_at` (radius AND station, `1e-9`
+on both enclosure ends) with `rim_arcs_at` over it. No tolerance was
+chosen and no existing `1e-9` moved.
+
+`closed_plane_sphere_rim`'s `1e-6` is gone: it selected by radius alone,
+and every caller of it names a rim the fixture states at a station too
+(the dome's equator at `(1, 0)`, the boss's root ring at
+`(r·√3/2, r/2)`) — no caller had a fixture with two rims of one radius
+at different stations, so no wrapper was kept. `test_support` gains
+`one_edge_rim_at`, the single-key shape of `rim_arcs_at` for a fixture
+whose rim is one closed edge: a delegation, carrying no scan and no
+window of its own, so a caller that holds a key rather than a set does
+not roll its own destructuring.
+
+The copies in `crates/sweep/tests/*` are deleted in its favour, and
+where a copy returned a shape `arcs_at` does not, the shape is composed
+over it rather than rescanned.
+
+The tour keeps its own spellings and converges them: after the fix pass
+the tree carries THREE demo-side scans with two support filters — one
+shared test-side home under `demos/tour/tests/common/rim_select.rs`
+(both probe suites call it, `Seeds::Closed` and `Seeds::TwoSided`), the
+teapot scene's own `rim_at`, and `bodies.rs`'s bud-mouth scan, which is
+outside this fence — all at `1e-9` with the home's reason stated and
+cited. `demos/tour` reaches the kernel only through the `pncad` façade;
+`sweep` is re-exported there (`crates/pncad/src/lib.rs:184`) but
+`test_support` is compiled only under the crate's own feature, and the
+`[dev-dependencies]` edge that would turn it on also turns it on for the
+very `sweep` rlib the `demo-tour` binary links whenever the invocation
+builds test targets — measured, and that is what CI's tour row runs.
+
+What stays open is the question this issue says would close it: what a
+caller names a rim BY. `no-public-rim-arc-selector` still owns it.
+
+## Closed (2026-09-08, PR 2129)
+
+One home, no tolerance chosen: every seed finder converges on
+`test_support::arcs_at`/`rim_arcs_at` (and the single-key
+`one_edge_rim_at`) at the home's `1e-9` with its reason; the `1e-6`
+and `5e-4` windows were slack and are gone; the tour keeps one
+test-side selector home and the teapot's scene scan with its reason
+and the pointer to the API gap (a rim is named by a seed edge, never
+by geometry — the names vocabulary is the real answer, this item's
+own text). Residues filed: `seed-finder-home-reads-only-the-y-station`
+(four z-poled scans cannot converge on a home that reads `center.y`),
+`test-support-has-become-four-modules`.

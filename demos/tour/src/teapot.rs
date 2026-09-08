@@ -454,14 +454,13 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
         .collect()
 }
 
-/// The one closed latitude rim of `body` whose circle sits at station
-/// `y` with radius `r` — the selection said BY DESCRIPTION at the body
-/// seat: the kernel query seat materializes the candidates
-/// (`bud::rims_between` and `klein::corner_edges` say their kind
-/// halves through the seat's predicates), and the carrier match here
-/// is this scene's own read — a numeric description stated in the
-/// authored coordinates, which no kind predicate answers, with the
-/// circle kind subsumed by the same match.
+/// **The one closed latitude rim at station `y`, radius `r`.** The
+/// scene names the arc it means by the numbers it authored it at,
+/// compared to `1e-9` — a selection window, not a kernel predicate,
+/// and the door it feeds (`query::rim_of`) carries none. A scene has to
+/// scan carriers for this at all because the library takes a seed EDGE
+/// and answers "which rim is this arc's", never "which arc do I mean":
+/// the consumer-door gap `no-public-rim-arc-selector` owns.
 fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
     let hits: Vec<EdgeKey> = query::all_edges(body)
         .into_iter()
@@ -474,7 +473,7 @@ fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
                 return false;
             };
             matches!(*c.carrier(), Curve3::Circle { center, radius, .. }
-                if (center.y - y).abs() < 1e-12 && (radius - r).abs() < 1e-12)
+                if (center.y - y).abs() < 1e-9 && (radius - r).abs() < 1e-9)
         })
         .collect();
     assert_eq!(
@@ -484,14 +483,6 @@ fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
     );
     // The description names an ARC; the query seat says which rim it
     // belongs to, and on this body that rim is the arc itself.
-    //
-    // These five lines are a STRUCTURAL copy of
-    // `sweep::test_support::one_edge_rim`, not a drifted one: the tour
-    // is a detached workspace that reaches the kernel through the
-    // `pncad` façade, and `test_support` is a test-vocabulary module
-    // the façade does not carry. Sharing it would put the kernel's test
-    // vocabulary on a demo's dependency path to save five lines. What
-    // is shared is the door under both.
     match query::rim_of(body, hits[0]).expect("the description names a whole rim")[..] {
         [only] => only,
         ref many => panic!("this rim is one closed edge, got {many:?}"),
