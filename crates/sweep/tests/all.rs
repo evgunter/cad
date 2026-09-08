@@ -528,6 +528,8 @@ mod fillet_h6_cap_rim;
 
 #[path = "review_fillet_h6_r1_probes.rs"]
 mod review_fillet_h6_r1_probes;
+#[path = "review_blend_e2_r1_probes.rs"]
+mod review_blend_e2_r1_probes;
 
 #[path = "review_fillet_h6_r2_probes.rs"]
 mod review_fillet_h6_r2_probes;
