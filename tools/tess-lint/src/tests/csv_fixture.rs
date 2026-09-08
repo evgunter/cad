@@ -1,5 +1,5 @@
 //! The two-face CSV fixture, with ONE definition. This crate's own
-//! `#[cfg(test)]` module owns it as `tests::csv_fixture`, and
+//! `#[cfg(test)]` module owns it as `tests::csv_fixture` and
 //! `tests/cli_contract.rs` mounts the same file by path: the two are
 //! separate compilation units and an integration test cannot see a
 //! `#[cfg(test)]` item, so they cannot SHARE an item — but they can
@@ -10,37 +10,30 @@
 //!
 //! * `EXPECTED_HEADER` nameable as `super::EXPECTED_HEADER` — `use
 //!   super::*` inside the crate, `use tess_lint::EXPECTED_HEADER`
-//!   outside it. Nothing else from the crate is used here,
-//!   deliberately: the column indices are read out of the header,
-//!   which both cargo roots can see, rather than out of `NAME` and
-//!   `IDENTITY_FIRST`, which are private. The crate's own header test
-//!   pins those constants against this same header, so reading the
-//!   header costs no pin.
-//! * a MOUNT and not an `include!`.
-//!   `crates/test-utils/tests/reader_census.rs` enumerates every site
-//!   that reads Rust source as text, and its rule is *names more `.rs`
-//!   files than it MOUNTS as modules*, where mounting is spelled
-//!   `#[path = "`. An `include!` of this file is a mount too, but not
-//!   one that rule can see, so it reds the census as an arrived reader
-//!   — and the ledger has no honest disposition for it, because this
-//!   file reads no source, it IS source. The module mount is the
-//!   spelling that says so, and it is why this file sits under `src/`
-//!   rather than under `tests/`: a `#[path]` on a module inside an
-//!   inline `mod tests` resolves against `src/tests/`, a directory
-//!   that has to exist for any relative path to open at all.
+//!   outside it. Nothing else from the crate is used here: the column
+//!   indices are read out of the header, which both cargo roots can
+//!   see, rather than out of the private `NAME` and `IDENTITY_FIRST`,
+//!   which the crate's own header test pins against this same header.
+//! * a MOUNT and not an `include!` — one thing to the compiler and
+//!   two to `crates/test-utils/tests/reader_census.rs`, which reads
+//!   `#[path = "` as a mount and anything else naming a `.rs` file as
+//!   a source reader, a class this file does not belong to and has no
+//!   honest ledger line for. **A pointer, not a pin**: nothing here
+//!   reds if that rule moves, and the census is the authority over it.
+//!   The mount is also why the file sits under `src/` — `#[path]`
+//!   inside an inline `mod tests` resolves against `src/tests/`, which
+//!   has to exist for a relative path to open.
 //!
 //! [`the_fixture_fills_the_head_block_the_header_declares`] lives here
 //! rather than beside one mounting site, so every binary that builds a
 //! row also checks it. `name` is read by no rule and printed by no
-//! report, so **its token has exactly two readers in the tree, and
-//! they divide the way the mount does.** This file's test says the
-//! FIXTURE writes the token at the column the header names, and it
-//! runs in both binaries. `tess_lint`'s `parses_both_chart_shapes`
-//! says `parse` READS it back out of that column into `Row::name`,
-//! and being a `#[cfg(test)]` item it exists on the crate side only.
+//! report, so **its token has exactly two readers and they divide the
+//! way the mount does**: this file's test says the FIXTURE writes the
+//! token at the column the header names, in both binaries, and
+//! `tess_lint`'s `parses_both_chart_shapes` says `parse` READS it back
+//! out of that column into `Row::name`, on the crate side only.
 //! Neither substitutes for the other — one never calls `parse`, the
-//! other never inspects the text — and the integration binary has
-//! only the first.
+//! other never inspects the text.
 
 use super::EXPECTED_HEADER;
 
@@ -54,9 +47,9 @@ pub(crate) const FIXTURE_NAME: &str = "{\"kind\":\"Face\";\"node\":3;\"path\":[\
 /// NURBS wall at ordinal 1.
 ///
 /// `tris` is the wall's triangle count and `span_opt` the cheapest
-/// per-cell grid, which together move the two gate rules independently
-/// — and, at `span_opt = 0`, produce the unreadable denominator the
-/// CLI's harness-voice row needs.
+/// per-cell grid; the two move the gate's two rules independently, and
+/// `span_opt = 0` makes the slack ratio's denominator unreadable — a
+/// harness-breakage input rather than a measurement.
 pub(crate) fn scene(tris: usize, span_opt: f64) -> String {
     format!(
         "{EXPECTED_HEADER}\n{}\
