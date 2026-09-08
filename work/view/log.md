@@ -6559,3 +6559,70 @@ names `:139-153` for a sentence that lives in the item reader's header,
 a unit branch, per §6. **A file that grows fast falsifies its own
 citations quietly**: neither was wrong when written, and nothing reads a
 line range to check it.
+
+## 2026-09-08 — a correction: the count hold was reachable around, and the kind reader read column 0 only (#2172, fix pass)
+
+**The entry above is falsified in one sentence and it is corrected
+here, not rewritten.** It says *"the anchor carries the count word, so
+the README's prose number and `KIND_COUNT` now hold each other."* They
+did not. The anchor holds the README against the GATE — amend the
+section to four kinds and no line starts "Three kinds of list stay
+hand-written", so the anchor reds. It did not hold the gate against
+ITSELF, and the red named the way around as a co-equal repair: *"restore
+the sentence, or change `KIND_ANCHOR` in $0 in the same diff"*. Take
+that second repair alone — `KIND_ANCHOR='Four kinds of list stay
+hand-written'`, `KIND_COUNT` left at 3 — and a section announcing Four
+across three bullets was GREEN, with `3 kinds read from "Four kinds of
+list stay hand-written"` printed on the OK line, a self-contradiction
+nothing reads. **A hold whose own diagnosis names the edit that
+defeats it is not a hold**, and the cost was one extra edit.
+
+**Both copies are kept; the third edge is what was missing.**
+`KIND_COUNT` is what makes an amendment cost an edit to the gate, so
+deriving the number from the anchor and deleting the constant would
+close the divergence by giving up the reason it exists.
+`anchor_states_count` checks the anchor's first word against
+`KIND_COUNT` before the README is opened, and the two anchor
+diagnoses now say the number word moves with `KIND_COUNT`. The
+count-mismatch red now names WHICH SIDE each number came from — it
+asserted *"$README's section ratifies $KIND_COUNT kinds"* using the
+GATE's number, telling an author the README ratifies four when the
+README ratified three, whose plausible wrong repair is to add a fourth
+bullet. The self-contradicting OK line is unreachable rather than
+diagnosed: a green line nobody reads is not a guard.
+
+**The kind reader read a bullet at column 0 only, and CommonMark does
+not.** A list marker sits at up to three spaces of indent and may
+interrupt a paragraph, so `  - **A fourth kind** …` on the line after
+the announcing sentence renders to every human reader as the first item
+of the announced list — and state 1 swallowed it as the sentence's own
+wrap, state 2 as a continuation. Three kinds read, `OK`, exit 0: **the
+wrong-and-quiet shape this gate exists to prevent, in the gate.** Fixed
+as a class at all three sites that assumed column 0 (state 1's escape,
+state 2's bullet, the `sed` that extracts the name), with the other
+side of the boundary encoded exactly rather than approximated: at four
+spaces the marker is a lazy continuation of the paragraph, a nested
+item of the bullet above, or an indented code block, and a leading tab
+advances to column four. Every rendering was checked against
+`markdown-it-py` in CommonMark mode.
+
+**Five fixtures and four direct rows, each run against the shape it
+covers.** A case that passes before and after proves nothing, so each
+was run against the unfixed spelling: reverting state 1's escape, state
+2's bullet or the `sed` each makes a planted indented kind pass;
+dropping the "the anchor must OPEN a paragraph" rule makes a QUOTATION
+of the sentence red as a second announcement; widening the boundary to
+`[[:space:]]*` reds on all three four-space near misses. The constant
+pair is not expressible as a fixture — a fixture plants a tree and the
+pair lives in the script, and a test hook that let one vary it would be
+a way to set the count from outside — so it is four direct calls on the
+predicate the guard is one `case` over.
+
+**The README's universal owed its exception.** *"The prose in this
+section may carry bulleted lists like any other prose"* is false for
+one position: a list separated from the ratified list by nothing but
+blank lines is ONE loose list in CommonMark, so its items are read as
+ratified kinds and red. The sentence now carries the exception and the
+rule that produces it. **A universal in prose owes the sweep rule that
+produces its population** — the same obligation §5 puts on a scope
+sentence in a PR.

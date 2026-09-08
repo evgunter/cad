@@ -1,7 +1,7 @@
 ---
 id: vocab-gate-counts-bullets-across-a-whole-prose-section
 kind: issue
-title: the vocab gate's kind scan spans the whole prose section, so the real constraint is never write a bolded bullet there and the error misdiagnoses it
+title: the vocab gate's kind scan runs from its heading to the next heading of any level, so the real constraint is never write a bolded bullet in that region and the error misdiagnoses it
 status: closed
 opened: 2026-09-08
 closed: 2026-09-08
@@ -90,9 +90,9 @@ argued at the site: it matches a PREFIX of the line, because a
 paragraph's wrap point is an artifact of the fill column and the four
 constants this gate already pins are headings and a table header row,
 which are whole lines by construction; and the count word is INSIDE the
-anchor, which is a hold the gate did not have — the section could say
-"Four kinds of list stay hand-written" over three bullets and nothing
-read it.
+anchor, which is what gives the README's prose number any reader at
+all — before it, the section could say "Four kinds of list stay
+hand-written" over three bullets and nothing looked.
 
 **`@` for the anchor, as `readme_table` does for its heading**, so "the
 paragraph is gone", "it announces no list", "it is announced twice" and
@@ -126,3 +126,35 @@ added to it to demonstrate that; that is a separate change.
 `:139-153` where the sentence it quotes is the item reader's header,
 `:212-218` then and `:256-262` now. Reported in PR 2172's body as §6
 findings on another slate rather than edited from a unit branch.
+
+## Corrected in the fix pass (2026-09-08, PR 2172)
+
+**The `title:` above no longer carries the retracted claim.** The scan
+region was never "the whole prose section": `readme_kinds` stopped at
+the next heading of ANY level and `#### The lists that stay
+hand-written` is one. The FILENAME still says "a whole prose section"
+because ids are stable (`work/README.md`); the header is the part a
+reader believes, and it now says what the closing note says.
+
+**The count word in the anchor was a hold with a documented way
+around, and the paragraph above overstated it.** It holds the README
+against the gate — a section amended to four kinds leaves no line
+starting "Three kinds of list stay hand-written". It did not hold the
+gate against itself: the missing-anchor red offered "change
+`KIND_ANCHOR`" as a co-equal repair, and taking that one alone (to
+`Four kinds of list stay hand-written`, `KIND_COUNT` left at 3) was
+GREEN over a section announcing Four across three bullets, printing `3
+kinds read from "Four kinds of list stay hand-written"`.
+`anchor_states_count` now checks the anchor's first word against
+`KIND_COUNT` before the README is opened, so both copies are kept —
+`KIND_COUNT` is what makes an amendment cost an edit to the gate — and
+neither can be moved alone.
+
+**The reader read a bullet at column 0 only**, which CommonMark does
+not: a marker one to three spaces in is a list item and may interrupt a
+paragraph, so `  - **A fourth kind**` under the announcing sentence
+rendered as the first ratified kind and the gate read three and printed
+OK. Fixed at all three sites (state 1's escape, state 2's bullet, the
+`sed` that extracts the name), with four spaces held as the other side
+of the boundary. Five new fixtures and four direct rows on the constant
+pair; each was run against the unfixed shape it covers.
