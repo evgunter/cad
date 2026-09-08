@@ -60,6 +60,38 @@
 //! and the corpus-wide figure below is here to show how much work it
 //! does rather than because anything gates on it.
 //!
+//! # What an undetected swap COSTS, and which half is a theorem
+//!
+//! The pairs counted above are what the gate cannot tell apart. What
+//! that is WORTH is a separate question, and its two halves are not
+//! the same kind of claim:
+//!
+//! * **Rule 1 cannot move it — a theorem about the rule's shape.** It
+//!   compares per-SCENE triangle totals, and a swap within one scene
+//!   permutes the summands of one sum. No reading of any corpus can
+//!   make that false, so nothing below asserts it.
+//! * **Rule 2 does not move — a READING of this baseline.** It
+//!   compares [`Row::recoverable`], and within every pair the
+//!   committed corpus carries today the two members' `grid_cells /
+//!   span_opt_cells` are bit-identical. That is a fact about a
+//!   committed artefact, and a re-cut can end it, so it is asserted
+//!   here rather than written down.
+//!
+//! `an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline`
+//! puts the consequence the way the gate puts it — the swap is handed
+//! to [`compare`] and the [`Report`] must come back empty — and then
+//! the equality that is the margin behind it.
+//!
+//! **The reported side is deliberately NOT pinned.** A swap does move
+//! what the report prints: `total` = `delta / worst_dev`, and
+//! `worst_cert` in its last digits. Neither is gated —
+//! [`tess_lint::Kind`] has five variants and not one of them reads
+//! `worst_dev` — so an assertion on that movement would be a
+//! threshold on an ungated column, and it would fire on a re-cut that
+//! made a pair's two members AGREE, which is not a defect. The
+//! asymmetry is the finding; the magnitude is a reading, and
+//! `work/meter/C15.md` carries the method that re-derives it.
+//!
 //! # When this test fails
 //!
 //! It is not a threshold and no baseline here is a target to preserve.
@@ -70,7 +102,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use tess_lint::{IDENTITY_COLUMNS, Row, identity_readings, parse, totals};
+use tess_lint::{IDENTITY_COLUMNS, Report, Row, compare, identity_readings, parse, totals};
 
 /// The committed baseline, by path relative to this crate's manifest.
 ///
@@ -99,23 +131,89 @@ fn key(r: &Row) -> (&str, [String; IDENTITY_COLUMNS.len()]) {
     (r.scene.as_str(), identity_readings(r))
 }
 
+/// The given rows grouped by [`key`] — the ONE spelling in this file
+/// of "rows this CSV cannot tell apart".
+///
+/// The census below counts these groups; the swap tests read their
+/// members. Sharing the grouping is what stops the two from ever
+/// disagreeing about which rows those are.
+type Groups<'a> = HashMap<(&'a str, [String; IDENTITY_COLUMNS.len()]), Vec<&'a Row>>;
+
+fn groups<'a>(rows: &[&'a Row]) -> Groups<'a> {
+    let mut out = Groups::new();
+    for &r in rows {
+        out.entry(key(r)).or_default().push(r);
+    }
+    out
+}
+
 /// `(pairs, rows in a group of two or more, scenes carrying a pair)`,
 /// with the scene names.
 fn census(rows: &[&Row]) -> (usize, usize, Vec<String>) {
-    let mut groups: HashMap<(&str, [String; IDENTITY_COLUMNS.len()]), usize> = HashMap::new();
-    for r in rows {
-        *groups.entry(key(r)).or_default() += 1;
-    }
-    let pairs = groups.values().map(|k| k * (k - 1) / 2).sum();
-    let in_group = groups.values().filter(|k| **k > 1).sum();
+    let groups = groups(rows);
+    let pairs = groups.values().map(|g| g.len() * (g.len() - 1) / 2).sum();
+    let in_group = groups.values().filter(|g| g.len() > 1).map(Vec::len).sum();
     let mut scenes: Vec<String> = groups
         .iter()
-        .filter(|(_, k)| **k > 1)
+        .filter(|(_, g)| g.len() > 1)
         .map(|((s, _), _)| (*s).to_string())
         .collect();
     scenes.sort();
     scenes.dedup();
     (pairs, in_group, scenes)
+}
+
+/// Every indistinguishable pair among `rows`, each `(lower ordinal,
+/// higher ordinal)`, in a stable order.
+///
+/// The MEMBERS of what [`census`] counts: a group of `k` contributes
+/// its `k·(k−1)/2` pairs, off the same [`groups`], so a corpus that
+/// moves moves both readings together.
+fn indistinguishable_pairs<'a>(rows: &[&'a Row]) -> Vec<(&'a Row, &'a Row)> {
+    let mut pairs: Vec<(&Row, &Row)> = Vec::new();
+    for g in groups(rows).values() {
+        for (i, &a) in g.iter().enumerate() {
+            for &b in &g[i + 1..] {
+                pairs.push(if a.face < b.face { (a, b) } else { (b, a) });
+            }
+        }
+    }
+    pairs.sort_by(|x, y| {
+        (x.0.scene.as_str(), x.0.face, x.1.face).cmp(&(y.0.scene.as_str(), y.0.face, y.1.face))
+    });
+    // Every claim below ranges over this list, so an empty one would
+    // pass them all while saying nothing. On this corpus it cannot be
+    // empty — the census above pins the count, and no number is
+    // repeated here — and the guard is what makes that dependence a
+    // failure rather than a silence.
+    assert!(
+        !pairs.is_empty(),
+        "no indistinguishable pair for the swap-cost claims to be over: they would pass vacuously"
+    );
+    pairs
+}
+
+/// The committed corpus with ONE pair's two ordinals exchanged: the
+/// undetected swap, in the shape a fresh sweep would hand the gate.
+///
+/// A transposition WITHIN one scene, so `(scene, face)` stays unique
+/// across the result. That is the property [`parse`] guarantees and
+/// [`compare`]'s per-face index needs, and it is why a permutation
+/// that did not itself come from a parse may be handed to the gate.
+fn with_pair_swapped(rows: &[Row], scene: &str, a: usize, b: usize) -> Vec<Row> {
+    rows.iter()
+        .map(|r| {
+            let mut r = r.clone();
+            if r.scene == scene {
+                if r.face == a {
+                    r.face = b;
+                } else if r.face == b {
+                    r.face = a;
+                }
+            }
+            r
+        })
+        .collect()
 }
 
 /// The census itself. Every quantity `lib.rs` used to transcribe, and
@@ -333,4 +431,98 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
         "the scene-level and row-level readings of \"carries a sized \
          face\" name the same scenes"
     );
+}
+
+/// What an undetected swap costs the GATE, executed rather than
+/// argued: each pair the CSV cannot tell apart is swapped in a copy of
+/// the committed corpus, that copy is handed to [`compare`] as the
+/// fresh side, and the [`Report`] must come back empty.
+///
+/// **Two assertions, and both are reachable** — which is the whole
+/// reason they are in this order:
+///
+/// * the [`Report`] is red exactly when some pair's two recoverable
+///   slacks differ by more than [`tess_lint::GROWTH_TOLERANCE`]. A
+///   swap presents each member's ratio at the other's ordinal, so the
+///   larger of the two always arrives where the smaller was and the
+///   one-sided growth test sees it. That is the alarm: a swap has
+///   become gate-visible, and `C15`'s cost is no longer zero.
+/// * the equality is red as soon as the two ratios differ AT ALL. It
+///   is the margin behind the first, and a re-cut that moves a pair
+///   sub-tolerance reds this one alone — an early warning that the
+///   reading the item rests on has started to go.
+///
+/// Rule 1 is not asserted anywhere here: it compares per-SCENE
+/// triangle totals and a swap permutes the summands of one sum, so no
+/// corpus can make it fire and an assertion on it could not fail.
+#[test]
+fn an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline() {
+    let rows = parse(BASELINE).expect("the committed baseline parses");
+    let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
+
+    for (a, b) in indistinguishable_pairs(&sized) {
+        let swapped = with_pair_swapped(&rows, &a.scene, a.face, b.face);
+        let report = compare(&rows, &swapped);
+        assert_eq!(
+            report,
+            Report::default(),
+            "swapping {} faces {} and {} — two rows no IDENTITY_COLUMNS entry \
+             separates — is no longer invisible to the gate",
+            a.scene,
+            a.face,
+            b.face
+        );
+
+        let (na, nb) = (
+            a.nurbs.expect("filtered to sized rows"),
+            b.nurbs.expect("filtered to sized rows"),
+        );
+        assert_eq!(
+            a.recoverable(),
+            b.recoverable(),
+            "{} faces {} and {} no longer read one recoverable slack: \
+             grid_cells/span_opt_cells is {}/{} against {}/{}. The swap still \
+             costs the gate nothing, but the margin that made it free has gone",
+            a.scene,
+            a.face,
+            b.face,
+            na.grid_cells,
+            na.span_opt_cells,
+            nb.grid_cells,
+            nb.span_opt_cells
+        );
+    }
+}
+
+/// What the `name` column contributes to these pairs, which today is
+/// nothing.
+///
+/// The join-relevant claim, and it is deliberately NOT "no sized row
+/// carries a name": a named row changes nothing until the name tells
+/// two rows APART, and it is the pairs that a name would rescue. The
+/// producer-side mechanism is already in place — `tess_meter::face_rows`
+/// takes a name table and refuses one that misses a face — so this
+/// fires the day a scene carrying a pair becomes document-built, and
+/// its message is the handover.
+///
+/// It cannot be satisfied by an absence either way: an empty name on
+/// both members is an agreement, and so is one shared name; only a
+/// name that SEPARATES them reds it, which is exactly the condition
+/// under which `C15` becomes dischargeable for that pair.
+#[test]
+fn no_indistinguishable_pair_is_separated_by_the_name_column() {
+    let rows = parse(BASELINE).expect("the committed baseline parses");
+    let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
+
+    for (a, b) in indistinguishable_pairs(&sized) {
+        assert_eq!(
+            a.name, b.name,
+            "`name` now separates {} faces {} and {} ({:?} against {:?}), and no \
+             other identity column does. C15 is dischargeable for this pair: the \
+             sweep hands the gate a durable per-face identity here, so the join \
+             has something to key on besides the ordinal. Re-key rule 4 over the \
+             rows that carry a name and re-cut this census",
+            a.scene, a.face, b.face, a.name, b.name
+        );
+    }
 }
