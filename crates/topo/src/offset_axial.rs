@@ -352,6 +352,16 @@ impl<T: Decide> Profile<T> {
 /// part; a solid the moves do not name is not offset and its geometry
 /// is not written.
 ///
+/// **What it READS, as tightly as what it writes.** The scope is built
+/// by walking the named solids' shells alone, so a solid the moves do
+/// not name is not walked and its structure cannot refuse this call;
+/// and the closing pcurve pass re-derives the rows of the scope's faces
+/// alone ([`crate::pcurves::mint_pcurves_of`]) — a row outside it
+/// belongs to an edge this door did not touch and stays as it was
+/// found. The one whole-body read left is the closing tier-2 check on
+/// the door's own clone, whose passes are arena-global by construction
+/// (`Scope`'s docs).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
@@ -625,11 +635,23 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                 error,
             })?;
     }
-    // Every edge was re-described, and the charts here DO mint pcurve
-    // rows (a cylinder, a cone and a sphere all do), so this pass is
-    // load-bearing rather than the planar door's inert one.
-    crate::pcurves::mint_pcurves(&mut work, tol)
+    // Every edge OF THE SCOPE was re-described, and the charts here DO
+    // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
+    // pass is load-bearing rather than the planar door's inert one. It
+    // runs over the scope's faces alone: an out-of-scope row belongs to
+    // an edge this door did not touch and stays exactly as it was found.
+    let minting = scope
+        .faces_in_scope(&work)
+        .ok_or(ReplaceFaceError::Corrupt)?;
+    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol)
         .map_err(|source| ReplaceFaceError::Pcurve { source })?;
+    // Tier 2 over the WHOLE clone, and deliberately: tier 1's passes
+    // are arena-global (ownership partitions, the edge <-> half-edge
+    // bijection, orphan geometry, edge-adjacency shell coherence), so
+    // there is no shell-subset reading of them that is the same check
+    // narrowed rather than a different check. The clone differs from
+    // the operand only inside the scope, so what this can report about
+    // an out-of-scope solid is a defect the operand already had.
     if let Err(errors) = crate::validate::validate_closed(&work) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }

@@ -149,10 +149,13 @@
 //! copies them verbatim, and that row's contract is that the producer's
 //! final mint re-derives every row of the merged body. This verb is a
 //! producer and runs [`crate::pcurves::mint_pcurves`] once, on the
-//! assembled body, before `validate_geometric`. One pass suffices:
-//! nothing between the door and the validate reads a stored row, the
-//! lift doors mint their own clone whole-body, and every other step is
-//! `Neither` for rows. Two consequences are stated because nothing
+//! assembled body, before `validate_geometric` — the verb's own
+//! whole-body pass, and it stays whole-body: it is what discharges
+//! `insert_voids`'s `Transfers` row over the WHOLE merged body, which
+//! no per-solid pass covers. One pass suffices: nothing between the
+//! door and the validate reads a stored row, the simultaneous lift
+//! doors mint the rows of their own scope (the solid they were handed)
+//! and touch no other, and every other step is `Neither` for rows. Two consequences are stated because nothing
 //! enforces them: the pass CLEARS the map first, so **a stale or
 //! missing row on the OPERAND is invisible to this verb** — an operand
 //! that fails tier 3 on its own rows shells to a valid body whose rows
@@ -1113,7 +1116,9 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     // is a `Vec` swap rather than another walk over the whole body.
     let mut scope = partition.clone();
     for &solid in &solids {
-        scope.re_scope(&[solid]);
+        scope.re_scope(body, &[solid]).ok_or(ShellError::Corrupt {
+            key: EntityId::Solid(solid),
+        })?;
         let mine: Vec<&Vec<FaceKey>> = charts.iter().filter(|g| scope.holds_face(g[0])).collect();
         let fallback =
             mine.first()
@@ -1397,7 +1402,11 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // solid's, over that solid's charts, exactly as the cavity's
         // door was its solid's.
         let mut lift_scope = result_partition.clone();
-        lift_scope.re_scope(&[lift_solid]);
+        lift_scope
+            .re_scope(&out, &[lift_solid])
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Solid(lift_solid),
+            })?;
         let lift_door = offset_door(&out, &lift_scope, band).map_err(|error| ShellError::Lift {
             face: designated,
             error: Box::new(error),

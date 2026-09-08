@@ -101,7 +101,12 @@
 //! as it re-mints before it hands the body back.
 //!
 //! **Maintains the map** — runs [`mint_pcurves`] on the result, and
-//! that pass CLEARS the map before re-minting. In this crate: the
+//! that pass CLEARS the map before re-minting. [`mint_pcurves_of`] is
+//! the same posture over a SUBSET: a producer that writes only part of
+//! a body re-derives the rows of exactly the faces it wrote and leaves
+//! the rest as it found them, which maintains the map for the same
+//! reason — no row it could have staled survives its return. The two
+//! simultaneous offset doors hold it that way. In this crate: the
 //! splitting lane (on each side it produces), the boolean pipeline (on
 //! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
 //! staged result before commit, and only when the input carried
@@ -136,11 +141,12 @@
 //! **Where it says which, and what checks it.** For a `&mut Body` door
 //! in this crate, in
 //! `staleness_posture::every_mutation_door_declares_its_pcurve_posture`
-//! — a walk of `topo/src` requiring every such door to either call
-//! `mint_pcurves` in its own body or carry a declared posture. It goes
-//! red the day a door is added and nobody says which bucket it is in,
-//! and red the day a door whose entry says it does not re-mint starts
-//! calling `mint_pcurves` directly.
+//! — a walk of `topo/src` requiring every such door to either call the
+//! pass in its own body, in either of its two spellings
+//! ([`mint_pcurves`] whole-body, [`mint_pcurves_of`] over a subset), or
+//! carry a declared posture. It goes red the day a door is added and
+//! nobody says which bucket it is in, and red the day a door whose
+//! entry says it does not re-mint starts calling the pass directly.
 //!
 //! **What the guard does NOT establish**, so that nothing above reads
 //! as more than it is:
@@ -1324,9 +1330,57 @@ pub fn mint_pcurves<T: PcurveFittedLane>(
     // surgery killed (a `SecondaryMap` row outlives its key until the
     // slot is reused), and a stale cache is worse than no cache. What
     // this pass leaves behind is exactly what it minted and certified.
+    // The whole-body entry is the only one that can make that claim: a
+    // row whose half-edge is dead is reachable from no face, so the
+    // subset entry below clears through the faces it is given.
     body.pcurves.clear();
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-    for face in faces {
+    mint_faces(body, &faces, band)?;
+    Ok(())
+}
+
+/// [`mint_pcurves`] restricted to `faces`: clears the rows of exactly
+/// those faces' half-edges and re-mints exactly those faces, leaving
+/// every other row of `body` untouched. Returns the number of rows the
+/// pass left behind for `faces`.
+///
+/// The pass is **per face**: a face's window, branch pinning and
+/// certification read that face's own loops, surface and edge
+/// descriptions and nothing else, so the subset's result is the
+/// whole-body result restricted to the subset, and the idempotence and
+/// determinism statements of [`mint_pcurves`] hold verbatim for the
+/// faces named here — in the order they are named.
+///
+/// Rows outside `faces` are left exactly as they are found, which is
+/// what makes this the pass a scoped producer owes: it re-derives the
+/// rows it may have staled and asserts nothing about the rest.
+///
+/// # Errors
+///
+/// [`mint_pcurves`]'s, raised by a face in `faces`.
+pub fn mint_pcurves_of<T: PcurveFittedLane>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    tol: Tol,
+) -> Result<usize, PcurveMintError> {
+    let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
+    for &face in faces {
+        clear_face_caches(body, face);
+    }
+    let before = body.pcurves.len();
+    mint_faces(body, faces, band)?;
+    Ok(body.pcurves.len() - before)
+}
+
+/// The mint itself, over the faces it is handed: the shared body of
+/// [`mint_pcurves`] and [`mint_pcurves_of`], which differ only in which
+/// rows they clear first.
+fn mint_faces<T: PcurveFittedLane>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+) -> Result<(), PcurveMintError> {
+    for &face in faces {
         match mint_face(body, face, band) {
             Ok(()) => {}
             // A carrier CLASS outside every derivation route (the
@@ -2111,10 +2165,11 @@ pub(crate) mod staleness_posture {
     /// Which of this module's three postures a mutation door holds.
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub(crate) enum Posture {
-        /// Clears and re-mints before returning. Read out of the
-        /// source (a `mint_pcurves` call in the door's own body); an
-        /// entry declares it only when the re-mint is one delegation
-        /// away, which a source read cannot see.
+        /// Clears and re-mints before returning — over the whole body
+        /// or over exactly the faces it wrote. Read out of the source
+        /// (a `mint_pcurves` or `mint_pcurves_of` call in the door's
+        /// own body); an entry declares it only when the re-mint is one
+        /// delegation away, which a source read cannot see.
         Maintains,
         /// Remaps each row onto the surviving key and drops the rest.
         Transfers,
@@ -2153,6 +2208,12 @@ pub(crate) mod staleness_posture {
                 "mint_pcurves",
                 Maintains,
                 "IS the pass: clears the map, then re-mints every row of the body it is given",
+            ),
+            (
+                "mint_pcurves_of",
+                Maintains,
+                "IS the pass restricted to a face subset: clears exactly those faces' rows, \
+             then re-mints exactly those faces",
             ),
             // ---- Transfers: the graft's remap-and-drop. ----
             (
@@ -2287,10 +2348,10 @@ pub(crate) mod staleness_posture {
     /// could only describe.
     ///
     /// **What it checks, exactly.** Three failures, all mechanical: a
-    /// door that neither calls `mint_pcurves` nor appears below; a door
+    /// door that neither calls the pass — in either spelling,
+    /// `mint_pcurves` or `mint_pcurves_of` — nor appears below; a door
     /// whose entry says anything but `Maintains` while its body calls
-    /// `mint_pcurves`; and an entry naming a door that no longer
-    /// exists.
+    /// it; and an entry naming a door that no longer exists.
     ///
     /// **Where the door set comes from, and what it cannot see:**
     /// [`crate::source_walk::mutation_doors`], shared with the tier-1
@@ -2325,7 +2386,7 @@ pub(crate) mod staleness_posture {
 
         for door in crate::source_walk::mutation_doors() {
             let entry = DECLARED.iter().find(|(n, _, _)| *n == door.name);
-            if door.code_contains("mint_pcurves(") {
+            if door.code_contains("mint_pcurves(") || door.code_contains("mint_pcurves_of(") {
                 if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
                     mislabelled.push(format!("{} declared {posture:?}", door.name));
                 }
