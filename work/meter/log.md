@@ -630,3 +630,59 @@ moved for this unit's reasons (`opt_cells` −1.16%, `span_opt_cells`
 −0.64% over the sweep); seven more moved because the previous cut was
 four days and 442 `crates/` commits stale, which nothing reports —
 filed as `tess-lint-ungated-columns-fold-silently`.
+## Units 7 and 11 closed; and the slate is now larger than it opened (2026-09-08)
+
+Both lanes deliberately left this file alone to avoid conflicting with a
+live sibling, so their entries are written here.
+
+**Unit 7 — `k-report-baseline-fold-cert1-roster`** (PR 2140). The
+CERT-1 roster fold was READ and **no committed CSV was re-cut**, which
+is the unit's judgement rather than an omission: `k-report-data`'s rule
+1 cuts a new era when the DISTRIBUTION moves, and the three witnesses
+were pointwise identical to M7. The full falsification review ran the
+attack the lane had not — smallest ambient definite margin over every
+non-ε-coupled name, both eras — and could not break it.
+
+What the review DID break was **when** the measurement was taken: at
+the branch's merge base rather than the PR's base, with
+`props/curved.rs` moved 129+/74− in between, adding a refusal door that
+runs *before any margin is formed* and two recorded names. Re-swept at
+`c39a904e`: roster 279 → **281**, verdict unchanged. The lane also
+caught an arithmetic slip in its own first pass (the decade gap is
+14.8, not 15.8). The reviewer predicted ≥282; `interval_span_winding`
+turned out to exist at both tips, so 281 is right — checked here.
+
+**Unit 11 — `k-report-era-witnesses-have-no-guard`** (PR 2158), filed
+by unit 7's fix pass and closed the same night. `docs/K-REPORT.md` now
+states as a merged claim that M7 remains the era because the
+distribution did not move, and **nothing computed with the three values
+that claim rests on**, while `threshold_provenance.rs` re-derives four
+shipped constants against `M7` on every gate run. The guard asserts
+each witness's PREDICATE as well as its value — a floor that stayed at
+4.79652e-5 under a different name is a moved distribution wearing the
+old number — and it EXHIBITS the string-comparison trap rather than
+asserting it, running the selection both ways over the committed rows.
+
+Verified here by corrupting the committed `.gz` (renaming one predicate
+occurrence) rather than by editing a literal: RED with *"M7 carries 234
+distinct predicate names at eps=1e-9, not the 233"*, then restored
+byte-identical. That is the strong form — it catches corruption of the
+artefact, not merely an edited expectation.
+
+### The slate opened at eleven items and now stands at twenty-nine
+
+Eight of the eleven are closed and the directory is bigger than when it
+started. That is not drift: every one of the eighteen new files came
+out of a sweep a unit was required to run, or a reviewer's class
+finding, and each names a real defect with a citation. The program's
+own instruments kept finding siblings of what they were sent to fix —
+`EXPECTED_HEADER` hand-copied at five producers, a `Shared` ledger row
+a bare import satisfies, a partition assert that cannot fail, two sites
+claiming the k-lint gate diffs committed baselines when nothing does.
+
+**What that means for closing.** METER cannot exit by draining the
+slate to zero: at the current rate each closed unit files two more.
+The exit walk will have to rule on which of the twenty-nine are METER's
+to finish and which are re-homed — three already went to `work/ciw/`
+on unit 4, which is the pattern. Recording it now because the decision
+belongs in the walk and the number will be larger by then.
