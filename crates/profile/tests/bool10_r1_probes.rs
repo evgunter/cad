@@ -340,3 +340,42 @@ fn a_via_leg_splits_about_its_own_derived_carrier() {
     );
     assert_eq!(split.loop_.tangent_joints(), &[1, 2]);
 }
+
+/// **The middle station divides by the CHORD**, which the plain leg
+/// never needs: an even split's `centre + R·m̂` takes the unit normal
+/// of `end − at`. A `Sweep` leg whose authored angle approaches a full
+/// turn drives that chord to zero, so this row walks the angle up to
+/// 2π at an even and an odd count and asserts the kernel either
+/// refuses typed or produces finite stations — never a NaN vertex.
+#[test]
+fn a_full_turn_sweep_leg_never_places_a_non_finite_station() {
+    use std::f64::consts::TAU;
+    for angle in [3.0, TAU - 1e-3, TAU - 1e-9, TAU, TAU + 0.5] {
+        for n in [2usize, 3, 4] {
+            let built = Open
+                .at(p2(0.0, 0.0))
+                .angle(0.0, t())
+                .and_then(|d| {
+                    d.arc_to(
+                        Sweep {
+                            r: 1.0,
+                            side: ArcSide::Left,
+                            angle,
+                        }
+                        .split(n),
+                        t(),
+                    )
+                })
+                .and_then(|open| open.line_to(Start, t()));
+            let Ok(closed) = built else {
+                continue;
+            };
+            for v in closed.loop_.vertices() {
+                assert!(
+                    v.pos().x.is_finite() && v.pos().y.is_finite() && v.bulge().is_finite(),
+                    "angle={angle} n={n}: a non-finite vertex {v:?}"
+                );
+            }
+        }
+    }
+}
