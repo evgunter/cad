@@ -252,15 +252,7 @@ const LINT_SOURCE: &str = include_str!("../../tess-lint/src/lib.rs");
 /// is what keeps a pin cheap enough that reaching for the other view
 /// is never a reason to skip it.
 fn lint_view(view: fn(&str) -> String, cache: &'static OnceLock<String>) -> &'static str {
-    cache.get_or_init(|| {
-        let text = view(LINT_SOURCE);
-        assert_eq!(
-            text.len(),
-            LINT_SOURCE.len(),
-            "a blanked view is the original's bytes, blanked in place"
-        );
-        text
-    })
+    cache.get_or_init(|| source::blanked(view, LINT_SEARCHED, LINT_SOURCE))
 }
 
 /// What the pins below searched, for their refusals — one spelling,
@@ -282,58 +274,6 @@ fn lint_literals() -> &'static str {
     lint_view(source::code_and_literals, &LITERALS)
 }
 
-/// The value of a plain string literal, or `None` where `text` is not
-/// one.
-///
-/// **Plain, and nothing is decoded.** A `concat!`, a raw string or an
-/// escape is not a literal this answers for — the callers refuse what
-/// it returns `None` on rather than guessing, because a mis-decoded
-/// constant is a green pin over a value nothing in the tree uses.
-fn plain_string_literal(text: &str) -> Option<&str> {
-    text.trim()
-        .strip_prefix('"')
-        .and_then(|q| q.strip_suffix('"'))
-}
-
-/// Every initializer following `decl` in `view`, as byte ranges: from
-/// the end of the declaration head to the `;` that closes it.
-///
-/// **`view` is a blanked view, and that is what makes an answer a
-/// declaration.** Over raw text the first occurrence wins, so a doc
-/// comment quoting the declaration — directly above it, where such a
-/// comment is written — outranks the declaration itself and the pin
-/// reads prose; over `code_only` every occurrence is real code. The
-/// closing `;` is sought in the same view, so one inside the
-/// initializer's own string cannot end the statement early.
-fn initializers(view: &str, decl: &str) -> Vec<std::ops::Range<usize>> {
-    view.match_indices(decl)
-        .map(|(at, _)| {
-            let start = at + decl.len();
-            let end = start + view[start..].find(';').expect("the declaration ends");
-            start..end
-        })
-        .collect()
-}
-
-/// The ONE initializer `decl` has in `view`, which `searched` names
-/// for the refusal below.
-///
-/// Exactly one: a second declaration of the same name is an ambiguity
-/// a textual pin cannot resolve, and answering with either of them
-/// silently is the failure this helper exists to refuse. `searched` is
-/// a parameter because `view` is any text — a fixture as readily as
-/// `tess-lint`'s source — and a message naming the wrong one sends its
-/// reader to a file that is not the one that failed.
-fn sole_initializer(view: &str, searched: &str, decl: &str) -> std::ops::Range<usize> {
-    let mut found = initializers(view, decl);
-    assert!(
-        found.len() == 1,
-        "`{decl}` is declared {} times in {searched}, not once",
-        found.len()
-    );
-    found.remove(0)
-}
-
 /// The pins read the declaration and not prose about it.
 ///
 /// The wrong answer here is the silent one: a doc comment or a string
@@ -350,10 +290,10 @@ fn the_pins_read_the_declaration_and_not_prose_about_it() {
         "const QUOTED: &str = \"pub const GROWTH_TOLERANCE: f64 = 8.0;\";\n",
         "pub const GROWTH_TOLERANCE: f64 = 1.05;\n"
     );
-    assert_eq!(initializers(decoyed, DECL).len(), 3);
+    assert_eq!(source::initializers(decoyed, DECL).len(), 3);
     let code = source::code_only(decoyed);
     assert_eq!(
-        code[sole_initializer(&code, "the decoy fixture", DECL)].trim(),
+        code[source::sole_initializer(&code, "the decoy fixture", DECL)].trim(),
         "1.05"
     );
 }
@@ -368,7 +308,7 @@ fn the_pins_read_the_declaration_and_not_prose_about_it() {
 /// rename, a retype, or a different spacing around the `=` reds it.
 fn lint_growth_tolerance() -> f64 {
     let code = lint_code();
-    code[sole_initializer(code, LINT_SEARCHED, "pub const GROWTH_TOLERANCE: f64 = ")]
+    code[source::sole_initializer(code, LINT_SEARCHED, "pub const GROWTH_TOLERANCE: f64 = ")]
         .trim()
         .parse()
         .expect("GROWTH_TOLERANCE is a float literal")
@@ -1021,12 +961,12 @@ fn an_off_lane_chart_with_columns_never_reaches_the_csv() {
 /// continuation reds it rather than decoding to something else.
 #[test]
 fn the_lints_expected_header_is_this_one() {
-    let decl = sole_initializer(
+    let decl = source::sole_initializer(
         lint_code(),
         LINT_SEARCHED,
         "pub const EXPECTED_HEADER: &str = ",
     );
-    let quoted = plain_string_literal(&lint_literals()[decl])
+    let quoted = source::plain_string_literal(&lint_literals()[decl])
         .expect("EXPECTED_HEADER is one plain string literal");
     // A Rust line continuation is `\` and the whitespace run after it.
     // Every other escape is REFUSED rather than decoded: the header
@@ -1114,7 +1054,7 @@ fn the_roster_names_each_chart_once() {
 /// `tess-lint`'s source.
 ///
 /// **Bracket-balanced rather than `;`-terminated**, which is where
-/// this parts from [`sole_initializer`]: an array's TYPE carries a `;`
+/// this parts from [`source::sole_initializer`]: an array's TYPE carries a `;`
 /// of its own (`[&str; 7]`), so the first `;` after the head is inside
 /// the declaration and not at its end. The `=` is sought first for the
 /// same reason — the `[` of `[&str; N]` precedes the `[` of the
@@ -1131,7 +1071,7 @@ fn lint_string_array(decl: &str) -> Vec<String> {
 
 /// [`lint_string_array`] over any pair of views of one text, so the
 /// locator itself is exercisable on a fixture. `searched` names that
-/// text for the refusals, per [`sole_initializer`].
+/// text for the refusals, per [`source::sole_initializer`].
 fn string_array(code: &str, literals: &str, searched: &str, decl: &str) -> Vec<String> {
     assert_eq!(
         code.len(),
@@ -1159,7 +1099,7 @@ fn string_array(code: &str, literals: &str, searched: &str, decl: &str) -> Vec<S
                 return None; // the trailing comma's empty tail
             }
             Some(
-                plain_string_literal(text)
+                source::plain_string_literal(text)
                     .unwrap_or_else(|| {
                         panic!("`{decl}` holds {text:?}, not a plain string literal")
                     })

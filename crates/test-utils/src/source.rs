@@ -65,7 +65,16 @@
 //! precondition, which is why each lives beside the lexer rather than
 //! at each call site — [`balanced_end`], [`angle_end`],
 //! [`top_level_split`] and [`item_body`], plus the traversals
-//! [`rust_sources`] and [`suite_files`]. **No count is written here**,
+//! [`rust_sources`] and [`suite_files`].
+//!
+//! A second group reads a DECLARATION out of a blanked view rather
+//! than walking brackets in it: [`initializers`], [`sole_initializer`]
+//! and [`plain_string_literal`], with [`blanked`] for the
+//! same-bytes-blanked-in-place precondition every pin that locates in
+//! one view and reads in another depends on. They are here for the
+//! reason the lexer is: `tools/tess-meter` and `tools/k-lint` both pin
+//! a constant across a cargo-root boundary and each arrived at the
+//! same three functions. **No count is written here**,
 //! for the reason the paragraph above gives about the ledger's: a
 //! number in prose beside a list that grows is a copy that goes stale
 //! in the silent direction.
@@ -559,6 +568,85 @@ pub fn top_level_split(blanked: &str, sep: char) -> Vec<std::ops::Range<usize>> 
         }
     }
     out.push(start..blanked.len());
+    out
+}
+
+/// The value of a plain string literal, or `None` where `text` is not
+/// one.
+///
+/// **Plain, and nothing is decoded.** A `concat!`, a raw string or an
+/// escape is not a literal this answers for — the callers refuse what
+/// it returns `None` on rather than guessing, because a mis-decoded
+/// constant is a green pin over a value nothing in the tree uses.
+///
+/// `text` is a slice of a [`code_and_literals`] view, which is what
+/// makes the quotes real quotes.
+#[must_use]
+pub fn plain_string_literal(text: &str) -> Option<&str> {
+    text.trim()
+        .strip_prefix('"')
+        .and_then(|q| q.strip_suffix('"'))
+}
+
+/// Every initializer following `decl` in `view`, as byte ranges: from
+/// the end of the declaration head to the `;` that closes it.
+///
+/// **`view` is a blanked view, and that is what makes an answer a
+/// declaration.** Over raw text the first occurrence wins, so a doc
+/// comment quoting the declaration — directly above it, where such a
+/// comment is written — outranks the declaration itself and the
+/// caller reads prose; over [`code_only`] every occurrence is real
+/// code. The closing `;` is sought in the same view, so one inside the
+/// initializer's own string cannot end the statement early.
+///
+/// **A `;` inside the declaration's own TYPE ends it early**, which an
+/// array type (`[&str; 3]`) has and a scalar one does not; a caller
+/// whose `decl` stops before a type of that shape wants its own walk.
+#[must_use]
+pub fn initializers(view: &str, decl: &str) -> Vec<std::ops::Range<usize>> {
+    view.match_indices(decl)
+        .map(|(at, _)| {
+            let start = at + decl.len();
+            let end = start + view[start..].find(';').expect("the declaration ends");
+            start..end
+        })
+        .collect()
+}
+
+/// The ONE initializer `decl` has in `view`, which `searched` names
+/// for the refusal below.
+///
+/// Exactly one: a second declaration of the same name is an ambiguity
+/// a textual pin cannot resolve, and answering with either of them
+/// silently is the failure this helper exists to refuse. `searched` is
+/// a parameter because `view` is any text — a fixture as readily as a
+/// crate's source — and a message naming the wrong one sends its
+/// reader to a file that is not the one that failed.
+#[must_use]
+pub fn sole_initializer(view: &str, searched: &str, decl: &str) -> std::ops::Range<usize> {
+    let mut found = initializers(view, decl);
+    assert!(
+        found.len() == 1,
+        "`{decl}` is declared {} times in {searched}, not once",
+        found.len()
+    );
+    found.remove(0)
+}
+
+/// `view(text)`, refused unless it is `text`'s bytes blanked IN PLACE.
+///
+/// Every pin that LOCATES a declaration in one view and READS its
+/// value out of another depends on the two views agreeing byte for
+/// byte, and each such pin asserted that for itself. `searched` names
+/// the text in the refusal.
+#[must_use]
+pub fn blanked(view: fn(&str) -> String, searched: &str, text: &str) -> String {
+    let out = view(text);
+    assert_eq!(
+        out.len(),
+        text.len(),
+        "a blanked view of {searched} is the original's bytes, blanked in place"
+    );
     out
 }
 

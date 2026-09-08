@@ -280,6 +280,27 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// argument is in the module docs ("The ε-coupled families"). An
 /// explicit allow-list on purpose: a new ε-coupled predicate is NOT on
 /// it and keeps flagging under the metre rules until someone rules.
+///
+/// **PINNED TO ONE FILE'S SPELLING — read `tests/predicate_roster.rs`
+/// for what that does and does not cover**, because the pin's reach is
+/// narrower than this sentence can honestly summarise. It reads
+/// `crates/geom-brep/src/props/quad.rs` across the cargo-root boundary
+/// and reds if a name here stops being minted there; if a rostered
+/// mint's margin stops deriving from the whole identifier `target_len`
+/// in its own enclosing function, or that binding stops being
+/// `QUAD_TARGET_LEN_FACTOR * eps` (rule (4)'s premise, not just its
+/// key); if a mint acquires such a margin and is neither rostered nor
+/// excused there by name; or if any `classify_len` in that file drops
+/// out of the parse.
+///
+/// **What no test here can see** is a predicate the kernel adds to this
+/// class by a route that is not `target_len`, or in a file that table
+/// does not list. Membership is a property, that property is written
+/// nowhere a test can evaluate over a name — `target_len` is this one
+/// family's spelling of it, not the criterion — and
+/// `work/meter/k-lint-eps-coupled-criterion-unwritten` is where the
+/// criterion is scheduled. The allow-list's fail-loud posture above is
+/// why the residue is a diagnosis gap and not an open gate.
 pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 
 /// Rule (4)'s floor for [`EPS_COUPLED_PREDICATES`], in units of ε:
