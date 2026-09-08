@@ -459,16 +459,38 @@ here stands for — one reason each, never a blanket one:
 | `Derived` | — | none, so it `finish`es |
 
 **A carried field may be summarised, and several are.** `states` is the
-history's length, `gesture`, `scratch`, `resolver` and `body` are their
-presence, `index` is the generation it describes, and `checks` is its
-two counts — `ChecksReport` is a `Vec` per finding with no bound, and a
-dump that inlined it would be the thing these walks exist to keep
-readable. Summarising is what a `#[derive(Debug)]` cannot do at all,
-which is the reason these are written out rather than derived; the
-recipe and result DAGs are what makes that reason bite. What
-`finish`/`finish_non_exhaustive` cannot express is the difference
-between summarised and not-carried, and it is not asked to —
-`work/view/finish-marker-cannot-say-summarised.md` carries that.
+history's length and `checks` is its two counts (`ChecksReport` is a
+`Vec` per finding with no bound, and a dump that inlined it would be
+the thing these walks exist to keep readable); `scratch`, `body`,
+`gesture` and `resolver` are their presence, rendered as the elisions
+`Some(<Doc>)`, `Some(<Body>)`, `Some(<Gesture>)` and
+`Some(<DirResolver>)`; and `index` is the generation it describes
+inside one, `Some(<PickIndex for Generation(4)>)`. Summarising is what
+a `#[derive(Debug)]` cannot do at all, which is the reason these are
+written out rather than derived; the recipe and result DAGs are what
+makes that reason bite.
+
+**A summarised field renders as a summary**, so the marker only ever
+has to answer the question it can answer. A count, a pair of counts and
+an elision are each something no value of the field's own type renders
+as, which is the property being bought: `scratch: false` was a `bool` a
+reader who knows `std` and not this page could take for the whole of a
+`Doc`, and `index: Some(Generation(4))` was an `Option<Generation>`
+this cache does not have. `finish`/`finish_non_exhaustive` says whether
+every FIELD is shown; whether the value shown is the whole field is
+answered at the field, which is the only place a two-valued marker
+could not have said it. **The sweep behind that list**: in each of the
+four walks read every `.field(…)` call — 22 — and take the ones whose
+value argument is not the destructured binding itself. Nine calls,
+seven fields: `checks` and `index` each spend two arms, and the absent
+arm renders `None`, which is the whole field. `viewer`'s
+`tests/debug_dumps.rs` holds the seven to their spellings, and is the
+only reader of these dumps in the tree. What holds the NEXT summarised
+field to the rule is not a check: the destructuring makes the compiler
+send whoever adds a field to the walk, the rule is stated here and in
+each impl's own doc comment for them to read when they arrive, and
+nothing in the tree computes on a dump — so a lapse costs a reader a
+misreading and can never cost an answer.
 
 `PickCache::forget` takes the same destructuring for the same reason
 one seam further: it clears the four fields that describe a picture and
