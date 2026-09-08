@@ -2165,7 +2165,13 @@ mod tests {
         let w = comp.w.cell_hull(su, sv);
         let wt = comp.wt.cell_hull(su, sv);
         let dh = comp.dd.cell_hull(su, sv);
-        if !(w.lo() > 0.0) || !(wt.lo() > 0.0) || !(if d > 0.0 { dh.lo() > 0.0 } else { dh.hi() < 0.0 })
+        if !(w.lo() > 0.0)
+            || !(wt.lo() > 0.0)
+            || !(if d > 0.0 {
+                dh.lo() > 0.0
+            } else {
+                dh.hi() < 0.0
+            })
         {
             return unproved;
         }
@@ -2283,7 +2289,10 @@ mod tests {
         let (su, sv, sup) = sup_cell(&comp, reg.floor, d, ELow::Witness);
         assert_eq!((su, sv), (21, 12));
         assert!(near(sup, 1.7072e-5), "sup cell bound is {sup:e}");
-        assert!(near(cert.hull_sup, sup), "the certificate carries another cell's bound");
+        assert!(
+            near(cert.hull_sup, sup),
+            "the certificate carries another cell's bound"
+        );
         let (dist, tau, t3, e_lo, _) = decompose(&comp, su, sv, reg.floor, d, ELow::Witness);
         assert!(
             e_lo > d * 0.5 && e_lo < d * 2.0,
@@ -2300,8 +2309,15 @@ mod tests {
         assert!(near(e_mig, 1.5798e-8), "componentwise floor is {e_mig:e}");
         assert!(near(sup_c, 3.2219e-4) && near(dist_c, 9.3763e-6) && near(t3_c, 3.1059e-4));
         assert!(near(tau_c, tau), "τ moved: {tau_c:e} against {tau:e}");
-        assert!(t3_c > 0.96 * sup_c, "the componentwise reading's sup is not its τ²/‖E‖ term");
-        assert!(near(sup_c / sup, 18.872), "the bound moved by {}", sup_c / sup);
+        assert!(
+            t3_c > 0.96 * sup_c,
+            "the componentwise reading's sup is not its τ²/‖E‖ term"
+        );
+        assert!(
+            near(sup_c / sup, 18.872),
+            "the bound moved by {}",
+            sup_c / sup
+        );
 
         // One round finer — the grid the `1e-9` request stops on at
         // the sample cap. The cells are small enough that the
