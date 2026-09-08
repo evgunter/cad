@@ -93,10 +93,14 @@ pub(crate) struct LaneEnv<'a, T> {
     /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
     pub params: &'a crate::expr::ParamEnv<T>,
     /// The document's own f64 parameter environment, under no box and
-    /// no seed. It is what every f64-pinned reader below decides from
-    /// — the profile plane read, the pre-pass's program resolution,
-    /// the placement the pinned lift embeds — and therefore what a
-    /// content key owes ([`super::tag::slot`]).
+    /// no seed, built once per evaluation beside `params`. THE CENSUS
+    /// of its readers — every f64-pinned decision the evaluation makes:
+    /// the profile plane read ([`profile_plane_f64`]), the pre-pass's
+    /// resolution of a profile node's program (`eval_node`), a loft or
+    /// sweep section's resolution of its program ([`section_of`]), and
+    /// the placement the pinned lift embeds. It is therefore what a
+    /// content key owes ([`super::tag::slot`]). Nothing under
+    /// evaluation builds a second one.
     pub nominal: &'a crate::expr::ParamEnv<f64>,
     /// The E4 seed this evaluation carries, by name (`None` on the
     /// build path). Consulted by the one place the lift cannot reach:
@@ -836,6 +840,42 @@ fn datum_unit<T: Decide>(
     UnitVec3::new(v, band).map_err(|e| refusal(e, role, DATUM_UNIT_NORM))
 }
 
+/// **An authored frame from its evaluated slots** — the one spelling
+/// of the read, shared by the frame's own evaluation at the lane
+/// scalar ([`wire_datum`]) and by the profile placement at f64
+/// ([`profile_plane_f64`]), so the two cannot keep different axes or
+/// refuse in different orders. The origin is read first; then `u` and
+/// `v` are orthonormalized through [`frame_axes`] with `u` kept — the
+/// frame's sketch +x is what the author wrote, and `v` is the axis
+/// that yields, because keeping `v` would silently rotate every
+/// profile drawn on the frame when only `v` was edited.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingSlot`] for a slot the values do not carry
+/// (unreachable while `Node::slots` and the wire agree), then the two
+/// direction refusals of [`frame_axes`].
+fn frame_from_slots<T: Decide>(
+    vals: &SlotValues<T>,
+    band: Band,
+) -> Result<AuthoredFrame<T>, NodeErrorKind> {
+    let origin = need_point3(vals, SlotId::Origin)?;
+    let (u, v) = frame_axes(
+        need_vec3(vals, SlotId::U)?,
+        need_vec3(vals, SlotId::V)?,
+        band,
+    )?;
+    Ok(AuthoredFrame { origin, u, v })
+}
+
+/// An authored frame's evaluated placement ([`frame_from_slots`]):
+/// its origin and its orthonormal in-plane axes, `u` kept.
+struct AuthoredFrame<T: geom_core::Real> {
+    origin: Point3<T>,
+    u: UnitVec3<T>,
+    v: UnitVec3<T>,
+}
+
 /// **A profile's `f64` placement, where the document HOLDS one** — an
 /// authored frame's nine expressions, resolved and orthonormalized;
 /// `None` for a frame derived from a face, which the document does not
@@ -871,15 +911,8 @@ fn datum_unit<T: Decide>(
 /// same `Option`, so a consumer that places with a derived frame's
 /// record has nothing to mistake for a placement.
 ///
-/// # The environment it reads at
-///
-/// `nominal` is the evaluation's one f64 environment,
-/// [`LaneEnv::nominal`] — that field's doc says what it is and why
-/// every f64-pinned reader decides from it; this function is one of
-/// those readers and builds nothing of its own. The frame's nine
-/// slots are evaluated through [`slots::eval_slots`], the door
-/// `eval_node` reads every node's slots through, so a frame slot that
-/// refuses at the nominal refuses here in the shape it refuses there.
+/// `nominal` is [`LaneEnv::nominal`]; the frame's nine slots are read
+/// at it through [`slots::eval_slots`] and [`frame_from_slots`].
 ///
 /// # Errors
 ///
@@ -901,16 +934,11 @@ pub(crate) fn profile_plane_f64(
         .ok_or(NodeErrorKind::MissingInput { input: plane })?;
     let vals = slots::eval_slots(node, nominal)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-    let origin = need_point3(&vals, SlotId::Origin)?;
-    let (u, v) = frame_axes(
-        need_vec3(&vals, SlotId::U)?,
-        need_vec3(&vals, SlotId::V)?,
-        band(tol)?,
-    )?;
+    let f = frame_from_slots(&vals, band(tol)?)?;
     Ok(Some(profile::SketchPlane::from_frame(
-        origin,
-        u.get(),
-        v.get(),
+        f.origin,
+        f.u.get(),
+        f.v.get(),
     )))
 }
 
@@ -966,7 +994,7 @@ pub(crate) fn frame_kind(
 /// So the lane pass reads what the frame's own evaluation landed, at
 /// the lane's scalar. Structure stays f64-pinned and lane-identical;
 /// magnitudes stay lane-live. That is the same split the profile's own
-/// program has had since M10-P, applied to the input it just gained.
+/// program follows, applied to the frame it is drawn on.
 ///
 /// A DERIVED frame is read here under EVERY lift (DM1c): it has no
 /// document elaboration, so this by-value read is the only placement
@@ -1101,22 +1129,11 @@ fn wire_datum<T: Decide>(
         // every other direction rather than under a new predicate — v's
         // component perpendicular to û is decided-zero exactly when the
         // two are parallel, which is exactly when there is no plane.
-        //
-        // u is normalized FIRST and kept: the frame's sketch +x is what
-        // the author wrote, and v is the axis that yields. Choosing the
-        // other order would silently rotate every profile drawn on the
-        // frame when only v was edited.
+        // Which axis is kept, and why, is stated at the one spelling of
+        // the read, `frame_from_slots`.
         Datum::Frame { .. } => {
-            let (u, v) = frame_axes(
-                need_vec3(vals, SlotId::U)?,
-                need_vec3(vals, SlotId::V)?,
-                band(tol)?,
-            )?;
-            DatumValue::Frame {
-                origin: need_point3(vals, SlotId::Origin)?,
-                u,
-                v,
-            }
+            let AuthoredFrame { origin, u, v } = frame_from_slots(vals, band(tol)?)?;
+            DatumValue::Frame { origin, u, v }
         }
         // **The one datum that reads another node.** Its four numbers
         // are coordinates IN a frame, so the frame is what they mean,
@@ -1859,7 +1876,7 @@ fn verb_refused<T: crate::verbs::shell::ShellLane>(refusal: verbs::VerbError<T>)
 /// # Fillet
 ///
 /// **Constant-radius rolling-ball fillets on a SELECTION of the
-/// target's edges** (M5 PR 12; the selection is M6-5).
+/// target's edges**.
 ///
 /// # Chamfer
 ///
@@ -2767,7 +2784,7 @@ fn wire_part<T: Decide>(
     Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)))
 }
 
-// `Bounds` rides along for the boolean lane only (M5 PR 8): the sweep's
+// `Bounds` rides along for the boolean lane only: the sweep's
 // BVH candidate generation reads coordinate brackets — the L7 driver-code
 // allowance, threaded from `run_op`'s service bound.
 //
@@ -2794,7 +2811,7 @@ fn wire_boolean<
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
-    // F5 threading (M4 PR 5): the Declare input's name pairs resolve
+    // F5 threading: the Declare input's name pairs resolve
     // through the OPERANDS' name tables into the kernel's declared
     // coincidence data. Resolution failures are the N5 typed errors —
     // no silent drop, no best-effort gluing. This stays upstairs: it
@@ -3669,7 +3686,7 @@ fn face_name(
 }
 
 /// Resolves one Declare payload's name pairs against the two operand
-/// tables into the kernel's [`BooleanDeclarations`] (F5, M4 PR 5).
+/// tables into the kernel's [`BooleanDeclarations`] (F5).
 ///
 /// **One definition, two doors.** [`wire_boolean`] calls it with the
 /// two operands' tables; [`wire_union`] calls it once per fold step
@@ -3813,7 +3830,7 @@ pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 /// mate solve's derived offset, so a transform under a mate and a
 /// transform under the gather move a body by the same arithmetic.
 ///
-/// PR 1's die convention: rotate about the axis THROUGH THE WORLD
+/// The die convention: rotate about the axis THROUGH THE WORLD
 /// ORIGIN by `angle`, then translate. `axis` is already unit — the
 /// callers normalize it through [`unit()`] under
 /// [`TRANSFORM_AXIS_ROLE`], where the degenerate and non-finite cases
@@ -4032,7 +4049,7 @@ fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(
 /// 2. **The certificate**, BEFORE anything is built: one
 ///    [`topo::Separation`] over the prototype, queried per placement
 ///    pair. Disjointness is certified, never declared — the graft door
-///    this lowers through asserts nothing about its operands (#382),
+///    this lowers through asserts nothing about its operands,
 ///    so an unproved arrangement refuses typed rather than shipping a
 ///    body whose solids may interpenetrate. Nothing is placed until
 ///    the certificate holds, so a refusal costs one tree, not N
@@ -4059,7 +4076,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane
     // one `apply` and the snapshot check read, so an empty placement
     // list, a non-finite frame or an improper one refuses HERE with its
     // own name rather than downstream as a poison-box separation
-    // "failure" or a kernel rigidity refusal (review MAJOR-1/MINOR-2).
+    // "failure" or a kernel rigidity refusal.
     // Unreachable through `apply`; this is the hand-built-document
     // backstop.
     if let Some(fault) = fault {
@@ -4120,15 +4137,12 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane
 }
 
 // ---------------------------------------------------------------------
-// M5 PR 10: the definitional §10.3/§10.4 nodes
+// The definitional §10.3/§10.4 nodes
 // ---------------------------------------------------------------------
 
-/// The Sweep node's frontier — the ONE remaining
-/// [`NodeErrorKind::CurvedSolidFrontier`] door (M5 PR 10 fix pass,
-/// review MAJOR-1; narrowed at M6-3 when the loft body landed and the
-/// former `LOFT_FRONTIER` text retired with its frontier). Kept as a
-/// constant so the acceptance rows assert the SAME text the node
-/// produces.
+/// The Sweep node's frontier — the ONE
+/// [`NodeErrorKind::CurvedSolidFrontier`] door. Kept as a constant so
+/// the acceptance rows assert the SAME text the node produces.
 ///
 /// §10.4's rigid-profile sweep needs the path as ONE curve. The recipe
 /// layer cannot supply one: a `Node::Sweep`'s `path` operand is a
@@ -4136,27 +4150,15 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane
 /// chain has two or more segments — even the minimal two-vertex loop is
 /// two half-turn arcs. So there is no recipe-expressible path, and the
 /// honest node-layer answer is a single refusal naming what is
-/// missing: a joined-path composition lane (banked past M6 — the
-/// PR 10 MAJ ruling, reaffirmed by the M6-3 spec §1).
+/// missing: a joined-path composition lane.
 ///
 /// `sweep::sweep_geometry` AND `sweep::sweep_body` are live and
-/// exercised through the library API; it is only this NODE lane that
-/// is gated, at one door, so the message cannot imply an expressible
-/// case that does not exist.
-///
-/// **Honest correction (#207).** That sentence was written at M6-3 and
-/// was NOT true as written until #207 closed. `sweep_body` with any
-/// CURVED path refused at assembly — the skin fit synthesized a weight
-/// channel for integral sections, the walls came out bitwise rational,
-/// and `nurbs_span_meter` poisoned (the meter had no rational arm
-/// then; M7's rational span meter has since given it one, so a
-/// rational wall is no longer fatal on its own) — so between M6-3 and
-/// #207 the machinery had zero successful curved-path callers anywhere
-/// in the tree, and only the straight-path/uniform-loft slice was
-/// exercised. The claim stands today on a real caller:
+/// exercised through the library API on a real curved-path caller —
 /// `sweep/tests/m7_skin_integral.rs` builds, validates and measures a
 /// quarter-torus elbow, and `step-export/tests/m7_swept_elbow.rs` puts
-/// it on the wire.
+/// it on the wire — so it is only this NODE lane that is gated, at one
+/// door, and the message cannot imply an expressible case that does
+/// not exist.
 pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operand is a profile LOOP — always \
      a closed chain of two or more segments, even at the minimal \
      two-vertex circle — while §10.4's rigid-profile sweep needs the \
@@ -4203,10 +4205,8 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         });
     }
     // LIB-SWITCH §4b at the loft/sweep seam: the section is the
-    // node's program RESOLVED at f64 — at the evaluation's one nominal
-    // environment, `LaneEnv::nominal`, which is where the profile
-    // node's own pre-pass resolves it too — and REPLAYED, the same
-    // C6/D9 pipeline the profile node runs. The profile's own
+    // node's program RESOLVED at `LaneEnv::nominal` and REPLAYED —
+    // the same C6/D9 pipeline the profile node runs. The profile's own
     // validation door still runs first, so a bad section reads as a
     // profile error at the NODE (the §2 compatibility contract) before
     // the library door re-gates it — and the f64 canonical form yields
@@ -4215,11 +4215,8 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         .resolve(lane.nominal)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     // The f64 ladder is `prepare_profile` ITSELF, not a copy of it:
-    // this seam and the profile node's used to run the same four steps
-    // side by side, and two copies of a pipeline are two places for a
-    // gate to be added to only one. Sharing the function is what makes
-    // "the duplicate ladder did not fork" a fact about the code rather
-    // than a claim about two diffs.
+    // one pipeline shared by this seam and the profile node, so a gate
+    // added to it gates both.
     // DM1c: a section on a DERIVED frame has no `f64` placement of its
     // own — the frame's landed value is the lane's — and a section's
     // geometry stays `f64`. So the placement comes off the by-value
@@ -4330,8 +4327,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
     ))
 }
 
-/// The Sweep node (M5 PR 10 fix pass, review MAJOR-1: ONE honest
-/// arm).
+/// The Sweep node: ONE honest arm.
 ///
 /// Every RECIPE door still runs first — the structural slots, and both
 /// operands through [`section_of`] — because a Sweep on a datum, or

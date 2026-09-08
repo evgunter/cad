@@ -1,19 +1,19 @@
-//! Slot evaluation: every expression a node carries, evaluated once
-//! per node per environment, in the node's deterministic slot order —
-//! the single place expression failures acquire their (node, slot)
-//! context (spec D2; PR 1's banked `NonFiniteResult` obligation) and
-//! the single source of values for BOTH the content key and the op
+//! Slot evaluation: every expression a node carries, evaluated in the
+//! node's deterministic slot order through ONE door — the single place
+//! expression failures acquire their (node, slot) context (spec D2)
+//! and the single source of values for BOTH the content key and the op
 //! wiring (they must never disagree).
 //!
-//! `eval_node` asks it twice, and that is what keeps the sentence
-//! above true of the whole key: once at the evaluation scalar, whose
-//! values the op runs on and the key's lane half holds, and once at
-//! the document's nominal, whose values the key's other half holds
-//! (`super::tag::slot`). Two environments, one door — so a slot's
-//! expression is looked up and evaluated in exactly one place, and a
-//! refusal at either environment arrives in one shape. The profile
-//! plane read (`super::wire::profile_plane_f64`) reads a FRAME node's
-//! nine slots through the same door, at the nominal.
+//! The door is the one SPELLING of the read, not a count of reads.
+//! `eval_node` asks it twice per node: once at the evaluation scalar,
+//! whose values the op runs on and the key's lane half holds, and once
+//! at the document's nominal, whose values the key's other half holds
+//! (`super::tag::slot`). The profile plane read
+//! (`super::wire::profile_plane_f64`) asks it again for a FRAME node's
+//! nine slots at the nominal, once per profile placed on that frame.
+//! Whatever the count, a slot's expression is looked up and evaluated
+//! in exactly one place, and a refusal at any environment arrives in
+//! one shape.
 
 use geom_core::Decide;
 
