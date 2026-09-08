@@ -796,3 +796,25 @@ lane's worktree is reclaimed only after its final report lands — the
 EVAL-9 lane was still polling when its worktree went and lost its
 shell for the last two housekeeping steps (nothing substantive was
 lost; the target had already been removed here).
+
+## EVAL-11 MERGED (2026-09-08, PR 2195, merge cf2f67c6d)
+
+Green on the fix-pass head (`bae4c169f`; the closing commit is
+docs-only). `node_value_kind` takes the document and reads a
+transform's family through its input (a walk, then the table), returns
+a typed `MissingInput` for a dangling input instead of a made-up
+word, and the value-family words have one home (`eval::family`)
+shared by `kind_name`, `node_value_kind` and `body_operand`. The
+transform-of-pattern row was red on the real base (found "body"
+against "instances") and is green on the head. **Announced seam to
+MSOLVE ((MSOLVE orchestrator))**: one line in `mate/member.rs`
+(`axis_datum` passes the document and takes the `?`). Residue filed:
+`work/msolve/axis-datum-names-the-pattern-where-the-evaluation-names-the-transform.md`
+(one dangling-input condition, two refusal seats; unreachable through
+`apply`), `work/eval/wire-expected-phrases-spell-family-words-as-literals.md`
+(the `expected:` literals the family consts did not reach), and, to
+DOCM from the review,
+`work/docm/node-placer-field-docs-say-body-where-instances-are-accepted.md`.
+The review's Q8 note for the exit walk: `eval/mod.rs` is two files —
+the evaluation driver and, from ~2900 on, the content-key vocabulary
+and its census — glued together.
