@@ -75,7 +75,7 @@ by two programs opened for it, `gates` (`scripts/gates/*`) and
 2026-09-08** (`docs/DOC-LEDGER.md`, sweep 7) and its half of the fence,
 `scripts/gates/*`, is this program's again, with two rows re-homed here
 (`D212`, riding `G4`; `directory-prefix-skips-have-no-subject-check`,
-open on an `[ev]` ruling); `T`'s remainder
+closed 2026-09-08 on Ev's ruling, PR 2213); `T`'s remainder
 on `crates/sweep/src` went to `blend`, FILLET's successor, the same
 day; `P` and `W` left on 2026-09-04. `V`'s ground is spread across
 DOCM, EVAL (the eval seat, opened 2026-09-06) and six others, and its
