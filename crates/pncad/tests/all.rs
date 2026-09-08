@@ -924,6 +924,89 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     assert!(step.starts_with("ISO-10303-21;"));
 }
 
+/// **A carried RESULT's discriminant, matched through the prelude —
+/// and CONSTRUCTED here rather than fabricated.**
+///
+/// `revolve` is a prelude door and its answer is a `Revolved`, whose
+/// `kind` is the ratified case split. The two arms are two disjoint
+/// sets of handles rather than one shape with a label: a partial
+/// revolution has wedge CAPS and both meridian chains, a full one has
+/// no caps, one seam chain, and the wire case's second π-band. So
+/// "which faces did my revolve make" is answered by this branch and
+/// by no other, and every key type the arms carry is on the same
+/// list.
+///
+/// Both arms are reached by calling the door, which makes this a
+/// construction pin and not only a naming one.
+#[test]
+fn a_revolve_result_is_matchable_through_the_prelude() {
+    // An off-axis rectangle, revolved about the sketch y axis: x is
+    // the radius, so the profile never touches the axis and the full
+    // case is the lamina one.
+    let rect: ClosedLoop<f64> = Open
+        .at(p2(1.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .and_then(|t| t.line_to(p2(2.0, 1.0), Tol::witness()))
+        .and_then(|t| t.line_to(p2(1.0, 1.0), Tol::witness()))
+        .and_then(|t| t.line_to(Start, Tol::witness()))
+        .expect("the rectangle authors");
+    let profile = validated(
+        SketchPlane::<f64>::xy(),
+        vec![rect.into()],
+        Tol::witness(),
+    )
+    .expect("profile validates");
+    let axis = RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
+    };
+
+    let quarter = revolve(
+        &profile,
+        axis,
+        Revolution::Partial(std::f64::consts::FRAC_PI_2),
+        Tol::witness(),
+    )
+    .expect("a quarter revolution builds");
+    assert_eq!(revolved_kind_is_matchable(&quarter.kind), "partial");
+
+    let whole = revolve(&profile, axis, Revolution::Full, Tol::witness())
+        .expect("a full revolution builds");
+    assert_eq!(revolved_kind_is_matchable(&whole.kind), "full");
+}
+
+/// The case split, matched exhaustively with every field's type
+/// spelled from the prelude — the pin that a caller can read the
+/// handles out and not merely see which arm it got.
+fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
+    match kind {
+        RevolvedKind::Partial {
+            start_cap,
+            end_cap,
+            start_meridians,
+            end_meridians,
+        } => {
+            named::<FaceKey>(*start_cap);
+            named::<FaceKey>(*end_cap);
+            named::<&Vec<Vec<EdgeKey>>>(start_meridians);
+            named::<&Vec<Vec<EdgeKey>>>(end_meridians);
+            "partial"
+        }
+        RevolvedKind::Full {
+            meridians,
+            pi_walls,
+            pi_meridians,
+            pi_rims,
+        } => {
+            named::<&Vec<Vec<Option<EdgeKey>>>>(meridians);
+            named::<&Vec<Option<FaceKey>>>(pi_walls);
+            named::<&Vec<Option<EdgeKey>>>(pi_meridians);
+            named::<&Vec<Option<EdgeKey>>>(pi_rims);
+            "full"
+        }
+    }
+}
+
 /// The other arm of the ladder: a Boolean result carries its own
 /// declared contacts and validates at tier 3′ with them. Also the
 /// end-to-end proof that the Boolean vocabulary is prelude-complete.

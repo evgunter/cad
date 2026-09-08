@@ -240,10 +240,35 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
 pub use sweep::blend::{BlendSite, CornerConfig, RunOutPolicy};
+// **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
+// value over: the payloads above are what a carried REFUSAL says, this
+// is what a carried RESULT says, and a curated list owes matchability
+// on both.
+//
+// `revolve` hands back a `Revolved` — the key bundle a downstream
+// pass addresses the new body by — and its `kind` field is the
+// ratified case split (the revolve module docs), which is not a label
+// on one shape but two disjoint sets of handles. A `Partial`
+// revolution has wedge CAPS (`start_cap`, `end_cap`) and both
+// meridian chains; a `Full` one has no caps at all, one seam chain,
+// and — in the wire case, where the profile touches the axis — a
+// second π-band whose walls, meridians and rims are four more fields
+// that exist on no other arm. So "which faces did my revolve make,
+// and which can I fillet" is answered by branching on this
+// discriminant and by nothing else: the fields are not `Option`s on
+// one struct that a caller could probe, they are arms.
+//
+// Every key kind the arms carry is already on this list (`FaceKey`,
+// `EdgeKey`, group 4), so the rung under it closes here rather than
+// stopping. And no Python tag moves: `Revolved` does not cross at all
+// — Python speaks the document layer, where a revolve is a
+// `Node.revolve` whose answer is a body — so there is nothing here to
+// split or pin, the `BlendError` reading on a value rather than a
+// refusal.
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
-    Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,
-    tube_along_arc_hollow,
+    Revolved, RevolvedKind, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body,
+    tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------

@@ -1738,6 +1738,20 @@ NOT_BOUND = {
     "PropsQuadLane": INTERIOR,
     "Revolution": INTERIOR,
     "Revolved": INTERIOR,
+    # `Revolved::kind` — the ratified case split, curated at the
+    # prelude because the two arms are two disjoint sets of handles
+    # and a Rust caller reading the wedge caps off a partial revolve
+    # has to branch. `INTERIOR` by the carrier rule and by the
+    # plainest measurement of it in this file: the carrier does not
+    # cross AT ALL. Python speaks the document layer, so a revolve is
+    # a `Node.revolve` whose answer is a body — no `Revolved` value
+    # reaches Python, and `pncad-py` names neither type anywhere.
+    #
+    # Not a `gap:` either: what a Python caller wants out of those
+    # handles is the FACES, and it asks for those by name through
+    # `Evaluation.select` rather than by key. A key bundle has nothing
+    # to project to a surface that holds names and never keys.
+    "RevolvedKind": INTERIOR,
     # `ValidationError::RingMeetsOuter`'s payload (LIB-CUR4).
     "RingContact": INTERIOR,
     # `BlendError::UnsupportedCorner`'s second field, the policy
