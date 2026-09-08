@@ -1,6 +1,7 @@
-//! Algebra-authored profile helpers (LIB-U2 PR-2): the tour's polygon
-//! loops said through the PATHS algebra (`pncad::prelude::{Open,
-//! Start}`) instead of the raw `ProfileLoop::polygon` constructor.
+//! Algebra-authored profile helpers: the tour's polygon loops said
+//! through the PATHS algebra (`pncad::prelude::{Open, Start}`), which
+//! is the only way to say them — the raw vertex-table door is gated out
+//! of every shipped build.
 //!
 //! The lowering emits every authored point verbatim (bulge 0, no
 //! declared joints) — the exact `ProfileLoop` the raw constructor

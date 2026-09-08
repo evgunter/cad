@@ -118,9 +118,11 @@ pub use quantity::{
 // them back, `ProfileError` payloads point into them, and `validated`
 // takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
 // the ladder passes around. What left is the raw MINTING tier:
-// `ProfileLoop::new`/`polygon` now live on `profile::RawLoop`, which is
-// kernel vocabulary and is re-exported by neither this prelude nor
-// `crate::profile`. Loops are authored through the lattice below.
+// `ProfileLoop::new`/`polygon` live on `profile::RawLoop`, which is a
+// FIXTURE door behind that crate's `test-support` feature — absent from
+// every shipped build, so there is nothing here to decline. Loops are
+// authored through the lattice below, and a table that already exists
+// crosses scalars through `ProfileLoop::embed`.
 pub use ::profile::{
     ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
     SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,

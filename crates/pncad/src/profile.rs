@@ -18,9 +18,10 @@
 //! methods, not inherent ones. `profile::RawLoop` carries `new` and
 //! `polygon`; inherent methods would have travelled with the type
 //! through any re-export that made it nameable, and the type must be
-//! nameable. This module re-exports everything in `profile`'s root
-//! EXCEPT `RawLoop`, so `pncad::profile::ProfileLoop::polygon(…)` does
-//! not resolve: the trait is not in scope and there is no path to it.
+//! nameable. This module re-exports everything in `profile`'s root,
+//! and `RawLoop` is not in that root to re-export: the trait is gated
+//! behind `profile`'s `test-support` feature, so a build that is not
+//! some crate's tests does not compile it at all.
 //!
 //! What this module removes is the *authoring tier*: the named,
 //! documented, prelude-carried way to mint a loop from a coordinate
@@ -34,11 +35,17 @@
 //!
 //! Stated honestly, because it is a crate boundary and not a module
 //! one: `profile`'s own internals build loops directly and hold the
-//! invariant by their sealed-verbs discipline, not by privacy. And a
-//! consumer willing to depend on `profile` directly still reaches
-//! `RawLoop` — the door is off the PRESENTED surface, not out of
-//! existence. `demos/tour` does exactly that, in one scene, on purpose
-//! (its manifest says why).
+//! invariant by their sealed-verbs discipline, not by privacy.
+//!
+//! What a consumer willing to depend on `profile` directly reaches was
+//! once the honest limit of this module's claim — the door was off the
+//! PRESENTED surface, not out of existence, and `demos/tour` took that
+//! route in one scene on purpose. Both halves of that sentence are
+//! spent: the tour authors through the lattice in every scene and no
+//! longer depends on `profile` at all, and the door is now gated out of
+//! every shipped build, so a downstream crate cannot reach it however
+//! it depends. `profile`'s own `raw_door_census` suite compiles a
+//! downstream crate to say so.
 //!
 //! Authoring goes through the lattice: [`Open`], [`Start`], the
 //! binders, [`circle`], [`circle_split`].

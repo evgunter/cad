@@ -221,9 +221,11 @@ pub fn narration(tol: Tol) {
 /// INTEGRAL profile: unit weights, no arc anywhere.
 ///
 /// The same section as `common/mod.rs::quad`, by value; not the same
-/// code. The corpus builds it with `ProfileLoop::polygon`, this builds
-/// it through the PATHS lattice ([`crate::paths::path_polygon`]),
-/// which is the spelling this tour is here to show.
+/// code. That one is a test fixture and spells its vertex table
+/// directly, behind the door that exists for fixtures; this builds it
+/// through the PATHS lattice ([`crate::paths::path_polygon`]), which is
+/// the spelling this tour is here to show and the only one a consumer
+/// has.
 fn quad(pts: [(f64, f64); 4], tol: Tol) -> Section {
     vec![crate::paths::path_polygon(&pts, tol)]
 }
