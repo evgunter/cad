@@ -202,3 +202,12 @@ class issues filed on this slate by the fix pass
 `every-escalation-carries-the-coincidence-recourse-first`,
 `blend-mod-recourse-docs-accumulate`). Unit 3 (the spine-kind
 sentence, the other `blend/mod.rs` edit) dispatches next.
+
+**Unit 2 MERGED (2026-09-08)**, PR [#2122](https://github.com/evgunter/cad/pull/2122)
+at `d9cba9f9`, green on the full matrix (37 jobs; one earlier red was
+the adopted probe's `all.rs` line out of rustfmt order, fixed). The
+two cap fields state the sweep's ends and defer the winding rule to
+the crate docs; eleven "raised" sites reworded (two in `loft.rs`, the
+announced S-BOOL seam; one in `revolve/partial.rs`); the crate header
+is the present inventory; the MATE-3 citation on `Extruded.body` is
+present tense with its residue filed. The first BLEND unit closes.
