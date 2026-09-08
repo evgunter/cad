@@ -600,3 +600,9 @@ Both in their own worktrees off the orchestrator branch, in parallel
 `crates/profile` and the kstats/m4/m10_6 rows; unit 9 on
 `content_key`, `mod tag` and a new interval row); whichever merges
 second merges main first. Correctness arms on both.
+
+## EVAL-9 lane relaunched (2026-09-08)
+
+The first EVAL-9 lane ended at launch on a model-side safeguard
+error before touching the branch (no commits, worktree removed);
+relaunched fresh with the same brief.
