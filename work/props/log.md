@@ -899,3 +899,12 @@ bilateral reversed-span MAJOR that the prior dual did not find — a v6
 data point) as the sample. S-MESH also pushed a landing merge of main
 (`267e2510f`) minutes after asking who lands; answered on the PR:
 PROPS lands per Ev's direction, S-MESH pushes nothing further.
+
+**Mignitude-floor specified (2026-09-08).** `docs/PROPS-MIGNITUDE-FLOOR-SPEC.md`:
+`‖E‖ ≥ |D|/(w̃·‖M̃‖)` read through the sign witness the composite
+already carries, the max of three sound lower bounds feeding both
+places `cell_bound` divides by `‖E‖`; the micron row red-first; every
+certificate tightens or holds and every digit-pinning row
+re-baselines with its digits (a bound that grows is a MAJOR — stop).
+H / NUMERIC, block PROPS-B2 slot 2, dual; dispatch waits on disk
+(two lanes building on a 6 GB margin) — after MESH-12 lands.
