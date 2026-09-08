@@ -2,10 +2,11 @@
 id: LIB-B-DISTRIBUTIONS
 kind: unit
 title: binding census family B-DISTRIBUTIONS
-status: review
+status: closed
 branch: lib/b-distributions
 opened: 2026-09-06
 pr: 2192
+closed: 2026-09-08
 ---
 
 Queued mechanical census family (the B-RESOLVE shape): sweep the
