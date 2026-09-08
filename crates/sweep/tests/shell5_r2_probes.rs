@@ -490,3 +490,179 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
         }
     }
 }
+
+// ---------------------------------------------------------------------
+// Claim 6: the hole path on a VOID face (the residue file's case)
+// ---------------------------------------------------------------------
+
+/// **A void with a pillar through it**, so the void's ceiling is a
+/// holed face — the case `work/shell/shell-open-on-a-void-face-with-a-
+/// hole.md` records as unmeasured. Built by subtracting a holed slab.
+#[test]
+fn r2_open_a_holed_void_ceiling() {
+    let tol = Tol::witness();
+    let outer_lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(1.0, 1.0), 0.0),
+        ProfileVertex::new(p2(5.0, 1.0), 0.0),
+        ProfileVertex::new(p2(5.0, 5.0), 0.0),
+        ProfileVertex::new(p2(1.0, 5.0), 0.0),
+    ]);
+    let hole_lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(2.5, 2.5), 0.0),
+        ProfileVertex::new(p2(2.5, 3.5), 0.0),
+        ProfileVertex::new(p2(3.5, 3.5), 0.0),
+        ProfileVertex::new(p2(3.5, 2.5), 0.0),
+    ]);
+    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
+    let profile = Profile::new(plane, vec![outer_lp, hole_lp])
+        .validate(tol)
+        .expect("a holed rectangle is a valid profile");
+    let tool = extrude(&profile, Extrusion::Distance(2.0), tol)
+        .expect("the holed rectangle extrudes")
+        .body;
+    let body = cut(&boxy(6.0, 6.0, 4.0), &tool);
+    println!(
+        "holed-void operand: {} solids, {} shells",
+        body.solids().count(),
+        body.shells().count()
+    );
+    let voids = void_shells(&body);
+    println!("voids: {}", voids.len());
+    assert_eq!(voids.len(), 1, "one void, with a pillar through it");
+
+    // The void's ceiling at z = 3, holed by the pillar.
+    let ceiling = body
+        .get_shell(voids[0])
+        .expect("the void")
+        .faces
+        .iter()
+        .copied()
+        .find(|f| {
+            let d = body.get_face(*f).expect("a face");
+            !d.rings.is_empty()
+                && matches!(
+                    body.get_surface(d.surface),
+                    Some(geom::Surface::Plane { origin, normal, .. })
+                        if (origin.z - 3.0).abs() < 1e-9
+                            && normal.x.abs() < 1e-9
+                            && normal.y.abs() < 1e-9
+                )
+        })
+        .expect("a holed ceiling at z = 3");
+
+    match topo::shell_open(&body, 0.2, &[ceiling], tol) {
+        Ok(opened) => {
+            let out = &opened.body;
+            println!(
+                "MEASURED Ok: {} solids, {} shells, tier3 {:?}, volume {}, holes {}",
+                out.solids().count(),
+                out.shells().count(),
+                topo::validate_geometric(out, tol),
+                topo::mass_properties(out, tol).expect("props").volume,
+                opened.naming.rims.first().map_or(0, |r| r.holes.len())
+            );
+        }
+        Err(e) => println!("MEASURED refusal: {e}"),
+    }
+}
+
+// ---------------------------------------------------------------------
+// Claim 7: is the OLD (single-shell) domain byte-identical?
+// ---------------------------------------------------------------------
+
+/// **A body-level differential over a wider single-shell corpus.** The
+/// PR cites `verbs_shell::r2_probe_other_two_passes_dump`, which prints
+/// `validate_pseudomanifold` / `contact_marks` VERDICTS over six
+/// bodies — not the shelled bodies themselves. This row writes a
+/// bit-faithful dump of every shelled body over a corpus that reaches
+/// all three offset doors (all-planar, axial, per-chart) and both arms
+/// (sealed, opened), so the claim can actually be diffed.
+///
+/// Unarmed without `BITDUMP_DIR`, exactly as `bitdump.rs`'s rows.
+#[test]
+fn r2_bitdump_single_shell_shell_corpus() {
+    let Some(dir) = std::env::var("BITDUMP_DIR").ok().filter(|d| !d.is_empty()) else {
+        return;
+    };
+    let tol = Tol::witness();
+    let mut text = String::new();
+    let mut row = |name: &str, body: &Body<f64>, t: f64, open: &[usize]| {
+        use std::fmt::Write as _;
+        let faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let picked: Vec<topo::FaceKey> = open.iter().map(|&i| faces[i]).collect();
+        let _ = writeln!(text, "== {name} t={t} open={open:?} ==");
+        match topo::shell_open(body, t, &picked, tol) {
+            Ok(s) => {
+                let _ = writeln!(text, "{}", crate::bitdump::dump(&s.body));
+                let _ = writeln!(
+                    text,
+                    "naming outer={} inner={} rims={} dead_faces={}",
+                    s.naming.outer.len(),
+                    s.naming.inner.len(),
+                    s.naming.rims.len(),
+                    s.naming.dead.faces.len()
+                );
+                let _ = writeln!(
+                    text,
+                    "props {:?}",
+                    topo::mass_properties(&s.body, tol).map(|p| p.volume)
+                );
+                let _ = writeln!(text, "tier3 {:?}", topo::validate_geometric(&s.body, tol));
+            }
+            Err(e) => {
+                let _ = writeln!(text, "REFUSED {e}");
+            }
+        }
+    };
+    // all-planar door, sealed and opened
+    row("boxy", &boxy(2.0, 3.0, 4.0), 0.25, &[]);
+    row("boxy_open0", &boxy(2.0, 3.0, 4.0), 0.25, &[0]);
+    row("boxy_open01", &boxy(2.0, 3.0, 4.0), 0.2, &[0, 1]);
+    row("brick_thin", &brick(0.0, 1.0, 0.0, 1.0, 0.0, 5.0), 0.1, &[]);
+    // an L prism — a concave outer shell, the per-chart corner class
+    let l = {
+        let pts = [
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 1.5),
+            (1.5, 1.5),
+            (1.5, 4.0),
+            (0.0, 4.0),
+        ];
+        let lp = ProfileLoop::new(
+            pts.iter()
+                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+                .collect(),
+        );
+        let profile = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .expect("an L is a valid profile");
+        extrude(&profile, Extrusion::Distance(2.0), tol)
+            .expect("an L extrudes")
+            .body
+    };
+    row("l_prism", &l, 0.2, &[]);
+    row("l_prism_open0", &l, 0.2, &[0]);
+    // an oblique prism — the simultaneous planar door's own class
+    let oblique = {
+        let pts = [(0.0, 0.0), (3.0, 0.0), (2.0, 2.0), (0.4, 1.6)];
+        let lp = ProfileLoop::new(
+            pts.iter()
+                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+                .collect(),
+        );
+        let profile = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .expect("valid");
+        extrude(&profile, Extrusion::Distance(2.0), tol)
+            .expect("extrudes")
+            .body
+    };
+    row("oblique", &oblique, 0.15, &[]);
+    // axial door
+    row("vessel", &can(1.0, 0.0, 2.0), 0.2, &[]);
+    row("vessel_open0", &can(1.0, 0.0, 2.0), 0.2, &[0]);
+    row("vessel_thin", &can(0.4, 0.0, 3.0), 0.05, &[]);
+    std::fs::create_dir_all(&dir).expect("the dump dir");
+    std::fs::write(format!("{dir}/shell5_r2_single_shell.txt"), &text).expect("write");
+}
