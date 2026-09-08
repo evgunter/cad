@@ -604,3 +604,29 @@ other `tools/` instance of the cannot-fail assertion class.
 Same seam, different defect, and its substance is what the verdict
 PRINTS rather than what the parser admits. A doc-only rider would
 half-close it.
+
+## Unit 6 — `D206` + `D201`, one re-cut (2026-09-08)
+
+Branch `meter/split-scan-and-face-name`, three separable commits and
+one sweep.
+
+`SPLIT_SCAN_SAMPLES` is 379: the one-sided envelope reads 5.0075% at
+378 and 4.9939% at 379 against the gate's 5%, so the threshold the row
+carried is the right one and was re-derived rather than inherited. On
+the `ceil`'d column the family's worst falls 5.88% → 2.94%. Every
+sample-count-dependent percentage in `tess-meter` moved with it,
+including two suprema that would have read ABOVE the new bound had they
+been left.
+
+The budget CSV carries a `name` column at position 2 — a `StableName`
+in its ratified serialization with `,` swapped for `;`. **6 of the
+tour's 72 scene bodies can hand over an evaluation** (the three
+heatsinks and the three die stops), so 286 of 1353 rows carry a name
+and the rest are honestly empty, which is what Ev's second clause
+scopes as an outcome.
+
+One sweep, with the deviation pass, at `3f55f361b22e`. Two columns
+moved for this unit's reasons (`opt_cells` −1.16%, `span_opt_cells`
+−0.64% over the sweep); seven more moved because the previous cut was
+four days and 442 `crates/` commits stale, which nothing reports —
+filed as `tess-lint-ungated-columns-fold-silently`.
