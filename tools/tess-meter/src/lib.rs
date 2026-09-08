@@ -417,12 +417,80 @@ impl Sizing {
     }
 }
 
+/// A durable per-face name, as the CSV carries it: an opaque token
+/// the gate joins on and never decodes.
+///
+/// **What this type guarantees is that the token can be a CSV field,
+/// and only that.** The inner text is private, so every value came
+/// through [`FaceName::new`] and carries no comma, no newline and no
+/// emptiness — the three ways a token would widen a row, split a row,
+/// or spell the absence an empty column already means. Unlike
+/// [`Sizing`], whose pairing is refused where the row is WRITTEN
+/// because its fields are `pub`, this one needs no second check: the
+/// only door is the constructor.
+///
+/// **It guarantees nothing about INJECTIVITY, and cannot.** Two faces
+/// answering to one token is a defect in whatever minted them, in
+/// another crate, and this crate has no way to see it — the same
+/// boundary `tools/README.md`'s `CC4` draws for the lint. What the
+/// producer owes is that distinct faces get distinct tokens; what this
+/// crate owes is that a token it accepts survives the file format.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FaceName(String);
+
+/// Why a would-be [`FaceName`] is not one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FaceNameError {
+    /// Empty: the spelling an ABSENT name already has, so a present
+    /// one may not wear it.
+    Empty,
+    /// Carries a `,` or a newline: the field separator and the row
+    /// separator, either of which would re-shape the row.
+    NotOneField,
+}
+
+impl FaceName {
+    /// A name from a producer's rendering of it.
+    ///
+    /// # Errors
+    ///
+    /// [`FaceNameError`], whose two arms are the whole invariant.
+    pub fn new(text: impl Into<String>) -> Result<Self, FaceNameError> {
+        let text = text.into();
+        if text.is_empty() {
+            return Err(FaceNameError::Empty);
+        }
+        if text.contains(',') || text.contains('\n') || text.contains('\r') {
+            return Err(FaceNameError::NotOneField);
+        }
+        Ok(Self(text))
+    }
+
+    /// The token.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The producer's per-face names for ONE body, by the key the mesh's
+/// patches carry.
+pub type FaceNames = HashMap<topo::FaceKey, FaceName>;
+
 /// One face's budget row.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct FaceRow {
     /// The face's ordinal in the body's face arena (D9 order — stable
     /// for a given body, and printable, which a slotmap key is not).
     pub face: usize,
+    /// The durable name of that face, where the producer had one.
+    ///
+    /// **`None` is a claim about the PRODUCER, not about the face.**
+    /// A tour scene built outside the document layer has no evaluation
+    /// to name its faces from, and the honest column there is empty;
+    /// every face of a body that DOES arrive with a name table gets a
+    /// name, because [`face_rows`] refuses a table that misses one.
+    pub name: Option<FaceName>,
     /// The chart its lane used.
     pub chart: Chart,
     /// The δ the mesh was requested at.
@@ -435,7 +503,20 @@ pub struct FaceRow {
 }
 
 /// The CSV header the sweep writes and `tools/tess-lint` reads.
-pub const CSV_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
+///
+/// **Where `name` sits is forced, not chosen for looks.** Everything
+/// after `triangles` is the NURBS lane's tail, and
+/// [`FaceRow::csv_row`]'s off-lane arm writes that whole tail as
+/// `nurbs_column_count()` empty fields — so a column placed there
+/// would be blank on every plane, cylinder, cone, sphere and torus row
+/// whatever the producer knew, and its emptiness would be the LANE's
+/// claim rather than the name's. A per-face name belongs to every row,
+/// so it belongs at or before `triangles`. Within that head block it
+/// goes beside `face`, because `(scene, face)` is the gate's join key
+/// and this is the durable half of it: the identity reads contiguously
+/// and ahead of everything measured, which is the order the rest of
+/// the header already keeps.
+pub const CSV_HEADER: &str = "scene,face,name,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
                               muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,\
                               opt_cells,span_opt_cells,worst_cert,worst_dev,\
                               dev_samples,bands,cap_bands,snap_bands,realized_aspect";
@@ -485,8 +566,9 @@ impl FaceRow {
             (true, Sizing::Measured(_)) | (false, Sizing::OffLane) => {}
         }
         let head = format!(
-            "{scene},{},{},{:e},{}",
+            "{scene},{},{},{},{:e},{}",
             self.face,
+            self.name.as_ref().map_or("", FaceName::as_str),
             self.chart.tag(),
             self.delta,
             self.triangles
@@ -553,6 +635,7 @@ pub fn face_rows(
     body: &Body<f64>,
     mesh: &Mesh,
     measures: &[FaceMeasure],
+    names: Option<&FaceNames>,
 ) -> Vec<FaceRow> {
     let by_face: HashMap<topo::FaceKey, &FaceMeasure> =
         measures.iter().map(|m| (m.face, m)).collect();
@@ -580,6 +663,7 @@ pub fn face_rows(
             let chart = Chart::of(surface);
             FaceRow {
                 face: ordinal,
+                name: name_of(ordinal, patch.face, names),
                 chart,
                 delta,
                 triangles: patch.triangles.len(),
@@ -587,6 +671,35 @@ pub fn face_rows(
             }
         })
         .collect()
+}
+
+/// One face's name, from whatever the producer handed over.
+///
+/// **The two absences are not the same, and only one of them is a
+/// row.** A caller with `None` has no name source at all — a tour
+/// scene built outside the document layer, which is the ruled-
+/// acceptable outcome for this column — and every row it writes is
+/// honestly unnamed. A caller that DID hand over a table has claimed
+/// the table is this body's, and the N4 table of a node covers every
+/// boundary entity of its output body; so a face missing from it is
+/// the wrong body's table, whose every other row would then be a name
+/// attached to the wrong face. That is the same breakage
+/// [`sizing_of`] refuses one field over, and it is refused here for
+/// the same reason: it cannot become a row.
+///
+/// # Panics
+///
+/// If `names` is `Some` and does not name `face`.
+fn name_of(ordinal: usize, face: topo::FaceKey, names: Option<&FaceNames>) -> Option<FaceName> {
+    let table = names?;
+    let name = table.get(&face).unwrap_or_else(|| {
+        panic!(
+            "face {ordinal} has no name in the table the caller handed over: a name table \
+             that misses a face of this body is another body's table, and its other rows \
+             name the wrong faces"
+        )
+    });
+    Some(name.clone())
 }
 
 /// One face's [`Sizing`], from the chart its row already carries and
@@ -643,10 +756,11 @@ pub fn csv(
     body: &Body<f64>,
     mesh: &Mesh,
     measures: &[FaceMeasure],
+    names: Option<&FaceNames>,
 ) -> String {
     let mut out = String::from(CSV_HEADER);
     out.push('\n');
-    for row in face_rows(delta, body, mesh, measures) {
+    for row in face_rows(delta, body, mesh, measures, names) {
         out.push_str(&row.csv_row(scene));
         out.push('\n');
     }

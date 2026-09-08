@@ -268,6 +268,16 @@ pub struct Row {
     pub scene: String,
     /// Face ordinal within its body.
     pub face: usize,
+    /// The producer's durable per-face name, or `""` where it had
+    /// none.
+    ///
+    /// **An opaque token, and empty is an honest answer.** The sweep
+    /// can only name a face whose body arrived from an evaluated
+    /// document, and most tour scenes are not built that way; the
+    /// column is empty on those rows and says nothing false. No rule
+    /// reads this yet — the ordinal is still the per-face join key —
+    /// so nothing here turns an absence into a finding.
+    pub name: String,
     /// Chart tag (`nurbs`, `plane`, …).
     pub chart: String,
     /// The δ the sweep tessellated at.
@@ -560,9 +570,30 @@ impl Admissible {
     }
 }
 
+/// The head block of [`EXPECTED_HEADER`] — the columns EVERY row
+/// fills — by position, because [`parse`] reads each of them by index
+/// and an inline literal at each read is the drift these constants
+/// exist to make loud. `scene` is column 0 and `face` column 1; these
+/// are the three that a column inserted into the head would move.
+///
+/// `name` is the durable per-face name the producer supplies where it
+/// has one, and the EMPTY string where it does not. It is read as an
+/// opaque token and never decoded: what a name MEANS lives in
+/// `editor_core`, two crates and a cargo root away, and a gate that
+/// parsed the token's structure would be asserting that crate's
+/// vocabulary from here. So it carries no [`Admissible`] entry — there
+/// is no in-band value to refuse — and no rule joins on it yet.
+const NAME: usize = 2;
+/// Where the chart tag sits — a gate INPUT ([`IDENTITY_COLUMNS`]).
+const CHART: usize = 3;
+/// Where the requested δ sits.
+const DELTA: usize = 4;
+/// Where the triangle count sits — the last column every row fills.
+const TRIANGLES: usize = 5;
+
 /// Where the identity block starts in [`EXPECTED_HEADER`] — the first
 /// column after `triangles`, which is the last one every row fills.
-const IDENTITY_FIRST: usize = 5;
+const IDENTITY_FIRST: usize = 6;
 
 /// The columns [`identity`] reads, policed exactly as the sizing block
 /// is and for the added reason that they are gate INPUTS now: rule 4
@@ -579,7 +610,7 @@ const IDENTITY_MEASURES: [(&str, Admissible); 6] = [
 ];
 
 /// Where the sizing block starts in [`EXPECTED_HEADER`].
-const SIZING_FIRST: usize = 17;
+const SIZING_FIRST: usize = 18;
 
 /// The sizing block — every column [`Nurbs`] is parsed from, in
 /// [`EXPECTED_HEADER`]'s order, with what each may say. One table
@@ -605,11 +636,11 @@ const SIZING_COLUMNS: [(&str, Admissible); 6] = [
 /// spelled at all, and there is no in-band fallback to refuse. What it
 /// is FOR is [`Deviation`] — it is the only column that says which of
 /// `worst_dev`'s two `NaN`s a row carries.
-const DEV_SAMPLES: usize = 23;
+const DEV_SAMPLES: usize = 24;
 
 /// Where the constraint-activity indicator block starts in
 /// [`EXPECTED_HEADER`] (TESS-SPLIT D-3), after `dev_samples`.
-const INDICATOR_FIRST: usize = 24;
+const INDICATOR_FIRST: usize = 25;
 
 /// The indicator block, policed exactly as [`SIZING_COLUMNS`] is —
 /// NURBS-only, all present or all absent with the sizing block.
@@ -639,7 +670,7 @@ pub struct ParseError {
 /// purpose: the two halves are separate cargo roots by design, so
 /// there is no shared constant to import, and a drifting sweep must
 /// fail as harness breakage rather than parse into wrong columns.
-pub const EXPECTED_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
+pub const EXPECTED_HEADER: &str = "scene,face,name,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
                                    muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,\
                                    opt_cells,span_opt_cells,worst_cert,worst_dev,\
                                    dev_samples,bands,cap_bands,snap_bands,realized_aspect";
@@ -1075,7 +1106,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 realized_aspect,
             })
         };
-        if !CHART_TAGS.contains(&f[2]) {
+        if !CHART_TAGS.contains(&f[CHART]) {
             // `chart` is a gate INPUT (rule 4 joins on it), so an
             // unknown tag is sweep-format drift and leaves in the
             // harness voice — the same treatment, and the same reason,
@@ -1086,7 +1117,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 line: n,
                 text: format!(
                     "chart: {:?} is not one of {} (sweep drift?)",
-                    f[2],
+                    f[CHART],
                     CHART_TAGS.join(", ")
                 ),
             });
@@ -1111,7 +1142,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
         // What this buys the gate is that `Row::is_sized` is a
         // function of `chart` on every parsed row, which is why
         // `IDENTITY_COLUMNS` does not carry a block-presence entry.
-        let sized_lane = SIZED_CHART_TAGS.contains(&f[2]);
+        let sized_lane = SIZED_CHART_TAGS.contains(&f[CHART]);
         match (sized_lane, nurbs.is_some()) {
             (true, false) => {
                 return Err(ParseError {
@@ -1119,7 +1150,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                     text: format!(
                         "chart {:?} is the Hessian-sized lane's and the sizing columns are \
                          empty: that tail reads as a face OFF the sized lane (sweep drift?)",
-                        f[2]
+                        f[CHART]
                     ),
                 });
             }
@@ -1129,7 +1160,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                     text: format!(
                         "chart {:?} is not the Hessian-sized lane's and the row carries the \
                          sizing columns anyway (sweep drift?)",
-                        f[2]
+                        f[CHART]
                     ),
                 });
             }
@@ -1148,9 +1179,10 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
         rows.push(Row {
             scene: f[0].to_string(),
             face,
-            chart: f[2].to_string(),
-            delta: admit(3, "delta", Admissible::Target)?,
-            triangles: idx(4, "triangles")?,
+            name: f[NAME].to_string(),
+            chart: f[CHART].to_string(),
+            delta: admit(DELTA, "delta", Admissible::Target)?,
+            triangles: idx(TRIANGLES, "triangles")?,
             nurbs,
         });
     }
@@ -1729,8 +1761,8 @@ mod tests {
     fn csv(tris: usize, span_opt: f64) -> String {
         format!(
             "{EXPECTED_HEADER}\n{}\
-             s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,\
-             1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n",
+             s/b,1,{FIXTURE_NAME},nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,\
+             2e0,3e0,4,1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n",
             unsized_row(0, "plane", 4)
         )
     }
@@ -1742,8 +1774,14 @@ mod tests {
     /// these fixtures into short rows that fail for the wrong reason.
     fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
         let blanks = ",".repeat(EXPECTED_HEADER.split(',').count() - IDENTITY_FIRST);
-        format!("s/b,{face},{chart},2e-3,{tris}{blanks}\n")
+        format!("s/b,{face},,{chart},2e-3,{tris}{blanks}\n")
     }
+
+    /// A `name` token of the shape the tour writes: structural, flat,
+    /// and carrying no `,`. The fixtures use it on the sized row and
+    /// leave the unsized rows unnamed, so both spellings of the column
+    /// — a token and the honest absence — go through [`parse`].
+    const FIXTURE_NAME: &str = "{\"kind\":\"Face\";\"node\":3;\"path\":[\"OutputBody\"]}";
 
     #[test]
     fn parses_both_chart_shapes() {
@@ -1959,8 +1997,8 @@ mod tests {
     fn a_half_filled_sizing_row_is_harness_breakage() {
         let bad = format!(
             "{EXPECTED_HEADER}\n\
-             s/b,1,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,1e2,,5e1,2.5e1,\
-             1e-4,5e-5,99,2,1,0,3e0\n"
+             s/b,1,,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,1e2,,5e1,\
+             2.5e1,1e-4,5e-5,99,2,1,0,3e0\n"
         );
         let e = parse(&bad).unwrap_err();
         assert!(e.text.contains("partially filled"), "{}", e.text);
@@ -2107,6 +2145,24 @@ mod tests {
     #[test]
     fn the_policed_block_is_the_headers_sizing_block() {
         let cols: Vec<&str> = EXPECTED_HEADER.split(',').collect();
+        // The head block first — the columns every row fills, each
+        // read by index in `parse`. A column inserted among them
+        // slides `chart` (a gate input), `delta` and `triangles` under
+        // one another's policies while every row still has the right
+        // WIDTH, which is the one drift the header check cannot see.
+        for (col, name) in [
+            (NAME, "name"),
+            (CHART, "chart"),
+            (DELTA, "delta"),
+            (TRIANGLES, "triangles"),
+        ] {
+            assert_eq!(cols[col], name, "the head block moved at {name}");
+        }
+        assert_eq!(
+            (cols[0], cols[1]),
+            ("scene", "face"),
+            "the join key is the head's first two columns"
+        );
         // The identity block first, bracketed the same way: a column
         // inserted at its head would slide every identity reading
         // under the wrong policy AND re-key every scene at once.
@@ -2270,11 +2326,11 @@ mod tests {
     #[test]
     fn a_broken_delta_is_harness_breakage() {
         for bad in ["0e0", "-2e-3", "NaN", "inf"] {
-            let e = parse(&with_field(&csv(100, 2.5e1), 3, bad)).unwrap_err();
+            let e = parse(&with_field(&csv(100, 2.5e1), DELTA, bad)).unwrap_err();
             assert!(e.text.contains("delta"), "{bad}: {}", e.text);
             assert!(e.text.contains("tessellation target"), "{bad}: {}", e.text);
         }
-        assert!(parse(&with_field(&csv(100, 2.5e1), 3, "2e-3")).is_ok());
+        assert!(parse(&with_field(&csv(100, 2.5e1), DELTA, "2e-3")).is_ok());
     }
 
     /// A resampled face that attained EXACTLY zero deviation spent
@@ -2588,7 +2644,7 @@ mod tests {
     /// the tag.
     #[test]
     fn an_unsized_chart_carrying_the_sizing_block_is_harness_breakage() {
-        let text = with_field(&csv(100, 2.5e1), 2, "cylinder");
+        let text = with_field(&csv(100, 2.5e1), CHART, "cylinder");
         let e = parse(&text).unwrap_err();
         assert_eq!(e.line, 3, "the row that carries it");
         assert_eq!(
@@ -2615,7 +2671,7 @@ mod tests {
     fn every_chart_tag_owes_the_sizing_block_or_refuses_it() {
         for tag in CHART_TAGS {
             let sized = SIZED_CHART_TAGS.contains(&tag);
-            let with = with_field(&csv(100, 2.5e1), 2, tag);
+            let with = with_field(&csv(100, 2.5e1), CHART, tag);
             let without = format!("{EXPECTED_HEADER}\n{}", unsized_row(0, tag, 4));
             assert_eq!(
                 parse(&with).is_ok(),
@@ -2673,7 +2729,7 @@ mod tests {
         // identity reading still differs in exactly one place, which
         // is what this test is about.
         const MOVED: [(&str, usize, &str, Option<&str>); IDENTITY_COLUMNS.len()] = [
-            ("chart", 2, "approx", None),
+            ("chart", CHART, "approx", None),
             ("u0", IDENTITY_FIRST, "5e-1", None),
             ("u1", IDENTITY_FIRST + 1, "9e-1", None),
             ("v0", IDENTITY_FIRST + 2, "5e-1", None),
@@ -2892,7 +2948,7 @@ mod tests {
                                plane, cylinder, cone, sphere, torus, nurbs, approx \
                                (sweep drift?)";
         for (text, line) in [
-            (with_field(&csv(100, 2.5e1), 2, "hessian"), 3),
+            (with_field(&csv(100, 2.5e1), CHART, "hessian"), 3),
             (
                 format!("{EXPECTED_HEADER}\n{}", unsized_row(0, "hessian", 4)),
                 2,
@@ -2929,14 +2985,14 @@ mod tests {
     fn an_unknown_tag_is_refused_for_being_unknown_before_the_pairing() {
         // Unknown tag AND the sized shape the pairing refuses: the
         // roster speaks.
-        let e = parse(&with_field(&csv(100, 2.5e1), 2, "hessian")).unwrap_err();
+        let e = parse(&with_field(&csv(100, 2.5e1), CHART, "hessian")).unwrap_err();
         assert!(e.text.contains("is not one of"), "{}", e.text);
         // The pairing in turn runs ahead of `face`, which is the first
         // counted column read after it. A row that is both a schema
         // move and an unreadable count is harness breakage either way;
         // the pairing names the schema, which is the fault that
         // explains the other.
-        let text = with_field(&with_field(&csv(100, 2.5e1), 2, "plane"), 1, "x");
+        let text = with_field(&with_field(&csv(100, 2.5e1), CHART, "plane"), 1, "x");
         let e = parse(&text).unwrap_err();
         assert!(e.text.contains("carries the sizing columns"), "{}", e.text);
     }

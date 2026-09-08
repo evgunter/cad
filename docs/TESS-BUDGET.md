@@ -146,6 +146,15 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
   built on it was 1.00 by arithmetic rather than by check, and neither
   of its two numbers counted a realised candidate. It is gone rather
   than re-derived — see "Why there is no realisation column", below.
+* `name` — the face's durable name, where the sweep could reach one:
+  `editor_core::StableName` (N1) rendered through its ratified
+  structural serialization with `,` swapped for `;` so the token is one
+  CSV field. It is EMPTY on every face whose scene was not built from
+  an evaluated document, which is most of the tour — the tour holds
+  `Body`s, and only the scenes that still hold the evaluation when they
+  hand the body over can name their faces. Empty is the honest answer
+  there, not a gap: nothing joins on this column yet, and the ordinal
+  is still the join key.
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
   gate's per-face recoverable-slack ratio, now carrying the split
@@ -540,8 +549,10 @@ never a typed value, and a sweep taken outside a git checkout records
 none and says so rather than pretending.
 
 **A re-keyed face is read before it is re-cut, and for the same
-reason.** The per-face join is by ORDINAL — the only per-face name the
-CSV carries — so `tess-lint` checks at each ordinal that both sides
+reason.** The per-face join is by ORDINAL. The CSV also carries a
+`name` column — the face's durable derivation-path name, on the scenes
+the sweep can reach an evaluation for — but no rule keys on it yet, so
+`tess-lint` checks at each ordinal that both sides
 describe one face (chart, trim box, whole-patch divisions, and whether
 the row carries the sizing block at all) and stops comparing a scene
 from the first ordinal where they do not. The finding names that

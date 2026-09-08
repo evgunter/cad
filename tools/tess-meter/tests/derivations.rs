@@ -7,9 +7,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use tess_meter::{
-    Bound, CSV_HEADER, Chart, FaceRow, NurbsColumns, SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES,
-    Sizing, SplitScan, best_split_cells, best_split_scan, best_split_steps, divisions,
-    floored_worst_excess, optimum_is_unfloored, shipped_split_scan_aspects, split_scan,
+    Bound, CSV_HEADER, Chart, FaceName, FaceNameError, FaceRow, NurbsColumns, SPLIT_SCAN_DECADES,
+    SPLIT_SCAN_SAMPLES, Sizing, SplitScan, best_split_cells, best_split_scan, best_split_steps,
+    divisions, floored_worst_excess, optimum_is_unfloored, shipped_split_scan_aspects, split_scan,
     split_scan_aspects, unfloored_worst_excess,
 };
 use test_utils::fuzz;
@@ -866,6 +866,7 @@ fn the_split_scan_guard_reds_on_a_narrow_range_and_on_a_coarse_step() {
 fn plane_row() -> FaceRow {
     FaceRow {
         face: 0,
+        name: None,
         chart: Chart::Plane,
         delta: 1e-3,
         triangles: 2,
@@ -913,9 +914,62 @@ fn both_row_shapes_have_the_headers_width() {
     let nurbs = FaceRow {
         chart: Chart::Nurbs,
         sizing: Sizing::Measured(some_columns()),
-        ..plane
+        ..plane.clone()
     };
     assert_eq!(nurbs.csv_row("s/b").split(',').count(), cols);
+    // And with the name column filled, which is the third shape: it
+    // rides in the head block, so a token there must not widen either
+    // arm.
+    let named = FaceRow {
+        name: Some(FaceName::new("n3/OutputBody").unwrap()),
+        ..plane
+    };
+    assert_eq!(named.csv_row("s/b").split(',').count(), cols);
+}
+
+/// **The name goes in the column the header names, and an absent one
+/// is the empty field there** — not a missing field, and not a token
+/// somewhere else in the row.
+#[test]
+fn the_name_column_carries_the_name_and_nothing_else_does() {
+    let at = CSV_HEADER
+        .split(',')
+        .position(|c| c == "name")
+        .expect("the header names the column");
+    let absent = plane_row().csv_row("s/b");
+    let fields: Vec<&str> = absent.split(',').collect();
+    assert_eq!(fields[at], "", "an unnamed face leaves the column empty");
+    let named = FaceRow {
+        name: Some(FaceName::new("n3/OutputBody").unwrap()),
+        ..plane_row()
+    }
+    .csv_row("s/b");
+    let fields: Vec<&str> = named.split(',').collect();
+    assert_eq!(fields[at], "n3/OutputBody");
+    assert_eq!(
+        fields.iter().filter(|f| **f == "n3/OutputBody").count(),
+        1,
+        "the token appears once, in its own column"
+    );
+}
+
+/// **The three tokens a CSV cannot carry are refused at the only door
+/// into the type**, so no later site has to re-check them: a `,`
+/// widens the row, a newline splits it, and the empty string is
+/// already the spelling of a face nobody could name.
+#[test]
+fn a_token_that_is_not_one_csv_field_is_not_a_face_name() {
+    assert_eq!(FaceName::new(""), Err(FaceNameError::Empty));
+    for bad in ["a,b", "a\nb", "a\rb", ",", "\n"] {
+        assert_eq!(
+            FaceName::new(bad),
+            Err(FaceNameError::NotOneField),
+            "{bad:?} is not one field"
+        );
+    }
+    for good in ["n3/OutputBody", "{\"kind\":\"Face\";\"node\":3}", " "] {
+        assert!(FaceName::new(good).is_ok(), "{good:?} is one field");
+    }
 }
 
 /// **A sized-lane chart with no columns never reaches the CSV.**
