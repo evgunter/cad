@@ -2,11 +2,12 @@
 id: SHELL-5
 kind: unit
 title: shell of a hollow body thickens every boundary — one thin solid per operand shell
-status: dispatched
+status: closed
 opened: 2026-09-08
 branch: shell/5-hollow-operand
 refs: [shell-of-hollow-body-thicken-every-boundary, 1056, 1048]
 pr: 2159
+closed: 2026-09-08
 ---
 
 

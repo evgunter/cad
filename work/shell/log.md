@@ -321,3 +321,59 @@ solids (S-BOOL's door, and its contract is "no new solid"), and a
 containment-classified distribution (a probe where the construction
 already knows the answer). Lane at `/home/user/shell-lanes/shell-5/`
 (a worktree of this checkout), private target and scratch beside it.
+
+## SHELL-5 MERGED (2026-09-08, PR #2159 — ordinal 2302, sample #159)
+
+The hollow operand thickens every boundary: one thin solid per operand
+shell, re-partitioned out of the void door's graft by the new
+`Body::move_shells_to_new_solid` (the TOPO seam announced at #2152),
+`OperandAlreadyHollow` retired, `thickened` and `RimNaming::side` on
+the record, and one `OffsetDoor` decision both the cavity and the lift
+now read. Both reviews APPROVE-WITH-FIXES. **Convergent** (R2 MAJOR,
+R1 MINOR, both by execution): the planar clearance gate read the
+OPERAND's footprints, and an inward offset extends past a concave edge
+by `t`, so two diagonally offset voids — or, pre-existing, a notched
+single-shell operand, reproduced by both on the merge base — built
+silently with crossing twins and a double-counted volume while the
+module docs called the gate sound. Fixed in the pass by growing both
+footprints by `t` before the separation decide (over-refuses
+convex-edge pairs, never under-refuses; no legitimate fixture or tour
+scene refuses), the sentence corrected, four reviewer rows flipped from
+pinning the silent build to asserting the refusal. **Unilateral, not a
+tally candidate (MINOR):** R2's cross-pairing mutant — each void paired
+with the NEXT void's twin — survived all 39 rows, because every
+acceptance observable (counts, per-solid roles, volume) is
+pairing-invariant; R2's record-reading row kills it and is adopted.
+Spec premises this unit falsified, mine: "no flux read decides which
+shell goes where" was unsatisfiable for WHICH shell is outer (a solid
+stores no outer designation; the pairing is structural as ruled — both
+reviewers adjudicated the lane's one `classify_shells` read acceptable);
+§1.4 named `movefac.rs` as unowned ground (TOPO's; corrected
+mid-flight). Also mine: the dispatch's item 8 guessed a listing-desync
+the op does check (R2 n6). Found by CI rather than by anyone's sweep:
+LIB-G17's emitter on main folds `ShellError` exhaustively and named
+the retired variant — a sweep is accurate at its merge base, and this
+one was five days old by the fix pass; the lane folded the three new
+variants (a LIB seam, named in the PR).
+
+**Class findings given homes:** tier 3 has no ring-inside-outer check
+(`work/topo/tier3-accepts-a-ring-outside-its-outer-loop`, R1's file,
+placed by this orchestrator) beside the earlier
+`tier-3-does-not-check-shell-roles-per-solid`; the axial door's
+one-surface seam corner (`axial-door-refuses-a-one-surface-seam-corner`,
+SHELL); `shell_open` on a multi-solid body
+(`shell-open-on-a-multi-solid-body`, SHELL — "hollow, hollow, open" is
+not three verbs today); the curved window on a hollow operand pinned
+by a self-retiring row that reds when SHELL-4 lands; STEP refusing
+every hollow body (`BREP_WITH_VOIDS`, EXCH's, pre-existing — the
+verb's ordinary output is unexportable, named here for EXCH's board);
+the lift's door ladder differed from the cavity's (R2 Q1, a class) —
+measured harmless on the oblique prisms and factored into one
+decision. Residue `shell-open-on-a-void-face-with-a-hole` closed on
+R1's pillar row. Rubric idiom/tests/docs: neither reviewer scored
+them; recorded as not scored.
+
+**Block SHELL-B1 concludes** with this merge (ordinals 2300–2302,
+samples #121, #122, #159); its branch-side record goes to main in this
+sync. The next kernel unit draws block SHELL-B2.
+
