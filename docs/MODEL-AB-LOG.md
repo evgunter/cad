@@ -4755,3 +4755,22 @@ R1's kernel target is the implementer's warm one and its demo target
 the implementer's warm demo target, R2's kernel target is seeded from
 an older warm build and its demo target is cold — wall-clock asymmetry
 only.
+
+LIB-G17 review ordinal fixed at dispatch (2026-09-08, PR #2150 open —
+frozen head `4a093c5c`): **ordinal 303** (LIB band; claimed through 302).
+Protocol v6 dual: draw = `/dev/urandom` byte **218**, parity 0 ⇒
+**R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `4a093c5c`, both briefs authored and
+STORED with sha256 before either dispatches (1146d9400c936634… r1 / 72665d601dc94b72… r2 —
+identical text modulo lane names, verified by diff), neither reviewer
+sees the other's report, v6 item 5 isolation in both briefs; the
+implementer's unit log entry is not written until the dual concludes.
+Pre-draw fields were logged at the spec (M-L / STRUCTURAL; implementer
+arm per block LIB-13 slot 1, branch-side on `lib/block-13`). Method
+note applying to BOTH arms equally: the pair runs on one 4-core cloud
+box behind the build-slot mutex, beside no other build. The
+implementer lane was interrupted twice before delivery (a session kill
+before any work on 09-06, and a usage-credit outage mid-unit on 09-06,
+resumed 09-08 from its own transcript); the arm and slot are unchanged
+and the row at merge annotates it per the resume precedent. Sample
+number assigned at merge in main's merge order.
