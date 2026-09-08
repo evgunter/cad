@@ -347,3 +347,54 @@ twin). Item closed, spec deleted into the ledger, the gate issue
 closed. Filed on the way: the tie-before-kind asymmetry between the
 product's own rows and the operand's (`work/issues/`). The slate that
 remains: the lever's extent, asked on `[ev]` PR 2086.
+
+## The lever's extent asked (2026-09-06)
+
+`mate-lever-needs-the-parts-extent` is next in line and is a schema
+question before it is a unit, so it goes to Ev as an `[ev]` PR with
+three shapes weighed — the extent authored beside the datum, the
+extent resolved from the mated part's own body, or E3's amendment
+revised to keep the session box at the mate site — and the second
+recommended: `InstantiatePart` is a leaf whose body is
+placement-independent, so its reach from the part-local origin is a
+function of pinned content and reaches the solve without a
+wire-format change. `needs_ev: true` on the item.
+
+## The lever ruled; MSOLVE-6 specified and dispatched (2026-09-07)
+
+Ev ruled option B on PR 2086 after a reminder of A11's context (the
+five rules; "nothing in the walk is evaluated"; A11 never spoke of
+the lever's source). `docs/MSOLVE-6-SPEC.md`: the lever is
+`(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored lengths|`, each
+`R` the part body's reach from its own origin through the measure
+site's `reach_of`, read through one trait the evaluation implements
+lazily over the `PartCache`; the metre and the micron floor retire;
+A11 gains one sentence. Stop clauses: a corpus part with a face no
+bound can be stated for; a k-lint or decision-log row moved by
+evaluating a part before the first node. Rides PR 2086 with the
+ruling; the lane reads the spec from this branch until it lands.
+
+## MSOLVE-6 stopped on the edit door's maintenance (2026-09-07)
+
+The lane built the unit (PR 2116, draft: the reach module, the lever
+formula, the retired constants, the doors, the docs) and stopped on
+clause (iii): `reconcile`, the keying maintenance `edit::apply` runs,
+solves the PRIOR document to preserve a split cluster's gauge pose,
+and the edit door holds no resolver. Two `asm_r2a` rows measure it
+(a re-minted frame at z = 4 instead of the solved z = 5). A design
+fork — the edit door's purity, or the maintenance's home, or a
+stamped extent beside the pin — so it goes to Ev as
+`reconcile-solves-with-no-resolver` on an `[ev]` PR, with the edit
+door taking a reach recommended. The lane holds on its branch.
+
+## The edit door ruled; MSOLVE-6 resumes (2026-09-08)
+
+Ev ruled (a) with the replay refinement on PR 2118, after three
+questions: how it relates to 2086 (the same B, one solve site
+further in), whether a stamped extent is a cache that drifts (it is
+derived from content-addressed data and checked at evaluation, but
+it is still a derived geometric fact in the recipe), and which is
+cleaner ignoring churn (the edit door taking the reach, with the log
+carrying the maintenance's frames so replay never solves — the
+orchestrator's honest answer reversed its own (h) lean). The spec
+gained its amendment section; the lane resumes on PR 2116.

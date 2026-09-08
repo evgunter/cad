@@ -1053,6 +1053,24 @@ record is its row in `MODEL-AB-LOG.md` and its item's `## Closed`
 section.
 
 - `PROPS-1-SPEC.md` — PROPS-1, the lost-correlation members of the linalg audit: `mirror_across_plane` and `reject_from` (#1918)
+## Per-merge deletion — TOPO-D265's spec (2026-09-06)
+
+Recoverable at `git show 7253e5efb66c479aa27c7381b878be0d1a2bd52a:docs/TOPO-D265-SPEC.md`
+(the D265 unit head after the review fix pass, before the state-sync
+commit that deleted it). Two of its stated facts were falsified by the
+unit and are corrected in the unit's record, not here: `merge_group`
+has **nine** sites that can return an `EulerOpError`, not the two the
+spec named (`kev` and `kemr`) — four lookups, `loop_winding` through
+`merged_outline_ring`, and four operator calls; and the spec's
+expectation that the site-level argument would sweep nearly every
+variant into corruption is wrong at one cell — the **(R) column is not
+empty**, because `kef`'s `SameFace` is reachable on a tier-1-valid
+nested group, the absorption's own ring drain having re-homed the dying
+loop onto the survivor. The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its item's `## Closed` section.
+
+- `TOPO-D265-SPEC.md` — TOPO-D265, the merge door's arena-fault class, made true at the door (#2013)
+
 ## Per-merge deletion — TOPO-S330's spec (2026-09-05)
 
 Recoverable at `git show 57cd299d8225afe4454bd068fa9e374439975363:docs/TOPO-S330-SPEC.md`
@@ -1443,3 +1461,14 @@ merge stay order-shaped — filed). The rule above; the unit's record is
 its row in `MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
 
 - `DOCM-8-SPEC.md` — DOCM-8, a merged face's name is a flat constituent set; a member-space declaration resolves through the fold's merges (#2073)
+
+## Per-merge deletion — PROPS budget-faces' spec (2026-09-08)
+
+Recoverable at `git show 887f5e39d3b868cc748da50c8d81d02df74601dd:docs/PROPS-BUDGET-FACES-SPEC.md`
+(the unit head, before the state-sync commit that deleted it). Its
+face-2 instance (`d = 1e-7` on the quarter cylinder as a finite cap
+stop) did not survive measurement — that instance is face 4, and the
+face-2 red-first row is the bumpy patch at 1e-15 — and its face 4 is
+landed as `BoundNotFinite` carrying `last_finite`, per the review. The
+rule above; the unit's record is its `## Closed` and the MERGED entry
+in `work/props/log.md` (an E rider: no A/B row).

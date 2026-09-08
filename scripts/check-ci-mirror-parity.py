@@ -69,6 +69,27 @@ allowlist is not read. And ENVIRONMENT IS NOT A FLAG: render.yml's
 pair this claim reads — so that divergence is live, deliberate, correct, and
 passes here in silence rather than through an exemption.
 
+CLAIM 4 HAS TWO ARMS OVER ONE POPULATION: does a script under `scripts/` or
+`demos/` run at all, and does its `--selftest` mode run. They are one question
+with one parameter different and they are written as one loop, because the
+second one written separately grew a second invocation matcher, a second local
+population and a third read of the workflow directory inside a day.
+`gate-roster.sh` enforces the second arm's rule over `scripts/gates/*`, which
+is why that directory is outside both. What counts as a caller for the second
+arm is a WORKFLOW and nothing else: every hosted job deletes `local-scripts/`
+at checkout, so a selftest whose only caller lives there runs in no CI at all.
+
+CLAIM 11 IS THE OTHER DIRECTION ENTIRELY: not what the two halves RUN, but a
+value one of them RETYPES. ci.yml's workflow-level `env:` block is this repo's
+single source of truth for tool versions, and the local half restates some of
+them as literals a human reads — the prereq note, the cargo-nextest failure
+text, gate.sh's sccache line. Nothing read those, so nothing checked them, and
+a bumped pin left the local half telling a developer to install a version
+hosted no longer runs. This claim reconciles them, deriving BOTH sides — the
+pins from the block through `scripts/ci-pin.py`, the literals from the tracked
+files under `local-scripts/`. The argument, the two arms and the five things it cannot see
+are at `PIN_FREE`.
+
 THAT SCOPE LINE IS A CHOICE, NOT AN ABSENCE OF TOOLING, and saying otherwise
 would be the sort of sentence this file exists to catch: comparing `env:`
 blocks between two halves is already done next door, by
@@ -90,9 +111,11 @@ claims 7 and 8 — only job-level `if:` is read.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -191,14 +214,16 @@ MIRROR_EXEMPT = {
         "that block would be. ci-local.sh runs whatever nextest the "
         "developer's box already has and refuses if there is none; the one "
         "place the local half acts on a pinned version, "
-        "scripts/check-python-lint.py, reads the ruff pin for itself and "
-        "reports the disagreement. What is hosted-only here is the reading, "
-        "not the check. NOTE WHAT THIS DOES NOT SAY: the local half does "
-        "restate pins, as literals a human reads — ci-local.sh's prereq note "
-        "and its cargo-nextest error text, and gate.sh's sccache line. Those "
-        "are copies nothing reconciles, which is this reader's own defect one "
-        "layer out; work/ciw/local-half-restates-ci-pins-as-literals carries "
-        "them, and mirroring this path would not touch one of them",
+        "scripts/check-python-lint.py, reads the ruff pin THROUGH THIS READER "
+        "and reports the disagreement — so what is one-sided is the INVOCATION "
+        "as an installer's input, not the reader: it runs in both halves, "
+        "reached from a script rather than named at a row. NOTE WHAT THIS DOES "
+        "NOT SAY: the local half does restate pins, as literals a human reads "
+        "— ci-local.sh's prereq note and its cargo-nextest error text, and "
+        "gate.sh's sccache line. Those stay literals on purpose (a command "
+        "pasted on a box with no cargo-nextest is not the place for a command "
+        "substitution) and claim 11 below reconciles them against the same "
+        "block, so they are copies something checks",
     ),
     "scripts/criterion-emit.py": (
         "hosted",
@@ -212,20 +237,130 @@ MIRROR_EXEMPT = {
         "not mirror is stapling an environment block to a local reading and "
         "committing it",
     ),
-    "scripts/opt-level-calibrate.py": (
-        "hosted",
-        "the opt-level calibration lane. Its free arm is READ from this "
-        "repository's own hosted run history through the Actions jobs API, and "
-        "its measured arm is a number about the 2-vCPU runner class — which is "
-        "the entire question. A developer box can run neither half "
-        "meaningfully: its own ratio is the measurement this lane exists to "
-        "distrust",
-    ),
 }
 
 # Declared asymmetries in claim 2 (gate MODES). Empty, and that is the point:
 # every flagged gate invocation is spelled in both halves today.
 GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
+
+# ------------------------------------------------------------------ claim 11
+#
+# CLAIM 11: EVERY VERSION LITERAL IN THE LOCAL TREE IS A PIN ci.yml STILL SETS,
+# OR IS DECLARED NOT TO BE ONE. `ci.yml`'s workflow-level `env:` block is this
+# repo's single source of truth for tool versions, and `scripts/ci-pin.py` is
+# the one reader of it — but reading is only half the population. The other
+# half is the copies that RESTATE a pin's VALUE: ci-local.sh's prereq note and
+# its `nextest_check()` failure text name `0.9.140`, gate.sh names sccache
+# `0.16.0`. Nothing read those, so nothing checked them, and the day a pin is
+# bumped the local half goes on telling a developer to install a version hosted
+# no longer runs — quietly, at the moment the local gate is trusted most.
+#
+# WHY THEY STAY LITERALS. `nextest_check()`'s text is a command a human copies
+# onto a box that has just been told its tooling is broken. Substituting
+# `$(scripts/ci-pin.py NEXTEST_VERSION)` there hands them one more thing to get
+# wrong, in the one place they cannot check it. So the text stays text and this
+# claim reconciles it instead.
+#
+# THE POPULATION IS DERIVED, IN BOTH DIRECTIONS, and that is the whole design.
+# The pins come from `read_pins` — the block itself, never a roster of names
+# retyped here. The literals come from a scan of the local tree — every
+# `x.y.z`, never a roster of sites. What IS written by hand is `PIN_FREE`
+# below, and note which way round it runs: it declares the literals that are
+# NOT pins, so a version literal added anywhere in that tree is an ERROR until
+# someone says what it is. A roster of the pin copies would have to be extended
+# for every new copy and would silently under-report; this one fails closed.
+#
+# THE TWO ARMS, and neither subsumes the other:
+#   A. VALUE. Every literal in the tree either equals a value ci.yml pins
+#      today, or is declared in PIN_FREE. This is the arm that fires on a bump:
+#      the moment NEXTEST_VERSION moves, all six `0.9.140` sites stop naming a
+#      pin at once — including the ones arm B cannot see, the URL
+#      `https://get.nexte.st/0.9.140/linux` (whose hostname is `nexte.st`, not
+#      the token `nextest`) and the bare "the pinned 0.9.140".
+#   B. NAME. A line that names a pinned tool AND carries a version must carry
+#      THAT tool's current pin among its literals. This is the arm that fires
+#      when a copy drifts onto some OTHER pin's value, which arm A would wave
+#      through. Every underscore-separated part of the pin's key is a spelling
+#      it looks for (`tool_names`), matched case-insensitively, with `_` a
+#      boundary — so `NEXTEST_VERSION=0.16.0` and `# Nextest 0.16.0` are both
+#      in its population, which they were not when this claim was written.
+#
+# WHAT THIS CANNOT SEE. The list is what has been looked for and found no way
+# to cover; IT IS NOT A COUNT AND NOT A PROOF OF COMPLETENESS. An earlier
+# version of this comment stated a number, which reads as completeness, and a
+# review then planted four shapes it did not contain and one it described
+# wrongly. Add to it when you find another; do not tally it.
+#   * TWO TOOLS ON ONE LINE WITH THEIR VALUES SWAPPED. Arm B asks whether a
+#     tool's pin is among the line's literals, not which literal belongs to
+#     which tool, so `nextest 0.16.0 sccache 0.9.140` satisfies both tools and
+#     arm A sees two pinned values. Deciding which version a line means for
+#     which tool is a parse of English, and a wrong answer there would red
+#     correct lines.
+#   * A LITERAL THAT DRIFTS ONTO ANOTHER PIN'S VALUE ON A LINE THAT NAMES NO
+#     TOOL. `ci-local.sh`'s "against the pinned 0.9.140" and the get.nexte.st
+#     URL are covered for a BUMP by arm A and NOT for a cross-pin drift, which
+#     needs a tool name arm B can see beside the version.
+#   * VERSION SHAPE, in both directions. A version that is not three
+#     dot-separated numbers is not a literal here — `1.2`, `1.2.3.4`, a value
+#     built at run time — and widening to two components would swallow `3.12`,
+#     `0.16` and every ratio in a comment. In the other direction the shape
+#     OVER-matches: any such run is a literal, so `3.12.4` inside
+#     `python3.12.4`, a date like `2026.08.22`, and the `1.2.3` inside
+#     `v1.2.3-rc1` all count and must be a pinned value or declared. (This
+#     comment used to claim `v1.2.3-rc1` was invisible here. It is not.)
+#   * A SHORT DERIVED TOKEN MATCHING AN UNRELATED WORD. `TY_VERSION` derives
+#     `ty`, and `_` is a boundary, so `my_ty_thing 1.2.3` is in arm B's
+#     population. That direction over-checks rather than under-checks — it can
+#     red a correct line, and the message tells the author to separate the two.
+#   * A PIN WHOSE KEY IS NOT HOW ANYONE SPELLS THE TOOL. Arm B is silently
+#     inert for it: nothing names it, so nothing is checked and nothing is
+#     said. Arm A still covers its value.
+#   * THE TREE IS `local-scripts/`, tracked files only.
+#     `.claude/hooks/session-start.sh` restates three pins the same way and is
+#     NOT reachable from here: every hosted job deletes `.claude/` at checkout,
+#     so a claim about it would pass hosted and red locally, which is worse
+#     than not making it. `work/ciw/session-start-hook-restates-ci-pins`
+#     carries that one.
+#   * A PIN ci.yml SETS THAT NOTHING IN THE LOCAL TREE NAMES is not an error.
+#     A tool the local half does not mention is not drift.
+#   * ARM B READS ONE LINE. A tool named in a sentence whose version sits on
+#     the next line is arm A's business only.
+PIN_TREE = "local-scripts"
+
+# Three dot-separated numbers with no digit or dot on either side, so
+# `0.0.0.0`, `127.0.0.1` and `1.1.1.1` are addresses rather than three
+# overlapping versions each.
+VERSION_LITERAL_RE = re.compile(r"(?<![.\d])\d+\.\d+\.\d+(?![.\d])")
+
+# Declared NON-pins in claim 11. `(path, literal): reason`. Every other version
+# literal under PIN_TREE has to be a value ci.yml pins today.
+#
+# AN ENTRY IS A CONFESSION AND IT EXPIRES: a declaration whose literal is no
+# longer in that file is an error, exactly as MIRROR_EXEMPT's is. A stale
+# not-a-pin note is how a real pin copy would come to sit under cover.
+PIN_FREE = {
+    ("local-scripts/ci-local.sh", "0.98.4"): (
+        "admesh's version FLOOR and not a pin: the prereq note says `0.98.4+`, "
+        "a lower bound on a tool the developer installs from apt or source. It "
+        "sits in the SAME SENTENCE as the cargo-nextest pin, which is the trap "
+        "this claim was written around — a reconciler that read every literal "
+        "in that sentence as a pin copy would demand this one track "
+        "NEXTEST_VERSION. ci.yml pins no admesh at all"
+    ),
+    ("local-scripts/hooks/pre-push", "1.9.0"): (
+        "the rustfmt release whose `--check` on stdin exits 0 even on a diff, "
+        "named as the reason that hook does not use stdin. It is an "
+        "observation about a tool's behaviour, not a version anything "
+        "installs; the compiler and its components are pinned by "
+        "rust-toolchain.toml, which is a different source of truth from "
+        "ci.yml's `env:` block and has its own"
+    ),
+    ("local-scripts/seal-oracle.sh", "0.0.0"): (
+        "the `version =` field of the throwaway Cargo manifests that script "
+        "generates for its probe crates. A crate version, and deliberately the "
+        "null one: nothing publishes them and nothing installs them"
+    ),
+}
 
 # CLAIM 10'S ALLOWLIST — the `cargo` flags that change what a run MEANS rather
 # than what it executes. `flag -> takes a value`.
@@ -675,6 +810,98 @@ def invocations(lines: list[str]) -> set[str]:
     SCRIPT_RE keeps `local-scripts/ci-local.sh` from being read as an
     invocation of `scripts/ci-local.sh`."""
     return {m for line in lines for m in SCRIPT_RE.findall(line)}
+
+
+def _shell_text(lines: list[str]) -> str:
+    r"""One `run:` block as ONE unit of matching, with trailing comments gone.
+
+    TWO DECISIONS, BOTH OF THEM ABOUT WHICH WAY TO BE WRONG.
+
+    A BLOCK AND NOT A LINE. `scripts/foo.py --selftest` is one physical line
+    today; a `\`-continuation, a `for s in a b; do python3 "$s" --selftest;
+    done`, or a variable holding the path are all the same row written by
+    someone tidying up, and read line by line each of them says the selftest
+    is not invoked. That is a FALSE RED on a correct tree, and claim 4's own
+    header settles which direction to take when a matcher cannot be exact:
+    under-report rather than red, because a check that reds on a correct
+    change gets routed around and then detects nothing at all. So the unit is
+    the block, and the cost is stated where the arm is: a block that names one
+    path and passes `--selftest` to a DIFFERENT one reads as a caller.
+
+    TRAILING COMMENTS ARE NOT CODE, and this is the one direction worth
+    spending exactness on: `true  # was: scripts/foo.py --selftest` is a row
+    someone has DELETED, and counting it is the precise failure this arm
+    exists to catch. `COMMENT_RE` is full-line only, so it is no help inside a
+    block. Quotes are tracked so a `#` inside an argument survives.
+    """
+    out = []
+    for line in _join_continuations(lines):
+        q: str | None = None
+        cut = len(line)
+        for i, ch in enumerate(line):
+            if q is not None:
+                if ch == q:
+                    q = None
+            elif ch in "'\"":
+                q = ch
+            elif ch == "#" and (i == 0 or line[i - 1].isspace()):
+                cut = i
+                break
+        out.append(line[:cut])
+    return "\n".join(out)
+
+
+def declares_selftest(path: str) -> bool:
+    """Does this script IMPLEMENT a `--selftest` mode, rather than mention one?
+
+    A full-line comment is not an implementation — `demos/render-wild.sh` names
+    the flag once, in prose, about another script's mode. Everything else
+    counts: an `add_argument("--selftest")`, a `case` arm, a `[ "$1" =
+    --selftest ]`, and the usage string beside them. A file that is not UTF-8
+    is not a finding, for the reason `reachable` reads the same population
+    tolerantly.
+    """
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        return any("--selftest" in ln for ln in fh.read().splitlines()
+                   if not COMMENT_RE.match(ln))
+
+
+def selftest_callers() -> set[str]:
+    """Paths a WORKFLOW passes `--selftest`, read one `run:` block at a time.
+
+    A WORKFLOW, AND NOTHING ELSE. `local-scripts/` is not a caller here, and
+    that is the whole point rather than an oversight: EVERY hosted job deletes
+    that tree at checkout (the `prune local-only tooling` step, on the
+    structural rule this file's claim 6 enforces), so a selftest whose only
+    caller lives there runs in NO CI AT ALL. Counting it would let this arm
+    pass the exact shape it was written to catch. The local half still owes
+    the row — that is claims 1 and 7 — but the row that PROVES a guard fires
+    is the hosted one.
+
+    Reading only `step.run` and not `step.lines` is the same distinction claim
+    10 draws at `Step`: a step NAMED "opt-level calibrator selftest" is not a
+    step that runs one.
+
+    WHAT IT CANNOT SEE, stated because a disclosed blind spot is a work order.
+    All three under-report — they read a non-caller as a caller and so miss an
+    orphan — which is the direction `reachable` argues for and for the same
+    reason. (1) A `run:` block is not executed, so a path named with the flag
+    inside a heredoc body, an `echo`, or an `if false` branch counts. (2) A
+    path that reaches the command ONLY through a variable set in a different
+    step is invisible; the fix is a literal, not an exemption. (3) A `.py`
+    under `scripts/gates/` is outside this population (non-recursive walk) and
+    outside `gate-roster.sh`'s (`*.sh`); there are none.
+    """
+    out: set[str] = set()
+    for wf in sorted(os.listdir(WORKFLOW_DIR)):
+        if not wf.endswith((".yml", ".yaml")):
+            continue
+        for job in read_workflow(f"{WORKFLOW_DIR}/{wf}"):
+            for step in job.steps:
+                text = _shell_text(step.run)
+                if "--selftest" in text:
+                    out |= invocations(text.splitlines())
+    return out
 
 
 def gate_modes(lines: list[str]) -> set[str]:
@@ -1201,6 +1428,119 @@ def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> li
     return [raw[x] for x in sorted(idx)]
 
 
+# ------------------------------------------------------- claim 11's readers
+
+
+def ci_pin_module():
+    """`scripts/ci-pin.py`, imported by the one idiom its header documents.
+
+    THE ANCHORING IS NOT REIMPLEMENTED HERE. Which lines are the workflow's own
+    `env:` block — as against a block indented under a job — is exactly the
+    question that script exists to answer, and a second answer to it living in
+    this file would be the defect this claim is about, one level up.
+
+    The two lines are `sys.path` plus `import_module("ci-pin")`: the file's
+    name has a hyphen in it, because that is the name every caller spells on a
+    command line. Resolved against THIS FILE's directory, never against
+    `--root`: the self-test's miniature repo has a ci.yml and no scripts/, and
+    the reader it must be checked with is this tree's. EVERY FAILURE IS CAUGHT,
+    not just the import machinery's — a `SyntaxError` in the reader is the same
+    event to this row as a missing file, and a traceback would say so without
+    naming what went unchecked.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        return importlib.import_module("ci-pin")
+    except Exception as exc:
+        raise Bail(f"cannot import scripts/ci-pin.py ({exc.__class__.__name__}: {exc}), which is "
+                   "this repo's one reader of ci.yml's tool pins and the source of claim 11's "
+                   "population. " + NO_TEACH) from exc
+
+
+def workflow_pins() -> dict[str, str]:
+    """`ci.yml`'s workflow-level pins, name -> value, version-shaped ones only.
+
+    THE FILTER IS ON THE VALUE, not on the name. A name-based filter would read
+    `*_VERSION` and miss a pin called something else — which is precisely the
+    blind spot the sweep behind this claim recorded about ITS OWN pattern, so
+    reproducing it here would be a joke at this file's expense.
+    """
+    ci_pin = ci_pin_module()
+    try:
+        with open(HOSTED_HALF, encoding="utf-8") as fh:
+            pins = ci_pin.read_pins(fh.read(), HOSTED_HALF)
+    except ci_pin.Refuse as why:
+        raise Bail(f"{HOSTED_HALF}: {why}. Claim 11's population is that block, so a block this "
+                   "repo's own pin reader will not read leaves the claim with nothing to check "
+                   "rather than with nothing to report. " + NO_TEACH) from why
+    return {name: val for name, val in pins.items() if VERSION_LITERAL_RE.fullmatch(val)}
+
+
+def pin_literals(root: str) -> list[tuple[str, int, str, str]]:
+    """Every version literal under PIN_TREE: `(path, line number, literal, line)`.
+
+    DERIVED, NEVER A ROSTER. The point of this claim is that a hand-listed set
+    of sites falls behind the tree; a hand-listed set of sites to SCAN would
+    fall behind it in the same way, one level further out.
+
+    THE POPULATION IS GIT'S INDEX, NOT THE FILESYSTEM, which is the same
+    answer `scripts/check-python-lint.py` gives to the same question one file
+    over — and for the sharper reason here. A directory walk reads whatever is
+    sitting in the tree: this repo's `.gitignore` carries `*.local.*`, which is
+    an INVITATION to keep personal files in place, and a developer's
+    `local-scripts/notes.local.md` mentioning a version would red their local
+    gate over a file the repo told them was theirs. It cannot red hosted (a
+    runner checks out a clean tree), which is exactly what would make it a
+    confusing, one-sided red.
+    """
+    listed = subprocess.run(["git", "ls-files", "-z", "--", PIN_TREE], cwd=root,
+                            capture_output=True, text=True, check=False)
+    if listed.returncode != 0:
+        raise Bail(f"`git ls-files -- {PIN_TREE}` failed under {root} "
+                   f"({listed.stderr.strip() or 'no message'}). That listing IS claim 11's "
+                   "population — the tracked files of the local half — and this check will not "
+                   "fall back to a directory walk, because a walk reads a developer's own "
+                   "untracked files and reds their gate over them. " + NO_TEACH)
+    out: list[tuple[str, int, str, str]] = []
+    for rel in sorted(x for x in listed.stdout.split("\0") if x):
+        full = os.path.join(root, rel)
+        try:
+            with open(full, encoding="utf-8", errors="replace") as fh:
+                body = fh.read().splitlines()
+        except OSError:
+            # A tracked path that is not a readable file today — a symlink to
+            # nowhere, a submodule. Nothing to read is nothing to reconcile.
+            continue
+        for i, line in enumerate(body, 1):
+            for lit in VERSION_LITERAL_RE.findall(line):
+                out.append((rel, i, lit, line.strip()))
+    return out
+
+
+def tool_names(pin_name: str) -> list[str]:
+    """Every spelling of a pin a line might name it by, derived from its key:
+    `NEXTEST_VERSION` -> `nextest`; `FREECAD_APPIMAGE_VERSION` -> `freecad`
+    and `appimage`.
+
+    EVERY UNDERSCORE-SEPARATED PART, not the key with `_VERSION` stripped,
+    because a token that is not the tool's spelling makes arm B silently inert
+    for that pin: `freecad_appimage` is a string no line in this repo writes,
+    so a claim resting on it would check nothing and say nothing. `VERSION`
+    itself is dropped — it is the key's suffix, not a tool.
+
+    THE PIN'S OWN KEY needs no entry of its own: arm B's boundary treats `_` as
+    a boundary character, so `nextest` matches inside `NEXTEST_VERSION=0.16.0`
+    — which is the most literal restatement a pin can have, and was escaping
+    this arm entirely while being exactly its subject.
+    """
+    return [w for w in pin_name.lower().split("_") if w and w != "version"]
+
+
+def tool_token(pin_name: str) -> str:
+    """The tool a pin names, for a message a human reads."""
+    return "_".join(w for w in pin_name.lower().split("_") if w and w != "version")
+
+
 def unconditional(jobs: dict[str, "Job"], name: str, seen: frozenset[str] = frozenset()) -> str | None:
     """None if job `name` runs on every tier; otherwise the reason it may not.
 
@@ -1339,21 +1679,59 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     # BOTH halves plus every workflow file: `render.yml` is reached through a
     # `uses:` job and runs the render entry points, so a script owned only by
     # it is owned, not orphaned.
+    #
+    # TWO ARMS OVER ONE POPULATION, and they are one question with one
+    # parameter different: does this script run, and does its `--selftest`
+    # mode run. Written as a separate claim the second one grew its own
+    # invocation matcher, its own local population and its own read of the
+    # workflow directory within a day — three copies of a decision this file
+    # exists to keep single — so it is written here, in the loop it belongs
+    # to, sharing `SCRIPT_RE`, the closure, and the directory walk. The second
+    # arm's own caller rule is narrower than `owned` and says why at
+    # `selftest_callers`.
+    #
+    # THE POPULATION IS NON-RECURSIVE, which is what puts `scripts/gates/`
+    # outside BOTH arms: that directory is `gate-roster.sh`'s roster ground,
+    # and its rule — *a guard that has never been shown to fire is not a
+    # guard* — is the second arm's rule, enforced there for `scripts/gates/*.sh`
+    # minus `lib.sh`. A `.py` under `scripts/gates/` would be watched by
+    # neither this loop nor that roster. There are none, and if one appears
+    # the roster is the place to widen, not this walk.
     wf_seeds: set[str] = set()
     for wf in sorted(os.listdir(WORKFLOW_DIR)):
         if wf.endswith((".yml", ".yaml")):
             wf_seeds |= invocations(non_comment(f"{WORKFLOW_DIR}/{wf}"))
     owned = reachable(root, hosted | local | wf_seeds)
+    selftested = selftest_callers()
     for d in ("scripts", "demos"):
         for name in sorted(os.listdir(d)):
             p = f"{d}/{name}"
             if not os.path.isfile(p) or not name.endswith((".sh", ".py")):
                 continue
-            if p.startswith("scripts/gates/") or p in owned:
+            if p.startswith("scripts/gates/"):
                 continue
-            err(f"{p} is an executable check under {d}/ that NEITHER half names and no named script "
-                "reaches. Outside scripts/gates/ there is no roster property at all, so a check can be "
-                "written, committed and never run by anything — wire it into both halves, or move it")
+            if p not in owned:
+                err(f"{p} is an executable check under {d}/ that NEITHER half names and no named "
+                    "script reaches. Outside scripts/gates/ there is no roster property at all, so a "
+                    "check can be written, committed and never run by anything — wire it into both "
+                    "halves, or move it")
+                continue
+            # ARM TWO. `scripts/opt-level-calibrate.py --selftest` was
+            # substantial, was cited by a sibling lane's comment as the
+            # precedent for siting such a row, and was invoked by nothing —
+            # while the script itself ran three times a night, so arm one was
+            # satisfied and said so.
+            if declares_selftest(p) and p not in selftested:
+                err(f"{p} implements a `--selftest` mode and NO WORKFLOW under {WORKFLOW_DIR}/ passes "
+                    "it that flag. A selftest is the only evidence that a guard still fires, so one "
+                    "nothing runs makes the guard's greenness a statement about nothing. A row in "
+                    f"{os.path.dirname(LOCAL_HALF)}/ is not a substitute and is not read here: every "
+                    "hosted job DELETES that tree at checkout, so a selftest whose only caller lives "
+                    "there runs in no CI at all. Add the hosted row — and mirror it, which claims 1 "
+                    "and 7 want anyway. For a script under scripts/, that row belongs on a PER-PR "
+                    "job: a check sited only in a scheduled workflow surfaces at the next fire, to "
+                    "nobody, and a row that fails to run at all reports the same green as a row that "
+                    "ran and passed")
 
     # CLAIM 5 — the `tools/` crates. They are checked by `cd tools/X && cargo …`
     # rows, which carry no scripts/ or demos/ path for claim 1 to match; this is
@@ -1676,6 +2054,72 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
                 f"{LOCAL_HALF} carries no such HOSTED MIRROR marker. Either the pair is gone and the "
                 f'entry should go with it, or ("{reason}") is describing a row that stopped running')
 
+    # CLAIM 11 — the version literals under PIN_TREE against ci.yml's pins.
+    # The argument is at PIN_FREE; the two arms are A (value) and B (name).
+    pins = workflow_pins()
+    values = set(pins.values())
+    literals = pin_literals(root)
+    declared: set[tuple[str, str]] = set()
+    for (path, lit), reason in sorted(PIN_FREE.items()):
+        if lit in values:
+            err(f"PIN_FREE declares {lit} in {path} as a non-pin — {reason} — and {HOSTED_HALF} now "
+                f"pins exactly {lit}. Whichever is true, arm A can no longer tell: a declared "
+                "non-pin that equals a live pin is the one way a copy of that pin hides inside its "
+                "own excuse. Rename the declaration's subject, or drop the entry if the literal was "
+                "a pin copy all along")
+
+    for path, lineno, lit, line in sorted(set(literals)):
+        if (path, lit) in PIN_FREE:
+            declared.add((path, lit))
+            continue
+        if lit in values:
+            continue
+        err(f"{path}:{lineno} names version {lit}, and {HOSTED_HALF} pins no such version — it pins "
+            + ", ".join(f"{n}={v}" for n, v in sorted(pins.items()))
+            + f". The line is `{line}`. If that literal is a copy of a pin, the pin has MOVED and "
+            "the copy has not: a developer reading this line installs a version hosted CI no longer "
+            "runs, and until now nothing said so. If it is not a pin at all, declare it in PIN_FREE "
+            "with what it is — that table is the list of literals this tree is allowed to carry, and "
+            "it runs that way round on purpose, so a new literal is an error until someone says "
+            "what it is")
+
+    # ONE REPORT PER LINE PER PIN. `literals` carries one entry per literal, so
+    # a line with two versions on it would otherwise be reported twice for the
+    # same pin — and ci-local.sh's prereq note is exactly such a line.
+    by_line = {(path, lineno): line for path, lineno, _lit, line in literals}
+    for name, value in sorted(pins.items()):
+        # CASE-INSENSITIVE, AND `_` IS A BOUNDARY. `# Nextest 0.16.0` names the
+        # tool as surely as `nextest` does, and `NEXTEST_VERSION=0.16.0` names
+        # it twice; a case-sensitive matcher whose word boundary treats `_` as
+        # a word character sees neither. Both were live escapes from this arm,
+        # of exactly the shape this claim exists to catch. What the boundary
+        # still refuses is a token INSIDE a longer word (`another` is not
+        # `other`) and `nexte.st`, which is a hostname and not this token.
+        named = re.compile("|".join(rf"(?<![A-Za-z0-9]){re.escape(n)}(?![A-Za-z0-9])"
+                                    for n in tool_names(name)), re.IGNORECASE)
+        for (path, lineno), line in sorted(by_line.items()):
+            if not named.search(line):
+                continue
+            # A DECLARED NON-PIN IS NOT EVIDENCE ABOUT A TOOL'S VERSION, so it
+            # is not counted here either. Without this, a PIN_FREE literal on a
+            # line that happens to name a pinned tool reds with no declaration
+            # path anywhere — arm A would excuse it and arm B could not.
+            here = [x for x in VERSION_LITERAL_RE.findall(line) if (path, x) not in PIN_FREE]
+            if not here or value in here:
+                continue
+            err(f"{path}:{lineno} names {tool_token(name)} and the version(s) {', '.join(here)}, and "
+                f"none of them is {value} — the version {HOSTED_HALF} pins as {name} today. The line "
+                f"is `{line}`. A line that names a tool and a version beside it is read as being "
+                "about that tool's pin; if it is about something else, rewrite it so the two are not "
+                "adjacent, because a reader will make the same inference this check does")
+
+    for (path, lit), reason in sorted(PIN_FREE.items()):
+        if (path, lit) not in declared:
+            err(f"PIN_FREE declares {lit} in {path} as a non-pin, and that file no longer names it. "
+                f'Either the line is gone and the entry should go with it, or ("{reason}") is '
+                "describing a literal that has changed — a stale not-a-pin note is how a real pin "
+                "copy comes to sit under cover")
+
     return errs
 
 
@@ -1726,6 +2170,18 @@ def _no_mirror_reasons(path: str, jobs: dict[str, "Job"]) -> dict[str, str]:
 # inside `if out=$(…)`, where bash suppresses errexit, and that is exactly the
 # condition under which a `set -e` script dies before printing its own error.
 # A self-test that cannot reproduce the real invocation cannot see that.
+# CLAIM 11'S FIXTURE PINS. Two of them: one the local half restates correctly,
+# and a second whose only job is to be a DIFFERENT pin's value, so the case
+# where a literal drifts onto one can be planted. The names are what derive
+# their arm-B tokens (`fixture`, `other`), and the values are chosen not to
+# collide with any PIN_FREE literal the clean fixture plants below.
+FIXTURE_PIN = ("FIXTURE_VERSION", "1.2.3")
+# TWO WORDS, on purpose: its parts are `other` and `tool`, so a case can name
+# it by its SECOND part and catch a derivation that only looks at the first.
+FIXTURE_PIN_OTHER = ("OTHER_TOOL_VERSION", "4.5.6")
+FIXTURE_PIN_LINE = f"# the fixture binary, pinned {FIXTURE_PIN[1]} to match hosted"
+
+
 def plant_clean(t: str) -> None:
     for d in ("scripts/gates", "demos", "local-scripts", ".github/workflows", "tools/toolcrate"):
         os.makedirs(os.path.join(t, d), exist_ok=True)
@@ -1742,6 +2198,13 @@ def plant_clean(t: str) -> None:
     for want in TIER_BLIND:
         open(os.path.join(t, want.split()[0]), "w").close()
     with open(os.path.join(t, HOSTED_HALF), "w") as fh:
+        # CLAIM 11's population, and the PASSING shape of it: a workflow-level
+        # `env:` block, which is what `scripts/ci-pin.py` anchors to. Written
+        # before `jobs:` exactly as ci.yml writes it — content outside `jobs:`
+        # is not read by any other claim here.
+        fh.write("env:\n")
+        for name, value in (FIXTURE_PIN, FIXTURE_PIN_OTHER):
+            fh.write(f'  {name}: "{value}"\n')
         fh.write("jobs:\n")
         fh.write(f"  {SITING_JOB}:\n    steps:\n      - uses: actions/checkout@v4\n")
         for want in TIER_BLIND:
@@ -1810,6 +2273,36 @@ def plant_clean(t: str) -> None:
     for path in MIRROR_EXEMPT:
         os.makedirs(os.path.join(t, os.path.dirname(path)), exist_ok=True)
         open(os.path.join(t, path), "w").close()
+    # CLAIM 11, the clean shape: one correctly-restated pin in the local half…
+    with open(os.path.join(t, LOCAL_HALF), "a") as fh:
+        fh.write(f"{FIXTURE_PIN_LINE}\n")
+        # …and the two shapes this claim must NOT read, planted in the CLEAN
+        # fixture because that is where an over-eager matcher shows up. An IP
+        # address is not three versions overlapping (drop the lookbehind on
+        # VERSION_LITERAL_RE and `127.0.0` becomes a literal naming no pin),
+        # and a token inside a longer word is not the token (`another` is not
+        # `other`, whose pin this line does not carry).
+        fh.write("# binds on 127.0.0.1, which is an address and not a version\n")
+        fh.write(f"# another restatement, of {FIXTURE_PIN[1]}\n")
+    # …and every PIN_FREE literal where its entry says it is, DERIVED for the
+    # reason `_exempt_side` is derived: an entry added to that table would
+    # otherwise red the CLEAN fixture through its own expiry arm, reporting
+    # this builder instead of the new entry.
+    for path, lit in sorted(PIN_FREE):
+        full = os.path.join(t, path)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "a") as fh:
+            fh.write(f"# {lit}\n")
+    # THE INDEX IS THE POPULATION, so the fixture needs a real one — the same
+    # thing `check-python-lint.py`'s end-to-end plants do, for the same reason.
+    # LAST in this builder: a file created after it would not be listed.
+    for argv in (["git", "init", "-q"], ["git", "add", "-A"]):
+        done = subprocess.run(argv, cwd=t, capture_output=True, text=True, check=False)
+        if done.returncode != 0:
+            raise SystemExit(f"SELFTEST BROKEN: `{' '.join(argv)}` failed in the fixture "
+                             f"({done.stderr.strip()}). Claim 11 reads `git ls-files`, so the "
+                             "fixture has to be a git repo; this is a broken harness, not a "
+                             "verdict on the tree.")
 
 
 def _flag_spelling(flag: str) -> str:
@@ -1967,6 +2460,80 @@ def selftest() -> None:
         _append(HOSTED_HALF, "      - name: g\n        run: scripts/gone.sh\n")(t)
         _append(LOCAL_HALF, "scripts/gone.sh\n")(t)
     def orphan(t):             open(os.path.join(t, "scripts/orphan.sh"), "w").close()
+    # CLAIM 4'S SECOND ARM. `_declarer` plants a script that satisfies arm one
+    # — both halves name it — and implements a `--selftest` mode. Whether that
+    # mode has a caller is the only variable across the rows below.
+    #
+    # THE FILE CLASS IS A PARAMETER, not a constant. The first battery for this
+    # arm planted a `.sh` declarer only, and dropping `.py` from the
+    # population left the whole battery green while the real defect —
+    # `scripts/opt-level-calibrate.py` — walked straight through. A fixture
+    # that cannot see the file class of the live defect is not covering it.
+    def _declarer(path: str, body: str = 'add_argument("--selftest")\n'):
+        def go(t: str) -> None:
+            full = os.path.join(t, path)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w") as fh:
+                fh.write(body)
+            _append(HOSTED_HALF, f"      - name: d\n        run: {path}\n")(t)
+            _append(LOCAL_HALF, f"{path}\n")(t)
+        # NAMED, because `_case` reports `plant.__name__` and a battery of
+        # closures all called `go` says which claim failed and not which row.
+        go.__name__ = f"declarer[{path}]"
+        return go
+    py_selftest_never_run = _declarer("scripts/declarer.py")
+    sh_selftest_never_run = _declarer("scripts/declarer.sh", '[ "${1:-}" = --selftest ] && exit 0\n')
+    demos_selftest_never_run = _declarer("demos/declarer.py")
+    # A LOCAL CALLER IS NOT A CALLER, and this row is the one the first version
+    # of this arm got backwards — it pinned this shape as a case the checker
+    # must ACCEPT. Every hosted job deletes local-scripts/ at checkout, so a
+    # selftest reachable only from there runs in no CI at all: the arm has to
+    # RED here, not pass.
+    def selftest_local_only(t):
+        py_selftest_never_run(t)
+        _append(LOCAL_HALF, "scripts/declarer.py --selftest\n")(t)
+    # A CALLER THAT IS A COMMENT is a row someone deleted. `COMMENT_RE` is
+    # full-line only and cannot see this inside a `run:` block, so `_shell_text`
+    # is what has to.
+    def selftest_caller_commented_out(t):
+        py_selftest_never_run(t)
+        _append(HOSTED_HALF, "      - name: st\n        run: true  # was: scripts/declarer.py --selftest\n")(t)
+    # THE MODE NAMED IN ANOTHER SCRIPT'S TEXT. Not a caller either — scripts
+    # are not the caller population — which is how the calibrator's selftest
+    # came to look covered in three places while running in none.
+    def selftest_named_in_a_script(t):
+        py_selftest_never_run(t)
+        _append("scripts/check-1.sh", "echo see scripts/declarer.py --selftest\n")(t)
+    # THE SHAPES IT MUST ACCEPT. A hosted caller on one line; the same caller
+    # written as a loop over two scripts in one `run:` block, which is the
+    # plausible tidy-up that a line-at-a-time matcher reds with a message that
+    # is simply false; and a `scripts/gates/` member, whose uninvoked selftest
+    # is `gate-roster.sh`'s finding and must be silent here.
+    def selftest_run_hosted(t):
+        py_selftest_never_run(t)
+        _append(HOSTED_HALF, "      - name: st\n        run: python3 scripts/declarer.py --selftest\n")(t)
+    def selftest_run_in_a_loop(t):
+        py_selftest_never_run(t)
+        sh_selftest_never_run(t)
+        _append(HOSTED_HALF, "      - name: st\n        run: |\n"
+                             "          for s in scripts/declarer.py scripts/declarer.sh; do\n"
+                             '            python3 "$s" --selftest\n'
+                             "          done\n")(t)
+    def selftest_continued_line(t):
+        py_selftest_never_run(t)
+        _append(HOSTED_HALF, "      - name: st\n        run: |\n"
+                             "          python3 scripts/declarer.py \\\n"
+                             "            --selftest\n")(t)
+    # A MENTION IS NOT AN IMPLEMENTATION, in the other direction: a script
+    # whose only `--selftest` is a full-line comment about ANOTHER script's
+    # mode declares nothing. `demos/render-wild.sh` is exactly this on the
+    # real tree, and reporting it would be a false red with no fix available.
+    def selftest_only_a_comment(t):
+        _declarer("scripts/commenter.py", "# see scripts/declarer.py --selftest\n")(t)
+    def gates_selftest_uninvoked(t):
+        full = os.path.join(t, "scripts/gates/quiet.sh")
+        with open(full, "w") as fh:
+            fh.write('[ "${1:-}" = --selftest ] && exit 0\n')
     def tools_one_side(t):     os.makedirs(os.path.join(t, "tools/lonely"))
     def unpruned_job(t):       _append(HOSTED_HALF, "  extra:\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo hi\n")(t)
     def uppercase_job(t):      _append(HOSTED_HALF, "  buildXtra:\n    steps:\n      - uses: actions/checkout@v4\n      - run: cat local-scripts/ci-local.sh\n")(t)
@@ -2107,6 +2674,72 @@ def selftest() -> None:
     def unclosed_quote(t):
         _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} -E 'test(/^a/)\n")
 
+    # CLAIM 11. THE BUMP IS THE CASE THAT MATTERS: ci.yml's pin moves and the
+    # local half's copy does not, which is the whole failure this claim exists
+    # to catch and the one that used to happen in silence.
+    def pin_bumped(t):
+        _sub(t, HOSTED_HALF, f'{FIXTURE_PIN[0]}: "{FIXTURE_PIN[1]}"', f'{FIXTURE_PIN[0]}: "9.9.9"')
+
+    # ARM A'S HOLE, WHICH IS ARM B'S SUBJECT: the copy drifts onto a value
+    # ci.yml really does pin — for a different tool. Every literal in the tree
+    # is then a pinned value and arm A has nothing to say.
+    def pin_on_wrong_tool(t):
+        _append(LOCAL_HALF, f"# fixture {FIXTURE_PIN_OTHER[1]}\n")(t)
+
+    # A confession that has outlived its literal. Derived from the table for
+    # the same reason the clean plant is.
+    _pin_free_first = sorted(PIN_FREE)[0]
+
+    def pin_free_expired(t):
+        _sub(t, _pin_free_first[0], f"# {_pin_free_first[1]}\n", "#\n")
+
+    # THE MOST LITERAL RESTATEMENT THERE IS: the pin's own KEY, set to another
+    # pin's value. Arm A sees a value ci.yml really does pin; arm B saw nothing
+    # at all until the key itself joined the spellings it looks for.
+    def pin_key_restated(t):
+        _append(LOCAL_HALF, f"{FIXTURE_PIN[0]}={FIXTURE_PIN_OTHER[1]}\n")(t)
+
+    # …and the same escape through capitalisation alone.
+    def pin_capitalised_tool(t):
+        _append(LOCAL_HALF, f"# Fixture {FIXTURE_PIN_OTHER[1]}\n")(t)
+
+    # A DECLARED NON-PIN ON A LINE THAT NAMES A PINNED TOOL. Arm A excuses it;
+    # arm B must not then red it, because there would be no declaration path
+    # left anywhere for a line the author has already explained.
+    _pin_free_local = sorted(lit for (path, lit) in PIN_FREE if path == LOCAL_HALF)
+
+    def pin_free_beside_a_tool(t):
+        _append(LOCAL_HALF, f"# fixture, near {_pin_free_local[0]} which is declared\n")(t)
+
+    # A CONFESSION THAT BECAME A PIN. The declared non-pin and a live pinned
+    # value are the same string, so arm A excuses the very copy it exists to
+    # find. Derived from the table, like every other case here.
+    _pin_free_first_lit = sorted(PIN_FREE)[0][1]
+
+    def pin_free_inverted(t):
+        _sub(t, HOSTED_HALF, f'"{FIXTURE_PIN[1]}"', f'"{_pin_free_first_lit}"')
+
+    # A MULTIWORD PIN NAMED BY ONE OF ITS PARTS. Derive the token by stripping
+    # `_VERSION` alone and this line names nothing this arm looks for.
+    def pin_multiword_part(t):
+        _append(LOCAL_HALF, f"# tool {FIXTURE_PIN[1]}\n")(t)
+
+    # THE POPULATION IS GIT'S, AND ITS ABSENCE IS A REFUSAL. Silently reading
+    # an empty listing is a claim 11 that checks nothing and says OK.
+    def pin_population_unlistable(t):
+        shutil.rmtree(os.path.join(t, ".git"))
+
+    _case("pins no such version", pin_bumped)
+    _case("as a non-pin", pin_free_inverted)
+    _case(f"none of them is {FIXTURE_PIN_OTHER[1]}", pin_multiword_part)
+    _case("git ls-files", pin_population_unlistable)
+    _case(f"none of them is {FIXTURE_PIN[1]}", pin_on_wrong_tool)
+    _case(f"none of them is {FIXTURE_PIN[1]}", pin_key_restated)
+    _case(f"none of them is {FIXTURE_PIN[1]}", pin_capitalised_tool)
+    _case("no longer names it", pin_free_expired)
+    if _pin_free_local:
+        _ok_case(pin_free_beside_a_tool)
+
     _flag_exempt = sorted(FLAG_EXEMPT)
     if _flag_exempt:
         _fx_marker, _fx_flag = _flag_exempt[0]
@@ -2145,6 +2778,17 @@ def selftest() -> None:
     _case("is invoked by the hosted half only", gate_mode_one_side)
     _case("and no such file exists", ghost_path)
     _case("NEITHER half names", orphan)
+    _case("scripts/declarer.py implements a `--selftest` mode", py_selftest_never_run)
+    _case("scripts/declarer.sh implements a `--selftest` mode", sh_selftest_never_run)
+    _case("demos/declarer.py implements a `--selftest` mode", demos_selftest_never_run)
+    _case("is not a substitute and is not read here", selftest_local_only)
+    _case("scripts/declarer.py implements a `--selftest` mode", selftest_caller_commented_out)
+    _case("scripts/declarer.py implements a `--selftest` mode", selftest_named_in_a_script)
+    _ok_case(selftest_run_hosted)
+    _ok_case(selftest_run_in_a_loop)
+    _ok_case(selftest_continued_line)
+    _ok_case(gates_selftest_uninvoked)
+    _ok_case(selftest_only_a_comment)
     _case("named by neither half", tools_one_side)
     _case("checks the repo out and does not delete", unpruned_job)
     _case("job `buildXtra` checks the repo out", uppercase_job)
@@ -2208,6 +2852,9 @@ def selftest() -> None:
           "none; passes a clean fixture, and refuses the fixture's own `--root` on the gate of "
           "record; fires on a one-sided row, a "
           "one-sided gate MODE, a path both halves name that does not exist, an orphan script, a "
+          "`--selftest` mode no workflow invokes — as a .py, as a .sh, under demos/, called only "
+          "from the local half, called on a line that is a COMMENT, or merely named in another "
+          "script — a "
           "one-sided tools/ crate, a checked-out job that keeps either tree, an UPPERCASE job name doing "
           "the same, a second workflow file growing one, a prune that comes after the read, the siting job "
           "pruning, an unparseable workflow, a flush-style or three-space step block hiding a checked-out job, the siting job given a `needs:` onto a skipping job or `continue-on-error`, a merge key, an unknown job or step key, a tab, an unrecognised shell function spelling, an exemption that expired or was orphaned, a marker naming the wrong job or a renamed step, the markers "
@@ -2221,9 +2868,14 @@ def selftest() -> None:
           "and through a shell function the local row only names), a flag both halves pass with "
           "different values, a flag one half passes on every invocation and the other on only some, a "
           "flag read out of a command substitution, an argv whose flag has no value or whose quote never "
-          "closes, and a FLAG_EXEMPT entry that expired, inverted, lost its pair or lost the flag it "
-          "excused — while accepting a value only a runner can expand, and a redirection or a "
-          "substitution sitting between a cargo command and its flags")
+          "closes, a FLAG_EXEMPT entry that expired, inverted, lost its pair or lost the flag it "
+          "excused, a tool pin bumped in ci.yml while the local half went on naming the old version, "
+          "a local literal that drifted onto a DIFFERENT pin's value beside the tool it is not, and a "
+          "PIN_FREE entry whose literal is gone — while accepting a `--selftest` mode invoked by "
+          "a workflow on one line, through a loop over two scripts in one `run:` block, or across a "
+          "line continuation, a scripts/gates/ member's uninvoked one, a script whose only mention of the flag is a full-line COMMENT about another script, a value only a runner can "
+          "expand, "
+          "and a redirection or a substitution sitting between a cargo command and its flags")
 
 
 def _sub(t: str, path: str, a: str, b: str) -> None:
@@ -2319,7 +2971,11 @@ def main() -> int:
           f"workflow in {WORKFLOW_DIR}/, every job in every one of them is either cited by the local "
           "half or says at its own key, in a sentence, why it has no local half, and no mirrored pair "
           "passes an undeclared semantics-bearing flag on one half only, or on only some of one half's "
-          "invocations, of a cargo subcommand both halves run")
+          "invocations, of a cargo subcommand both halves run, and every version literal in the "
+          f"tracked files under {PIN_TREE}/ is a version {HOSTED_HALF} pins today or is declared in "
+          "PIN_FREE as something else, with every line that names a pinned tool carrying that "
+          "tool\u2019s current pin, and every `--selftest` mode outside scripts/gates/ is passed that "
+          f"flag by a workflow in {WORKFLOW_DIR}/")
     return 0
 
 
