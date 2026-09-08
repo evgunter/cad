@@ -1297,3 +1297,38 @@ Accepted — rewriting it would be archaeology, and there is no work
 behind it.
 
 **METER now has nothing blocked on Ev.** What remains is the exit walk.
+
+## Three published counts of mine were wrong, and the walk re-derived them (2026-09-08)
+
+The exit-walk lane was told to re-derive the census rather than take
+mine. It did, and three of my figures did not survive. I re-checked all
+three against the tree before accepting them:
+
+- **"23 open items"** (plan.md) — **22**. True at unit 10's merge and
+  stale an hour later when #2147 closed
+  `tools-readme-is-unratified-and-owes-a-design-row`. I wrote the
+  number, then merged the PR that falsified it, and never re-took it.
+- **"40 files, 24 open"** (log.md, at unit 10's close) — 40 files is
+  right, **23** were open. That one was wrong when written: my
+  `grep -l "^status: open" work/meter/*.md | wc -l` counted
+  `program.md`, which carries `status: open` because the PROGRAM is
+  open. A count whose pattern matched a file of a different kind.
+- **"Twelve units merged"** (plan.md) and **"Eleven units merged"**
+  (log.md) — **thirteen**, units 0-12. Two different wrong numbers for
+  one quantity, in two files, neither of them derived. Confirmed here
+  by listing merge commits: 16 distinct `meter/*` branches on `main`,
+  less `meter/orchestrator` and the two `[ev]` branches.
+
+**All three are the same defect this program has been closing all day,
+committed by the person cataloguing it.** The first is a figure that
+went stale and was never re-taken; the second is a sweep whose pattern
+reached something it did not mean; the third is a number that was never
+counted at all. Corrected in `plan.md`; the stale bullet there is
+replaced by a note saying it stood, rather than deleted, because the
+count being right-then-stale is the instance.
+
+I am not editing the earlier log entries. They are dated records and
+the program ruled twice that a dated record's value is being what it
+said then — unit 9's quoted sample, unit 12's two wrong mutation
+passes kept on the record with the lesson named. This entry is the
+correction, which is the form that ruling implies.

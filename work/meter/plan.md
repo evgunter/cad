@@ -151,7 +151,7 @@ budget data is a PROPS coordination, not a lane's call.
 
 ## Where the units ended (2026-09-08)
 
-All twelve are merged. Units 8, 9, 10 and 12 landed on 2026-09-08 and
+All thirteen are merged (units 0-12). Units 8, 9, 10 and 12 landed on 2026-09-08 and
 each took three review rounds; every one closed on a MAJOR that was a
 false CLAIM rather than broken code. Unit 8 left `C15` OPEN with its
 residue guarded by execution; unit 12 overturned the finding that
@@ -159,7 +159,7 @@ promoted it. The live state is `log.md`'s tail, never this list.
 
 ## The exit walk — planned, not started (2026-09-08)
 
-All twelve units are merged and the slate stands at **23 open items**,
+All thirteen units are merged and the slate stands at **22 open items**,
 having opened at eleven. It grew because every unit's sweeps and every
 reviewer's class findings landed real defects with citations; it did
 not drift. So METER cannot exit by draining, and `work/README.md` does
@@ -167,7 +167,7 @@ not ask it to: the walk RULES on where residue goes, and a closed
 program's directory is deleted once the walk is ratified.
 
 **The residue coheres on one territory, and that is the walk's central
-ruling.** Roughly nineteen of the twenty-three are `tools/*` — the
+ruling.** Nineteen of the twenty-two are `tools/*` — the
 instruments themselves:
 
 - **k-lint (6)** — the header unpinned against five producers, the
@@ -197,7 +197,7 @@ resort and *"an unsorted pile of related items there is what the sweep
 exists to prevent"* — nineteen coherent rows are the pile that rule
 forbids.
 
-**The four that are not the successor's**, to be re-homed by charter
+**The three that are not the successor's**, to be re-homed by charter
 rather than by convenience — each needs its owner checked against that
 program's `paths`, not guessed:
 
@@ -208,8 +208,12 @@ program's `paths`, not guessed:
   `crates/test-utils/`, so S-TCOST's or CIW's.
 - `cert1-notes-pr-body-tracked-on-main` — a stray file on `main`;
   hygiene, owner to be identified.
-- `tools-readme-is-unratified-and-owes-a-design-row` — blocked on Ev
-  (#2147) and cannot be re-homed until he rules.
+(A fourth bullet stood here for
+`tools-readme-is-unratified-and-owes-a-design-row`, blocked on Ev. He
+ruled BROAD on 2026-09-08 and #2147 merged, so the row is closed and
+the slate is 22 rather than 23. Recorded rather than deleted: the
+count in this section was right when written and stale an hour later,
+which is the class this program spent the day on.)
 
 **Opening a program is not a lane's call and probably not the
 orchestrator's alone.** The walk should propose the successor —
