@@ -74,10 +74,14 @@ struct CellTotal {
 /// definitions: those are `tess_meter::NurbsColumns`' field docs, one
 /// hop away through `tess_lint::Nurbs`.
 ///
-/// `opt_cells` and `span_opt_cells` are BOTH "the cheapest split" and
-/// the qualifier is the whole of the difference between them, so the
-/// two glosses are one sentence differing in exactly that qualifier,
-/// printed on adjacent lines with their figures in one eyeline.
+/// `opt_cells` and `span_opt_cells` are BOTH "the cheapest split",
+/// and the qualifier is the whole of the difference between them, so
+/// the two glosses OPEN on the same clause and diverge at exactly
+/// that qualifier — printed on adjacent lines, with their figures in
+/// one eyeline. `tests/report_columns_pin.rs` holds the two
+/// qualifiers to their own columns; a gloss beside the wrong name
+/// puts the qualifier on the wrong figure, which is the mis-read this
+/// block exists to close rather than a wording preference.
 const CELL_TOTALS: [CellTotal; 4] = [
     CellTotal {
         column: "grid_cells",

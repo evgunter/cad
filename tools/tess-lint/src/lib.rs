@@ -627,6 +627,37 @@ const SIZING_COLUMNS: [(&str, Admissible); 6] = [
     ("worst_dev", Admissible::OptionalDeviation),
 ];
 
+/// The sizing block's CELL-COUNT columns, in [`EXPECTED_HEADER`]'s
+/// order — the sweep totals a report over this file can sum.
+///
+/// Derived from `SIZING_COLUMNS` rather than spelled again, and
+/// derived from the ADMISSIBILITY rather than from the names: which
+/// columns are cell counts is a fact about what [`parse`] will admit
+/// in them, and a roster built on the `_cells` suffix instead would
+/// be a fact about spelling — wrong in both directions the moment a
+/// cell count is named otherwise or a non-total is named that way.
+///
+/// **The sizing block only, which is the whole of the choice here.**
+/// `bands` is `Admissible::CellCount` too, and `nu`/`nv` are as
+/// well; neither block is a grid the schedule built, and the type
+/// they share is an admissibility (finite, at least one), not a
+/// meaning. `cells` — the analysis cells the per-cell bound reported
+/// — sits before `SIZING_FIRST` and so is not in this table at all,
+/// which is why it needs no exemption.
+///
+/// Exists for `tests/report_columns_pin.rs`, which holds the CLI's
+/// cell-total block against it: an integration test cannot see a
+/// private const, and the alternative was a second roster in the test
+/// that could drift from this one in silence.
+#[must_use]
+pub fn cell_count_columns() -> Vec<&'static str> {
+    SIZING_COLUMNS
+        .iter()
+        .filter(|(_, kind)| matches!(kind, Admissible::CellCount))
+        .map(|(name, _)| *name)
+        .collect()
+}
+
 /// Where `dev_samples` sits in [`EXPECTED_HEADER`] — between the
 /// sizing block and the indicator block, and in neither.
 ///
@@ -1213,17 +1244,20 @@ pub struct SceneTotals {
     /// [`Nurbs::patch_cells`] summed — the whole-patch-sup
     /// counterfactual.
     pub patch_cells: f64,
-    /// [`Nurbs::opt_cells`] summed — the cheapest split under the
-    /// WHOLE-PATCH bound.
+    /// [`Nurbs::opt_cells`] summed — the cheapest UNIFORM grid the
+    /// whole-patch bound admits.
     ///
-    /// **The bound is the whole of the difference from
-    /// [`Self::span_opt_cells`]**: "the cheapest split", unqualified,
-    /// is true of both fields and identifies neither, so every reading
-    /// of either says which bound it is over. No rule divides by this
-    /// sum — [`parse`] bounds the per-row column against `patch_cells`
-    /// and nothing downstream reads it — so it is summed for one
-    /// purpose: the CLI prints it BESIDE its twin, two figures under
-    /// two names being what makes the pair tellable apart at a glance.
+    /// **One uniform grid under the whole-patch bound, where
+    /// [`Self::span_opt_cells`] is sized and split PER CELL** — that
+    /// pair of qualifiers is the whole of the difference between the
+    /// two fields, and "the cheapest split" on its own is true of
+    /// both and identifies neither. No reading of either omits them.
+    ///
+    /// No rule divides by this sum — [`parse`] bounds the per-row
+    /// column against `patch_cells` and nothing downstream reads it —
+    /// so it is summed for one purpose: the CLI prints it BESIDE its
+    /// twin, two figures under two names being what makes the pair
+    /// tellable apart at a glance.
     pub opt_cells: f64,
     /// [`Nurbs::span_opt_cells`] summed — the cheapest split PER
     /// CELL, on top of per-cell sizing.

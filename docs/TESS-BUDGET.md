@@ -262,17 +262,23 @@ knowing which covers what.** The executable home is
 `tools/tess-lint/tests/baseline_sizing_census.rs`, which reads the same
 committed file on each `cargo test` and fails naming what a re-cut
 moved. It asserts the sweep's triangles and NURBS triangles, all four
-cell sums and the two factors — eight quantities, every one of which
-the command prints too. The command prints MORE: the face counts and
-the two percentages, whose corpus is the neighbouring
-`baseline_census.rs`'s (rows, sized rows, the scenes holding them)
-rather than this file's, and the constraint-activity line, which
-neither census asserts. So what separates them is not which quantities
-they cover but what each DOES with them — the command is a reading you
-ask for, the two test files together are a guard that runs unasked. A
-census has one home and every other site points at it; this document
-is one of the sites, and the block below is not a second copy of that
-census — it is a different measurement of a different tree.
+cell sums and the two factors, every one of which the command prints
+too. The command prints MORE: the face counts, the two percentages,
+and the constraint-activity line, which neither census asserts.
+
+**The two percentages come from different files, and that is the part
+worth getting right.** `% of the mesh` is NURBS triangles against
+total triangles, and both are asserted in the sizing census itself —
+it is a quotient of two of the figures above. `% of faces` is sized
+faces against all faces, and neither operand is there; that pair is
+the neighbouring `baseline_census.rs`'s (rows, sized rows, the scenes
+holding them). So what separates the command from the tests is not
+which quantities they cover but what each DOES with them — the
+command is a reading you ask for, the two test files together are a
+guard that runs unasked. A census has one home and every other site
+points at it; this document is one of the sites, and the block below
+is not a second copy of that census — it is a different measurement
+of a different tree.
 
 ## What the four numbers meant (pre-fix record)
 

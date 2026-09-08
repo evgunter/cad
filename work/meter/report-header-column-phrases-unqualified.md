@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-07
 closed: 2026-09-08
 branch: meter/9-report-header-columns
-refs: [report-constraint-activity-line-names-no-columns, tess-budget-doc-finding-block-stale]
+refs: [report-constraint-activity-line-names-no-columns, gate-findings-name-no-columns-and-recoverable-has-two-aggregations, tess-budget-doc-finding-block-stale]
 pr: 2180
 ---
 
@@ -109,8 +109,11 @@ Four departures from the Finding above, each deliberate:
   formulas in the columns' own names now.
 * **The glosses stay, one clause each**, because a report is read by
   people. They say what a column is FOR here and are not definitions;
-  the two twins' glosses are one sentence differing in exactly the
-  qualifier that separates them.
+  the two twins' glosses open on the same clause and diverge at the
+  qualifier that separates them. The pin holds each qualifier to its
+  own column — a gloss beside the wrong name puts the qualifier on
+  the wrong figure, which is this unit's defect and not a wording
+  preference.
 * **`SceneTotals`' field docs CITE rather than restate.** Each cell
   field now names the `Nurbs` field of the same name and lets that
   one carry the pointer to `tess_meter`, which is unit 2's ratified
@@ -127,11 +130,13 @@ it. That no rule divides by it is a reason to gloss it, not a reason
 to hide it — the report prints `patch_cells`, which no rule reads
 either.
 
-The pin is `tools/tess-lint/tests/report_columns_pin.rs`, three
-claims over a synthetic fixture whose four cell sums are pairwise
-distinct: every printed name is a column of `EXPECTED_HEADER` and
-every `*_cells` column is printed (the direction `opt_cells` was lost
-in), each figure is its own column's sum, and the two factors are
+The pin is `tools/tess-lint/tests/report_columns_pin.rs`, four claims
+over a synthetic fixture whose four cell sums are pairwise distinct:
+every printed name is a column of `EXPECTED_HEADER` and the roster
+equals `cell_count_columns()` (the direction `opt_cells` was lost in,
+derived from the admissibility `parse` polices rather than from the
+`_cells` spelling), each figure is its own column's sum, each twin's
+qualifier is on its own line and no other, and the two factors are
 printed as their formulas. `CELL_TOTALS` in `main.rs` carries the
 accessor beside the name, so the transposition the pin's middle claim
 watches for cannot be written as a positional-argument slip any more.
@@ -146,7 +151,16 @@ a lane creates is not residue to file. None of the three replacements
 carries a figure, so none of them can go stale at a re-cut.
 
 **Residue, found rather than created, and filed:**
-`report-constraint-activity-line-names-no-columns` — the same shape
-one line below the block, over the four indicator columns. Swept and
-left: no two of those columns share a phrase, so the cost is a lookup
-rather than a wrong number.
+
+* `report-constraint-activity-line-names-no-columns` — the same shape
+  one line below the block, over the four indicator columns. Swept and
+  left: no two of those columns share a phrase, so the cost is a
+  lookup rather than a wrong number.
+* `gate-findings-name-no-columns-and-recoverable-has-two-aggregations`
+  — found by this unit's style review, in the blind spot this unit's
+  PR had claimed was empty. `main.rs`'s `line` helper renders
+  `Row::recoverable()` — the same `grid_cells / span_opt_cells` the
+  report now spells — under a third English name, in the output the
+  gate reddens with. `span_held`, `recoverable` and `total_slack` all
+  exist on both `Row` and `SceneTotals`, and `recoverable` is the only
+  one whose two aggregations both reach print.

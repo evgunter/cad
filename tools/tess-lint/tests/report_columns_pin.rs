@@ -47,18 +47,29 @@
 
 use std::process::Command;
 
-use tess_lint::EXPECTED_HEADER;
+use tess_lint::{EXPECTED_HEADER, cell_count_columns};
 
 /// The columns the report's cell-total block prints, in the order it
 /// prints them.
 ///
-/// **Written out rather than derived, because each entry is a choice.**
-/// What the report prints is not "every column that happens to be a
-/// cell count": `cells` is one too — the analysis cells the per-cell
-/// bound reported — and it is deliberately not here, because
-/// [`tess_lint::SceneTotals`] does not sum it and a total of it would
-/// answer no question the block asks. A derivation would have quietly
-/// made that choice for whoever wrote the next column.
+/// **Written out, and held against the schema's own answer.** The
+/// list is authored here because what a report prints is a choice;
+/// [`the_report_names_only_real_columns`] then asserts it equals
+/// [`tess_lint::cell_count_columns`], which derives the sizing
+/// block's cell counts from the admissibility `parse` polices them
+/// with. So a cell column added to that block reds this file until
+/// someone DECIDES about it, and an exclusion — there are none today
+/// — arrives as an edit to that assertion carrying its reason, which
+/// is what makes it a choice rather than an omission.
+///
+/// **Not derived from the `_cells` suffix**, which was the first
+/// spelling of this pin and is wrong in both directions: `cells`, the
+/// analysis-cell column, is a cell count not named that way, and a
+/// future non-total could be named that way. A suffix rule also does
+/// not merely miss such a column — asserted as an equality it would
+/// FORCE one into the block for its spelling alone. Under the schema
+/// derivation `cells` needs no exemption at all: it sits outside the
+/// sizing block, so it is not in the table being filtered.
 ///
 /// **The ORDER is load-bearing and is asserted.** `opt_cells` and
 /// `span_opt_cells` are the two the report exists to keep apart, so
@@ -207,7 +218,7 @@ fn report() -> String {
     stdout
 }
 
-/// The block's lines, as `(column, figure)`, in printed order.
+/// The block's lines, as `(column, figure, gloss)`, in printed order.
 ///
 /// Located by the line the block opens with rather than by an
 /// absolute offset, so the lines above it stay free to change, and
@@ -216,7 +227,7 @@ fn report() -> String {
 /// factor line that follows them included — sits at two. Reading a
 /// fixed number of lines instead would swallow whatever came next
 /// and report a missing column as a malformed one.
-fn printed_pairs(stdout: &str) -> Vec<(String, String)> {
+fn printed_pairs(stdout: &str) -> Vec<(String, String, String)> {
     let mut lines = stdout.lines();
     let opener = lines
         .find(|l| l.trim_start().starts_with("cell totals over "))
@@ -235,7 +246,15 @@ fn printed_pairs(stdout: &str) -> Vec<(String, String)> {
             let figure = w.next().unwrap_or_else(|| {
                 panic!("no figure beside {column:?} in the block:\n{stdout}{RULE}")
             });
-            (column.to_string(), figure.to_string())
+            // The REST of the line, not the next token: a gloss is a
+            // clause, and taking one word of it would pin whichever
+            // word happened to come first.
+            let gloss = w.collect::<Vec<_>>().join(" ");
+            assert!(
+                !gloss.is_empty(),
+                "{column} is printed with a figure and no gloss{RULE}"
+            );
+            (column.to_string(), figure.to_string(), gloss)
         })
         .collect()
 }
@@ -256,18 +275,17 @@ fn the_report_names_only_real_columns() {
             "the report prints {name:?}, which is not a column of the sweep{RULE}"
         );
     }
-    for col in &schema {
-        assert_eq!(
-            col.ends_with("_cells"),
-            PRINTED.contains(col),
-            "the column {col:?} and the report's block disagree about whether it is one of \
-             the cell totals{RULE}"
-        );
-    }
+    assert_eq!(
+        PRINTED.as_slice(),
+        cell_count_columns().as_slice(),
+        "the block's roster against the sizing block's own cell-count columns — either a \
+         cell column was added to the schema and the report has not decided whether to \
+         print it, or the report prints one that is not a sizing total{RULE}"
+    );
     assert_eq!(
         printed_pairs(&report())
             .iter()
-            .map(|(c, _)| c.as_str())
+            .map(|(c, _, _)| c.as_str())
             .collect::<Vec<_>>(),
         PRINTED,
         "the block's columns, in printed order{RULE}"
@@ -284,14 +302,47 @@ fn the_report_names_only_real_columns() {
 fn each_printed_figure_is_that_columns_sum() {
     let printed = printed_pairs(&report());
     for (column, sum) in SUMS {
-        let (_, figure) = printed
+        let (_, figure, _) = printed
             .iter()
-            .find(|(c, _)| c == column)
+            .find(|(c, _, _)| c == column)
             .unwrap_or_else(|| panic!("the block does not print {column:?}{RULE}"));
         assert_eq!(
             figure, sum,
             "the block prints {figure} beside {column}, whose sum over the fixture is \
              {sum}{RULE}"
+        );
+    }
+}
+
+/// The qualifier that separates the twins is printed on the twin it
+/// belongs to, and on no other line.
+///
+/// **The gloss is the block's third field and nothing read it before
+/// this test.** Names and figures could all be right while
+/// `opt_cells` carried "PER CELL" and `span_opt_cells` carried
+/// "WHOLE-PATCH" — the qualifier on the wrong figure, which is the
+/// exact mis-read this file exists to close and which the module doc
+/// above already claimed to gate.
+///
+/// **The two words, not the two sentences.** Asserting the glosses
+/// verbatim would hand-twin `main.rs`'s prose into this file, which
+/// this crate has a standing row about; what is load-bearing is which
+/// column each qualifier lands on. So that is pinned and the wording
+/// stays free to change.
+#[test]
+fn each_twins_qualifier_is_printed_on_its_own_column() {
+    let printed = printed_pairs(&report());
+    for (qualifier, owner) in [("WHOLE-PATCH", "opt_cells"), ("PER CELL", "span_opt_cells")] {
+        let carriers: Vec<&str> = printed
+            .iter()
+            .filter(|(_, _, gloss)| gloss.contains(qualifier))
+            .map(|(c, _, _)| c.as_str())
+            .collect();
+        assert_eq!(
+            carriers,
+            [owner],
+            "{qualifier:?} is what tells {owner} from its twin, so it belongs on that \
+             line and on no other{RULE}"
         );
     }
 }
