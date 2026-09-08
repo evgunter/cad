@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: shell/8-multi-solid
 refs: [shell-open-on-a-multi-solid-body, SHELL-5, SHELL-7]
+pr: 2207
 ---
 
 
