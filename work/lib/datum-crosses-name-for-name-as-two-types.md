@@ -4,6 +4,7 @@ kind: issue
 title: the census accounts `Datum` name-for-name across two different types, so a whole authoring arm hid behind it
 status: open
 opened: 2026-09-06
+needs_ev: true
 ---
 
 
@@ -69,3 +70,29 @@ rule 1 for a curated name a hand-maintained list marks as
 a declaration a reader can check. That is a change to the guard's
 alphabet and belongs to whoever owns the census next, not to a family
 unit.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+The binding census's rule 1 accounts a curated Rust name by SPELLING:
+`pncad.pyi` declares a top-level `Datum` and the census took the
+authoring enum `Datum` as bound, so `Datum::FaceFrame` — a whole
+authoring arm — was invisible for the life of its family. The guard's
+own docstring disclaims semantics; this is that disclaimer with a
+bill. What should the guard's alphabet do?
+
+- **(A) A hand-maintained `SAME_SPELLING_DIFFERENT_TYPE` list that
+  REFUSES rule 1 for the names on it**, so each such Rust name needs an
+  explicit `BOUND_AS` (per arm, where the arms cross under other
+  spellings — `Datum::Frame` → `Node.datum_frame`, …) or `NOT_BOUND`
+  row. `Datum` is the first entry. The coincidence becomes a
+  declaration a reader can check; a new same-spelled pair is caught
+  the day it is written only if someone adds it — the list is the
+  known blind spot, stated. Recommended.
+- **(B) Rename the Python read-side class** (`DatumValue`) so the
+  spelling no longer collides. Removes the instance and not the shape,
+  and renames shipped surface for a guard's convenience.
+- **(C) Leave it** — the docstring already says semantics are not
+  checked.
+
+Recommendation: **(A)**; small, mechanical afterwards, and the census
+is the one guard the binding surface has.

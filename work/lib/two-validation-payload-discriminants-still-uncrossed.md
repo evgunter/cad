@@ -5,6 +5,7 @@ title: two ValidationError payload discriminants still cross as prose only
 status: open
 opened: 2026-09-08
 refs: [LIB-FINDINGS]
+needs_ev: true
 ---
 
 Disclosed by LIB-FINDINGS, which crossed the two payloads Ev's
@@ -58,3 +59,35 @@ free: each new word is public Python vocabulary and a census row.
 Adjacent but not this: `pncad-py-seven-doors-lack-field-projection`
 asks about the six other doors' payload ATTRIBUTES. This asks about
 two payloads of the door LIB-FINDINGS just projected.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+Your ruling on `census-findings-cross-without-a-per-arm-tag` named two
+payload types (`CensusSubject`, `CensusContact`) and LIB-FINDINGS
+crossed exactly those two. The same door has two more payload
+discriminants (`StaleDeclaration`, 4 arms — which record lost its
+witness; `RingContact`, 3 arms — where the ring has to move), and
+`witness-bifurcation-arm-has-no-inner-word` is the same question one
+door over. Does the ruling generalise, and in what shape?
+
+- **(A) Generalise: every payload DISCRIMINANT of a projected refusal
+  crosses as an attribute of its own, named per type (`stale_kind`,
+  `ring_contact_kind`), `None` on every other arm** — one attribute per
+  concept, never one word meaning different things under different
+  `variant`s. Fields that are arena keys still do not cross (no key
+  crosses to a surface that holds names), so the projection stops at
+  the discriminant, as it does everywhere else. Mechanical afterwards
+  (two exhaustive maps, two attributes, census rows), and it settles
+  the bifurcation arm too: it crosses the day the M6 solver constructs
+  it. Recommended.
+- **(B) Cross only what a caller has asked for** — the two named types
+  stay the whole answer until a caller needs `stale_kind`. Cheaper on
+  public vocabulary; keeps the Rust/Python asymmetry the census rows
+  record, and leaves the next lane to ask again.
+- **(C) One shared `payload_kind` attribute** whose meaning depends on
+  `variant`. Cheapest on the class and worst on the reader.
+
+Recommendation: **(A)**. The per-arm rule you licensed says a
+discriminant a caller can act on crosses beside the carrier's word;
+there is no reason in the door's shape for two of four to stay prose,
+and the census has already learned to measure the move.
