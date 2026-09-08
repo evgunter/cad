@@ -18,14 +18,12 @@ Opened 2026-09-01; 0 comments.
 
 Doors that project every arm's payload as attributes, exhaustively, with every attribute present on every arm and `None` where inapplicable (so `getattr` never raises and a caller need not branch on `variant` first):
 
-`tessellate` (`py/mesh.rs`), `readback` (`py/readback.rs`), `select` (`py/select.rs`), `evaluation` (`py/value.rs`), `literal` (`py/doc.rs`), `mate` (`py/mate.rs`), `assembly`/`product` (`py/assembly.rs`), `split`/`inline`/`update` (`py/refactor.rs`), `workspace` (`py/store.rs`), `checks`/`enforce` (`py/checks.rs`).
+`tessellate` (`py/mesh.rs`), `readback` (`py/readback.rs`), `select` (`py/select.rs`), `evaluation` (`py/value.rs`), `literal` (`py/doc.rs`), `mate` (`py/mate.rs`), `assembly`/`product` (`py/assembly.rs`), `split`/`inline`/`update` (`py/refactor.rs`), `workspace` (`py/store.rs`), `checks`/`enforce` (`py/checks.rs`), and — since LIB-DOORS-1 — `edit_err`/`declare_err` (`py/doc.rs`).
 
 Doors that cross with `variant` and the message only:
 
 | door | kernel type | payload a caller cannot reach |
 |---|---|---|
-| `edit_err` (`py/doc.rs`) | `EditError` | node ids, slot indices, entity kinds, dimensions |
-| `declare_err` (`py/doc.rs`) | `DeclareError` | its `Edit` arm's inner payload |
 | `persist_err` (`py/doc.rs`, `py/store.rs`) | `PersistError` | schema versions, the mismatching ids, the failing site |
 | `path_err` (`py/path.rs`) | `PathError<f64>` | the offending radius/leg/angle scalars |
 | `frame_err` (`py/place.rs`) | `FrameError` | the degenerate direction, the tolerance |
@@ -89,3 +87,16 @@ and `path` once the kernel-side `PathError` discriminant lands) are
 mechanical units, a door at a time or batched where the arms are few,
 each landing the door's attribute set as one exhaustive match with its
 stub, census and fixture rows. No per-door design conversation.
+
+## Progress
+
+- **The `edit` door is DONE** (LIB-DOORS-1). `EditError`'s 58 arms and
+  `DeclareError`'s three cross with 21 payload attributes beside
+  `variant`/`inner_variant`, present on every arm and on every raise
+  site of the class. The row for both left the table above. What the
+  door still does not carry is one arm's INNER word —
+  `meta_unversioned`'s shape refusal — which is the arm half's
+  question and has its own file
+  (`meta-unversioned-arm-has-no-inner-word`).
+- Four doors remain: `persist`, `frame`, `stl`, and `path` (still
+  behind the kernel-side `PathError` discriminant, per Notes above).
