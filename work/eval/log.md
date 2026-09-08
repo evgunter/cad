@@ -103,3 +103,19 @@ CHROME. Subscribed to the PR from this session. Widened from the
 item's `Transform` to both placers because MSOLVE-2's walk already
 admits nested patterns and `a10_a_nested_pattern_head_is_a_member`
 pins `Pattern` refusing the same way.
+
+## [ev] 2138 open: what a node's verdict log is (2026-09-08)
+
+`work/eval/bracket-scope-is-run-op-not-the-node.md` carries the
+question (`needs_ev`), PR 2138 the vehicle; shared with PROPS (the
+bracket; its escalation item already schedules the mate-solve frame)
+and M10 (certification keys hash the log), announced on DOCM's board.
+Recommended: the node's bracket opens at the top of `eval_node` so the
+pre-pass decisions are the node's; the mate solve gets a document-level
+frame on `Evaluation`. Named cost: every Profile node's log grows, the
+R2 pin flips, verdict-log goldens and certification keys re-baseline.
+Measured for the question: the pre-pass runs before the key because it
+FEEDS the key, so on a memo hit its fresh frame is dropped and the
+prior's log already carries the same verdicts (D9). Subscribed from
+this session. Both `[ev]` PRs (2137, 2138) are now the program's two
+D rows; the E units run meanwhile.
