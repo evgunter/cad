@@ -3270,6 +3270,25 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
+BOOL-9 (PR #2134) ordinal FIXED AT DISPATCH (2026-09-08):
+**ordinal 1107** (S-BOOL band 1100–1199). v6 dual: parity byte **113**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `2fca2cd52`
+(run 34177376327 verified at dispatch: head SHA matches, 37 checks —
+34 success + 3 skipped; not narrowed — every test point and k-lint
+unification ran; no `CI-Config:` trailer, the spelling having been
+deleted 2026-09-04), R2 isolated from R1, briefs symmetric (HARD RULES
+written fresh for this unit), no relaxations granted. Implementer
+difficulty L (pre-logged at the spec, pre-draw); implementer arm OPUS
+(block BOOL-B3 slot 1, byte 125 — quoted from the private draw file
+before the arm was named). Sample number at merge; the row rides the
+unit branch as its last commit. Two findings the unit handed over are
+filed at dispatch: `work/mesh/mesh-materialized-form-is-writable.md`
+(`mesh::Mesh`'s all-public fields — the tessellate seam's sibling of
+the door this unit shuts) and
+`work/bool/raw-door-compile-proof-needs-a-gate.md` (the shut-build
+compile error is measured, not a row — a gate with a toolchain is a CI
+surface this unit did not touch).
+
 BOOL-12 (PR #1573) ordinal FIXED AT DISPATCH (2026-09-02):
 **ordinal 1106** (S-BOOL band 1100–1199). v6 dual: parity byte **173**,
 parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `50740f965`
