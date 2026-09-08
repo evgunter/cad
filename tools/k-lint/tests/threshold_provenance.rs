@@ -30,6 +30,12 @@
 //!   unchanged — and both edges of that interval are computed here
 //!   rather than written down.
 //!
+//! A fourth row sits beside those three and is about none of them:
+//! [`the_m7_era_still_carries_the_witnesses_the_report_names`] guards
+//! the ERA the other three re-derive against, which
+//! `docs/K-REPORT.md` settles in prose and nothing computed with. Its
+//! own doc carries the argument, including what it cannot see.
+//!
 //! # Where the data comes from, and why a subprocess reads it
 //!
 //! `docs/k-report-data/`, whose own README states the rule this file
@@ -97,6 +103,12 @@ struct Row<'a> {
     predicate: &'a str,
     margin: f64,
     band_zero: f64,
+    /// `band_zero` exactly as the file spells it. Every reading here
+    /// picks its side of the band from the PARSED value; this column
+    /// exists so
+    /// [`the_ambient_side_is_chosen_by_the_parsed_band_not_its_spelling`]
+    /// can show what picking it from the spelling returns instead.
+    band_zero_text: &'a str,
     band_escalate: f64,
     outcome: &'a str,
 }
@@ -160,6 +172,7 @@ fn for_each_row(era: &str, row: &str, mut visit: impl FnMut(Row<'_>)) {
             predicate: pred,
             margin: num(m),
             band_zero: num(bz),
+            band_zero_text: bz,
             band_escalate: num(be),
             outcome: out,
         });
@@ -542,4 +555,248 @@ fn proximity_factor_is_a_policy_choice_and_this_is_what_moving_it_costs() {
          and PROXIMITY_FACTOR's doc says \"under 2x above the shipped \
          factor\""
     );
+}
+
+/// The three readings `docs/K-REPORT.md` rests the era decision on,
+/// taken off one committed sweep file. Each carries the predicate it
+/// belongs to, because the era claim is about the WITNESS and not only
+/// about the digit: a floor that stayed at 4.79652e-5 under a
+/// different name is a moved distribution wearing the old number.
+struct Witnesses {
+    /// Smallest `|margin|` on the definite side of the ambient band,
+    /// the ε-coupled family set aside — the population
+    /// [`BASELINE_FLOOR_MARGIN`] is cut from.
+    floor: (f64, String),
+    /// Smallest `|margin| / band_zero` over that same ambient definite
+    /// side with NOTHING set aside.
+    headroom: (f64, String),
+    /// Largest `|margin|` among the ambient band's zero-classified
+    /// rows — the ceiling [`PROXIMITY_FACTOR`] must clear.
+    ceiling: (f64, String),
+}
+
+fn era_witnesses(era: &str, row: &str) -> Witnesses {
+    let mut w = Witnesses {
+        floor: (f64::INFINITY, String::new()),
+        headroom: (f64::INFINITY, String::new()),
+        ceiling: (f64::NEG_INFINITY, String::new()),
+    };
+    for_each_row(era, row, |r| {
+        if r.band_zero < AMBIENT_BAND_MIN {
+            return;
+        }
+        let m = r.margin.abs();
+        if r.outcome == "positive" || r.outcome == "negative" {
+            if !EPS_COUPLED_PREDICATES.contains(&r.predicate) && m < w.floor.0 {
+                w.floor = (m, r.predicate.to_string());
+            }
+            let ratio = m / r.band_zero;
+            if ratio < w.headroom.0 {
+                w.headroom = (ratio, r.predicate.to_string());
+            }
+        } else if r.outcome == "zero" && m > w.ceiling.0 {
+            w.ceiling = (m, r.predicate.to_string());
+        }
+    });
+    w
+}
+
+/// **The era itself, guarded.** Every derivation above re-cuts a
+/// shipped constant against [`M7`]; not one of them asks whether M7 is
+/// still the era to re-cut against. `docs/K-REPORT.md` answers that in
+/// prose — *"M7 therefore remains the era the shipped thresholds were
+/// cut from"* — and rests the answer on three readings off these same
+/// committed files. Until this row nothing computed with them, so a
+/// re-cut that moved a witness would have left all four derivations
+/// green against the wrong era, which is the one shape a
+/// measurement-backed claim must not have.
+///
+/// The three, in the report's own terms and its own spellings:
+///
+/// | quantity | witness | value |
+/// | --- | --- | --: |
+/// | definite-side floor, ε-coupled family set aside | `volume_backstop` | 4.79652e-5 |
+/// | smallest ambient ε-relative headroom, binding row 1e-9 | `props_quad_converged` | 164.674 |
+/// | zero-side ceiling inside the ambient band | `pm_census_ee_span` | 5.32907e-15 |
+///
+/// **The witness NAME is a reading, not a restatement of a constant.**
+/// The headroom is minimised over the WHOLE ambient definite
+/// population rather than over [`EPS_COUPLED_PREDICATES`], so the name
+/// that comes back is the corpus's answer: a second ε-proportional
+/// family landing under `props_quad_converged` reds this row, where a
+/// derivation filtered by the one-element roster could not see it.
+/// That the two agree is a fact about the 1e-9 row and not about the
+/// method — at 1e-6 the smallest ambient headroom is
+/// `volume_backstop`'s 47.97, which is why the report names 1e-9 as
+/// the binding row. The floor does set the ε-coupled family aside,
+/// since that is the population [`BASELINE_FLOOR_MARGIN`] is cut from,
+/// but the witness it returns is still the minimum over the survivors.
+///
+/// **Which register this speaks in.** Not the harness one. The files
+/// parse, the columns agree and the population is there, so nothing
+/// about the READING broke — the harness voice in this file is
+/// reserved for input it cannot read, and a moved witness is input it
+/// read perfectly. What moved is the claim. `tools/README.md`'s `CC5`
+/// is not the authority for that and does not reach here: its subject
+/// is a cross-column admission at a lint's reading boundary, and it
+/// forwards the owed-test question elsewhere rather than answering it.
+/// The place it forwards TO does reach, and is cited directly rather
+/// than through the clause pointing away — `tess_lint::Report`'s doc
+/// in `tools/tess-lint/src/lib.rs`: *"a finding is where the gate
+/// would otherwise assert something false"*. A moved witness is
+/// exactly that, so it is owed, and owed RED rather than noted.
+///
+/// **What this row cannot see.** It reads committed files, which
+/// `docs/k-report-data/README.md` rule 1 freezes, so all it can say is
+/// that the values M7 carries are the values the report names. It
+/// cannot say M7 is still the era that SHOULD be shipping: whether a
+/// new one is owed is decided by a fresh sweep measured against these
+/// files, and no fresh sweep runs here — rule 2 of that same page,
+/// `k-lint` lints a scratch sweep and never compares it to this
+/// directory. A distribution that moved under a corpus this row never
+/// opens leaves it green. Nor does it read `docs/K-REPORT.md`: the
+/// report's spelling of each number is written out below as the
+/// expectation, so the two are held together by whoever edits either.
+#[test]
+fn the_m7_era_still_carries_the_witnesses_the_report_names() {
+    let per_row: Vec<(&str, Witnesses)> = ROWS
+        .iter()
+        .map(|row| (*row, era_witnesses(M7, row)))
+        .collect();
+
+    // Witness 1 — the definite-side floor, at every row: the report
+    // prints one number across all three because it IS one number.
+    for (row, w) in &per_row {
+        let printed = format!("{:.5e}", w.floor.0);
+        assert_eq!(
+            (w.floor.1.as_str(), printed.as_str(), w.floor.0),
+            ("volume_backstop", "4.79652e-5", 4.796_516_130_518_501_5e-5),
+            "M7's definite-side floor at eps={row} is no longer \
+             volume_backstop's 4.79652e-5, which is the reading \
+             K-REPORT rests \"no new era\" on"
+        );
+    }
+
+    // Witness 2 — the smallest ε-relative headroom at the binding row.
+    let (_, binding) = per_row
+        .iter()
+        .find(|(row, _)| *row == "1e-9")
+        .expect("the ratified matrix carries the binding row");
+    let printed = format!("{:.3}", binding.headroom.0);
+    assert_eq!(
+        (binding.headroom.1.as_str(), printed.as_str()),
+        ("props_quad_converged", "164.674"),
+        "M7's smallest ambient eps-relative headroom at the binding \
+         row 1e-9 is no longer props_quad_converged's 164.674·eps, \
+         which is the reading K-REPORT rests \"no new era\" on"
+    );
+    assert_eq!(
+        binding.headroom.0, 164.674_409_507_294_9,
+        "props_quad_converged's headroom at the binding row 1e-9 moved \
+         to {:e}",
+        binding.headroom.0
+    );
+
+    // Witness 3 — the zero-side ceiling, at every row, likewise one
+    // number the report prints once.
+    for (row, w) in &per_row {
+        let printed = format!("{:.5e}", w.ceiling.0);
+        assert_eq!(
+            (w.ceiling.1.as_str(), printed.as_str(), w.ceiling.0),
+            (
+                "pm_census_ee_span",
+                "5.32907e-15",
+                5.329_070_518_200_751e-15
+            ),
+            "M7's zero-side ceiling inside the ambient band at eps={row} \
+             is no longer pm_census_ee_span's 5.32907e-15, which is the \
+             reading K-REPORT rests \"no new era\" on"
+        );
+    }
+}
+
+/// **The trap the extraction above is written around, run both ways.**
+///
+/// `band_zero` is three spellings over these files — the row's own ε,
+/// and the recorder's two tie-break bands `1e-100` and `5e-324` — and
+/// the ambient side is *"at or above [`AMBIENT_BAND_MIN`]"*. Compare
+/// the SPELLING against the constant's spelling instead of the parsed
+/// value and `5e-324` sorts above `1e-13` on its first byte, so the
+/// tie-break family joins the ambient definite population and the
+/// floor comes back as `split_join_order_u`'s 5.55112e-17. `mawk`
+/// takes exactly that branch on an uncoerced field, which is why
+/// K-REPORT's `awk` extraction spells `$4+0`; the hazard is the
+/// comparison, not the language, and it survives any reader that
+/// compares before it parses.
+///
+/// So this runs the selection both ways over the committed rows and
+/// asserts what each returns, rather than asserting that the parsed
+/// one is used. The two rows below fail in opposite directions and
+/// both are shown: at 1e-9 the spelling ADMITS 1 246 rows it should
+/// refuse, and at 1e-12 it also refuses every row it should admit —
+/// `1e-12` sorts below `1e-13` — leaving the tie-break family as the
+/// whole population.
+#[test]
+fn the_ambient_side_is_chosen_by_the_parsed_band_not_its_spelling() {
+    // The constant's own spelling, formatted rather than transcribed:
+    // a moved AMBIENT_BAND_MIN moves the string this compares against.
+    let spelled = format!("{AMBIENT_BAND_MIN:e}");
+    assert_eq!(spelled, "1e-13", "AMBIENT_BAND_MIN's spelling moved");
+
+    for (row, admitted, floor_by_spelling) in [
+        ("1e-9", 1_349_707usize, "split_join_order_u"),
+        ("1e-12", 1_246usize, "split_join_order_u"),
+    ] {
+        let (mut by_value, mut by_spelling, mut n_spelling) = (
+            (f64::INFINITY, String::new()),
+            (f64::INFINITY, String::new()),
+            0usize,
+        );
+        for_each_row(M7, row, |r| {
+            if r.outcome != "positive" && r.outcome != "negative" {
+                return;
+            }
+            if EPS_COUPLED_PREDICATES.contains(&r.predicate) {
+                return;
+            }
+            let m = r.margin.abs();
+            if r.band_zero >= AMBIENT_BAND_MIN && m < by_value.0 {
+                by_value = (m, r.predicate.to_string());
+            }
+            if r.band_zero_text >= spelled.as_str() {
+                n_spelling += 1;
+                if m < by_spelling.0 {
+                    by_spelling = (m, r.predicate.to_string());
+                }
+            }
+        });
+
+        // The reading this file takes, and the one it would take if it
+        // compared text: different populations, different witnesses,
+        // twelve decades apart.
+        assert_eq!(
+            (by_value.1.as_str(), by_value.0),
+            ("volume_backstop", 4.796_516_130_518_501_5e-5),
+            "eps={row}: the parsed ambient side no longer floors at \
+             volume_backstop"
+        );
+        assert_eq!(
+            (by_spelling.1.as_str(), by_spelling.0),
+            (floor_by_spelling, 5.551_115_123_125_783e-17),
+            "eps={row}: comparing band_zero's spelling no longer \
+             returns the tie-break family's margin — the hazard this \
+             row exhibits has changed shape and the reading above \
+             wants re-arguing, not this expectation relaxing"
+        );
+        assert_eq!(
+            n_spelling, admitted,
+            "eps={row}: the spelling comparison admits a different \
+             population than the one this row was written against"
+        );
+        assert!(
+            by_spelling.0 < by_value.0,
+            "eps={row}: the two selections agree, so this row is no \
+             longer exhibiting anything"
+        );
+    }
 }

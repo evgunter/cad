@@ -62,9 +62,14 @@
 //! saw (`path_junction_turn`, +293 samples/row, every |m| ≥ 2.5 m), and
 //! since #661 pooled the six `bool_sector_*` / `split_sector_*` names
 //! into `sector_{arm,reflex,straight}` it also DROPS six the baseline
-//! still lists — 233 committed here, 231 at today's main. Neither
-//! direction reaches this lint, which lints the fresh rows it was
-//! handed and never compares them to the committed files; the thresholds
+//! still lists — 233 committed here, and 281 at the tip
+//! `docs/K-REPORT.md`'s M11 addendum counted (2026-09-08), 61 names in
+//! and 13 out. Both are DATED readings of a moving quantity, as that
+//! addendum's standing note says of every count it prints: a roster
+//! size phrased as though it were live reads as current forever and
+//! goes stale on the next merge. Neither direction reaches this lint,
+//! which lints the fresh rows it was handed and never compares them
+//! to the committed files; the thresholds
 //! below are the only thing the baseline supplies. The baseline is
 //! re-cut when the DISTRIBUTION moves — a new floor, a filled gap, an
 //! ε-coupled family — not on every merge and not on a rename.
