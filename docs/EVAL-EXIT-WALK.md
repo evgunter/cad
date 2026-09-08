@@ -1,6 +1,7 @@
 # EVAL exit walk — criteria vs evidence
 
-**STATUS: PROPOSED — awaiting Ev's ratification** (this `[ev]` PR). EVAL =
+**STATUS: RATIFIED — EVAL CLOSED** (Ev's approval on `[ev]` PR 2201,
+2026-09-08: "lgtm!"; ratified AS WRITTEN, merged `8d34121c7`). EVAL =
 the evaluation seat (`work/eval/plan.md`, opened 2026-09-06 from
 `docs/WORK-TRACKS-2026-09.md` addendum 2; orchestrated 2026-09-08 on a
 remote box). Every unit on the slate is merged: the plan's five E
