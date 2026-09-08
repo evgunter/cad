@@ -108,7 +108,7 @@ use topo::flush::{finding, pair_finding};
 use topo::{Body, FaceKey, PlaneRelation};
 
 use crate::doc::Doc;
-use crate::edit::{DocEdit, EditError, apply};
+use crate::edit::{Applied, DocEdit, EditError, apply};
 use crate::eval::{Evaluation, NodeResult, NodeValue};
 use crate::names::geompred::SelectRefusal;
 use crate::names::interrogate;
@@ -397,11 +397,18 @@ pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareErro
 }
 
 /// Declares ONE inspected finding: inserts a [`Node::Declare`] with
-/// its pair and returns the edited document plus the Declare node's
-/// id, for the caller to wire into the consuming Boolean's `declare`
-/// input. Sugar over shipped vocabulary — nothing here detects
-/// (GS-Q3's no-fusion boundary: findings reach this door as VALUES
-/// the caller already held).
+/// its pair and returns the accepted insert whole — the edited
+/// document, its record and the cluster maintenance the insert
+/// performed, as one [`Applied`] — plus the Declare node's id, for the
+/// caller to wire into the consuming Boolean's `declare` input. Sugar
+/// over shipped vocabulary — nothing here detects (GS-Q3's no-fusion
+/// boundary: findings reach this door as VALUES the caller already
+/// held).
+///
+/// The id is returned beside the acceptance rather than left inside
+/// `record.minted` because it is a CHECKED value here: the door has
+/// already refused [`DeclareError::NoMintedId`], so the caller reads
+/// an id, never an `Option` it has to unwrap again.
 ///
 /// # Errors
 ///
@@ -410,7 +417,7 @@ pub fn declare<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     finding: &FlushFinding,
     tol: Tol,
-) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
+) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
     declare_all(doc, core::slice::from_ref(finding), tol)
 }
 
@@ -426,9 +433,13 @@ pub fn declare_all<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     findings: &[FlushFinding],
     tol: Tol,
-) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
+) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
     let node = declare_node(findings)?;
     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).map_err(DeclareError::Edit)?;
     let id = applied.record.minted.ok_or(DeclareError::NoMintedId)?;
-    Ok((applied.doc, id))
+    // The acceptance travels WHOLE: a caller that holds a document
+    // and the maintenance of its last accepted edit swaps both in
+    // from this one value, so the two can never describe different
+    // edits.
+    Ok((applied, id))
 }

@@ -55,7 +55,7 @@ use crate::py::quantity::Length;
 use crate::py::select::entity_kind;
 use crate::py::typed_err;
 use crate::py::value::{Evaluation, lengths};
-use crate::tags::{hit_test_error_tag, node_pick_error_tag};
+use crate::tags::{hit_test_error_tag, mesh_pick_error_tag, node_pick_error_tag};
 use pncad::select as s;
 
 /// A direction as the bare triple it is — dimensionless.
@@ -158,6 +158,13 @@ fn hit_test_value(py: Python<'_>, err: &s::HitTestError) -> Py<PyAny> {
 /// reads them. That is the `AssemblyError` precedent (a gather refusal
 /// arrives there under the gather's own tag, without the gather's
 /// `node`), and this class's docstring says so.
+///
+/// The index arm neither forwards nor withholds: `variant` stays
+/// `mesh_index`, which is the door whose invariant broke, and
+/// `index_variant` carries the payload's own discriminant beside it.
+/// A second indexing invariant added kernel-side would otherwise join
+/// the first under one word with no alarm anywhere, because the match
+/// a wrapper can write is on the carrier and not on what it carries.
 fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
@@ -178,6 +185,15 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
             [none(), none(), none(), none()]
         }
     };
+    let index_variant = match err {
+        s::NodePickError::Index(inner) => PyString::new(py, mesh_pick_error_tag(inner))
+            .unbind()
+            .into_any(),
+        s::NodePickError::Standing(_)
+        | s::NodePickError::NotABody { .. }
+        | s::NodePickError::NoSuchBody { .. }
+        | s::NodePickError::Tessellate(_) => none(),
+    };
     typed_err(
         py,
         ErrorClass::NodePick,
@@ -193,6 +209,7 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
             ("through", through),
             ("kind", kind),
             ("body", body),
+            ("index_variant", index_variant),
         ],
     )
 }

@@ -242,7 +242,12 @@ impl VoidInserted {
 /// the material that is being removed, exactly as a subtraction's B
 /// operand — consumed by value; the door reverses it and transplants
 /// its shells. `evidence` must certify every shell of `cavity`
-/// strictly inside `dst_solid`'s material.
+/// strictly inside `dst_solid`'s material. The shell verb hands this
+/// door the whole moved clone of a hollow operand — several shells, one
+/// solid — and then re-homes each transplanted void twin into a solid
+/// of its own ([`crate::shell`](mod@crate::shell)'s thin-solid step), so the grafted
+/// every-shell-in-one-solid state is that caller's transient, never
+/// its result.
 ///
 /// # Errors
 ///
