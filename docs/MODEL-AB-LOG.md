@@ -3270,6 +3270,43 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
+BOOL-10 (PR #2135) ordinal FIXED AT DISPATCH (2026-09-08):
+**ordinal 1108** (S-BOOL band 1100–1199). v6 dual: parity byte **24**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `3f8163dd8`
+(run 34177347640 verified at dispatch: head SHA matches, 37 checks,
+run conclusion success; not narrowed; no `CI-Config:` trailer, the
+spelling having been deleted 2026-09-04), R2 isolated from R1, briefs
+symmetric (HARD RULES written fresh for this unit), no relaxations
+granted. Implementer difficulty L (pre-logged at the spec, pre-draw);
+implementer arm FABLE (block BOOL-B3 slot 2, byte 125 — quoted from
+the private draw file before the arm was named; block exhausted). The
+PR is HELD for Ev's sign-off (the arc form's spelling and PATHS
+§2c/§3/§4 — design surface); merge follows the dual + sign-off. Sample
+number at merge; the row rides the unit branch as its last commit.
+Filed at dispatch from the unit's forward list:
+`work/bool/carriers-are-identical-reads-carrier-identity-at-the-lattice.md`,
+`work/bool/lift-comparator-misclasses-a-declared-joint-difference.md`,
+`work/lib/north-star-audit-verb-list-names-arc-continue.md`.
+
+BOOL-9 (PR #2134) ordinal FIXED AT DISPATCH (2026-09-08):
+**ordinal 1107** (S-BOOL band 1100–1199). v6 dual: parity byte **113**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `2fca2cd52`
+(run 34177376327 verified at dispatch: head SHA matches, 37 checks —
+34 success + 3 skipped; not narrowed — every test point and k-lint
+unification ran; no `CI-Config:` trailer, the spelling having been
+deleted 2026-09-04), R2 isolated from R1, briefs symmetric (HARD RULES
+written fresh for this unit), no relaxations granted. Implementer
+difficulty L (pre-logged at the spec, pre-draw); implementer arm OPUS
+(block BOOL-B3 slot 1, byte 125 — quoted from the private draw file
+before the arm was named). Sample number at merge; the row rides the
+unit branch as its last commit. Two findings the unit handed over are
+filed at dispatch: `work/mesh/mesh-materialized-form-is-writable.md`
+(`mesh::Mesh`'s all-public fields — the tessellate seam's sibling of
+the door this unit shuts) and
+`work/bool/raw-door-compile-proof-needs-a-gate.md` (the shut-build
+compile error is measured, not a row — a gate with a toolchain is a CI
+surface this unit did not touch).
+
 BOOL-12 (PR #1573) ordinal FIXED AT DISPATCH (2026-09-02):
 **ordinal 1106** (S-BOOL band 1100–1199). v6 dual: parity byte **173**,
 parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `50740f965`
@@ -3908,6 +3945,38 @@ slot 0 = SHELL-1 (OPUS; pre-draw M / STRUCTURAL at `docs/SHELL-1-SPEC.md`) — d
 slot 1 = SHELL-2 (OPUS; pre-draw S–M / STRUCTURAL-NUMERIC at `docs/SHELL-2-SPEC.md`, on branch `shell/2-transform-approx`) — dispatched 2026-09-04, concurrently with slot 0 on the same box; delivered PR #1758, dual dispatched as ordinal 2301; concluded 2026-09-04 at merge 89291e03, sample #122.
 slot 2 = SHELL-5 (FABLE per the draw; pre-draw M / STRUCTURAL at `docs/SHELL-5-SPEC.md`, logged after the draw — disclosed on the item; on branch `shell/5-hollow-operand`) — dispatched 2026-09-08 by the second orchestrator session; the block record reaches main with this slot's row.
 | RC-1 | 2026-09-04 | VERBS-RIMCAP PR-1 (PR #1674; the rim-construction capability, SPHERE half; the TORAX elbow-split lineage): the meridian-pair arm (cap_pair_corner — the moved caps' meeting line as a derived Profile::Line handed to existing transversality/roots/nearest, answers verified onto both FULL plane equations) + the carried-datum arm + the off-axis-circle mint computed INLINE (no section call; seven named predicates in six audit rows); the mechanism hypothesis CONFIRMED by instrumentation (the pole arm answers on-axis while both moved caps stand t off; the raising-site correction to the axis-edge meter measured right by BOTH reviewers' independent instrumentation); the lune's pole corners the 2-CAP case the spec's one-cap wording could not answer (both arms judged REDUCTION not widening; the spec re-cut at the fix pass); corners bit-exact at ρ=t√2; ONE DECLARED DEVIATION with a forcing red-the-day row and filed schedule (the operand lune is tier-3 VolumeUncomputable TODAY — props_band_coplanar — so the hollow shipped at the public direct door; work/issues/sphere-flux-arm-refuses-partial-bands.md); the klein elbow one door deeper (TogetherAxialEdge; the spiric boundary stays PR-2's design gate) | M (pre-logged) | FABLE (block VERBS-8 slot 3, per-slot arm line — post-5.1-boundary per the release note) | **DUAL (ordinal 113; sample #123 at merge — ledger max #122, main's merge order rules; parity byte 74 ⇒ R1 OPUS + R2 FABLE, frozen 8c8a7b7f1, v6; R1 was a FRESH redispatch after a 529 outage death-at-start; R2 resumed once across a limit death, lane pristine — both flagged, pair COUNTS). R1 1 MAJ / 6 MIN, 5/4/4, ACCEPT — instrumented the base mechanism itself, verified bit-exactness at the BIT level, re-derived the cavity volume (rel 8.55e-15), probed the reflex 270° and outward poses (worst residual 8.7e-18). R2 0 MAJ / 2 MIN, 4/5/5, ACCEPT — independent instrumentation of the same mechanism, six mutations landing on typed doors with predicted numbers, interval widths measured. R1 MAJ-1 UNILATERAL TALLY CANDIDATE (class doc/contract-API — 3b weighed at the coding; the demonstrated half real): TogetherEdgeDisagreement's PUBLIC doc and Display assert a cause its three raising sites don't share — at the lune's site the gap is a midpoint-to-surface residual, not 'two ends solved apart'; the false text is what originally misled the module doc; the unit fixed every derived text and left the authoritative one | 0 (deviations declared; the doc defect pre-existing, surfaced by this unit's own measurement) | 5 | 5 | 4 (R1 5/4/4; R2 4/5/5) | substantial, IMPLEMENTER-INHERITED: the variant's doc+Display rewritten to enumerate the three meters with a constructed-error pin asserting off payload FIELDS (the ordinal-112 static-literal lesson applied); the fifth refusal string pinned on the buildable lune(0.3,20°) and added to the reached list; the cavity-volume row added (rel 5.70e-15 measured, 1e-12 gate); reflex-270° and outward-offset rows pinning R1's exact numbers (2.0102263481348114e-19 residual); the sealed-arm assert tightened to the payload triple; both idiom laxities closed; the spec item-1 re-cut to both arms; AND ONE UNION INSTRUCTION REFUTED BY MEASUREMENT (the :441 cite was correct at the opening head — recorded, not applied; the orchestrator's fix was the error) | impl runs 33747086028 + 33747145122 step-verified green (interval+default at 1e-6; prior heads' reds discipline-gate-only with tests green at 1e-12 both lanes); fix head 4a1785cb9: 33836698609 (PR, interval 1e-12) + 33836699808 (dispatch, default 1e-12) both green, every row by name both shards both lanes | impl ~371k / fix ~407k across an unpark / R1 ~229k fresh / R2 ~204k across a resume | impl ~7.4h / fix ~1.3h / R1 ~10.8h wall / R2 ~3.3h wall incl. the limit gap |
+
+SHELL-5 RECORDED AT MERGE (2026-09-08, PR #2159, sample #159 — prior highest #158 on main at merge; block SHELL-B1 slot 2 concluded — the block concludes with it; the block record follows this row):
+
+| SHELL-5 | 2026-09-08 | SHELL-5 (PR #2159; spec docs/SHELL-5-SPEC.md, issue record 1056 — Ev's ruling "thicken every boundary"): `shell`/`shell_open` on a hollow operand erode the outer shell inward and dilate every void outward through the one signed rule, and return one thin solid per operand shell via the new `Body::move_shells_to_new_solid` (TOPO seam; `Provenance::MoveShells`, four `EulerOpError` variants), `OperandAlreadyHollow` retired, `ShellNaming::thickened` and `RimNaming::side: RimShell` added, a void-face designation opening the inner wall with the glue's roles by shell, one `OffsetDoor` decision for cavity and lift; rows with closed forms on the hollow box, two-void box, hollow vessel, both opened arms and the pillar-through-a-void ceiling; the old domain byte-identical (616-line body dump at merge base and head). Fix pass: union of 14 items taken — the planar clearance gate grows footprints by `t` before its separation decide (both reviewers falsified its soundness sentence by execution; pre-existing on a notched single-shell operand, made common by voids; four rows flipped to refusals, no fixture over-refuses), the role-assignment comment corrected (tier 3 states no ring-nesting check — filed for TOPO), the pairing pinned by R2's record-reading row (mutant-verified), the byte-identity instrument replaced (the cited one measured census verdicts), `thickened` documented historical, `RimShell` replacing an `on_void` bool, the lift routed through the same door decision as the cavity, three tracker files filed and two closed; found by CI: LIB-G17's exhaustive `ShellError` fold on main named the retired variant (folded, a LIB seam) | M / STRUCTURAL (logged after the block draw — disclosed at the item) | FABLE (block SHELL-B1 slot 2) | **DUAL (ordinal 2302; sample #159; byte 13 parity 1 ⇒ R1 FABLE + R2 OPUS; CONCURRENT on frozen 35a5dc91; briefs stored with sha256 before dispatch, identical modulo lane names; PRIVATE target dirs seeded symmetrically from one copy of the implementer's warm build with `incremental/` dropped; both lanes on one four-core cloud box at `-j2` — a method note on both arms equally; blinding exposure disclosed at the claim: slot 2's arm stood on main 2026-09-04 → #2142).** R1 APPROVE-WITH-FIXES 0/3/3 (MINOR: the footprint gate blind to concave-edge growth, pre-existing S-bend reproduced on the merge base; the role-assignment comment's backstop claim false — mutant F2 builds green; spec §3.4's filing unmet; NOTE: LIB-G17's premise broken on a void designation; hole path works). R2 APPROVE-WITH-FIXES 1/3/7 (MAJOR: the same gate defect, notched single-shell twin on the merge base; MINOR: **UNILATERAL, class test-gap, demonstrated — the void↔twin pairing unpinned, a cross-pairing mutant survives 39 rows** (MINOR, so not a tally candidate); the cited byte-identity instrument measured census verdicts; `thickened` names a dead shell). Convergent on the gate, the comment, the hole path, `OperandOuterShells` reachable, the flux-read deviation acceptable. Both e2e consumers: a user can hollow twice and open the inner wall, mesh it, and cannot STEP-export it (pre-existing, EXCH) nor open a multi-solid body (filed). Silent deviations: 0 / 0 (six disclosed, adjudicated improvements or forced). Rubric idiom/tests/docs not scored by either reviewer. Fix pass implementer-inherited, ~2.5 h, 14 items, three CI runs (one red on the merge-ref fold). Tokens impl 327,550 / fix ≈172,400 / R1 275,063 / R2 209,645. Wall-clock impl ~3.5 h (no restarts) / R1 ~40 min / R2 ~55 min. |
+
+Block SHELL-B1 — CONCLUDED record (merged from the SHELL orchestrator branch at the last slot's conclusion, per the branch-side shape; 2026-09-08). Draw (2026-09-04T01:36:45Z, after the pre-draw fields in `work/shell/SHELL-1.md` and `work/shell/log.md`; v3 triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte **233**, 233 mod 3 = 2 = fable's position ⇒ **fable at slot 2**. Slots: 0 = SHELL-1 (OPUS; pre-draw M / STRUCTURAL; PR #1756, ordinal 2300, sample #121, concluded 2026-09-04); 1 = SHELL-2 (OPUS; pre-draw S–M / STRUCTURAL-NUMERIC; PR #1758, ordinal 2301, sample #122, concluded 2026-09-04); 2 = SHELL-5 (FABLE; pre-draw M / STRUCTURAL logged after the draw — disclosed; PR #2159, ordinal 2302, sample #159, concluded 2026-09-08). Slot 2's arm was exposed on main between 2026-09-04 and its redaction at #2142 (disclosed at the ordinal claim). The next SHELL kernel unit draws block SHELL-B2.
+
+## SHELL-5 review ordinal fixed at dispatch (2026-09-08)
+
+SHELL-5 (`shell-of-hollow-body-thicken-every-boundary`, PR #2159 open —
+frozen head `35a5dc91`): **ordinal 2302** (SHELL band; after 2300 and
+2301). Pre-draw fields at the item (`work/shell/SHELL-5.md`):
+difficulty **M**, task-class **STRUCTURAL**, logged after block
+SHELL-B1's byte was drawn (disclosed there; the covariate is
+contaminated for this row); implementer arm per block SHELL-B1 slot 2
+(record branch-side on the SHELL orchestrator branch). Protocol v6
+dual: draw = `/dev/urandom` byte **13**, parity 1 ⇒ **R1 = FABLE,
+R2 = OPUS**. Method, recorded before either review runs: CONCURRENT
+same-head on frozen `35a5dc91`, both briefs authored and STORED with
+sha256 before either dispatches (sha256 3a8b23b22fb0… r1 /
+2693182d09b3… r2 — identical text modulo lane names and lane paths,
+verified by diff), neither reviewer sees the other's report, v6 item 5
+isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` per reviewer
+(both seeded from one copy of the implementer's warm build with
+`incremental/` dropped — symmetric); both lanes run beside each other
+on one 4-core cloud box at `-j2` (a method note applying to both arms
+equally). The implementer's unit log entry is not written until the
+dual concludes. Disclosed: slot 2's arm stood on main in the SHELL
+log's close-out entry from 2026-09-04 until its redaction at #2142 —
+a blinding exposure flagged on the exposure, whatever the reviewers
+disclose; and the PR body carries the `Generated by Claude Code`
+footer the GitHub write path appends, which names no model.
 
 ## VERBS-C5ARMS PR-2 review ordinal fixed at dispatch (2026-09-05)
 
@@ -4732,3 +4801,24 @@ R1's kernel target is the implementer's warm one and its demo target
 the implementer's warm demo target, R2's kernel target is seeded from
 an older warm build and its demo target is cold — wall-clock asymmetry
 only.
+
+LIB-G17 review ordinal fixed at dispatch (2026-09-08, PR #2150 open —
+frozen head `4a093c5c`): **ordinal 303** (LIB band; claimed through 302).
+Protocol v6 dual: draw = `/dev/urandom` byte **218**, parity 0 ⇒
+**R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `4a093c5c`, both briefs authored and
+STORED with sha256 before either dispatches (1146d9400c936634… r1 / 72665d601dc94b72… r2 —
+identical text modulo lane names, verified by diff), neither reviewer
+sees the other's report, v6 item 5 isolation in both briefs; the
+implementer's unit log entry is not written until the dual concludes.
+Pre-draw fields were logged at the spec (M-L / STRUCTURAL; implementer
+arm per block LIB-13 slot 1, branch-side on `lib/block-13`). Method
+note applying to BOTH arms equally: the pair runs on one 4-core cloud
+box behind the build-slot mutex, beside no other build. The
+implementer lane was interrupted twice before delivery (a session kill
+before any work on 09-06, and a usage-credit outage mid-unit on 09-06,
+resumed 09-08 from its own transcript); the arm and slot are unchanged
+and the row at merge annotates it per the resume precedent. Sample
+number assigned at merge in main's merge order.
+
+| G17 | 2026-09-08 | LIB-G17 (PR #2150; spec docs/LIB-G17-SPEC.md, the RECIPE-DOORS D5 elaboration; the unit LIB-G17): `Node::Shell { target, thickness, open }` with `open` ORDERED (the kernel's `RimNaming::sources` keeps designation order and the first face carries the rim; dedup keeping first; a repeat refused at both doors through `Node::input_fault`), `SlotId::ShellThickness`, content tag 35; the lowering through the verb seat (`verbs/shell.rs` correspondence, `ShellLane` per-scalar door — `Dual` refuses typed `ShellLaneUnsupported` since a dual does not certify, DL3); the refusal carriage `NodeErrorKind::Shell(Box<ShellError<f64>>)` by a total wildcard-free fold declared on the lane (`lane.rs`: `Lane::end`, `BracketEnd` per field); `names/emit_shell.rs` with three additive roles `Inner`/`Rim`/`HoleRim` under `OpGroup::Shell`; `Node.shell` in Python with four tags; corpus `cup.rs` (exact dyadic closed forms as `MassPin`s) and `vessel.rs` (the teapot's mouth, both halves named) beside the registry; `lib_g17_shell_node.rs` incl. the rebuild row; the GUIDE's shell step | M-L / STRUCTURAL (pre-draw at the spec) | FABLE (block LIB-13 slot 1 — the block's draw stays branch-side on `lib/block-13`; **contamination flag for the consuming rows**: with a v4 block of four and one fable, a slot-1 FABLE on main names slots 2–4 by arithmetic, the LIB-12 shape) | **DUAL (ordinal 303, sample #158; v6 byte 218 parity 0: R1 OPUS, R2 FABLE, concurrent same-head on frozen 4a093c5c)**: R1 APPROVE-WITH-FIXES 0/6/8 + 9 style, rubric 4/4/3; R2 APPROVE-WITH-FIXES 0/5/6 + style, rubric 4/3/3. CONVERGENT headline (bilateral): the f64 witness fold took `lo()` on every field with one field's argument and no row distinguished the bracket ends (R1's `lo→hi` mutant green suite-wide), and the `T: Bounds` widening on three scalar-free refusal doors (gate 15→16, seven roster rows outside LIB's fence) was the one disclosed deviation with no schedule whose alternative was not weighed. Unique R2: the public variant with a repeated `open` passes the insert door and `save` refuses (the blends' identical asymmetry filed); the order row's `sort_unstable` mutant green; `HoleRim` shipped with no row. Unique R1: four untested claims in docstrings; four stale payload-name enumerations; the "wrapped UNALTERED" header; the 41-variant census floor; `attach_shell` overstated. Zero unilateral MAJORs. **PAIR FLAGGED (v6 item 5)**: R1 disclosed an accidental glimpse of R2's command line via a process listing (mutant literals, one probe name; after its own findings were written); recorded, excluded from the tally per 3(e) conservatively — zero candidates either way | 0 silent of substance (three deviations disclosed; the reviewers found five prose sites the node made false and one census floor, all repaired) | 4 | 4 | 3 | substantial, ADJUDICATED: the fold moved onto the lane with per-field bracket ends and two non-degenerate-bracket pins; the repeat check onto `input_fault` (both doors); the order row proves both orders; one `SlotJoin` and one feed replace the copied pair, one `Lane` trait holds the lane names; `attach_shell` made honest; every falsified prose site fixed; both reviewers' probes adopted as assertions (R2's P7 is the only `HoleRim` row); three issues filed (`blend-selection-canonical-check-load-only`, `correspondence-structs-coincide`, `guide-has-no-chamfer-or-tube-step`) beside the unit's three | MERGED #2150 at d60f4998 (full matrix green: twelve `test`, five `k-lint (gate, …)`, python suite, interval rows); `bounds-allowlist.sh` at 15; `Shell` on the corpus registry's `FRONTIER_UNCOVERED` (the Dual64 row) | impl ~575k to delivery + fix pass ~168k (the lane's report arrived after the merge: ~743k cumulative) / R1 ~302k / R2 ~263k | impl ~74 min after the 09-08 resume + fix pass ~70 min (two dead starts on 09-06: a session kill before any work, a usage-credit outage mid-unit — arm and slot unchanged) / R1 ~30 min / R2 ~29 min |

@@ -231,6 +231,9 @@ blended: NodeId = doc.insert(Node.fillet(upright, 0.05 * m, blend_edges))
 
 # Chamfer by NAME: the fillet's twin, and the SETBACK is a Length too.
 chamfered: NodeId = doc.insert(Node.chamfer(upright, 0.05 * m, blend_edges))
+open_faces: list[str] = evaluate(doc).all_faces(upright)[:1]
+hollowed: NodeId = doc.insert(Node.shell(upright, 0.01 * m, open_faces))
+sealed: NodeId = doc.insert(Node.shell(upright, 0.01 * m, []))
 
 # The tube pair. The window is a VALUE with two spellings, and the
 # hollow kind's wall is a required Length — there is no `wall=None`
@@ -562,3 +565,8 @@ gathered.validate()
 gathered.validate_closed()
 gathered.validate_geometric()
 gathered.validate_pseudomanifold()
+
+# The node-kind read door: an id in, one stable word out. It is the
+# NODE's kind and not its value's, so it is answerable with no
+# evaluation in hand at all.
+which_kind: str = doc.node_kind(upright)

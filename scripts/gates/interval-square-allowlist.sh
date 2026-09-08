@@ -244,6 +244,22 @@ CENSUS_PAREN_FIRST_RE="(?<!\w)\(\s*($SQUARE_PATH)\s*\*\s*[^()]*\)\s*\*\s*\1(?![\
 CENSUS_NESTED_PAREN_RE="(?<!\w)\(\s*[^()]*\([^()]*\)[^()]*\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\1(?![\w.(\[])"
 CENSUS_THREE_FACTOR_RE="(?<![\w.])($SQUARE_PATH)(?:\s*\*\s*(?!\1(?![\w.]))[A-Za-z0-9_.]+)+\s*\*\s*\1(?![\w.(\[])"
 
+# THE ALLOWLISTED FILES, as paths and held once: the filter's exemption,
+# `gate_require_homes`'s subject check and the clean fixture all read
+# this list, and what that buys is argued at that check — it is the
+# register's ABSENT line read for the allowlist. The argument for each
+# entry is in this file's header, above.
+ALLOWLISTED_SUBJECT='the ratified adjacent-square sites, the files whose x*x this gate ratifies instead of asking for powi(2)'
+ALLOWLISTED_HOMES=(
+  crates/geom-core/src/real.rs
+  crates/geom-core/src/ring_interval.rs
+  crates/geom-core/src/linalg/svd.rs
+  crates/geom-core/src/linalg/lsq.rs
+  crates/geom-brep/src/ssi/jet.rs
+  crates/geom-brep/src/ssi/march.rs
+  crates/geom-brep/src/ssi/system.rs
+)
+
 # THE REGISTER — `<shape>|<file>|<fragment>|<count>|<disposition>`, the
 # `S49` shape: the POPULATION is re-read out of the tree on every run
 # and this is only the DISPOSITION of what was read. `<fragment>` is a
@@ -445,6 +461,9 @@ gate() {
   # and so are the two refusals it can end in: a declaration nothing can
   # place, and a tree whose every source is test-only.
   gate_production_sources
+  # AFTER THE SCAN SET, BEFORE THE SCAN — `gate_require_homes` reads the
+  # set the line above decided, and its header says why there.
+  gate_require_homes "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   # ONE READ, TWO MATCHERS. The census below asks a different question
   # of the SAME view, and re-reading the tree for it would let the two
   # answers be about different trees — as well as costing a second pass
@@ -461,9 +480,7 @@ gate() {
   fi
   hits=$(printf '%s\n' "$view" \
     | gate_grep -P "$SQUARE_RE" \
-    | gate_grep -vE '^crates/geom-core/src/(real|ring_interval)\.rs:' \
-    | gate_grep -vE '^crates/geom-core/src/linalg/(svd|lsq)\.rs:' \
-    | gate_grep -vE '^crates/geom-brep/src/ssi/(jet|march|system)\.rs:')
+    | gate_grep -vE "$(gate_record_anchor_any "${ALLOWLISTED_HOMES[@]}")")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "use powi(2): it is strictly tighter than x*x when the enclosure straddles zero, and equal elsewhere except for a square below 2^-960, where the backend pads once more (see this gate's header — NOT 'never wider'). Whether THIS enclosure can straddle zero is a global property of upstream callers that refactors change silently — four live bugs arrived exactly that way. Convert, or ratify this file into the allowlist."
@@ -471,6 +488,31 @@ gate() {
   fi
   census "$view"
   gate_ok "no unratified x*x outside the allowlisted files; and $CENSUS_SUMMARY"
+}
+
+# THE ALLOWLIST IS IN THE CLEAN FIXTURE, which is `lib.sh`'s exact-skip
+# contract read for a whole-file skip: a skip no fixture exercises is
+# dead in every case, and an anchor that over-narrows is then noticed by
+# nobody. Each home carries the adjacent square it is ratified FOR — a
+# spelling the LIVE matcher reads, so the census never sees it and the
+# clean case reds the moment one of them stops being covered.
+gate_plant_clean() {
+  gate_plant_clean_sources "$1"
+  local home
+  for home in "${ALLOWLISTED_HOMES[@]}"; do
+    mkdir -p "$1/${home%/*}"
+    printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/$home"
+  done
+}
+
+# The home followed by a colon that is not a line number — one of the
+# three shapes `gate_record_anchor`'s header enumerates, and the one a
+# skip that ends at `:` exempts.
+plant_colon_after_the_home_that_is_not_a_line_number() {
+  local home
+  for home in "${ALLOWLISTED_HOMES[@]}"; do
+    printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/$home:x.rs"
+  done
 }
 
 plant() {
@@ -726,9 +768,10 @@ census_written_register_case() {
 # through a pass whose whole subject is meant to be what the matcher
 # CANNOT see.
 plant_adjacent_triple_in_an_allowlisted_file() {
-  mkdir -p "$1/crates/geom-brep/src/ssi"
+  # AN entry of the list, read from it: what the case is about is that
+  # the file is ALLOWLISTED, never which of them it is.
   printf 'pub fn c<T: Real>(h: T) -> T { h * h * h }\n' \
-    > "$1/crates/geom-brep/src/ssi/march.rs"
+    > "$1/${ALLOWLISTED_HOMES[0]}"
 }
 
 # A BINDING HOP WHOSE OPERAND IS A FIELD PATH, beside the name its dot
@@ -799,8 +842,10 @@ gate_selftest() {
   gate_selftest_case "$want" plant_wrapped_product
   gate_selftest_case "$want" plant_scaled_square
   gate_selftest_case "$want" plant_scaled_square_field_path
+  gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
   gate_selftest_test_module_homes "$want" plant_square_at
+  gate_selftest_homes --narrowed "${ALLOWLISTED_HOMES[@]}"
   # THE CENSUS, in both directions. `census` is the half whose subject
   # is what the matcher above CANNOT see, so every one of its cases has
   # to be invisible to that matcher: a fixture the live matcher reds is
@@ -846,7 +891,7 @@ gate_selftest() {
   gate_selftest_passes "the tree the census register describes, every entry finding exactly the candidates it pins" plant_register_tree
   gate_selftest_passes "an adjacent triple in an allowlisted file, which branch 1 already reads and the census must not claim" plant_adjacent_triple_in_an_allowlisted_file
   gate_selftest_passes "a binding hop whose operand is a FIELD PATH, beside a name the unescaped dot in it would match" plant_field_path_binding_near_miss
-  printf '%s selftest OK: passes a clean fixture, and prose, string literals and near-miss products; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms; re-derives the five spellings it CANNOT see and passes the register'"'"'s own tree while firing, on a fragment of the offending line rather than on the umbrella text, on an undispositioned candidate of each of the four shapes and — for a three-factor entry and a binding-hop one alike — on a second candidate under a one-site entry, an entry whose site is gone and an entry whose file has left the scan; holds BOTH halves of the (file, shape) key against a written register; refuses a --register with no argument and a malformed entry; keeps a field-path binding from matching a name its unescaped dot would, and an adjacent triple in an allowlisted file out of the census entirely; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every allowlisted file, and prose, string literals and near-miss products; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms — and at the colon-carrying path a home skip that ends at `:` exempts; re-derives the five spellings it CANNOT see and passes the register'"'"'s own tree while firing, on a fragment of the offending line rather than on the umbrella text, on an undispositioned candidate of each of the four shapes and — for a three-factor entry and a binding-hop one alike — on a second candidate under a one-site entry, an entry whose site is gone and an entry whose file has left the scan; holds BOTH halves of the (file, shape) key against a written register; refuses a --register with no argument and a malformed entry; keeps a field-path binding from matching a name its unescaped dot would, and an adjacent triple in an allowlisted file out of the census entirely; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 # `--register FILE` is this gate's own flag, so it is taken out of argv

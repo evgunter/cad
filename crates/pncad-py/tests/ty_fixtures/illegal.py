@@ -114,6 +114,10 @@ Node.fillet(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, 1 * m, [solid])  # ty: error
 
+# The shell's wall is a Length too, and its open list is names as text.
+Node.shell(solid, 1.0, [])  # ty: error
+Node.shell(solid, 0.01 * m, [solid])  # ty: error
+
 # A tube's radii are Lengths, its window is a `TubeWindow` and never a
 # pair of raw angles, and the hollow kind's WALL IS REQUIRED — the
 # three ways a caller reaches for the shape this vocabulary refuses to
@@ -453,3 +457,10 @@ product(doc, evaluate(doc)).validate_pseudomanifold(doc)  # ty: error
 # And it answers nothing. A rung that returned a verdict would be a
 # gate a caller could pass without reading; every rung raises instead.
 verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: error
+
+# `node_kind` reads a document's node BY ID and answers TEXT. Both ends
+# invite the same confusion, because `Node` and `NodeId` are two types
+# one sentence apart: the constructor value is not a handle onto an
+# inserted node, and the word that comes back is not the node.
+doc.node_kind(Node.extrude(solid, 1 * m))  # ty: error
+which: Node = doc.node_kind(solid)  # ty: error

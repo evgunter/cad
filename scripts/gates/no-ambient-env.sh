@@ -100,20 +100,55 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# THE RATIFIED READERS, as paths and held once: the filter's exemption,
+# `gate_require_homes`'s subject check and the clean fixture all read
+# this list, and what that buys is argued at that check.
+ALLOWLISTED_SUBJECT='the ratified environment readers, the only files that may read the environment at runtime'
+ALLOWLISTED_HOMES=(
+  crates/geom-core/src/tolerance.rs
+  crates/test-utils/src/fuzz.rs
+  crates/viewer/src/frame.rs
+)
+
 gate() {
   gate_require_crate_sources
+  gate_require_homes "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
     | gate_grep -P '\benv::vars?(_os)?\s*\(' \
-    | gate_grep -vE '^crates/geom-core/src/tolerance\.rs:' \
-    | gate_grep -vE '^crates/test-utils/src/fuzz\.rs:' \
-    | gate_grep -vE '^crates/viewer/src/frame\.rs:')
+    | gate_grep -vE "$(gate_record_anchor_any "${ALLOWLISTED_HOMES[@]}")")
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "a kernel crate reads the environment at runtime — that is a back channel into shipped code, changing behaviour with no rebuild and no call site to review (NURBS_PROBE was exactly this). Arm it by an explicit call and gate it behind a feature, or ratify this file into the allowlist."
     exit 1
   fi
   gate_ok "no kernel crate reads the environment at runtime"
+}
+
+# THE ALLOWLIST IS IN THE CLEAN FIXTURE, which is `lib.sh`'s exact-skip
+# contract read for a whole-file skip: a skip no fixture exercises is
+# dead in every case, and an anchor that over-narrows is then noticed by
+# nobody. Each home carries the environment read it is exempted FOR, so
+# the clean case reds the moment one of them stops being covered.
+gate_plant_clean() {
+  gate_plant_clean_sources "$1"
+  local home
+  for home in "${ALLOWLISTED_HOMES[@]}"; do
+    mkdir -p "$1/${home%/*}"
+    printf 'pub fn armed() -> bool { std::env::var("PLANTED_PROBE").is_ok() }\n' \
+      > "$1/$home"
+  done
+}
+
+# The home followed by a colon that is not a line number — one of the
+# three shapes `gate_record_anchor`'s header enumerates, and the one a
+# skip that ends at `:` exempts.
+plant_colon_after_the_home_that_is_not_a_line_number() {
+  local home
+  for home in "${ALLOWLISTED_HOMES[@]}"; do
+    printf 'pub fn armed() -> bool { std::env::var("PLANTED_PROBE").is_ok() }\n' \
+      > "$1/$home:x.rs"
+  done
 }
 
 plant() {
@@ -152,8 +187,10 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_after_block_comment
+  gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, a block comment and a string literal naming the call" plant_prose_only
-  printf '%s selftest OK: passes a clean fixture and prose/block-comment/string-literal mentions of the call; fires on a read, and on one hidden behind a block comment; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  gate_selftest_homes "${ALLOWLISTED_HOMES[@]}"
+  printf '%s selftest OK: passes a clean fixture carrying every allowlisted reader, and prose/block-comment/string-literal mentions of the call; fires on a read, on one hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

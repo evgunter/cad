@@ -120,6 +120,8 @@ mod docm8_flat_merged;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "eval4_accept_funnel.rs"]
+mod eval4_accept_funnel;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
@@ -141,6 +143,12 @@ mod lib_g16_blend_messages;
 mod lib_g16_chamfer_node;
 #[path = "lib_g16_corpus_name_digests.rs"]
 mod lib_g16_corpus_name_digests;
+#[path = "lib_g17_r1_probes.rs"]
+mod lib_g17_r1_probes;
+#[path = "lib_g17_r2_probes.rs"]
+mod lib_g17_r2_probes;
+#[path = "lib_g17_shell_node.rs"]
+mod lib_g17_shell_node;
 #[path = "lib_placedunion.rs"]
 mod lib_placedunion;
 #[path = "lib_sel1_geoselect.rs"]

@@ -30,21 +30,57 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# THE NON-CONSUMER ROWS, as paths and held once: the filter's exemption,
+# `gate_require_homes`'s subject check and the clean fixture all read
+# this list, and what that buys is argued at that check.
+NON_CONSUMER_SUBJECT='the non-consumer rows, which reach the bit channel as scalar plumbing rather than as a coincidence comparison'
+NON_CONSUMER_HOMES=(
+  crates/geom-core/src/bit_identity.rs
+  crates/geom-core/src/interval.rs
+  crates/topo/src/source.rs
+  crates/editor-core/src/eval/memo.rs
+)
+
 gate() {
   gate_require_crate_sources
+  gate_require_homes "$NON_CONSUMER_SUBJECT" "${NON_CONSUMER_HOMES[@]}"
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
     | gate_grep -E 'bit_identity::|repr_bits|eq_bits' \
-    | gate_grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
-    | gate_grep -vE '^crates/geom-core/src/interval\.rs:' \
-    | gate_grep -vE '^crates/topo/src/source\.rs:' \
-    | gate_grep -vE '^crates/editor-core/src/eval/memo\.rs:')
+    | gate_grep -vE "$(gate_record_anchor_any "${NON_CONSUMER_HOMES[@]}")")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "bit-identity channel use above — the channel is RETIRED from production (M4 PR 5, N6); use GeomSource, or revise DESIGN.md before adding any consumer"
     exit 1
   fi
-  gate_ok "no bit-identity consumer outside the four non-consumer rows"
+  gate_ok "no bit-identity consumer outside the ${#NON_CONSUMER_HOMES[@]} non-consumer rows"
+}
+
+# EVERY ROW IS IN THE CLEAN FIXTURE, which is `lib.sh`'s
+# exact-skip contract read for a whole-file skip: a skip no fixture
+# exercises is dead in every case, and an anchor that over-narrows is
+# then noticed by nobody. Each home carries the channel use it is
+# exempted FOR, so the clean case reds the moment one of them stops
+# being covered.
+gate_plant_clean() {
+  gate_plant_clean_sources "$1"
+  local home
+  for home in "${NON_CONSUMER_HOMES[@]}"; do
+    mkdir -p "$1/${home%/*}"
+    printf 'pub fn same(a: f64, b: f64) -> bool { geom_core::bit_identity::eq_bits(a, b) }\n' \
+      > "$1/$home"
+  done
+}
+
+# The home followed by a colon that is not a line number — one of the
+# three shapes `gate_record_anchor`'s header enumerates, and the one a
+# skip that ends at `:` exempts.
+plant_colon_after_the_home_that_is_not_a_line_number() {
+  local home
+  for home in "${NON_CONSUMER_HOMES[@]}"; do
+    printf 'pub fn same(a: f64, b: f64) -> bool { geom_core::bit_identity::eq_bits(a, b) }\n' \
+      > "$1/$home:x.rs"
+  done
 }
 
 plant() {
@@ -86,8 +122,10 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_after_block_comment
+  gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, doc comments and a string literal naming the channel" plant_prose_only
-  printf '%s selftest OK: passes a clean fixture and prose/doc/string mentions of the channel; fires on a use, and on a use hidden behind a block comment; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  gate_selftest_homes "${NON_CONSUMER_HOMES[@]}"
+  printf '%s selftest OK: passes a clean fixture carrying every non-consumer row, and prose/doc/string mentions of the channel; fires on a use, on a use hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
