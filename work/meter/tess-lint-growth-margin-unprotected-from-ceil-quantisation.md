@@ -36,15 +36,23 @@ shipped lattice does not contain `t = 26` and reports **70**. That is
 **7.6923%** — over the envelope and over the gate's entire margin, at
 the shipped pair, from the instrument alone.
 
-**It is not a corner case, and the corpus is in the wrong band.** A
-`ceil`'d miss costs a whole division, so the relative excess is largest
-where the division count is smallest. Three independent random searches
-over bounds, each against a far finer lattice on the same range, agree
-on that shape: exceedances of the envelope concentrate below a hundred
-true cells and were not found above `1e5`. `span_opt_cells` is a sum of
-per-analysis-cell optima, and on `docs/tess-budget-data/tess-budget-baseline.csv`
-the median per-cell optimum is **44.4**, with **56 of the 64 sized
-faces averaging under 100**.
+**It is not a corner case, and the corpus is in the wrong band.** One
+missed division out of `n` is `1/n`, so the excess is bounded below by
+the COARSEST AXIS of the answer and has nothing to do with how fine the
+aspect lattice is. `span_opt_cells` is a sum of per-ANALYSIS-CELL
+optima, and on `docs/tess-budget-data/tess-budget-baseline.csv` the
+median per-cell optimum is **44.4 cells** — near seven divisions an axis
+if square — with **56 of the 64 sized faces averaging under 100** and
+eleven under 25. A whole division out of seven is 14%, three times the
+envelope. That is arithmetic over the committed file, not a draw.
+
+**Three independent random searches corroborate and agree on nothing
+finer.** All found exceedances, all found frequency and size falling
+together as the division counts rise, all put the tens-of-percent
+excesses below a hundred true cells. Two found none above `1e5` true
+cells and the third found some, at 6%. None of the three draws is
+recorded, which is why they cannot be reconciled — the same defect
+`work/meter/tess-meter-sampled-retune-figure-unreproducible` is about.
 
 **What this row is NOT.** It is not a request to raise the sample count
 further. `tess_meter::SPLIT_SCAN_DECADES`' docs record why the `ceil`'d

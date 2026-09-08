@@ -977,20 +977,29 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// here calling the envelope the largest factor a `ceil`'d count can
 /// inherit from the lattice is false, and this is the counterexample.
 ///
-/// **Where it goes furthest over is where the corpus lives.** Three
-/// independent searches over random bounds, each against a far finer
-/// lattice on the same range, agree on the shape: exceedances are a
-/// small percentage of draws, and they CONCENTRATE where the true cell
-/// count is small — tens of percent of excess under ten true cells,
-/// still tens of percent between ten and a hundred, and none found
-/// above `1e5`. None of those three draws is recorded, so no proportion
-/// from them is quoted here as a reading; what is not draw-dependent is
-/// the direction, and the exhibit above. The regime, though, is a
-/// reading of the committed baseline and re-derivable from it:
-/// `span_opt_cells` is a sum of per-analysis-cell optima, its median
-/// per-cell optimum is **44.4**, and **56 of the 64 sized faces average
-/// under 100** — squarely the band where the excess runs furthest past
-/// the envelope, not the band above it.
+/// **How far over it goes is set by the DIVISION count, and the corpus's
+/// is small.** One missed division out of `n` is `1/n`, so the excess
+/// is bounded below by the coarsest axis of the answer and has nothing
+/// to do with how fine the aspect lattice is. `span_opt_cells` is a sum
+/// of per-ANALYSIS-CELL optima, and on the committed baseline the
+/// median per-cell optimum is **44.4 cells** — near seven divisions an
+/// axis if square — with **56 of the 64 sized faces averaging under
+/// 100** and eleven under 25. A whole division out of seven is 14%,
+/// three times the envelope, and that arithmetic is a reading of the
+/// baseline rather than a draw. It is also why the exhibit above is at
+/// 65 cells and not at 65,000.
+///
+/// **Random searches say the same thing and agree on nothing else.**
+/// Three independent ones, each drawing bounds against a far finer
+/// lattice on the same range, all found exceedances, all found both
+/// their frequency and their size falling as the answer's division
+/// counts rise, and all put the large excesses — tens of percent —
+/// below a hundred true cells against single digits above. They
+/// disagree about whether the highest band is clean: two found no
+/// exceedance above `1e5` true cells and the third did, at 6%. None of
+/// the three draws is recorded, which is exactly why they cannot be
+/// reconciled, and no proportion from any of them is quoted here as a
+/// reading.
 ///
 /// **So what the sample count bought is stated exactly.** It bounds the
 /// aspect scan's resolution, which is the continuous half; on the
