@@ -2,11 +2,12 @@
 id: local-half-restates-ci-pins-as-literals
 kind: issue
 title: the local half restates ci.yml's tool pins as literals in five places and nothing reconciles them
-status: review
+status: closed
 opened: 2026-09-04
 refs: [nightly-pin-reading-idiom-four-copies, ruff-pin-read-shares-the-first-match-shape]
 branch: ciw/pin-reconciler
 pr: 2070
+closed: 2026-09-07
 ---
 
 `ci.yml`'s workflow-level `env:` block is this repo's single source of
@@ -122,3 +123,14 @@ The blind-spot list at `PIN_FREE` no longer states a COUNT: a review planted
 four shapes it did not contain and one it described wrongly (`v1.2.3-rc1` is
 not invisible to the literal regex — the `1.2.3` inside it matches). Three of
 the four are now fixed rather than listed.
+
+## Closed 2026-09-07
+
+PR 2070. `scripts/check-ci-mirror-parity.py`'s claim 11 reconciles every
+version literal in the tracked files under `local-scripts/` against the pins
+`ci.yml` declares today — two arms, one on the value and one on the tool the
+line names — and the literals a human reads stay literals, which is what this
+item asked for over a substitution. The population is `git ls-files`, not a
+roster; `PIN_FREE` is the inversion (it declares the three literals that are
+NOT pins), so an undeclared literal is an error and a declaration whose
+literal disappears is an error too.
