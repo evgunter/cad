@@ -767,3 +767,54 @@ in the same place, so that a scene becoming document-built fires and
 says `C15` became dischargeable. `C15` stays OPEN: the defect is live,
 what closes it is corpus-side, and Ev's second clause on `D201` scopes
 that as not urgent rather than as done.
+
+## Unit 8 reported; two corrections to the orchestrator's brief (2026-09-08)
+
+PR 2177, green. The lane checked all four of my claims against the
+committed CSV and none came back false — the seven pairs, the five
+scenes, the ordinals, 0 of 64 sized rows named, the five `Kind`
+variants, the bit-identical `grid_cells`/`span_opt_cells`. Two things
+it corrected are MINE, and both are the same mistake in different
+sizes: a claim stated more widely than what was measured.
+
+- **`worst_cert` "in its last digits" over-generalised.** It moves
+  within four of the seven pairs and is bit-identical in the other
+  three (`loft_prism`, `nonuniform_loft`, `s_duct`). The full row of
+  total-ratio movements is 1.4652 / 0.8788 / 0.1304 / 0.0182 / 0.0146
+  / 0 / 0 — so three of the seven pairs cost a swap nothing on the
+  reported side either, which the single worst-case figure hid.
+- **The module docs are not defective, and my brief said they were.**
+  I wrote that `tools/tess-lint/src/lib.rs`'s three-ratio list misled
+  me into thinking `worst_dev` gates. It does not: the list is at
+  `:22-38` under *"# 1. The report"*, the gate is a separate section
+  from `:52`, and the `held` bullet explicitly flags the one ratio that
+  DOES reach the gate while nothing of the kind sits on `total`. The
+  docs already draw the distinction. I misread a correctly sectioned
+  list and then blamed the list. Nothing was filed, which is right.
+
+The lane also declined to assert the reported-side figure, and its
+reason is better than my leaving it open: **an assertion that goes red
+when the corpus IMPROVES is not a guard.** A pin on `worst_dev`'s
+movement would fire the day a pair's two members came to agree. That
+is a general test worth carrying — it is the cannot-fail defect's
+mirror image, an assertion that CAN fail but only in the wrong
+direction.
+
+### Operations: the shared working tree, and a stale `main`
+
+Three lanes were dispatched into what turned out to be ONE working
+tree at `/home/user/cad`, and the orchestrator's own post-merge check
+staged `work/` from `origin/main` onto a lane's checked-out branch
+before anyone noticed. Restored, and every lane now has its own
+`git worktree`; the orchestrator works only in `/home/user/cad-orch`.
+
+Then the fix made a second mess: moving a lane out, I told it to
+`git checkout main` first — and this container's local `main` is a
+pointer from 2026-09-04, **11,510 commits behind `origin/main`**. That
+parked the shared tree on an ancient snapshot, where unit 8 read
+`r.nurbs.is_some()` and an eight-column identity list and correctly
+reported it as a possible sibling-lane conflict. It was mine. The tree
+is re-parked detached on `origin/main`.
+
+Both are worth carrying: **concurrent lanes need one worktree each, and
+`main` in an ephemeral container is not necessarily `origin/main`.**
