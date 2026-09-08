@@ -753,3 +753,26 @@ happened twice on this unit (the interval-additivity gate, then
 clippy on imports gated only by use); the brief's pre-push list now
 names the additivity script and clippy in BOTH feature sets, and
 "verified" means the untruncated output was read.
+
+## EVAL-9 MERGED (2026-09-08, PR 2190, merge 5c9f167f9)
+
+Green on the merged head (`201163481`, main merged after EVAL-8; the
+state-sync commit on top is docs-only). Every slot feeds its nominal
+f64 beside its lane bits under `tag::slot`'s word; both lists come
+through one door (`slots::eval_slots` at the lane environment and at
+the document's nominal one, carried on `wire::LaneEnv::nominal`) and a
+slot that refuses at the nominal refuses its node typed; format 6 → 7;
+the profile stream's loop and step lists are length-prefixed and
+`program::NONE` retires into `tag::presence` with its number recorded
+dead by the group census (the first retirement inside a `tag_groups!`
+group, and the mechanism now exists for the next). Closes
+`interval-content-key-hashes-bits-the-pre-pass-does-not-read` and
+`profile-program-stream-is-not-length-prefixed`. **To DOCM ((DOCM
+orchestrator))**: `eval/memo.rs`'s slot hashing is untouched, and its
+header sentence defining the key without the nominal is now
+incomplete — theirs to reword. **For the `[ev]` PR**: `docs/DESIGN.md`'s
+list of the content key's inputs needs the nominal. Residue on EVAL's
+slate: `nominal-environment-is-rebuilt-per-node-in-wire` (unit 10,
+below). Spec lesson recorded above: item 1 and claim 2 of the EVAL-9
+spec contradicted each other and the lane was right to keep the rule
+and change the proof.
