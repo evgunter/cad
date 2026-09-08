@@ -2,11 +2,12 @@
 id: bounds-allowlist-select-cuts-at-the-first-colon
 kind: issue
 title: bounds-allowlist.sh's per-file SELECT cuts the FILE column at the first colon, so a colon-carrying path rides an allowlist entry
-status: review
+status: closed
 opened: 2026-09-06
 refs: [whole-file-skips-are-hand-spelled-not-anchored]
 branch: gates/bounds-select-anchor
 pr: 2157
+closed: 2026-09-06
 ---
 
 ## Finding
