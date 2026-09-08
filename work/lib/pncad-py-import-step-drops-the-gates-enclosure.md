@@ -4,6 +4,7 @@ kind: issue
 title: pncad-py's import_step drops the gate's enclosure, so a Python import-then-measure pays two certified quadratures
 status: open
 opened: 2026-09-03
+needs_ev: true
 ---
 
 
@@ -50,3 +51,28 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+Python's importer drops the gate's `enclosure` (the import's own
+certified `MassProperties`, "not a second computation") and hands back
+a bare `Body`, so import-then-`mass_properties` runs the quadrature
+twice (25–50 % of the row's wall at default ε). Two shapes, and the
+choice is about what a `Body` handle IS:
+
+- **(A) The report carries it.** `import_step` answers an
+  `ImportReport` (the value class of the sibling question) with
+  `.body` and `.enclosure` (`MassProperties`) beside the record rows;
+  `Body` stays a pure handle and `mass_properties` keeps its one
+  meaning. A caller who wants the free number reads it off the report.
+  Recommended, together with (A) on the sibling.
+- **(B) The handle carries it.** `Body` gains an
+  `Optional[MassProperties]` (`None` unless it arrived through a gate)
+  and `mass_properties` answers from it when present — the natural
+  journey is free without reading a report, at the price of a handle
+  whose method means two things.
+- **(C) Leave the double quadrature** and correct the field's docs.
+
+Recommendation: **(A)**; if you prefer the journey to be free without
+the caller touching a report, (B) is the smaller change to write and
+the larger one to explain.
