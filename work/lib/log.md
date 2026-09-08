@@ -3557,3 +3557,66 @@ this head's last merge (`bench_scene.py`, the assembly tests, the
 audit page, tracker files), none overlapping the diff; merged in for
 the log tail alone and landed on run 34225477952's green without
 another chase.
+
+**LIB-TEAPOT MERGED (2026-09-08, #2206; full protocol — block LIB-13
+slot 2, v6 dual at ordinal 304, sample #163). The tour's teapot is
+ONE recipe document and the numeric scans are gone.** The pot's
+revolve is hollowed twice by `Node::Shell` over one operand and wall,
+parted only by the open list (empty for the sealed body whose census,
+capacity and Void class §3's pins read; the mouth's `Band`/`BandPi`
+half-discs BY NAME for the cup, which comes back as ONE rim face); the
+lid's revolve rolls through `Node::Fillet` on its `BandRim` names —
+THREE names, not the spec's six, because an annular profile takes the
+emitter's lamina branch (one closed rim per meridian vertex, no
+`BandRimPi`) — and in TWO requests where `fillet_edges` takes one,
+because the one-request output cannot be NAMED: the flange's rim and
+the dome's foot both slit the flange cone's seam meridian and
+`RoleSeg::BandSlit` is keyed on the source edge alone, so the emitter
+refuses `Naming(Duplicate)` before any geometry is doubted (§8's first
+stop clause, fired one step over from where it was written; filed as
+`blend-slit-name-collides-when-two-rims-share-a-meridian` — editor-
+core's code, on LIB's slate by the spec's routing, RE-HOMED below —
+with the true shape after the dual: two rims whose bands slit the SAME
+seam meridian, adjacency necessary not sufficient); the spout's
+revolve is placed by `Node::Transform` in axis-angle, whose cos/sin of
+`atan2(0.8, 0.6)` come back as the 3-4-5 components and whose placed
+root annulus sits on the authored root at exactly 0.0 — MEASURED off
+the body only at the fix pass, the delivered assertion having been an
+arithmetic identity (the dispatcher's seeded question, found by both
+reviewers); the handle is `Datum::Axis` + `Node::Tube`; the two joins
+the operand gate has no arm for are `Node::Boolean` nodes that refuse
+at `evaluate` under the kernel's `CurvedPairUnsupported` (same face,
+operand and kinds as the kernel-direct union; wall 3's `other_face`
+KEY moved 1v1→2v1 with the arena numbering, disclosed at the fix).
+`plane_chart_at` and `rim_at` deleted — the role names were asserted
+equal to the scan's keys in the branch before the scan went, and what
+ships reads each rim's circle back THROUGH its name. `gallery_document`
+exposes the recipe (four roots; three sinks deleted, which is the
+document layer saying a recipe cannot hold a narration body — filed).
+Tess budget: the gate clean against BOTH the pre-PR and the re-cut
+baseline; the baseline re-cut anyway because 27 teapot rows gained the
+durable face `name` and three `teapotlid` rows permuted their
+triangle counts with the two-request roll's face order — a file that
+moved with no geometry moved, §8's third clause contradicted and said
+so, the reverse re-cut scheduled by the live probe that goes red the
+day `BandSlit` gains its discriminator. Render lanes: wild and FreeCAD
+"matches this render"; uv NEUTRAL on the lid's re-slotted cells — the
+one moved cell, a §9 finding by the spec's letter, cause disclosed.
+Audit: rows 27 and 44 → YES on `TestTeapot` and `TestTorusvessel`
+(the torus-walled vessel's sealed hollow against its own closed form
+at two thicknesses — a row the spec did not ask for and the page's
+discipline required), row 45 stays NO on `Body::merge_coplanar_faces`,
+G17 `stops` 3→1, headline 39 of 45 (36 + 3 YES\*, 6 blocked). Dual:
+CONVERGED (A-W-F 1/6/7 / A-W-F 1/6/7, rubric 4/3/3 both), severity
+labels swapped on both headlines, zero unilateral MAJORs, no tally
+candidate, pair flagged under item 5 (the build-slot banner leak,
+filed). Fix pass IMPLEMENTER-INHERITED: all seventeen items taken, none declined, six commits: the spout's placement MEASURED off the placed body — root and tip annuli named at the revolve and read at the transform against the exact image under the direction's own matrix, ≤1e-15, axis cross 0e0, both subjects guarded off the turn's fixed axis, the bitwise libm pin retired for the `erf` precedent and the observed cos/sin REPORTED (the Python row pins the same; deleting `Node.transform` now fails at 0.0078125 vs −0.1266); the Python lid row pins each selected rim's station before the roll and the three band spine stations after it (the vertex-3 mutant red at 0.21198 vs 0.21875), `RIMS` as `(vertex, radius, station)`, `SEG_MOUTH` read off the built revolve; `rim_circle` from the NAME to the one edge that carries it and the circle off that edge's own carrier (R2's same-station mutant unreachable); finding 6 ATTEMPTED live in `per_rim_answers` with the `Naming(Duplicate)` pinned and the reverse re-cut scheduled in the assertion; `demos/tour/tests/teapot_document.rs` with the rim-pair table ({1,2} and the triple refuse; five pairs incl. adjacent {2,3},{3,4} build 8/16/8) and the two-requests-equal-one-request row (census, the three bands' stored `(station, major, minor)` bit for bit, mass to 1e-14, face ORDER asserted to differ); the mouth-chart pin restored both ways; `join_outcome` with a reachable `Ok` arm; the germ-pair sentence matched whole; R1's mouth mutants as a Python row with V/A EXACTLY equal across the two orders; the issue corrected to the shared-meridian invariant with the vertex→segment table (0→5, 1→1, 2→1, 3→2, 4→3, 5→5); wall 3's key disclosed at four sites; stale prose at six sites; the gallery `why` truthful and `concat!`-built; the re-cut disclosed as UNFORCED (lint clean against both baselines, §8's clause contradicted and said so); the uv cell a §9 finding with f005's loop-start change named; the lid STL measurement recorded; two duplications disclosed and FILED (`no-facade-door-mints-a-revolves-role-names`, `a-recipe-cannot-hold-a-narration-body-without-it-becoming-a-root`, gap-commented at `gallery_document`); the note renders the germ pair not `Debug` and drops 11,261→9,764 chars. nextest 6662/6662, Python 698 OK, pinned ruff, tess-lint 0 findings and 0 rows moved by the fix pass; the finalize 403 hit one intermediate head once and never recurred. Orchestrator
+notes: the implementer lane was killed by a container restart mid-unit
+with the branch unpushed (the clone survived; resumed; "push early" now
+means before the first build); the reviewers' scratch must live in
+their own lane directories, not the shared root (`memories/` lesson
+candidate, not written — Ev's call). Spec deleted at merge, ledger
+row written. RE-HOMING: `blend-slit-name-collides-…` and
+`recipe-cannot-hold-a-narration-body` are editor-core findings filed
+on LIB's slate; they stay here as LIB-owned CROSS-FENCE items until
+the owning program claims them (STATUS shows them under lib).

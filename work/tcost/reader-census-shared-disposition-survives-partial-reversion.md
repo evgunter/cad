@@ -71,3 +71,17 @@ its ledger commit (STYLE-9, `sure`), on the orchestrator's own ledger
 fix. Filed rather than fixed by that PR's fix pass: strengthening the
 check requires ruling on every `Shared` row, which is wider than the
 unit.
+
+## Re-homed to S-TCOST (2026-09-08)
+
+Moved from `work/meter/` to `work/tcost/` by `git mv` as METER's exit walk
+disposed of its residue (`docs/METER-EXIT-WALK.md` §5, ratified by Ev on
+2026-09-08 at PR #2212). Id and body unchanged.
+
+`work/tcost/program.md`'s `paths` carries `crates/test-utils/*`, and the
+whole fix is in `crates/test-utils/tests/reader_census.rs` and
+`crates/test-utils/src/source.rs`. The walk's alternative candidate was
+CIW, whose `paths` names no `crates/test-utils` path and whose `keep_out`
+cedes test mechanism. METER found the instance and cannot rule on the
+class: strengthening the check means dispositioning every `Shared` row in
+`LEDGER`, which is this program's ruling to make.

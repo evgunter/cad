@@ -1443,3 +1443,11 @@ row's failure message says "reproduce with CAD_FUZZ_SEED=<random>"
 naming a seed the row never used (executed on
 `review_m1_pr4.rs:1544`'s coverage row). This program's file; not
 filed by TOPO.
+
+(BLEND orchestrator, 2026-09-08) Seam announced for BLEND-6
+(`docs/BLEND-6-SPEC.md`, block BLEND-B1 slot 0): the repaired boss and
+its dimple twin are homed once in `crates/sweep/src/test_support.rs`
+and their copies in `crates/sweep/tests/review_fillet_h5_r1_probes.rs`
+and `fillet_h5_hostless_rim.rs` deleted in favour of it; the ring-
+clearance refusal pins in those files and `fillet_h5_r2_probes.rs`
+flip to carves. A new suite `blend6_ring_clearance.rs` is added.
