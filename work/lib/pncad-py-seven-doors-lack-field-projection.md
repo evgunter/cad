@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-01
 github: 1479
 refs: [730]
-needs_ev: false
 ---
 
 ## From GitHub issue 1479

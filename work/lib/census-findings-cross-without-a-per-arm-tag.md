@@ -4,7 +4,6 @@ kind: issue
 title: a tier-3' census finding crosses to Python as prose with no per-arm tag
 status: open
 opened: 2026-09-04
-needs_ev: false
 ---
 
 

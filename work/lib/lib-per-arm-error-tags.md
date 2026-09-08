@@ -4,7 +4,6 @@ kind: issue
 title: per-arm Python error tags: one tag per op hides which arm refused
 status: open
 opened: 2026-09-03
-needs_ev: false
 ---
 
 
