@@ -19,14 +19,14 @@
 //!    disc loop into the bottom cap. Genus rises by one per hole.
 //! 3. **Sweep.** Per loop of the seed face (outer, then rings in
 //!    canonical hole order): one strut `mev` per vertex (the
-//!    `he1 == he2` case — raised vertex, `ExtrudedPoint` description),
+//!    `he1 == he2` case — swept vertex, `ExtrudedPoint` description),
 //!    then one side-quad `mef` per segment (the new edge is the **top
 //!    rim**, `PlacedSegment` at the translated placement; the new face
 //!    is the side wall, plane or cylinder — a CONCAVE arc's wall is
 //!    attached `sense: false`, M5 S11: its material lies outside the
 //!    carrier, against the chart normal), the last `mef` closing
-//!    against the first top rim. The original loop survives raised —
-//!    the swept face becomes the top cap.
+//!    against the first top rim. The original loop survives
+//!    translated by `w` — the swept face becomes the top cap.
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
 //!    sharing) keep the conventional description structurally;
 //!    otherwise `classify_dihedral` at the strut midpoint decides —
@@ -36,8 +36,8 @@
 //!    `TangentIntersection`, under-determined ⇒ an image in the
 //!    previous wall's chart), Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
-//!    placeholder since `mvfs`) is replaced by the raised loop's Newell
-//!    plane.
+//!    placeholder since `mvfs`) is replaced by the translated loop's
+//!    Newell plane.
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
 //!    `Intersection { cap plane, side surface, witness }` through the
@@ -130,20 +130,27 @@ pub struct Extruded<T: Real> {
     /// wedge 0, and the at-rest gate refuses that undeclared
     /// (`topo::ValidationError::UndeclaredCusp`) — correctly, because
     /// this builder emits no contact record for the profile's
-    /// declaration. Such a body must be validated through
-    /// `topo::validate_geometric_declared` with the caller's own
-    /// declaration until the sweep lane emits one (the declaration-
-    /// emission handoff, MATE-3).
+    /// declaration. Validate such a body through
+    /// `topo::validate_geometric_declared`, passing the caller's own
+    /// declaration.
     pub body: Body<T>,
     /// The solid.
     pub solid: SolidKey,
     /// Its single shell.
     pub shell: ShellKey,
-    /// The top cap (the swept face — on the sketch plane translated by
-    /// the extrusion vector; carries the profile's canonical winding
-    /// when extruding along `+n`, crate docs).
+    /// The cap at the **far end of the sweep**: the swept face, on
+    /// the sketch plane translated by the extrusion vector `w`, its
+    /// outward normal along `w`. The name is an end of the sweep, not
+    /// a height — `w` is signed against the sketch normal (`n · d` for
+    /// [`Extrusion::Distance`]), so under `w · n < 0` this cap lies on
+    /// the `−n` side of the sketch plane. Which cap carries the
+    /// profile's canonical winding is a direction convention, stated
+    /// once in the [crate docs](crate).
     pub top: FaceKey,
-    /// The bottom cap (on the sketch plane).
+    /// The cap at the **near end of the sweep**: the face on the
+    /// sketch plane itself, its outward normal opposite `w`. The name
+    /// is an end of the sweep, not a height. Winding, as above: the
+    /// [crate docs](crate).
     pub bottom: FaceKey,
     /// Side-wall faces, per loop (outer first, then holes in canonical
     /// order), per segment in swept-traversal order.
@@ -692,14 +699,14 @@ pub fn extrude<T: Decide>(
     }
 
     // ---- Phase 5: the swept face survives as the top cap; attach its
-    // plane (raised outer loop in next order ⇒ outward normal along the
-    // extrusion). ----
-    let raised: Vec<Point3<T>> = cap_points(&loops[0], &points[0], place)
+    // plane (translated outer loop in next order ⇒ outward normal
+    // along the extrusion). ----
+    let far_loop: Vec<Point3<T>> = cap_points(&loops[0], &points[0], place)
         .iter()
         .map(|&q| q + w)
         .collect();
     let top_plane =
-        newell_plane(&raised, band).map_err(|source| ExtrudeError::CapPlane { source })?;
+        newell_plane(&far_loop, band).map_err(|source| ExtrudeError::CapPlane { source })?;
     let top_surface = body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
 
     // ---- Phase 6: rim upgrades (module docs — the ratified rim
@@ -810,7 +817,7 @@ fn sweep_loop<T: Decide>(
         );
     }
 
-    // Struts: one raised vertex per loop vertex, in traversal order.
+    // Struts: one swept vertex per loop vertex, in traversal order.
     let mut struts: Vec<MevCreated> = Vec::with_capacity(n);
     for j in 0..n {
         let m = body.mev(
@@ -1108,7 +1115,7 @@ fn side_surface<T: Decide>(
     match segs[j].chord.kind {
         SweptKind::Line => {
             // Quad corners in the side loop's next order starting at
-            // the raised start vertex: v_j′, v_j, v_{j+1}, v_{j+1}′.
+            // the swept start vertex: v_j′, v_j, v_{j+1}, v_{j+1}′.
             let corners = [qs[j] + w, qs[j], qs[(j + 1) % n], qs[(j + 1) % n] + w];
             let plane = newell_plane(&corners, band).map_err(|source| ExtrudeError::SidePlane {
                 loop_index,

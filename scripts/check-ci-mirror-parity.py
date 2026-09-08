@@ -69,6 +69,16 @@ allowlist is not read. And ENVIRONMENT IS NOT A FLAG: render.yml's
 pair this claim reads — so that divergence is live, deliberate, correct, and
 passes here in silence rather than through an exemption.
 
+CLAIM 4 HAS TWO ARMS OVER ONE POPULATION: does a script under `scripts/` or
+`demos/` run at all, and does its `--selftest` mode run. They are one question
+with one parameter different and they are written as one loop, because the
+second one written separately grew a second invocation matcher, a second local
+population and a third read of the workflow directory inside a day.
+`gate-roster.sh` enforces the second arm's rule over `scripts/gates/*`, which
+is why that directory is outside both. What counts as a caller for the second
+arm is a WORKFLOW and nothing else: every hosted job deletes `local-scripts/`
+at checkout, so a selftest whose only caller lives there runs in no CI at all.
+
 CLAIM 11 IS THE OTHER DIRECTION ENTIRELY: not what the two halves RUN, but a
 value one of them RETYPES. ci.yml's workflow-level `env:` block is this repo's
 single source of truth for tool versions, and the local half restates some of
@@ -226,15 +236,6 @@ MIRROR_EXEMPT = {
         "local act and every number in this document came from it; what does "
         "not mirror is stapling an environment block to a local reading and "
         "committing it",
-    ),
-    "scripts/opt-level-calibrate.py": (
-        "hosted",
-        "the opt-level calibration lane. Its free arm is READ from this "
-        "repository's own hosted run history through the Actions jobs API, and "
-        "its measured arm is a number about the 2-vCPU runner class — which is "
-        "the entire question. A developer box can run neither half "
-        "meaningfully: its own ratio is the measurement this lane exists to "
-        "distrust",
     ),
 }
 
@@ -809,6 +810,98 @@ def invocations(lines: list[str]) -> set[str]:
     SCRIPT_RE keeps `local-scripts/ci-local.sh` from being read as an
     invocation of `scripts/ci-local.sh`."""
     return {m for line in lines for m in SCRIPT_RE.findall(line)}
+
+
+def _shell_text(lines: list[str]) -> str:
+    r"""One `run:` block as ONE unit of matching, with trailing comments gone.
+
+    TWO DECISIONS, BOTH OF THEM ABOUT WHICH WAY TO BE WRONG.
+
+    A BLOCK AND NOT A LINE. `scripts/foo.py --selftest` is one physical line
+    today; a `\`-continuation, a `for s in a b; do python3 "$s" --selftest;
+    done`, or a variable holding the path are all the same row written by
+    someone tidying up, and read line by line each of them says the selftest
+    is not invoked. That is a FALSE RED on a correct tree, and claim 4's own
+    header settles which direction to take when a matcher cannot be exact:
+    under-report rather than red, because a check that reds on a correct
+    change gets routed around and then detects nothing at all. So the unit is
+    the block, and the cost is stated where the arm is: a block that names one
+    path and passes `--selftest` to a DIFFERENT one reads as a caller.
+
+    TRAILING COMMENTS ARE NOT CODE, and this is the one direction worth
+    spending exactness on: `true  # was: scripts/foo.py --selftest` is a row
+    someone has DELETED, and counting it is the precise failure this arm
+    exists to catch. `COMMENT_RE` is full-line only, so it is no help inside a
+    block. Quotes are tracked so a `#` inside an argument survives.
+    """
+    out = []
+    for line in _join_continuations(lines):
+        q: str | None = None
+        cut = len(line)
+        for i, ch in enumerate(line):
+            if q is not None:
+                if ch == q:
+                    q = None
+            elif ch in "'\"":
+                q = ch
+            elif ch == "#" and (i == 0 or line[i - 1].isspace()):
+                cut = i
+                break
+        out.append(line[:cut])
+    return "\n".join(out)
+
+
+def declares_selftest(path: str) -> bool:
+    """Does this script IMPLEMENT a `--selftest` mode, rather than mention one?
+
+    A full-line comment is not an implementation — `demos/render-wild.sh` names
+    the flag once, in prose, about another script's mode. Everything else
+    counts: an `add_argument("--selftest")`, a `case` arm, a `[ "$1" =
+    --selftest ]`, and the usage string beside them. A file that is not UTF-8
+    is not a finding, for the reason `reachable` reads the same population
+    tolerantly.
+    """
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        return any("--selftest" in ln for ln in fh.read().splitlines()
+                   if not COMMENT_RE.match(ln))
+
+
+def selftest_callers() -> set[str]:
+    """Paths a WORKFLOW passes `--selftest`, read one `run:` block at a time.
+
+    A WORKFLOW, AND NOTHING ELSE. `local-scripts/` is not a caller here, and
+    that is the whole point rather than an oversight: EVERY hosted job deletes
+    that tree at checkout (the `prune local-only tooling` step, on the
+    structural rule this file's claim 6 enforces), so a selftest whose only
+    caller lives there runs in NO CI AT ALL. Counting it would let this arm
+    pass the exact shape it was written to catch. The local half still owes
+    the row — that is claims 1 and 7 — but the row that PROVES a guard fires
+    is the hosted one.
+
+    Reading only `step.run` and not `step.lines` is the same distinction claim
+    10 draws at `Step`: a step NAMED "opt-level calibrator selftest" is not a
+    step that runs one.
+
+    WHAT IT CANNOT SEE, stated because a disclosed blind spot is a work order.
+    All three under-report — they read a non-caller as a caller and so miss an
+    orphan — which is the direction `reachable` argues for and for the same
+    reason. (1) A `run:` block is not executed, so a path named with the flag
+    inside a heredoc body, an `echo`, or an `if false` branch counts. (2) A
+    path that reaches the command ONLY through a variable set in a different
+    step is invisible; the fix is a literal, not an exemption. (3) A `.py`
+    under `scripts/gates/` is outside this population (non-recursive walk) and
+    outside `gate-roster.sh`'s (`*.sh`); there are none.
+    """
+    out: set[str] = set()
+    for wf in sorted(os.listdir(WORKFLOW_DIR)):
+        if not wf.endswith((".yml", ".yaml")):
+            continue
+        for job in read_workflow(f"{WORKFLOW_DIR}/{wf}"):
+            for step in job.steps:
+                text = _shell_text(step.run)
+                if "--selftest" in text:
+                    out |= invocations(text.splitlines())
+    return out
 
 
 def gate_modes(lines: list[str]) -> set[str]:
@@ -1586,21 +1679,59 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     # BOTH halves plus every workflow file: `render.yml` is reached through a
     # `uses:` job and runs the render entry points, so a script owned only by
     # it is owned, not orphaned.
+    #
+    # TWO ARMS OVER ONE POPULATION, and they are one question with one
+    # parameter different: does this script run, and does its `--selftest`
+    # mode run. Written as a separate claim the second one grew its own
+    # invocation matcher, its own local population and its own read of the
+    # workflow directory within a day — three copies of a decision this file
+    # exists to keep single — so it is written here, in the loop it belongs
+    # to, sharing `SCRIPT_RE`, the closure, and the directory walk. The second
+    # arm's own caller rule is narrower than `owned` and says why at
+    # `selftest_callers`.
+    #
+    # THE POPULATION IS NON-RECURSIVE, which is what puts `scripts/gates/`
+    # outside BOTH arms: that directory is `gate-roster.sh`'s roster ground,
+    # and its rule — *a guard that has never been shown to fire is not a
+    # guard* — is the second arm's rule, enforced there for `scripts/gates/*.sh`
+    # minus `lib.sh`. A `.py` under `scripts/gates/` would be watched by
+    # neither this loop nor that roster. There are none, and if one appears
+    # the roster is the place to widen, not this walk.
     wf_seeds: set[str] = set()
     for wf in sorted(os.listdir(WORKFLOW_DIR)):
         if wf.endswith((".yml", ".yaml")):
             wf_seeds |= invocations(non_comment(f"{WORKFLOW_DIR}/{wf}"))
     owned = reachable(root, hosted | local | wf_seeds)
+    selftested = selftest_callers()
     for d in ("scripts", "demos"):
         for name in sorted(os.listdir(d)):
             p = f"{d}/{name}"
             if not os.path.isfile(p) or not name.endswith((".sh", ".py")):
                 continue
-            if p.startswith("scripts/gates/") or p in owned:
+            if p.startswith("scripts/gates/"):
                 continue
-            err(f"{p} is an executable check under {d}/ that NEITHER half names and no named script "
-                "reaches. Outside scripts/gates/ there is no roster property at all, so a check can be "
-                "written, committed and never run by anything — wire it into both halves, or move it")
+            if p not in owned:
+                err(f"{p} is an executable check under {d}/ that NEITHER half names and no named "
+                    "script reaches. Outside scripts/gates/ there is no roster property at all, so a "
+                    "check can be written, committed and never run by anything — wire it into both "
+                    "halves, or move it")
+                continue
+            # ARM TWO. `scripts/opt-level-calibrate.py --selftest` was
+            # substantial, was cited by a sibling lane's comment as the
+            # precedent for siting such a row, and was invoked by nothing —
+            # while the script itself ran three times a night, so arm one was
+            # satisfied and said so.
+            if declares_selftest(p) and p not in selftested:
+                err(f"{p} implements a `--selftest` mode and NO WORKFLOW under {WORKFLOW_DIR}/ passes "
+                    "it that flag. A selftest is the only evidence that a guard still fires, so one "
+                    "nothing runs makes the guard's greenness a statement about nothing. A row in "
+                    f"{os.path.dirname(LOCAL_HALF)}/ is not a substitute and is not read here: every "
+                    "hosted job DELETES that tree at checkout, so a selftest whose only caller lives "
+                    "there runs in no CI at all. Add the hosted row — and mirror it, which claims 1 "
+                    "and 7 want anyway. For a script under scripts/, that row belongs on a PER-PR "
+                    "job: a check sited only in a scheduled workflow surfaces at the next fire, to "
+                    "nobody, and a row that fails to run at all reports the same green as a row that "
+                    "ran and passed")
 
     # CLAIM 5 — the `tools/` crates. They are checked by `cd tools/X && cargo …`
     # rows, which carry no scripts/ or demos/ path for claim 1 to match; this is
@@ -2329,6 +2460,80 @@ def selftest() -> None:
         _append(HOSTED_HALF, "      - name: g\n        run: scripts/gone.sh\n")(t)
         _append(LOCAL_HALF, "scripts/gone.sh\n")(t)
     def orphan(t):             open(os.path.join(t, "scripts/orphan.sh"), "w").close()
+    # CLAIM 4'S SECOND ARM. `_declarer` plants a script that satisfies arm one
+    # — both halves name it — and implements a `--selftest` mode. Whether that
+    # mode has a caller is the only variable across the rows below.
+    #
+    # THE FILE CLASS IS A PARAMETER, not a constant. The first battery for this
+    # arm planted a `.sh` declarer only, and dropping `.py` from the
+    # population left the whole battery green while the real defect —
+    # `scripts/opt-level-calibrate.py` — walked straight through. A fixture
+    # that cannot see the file class of the live defect is not covering it.
+    def _declarer(path: str, body: str = 'add_argument("--selftest")\n'):
+        def go(t: str) -> None:
+            full = os.path.join(t, path)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w") as fh:
+                fh.write(body)
+            _append(HOSTED_HALF, f"      - name: d\n        run: {path}\n")(t)
+            _append(LOCAL_HALF, f"{path}\n")(t)
+        # NAMED, because `_case` reports `plant.__name__` and a battery of
+        # closures all called `go` says which claim failed and not which row.
+        go.__name__ = f"declarer[{path}]"
+        return go
+    py_selftest_never_run = _declarer("scripts/declarer.py")
+    sh_selftest_never_run = _declarer("scripts/declarer.sh", '[ "${1:-}" = --selftest ] && exit 0\n')
+    demos_selftest_never_run = _declarer("demos/declarer.py")
+    # A LOCAL CALLER IS NOT A CALLER, and this row is the one the first version
+    # of this arm got backwards — it pinned this shape as a case the checker
+    # must ACCEPT. Every hosted job deletes local-scripts/ at checkout, so a
+    # selftest reachable only from there runs in no CI at all: the arm has to
+    # RED here, not pass.
+    def selftest_local_only(t):
+        py_selftest_never_run(t)
+        _append(LOCAL_HALF, "scripts/declarer.py --selftest\n")(t)
+    # A CALLER THAT IS A COMMENT is a row someone deleted. `COMMENT_RE` is
+    # full-line only and cannot see this inside a `run:` block, so `_shell_text`
+    # is what has to.
+    def selftest_caller_commented_out(t):
+        py_selftest_never_run(t)
+        _append(HOSTED_HALF, "      - name: st\n        run: true  # was: scripts/declarer.py --selftest\n")(t)
+    # THE MODE NAMED IN ANOTHER SCRIPT'S TEXT. Not a caller either — scripts
+    # are not the caller population — which is how the calibrator's selftest
+    # came to look covered in three places while running in none.
+    def selftest_named_in_a_script(t):
+        py_selftest_never_run(t)
+        _append("scripts/check-1.sh", "echo see scripts/declarer.py --selftest\n")(t)
+    # THE SHAPES IT MUST ACCEPT. A hosted caller on one line; the same caller
+    # written as a loop over two scripts in one `run:` block, which is the
+    # plausible tidy-up that a line-at-a-time matcher reds with a message that
+    # is simply false; and a `scripts/gates/` member, whose uninvoked selftest
+    # is `gate-roster.sh`'s finding and must be silent here.
+    def selftest_run_hosted(t):
+        py_selftest_never_run(t)
+        _append(HOSTED_HALF, "      - name: st\n        run: python3 scripts/declarer.py --selftest\n")(t)
+    def selftest_run_in_a_loop(t):
+        py_selftest_never_run(t)
+        sh_selftest_never_run(t)
+        _append(HOSTED_HALF, "      - name: st\n        run: |\n"
+                             "          for s in scripts/declarer.py scripts/declarer.sh; do\n"
+                             '            python3 "$s" --selftest\n'
+                             "          done\n")(t)
+    def selftest_continued_line(t):
+        py_selftest_never_run(t)
+        _append(HOSTED_HALF, "      - name: st\n        run: |\n"
+                             "          python3 scripts/declarer.py \\\n"
+                             "            --selftest\n")(t)
+    # A MENTION IS NOT AN IMPLEMENTATION, in the other direction: a script
+    # whose only `--selftest` is a full-line comment about ANOTHER script's
+    # mode declares nothing. `demos/render-wild.sh` is exactly this on the
+    # real tree, and reporting it would be a false red with no fix available.
+    def selftest_only_a_comment(t):
+        _declarer("scripts/commenter.py", "# see scripts/declarer.py --selftest\n")(t)
+    def gates_selftest_uninvoked(t):
+        full = os.path.join(t, "scripts/gates/quiet.sh")
+        with open(full, "w") as fh:
+            fh.write('[ "${1:-}" = --selftest ] && exit 0\n')
     def tools_one_side(t):     os.makedirs(os.path.join(t, "tools/lonely"))
     def unpruned_job(t):       _append(HOSTED_HALF, "  extra:\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo hi\n")(t)
     def uppercase_job(t):      _append(HOSTED_HALF, "  buildXtra:\n    steps:\n      - uses: actions/checkout@v4\n      - run: cat local-scripts/ci-local.sh\n")(t)
@@ -2573,6 +2778,17 @@ def selftest() -> None:
     _case("is invoked by the hosted half only", gate_mode_one_side)
     _case("and no such file exists", ghost_path)
     _case("NEITHER half names", orphan)
+    _case("scripts/declarer.py implements a `--selftest` mode", py_selftest_never_run)
+    _case("scripts/declarer.sh implements a `--selftest` mode", sh_selftest_never_run)
+    _case("demos/declarer.py implements a `--selftest` mode", demos_selftest_never_run)
+    _case("is not a substitute and is not read here", selftest_local_only)
+    _case("scripts/declarer.py implements a `--selftest` mode", selftest_caller_commented_out)
+    _case("scripts/declarer.py implements a `--selftest` mode", selftest_named_in_a_script)
+    _ok_case(selftest_run_hosted)
+    _ok_case(selftest_run_in_a_loop)
+    _ok_case(selftest_continued_line)
+    _ok_case(gates_selftest_uninvoked)
+    _ok_case(selftest_only_a_comment)
     _case("named by neither half", tools_one_side)
     _case("checks the repo out and does not delete", unpruned_job)
     _case("job `buildXtra` checks the repo out", uppercase_job)
@@ -2636,6 +2852,9 @@ def selftest() -> None:
           "none; passes a clean fixture, and refuses the fixture's own `--root` on the gate of "
           "record; fires on a one-sided row, a "
           "one-sided gate MODE, a path both halves name that does not exist, an orphan script, a "
+          "`--selftest` mode no workflow invokes — as a .py, as a .sh, under demos/, called only "
+          "from the local half, called on a line that is a COMMENT, or merely named in another "
+          "script — a "
           "one-sided tools/ crate, a checked-out job that keeps either tree, an UPPERCASE job name doing "
           "the same, a second workflow file growing one, a prune that comes after the read, the siting job "
           "pruning, an unparseable workflow, a flush-style or three-space step block hiding a checked-out job, the siting job given a `needs:` onto a skipping job or `continue-on-error`, a merge key, an unknown job or step key, a tab, an unrecognised shell function spelling, an exemption that expired or was orphaned, a marker naming the wrong job or a renamed step, the markers "
@@ -2652,7 +2871,10 @@ def selftest() -> None:
           "closes, a FLAG_EXEMPT entry that expired, inverted, lost its pair or lost the flag it "
           "excused, a tool pin bumped in ci.yml while the local half went on naming the old version, "
           "a local literal that drifted onto a DIFFERENT pin's value beside the tool it is not, and a "
-          "PIN_FREE entry whose literal is gone — while accepting a value only a runner can expand, "
+          "PIN_FREE entry whose literal is gone — while accepting a `--selftest` mode invoked by "
+          "a workflow on one line, through a loop over two scripts in one `run:` block, or across a "
+          "line continuation, a scripts/gates/ member's uninvoked one, a script whose only mention of the flag is a full-line COMMENT about another script, a value only a runner can "
+          "expand, "
           "and a redirection or a substitution sitting between a cargo command and its flags")
 
 
@@ -2752,7 +2974,8 @@ def main() -> int:
           "invocations, of a cargo subcommand both halves run, and every version literal in the "
           f"tracked files under {PIN_TREE}/ is a version {HOSTED_HALF} pins today or is declared in "
           "PIN_FREE as something else, with every line that names a pinned tool carrying that "
-          "tool\u2019s current pin")
+          "tool\u2019s current pin, and every `--selftest` mode outside scripts/gates/ is passed that "
+          f"flag by a workflow in {WORKFLOW_DIR}/")
     return 0
 
 
