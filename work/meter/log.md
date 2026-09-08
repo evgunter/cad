@@ -623,7 +623,27 @@ in its ratified serialization with `,` swapped for `;`. **6 of the
 tour's 72 scene bodies can hand over an evaluation** (the three
 heatsinks and the three die stops), so 286 of 1353 rows carry a name
 and the rest are honestly empty, which is what Ev's second clause
-scopes as an outcome.
+scopes as an outcome. **The coverage is disjoint from the defect**:
+none of the 64 sized rows and none of the 14 rows in the seven
+same-shape pairs is named, so `C15` cannot be discharged by reading
+the column.
+
+**The fix pass corrected what the unit claimed, not what it did.** The
+sentence licensing 379 said the one-sided envelope was "the largest
+factor a `ceil`'d count can inherit from where a bound happens to sit
+relative to the lattice". It is not: the envelope bounds the
+CONTINUOUS excess, and a `ceil`'d miss costs a whole division —
+`muu = 100, mvv = 0.1` over a `1 × 10` box at `δ_s = 1` admits 65 cells
+at `t = 26` and the shipped scan reports 70, **7.6923%** against a
+4.9939% envelope and against the gate's whole 5% margin. Three
+independent searches put the exceedances below a hundred true cells,
+and the corpus's median per-cell optimum is 44. So `D206`'s premise
+survives its own closure, re-filed as
+`tess-lint-growth-margin-unprotected-from-ceil-quantisation`; what 379
+bought is the continuous half, now re-derived by a row instead of
+asserted in prose. Two range-claim figures went the same way — a
+scan-to-true ratio quoted as a ceiling is a sample at an unstated
+density, and denser sampling of the same range beats both.
 
 One sweep, with the deviation pass, at `3f55f361b22e`. Two columns
 moved for this unit's reasons (`opt_cells` −1.16%, `span_opt_cells`
