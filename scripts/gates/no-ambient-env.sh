@@ -189,7 +189,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, a block comment and a string literal naming the call" plant_prose_only
-  gate_selftest_homes "${ALLOWLISTED_HOMES[@]}"
+  gate_selftest_homes --subject "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   printf '%s selftest OK: passes a clean fixture carrying every allowlisted reader, and prose/block-comment/string-literal mentions of the call; fires on a read, on one hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 

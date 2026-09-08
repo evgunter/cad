@@ -2,10 +2,11 @@
 id: facade-polygon-door-demoted-without-replacement
 kind: issue
 title: API gap — the facade polygon door was demoted with no replacement scheduled; 11 demo call sites route around it
-status: open
+status: closed
 opened: 2026-08-20
 github: 759
 refs: [S79]
+closed: 2026-09-08
 ---
 
 ## From GitHub issue 759
@@ -92,3 +93,37 @@ tour's helper deleted and its thirteen call sites moved onto the door;
 the comment block at the demoted site replaced by the door. The
 `PathError` arm crosses to Python through `path_error_tag` like every
 other arm, with its `TAG_INVENTORY` row. Dispatchable as a LIB unit.
+
+## Closed (LIB-POLYGON)
+
+Ruling (A) built. `pncad::authoring::polygon(&[(f64, f64)], tol) ->
+Result<ProfileLoop<T>, PathError<T>>` (generic over `T: Decide`, the bound the
+lattice's own decisions need), curated into `pncad::prelude`, spelled
+`Open.at(p0)` / a `line_to` per vertex / `line_to(Start)` as the seam. The
+comment block at `crates/pncad/src/authoring.rs` is replaced by the door, with
+a doctest showing a square succeeding and two vertices refusing.
+
+**The arm** is `PathError::PolygonTooFewVertices { given: usize }`, with its
+`PathErrorKind` mirror, its `kind()` row, a `Display` sentence naming the
+recourse, the `path_error_tag` FFI word `polygon_too_few_vertices`, its
+`TAG_INVENTORY` row and a construction pin through the door. One edit in
+`crates/profile`, ruled cross-fence (Ev, PR 2017).
+
+**The true call-site count is eleven**, not thirteen. `git grep -n path_polygon
+demos/tour/src` answered fourteen lines: the definition, the `use` import in
+`letterforms.rs`, one doc-link mention in `skinned.rs`, and **eleven
+invocations** — `az.rs:77`, `bodies.rs:104`, `bodies.rs:265`,
+`bool_bodies.rs:37`, `bossplate.rs:37`, `letterforms.rs:53,69,107`,
+`lily.rs:797`, `skinned.rs:228`, `twopeg.rs:154`. Thirteen is the count of
+non-definition REFERENCES; the earlier scan's eleven named ten sites and
+predates `twopeg.rs`. All eleven now call the door.
+
+**What the door does NOT do.** It takes `&[(f64, f64)]` and nothing else: no
+`Point2` slice overload, no `polygon_expr`, no `Vec` or iterator form. It
+declares no tangent joints and emits no arcs — a rounded outline is the
+lattice's `fillet` verbs, not this door. It does not replace the trait-level
+`RawLoop::polygon` (kernel vocabulary, off the presented surface, and what the
+identity pin asserts against) nor `editor-core`'s document-layer `polygon`.
+It is not bound in Python: Python already speaks the lattice
+(`crates/pncad-py/src/py/path.rs`) and mints polygon nodes with `Node.polygon`,
+which the binding census now names as its mapping.
