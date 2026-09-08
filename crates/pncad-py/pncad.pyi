@@ -1684,7 +1684,7 @@ class Doc:
 
         The vocabulary, in full: `datum`, `profile`, `extrude`,
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
-        `chamfer`, `split`, `boolean_union`, `boolean_intersect`,
+        `chamfer`, `shell`, `split`, `boolean_union`, `boolean_intersect`,
         `boolean_subtract`, `union`, `transform`, `pattern`, `part`,
         `placed_union`, `declare`, `instantiate_part`, `mate`,
         `measure`, `assertion`. A Boolean answers a word per

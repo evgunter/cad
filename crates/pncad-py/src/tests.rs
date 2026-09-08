@@ -2778,6 +2778,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "placed_union",
     "profile",
     "revolve",
+    "shell",
     "split",
     "sweep",
     "transform",
