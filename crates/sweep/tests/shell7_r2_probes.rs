@@ -9,9 +9,7 @@ use core::f64::consts::PI;
 use geom::Curve3;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{
-    Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow,
-};
+use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::{Body, EdgeKey, ReplaceFaceError, ShellError, VertexKey};
 
 const R: f64 = 2.0;
@@ -44,7 +42,9 @@ fn carrier(body: &Body<f64>, e: EdgeKey) -> (Curve3<f64>, (f64, f64)) {
 }
 
 fn try_revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Option<Body<f64>> {
-    let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()).ok()?;
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol())
+        .ok()?;
     Some(
         revolve(
             &profile,
@@ -284,13 +284,11 @@ fn p3_the_seam_decide_at_small_major_radii() {
         match topo::shell(&rev.body, t, tol()) {
             Ok(out) => {
                 let props = topo::mass_properties(&out.body, tol()).expect("props");
-                let want =
-                    2.0 * PI * PI * major * (minor * minor - (minor - t) * (minor - t));
+                let want = 2.0 * PI * PI * major * (minor * minor - (minor - t) * (minor - t));
                 eprintln!(
                     "[p3] R = {major:e}, r = {minor:e}: shells, volume {:e} want {want:e} \
                      relerr {:e}",
-                    props.volume,
-                    props.volume_pad,
+                    props.volume, props.volume_pad,
                 );
                 assert!(
                     (props.volume - want).abs() <= 1e-9 + props.volume_pad,
@@ -436,7 +434,10 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
     eprintln!(
         "[e2e] mesh: {} vertices, {} triangles",
         mesh.positions.len(),
-        mesh.patches.iter().map(|p| p.triangles.len()).sum::<usize>()
+        mesh.patches
+            .iter()
+            .map(|p| p.triangles.len())
+            .sum::<usize>()
     );
 
     // 2. The HOLLOW torus, shelled.
@@ -481,7 +482,10 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
     // 4. `shell_open` on a torus: no planar face to designate. The
     //    only faces are the two torus half-walls.
     let faces: Vec<topo::FaceKey> = solid.faces().map(|(k, _)| k).collect();
-    eprintln!("[e2e] the solid torus offers {} faces to designate", faces.len());
+    eprintln!(
+        "[e2e] the solid torus offers {} faces to designate",
+        faces.len()
+    );
     let any = *faces.first().expect("a face");
     match topo::shell_open(&solid, t, &[any], tol()) {
         Ok(out) => eprintln!(
@@ -585,7 +589,10 @@ fn p6_an_independent_corpus_differential() {
         Vec3::unit_y(),
         Vec3::unit_x(),
         R,
-        TubeWindow::Arc { t0: 0.0, t1: PI / 2.0 },
+        TubeWindow::Arc {
+            t0: 0.0,
+            t1: PI / 2.0,
+        },
         SMALL_R,
         tol(),
     )
