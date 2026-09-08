@@ -362,6 +362,9 @@ fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
         | R::BandCross(..)
         | R::BandCut(..)
         | R::BandSlit(..)
+        | R::Inner(..)
+        | R::Rim(..)
+        | R::HoleRim { .. }
         | R::InPart { .. }
         | R::Instance { .. } => seg,
     }

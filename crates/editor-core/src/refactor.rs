@@ -684,6 +684,12 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
         R::BandCross(n) => R::BandCross(one(n)?),
         R::BandCut(n) => R::BandCut(one(n)?),
         R::BandSlit(n) => R::BandSlit(one(n)?),
+        R::Inner(n) => R::Inner(one(n)?),
+        R::Rim(n) => R::Rim(one(n)?),
+        R::HoleRim { of, hole } => R::HoleRim {
+            of: one(of)?,
+            hole: *hole,
+        },
         // The document seam: the argument names ANOTHER document's
         // nodes and crosses verbatim.
         R::InPart { of } => R::InPart { of: of.clone() },
@@ -861,6 +867,18 @@ fn remap_node(
             id(*target)?,
             distance.clone(),
             selection.iter().map(nm).collect::<Result<_, _>>()?,
+        ),
+        // Through the construction door, which keeps the designation
+        // order and drops only a repeat: a remap never re-sorts an
+        // ordered payload.
+        Node::Shell {
+            target,
+            thickness,
+            open,
+        } => Node::shell(
+            id(*target)?,
+            thickness.clone(),
+            open.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         Node::Split { target, tool } => Node::Split {
             target: id(*target)?,

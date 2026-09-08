@@ -15,12 +15,12 @@
 //! description of where they are.
 //!
 //! **And a verb here need not be a verb the DOCUMENT can author.** The
-//! shell is the first that is not: `Node::Shell` does not exist, so no
-//! lowering builds one and no content key is ever computed for it. That
-//! is a fact about the document layer rather than a gap here — the verb
-//! is complete, with its door, its record channel and its refusal — and
-//! every commitment keyed on the vocabulary states it rather than
-//! skipping the row (`editor-core`'s content tag answers `None`).
+//! vocabulary is complete per verb — its door, its record channel and
+//! its refusal — whether or not a `Node` builds it, and every commitment
+//! keyed on the vocabulary states what a kernel-only verb means rather
+//! than skipping the row (`editor-core`'s content tag is an `Option`
+//! for exactly that). Today every verb has a node, the shell's the last
+//! to land; the shape stays for the next verb that ships kernel-first.
 //!
 //! The design's cost claim is scoped the same way and is not
 //! demonstrated here: what these units show is that the migrated verbs
