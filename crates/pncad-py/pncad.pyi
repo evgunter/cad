@@ -51,6 +51,13 @@ anything; `enforce_checks` is the one door that turns findings the
 caller marked `Severity.Error` into a refusal, which is how a program
 chooses to gate rather than having the kernel choose for it.
 
+A continuous parameter can say how much it VARIES: `Distribution`'s
+four forms annotate one, `analyzed_box` derives the interval the
+analysis varies each parameter over, and the box prices its tail and
+its leaves. Annotation is opt-in — a parameter with none is fixed —
+and a `band` states limits with no shape, so it refuses to be priced
+rather than being read as a uniform.
+
 A recipe slot is not always a number. `Doc.parse_expr` reads text as
 a dimension-checked `Expr` against the document's declared
 parameters, and `Doc.eval` / `Doc.eval_count` answer what one is
@@ -625,6 +632,59 @@ class WorkspaceError(PncadError):
     second: Optional[str]
     wanted: Optional[ContentPin]
     found: Optional[ContentPin]
+
+class DistributionFault(PncadError):
+    """A `Distribution` constructor was handed offsets that break an
+    ERROR-DESIGN E2 invariant.
+
+    `variant` is `non_finite`, `sigma_not_positive` or
+    `nominal_outside_support`; `field`, `sigma`, `lo`, `hi` are the
+    arms' payloads, present on every arm and `None` where that arm
+    does not carry one. `field` is `sigma`, `lo` or `hi`.
+
+    The kernel's own `Distribution::check` decides this — the same
+    function the edit door and the persistence validator run — so a
+    distribution these constructors accept is one a document accepts,
+    and a document that would refuse to load cannot be authored. What
+    the constructor adds is TIMING: the sigma refuses where it is
+    written, not at the `Doc.apply` three lines later. The same fault
+    reaches `EditError` as `invalid_distribution` for a document
+    edited or loaded some other way."""
+
+    variant: str
+    field: Optional[str]
+    sigma: Optional[float]
+    lo: Optional[float]
+    hi: Optional[float]
+
+class MeasureUnavailable(PncadError):
+    """A mass could not be priced: the parameter carries a BAND, which
+    states limits without a shape.
+
+    `variant` is `band_has_no_measure` and `param` is the parameter
+    that blocked the pricing.
+
+    A REFUSAL, not an absence. A band is the author saying they know
+    the extremes and not the distribution, and promoting one to a
+    uniform would be a strictly stronger claim than they made. So the
+    mass doors refuse anything whose answer would depend on the shape,
+    and answer only the two cases every measure on the band agrees
+    about: an interval covering the whole support holds mass 1, a
+    disjoint one holds 0."""
+
+    variant: str
+    param: str
+
+class AnalysisPolicyError(PncadError):
+    """An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is
+    not a finite number strictly inside `(0, 1)`.
+
+    `variant` is `quantile_mass_out_of_range` and `mass` the requested
+    share. Mass 1 asks for an infinite box and mass 0 for an empty
+    one, and neither is a box."""
+
+    variant: str
+    mass: float
 
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
@@ -1574,21 +1634,216 @@ class ParamName:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
+# --- parameter uncertainty and the analysis lane ----------------------
+# ERROR-DESIGN E1/E2. A distribution is inert document metadata: it
+# feeds no evaluation, no content key and no predicate, and the
+# analysis doors below are its ONE interpreter. Offsets are typed
+# quantities in the PARAMETER's dimension — the annotation carries no
+# dimension of its own, so it borrows the one the parameter declares,
+# and a mismatch is a DimensionError at the door rather than a
+# plausible number later.
+
+_Offset: TypeAlias = Length | Angle | float
+
+class Distribution:
+    """A parameter's uncertainty: offsets from its nominal, in its own
+    dimension, in one of four forms.
+
+    The differences are CLAIMS, not conveniences. `band` states limits
+    and no shape; `uniform` states the same limits and says every
+    value between them is equally likely; `normal` states a spread
+    with unbounded support; `truncated_normal` restricts a normal to a
+    window and renormalizes it. A parameter with NO distribution is
+    FIXED — annotation is opt-in, and the analysis never guesses a
+    spread nobody stated.
+
+    Every offset in one distribution must be the same dimension, and
+    the wrapper remembers which: `Distribution.band(-0.1 * mm, 1 * deg)`
+    is a DimensionError. Construction also runs the kernel's own E2
+    check, so a broken invariant refuses here as `DistributionFault`
+    rather than at the edit."""
+
+    @staticmethod
+    def band(lo: _Offset, hi: _Offset) -> Distribution:
+        """Worst-case limits with NO shape claim: `[lo, hi]` bounds the
+        parameter and prices nothing. The mass doors refuse
+        (`MeasureUnavailable`) wherever the answer would depend on the
+        shape."""
+
+    @staticmethod
+    def uniform(lo: _Offset, hi: _Offset) -> Distribution:
+        """The same limits a band states, plus the shape claim a band
+        withholds — so it answers exactly where the band refuses."""
+
+    @staticmethod
+    def normal(sigma: _Offset) -> Distribution:
+        """A zero-mean normal, `sigma > 0`, with UNBOUNDED support: the
+        analyzed box is the analysis's knob, and what a box leaves out
+        is reported as tail mass rather than cut off."""
+
+    @staticmethod
+    def truncated_normal(
+        sigma: _Offset, lo: _Offset, hi: _Offset
+    ) -> Distribution:
+        """A normal restricted to `[lo, hi]` and RENORMALIZED, not
+        clipped: its own support holds all of its mass, so its tail is
+        identically zero."""
+    @property
+    def kind(self) -> str:
+        """`band`, `uniform`, `normal` or `truncated_normal`."""
+    @property
+    def dimension(self) -> str:
+        """The dimension its offsets are in — the parameter's own."""
+    @property
+    def lo(self) -> Optional[_Offset]:
+        """The lower offset, `None` for the unbounded `normal`."""
+    @property
+    def hi(self) -> Optional[_Offset]:
+        """The upper offset, `None` for the unbounded `normal`."""
+    @property
+    def sigma(self) -> Optional[_Offset]:
+        """The UNDERLYING normal's standard deviation, `None` for the
+        two forms that state no shape parameter. For a
+        `truncated_normal` this is what the form was written with; the
+        truncated law's own spread is a derived number and a different
+        question."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+    # Equality is IEEE on the offsets and the dimension is part of the
+    # value, exactly as it is for DocParam; the hash folds `-0.0`
+    # through the kernel's own fold so it cannot split what equality
+    # calls the same.
+
+DEFAULT_QUANTILE_MASS: Final[float]
+
+class AnalysisPolicy:
+    """How a run chooses its analyzed box: request configuration,
+    never a global.
+
+    `quantile_mass` is the share of each unbounded parameter's mass the
+    box is asked to cover, defaulting to `DEFAULT_QUANTILE_MASS` — the
+    ±3σ convention. Moving it moves mass between the analyzed and the
+    tail columns; it never moves truth, because the tail is reported
+    rather than dropped. Outside `(0, 1)` raises
+    `AnalysisPolicyError`."""
+
+    def __init__(self, quantile_mass: Optional[float] = None) -> None: ...
+    @property
+    def quantile_mass(self) -> float: ...
+    def __eq__(self, other: object) -> bool: ...
+
+class AnalyzedParam:
+    """One axis of the analyzed box: the parameter's nominal, the
+    offset interval the analysis varies it over, and the distribution
+    that interval came from.
+
+    An unannotated continuous parameter is still an axis — a
+    width-zero one at its nominal, with `distribution` `None`. That is
+    the typed spelling of FIXED."""
+
+    @property
+    def dimension(self) -> str: ...
+    @property
+    def nominal(self) -> _Offset: ...
+    @property
+    def offsets(self) -> tuple[_Offset, _Offset]:
+        """The analyzed offsets around the nominal, `(lo, hi)`."""
+    @property
+    def width(self) -> _Offset: ...
+    @property
+    def is_fixed(self) -> bool: ...
+    @property
+    def distribution(self) -> Optional[Distribution]: ...
+    def absolute(self) -> tuple[_Offset, _Offset]:
+        """The analyzed interval in ABSOLUTE parameter values."""
+
+class AnalyzedBox:
+    """One axis per CONTINUOUS document parameter, in name order.
+    Derived on request, never stored, never seen by evaluation.
+
+    `Count` parameters are not axes: a structural count is fixed under
+    any error analysis."""
+
+    @property
+    def names(self) -> list[ParamName]: ...
+    @property
+    def varying(self) -> list[ParamName]:
+        """The axes that actually vary — the non-degenerate
+        dimensions."""
+    def get(self, name: ParamName) -> Optional[AnalyzedParam]: ...
+    def tail_mass(self, name: ParamName) -> Optional[float]:
+        """What this box's interval for `name` leaves OUTSIDE.
+
+        `None` when the document declares no such continuous
+        parameter; `0.0` for an unannotated axis, which is fixed and
+        leaves nothing out. Raises MeasureUnavailable when the axis
+        carries a band whose support escapes the interval.
+
+        The three inputs — the name, the distribution and the interval
+        — come from ONE axis of one box, so they cannot disagree. The
+        kernel's free `tail_mass` takes them as three loose arguments
+        and Python has no compile step that would catch a mispairing,
+        which is why only this spelling crosses."""
+    def box_mass(
+        self, name: ParamName, lo: _Offset, hi: _Offset
+    ) -> Optional[float]:
+        """What the axis's distribution puts INSIDE the offset interval
+        `(lo, hi)` — the leaf-pricing door.
+
+        The offsets are quantities in the axis's own dimension; another
+        dimension is a DimensionError. `None` when the document
+        declares no such continuous parameter. An unannotated axis is a
+        point mass at its nominal, so it answers `1.0` for any interval
+        containing offset zero and `0.0` otherwise. A band raises
+        MeasureUnavailable unless the interval covers its whole support
+        or misses it entirely."""
+    def __len__(self) -> int: ...
+
+def analyzed_box(
+    doc: Doc, policy: Optional[AnalysisPolicy] = None
+) -> AnalyzedBox:
+    """The analyzed box of a document under a policy.
+
+    Per continuous parameter: the bounded support for `band`,
+    `uniform` and `truncated_normal`; the symmetric quantile interval
+    `±z·sigma` for `normal`; and a width-zero interval at the nominal
+    for a parameter with no distribution."""
+
 class DocParam:
     """A named parameter's declared dimension and exact stored value
     (guide §3.2): what `DocEdit.set_doc_param` writes. Continuous
     values arrive as typed quantities, so the dimension rides the
     constructor. A non-finite value is refused typed at `Doc.apply`
-    (`non_finite_doc_param`), not pre-checked here."""
+    (`non_finite_doc_param`), not pre-checked here.
+
+    The three continuous constructors take an optional `distribution`
+    (ERROR-DESIGN E1/E2) whose offsets must be in the dimension the
+    constructor declares — a mismatch is a DimensionError. `count`
+    takes none and cannot: a structural count is fixed under any error
+    analysis."""
 
     @staticmethod
-    def length(value: Length) -> DocParam: ...
+    def length(
+        value: Length, distribution: Optional[Distribution] = None
+    ) -> DocParam: ...
     @staticmethod
-    def angle(value: Angle) -> DocParam: ...
+    def angle(
+        value: Angle, distribution: Optional[Distribution] = None
+    ) -> DocParam: ...
     @staticmethod
-    def scalar(value: float) -> DocParam: ...
+    def scalar(
+        value: float, distribution: Optional[Distribution] = None
+    ) -> DocParam: ...
     @staticmethod
     def count(value: int) -> DocParam: ...
+    @property
+    def dimension(self) -> str: ...
+    @property
+    def distribution(self) -> Optional[Distribution]:
+        """The parameter's uncertainty, or `None` if it declared none —
+        carrying the parameter's own dimension, which is where an
+        annotation's dimension lives."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -1626,7 +1881,21 @@ class DocEdit:
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
-    def set_doc_param(name: ParamName, value: DocParam) -> DocEdit: ...
+    def set_doc_param(name: ParamName, value: DocParam) -> DocEdit:
+        """Create or REPLACE a document-level named parameter.
+
+        The whole declaration is replaced, so a `DocParam` rebuilt from
+        a dimension and a number declares one with no distribution and
+        the annotation the old parameter carried is gone. `Doc.doc_param`
+        reads a declaration back and
+        `DocParam.length(value, distribution)` restates it, so that is
+        no longer a trap Python cannot see — but moving a NUMBER is
+        still `set_doc_param_value`'s job, because that door cannot drop
+        what it never takes.
+
+        Refuses typed on a broken annotation: `invalid_distribution`
+        for an E2 invariant, `non_finite_doc_param` for a NaN or
+        infinite nominal or offset."""
     @staticmethod
     def set_doc_param_value(name: ParamName, value: DocParamValue) -> DocEdit:
         """Write a new VALUE into an already-declared parameter, keeping
@@ -1816,6 +2085,14 @@ class Doc:
     def order(self) -> list[NodeId]: ...
     @property
     def epsilon(self) -> float: ...
+    def doc_param(self, name: ParamName) -> Optional[DocParam]:
+        """One declared document parameter, or `None` when the document
+        declares no such name.
+
+        The read half of `DocEdit.set_doc_param`: the declaration the
+        document records right now — dimension, value, and any
+        distribution the parameter carries, whether it was authored
+        here or came off a file."""
     def bit_eq(self, other: Doc) -> bool: ...
     def parse_expr(self, source: str) -> Expr:
         """Read `source` as an expression against this document's

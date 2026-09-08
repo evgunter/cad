@@ -409,6 +409,14 @@ BOUND_AS = {
     "UnitVec3": "Datum.direction",
     "UnitVec3Error": "EvaluationError.kind",
     "PI": "pi_rad",
+    # `DistributionField` names WHICH offset of a distribution a fault
+    # is about, and it crosses as that word on the fault rather than as
+    # a class: a three-member closed set naming struct fields is what a
+    # caller compares against, and a class would add an import for no
+    # question it answers. The `NodeErrorKind` row's shape — a curated
+    # enum flattened onto an exception attribute — one level in, on an
+    # exception that already carries `variant`.
+    "DistributionField": "DistributionFault.field",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
@@ -744,23 +752,6 @@ FAMILIES = {
         "records the canonical row, which is what Rust authoring "
         "stopped doing at schema v20"
     ),
-    "B-DISTRIBUTIONS": (
-        "parameter uncertainty and the analysis lane (ERROR-DESIGN "
-        "E1/E2); closing it binds `Distribution`'s four forms onto a "
-        "`DocParam` constructor and the analysis doors that read them "
-        "back — the analyzed box, tail mass and leaf mass, with "
-        "`DistributionFault` and the band's typed measure refusal as "
-        "arms a Python caller can dispatch on. Today Python authors "
-        "unannotated parameters only: a document read back from a file "
-        "carries an annotation Python can READ ONLY THROUGH equality, "
-        "hashing and `repr`, and cannot spell. The sharp edge is the "
-        "WRITE door, not the read one — `set_doc_param` is "
-        "create-or-replace, so passing it a `DocParam` rebuilt from a "
-        "dimension and a number DELETES the annotation silently. "
-        "`set_doc_param_value` is the value-only door that carries the "
-        "declaration forward and is what a Python caller moving a "
-        "number must use until this family closes"
-    ),
     "B-MEASURES": (
         "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
         "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
@@ -781,8 +772,9 @@ FAMILIES = {
         "now read a web and its verdict off any evaluation, including "
         "one loaded from a file authored elsewhere. What a Python "
         "caller cannot yet do is WRITE one — the same asymmetry "
-        "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
-        "edge, because no existing write door silently drops a measure"
+        "B-DISTRIBUTIONS recorded before LIB-B-DISTRIBUTIONS closed "
+        "it, and without that family's sharp edge, because no existing "
+        "write door silently drops a measure"
     ),
 }
 
@@ -1774,7 +1766,6 @@ NOT_BOUND = {
     # the authoring half exists, so they close with the same family.
     "MinClearanceRefusal": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureUnavailableAt": f"{GAP}: B-MEASURES measurement authoring",
-    "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -1794,8 +1785,43 @@ NOT_BOUND = {
     # a row.
     "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
     "WrittenLength": f"{GAP}: B-NOTATION authored notation",
-    "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
-    "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    # B-DISTRIBUTIONS IS GONE FROM THIS ROSTER, closed at
+    # LIB-B-DISTRIBUTIONS, and the id left `FAMILIES` with it. It cited
+    # THREE names and they left three different ways, which is the
+    # rule demonstrated on one family: `Distribution` and
+    # `DistributionFault` are top-level in `pncad.pyi` at those exact
+    # spellings, so rule 1 accounts them and they leave the roster
+    # entirely; `DistributionField` is in `BOUND_AS` as
+    # `DistributionFault.field`, because a three-member set naming
+    # struct fields crosses as the word on the fault rather than as a
+    # class.
+    #
+    # THE CHARTER'S OTHER HALF WAS NEVER A ROW HERE AND COULD NOT
+    # BECOME ONE. It named the three analysis doors — the analyzed
+    # box, tail mass, leaf mass — and every one of them is curated in
+    # `crates/pncad/src/analysis.rs`, which is not one of the three
+    # files this census reads (the module docstring says so: it reads
+    # the three that curate the DOCUMENT layer and the common
+    # surface). So `analyzed_box`, `tail_mass`, `box_mass`,
+    # `AnalysisPolicy`, `AnalyzedBox`, `AnalyzedParam`,
+    # `MeasureUnavailable`, `OffsetInterval`, `DEFAULT_QUANTILE_MASS`
+    # and `sample_offset` are invisible to this file in BOTH
+    # directions: unbound they flipped no row, and bound they flip none
+    # either. The `Distribution` row is what made the family
+    # dispatchable at all, and the doors that closed it are reported in
+    # the unit rather than counted here. That is the B-FACE-FRAME gap
+    # between a charter and a roster, in its widest form so far: three
+    # of the charter's four things outside the alphabet.
+    #
+    # THE GATE, MEASURED, because a reader of the roster cannot see it
+    # either: the analysis façade splits at
+    # `crates/pncad/src/analysis.rs:49` (ungated) and `:55`/`:66`/`:83`
+    # /`:89`/`:104` (`#[cfg(feature = "interval")]`). All three
+    # chartered doors are on the ungated line, so the family closes on
+    # the DEFAULT build the wheel is made from; what is gated is the E6
+    # driver with its `ParamBox`, the E4/E5 stackup, `assertion_at` and
+    # the E10 reporting layer, none of which this family chartered.
+    # The positive form is `tests/test_distributions.py`.
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six
     # families held 43 names — the pin-update door, the at-rest gate,
     # mates and the solve, instantiated parts, split/inline, explicit

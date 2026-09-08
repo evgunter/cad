@@ -1,15 +1,19 @@
 //! Stable discriminant tags for the document layer's refusals — and
-//! for the one VERDICT that needs one.
+//! for the two answers that are not refusals at all.
 //!
-//! [`resolution_status_tag`] is that one, and it is deliberately not
-//! a refusal: a resolution is a TOTAL answer, one of three states for
-//! every name asked, and it crosses as a value rather than a raise.
-//! What it shares with everything else in this file is the reason a
-//! tag exists at all — a caller branches on the discriminant, prose
-//! is not a stable interface — and the reason this file is its home:
-//! the exhaustive match is a drift alarm that fires in hosted CI,
-//! because this module compiles without Python and the `#[pyclass]`
-//! it feeds does not.
+//! [`resolution_status_tag`] is one: a resolution is a TOTAL answer,
+//! one of three states for every name asked, and it crosses as a value
+//! rather than a raise. [`distribution_kind_tag`] is the other, and it
+//! is a value discriminant one rung further from a refusal — which of
+//! E2's four forms a parameter's annotation is. What all three kinds
+//! share is the reason a tag exists at all — a caller branches on the
+//! discriminant, prose is not a stable interface — and the reason this
+//! file is their home: the exhaustive match is a drift alarm that
+//! fires in hosted CI, because this module compiles without Python and
+//! the `#[pyclass]` it feeds does not. (A value discriminant may live
+//! outside this file where its match needs a type this one does not
+//! import — `crate::node_kind` is the standing example — and then its
+//! roster is pinned in `src/tests.rs` directly instead.)
 //!
 //! Typed exceptions carry the structured error, never strings. The
 //! exception's machine payload is a stable **tag** — a discriminant
@@ -53,10 +57,12 @@
 //! attribute, a helper, or a cleverer arm added here is a deliberate
 //! diff that teaches the reader too, never a silent hole.
 
+use pncad::analysis::{AnalysisPolicyError, MeasureUnavailable};
 use pncad::document::{
-    AssemblyError, Attribution, CheckEvidence, ChecksError, DimensionError, EditError, EvalError,
-    InlineError, MateFault, NodeErrorKind, ParseError, PersistError, PlacementRuleFault,
-    RecordedProgramError, RefusedRef, Relation, RootFault, SplitError, UpdateError,
+    AssemblyError, Attribution, CheckEvidence, ChecksError, DimensionError, Distribution,
+    DistributionFault, DistributionField, EditError, EvalError, InlineError, MateFault,
+    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, RecordedProgramError, RefusedRef,
+    Relation, RootFault, SplitError, UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -263,6 +269,79 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // A mate's alignment is authored geometry, so the non-finite
         // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
+    }
+}
+
+/// The stable Python word for which of E2's four forms a
+/// [`Distribution`] is.
+///
+/// Not a refusal: it is the discriminant of a value a caller HOLDS,
+/// and the answer to "what did this parameter declare". snake_case
+/// like every other stable word this crate publishes, and
+/// deliberately not serde's spelling — the saved text writes the Rust
+/// variant identifiers and that belongs to the persistence format's
+/// compatibility contract, which may not move a Python word and may
+/// not be moved by one.
+pub fn distribution_kind_tag(dist: &Distribution) -> &'static str {
+    match dist {
+        Distribution::Band { .. } => "band",
+        Distribution::Uniform { .. } => "uniform",
+        Distribution::Normal { .. } => "normal",
+        Distribution::TruncatedNormal { .. } => "truncated_normal",
+    }
+}
+
+/// The stable tag for a broken distribution invariant (ERROR-DESIGN
+/// E2) — the fault `Distribution::check` answers with.
+///
+/// ONE tag per fault, shared by both doors that can carry one: the
+/// Python `Distribution` constructor raises it directly, and the edit
+/// door's `invalid_distribution` refusal carries the same fault, so a
+/// caller reads the same word whichever door refused. `non_finite` is
+/// the arm the edit door re-routes to `non_finite_doc_param` — the
+/// document layer folds a non-finite offset into the document-wide
+/// non-finite class — so the two doors agree on the fault and differ
+/// on where the document puts it, which is the kernel's own split and
+/// not this file's.
+pub fn distribution_fault_tag(fault: &DistributionFault) -> &'static str {
+    match fault {
+        DistributionFault::NonFinite { .. } => "non_finite",
+        DistributionFault::SigmaNotPositive { .. } => "sigma_not_positive",
+        DistributionFault::NominalOutsideSupport { .. } => "nominal_outside_support",
+    }
+}
+
+/// Which FIELD of a distribution a fault is about.
+///
+/// The Python spelling of `DistributionField`, which crosses as this
+/// text on the fault's `field` attribute rather than as a class: a
+/// three-word closed set naming struct fields is what a caller
+/// compares against, and a class would add a name to import for no
+/// question it answers. Word for word the kernel's own `Display`.
+pub fn distribution_field_tag(field: &DistributionField) -> &'static str {
+    match field {
+        DistributionField::Sigma => "sigma",
+        DistributionField::Lo => "lo",
+        DistributionField::Hi => "hi",
+    }
+}
+
+/// The stable tag for a mass the analysis lane could not price.
+///
+/// One arm today, and the tag exists anyway for the reason every tag
+/// here does: `band_has_no_measure` is what a caller branches on, and
+/// a second arm added kernel-side breaks this match rather than
+/// arriving in Python untagged.
+pub fn measure_unavailable_tag(err: &MeasureUnavailable) -> &'static str {
+    match err {
+        MeasureUnavailable::BandHasNoMeasure { .. } => "band_has_no_measure",
+    }
+}
+
+/// The stable tag for a policy the analysis lane cannot honour.
+pub fn analysis_policy_error_tag(err: &AnalysisPolicyError) -> &'static str {
+    match err {
+        AnalysisPolicyError::QuantileMassOutOfRange { .. } => "quantile_mass_out_of_range",
     }
 }
 
