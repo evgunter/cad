@@ -1,10 +1,9 @@
 ---
 id: ambiguity-k-below-the-cap-rim-crossover
-kind: issue
+kind: unit
 title: Tol accepts K below the cap-rim crossover K* = 1.272, where two doors behave differently and one refuses
-status: open
+status: spec
 opened: 2026-09-05
-needs_ev: true
 ---
 
 ## Finding (FILLET-H6's lane, PR 1891 — recorded, deliberately not fixed there)
@@ -127,3 +126,30 @@ corpus walk is `crates/sweep/tests/`' — BLEND files it and announces).
 (2): a one-line change at `validate` plus a `K*` constant with its
 derivation, BLEND's to land. (3): no change here; a D4 conversation
 opens.
+
+## Ruling (Ev, PR 2119, 2026-09-08)
+
+*"i don't think this deserves a special refusal case. it seems like
+nothing bad happens if we just remove the special case and leave no
+constraint on K."* — after the geometry was spelled out (the dihedral
+classifier meters `sin θ · chord` over the rim edge's own extent, and
+below `K* = √φ` a chord the profile door admits times a tilt the
+direction gates admit lands under ε) and what happens without the
+refusal (the at-rest gate refuses the same body as
+`SliverDihedral { material_wedge_side }`, because a smooth rim has no
+material side; nothing silent).
+
+**Executed as this unit:** `Tol` keeps `K > 1` and gains no floor;
+`ExtrudeError::SmoothCapRim` and its arm in `upgrade_rim` are removed —
+the smooth verdict stores the conventional description exactly as the
+strut arm's zero-side case does, and the body reaches the at-rest gate,
+which refuses it there. `Tolerance.k`'s doc carries one sentence: any
+`K > 1`; below `√φ` extrude admits slivers the dihedral lever cannot
+resolve, and they refuse at rest. FILLET-H6's rows
+(`crates/sweep/tests/fillet_h6_cap_rim.rs` and the two H6 probe
+suites) flip from asserting the door refusal to asserting the build
+and the at-rest refusal at K = 1.1; every `K*` sentence in
+`extrude.rs`/`lib.rs` goes with the arm (the five-homes issue unit 2's
+fix pass files closes on this unit). The nightly small-K row proposed
+under option 1 is NOT filed: the ruling reads small K as acceptable
+as-is, with tier 3 as the instrument. E-shaped: single style review.
