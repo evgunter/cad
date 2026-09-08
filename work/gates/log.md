@@ -952,3 +952,100 @@ fixture→filter; the other direction is
 `whole-file-skips-do-not-check-their-subject`'s job. Noted for the
 walk: `gated-suite-paths.sh` walks `.claude/worktrees/*` when lanes'
 worktrees sit inside the checkout, so it reds locally and not in CI.
+
+
+## Thirteenth wave dispatched (2026-09-08, started with the twelfth)
+
+`gates/skip-subject-check` (`whole-file-skips-do-not-check-their-subject`
+— the seven gates whose whole-file skips go through
+`gate_record_anchor_any` red when a skipped home is gone, through one
+`lib.sh` subject check beside the builder, with the home-gone case per
+gate), branched from PR 2077's closing head. In flight: PR 2077
+closing; `gates/bounds-select-anchor` building. After these two,
+`D212` alone, parked on `G4`.
+
+## Correction (2026-09-08)
+
+The twelfth and thirteenth waves were logged as dispatched before
+their lanes were actually started: the orchestrator wrote the entries
+and did not spawn the lanes. Both started after PR 2077's merge, from
+main, so the "branched from PR 2077's closing head" in the thirteenth
+wave's entry is superseded — it branches from main with 2077 on it.
+
+## PR 2157 opened (2026-09-08)
+
+`gates/bounds-select-anchor` reported: PR 2157
+(`bounds-allowlist-select-cuts-at-the-first-colon`). The scan's
+per-file exemption is the count check's predicate negated —
+`gate_record_anchor_any` over the allowlist — so exemption and pin are
+one builder over one list; the FILE column survives for the diagnosis
+only. A bound planted at `boxes.rs:x.rs` fires while `boxes.rs` stays
+at its pin; the `cut` select restored reds that case only; the filter
+deleted reds the clean fixture. Byte-identical live. Residue filed on
+this slate: two more readers split the FILE column at the first colon
+— `viewer-module-kinds.sh`'s dedupe key, and `lib.sh`'s record prefix
+used as a parser in `gate_test_only_mounts`, so a colon-carrying
+file's `#[cfg(test)] mod x;` is never registered and its subtree reads
+as production (`record-file-column-read-by-first-colon-split`).
+Reviewer dispatched.
+
+## PR 2157 reviewed (2026-09-08)
+
+Style review of `bounds-allowlist-select-cuts-at-the-first-colon`: fix
+pass needed. The hole and its closure, the one-predicate reading, all
+four mutations and the byte-identity reproduced; the edge
+`<entry>:12:x.rs` is exempt from the scan and caught by the pin (the
+property that holds is exempt ⇔ attributed, not "never an
+exemption"). Two findings: the gate's own awk reader strips the record
+prefix by the same first-colon regex and reads a colon-carrying path
+as code (a sole bound in `a:Bounds.rs` reds as compound — cry-wolf,
+zero population, this unit's class in this unit's file, sent to the
+lane with a fixture); and `gate_record_anchor_any`'s refusal on an
+empty list is not terminal at any of its six `$(…)` callers (a gate
+with no homes prints OK) — sent to the subject-check lane, which
+holds `lib.sh`, to mark `GATE_MATCHER_FAILED` the way the exact-skip
+refusal does. Style: three spellings of the `:LINE:` reading in one
+file, history in two comments, the diagnosis's short naming
+unregistered.
+
+## PR 2156 opened (2026-09-08)
+
+`gates/skip-subject-check` reported: PR 2156
+(`whole-file-skips-do-not-check-their-subject`). `gate_require_homes
+SUBJECT HOME...` in `lib.sh` beside the anchor builder: the seven
+gates whose whole-file skips read a home list now refuse when a home
+is gone, naming the path and what the skip would have exempted, with
+the home-gone case run per home from `lib.sh` (26 across the seven).
+The direction PR 2077's review left unproved — a home kept in the
+filter but dropped from the clean fixture — reds now and was green
+with the unit backed out. Also taken, from PR 2157's review: the anchor
+builder's empty-list refusal sets `GATE_MATCHER_FAILED`, so a gate with
+no homes reds instead of printing OK, with its own case. Seven gates
+byte-identical live. Residue filed on this slate:
+`witness-not-ambient.sh`'s three directory-prefix exclusions have no
+subject check (`directory-prefix-skips-have-no-subject-check`), the
+`src/bin/` class needing a ruling. Reviewer dispatched.
+## Landed: PR 2157 (2026-09-08)
+
+`bounds-allowlist-select-cuts-at-the-first-colon` closed. The scan's
+per-file exemption in `bounds-allowlist.sh` is the count check's own
+predicate negated (`gate_record_anchor_any` over the allowlist), so a
+record cannot be exempt from the scan while invisible to the pin
+beside it; the `cut -d: -f1` select is gone and the FILE column is
+read only for the diagnosis, naming a colon-carrying file whole. A
+compound bound at `boxes.rs:x.rs` fires while `boxes.rs` stays at its
+pin; restoring the `cut` select reds that case only; deleting the
+filter reds the clean fixture. Live output byte-identical (26 files,
+183 occurrences). Residue on this slate:
+`record-file-column-read-by-first-colon-split` (the viewer gate's
+dedupe key and `lib.sh`'s prefix-as-parser in the test-module
+resolver).
+Fix pass from the review: the gate's own awk reader, which stripped the
+record prefix by the same first-colon regex and read a colon-carrying
+path as code (a sole bound in `a:Bounds.rs` red as compound), now
+locates the text after `:LINE:` the way the path half does — planted
+in both directions; the three spellings of that reading are one
+constant; the one-predicate claim quantified over a non-empty list
+(the `<entry>:12:x.rs` shape is exempt from the scan and caught by the
+pin, naming the entry — KNOWN GAP 8); the residue row carries the
+class's grep with every hit dispositioned.

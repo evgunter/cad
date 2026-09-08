@@ -13,7 +13,11 @@
 //! are wrapped UNALTERED (no stringification) with (node, slot)
 //! context — including PR 1's banked `NonFiniteResult` obligation:
 //! every expression evaluated during node evaluation carries the node
-//! and slot it came from.
+//! and slot it came from. One kernel error is generic over the lane
+//! scalar, the shell's, and it crosses through a TOTAL fold to `f64`
+//! (`NodeErrorKind::Shell`): every arm and every number kept, each
+//! number at the bracket end the lane declares — never rendered, never
+//! dropped, and at `f64` the identity.
 
 mod anchor;
 pub mod measure;
@@ -447,6 +451,7 @@ pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
         | Node::Sweep { .. }
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
+        | Node::Shell { .. }
         | Node::Transform { .. }
         | Node::Union { .. }
         | Node::PlacedUnion { .. }
@@ -1020,6 +1025,52 @@ pub enum NodeErrorKind {
         /// Which blend the refusing node is.
         verb: sweep::blend::BlendKind,
     },
+    /// **The shell op refused** — the thickness gate, the wall-clearance
+    /// gate, a face's inward offset, a designation gate (a chart named
+    /// in part, every face of a shell named, a designation that cuts
+    /// the boundary in two), the rim surgery, or a result that does not
+    /// validate. Which, and about what, is stated on
+    /// [`topo::ShellError`]'s own variants and rendered by its
+    /// `Display`; this doc names no predicate of its own.
+    ///
+    /// Carried at its `f64` WITNESS rather than at the lane scalar:
+    /// this enum is scalar-free by construction, and the kernel's
+    /// refusal is generic, so it crosses through a total fold
+    /// (`crate::verbs::shell::fold_shell_error`) that keeps every arm
+    /// and every number — at `f64` the fold is the identity, and at a
+    /// bracket scalar each number is the infimum the kernel's own gates
+    /// meter. The node never passes its input body through.
+    Shell(Box<topo::ShellError<f64>>),
+    /// A shell node's `open` list named something that stopped
+    /// resolving in the target's name table — the blend selection's
+    /// ladder, through the same N5 rungs, for the same reason: a
+    /// designation is a commitment, so a name that no longer answers
+    /// refuses loudly rather than silently sealing the face it meant.
+    ShellOpenResolve {
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// A shell node's `open` list named something that is not a FACE
+    /// of the target (an edge, a vertex, the body). The op opens faces
+    /// into rims; a mis-kinded designation is a recipe bug, refused
+    /// rather than reinterpreted.
+    ShellOpenKind {
+        /// The offending name.
+        name: Box<crate::names::StableName>,
+        /// What it actually denotes.
+        found: crate::names::EntityKind,
+    },
+    /// **This evaluation scalar cannot form the shell door's call.**
+    /// The door validates what it built with a certified claim, so it
+    /// is formed only at a scalar with certification rights; a dual
+    /// does not certify (the DL3 ruling), and rather than hollow a
+    /// body it cannot validate the node refuses, naming the lane. The
+    /// base-scalar evaluation beside this one is where the shell is
+    /// built and validated.
+    ShellLaneUnsupported {
+        /// The scalar lane that has no door.
+        lane: &'static str,
+    },
     /// A derived frame's face name failed to resolve through its
     /// body's name table — [`NodeErrorKind::BlendSelectionResolve`]'s
     /// twin, through the same N5 ladder, for the same reason: the
@@ -1537,6 +1588,23 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "the {verb} selection is empty — an unfinished recipe, not the identity"
             ),
+            Self::Shell(e) => write!(f, "the shell op refused: {e}"),
+            Self::ShellOpenResolve { error } => {
+                write!(f, "a shell open-face name failed to resolve: {error}")
+            }
+            Self::ShellOpenKind { name, found } => write!(
+                f,
+                "the shell open-face name minted by node {} denotes {} {}, not a face",
+                name.node.0,
+                found.article(),
+                found.noun()
+            ),
+            Self::ShellLaneUnsupported { lane } => write!(
+                f,
+                "the shell door has no lane at the {lane} scalar: hollowing validates what it \
+                 built with a certified claim, and this scalar does not certify — the \
+                 base-scalar evaluation beside this one is where the shell is built"
+            ),
             Self::FaceFrameResolve { error } => {
                 write!(
                     f,
@@ -1692,6 +1760,7 @@ pub trait EvalScalar:
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
     + SectionScalar
+    + crate::verbs::shell::ShellLane
 {
 }
 
@@ -1706,6 +1775,7 @@ impl<T> EvalScalar for T where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + SectionScalar
+        + crate::verbs::shell::ShellLane
 {
 }
 
@@ -2848,9 +2918,11 @@ mod tag {
             LEFT = 36,
             RIGHT = 37,
         }
-        /// What may follow a blend's canonical selection: the lowered
-        /// expression of its flow-bearing size slot, or nothing.
-        blend {
+        /// What may follow a one-scalar verb's name list (a blend's
+        /// canonical selection, a shell's open faces): the lowered
+        /// expression of its flow-bearing size slot, or nothing. One
+        /// word for every verb `feed_scalar_join` feeds.
+        scalar_join {
             FLOW_EXPR = 43,
         }
         /// A measured expression's node kind, one word per AST node.
@@ -2919,17 +2991,14 @@ fn verb_content_tag(kind: verbs::VerbKind) -> Option<u8> {
         verbs::VerbKind::Boolean(topo::BooleanOp::Intersect) => Some(9),
         verbs::VerbKind::Boolean(topo::BooleanOp::Subtract) => Some(10),
         verbs::VerbKind::Split => Some(7),
-        // **A kernel-only verb: no document tag, declared rather than
-        // skipped.** The shell is in the kernel's vocabulary and has no
-        // `Node` that builds one, so no content key is ever computed
-        // for it — and `None` is the answer to "which tag does it
-        // have", not an omission. Writing it as data is what keeps the
-        // censuses below total over `VerbKind::ALL`: they read this
-        // row, exclude it from the injectivity space on purpose, and
-        // say so. The day a document shell node lands, the visit is
-        // here and the number is fresh (never a retired one — an
-        // existing tag must never be reused for a new meaning).
-        verbs::VerbKind::Shell => None,
+        // Appended, never a reused tag: the shell took the next free
+        // number after the projection node's pair (33/34) when its
+        // document node landed. The `Option` stays although every verb
+        // now declares a number: "no tag" remains an answer the
+        // vocabulary can give for a kernel-only verb, and the censuses
+        // below stay total over `VerbKind::ALL` by reading this row
+        // rather than a list of their own.
+        verbs::VerbKind::Shell => Some(35),
     }
 }
 
@@ -3186,6 +3255,13 @@ where
             PartSelect::SplitHalf(_) => 33,
             PartSelect::Instance(_) => 34,
         },
+        // The shell's tag is the seat's, read off the verb vocabulary
+        // as the blends' are. A shell and its target of the same slot
+        // values are different bodies, so they must not share a key. A
+        // new node kind is additive — it writes into no channel an
+        // existing node kind reaches — so the format version does not
+        // bump for it.
+        Node::Shell { .. } => document_verb_tag(verbs::VerbKind::Shell),
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -3259,7 +3335,7 @@ where
             // expression. So a value-preserving re-spelling (`r` for
             // `0.125`) must move this key, or the sweep's memo would
             // serve a body whose token names an expression the document
-            // no longer holds. Exactly the blend's rule (`feed_blend`,
+            // no longer holds. Exactly the blend's rule (`feed_scalar_join`,
             // v4) at the node that HOLDS the expression rather than the
             // node that attaches it: the sweep's key folds this one in
             // as an upstream key already, so writing it here covers
@@ -3433,10 +3509,23 @@ where
         // feeds nothing — the rule is read off the declaration rather
         // than written per verb.
         Node::Fillet { selection, .. } => {
-            feed_blend(&mut h, node, selection, crate::verbs::blend::FILLET_SLOTS);
+            feed_scalar_join(&mut h, node, selection, crate::verbs::blend::FILLET_SLOTS);
         }
         Node::Chamfer { selection, .. } => {
-            feed_blend(&mut h, node, selection, crate::verbs::blend::CHAMFER_SLOTS);
+            feed_scalar_join(&mut h, node, selection, crate::verbs::blend::CHAMFER_SLOTS);
+        }
+        // The open list feeds IN ORDER, because the order is meaning:
+        // the first designated face of a chart carries the rim, so two
+        // shells naming the same faces in different orders mint
+        // different names and must not serve each other from the memo.
+        // The order feeds across DISTINCT charts too, where it carries
+        // no rim — a harmless over-discrimination (two memo entries for
+        // one body), accepted over a feed that would have to know
+        // which faces share a chart. The thickness slot's expression
+        // feeds only if the verb's declared flow lands it in a stored
+        // field — read off the declaration, exactly as the blends'.
+        Node::Shell { open, .. } => {
+            feed_scalar_join(&mut h, node, open, crate::verbs::shell::SHELL_SLOTS);
         }
         // A measure's REFERENCES and its measured EXPRESSION are both
         // recipe payload rather than slots: two measures with the same
@@ -4070,23 +4159,26 @@ fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
     }
 }
 
-/// A blend node's recipe payload beyond its slot values: the canonical
-/// selection, and — for a flow-bearing size parameter — the lowered
-/// spelling of its slot (`content_key`'s blend arms).
-fn feed_blend(
+/// **A one-scalar verb's name payload and its flow-bearing slot**, fed
+/// as the blends and the shell all feed them: the names in the order
+/// the payload holds them (canonical for a blend, designation order
+/// for a shell), then the slot's EXPRESSION under `FLOW_EXPR` when the
+/// verb's declared flow lands it in a stored field (`content_key`'s
+/// arms).
+fn feed_scalar_join(
     h: &mut KeyHasher,
     node: &crate::node::Node<ProfileProgram>,
-    selection: &[StableName],
-    slots: crate::verbs::blend::BlendSlots,
+    names: &[StableName],
+    join: crate::verbs::SlotJoin,
 ) {
-    h.write_u64(selection.len() as u64);
-    for n in selection {
+    h.write_u64(names.len() as u64);
+    for n in names {
         feed_stable_name(h, n);
     }
-    if crate::param_source::flow_bearing(slots.size_param)
-        && let Some(expr) = node.expr(slots.size_slot)
+    if crate::param_source::flow_bearing(join.size_param)
+        && let Some(expr) = node.expr(join.size_slot)
     {
-        h.write_tag(tag::blend::FLOW_EXPR);
+        h.write_tag(tag::scalar_join::FLOW_EXPR);
         crate::param_source::feed_content_key(h, expr);
     }
 }
@@ -4172,6 +4264,9 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::BandCross => 37,
         S::BandCut => 38,
         S::BandSlit => 39,
+        S::Inner => 42,
+        S::Rim => 43,
+        S::HoleRim => 44,
         S::Instance => 26,
         S::InPart => 40,
     }
@@ -4383,6 +4478,15 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_u64(member.0);
             feed_stable_name(h, of);
         }
+        // The shell's three roles. Each wraps one source name; the hole
+        // rim carries its pairing index beside it, the way `Instance`
+        // carries `i`.
+        RoleSeg::Inner(n) => feed_stable_name(h, n),
+        RoleSeg::Rim(n) => feed_stable_name(h, n),
+        RoleSeg::HoleRim { of, hole } => {
+            h.write_u64(u64::from(*hole));
+            feed_stable_name(h, of);
+        }
     }
 }
 
@@ -4491,18 +4595,11 @@ mod tag_vocabulary_tests {
             verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Subtract)),
             Some(10)
         );
-        // **The kernel-only row, as closed data.** The shell is in the
-        // kernel's vocabulary and the document layer has no node that
-        // builds one, so it declares no tag — and that is asserted here
-        // rather than left to an absent arm, because the whole point of
-        // the `Option` is that "no tag" is an answer. When a document
-        // shell node lands, this row moves to a NUMBER — a fresh one,
-        // never a retired one.
-        assert_eq!(
-            verb_content_tag(verbs::VerbKind::Shell),
-            None,
-            "the shell is kernel-only: no Node builds one, so it has no content tag"
-        );
+        // The shell's, read off the pre-change source the same way: 35
+        // was the next free number in the node-tag space when
+        // `Node::Shell` landed, and every shell-carrying document keys
+        // on it.
+        assert_eq!(verb_content_tag(verbs::VerbKind::Shell), Some(35));
     }
 
     /// No two verbs share a tag — the property `verb_tag`'s injectivity
@@ -4708,6 +4805,17 @@ mod tag_vocabulary_tests {
             seen.push((*seg, tag));
         }
         assert_eq!(seen.len(), SegTag::ALL.len());
+        // The newest words, pinned: the union's member key and the
+        // shell's three roles, read off the source the numbers were
+        // committed in.
+        for (seg, want) in [
+            (SegTag::FromMember, 41),
+            (SegTag::Inner, 42),
+            (SegTag::Rim, 43),
+            (SegTag::HoleRim, 44),
+        ] {
+            assert_eq!(seg_content_tag(seg), want, "{seg:?}'s committed number");
+        }
     }
 
     /// Builds the closed list of a payload-free `profile` enum's

@@ -221,9 +221,10 @@ the boolean's three ops, 7 split — pinned digit for digit by
 is a compile-guided visit and not a re-spelling of saved files. **A verb
 in the vocabulary need not be one the document can author, and the
 commitment states that rather than skipping it:** `verb_content_tag` is
-an `Option<u8>` answering `None` for the shell, which has no `Node`, so
-the censuses stay total over `VerbKind::ALL` while measuring only the
-rows really in the tag space. `document_verb_tag` is the narrow door for
+an `Option<u8>`, `None` for a kernel-only verb, so the censuses stay
+total over `VerbKind::ALL` while measuring only the rows really in the
+tag space (the shell answered `None` until `Node::Shell` landed; every
+verb has a node today). `document_verb_tag` is the narrow door for
 the verbs a `Node` builds and is loud on the kernel-only answer: a
 silently wrong content tag is how a memo serves another node's
 geometry.

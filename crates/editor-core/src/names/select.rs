@@ -87,6 +87,11 @@ pub enum OpGroup {
     Pattern,
     /// Instantiate-part (ASM-2A's cross-document wrapper).
     InstantiatePart,
+    /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
+    /// Its outer wall speaks as [`SegTag::FromTarget`], which groups
+    /// under [`OpGroup::Fillet`]: the tag names the SHAPE (an entity
+    /// carried through one op), and the minting node says which op.
+    Shell,
 }
 
 macro_rules! seg_tags {
@@ -165,6 +170,10 @@ seg_tags! {
     BandCross,
     BandCut,
     BandSlit,
+    // Shell
+    Inner,
+    Rim,
+    HoleRim,
     // Pattern
     Instance,
     // Instantiate part
@@ -253,6 +262,9 @@ impl SegTag {
             RoleSeg::BandCross(..) => Self::BandCross,
             RoleSeg::BandCut(..) => Self::BandCut,
             RoleSeg::BandSlit(..) => Self::BandSlit,
+            RoleSeg::Inner(..) => Self::Inner,
+            RoleSeg::Rim(..) => Self::Rim,
+            RoleSeg::HoleRim { .. } => Self::HoleRim,
             RoleSeg::Instance { .. } => Self::Instance,
             RoleSeg::InPart { .. } => Self::InPart,
         }
@@ -301,6 +313,7 @@ impl SegTag {
             | Self::BandCross
             | Self::BandCut
             | Self::BandSlit => OpGroup::Fillet,
+            Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
             Self::Instance => OpGroup::Pattern,
             Self::InPart => OpGroup::InstantiatePart,
         }
@@ -351,6 +364,9 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::BandCross(_)
         | RoleSeg::BandCut(_)
         | RoleSeg::BandSlit(_)
+        | RoleSeg::Inner(_)
+        | RoleSeg::Rim(_)
+        | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
         | RoleSeg::Instance { .. } => None,
     }
@@ -386,6 +402,9 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandCross(n)
         | RoleSeg::BandCut(n)
         | RoleSeg::BandSlit(n)
+        | RoleSeg::Inner(n)
+        | RoleSeg::Rim(n)
+        | RoleSeg::HoleRim { of: n, .. }
         | RoleSeg::SectionEdge { face: n, .. }
         | RoleSeg::SplitFragment { parent: n, .. }
         | RoleSeg::CrossingVertex { edge: n, .. }

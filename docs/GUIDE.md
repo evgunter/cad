@@ -1207,6 +1207,70 @@ body = evaluate(doc).value(blended).body()
 body.validate()
 ```
 
+### Hollowing a body: shell, with the faces you open named
+
+A shell offsets every face of a body inward by a wall thickness and
+inserts the offset boundary as a cavity; the faces you name in `open`
+are re-authored as annular RIMS instead, so a box opened at its top
+is a cup. `Node.shell(target, thickness, open)` is the door, and
+`open` is face names as text exactly as `Node.fillet` takes edge
+names — carried, never composed, frozen at authoring time.
+
+One thing the blend selection does not have: **`open` is ordered.** A
+chart's rim is its FIRST designated face (the chart's other faces
+merge onto it and the rim's name is that face's), so name first the
+face you want to carry the rim's identity. An empty list is the
+SEALED hollow — a closed thin solid with a cavity and no rim — which
+is legal and not a refusal. And a face is designated together with
+every face on its chart: a full revolve's cap is two half-faces on
+one plane, and naming one of them refuses (`shell`, the kernel's
+partial-chart gate) rather than silently opening both.
+
+```python
+from pncad import (
+    CapEnd, Doc, EntityKind, EvaluationError, NamePat, Node,
+    OpGroup, SegPat, SegTag, Selector, evaluate, m,
+)
+
+L, T = 1.0, 0.125
+
+doc = Doc()
+square = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)], plane=doc.sketch_frame())
+)
+box = doc.insert(Node.extrude(square, L * m))
+
+# The top, by ROLE: the extrude's end cap. One name, carried to the
+# door unread.
+faces = NamePat.of_kind(EntityKind.Face)
+top = evaluate(doc).select(box, Selector.of(faces.seg(SegPat.tag(SegTag.Cap).side(CapEnd.End))))
+assert len(top) == 1
+cup = doc.insert(Node.shell(box, T * m, top))
+
+# The cavity is (L-2T) x (L-2T) x (L-T): the opened top loses no wall.
+body = evaluate(doc).value(cup).body()
+body.validate()
+inner = L - 2 * T
+assert body.mass_properties().volume == L**3 - inner * inner * (L - T)
+
+# The cup's own vocabulary: one rim (named for the top it replaced)
+# and five cavity twins group as the SHELL's; the five outer faces are
+# carried through and speak as `FromTarget`, the blend's group, because
+# the tag names the shape and the minting node says which op.
+ev = evaluate(doc)
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))) == 1
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))) == 6
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))) == 5
+
+# A wall that is not a wall is the kernel's refusal, not the binding's.
+flat = doc.insert(Node.shell(box, 0 * m, top))
+try:
+    evaluate(doc).value(flat)
+    raise AssertionError("a zero wall should not hollow")
+except EvaluationError as refusal:
+    assert refusal.kind == "shell"
+```
+
 ## 3. Parametric models
 
 Section 2's Rust walk built a solid by calling operations. That is a
