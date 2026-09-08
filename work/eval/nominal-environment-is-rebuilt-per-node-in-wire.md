@@ -2,9 +2,10 @@
 id: nominal-environment-is-rebuilt-per-node-in-wire
 kind: issue
 title: Two readers in wire.rs rebuild the nominal f64 environment per node although the evaluation now carries one
-status: open
+status: spec
 opened: 2026-09-08
 refs: [interval-content-key-hashes-bits-the-pre-pass-does-not-read]
+branch: eval/10-one-nominal-env
 ---
 
 (EVAL-9 implementer, found by that unit's sweep. In EVAL's fence, so

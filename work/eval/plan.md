@@ -87,6 +87,15 @@ D, each an `[ev]` PR, announced on DOCM's board:
    review's probe is the red-first row. The file lands with EVAL-7's
    fix pass.
 
+10. `nominal-environment-is-rebuilt-per-node-in-wire` — EVAL-9's
+    residue: `profile_plane_f64` and `section_of` rebuild the nominal
+    f64 environment per node although the evaluation carries one on
+    `LaneEnv::nominal`; threading, one evaluator site left.
+11. `node-value-kind-answers-a-transform-by-node-kind` — EVAL-6's
+    residue: the recipe-side family word reads a transform through its
+    input, so a transform of a pattern is "instances" on both roads;
+    the one caller in `mate/member.rs` is MSOLVE's line, announced.
+
 Standing, not units: `D360` (sweep topo refusal enums by variant name;
 a rule this program's lanes read first). Deferred with its
 ratification cited: `two-verb-seats-do-not-compose` (#1345 items
