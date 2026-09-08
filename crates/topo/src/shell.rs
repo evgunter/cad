@@ -689,7 +689,7 @@ impl ShellNaming {
 /// (the operand's shell roles), and written from that decision; never
 /// inferred from the result's keys.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RimSide {
+pub enum RimShell {
     /// The designated chart is on the operand's OUTER shell: the
     /// designated face survives as the rim, its cavity counterpart
     /// dies, and the ring's entities are inward twins (rows verbatim
@@ -711,7 +711,7 @@ pub struct RimNaming {
     pub sources: Vec<FaceKey>,
     /// Which shell of the operand the chart was on, and so which
     /// reading `rim`, `ring`, the ring rows and `dead` take.
-    pub side: RimSide,
+    pub side: RimShell,
     /// The rim face (result), now annular. With `side` `Outer` it is
     /// **`sources[0]`** — the chart's faces merge onto the first one
     /// designated, so a caller that wants a particular face to carry
@@ -1177,9 +1177,9 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
             })?
             .shell;
         let side = if voids.contains(&designated_shell) {
-            RimSide::Void
+            RimShell::Void
         } else {
-            RimSide::Outer
+            RimShell::Outer
         };
 
         // Lift the cavity's counterpart chart back onto the designated
@@ -1282,8 +1282,8 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // asserts the designated void face DIES, and the pairing row
         // reads each thin solid's twin through the record.
         let (host, guest) = match side {
-            RimSide::Void => (counterpart, mouth),
-            RimSide::Outer => (mouth, counterpart),
+            RimShell::Void => (counterpart, mouth),
+            RimShell::Outer => (mouth, counterpart),
         };
         let (host_surface, host_sense) = {
             let data = out.get_face(host).ok_or(ShellError::Corrupt {
@@ -1445,8 +1445,8 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // is a mint this record cannot explain, and it says so rather
         // than leaving a gap.
         let rows = match side {
-            RimSide::Void => RingSource::Operand(body),
-            RimSide::Outer => RingSource::Twins(&twins),
+            RimShell::Void => RingSource::Operand(body),
+            RimShell::Outer => RingSource::Twins(&twins),
         };
         let (ring_edges, ring_vertices) = ring_rows(&out, fused.ring, &rows)?;
 

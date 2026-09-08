@@ -19,7 +19,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
 };
-use topo::{Body, FaceKey, LoopBoundary, RimSide, ShellError, ShellKey, ShellRole, SolidKey};
+use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRole, SolidKey};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -732,7 +732,7 @@ fn opening_the_hollow_boxs_outer_top_cups_the_outer_wall_only() {
         props.volume
     );
     assert_eq!(opened.naming.rims.len(), 1);
-    assert_eq!(opened.naming.rims[0].side, RimSide::Outer);
+    assert_eq!(opened.naming.rims[0].side, RimShell::Outer);
     assert_eq!(opened.naming.rims[0].rim, top);
     assert_eq!(opened.naming.thickened, sealed.naming.thickened);
     assert!(
@@ -801,7 +801,7 @@ fn opening_the_hollow_boxs_void_ceiling_cups_the_inner_wall_only() {
     let rim_row = &record.rims[0];
     assert_eq!(
         rim_row.side,
-        RimSide::Void,
+        RimShell::Void,
         "the record says which reading its rows take"
     );
     assert_eq!(rim_row.sources, vec![ceiling]);

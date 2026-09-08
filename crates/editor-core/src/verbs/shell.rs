@@ -275,7 +275,9 @@ pub(crate) fn fold_shell_error<T: Real>(
             thickness: end(thickness, Infimum),
         },
         E::NotOneSolid { solids } => E::NotOneSolid { solids },
-        E::OperandAlreadyHollow { shells } => E::OperandAlreadyHollow { shells },
+        E::Roles { error } => E::Roles { error },
+        E::OperandOuterShells { outer } => E::OperandOuterShells { outer },
+        E::Partition { shell, error } => E::Partition { shell, error },
         // The pessimistic pair, which is the reading under which the two
         // offsets cross: the material as thin as the bracket admits,
         // the wall the offsets need as thick as it admits.
