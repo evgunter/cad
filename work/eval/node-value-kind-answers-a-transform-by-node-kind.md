@@ -2,11 +2,12 @@
 id: node-value-kind-answers-a-transform-by-node-kind
 kind: issue
 title: eval::node_value_kind answers "body" for every Transform, but a transform's value family is its input's
-status: review
+status: closed
 opened: 2026-09-08
 refs: [transform-refuses-a-patterns-instances-value]
 pr: 2195
 branch: eval/11-transform-value-kind
+closed: 2026-09-08
 ---
 
 `crates/editor-core/src/eval/mod.rs`'s `node_value_kind` is the
