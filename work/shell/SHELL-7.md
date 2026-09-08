@@ -2,7 +2,7 @@
 id: SHELL-7
 kind: unit
 title: the axial offset door takes a one-surface corner — the full-period torus shells
-status: open
+status: dispatched
 opened: 2026-09-08
 branch: shell/7-seam-corner
 refs: [axial-door-refuses-a-one-surface-seam-corner, SHELL-5, 1674]
