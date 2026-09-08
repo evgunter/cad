@@ -641,3 +641,22 @@ lane flags: a `Dual64` derivative channel is `+0.0` from the lift and
 no predicate). Style and correctness lanes dispatched on `6e1cb1250`;
 the correctness lane is asked whether any consumer reads a zero
 derivative's sign.
+
+## EVAL-9 to review (2026-09-08, PR 2190, head `f6aa77504`)
+
+Full matrix green. The lane's main deviation is a correction to the
+spec: its item 1 (a uniform nominal feed at every lane) and its claim 2
+("under a forced format 6 the f64 and `Dual64` keys are identical to
+the base") cannot both hold — a written word moves a hash. The lane
+kept the uniform rule and proved what claim 2 was after in the form
+that survives it: per pass the base-key → forced-key map is a
+bijection (no split, no merge), so the nominal adds a word and no
+information at f64/`Dual64`; the count words move every profile
+node and its cone by design. The spec was wrong on that claim and the
+lane's reading is adopted. The probe row is red on the base with the
+item's exact numbers and green on the head; the f64 cost is below the
+corpus noise floor. New residue on EVAL's slate:
+`nominal-environment-is-rebuilt-per-node-in-wire.md` (`wire.rs`
+builds the f64 environment per profile-bearing node although the
+evaluation now holds one). Style and correctness lanes dispatched on
+`f6aa77504`.
