@@ -354,6 +354,6 @@ pub fn insert_voids<T: Decide>(
         },
     )?;
     #[cfg(debug_assertions)]
-    dst.assert_euler_postcondition(before, transplant, "insert_void");
+    dst.assert_euler_postcondition(before, transplant, "insert_voids");
     Ok(VoidInserted { graft })
 }
