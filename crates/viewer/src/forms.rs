@@ -144,80 +144,63 @@ vocabulary! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum PathVerb {
         /// Bind the tip's position.
-        At,
+        At = "at",
         /// Bind the tip's outgoing direction, absolutely.
-        Angle,
+        Angle = "angle",
         /// Bind it by exact components.
-        Toward,
+        Toward = "toward",
         /// Leave along the incoming tangent.
-        Tangent,
+        Tangent = "tangent",
         /// Leave along its reverse.
-        Cusp,
+        Cusp = "cusp",
         /// Leave at an angle from it.
-        Turn,
+        Turn = "turn",
         /// A straight leg of a stated length.
-        Line,
+        Line = "line",
         /// A straight leg to a target.
-        LineTo,
+        LineTo = "line_to",
         /// A sharp arc leg.
-        ArcTo,
+        ArcTo = "arc_to",
         /// An arc leg leaving along the bound direction.
-        TangentArcTo,
+        TangentArcTo = "tangent_arc_to",
         /// A structural vertex on the incoming carrier.
-        ArcContinue,
+        ArcContinue = "arc_continue",
         /// Round the corner: line in, line out.
-        Fillet,
+        Fillet = "fillet",
         /// Round it with an arc on the arrival side.
-        FilletArc,
+        FilletArc = "fillet_arc",
         /// Round it with an arc on the incoming side.
-        ArcFillet,
+        ArcFillet = "arc_fillet",
         /// Round it with an arc on both.
-        ArcFilletArc,
+        ArcFilletArc = "arc_fillet_arc",
         /// The anchor a fillet's arrival side is aimed at.
-        FarEndTo,
+        FarEndTo = "to (far end)",
         /// The seam fillet's close.
-        CloseTo,
+        CloseTo = "to Start (close)",
     }
 
-    /// Every verb, in the algebra's own order — the "add step" menu
-    /// and the row combo's options. Labels come from
-    /// [`PathVerb::label`], so this list carries the ORDER and
-    /// nothing else.
+    /// Every verb with the word the chrome shows for it, in the
+    /// algebra's own order — the "add step" menu and the row combo's
+    /// options, which draw an option per entry and read the word off
+    /// the entry.
     pub(crate) const ALL;
+
+    /// This verb's word, for the one place a verb is asked on its own:
+    /// the combo's closed face, which names the verb of the step the
+    /// row is showing. The same literal the list above carries, and a
+    /// verb with no word does not parse — there is no reading of a
+    /// verb that a `?` on somebody's screen could come out of.
+    /// (Whether a verb reaches the MENU is not a question anything has
+    /// to answer either: [`PathVerb::ALL`] is projected from the
+    /// declaration above, so there is no list for a verb to be missing
+    /// from. That matters here because no row could have checked it —
+    /// the type is `pub(crate)` behind the `app` feature, so no
+    /// integration test can see it, which is the coverage gap issue
+    /// #1385 names.)
+    pub(crate) fn label;
 }
 
 impl PathVerb {
-    /// This verb's label — a match rather than a search through
-    /// [`PathVerb::ALL`], so a verb with no label is a compile error
-    /// rather than a `?` on somebody's screen. (Whether a verb reaches
-    /// the MENU is no longer a question anything has to answer:
-    /// [`PathVerb::ALL`] is projected from the declaration above, so
-    /// there is no list for a verb to be missing from. That matters
-    /// here because no row could have checked it — the type is
-    /// `pub(crate)` behind the `app` feature, so no integration test
-    /// can see it, which is the coverage gap issue #1385 names.)
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            Self::At => "at",
-            Self::Angle => "angle",
-            Self::Toward => "toward",
-            Self::Tangent => "tangent",
-            Self::Cusp => "cusp",
-            Self::Turn => "turn",
-            Self::Line => "line",
-            Self::LineTo => "line_to",
-            Self::ArcTo => "arc_to",
-            Self::TangentArcTo => "tangent_arc_to",
-            Self::ArcContinue => "arc_continue",
-            Self::Fillet => "fillet",
-            Self::FilletArc => "fillet_arc",
-            Self::ArcFillet => "arc_fillet",
-            Self::ArcFilletArc => "arc_fillet_arc",
-            Self::FarEndTo => "to (far end)",
-            Self::CloseTo => "to Start (close)",
-        }
-    }
-
     /// Which verb a step names.
     pub(crate) fn of(step: &PathStep) -> Self {
         match step {
@@ -299,37 +282,30 @@ vocabulary! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum ArcMode {
         /// The carrier's radius and the side its centre is on.
-        Radius,
+        Radius = "radius",
         /// The endpoint and an authored bulge.
-        Bulge,
+        Bulge = "bulge",
         /// A point the arc passes through, and the endpoint.
-        Via,
+        Via = "via",
         /// The carrier centre, the travel sense, and the endpoint.
-        Center,
+        Center = "centre",
         /// The carrier and how far round it to go.
-        Sweep,
+        Sweep = "sweep",
         /// The carrier and the distance travelled along it.
-        ArcLen,
+        ArcLen = "arc length",
     }
 
-    /// Every mode, in the vocabulary's own order — the picker's
-    /// options.
+    /// Every mode with the word the picker shows for it, in the
+    /// vocabulary's own order — the picker's options, one per entry,
+    /// each reading its word off the entry.
     pub(crate) const ALL;
+
+    /// This mode's word, for the one place a mode is asked on its own:
+    /// the picker's closed face, which names the mode the spec is in.
+    pub(crate) fn label;
 }
 
 impl ArcMode {
-    /// This mode's label.
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            Self::Radius => "radius",
-            Self::Bulge => "bulge",
-            Self::Via => "via",
-            Self::Center => "centre",
-            Self::Sweep => "sweep",
-            Self::ArcLen => "arc length",
-        }
-    }
-
     /// Which mode a spec is in.
     pub(crate) fn of(spec: &ArcSpec) -> Self {
         match spec {

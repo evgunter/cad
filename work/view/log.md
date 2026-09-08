@@ -6084,3 +6084,67 @@ shipped green over three garbage diagnoses. Four cases now match a
 fragment containing the subject, and
 `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names` is
 the durable half — a harness affordance, not this gate's to build.
+
+## 2026-09-08 — the two-shape rule stops counting readers
+
+`bare-vocabularies-declare-their-words-a-second-time` closed on **Ev's
+ruling, which is neither answer the item framed**: two of the four bare
+vocabularies convert, and the README's rule is CORRECTED rather than
+deleted.
+
+**What was wrong with the rule, not with the population.** It asked
+"is there a single-value reader?" and answered "method". That sends
+`PathVerb` and `ArcMode` to the bare arm although a production loop
+walks their table and wants a word per entry — the labelled arm's whole
+purpose — because each *also* names one value's word on a combo's
+closed face. The corrected test is **does anything walk the table for
+its WORDS?**: a question about whether the words are table data, which
+a sweep can answer, where a count of readers cannot.
+
+**The sweep, stated at the sentence it produces.** Every loop over a
+vocabulary's `ALL` under `crates/viewer/src`, read for what it asks
+each entry for. Two exist and both ask for the word —
+`pane/create.rs:727` (`:738`, `:748`) and `widgets.rs:300` (`:301`) —
+so `PathVerb` (17) and `ArcMode` (6) are labelled and their loops now
+read `(option, label)` pairs. `ToolKind` and `Seat` have no `src/`
+reader of `ALL` at all and stay bare; the suites walk both lists for
+the VALUES (`tests/combine_ops.rs:1290`, `:1422`), and a seat's word
+reaches only an assertion message about the one seat that failed
+(`:1471`, `:1478`) — a walk that would still do its job if the words
+did not exist is not a reader of them.
+
+**The accessor is opt-in, which is what made this a unit.** Giving the
+labelled arm a `label()` unconditionally would hand one to the five
+labelled vocabularies that never ask for a single value's word: dead
+code under `-D warnings`, and an `#[allow(dead_code)]` over the arm
+would silence the report that an accessor has lost its last reader. So
+a vocabulary DECLARES the projection it wants — `pub(crate) fn label;`
+under its `ALL` — and the macro emits a `const fn` MATCH over the same
+tokens the array is built from. Not a scan of `ALL`: exhaustive by
+construction, no fallback arm to write, const-evaluable (which
+declaring it `const fn` is what checks), and the same codegen the
+hand-written match had.
+
+**The words are unchanged, proved by running.** A throwaway unit test
+printed `index, variant, word` for all 23 entries at the merge base and
+again after the conversion; the two outputs are byte-identical, same 23
+rows and same md5. That is the receipt #2103's lesson asks for — these
+words are on the user's screen, and a literal moving from a match arm
+into a declaration is exactly where a rendering goes quietly wrong.
+
+**Citations re-derived by subject, in the open rows that cite the files
+this branch touched.** Four were wrong at the merge base and none of
+the four was shifted by this branch:
+`hand-maintained-mirrors-of-a-kernel-enum-are-unforced` cited
+`forms.rs:44` for `BOOLEAN_OPS` (`:67`), `forms.rs:471` for
+`MATE_PRIMITIVES` (`:511` at the merge base, `:487` here) and
+`create.rs:887` for its production reader (`:892`);
+`revolve-tool-unreachable-no-axisinplane-form` cited `forms.rs:52` for
+`DatumKind` (`:93`) and `create.rs:354-363` for the four `DatumSpec`
+arms (`:358-371`); `tone-is-a-value-in-frame-and-a-comment-in-two-panes`
+cited `create.rs:592-594` for "a third copy" of the weak/coloured rule,
+which is the "Add profile" button — the copy is at `:581-585`. The
+`Was`/`Now` table in `stale-file-citations-after-the-split` is NOT
+re-pointed: it is dated to `d799235e`, where `forms.rs:52` and
+`create.rs:354-363` are exactly what it says they are, and rewriting a
+dated record would make it false about the tree it names.

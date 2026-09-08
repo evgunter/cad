@@ -23,8 +23,8 @@ the seat itself is `crates/viewer/src/seats.rs:161`), and `admits`
 `Datum::AxisInPlane` and nothing else.
 
 The panel that authors datums offers four kinds — `DatumKind` is
-Plane, Axis, Point, Frame (`crates/viewer/src/forms.rs:52`; the four
-arms are built in `crates/viewer/src/pane/create.rs:354-363`) — and
+Plane, Axis, Point, Frame (`crates/viewer/src/forms.rs:93`; the four
+arms are built in `crates/viewer/src/pane/create.rs:358-371`) — and
 `AxisInPlane` is not among them. `add_datum_ui` is the only
 `DatumSpec` construction site in `src/`; every
 `DatumSpec::AxisInPlane` in the tree is in `crates/viewer/tests/`.

@@ -927,25 +927,41 @@ in order and several say so in their own docs; where a form wants an
 order the type did not grow in, the **enum** is written in the form's
 order and says why.
 
-**Two shapes, and a rule that says which.** A LABELLED vocabulary
+**Two shapes, and the test that says which.** A LABELLED vocabulary
 writes each variant's word in the declaration and projects
 `[(Self, &'static str); N]`; a BARE one projects `[Self; N]` and keeps
-its wording in a `label`/`name` method beside it. The rule is not
-taste: **a word goes in the table when the row that iterates the table
-is its only reader, and in a method when anything asks a single value
-for its word** — a method can be called on one value and a table can
-only be iterated. `PathVerb`, `ArcMode`, `ToolKind` and `Seat` are
-bare because their words are asked for one at a time (the combo's
-*current* verb, a refusal sentence naming one seat); the five labelled
-ones are labelled because their word appears nowhere but the radio row
-that draws them.
+its wording in a `label`/`name` method beside it. The test is neither
+taste nor a count of readers: **does anything walk the table for its
+WORDS?** If something does, the words are table data — they belong in
+the declaration, and the walk reads each entry's word off the entry it
+already holds. If nothing does, they are not table data at all and a
+method beside the enum is the whole of it. Being asked for one value's
+word does not force the split: a labelled vocabulary declares
+`fn label;` under its `ALL` and the macro projects that accessor from
+the same list as a match, so the closed face of a combo is served
+without a second ordered reading.
 
-That leaves the ordered word list declared twice in the four bare ones
-— the `ALL` order and the `label` match's arms. That is *not* the
-defect this section is about, because a match is exhaustiveness-forced
-and cannot silently miss a variant; it is a second ordered copy, and
-whether the labelled arm should absorb it is
-`work/view/bare-vocabularies-declare-their-words-a-second-time.md`.
+**The sweep that produces the population** is a walk of every loop over
+a vocabulary's `ALL` under `src/`, read for what the loop asks each
+entry for. Two ask for the word: `pane::create`'s path-verb combo draws
+an option per verb with that verb's word on it, and `widgets`'
+`arc_fields` picker does the same per mode. So `PathVerb` and `ArcMode`
+are labelled, each also declaring `fn label;` for the combo's closed
+face. `ToolKind` and `Seat` are bare, because under `src/` nothing
+walks their lists at all: a kind's word appears inside a sentence
+`tools` composes, and a seat's inside the refusal sentences `seats` and
+`session::refuse` write — wording read against that discipline rather
+than against a row of buttons. The suites do walk both lists, and walk
+them for the VALUES: `tests/combine_ops.rs` maps kinds to booleans and
+drives one op per seat, where the seat's word reaches only an assertion
+message about the single seat that failed. A walk that would still do
+its job if the words did not exist is not a reader of them.
+
+**Neither shape holds a second ordered list of the words.** A labelled
+vocabulary's `ALL` and its `label` are projected from one list of
+tokens, so the order and the reading are each declared once; a bare one
+carries no word in its table, and its method is the only place its
+words are written.
 
 **What the macro cannot express**, stated because it is a one-way
 door: fieldless variants only, and no explicit discriminants — the
