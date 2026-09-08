@@ -497,6 +497,29 @@ BOUND_AS = {
     # numbers the arm carries describe a mesh that violates its own
     # invariant, which is a bug report and not something to branch on.
     "MeshPickError": "NodePickError.index_variant",
+    # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
+    # analytic kind's stage-1 estimator declined on a face that could
+    # not import without promotion. It crosses by the carrier rule at
+    # `MeshPickError`'s spelling and for that entry's reason: the
+    # carrier's arm HAS a word of its own, `recognition_ambiguous`,
+    # which names the condition and which a caller branching on the
+    # import ladder needs to stay put. So the payload's discriminant
+    # arrives BESIDE it rather than in place of it, `None` on every
+    # other arm.
+    #
+    # Two values, and they are two different next moves: `plane`
+    # declining is a flatness question at the file's tolerance,
+    # `cylinder` declining is an ill-conditioned axis and wants more
+    # of the patch. The match that mints them is exhaustive, so a
+    # third promotable kind stops the bindings compiling instead of
+    # joining one of these.
+    #
+    # No Python test row: firing the arm needs a file with a
+    # multi-bound curved face on an ill-conditioned NURBS surface,
+    # which is a `step-import` fixture and not something an authoring
+    # door reaches. Both words are pinned in Rust, where the refusal
+    # constructs.
+    "PromotedKind": "StepImportError.promoted_kind",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
     # accounted by rule 1; these two are the family's shape entries,
@@ -1409,6 +1432,22 @@ NOT_BOUND = {
     "FaceKey": SHAPE,
     "ExtrudeError": SHAPE,
     "ImportOptions": SHAPE,
+    # The element type of `ImportOptions::declared_contacts`, curated
+    # at the prelude because filling a public field means spelling its
+    # element type and a Rust caller could not: the import-side
+    # declaration channel was callable and not FILLABLE. That defect
+    # is a Rust one and it does not reproduce here, which is why this
+    # entry is `different-shape` rather than a gap. It follows its
+    # carrier one bullet above — `ImportOptions` is `import_step`'s
+    # absent second argument — and an element type of an absent
+    # argument has strictly less to cross than the argument does.
+    #
+    # Read this entry beside `import_step` if that second argument is
+    # ever bound: at that moment `ImportContact` needs a Python
+    # spelling of its own (a constructor for the position anchor), and
+    # this row stops being honest in exactly the shape the
+    # `EvalOutcome` entry above records.
+    "ImportContact": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
     # `continue_to`'s target trait, absorbed into the verb exactly as

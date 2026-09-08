@@ -950,12 +950,8 @@ fn a_revolve_result_is_matchable_through_the_prelude() {
         .and_then(|t| t.line_to(p2(1.0, 1.0), Tol::witness()))
         .and_then(|t| t.line_to(Start, Tol::witness()))
         .expect("the rectangle authors");
-    let profile = validated(
-        SketchPlane::<f64>::xy(),
-        vec![rect.into()],
-        Tol::witness(),
-    )
-    .expect("profile validates");
+    let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], Tol::witness())
+        .expect("profile validates");
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: v2(0.0, 1.0),
@@ -1004,6 +1000,78 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
             named::<&Vec<Option<EdgeKey>>>(pi_rims);
             "full"
         }
+    }
+}
+
+/// **The import surface, on both sides of the call** — the refusal a
+/// caller matches, and the options a caller fills.
+///
+/// The two halves are two different curation defects and this pins
+/// each. `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the
+/// arm was matchable and the kind whose estimator declined was
+/// readable only out of the message prose. `ImportContact` is the
+/// element type of a `pub` field on the options struct, so the
+/// declaration channel was callable and not FILLABLE — the value
+/// below could not be written from this list at all.
+///
+/// What the `import_step` call pins is exactly that: the door accepts
+/// options a prelude caller filled. Whether an anchor RESOLVES is
+/// `step-import`'s own suite, on a file with vertices to resolve
+/// against; here the text is not a STEP file and the refusal is the
+/// parser's.
+#[test]
+fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::RecognitionAmbiguous {
+            id: 104,
+            surface: 105,
+            kind: PromotedKind::Plane,
+            margin: 1e-9,
+        }),
+        Some("plane")
+    );
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::RecognitionAmbiguous {
+            id: 142,
+            surface: 143,
+            kind: PromotedKind::Cylinder,
+            margin: 1e-9,
+        }),
+        Some("cylinder")
+    );
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::NothingToImport),
+        None
+    );
+
+    let options = ImportOptions {
+        eps_in: Some(1e-7),
+        declared_contacts: vec![ImportContact::VertexRest {
+            at: [0.0, 0.0, 0.5],
+        }],
+    };
+    assert!(matches!(
+        import_step("not a step file", &options, Tol::witness()),
+        Err(StepImportError::Syntax { .. })
+    ));
+}
+
+/// Which analytic kind's estimator declined, read off the arm that
+/// reports it — `None` on every other refusal.
+///
+/// The kinds are matched EXHAUSTIVELY, so a third one recognised
+/// kernel-side stops this compiling rather than arriving under an
+/// existing word. Their recourses differ, which is why the
+/// discriminant is worth a curated name: a plane that will not
+/// certify is a flatness question at ε_in, a cylinder that will not
+/// is an ill-conditioned axis and wants more of the patch.
+fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static str> {
+    match err {
+        StepImportError::RecognitionAmbiguous { kind, .. } => Some(match kind {
+            PromotedKind::Plane => "plane",
+            PromotedKind::Cylinder => "cylinder",
+        }),
+        _ => None,
     }
 }
 

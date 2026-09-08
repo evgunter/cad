@@ -283,9 +283,24 @@ class StepImportError(PncadError):
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
-    the file parsed, to something this door does not adopt."""
+    the file parsed, to something this door does not adopt.
+
+    `recognition_ambiguous` neither forwards nor withholds. The word
+    names the CONDITION — a face that cannot import without promotion
+    sits on a surface whose recognition estimator is ill-conditioned at
+    the file's own tolerance, so no answer exists at the interpretation
+    budget — and `promoted_kind` carries beside it which analytic
+    kind's estimator declined, `plane` or `cylinder`. The two lead
+    different places: a plane that will not certify is a flatness
+    question at the import tolerance, a cylinder that will not is an
+    ill-conditioned axis and wants more of the patch. The face and
+    surface entity ids and the conditioning margin are in the message.
+
+    Every field is present on every arm, `None` where that arm does not
+    carry it."""
 
     variant: str
+    promoted_kind: Optional[str]
 
 class PathError(PncadError):
     """The PATHS authoring algebra refused the geometry, at the call

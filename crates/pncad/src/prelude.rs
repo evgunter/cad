@@ -431,7 +431,48 @@ pub use topo::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 // --- 7. Tessellation and export -------------------------------
 pub use mesh::{Mesh, TessellateError, tessellate};
 pub use step_export::{StepExportError, StepOptions, step_string, write_step};
-pub use step_import::{ImportOptions, StepImportError, import_step};
+// **`PromotedKind` is `StepImportError::RecognitionAmbiguous`'s
+// discriminant** — which analytic kind's estimator declined on a face
+// that could not import without promotion (D7 stage 1, ruling #256).
+// It is a `pub` field of a prelude-carried refusal, so the arm was
+// matchable and the fact it reports was not.
+//
+// A caller branches on it because the two kinds have different next
+// moves. `Plane` declining means the patch is not flat within ε_in
+// and the recourse is the tolerance or the emitting CAD's own
+// planarity; `Cylinder` declining means the axis estimator was
+// ill-conditioned — collinear azimuth samples — and the recourse is a
+// re-export with more of the patch, or the face left as NURBS. The
+// refusal's own prose names the kind, which is exactly the
+// `DanglingRef` situation this curation rung exists to close: a fact
+// readable only out of a message is not matchable.
+//
+// **`ImportContact` is a different defect and is carried for a
+// different reason: it is an INPUT, not a payload.**
+// `ImportOptions::declared_contacts` is a `pub Vec<ImportContact>` —
+// the import-side declaration channel (M9-2, D7 step 4), the position
+// anchored declarations a caller attaches to an import so they are
+// certified by the SAME tier-3′ gate a native declared-contact body
+// runs. `ImportOptions` was on this list and `ImportContact` was not,
+// which is not a matchability gap but a REACH one: a prelude caller
+// could name the options struct, could set `eps_in`, and could not
+// put a declaration in it, because filling a public field means
+// spelling its element type. Every other door on this list is
+// callable from it; this one was callable and not fillable, so the
+// declaration channel had no prelude caller at all.
+//
+// The rung under both closes here rather than stopping.
+// `PromotedKind`'s arms carry nothing, and an `ImportContact` is one
+// arm carrying three `f64` — the anchor position — so a caller states
+// a declaration in numbers it already holds.
+//
+// The Python halves differ, and the difference follows the carrier
+// each time. `StepImportError` projects a tag, so `PromotedKind`
+// projects its own beside it (`StepImportError.promoted_kind`);
+// `ImportOptions` does not cross at all — Python's `import_step`
+// takes only the text — so `ImportContact` has nothing to project
+// until that argument does.
+pub use step_import::{ImportContact, ImportOptions, PromotedKind, StepImportError, import_step};
 // `StlError` is the writers' own refusal type — what `write_ascii` and
 // `write_binary` return. The option errors beside it
 // (`BinaryHeaderError`, `SolidNameError`) refuse at option
