@@ -696,7 +696,10 @@ fn r2_e2e_consumer_seat() {
         .collect();
     let opened = topo::shell_open(&hollowed.body, 0.02, &b_inner_ceiling, tol())
         .expect("opened on the vessel's inner wall");
-    let want = one_wall(0.02) + hollow_vessel_want(0.05, 0.02, 1.0, 2.0, true);
+    // BOTH solids shell again: the box's thin solid becomes two more.
+    let want = (v(2.0, 3.0, 4.0) - v(1.96, 2.96, 3.96))
+        + (v(1.94, 2.94, 3.94) - v(1.9, 2.9, 3.9))
+        + hollow_vessel_want(0.05, 0.02, 1.0, 2.0, true);
     let props = topo::mass_properties(&opened.body, tol()).unwrap();
     println!(
         "[r2] e2e 3: solids={} shells={} volume={} want={want} rims={}",
