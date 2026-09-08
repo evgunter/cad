@@ -161,7 +161,7 @@ use pncad::topo::{Body, BooleanError, Operand, TransformError};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{p2, p3, v2, v3, validated};
+use pncad::authoring::{p2, p3, polygon, v2, v3, validated};
 use pncad::geom_core::Tol;
 
 // ---------------------------------------------------------------
@@ -794,15 +794,18 @@ fn leaf<S: Scalar>(
     let place = SketchPlane::from_frame(base, u, v).placement;
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
-    let loops: Vec<ProfileLoop<f64>> = vec![crate::paths::path_polygon(
-        &[
-            (-0.5 * section.width, 0.0),
-            (0.0, -section.keel),
-            (0.5 * section.width, 0.0),
-            (0.0, section.ridge),
-        ],
-        tol,
-    )];
+    let loops: Vec<ProfileLoop<f64>> = vec![
+        polygon(
+            &[
+                (-0.5 * section.width, 0.0),
+                (0.0, -section.keel),
+                (0.5 * section.width, 0.0),
+                (0.0, section.ridge),
+            ],
+            tol,
+        )
+        .expect("the leaf kite"),
+    ];
     sweep_body::<S>(&loops, place, &path, LEAF_STATIONS, LEAF_V_DEGREE, tol)
         .expect("the leaf sweeps along its spine")
         .body

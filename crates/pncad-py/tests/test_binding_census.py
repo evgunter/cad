@@ -648,6 +648,15 @@ BOUND_AS = {
     "intersect_with": "Node.boolean",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
+    # The façade's lattice-backed loop door and the document layer's
+    # node constructor answer the same question — a closed outline from
+    # a coordinate table — one rung apart, which is the mapping rule's
+    # ordinary case (`extrude` -> `Node.extrude`). Python has no
+    # loops-in-hand seat to spell the Rust door at: `Node.polygon`
+    # names a frame and mints a node, and the refusals it can raise are
+    # the same PATHS refusals, tagged (`polygon_too_few_vertices`,
+    # `junction_tangent`).
+    "polygon": "Node.polygon",
     "revolve": "Node.revolve",
     "save": "Doc.save",
     "select": "Evaluation.select",
