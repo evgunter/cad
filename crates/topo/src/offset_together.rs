@@ -27,14 +27,23 @@
 //!
 //! # Scope, stated as a gate rather than as a hope
 //!
-//! **Every face of the body must be planar and must be in the moving
-//! set.** Both are checked and refused typed
+//! **Every face of every SOLID the moves touch must be planar and must
+//! be in the moving set, and no solid may be touched in part.** Both
+//! are checked and refused typed
 //! ([`ReplaceFaceError::TogetherNonPlanar`],
-//! [`ReplaceFaceError::TogetherPartialSet`]) — a body with one curved
-//! face has corners this door cannot solve, and a partially moving set
-//! has corners whose answer depends on faces it was not told about.
+//! [`ReplaceFaceError::TogetherPartialSet`]) — a planar face this door
+//! moves has corners it cannot solve without every other chart at that
+//! corner, and a partially moving solid has corners whose answer
+//! depends on faces it was not told about.
 //! Curved corners are the C5-table work that follows this unit; until
 //! it lands they refuse where they always did.
+//!
+//! **The unit is the SOLID, not the body.** A corner is the meeting of
+//! charts that belong to one solid — two solids share no vertex, no
+//! edge and no face — so a body of several solids is several
+//! independent corner problems, and this door solves the ones it was
+//! given. Every entity it reads and every entity it writes lies on a
+//! solid the moves name; the rest of the body is bitwise untouched.
 //!
 //! # What every step is, exactly
 //!
@@ -86,8 +95,10 @@ use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSp
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
+use slotmap::SecondaryMap;
+
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::geometry::SurfaceKey;
 use crate::props::PropsQuadLane;
@@ -125,8 +136,10 @@ struct MovedPlane<T: Real> {
 
 /// **Offset every chart of `body` at once** (module docs).
 ///
-/// `moves` names each chart and its signed distance; every face of the
-/// body must appear exactly once across them.
+/// `moves` names each chart and its signed distance. Every face of
+/// every SOLID the moves touch must appear exactly once across them,
+/// and no solid may be touched in part; a solid the moves do not name
+/// is not offset and its geometry is not written.
 ///
 /// # Errors
 ///
@@ -169,6 +182,13 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     }
 
     // ---- Decide: the scope gate. ----
+    //
+    // The scope is the SOLIDS the moves touch, and every face of each
+    // of them must be in the set: a corner belongs to one solid, so a
+    // solid named in part has corners whose answer depends on faces
+    // the door was not told about, while a solid named not at all has
+    // no corner this call can disturb.
+    let scope = scope_of_moves(body, moves)?;
     let mut planes: Vec<(FaceKey, MovedPlane<T>)> = Vec::new();
     for m in moves {
         for &face in &m.faces {
@@ -197,7 +217,7 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
         }
     }
     for (face, _) in body.faces() {
-        if !planes.iter().any(|(k, _)| *k == face) {
+        if scope.holds_face(face) && !planes.iter().any(|(k, _)| *k == face) {
             return Err(ReplaceFaceError::TogetherPartialSet { face });
         }
     }
@@ -206,6 +226,9 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     // ---- Decide: every corner, before anything is written. ----
     let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
     for (vertex, _) in body.vertices() {
+        if !scope.holds_vertex(vertex) {
+            continue;
+        }
         let mut at: Vec<&MovedPlane<T>> = Vec::new();
         for face in faces_at_vertex(body, vertex)? {
             let p = plane_of(face).ok_or(ReplaceFaceError::Corrupt)?;
@@ -225,6 +248,9 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
     for (edge, edge_data) in body.edges() {
+        if !scope.holds_edge(edge) {
+            continue;
+        }
         let (fa, fb) =
             crate::replace_face::edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
         let (pa, pb) = (
@@ -658,4 +684,136 @@ pub(crate) fn faces_at_vertex<T: Real>(
         }
     }
     Ok(out)
+}
+
+/// **The solids a simultaneous door works over.**
+///
+/// A corner is the meeting of charts that belong to ONE solid — two
+/// solids of a body share no vertex, no edge and no face — so the
+/// coherent unit for a simultaneous solve is the solid, not the body.
+/// A scope names the solids the move set touches, and it is what both
+/// doors SOLVE and WRITE over: the coverage gate asks that every face
+/// of every named solid appear in the moves, the corner walk visits
+/// the named solids' vertices, and the edge walk their edges, so no
+/// entity outside the scope is offset or re-authored.
+///
+/// **Constructing one is still a whole-body structural walk**, and so
+/// are the two passes each door closes with (`mint_pcurves` and
+/// `validate_closed`, over the whole clone). A corrupt shell, face,
+/// loop or half-edge ANYWHERE refuses the construction, whichever
+/// solids are named. That is a read, not a write — the scope bounds
+/// what moves, not what is looked at — and it is stated here because
+/// "the doors touch only the named solid" is true of the offset and
+/// false of the bookkeeping around it.
+///
+/// The scope is total on the entities a shell owns, lone vertices
+/// included: an empty loop's vertex is reached through the loop's own
+/// face rather than through an orbit it has no half-edge for.
+#[derive(Clone)]
+pub(crate) struct Scope {
+    solids: Vec<SolidKey>,
+    faces: SecondaryMap<FaceKey, SolidKey>,
+    edges: SecondaryMap<EdgeKey, SolidKey>,
+    vertices: SecondaryMap<VertexKey, SolidKey>,
+}
+
+impl Scope {
+    /// The whole body: every solid it holds, in slot order.
+    pub(crate) fn whole<T: Real>(body: &Body<T>) -> Option<Self> {
+        let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
+        Self::of_solids(body, &solids)
+    }
+
+    /// The named solids. `None` on a structurally corrupt body — a
+    /// shell, face, loop or half-edge that does not resolve.
+    pub(crate) fn of_solids<T: Real>(body: &Body<T>, solids: &[SolidKey]) -> Option<Self> {
+        let mut scope = Self {
+            solids: solids.to_vec(),
+            faces: SecondaryMap::new(),
+            edges: SecondaryMap::new(),
+            vertices: SecondaryMap::new(),
+        };
+        for (shell, data) in body.shells() {
+            let solid = body.get_shell(shell)?.solid;
+            for &face in &data.faces {
+                scope.faces.insert(face, solid);
+                let f = body.get_face(face)?;
+                for r#loop in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                    match body.get_loop(r#loop)?.boundary {
+                        crate::entity::LoopBoundary::Empty { vertex } => {
+                            scope.vertices.insert(vertex, solid);
+                        }
+                        crate::entity::LoopBoundary::Cycle { first } => {
+                            for he in body.loop_cycle(first)? {
+                                let half = body.get_half_edge(he)?;
+                                scope.vertices.insert(half.start, solid);
+                                scope.edges.insert(half.edge, solid);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Some(scope)
+    }
+
+    /// The solid `face` belongs to, whether or not it is in scope.
+    pub(crate) fn solid_of(&self, face: FaceKey) -> Option<SolidKey> {
+        self.faces.get(face).copied()
+    }
+
+    /// The same partition, re-aimed at `solids`. The three maps are the
+    /// BODY's own and say nothing about which solids are in scope, so
+    /// re-scoping is a swap of one `Vec` rather than a second walk over
+    /// every shell, face, loop and half-edge.
+    pub(crate) fn re_scope(&mut self, solids: &[SolidKey]) {
+        self.solids.clear();
+        self.solids.extend_from_slice(solids);
+    }
+
+    /// Is `face` on a solid this scope names?
+    pub(crate) fn holds_face(&self, face: FaceKey) -> bool {
+        self.faces
+            .get(face)
+            .is_some_and(|s| self.solids.contains(s))
+    }
+
+    /// Is `edge` on a solid this scope names?
+    pub(crate) fn holds_edge(&self, edge: EdgeKey) -> bool {
+        self.edges
+            .get(edge)
+            .is_some_and(|s| self.solids.contains(s))
+    }
+
+    /// Is `vertex` on a solid this scope names?
+    pub(crate) fn holds_vertex(&self, vertex: VertexKey) -> bool {
+        self.vertices
+            .get(vertex)
+            .is_some_and(|s| self.solids.contains(s))
+    }
+}
+
+/// The scope a move set names: the solids its faces lie on, in the
+/// order the moves first reach them.
+pub(crate) fn scope_of_moves<T: Real>(
+    body: &Body<T>,
+    moves: &[ChartMove<T>],
+) -> Result<Scope, ReplaceFaceError<T>> {
+    // ONE structural walk: the partition is the body's and the scope is
+    // a list over it, so the moves' solids are read off the partition
+    // that is then re-aimed at them.
+    let mut scope = Scope::whole(body).ok_or(ReplaceFaceError::Corrupt)?;
+    let mut solids: Vec<SolidKey> = Vec::new();
+    for m in moves {
+        for &face in &m.faces {
+            let solid = scope
+                .solid_of(face)
+                .ok_or(ReplaceFaceError::StaleFace { face })?;
+            if !solids.contains(&solid) {
+                solids.push(solid);
+            }
+        }
+    }
+    scope.re_scope(&solids);
+    Ok(scope)
 }

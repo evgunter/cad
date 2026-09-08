@@ -577,9 +577,8 @@ pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet
 /// plane–sphere rim's spine curvature and its clearance run out
 /// together; a spine that folds while clearance is ample would be
 /// handed this sentence, and nothing here shows there is no such body.
-/// Measured in `sweep/tests/blend_recourse_followability.rs`, by the
-/// row named
-/// `the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.
+/// Measured by
+/// `blend_recourse_followability::the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 (closed) / not classified
@@ -592,7 +591,7 @@ pub const FILLET3_SPINE_RECOURSE: &str =
 /// Endorsing "every edge of the corner" named a door that cannot serve
 /// the caller who was just refused, which is the A3-2 defect. Held to
 /// it by
-/// `sweep/tests/blend_recourse_followability.rs::the_chain_recourse_is_followed_by_requesting_every_terminating_corner`,
+/// `blend_recourse_followability::the_chain_recourse_is_followed_by_requesting_every_terminating_corner`,
 /// which executes the one-corner request and the whole-body one
 /// together, so the hedge cannot drift from the door.
 pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous chain. Splitting the request at the break \
@@ -608,8 +607,8 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous
 /// CORNER — which answers with [`FILLET3_CORNER_RECOURSE`] first. The
 /// premise is about what the DOORS can express today; a chain door that
 /// admitted a non-rim G1 run would be where the witness comes from.
-/// Measured in `sweep/tests/blend_recourse_followability.rs`, by the
-/// row named `the_convexity_recourse_has_no_witness_in_this_suite`.
+/// Measured by
+/// `blend_recourse_followability::the_convexity_recourse_has_no_witness_in_this_suite`.
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for a corner the corner patch does not cover — it
@@ -629,7 +628,7 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// edges at one all-convex cube corner terminate in exactly the
 /// endorsed vertex and still refuse — as a run-out, with this same
 /// sentence — at the corners they run to. Held to it by
-/// `sweep/tests/blend_recourse_followability.rs::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`,
+/// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`,
 /// beside the chain row that pins the partly-requested outcome.
 pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in FULLY REQUESTED trivalent vertices whose \
      three edges are all convex or all concave (over plane\u{2013}plane supports) — a \
@@ -660,7 +659,7 @@ pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in
 /// at a concave rim's seam vertex exactly as readily as at a convex
 /// one. The sentence conditions on nothing because the door it names
 /// serves both sides. Held to it by
-/// `sweep/tests/review_blend1_r2_probes.rs::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
+/// `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
 /// which asserts the sentence and the whole-rim CARVE together, convex
 /// and concave, so neither half can drift alone.
 pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo::query::rim_of` on any one of its arcs hands you \
@@ -671,8 +670,20 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through and rims
-/// that are not whole circular rings between two coaxial revolution
-/// surfaces.
+/// that are not whole circular rings between two coaxial surfaces of
+/// revolution.
+///
+/// **Its open clause names BOTH terminations the surgery carves.** A
+/// plane\u{2013}plane link ends at a uniform trivalent corner; a RULED link —
+/// a cylinder with a plane or another cylinder, along the ruling they
+/// share — ends at transverse caps, which is the OQ6 scope decision
+/// stated at the top of this module and what
+/// `sweep/tests/fillet_h7_transverse_cap.rs` carves on the rod with a
+/// flat. Naming only the first left the second endorsed by
+/// [`FILLET3_CORNER_RECOURSE`] and refused by implication here — the
+/// under-described-door class that
+/// `work/blend/blend-recourses-under-describe-their-doors.md` closed
+/// on, swept across all three sentences that carried it.
 ///
 /// ONE clause is conditioned by verb, because it names a door one
 /// verb has and the other does not: the closed chain is the fillet's
@@ -687,10 +698,8 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// CONDITIONED because the door is.** Any coaxial revolution pair
 /// carves — the plane–cylinder top rim of
 /// `review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`
-/// included, which answers §2 of
-/// `work/fillet/blend-recourses-under-describe-their-doors.md` (§1, the
-/// spine-kind sentence, stays open there) — either with each support
-/// face carrying one arc of the rim, or with ONE face carrying them all.
+/// included — either with each support face carrying one arc of the
+/// rim, or with ONE face carrying them all.
 /// The second is the pole-touching body whose merged cap hosts every arc
 /// on one plane face, and it carves through the annulus band's HOSTLESS
 /// crossing (README A3-2; the surgery's `HostFoot`).
@@ -708,13 +717,17 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// says the condition rather than over-promise at that body, exactly as
 /// its previous wording did for the previous frontier.
 /// `blend_recourse_followability` follows the clause to a carve.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \
-     fully-requested trivalent corners, on either material side; for a fillet, closed \
-     chains that are circular rims between two coaxial revolution surfaces (a pip's \
-     plane\u{2013}sphere rim, a solid of revolution's latitude rim) also carve, on either \
-     material side, either with each support face carrying one arc of the rim, or with \
-     one ring-free face carrying every arc as its whole outer cycle (a chamfer has no \
-     closed-chain band); junction carry-through and run-outs are not implemented";
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single links ending either at \
+     fully-requested trivalent corners, over plane\u{2013}plane supports, or, for a straight \
+     edge along a ruling shared by a cylinder and a plane or another cylinder, at \
+     TRANSVERSE CAPS (plane end faces perpendicular to that ruling, where the band is \
+     cut off in the cap's own section of it); either termination carves on either \
+     material side. For a fillet, closed chains that are circular rims between two \
+     coaxial surfaces of revolution (a pip's plane\u{2013}sphere rim, a solid of revolution's \
+     latitude rim) also carve, on either material side, either with each support face \
+     carrying one arc of the rim, or with one ring-free face carrying every arc as its \
+     whole outer cycle (a chamfer has no closed-chain band); junction carry-through and \
+     run-outs are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
@@ -727,12 +740,20 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 ///
 /// **A caller reaches this at a support face's non-circular ring.**
 /// Cut a square pocket through a cube's top face and request the twelve
-/// OUTER edges: `ring_circle` refuses at every radius, because the ring
-/// the pocket leaves is carried by lines. Witnessed by
-/// `sweep/tests/review_fillet_e2_probes.rs`, row
-/// `the_geometry_recourse_reaches_the_front_door_at_a_line_ring_and_cannot_be_followed`,
-/// and followed to its build by `blend_recourse_followability.rs`, row
-/// `the_geometry_recourse_names_a_ring_and_an_order_that_builds`.
+/// OUTER edges: `ring_circle` refuses at each of the three radii the
+/// row samples, because the ring the pocket leaves is carried by
+/// lines. Witnessed by
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`,
+/// and followed to its build by
+/// `blend_recourse_followability::the_geometry_recourse_names_a_ring_and_an_order_that_builds`.
+///
+/// **The support forms it names are the arm table's own four kinds**
+/// (plane, sphere, cylinder, cone — [`arms::BlendArm::kinds`]), not a
+/// shorter list: a cylinder support carves on the ruled band and a
+/// cone support on the coaxial one, so a sentence naming only planes
+/// and a sphere cap refused, by implication, two kinds the surgery
+/// reads. Same class as [`FILLET3_SPINE_KIND_RECOURSE`]'s, fixed in
+/// the same pass.
 ///
 /// That witness is why the sentence reads as it does. The shape the
 /// surgery objects to is not always a shape the caller REQUESTED — a
@@ -740,8 +761,9 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 /// so a sentence that only described the request endorsed exactly what
 /// the caller had already done (issue 1278's dead-recourse class,
 /// `work/fillet/geometry-recourse-dead-at-line-ring.md`).
-pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside the surgery's exact forms, which read planes (for a \
-     fillet's rim, also a sphere cap) carried by lines and circles; approximating any \
+pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside the surgery's exact forms, which read planes and, \
+     for a fillet, spheres, cylinders and cones as well, carried by lines and circles; \
+     approximating any \
      other stored shape is not implemented. It need not be a shape you requested — a \
      support face's own ring is carried through the blend as well, and only a CIRCLE ring \
      is, so a ring left by some other feature blocks every blend on the face it sits on, \
@@ -756,13 +778,12 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside th
 /// each boundary edge at nine places; a sampled gap is never smaller
 /// than the true one, so a setback between the two passes the screen
 /// and meets this exact check. Witnessed on a 30°-turned dimpled prism
-/// by `sweep/tests/review_fillet_e2_probes.rs`, row
-/// `the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`,
+/// by
+/// `review_fillet_e2_probes::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`,
 /// which also follows the sentence: the reduced size builds.
 ///
 /// On a lattice-aligned fixture the screen does answer first, and
-/// `blend_recourse_followability.rs`'s
-/// `the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`
+/// `blend_recourse_followability::the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`
 /// keeps that measured — as a property of that fixture, not of the
 /// door. See `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`.
 pub const FILLET3_RING_RECOURSE: &str =
@@ -773,14 +794,33 @@ pub const FILLET3_RING_RECOURSE: &str =
 /// ([`BlendError::ChamferArmUnsupported`]), taken before any
 /// analytic-arm classification.
 ///
-/// **Under-describes its door**, and is filed rather than reworded
-/// here: the refusal's own payload rosters nine more admitted pairs
-/// than the two this names. Following the sentence succeeds, so it is
-/// not a dead recourse — the wording is a door-inventory question.
-/// `work/fillet/blend-recourses-under-describe-their-doors.md`.
-pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms (plane–plane or \
-     plane–sphere); other pairs need the canal-surface approximating blend, which is \
-     not implemented";
+/// **The sentence names the KINDS and then the FAMILIES, in the order
+/// the door tests them; the payload names the PAIRS; a row ties them.**
+/// The door reads kind membership FIRST — `battery`'s `coaxial_arm`
+/// and `ruling_arm` match on stored variants, and
+/// [`arms::Meridian::trace`] has rows for plane, sphere, cylinder and
+/// cone and none for a torus — and only then decides the shared-axis
+/// or shared-ruling hypothesis (`fillet3_support_coaxiality`). A
+/// sentence that led with the symmetry would endorse a coaxial
+/// torus\u{2013}plane rim, which is a pair of coaxial surfaces of revolution
+/// in so many words and is refused here on KIND. So: four kinds, then
+/// the two families, then what is left over. The admitted PAIRS stay
+/// in the one roster [`battery::arm_roster`] the payload carries when
+/// the kinds are the blocker — never in a third copy here.
+/// `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`
+/// is the tie: every fillet arm in [`arms::BlendArm::ALL`] must have
+/// both of its [`arms::BlendArm::kinds`] named in this sentence's kind
+/// clause and its family — read off [`arms::BlendArm::is_coaxial_torus`]
+/// and [`arms::BlendArm::is_ruled`], not off any re-split of the
+/// name — named after it.
+pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms. Each support must be a \
+     plane, a sphere, a cylinder or a cone; the two must then meet either in a rim they \
+     share as coaxial surfaces of revolution, which blends to a torus band, or along a \
+     ruling shared by two supports that are each a plane or a cylinder, which blends to \
+     a cylinder band. A torus or any other stored surface among the supports, and the \
+     one coaxial pair the table has no row for (two coaxial cylinders), need the \
+     canal-surface approximating blend, which is not implemented; where a pair roster \
+     is named above, it lists the admitted pairs";
 /// The recourse for a CHAMFER over a support pair its one arm does not
 /// cover. Its own sentence rather than the fillet's: the chamfer's
 /// missing door is the curved-support strip, not the canal surface,
@@ -848,9 +888,14 @@ pub enum BlendError {
     /// against two setbacks that in general eat along different
     /// directions, so a face whose boundary edges meet at an angle can
     /// be refused here while a direction-aware test would admit it.
-    /// The reviewer's witness is a unit hexagonal prism, which this
-    /// refuses from `r = 0.5` although its cap survives to the apothem
-    /// `0.866` (pinned in `review_pr12_probes.rs`). The screen is kept
+    /// The reviewer's witness is a unit hexagonal prism:
+    /// `m5_pr12_fix_pass::f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon`
+    /// asserts that it builds and certifies up to `r = 0.499`, refuses
+    /// `FaceClearanceUncertified` from `r = 0.51` against a gap of
+    /// exactly `1.0` — the hexagon's SIDE — and words the refusal as
+    /// "cannot certify". That the cap really survives to the apothem
+    /// `0.866` is the witness's PREMISE, derived from the hexagon and
+    /// asserted by no row. The screen is kept
     /// because it never goes the other way — it cannot pass a request
     /// whose face really is consumed, which is the direction the
     /// ordering claim depends on — and the error says what it tests
@@ -931,8 +976,12 @@ pub enum BlendError {
     /// predicate 5 over the same chain, and a sign flip between two
     /// links implies the kink it tests for. Every route that would
     /// reach this arm on a real body is therefore intercepted, and
-    /// the arm is exercised by constructing the payload directly
-    /// (`recourse_tests::seeds`, `review_blend6_r1_probes::seeds`).
+    /// the arm is exercised by constructing the payload directly, in
+    /// this module's own
+    /// `recourse_tests::a_recourse_is_appended_only_where_the_table_allows_it`
+    /// and in
+    /// `review_blend6_r1_probes::no_arm_renders_a_verb_prefix_over_the_whole_battery`,
+    /// which walk one seed of every variant.
     ///
     /// It is kept because the ordering is a property of today's
     /// battery, not of the geometry: predicate 4 is skipped for a
@@ -1400,18 +1449,11 @@ impl fmt::Display for BlendError {
 impl core::error::Error for BlendError {}
 
 /// **Every recourse sentence this module can append, with the short
-/// name assertions use.** The ONE home for that list.
-///
-/// It had three. This module's own table checked its rows against a
-/// private copy, and two integration suites restated the list because
-/// a `tests/` file cannot name a `#[cfg(test)]` item — each with a
-/// written rationale for restating ("an independent derivation"). The
-/// rationale did not hold: `review_d2_recourse_at_the_site.rs`'s copy
-/// had drifted to twelve of fifteen, so the three it had dropped were
-/// exactly the three its "no foreign recourse" half could no longer
-/// see. Behind `test-support` for the same reason `test_support` is,
-/// so every consumer reads this array and a constant added below is
-/// added once.
+/// name assertions use.** The ONE home for that list: every consumer
+/// reads this array, so a constant added below is added once and no
+/// checker can be looking at a stale copy of the roster. Behind
+/// `test-support` for the same reason `test_support` is — a `tests/`
+/// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
 pub const ALL_RECOURSES: [(&str, &str); 15] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
@@ -1476,9 +1518,10 @@ mod recourse_tests {
     /// ("supply a positive radius or setback", "request each edge
     /// once"), which is a recourse by the definition issue 1278 uses.
     /// That advice is owed a followability pin exactly like a named
-    /// sentence, and has one: `blend_recourse_followability.rs` rows
-    /// `a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
-    /// and `a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
+    /// sentence, and has one:
+    /// `blend_recourse_followability::a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
+    /// and
+    /// `blend_recourse_followability::a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
     /// execute both requests. Reading this row as "no advice" is what
     /// made an inventory keyed on the constants miss them.
     ///
@@ -1496,10 +1539,12 @@ mod recourse_tests {
     /// is hand-written for the same reason (Rust cannot enumerate a
     /// module's constants), so a recourse constant that appears in
     /// neither [`ALL_RECOURSES`] nor any `Display` arm is invisible to every row
-    /// here. `tests/review_d2_recourse_at_the_site.rs` restates the
-    /// list independently and reaches refusals through `fillet_edges`,
-    /// which is the check on whether a SITE picks the right class;
-    /// neither suite enumerates the constants.
+    /// here. The D2 site suite reads this same array and reaches
+    /// refusals through `fillet_edges`, which is the check on whether a
+    /// SITE picks the right class —
+    /// `review_d2_recourse_at_the_site::a_run_out_refusal_gives_corner_advice_and_no_assembly_advice`
+    /// is the row that check rides on; neither suite enumerates the
+    /// constants.
     fn contract(err: &BlendError) -> Recourse {
         match err {
             BlendError::Band(_) => Recourse::None,
