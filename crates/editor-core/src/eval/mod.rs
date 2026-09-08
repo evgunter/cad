@@ -263,8 +263,11 @@ pub struct NodeValue<T: Decide> {
     /// identity with the geometry it is keyed into.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
-    /// decision the node's op made, in decision order, recorded
-    /// through the one `k_stats` funnel. Scalar-independent data —
+    /// decision made evaluating the node — those made before its
+    /// content key (a profile's f64 precompute: the plane read, the
+    /// replay, the validation) and the op's alike — in the order made,
+    /// recorded through the one
+    /// `k_stats` funnel. Scalar-independent data —
     /// same verdicts at f64 and Interval — and the diff-engine
     /// substrate ("both evaluations' verdict logs exist"). Rides the
     /// value, so memo reuse transfers the log with the geometry it
@@ -279,9 +282,9 @@ pub struct NodeValue<T: Decide> {
     /// summarizes; one that needs them in hand reads this.
     pub verdicts: Arc<VerdictLog>,
     /// The node's escalation log: every INDETERMINATE predicate outcome
-    /// the node's op met, in decision order, recorded in the same
+    /// met evaluating the node, in decision order, recorded in the same
     /// `k_stats` frame as the verdicts. Non-empty on a value only when
-    /// the op absorbed an escalation and built anyway — a leaf the
+    /// the node absorbed an escalation and built anyway — a leaf the
     /// subdivision driver must not certify (E6: every predicate
     /// definite), which is what it reads this for. Rides the value with
     /// the verdicts, for the same reason.
@@ -325,7 +328,11 @@ pub enum ValuePayload<T: Decide> {
     /// through the driver, then the profile crate's validation door)
     /// plus its program-anchor naming map ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
-    /// A single body: Extrude, Revolve, Transform.
+    /// A single body: every one-body op (extrude, revolve, the tubes,
+    /// loft, sweep, blends, shell, union, placed union, instantiate,
+    /// `Part`) and a `Transform` of one body — a transform's value has
+    /// its input's shape, so a transform of instances is
+    /// [`Self::Instances`].
     Body(Arc<Body<T>>),
     /// A boolean's result: a body with its contact records, or the
     /// typed empty success (F8; D3).
@@ -338,7 +345,25 @@ pub enum ValuePayload<T: Decide> {
         below: SplitSide<T>,
     },
     /// A pattern's instances AS DATA (D3: patterns do not implicitly
-    /// union; index `i` is the A8/N1 `Instance(i)` substrate).
+    /// union; index `i` is the A8/N1 `Instance(i)` substrate — for a
+    /// nested pattern the flat index `j·M + i`, `wire_pattern`'s
+    /// layout).
+    ///
+    /// **Who takes it, and who refuses.** The placers take it WHOLE
+    /// and are shape-preserving over it: `Transform` yields the same
+    /// instances under one rigid map, `Pattern` yields their `N·M`
+    /// placements, both as `Instances`, because a rigid map of N
+    /// bodies is N rigid maps and needs no guess. `Part` takes one
+    /// instance out of it by index, and the product gather takes
+    /// every instance in order. Every other consumer of a body
+    /// operand — the set is `wire::body_operand`'s callers: a datum's
+    /// face frame, a blend's and a shell's body, a split's target, a
+    /// boolean's and a union's members, a placed union's prototype —
+    /// takes ONE body and refuses this value typed (`WrongOperand`):
+    /// a boolean of N bodies is N booleans or one union of them, a
+    /// blend of N bodies is N blends, and the recipe does not guess
+    /// which (D3), so the asymmetry between the placers and the rest
+    /// is the decision, not an omission.
     Instances(Vec<Arc<Body<T>>>),
     /// A Declare node's pairs with their contact classes, passed
     /// through as data (D3; the boolean consumes them at its
@@ -431,6 +456,15 @@ impl<T: Decide> ValuePayload<T> {
 /// the two families a circular rule's axis is actually authored as —
 /// a datum and a body. The other families are by inspection, and this
 /// sentence is where that is said.
+///
+/// **One kind this cannot answer from the node alone:** a `Transform`
+/// is shape-preserving over its input's value (`Body → Body`,
+/// `Instances → Instances`), so its family is its INPUT's, and a
+/// reader holding only the node answers "body" — right for every
+/// transform of a body, and the one-body word for a transform of a
+/// pattern, whose evaluation says "instances". Reading through the
+/// input needs the document, which this signature does not carry
+/// (`work/eval/node-value-kind-answers-a-transform-by-node-kind.md`).
 pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
     use crate::node::Node;
     match node {
@@ -517,14 +551,16 @@ pub struct NodeError {
     pub node: RecipeNodeId,
     /// The typed cause.
     pub kind: NodeErrorKind,
-    /// Every indeterminate predicate outcome the op met before it
-    /// failed, in decision order (the same frame [`NodeValue::escalations`]
-    /// reads on success). This is how a consumer learns that a failure
-    /// IS an escalation — and on which margin — without matching on
-    /// whichever op error enum `kind` wrapped it in: a kernel refusal
-    /// that carries an `Indeterminate` inside its own variant is
-    /// recorded here too, because the funnel saw it first. Empty when
-    /// the node failed before its op ran (a slot, an input, a cycle).
+    /// Every indeterminate predicate outcome met evaluating the node
+    /// before it failed, in decision order (the same frame
+    /// [`NodeValue::escalations`] reads on success), whether the
+    /// failure came from the op or from a pass before its content key.
+    /// This is how a consumer learns that a failure IS an escalation —
+    /// and on which margin — without matching on whichever op error
+    /// enum `kind` wrapped it in: a kernel refusal that carries an
+    /// `Indeterminate` inside its own variant is recorded here too,
+    /// because the funnel saw it first. Empty when nothing had decided
+    /// yet (an input, a cycle, a slot that does not evaluate).
     ///
     /// **Not persisted**, like [`NodeValue::escalations`]: a failure's
     /// escalations are a fact about one run at one box, read in hand
@@ -2511,19 +2547,34 @@ fn eval_node<T>(
 where
     T: EvalScalar,
 {
-    // A failure before the op runs: no bracket was open, so there is
-    // nothing recorded to carry.
-    let fail = |kind: NodeErrorKind| NodeStep {
+    // The verdict bracket (N5): one frame per node, open from before
+    // the first thing that can decide on its behalf to after the op,
+    // so the node's log is every decision made evaluating THIS node,
+    // pre-key and op alike, in the order made, through the one
+    // `k_stats` funnel. Before the key, only a Profile node decides:
+    // its plane read (`profile_plane_f64`) and its replay and f64
+    // validation (`prepare_profile`); slot and program-expression
+    // evaluation reach the funnel through `check_unlogged`, which
+    // lands in no frame. The guard is `!Send`, so the
+    // frame closes on the worker that opened it (idiom-1 parallelism
+    // runs whole nodes on one worker each); an op that evaluates
+    // another document (an instantiated part) has that document's
+    // nodes open and close their own frames ABOVE this one, so theirs
+    // land on their own nodes and this frame receives only this node's.
+    let bracket = geom_core::k_stats::Bracket::open();
+    // A failure carries what the frame recorded on the way to it,
+    // whether or not the op ran.
+    let fail = |bracket: geom_core::k_stats::Bracket, kind: NodeErrorKind| NodeStep {
         result: NodeResult::Failed(NodeError {
             node: id,
             kind,
-            escalations: Arc::new(Vec::new()),
+            escalations: Arc::new(bracket.finish().escalations),
         }),
         reused: false,
     };
     let Some(node) = doc.node(id) else {
         // Unreachable: the schedule only lists live nodes.
-        return fail(NodeErrorKind::MissingInput { input: id });
+        return fail(bracket, NodeErrorKind::MissingInput { input: id });
     };
 
     // Poison propagation (spec D2, GQ2): first blocking input in the
@@ -2533,7 +2584,7 @@ where
     let mut upstream_naming: Vec<(RecipeNodeId, NamingKey)> = Vec::new();
     for input in node.inputs() {
         match results.get(&input) {
-            None => return fail(NodeErrorKind::MissingInput { input }),
+            None => return fail(bracket, NodeErrorKind::MissingInput { input }),
             Some(NodeResult::Failed(_)) => {
                 return NodeStep {
                     result: NodeResult::Poisoned { through: input },
@@ -2557,7 +2608,7 @@ where
     // NonFiniteResult obligation lands here).
     let slot_values = match slots::eval_slots(node, env) {
         Ok(v) => v,
-        Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+        Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
     };
 
     // Profile-program resolution (LIB-SWITCH §4b): program Exprs
@@ -2575,16 +2626,16 @@ where
     let resolved_program = match node {
         crate::node::Node::Profile(program) => match program.resolve(&doc.param_env::<f64>()) {
             Ok(r) => Some(r),
-            Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+            Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
         },
         _ => None,
     };
 
     // The profile F64 PRECOMPUTE (replay + f64 validation + the naming
-    // anchor) also lives here, OUTSIDE the verdict-log bracket: it is
-    // C6 structure selection — the successor of the stored f64 bits —
-    // not a per-lane op decision, so the node's logged verdicts stay
-    // exactly the lane validation the op runs (the v1 logged surface).
+    // anchor): C6 structure selection — the successor of the stored
+    // f64 bits — made on this node's behalf, so its decisions are the
+    // first entries of the node's log, ahead of the lane validation
+    // the op runs.
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
             // The frame the profile is drawn on, at f64 and from the
@@ -2592,11 +2643,11 @@ where
             // the right scalar and the right source.
             let placement = match wire::profile_plane_f64(doc, program.plane, tol) {
                 Ok(placement) => placement,
-                Err(kind) => return fail(kind),
+                Err(kind) => return fail(bracket, kind),
             };
             match wire::prepare_profile(placement, resolved, tol) {
                 Ok(pre) => Some(pre),
-                Err(kind) => return fail(kind),
+                Err(kind) => return fail(bracket, kind),
             }
         }
         _ => None,
@@ -2621,11 +2672,14 @@ where
                             crate::node::Node::Assertion { .. } => "the assertion's bound,",
                             _ => "value leaf of the measured expression,",
                         };
-                        return fail(NodeErrorKind::PayloadExpr {
-                            what,
-                            index: values.len(),
-                            source,
-                        });
+                        return fail(
+                            bracket,
+                            NodeErrorKind::PayloadExpr {
+                                what,
+                                index: values.len(),
+                                source,
+                            },
+                        );
                     }
                 }
             }
@@ -2656,7 +2710,7 @@ where
         (ProfileLift::Guided, crate::node::Node::Profile(program), Some(_)) => {
             match program.resolve(env) {
                 Ok(r) => Some(r),
-                Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+                Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
             }
         }
         _ => None,
@@ -2692,24 +2746,37 @@ where
         && v.content_key == content_key
         && v.naming_key == naming_key
     {
+        // The profile's f64 precompute ran inside this frame, and the
+        // reused value's log opens with the same decisions. A
+        // `Verdict` is (predicate, sign), and at f64 the inputs the
+        // content key fixes — the resolved program, the plane's slots
+        // through the frame's key, the tolerance — are exactly what
+        // the precompute decides from, so D9 makes the two sequences
+        // equal. At Interval the frame's key hashes the slots' BOUNDS
+        // while the precompute reads their nominal f64, which the key
+        // does not hold: a nominal edit under a compensating box hits
+        // with a stale placement, and the same-sign check below cannot
+        // see it (`work/eval/interval-content-key-hashes-bits-the-pre-pass-does-not-read.md`).
+        // The reused value IS the record, so the fresh frame is
+        // finished and dropped rather than spliced in, and the prefix
+        // identity is asserted in every profile: one compare of a few
+        // dozen verdicts per hit, beside a precompute that just
+        // replayed and validated the profile.
+        let fresh = bracket.finish();
+        assert!(
+            v.verdicts.starts_with(&fresh.verdicts)
+                && v.escalations.starts_with(&fresh.escalations),
+            "a memo hit's pre-key decisions differ from the reused log's prefix"
+        );
         return NodeStep {
             result: NodeResult::Ok(v.clone()),
             reused: true,
         };
     }
 
-    // The verdict bracket (N5): every decision the op makes — kernel
-    // predicates and N2 discriminators alike, definite or escalated —
-    // lands in this node's frame through the one `k_stats` funnel. The
-    // guard is per node and `!Send`, so the frame closes on the worker
-    // that opened it (idiom-1 parallelism runs whole nodes on one
-    // worker each); an op that evaluates another document (an
-    // instantiated part) has that document's nodes open and close
-    // their own frames ABOVE this one, so this frame receives exactly
-    // this op's decisions and theirs land on their own nodes. A memo
-    // hit above never reaches here and carries the prior's frame with
-    // the value it reuses.
-    let bracket = geom_core::k_stats::Bracket::open();
+    // The op's decisions — kernel predicates and N2 discriminators
+    // alike, definite or escalated — follow the pre-key ones in the
+    // frame opened above, which closes once the op returns.
     let op = wire::run_op(
         id,
         node,
