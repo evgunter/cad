@@ -606,3 +606,18 @@ second merges main first. Correctness arms on both.
 The first EVAL-9 lane ended at launch on a model-side safeguard
 error before touching the branch (no commits, worktree removed);
 relaunched fresh with the same brief.
+
+## Both lanes interrupted by the session's rate limit (2026-09-08)
+
+At 08:30Z the session hit its API limit and both implementer lanes
+ended mid-turn. EVAL-8 had already pushed and opened PR 2186 (head
+`4d07e6360`); its matrix came back green except `discipline
+(evaluation-code)`: `check-interval-cfg-additive.py` refuses an
+interval `cfg` gating a block inside `kstats_bracket_rows.rs`'s new
+log-identity row (a row present in both builds must run identical
+code; the interval leg becomes its own `#[test]`). EVAL-9 had three
+commits on its branch and no PR. Both lanes resumed from their
+transcripts once the limit reset, the EVAL-8 one with the split as
+its first job. Lesson for every brief: the interval-additivity
+script joins the gate list a lane runs before pushing — it is a CI
+gate the local `scripts/gates/*.sh` sweep does not cover.
