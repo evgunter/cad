@@ -319,3 +319,14 @@ five-homes item closed on this PR); `Tolerance.k` carries its one
 sentence. Disclosed and not filed, per the ruling: no CI row sets a
 small K except the re-exec row. Style review dispatched on the frozen
 head.
+
+**Outage (2026-09-08, 03:0x–16:0x UTC):** the three opus lanes in flight
+(unit 3's fix pass, unit 5, unit K's fix pass) died to the session's
+usage limit; the orchestrator session idled until the limit reset.
+Branches survived pushed: unit 3's fix head `31838d14` is red on one
+test per shard (the lane is resumed on it); unit 5 opened PR
+[#2155](https://github.com/evgunter/cad/pull/2155) at `e7980b8b`,
+green — its style review is dispatched; unit K's fix pass had not
+started — the lane is resumed on the brief. Unit 4's PR conflicted
+with a moved main (`tests/all.rs` and two logs, resolved by union) and
+awaits its run.
