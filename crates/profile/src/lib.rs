@@ -66,13 +66,17 @@
 //!   contradicted declarations ([`ProfileError::TangencyContradicted`])
 //!   alike. Same-carrier continuation (collinear lines, cocircular
 //!   arcs — e.g. the minimal two-arc circle's joints) is carrier
-//!   identity, not tangency: legal undeclared. Free arcs whose joints
-//!   are definitely transversal (secant carriers) remain legal
-//!   undeclared — declaration marks *tangency*, not arc-ness. The
-//!   authoring path is the PATHS lattice's `.fillet(r)` ([`path`]),
-//!   which computes tangent geometry exactly and declares by
-//!   construction; [`ProfileLoop::tangent_joints`] is the explicit flag
-//!   for raw hand-authored chains.
+//!   identity: legal undeclared, and **legal declared too** — every
+//!   zero-turn joint is a declared tangent joint (Ev, in-chat,
+//!   2026-09-02), because identity is a fact about the carriers and
+//!   tangency a fact about the directions, which agree there. Free arcs
+//!   whose joints are definitely transversal (secant carriers) remain
+//!   legal undeclared — declaration marks *tangency*, not arc-ness. The
+//!   authoring path is the PATHS lattice ([`path`]): `.fillet(r)`
+//!   computes tangent geometry exactly and the continuation verbs
+//!   declare the zero-turn joints they mint, both by construction.
+//!   [`ProfileLoop::tangent_joints`] is the field that carries the
+//!   result, and a fixture's way of writing one by hand.
 //! - **The sketch plane is conventional data.** [`SketchPlane`] is a
 //!   rigid placement: profile (x, y) ↦ plane origin + x·u + y·v, with
 //!   u/v/normal the columns of the placement's linear part. Rigidity

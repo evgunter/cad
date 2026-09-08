@@ -210,6 +210,32 @@ fn the_fidelity_report_is_honest() {
         }
         other => panic!("bracket should lift: {}", describe(&other)),
     }
+    // `rounded_rect` joined the value-equal class when the lift widened
+    // (BOOL-9: a declared joint before a closing straight is the
+    // continuation verb, so this loop lifts instead of refusing), and it
+    // arrived with no ceiling of its own — the coarse `LiftOutcome`
+    // bucketing was holding it, and there the RELATIVE criterion is
+    // inoperative on this row (4.39e18 ulp, a straddle of zero), so only
+    // the 1e-12 absolute floor applied: 300x the residue actually
+    // measured. Its residue is the same class as the bracket's — four
+    // fillet arcs re-deriving their bulge — so it gets the same kind of
+    // ceiling, sized to what it does.
+    match lift_checked(&rounded_rect(4.0, 3.0, 0.5), Tol::witness()) {
+        LiftOutcome::Lifted {
+            fidelity,
+            worst_ulps,
+            worst_abs,
+            ..
+        } => {
+            assert_eq!(fidelity, Fidelity::ValueEqual);
+            assert!(worst_ulps > 0, "value-equal means some bit moved");
+            assert!(
+                worst_abs < 1e-14,
+                "the fillet arcs' bulge re-derivation, and nothing more: {worst_abs:e}"
+            );
+        }
+        other => panic!("rounded_rect should lift: {}", describe(&other)),
+    }
     // The undeclared shapes are exact — nothing derived enters them.
     for (name, loop_) in [
         ("rect", rect(0.0, 0.0, 2.0, 1.0)),

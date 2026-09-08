@@ -1473,9 +1473,13 @@ fn judge_pair<T: Decide>(
 /// predicates) and reconciled with the loop's declarations:
 ///
 /// - `Tangent` undeclared ⇒ [`ProfileError::UndeclaredTangency`];
-/// - `Transversal` or `SameCarrier` declared ⇒
-///   [`ProfileError::TangencyContradicted`] (a declaration is verified,
-///   never trusted — and same-carrier continuation is not a tangency);
+/// - `Transversal` declared ⇒ [`ProfileError::TangencyContradicted`] (a
+///   declaration is verified, never trusted);
+/// - `SameCarrier` declared ⇒ **accepted**. Every zero-turn joint is a
+///   declared tangent joint (Ev, in-chat, 2026-09-02): identity is a
+///   fact about the carriers, tangency a fact about the directions, and
+///   the directions agree here. The arm that used to refuse it is
+///   retired — see the match below, which is the normative statement;
 /// - in-band / poisoned ⇒ [`ProfileError::Escalated`] at the pair site.
 fn judge_joints<T: Decide>(
     lp: &ProfileLoop<T>,

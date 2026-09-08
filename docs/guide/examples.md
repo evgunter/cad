@@ -117,7 +117,7 @@ joined-path composition lane.)
 | `heatsink` | Carries **both** shapes of "many fins": a `Pattern` whose payload is `Instances`, and the explicit Transform+Union chain | Why both exist: a Boolean cannot consume an `Instances` payload. Fin bases sit 1/16 inside the base — flush would be an undeclared coincidence |
 | `slots` | Crossing slots: boolean-of-boolean, with coplanar floors declared by name | Exact pins `6.5` / `32.0` |
 | `islands` (×3) | The #93 doubly-nested island chain in general position, at two depths | `105` pins the exact `22.4375` that pre-#93 main silently returned as `22.5` — a fail-loud violation caught by an exact pin |
-| `tangency` | Fillet-constructor-declared tangency beside hand-declared tangency | Sits between two doors: `UndeclaredTangency` and `TangencyContradicted { same_carrier: true }` |
+| `tangency` | Fillet-constructor-declared tangency beside hand-declared tangency | Sits beside the `UndeclaredTangency` door (the second door this row used to name, `TangencyContradicted { same_carrier: true }`, was retired 2026-09-02: every zero-turn joint is a declared tangent joint) |
 | `sink` | `kitchen_sink`: every v1 node kind and all 14 `DocEdit` kinds in one document | Its `SetTolerance` re-records the *ambient* ε — pinning any other value would refuse to load in every CI ε row but one |
 | `cut_cylinder` | The first curved cut: an extruded disc split by a tilted datum plane | Section edges carry the exact `Ellipse` carrier |
 | `boss` | The first transverse curved boolean; the union seam minted as exact `Circle` arcs on both operands | No mass pin — the value is π-transcendental, and the corpus does not fake exactness |

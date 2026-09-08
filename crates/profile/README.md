@@ -134,7 +134,8 @@ persistence header door.
 **V6 — What programs do not change.** The verify layer runs unchanged on
 replayed output under every binding: flags verified-never-trusted
 (`UndeclaredTangency`, `TangencyContradicted`), same-carrier
-continuation is identity, fit gating; `ValidatedProfile` is minted only
+continuation is identity and is legal declared or undeclared, fit
+gating; `ValidatedProfile` is minted only
 by `validate` on segments, and extrude/revolve/fillet/loft/sweep never
 see a program. Junction predicates classify at replay exactly as at
 typed authoring. Replay is deterministic (libm-pure, no ordering
