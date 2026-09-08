@@ -1191,6 +1191,14 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
 
 /// One scene's totals — the unit the gate compares, because a face
 /// ordinal is only meaningful within its body.
+///
+/// **Each cell field is named for the CSV column it sums, and carries
+/// no other name.** That is the join: a reader holding a report, a
+/// document or this struct is holding the same word, and every
+/// re-spelling of one of these quantities as a phrase — however true
+/// the phrase — costs a lookup in `tess_meter` to resolve. [`Nurbs`]
+/// carries the same names one level down and cites the definitions of
+/// record.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SceneTotals {
     /// Faces in the scene.
@@ -1199,13 +1207,29 @@ pub struct SceneTotals {
     pub triangles: usize,
     /// Triangles on Hessian-sized faces only.
     pub nurbs_triangles: usize,
-    /// Grid cells the shipped (per-cell) sizing used, summed.
+    /// [`Nurbs::grid_cells`] summed — the grid the lane actually
+    /// built, sized per knot-span cell (TESS-SPAN).
     pub grid_cells: f64,
-    /// The whole-patch counterfactual's cells, summed.
+    /// [`Nurbs::patch_cells`] summed — the whole-patch-sup
+    /// counterfactual.
     pub patch_cells: f64,
-    /// Cheapest same-bound uniform grids, summed.
+    /// [`Nurbs::opt_cells`] summed — the cheapest split under the
+    /// WHOLE-PATCH bound.
+    ///
+    /// **The bound is the whole of the difference from
+    /// [`Self::span_opt_cells`]**: "the cheapest split", unqualified,
+    /// is true of both fields and identifies neither, so every reading
+    /// of either says which bound it is over. No rule divides by this
+    /// sum — [`parse`] bounds the per-row column against `patch_cells`
+    /// and nothing downstream reads it — so it is summed for one
+    /// purpose: the CLI prints it BESIDE its twin, two figures under
+    /// two names being what makes the pair tellable apart at a glance.
     pub opt_cells: f64,
-    /// Per-cell-sized grids at the cheapest split, summed.
+    /// [`Nurbs::span_opt_cells`] summed — the cheapest split PER
+    /// CELL, on top of per-cell sizing.
+    ///
+    /// [`Self::recoverable`]'s denominator, which is what the slack
+    /// rule compares.
     pub span_opt_cells: f64,
     /// Triangles on faces the sweep actually resampled.
     pub measured_triangles: usize,

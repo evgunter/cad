@@ -2,8 +2,11 @@
 id: report-header-column-phrases-unqualified
 kind: issue
 title: tess-lint's report header names its cell columns by phrase only, and "the cheapest split" is two different columns
-status: open
+status: closed
 opened: 2026-09-07
+closed: 2026-09-08
+branch: meter/9-report-header-columns
+refs: [tess-budget-doc-quotes-a-retired-report-header, report-constraint-activity-line-names-no-columns, tess-budget-doc-finding-block-stale]
 ---
 
 
@@ -73,3 +76,68 @@ that.
 
 disclosed by METER unit 2, in the PR that landed the document's cite-
 not-restate fix.
+
+## Closed
+
+The block prints one line per column, under the column's own name:
+
+```
+  cell totals over the 64 Hessian-sized faces, one line per CSV column (tess_meter::NurbsColumns defines them):
+    grid_cells         46019  the grid the lane BUILT, sized per knot-span cell (TESS-SPAN)
+    patch_cells       110811  the whole-patch-sup counterfactual, at today's point selection
+    opt_cells          93066  the cheapest split, under the WHOLE-PATCH bound
+    span_opt_cells     44162  the cheapest split, PER CELL — the recoverable denominator
+  patch_cells / grid_cells = 2.4x held; grid_cells / span_opt_cells = 1.0x still recoverable
+```
+
+Four departures from the Finding above, each deliberate:
+
+* **A block, not a sentence.** The Finding proposed the names inline
+  in the existing prose line. Four name-and-figure pairs in one
+  sentence is where a reader loses a qualifier for the second time,
+  and it gave `opt_cells` nowhere to go. A line each puts the two
+  twins adjacent with their figures in one eyeline — 93,066 over
+  44,162 — which is the arrangement that makes the mis-read hard
+  rather than merely detectable.
+* **The two FACTORS were the same defect and the Finding did not say
+  so.** *"held"* and *"still recoverable"* are as true and as
+  unjoinable as *"the cheapest split"*; they are printed as their
+  formulas in the columns' own names now.
+* **The glosses stay, one clause each**, because a report is read by
+  people. They say what a column is FOR here and are not definitions;
+  the two twins' glosses are one sentence differing in exactly the
+  qualifier that separates them.
+* **`SceneTotals`' field docs CITE rather than restate.** Each cell
+  field now names the `Nurbs` field of the same name and lets that
+  one carry the pointer to `tess_meter`, which is unit 2's ratified
+  form. What is stated here and nowhere else is the invariant the
+  header now leans on: each cell field is named for the CSV column it
+  sums and carries no other name.
+
+`opt_cells` **is** printed. It is a column of the sizing block, it is
+summed by `SceneTotals`, and `baseline_sizing_census.rs` asserts it;
+the report was the only site that had it and said nothing. It is also
+the column an unqualified "the cheapest split" names, so printing it
+beside its twin is what retires the collision rather than documenting
+it. That no rule divides by it is a reason to gloss it, not a reason
+to hide it — the report prints `patch_cells`, which no rule reads
+either.
+
+The pin is `tools/tess-lint/tests/report_columns_pin.rs`, three
+claims over a synthetic fixture whose four cell sums are pairwise
+distinct: every printed name is a column of `EXPECTED_HEADER` and
+every `*_cells` column is printed (the direction `opt_cells` was lost
+in), each figure is its own column's sum, and the two factors are
+printed as their formulas. `CELL_TOTALS` in `main.rs` carries the
+accessor beside the name, so the transposition the pin's middle claim
+watches for cannot be written as a positional-argument slip any more.
+
+**Residue, filed rather than fixed:**
+
+* `tess-budget-doc-quotes-a-retired-report-header` —
+  `docs/TESS-BUDGET.md` quotes the retired phrase and states that the
+  command does not print `opt_cells`. That document is another fence.
+* `report-constraint-activity-line-names-no-columns` — the same shape
+  one line below the block, over the four indicator columns. Swept
+  and left: no two of those columns share a phrase, so the cost is a
+  lookup rather than a wrong number.
