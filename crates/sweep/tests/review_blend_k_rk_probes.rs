@@ -10,6 +10,16 @@
 //! chord `f·K·ε` is `f·K·sin θ` (in ε), Smooth at `≤ 1`, in band below
 //! `K`, transverse at `≥ K`. A chord PARALLEL to the in-plane
 //! component has `sin θ = 1` and reads the arm alone.
+//!
+//! The in-plane component is built at [`IN_PLANE`]·ε rather than at ε
+//! exactly: `extrusion_obliquity`'s band is OPEN at ε, so a vector one
+//! ulp over the threshold escalates rather than being admitted, and on
+//! a tilted sketch plane — whose frame axes are irrational — building
+//! `u·ε + n·K·ε` and reading its in-plane part back rounds. It came
+//! back one ulp high at ε = 1e-12, and the gate refused it, correctly.
+//! These rows want a vector both gates ADMIT, so they sit a billionth
+//! inside the threshold instead of exactly on it; every margin above
+//! is unchanged to twelve digits.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -18,6 +28,11 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::validate_geometric;
+
+/// The in-plane component's size as a fraction of ε (module docs): as
+/// close to the obliquity threshold as a rotated frame can be read
+/// back from, and below it on every frame and every ε row.
+const IN_PLANE: f64 = 1.0 - 1e-9;
 
 fn rect(plane: SketchPlane<f64>, sx: f64, sy: f64) -> ValidatedProfile<f64> {
     let p2 = Point2::<f64>::new;
@@ -68,7 +83,7 @@ fn print_rk_probe() {
         "y" => v,
         _ => u,
     };
-    let w = in_plane * eps + n * (k * eps);
+    let w = in_plane * (IN_PLANE * eps) + n * (k * eps);
     let short = f * k * eps;
     match extrude(&rect(plane, 2.0, short), Extrusion::Vector(w), tol) {
         Ok(built) => {
