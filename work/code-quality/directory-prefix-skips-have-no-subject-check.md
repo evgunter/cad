@@ -4,7 +4,7 @@ kind: issue
 title: the directory-prefix exemptions have no subject check, and the helper the file skips got cannot give them one
 status: review
 opened: 2026-09-08
-refs: [whole-file-skips-do-not-check-their-subject]
+refs: [2156]
 branch: gates/dir-prefix-subject
 pr: 2170
 blocked_on: [2171]
@@ -218,3 +218,15 @@ a tree could take, since no crate root can be mounted test-only at all
 scan, which for a crate root is reachable by a symlink or a narrowing);
 and the unchecked third prefix's site now points at this row and at the
 `[ev]` PR.
+
+## Re-homed (2026-09-08)
+
+GATES closed (`docs/GATES-EXIT-WALK.md` ratified on PR 2185, ledgered in
+`docs/DOC-LEDGER.md`). The two-directory half closed with PR 2170; what
+is open is the `crates/*/src/bin/` convention-class skip, a ruling on
+`[ev]` PR 2171, and it comes back to code-quality with Track K's
+`scripts/gates/*` fence. Ev's ruling lands in this file wherever it is.
+
+## Refs at GATES' sweep (2026-09-08)
+
+GATES closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 7); `whole-file-skips-do-not-check-their-subject` is now cited by its closing PR 2156.

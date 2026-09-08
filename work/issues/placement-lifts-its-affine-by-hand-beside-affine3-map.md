@@ -4,7 +4,7 @@ kind: issue
 title: Placement::linear and Placement::affine lift twelve components by hand from [[f64;3];3] + [f64;3] into Mat3<T>/Affine3<T>, one construction away from self.affine::<f64>().map(T::from_f64)
 status: open
 opened: 2026-09-08
-refs: [2139, D368]
+refs: [2139]
 ---
 
 (EVAL orchestrator) Filed from EVAL-1's sweep (PR 2139), which retired
