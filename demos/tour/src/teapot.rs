@@ -185,19 +185,16 @@ use pncad::document::{
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
 };
-use pncad::geom::{Curve3, Surface};
+use pncad::geom::Surface;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::prelude::query;
 use pncad::prelude::{
     EntityKind, NamePat, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegPat, SegTag, Selector,
     StableName,
 };
 use pncad::profile::ArcSweep;
-use pncad::select::{
-    edge_frame, edge_name, face_carrier_kind, face_frame, select, vertex_position,
-};
-use pncad::topo::{Body, BooleanError, EdgeKey, Operand};
+use pncad::select::{edge_frame, face_carrier_kind, face_frame, select, vertex_position};
+use pncad::topo::{Body, BooleanError, Operand};
 
 use crate::{SceneBody, Stop, View};
 
@@ -923,35 +920,6 @@ fn rim_circle(ev: &Evaluation<f64>, node: RecipeNodeId, vertex: u32) -> (f64, f6
     (centre.y, p.x.hypot(p.z))
 }
 
-/// **The numeric rim scan this scene used to select by, kept for ONE
-/// commit** so the role names can be checked against the keys it found
-/// before it goes.
-fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = query::all_edges(body)
-        .into_iter()
-        .filter(|&k| {
-            let Some(c) = body
-                .get_edge(k)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-            else {
-                return false;
-            };
-            matches!(*c.carrier(), Curve3::Circle { center, radius, .. }
-                if (center.y - y).abs() < 1e-12 && (radius - r).abs() < 1e-12)
-        })
-        .collect();
-    assert_eq!(
-        hits.len(),
-        1,
-        "the description (station {y}, radius {r}) names exactly one rim"
-    );
-    match query::rim_of(body, hits[0]).expect("the description names a whole rim")[..] {
-        [only] => only,
-        ref many => panic!("this rim is one closed edge, got {many:?}"),
-    }
-}
-
 /// A document node's answer, as one line for the panel's note — the
 /// refusal's own payload rather than a sentence about it (the wall-7
 /// lesson: a refusal's TEXT is not evidence of its cause; the payload
@@ -1368,14 +1336,6 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // retires the scan: the role names the same circle, and it names
     // it through a rebuild rather than through a coordinate.
     for &(v, radius, station, what) in &LID_RIMS {
-        // THE CROSS-CHECK, kept for one commit: the role name and the
-        // numeric scan denote the SAME edge.
-        let scanned = rim_at(&plain_lid, station, radius);
-        assert_eq!(
-            *edge_name(&ev, r.plain_lid, 0, scanned).expect("the scanned rim is named"),
-            band_rim(r.plain_lid, v),
-            "{what}: the scan's edge and the role name are one edge"
-        );
         let (y, rho) = rim_circle(&ev, r.plain_lid, v);
         assert!(
             (y - station).abs() < 1e-12 && (rho - radius).abs() < 1e-12,
