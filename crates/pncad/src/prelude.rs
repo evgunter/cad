@@ -87,8 +87,50 @@ pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // `ε/lever_arm` can underflow to zero for a large enough arm, which
 // makes `field: Zero` reachable and the discriminant real. Stated so
 // the next curation pass re-measures rather than re-deriving.
+//
+// **`Indeterminate` IS here, and the count is the argument.** It is
+// the two-tolerance escalation payload (D4 ¶1 addendum): the thing a
+// refusal carries when the kernel could not certify a sign at the
+// tolerance it was given. THIRTEEN prelude-curated refusals carry it
+// — `BlendError`, `BooleanError`, `ContactRefusal`, `ExtrudeError`,
+// `LoftError`, `MateFault`, `PathError`, `ProfileError`,
+// `RevolveError`, `SelectRefusal`, `TubeError`, `UnitVec3Error`,
+// `ValidationError` — against one carrier for the payload CUR3
+// carried and one apiece for CUR4's four. A caller holding an
+// `Escalated` arm out of any of them reads `band` off it to decide
+// whether tightening ε would help, and could not name what it was
+// holding without a module hop.
+//
+// **`MarginDiag` is NOT here, and that is measured, the `BandField`
+// reading one payload over.** It is `Indeterminate::margin`'s type:
+// the in-band value, the enclosure that straddles the boundary, or
+// the fact that the margin was poisoned. Its own documentation says
+// what settles it — the arms are "here for error messages and margin
+// telemetry, not to be branched on", because recovering the margin to
+// make the sign decision the classifier refused is exactly what the
+// escalation contract forbids. The recourse is the same three levers
+// whichever arm it is, and `COINCIDENCE_RECOURSE` states them once
+// for all of them.
+//
+// The boundary measurement agrees: no consumer of these refusals
+// reads the discriminant. Every one of the thirteen crosses into
+// Python as a single tag plus the kernel's own prose (`escalated`,
+// `in_band`, `pair_in_band`, `mate_indeterminate`), and no attribute
+// on any bound exception carries a margin, an enclosure bound or a
+// band. So a curated `MarginDiag` would publish a three-arm type
+// whose arms nothing branches on, which is `BandField`'s situation
+// with a different reason for it: there the discriminant was constant,
+// here it varies and is not a decision.
+//
+// This flips if a door ever projects the escalation's own shape — a
+// caller told "the enclosure straddles" can subdivide where one told
+// "the margin is in band" can only widen ε. Stated so the next
+// curation pass re-measures rather than re-deriving. Either way
+// `Indeterminate`, `MarginDiag` and `Band` sit at ONE root together
+// (`pncad::geom_core`), so the fallback is a module hop and never a
+// second crate.
 pub use geom_core::{
-    Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tol, Tolerance, Vec2, Vec3,
+    Affine3, Band, BandError, Indeterminate, Mat3, Point2, Point3, Real, Tol, Tolerance, Vec2, Vec3,
 };
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this

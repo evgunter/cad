@@ -1513,6 +1513,25 @@ NOT_BOUND = {
     "FilletLegShape": INTERIOR,
     "Filleted": INTERIOR,
     "FlushEvidence": INTERIOR,
+    # The two-tolerance escalation payload, curated at the prelude
+    # because THIRTEEN prelude refusals carry it and a Rust caller
+    # holding an `Escalated` arm could not name what it held. `INTERIOR`
+    # here by the carrier rule, and the count makes it the plainest
+    # instance of that rule in this file: not one of the thirteen
+    # projects the escalation's own shape. Each crosses as a single tag
+    # plus the kernel's prose — `escalated` on the node and path
+    # doors and in a check's evidence, `in_band` / `pair_in_band` at
+    # the selection funnel, `mate_indeterminate` at the mate gate —
+    # and no bound exception carries a margin, an enclosure bound or a
+    # band. So there is nothing here to split and nothing to pin.
+    #
+    # `MarginDiag` — the payload's own field type — is not a curated
+    # name at all and so not an entry here; the argument for stopping
+    # at this rung is written where the carriage is, beside
+    # `Indeterminate` in `prelude.rs`. The short of it: its arms are
+    # diagnostic data the escalation contract forbids branching on,
+    # and the recourse is the same three levers whichever arm it is.
+    "Indeterminate": INTERIOR,
     "Lofted": INTERIOR,
     "LoopProgram": INTERIOR,
     # A11's member vocabulary, and the structural answer it gives.

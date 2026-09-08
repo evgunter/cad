@@ -451,6 +451,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         }
     ));
 
+    // The escalation payload is reached by bare prelude name too, and
+    // by SIGNATURE rather than by value: nothing on this list can
+    // build one, which is the rung below stopping.
+    named::<fn(&Indeterminate) -> (Band, Option<&'static str>)>(escalation_is_readable);
+
     assert_eq!(
         stale_declaration_and_ring_contact_are_matchable(
             StaleDeclaration::Patch {
@@ -464,6 +469,30 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         ),
         ("patch", "edge")
     );
+}
+
+/// The escalation payload, read through the prelude alone.
+///
+/// `Indeterminate` is a STRUCT, so what a curated list owes about it
+/// is field access rather than a match: a caller holding an
+/// `Escalated` arm out of any of the thirteen refusals that carry one
+/// asks which band the margin was classified against and which
+/// predicate could not decide. `Band` is on the same list, which is
+/// what makes the pair readable in one import.
+///
+/// **No value is built here, and the reason IS the stop.** Building
+/// one means writing `margin:`, and that field's type is
+/// deliberately uncurated — so this function reads an escalation it
+/// is handed and cannot fabricate one, which is exactly the shape a
+/// consumer is left in. `margin` is bound and never named.
+fn escalation_is_readable(escalation: &Indeterminate) -> (Band, Option<&'static str>) {
+    let Indeterminate {
+        margin,
+        band,
+        predicate,
+    } = escalation;
+    let _ = margin;
+    (*band, *predicate)
 }
 
 /// The picking refusal's own payload, matched through `crate::select`
