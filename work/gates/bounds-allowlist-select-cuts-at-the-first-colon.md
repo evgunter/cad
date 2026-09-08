@@ -13,7 +13,21 @@ Turned up by `whole-file-skips-are-hand-spelled-not-anchored`'s sweep,
 which asked for the whole CLASS — a whole-file exemption that is not
 pinned to the `FILE:LINE:` shape — rather than for the one spelling that
 row's grep matches. This is the same defect in a spelling the anchor
-does not fit, and it is the LAST one in this directory.
+does not fit, and it is the LAST one in this directory — which is a
+claim with a grep behind it. The row's own grep finds the literal
+spelling; the widened one finds every anchored path skip:
+
+    grep -nE "gate_grep -v?E ['\"]\^" scripts/gates/*.sh
+
+and what it returns is three comment strippers (`'^[[:space:]]*#'`) and
+`witness-not-ambient.sh`'s two directory prefixes plus its
+`^crates/[^/]+/src/bin/` path class, none of which is a file skip.
+Neither grep can see a skip that does not go through `gate_grep -vE`
+with a `^`-anchored pattern, which is exactly this one, so the rest of
+the directory was read by hand: every other `gate_grep -v` in it
+(`grep -nE "gate_grep -v" scripts/gates/*.sh`) is a blank-line filter,
+a comment stripper, `viewer-module-kinds.sh:489` (already
+`gate_record_anchor`), or the two lines below.
 
 `scripts/gates/bounds-allowlist.sh:940`:
 

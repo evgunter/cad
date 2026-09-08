@@ -79,11 +79,16 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # THE FILE that DEFINES `witness`, held once: the filter's exemption is
-# built from it and the clean fixture plants it, so the two cannot
-# drift. The three exemptions below it are a DIRECTORY prefix twice and
-# a path CLASS once — `crates/*/src/bin/` names a cargo convention and
-# not a file — so they have no `FILE:LINE:` shape to pin and stay
-# prefixes on purpose.
+# built from it and the clean fixture plants it. The three exemptions
+# below it are a DIRECTORY prefix twice and a path CLASS once —
+# `crates/*/src/bin/` names a cargo convention and not a file — so they
+# have no `FILE:LINE:` shape to pin and stay prefixes on purpose.#
+# ONE LIST, AND ONE DIRECTION PROVED. The fixture->filter direction reds
+# the clean fixture the moment a planted home stops being exempt; the
+# filter->fixture direction is convention and not a check — a filter
+# naming a home no fixture plants stays green here, and catching that is
+# the subject-half residue's job
+# (`work/gates/whole-file-skips-do-not-check-their-subject.md`).
 HOME_FILE=crates/geom-core/src/tolerance.rs
 
 gate() {
@@ -118,27 +123,9 @@ gate_plant_clean() {
   printf 'pub fn witness() -> Tol { Tol::witness() }\n' > "$1/$HOME_FILE"
 }
 
-# THE SHARED "no production source left" CASE, over a clean fixture that
-# plants one file more than `lib.sh` assumes. That planter excludes
-# exactly the two sources `gate_plant_clean_sources` writes; the home
-# this gate's clean fixture adds is a third, production, so the tree the
-# case is about does not exist and the refusal it wants cannot fire. The
-# home is taken back out here, which is what "every source is test-only"
-# means for this gate's tree. THE FIX BELONGS IN `lib.sh` — the shared
-# planter should clear whatever the gate's own clean fixture planted,
-# rather than every such gate carrying this override.
-gate_plant_home_every_source_excluded() {
-  rm -f "$1/$HOME_FILE"
-  mkdir -p "$1/crates/clean/src"
-  printf '#[cfg(test)]\nmod main;\n' > "$1/crates/clean/src/lib.rs"
-  printf '#[cfg(test)]\nmod lib;\n' > "$1/crates/clean/src/main.rs"
-}
-
-# THE `FILE:LINE:` SHAPE, which a skip ending at `:` does not pin: a
-# file whose own path carries a colon after the home reads as the home
-# plus a line number and rides the exemption. The path is legal on this
-# filesystem and in git, and the anchor's `[0-9]+` is what refuses it —
-# `gate_record_anchor` in `lib.sh` argues the reachable set once.
+# The home followed by a colon that is not a line number — one of the
+# three shapes `gate_record_anchor`'s header enumerates, and the one a
+# skip that ends at `:` exempts.
 plant_colon_after_the_home_that_is_not_a_line_number() {
   printf 'pub fn eps() -> f64 { geom_core::Tol::witness().eps() }\n' \
     > "$1/$HOME_FILE:x.rs"

@@ -16,7 +16,13 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # THE SANCTIONED SEAM'S PATH, held once: the filter's exemption is built
-# from it and the clean fixture plants it, so the two cannot drift.
+# from it and the clean fixture plants it.#
+# ONE LIST, AND ONE DIRECTION PROVED. The fixture->filter direction reds
+# the clean fixture the moment a planted home stops being exempt; the
+# filter->fixture direction is convention and not a check — a filter
+# naming a home no fixture plants stays green here, and catching that is
+# the subject-half residue's job
+# (`work/gates/whole-file-skips-do-not-check-their-subject.md`).
 HOME_FILE=crates/geom-core/src/bit_identity.rs
 
 gate() {
@@ -45,11 +51,9 @@ gate_plant_clean() {
     > "$1/$HOME_FILE"
 }
 
-# THE `FILE:LINE:` SHAPE, which a skip ending at `:` does not pin: a
-# file whose own path carries a colon after the home reads as the home
-# plus a line number and rides the exemption. The path is legal on this
-# filesystem and in git, and the anchor's `[0-9]+` is what refuses it —
-# `gate_record_anchor` in `lib.sh` argues the reachable set once.
+# The home followed by a colon that is not a line number — one of the
+# three shapes `gate_record_anchor`'s header enumerates, and the one a
+# skip that ends at `:` exempts.
 plant_colon_after_the_home_that_is_not_a_line_number() {
   printf 'pub fn as_f64(v: &dyn core::any::Any) -> Option<&f64> { v.downcast_ref::<f64>() }\n' \
     > "$1/$HOME_FILE:x.rs"
