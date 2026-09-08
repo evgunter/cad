@@ -245,7 +245,7 @@ fn has_rust(dir: &Path) -> bool {
 /// `<ProfileLoop as RawLoop>::new(` and `ProfileLoop::<f64>::new(`
 /// becomes `ProfileLoop::new(`. The turbofish's `::` is eaten with the
 /// list, which is what folds the second form onto the first.
-fn without_generics(squashed: &str) -> String {
+pub(crate) fn without_generics(squashed: &str) -> String {
     let b = squashed.as_bytes();
     let mut out = String::new();
     let mut i = 0;
@@ -292,7 +292,7 @@ fn without_generics(squashed: &str) -> String {
 /// The needles are PATHS, not calls: `.map(ProfileLoop::new)` passes
 /// the constructor without ever writing a `(` after it, and the first
 /// draft of this matcher required one.
-fn is_writer(line: &str) -> bool {
+pub(crate) fn is_writer(line: &str) -> bool {
     let squashed: String = line.chars().filter(|c| !c.is_whitespace()).collect();
     let normal = without_generics(&squashed);
     [

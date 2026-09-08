@@ -78,6 +78,8 @@ mod bool12r2_probes;
 mod bool8_r1_probes;
 #[path = "bool9_probes.rs"]
 mod bool9_probes;
+#[path = "bool9r1_probes.rs"]
+mod bool9r1_probes;
 #[path = "canonical_invariance.rs"]
 mod canonical_invariance;
 #[path = "cert4r1_e2e.rs"]
@@ -110,6 +112,8 @@ mod path_property;
 mod r1_bool11_review_probes;
 #[path = "r2_bool11_review_probes.rs"]
 mod r2_bool11_review_probes;
+#[path = "r2_bool9_review_probes.rs"]
+mod r2_bool9_review_probes;
 #[path = "raw_door_census.rs"]
 mod raw_door_census;
 #[path = "rejections.rs"]
