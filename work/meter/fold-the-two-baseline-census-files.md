@@ -73,10 +73,10 @@ count.** `tests/baseline.rs` would have been a third name neither file
 had. Twenty-four live mentions across fourteen files name
 `baseline_census.rs` — `tools/tess-lint/src/lib.rs` at four,
 `tests/cut_line_pin.rs`, `docs/TESS-BUDGET.md` at two and seventeen
-`work/` mentions across eleven rows — against five that name
+`work/` mentions across eleven rows — against six that name
 `baseline_sizing_census.rs`. Renaming both would have staled every one
 of them to remove a duplication; folding into the majority name stales
-five, one of which is this program's own plan line.
+six, one of which is this program's own plan line.
 `work/meter/baseline-sizing-census-pointers-stale` carries them.
 
 **Three claims above did not survive to the fold, and they are the
