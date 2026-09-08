@@ -185,9 +185,9 @@ enum Shape {
 /// `anisotropic, live cross term` shares `t* = √(muu/mvv)` with
 /// `mildly anisotropic` and therefore lands on the same sample: on THIS
 /// quantity it distinguishes nothing. It is kept because it is
-/// load-bearing on the CELL COUNT, where it scores 5.8824% at the
+/// load-bearing on the CELL COUNT, where it scores 0.5249% at the
 /// shipped pair (the figure and its provenance are
-/// [`tess_meter::SPLIT_SCAN_DECADES`]'s, which says it is a SAMPLED
+/// [`tess_meter::SPLIT_SCAN_DECADES`]'s, which says it is a MEASURED
 /// reading nothing re-takes and why that is right; this row's own
 /// assertions are what keep the member honest) — it is `S160`'s sixth
 /// family member, whose deletion
@@ -344,10 +344,10 @@ fn growth_margin() -> f64 {
 /// margin" about the whole error would be the claim this row was sent
 /// back for.
 ///
-/// **Not a re-pin of the shipped pair.** The bound at `(8, 321)` is
-/// 0.16573%, a factor of three below; the ceiling admits any sampling
+/// **Not a re-pin of the shipped pair.** The bound at `(8, 379)` is
+/// 0.11876%, a factor of four below; the ceiling admits any sampling
 /// step at or under 0.0868 decades — 186 samples over 8 decades, or 8
-/// decades widened to 13.9 at the shipped sample count.
+/// decades widened to 16.4 at the shipped sample count.
 fn unfloored_ceiling() -> f64 {
     growth_margin() / 10.0
 }
@@ -361,21 +361,23 @@ fn unfloored_ceiling() -> f64 {
 /// removed — and `span_opt_cells`, the column `tools/tess-lint`
 /// actually divides by, is the `ceil`'d one. On the continuous
 /// objective the worst member at the shipped pair is
-/// `floored, cross-term-free` at 2.088%, which is 42% of this margin:
-/// the same order as the gate's tolerance, not an order below it. On
-/// the `ceil`'d objective the instrument is already OVER it —
-/// `anisotropic, live cross term` scores **5.8824%**, and along a
-/// single smooth geometry change (`mvv` scaled 1× to 100×, counts in
-/// the thousands, not a small-count corner) the scan-to-true ratio runs
-/// from 1.00000 to **1.0588**. So the sentence *"the meter's own
-/// resolution can move a face across its consumer's threshold"* is
-/// TRUE, today, of `span_opt_cells` — it is not a risk this ceiling
-/// holds off, and the ceiling below does not claim to.
+/// `floored ruled wall` at 0.399%, 8.0% of this margin. On the `ceil`'d
+/// objective the family worsts at 2.94% and
+/// `anisotropic, live cross term` scores 0.5249%, its scan-to-true
+/// ratio staying under **1.02320** along a single smooth geometry
+/// change (`mvv` scaled 1× to 100×, counts in the thousands, not a
+/// small-count corner). **That is a measurement, not a bound**: no
+/// closed form covers the `ceil`'d count, so the sentence *"the meter's
+/// own resolution can move a face across its consumer's threshold"* is
+/// held off by `SPLIT_SCAN_SAMPLES` being chosen against the one-sided
+/// envelope (`tess_meter::SPLIT_SCAN_DECADES`) and not by this ceiling,
+/// which does not claim to.
 ///
 /// **What that ceiling is for**: the continuous excess is what the two
 /// constants govern smoothly, so it is what a guard on them can box.
-/// The `ceil` quantisation on top is the lever recorded at
-/// `SPLIT_SCAN_DECADES`, and moving it is not this row's work.
+/// The `ceil` quantisation on top is what the sample count is chosen
+/// against at `SPLIT_SCAN_DECADES`, and bounding it is not this row's
+/// work.
 fn total_ceiling() -> f64 {
     growth_margin()
 }
@@ -425,7 +427,7 @@ fn unseeded(muu: f64, muv: f64, mvv: f64) -> Bound {
 /// optimizer's `Q(t)`, its step derivation and its lattice here; it
 /// boxed the two constants and could not see the scan's CALL SITE
 /// changing under them — `(SPLIT_SCAN_DECADES, 21)` inflated the
-/// reported cell count by 12.73%, two and a half times the gate's whole
+/// reported cell count by 15.02%, three times the gate's whole
 /// margin, with every row in this file green.
 fn scanned(muu: f64, muv: f64, mvv: f64) -> SplitScan {
     split_scan(
@@ -543,8 +545,8 @@ fn optimum_sits_on_the_floor(muu: f64, muv: f64, mvv: f64) -> bool {
 ///
 /// The family is what makes the comparison bite: the ruled wall's
 /// optimum is at `t ≈ 2.1e-4`, so a narrowed range moves its answer;
-/// its `ceil`'d count moves by 12.73% at 21 samples; and the isotropic
-/// bound's lane grid ties with sample 160, so the seed wins there and
+/// its `ceil`'d count moves by 15.02% at 21 samples; and the isotropic
+/// bound's lane grid ties with sample 189, so the seed wins there and
 /// dropping it moves `sample` from `None` to `Some`.
 #[test]
 fn the_shipped_optimizer_is_the_shipped_scan() {
@@ -635,14 +637,17 @@ fn the_shipped_optimizer_is_the_shipped_scan() {
 ///
 /// **Measured on this tree at the shipped pair** (continuous excess,
 /// unseeded — the seeded column `S160` published is a different
-/// quantity and is not this row's evidence): ruled wall 0.01706%,
-/// isotropic 0%, mildly anisotropic 0.00007%, cross term only 0%, unit
-/// 0%, live cross term 0.00005%, floored cross-term-free **2.08824%**,
-/// floored ruled wall **1.15256%**. The two bounds at that pair:
-/// 0.16573% unfloored, 2.09180% floored — and
+/// quantity and is not this row's evidence): ruled wall 0.02250%,
+/// isotropic 0%, mildly anisotropic 0.00666%, cross term only 0%, unit
+/// 0%, live cross term 0.00460%, floored cross-term-free 0.14890%,
+/// floored ruled wall **0.39930%**. The two bounds at that pair:
+/// 0.11876% unfloored, 1.75540% floored — and
 /// `floored, cross-term-free` sits at `r = 0.29808`, which is the kink
 /// derivation's analytic argmax, so the family carries the class's
-/// worst case rather than a sample of it.
+/// worst case rather than a sample of it. **Which member is worst is a
+/// property of the lattice and not of the class**: at a different
+/// sample count another member lands further from a sample, which is
+/// why the ceilings above are the closed forms and not this row.
 ///
 /// **What this deliberately does not do.** It says nothing about the
 /// cell count these columns report — that quantity is discontinuous in
@@ -725,8 +730,15 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
             );
         }
         let (optimum, _) = continuous_optimum(muu, muv, mvv);
+        // The allowance is float dust and not a margin, and it is owed
+        // by the [`Shape::Flat`] member: its cost is CONSTANT in `t`, so
+        // the bracketing search and the scan evaluate the same real
+        // number by different routes and either may land an ulp below
+        // the other. A relative slack five orders under the smallest
+        // real excess in this family cannot hide a resolution failure.
+        const REFERENCE_SLACK: f64 = 1e-12;
         assert!(
-            optimum <= scan.cells,
+            optimum <= scan.cells * (1.0 + REFERENCE_SLACK),
             "the reference stopped being the better answer on the {name}: \
              {optimum:e} against the scan's {:e}",
             scan.cells
@@ -736,7 +748,7 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
         // the scan is tuned, so it is the members that do NOT that
         // carry the resolution claim. The threshold is float dust and
         // not a margin: the smallest real excess in this family is
-        // 5e-7, five decades above it.
+        // 4.6e-5, five decades above it.
         let off_lattice = excess > 1e-10;
         match shape {
             Shape::Unfloored => {
@@ -819,7 +831,7 @@ fn scanned_cost_at(muu: f64, muv: f64, mvv: f64, t: f64) -> f64 {
 /// The numbers are the ones a reader gets by editing the constants: at
 /// `DECADES = 2` the ruled wall's cheapest sampled aspect is sample 0
 /// and the floored ruled wall leaves 665.99%; at `DECADES = 40` the
-/// closed form is 4.17078% against a ceiling of 0.5%.
+/// closed form is 2.98322% against a ceiling of 0.5%.
 #[test]
 fn the_split_scan_guard_reds_on_a_narrow_range_and_on_a_coarse_step() {
     let narrow = split_scan(
