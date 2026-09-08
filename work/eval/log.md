@@ -76,3 +76,18 @@ content, profile verb, contact class, dimension); the "one append-only
 space" sentences at `:3186`/`:3561` contradict `:3958` (43 dead in one
 vocabulary, live in another). No test pins a literal key value, so the
 unit's bit-identity claim is proved by a key dump at base and head.
+
+## Units 3 and 4 specified (2026-09-08)
+
+`docs/EVAL-3-SPEC.md` (prose-only: `emit_blend` cites `sweep::blend::
+naming`'s sentences instead of restating them; the consumer's coverage
+sentence, which already named one test where the kernel names two,
+goes) and `docs/EVAL-4-SPEC.md` (`declare`/`declare_all` return the
+`Applied` whole; `pncad-py`'s second copy of the declare body — kept
+BECAUSE the sugar dropped maintenance, its comment says — collapses
+back onto the sugar; `SplitOutcome` carries the remainder's
+maintenance). **Announced seam to FIX ((FIX orchestrator)):** unit 4
+edits `refactor.rs`'s `rem_apply` closure and `SplitOutcome`, per the
+keep_out's announced-seam clause. Unit 5 (the two `Verb` types) rides
+no unit 1–4 — none opens `crates/verbs`' or `profile`'s public
+surface — so it gets its own small PR after unit 2.
