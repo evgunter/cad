@@ -6,6 +6,7 @@ status: review
 branch: lib/cur5
 opened: 2026-09-08
 refs: [payload-rung-re-sweep-finds-five-more-uncurated-discriminants, mesh-index-numbers-cross-as-prose-under-a-projecting-door, mesh-pick-error-is-unmatchable-under-node-pick-error, resolution-failure-arms-are-unmatchable-under-resolution, escalation-payload-is-uncarried-under-thirteen-refusals, loop-key-is-uncurated-and-invisible-to-payload-scans, next-payload-rung-under-the-cur3-cur4-carriages]
+pr: 2169
 ---
 
 Mechanical under the 08-29 ruling (the CUR/CUR2/CUR3/CUR4 precedent).
