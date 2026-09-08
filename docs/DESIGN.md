@@ -1070,7 +1070,8 @@ these. All are shipped in `editor-core` except where noted:
 
 - **Incremental recompute**: memoized per-node evaluation keyed on
   128-bit content/naming keys (op kind, structural params, evaluated
-  expression bits, upstream keys, ambient ε/K, witness), evaluation
+  expression bits beside each slot's f64 nominal, upstream keys,
+  ambient ε/K, witness), evaluation
   epochs, deterministic level-parallel scheduling; a targeted mid-DAG
   edit recomputes only its downstream cone (pinned on the corpus
   documents). Remaining: partial re-tessellation, and a resident cache

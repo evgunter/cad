@@ -818,3 +818,31 @@ DOCM from the review,
 The review's Q8 note for the exit walk: `eval/mod.rs` is two files —
 the evaluation driver and, from ~2900 on, the content-key vocabulary
 and its census — glued together.
+
+## EVAL-10 MERGED (2026-09-08, PR 2194, merge 5704d502a)
+
+Green on the merged head (`279dcf51e`, main merged after EVAL-11; the
+closing commit is docs-only). The evaluation's one nominal environment
+reaches every reader: `section_of` and `profile_plane_f64` read
+`LaneEnv::nominal`, the frame's slots go through the one slot door,
+one `frame_from_slots` serves both frame reads, the reader census has
+one home, and a row pins the f64 offset-box case. Filed from the
+review: `frame-f64-placement-is-re-evaluated-per-profile` (EVAL's
+slate; a unit with a correctness arm) and, **to MSOLVE ((MSOLVE
+orchestrator))**, `mate-solve-rebuilds-the-nominal-environment-per-check`.
+
+## EXIT (2026-09-08): every unit merged; the walk goes to Ev
+
+Eleven units and two rulings merged (PRs 2137–2138, 2139, 2153, 2160,
+2165, 2168, 2173, 2176, 2186, 2190, 2194, 2195). The slate at exit:
+`D360` (standing rule → TOPO), `map-affine-retires-into-affine3-try-map`
+(parked → PROPS), `two-verb-seats-do-not-compose` (deferred →
+`work/issues/`), and the two S residues from units 10 and 11
+(`work/issues/`, the successor's opening slate). `docs/EVAL-EXIT-WALK.md`
+is the criteria-vs-evidence walk with ten honesty rows; it goes to Ev
+on an `[ev]` PR together with the one-line `docs/DESIGN.md` Band 1
+revision (the content key's inputs gain each slot's f64 nominal, row
+9). Recommendation in the walk: close, residue to `work/issues/`; the
+alternative (EVAL stays open as the seat's standing owner) is Ev's to
+pick. The sweep (moves, ledger, directory deletion) follows
+ratification.
