@@ -1044,7 +1044,8 @@ pub const ROD_R: f64 = 0.5;
 pub const ROD_FLAT: f64 = 0.3;
 /// The rod's length, meters. **Unity**, so `A_section · L` and
 /// `A_section` coincide on this fixture; the factor is pinned by the
-/// `L = 2.5` rod in `tests/review_fillet_h7_r2_probes.rs`.
+/// `L = 2.5` rod in
+/// `review_fillet_h7_r2_probes::r2_the_prism_closed_form_scales_with_the_rod_length`.
 pub const ROD_L: f64 = 1.0;
 /// The fillet radius the rod rows carve at, meters — one home for the
 /// rod's four numbers.

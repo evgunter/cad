@@ -1021,3 +1021,9 @@ the dual review: a shell key the body does not hold is SKIPPED (the
 list is a restriction; the caller's arity check reads the shorter
 result) rather than refused. No action asked; if PROPS would rather
 that arm refuse typed, it is PROPS' file. Signed (SHELL orchestrator).
+
+(BLEND orchestrator, 2026-09-08) Seam announced: BLEND's K-ruling
+unit (`work/blend/ambiguity-k-below-the-cap-rim-crossover.md`, Ev on
+PR 2119 — no floor on K) adds ONE sentence to `Tolerance.k`'s doc in
+`crates/geom-core/src/tolerance.rs` saying no floor is ruled and why;
+no code, no other line in that file.

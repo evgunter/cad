@@ -1,0 +1,56 @@
+---
+id: no-facade-door-mints-a-revolves-role-names
+kind: issue
+title: no facade door mints a revolve's role names, so every consumer hand-spells the StableName
+status: open
+opened: 2026-09-08
+---
+
+
+A revolve's entities are named by ROLE — `Band(loop, segment)`,
+`BandPi`, `BandRim(loop, vertex)`, `Meridian(end, edge)`,
+`MeridianVertex` — and every consumer that wants one builds the
+`StableName` by hand, field by field:
+
+```rust
+StableName {
+    kind: EntityKind::Face,
+    node,
+    path: vec![RoleSeg::Band(ProfileEdgeRef { loop_index: 0, segment: seg })],
+}
+```
+
+`crates/editor-core/tests/corpus/vessel.rs` spells `band`/`band_pi`
+that way; `demos/tour/src/teapot.rs` spells `band`, `band_pi`,
+`band_rim` and `meridian_vertex` that way through the `pncad` façade;
+`demos/tour/tests/teapot_document.rs` spells `band_rim` and `carried`
+again; both reviewers of PR 2206 spelled the same four a fourth and
+fifth time in their probe branches. Neither `pncad::prelude` nor
+`pncad::select` offers a constructor: what they carry is the
+VOCABULARY (`RoleSeg`, `ProfileEdgeRef`, `ProfileVertexRef`,
+`EntityKind`, `StableName` with public fields) and the doors that
+answer names (`select`, `all_edges`, `face_name`, `edge_name`), so
+authoring one is possible and is never one call.
+
+The gap bites where a selection must be AUTHORED rather than
+materialized — a shell's open list, a fillet's frozen selection — which
+is exactly the case `Node::Shell` and `Node::Fillet` are for. A
+`select`-shaped answer cannot be used there without an evaluation to
+select against, and the corpus documents deliberately author instead.
+
+What would close it: builders beside the vocabulary, at the same seat
+that already carries `SegPat::tag(SegTag::Band)` for the matching
+direction — so that saying "the [0, π) face of segment 3 of this
+revolve" is one call, and the pass-through wrapper a survivor takes
+(`FromTarget` of the name it had, which the tour spells as `carried`)
+is another.
+
+**A second duplication rides with it and is worth recording here**:
+`demos/tour/src/teapot.rs` and `crates/editor-core/tests/corpus/vessel.rs`
+carry the SAME vessel meridian, station for station, and the same
+`R_FOOT`/`R_BELLY`/`R_NECK`/`Y_FOOT`/`Y_BELLY_C`/`Y_MOUTH`/`WALL`
+block. That is deliberate — the tour is a detached workspace and the
+kernel must never depend on demo tooling, and the corpus must never
+depend on the tour — so it is disclosed rather than shared, and it is
+a second reason a name BUILDER would earn its place: the two copies
+would at least say the names the same way.

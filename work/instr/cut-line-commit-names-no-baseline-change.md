@@ -66,3 +66,10 @@ Reported out-of-fence by the unit 0 lane (`meter/join-gated-voice`,
 2026-09-07) while dating the baseline for its sweep, and filed here by
 the orchestrator per `docs/prompts/implementer-discipline.md` §6 —
 the lane reports, the party with the whole board places it.
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.

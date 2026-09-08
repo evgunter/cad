@@ -206,6 +206,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/sweep/tests/review_blend5_r5_probes.rs",
+        disposition: Shared, // the doc citations and the rows they name,
+                             // prose and code views
+    },
+    Entry {
         path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
         disposition: Shared, // the seam's and open bands' visibility census, code view
     },
