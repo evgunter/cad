@@ -2,11 +2,12 @@
 id: LIB-DOORS-3
 kind: unit
 title: three doors: Node.union, DocEdit.set_members, and the v-degree slot
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/doors-3
 refs: [n-ary-union-and-set-members-have-no-python-door, structural-slots-without-a-binding-door]
 pr: 2238
+closed: 2026-09-08
 ---
 
 
