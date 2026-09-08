@@ -171,3 +171,16 @@ texts.
 
 Every gate's live stdout and stderr is byte-identical to the merge
 base's, statuses included, and every `--selftest` passes.
+
+A rider from PR 2170's review, since these files were this lane's for
+the hour: `gate_selftest_homes --subject` is adopted at the six callers
+that still checked their homes by path alone —
+`bit-identity-consumer.sh`, `bit-identity-punning.sh`,
+`evalscalar-allowlist.sh`, `interval-square-allowlist.sh`,
+`no-ambient-env.sh` and `register-equal-allowlist.sh` — so each
+home-gone case now wants the SENTENCE the gate hands
+`gate_require_homes` as well as the path. `register-equal-allowlist.sh`
+merged two subject groups into one call, which is the shape the flag
+exists for: it is split into one call per subject, so a definition home
+can no longer pass wearing the caller subject. Mutation-proved by
+swapping that gate's two subjects, which reds its home-gone case.

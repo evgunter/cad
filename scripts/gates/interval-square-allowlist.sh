@@ -877,7 +877,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
   gate_selftest_test_module_homes "$want" plant_square_at
-  gate_selftest_homes --narrowed "${ALLOWLISTED_HOMES[@]}"
+  gate_selftest_homes --narrowed --subject "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   # THE CENSUS, in both directions. `census` is the half whose subject
   # is what the matcher above CANNOT see, so every one of its cases has
   # to be invisible to that matcher: a fixture the live matcher reds is
