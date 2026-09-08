@@ -37,19 +37,31 @@ use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{
-    NODE_NOT_EVALUATED, export_error_tag, node_error_tag, promoted_kind_tag, step_import_error_tag,
+    NODE_NOT_EVALUATED, export_error_tag, node_error_tag, node_inner_kind_tag, promoted_kind_tag,
+    step_import_error_tag,
 };
 use pncad::document as d;
 use pncad::tolerance::Tol;
 use pncad::topo;
 
+/// The refusing ARM's word, as the exception carries it: the kernel
+/// refusal's own discriminant beside the carrier's, `None` where the
+/// refusal has no arms.
+fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
+    match node_inner_kind_tag(kind) {
+        Some(tag) => PyString::new(py, tag).unbind().into_any(),
+        None => py.None().into_any(),
+    }
+}
+
 /// Raise `EvaluationError` with a stable `reason` tag.
 ///
-/// `kind`, `through` and `finding` are ALWAYS present on the
-/// exception — `None` where the reason has no failing kind, no
-/// poisoning ancestor, or no refusal-menu payload — so stub-guided
-/// code can read them without an `AttributeError` trap — a stub that
-/// over-promises is worse than one that says `None`.
+/// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
+/// the exception — `None` where the reason has no failing kind, no
+/// arm under that kind, no poisoning ancestor, or no refusal-menu
+/// payload — so stub-guided code can read them without an
+/// `AttributeError` trap — a stub that over-promises is worse than one
+/// that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -65,6 +77,7 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
             ("reason", PyString::new(py, reason).unbind().into_any()),
             ("node", node),
             ("kind", py.None().into_any()),
+            ("inner_kind", py.None().into_any()),
             ("through", py.None().into_any()),
             ("finding", py.None().into_any()),
         ],
@@ -74,6 +87,11 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
 /// Raise `EvaluationError` for a node that ITSELF failed: the payload
 /// is the `NodeErrorKind`'s stable tag plus the node id; the message
 /// is the kernel error's own `Display` prose — never a `Debug` dump.
+///
+/// `kind` is the CARRIER's word — which door refused — and `inner_kind`
+/// is the arm of the kernel refusal that door holds, `None` where that
+/// refusal has no arms. Two enums, two discriminants, each projected
+/// where it lives.
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -109,6 +127,7 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
                     .unbind()
                     .into_any(),
             ),
+            ("inner_kind", inner_kind(py, &error.kind)),
             ("through", py.None().into_any()),
             ("finding", finding),
         ],
@@ -141,10 +160,12 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
                     .unbind()
                     .into_any(),
             ));
+            fields.push(("inner_kind", inner_kind(py, &error.kind)));
             format!("never ran — poisoned by failed ancestor: {error}")
         }
         None => {
             fields.push(("kind", py.None().into_any()));
+            fields.push(("inner_kind", py.None().into_any()));
             format!("never ran — poisoned through node {}", through.0.0)
         }
     };

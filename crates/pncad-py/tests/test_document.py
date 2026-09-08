@@ -4,19 +4,26 @@
 test here goes through a document; none reaches into the kernel.
 """
 
+import math
 import struct
 import unittest
 
 import pncad
 from pncad import (
     BooleanOp,
+    Distribution,
     Doc,
     DocEdit,
     DocParam,
     EditError,
     EvaluationError,
+    Frame,
+    MeasureExpr,
+    MeasurePrimitive,
     Node,
+    Open,
     SketchPlane,
+    Start,
     evaluate,
     import_step,
     load,
@@ -774,3 +781,173 @@ class TestBooleanDeclareArgument(unittest.TestCase):
             doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=c))
         self.assertEqual(caught.exception.variant, "declare_input_not_declare")
         self.assertIn("is not a declaration", str(caught.exception))
+
+
+class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
+    """The two words a refusal carries, from real documents.
+
+    `kind` is the CARRIER's discriminant — which door refused — and
+    `inner_kind` is the arm of the kernel refusal that door holds.
+    They are two enums, not one division stored twice, and the rows
+    below are what makes that observable: one op, two refusals, the
+    same `kind` and different `inner_kind`s. A caller branching on the
+    op ladder is untouched by the second word's arrival; a caller that
+    needs to tell a bad angle from a bad axis no longer has to read
+    prose.
+    """
+
+    @staticmethod
+    def square(doc, frame, x0=0.0, side=1.0):
+        chain = (
+            Open.at((x0 * m, 0 * m))
+            .line_to(((x0 + side) * m, 0 * m))
+            .line_to(((x0 + side) * m, side * m))
+            .line_to((x0 * m, side * m))
+            .line_to(Start)
+        )
+        return doc.insert(Node.profile(chain, plane=frame))
+
+    def revolved(self, x0, angle):
+        """A square revolved about the sketch's own +y through 0."""
+        doc = Doc()
+        frame = doc.sketch_frame()
+        profile = self.square(doc, frame, x0)
+        axis = doc.insert(
+            Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0))
+        )
+        node = doc.insert(Node.revolve(profile, axis, angle))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(node)
+        return caught.exception
+
+    def test_one_op_two_refusals_one_word_apart(self):
+        # A zero sweep and a profile straddling the axis are different
+        # faults with different repairs. Before the inner word they
+        # were both `revolve` and differed only in prose.
+        angle = self.revolved(1.0, 0 * rad)
+        self.assertEqual((angle.kind, angle.inner_kind), ("revolve", "degenerate_angle"))
+        across = self.revolved(-0.5, 2 * math.pi * rad)
+        self.assertEqual(
+            (across.kind, across.inner_kind), ("revolve", "vertex_crosses_axis")
+        )
+        # The op word did not move, which is the half of the ruling
+        # that says why this is a second attribute and not a longer
+        # first one.
+        self.assertEqual(angle.kind, across.kind)
+        self.assertNotEqual(angle.inner_kind, across.inner_kind)
+
+    def test_a_second_op_speaks_its_own_arms(self):
+        doc = Doc()
+        frame = doc.sketch_frame()
+        flat = doc.insert(Node.extrude(self.square(doc, frame), 0 * m))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(flat)
+        self.assertEqual(
+            (caught.exception.kind, caught.exception.inner_kind),
+            ("extrude", "degenerate_extrusion"),
+        )
+
+    def test_an_arm_with_no_inner_refusal_says_none(self):
+        # The undeclared-contact refusal is the document layer's own
+        # arm: its payload is the candidate declaration, which crosses
+        # whole as `finding`, and there is no inner enum to name.
+        doc = Doc()
+        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
+        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(cut)
+        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertIsNone(caught.exception.inner_kind)
+        self.assertIsNotNone(caught.exception.finding)
+
+    def test_a_poisoned_node_carries_both_of_its_ancestors_words(self):
+        # The poisoning path reports the ROOT cause, so it reports both
+        # of the root cause's words or neither.
+        doc = Doc()
+        frame = doc.sketch_frame()
+        flat = doc.insert(Node.extrude(self.square(doc, frame), 0 * m))
+        moved = doc.insert(
+            Node.transform(flat, (0 * m, 0 * m, 1 * m), (0.0, 0.0, 1.0), 0 * rad)
+        )
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(moved)
+        self.assertEqual(caught.exception.reason, "poisoned")
+        self.assertEqual(caught.exception.through, flat)
+        self.assertEqual(
+            (caught.exception.kind, caught.exception.inner_kind),
+            ("extrude", "degenerate_extrusion"),
+        )
+
+    def test_the_edit_door_carries_the_same_pair(self):
+        """`EditError` is the second carrier, and reads the same way.
+
+        The placement frame's axis door is the reachable one: its
+        refusal IS an evaluation refusal, so `inner_variant` speaks
+        the vocabulary `EvaluationError.kind` speaks — a zero axis and
+        a poisoned one are different repairs, scale versus direction.
+        """
+        with self.assertRaises(EditError) as zero:
+            Frame.rotate_then_translate((0.0, 0.0, 0.0), 1 * rad, (0 * m, 0 * m, 0 * m))
+        self.assertEqual(
+            (zero.exception.variant, zero.exception.inner_variant),
+            ("placement_axis", "degenerate_direction"),
+        )
+        with self.assertRaises(EditError) as poisoned:
+            Frame.rotate_then_translate(
+                (float("inf"), 0.0, 0.0), 1 * rad, (0 * m, 0 * m, 0 * m)
+            )
+        self.assertEqual(
+            (poisoned.exception.variant, poisoned.exception.inner_variant),
+            ("placement_axis", "non_finite_direction"),
+        )
+
+    def test_an_edit_arm_with_no_inner_refusal_says_none(self):
+        doc = Doc()
+        frame = doc.sketch_frame()
+        profile = self.square(doc, frame)
+        doc.insert(Node.extrude(profile, 1 * m))
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.delete_node(profile))
+        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+        self.assertIsNone(caught.exception.inner_variant)
+
+    def test_the_edit_arms_that_hold_a_refusal_are_pre_checked_elsewhere(self):
+        """Why the rows above reach ONE inner word and not four.
+
+        `EditError` has five arms carrying an inner refusal. The
+        placement axis is the only one an authoring caller can reach:
+        each of the others is refused at a NARROWER door first, which
+        is the fail-loud shape working — the refusal a caller gets
+        names the thing they typed. Pinned here so that a door
+        widening later shows up as this test failing rather than as a
+        silent hole in the map.
+        """
+        doc = Doc()
+        # A distribution's invariants are checked by its own
+        # constructor, so `invalid_distribution` cannot be inserted.
+        with self.assertRaises(pncad.DistributionFault):
+            Distribution.normal(0 * m)
+        # A measured expression's reference indices are checked by
+        # `Node.measure`, so `measure_malformed` cannot be inserted.
+        with self.assertRaises(pncad.MeasureNodeFault):
+            Node.measure(
+                MeasureExpr.primitive(MeasurePrimitive.distance(0, 5)), []
+            )
+        # A profile program's geometry is checked by the PATHS chain,
+        # so `profile_program_refused` cannot be inserted.
+        with self.assertRaises(pncad.PathError):
+            (
+                Open.at((0 * m, 0 * m))
+                .line_to((1 * m, 0 * m))
+                .toward(0.0, 1.0)
+                .fillet(50 * m)
+                .toward(-1.0, 0.0)
+                .to((0 * m, 1 * m))
+                .line_to(Start)
+            )
+        # `dimension` rides the expression-path edit and `roots` reads
+        # its word off the fault already — neither has a Python door
+        # that could carry a second one.
+        self.assertFalse(hasattr(DocEdit, "set_expr_at"))
+        self.assertEqual(len(doc.order()), 0)

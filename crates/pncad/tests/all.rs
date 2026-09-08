@@ -3851,11 +3851,22 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ProgramRefusal`, `ExprPath`, `ParamValue`,
-///   `BifurcationKind`, `NamingError`,
+///   (`ProfilePayload`, `ExprPath`, `ParamValue`,
+///   `BifurcationKind`,
 ///   `MetaValue`, `MetaError`, `MetaVersionError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
-///   behind one. (`ClassAdmission`/`class_admission` left this family
+///   behind one.
+///
+///   **`ProgramRefusal` and `NamingError` were in this family and the
+///   reading did not hold for them.** Neither has a curated door of
+///   its own: `ProgramRefusal` is what `EditError::ProfileProgramRefused`
+///   holds and `NamingError` is what `NodeErrorKind::Naming` holds,
+///   and both carriers are curated — so a consumer could match either
+///   arm and had no way to name what it caught. That is the payload
+///   rule this list's own `VerbKind` entry states, and `crate::document`
+///   and `crate::select` carry them now. `BifurcationKind` stays: its
+///   carrier arm is not constructed before the M6 solver, so nothing
+///   can hold one to name. (`ClassAdmission`/`class_admission` left this family
 ///   at GUI-4: a mate-authoring consumer needs the admission table
 ///   BEFORE committing, so `crate::document` carries them now.)
 ///
@@ -3926,7 +3937,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `StructureFlip`, `AxisScalar`, `param_env_over`, `SeedScalar`,
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
 ///   placement off a derived frame — a lane fact, decided by the type),
-///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
+///   `seed_env`, `std_deviation`, `sensitivities`,
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
@@ -3947,6 +3958,14 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   that had none, and `crate::analysis` states the trade at its own
 ///   head rather than here.
 ///
+///   **`SeedError` left this family**, with `ParamBoxError` beside it:
+///   they are `NodeErrorKind`'s `Seed` and `ParamBox` payloads, and
+///   those arms exist on every build, so both are carried
+///   UNCONDITIONALLY — `ParamBoxError` moved out of the driver's
+///   `interval` block for that reason. A payload a default-feature
+///   consumer can match and cannot name is the defect; the seams that
+///   MINT them stay interior below.
+///
 ///   What stays interior is what a consumer of the REPORTS does not
 ///   hold: the flip evidence a refusal carries (read through the
 ///   refusal's own `Display`), the two scalar CAPABILITY seams and
@@ -3954,7 +3973,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 90] = [
+const NOT_CARRIED: [&str; 87] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3991,7 +4010,6 @@ const NOT_CARRIED: [&str; 90] = [
     "MinClearanceLane",
     "MinClearanceOperand",
     "MintRefusal",
-    "NamingError",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
@@ -4000,14 +4018,12 @@ const NOT_CARRIED: [&str; 90] = [
     "ParamValue",
     "PredicateDivergence",
     "ProfilePayload",
-    "ProgramRefusal",
     "Qualifier",
     "RecipeEditRef",
     "Resolved",
     "Rgba8",
     "RunStatus",
     "SectionScalar",
-    "SeedError",
     "SeedScalar",
     "ShellLane",
     "SideVerdict",

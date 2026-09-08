@@ -40,14 +40,32 @@ pyo3::create_exception!(
     EditError,
     PncadError,
     "The document layer refused an edit (unknown node, cycle, slot \
-     dimension mismatch, ...)."
+     dimension mismatch, ...). Carries `variant`, which edit refused, \
+     and `inner_variant`, the arm of the refusal that edit carries — \
+     `None` where it carries none. `EvaluationError` states why the \
+     second word is a second attribute."
 );
 pyo3::create_exception!(
     pncad,
     EvaluationError,
     PncadError,
     "A node failed to evaluate, or was poisoned by an upstream \
-     failure. Carries `node` and, for a poisoning, `through`."
+     failure. Carries `node` and, for a poisoning, `through` — plus \
+     the two words that say what refused: `kind` and \
+     `inner_kind`.\n\n\
+     TWO WORDS BECAUSE THERE ARE TWO ENUMS. `kind` is the CARRIER's \
+     discriminant — `revolve`, `tube`, `shell` — fixed by the node's \
+     kind before any payload is read, and what a caller branching on \
+     the op ladder holds. `inner_kind` is the kernel refusal's OWN \
+     arm, which exists only once the carrier has said which refusal \
+     it holds: `wall_exceeds_radius` under `tube`, `sliver_rim` \
+     under `revolve`. Neither is a coarser spelling of the other, so \
+     each is projected where it lives; folding them into one \
+     vocabulary would move every shipped `kind` value and leave a \
+     caller splitting words by prefix.\n\n\
+     `inner_kind` is `None` where the refusal has no arms, and where \
+     `kind` is already the payload's own word (a mate, part or \
+     placement-rule fault reads its discriminant straight through)."
 );
 pyo3::create_exception!(
     pncad,
