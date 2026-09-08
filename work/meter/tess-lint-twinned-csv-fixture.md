@@ -107,22 +107,35 @@ that particular spelling of the mutation removes the const's last use.
 
 ## Closed
 
-Landed as METER unit 12. `tools/tess-lint/tests/support/csv_fixture.rs`
-is the fixture's one home: `FIXTURE_NAME`, `unsized_row` and the
-two-face `scene` are one text, `include!`d by the crate's test module
-and by `tests/cli_contract.rs`. The cure is the item's first, and it
-took the second `unsized_row` spelling with it — the header-derived
-index is the one both cargo roots can compute, since `NAME` and
-`IDENTITY_FIRST` are private and making them public is non-test code.
+Landed as METER unit 12. `tools/tess-lint/src/tests/csv_fixture.rs` is
+the fixture's one home: `FIXTURE_NAME`, `unsized_row` and the two-face
+`scene` are one file, owned by the crate's test module as
+`tests::csv_fixture` and mounted by `tests/cli_contract.rs` with
+`#[path]`. The cure is the item's first, and it took the second
+`unsized_row` spelling with it — the header-derived index is the one
+both cargo roots can compute, since `NAME` and `IDENTITY_FIRST` are
+private and making them public is non-test code.
 
-`the_fixture_fills_the_head_block_the_header_declares` is included with
-the fixture rather than written beside one includer, so it runs in both
-binaries: it reads each head field by the header's index for that
-column and asserts the sized row is named and the unsized row is not.
-After the fold, blanking the token reds **2 lib / 1 `cli_contract`**
-(`tests/support/csv_fixture.rs`, "the fixture's `name` field"), and
-dropping the field reds **43 lib / 10 `cli_contract`** — the extra red
-in each is the fixture's own test, which names the fixture and prints
-the offending row instead of surfacing as a `ParseError` inside a test
-about something else. The third mutation no longer exists: there is one
-constant.
+`the_fixture_fills_the_head_block_the_header_declares` lives in that
+file rather than beside one mounting site, so it runs in both binaries:
+it reads each head field by the header's index for that column and
+asserts the sized row is named and the unsized row is not. After the
+fold, blanking the token reds **2 lib / 1 `cli_contract`**
+(`src/tests/csv_fixture.rs:149`, "the fixture's `name` field"), and
+dropping the field reds **43 lib / 10 `cli_contract`**
+(`csv_fixture.rs:143`) — the extra red in each is the fixture's own
+test, which names the fixture and prints the offending row instead of
+surfacing as a `ParseError` inside a test about something else. The
+third mutation no longer exists: there is one constant.
+
+**Why a mounted module and not an `include!`.** The first attempt used
+`include!`, and `crates/test-utils/tests/reader_census.rs` reddened
+CI for it: its detector counts a file as a source reader when it *names
+more `.rs` files than it MOUNTS*, and mounting is spelled `#[path = "`,
+which an `include!` is not. The census's ledger has no honest
+disposition for a compile-time mount — the file reads no source, it IS
+source — so the fix is the spelling the detector understands, not a
+ledger line. That is also why the file sits under `src/`: a `#[path]`
+on a module inside an inline `mod tests` resolves against `src/tests/`,
+and a relative path cannot open through a directory that does not
+exist.
