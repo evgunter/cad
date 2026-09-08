@@ -568,17 +568,37 @@ script's already-stamped arm would not recognise such a line, so it
 re-stamps a file that already carries a cut. `split_cut` is tightened
 to the script's language and a truth table now runs both readings
 side by side, the script's own regex extracted from its text and run
-by `grep -E`. Routed by `CC1` (the boundary) and `CC5` (the test and
-the voice), with the note that both clauses are stated over
-cross-column readings and a cut line is not one — what transfers is
-`CC5`'s test, which `CC5` defers to `tess_lint::Report` for.
+by `grep -E`. Cited to `tess_lint::Report`, whose test decides both
+that a check is owed and that its voice is the harness voice;
+`tools/README.md`'s `CC1`–`CC5` were cited at first and are not any
+more, since they are stated over cross-column admissions and hand the
+general test back to `Report` themselves. The separate finding about
+that page's scope stands and is with Ev on #2147.
 
-**Residue:** `cut-regex-unanchored-admits-a-line-the-lint-refuses`.
-`CUT_RE` has no end anchor, so it calls a cut-line-plus-junk a valid
-stamp while the lint refuses the file — and the script's refusal to
-re-stamp then blocks its own repair arm. One line in `scripts/`, which
-is CIW's; pinned meanwhile as the one row of the truth table where the
-two halves disagree.
+**The fix pass, same PR.** Two assertions that could not fail went:
+the containment `!(reads && !recognises)` read the table's own
+constants rather than the computed answers, and a coverage predicate
+over the const table was subsumed by the per-row asserts. The
+containment now runs on the computed pair and runs FIRST, so a real
+inversion reds with what it costs rather than with a table mismatch.
+The stem sweep was narrowed to EXECUTABLE spellings — a comment line
+is skipped, proved by a decoy fixture — because
+`scripts/tess_budget_cut.sh` is CIW's and an ordinary sentence there
+was reddening a suite in a cargo root outside the workspace, with a
+message naming neither the rule nor the fix; every failure the sweep
+can produce now carries both. The floor moved from `>= 4` over five
+mentions to `>= 4` over exactly four executable ones.
+
+**Residue, filed on CIW's slate** (the fixes are edits to
+`scripts/tess_budget_cut.sh`, so they go where the owner will see them
+rather than waiting on this program's pre-close sweep):
+`cut-regex-unanchored-admits-a-line-the-lint-refuses`, `CUT_RE`
+lacking an end anchor, pinned meanwhile as the one row of the truth
+table where the two halves disagree; and
+`cut-script-header-claims-no-cross-language-gate-exists`, the script
+header sentence this unit falsified. On METER's own slate,
+`baseline-census-partition-assert-cannot-fail` — the second and only
+other `tools/` instance of the cannot-fail assertion class.
 
 **Left, deliberately:** `cut-line-commit-names-no-baseline-change`.
 Same seam, different defect, and its substance is what the verdict
