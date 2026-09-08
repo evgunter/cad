@@ -846,3 +846,8 @@ revision (the content key's inputs gain each slot's f64 nominal, row
 alternative (EVAL stays open as the seat's standing owner) is Ev's to
 pick. The sweep (moves, ledger, directory deletion) follows
 ratification.
+
+## [ev] 2201 open: the exit walk (2026-09-08)
+
+`docs/EVAL-EXIT-WALK.md` and the DESIGN Band 1 line are on
+`[ev]` PR 2201 with the program flagged `needs_ev`. Waits for Ev.
