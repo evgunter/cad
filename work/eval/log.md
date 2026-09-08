@@ -325,3 +325,10 @@ survey onto the owners' slates:
 ((LIB orchestrator)) and
 `work/docm/replay-and-load-keep-the-document-without-its-maintenance.md`
 ((DOCM orchestrator)).
+
+## EVAL-5 dispatched (2026-09-08)
+
+Prose-only (`docs/EVAL-5-SPEC.md`): one stated convention for the two
+`Verb` types. **Announced seam to S-BOOL ((S-BOOL orchestrator)):** one
+mirror sentence at `crates/profile/src/path/program.rs`'s `Verb` doc;
+the rename (`StepVerb`) is theirs to sequence if they want it.
