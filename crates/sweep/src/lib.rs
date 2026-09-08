@@ -90,13 +90,11 @@
 //!   every rim of a normal extrusion is definitely transverse, so the
 //!   upgrade is the only arm reached — matching tier 3's
 //!   prefer-intrinsic enforcement, under which definitely-transverse
-//!   edges must carry `Intersection` at rest. That is a K-conditional
-//!   fact, not a geometric identity: the direction gates bound the
-//!   cap–wall angle by `sin θ ≥ K/√(K² + 1)` against a `Smooth`
-//!   ceiling of `1/K`, and the two only close above `K* ≈ 1.272`.
-//!   Below it a rim can classify smooth, and the verb refuses
-//!   ([`ExtrudeError::SmoothCapRim`]) rather than hand back a body
-//!   tier 3 rejects. The argument is at `extrude::upgrade_rim`'s arm.
+//!   edges must carry `Intersection` at rest. That is a fact about
+//!   the run's K rather than a geometric identity: a definitely-smooth
+//!   rim keeps the conventional description, an image at rest in the
+//!   wall's chart, and the body reaches the at-rest gate like any
+//!   other. Indeterminate is [`ExtrudeError::SliverRim`].
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share

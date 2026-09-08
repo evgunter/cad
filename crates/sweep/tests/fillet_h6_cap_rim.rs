@@ -7,9 +7,11 @@
 //! `ObliqueExtrusion`), so every wall is ruled in `n` and every cap is
 //! a plane of normal `±n`. A wall's normal is therefore perpendicular
 //! to `n` at every rim point and the cap-wall tangent planes never
-//! coincide: `classify_dihedral` decides `Transverse` wherever it
-//! decides at all, and the only other outcome is the typed escalation
-//! (`SliverRim`).
+//! coincide: at the shipped K, `classify_dihedral` decides
+//! `Transverse` wherever it decides at all, and the only other outcome
+//! is the typed escalation (`SliverRim`). At a K below the crossover
+//! the same doors admit a chord short enough for the wedge to read
+//! smooth, and the last two rows measure that body end to end.
 //!
 //! Each row builds a body through the public door and reads BOTH
 //! instruments at every cap rim: the description the arm actually
@@ -89,19 +91,29 @@ fn verdict(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> Result<DihedralClas
 /// Asserts that every cap rim of `built` reached the transverse arm —
 /// by the stored description, and by the classifier re-run on the
 /// arm's inputs.
-/// Every cap rim's stored description, both caps, outer loop and rings.
-fn cap_rim_descriptions(built: &Extruded<f64>) -> Vec<EdgeDescription<f64>> {
+/// Every cap rim's stored description beside the surface keys of the
+/// cap it was read from and of the wall across it: both caps, outer
+/// loop and rings.
+fn cap_rims(
+    built: &Extruded<f64>,
+) -> Vec<(topo::SurfaceKey, topo::SurfaceKey, EdgeDescription<f64>)> {
     let body = &built.body;
     [built.bottom, built.top]
         .into_iter()
-        .flat_map(|cap| face_edges(body, cap))
-        .map(|edge| {
-            body.get_curve_geom(body.get_edge(edge).unwrap().curve)
-                .unwrap()
-                .certified()
-                .unwrap()
-                .description()
-                .clone()
+        .flat_map(|cap| {
+            face_edges(body, cap).into_iter().map(move |edge| {
+                let surface = |f: FaceKey| body.get_face(f).unwrap().surface;
+                (
+                    surface(cap),
+                    surface(face_across(body, edge, cap)),
+                    body.get_curve_geom(body.get_edge(edge).unwrap().curve)
+                        .unwrap()
+                        .certified()
+                        .unwrap()
+                        .description()
+                        .clone(),
+                )
+            })
         })
         .collect()
 }
@@ -369,7 +381,7 @@ fn the_direction_gates_refuse_before_the_arm() {
 }
 
 // ---------------------------------------------------------------------
-// The arm below `K*`: reachable, and refused.
+// The arm below the crossover: reachable, built, and refused at rest.
 // ---------------------------------------------------------------------
 
 /// The rectangle whose SHORT rim is the lever arm, extruded by the
@@ -412,11 +424,26 @@ fn print_the_arm_at_a_small_k() {
     match extrude(&profile, Extrusion::Vector(w), tol) {
         Ok(built) => {
             println!("KPROBE extrude=Ok");
-            let smooth = cap_rim_descriptions(&built)
-                .into_iter()
-                .filter(|d| !matches!(d, EdgeDescription::Intersection { .. }))
-                .count();
-            println!("KPROBE non_intersection_rims={smooth}");
+            // How many cap rims kept the conventional description,
+            // and WHICH chart it rests in: the wall the rim's carrier
+            // was swept into, or the cap it borders.
+            let (mut conventional, mut wall_chart, mut cap_chart) = (0usize, 0usize, 0usize);
+            for (cap, wall, d) in cap_rims(&built) {
+                if matches!(d, EdgeDescription::Intersection { .. }) {
+                    continue;
+                }
+                conventional += 1;
+                if let EdgeDescription::Chart(c) = &d {
+                    if c.seam {
+                        continue;
+                    }
+                    wall_chart += usize::from(c.surface == wall);
+                    cap_chart += usize::from(c.surface == cap);
+                }
+            }
+            println!("KPROBE non_intersection_rims={conventional}");
+            println!("KPROBE wall_chart_rims={wall_chart}");
+            println!("KPROBE cap_chart_rims={cap_chart}");
             match topo::validate_geometric(&built.body, tol) {
                 Ok(()) => println!("KPROBE tier3=Ok"),
                 Err(errs) => {
@@ -462,21 +489,22 @@ fn at_k(k: &str, arm_factor: &str) -> String {
 /// measurement that pins both sides of it.**
 ///
 /// The arm's bound is `sin θ ≥ K/√(K² + 1)` against a `Smooth` ceiling
-/// of `1/K`; they close at `K⁴ = K² + 1`, `K* ≈ 1.272`. So:
+/// of `1/K`; they close at `K⁴ = K² + 1`, `K ≈ 1.272`. So:
 ///
 /// - at the shipped **K = 10** the cap-rim `Smooth` arm is unreachable,
 ///   and this same body — the worst admitted tilt on the shortest
 ///   admitted arm — builds with every cap rim `Intersection`;
 /// - at **K = 1.1**, below the crossover, the very same construction
-///   reaches the arm, and the verb REFUSES.
+///   reaches the arm: the four short rims keep the conventional
+///   description, `extrude` hands the body back, and the at-rest gate
+///   refuses it with one `SliverDihedral { material_wedge_side }` per
+///   smooth rim — a smooth cap–wall pair has no material side.
 ///
-/// The refusal is the point of the second row. Before this unit the
-/// door returned `Ok` and handed back a body `validate_geometric` then
-/// rejected with four `SliverDihedral { material_wedge_side }` — a
-/// door minting what the at-rest gate refuses. It now refuses itself,
-/// naming the condition.
+/// The second row is the measurement `Tol`'s K doc rests on: no floor
+/// on K, and a below-crossover body refused at rest rather than at the
+/// door.
 #[test]
-fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_refuses_below_it() {
+fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_is_reached_below_it() {
     // K = 3: comfortably above K* ≈ 1.272. (Not the default 10 — this
     // asserts the CROSSOVER, so the pass row wants to be near it, not
     // eight times past it.) The arm factor clears the in-band regime:
@@ -504,23 +532,34 @@ fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_refuses_below_it() {
     // puts the wedge margin under the coincidence threshold.
     let below = at_k("1.1", "1.002");
     assert!(
-        below.contains("KPROBE extrude=Err SmoothCapRim"),
-        "below K* the door must refuse with the K-conditional error:\n{below}",
+        below.contains("KPROBE extrude=Ok"),
+        "below the crossover the body must still build:\n{below}",
     );
-}
-
-/// The refusal's message names what a reader needs: the loop and
-/// segment, the run's K, and the crossover it is under.
-#[test]
-fn the_smooth_cap_rim_refusal_names_the_k_condition() {
-    let band = Band::new(1e-9, 1.1e-9).expect("a K = 1.1 band");
-    let msg = ExtrudeError::SmoothCapRim {
-        loop_index: 0,
-        segment_index: 3,
-        band,
-    }
-    .to_string();
-    for fragment in ["loop 0", "segment 3", "1.100", "1.272"] {
-        assert!(msg.contains(fragment), "{fragment:?} missing from {msg:?}");
-    }
+    assert!(
+        below.contains("KPROBE non_intersection_rims=4"),
+        "below the crossover the four short rims must keep the conventional \
+         description:\n{below}",
+    );
+    assert!(
+        below.contains("KPROBE wall_chart_rims=4"),
+        "below the crossover each smooth rim rests in its WALL's chart:\n{below}",
+    );
+    assert!(
+        below.contains("KPROBE cap_chart_rims=0"),
+        "the cap's chart is not where a smooth rim rests:\n{below}",
+    );
+    assert!(
+        below.contains("KPROBE tier3=Err n=4"),
+        "below the crossover the at-rest gate must refuse the four smooth rims:\n{below}",
+    );
+    assert_eq!(
+        below.matches("material_wedge_side").count(),
+        4,
+        "each at-rest refusal must be the smooth pair's missing material side:\n{below}",
+    );
+    assert_eq!(
+        below.matches("SliverDihedral").count(),
+        4,
+        "each at-rest refusal must be a SliverDihedral:\n{below}",
+    );
 }

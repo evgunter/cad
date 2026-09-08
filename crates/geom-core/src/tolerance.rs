@@ -156,7 +156,11 @@ pub struct Tolerance {
     /// never changed after commitment — exactly ε's invariant (D4 ¶1).
     /// Configured like ε: [`Tolerance::init`] or the [`ENV_K`] env var
     /// on first `get()`, defaulting to [`DEFAULT_K`] = 10 (Ev-directed
-    /// at M2 PR 7; previously the hard `AMBIGUITY_K` const). Like ε, K
+    /// at M2 PR 7; previously the hard `AMBIGUITY_K` const). Any
+    /// finite `K > 1` is accepted and no floor is ruled (Ev, PR 2119):
+    /// below `K ≈ 1.272` `extrude` admits chords the dihedral lever
+    /// cannot resolve against an admitted tilt, and such bodies refuse
+    /// at rest (`SliverDihedral`) rather than at the door. Like ε, K
     /// is expected to become per-model persisted configuration with a
     /// recorded change operation in the document layer (the banked
     /// SetTolerance/change-ε principle extends to K) — future work,

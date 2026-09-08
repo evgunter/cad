@@ -63,19 +63,34 @@ fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeDescription<f64> {
 }
 
 fn cap_rim_descriptions(built: &Extruded<f64>) -> Vec<EdgeDescription<f64>> {
-    cap_rims(built).into_iter().map(|(_, d)| d).collect()
+    cap_rims(built).into_iter().map(|(_, _, d)| d).collect()
 }
 
-/// Every cap rim's description beside the surface key of the cap it
-/// borders.
-fn cap_rims(built: &Extruded<f64>) -> Vec<(topo::SurfaceKey, EdgeDescription<f64>)> {
+/// Every cap rim's description beside the surface keys of the two
+/// faces it borders: the cap it was read from, then the wall across it.
+fn cap_rims(
+    built: &Extruded<f64>,
+) -> Vec<(topo::SurfaceKey, topo::SurfaceKey, EdgeDescription<f64>)> {
+    let body = &built.body;
     [built.bottom, built.top]
         .into_iter()
         .flat_map(|cap| {
-            let surface = built.body.get_face(cap).unwrap().surface;
-            face_edges(&built.body, cap)
-                .into_iter()
-                .map(move |e| (surface, description(&built.body, e)))
+            let surface = body.get_face(cap).unwrap().surface;
+            face_edges(body, cap).into_iter().map(move |e| {
+                let edge = body.get_edge(e).unwrap();
+                let face_of = |he| {
+                    body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+                        .unwrap()
+                        .face
+                };
+                let (plus, minus) = (face_of(edge.he_plus), face_of(edge.he_minus));
+                let wall = if plus == cap { minus } else { plus };
+                (
+                    surface,
+                    body.get_face(wall).unwrap().surface,
+                    description(body, e),
+                )
+            })
         })
         .collect()
 }
@@ -149,33 +164,48 @@ fn worst_admitted_obliquity_on_a_tight_rim_reads_the_band() {
                 });
                 let rims = cap_rims(&built);
                 // Two short rims per cap, two caps. Plane against
-                // plane has an exactly-zero jet, so the arm's
-                // under-determined branch is the one that runs: the
-                // rim is restated as an image in ITS cap's chart — not
-                // left as the scaffold (the no-op the unit retired),
-                // not the other cap's, not intrinsic.
+                // plane has an exactly-zero jet, so the locus is
+                // under-determined and the rim keeps the conventional
+                // description: an image in its WALL's chart, the
+                // surface swept from the rim's own carrier — not the
+                // cap's, not the scaffold, not intrinsic.
                 let smooth_reached = rims
                     .iter()
-                    .filter(|(_, d)| !matches!(d, EdgeDescription::Intersection { .. }))
+                    .filter(|(_, _, d)| !matches!(d, EdgeDescription::Intersection { .. }))
                     .count();
                 assert_eq!(
                     smooth_reached, 4,
                     "f={f} K={k}: predicted the Smooth arm on the four short rims, got {rims:?}",
                 );
-                for (cap, d) in &rims {
+                for (_, wall, d) in &rims {
                     if matches!(d, EdgeDescription::Intersection { .. }) {
                         continue;
                     }
                     assert!(
-                        matches!(d, EdgeDescription::Chart(c) if !c.seam && c.surface == *cap),
-                        "f={f} K={k}: a smooth rim must be an image in its own cap's chart, got {d:?}",
+                        matches!(d, EdgeDescription::Chart(c) if !c.seam && c.surface == *wall),
+                        "f={f} K={k}: a smooth rim must be an image in its wall's chart, got {d:?}",
                     );
                 }
-                let descs: Vec<_> = rims.iter().map(|(_, d)| d).collect();
-                // What the arm minted, and whether the at-rest gate
-                // accepts it — measured, not assumed.
-                let at_rest = validate_geometric(&built.body, tol);
-                eprintln!("f={f} K={k}: Smooth arm reached; rims {descs:?}; tier 3: {at_rest:?}");
+                // A smooth cap-wall pair has no material side, so the
+                // body the door hands back is one the at-rest gate
+                // refuses — once per smooth rim, under
+                // `material_wedge_side`.
+                let refused = validate_geometric(&built.body, tol)
+                    .expect_err("a smooth cap rim has no material side");
+                let sliver = refused
+                    .iter()
+                    .filter(|e| {
+                        matches!(
+                            e,
+                            topo::ValidationError::SliverDihedral { cause, .. }
+                                if cause.predicate == Some("material_wedge_side")
+                        )
+                    })
+                    .count();
+                assert_eq!(
+                    sliver, 4,
+                    "f={f} K={k}: one material_wedge_side refusal per smooth rim, got {refused:?}",
+                );
             }
         }
     }

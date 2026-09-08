@@ -2,8 +2,9 @@
 id: ambiguity-k-below-the-cap-rim-crossover
 kind: unit
 title: Tol accepts K below the cap-rim crossover K* = 1.272, where two doors behave differently and one refuses
-status: spec
+status: dispatched
 opened: 2026-09-05
+branch: blend/k-no-floor
 ---
 
 ## Finding (FILLET-H6's lane, PR 1891 — recorded, deliberately not fixed there)
