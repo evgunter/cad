@@ -395,3 +395,25 @@ the helper unit 4 retired — converted to `one_edge_rim_at(_, 1.0, 0.0)`
 at the dome's equator, compile-checked; `work/eval/` deleted on main
 by EVAL's sweep, so the seam line announced there goes with it). Head
 `dcc8fb18` awaits its run.
+
+**Unit 5 MERGED (2026-09-08)**, PR [#2155](https://github.com/evgunter/cad/pull/2155)
+at its fix-pass head (full matrix green; a first red was the source-
+reader census in `crates/test-utils` demanding a ledger line for the
+new resolver row — added, a seam outside BLEND's paths, reported
+here). The module spelling at all forty-one sites, the resolver row
+as the instrument, the restating sentences cut back. Filed: the
+tests→tests citation class on S-TCOST's slate
+(`sweep-test-suites-cite-eight-deleted-suite-files`), the register's
+cap-pair claim on this one (`kernel-verbs-cap-pair-ulp-claim-stale`).
+Every E unit of the opening slate is now merged or in its last step
+(unit 4's re-run, unit K's fix pass).
+
+**Unit K MERGED (2026-09-08)**, PR [#2149](https://github.com/evgunter/cad/pull/2149)
+at its fix-pass head `2f7351f4` re-merged on main (full matrix green
+on the fix head; one run before it died at the default archive's
+finalization — the same artifact-service 403 unit 4 met, twice in one
+day). Ev's ruling on the K floor is in the tree; cap-rim helpers homed
+in `tests/common/cap_rims.rs`; one residue filed
+(`extrude-strut-rule-has-three-homes-and-fixed-context-argument-lists`).
+With this, every unit of the E slate is merged except unit 5, whose
+re-merged head awaits its run.

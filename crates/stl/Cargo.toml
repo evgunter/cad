@@ -36,7 +36,10 @@ test-utils = { path = "../test-utils" }
 # CI-facing acceptance-export example (examples compile against
 # dev-dependencies).
 geom-core = { path = "../geom-core" }
-profile = { path = "../profile" }
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
+profile = { path = "../profile", features = ["test-support"] }
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
 

@@ -536,6 +536,9 @@ mod review_fillet_h6_r1_probes;
 #[path = "review_fillet_h6_r2_probes.rs"]
 mod review_fillet_h6_r2_probes;
 
+#[path = "review_blend_k_rk_probes.rs"]
+mod review_blend_k_rk_probes;
+
 #[path = "fillet_h7_transverse_cap.rs"]
 mod fillet_h7_transverse_cap;
 #[path = "fillet_h7_transverse_cap_interval.rs"]
@@ -555,6 +558,9 @@ mod review_fillet_h7_r2_probes;
 
 #[path = "review_fillet_t_r2_probes.rs"]
 mod review_fillet_t_r2_probes;
+
+#[path = "review_blend5_r5_probes.rs"]
+mod review_blend5_r5_probes;
 
 #[path = "review_blend4_r4_probes.rs"]
 mod review_blend4_r4_probes;

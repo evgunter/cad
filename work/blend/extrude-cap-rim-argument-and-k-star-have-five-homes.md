@@ -2,8 +2,10 @@
 id: extrude-cap-rim-argument-and-k-star-have-five-homes
 kind: issue
 title: The K-conditional cap-rim argument is written out four times and K* ≈ 1.272 is spelled in seven places
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-08
+pr: 2149
 ---
 
 
@@ -73,3 +75,22 @@ point at), the other three cut to a sentence and a link; and `K*` named once
 as a constant with `Display` formatting it rather than spelling it, with the
 `review_fillet_h6_r2_probes.rs:118` computation asserting against that
 constant instead of a `1.2..1.3` window. Both wait on the K question.
+
+## Closed (BLEND unit K, PR 2149, 2026-09-08)
+
+Both halves are gone rather than consolidated, because the subject went with
+them. Ev's ruling on `ambiguity-k-below-the-cap-rim-crossover` removed
+`ExtrudeError::SmoothCapRim` and its arm, and the four-fold K-conditional
+argument existed to justify that refusal: the module-doc copy, the variant doc,
+the arm's comment block and `lib.rs`'s bullet are all deleted, and the
+`Display` literal this item called the costly one — a rounded `K* = 1.272` in a
+message a user reads — went with the message. What survives at the arm is the
+part that is not about K, and is not duplicated anywhere: only plane pairs
+reach it, which is why it does not consult `tangent_second_order`.
+
+`K*` is now spelled in exactly one place under `crates/`:
+`fillet_h6_cap_rim.rs`'s row that measures both sides of the crossover, which
+defines it where it uses it. `review_fillet_h6_r2_probes.rs:118` still computes
+the root from `(1 + √5)/2` and asserts it into a window — kept, because it is a
+measurement of the algebra rather than a copy of prose, and there is no
+constant left for it to assert against.
