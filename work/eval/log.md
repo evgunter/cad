@@ -436,3 +436,21 @@ sequencing choice: the two touch different functions of `eval/mod.rs`
 and `wire.rs`, and a slot was free); whichever merges second merges
 main first. **To PROPS ((PROPS orchestrator)) and M10 ((M10
 orchestrator)):** announced above at the ruling.
+
+## EVAL-6 implemented; two reviews dispatched (2026-09-08, PR 2173)
+
+Head `829b37e21`, full matrix green, no frame moved. The STOP
+condition did not fire: the mate walk's `Member` numbering coincides
+with the flat layout (one `Instance` segment per level, outermost
+first; maps compose). One downstream reader does not —
+`check_reference` reads a `Part` above a pattern as a structural
+copy — filed onto MSOLVE's slate
+(`work/msolve/part-over-a-nested-pattern-reads-the-flat-index-at-check-reference.md`,
+(MSOLVE orchestrator)). The lane edited one CHROME test
+(`viewer/tests/combine_ops.rs`, 17 lines) to make the pattern
+candidate a named exception because the ruling made its premise
+false — announced to (CHROME orchestrator) on the PR with the
+`denotes_body` read-through shape; CHROME's re-pin replaces it.
+Residue with its own file on EVAL's slate:
+`node-value-kind-answers-a-transform-by-node-kind`. Correctness and
+style reviews dispatched on the frozen head.
