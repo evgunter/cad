@@ -166,14 +166,23 @@ class LiteralError(PncadError):
 
     Not DimensionError, which is the quantity boundary's operator
     check. The expression layer's refusal type has dimension-mismatch
-    arms too, and two other doors reach them: `load` does, from a
+    arms too, and three other doors reach them: `load` does, from a
     hand-edited save file, and they arrive as PersistError with
     `variant == "parse"` (issue #694); `Doc.parse_expr` does, and they
-    arrive as ParseError. Every `kind` raised on THIS class is a
-    literal-value refusal."""
+    arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
+    constructors do (`MeasureExpr.add` and its siblings), arriving on
+    THIS class with the mismatch's own tag as `kind` — the same kernel
+    type refusing at the same layer, because that language asks
+    `Expr`'s own constructors for its dimensions rather than restating
+    the table.
+
+    `value` is the offending number where the refusing door had one in
+    hand, and `None` where it did not: a measurement constructor
+    refuses over two operands' DIMENSIONS, and there is no single
+    float to name."""
 
     kind: str
-    value: float
+    value: Optional[float]
 
 class ParseError(PncadError):
     """`Doc.parse_expr` could not read the source as an expression.
@@ -689,6 +698,53 @@ class MeasureUnavailable(PncadError):
 
     variant: str
     param: str
+
+class MeasureNodeFault(PncadError):
+    """`Node.measure` was handed an expression that reads a reference
+    the node does not carry.
+
+    `variant` is `ref_index_out_of_range`; `verb` is which primitive
+    reads it, `index` the out-of-range one, and `refs` how many the
+    node carries.
+
+    The kernel's own `Node::measure` decides this — the one
+    construction door, running the check the edit door and the load
+    door's re-check both run — so a measure these constructors accept
+    is one a document accepts. What the constructor adds is TIMING:
+    the index refuses where it is written, not at the `Doc.apply`
+    after it, where the same fault arrives as EditError
+    `measure_malformed`."""
+
+    variant: str
+    verb: str
+    index: int
+    refs: int
+
+class MeasureUnavailableAt(PncadError):
+    """A measure whose answer is an ENCLOSURE, read at a build whose
+    scalar is a point.
+
+    `variant` is `needs_enclosure`; `verb` is the primitive, `scalar`
+    the scalar this build ran at, and `door` the one that CAN answer —
+    the recourse rides in the refusal rather than in a reader's memory.
+
+    NOT MeasureUnavailable, whose name is one word away and whose
+    question is a different one: that is the analysis lane refusing to
+    price a mass over a band, this is the measurement lane. Neither
+    subclasses the other.
+
+    A typed ABSENCE rather than a failure. The measure node evaluated
+    fine and has no value, which is why an assertion over it reports
+    `Unevaluated` carrying this same reason instead of being poisoned.
+    A `min_clearance` at `f64` is the whole of it today: a station pair
+    found by a point-scalar search is an upper bound on the minimum
+    rather than the minimum, and reporting one would be a degradation
+    ERROR-DESIGN E7 forbids by name."""
+
+    variant: str
+    verb: str
+    scalar: str
+    door: str
 
 class AnalysisPolicyError(PncadError):
     """An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is
@@ -1363,6 +1419,154 @@ class PartSelect:
         at `evaluate` (`instance_out_of_range`); nothing wraps or
         clamps."""
 
+class MeasurePrimitive:
+    """Which closed-form measurement a `MeasureExpr` leaf computes, and
+    over which of the measure node's references.
+
+    Four verbs and no fifth: `distance` and `angle` are the geometric
+    readings, `gap` is CONTACT-DESIGN C5's signed mating gap, and
+    `min_clearance` is the one an engine answers.
+
+    Every argument is a POSITION — an index into the reference list
+    `Node.measure` is given, so a plain `int`, the structural-slot
+    exception `PartSelect.instance` and `NodePick.build` already ride.
+    An index past the end of that list raises MeasureNodeFault at
+    `Node.measure`; a negative one is not representable and raises
+    OverflowError at the call.
+    """
+
+    @staticmethod
+    def distance(a: int, b: int) -> MeasurePrimitive:
+        """The distance between two referenced entities — a length. A
+        carrier pair the v1 closed forms have no arm for refuses at
+        `evaluate` (`measure_unsupported`), naming the pair."""
+
+    @staticmethod
+    def angle(a: int, b: int) -> MeasurePrimitive:
+        """The angle between two referenced entities — an angle."""
+
+    @staticmethod
+    def min_clearance(a: int, b: int) -> MeasurePrimitive:
+        """The minimum clearance between two selections — a length, and
+        the one verb whose value is an ENCLOSURE.
+
+        Each reference's entity kind is its face scope: a body
+        reference selects every face of that body, a face reference
+        selects the one. An edge or a vertex refuses at `evaluate`
+        (`measure_selection_kind`).
+
+        At the `f64` scalar this library evaluates at, the measure has
+        NO VALUE: `Value.measure` raises MeasureUnavailableAt naming
+        the door that could answer, and an assertion over it reports
+        `Unevaluated` carrying the same reason. The node itself
+        evaluates successfully — the absence is a value, not a
+        failure."""
+
+    @staticmethod
+    def gap(outer: int, inner: int) -> MeasurePrimitive:
+        """C5's SIGNED gap between a mating pair — a length.
+
+        Argument order is the mating ROLE, not a symmetry: `outer` is
+        the containing carrier (the socket, the bore, the plane the
+        offset is measured from) and `inner` the contained one. C5's
+        formulas are asymmetric in exactly that way, so the roles are
+        authored rather than inferred from which radius is larger."""
+
+    @property
+    def verb(self) -> str:
+        """`distance`, `angle`, `gap` or `min_clearance` — the same
+        word this primitive's refusals name themselves with."""
+
+    @property
+    def dimension(self) -> str:
+        """`length` or `angle`. Fixed per verb: the quantity kind
+        rides the expression."""
+
+    @property
+    def refs(self) -> tuple[int, int]:
+        """The reference indices, in ARGUMENT order — a gap's pair
+        reads `(outer, inner)` and is not re-sorted."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class AssertionDir:
+    """Which way a `Node.assertion` constrains its measure. Two
+    directions and both still gate: a clearance requirement is
+    `AtLeast`, a maximum-gap requirement is `AtMost`."""
+
+    AtLeast: Final[AssertionDir]
+    AtMost: Final[AssertionDir]
+
+    @property
+    def symbol(self) -> str:
+        """The relation as a report reads it: `">="` or `"<="`."""
+
+class MeasureExpr:
+    """A dimension-checked measurement expression: the recipe's
+    arithmetic over a closed-form measurement leaf.
+
+    The dimension checker runs at CONSTRUCTION and it is the kernel's
+    own — the measurement language builds probe expressions and asks
+    `Expr`'s smart constructors what comes out, so a mis-dimensioned
+    tree refuses in the same words a document expression would have
+    earned, and it refuses where it is written rather than at the
+    `Doc.apply` after it. The refusal is LiteralError, carrying the
+    mismatch's own tag as `kind`.
+
+    No `__hash__`, for `Expr`'s reason: equality is an IEEE comparison
+    of the literals inside, so `0.0` and `-0.0` are equal trees whose
+    bit patterns are not.
+    """
+
+    @staticmethod
+    def primitive(p: MeasurePrimitive) -> MeasureExpr:
+        """A closed-form measurement leaf. Total."""
+
+    @staticmethod
+    def value(e: Expr) -> MeasureExpr:
+        """An ordinary document expression as a leaf — a literal
+        bound, a parameter, a whole arithmetic subtree of them.
+        `Doc.parse_expr` is where one comes from, and it is the only
+        door: a second spelling of that grammar is what `py/expr.rs`
+        already rules out."""
+
+    @staticmethod
+    def add(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
+    @staticmethod
+    def sub(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
+    @staticmethod
+    def neg(a: MeasureExpr) -> MeasureExpr:
+        """Negation — any dimension, and total."""
+
+    @staticmethod
+    def mul(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
+        """Product; at least one operand dimensionless."""
+
+    @staticmethod
+    def div(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
+        """Quotient; the divisor must be dimensionless."""
+
+    @staticmethod
+    def min(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
+    @staticmethod
+    def max(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
+    @property
+    def dimension(self) -> str:
+        """`length`, `angle`, `count` or `scalar` — correct by
+        construction, and the dimension an assertion's bound has to
+        match."""
+
+    @property
+    def primitives(self) -> list[MeasurePrimitive]:
+        """Every primitive in the tree, in PRE-ORDER: the order the
+        construction door's bounds check runs over and the order the
+        evaluation reads them back in."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str: ...
+
 class Node:
     """A recipe node, before insertion."""
 
@@ -1665,6 +1869,68 @@ class Node:
         derive a pose, naming that placer and carrying the
         evaluation's own cause (`mate_placer_refused`, whose `error`
         is the node-failure tag)."""
+
+    @staticmethod
+    def measure(expr: MeasureExpr, refs: list[tuple[NodeId, str]]) -> Node:
+        """A measurement sink: one dimension-generic node that denotes
+        no body and evaluates to a typed quantity.
+
+        `refs` is the reference list the expression's primitives index,
+        IN ORDER, each a `(node, name)` pair — the entity's stable name
+        and the node its carrier is READ AT.
+
+        The read site is what makes a measure report PLACED geometry. A
+        rigid transform is identity-preserving, so the moved body keeps
+        the upstream name and resolving at the minting node measures
+        the UNMOVED carrier. Select a face from a transform's own
+        selection door and name that transform for the placed number;
+        name the minting node for the authored one. Both are legal and
+        they are different questions.
+
+        These references ARE recipe edges, unlike `Node.declare`'s and
+        `Node.mate`'s names: a measure consumes the values it names, so
+        deleting a referenced node is refused at the delete door
+        (`delete_would_dangle`) like any other consumer's input.
+
+        Every index is checked HERE, through the kernel's one
+        construction door, so a leaf pointing past the end of `refs`
+        raises MeasureNodeFault where it is written. Nothing else is
+        pre-checked: a name that no longer resolves
+        (`measure_ref_resolve`), a carrier pair with no v1 closed form
+        (`measure_unsupported`), a `min_clearance` handed an edge
+        (`measure_selection_kind`) and a non-finite result
+        (`measure_non_finite`) are the kernel's own typed refusals at
+        `evaluate`."""
+
+    @staticmethod
+    def assertion(measure: NodeId, dir: AssertionDir, bound: Expr) -> Node:
+        """A recorded tolerance requirement: design intent as document
+        data, in the versioned recipe rather than in a script beside
+        it.
+
+        `measure` is the `Node.measure` this constrains — an ordinary
+        recipe edge, so a failed or poisoned measure poisons the
+        assertion rather than producing a verdict about nothing.
+
+        The bound is an `Expr` and not a typed quantity, because its
+        DIMENSION is the measure's. Every other node door takes a
+        `Length` or an `Angle` because a slot's address fixes what it
+        holds; this one's is fixed by the node it points at, and may be
+        an angle, a count or a plain scalar as readily as a length.
+        `Doc.parse_expr("0.5 mm")` is the one spelling, and it reaches
+        document parameters (`"min_web"`) in the same call — which is
+        what makes an assertion re-decidable by a parameter edit.
+
+        Two things are checked at `Doc.apply` and not here, because
+        both need the document: that `measure` names a measure at all
+        (EditError `assertion_target`) and that the bound's dimension
+        is the measured one (`assertion_dimension`). A document never
+        carries a comparison of radians with metres.
+
+        REPORT-ONLY, structurally: no operation accepts a verdict as an
+        operand, the product gather skips an assertion as it skips a
+        declaration, and nothing downstream changes shape because one
+        is `Violated`. Read it with `Value.assertion`."""
 
 class Expr:
     """A dimension-checked expression — the recipe's arithmetic, as a

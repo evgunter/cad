@@ -61,8 +61,9 @@ use pncad::analysis::{AnalysisPolicyError, MeasureUnavailable};
 use pncad::document::{
     AssemblyError, Attribution, CheckEvidence, ChecksError, DimensionError, Distribution,
     DistributionFault, DistributionField, EditError, EvalError, InlineError, MateFault,
-    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, RecordedProgramError, RefusedRef,
-    Relation, RootFault, SplitError, UpdateError,
+    MeasureNodeFault, MeasureUnavailableAt, NodeErrorKind, ParseError, PersistError,
+    PlacementRuleFault, RecordedProgramError, RefusedRef, Relation, RootFault, SplitError,
+    UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -335,6 +336,38 @@ pub fn distribution_field_tag(field: &DistributionField) -> &'static str {
 pub fn measure_unavailable_tag(err: &MeasureUnavailable) -> &'static str {
     match err {
         MeasureUnavailable::BandHasNoMeasure { .. } => "band_has_no_measure",
+    }
+}
+
+/// The stable tag for a measured expression the construction door
+/// refuses.
+///
+/// One arm today, and the tag exists anyway for the reason every tag
+/// here does: `ref_index_out_of_range` is what a caller branches on,
+/// and a second arm added kernel-side breaks this match rather than
+/// arriving in Python untagged.
+///
+/// The SAME fault reaches the edit door as
+/// `EditError::MeasureMalformed`, which carries its own tag
+/// (`measure_malformed`) because what refused there is the EDIT and
+/// the fault is its payload. Two tags for one fault, and they answer
+/// different questions: which door said no, and what was wrong.
+pub fn measure_node_fault_tag(fault: &MeasureNodeFault) -> &'static str {
+    match fault {
+        MeasureNodeFault::RefIndexOutOfRange { .. } => "ref_index_out_of_range",
+    }
+}
+
+/// The stable tag for a measure with no value at this build's scalar.
+///
+/// One arm today. Deliberately NOT sharing a function with
+/// [`measure_unavailable_tag`] one screen up: that one is the
+/// ANALYSIS lane's band refusal and this one the MEASUREMENT lane's
+/// missing enclosure, two kernel types whose names differ by one word
+/// and whose questions do not overlap at all.
+pub fn measure_unavailable_at_tag(reason: &MeasureUnavailableAt) -> &'static str {
+    match reason {
+        MeasureUnavailableAt::NeedsEnclosure { .. } => "needs_enclosure",
     }
 }
 
