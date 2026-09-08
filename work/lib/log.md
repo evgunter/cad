@@ -3980,3 +3980,40 @@ committed script reporting WHICH list. Orchestrator note: that item
 is the right next CUR unit, and a mechanical one. No kernel crate
 touched beyond `pncad`'s lists; the lane ran the pinned ruff for
 real. ~77 min, ~244k tokens.
+
+**LIB-SMALL MERGED (2026-09-08, #2240; mechanical under the 08-29
+ruling, no A/B row). Three small closes, one file each.** (1) The
+refactoring doors carry their maintenance: `SplitOutcome` gains
+`remainder_maintenance`/`part_maintenance` and `InlineOutcome` gains
+`maintenance`, each straight off the kernel outcome, and the three
+`Doc`-minting getters hand the record across with the document
+instead of `Vec::new()` — ALL THREE sites (the brief miscounted: the
+"third site" was `InlineOutcome.doc`, the inline wrapper's own, the
+same defect on the same ground). No getter added: the record reads
+off `Doc.last_maintenance`, the door that already answers the
+question; its doc and `Doc::accept`'s funnel note say why the
+refactoring wrappers are the one family that does not pass through
+the funnel. The funnel test's new row cuts the bench stand's whole
+cluster out: part `["join","join"]`, remainder `["split","split"]`,
+inline back `["join","join","drop"]` — non-empty on every door,
+because an empty record is indistinguishable from "nothing moved";
+the input document's own reading asserted UNCHANGED (a pure door).
+(2) `Datum.in_plane` reads its origin back DIMENSIONED — decided for
+`Length`, the bare-shape argument weighed and rejected AT the field:
+being written in a frame's coordinates changes the datum a position
+is measured from, never its dimension, and the write door had already
+settled it; the direction pair stays bare under `py/place.rs`'s rule.
+Stub, ty fixture, `TestDatumReadback` (`0.25 * m` in, a `Length` equal
+to it out, the sibling `origin` asserted beside it); no census row
+moves (no curated Rust name maps to the field). (3) Two guide steps
+before `### Hollowing a body`, where G17's spec said the shell step
+sits "beside" them: chamfer as fillet's twin (same frozen selection;
+setback not radius; planar supports only; the closed form metered;
+the chamfer takes more than the fillet at the same number;
+`chamfer_selection_empty` caught) and tubes (the five intent
+parameters, then the hollow tube's REQUIRED wall with `minor_radius`
+as the outer radius, an arc window, and the solid-minus-hollow bore
+differential); `test_guide.py` executes 38 blocks, up from 36. The
+audit's `arc_continue` line stays open until BOOL-10 (#2135) merges.
+No kernel crate touched; the lane ran the pinned ruff for real.
+~65 min, ~182k tokens.

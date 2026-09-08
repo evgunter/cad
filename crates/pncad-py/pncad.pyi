@@ -3391,16 +3391,17 @@ class Datum:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
     @property
-    def in_plane(self) -> Optional[tuple[tuple[float, float], tuple[float, float]]]:
+    def in_plane(self) -> Optional[tuple[tuple[Length, Length], tuple[float, float]]]:
         """An in-plane axis in its frame's own 2-D coordinates — the
         origin then the direction, as authored. `None` for every other
         kind, whose numbers are all world numbers.
 
-        The ORIGIN half crosses as bare floats in canonical metres,
-        where `Node.datum_axis_in_plane` writes it as
-        `tuple[Length, Length]`. That asymmetry between the write door
-        and this read door is recorded, not intended:
-        `work/lib/datum-in-plane-reads-back-a-length-pair-bare.md`."""
+        The halves cross differently because they are different
+        things. The ORIGIN is a position, so it carries `Length`s —
+        the same shape `Node.datum_axis_in_plane` writes it in and the
+        same shape `Datum.origin` reads back. The DIRECTION is
+        dimensionless and stays bare. Frame-local is a change of
+        datum, not of dimension."""
 
     @property
     def axes(

@@ -513,8 +513,19 @@ pub(crate) struct Datum {
     /// An in-plane axis in its frame's own 2-D coordinates — the
     /// origin then the direction, as authored. `None` for every other
     /// kind, whose numbers are all world numbers.
+    ///
+    /// The two halves cross differently because they ARE different
+    /// things. The origin is a POSITION — a distance from the frame's
+    /// own origin, measured in metres — so it crosses dimensioned, as
+    /// `origin` does and as `Node.datum_axis_in_plane` takes it. The
+    /// direction is dimensionless and crosses bare, which is the
+    /// placement vocabulary's rule: a bare float appears only where
+    /// the Rust side is itself a direction or a matrix entry. Being
+    /// written in a frame's coordinates rather than the world's
+    /// changes the DATUM a position is measured from, never its
+    /// dimension.
     #[pyo3(get)]
-    in_plane: Option<((f64, f64), (f64, f64))>,
+    in_plane: Option<((Length, Length), (f64, f64))>,
     /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
     /// for every other kind.
     ///
@@ -813,7 +824,13 @@ impl Value {
                     kind: "axis_in_plane",
                     origin: lengths(*origin),
                     direction: Some((v.x, v.y, v.z)),
-                    in_plane: Some(((plane_origin.x, plane_origin.y), (plane_dir.x, plane_dir.y))),
+                    in_plane: Some((
+                        (
+                            Length(pncad::quantity::Length::from_meters(plane_origin.x)),
+                            Length(pncad::quantity::Length::from_meters(plane_origin.y)),
+                        ),
+                        (plane_dir.x, plane_dir.y),
+                    )),
                     axes: None,
                 })
             }
