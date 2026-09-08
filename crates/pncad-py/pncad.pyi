@@ -733,9 +733,41 @@ class FrameError(PncadError):
 
     `variant` is `degenerate_aim`, `degenerate_tangent`,
     `degenerate_roll_reference`, `degenerate_reference_ladder`,
-    `degenerate_mirror_normal`, or `band`."""
+    `degenerate_mirror_normal`, or `band`. WHICH input was degenerate
+    is that word and nothing else: the tag is minted per input, so
+    there is no second attribute spelling the same fact.
+
+    A degenerate refusal carries the classifier's payload when the
+    margin landed in the ambiguity band, and carries none of it when
+    the margin was a definite zero: `margin` is the in-band value,
+    `margin_low` / `margin_high` the enclosure's bounds where the
+    classifier saw an enclosure rather than a value, `zero` and
+    `escalate` the band it was classified against, and `predicate`
+    the decision's name where the kernel attached one. A poisoned
+    margin carries the band and no number. This is diagnostic data:
+    the escalation contract is that no sound branch exists here, so
+    the recourse is the message's own three levers — declare the
+    coincidence, move the geometry, or lower the tolerance.
+
+    `band` wraps a band-construction refusal, whose word rides on
+    `inner_variant` (`invalid_value`, `invalid_lever_arm`, `empty`)
+    with `field` (`zero` or `escalate`) and `value` beside it; a band
+    that could not be formed reports its attempted thresholds on the
+    same `zero` / `escalate` pair.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
 
     variant: str
+    inner_variant: Optional[str]
+    margin: Optional[float]
+    margin_low: Optional[float]
+    margin_high: Optional[float]
+    zero: Optional[float]
+    escalate: Optional[float]
+    predicate: Optional[str]
+    field: Optional[str]
+    value: Optional[float]
 
 class IdentityError(PncadError):
     """A document identity could not be minted. Identity is never

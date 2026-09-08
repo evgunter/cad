@@ -2059,6 +2059,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "band_field_tag",
+        values: &["escalate", "zero"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "binary_header_error_tag",
         values: &["binary_header_sniffs_ascii", "binary_header_too_long"],
         delegates: &[],

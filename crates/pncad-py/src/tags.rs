@@ -427,6 +427,19 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
     }
 }
 
+/// The stable tag for WHICH band threshold a
+/// `BandError::InvalidValue` is about.
+///
+/// The kernel's `BandField` has a `name()` of its own for messages;
+/// this is the FFI spelling, which is this crate's to own, and it is
+/// word for word that one.
+pub fn band_field_tag(field: &BandField) -> &'static str {
+    match field {
+        BandField::Zero => "zero",
+        BandField::Escalate => "escalate",
+    }
+}
+
 /// The stable tag for a product-root invariant refusal — shared by
 /// every door that carries a `RootFault`.
 pub fn root_fault_tag(fault: &RootFault) -> &'static str {
