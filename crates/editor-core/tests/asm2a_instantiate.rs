@@ -391,9 +391,10 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part (placement + validation of
-    // the placed body); 724 is the part's, on its own nodes.
+    // the placed body); 799 is the part's, on its own nodes — its
+    // profile's pre-pass included, on the Profile node's log.
     assert_eq!(first.len(), 466, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 724, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 799, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

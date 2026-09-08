@@ -1096,9 +1096,10 @@ fn wire_datum<T: Decide>(
 /// path from steps to geometry — then the assembled `Profile<f64>`
 /// validates at f64 (the C6 structure-selection gate, which also
 /// yields the canonical form the program-anchor naming map is derived
-/// from). Runs OUTSIDE the verdict bracket (`eval_node`): these are
-/// structure decisions, the successor of the stored f64 bits, not
-/// per-lane op decisions. VQ6 is closed here and in the op below: the
+/// from). Runs inside the node's verdict frame (`eval_node`), ahead
+/// of the op: these are structure decisions, the successor of the
+/// stored f64 bits, made on the node's behalf and logged as its own,
+/// before the per-lane op decisions. VQ6 is closed here and in the op below: the
 /// replay-time junction checks and both validations run under the
 /// SAME `Tolerance::get()` the evaluation pins.
 pub(crate) fn prepare_profile(
