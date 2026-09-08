@@ -217,7 +217,8 @@ fn a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier() {
     let findings =
         find_flush_candidates(&ev, peg, block, Tol::witness()).expect("the pairs decide");
     assert!(!findings.is_empty());
-    let (doc, decl) = declare_all(&doc, &findings, Tol::witness()).expect("findings declare");
+    let (applied, decl) = declare_all(&doc, &findings, Tol::witness()).expect("findings declare");
+    let doc = applied.doc;
     let (doc, union) = insert(
         doc,
         Node::Boolean {
