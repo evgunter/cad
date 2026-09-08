@@ -21,7 +21,7 @@
 //! # Every field is direct per-instance data
 //!
 //! As in the sibling modules: function pointers and literals per
-//! instance, no match over a verb vocabulary anywhere in this file, so
+//! instance, no match over the kernel's verb vocabulary anywhere in this file, so
 //! a future verb never has to open it. There is one instance, and the
 //! struct is carried anyway: it is the seam where the lowering reads
 //! its four literals, and reading them off a struct is what keeps the

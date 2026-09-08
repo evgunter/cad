@@ -405,8 +405,9 @@ macro_rules! transition_table {
         /// variant, projected from the same declaration.
         ///
         /// The SKETCH program's verb, not the kernel's: that one is
-        /// `verbs::Verb` (an operation on a body), the two never meet
-        /// in one signature, and a reader of either spells the crate.
+        /// `verbs::Verb` (an operation on a body). No signature takes
+        /// both; outside the owning crate, prose spells the crate and
+        /// code imports at most one of the two per file.
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub enum Verb {
             $( $(#[doc = $doc])* $name ),*

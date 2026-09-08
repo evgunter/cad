@@ -26,7 +26,7 @@
 //! # Every field is direct per-instance data
 //!
 //! As in the sibling modules: function pointers and literals per
-//! instance, no match over a verb vocabulary anywhere in this file, so
+//! instance, no match over the kernel's verb vocabulary anywhere in this file, so
 //! a future verb never has to open it. The one match here is over the
 //! DATUM vocabulary — which kind of datum is a split's tool — and it is
 //! exhaustive with no wildcard arm (D3), so a datum kind added upstairs

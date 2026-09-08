@@ -17,7 +17,7 @@
 //! `wire_boolean` for the pair family, `wire_swept` for the profile
 //! family, `wire_split` for the two-sided split, `wire_shell` for the
 //! hollowing verb), each driven by the
-//! declarations here rather than matching a verb vocabulary of its
+//! declarations here rather than matching the kernel's verb vocabulary of its
 //! own.
 //!
 //! [`Expr`]: crate::expr::Expr
@@ -88,4 +88,60 @@ pub(crate) struct SlotJoin {
     pub(crate) size_slot: SlotId,
     /// Which kernel scalar parameter that slot IS.
     pub(crate) size_param: ScalarParam,
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod verb_name_convention {
+    //! The two public `Verb` types (`verbs::Verb`, the kernel's;
+    //! `profile::Verb`, the sketch program's) share a name, and the
+    //! convention their crate docs state is held here, in the one
+    //! crate that reads both: no code line names both paths, and no
+    //! file imports both, so a bare `Verb` in any file is one type.
+
+    fn sources(dir: &std::path::Path, out: &mut Vec<(String, String)>) {
+        for entry in std::fs::read_dir(dir).expect("a readable source directory") {
+            let path = entry.expect("a directory entry").path();
+            if path.is_dir() {
+                sources(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let text = std::fs::read_to_string(&path).expect("a readable source file");
+                out.push((path.display().to_string(), text));
+            }
+        }
+    }
+
+    #[test]
+    fn no_file_reads_both_verb_types_bare() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        sources(&root, &mut files);
+        assert!(
+            files.len() > 50,
+            "the walk found only {} files",
+            files.len()
+        );
+        let imports = |code: &str, krate: &str| {
+            code.lines().any(|l| {
+                let l = l.trim();
+                l.starts_with("use ")
+                    && l.contains(&format!("{krate}::"))
+                    && (l.contains("Verb,") || l.contains("Verb}") || l.ends_with("Verb;"))
+            })
+        };
+        for (path, text) in &files {
+            let code = test_utils::source::code_only(text);
+            for (n, line) in code.lines().enumerate() {
+                assert!(
+                    !(line.contains("verbs::Verb") && line.contains("profile::Verb")),
+                    "{path}:{}: one code line names both Verb types",
+                    n + 1
+                );
+            }
+            assert!(
+                !(imports(&code, "verbs") && imports(&code, "profile")),
+                "{path}: imports both `verbs::Verb` and `profile::Verb` bare"
+            );
+        }
+    }
 }

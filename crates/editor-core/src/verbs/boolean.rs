@@ -31,7 +31,7 @@
 //! # Every field is direct per-instance data
 //!
 //! As in the blends' module: function pointers and literals per
-//! instance, no match over a verb vocabulary anywhere in this file, so
+//! instance, no match over the kernel's verb vocabulary anywhere in this file, so
 //! a future verb never has to open it.
 
 use std::sync::Arc;

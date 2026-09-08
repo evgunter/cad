@@ -144,7 +144,7 @@ pub enum Verb<T: Real> {
     },
 }
 
-/// **The verb vocabulary with the scalar and reference payload
+/// **The kernel's verb vocabulary with the scalar and reference payload
 /// dropped** — the closed set of operation names, addressable where no
 /// [`Verb`] value exists yet.
 ///
@@ -171,7 +171,7 @@ pub enum Verb<T: Real> {
 /// `sweep::blend::BlendKind` is a different thing that looks like this
 /// one: it is the label a blend REFUSAL carries, enumerating the two
 /// blend doors, and it lives in `sweep` because a `sweep` refusal
-/// carries it. It cannot serve here — the verb vocabulary grows past
+/// carries it. It cannot serve here — the kernel's verb vocabulary grows past
 /// the blend pair into ops `sweep` must not name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum VerbKind {

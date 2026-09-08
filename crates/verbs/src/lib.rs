@@ -2,12 +2,6 @@
 //! operations that have been migrated onto it, with the run dispatch and
 //! the parameter→field flow that only the operation itself knows.
 //!
-//! **`Verb` here is the KERNEL's verb — an operation on a body.**
-//! [`profile::Verb`] is the sketch program's — which transition a
-//! [`profile::Step`] takes — and the two never meet in one signature;
-//! every reader outside the crate that owns one spells the crate
-//! (`verbs::Verb`, `profile::Verb`).
-//!
 //! # What it is NOT, yet
 //!
 //! It is not "every operation a recipe door can invoke", and reading it
@@ -73,6 +67,18 @@
 //! derivation-path names for what the operation created, and an
 //! operation whose output cannot be named is one no recipe can build
 //! on.
+//!
+//! # The name
+//!
+//! **`Verb` here is the KERNEL's verb — an operation on a body.**
+//! [`profile::Verb`] is the sketch program's — which transition a
+//! [`profile::Step`] takes; `editor-core`'s content-key prose calls it
+//! the profile vocabulary. No signature takes both. The rule for
+//! readers outside the crate that owns one: prose spells the crate
+//! (`verbs::Verb`, `profile::Verb`), and code imports at most one of
+//! the two per file, so a bare `Verb` in a file is never ambiguous.
+//! `editor-core` — the one crate that reads both — holds that rule as
+//! a test in its `verbs` module.
 
 pub mod flow;
 mod run;

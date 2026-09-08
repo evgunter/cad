@@ -95,7 +95,7 @@ pub(crate) type RecordReader<T> =
 ///
 /// `A` is the argument shape of this verb's payload (see the module
 /// docs). Every field is direct per-instance data: a function pointer
-/// per instance, no match over a verb vocabulary anywhere in this file.
+/// per instance, no match over the kernel's verb vocabulary anywhere in this file.
 pub(crate) struct ProfileVerb<T: Decide, A> {
     /// **Resolved arguments → the kernel verb.** The one place a
     /// document's evaluated distance, or its resolved axis and

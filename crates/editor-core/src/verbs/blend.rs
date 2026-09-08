@@ -73,7 +73,7 @@ pub(crate) type Emitter<T> = fn(
 /// it by adding that variant.
 ///
 /// The constructor and the emitter are therefore FUNCTION POINTERS held
-/// per instance. Nothing in this module matches on a verb vocabulary
+/// per instance. Nothing in this module matches on the kernel's verb vocabulary
 /// any more, which is what makes it true that a future verb never has
 /// to open this file.
 pub(crate) struct BlendVerb<T: geom_core::Real> {

@@ -41,3 +41,11 @@ signature, and every reader outside the owning crate spells the crate —
 stated in `crates/verbs/src/lib.rs`'s module doc and mirrored in one
 sentence at `profile::Verb`'s doc (S-BOOL seam, announced). The prose
 sweep, its hit list and the rename note for S-BOOL are in the PR body.
+
+Corrections at the review (2026-09-08): the reader list above is
+stale — `viewer/src/pane/create.rs` and `switch_slots.rs` no longer
+mention `Verb`; today's outside readers of `profile::Verb` are
+`editor-core` (`eval/mod.rs`, `program.rs`, `persist/check.rs`),
+`viewer/src/sketch.rs` and `pncad-py`'s surface census, the last two
+by bare `use`, which the convention admits (code imports at most one
+of the two per file; prose spells the crate).
