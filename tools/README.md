@@ -64,10 +64,9 @@ header is read by `split_cut`, which `parse` calls before its first
 row, so a check there is still on the one path.
 
 A cross-column admission is the largest class this clause routes and
-the one that made it necessary, but the clause is not about columns. A
+the one that made it necessary, but the clause is not about columns: a
 one-line format check with no column structure at all is routed by the
-same sentence, and a lane that finds this clause too narrow for its
-boundary has read the page and not the clause.
+same sentence.
 
 **What the boundary buys is not a type, and neither crate pretends
 otherwise.** `tess_lint::Row`'s fields are `pub` and `compare` takes
