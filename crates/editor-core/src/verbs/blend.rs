@@ -57,7 +57,7 @@ pub(crate) type Emitter<T> = fn(
 /// **One blend verb's correspondence**, as data.
 ///
 /// Everything the generic lowering needs to turn a `Node` into a
-/// [`Verb`] and its result into a name table. Adding a field here is
+/// [`verbs::Verb`] and its result into a name table. Adding a field here is
 /// how a verb declares something the lowering must know; adding an
 /// arm to a match inside the lowering is not.
 ///
@@ -73,13 +73,13 @@ pub(crate) type Emitter<T> = fn(
 /// it by adding that variant.
 ///
 /// The constructor and the emitter are therefore FUNCTION POINTERS held
-/// per instance. Nothing in this module matches on a verb vocabulary
+/// per instance. Nothing in this module matches on the kernel's verb vocabulary
 /// any more, which is what makes it true that a future verb never has
 /// to open this file.
 pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// **Slot value + resolved selection → the kernel verb.** The one
     /// place a document's evaluated size and canonical edge keys become
-    /// a [`Verb`] payload, per instance.
+    /// a [`verbs::Verb`] payload, per instance.
     pub(crate) build: fn(Vec<EdgeKey>, T) -> Verb<T>,
     /// This verb's naming emitter — see the module docs on what this
     /// choice does and does not decide.
