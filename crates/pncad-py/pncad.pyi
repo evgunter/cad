@@ -51,6 +51,13 @@ anything; `enforce_checks` is the one door that turns findings the
 caller marked `Severity.Error` into a refusal, which is how a program
 chooses to gate rather than having the kernel choose for it.
 
+A continuous parameter can say how much it VARIES: `Distribution`'s
+four forms annotate one, `analyzed_box` derives the interval the
+analysis varies each parameter over, and the box prices its tail and
+its leaves. Annotation is opt-in — a parameter with none is fixed —
+and a `band` states limits with no shape, so it refuses to be priced
+rather than being read as a uniform.
+
 A recipe slot is not always a number. `Doc.parse_expr` reads text as
 a dimension-checked `Expr` against the document's declared
 parameters, and `Doc.eval` / `Doc.eval_count` answer what one is
@@ -159,14 +166,23 @@ class LiteralError(PncadError):
 
     Not DimensionError, which is the quantity boundary's operator
     check. The expression layer's refusal type has dimension-mismatch
-    arms too, and two other doors reach them: `load` does, from a
+    arms too, and three other doors reach them: `load` does, from a
     hand-edited save file, and they arrive as PersistError with
     `variant == "parse"` (issue #694); `Doc.parse_expr` does, and they
-    arrive as ParseError. Every `kind` raised on THIS class is a
-    literal-value refusal."""
+    arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
+    constructors do (`MeasureExpr.add` and its siblings), arriving on
+    THIS class with the mismatch's own tag as `kind` — the same kernel
+    type refusing at the same layer, because that language asks
+    `Expr`'s own constructors for its dimensions rather than restating
+    the table.
+
+    `value` is the offending number where the refusing door had one in
+    hand, and `None` where it did not: a measurement constructor
+    refuses over two operands' DIMENSIONS, and there is no single
+    float to name."""
 
     kind: str
-    value: float
+    value: Optional[float]
 
 class ParseError(PncadError):
     """`Doc.parse_expr` could not read the source as an expression.
@@ -283,9 +299,24 @@ class StepImportError(PncadError):
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
-    the file parsed, to something this door does not adopt."""
+    the file parsed, to something this door does not adopt.
+
+    `recognition_ambiguous` neither forwards nor withholds. The word
+    names the CONDITION — a face that cannot import without promotion
+    sits on a surface whose recognition estimator is ill-conditioned at
+    the file's own tolerance, so no answer exists at the interpretation
+    budget — and `promoted_kind` carries beside it which analytic
+    kind's estimator declined, `plane` or `cylinder`. The two lead
+    different places: a plane that will not certify is a flatness
+    question at the import tolerance, a cylinder that will not is an
+    ill-conditioned axis and wants more of the patch. The face and
+    surface entity ids and the conditioning margin are in the message.
+
+    Every field is present on every arm, `None` where that arm does not
+    carry it."""
 
     variant: str
+    promoted_kind: Optional[str]
 
 class PathError(PncadError):
     """The PATHS authoring algebra refused the geometry, at the call
@@ -625,6 +656,106 @@ class WorkspaceError(PncadError):
     second: Optional[str]
     wanted: Optional[ContentPin]
     found: Optional[ContentPin]
+
+class DistributionFault(PncadError):
+    """A `Distribution` constructor was handed offsets that break an
+    ERROR-DESIGN E2 invariant.
+
+    `variant` is `non_finite`, `sigma_not_positive` or
+    `nominal_outside_support`; `field`, `sigma`, `lo`, `hi` are the
+    arms' payloads, present on every arm and `None` where that arm
+    does not carry one. `field` is `sigma`, `lo` or `hi`.
+
+    The kernel's own `Distribution::check` decides this — the same
+    function the edit door and the persistence validator run — so a
+    distribution these constructors accept is one a document accepts,
+    and a document that would refuse to load cannot be authored. What
+    the constructor adds is TIMING: the sigma refuses where it is
+    written, not at the `Doc.apply` three lines later. The same fault
+    reaches `EditError` as `invalid_distribution` for a document
+    edited or loaded some other way."""
+
+    variant: str
+    field: Optional[str]
+    sigma: Optional[float]
+    lo: Optional[float]
+    hi: Optional[float]
+
+class MeasureUnavailable(PncadError):
+    """A mass could not be priced: the parameter carries a BAND, which
+    states limits without a shape.
+
+    `variant` is `band_has_no_measure` and `param` is the parameter
+    that blocked the pricing.
+
+    A REFUSAL, not an absence. A band is the author saying they know
+    the extremes and not the distribution, and promoting one to a
+    uniform would be a strictly stronger claim than they made. So the
+    mass doors refuse anything whose answer would depend on the shape,
+    and answer only the two cases every measure on the band agrees
+    about: an interval covering the whole support holds mass 1, a
+    disjoint one holds 0."""
+
+    variant: str
+    param: str
+
+class MeasureNodeFault(PncadError):
+    """`Node.measure` was handed an expression that reads a reference
+    the node does not carry.
+
+    `variant` is `ref_index_out_of_range`; `verb` is which primitive
+    reads it, `index` the out-of-range one, and `refs` how many the
+    node carries.
+
+    The kernel's own `Node::measure` decides this — the one
+    construction door, running the check the edit door and the load
+    door's re-check both run — so a measure these constructors accept
+    is one a document accepts. What the constructor adds is TIMING:
+    the index refuses where it is written, not at the `Doc.apply`
+    after it, where the same fault arrives as EditError
+    `measure_malformed`."""
+
+    variant: str
+    verb: str
+    index: int
+    refs: int
+
+class MeasureUnavailableAt(PncadError):
+    """A measure whose answer is an ENCLOSURE, read at a build whose
+    scalar is a point.
+
+    `variant` is `needs_enclosure`; `verb` is the primitive, `scalar`
+    the scalar this build ran at, and `door` the one that CAN answer —
+    the recourse rides in the refusal rather than in a reader's memory.
+
+    NOT MeasureUnavailable, whose name is one word away and whose
+    question is a different one: that is the analysis lane refusing to
+    price a mass over a band, this is the measurement lane. Neither
+    subclasses the other.
+
+    A typed ABSENCE rather than a failure. The measure node evaluated
+    fine and has no value, which is why an assertion over it reports
+    `Unevaluated` carrying this same reason instead of being poisoned.
+    A `min_clearance` at `f64` is the whole of it today: a station pair
+    found by a point-scalar search is an upper bound on the minimum
+    rather than the minimum, and reporting one would be a degradation
+    ERROR-DESIGN E7 forbids by name."""
+
+    variant: str
+    verb: str
+    scalar: str
+    door: str
+
+class AnalysisPolicyError(PncadError):
+    """An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is
+    not a finite number strictly inside `(0, 1)`.
+
+    `variant` is `quantile_mass_out_of_range` and `mass` the requested
+    share. Mass 1 asks for an infinite box and mass 0 for an empty
+    one, and neither is a box."""
+
+    variant: str
+    mass: float
 
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
@@ -1288,6 +1419,154 @@ class PartSelect:
         at `evaluate` (`instance_out_of_range`); nothing wraps or
         clamps."""
 
+class MeasurePrimitive:
+    """Which closed-form measurement a `MeasureExpr` leaf computes, and
+    over which of the measure node's references.
+
+    Four verbs and no fifth: `distance` and `angle` are the geometric
+    readings, `gap` is CONTACT-DESIGN C5's signed mating gap, and
+    `min_clearance` is the one an engine answers.
+
+    Every argument is a POSITION — an index into the reference list
+    `Node.measure` is given, so a plain `int`, the structural-slot
+    exception `PartSelect.instance` and `NodePick.build` already ride.
+    An index past the end of that list raises MeasureNodeFault at
+    `Node.measure`; a negative one is not representable and raises
+    OverflowError at the call.
+    """
+
+    @staticmethod
+    def distance(a: int, b: int) -> MeasurePrimitive:
+        """The distance between two referenced entities — a length. A
+        carrier pair the v1 closed forms have no arm for refuses at
+        `evaluate` (`measure_unsupported`), naming the pair."""
+
+    @staticmethod
+    def angle(a: int, b: int) -> MeasurePrimitive:
+        """The angle between two referenced entities — an angle."""
+
+    @staticmethod
+    def min_clearance(a: int, b: int) -> MeasurePrimitive:
+        """The minimum clearance between two selections — a length, and
+        the one verb whose value is an ENCLOSURE.
+
+        Each reference's entity kind is its face scope: a body
+        reference selects every face of that body, a face reference
+        selects the one. An edge or a vertex refuses at `evaluate`
+        (`measure_selection_kind`).
+
+        At the `f64` scalar this library evaluates at, the measure has
+        NO VALUE: `Value.measure` raises MeasureUnavailableAt naming
+        the door that could answer, and an assertion over it reports
+        `Unevaluated` carrying the same reason. The node itself
+        evaluates successfully — the absence is a value, not a
+        failure."""
+
+    @staticmethod
+    def gap(outer: int, inner: int) -> MeasurePrimitive:
+        """C5's SIGNED gap between a mating pair — a length.
+
+        Argument order is the mating ROLE, not a symmetry: `outer` is
+        the containing carrier (the socket, the bore, the plane the
+        offset is measured from) and `inner` the contained one. C5's
+        formulas are asymmetric in exactly that way, so the roles are
+        authored rather than inferred from which radius is larger."""
+
+    @property
+    def verb(self) -> str:
+        """`distance`, `angle`, `gap` or `min_clearance` — the same
+        word this primitive's refusals name themselves with."""
+
+    @property
+    def dimension(self) -> str:
+        """`length` or `angle`. Fixed per verb: the quantity kind
+        rides the expression."""
+
+    @property
+    def refs(self) -> tuple[int, int]:
+        """The reference indices, in ARGUMENT order — a gap's pair
+        reads `(outer, inner)` and is not re-sorted."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class AssertionDir:
+    """Which way a `Node.assertion` constrains its measure. Two
+    directions and both still gate: a clearance requirement is
+    `AtLeast`, a maximum-gap requirement is `AtMost`."""
+
+    AtLeast: Final[AssertionDir]
+    AtMost: Final[AssertionDir]
+
+    @property
+    def symbol(self) -> str:
+        """The relation as a report reads it: `">="` or `"<="`."""
+
+class MeasureExpr:
+    """A dimension-checked measurement expression: the recipe's
+    arithmetic over a closed-form measurement leaf.
+
+    The dimension checker runs at CONSTRUCTION and it is the kernel's
+    own — the measurement language builds probe expressions and asks
+    `Expr`'s smart constructors what comes out, so a mis-dimensioned
+    tree refuses in the same words a document expression would have
+    earned, and it refuses where it is written rather than at the
+    `Doc.apply` after it. The refusal is LiteralError, carrying the
+    mismatch's own tag as `kind`.
+
+    No `__hash__`, for `Expr`'s reason: equality is an IEEE comparison
+    of the literals inside, so `0.0` and `-0.0` are equal trees whose
+    bit patterns are not.
+    """
+
+    @staticmethod
+    def primitive(p: MeasurePrimitive) -> MeasureExpr:
+        """A closed-form measurement leaf. Total."""
+
+    @staticmethod
+    def value(e: Expr) -> MeasureExpr:
+        """An ordinary document expression as a leaf — a literal
+        bound, a parameter, a whole arithmetic subtree of them.
+        `Doc.parse_expr` is where one comes from, and it is the only
+        door: a second spelling of that grammar is what `py/expr.rs`
+        already rules out."""
+
+    @staticmethod
+    def add(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
+    @staticmethod
+    def sub(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
+    @staticmethod
+    def neg(a: MeasureExpr) -> MeasureExpr:
+        """Negation — any dimension, and total."""
+
+    @staticmethod
+    def mul(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
+        """Product; at least one operand dimensionless."""
+
+    @staticmethod
+    def div(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
+        """Quotient; the divisor must be dimensionless."""
+
+    @staticmethod
+    def min(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
+    @staticmethod
+    def max(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
+    @property
+    def dimension(self) -> str:
+        """`length`, `angle`, `count` or `scalar` — correct by
+        construction, and the dimension an assertion's bound has to
+        match."""
+
+    @property
+    def primitives(self) -> list[MeasurePrimitive]:
+        """Every primitive in the tree, in PRE-ORDER: the order the
+        construction door's bounds check runs over and the order the
+        evaluation reads them back in."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str: ...
+
 class Node:
     """A recipe node, before insertion."""
 
@@ -1591,6 +1870,68 @@ class Node:
         evaluation's own cause (`mate_placer_refused`, whose `error`
         is the node-failure tag)."""
 
+    @staticmethod
+    def measure(expr: MeasureExpr, refs: list[tuple[NodeId, str]]) -> Node:
+        """A measurement sink: one dimension-generic node that denotes
+        no body and evaluates to a typed quantity.
+
+        `refs` is the reference list the expression's primitives index,
+        IN ORDER, each a `(node, name)` pair — the entity's stable name
+        and the node its carrier is READ AT.
+
+        The read site is what makes a measure report PLACED geometry. A
+        rigid transform is identity-preserving, so the moved body keeps
+        the upstream name and resolving at the minting node measures
+        the UNMOVED carrier. Select a face from a transform's own
+        selection door and name that transform for the placed number;
+        name the minting node for the authored one. Both are legal and
+        they are different questions.
+
+        These references ARE recipe edges, unlike `Node.declare`'s and
+        `Node.mate`'s names: a measure consumes the values it names, so
+        deleting a referenced node is refused at the delete door
+        (`delete_would_dangle`) like any other consumer's input.
+
+        Every index is checked HERE, through the kernel's one
+        construction door, so a leaf pointing past the end of `refs`
+        raises MeasureNodeFault where it is written. Nothing else is
+        pre-checked: a name that no longer resolves
+        (`measure_ref_resolve`), a carrier pair with no v1 closed form
+        (`measure_unsupported`), a `min_clearance` handed an edge
+        (`measure_selection_kind`) and a non-finite result
+        (`measure_non_finite`) are the kernel's own typed refusals at
+        `evaluate`."""
+
+    @staticmethod
+    def assertion(measure: NodeId, dir: AssertionDir, bound: Expr) -> Node:
+        """A recorded tolerance requirement: design intent as document
+        data, in the versioned recipe rather than in a script beside
+        it.
+
+        `measure` is the `Node.measure` this constrains — an ordinary
+        recipe edge, so a failed or poisoned measure poisons the
+        assertion rather than producing a verdict about nothing.
+
+        The bound is an `Expr` and not a typed quantity, because its
+        DIMENSION is the measure's. Every other node door takes a
+        `Length` or an `Angle` because a slot's address fixes what it
+        holds; this one's is fixed by the node it points at, and may be
+        an angle, a count or a plain scalar as readily as a length.
+        `Doc.parse_expr("0.5 mm")` is the one spelling, and it reaches
+        document parameters (`"min_web"`) in the same call — which is
+        what makes an assertion re-decidable by a parameter edit.
+
+        Two things are checked at `Doc.apply` and not here, because
+        both need the document: that `measure` names a measure at all
+        (EditError `assertion_target`) and that the bound's dimension
+        is the measured one (`assertion_dimension`). A document never
+        carries a comparison of radians with metres.
+
+        REPORT-ONLY, structurally: no operation accepts a verdict as an
+        operand, the product gather skips an assertion as it skips a
+        declaration, and nothing downstream changes shape because one
+        is `Violated`. Read it with `Value.assertion`."""
+
 class Expr:
     """A dimension-checked expression — the recipe's arithmetic, as a
     value.
@@ -1639,37 +1980,237 @@ class ParamName:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
+# --- parameter uncertainty and the analysis lane ----------------------
+# ERROR-DESIGN E1/E2. A distribution is inert document metadata: it
+# feeds no evaluation, no content key and no predicate, and the
+# analysis doors below are its ONE interpreter. Offsets are typed
+# quantities in the PARAMETER's dimension — the annotation carries no
+# dimension of its own, so it borrows the one the parameter declares,
+# and a mismatch is a DimensionError at the door rather than a
+# plausible number later.
+
+_Offset: TypeAlias = Length | Angle | float
+
+class Distribution:
+    """A parameter's uncertainty: offsets from its nominal, in its own
+    dimension, in one of four forms.
+
+    The differences are CLAIMS, not conveniences. `band` states limits
+    and no shape; `uniform` states the same limits and says every
+    value between them is equally likely; `normal` states a spread
+    with unbounded support; `truncated_normal` restricts a normal to a
+    window and renormalizes it. A parameter with NO distribution is
+    FIXED — annotation is opt-in, and the analysis never guesses a
+    spread nobody stated.
+
+    Every offset in one distribution must be the same dimension, and
+    the wrapper remembers which: `Distribution.band(-0.1 * mm, 1 * deg)`
+    is a DimensionError. Construction also runs the kernel's own E2
+    check, so a broken invariant refuses here as `DistributionFault`
+    rather than at the edit."""
+
+    @staticmethod
+    def band(lo: _Offset, hi: _Offset) -> Distribution:
+        """Worst-case limits with NO shape claim: `[lo, hi]` bounds the
+        parameter and prices nothing. The mass doors refuse
+        (`MeasureUnavailable`) wherever the answer would depend on the
+        shape."""
+
+    @staticmethod
+    def uniform(lo: _Offset, hi: _Offset) -> Distribution:
+        """The same limits a band states, plus the shape claim a band
+        withholds — so it answers exactly where the band refuses."""
+
+    @staticmethod
+    def normal(sigma: _Offset) -> Distribution:
+        """A zero-mean normal, `sigma > 0`, with UNBOUNDED support: the
+        analyzed box is the analysis's knob, and what a box leaves out
+        is reported as tail mass rather than cut off."""
+
+    @staticmethod
+    def truncated_normal(
+        sigma: _Offset, lo: _Offset, hi: _Offset
+    ) -> Distribution:
+        """A normal restricted to `[lo, hi]` and RENORMALIZED, not
+        clipped: its own support holds all of its mass, so its tail is
+        identically zero."""
+    @property
+    def kind(self) -> str:
+        """`band`, `uniform`, `normal` or `truncated_normal`."""
+    @property
+    def dimension(self) -> str:
+        """The dimension its offsets are in — the parameter's own."""
+    @property
+    def lo(self) -> Optional[_Offset]:
+        """The lower offset, `None` for the unbounded `normal`."""
+    @property
+    def hi(self) -> Optional[_Offset]:
+        """The upper offset, `None` for the unbounded `normal`."""
+    @property
+    def sigma(self) -> Optional[_Offset]:
+        """The UNDERLYING normal's standard deviation, `None` for the
+        two forms that state no shape parameter. For a
+        `truncated_normal` this is what the form was written with; the
+        truncated law's own spread is a derived number and a different
+        question."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+    # Equality is IEEE on the offsets and the dimension is part of the
+    # value, exactly as it is for DocParam; the hash folds `-0.0`
+    # through the kernel's own fold so it cannot split what equality
+    # calls the same.
+
+DEFAULT_QUANTILE_MASS: Final[float]
+
+class AnalysisPolicy:
+    """How a run chooses its analyzed box: request configuration,
+    never a global.
+
+    `quantile_mass` is the share of each unbounded parameter's mass the
+    box is asked to cover, defaulting to `DEFAULT_QUANTILE_MASS` — the
+    ±3σ convention. Moving it moves mass between the analyzed and the
+    tail columns; it never moves truth, because the tail is reported
+    rather than dropped. Outside `(0, 1)` raises
+    `AnalysisPolicyError`."""
+
+    def __init__(self, quantile_mass: Optional[float] = None) -> None: ...
+    @property
+    def quantile_mass(self) -> float: ...
+    def __eq__(self, other: object) -> bool: ...
+
+class AnalyzedParam:
+    """One axis of the analyzed box: the parameter's nominal, the
+    offset interval the analysis varies it over, and the distribution
+    that interval came from.
+
+    An unannotated continuous parameter is still an axis — a
+    width-zero one at its nominal, with `distribution` `None`. That is
+    the typed spelling of FIXED."""
+
+    @property
+    def dimension(self) -> str: ...
+    @property
+    def nominal(self) -> _Offset: ...
+    @property
+    def offsets(self) -> tuple[_Offset, _Offset]:
+        """The analyzed offsets around the nominal, `(lo, hi)`."""
+    @property
+    def width(self) -> _Offset: ...
+    @property
+    def is_fixed(self) -> bool: ...
+    @property
+    def distribution(self) -> Optional[Distribution]: ...
+    def absolute(self) -> tuple[_Offset, _Offset]:
+        """The analyzed interval in ABSOLUTE parameter values."""
+
+class AnalyzedBox:
+    """One axis per CONTINUOUS document parameter, in name order.
+    Derived on request, never stored, never seen by evaluation.
+
+    `Count` parameters are not axes: a structural count is fixed under
+    any error analysis."""
+
+    @property
+    def names(self) -> list[ParamName]: ...
+    @property
+    def varying(self) -> list[ParamName]:
+        """The axes that actually vary — the non-degenerate
+        dimensions."""
+    def get(self, name: ParamName) -> Optional[AnalyzedParam]: ...
+    def tail_mass(self, name: ParamName) -> Optional[float]:
+        """What this box's interval for `name` leaves OUTSIDE.
+
+        `None` when the document declares no such continuous
+        parameter; `0.0` for an unannotated axis, which is fixed and
+        leaves nothing out. Raises MeasureUnavailable when the axis
+        carries a band whose support escapes the interval.
+
+        The three inputs — the name, the distribution and the interval
+        — come from ONE axis of one box, so they cannot disagree. The
+        kernel's free `tail_mass` takes them as three loose arguments
+        and Python has no compile step that would catch a mispairing,
+        which is why only this spelling crosses."""
+    def box_mass(
+        self, name: ParamName, lo: _Offset, hi: _Offset
+    ) -> Optional[float]:
+        """What the axis's distribution puts INSIDE the offset interval
+        `(lo, hi)` — the leaf-pricing door.
+
+        The offsets are quantities in the axis's own dimension; another
+        dimension is a DimensionError. `None` when the document
+        declares no such continuous parameter. An unannotated axis is a
+        point mass at its nominal, so it answers `1.0` for any interval
+        containing offset zero and `0.0` otherwise. A band raises
+        MeasureUnavailable unless the interval covers its whole support
+        or misses it entirely."""
+    def __len__(self) -> int: ...
+
+def analyzed_box(
+    doc: Doc, policy: Optional[AnalysisPolicy] = None
+) -> AnalyzedBox:
+    """The analyzed box of a document under a policy.
+
+    Per continuous parameter: the bounded support for `band`,
+    `uniform` and `truncated_normal`; the symmetric quantile interval
+    `±z·sigma` for `normal`; and a width-zero interval at the nominal
+    for a parameter with no distribution."""
+
 class DocParam:
     """A named parameter's declared dimension and exact stored value
     (guide §3.2): what `DocEdit.set_doc_param` writes. Continuous
     values arrive as typed quantities, so the dimension rides the
     constructor. A non-finite value is refused typed at `Doc.apply`
-    (`non_finite_doc_param`), not pre-checked here."""
+    (`non_finite_doc_param`), not pre-checked here.
+
+    The three continuous constructors take an optional `distribution`
+    (ERROR-DESIGN E1/E2) whose offsets must be in the dimension the
+    constructor declares — a mismatch is a DimensionError. `count`
+    takes none and cannot: a structural count is fixed under any error
+    analysis."""
 
     @staticmethod
-    def length(value: Length) -> DocParam: ...
+    def length(
+        value: Length, distribution: Optional[Distribution] = None
+    ) -> DocParam: ...
     @staticmethod
-    def angle(value: Angle) -> DocParam: ...
+    def angle(
+        value: Angle, distribution: Optional[Distribution] = None
+    ) -> DocParam: ...
     @staticmethod
     def written_length(value: WrittenLength) -> DocParam:
         """A Length parameter that REMEMBERS its notation — `25 mm`
         stays `mm` in the document and in the file, where `length`
-        records the canonical metre row."""
+        records the canonical metre row.
+
+        No `distribution=`: the kernel's own notation door carries no
+        annotation, so neither does this. Annotate through `length`,
+        or restate the notation once the kernel offers a door that
+        takes both."""
 
     @staticmethod
     def written_angle(value: WrittenAngle) -> DocParam:
         """An Angle parameter that remembers its notation."""
 
     @staticmethod
-    def scalar(value: float) -> DocParam: ...
+    def scalar(
+        value: float, distribution: Optional[Distribution] = None
+    ) -> DocParam: ...
     @staticmethod
     def count(value: int) -> DocParam: ...
+    @property
+    def dimension(self) -> str: ...
     @property
     def unit(self) -> Optional[str]:
         """The notation this was authored in, as the unit's own symbol
         — `"mm"`, `"deg"`, `"m"`. A Scalar names the dimensionless row,
         whose symbol is empty; a Count answers None, having no notation
         to carry."""
+    @property
+    def distribution(self) -> Optional[Distribution]:
+        """The parameter's uncertainty, or `None` if it declared none —
+        carrying the parameter's own dimension, which is where an
+        annotation's dimension lives."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -1707,7 +2248,21 @@ class DocEdit:
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
-    def set_doc_param(name: ParamName, value: DocParam) -> DocEdit: ...
+    def set_doc_param(name: ParamName, value: DocParam) -> DocEdit:
+        """Create or REPLACE a document-level named parameter.
+
+        The whole declaration is replaced, so a `DocParam` rebuilt from
+        a dimension and a number declares one with no distribution and
+        the annotation the old parameter carried is gone. `Doc.params`
+        reads a declaration back and
+        `DocParam.length(value, distribution)` restates it, so that is
+        no longer a trap Python cannot see — but moving a NUMBER is
+        still `set_doc_param_value`'s job, because that door cannot drop
+        what it never takes.
+
+        Refuses typed on a broken annotation: `invalid_distribution`
+        for an E2 invariant, `non_finite_doc_param` for a NaN or
+        infinite nominal or offset."""
     @staticmethod
     def set_doc_param_value(name: ParamName, value: DocParamValue) -> DocEdit:
         """Write a new VALUE into an already-declared parameter, keeping

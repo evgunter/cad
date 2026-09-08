@@ -2,9 +2,12 @@
 id: interval-content-key-hashes-bits-the-pre-pass-does-not-read
 kind: issue
 title: At Interval the content key hashes a slot's bounds while the profile precompute and the pinned op read its nominal f64, which the key does not hold
-status: open
+status: closed
 opened: 2026-09-08
 refs: [bracket-scope-is-run-op-not-the-node, 2176]
+branch: eval/9-nominal-in-the-key
+pr: 2190
+closed: 2026-09-08
 ---
 
 ## What
@@ -46,3 +49,20 @@ content-key format bump, `tag::format::VERSION`), so a nominal edit
 moves every key that reads the nominal. `content_key` is EVAL's; the
 slot hashing in `eval/memo.rs` is DOCM's, so the change crosses one
 announced seam. Not built in PR 2176; the orchestrator schedules it.
+
+## Closed
+
+EVAL-9 (PR 2190). Every slot feeds its nominal f64 beside its bits at
+the evaluation scalar, under `tag::slot`'s word, and both lists come
+from one door: `eval_node` calls `slots::eval_slots` twice, at the
+lane environment and at the document's nominal one (carried on
+`wire::LaneEnv::nominal`), and `content_key` zips them. A slot that
+refuses at the nominal refuses its node typed. `tag::format::VERSION`
+6 -> 7. The probe is the row
+`over_a_param_box::a_nominal_edit_under_a_compensating_box_does_not_hit`
+(`crates/editor-core/tests/eval9_nominal_in_the_key.rs`), red at the
+merge base on the served plane (identity where the edited document's
+is `(0.894, 0.447, …)`) and green at the head, with the neighbouring
+rows pinning that the box is still a real input and that the typed
+refusal is reached. `eval/memo.rs` is untouched: the feed lives at the
+key.

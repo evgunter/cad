@@ -1912,6 +1912,98 @@ impl Node {
             },
         })
     }
+    /// **A measurement sink** (ERROR-DESIGN E3): one dimension-generic
+    /// node that denotes no body and evaluates to a typed quantity.
+    ///
+    /// `expr` is the measured expression — `MeasureExpr`, whose leaves
+    /// are closed-form primitives over `refs` and ordinary document
+    /// expressions. `refs` is the reference list those primitives
+    /// index, IN ORDER, each a `(node, name)` pair: the entity's
+    /// stable name, and the node its carrier is READ AT.
+    ///
+    /// **The read site is the half that makes a measure report placed
+    /// geometry.** A rigid transform is identity-preserving — the
+    /// moved body keeps the upstream name — so resolving at the
+    /// minting node measures the UNMOVED carrier. Selecting a face
+    /// from a transform's own selection door and naming that transform
+    /// gives the placed number; naming the minting node gives the
+    /// authored one. Both are legal, and they are different questions.
+    ///
+    /// **The references ARE dag edges**, unlike a `Node.declare`'s or
+    /// a `Node.mate`'s names: a measure resolves its own against
+    /// values that must already exist, so the referenced nodes are its
+    /// data dependencies and deleting one is refused at the delete
+    /// door (`delete_would_dangle`) like any other consumer's input.
+    ///
+    /// Every index is checked HERE, through Rust's `Node::measure` —
+    /// the one construction door — so an expression whose leaf points
+    /// past the end of `refs` raises `MeasureNodeFault` where it is
+    /// written rather than at the `Doc.apply` after it. Nothing else
+    /// is pre-checked: a name that no longer resolves
+    /// (`measure_ref_resolve`), a carrier pair with no v1 closed form
+    /// (`measure_unsupported`), a `min_clearance` handed an edge
+    /// (`measure_selection_kind`) and a non-finite result
+    /// (`measure_non_finite`) are all the kernel's own typed refusals
+    /// at `evaluate`.
+    #[staticmethod]
+    fn measure(
+        py: Python<'_>,
+        expr: &super::measure::MeasureExpr,
+        refs: Vec<(NodeId, String)>,
+    ) -> PyResult<Self> {
+        let refs = refs
+            .iter()
+            .map(|(at, name)| Ok(d::SitedRef::new(at.0, name_from_text(name)?)))
+            .collect::<PyResult<Vec<_>>>()?;
+        d::Node::measure(expr.0.clone(), refs)
+            .map(|inner| Self { inner })
+            .map_err(|fault| super::measure::measure_node_fault_err(py, &fault))
+    }
+
+    /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
+    /// intent as document data, in the versioned recipe rather than in
+    /// a script beside it.
+    ///
+    /// `measure` is the `Node.measure` this constrains — an ordinary
+    /// DAG edge, so a failed or poisoned measure poisons the assertion
+    /// rather than producing a verdict about nothing. `dir` is which
+    /// side of `bound` the measurement must fall on, and `bound` is an
+    /// `Expr` from `Doc.parse_expr`.
+    ///
+    /// **The bound is an expression and not a quantity, because its
+    /// DIMENSION is the measure's.** Every other node door takes a
+    /// typed `Length` or `Angle` because a slot's address fixes what
+    /// it holds; this one's is fixed by the node it points at, and it
+    /// may be an angle, a count or a plain scalar as readily as a
+    /// length. `Doc.parse_expr("0.5 mm")` is the one spelling, and it
+    /// reaches document parameters (`"min_web"`) in the same call —
+    /// which is what makes an assertion re-decidable by a parameter
+    /// edit.
+    ///
+    /// Two things are checked at `Doc.apply` rather than here,
+    /// because both need the document: that `measure` names a measure
+    /// at all (`assertion_target`) and that the bound's dimension is
+    /// the measured one (`assertion_dimension`). A document therefore
+    /// never carries a comparison of radians with metres.
+    ///
+    /// **Report-only, structurally.** No op in the vocabulary accepts
+    /// a verdict as an operand, the product gather skips an assertion
+    /// as it skips a declaration, and nothing downstream changes shape
+    /// because one is `Violated`. Read it with `Value.assertion`.
+    #[staticmethod]
+    fn assertion(
+        measure: &NodeId,
+        dir: super::measure::AssertionDir,
+        bound: &super::expr::Expr,
+    ) -> Self {
+        Self {
+            inner: d::Node::Assertion {
+                measure: measure.0,
+                bound: bound.0.clone(),
+                dir: dir.to_kernel(),
+            },
+        }
+    }
 }
 
 /// A document-level parameter name (guide §3.2) — a plain string
@@ -1957,6 +2049,35 @@ fn fold_zero(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v }
 }
 
+/// The shared body of the three continuous `DocParam` constructors:
+/// declare the dimension, and hang an annotation on it if one was
+/// offered.
+///
+/// The dimension check is the binding's, and it has to be: a
+/// `Distribution` is dimension-free in the kernel, so there is no
+/// kernel refusal to match here — E2 puts the dimension on the
+/// parameter and nowhere else, and this door is the seam where the
+/// Python-side offsets meet the parameter that owns their dimension.
+/// `door` names the constructor in the raise, so a caller reads which
+/// declaration disagreed with which annotation.
+fn continuous(
+    py: Python<'_>,
+    door: &'static str,
+    dim: d::Dimension,
+    value: f64,
+    distribution: Option<&super::analysis::Distribution>,
+) -> PyResult<DocParam> {
+    let Some(dist) = distribution else {
+        return Ok(DocParam(d::DocParam::continuous(dim, value)));
+    };
+    if dist.dim != dim {
+        return Err(super::analysis::dimension_mismatch(py, door, dim, dist.dim));
+    }
+    Ok(DocParam(d::DocParam::continuous_with(
+        dim, value, dist.inner,
+    )))
+}
+
 /// A named parameter's declared dimension and exact stored value
 /// (guide §3.2): what `DocEdit.set_doc_param` writes.
 ///
@@ -1966,33 +2087,58 @@ fn fold_zero(v: f64) -> f64 {
 /// door refuses it typed (`non_finite_doc_param`), fail-loud where
 /// the kernel refuses.
 ///
-/// The constructors here author UNANNOTATED parameters: a parameter's
-/// optional distribution (ERROR-DESIGN E1/E2) has no Python spelling
-/// yet, so a document authored from Python declares none. One read
-/// back from a `.pncad` file keeps whatever it carries — equality,
-/// hashing and `repr` all see the annotation.
+/// The three continuous constructors take an OPTIONAL `distribution`
+/// (ERROR-DESIGN E1/E2), because annotation is opt-in and a parameter
+/// with none is FIXED under any analysis. The annotation's offsets
+/// must be in the dimension the constructor declares — a `Length`
+/// parameter takes a `Length` distribution — and a mismatch is a
+/// `DimensionError` here rather than a plausible number later. `count`
+/// takes none and cannot: a structural count is fixed under any error
+/// analysis, and the kernel has no `Count` case to drop an annotation
+/// on.
+///
+/// Equality, hashing and `repr` all see the annotation, and
+/// [`Self::distribution`] reads it back.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct DocParam(pub(crate) d::DocParam);
 
 #[pymethods]
 impl DocParam {
-    /// A continuous Length parameter.
+    /// A continuous Length parameter, with an optional Length
+    /// distribution.
     #[staticmethod]
-    fn length(value: &super::quantity::Length) -> Self {
-        Self(d::DocParam::continuous(
+    #[pyo3(signature = (value, distribution = None))]
+    fn length(
+        py: Python<'_>,
+        value: &super::quantity::Length,
+        distribution: Option<&super::analysis::Distribution>,
+    ) -> PyResult<Self> {
+        continuous(
+            py,
+            "DocParam.length",
             d::Dimension::Length,
             value.0.meters(),
-        ))
+            distribution,
+        )
     }
 
-    /// A continuous Angle parameter.
+    /// A continuous Angle parameter, with an optional Angle
+    /// distribution.
     #[staticmethod]
-    fn angle(value: &super::quantity::Angle) -> Self {
-        Self(d::DocParam::continuous(
+    #[pyo3(signature = (value, distribution = None))]
+    fn angle(
+        py: Python<'_>,
+        value: &super::quantity::Angle,
+        distribution: Option<&super::analysis::Distribution>,
+    ) -> PyResult<Self> {
+        continuous(
+            py,
+            "DocParam.angle",
             d::Dimension::Angle,
             value.0.radians(),
-        ))
+            distribution,
+        )
     }
 
     /// A continuous Length parameter that REMEMBERS the notation it
@@ -2004,28 +2150,72 @@ impl DocParam {
     /// here. The mismatch the save/load validator watches for
     /// (`PersistError` `display_unit`) is unreachable through this
     /// door, which is the reason to author through it.
+    ///
+    /// No `distribution`: the kernel's own notation doors carry none
+    /// (`DocParam::written_length` writes `distribution: None`), and
+    /// this binding does not reach past them to build the payload by
+    /// hand. A parameter that wants both is authored through
+    /// [`Self::length`] today.
     #[staticmethod]
     fn written_length(value: &super::quantity::WrittenLength) -> Self {
         Self(d::DocParam::written_length(value.0))
     }
 
     /// A continuous Angle parameter that remembers its notation —
-    /// [`Self::written_length`]'s mirror, total for its reason.
+    /// [`Self::written_length`]'s mirror, total for its reason and
+    /// carrying no annotation for its reason.
     #[staticmethod]
     fn written_angle(value: &super::quantity::WrittenAngle) -> Self {
         Self(d::DocParam::written_angle(value.0))
     }
 
-    /// A continuous dimensionless parameter.
+    /// A continuous dimensionless parameter, with an optional
+    /// dimensionless distribution.
     #[staticmethod]
-    fn scalar(value: f64) -> Self {
-        Self(d::DocParam::continuous(d::Dimension::Scalar, value))
+    #[pyo3(signature = (value, distribution = None))]
+    fn scalar(
+        py: Python<'_>,
+        value: f64,
+        distribution: Option<&super::analysis::Distribution>,
+    ) -> PyResult<Self> {
+        continuous(
+            py,
+            "DocParam.scalar",
+            d::Dimension::Scalar,
+            value,
+            distribution,
+        )
     }
 
     /// An integer Count parameter (structural material, spec D3).
+    ///
+    /// No distribution, and there is no spelling for one: a
+    /// structural count is fixed under any error analysis (E2), and
+    /// the kernel's `Count` arm carries no annotation field to hang
+    /// one on.
     #[staticmethod]
     fn count(value: i64) -> Self {
         Self(d::DocParam::Count { value })
+    }
+
+    /// This parameter's distribution, or `None` if it declared none.
+    ///
+    /// The kernel's `DocParam::distribution` reader, carrying the
+    /// parameter's own dimension across with it — which is where an
+    /// annotation's dimension lives, since the annotation itself has
+    /// none (E2: no separate dimension field to disagree with the
+    /// nominal).
+    #[getter]
+    fn distribution(&self) -> Option<super::analysis::Distribution> {
+        self.0
+            .distribution()
+            .map(|dist| super::analysis::Distribution::borrowed(*dist, self.0.dim()))
+    }
+
+    /// The dimension this parameter declares.
+    #[getter]
+    fn dimension(&self) -> &'static str {
+        crate::errors::dimension_tag(self.0.dim())
     }
 
     /// The notation this parameter was authored in, as the unit's own
@@ -2256,6 +2446,23 @@ impl DocEdit {
     /// §3.2). The edit applies cleanly even for a value the geometry
     /// will refuse — a program that refuses under the current binding
     /// is legal AT REST; the refusal belongs to replay.
+    ///
+    /// **Create-or-REPLACE, and the whole declaration is replaced.**
+    /// The `DocParam` handed over is what the document ends up with,
+    /// so one rebuilt from a dimension and a number declares a
+    /// parameter with no distribution and the annotation the old one
+    /// carried is gone. That is not a trap Python cannot see any more
+    /// — `Doc.doc_param` reads the declaration back and
+    /// `DocParam.length(value, distribution)` restates it — but it is
+    /// still a REDECLARATION, and `set_doc_param_value` remains the
+    /// door for moving a number, because it cannot drop what it never
+    /// takes.
+    ///
+    /// Refuses typed on a broken annotation: `invalid_distribution`
+    /// for an E2 invariant, `non_finite_doc_param` for a NaN or
+    /// infinite nominal or offset. Neither is reachable through the
+    /// `Distribution` constructors, which run the same check at the
+    /// value; both are reachable through a file.
     #[staticmethod]
     fn set_doc_param(name: &ParamName, value: &DocParam) -> Self {
         Self {
@@ -2272,11 +2479,11 @@ impl DocEdit {
     ///
     /// **Prefer this over `set_doc_param` whenever the parameter
     /// already exists.** `set_doc_param` is create-or-replace: handed
-    /// a `DocParam` rebuilt from a dimension and a number — the only
-    /// shape Python can spell — it REPLACES the declaration, and any
-    /// annotation the parameter carried is gone with no refusal and no
-    /// diagnostic. This door cannot do that, because it never names a
-    /// declaration at all.
+    /// a `DocParam` rebuilt from a dimension and a number — the
+    /// natural spelling of a value change — it REPLACES the
+    /// declaration, and any annotation the parameter carried is gone
+    /// with no refusal and no diagnostic. This door cannot do that,
+    /// because it never names a declaration at all.
     ///
     /// Refuses typed on a name the document does not declare
     /// (`doc_param_not_declared`) and on a kind mismatch — a count for

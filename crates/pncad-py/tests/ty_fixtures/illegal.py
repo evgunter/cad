@@ -6,6 +6,11 @@ declares unrepresentable, plus the typed-quantity boundary.
 """
 
 from pncad import (
+    MeasurePrimitive,
+    MeasureExpr,
+    AssertionDir,
+    AnalysisPolicy,
+    analyzed_box,
     ArcSide,
     ChecksConfig,
     Severity,
@@ -13,9 +18,10 @@ from pncad import (
     CancelToken,
     Cmp,
     CurveKind,
+    Distribution,
     Doc,
-    DocEdit,
     DocParam,
+    DocEdit,
     DocRef,
     EntityKind,
     Frame,
@@ -499,6 +505,29 @@ verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: err
 doc.node_kind(Node.extrude(solid, 1 * m))  # ty: error
 which: Node = doc.node_kind(solid)  # ty: error
 
+# A structural count is FIXED under any error analysis, so the count
+# constructor takes no annotation — the one `DocParam` door that does
+# not, and the type is what says so rather than a runtime check.
+DocParam.count(4, Distribution.normal(1.0))  # ty: error
+
+# A distribution is a frozen value: an annotation is restated by
+# building a new one, never by editing the one a document handed back.
+Distribution.normal(1 * mm).kind = "band"  # ty: error
+
+# The mass doors are keyed by a `ParamName`, not by its text — the
+# same distinction `Doc.doc_param` draws, and the reason a name is a
+# type here at all.
+analyzed_box(doc).tail_mass("bore_r")  # ty: error
+
+# The policy is the ANALYSIS's knob and takes a bare mass, not a
+# quantity: a share of a distribution's mass is dimensionless.
+AnalysisPolicy(1 * mm)  # ty: error
+
+# Two refusals in one line, and both are the point. A name the
+# document does not declare is not an axis, so `get` answers an
+# OPTION that has to be narrowed; and an axis speaks its parameter's
+# dimension, so its nominal is a quantity rather than a bare float.
+nominal_as_float: float = analyzed_box(doc).get(ParamName("h")).nominal  # ty: error
 # THE MIS-DIMENSIONED WRITTEN VALUE IS UNREPRESENTABLE, not refused.
 # A `WrittenLength` holds a LENGTH unit, so "a length written in
 # degrees" is not a value the type can hold and no door has to refuse
@@ -515,3 +544,35 @@ WrittenLength.in_unit(25.0, mm) + WrittenLength.in_unit(1.0, mm)  # ty: error
 # `canonical_in` takes the QUANTITY, not bare canonical metres — the
 # crossing rule this whole boundary follows.
 WrittenLength.canonical_in(0.025, mm)  # ty: error
+
+# A DIRECTION IS NOT A BOUND, and a bound is not a direction. The two
+# sit side by side on `Node.assertion` and the types are what keep the
+# order from being a thing to remember.
+Node.assertion(solid, doc.parse_expr("1 m"), AssertionDir.AtLeast)  # ty: error
+Node.assertion(solid, AssertionDir.AtLeast, AssertionDir.AtMost)  # ty: error
+
+# A MEASURE IS NOT A NODE. The expression is a value the node is built
+# FROM; handing it where an id belongs confuses the two halves the
+# measurement vocabulary keeps apart.
+_span = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
+Node.assertion(_span, AssertionDir.AtLeast, doc.parse_expr("1 m"))  # ty: error
+doc.insert(MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)))  # ty: error
+
+# A PRIMITIVE IS NOT AN EXPRESSION either: the leaf has to be lifted
+# through `MeasureExpr.primitive`, which is where the dimension is
+# read off the verb.
+MeasureExpr.add(MeasurePrimitive.distance(0, 1), _span)  # ty: error
+
+# A reference is a PAIR — the name alone does not say where its
+# carrier is read, which is the half that makes a measure report
+# placed geometry.
+Node.measure(_span, ["a face", "another"])  # ty: error
+
+# The bound takes the expression door and not the quantity one: a
+# typed length cannot be an angle bound, and the whole point of the
+# `Expr` seat is that the dimension is the measure's.
+Node.assertion(solid, AssertionDir.AtLeast, 1 * mm)  # ty: error
+
+# The verb vocabulary is a frozen value: a primitive is restated by
+# building a new one, never by editing one in place.
+MeasurePrimitive.distance(0, 1).verb = "gap"  # ty: error

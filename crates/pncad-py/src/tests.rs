@@ -13,8 +13,8 @@ use crate::errors::{
     ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose,
 };
 use crate::tags::{
-    expr_dimension_error_tag, path_error_tag, persist_error_tag, step_import_error_tag,
-    workspace_error_tag,
+    expr_dimension_error_tag, path_error_tag, persist_error_tag, promoted_kind_tag,
+    step_import_error_tag, workspace_error_tag,
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
@@ -113,6 +113,11 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::NodePick => "NodePickError",
             ErrorClass::Checks => "ChecksError",
             ErrorClass::Enforce => "CheckRefusal",
+            ErrorClass::Distribution => "DistributionFault",
+            ErrorClass::Measure => "MeasureUnavailable",
+            ErrorClass::MeasureNode => "MeasureNodeFault",
+            ErrorClass::MeasureUnavailableAt => "MeasureUnavailableAt",
+            ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
         }
     }
     for class in [
@@ -145,9 +150,238 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::NodePick,
         ErrorClass::Checks,
         ErrorClass::Enforce,
+        ErrorClass::Distribution,
+        ErrorClass::Measure,
+        ErrorClass::MeasureNode,
+        ErrorClass::MeasureUnavailableAt,
+        ErrorClass::AnalysisPolicy,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
+}
+
+/// LIB-B-DISTRIBUTIONS: the four form words and the three faults,
+/// CONSTRUCTED rather than listed.
+///
+/// The tag inventory pins the words `src/tags.rs` can emit; it cannot
+/// say which kernel value emits which. These rows do, from real
+/// `Distribution` values built through the kernel's own doors — so a
+/// form silently renamed onto another word reds here rather than at a
+/// Python caller.
+///
+/// The faults come out of `Distribution::check` rather than being
+/// written by hand, which is the point one rung further: the binding
+/// raises what the check answers, and this pins that the check
+/// answers what the tags claim it does. `check` is also the reason the
+/// Python constructor needs no rule of its own.
+#[test]
+fn distribution_form_and_fault_tags_are_stable() {
+    use crate::tags::{distribution_fault_tag, distribution_field_tag, distribution_kind_tag};
+    use pncad::document::{Distribution as D, DistributionField};
+
+    let band = D::Band { lo: -1.0, hi: 1.0 };
+    let uniform = D::Uniform { lo: -1.0, hi: 1.0 };
+    let normal = D::Normal { sigma: 1.0 };
+    let window = D::TruncatedNormal {
+        sigma: 1.0,
+        lo: -1.0,
+        hi: 1.0,
+    };
+    assert_eq!(distribution_kind_tag(&band), "band");
+    assert_eq!(distribution_kind_tag(&uniform), "uniform");
+    assert_eq!(distribution_kind_tag(&normal), "normal");
+    assert_eq!(distribution_kind_tag(&window), "truncated_normal");
+    // Every one of those four is an inhabitant: a form word is only
+    // reachable from Python if the constructor that mints it passes.
+    for form in [band, uniform, normal, window] {
+        assert_eq!(form.check(), Ok(()), "{form:?}");
+    }
+
+    let fault = |d: D| {
+        d.check()
+            .expect_err("this distribution breaks an E2 invariant")
+    };
+    assert_eq!(
+        distribution_fault_tag(&fault(D::Normal { sigma: 0.0 })),
+        "sigma_not_positive"
+    );
+    assert_eq!(
+        distribution_fault_tag(&fault(D::Band { lo: 1.0, hi: 2.0 })),
+        "nominal_outside_support"
+    );
+    assert_eq!(
+        distribution_fault_tag(&fault(D::Normal {
+            sigma: f64::INFINITY
+        })),
+        "non_finite"
+    );
+    assert_eq!(distribution_field_tag(&DistributionField::Sigma), "sigma");
+    assert_eq!(distribution_field_tag(&DistributionField::Lo), "lo");
+    assert_eq!(distribution_field_tag(&DistributionField::Hi), "hi");
+}
+
+/// LIB-B-DISTRIBUTIONS: the analysis lane's two refusals, from the
+/// doors that answer them.
+///
+/// Both are constructed by CALLING the door rather than by naming the
+/// variant, so the rows say the band really does refuse a
+/// shape-dependent price and the policy really does refuse a mass
+/// outside `(0, 1)` — which is what the Python classes are for.
+#[test]
+fn analysis_refusal_tags_are_stable() {
+    use crate::tags::{analysis_policy_error_tag, measure_unavailable_tag};
+    use pncad::analysis::{AnalysisPolicy, box_mass};
+    use pncad::document::{Distribution, ParamName};
+
+    let bore = ParamName::new("bore");
+    let refusal = box_mass(
+        &bore,
+        &Distribution::Band { lo: -1.0, hi: 1.0 },
+        (-0.5, 0.5),
+    )
+    .expect_err("a band prices nothing whose answer depends on its shape");
+    assert_eq!(measure_unavailable_tag(&refusal), "band_has_no_measure");
+
+    let policy = AnalysisPolicy::new(1.0).expect_err("mass 1 asks for an infinite box");
+    assert_eq!(
+        analysis_policy_error_tag(&policy),
+        "quantile_mass_out_of_range"
+    );
+    // And the whole point of the pair: the same band ANSWERS the two
+    // set-theoretic cases, so the refusal above is about the shape and
+    // not about bands.
+    assert_eq!(
+        box_mass(
+            &bore,
+            &Distribution::Band { lo: -1.0, hi: 1.0 },
+            (-2.0, 2.0)
+        ),
+        Ok(1.0)
+    );
+    assert!(AnalysisPolicy::new(0.5).is_ok());
+}
+
+/// LIB-B-MEASURES: the measurement AUTHORING vocabulary, minted from
+/// real kernel values on the default no-interpreter build path.
+///
+/// The four verbs, their fixed dimensions and their ARGUMENT-ordered
+/// reference pairs, taken from the kernel's own `verb`, `dim` and
+/// `refs` rather than restated — so a fifth primitive breaks the
+/// exhaustive matches behind those three and this row goes red on the
+/// vocabulary rather than on a list.
+#[test]
+fn the_measure_verb_vocabulary_is_stable() {
+    use pncad::document::{Dimension, MeasurePrimitive};
+
+    let distance = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let angle = MeasurePrimitive::Angle { a: 2, b: 3 };
+    let clearance = MeasurePrimitive::MinClearance { a: 4, b: 5 };
+    let gap = MeasurePrimitive::Gap { outer: 6, inner: 7 };
+
+    assert_eq!(distance.verb(), "distance");
+    assert_eq!(angle.verb(), "angle");
+    assert_eq!(clearance.verb(), "min_clearance");
+    assert_eq!(gap.verb(), "gap");
+
+    // Three of the four are lengths and exactly one is an angle: the
+    // kind rides the verb, which is what makes an assertion's bound
+    // type-checkable against the measure it constrains.
+    assert_eq!(distance.dim(), Dimension::Length);
+    assert_eq!(clearance.dim(), Dimension::Length);
+    assert_eq!(gap.dim(), Dimension::Length);
+    assert_eq!(angle.dim(), Dimension::Angle);
+
+    // A gap's pair is (outer, inner) and NOT re-sorted — C5's formulas
+    // are asymmetric in the roles, so the order is authored data.
+    assert_eq!(gap.refs(), [6, 7]);
+    assert_eq!(distance.refs(), [0, 1]);
+}
+
+/// LIB-B-MEASURES: the construction door's refusal, from the door.
+///
+/// `Node::measure` is called with an index past the end of the
+/// reference list, so the fault is the kernel's answer rather than a
+/// named variant — the shape `analysis_refusal_tags_are_stable` uses
+/// one family over.
+#[test]
+fn the_measure_node_fault_tag_is_stable() {
+    use crate::tags::measure_node_fault_tag;
+    use pncad::document::{
+        MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, ProfileProgram, RecipeNodeId,
+        SitedRef,
+    };
+    use pncad::prelude::StableName;
+    use pncad::select::{EntityKind, RoleSeg};
+
+    let one_reference = vec![SitedRef::at_mint(StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(0),
+        path: vec![RoleSeg::OutputBody],
+    })];
+    let fault = Node::<ProfileProgram>::measure(
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        one_reference,
+    )
+    .expect_err("reference 1 of a one-reference measure names nothing");
+    assert_eq!(measure_node_fault_tag(&fault), "ref_index_out_of_range");
+    let MeasureNodeFault::RefIndexOutOfRange { verb, index, refs } = fault;
+    assert_eq!((verb, index, refs), ("distance", 1, 1));
+    // The message is prose, which is what `typed_err` asserts on every
+    // raise — pinned here so the Python class's human half is checked
+    // on the build path that has no interpreter.
+    assert!(crate::errors::reads_as_prose(&fault.to_string()));
+}
+
+/// LIB-B-MEASURES: the two refusals the FOURTH verb adds, and the
+/// asymmetry between them.
+///
+/// `MeasureUnavailableAt` is what the `f64` lane answers a
+/// `min_clearance` with, and the binding evaluates at `f64` — so it is
+/// reachable from Python and `tests/test_measures.py` reaches it
+/// through a real document. `MinClearanceRefusal` is the interval
+/// engine's own, and its ONLY producer is
+/// `impl MinClearanceLane for geom_core::Interval`, behind the
+/// `interval` feature; no Python evaluation reaches it at any feature
+/// set, because the lane and not the feature is what gates it. So this
+/// row is where the second one's tag and prose are pinned at all.
+#[test]
+fn the_fourth_verbs_two_refusals_are_stable() {
+    use crate::tags::{measure_unavailable_at_tag, node_error_tag};
+    use pncad::document::{MeasureUnavailableAt, MinClearanceRefusal};
+
+    let absent = MeasureUnavailableAt::NeedsEnclosure {
+        verb: "min_clearance",
+        scalar: "f64",
+        door: "clearance::min_separation",
+    };
+    assert_eq!(measure_unavailable_at_tag(&absent), "needs_enclosure");
+    assert_eq!(absent.verb(), "min_clearance");
+    assert!(crate::errors::reads_as_prose(&absent.to_string()));
+    // The recourse is IN the refusal: it names the door that answers
+    // rather than handing back a worse number.
+    assert!(absent.to_string().contains("clearance::min_separation"));
+
+    let refused = MinClearanceRefusal {
+        class: "SubdivisionBudget",
+        payload: "depth 12".to_string(),
+    };
+    assert_eq!(
+        node_error_tag(&pncad::document::NodeErrorKind::MeasureClearanceRefused(
+            refused.clone()
+        )),
+        "measure_clearance_refused"
+    );
+    assert!(crate::errors::reads_as_prose(&refused.to_string()));
+}
+
+/// LIB-B-MEASURES: an assertion's two directions, and the symbols a
+/// report reads them as.
+#[test]
+fn the_assertion_directions_keep_their_symbols() {
+    use pncad::document::AssertionDir;
+
+    assert_eq!(AssertionDir::AtLeast.symbol(), ">=");
+    assert_eq!(AssertionDir::AtMost.symbol(), "<=");
 }
 
 /// LIB-B-READBACK: the read-back doors' tag map, arm by arm.
@@ -1131,6 +1365,35 @@ fn step_import_error_tags_are_stable() {
     );
 }
 
+/// The recognition arm's PAYLOAD tag, beside the arm's own.
+///
+/// Minted rather than reached, and the reason is the arm: firing
+/// `recognition_ambiguous` needs a file with a multi-bound curved face
+/// on a NURBS surface whose estimator is ill-conditioned at the
+/// declared tolerance, which is a fixture and `step-import`'s own
+/// suite's. What this pins is the wire spelling of both words and the
+/// fact that they arrive TOGETHER — the carrier's word naming the
+/// condition, the payload's naming which estimator declined.
+#[test]
+fn promoted_kind_tags_are_stable() {
+    let ambiguous = |kind| pncad::step_import::StepImportError::RecognitionAmbiguous {
+        id: 104,
+        surface: 105,
+        kind,
+        margin: 1e-9,
+    };
+    for (kind, word) in [
+        (pncad::step_import::PromotedKind::Plane, "plane"),
+        (pncad::step_import::PromotedKind::Cylinder, "cylinder"),
+    ] {
+        assert_eq!(promoted_kind_tag(&kind), word);
+        assert_eq!(
+            step_import_error_tag(&ambiguous(kind)),
+            "recognition_ambiguous"
+        );
+    }
+}
+
 #[test]
 fn path_error_tags_are_stable() {
     use pncad::prelude::{Open, Start, circle, p2, polygon};
@@ -1563,6 +1826,11 @@ struct TagEntry {
 /// level reshuffle that no Python caller can observe.
 const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
+        function: "analysis_policy_error_tag",
+        values: &["quantile_mass_out_of_range"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "assembly_error_tag",
         values: &[
             "at_rest",
@@ -1615,6 +1883,25 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "declare_error_tag",
         values: &["no_findings", "no_minted_id"],
         delegates: &["edit_error_tag"],
+    },
+    TagEntry {
+        function: "distribution_fault_tag",
+        values: &[
+            "nominal_outside_support",
+            "non_finite",
+            "sigma_not_positive",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "distribution_field_tag",
+        values: &["hi", "lo", "sigma"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "distribution_kind_tag",
+        values: &["band", "normal", "truncated_normal", "uniform"],
+        delegates: &[],
     },
     TagEntry {
         function: "edit_error_tag",
@@ -1796,6 +2083,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_table_lacks",
             "mate_under",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "measure_node_fault_tag",
+        values: &["ref_index_out_of_range"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "measure_unavailable_at_tag",
+        values: &["needs_enclosure"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "measure_unavailable_tag",
+        values: &["band_has_no_measure"],
         delegates: &[],
     },
     TagEntry {
@@ -2006,6 +2308,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "solid_invalid",
             "unknown_node",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "promoted_kind_tag",
+        values: &["cylinder", "plane"],
         delegates: &[],
     },
     TagEntry {

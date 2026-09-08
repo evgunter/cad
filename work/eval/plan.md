@@ -70,6 +70,23 @@ D, each an `[ev]` PR, announced on DOCM's board:
    opens. A design choice made with the pre-pass's owner; the build
    moves every Profile node's log and the verdict-log goldens.
 
+8. `profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift`
+   — EVAL-7's residue, scheduled: under the pinned lift at the build
+   scalar the op re-validates the `Profile<f64>` the pre-pass already
+   validated, so the node's log (and `vdiff`'s populations) hold each
+   decision twice. The unit makes the Pinned arm reuse the pre-pass's
+   validated form (the validated type's lift is `crates/profile`'s door,
+   S-BOOL's glob, announced) and the m4 eps-audit populations return to
+   single counts.
+9. `interval-content-key-hashes-bits-the-pre-pass-does-not-read` —
+   EVAL-7's review found the memo hole (pre-existing): at the interval
+   scalar the key hashes a slot's interval bits while the pre-pass and
+   the pinned op read its nominal f64, which is not in the key, so two
+   documents with one box and different nominals hit each other's memo.
+   The nominal f64 of each slot joins the key (a format bump); the
+   review's probe is the red-first row. The file lands with EVAL-7's
+   fix pass.
+
 Standing, not units: `D360` (sweep topo refusal enums by variant name;
 a rule this program's lanes read first). Deferred with its
 ratification cited: `two-verb-seats-do-not-compose` (#1345 items

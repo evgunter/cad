@@ -302,7 +302,10 @@ verbatim and the apex slid by `−axis·(d/sin α)`, i.e. the pure parameter
 shift `v ↦ v + d·cot α` (`ConeOffset` states the apex, the shift and the
 pointwise displacement as one derivation, along the continuous extension
 of the opening nappe's normal field, so nappe attribution follows the
-shift). Refusals are named predicates over the *realized* stored float,
+shift; the turn a face-outward distance owes that convention is the
+consumer's, discharged at `topo::offset_nappe::face_nappe` for every
+door that needs it). Refusals are named predicates over the *realized*
+stored float,
 decided before any mint: `offset_radius_floor` (margin `radius + d`;
 `OffsetError::RadiusFloor`) and `offset_torus_ring` (margin
 `major − (minor + d)`; `TorusRing`). The cone has no door predicate
@@ -414,8 +417,6 @@ bracketed by two tori, by construction.
   (`wall_clearance` gates planar operands only); the general clearance
   certificate over a parameter box belongs to the error-propagation
   lane (`docs/ERROR-DESIGN.md`).
-- `replace_face::mint_offset` does not discharge `ConeOffset`'s
-  mirror-nappe obligation (`offset_axial::nappe_signed` does).
 - Corner taxonomy: the uniformly concave trihedron is carved but has no
   `CornerConfig` tag; the finer run-out taxonomy (per-end assignment,
   setback parameters) is reserved for the design that implements

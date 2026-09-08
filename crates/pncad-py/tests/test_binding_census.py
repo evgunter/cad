@@ -409,6 +409,14 @@ BOUND_AS = {
     "UnitVec3": "Datum.direction",
     "UnitVec3Error": "EvaluationError.kind",
     "PI": "pi_rad",
+    # `DistributionField` names WHICH offset of a distribution a fault
+    # is about, and it crosses as that word on the fault rather than as
+    # a class: a three-member closed set naming struct fields is what a
+    # caller compares against, and a class would add an import for no
+    # question it answers. The `NodeErrorKind` row's shape — a curated
+    # enum flattened onto an exception attribute — one level in, on an
+    # exception that already carries `variant`.
+    "DistributionField": "DistributionFault.field",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
@@ -497,6 +505,29 @@ BOUND_AS = {
     # numbers the arm carries describe a mesh that violates its own
     # invariant, which is a bug report and not something to branch on.
     "MeshPickError": "NodePickError.index_variant",
+    # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
+    # analytic kind's stage-1 estimator declined on a face that could
+    # not import without promotion. It crosses by the carrier rule at
+    # `MeshPickError`'s spelling and for that entry's reason: the
+    # carrier's arm HAS a word of its own, `recognition_ambiguous`,
+    # which names the condition and which a caller branching on the
+    # import ladder needs to stay put. So the payload's discriminant
+    # arrives BESIDE it rather than in place of it, `None` on every
+    # other arm.
+    #
+    # Two values, and they are two different next moves: `plane`
+    # declining is a flatness question at the file's tolerance,
+    # `cylinder` declining is an ill-conditioned axis and wants more
+    # of the patch. The match that mints them is exhaustive, so a
+    # third promotable kind stops the bindings compiling instead of
+    # joining one of these.
+    #
+    # No Python test row: firing the arm needs a file with a
+    # multi-bound curved face on an ill-conditioned NURBS surface,
+    # which is a `step-import` fixture and not something an authoring
+    # door reaches. Both words are pinned in Rust, where the refusal
+    # constructs.
+    "PromotedKind": "StepImportError.promoted_kind",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
     # accounted by rule 1; these two are the family's shape entries,
@@ -734,47 +765,21 @@ GAP = "gap"
 #: carrying the unit that moved it — `B-READBACK` closed at
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
-FAMILIES = {
-    "B-DISTRIBUTIONS": (
-        "parameter uncertainty and the analysis lane (ERROR-DESIGN "
-        "E1/E2); closing it binds `Distribution`'s four forms onto a "
-        "`DocParam` constructor and the analysis doors that read them "
-        "back — the analyzed box, tail mass and leaf mass, with "
-        "`DistributionFault` and the band's typed measure refusal as "
-        "arms a Python caller can dispatch on. Today Python authors "
-        "unannotated parameters only: a document read back from a file "
-        "carries an annotation Python can READ ONLY THROUGH equality, "
-        "hashing and `repr`, and cannot spell. The sharp edge is the "
-        "WRITE door, not the read one — `set_doc_param` is "
-        "create-or-replace, so passing it a `DocParam` rebuilt from a "
-        "dimension and a number DELETES the annotation silently. "
-        "`set_doc_param_value` is the value-only door that carries the "
-        "declaration forward and is what a Python caller moving a "
-        "number must use until this family closes"
-    ),
-    "B-MEASURES": (
-        "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
-        "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
-        "four verbs and `AssertionDir` onto `Node.measure` / "
-        "`Node.assertion` constructors, with `MeasureNodeFault` as the "
-        "refusal a caller dispatches on, and `MinClearanceRefusal` / "
-        "`MeasureUnavailableAt` as the two the FOURTH verb adds: "
-        "`min_clearance` is answered by an engine rather than a "
-        "closed form (M10-6), so it can refuse for the engine's own "
-        "reasons, and at a point scalar it has no value at all and "
-        "says which scalar and which door could answer. The READ half already ships "
-        "and is deliberately not in this gap: `Value.measure` answers "
-        "with a `Measurement` (value plus the F1 dimension it rides) "
-        "and `Value.assertion` with a `Verdict` (three states kept "
-        "three, both numbers on a decided one). That split is the "
-        "unit's own disposition: the friction the R-series reviews "
-        "keep finding is unreadable RESULTS, and a Python caller can "
-        "now read a web and its verdict off any evaluation, including "
-        "one loaded from a file authored elsewhere. What a Python "
-        "caller cannot yet do is WRITE one — the same asymmetry "
-        "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
-        "edge, because no existing write door silently drops a measure"
-    ),
+FAMILIES: dict[str, str] = {
+    # **EMPTY, and that is a state this file has to be able to hold.**
+    # B-MEASURES was the last charter standing, and it closed at
+    # LIB-B-MEASURES; the six before it closed at LIB-B-READBACK,
+    # LIB-B-CHECKS, LIB-B-CANCEL, LIB-B-FACE-FRAME, LIB-B-PART,
+    # LIB-B-NOTATION and LIB-B-DISTRIBUTIONS. Every census-owned
+    # family the LIB residual register's category B enumerated is
+    # therefore closed, and what is left in `NOT_BOUND` under a `gap:`
+    # tag cites an AUDIT id (`G2`) rather than one this file owns.
+    #
+    # `test_every_gap_entry_names_a_defined_id` reads this in both
+    # directions and passes over an empty map: no entry can cite a key
+    # that is not here, and no key here goes uncited. A new family is
+    # chartered by adding a key and the `gap:` entries that cite it in
+    # the same diff — which is what every one of the seven did.
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -1409,6 +1414,22 @@ NOT_BOUND = {
     "FaceKey": SHAPE,
     "ExtrudeError": SHAPE,
     "ImportOptions": SHAPE,
+    # The element type of `ImportOptions::declared_contacts`, curated
+    # at the prelude because filling a public field means spelling its
+    # element type and a Rust caller could not: the import-side
+    # declaration channel was callable and not FILLABLE. That defect
+    # is a Rust one and it does not reproduce here, which is why this
+    # entry is `different-shape` rather than a gap. It follows its
+    # carrier one bullet above — `ImportOptions` is `import_step`'s
+    # absent second argument — and an element type of an absent
+    # argument has strictly less to cross than the argument does.
+    #
+    # Read this entry beside `import_step` if that second argument is
+    # ever bound: at that moment `ImportContact` needs a Python
+    # spelling of its own (a constructor for the position anchor), and
+    # this row stops being honest in exactly the shape the
+    # `EvalOutcome` entry above records.
+    "ImportContact": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
     # `continue_to`'s target trait, absorbed into the verb exactly as
@@ -1573,6 +1594,23 @@ NOT_BOUND = {
     # .md`), so inventing a second vocabulary at the boundary would
     # fork a diagnosis the kernel already words.
     "CensusContact": INTERIOR,
+    # What the two census-unsupported arms are ABOUT — one entity, or
+    # the candidate face pair. `INTERIOR` by the carrier rule and by
+    # the measurement the `CensusContact` entry above records, which
+    # is this type's carrier too: `ValidationError` crosses through
+    # the validate doors as joined `Display` prose with a `door` and a
+    # `failure_count` and no per-arm tag, so an arm's subject reaches
+    # Python only inside that text, through the kernel's own
+    # rendering. `pncad-py` names neither `CensusSubject` nor either
+    # of its payload types anywhere.
+    #
+    # The Rust carriage this row records is a real closure even so,
+    # and the asymmetry is the point of writing the measurement down:
+    # a Rust caller matches the arm and reads the subject whole, while
+    # a Python caller reads the sentence. What would flip this entry
+    # is the same door that would flip `CensusContact`'s — a validate
+    # projection with per-arm tags — and both would move together.
+    "CensusSubject": INTERIOR,
     # The instantiation seam's declaration bookkeeping. `Relation` and
     # `Route` are the two halves of what a carried finding says, and
     # Python reads both without holding either type:
@@ -1612,6 +1650,16 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    # What an edge's locus IS, read back off a certified carrier.
+    # Python holds an opaque `Body` handle and no door on it answers a
+    # description, so nothing here is a thing Python can read.
+    #
+    # `MappedCurve` — the `Scaffold` arm's payload — is not a curated
+    # name and so not an entry here; the argument for stopping at that
+    # rung is written where this type is carried, in `prelude.rs`
+    # group 4, and it is an argument about the ARM rather than about
+    # the crossing: the scaffolding door is fenced to construction and
+    # tier 3 refuses it at rest.
     "EdgeDescription": INTERIOR,
     "Extruded": INTERIOR,
     "Extrusion": INTERIOR,
@@ -1711,6 +1759,20 @@ NOT_BOUND = {
     "PropsQuadLane": INTERIOR,
     "Revolution": INTERIOR,
     "Revolved": INTERIOR,
+    # `Revolved::kind` — the ratified case split, curated at the
+    # prelude because the two arms are two disjoint sets of handles
+    # and a Rust caller reading the wedge caps off a partial revolve
+    # has to branch. `INTERIOR` by the carrier rule and by the
+    # plainest measurement of it in this file: the carrier does not
+    # cross AT ALL. Python speaks the document layer, so a revolve is
+    # a `Node.revolve` whose answer is a body — no `Revolved` value
+    # reaches Python, and `pncad-py` names neither type anywhere.
+    #
+    # Not a `gap:` either: what a Python caller wants out of those
+    # handles is the FACES, and it asks for those by name through
+    # `Evaluation.select` rather than by key. A key bundle has nothing
+    # to project to a surface that holds names and never keys.
+    "RevolvedKind": INTERIOR,
     # `ValidationError::RingMeetsOuter`'s payload (LIB-CUR4).
     "RingContact": INTERIOR,
     # `BlendError::UnsupportedCorner`'s second field, the policy
@@ -1787,26 +1849,42 @@ NOT_BOUND = {
     # moving anything a caller can do.
     "sweep_body": f"{GAP}: G2 sweep (wire_sweep banked on U4/LQ3)",
     # --- gap: parameter distributions and the analysis lane -------
-    # --- gap: authoring a measurement (census-owned) --------------
-    # The READING half ships (`Value.measure`, `Value.assertion`); what
-    # is listed here is the authoring vocabulary alone.
-    "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
-    # `SitedRef` is bound where a MATE reference is authored
-    # (`Node.mate` takes each side as a node and a name), so the type
-    # itself is never handed across; the measure half that would hand
-    # one over is the gap above.
-    "SitedRef": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
-    # The two M10-6 added with the fourth verb. They are READING
-    # names — a caller dispatches on them after an evaluation, not
-    # while authoring — but the read door that would surface them
-    # (`Value.measure` on a `min_clearance`) cannot be reached until
-    # the authoring half exists, so they close with the same family.
-    "MinClearanceRefusal": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasureUnavailableAt": f"{GAP}: B-MEASURES measurement authoring",
-    "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    # --- the measurement authoring vocabulary, closed --------------
+    # `SitedRef` is bound where a reference is AUTHORED — `Node.mate`
+    # takes each of its two sides as a node and a name, and
+    # `Node.measure` takes a LIST of the same pair, because a mate has
+    # exactly two sides and a measure's arity is its reference list.
+    # The type itself is therefore never handed across, and a class
+    # wrapping the two halves would add ceremony and no reach: a name
+    # is opaque text by the ordinal-28 contract and a read site is a
+    # node id. This row was a `gap:` until LIB-B-MEASURES, on the
+    # reading that the measure half would hand one over; it does not,
+    # and this is the same sentence the entry already carried, now
+    # true of both doors.
+    "SitedRef": SHAPE,
+    # **The clearance engine's refusal, flattened to a tag — and
+    # unreachable at the lane Python evaluates on.** It reaches Python
+    # as `EvaluationError.kind == "measure_clearance_refused"`
+    # (`src/tags.rs`), which is this bullet's ordinary shape. What is
+    # NOT ordinary is that no Python evaluation can produce one: the
+    # refusal's only producer is
+    # `impl MinClearanceLane for geom_core::Interval`, and the binding
+    # evaluates at `f64` alone (`src/py/value.rs`), so the FEATURE is
+    # not what gates it — the SCALAR is, and `pncad-py --features
+    # interval` reaches it no better. That is `profile_lift`'s
+    # sentence above arriving on the refusal side: the door starts
+    # answering differently exactly when Python gains a non-`f64`
+    # evaluation, and it should gain its spelling in the unit that
+    # brings one. Binding an exception class nothing raises would move
+    # a name off this roster without moving anything a caller can do,
+    # which is `sweep_body`'s argument two bullets up.
+    #
+    # Its SIBLING went the other way and the pair is the measurement:
+    # `MeasureUnavailableAt` is what the `f64` lane answers a
+    # `min_clearance` WITH, so it is reachable today and is bound
+    # top-level under rule 1. One kernel file, one verb, two refusals,
+    # and the lane decides which of them a Python caller can ever see.
+    "MinClearanceRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -1831,8 +1909,89 @@ NOT_BOUND = {
     # both at the same spelling, so rule 1 accounts them. The closure
     # paragraph in this constant's docstring records what a roster
     # honest about its own two entries still could not see.
-    "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
-    "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    # B-DISTRIBUTIONS IS GONE FROM THIS ROSTER, closed at
+    # LIB-B-DISTRIBUTIONS, and the id left `FAMILIES` with it. It cited
+    # THREE names and they left three different ways, which is the
+    # rule demonstrated on one family: `Distribution` and
+    # `DistributionFault` are top-level in `pncad.pyi` at those exact
+    # spellings, so rule 1 accounts them and they leave the roster
+    # entirely; `DistributionField` is in `BOUND_AS` as
+    # `DistributionFault.field`, because a three-member set naming
+    # struct fields crosses as the word on the fault rather than as a
+    # class.
+    #
+    # THE CHARTER'S OTHER HALF WAS NEVER A ROW HERE AND COULD NOT
+    # BECOME ONE. It named the three analysis doors — the analyzed
+    # box, tail mass, leaf mass — and every one of them is curated in
+    # `crates/pncad/src/analysis.rs`, which is not one of the three
+    # files this census reads (the module docstring says so: it reads
+    # the three that curate the DOCUMENT layer and the common
+    # surface). So `analyzed_box`, `tail_mass`, `box_mass`,
+    # `AnalysisPolicy`, `AnalyzedBox`, `AnalyzedParam`,
+    # `MeasureUnavailable`, `OffsetInterval`, `DEFAULT_QUANTILE_MASS`
+    # and `sample_offset` are invisible to this file in BOTH
+    # directions: unbound they flipped no row, and bound they flip none
+    # either. The `Distribution` row is what made the family
+    # dispatchable at all, and the doors that closed it are reported in
+    # the unit rather than counted here. That is the B-FACE-FRAME gap
+    # between a charter and a roster, in its widest form so far: three
+    # of the charter's four things outside the alphabet.
+    #
+    # THE GATE, MEASURED, because a reader of the roster cannot see it
+    # either: the analysis façade splits at
+    # `crates/pncad/src/analysis.rs:49` (ungated) and `:55`/`:66`/`:83`
+    # /`:89`/`:104` (`#[cfg(feature = "interval")]`). All three
+    # chartered doors are on the ungated line, so the family closes on
+    # the DEFAULT build the wheel is made from; what is gated is the E6
+    # driver with its `ParamBox`, the E4/E5 stackup, `assertion_at` and
+    # the E10 reporting layer, none of which this family chartered.
+    # The positive form is `tests/test_distributions.py`.
+    # B-MEASURES IS GONE FROM THIS ROSTER, closed at LIB-B-MEASURES,
+    # and the id left `FAMILIES` with it — which emptied that map, the
+    # last census-owned charter closing. It cited SEVEN names and they
+    # left three different ways, which is one more way than
+    # B-DISTRIBUTIONS demonstrated:
+    #
+    #   - FIVE leave the roster ENTIRELY under rule 1, because
+    #     `pncad.pyi` declares each top-level at the same spelling:
+    #     `MeasureExpr`, `MeasurePrimitive` and `AssertionDir` as the
+    #     authoring vocabulary, and `MeasureNodeFault` and
+    #     `MeasureUnavailableAt` as exception classes keeping their
+    #     Rust types' own names.
+    #   - TWO stay here and are RETAGGED `SHAPE` — `SitedRef` and
+    #     `MinClearanceRefusal`, each argued at its own entry above.
+    #     Neither is a debt any more and neither is reach: one is a
+    #     type whose two halves are what the doors take, the other a
+    #     refusal flattened to a tag no `f64` evaluation can raise.
+    #
+    # THE CHARTER NAMED A SPELLING THIS FILE HAD ALREADY TAKEN. The
+    # analysis lane's `MeasureUnavailable` bound at LIB-B-DISTRIBUTIONS
+    # one unit earlier, and this family's `MeasureUnavailableAt` is a
+    # DIFFERENT kernel type answering a different question — the band
+    # that states limits without a shape, against the point scalar
+    # with nowhere to put an enclosure. Both keep their own Rust
+    # names, neither subclasses the other, and the two tag functions
+    # are deliberately not one function.
+    #
+    # THE GATE, MEASURED, and it is not the one B-DISTRIBUTIONS found:
+    # every name this family owns is curated in
+    # `crates/pncad/src/document.rs`, which carries NO `cfg`, so
+    # nothing here is behind `interval` on the façade. The limit is a
+    # LANE — see the `MinClearanceRefusal` entry — and it bites one
+    # refusal out of the family's whole surface.
+    #
+    # WHAT THIS FILE COULD NOT SEE, in both directions. `Node::Measure`
+    # and `Node::Assertion` are ARMS of `Node`, which rule 1 accounts
+    # whole, so two of the kernel's twenty-five recipe node kinds were
+    # unconstructible from Python for the life of the binding and no
+    # roster here said so. `Doc.node_kind` answered `"measure"` and
+    # `"assertion"` the whole time — a committed vocabulary exhaustive
+    # over the kernel enum cannot tell a word a caller can reach from
+    # one it cannot. `MeasureNodeFault`'s one arm sat behind the edit
+    # tag `measure_malformed`, and nine more measurement arms sit
+    # behind `EvaluationError.kind`, which is a `BOUND_AS` mapping
+    # this file accounts whole. The positive form is
+    # `tests/test_measures.py`.
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six
     # families held 43 names — the pin-update door, the at-rest gate,
     # mates and the solve, instantiated parts, split/inline, explicit

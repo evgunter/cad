@@ -3335,3 +3335,225 @@ erasure one vocabulary over, and the typed doors disagree with the text
 door about one authoring). The lane ran the pinned ruff for real.
 Orchestrator merged main (SAVEFORK, overlapping `pncad.pyi` and the
 legal fixture — additive hunks, clean merge) and landed on the re-run.
+
+**LIB-B-DISTRIBUTIONS MERGED (2026-09-08, #2192; mechanical under the
+08-29 ruling, no A/B row). Census family B-DISTRIBUTIONS CLOSED —
+parameter uncertainty and the analysis lane (E1/E2).** The gate
+measured before scope, as the brief required: `crates/pncad/src/
+analysis.rs` splits at `:49` (ungated) and `:55`–`:104` (`interval`),
+all three chartered doors are on the ungated line, so the family
+closes on the default build the wheel is made from and nothing is
+deferred behind a feature; there is no precedent for a feature-gated
+Python door and none was minted. Bound: `Distribution.band / uniform /
+normal / truncated_normal` as a frozen constructor class whose offsets
+are TYPED quantities in the parameter's own dimension (the annotation
+carries none of its own — E2 — so it borrows the declaration's, which
+makes the read direction free and two disagreements checkable as
+`DimensionError` with `op` naming the door) and whose construction
+runs the kernel's own `Distribution::check`, so a document that would
+refuse to load cannot be authored and the refusal lands where the
+sigma is written (`DistributionFault`, every arm's payload present on
+every arm); `DocParam.length/angle/scalar(value, distribution=None)`
+and `DocParam.distribution`/`dimension`; `analyzed_box(doc, policy)`
+with `AnalysisPolicy`, `AnalyzedBox`, `AnalyzedParam`,
+`DEFAULT_QUANTILE_MASS`; the tail and leaf columns as METHODS ON THE
+BOX (`tail_mass`, `box_mass`) rather than the kernel's free functions,
+on the kernel's own argument that loose triples let a caller pair one
+parameter's distribution with another's box; `MeasureUnavailable` (a
+band prices nothing shape-dependent, and names the parameter) and
+`AnalysisPolicyError`. The sharp edge pinned in all three states
+(the rebuilt `DocParam` still deletes the annotation; the value door
+carries it forward; a redeclaration can now restate it) — there is no
+distribution-only edit arm and none was invented, so the closure is
+the constructor and the prose on `set_doc_param` says what the door
+does. Census: three rows left three ways (`Distribution`,
+`DistributionFault` under rule 1; `DistributionField` to `BOUND_AS` as
+`DistributionFault.field`); the charter leaves `FAMILIES`. The census
+lesson in its widest form yet: three of the charter's four things
+(`analyzed_box`, tail mass, leaf mass) were never rows and could not
+be, because `crates/pncad/src/analysis.rs` is outside the census's
+alphabet in both directions — which will do the same to B-MEASURES's
+read half. 36 Python rows mirroring `m10_1_analysis.rs` and the
+façade's end-to-end row, two Rust pins on the default path, five
+fixtures each way, a GUIDE §3.3 block executed by `test_guide.py`.
+Deviations with homes: a keyed `Doc.doc_param` was written and then
+deleted at the B-NOTATION merge in favour of `doc.params.get(name)`
+(one door per question); `written_length/angle` take no
+`distribution=` because the kernel's notation doors write none
+(reported as the kernel-side gap). Filed:
+`advisory-monte-carlo-lane-has-no-python-door` (the E11.1 estimator is
+ungated on the façade precisely for the caller with no certified
+scalar, and a Python caller is that caller). Reported outside the
+fence: `std_deviation`'s `NOT_CARRIED` row withholds a name whose
+answer is one method call away on a carried type (M10's call).
+Orchestrator note: main gained EVAL/RESOLVE internals and tests between
+the green run on `528d9274` and the merge, overlapping nothing in this
+diff, so it landed on that run.
+
+**LIB-CUR6 MERGED (2026-09-08, #2193; mechanical under the 08-29
+ruling, no A/B row). The five re-sweep hits settled under the CUR3
+test, four carried and one argued at the entry.** `CensusSubject`
+carried into prelude group 5 (two arms, two recourses — an `Entity` is
+a carrier outside the certifiable inventory, a `FacePair` is a
+candidate contact; both payload types CUR5 curated, so the
+discriminant was the last thing in the way; the unordered-pair half
+deliberately unpinned since no curated name mints two distinct
+`FaceKey`s, said at the guard); `RevolvedKind` carried into group 3
+and CONSTRUCTED rather than fabricated — the row calls `revolve` twice
+and reaches both arms, whose fields are two disjoint sets of handles
+rather than a label; `PromotedKind` carried into group 7 with the
+item's carrier attribution CORRECTED (`SurfacePromotion` sits on an
+uncurated chain; the curated carrier is
+`StepImportError::RecognitionAmbiguous::kind`), the tag arriving
+beside `recognition_ambiguous` rather than forwarded
+(`StepImportError.promoted_kind`, `promoted_kind_tag` exhaustive,
+inventory row, Rust pin) and a stale runtime docstring ("`refused` or
+`wireframe`") fixed in passing; `ImportContact` carried as a REACH
+defect — `ImportOptions::declared_contacts` is a `pub Vec` whose
+element type no curated list spelled, so the import-side declaration
+channel was callable and not fillable, and the façade row now fills
+it; `MappedCurve` NOT carried, the third entry of the
+`BandField`/`MarginDiag` family and the first whose reason is the ARM:
+`Scaffold` is fenced to construction and refused at rest, its
+authoring form is on no list, every kernel consumer is a re-mint, and
+the rung is uncarried whole (`ChartCurve`, `Pcurve`), so carrying one
+arm would be the `Convexity` inconsistency in reverse — falsifier
+stated. Census: `PromotedKind` to `BOUND_AS`, `ImportContact`
+`different-shape` beside its absent argument, `CensusSubject` and
+`RevolvedKind` `INTERIOR` by the carrier rule with the measurement
+(the validate doors cross as prose; `Revolved` does not cross at all).
+Re-sweep at the merge base with blind spot (f) closed (bare-`pub`
+fields only), (g) new and closed (variant names read as payloads),
+(e) narrowed (a `pub enum` inside a `macro_rules!` body IS indexed),
+(h) new and open (crate-aware, not module-aware): six new hits, all in
+`profile`, filed as
+`payload-rung-re-sweep-finds-six-uncurated-profile-discriminants`;
+the lane's counts do not reconcile with CUR5's and it says so — the
+pattern is prose re-implemented each run, every row hand-verified to
+a `file:line`. Also filed:
+`a-successful-step-imports-own-report-is-uncurated` (`import_step`'s
+refusal half is curated and its success half is not). No kernel crate
+touched; the lane ran the pinned ruff for real. Branch level with
+main at the merge.
+
+**LIB-BENCH-PATTERN MERGED (2026-09-08, #2199; mechanical under the
+08-29 ruling, no A/B row). The flat-pack posts measured as
+`Node.pattern` against `placed_union` through every layout door, and
+the pattern shipped.** `bench_scene.layout` grew a `posts=` switch
+over the two spellings (one count, one rule, one set of constants) and
+`TestBenchLayout` runs its whole battery under `subTest` against
+BOTH: over the flat-pack the plural `Instances` value answers exactly
+as the fused body does — `product` gathers `PATTERN_COUNT ×
+POST_VOLUME + SHELF_VOLUME`, `select` answers `PATTERN_COUNT` distinct
+instance-qualified cap names, each `face_frame` lands on the placement
+ladder's rung to 1e-12, every `denotation` is untied at one candidate,
+the tessellated outline is the same box, and `assemble` passes the A5
+gate outright with `minted == []`. The two spellings part at exactly
+ONE door and the pattern is the better side of it: on a document
+authored for the question, a mate head on a `Node.pattern` copy
+resolves, solves `Determining`, joins one cluster and mints — the
+`SlotId::Instance` walk (`editor-core/src/mate/member.rs`) reached
+from Python for the first time — while the same head on a
+`placed_union` copy refuses ("does not resolve to a live member") and
+the mate node's failure reds the product. The issue's premise that the
+LAYOUT carries mates over the posts was FALSE and its `## Closed` says
+so: the pattern is in the layout, whose expectations are the material,
+the outline, the per-placement frames, the names and a gate that
+passes with nothing minted; the cluster, gauge, solved translation,
+minted declarations and CERTIFYING gate are `TestBenchStand`'s, which
+carries no pattern and is untouched. `posts=` keeps `placed_union`
+reachable so the comparison stays executed rather than remembered.
+Audit: row 43 `**YES**`/`—` with the substitution sentence replaced by
+the measurement, headline "34 outright, and 3 more" (37 of 45
+unchanged — a row moved between the YES columns, not across the NO
+line), G8 `degrades 3`, G18's residue sentence records the row as
+written, and the gap-list arithmetic prose (the one sentence the tally
+guard does not check, already stale at `32 + 4 = 36`) corrected to
+`34 + 3 = 37, and 37 + 8 = 45`. Python tree: the scene's second
+"deliberate difference" deleted (parametric prisms stay), the eval
+seam row reads `[POST_VOLUME] * PATTERN_COUNT`, the outline row
+tessellates every body (`.body()` refuses typed on `instances`), the
+tour guard's blind spot (2) is one item, a docstring's "four ways"
+now names the constant (2). No kernel change; `demos/tour` untouched;
+the lane ran the pinned ruff for real. One inherited red on the first
+run (`render lanes / freecad montages` hung at its upload step with
+both lanes reporting `matches this render`; `rerun-failed-jobs` is
+403 for this integration) cleared by the main re-merge — green on the
+landed head, recorded in a PR comment. Orchestrator note: main gained
+EVAL's per-node nominal-environment work (`editor-core/src/eval/`,
+its tests) and an AB-LOG row after this head's last merge, none of
+which overlaps the diff, so it landed on that run's green without
+another chase.
+
+**LIB-B-MEASURES MERGED (2026-09-08, #2198; mechanical under the
+08-29 ruling, no A/B row). The authoring half of measurement bound,
+and `FAMILIES` is EMPTY.** Two of the kernel's twenty-three recipe
+node kinds — `Measure` and `Assertion` — had been unconstructible from
+Python for the life of the binding while `Value.measure`/`assertion`
+read them; now `MeasurePrimitive` (`.distance/.angle/.min_clearance/
+.gap`, frozen static constructors reading `verb`/`dimension`/an
+argument-ordered `refs` pair off the kernel's own doors),
+`AssertionDir` (`AtLeast`/`AtMost` with `symbol` — the `BooleanOp`
+MIRROR rather than the brief's constructor-class shape, argued: every
+fieldless kernel enum on this surface is an `eq_int` mirror and the
+spelling buys the exhaustiveness witness
+`_binds_every_kernel_direction`), `MeasureExpr` (the WHOLE arithmetic
+— `primitive/value/add/sub/neg/mul/div/min/max`, `dimension`, a
+pre-order `primitives`; `value` takes an `Expr` from `Doc.parse_expr`,
+the one text door), `Node.measure(expr, refs: list[tuple[NodeId,
+str]])` through the kernel's own `Node::measure` so an index past the
+end refuses where it is written (`MeasureNodeFault`:
+`variant/verb/index/refs`), and `Node.assertion(measure, dir, bound:
+Expr)` — the bound an `Expr` because its dimension is fixed by the
+node it points at, not by a slot address, and so a bound can BE a
+document parameter (re-decidable by an edit; pinned Holds → Violated
+on one `set_doc_param_value`). The gate measured and it is the LANE,
+not a feature: every curated name sits in `pncad/src/document.rs`
+under no `cfg`; `min_clearance` is answered by `MinClearanceLane`,
+whose only `Some` impl is `Interval`, and the binding evaluates at
+`f64` alone — so `MeasureUnavailableAt` (`variant/verb/scalar/door`,
+tag `needs_enclosure`, raised by `Value.measure` in place of
+`EvaluationError`) IS reachable on the default build and
+`MinClearanceRefusal` is reachable at NO feature set; it stays on the
+roster retagged SHAPE with that sentence (a third way off a charter,
+after B-DISTRIBUTIONS's two), and `SitedRef` retagged SHAPE (never
+handed across — both authoring doors take a node and a name). The
+name collision with B-DISTRIBUTIONS's `MeasureUnavailable` resolved by
+keeping the Rust type's own name: neither subclasses the other, the
+two tag functions deliberately not one, the non-subclassing pinned.
+`MeasureExpr`'s arithmetic raises the expression layer's own
+`DimensionError` through `LiteralError` (a shared class WIDENED:
+`LiteralError.value` now `Optional[float]`, the door inventory at four
+doors, the "every kind on this class is a literal-value refusal"
+sentence rewritten because the unit made it false; routing to
+`ErrorClass::Dimension` rejected to keep "never intercepts an
+expression-layer mismatch" true). Five rows leave `NOT_BOUND` under
+rule 1; every remaining `gap:` cites an AUDIT id (`G2`), none the
+census owns. Closed forms re-derived, not transcribed from
+`m10_2_measure.rs`: ±0.30 cylinders measure 0.60, slabs gap +2 in
+both role orders, opposed caps subtend exactly pi, bore/pin gap
+`r_bore - r_pin` across all three C5 regimes, the same vertex name at
+an extrude and its transform exactly the translation apart; a
+`min_clearance` measure evaluates with no value and its assertion
+reports `Unevaluated` naming verb and door; a document carrying both
+saves, loads and `bit_eq`s. Sweeps: every `Node` arm's constructor
+(two absent: `Sweep`, not-this-unit, and the n-ary `Union` with
+`SetMembers` beside it, FILED as
+`n-ary-union-and-set-members-have-no-python-door`); every measurement
+refusal arm with ten reached and three not, each with its reason
+(`measure_malformed` at the EDIT door unreachable by construction,
+its LOAD twin reached; `measure_ref_unreadable` needs the state
+`test_face_frame.py` records as unreachable). `test_north_star.py`'s
+G1-residue paragraph ("an expression goes in through no door at all")
+corrected — narrower, still there. A second site of #694
+(`load-path-stringifies-structured-refusals`, at `Snapshot`) named
+and pinned. Outside the fence, PR body only: a measure authored over
+the product ROOTS takes them (D-3's tip transfer) and `product` then
+refuses `no_body_roots` with no `set_roots` repair — pinned as a row
+whose docstring says it exists to go red with the argument in hand.
+42 new Python tests; the lane ran the pinned ruff for real; no kernel
+crate touched. Orchestrator note: main gained BENCH-PATTERN after
+this head's last merge (`bench_scene.py`, the assembly tests, the
+audit page, tracker files), none overlapping the diff; merged in for
+the log tail alone and landed on run 34225477952's green without
+another chase.
