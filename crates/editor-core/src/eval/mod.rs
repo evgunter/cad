@@ -338,7 +338,23 @@ pub enum ValuePayload<T: Decide> {
         below: SplitSide<T>,
     },
     /// A pattern's instances AS DATA (D3: patterns do not implicitly
-    /// union; index `i` is the A8/N1 `Instance(i)` substrate).
+    /// union; index `i` is the A8/N1 `Instance(i)` substrate — for a
+    /// nested pattern the flat index `j·M + i`, `wire_pattern`'s
+    /// layout).
+    ///
+    /// **Who takes it, and who refuses.** The placers take it WHOLE
+    /// and are shape-preserving over it: `Transform` yields the same
+    /// instances under one rigid map, `Pattern` yields their `N·M`
+    /// placements, both as `Instances`, because a rigid map of N
+    /// bodies is N rigid maps and needs no guess. `Part` takes one
+    /// instance out of it by index, and the product gather takes
+    /// every instance in order. Every other body consumer — a boolean
+    /// or union member, a split's target, a blend's, a shell's, a
+    /// placed union's prototype — takes ONE body and refuses this
+    /// value typed (`WrongOperand`): a boolean of N bodies is N
+    /// booleans or one union of them, and the recipe does not guess
+    /// which (D3), so the asymmetry between the placers and the rest
+    /// is the decision, not an omission.
     Instances(Vec<Arc<Body<T>>>),
     /// A Declare node's pairs with their contact classes, passed
     /// through as data (D3; the boolean consumes them at its
@@ -431,6 +447,15 @@ impl<T: Decide> ValuePayload<T> {
 /// the two families a circular rule's axis is actually authored as —
 /// a datum and a body. The other families are by inspection, and this
 /// sentence is where that is said.
+///
+/// **One kind this cannot answer from the node alone:** a `Transform`
+/// is shape-preserving over its input's value (`Body → Body`,
+/// `Instances → Instances`), so its family is its INPUT's, and a
+/// reader holding only the node answers "body" — right for every
+/// transform of a body, and the one-body word for a transform of a
+/// pattern, whose evaluation says "instances". Reading through the
+/// input needs the document, which this signature does not carry
+/// (`work/eval/node-value-kind-answers-a-transform-by-node-kind.md`).
 pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
     use crate::node::Node;
     match node {

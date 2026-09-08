@@ -565,8 +565,11 @@ fn value_of<T: Decide>(
 }
 
 /// A single-body operand: a Body value, or a boolean's non-empty
-/// result. Splits and patterns need PR 3's naming layer to select a
-/// part — typed refusal, not a guess.
+/// result — what every consumer that genuinely takes ONE body reads
+/// through (a boolean, a split, a blend, a shell, a placed union).
+/// A value of several bodies refuses typed here; the recipe's way of
+/// naming one of them is [`crate::node::Node::Part`], and the two
+/// placers take the whole value through [`placeable_operand`].
 fn body_operand<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
@@ -579,6 +582,44 @@ fn body_operand<T: Decide>(
         other => Err(NodeErrorKind::WrongOperand {
             input,
             expected: "body",
+            found: other.kind_name(),
+        }),
+    }
+}
+
+/// **What a placer places**: the two value shapes a rigid map is
+/// defined over. The placers (`Transform`, `Pattern`) are
+/// shape-preserving over their input's value — `Body → Body`,
+/// `Instances → Instances` — so this is the operand they read, beside
+/// [`body_operand`] rather than through it.
+enum Placeable<T: Decide> {
+    /// One body: a `Body` value or a boolean's non-empty result,
+    /// exactly as [`body_operand`] admits them.
+    Body(Arc<Body<T>>),
+    /// Several placed bodies, in the input's own instance order; the
+    /// input's name table indexes them by that order.
+    Instances(Vec<Arc<Body<T>>>),
+}
+
+/// The operand of a placer: one body, or an `Instances` value taken
+/// whole. Everything else refuses through the same typed door as
+/// [`body_operand`], naming both admitted shapes; an empty boolean is
+/// the same typed absence it is there.
+fn placeable_operand<T: Decide>(
+    results: &Results<T>,
+    input: RecipeNodeId,
+) -> Result<Placeable<T>, NodeErrorKind> {
+    let v = value_of(results, input)?;
+    match &v.payload {
+        ValuePayload::Body(b) => Ok(Placeable::Body(Arc::clone(b))),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            Ok(Placeable::Body(Arc::clone(body)))
+        }
+        ValuePayload::Boolean(BooleanValue::Empty) => Err(NodeErrorKind::EmptyOperand { input }),
+        ValuePayload::Instances(bodies) => Ok(Placeable::Instances(bodies.clone())),
+        other => Err(NodeErrorKind::WrongOperand {
+            input,
+            expected: "body or instances",
             found: other.kind_name(),
         }),
     }
@@ -2597,6 +2638,10 @@ fn wire_part<T: Decide>(
             let index = slots::count(vals, SlotId::Instance).ok_or(NodeErrorKind::MissingSlot {
                 slot: SlotId::Instance,
             })?;
+            // The index is into the value's FLAT list: over a nested
+            // pattern's value, body `j·M + i` (placement `j` of the
+            // inner instance `i`, the layout `wire_pattern` fixes),
+            // and the out-of-range refusal reads the flat count.
             // The count is a u32 quantity in every table row (a name's
             // output-body index), so a value past that is the
             // pattern's own emission bug, refused typed before any
@@ -3707,7 +3752,7 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, input)?;
+    let operand = placeable_operand(results, input)?;
     let translation = need_vec3(vals, SlotId::Translation)?;
     let rot_axis = unit(
         need_vec3(vals, SlotId::RotationAxis)?,
@@ -3716,21 +3761,46 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     )?;
     let angle = need_scalar(vals, SlotId::RotationAngle)?;
     let map = transform_map(translation, rot_axis, angle);
-    let mut placed = transform_rigid(&body, &map, tol).map_err(NodeErrorKind::Transform)?;
-    // N6 composition: `transform_rigid` cleared the source records
-    // (its geometric rewrite invalidates the bit-identity claim); the
-    // recipe layer re-stamps each description with the INPUT's source
-    // wrapped by this placing node (keys are stable across the op).
-    // Unsourced input descriptions stay unsourced — never invented.
-    compose_placed(&body, &mut placed, id, 0);
+    // ONE map, applied per body. `transform_rigid` cleared the source
+    // records (its geometric rewrite invalidates the bit-identity
+    // claim); the recipe layer re-stamps each description with the
+    // INPUT's source wrapped by this placing node (N6 composition;
+    // keys are stable across the op), the body's index in the value
+    // as the placement ordinal — 0 for one body, so a transform of
+    // instances stamps its i-th body as its i-th placement, and two
+    // bodies of one node never share a source. Unsourced input
+    // descriptions stay unsourced — never invented.
+    let place = |body: &Arc<Body<T>>, ordinal: u32| -> Result<Arc<Body<T>>, NodeErrorKind> {
+        let mut placed = transform_rigid(body, &map, tol).map_err(NodeErrorKind::Transform)?;
+        compose_placed(body, &mut placed, id, ordinal);
+        Ok(Arc::new(placed))
+    };
+    // Shape-preserving over the value: a rigid map of N bodies is N
+    // rigid maps, in the input's own order, so a transform of an
+    // `Instances` value is `Instances` and its i-th body is the map
+    // of the input's i-th — bit for bit what the same map does to
+    // that body selected alone through `Node::Part`.
+    let payload = match &operand {
+        Placeable::Body(body) => ValuePayload::Body(place(body, 0)?),
+        Placeable::Instances(bodies) => ValuePayload::Instances(
+            bodies
+                .iter()
+                .enumerate()
+                .map(|(i, body)| place(body, body_ordinal(i)?))
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+    };
     // Identity-preserving pass-through (spec D2): the transform
     // contributes NO RolePath segment — `transform_rigid` is
     // key-stable (arenas rewritten in place of a clone), so the
     // input's table rows hold verbatim: same names, same keys, the
     // N1 derivation-path semantics (the name still points at the
     // MINTING node; the placement is recipe context, not identity).
+    // Over `Instances` this holds body by body: a row's output-body
+    // index is the instance index, and the i-th output body is the
+    // i-th input body placed.
     let table = Arc::clone(&value_of(results, input)?.name_table);
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(placed)), table))
+    Ok(OpOut::plain(payload, table))
 }
 
 /// The resolved operands of a stepped placement rule: what the rule's
@@ -3847,32 +3917,60 @@ fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(
             crate::node::PlacementRuleFault::CountSpelling,
         ));
     }
-    let body = body_operand(results, input)?;
+    // The master: one body, or an `Instances` value placed WHOLE as a
+    // multi-output-body master — shape-preserving over the value.
+    let master = match placeable_operand(results, input)? {
+        Placeable::Body(body) => vec![body],
+        Placeable::Instances(bodies) => bodies,
+    };
     let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
         slot: SlotId::Count,
     })?;
     if n < 1 {
         return Err(NodeErrorKind::NonPositiveCount { count: n });
     }
+    // THE LAYOUT, placement-major (D9's order, the one the rule is
+    // walked in): output body `j·M + i` is placement `j` of the
+    // master's body `i`, `M` the master's body count. For a one-body
+    // master this is the instance index itself; for a nested pattern
+    // it is the flat list `Node::Part` selects from and the product
+    // gathers, and `name_pattern` keys its rows by the same arithmetic.
+    let per = master.len();
     let mut instances = Vec::new();
-    // Instance 0 is the input body itself (identity placement, no op
-    // re-run — `stepped_map` at i = 0 IS the identity).
-    instances.push(Arc::clone(&body));
-    for i in 1..n {
-        let map = stepped_map(kind, i, results, vals, tol)?;
-        let mut placed = transform_rigid(&body, &map, tol).map_err(NodeErrorKind::Transform)?;
-        // N6 composition, per structural instance (`Placed { node,
-        // instance: i, .. }`): distinct instances are distinct
-        // sources — their descriptions genuinely differ.
-        compose_placed(&body, &mut placed, id, i as u32);
-        instances.push(Arc::new(placed));
+    // Placement 0 is the master itself (identity placement, no op
+    // re-run — `stepped_map` at i = 0 IS the identity), body by body.
+    instances.extend(master.iter().cloned());
+    for j in 1..n {
+        let map = stepped_map(kind, j, results, vals, tol)?;
+        for body in &master {
+            let mut placed = transform_rigid(body, &map, tol).map_err(NodeErrorKind::Transform)?;
+            // N6 composition, per output body (`Placed { node,
+            // instance: j·M + i, .. }`): distinct placements of
+            // distinct bodies are distinct sources — their
+            // descriptions genuinely differ. Over a one-body master
+            // the ordinal is the structural index `j`.
+            compose_placed(body, &mut placed, id, body_ordinal(instances.len())?);
+            instances.push(Arc::new(placed));
+        }
     }
-    // Instance(i) wrapping (A8/N1): every master entity name wraps
-    // per structural index; `transform_rigid` key-stability means
-    // instance keys equal master keys.
-    let master = Arc::clone(&value_of(results, input)?.name_table);
-    let table = names::name_pattern(id, &master, n, &instances).map_err(NodeErrorKind::Naming)?;
+    // Instance(j) wrapping (A8/N1): every master entity name wraps
+    // per structural placement index; `transform_rigid` key-stability
+    // means instance keys equal master keys.
+    let table = Arc::clone(&value_of(results, input)?.name_table);
+    let table =
+        names::name_pattern(id, &table, n, per, &instances).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Instances(instances), table))
+}
+
+/// An output-body index as the `u32` every table row and every
+/// `Placed` source ordinal carries — refused typed past that range,
+/// as the emission bug it would be, before any body is stamped by it.
+fn body_ordinal(index: usize) -> Result<u32, NodeErrorKind> {
+    u32::try_from(index).map_err(|_| {
+        NodeErrorKind::Naming(names::NamingError::Emission {
+            what: "a placer's output-body count exceeds u32",
+        })
+    })
 }
 
 /// The group boolean (GROUP-BOOLEAN-DESIGN, ratified A′): one
