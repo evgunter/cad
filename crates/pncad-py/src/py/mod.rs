@@ -426,9 +426,9 @@ pyo3::create_exception!(
     NodePickError,
     PncadError,
     "A pick index could not be built. Carries `variant`, the stable \
-     tag of the refusing arm, plus `node`, `through`, `kind`, `body` \
-     and `index_variant`, each present on every arm and `None` where \
-     that arm does not carry it.\n\n\
+     tag of the refusing arm, plus `node`, `through`, `kind`, `body`, \
+     `index_variant`, `patch`, `triangle` and `index`, each present on \
+     every arm and `None` where that arm does not carry it.\n\n\
      `not_a_body` and `no_such_body` are different states and stay \
      apart: a datum, profile, declaration or mate NEVER draws, while a \
      node that draws nothing today (an annihilated boolean, an empty \
@@ -442,8 +442,11 @@ pyo3::create_exception!(
      `Body.tessellate` raises them. `mesh_index` neither forwards nor \
      withholds: the word names the door whose invariant broke — the \
      pick INDEX's — and `index_variant` carries the payload's own \
-     discriminant beside it, `position_out_of_range` today. The \
-     offending patch, triangle and position index are in the message."
+     discriminant beside it, `position_out_of_range` today, with the \
+     three numbers that arm carries: `patch` and `triangle` locate the \
+     offending triangle in the mesh value, `index` is the position it \
+     referenced outside the buffer. The payload's own type is not \
+     raisable, so this is the only door those numbers cross."
 );
 pyo3::create_exception!(
     pncad,

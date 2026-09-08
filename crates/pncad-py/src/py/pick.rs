@@ -165,6 +165,11 @@ fn hit_test_value(py: Python<'_>, err: &s::HitTestError) -> Py<PyAny> {
 /// A second indexing invariant added kernel-side would otherwise join
 /// the first under one word with no alarm anywhere, because the match
 /// a wrapper can write is on the carrier and not on what it carries.
+///
+/// Its three numbers cross beside that discriminant, as `patch`,
+/// `triangle` and `index` (`crate::pick_payload`) — the payload
+/// belongs to a type nothing raises, so it has no door of its own to
+/// carry them and this is the only crossing they get.
 fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
@@ -194,6 +199,17 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
         | s::NodePickError::NoSuchBody { .. }
         | s::NodePickError::Tessellate(_) => none(),
     };
+    // `usize` and `u32` both convert infallibly, so these three
+    // degrade nowhere.
+    let count = |n: usize| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let numbers = crate::pick_payload::index_payload(err);
+    let patch = numbers.patch.map_or_else(none, count);
+    let triangle = numbers.triangle.map_or_else(none, count);
+    let index = numbers.index.map_or_else(none, int);
     typed_err(
         py,
         ErrorClass::NodePick,
@@ -210,6 +226,9 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
             ("kind", kind),
             ("body", body),
             ("index_variant", index_variant),
+            ("patch", patch),
+            ("triangle", triangle),
+            ("index", index),
         ],
     )
 }
