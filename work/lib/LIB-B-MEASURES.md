@@ -5,6 +5,7 @@ title: binding census family B-MEASURES
 status: review
 branch: lib/b-measures
 opened: 2026-09-06
+pr: 2198
 ---
 
 Queued mechanical census family (the B-RESOLVE shape): sweep the
