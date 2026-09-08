@@ -3899,3 +3899,84 @@ the shape; `validation.rs`'s extract licence argued at its site;
 named catch-all). Both closed items carry `## Closed`. No kernel
 crate touched; the lane ran the pinned ruff for real; ~1h15m,
 ~221k tokens.
+
+**LIB-DOORS-3 MERGED (2026-09-08, #2238; mechanical under the 08-29
+ruling, no A/B row). Three doors, all arms behind a bound name and
+so invisible to the census's rule 1: `Node.union(members,
+declare=None)`, `DocEdit.set_members(node, members)`, and
+`DocEdit.bind_v_degree_param(node, name)`.** `union` is the n-ary
+fold over a member LIST in the list's order (D9), with `boolean`'s
+optional `declare` slot fed at the fold step its pair meets at; 22 of
+the kernel's 23 `Node` variants now have a constructor, `Sweep` the
+stated exception (`wire_sweep` refuses unconditionally). `set_members`
+is what makes the membership DATA rather than a boolean chain's
+shape: the three tags minted at LIB-DOORS-1 with no Python caller
+(`set_members_on_non_list`, `too_few_members`, `duplicate_input`) are
+each provoked from Python with the payload asserted (`count`,
+`input`, `node`). `bind_v_degree_param` is `VDegree`'s door beside
+its two siblings, each naming its own slot; `Stations` stays
+undoored (its only node is the sweep) and `bind_count_param`'s prose
+now accounts for all four structural slots. The scene the item asked
+for: `TestLoftPrism`'s three sections skinned at a BOUND degree
+enclose 9 m³ at degree 2 and 8.75 at degree 1, one `set_doc_param`
+apart, with the kernel's value rule still refusing degree 3 bound
+exactly as literal. `test_union.py` pins the fold against
+`boolean(boolean(a,b),c)` and against the three boxes'
+inclusion-exclusion closed form (16.40625 m³), and one row per
+refusal at both doors. The roster in `test_north_star.py` gains the
+three names (the positive list that sees missing arms); the guide
+gains one sentence at the loft rung, no step (LIB-SMALL's). One
+stated deviation: a duplicated inert `@staticmethod` above
+`set_roots` in the stub deleted inside the stanza the unit edits. No
+façade list moved (the argument types were already the loft's and
+the boolean's), no projection changed, no `variant`/`kind` value
+moved; the lane ran the pinned ruff for real. ~40 min, ~195k tokens.
+**LIB-CUR7 MERGED (2026-09-08, #2237; mechanical under the 08-29
+ruling, no A/B row). The `meta_unversioned` arm has its inner word,
+and the six profile discriminants LIB-CUR6's re-sweep filed are
+decided.** `MetaVersionError` carried at `pncad::document` under the
+payload rule (`NOT_CARRIED` 85→84; the family paragraph that held it
+— "a nested refusal whose arm has no inner word" — replaced by the
+one saying both halves of that reading are spent), `meta_version_error_tag`
+(three literals, the kernel's own arms) with its inventory row,
+`edit_inner_variant_tag`'s `MetaUnversioned` arm pointed at it, and
+the construction pin now covers **58 of 58** `EditError` arms; the
+census row moves to `EditError.inner_variant` with the measurement
+(no Python door mints `SetAppearanceMeta`, so the reach is the Rust
+pin). No shipped word moved: the arm's inner word was `None`. The
+six: FIVE carried onto the prelude as one stanza beside the refusals
+that name them — `ContactKind` (three self-intersections, three
+repairs), `EscalationSite` (which stage escalated; the recourse forks
+on it before it reads the band) with `SegmentRef` under it (a seventh
+name, the lane's stated deviation: the rung under `EscalationSite`
+and the direct payload of four other `ProfileError` arms, so
+carrying one without the other stops one short), `FilletLeg` (the
+one thing a caller shortens), `FilletLegCarrier` (decides the UNITS
+of the setback beside it), and `NoCornerReason`, decided beside
+`PathNoCornerReason` as the item asked — the pair closes. `Step` NOT
+carried, argued in `prelude.rs` with its falsifier: the RECORDING half
+of the profile layer (program, replay door, its refusal, the
+structure record) is uncarried whole, and the element type is the
+last thing a replay caller needs; flips if a prelude door ever takes
+or returns a recorded program. `carried_refusal_payloads_are_matchable_through_the_prelude`
+gains the profile rung by bare prelude name. Census: five `INTERIOR`
+by the carrier rule with the measurement (`ProfileError` crosses one
+word per arm at `EvaluationError.inner_kind`; `PathError`'s `corners`
+rows flatten the anchor arm to a word), `NoCornerReason`
+`different-shape` with the corner family whose rows already carry
+its two words. **The re-sweep** at the merge base: banked set EMPTY,
+no new hit — and the methodology finding the item asked to be
+recorded is now its own file,
+`payload-rung-sweep-is-prose-and-a-third-run-disagrees`: three runs,
+three sets of numbers (raw hits 115/137/208 with no tree change
+accounting for the last jump; CUR6's own table and prose disagreed by
+one row), plus the blind spot this run adds — every implementation
+reads three of the façade's FOUR curated lists, and all six hits were
+already on the fourth (`pncad/src/profile.rs`), which did not make
+them false positives (matchability THROUGH the prelude is what a
+curated list owes) but means the scan cannot tell "uncurated" from
+"curated on a list I do not read". What closes it is the sweep as a
+committed script reporting WHICH list. Orchestrator note: that item
+is the right next CUR unit, and a mechanical one. No kernel crate
+touched beyond `pncad`'s lists; the lane ran the pinned ruff for
+real. ~77 min, ~244k tokens.

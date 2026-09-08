@@ -1717,7 +1717,11 @@ fn inner_arm_tags_are_stable() {
 #[test]
 fn edit_inner_variant_tags_are_stable() {
     use crate::tags::{edit_error_tag, edit_inner_variant_tag};
-    use pncad::document::{Distribution, EditError, ParamName, RecipeNodeId, RootFault};
+    use pncad::document::{
+        Distribution, EditError, MetaVersionError, ParamName, RecipeNodeId, RootFault,
+    };
+    use pncad::prelude::StableName;
+    use pncad::select::{EntityKind, RoleSeg};
 
     let pair = |err: &EditError| (edit_error_tag(err), edit_inner_variant_tag(err));
 
@@ -1734,6 +1738,20 @@ fn edit_inner_variant_tags_are_stable() {
     assert_eq!(
         pair(&EditError::EmptyWitnessBulk),
         ("empty_witness_bulk", None)
+    );
+    // The shape refusal under the metadata arm: which of the three
+    // ways the D7 producer convention was broken.
+    assert_eq!(
+        pair(&EditError::MetaUnversioned {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(7),
+                path: vec![RoleSeg::OutputBody],
+            },
+            key: "fit".to_owned(),
+            error: MetaVersionError::VersionNotInt,
+        }),
+        ("meta_unversioned", Some("version_not_int"))
     );
     // `Roots` reads its word off the fault already, the way
     // `PlacementRule` does one carrier over.
@@ -1760,21 +1778,19 @@ fn edit_inner_variant_tags_are_stable() {
 /// can provoke it, so it is pinned where it can be provoked: by
 /// construction, on the row with no interpreter.
 ///
-/// The pin is TOTAL over the enum but for one arm: 57 of the 58 are
-/// built here, so an arm whose projection is dropped shows up as a
-/// changed set rather than as an absence nobody counted. The
-/// exception is `MetaUnversioned`, whose reason is stated at its
-/// place below. Totality of the PROJECTION is a different guarantee
-/// and a stronger one: `edit_payload`'s match is exhaustive with no
-/// wildcard, so an arm that reached Python unprojected would not
-/// compile.
+/// The pin is TOTAL over the enum: all 58 arms are built here, so an
+/// arm whose projection is dropped shows up as a changed set rather
+/// than as an absence nobody counted. Totality of the PROJECTION is a
+/// different guarantee and a stronger one: `edit_payload`'s match is
+/// exhaustive with no wildcard, so an arm that reached Python
+/// unprojected would not compile.
 #[test]
 fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
-        EditError as E, ExprPath, Frame, MeasureNodeFault, ParamName, RecipeNodeId, RootFault,
-        SlotId,
+        EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
+        RecipeNodeId, RootFault, SlotId,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -2029,12 +2045,17 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["name", "key"],
     );
-    // `MetaUnversioned` is the one arm this pin does not construct:
-    // its third field is a `MetaVersionError`, which the façade does
-    // not carry, so nothing in this crate can build one. The arm IS
-    // projected — the match covers it, beside `MetaNotSet`, with the
-    // same `name` and `key` — and what is missing is only the ability
-    // to hold one here. `work/lib/` carries that as its own row.
+    // The shape refusal is the arm's third field and rides on
+    // `inner_variant`, not on the payload: the projection is
+    // `MetaNotSet`'s, the same `name` and `key`.
+    carries(
+        &E::MetaUnversioned {
+            name: named(),
+            key: "fit".to_owned(),
+            error: MetaVersionError::MissingVersion,
+        },
+        &["name", "key"],
+    );
     carries(
         &E::MetaNonFinite {
             name: named(),
@@ -2997,6 +3018,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "measure_node_fault_tag",
+            "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
         ],
@@ -3184,6 +3206,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "mesh_pick_error_tag",
         values: &["position_out_of_range"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "meta_version_error_tag",
+        values: &["missing_version", "not_a_map", "version_not_int"],
         delegates: &[],
     },
     TagEntry {
