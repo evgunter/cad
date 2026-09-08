@@ -225,14 +225,26 @@ TABLE_SEPARATOR='|---|---|---|'
 # would make an edit to the tail of the sentence — which cannot change
 # which paragraph it is — a red. The prefix is the identifying half.
 #
-# THE COUNT WORD IS INSIDE IT, deliberately. `KIND_COUNT` below is the
-# gate's copy of the number and this sentence is the README's; carrying
-# the word in the anchor is what holds them together, because a section
-# amended to four kinds without touching this file leaves no line
-# starting "Three kinds of list stay hand-written" and the gate reds
-# naming the anchor. Before this constant the prose number was read by
-# nothing at all: the section could say "Four" over three bullets and
-# every check stayed green.
+# THE COUNT WORD IS INSIDE IT, deliberately, and BOTH copies are kept.
+# `KIND_COUNT` below is the gate's number and this sentence carries the
+# README's. They are not one copy too many: `KIND_COUNT` is what makes
+# an amendment cost an edit to THIS file, so deriving the number from
+# this string and deleting that constant would close the divergence by
+# giving up the thing it exists for.
+#
+# WHAT THE ANCHOR ALONE DOES NOT BUY, stated because it was claimed
+# here. Carrying the word holds the README against the GATE: a section
+# amended to four kinds leaves no line starting "Three kinds of list
+# stay hand-written" and the anchor reds. It does not hold the gate
+# against ITSELF, and the missing-anchor red used to offer the way
+# around as a co-equal repair — take "change `KIND_ANCHOR`" alone, to
+# `Four kinds of list stay hand-written` with `KIND_COUNT` left at 3,
+# and a section saying Four over three bullets went GREEN, with `3
+# kinds read from "Four kinds of list stay hand-written"` on the OK
+# line. `anchor_states_count` below is the third edge of that triangle:
+# this string's first word and `KIND_COUNT` are ONE assertion in two
+# spellings, checked against each other before the README is opened, so
+# the pair cannot be walked apart one edit at a time.
 KIND_ANCHOR='Three kinds of list stay hand-written'
 
 # HOW MANY KINDS THE SECTION RATIFIES. The README says the kinds a row
@@ -247,6 +259,10 @@ KIND_ANCHOR='Three kinds of list stay hand-written'
 # file as well as to that section. That is the right price for an
 # amendment to a ratification, and the wrong one for a docs-tier edit
 # that arrives alone.
+#
+# ITS WORD IN `KIND_ANCHOR` MOVES WITH IT — `anchor_states_count` below
+# refuses a pair that disagrees, so raising this number is two edits in
+# one diff and neither of them is optional.
 KIND_COUNT=3
 
 # The repair a diagnosis points at. One home for the two messages that
@@ -491,26 +507,70 @@ const_hits() {
 #      The bullet is not consumed by the transition — the rule sets the
 #      state without a `next`, so state 2's own rules see the same line.
 #   2  at the list the paragraph announced: a blank line, an indented
-#      continuation line and a `- ` bullet keep it open; ANY other line
+#      continuation line and a bullet keep it open; ANY other line
 #      closes it, and the bullets of the section's later prose are
 #      therefore not read. The list must be what follows the paragraph:
 #      a prose paragraph in between closes the scan with nothing
 #      collected, which the caller reds on.
+#
+# A MARKER AT ONE TO THREE SPACES IS A BULLET, and reading one at
+# column 0 only is the way this reader could be wrong AND quiet.
+# CommonMark — and therefore GitHub — allows a list marker up to three
+# spaces in and lets the list interrupt a paragraph, so
+#
+#       - **A fourth kind** …
+#
+# two spaces in, on the line after the announcing sentence or above the
+# real bullets, renders to every human reader as the first item of the
+# announced list. Read at column 0, state 1 swallowed it as the
+# announcing sentence's own wrap and state 2 swallowed it as a
+# continuation line: a ratified kind every renderer draws and the gate
+# does not count, printing OK over four. That is this gate's own thesis
+# inverted, and the reason the boundary is encoded exactly rather than
+# approximated with `[[:space:]]*`.
+#
+# FOUR IS THE OTHER SIDE OF IT, and each position is a different
+# renderer answer, none of them a fourth top-level kind: four spaces
+# after the announcing paragraph is a LAZY CONTINUATION of it and the
+# marker is drawn as literal text; four after a bullet is a NESTED item
+# of that bullet; four after a blank line is an INDENTED CODE BLOCK;
+# and a leading TAB advances to column four, so it is one of those
+# three too. All of them reach the continuation rule, which is why the
+# bullet patterns spell literal spaces and the continuation rule keeps
+# `[[:space:]]`. Every rendering in this paragraph was checked with
+# `markdown-it-py` in CommonMark mode, and both sides of the boundary
+# are planted below.
+#
+# THE ANCHOR OPENS A PARAGRAPH, which is what tells a MENTION of the
+# sentence from a second announcement of the list. The README quotes
+# this sentence in the prose that describes the gate, and where a
+# quotation falls on a line is an artifact of the fill column: at
+# column 1 of a wrapped line it was a second `@`, and the red — the
+# section "announces the ratified kinds more than once" — names a
+# repair that is wrong for a quotation. The rule is the renderer's
+# rather than a heuristic: a non-blank line following a paragraph line
+# is a lazy continuation of that paragraph and never a new one, so a
+# line that does not follow a blank line or a heading announces
+# nothing. `opens` is that predicate, computed for every line before
+# any other rule runs, because a rule that ends in `next` would skip a
+# recorder placed after it.
 readme_kinds() {
   local status=0
   awk -v sec="$SECTION" -v anchor="$KIND_ANCHOR" '
+    BEGIN { opens = 1 }
+    { prevopens = opens; opens = ($0 ~ /^[[:space:]]*$/ || $0 ~ /^#/) }
     $0 == sec { insec = 1; st = 0; next }
     insec && /^#/ { insec = 0; st = 0; next }
-    insec && index($0, anchor) == 1 { print "@"; st = 1; next }
+    insec && prevopens && index($0, anchor) == 1 { print "@"; st = 1; next }
     st == 1 && /^[[:space:]]*$/ { st = 2; next }
-    st == 1 && /^- / { st = 2 }
+    st == 1 && /^ {0,3}- / { st = 2 }
     st == 1 { next }
-    st == 2 && /^- \*\*/ { print; next }
+    st == 2 && /^ {0,3}- \*\*/ { print; next }
     st == 2 && /^[[:space:]]*$/ { next }
     st == 2 && /^([[:space:]]|- )/ { next }
     st == 2 { st = 0 }
   ' "$README" |
-    sed -nE -e 's/^- \*\*(.+)\*\*.*/\1/p' -e '/^@$/p' || status=$?
+    sed -nE -e 's/^ {0,3}- \*\*(.+)\*\*.*/\1/p' -e '/^@$/p' || status=$?
   if [ "$status" -ne 0 ]; then
     reader_failed "kinds reader over $README" "$status"
   fi
@@ -592,8 +652,62 @@ contains() {
   return 1
 }
 
+# THE ENGLISH WORD FOR A COUNT, so `KIND_ANCHOR`'s first word and
+# `KIND_COUNT` can be COMPARED rather than trusted to have been moved
+# together. Nine is past anything this section will ratify; a count
+# with no word is its own red rather than a quiet pass, because a guard
+# that cannot answer must not answer green.
+count_word() {
+  case "$1" in
+    1) printf 'One\n' ;;
+    2) printf 'Two\n' ;;
+    3) printf 'Three\n' ;;
+    4) printf 'Four\n' ;;
+    5) printf 'Five\n' ;;
+    6) printf 'Six\n' ;;
+    7) printf 'Seven\n' ;;
+    8) printf 'Eight\n' ;;
+    9) printf 'Nine\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+# THE TWO CONSTANTS ARE ONE ASSERTION, and this is where that is
+# enforced rather than asked for in a diagnosis. Returns 0 when
+# ANCHOR's first word is the word for COUNT, 1 when it is not, and 2
+# when COUNT has no word at all — three answers, because the caller's
+# two messages point at different repairs. It reads nothing outside its
+# arguments, which is what lets the self-test exercise both directions:
+# a fixture plants a TREE, and this pair lives in this file.
+anchor_states_count() {
+  local want
+  want=$(count_word "$2") || return 2
+  [ "${1%% *}" = "$want" ]
+}
+
 gate() {
   local rc=0 row hit kind
+  # THE GATE'S OWN TWO COPIES OF THE NUMBER, BEFORE THE README'S. Every
+  # check below is about "the count this section ratifies", and this
+  # file spells that count twice — as `KIND_COUNT` and as the first
+  # word of `KIND_ANCHOR`. Split, they make the section's prose number
+  # and its bullets free to disagree in silence again, one edit at a
+  # time, with each edit taken from a diagnosis that named it. Asked
+  # first because it needs no tree and because a pass over a broken
+  # pair is a pass about the wrong number.
+  # `|| pair=$?`, NOT a bare call: under `set -e` a bare call returning
+  # non-zero kills the gate before its own diagnosis, which is the
+  # shape `gate_selftest_assert_diagnosed` refuses.
+  local pair=0 anchor_word=${KIND_ANCHOR%% *} want_word=
+  want_word=$(count_word "$KIND_COUNT") || want_word=
+  anchor_states_count "$KIND_ANCHOR" "$KIND_COUNT" || pair=$?
+  case $pair in
+    0) ;;
+    2) gate_error "$(gate_name): \`KIND_COUNT\` in $0 is $KIND_COUNT and \`count_word\` has no English word for it, so the number this gate holds cannot be checked against the number word in \`KIND_ANCHOR\` — extend that table in the same diff that raises the count, because an unchecked pair is how the two spellings drift apart"
+       exit 1 ;;
+    *) gate_error "$(gate_name): this gate's own two copies of the count disagree — \`KIND_ANCHOR\` in $0 opens \"$anchor_word\" and \`KIND_COUNT\` is $KIND_COUNT (\"$want_word\"). They are ONE assertion in two spellings: the anchor is the only reading anything gives $README's prose number, and \`KIND_COUNT\` is what the bullets are counted against, so a pair like this is exactly how a section goes green announcing \"$anchor_word\" over $KIND_COUNT bullets. Move both, in the diff that amends the ratification"
+       exit 1 ;;
+  esac
   gate_require_file "$README"
   if [ ! -d "$SRC" ]; then
     gate_error "$(gate_name): $SRC does not exist under $PWD — the gate's subject is gone, so it scanned nothing, which is not a pass"
@@ -631,11 +745,11 @@ gate() {
     fi
   done
   if [ "$anchors" -eq 0 ]; then
-    gate_error "$(gate_name): no line inside $README's \"$SECTION\" section begins \"$KIND_ANCHOR\", so the paragraph that announces the ratified kinds is gone and this gate has no anchor to read them under. It reads that paragraph's bullets and NOT the section's, because the section is prose and a bolded bullet in it is not a ratified kind — restore the sentence, or change \`KIND_ANCHOR\` in $0 in the same diff"
+    gate_error "$(gate_name): no line inside $README's \"$SECTION\" section begins \"$KIND_ANCHOR\", so the paragraph that announces the ratified kinds is gone and this gate has no anchor to read them under. It reads that paragraph's bullets and NOT the section's, because the section is prose and a bolded bullet in it is not a ratified kind — restore the sentence, or change \`KIND_ANCHOR\` in $0 in the same diff — and its NUMBER WORD moves with \`KIND_COUNT\` there, which this gate refuses to let disagree: the anchor alone is not the repair, because rewording it to match a section that ratifies a different number of kinds is how the two go green over a count nobody approved"
     exit 1
   fi
   if [ "$anchors" -ne 1 ]; then
-    gate_error "$(gate_name): $anchors lines inside $README's \"$SECTION\" section begin \"$KIND_ANCHOR\", so the section announces the ratified kinds more than once and this gate reads the bullets under the first. One paragraph enumerates them — delete the duplicate, or reword it so it does not claim to be the enumeration"
+    gate_error "$(gate_name): $anchors lines inside $README's \"$SECTION\" section begin \"$KIND_ANCHOR\", so the section announces the ratified kinds more than once and this gate reads the bullets under the first. One paragraph enumerates them. A line that QUOTES the sentence inside a paragraph is not one of these — only a line OPENING a paragraph is read as an announcement — so what this found is a second paragraph starting with it: delete the duplicate, or reword it so it does not open with the announcing sentence. If the ratification itself is being amended, that is \`KIND_ANCHOR\` in $0 and its number word's partner \`KIND_COUNT\`, moved together"
     exit 1
   fi
   if [ "${#kinds[@]}" -eq 0 ]; then
@@ -643,7 +757,7 @@ gate() {
     exit 1
   fi
   if [ "${#kinds[@]}" -ne "$KIND_COUNT" ]; then
-    gate_error "$(gate_name): $README's \"$SECTION\" section ratifies $KIND_COUNT kinds of hand-written list and this pass read ${#kinds[@]}: $(printf '"%s" ' "${kinds[@]}"). A kind added or removed is an AMENDMENT to that ratification, not a docs edit — argue it there and change \`KIND_COUNT\` in $0 in the same diff, so the amendment cannot arrive as a table cell nobody had to approve"
+    gate_error "$(gate_name): the two sides of this count disagree. \`KIND_COUNT\` in $0 says the section ratifies $KIND_COUNT kinds of hand-written list; the bullets under \"$KIND_ANCHOR\" in $README are ${#kinds[@]}: $(printf '"%s" ' "${kinds[@]}"). Which side is wrong decides the repair and this gate cannot know which: a kind added to or removed from that list is an AMENDMENT to the ratification — argue it there, and move \`KIND_COUNT\` and the anchor's number word in $0 in the same diff, so the amendment cannot arrive as a table cell nobody had to approve. Adding a bullet to make $README match this file is the repair only when this file was the side that was right"
     exit 1
   fi
 
@@ -765,6 +879,13 @@ gate() {
   done
 
   [ "$rc" -eq 0 ] || exit 1
+  # THE COUNT AND THE WORD ON THIS LINE CANNOT DISAGREE, and that is a
+  # property of two guards rather than of this `printf`: `${#kinds[@]}`
+  # has been checked equal to `KIND_COUNT`, and `KIND_ANCHOR`'s first
+  # word was checked to be the word for `KIND_COUNT` before the README
+  # was opened. `3 kinds read from "Four kinds of list stay
+  # hand-written"` was reachable, and a green line contradicting itself
+  # is read by nobody — so it is made unreachable, not diagnosed.
   gate_ok "no hand-written membership list under $SRC that \"$TABLE\" does not ratify (${#rows[@]} ratified, one list each; ${#kinds[@]} kinds read from \"$KIND_ANCHOR\")"
 }
 
@@ -1004,6 +1125,24 @@ plant_a_paragraph_between_the_anchor_and_the_list() {
     "$1/crates/viewer/README.md"
 }
 
+# A LIST MARKER ONE TO THREE SPACES IN IS A BULLET, and this is the
+# hole a column-0 reader was WRONG AND QUIET about: CommonMark indents
+# a marker up to three spaces and lets a list interrupt a paragraph, so
+# both of these render as the FIRST ITEM of the announced list and both
+# went green — the gate read three kinds and printed OK over four. Two
+# planters because they are two rules: the first meets state 1's escape
+# from the announcing paragraph (no blank line above it), the second
+# meets state 2's own bullet and the `sed` that extracts the name.
+plant_an_indented_fourth_kind_interrupting_the_paragraph() {
+  sed -i 's/^rather than an exception:$/rather than an exception:\n  - **A fourth kind** two spaces in./' \
+    "$1/crates/viewer/README.md"
+}
+
+plant_an_indented_fourth_kind_in_the_list() {
+  sed -i 's/^- \*\*A registry of struct constants\*\*.*$/   - **A fourth kind** three spaces in.\n&/' \
+    "$1/crates/viewer/README.md"
+}
+
 plant_readme_gone() { rm -f "$1/crates/viewer/README.md"; }
 
 plant_src_gone() { rm -rf "$1/crates/viewer/src"; }
@@ -1094,6 +1233,59 @@ pass_no_blank_line_before_the_list() {
   sed -i '/^rather than an exception:$/{n;/^$/d}' "$1/crates/viewer/README.md"
 }
 
+# FOUR SPACES IS THE OTHER SIDE OF THAT BOUNDARY, and these are the
+# cases that keep it from being widened to `[[:space:]]*`. Each is a
+# different renderer answer and none of them is a fourth ratified kind:
+# four spaces after the announcing paragraph is a LAZY CONTINUATION of
+# it, drawn as literal text inside the sentence; four under a bullet is
+# a NESTED item of that bullet; a leading TAB advances to column four
+# and, after a blank line, is an INDENTED CODE BLOCK. Checked against
+# `markdown-it-py` in CommonMark mode, one case per answer.
+pass_a_four_space_marker_continuing_the_paragraph() {
+  sed -i 's/^rather than an exception:$/rather than an exception:\n    - **not a bullet** four spaces in./' \
+    "$1/crates/viewer/README.md"
+}
+
+pass_a_four_space_marker_nested_under_a_bullet() {
+  sed -i 's/^- \*\*A deliberately partial list\*\*.*$/&\n    - **a nested item** four spaces in./' \
+    "$1/crates/viewer/README.md"
+}
+
+pass_a_tab_indented_marker() {
+  sed -i 's/^- \*\*A registry of struct constants\*\*.*$/\t- **a code block** after a tab.\n&/' \
+    "$1/crates/viewer/README.md"
+}
+
+# A QUOTATION IS NOT AN ANNOUNCEMENT. This page quotes the announcing
+# sentence in the prose describing the gate, and where a quotation
+# falls on a line is an artifact of the fill column — at column 1 of a
+# wrapped line the reader counted a second `@` and reported that the
+# section "announces the ratified kinds more than once", whose repair
+# (delete the duplicate) is the wrong one for a quotation. The line
+# here continues a paragraph, and a lazy continuation is never a new
+# one, so nothing is announced.
+pass_the_anchor_quoted_inside_a_paragraph() {
+  sed -i 's/^More prose\.$/More prose, which mentions the sentence\nThree kinds of list stay hand-written and does not announce a list./' \
+    "$1/crates/viewer/README.md"
+}
+
+# THE GATE'S OWN CONSTANT PAIR, AS A DIRECT CALL. Every case above
+# plants a TREE and runs this file over it, while `KIND_ANCHOR` and
+# `KIND_COUNT` live IN this file: no fixture can express a pair that
+# disagrees, and a test hook that let one would be a way to set the
+# count from outside, which is what `KIND_COUNT` exists to prevent.
+# What can be shown is the predicate the guard is made of — the guard
+# is one `case` over exactly this call — in all three of its answers.
+selftest_anchor_pair() {
+  local want=$1 anchor=$2 count=$3 got=0
+  anchor_states_count "$anchor" "$count" || got=$?
+  if [ "$got" != "$want" ]; then
+    printf 'SELFTEST FAILED: anchor_states_count "%s" %s returned %s, wanted %s\n' \
+      "$anchor" "$count" "$got" "$want" >&2
+    exit 1
+  fi
+}
+
 gate_selftest() {
   gate_selftest_clean
   # THE SCAN-TARGET GUARDS, each shown to fire. A gate that reports
@@ -1148,8 +1340,16 @@ gate_selftest() {
     plant_the_anchor_twice
   gate_selftest_case 'is followed by no `- **kind**` bullets' \
     plant_a_paragraph_between_the_anchor_and_the_list
-  gate_selftest_case "ratifies $KIND_COUNT kinds of hand-written list and this pass read 4" \
+  gate_selftest_case "says the section ratifies $KIND_COUNT kinds of hand-written list" \
     plant_a_fourth_kind
+  # THE INDENT BOUNDARY, in the direction that was silent. The want
+  # string asserts the README SIDE of the count — "the bullets … are 4"
+  # — because a message that named only this file's number is what sent
+  # an author to add a fourth bullet.
+  gate_selftest_case "under \"$KIND_ANCHOR\" in $README are 4" \
+    plant_an_indented_fourth_kind_interrupting_the_paragraph
+  gate_selftest_case "under \"$KIND_ANCHOR\" in $README are 4" \
+    plant_an_indented_fourth_kind_in_the_list
   gate_selftest_case "which is not one the" plant_row_of_an_unratified_kind
   gate_selftest_case 'row `GHOSTS` says `ghosts` declares' plant_row_with_no_list
   gate_selftest_case 'more than one row for `kinds`' plant_two_rows_for_one_list
@@ -1199,10 +1399,28 @@ exec "$GATE_REAL_TOOL" "$@"' plant_named_all
     pass_a_bolded_bullet_after_the_list
   gate_selftest_passes "the kind list written with no blank line above it" \
     pass_no_blank_line_before_the_list
+  gate_selftest_passes "a four-space marker continuing the announcing paragraph" \
+    pass_a_four_space_marker_continuing_the_paragraph
+  gate_selftest_passes "a four-space marker nested under a ratified bullet" \
+    pass_a_four_space_marker_nested_under_a_bullet
+  gate_selftest_passes "a tab-indented marker, which renders as a code block" \
+    pass_a_tab_indented_marker
+  gate_selftest_passes "the announcing sentence QUOTED inside a paragraph" \
+    pass_the_anchor_quoted_inside_a_paragraph
+  # THE TWO CONSTANTS, which no fixture can vary. The middle row is the
+  # green this gate used to have: `KIND_ANCHOR` moved to "Four" on the
+  # missing-anchor red's own advice, `KIND_COUNT` left at 3, and a
+  # section announcing Four over three bullets passing.
+  selftest_anchor_pair 0 "$KIND_ANCHOR" "$KIND_COUNT"
+  selftest_anchor_pair 1 'Four kinds of list stay hand-written' 3
+  selftest_anchor_pair 1 'Three kinds of list stay hand-written' 4
+  selftest_anchor_pair 2 'Ten kinds of list stay hand-written' 10
   # THE COUNT IS THE `gate_selftest_passes` ROWS ABOVE, one per near
   # miss, so a reader can produce the population rather than trust the
-  # number: `grep -c '^  gate_selftest_passes ' $0`.
-  printf '%s selftest OK: passes a clean fixture and twelve near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong — its heading, its table, its kind bullets and the paragraph that announces them — and on a reader that could not run: outright, mid-scan, and after consuming its input\n' "$(gate_name)"
+  # number: `grep -c '^  gate_selftest_passes ' $0`. The constant-pair
+  # rows are not among them and are counted separately, because they
+  # call a predicate rather than run the gate over a tree.
+  printf '%s selftest OK: passes a clean fixture and sixteen near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong — its heading, its table, its kind bullets and the paragraph that announces them, including a bullet indented one to three spaces, which every renderer draws as a ratified kind — and on a reader that could not run: outright, mid-scan, and after consuming its input. Four direct rows hold the two copies of the count in this file against each other\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
