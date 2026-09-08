@@ -4,6 +4,7 @@ kind: issue
 title: the class - every reader that takes a record's FILE column as everything before the first colon
 status: review
 branch: gates/record-column-parser
+pr: 2174
 opened: 2026-09-08
 refs: [bounds-allowlist-select-cuts-at-the-first-colon]
 ---
