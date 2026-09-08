@@ -9,13 +9,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, validated};
-use pncad::geom::{Curve3, Surface};
+use pncad::geom::Surface;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{ArcSweep, BlendError, Center, Open, ProfileLoop, SketchPlane, Start};
-use pncad::prelude::{fillet_edges, mass_properties, query, subtract, validate_geometric};
+use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
+
+#[path = "common/rim_select.rs"]
+mod rim_select;
+use rim_select::{Seeds, rim_at};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -95,52 +99,6 @@ fn ball(x: f64, y: f64, rad: f64) -> Body<f64> {
     .expect("the ball moves")
 }
 
-/// **The rim at latitude `y` and radius `rad`.** Selection by
-/// description: this probe names ONE of the rim's arcs — the station
-/// and the radius are a numeric description no kind predicate answers
-/// — and `query::rim_of` hands back the rim it belongs to.
-fn rim_at(body: &Body<f64>, y: f64, rad: f64) -> Vec<EdgeKey> {
-    match arcs_at(body, y, rad).first() {
-        None => Vec::new(),
-        Some(seed) => query::rim_of(body, *seed)
-            .unwrap_or_else(|e| panic!("the rim at station {y}, radius {rad} is one rim: {e}")),
-    }
-}
-
-/// The probe's own scan: every CLOSED edge whose carrier circle sits at
-/// latitude `y` with radius `rad`, which is where [`rim_at`] gets its
-/// seed.
-///
-/// `1e-9` on both halves, which is `sweep::test_support::arcs_at`'s
-/// window and its reason: a fixture states its rims analytically, so
-/// this is a fixture-selection tolerance and not a kernel predicate.
-/// The scan is spelled here rather than borrowed because this file
-/// drives the kernel from an outside consumer's seat — through the
-/// `pncad` façade, which carries no test vocabulary — and reaching for
-/// the kernel's own selectors would forfeit exactly the evidence the
-/// probe exists to take.
-fn arcs_at(body: &Body<f64>, y: f64, rad: f64) -> Vec<EdgeKey> {
-    query::all_edges(body)
-        .into_iter()
-        .filter(|&k| {
-            let Some(e) = body.get_edge(k) else {
-                return false;
-            };
-            let closed = body
-                .get_half_edge(e.he_plus)
-                .map(|h| Some(h.start) == body.half_edge_end(e.he_plus));
-            if closed != Some(true) {
-                return false;
-            }
-            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
-                return false;
-            };
-            matches!(*c.carrier(), Curve3::Circle { center, radius, .. }
-                if (center.y - y).abs() < 1e-9 && (radius - rad).abs() < 1e-9)
-        })
-        .collect()
-}
-
 fn volume(body: &Body<f64>) -> f64 {
     let p = mass_properties(body, tol()).expect("mass properties");
     assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
@@ -185,7 +143,7 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
     let ys = [(0.0, 0.8), (0.6, 1.0), (1.2, 1.0), (1.8, 0.7)];
     let mut all: Vec<EdgeKey> = Vec::new();
     for (y, rad) in ys {
-        let r = rim_at(&src, y, rad);
+        let r = rim_at(&src, rad, y, Seeds::Closed);
         assert_eq!(r.len(), 1, "one closed rim at y = {y}, got {}", r.len());
         all.extend(r);
     }
@@ -197,7 +155,7 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
     let sequential = |order: &[(f64, f64)]| -> f64 {
         let mut b = vase();
         for &(y, rad) in order {
-            let r = rim_at(&b, y, rad);
+            let r = rim_at(&b, rad, y, Seeds::Closed);
             assert_eq!(r.len(), 1, "one rim at y = {y} before its carve");
             b = fillet_edges(&b, &r, ROLL, tol())
                 .unwrap_or_else(|e| panic!("the y = {y} rim fillets sequentially, got {e:?}"))
@@ -225,11 +183,14 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
 fn p2_one_call_and_sequential_carry_the_same_face_shapes() {
     let src = vase();
     let ys = [(0.0, 0.8), (0.6, 1.0), (1.2, 1.0), (1.8, 0.7)];
-    let all: Vec<EdgeKey> = ys.iter().flat_map(|&(y, r)| rim_at(&src, y, r)).collect();
+    let all: Vec<EdgeKey> = ys
+        .iter()
+        .flat_map(|&(y, r)| rim_at(&src, r, y, Seeds::Closed))
+        .collect();
     let one = fillet_edges(&src, &all, ROLL, tol()).expect("one call");
     let mut b = vase();
     for &(y, rad) in &ys {
-        b = fillet_edges(&b, &rim_at(&b, y, rad), ROLL, tol())
+        b = fillet_edges(&b, &rim_at(&b, rad, y, Seeds::Closed), ROLL, tol())
             .expect("sequential")
             .body;
     }
@@ -263,7 +224,10 @@ fn p2_one_call_and_sequential_carry_the_same_face_shapes() {
 fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     let src = vase();
     let ys = [(0.0, 0.8), (0.6, 1.0), (1.2, 1.0), (1.8, 0.7)];
-    let all: Vec<EdgeKey> = ys.iter().flat_map(|&(y, r)| rim_at(&src, y, r)).collect();
+    let all: Vec<EdgeKey> = ys
+        .iter()
+        .flat_map(|&(y, r)| rim_at(&src, r, y, Seeds::Closed))
+        .collect();
     // Walk up until one call refuses.
     let mut found = None;
     let mut r = 0.05f64;
@@ -280,7 +244,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     let mut b = vase();
     let mut sequential_ok = true;
     for &(y, rad) in &ys {
-        match fillet_edges(&b, &rim_at(&b, y, rad), r, tol()) {
+        match fillet_edges(&b, &rim_at(&b, rad, y, Seeds::Closed), r, tol()) {
             Ok(out) => b = out.body,
             Err(e) => {
                 println!("   [blend2-r1] sequential also refuses at y = {y}: {e}");
@@ -380,7 +344,10 @@ fn pinched_vase() -> Body<f64> {
 fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
     let src = pinched_vase();
     let pair = [(0.0, 1.0), (1.0, 1.0)];
-    let both: Vec<EdgeKey> = pair.iter().flat_map(|&(y, r)| rim_at(&src, y, r)).collect();
+    let both: Vec<EdgeKey> = pair
+        .iter()
+        .flat_map(|&(y, r)| rim_at(&src, r, y, Seeds::Closed))
+        .collect();
     assert_eq!(both.len(), 2, "the two belly rims");
     let mut gap = None;
     let mut first_one: Option<(f64, String)> = None;
@@ -391,7 +358,7 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
         let mut b = pinched_vase();
         let mut seq_ok = true;
         for &(y, rad) in &pair {
-            match fillet_edges(&b, &rim_at(&b, y, rad), r, tol()) {
+            match fillet_edges(&b, &rim_at(&b, rad, y, Seeds::Closed), r, tol()) {
                 Ok(out) => b = out.body,
                 Err(_) => {
                     seq_ok = false;

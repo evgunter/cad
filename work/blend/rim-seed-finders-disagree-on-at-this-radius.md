@@ -93,13 +93,20 @@ not roll its own destructuring.
 
 The copies in `crates/sweep/tests/*` are deleted in its favour, and
 where a copy returned a shape `arcs_at` does not, the shape is composed
-over it rather than rescanned. The tour keeps its own two selectors and
-its demo one, converged to `1e-9` with the home's reason stated and
-cited: `demos/tour` reaches the kernel only through the `pncad` façade,
-which carries no test vocabulary, and a `[dev-dependencies]` edge on
-`sweep` with `test-support` turns the feature on for the very `sweep`
-rlib the `demo-tour` binary links whenever the invocation builds test
-targets — measured, and that is what CI's tour row runs.
+over it rather than rescanned.
+
+The tour keeps its own spellings and converges them: after the fix pass
+the tree carries THREE demo-side scans with two support filters — one
+shared test-side home under `demos/tour/tests/common/rim_select.rs`
+(both probe suites call it, `Seeds::Closed` and `Seeds::TwoSided`), the
+teapot scene's own `rim_at`, and `bodies.rs`'s bud-mouth scan, which is
+outside this fence — all at `1e-9` with the home's reason stated and
+cited. `demos/tour` reaches the kernel only through the `pncad` façade;
+`sweep` is re-exported there (`crates/pncad/src/lib.rs:184`) but
+`test_support` is compiled only under the crate's own feature, and the
+`[dev-dependencies]` edge that would turn it on also turns it on for the
+very `sweep` rlib the `demo-tour` binary links whenever the invocation
+builds test targets — measured, and that is what CI's tour row runs.
 
 What stays open is the question this issue says would close it: what a
 caller names a rim BY. `no-public-rim-arc-selector` still owns it.

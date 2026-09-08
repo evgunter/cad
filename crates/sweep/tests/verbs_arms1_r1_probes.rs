@@ -39,12 +39,14 @@
 use core::f64::consts::PI;
 
 use geom::Surface;
+use geom_brep::SurfaceKind;
 use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{one_edge_rim_at, revolved_about_y};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -291,20 +293,17 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
 #[test]
 fn the_unbored_hemisphere_equator_carves_as_one_band() {
     let body = hemisphere();
-    // The equator's two arcs: the plane–sphere edges of the body.
-    let arcs: Vec<EdgeKey> = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let surf = |he| -> Option<Surface<f64>> {
-                let l = body.get_half_edge(he)?.parent_loop;
-                let f = body.get_loop(l)?.face;
-                body.get_surface(body.get_face(f)?.surface).cloned()
-            };
-            let (a, b) = (surf(e.he_plus)?, surf(e.he_minus)?);
-            let ps = |x: &Surface<f64>, y: &Surface<f64>| {
-                matches!(x, Surface::Plane { .. }) && matches!(y, Surface::Sphere { .. })
-            };
-            (ps(&a, &b) || ps(&b, &a)).then_some(k)
+    // The equator's two arcs: the plane–sphere edges of the body, named
+    // through the kernel's own unordered adjacency predicate.
+    let arcs: Vec<EdgeKey> = query::all_edges(&body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                &body,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
         })
         .collect();
     assert_eq!(arcs.len(), 2, "the equator is two half-circle arcs");
@@ -373,27 +372,19 @@ fn near_limit_radii_refuse_typed() {
 #[test]
 fn the_partial_zone_refuses_through_its_own_gates() {
     let body = zone(0.6, Revolution::Partial(2.0));
-    let open_arc = body
-        .edges()
-        .map(|(k, _)| k)
-        .find(|k| {
-            let e = body.get_edge(*k).unwrap();
-            let start = body.get_half_edge(e.he_plus).unwrap().start;
-            if Some(start) == body.half_edge_end(e.he_plus) {
-                return false;
-            }
-            let surf = |he| {
-                let l = body.get_half_edge(he).unwrap().parent_loop;
-                let f = body.get_loop(l).unwrap().face;
-                body.get_surface(body.get_face(f).unwrap().surface)
-                    .unwrap()
-                    .clone()
-            };
-            let (a, b) = (surf(e.he_plus), surf(e.he_minus));
-            let ps = |x: &Surface<f64>, y: &Surface<f64>| {
-                matches!(x, Surface::Plane { .. }) && matches!(y, Surface::Sphere { .. })
-            };
-            ps(&a, &b) || ps(&b, &a)
+    let open_arc = query::all_edges(&body)
+        .into_iter()
+        .find(|&k| {
+            let e = body.get_edge(k).unwrap();
+            let closed =
+                Some(body.get_half_edge(e.he_plus).unwrap().start) == body.half_edge_end(e.he_plus);
+            !closed
+                && query::edge_adjacent_matches(
+                    &body,
+                    k,
+                    SurfaceKindSet::just(SurfaceKind::Plane),
+                    SurfaceKindSet::just(SurfaceKind::Sphere),
+                )
         })
         .expect("an open plane–sphere arc");
     match fillet_edges(&body, &[open_arc], 0.08, tol()).map_err(|r| r.error) {

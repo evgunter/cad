@@ -468,7 +468,7 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
     );
     // Two rims share this radius — the barrel's top at y = 0.6 and its
     // bottom at y = 0 — so the STATION is what names one, and the
-    // request is that one, whole.
+    // request is the TOP rim, whole.
     for station in [0.0, 0.6] {
         assert_eq!(
             arcs_at(&source, 0.9, station).len(),
@@ -476,7 +476,7 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
             "one torus-plane rim at y = {station}"
         );
     }
-    let arcs = rim_arcs_at(&source, 0.9, 0.0);
+    let arcs = rim_arcs_at(&source, 0.9, 0.6);
     match fillet_edges(&source, &arcs, 0.03, tol()).map_err(|r| r.error) {
         Err(BlendError::SpineUnsupported { supports, .. }) => {
             assert!(

@@ -9,6 +9,17 @@
 //! of stated meridians, and `revolve` is the same door on both sides of
 //! the façade. Each is rebuilt here from its own constants and the old
 //! and new windows are compared on it.
+//!
+//! **The rebuild is a COPY of the tour's meridian constants**, and a
+//! copy across a workspace boundary is exactly the thing this unit's
+//! own subject warns about: if a scene re-authors its lantern or its
+//! lid, these rows keep measuring the old shape and stay green while
+//! saying nothing about the tour. What they pin is the SELECTION
+//! question — that a window admits the same arcs on this geometry —
+//! which is a property of the numbers, so the copy is the evidence and
+//! not an accident of it. The tour's own suites are what pin the tour's
+//! fixtures; these rows say what the kernel's binary can say about the
+//! same meridians.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -196,7 +207,11 @@ fn teapot_lid() -> Body<f64> {
 fn the_teapot_lids_rims_select_the_same_edge_at_1e_12_and_1e_9() {
     let lid = teapot_lid();
     assert_eq!(
-        (lid.vertices().count(), lid.edges().count(), lid.faces().count()),
+        (
+            lid.vertices().count(),
+            lid.edges().count(),
+            lid.faces().count()
+        ),
         (6, 12, 6),
         "an annular profile mints one full wall per segment"
     );

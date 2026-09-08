@@ -155,30 +155,6 @@ pub fn dome_profile(r: f64) -> Vec<ProfileVertex<f64>> {
     ]
 }
 
-/// **The one-edge rim `seed` belongs to, through the kernel door.**
-///
-/// The fixture-side spelling for a body whose latitude rims are single
-/// closed edges: a suite names the arc it means by whatever analytic
-/// handle its fixture states — radius, station, support kinds — and
-/// this asks [`topo::query::rim_of`] whether that arc IS the rim,
-/// rather than assuming it. Returns the door's answer, so the key a
-/// row blends is the key the door named.
-///
-/// # Panics
-///
-/// If the door refuses, or answers with more than one arc: either is a
-/// statement about the fixture, and a fixture that stopped minting a
-/// one-edge rim should say so loudly rather than blend a different set.
-#[must_use]
-pub fn one_edge_rim(body: &Body<f64>, seed: EdgeKey) -> EdgeKey {
-    let rim = topo::query::rim_of(body, seed)
-        .unwrap_or_else(|e| panic!("the selected arc is a whole rim, got {e}"));
-    match rim[..] {
-        [only] => only,
-        ref many => panic!("this fixture's rim is one closed edge, got {many:?}"),
-    }
-}
-
 /// **Every arc of the latitude rim at radius `rim_r` and station
 /// `rim_y`** — a FIXTURE SELECTION that names one of the rim's arcs,
 /// and the kernel door that hands back the rest.
@@ -260,6 +236,15 @@ pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
 /// open arcs on one circle that no rim door will hand back, because
 /// they are not one. Selecting them is a fixture's job; what the door
 /// says about them is the row's subject.
+///
+/// **The station is `center.y` and nothing else**: this home names a
+/// latitude of a body poled along +y, which is the axis
+/// [`revolved_about_y`] mints and every fixture it builds. A body poled
+/// along z states its stations in `center.z`, so a z-poled fixture
+/// cannot ask this question here and rolls its own scan —
+/// `seed-finder-home-reads-only-the-y-station` carries the sites and
+/// the two shapes a fix could take. The premise is pinned by
+/// `review_blend4_r4_probes::arcs_at_reads_the_y_station_and_nothing_else`.
 ///
 /// The `1e-9` and the sole [`Bounds`] bound are [`rim_arcs_at`]'s, for
 /// its reasons.

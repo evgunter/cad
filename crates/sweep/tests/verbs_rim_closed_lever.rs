@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
-use geom::Surface;
+use geom_brep::SurfaceKind;
 use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
@@ -29,6 +29,7 @@ use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity};
 use sweep::test_support::{arcs_at, one_edge_rim_at, revolved_about_y};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
@@ -44,20 +45,10 @@ fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
 
-/// The surface kind on each side of an edge, plus whether the edge is
-/// closed (start vertex == end vertex).
-fn edge_sides(body: &Body<f64>, edge: EdgeKey) -> (Surface<f64>, Surface<f64>, bool) {
+/// Whether an edge is closed: its `he_plus` returns to its own start.
+fn closed_edge(body: &Body<f64>, edge: EdgeKey) -> bool {
     let e = body.get_edge(edge).unwrap();
-    let surf = |he| {
-        let l = body.get_half_edge(he).unwrap().parent_loop;
-        let f = body.get_loop(l).unwrap().face;
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
-    let start = body.get_half_edge(e.he_plus).unwrap().start;
-    let end = body.half_edge_end(e.he_plus).unwrap();
-    (surf(e.he_plus), surf(e.he_minus), start == end)
+    Some(body.get_half_edge(e.he_plus).unwrap().start) == body.half_edge_end(e.he_plus)
 }
 
 /// The one OPEN arc at radius `rim_r` and station `rim_y`, which a
@@ -146,12 +137,11 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
         ],
         Revolution::Full,
     );
-    let seams: Vec<EdgeKey> = ball
-        .edges()
-        .map(|(k, _)| k)
-        .filter(|k| {
-            let (a, b, closed) = edge_sides(&ball, *k);
-            !closed && matches!(a, Surface::Sphere { .. }) && matches!(b, Surface::Sphere { .. })
+    let sphere = SurfaceKindSet::just(SurfaceKind::Sphere);
+    let seams: Vec<EdgeKey> = query::all_edges(&ball)
+        .into_iter()
+        .filter(|&k| {
+            !closed_edge(&ball, k) && query::edge_adjacent_matches(&ball, k, sphere, sphere)
         })
         .collect();
     assert!(!seams.is_empty(), "a full ball carries a seam meridian");
