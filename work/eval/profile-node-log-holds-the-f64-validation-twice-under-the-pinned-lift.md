@@ -2,11 +2,28 @@
 id: profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift
 kind: issue
 title: The Profile node log holds the f64 validation twice under the pinned lift: the pre-pass validates and the op validates the same Profile<f64> again
-status: spec
+status: review
+pr: 2186
 refs: [bracket-scope-is-run-op-not-the-node]
 opened: 2026-09-08
 branch: eval/8-validate-once
 ---
+
+## Closed
+
+PR 2186. `ValidatedProfile::map` + `with_plane` land in `crates/profile`
+(announced seam to S-BOOL): the per-scalar lift of the canonical form,
+decisions carried and none remade, an arc's carrier re-derived at the
+target scalar through `seg::arc_carrier` (one expression, shared with
+`build_seg`). The `Pinned` arm lifts `ProfilePre::validated_f64`;
+`anchor::embed_profile` retires. The Profile node's log under the pinned
+lift is the pre-pass's 75 at every scalar (`kstats_bracket_rows`), the
+lifted form equals the re-validated form bit for bit in every value
+channel over the corpus at f64, `Dual64` and `Interval`
+(`pinned_lift_validates_once`) and over the profile fixtures
+(`profile/tests/validated_map.rs`); `asm2a`'s 799 → 730 and the m4
+eps-audit populations halved back to their pre-EVAL-7 values, tabled in
+the PR; `m10_6_certifying_keys.txt` (Guided) did not move.
 
 ## What
 
