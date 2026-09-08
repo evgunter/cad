@@ -50,10 +50,10 @@
 
 use std::collections::BTreeMap;
 
-use pncad::document::{RefusingReach, 
+use pncad::document::{
     BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId, ValuePayload,
-    apply, evaluate, parse_expr,
+    Expr, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
+    ValuePayload, apply, evaluate, parse_expr,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
@@ -120,7 +120,8 @@ fn build_doc(tol: Tol) -> Recipe {
     ];
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("insert node");
+        let applied =
+            apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("insert node");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
@@ -268,7 +269,8 @@ pub(crate) fn probe_solids(
                 expr: pe(&format!("{n}")),
             },
             tol,
-         &RefusingReach)
+            &RefusingReach,
+        )
         .expect("count edit");
         doc = applied.doc;
         let ev = evaluate::<Probe>(&doc, Some(&prior), &cancel, &opts, tol);
@@ -313,7 +315,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 expr: pe(&format!("{n}")),
             },
             tol,
-         &RefusingReach)
+            &RefusingReach,
+        )
         .expect("count edit");
         doc = applied.doc;
         let ev = evaluate::<f64>(&doc, Some(&evs[prior_idx].1), &cancel, &opts, tol);

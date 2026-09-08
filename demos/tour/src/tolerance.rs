@@ -147,10 +147,10 @@ use pncad::analysis::{
     StackupRefusal, analyzed_box, assertion_at, drive, leaf_histogram, monte_carlo,
     render_sensitivity, stackup,
 };
-use pncad::document::{RefusingReach, 
+use pncad::document::{
     AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId, EvalOptions,
     Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, UnitSym, apply, evaluate,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, UnitSym, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
@@ -175,7 +175,8 @@ fn param(n: &str) -> Expr {
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
+    let applied =
+        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }

@@ -46,7 +46,7 @@
 
 use core::f64::consts::PI;
 
-use pncad::document::{LoggedEdit, RefusingReach, BooleanOp, BooleanValue, save};
+use pncad::document::{BooleanOp, BooleanValue, LoggedEdit, RefusingReach, save};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
     EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
@@ -193,7 +193,8 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
+    let applied =
+        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
 }
@@ -557,9 +558,14 @@ pub fn corpus_text(tol: Tol) -> String {
 /// is the pips, the blank and the two blends — not a chain length.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
-    apply(&die.doc, &DocEdit::DeleteNode { id: die.blank }, tol, &RefusingReach)
-        .expect("the blank is a sink: deleting it drops a root and uncovers nothing")
-        .doc
+    apply(
+        &die.doc,
+        &DocEdit::DeleteNode { id: die.blank },
+        tol,
+        &RefusingReach,
+    )
+    .expect("the blank is a sink: deleting it drops a root and uncovers nothing")
+    .doc
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {

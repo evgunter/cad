@@ -172,8 +172,8 @@ fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
 /// one is the honest value. The edits that do move a gauge — the
 /// split and the inline below — take the workspace's own reach.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
-        .expect("the insert applies");
+    let applied =
+        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
@@ -1028,8 +1028,14 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
 
     let part_id = DocumentId::derive("pncad-demo-shelf-cell");
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-    let out = split(layout, &BTreeSet::from([shelf_i]), part_id, tol, Some(&store))
-        .expect("cutting one whole cluster out is legal");
+    let out = split(
+        layout,
+        &BTreeSet::from([shelf_i]),
+        part_id,
+        tol,
+        Some(&store),
+    )
+    .expect("cutting one whole cluster out is legal");
     ws.create(&out.part, tol).expect("the new part is stored");
     ws.resave(&out.remainder, tol)
         .expect("the remainder is stored");
@@ -1107,7 +1113,8 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // arena-key identity, so the correspondence is the composition of
     // the two recorded maps — split's, then inline's — and every
     // pre-split name must resolve through it.
-    let back = inline(&out.remainder, out.instance, &store, tol).expect("the instance inlines back");
+    let back =
+        inline(&out.remainder, out.instance, &store, tol).expect("the instance inlines back");
     let back_ev = run(&back.doc, &with_store(ws), tol);
     let (back_body, back_names) = product_of(&back.doc, &back_ev, tol);
     assert_eq!(
@@ -1187,7 +1194,13 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         .find(|&&id| matches!(layout.node(id), Some(Node::Pattern { .. })))
         .expect("the layout has a pattern");
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-    match split(layout, &BTreeSet::from([post_i, pattern]), posts_id, tol, Some(&store)) {
+    match split(
+        layout,
+        &BTreeSet::from([post_i, pattern]),
+        posts_id,
+        tol,
+        Some(&store),
+    ) {
         Ok(posts) => {
             ws.create(&posts.part, tol)
                 .expect("the posts cell is stored");

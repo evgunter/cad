@@ -192,7 +192,8 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     };
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
+            .expect("the edit applies");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
