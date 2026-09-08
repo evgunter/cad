@@ -50,3 +50,42 @@ Not one unit: `EditError` alone is ~40 arms, and each door's attribute set is a 
 ## Home
 
 `work/lib/` — the whole issue is the `crates/pncad-py` binding surface (its typed-exception payloads, `pncad.pyi`, the binding census), LIB's territory glob and charter.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+The PAYLOAD half of the projection question (the arm half is asked on
+`lib-per-arm-error-tags`). Six doors — `edit`, `declare`, `persist`,
+`path`, `frame`, `stl` — cross as `variant` plus prose while every
+other door projects each arm's payload as attributes, present on every
+arm and `None` where the arm does not carry one (`readback_err` and
+`split_err` are the worked examples). `step_import` is the seventh and
+is already argued at the site.
+
+- **(A) Ratify the rule and take the six as mechanical units, a door
+  at a time.** "Every arm's payload is an attribute, every attribute
+  present on every arm" is the crate's own stated rule; making it the
+  ratified one means each door's attribute set is a mechanical
+  consequence of the kernel enum (a positional tuple from one
+  exhaustive match, no wildcard), landed with its stub, census and
+  fixture rows — no per-door design conversation. `path` waits for the
+  kernel-side `PathError` discriminant (SMELL D37/D39) as the issue
+  notes. Recommended.
+- **(B) Freeze attribute sets door by door** — each door's Python
+  attribute names are surface Ev wants to see before they ship
+  (`EditError` alone is ~40 arms). Six small `[ev]` PRs.
+- **(C) Leave the six as tag-plus-prose** and say so at each site, as
+  `step_import` does.
+
+Recommendation: **(A)**. The attribute NAMES follow the kernel's own
+field names, which are already Ev's design; what a unit decides is
+only the flattening, and the worked examples fix that.
+
+## Ruled (2026-09-08, Ev on `[ev]` PR 2196)
+
+**(A)** — "A sounds good." The rule "every arm's payload is an
+attribute, every attribute present on every arm" is ratified for the
+binding; the six doors (`edit`, `declare`, `persist`, `frame`, `stl`,
+and `path` once the kernel-side `PathError` discriminant lands) are
+mechanical units, a door at a time or batched where the arms are few,
+each landing the door's attribute set as one exhaustive match with its
+stub, census and fixture rows. No per-door design conversation.
