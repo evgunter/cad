@@ -992,3 +992,43 @@ the last.**
 `D103` (5 sites) and `D107` (1 site) — dead `work/code-quality/*.md`
 pointers the lane found outside METER's fence and correctly reported
 rather than filed — are the orchestrator's to route.
+
+## Unit 9 CLOSED and merged; and the ordering rule that prevents the citation defect (2026-09-08)
+
+Merged at `2d7b39809` (PR 2180), head `18c314c7b`, 37 checks green,
+after three rounds: three MAJORs, then the `_cells` and gloss fixes,
+then the citation re-take. The report now names its four cell totals by
+column with the two factors as formulas, and `report_columns_pin.rs`
+gates the names, the order, the qualifiers and the completeness
+converse against the parser's own roster rather than against a
+spelling.
+
+**The citation defect recurred INSIDE the pass that was fixing it, and
+that is what produced the rule.** Re-taking the ten line numbers, the
+lane then fixed the gloss-pin overclaim — which inserted lines above
+two assertions and shifted `:351`→`:358` and `:385`→`:392`. It caught
+that only because it had just been told the shape of the failure. The
+rule it derived and now follows:
+
+> **Commit every edit first, then take citations from the committed
+> tree, then write them up.** Any other order re-creates the defect by
+> construction.
+
+That is stronger than "check your citations", because it removes the
+window rather than asking for vigilance inside it. The durable half is
+the same lesson one level up: the table now carries an ENCLOSING TEST
+NAME beside each line, and the re-filed item cites symbols with the
+number as a hint, because **a test name survives an edit and a line
+number does not.**
+
+The lane also corrected the table's PREAMBLE rather than only its rows
+— saying plainly that the previous version was stale by −10, taken
+before the race-fix commit, under a claim that it had been re-taken.
+Without that, the new table is indistinguishable from the old one to
+anyone who does not re-run it, which was the entire complaint.
+
+Verified here before merging: `:358`, `:392` and `:263` are
+`assert_eq!`/`assert!` sites, `main.rs:237` is `fn line`, and the
+`SceneTotals` triple `:1285`/`:1292`/`:1330` is `recoverable`,
+`span_held`, `total_slack` — the corrected order, which the first
+version had inverted.
