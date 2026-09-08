@@ -138,15 +138,21 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     );
 
     let flips = editor_core::diff_summaries(&old, &new);
-    // GOLDEN (update only on a ratified predicate-vocabulary or
-    // fixture change — RE-PINNED once at the #101 merge: declared
-    // tangency added validation probes, so carrier_line_circle and
-    // chord_side instance counts grew; the FLIPS are unchanged):
-    // exactly ONE differing node — the profile —
-    // both runs Ok. The ε re-classification reports as EXACTLY these
-    // net flips (the thin segment_straightness margin, twice decided
-    // per validation pass, plus the line_span probes the collapsed
-    // arc now answers at Zero), and the arc→straight branch change
+    // GOLDEN. A legitimate re-pin is a ratified change to what a log
+    // holds or to the predicate vocabulary or the fixture — never a
+    // number chased back into place. Re-pinned when declared tangency
+    // added validation probes (carrier_line_circle and chord_side
+    // instance counts grew) and when the node's frame widened to its
+    // precompute (every population doubled); the FLIPS are the same
+    // predicates both times. Exactly ONE differing node — the profile —
+    // both runs Ok. The populations are the profile node's WHOLE log:
+    // its pre-pass's f64 validation and its op's, which under the
+    // pinned lift at f64 are the same validation twice, so every count
+    // is that of one validation pass doubled. The ε re-classification
+    // reports as EXACTLY these net flips (the thin
+    // segment_straightness margin, twice decided per validation pass,
+    // plus the line_span probes the collapsed arc now answers at
+    // Zero), and the arc→straight branch change
     // reports its reshaped decision structure as loud DIVERGENCE
     // rows (arc-only predicates leaving, chord probes recounting) —
     // never absorbed, never guessed about (vdiff module docs).
@@ -168,45 +174,45 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
                 predicate: "line_span".into(),
                 from: Sign::Negative,
                 to: Sign::Zero,
-                count: 2,
+                count: 4,
             },
             editor_core::SummaryFlip {
                 predicate: "segment_straightness".into(),
                 from: Sign::Positive,
                 to: Sign::Zero,
-                count: 2,
+                count: 4,
             },
         ],
         diverged: vec![
             editor_core::SummaryDivergence {
                 predicate: "arc_diameter_clearance".into(),
-                old_count: 2,
+                old_count: 4,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
                 predicate: "arc_span".into(),
-                old_count: 6,
+                old_count: 12,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
                 predicate: "carrier_line_circle".into(),
-                old_count: 5,
+                old_count: 10,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
                 predicate: "chord_side".into(),
-                old_count: 14,
-                new_count: 28,
+                old_count: 28,
+                new_count: 56,
             },
             editor_core::SummaryDivergence {
                 predicate: "contact_at_shared_vertex".into(),
-                old_count: 6,
-                new_count: 8,
+                old_count: 12,
+                new_count: 16,
             },
             editor_core::SummaryDivergence {
                 predicate: "line_span".into(),
-                old_count: 10,
-                new_count: 8,
+                old_count: 20,
+                new_count: 16,
             },
         ],
     };

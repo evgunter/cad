@@ -2,10 +2,12 @@
 id: bracket-scope-is-run-op-not-the-node
 kind: issue
 title: The verdict bracket's scope is run_op, not the node: the profile pre-pass and the mate solve decide before any bracket opens
-status: spec
+status: closed
+pr: 2176
 opened: 2026-09-05
 refs: [1969]
 branch: eval/7-node-bracket
+closed: 2026-09-08
 ---
 
 ## What
@@ -132,3 +134,27 @@ the R2 pin, the certification keys and accounting goldens re-baseline
 and the PR names each). The document-level frame for
 `mate::solve_document` is PROPS's build on its escalation item, family
 3, announced there; M10 is told its certification keys move.
+
+## Closed
+
+Built as EVAL-7 (`docs/EVAL-7-SPEC.md`). `eval_node`'s bracket opens
+at the top of the function and closes after `run_op`, so a Profile
+node's log opens with its pre-pass — the plane's axes, the program's
+replay, the f64 validation — ahead of its op's decisions; a memo hit
+finishes and drops the fresh frame and returns the prior value, whose
+log already opens with the same decisions (asserted at the hit site,
+driven by `kstats_bracket_rows` at f64 and Interval); a pre-key
+refusal carries its frame's escalations. On the one-solid part: 799 on
+the nodes (frame 2, profile 144 = 75 + 69, extrude 653), 0 outside;
+the assembly half unchanged (466 per instance). Every moved value is a
+Profile node's own log or a document key over one — 126 node rows and
+48 document keys over the corpus, and the two M10-6 certification keys
+— listed in the PR body; no non-Profile log moved. The mate solve's
+document frame is PROPS's build (its escalation item, family 3), not
+this row's. Residue filed beside this row:
+`profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift`
+(the doubled validation the log now shows) and
+`interval-content-key-hashes-bits-the-pre-pass-does-not-read` (the
+review's finding: at Interval the key does not hold the nominal the
+precompute reads, so the hit site's prefix identity is an f64
+argument).

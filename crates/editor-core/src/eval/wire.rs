@@ -127,7 +127,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
 /// slots, emitting the node's name table alongside the payload.
 /// `profile_pre` is the profile node's f64 precompute (present exactly
 /// for `Node::Profile` — computed in `eval_node`'s resolution stage,
-/// outside the verdict bracket).
+/// inside the node's verdict frame and ahead of this op).
 #[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
@@ -1199,10 +1199,10 @@ fn wire_datum<T: Decide>(
 /// path from steps to geometry — then the assembled `Profile<f64>`
 /// validates at f64 (the C6 structure-selection gate, which also
 /// yields the canonical form the program-anchor naming map is derived
-/// from). Runs OUTSIDE the verdict bracket (`eval_node`): these are
-/// structure decisions, the successor of the stored f64 bits, not
-/// per-lane op decisions. VQ6 is closed here and in the op below: the
-/// replay-time junction checks and both validations run under the
+/// from). Runs inside the node's verdict frame (`eval_node`) ahead of
+/// the op: structure decisions, the successor of the stored f64 bits,
+/// logged as the node's own. VQ6 is closed here and in the op below:
+/// the replay-time junction checks and both validations run under the
 /// SAME `Tolerance::get()` the evaluation pins.
 pub(crate) fn prepare_profile(
     placement: Option<profile::SketchPlane<f64>>,
@@ -1341,6 +1341,13 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
                 Some(placement) => placement.map(T::from_f64),
                 None => frame_plane_lane(results, program.plane)?,
             };
+            // Validated again at `T`: the validated form is minted by
+            // `validate` at the scalar it is built at, and the pinned
+            // lift embeds the f64 form whole rather than the
+            // precompute's validated one, so at the build scalar this
+            // repeats the precompute's validation decision for
+            // decision and the node's log holds both (the doubled
+            // populations `resolve::vdiff` describes).
             embedded.validate(tol).map_err(NodeErrorKind::Profile)?
         }
         super::ProfileLift::Guided => lane_profile::<T>(
