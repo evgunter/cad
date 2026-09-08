@@ -542,10 +542,12 @@ pub enum RoleSeg {
     // as the boolean emitter's `FromA`/`Seam` do: the target's names
     // move, and these move with them, without this emitter deciding
     // anything about geometry.
-    /// An entity carried through from the fillet's target (argument:
-    /// its name in the target's table) — a shrunk support face, an
-    /// untouched edge, a far vertex. The single-operand analogue of
-    /// [`RoleSeg::FromA`].
+    /// An entity carried through from the op's target (argument: its
+    /// name in the target's table) — a blend's shrunk support face,
+    /// untouched edge or far vertex, or a shell's outer wall. The
+    /// single-operand analogue of [`RoleSeg::FromA`], shared by every
+    /// single-operand verb whose survivors keep their operand keys;
+    /// which verb carried the entity is the minting node's business.
     FromTarget(Box<StableName>),
     /// The blend face rounding a source edge.
     BlendFace(Box<StableName>),
@@ -606,6 +608,37 @@ pub enum RoleSeg {
     /// representation). Argument: the source edge whose severed piece
     /// became it.
     BandSlit(Box<StableName>),
+
+    // ---- Shell (the hollowing verb's vocabulary) ----
+    //
+    // Every segment carries the SOURCE entity's OWN stable name from
+    // the target's table, so a shell name composes covariantly under
+    // an upstream bump exactly as the blend segments do: the target's
+    // names move, and these move with them. The outer wall is not
+    // here — a survivor keeps its operand key and is named
+    // [`RoleSeg::FromTarget`], the blend's pass-through, because it IS
+    // the same entity carried through one op.
+    /// **The cavity twin of a source entity**: the face, edge or
+    /// vertex the inward offset minted for the named one. A designated
+    /// face's own twin dies in the rim surgery and is never named; its
+    /// boundary's twins survive as the rim's ring and are named here,
+    /// as twins of the boundary edges — a ring is a cycle of twins, not
+    /// a role of its own.
+    Inner(Box<StableName>),
+    /// **The annular rim a designated chart became**, named for the
+    /// FIRST face designated on that chart — the face the chart's
+    /// members merged onto, whose own name vanishes with the merge.
+    /// `Rim(mouth)` is what a selector says for "the mouth's rim".
+    Rim(Box<StableName>),
+    /// **The promoted rim of a designated face's HOLE**: the annulus
+    /// between a hole's boundary and its cavity twin, one per hole, in
+    /// the kernel's pairing order.
+    HoleRim {
+        /// The first designated face of the chart the hole is in.
+        of: Box<StableName>,
+        /// The hole's index in the kernel's pairing order.
+        hole: u32,
+    },
 
     // ---- Instantiate part (ASM-2A D-4: the name bridge) ----
     /// An entity of an instantiated part's product, named under the
@@ -673,6 +706,9 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::BandCross(_)
         | RoleSeg::BandCut(_)
         | RoleSeg::BandSlit(_)
+        | RoleSeg::Inner(_)
+        | RoleSeg::Rim(_)
+        | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
         | RoleSeg::Instance { .. } => None,
     }
@@ -777,6 +813,9 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::BandCross(_)
             | $crate::names::RoleSeg::BandCut(_)
             | $crate::names::RoleSeg::BandSlit(_)
+            | $crate::names::RoleSeg::Inner(_)
+            | $crate::names::RoleSeg::Rim(_)
+            | $crate::names::RoleSeg::HoleRim { .. }
             | $crate::names::RoleSeg::InPart { .. }
             | $crate::names::RoleSeg::Instance { .. }
     };

@@ -46,6 +46,7 @@ use geom_core::Tol;
 use topo::Body;
 
 pub mod boss;
+pub mod cup;
 pub mod cut_cylinder;
 pub mod die;
 pub mod die_chamfer;
@@ -69,6 +70,7 @@ pub mod slots;
 pub mod table;
 pub mod tangency;
 pub mod tube_ring;
+pub mod vessel;
 
 pub use super::fixture::Recorder;
 
@@ -287,7 +289,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 20] = [
+pub const NODE_KINDS: [&str; 21] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -329,6 +331,14 @@ pub const NODE_KINDS: [&str; 20] = [
     // tally rows and not one.
     "Tube",
     "HollowTube",
+    // The hollowing door. Its two documents, `cup` and `vessel`, sit
+    // BESIDE this registry rather than in it (their module docs: a
+    // dual has no shell door, and membership requires every document
+    // green at `Dual64`), so the row is listed and reported UNCOVERED
+    // by `vocabulary_coverage_is_total`'s frontier rather than
+    // pretending coverage — the `Sweep` disposition, for a different
+    // reason.
+    "Shell",
     "Declare",
     // M10-2's measurement sinks. Listed because `measured_web` now
     // registers them: the hold-out that kept them off this roster was
@@ -469,6 +479,11 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Revolve { .. }
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
+        // A shell's SEALED form (an empty `open`) and its OPENED form
+        // are one node kind and one door (`shell_open` with an empty
+        // designation IS `shell`); the sub-kind axis would name a
+        // payload's emptiness, which no other kind counts either.
+        | Node::Shell { .. }
         | Node::Split { .. }
         | Node::Union { .. }
         | Node::Transform { .. }
@@ -491,6 +506,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
+        Node::Shell { .. } => "Shell",
         Node::Tube { .. } => "Tube",
         Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
