@@ -435,3 +435,14 @@ frozen head** — byte 67 ⇒ R1 = FABLE, R2 = OPUS; briefs stored with
 digests on `blend/b1-block` before either ran; the two spec errors are
 stated in both briefs as the lane's corrections to verify. The unit's
 log entry waits for the dual.
+
+**The E slate is done (2026-09-08, 18:0x UTC):** units 1, 2, 3, 4, 5
+and K all merged (PRs 2123, 2122, 2141, 2129, 2155, 2149). Every one
+took a single style review, a fix pass on the implementer's lane, and
+between one and three main-merge rounds at the end — the rounds were
+almost all this program's own log tails and the aggregated test list,
+which every unit appends to; the resolution is always union. Two
+orchestrator decisions were corrected by reviewers (units 3 and 5) and
+both corrections are in the tree. Open on the slate: unit 6 in its
+dual; units 7 and 9 (block B1) and 8, 10–13 to dispatch; the
+residues the E units filed.
