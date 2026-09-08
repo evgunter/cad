@@ -4014,6 +4014,31 @@ both lanes on one 4-core cloud box at `-j2` (a method note applying to
 both arms equally). The implementer's unit log entry is not written
 until the dual concludes.
 
+## SHELL-8 review ordinal fixed at dispatch (2026-09-08)
+
+SHELL-8 (`shell-open-on-a-multi-solid-body`, PR #2207 open — frozen
+head `3952a331`): **ordinal 2305** (SHELL band; after 2304). Pre-draw
+fields at the item (`work/shell/SHELL-8.md`): difficulty **M**,
+task-class **STRUCTURAL**, logged after block SHELL-B2's byte was drawn
+(disclosed there; the covariate is contaminated for this row);
+implementer arm per block SHELL-B2 slot 2 (record branch-side on the
+SHELL orchestrator branch). Protocol v6 dual: draw = `/dev/urandom`
+byte **10**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded
+before either review runs: CONCURRENT same-head on frozen `3952a331`,
+both briefs authored and STORED with sha256 before either dispatches
+(sha256 d63b2c42904f… r1 / 530b850e8af3… r2 — identical text modulo
+lane names and lane paths, verified by diff), neither reviewer sees the
+other's report, v6 item 5 isolation in both briefs, PRIVATE
+`CARGO_TARGET_DIR` per reviewer (both EMPTY — cold and symmetric),
+both lanes on one 4-core cloud box at `-j2` (a method note applying to
+both arms equally). Disclosed: the implementer lane died in a container
+restart AFTER opening its PR and pushing its last commit; its PR body is
+its report and the run on the frozen head is its verification of
+record — nothing of the unit was lost, and the fix pass will resume the
+lane from its transcript or run as a fresh finisher (recorded at
+merge). The implementer's unit log entry is not written until the dual
+concludes.
+
 ## VERBS-C5ARMS PR-2 review ordinal fixed at dispatch (2026-09-05)
 
 VERBS-C5ARMS PR-2 (`work/curved/VERBS-C5ARMS.md`, PR #1864 open —
@@ -4879,3 +4904,30 @@ claimed at review dispatch from the LIB band (300–399; claimed through
 merge (`b4a0d3d04`), one 4-core cloud box behind the build-slot mutex,
 no other build live at dispatch (B-MEASURES and BENCH-PATTERN landed
 minutes before, both mechanical, no A/B rows).
+
+LIB-TEAPOT review ordinal fixed at dispatch (2026-09-08, PR #2206 open —
+frozen head `21e6d1e28`): **ordinal 304** (LIB band; claimed through 303).
+Protocol v6 dual: draw = `/dev/urandom` byte **80**, parity 0 ⇒
+**R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `21e6d1e28`, both briefs authored and
+STORED with sha256 before either dispatches (f6a10e2690f83e30… r1 /
+09455d1d5aaa9239… r2 — identical text modulo lane names, verified by
+diff), each brief placed in its own lane directory so neither lane's
+scratch holds the other's, neither reviewer sees the other's report,
+v6 item 5 isolation in both briefs WITH the G17 lesson written in (no
+process listings). Pre-draw fields were logged at the spec and restated
+at dispatch (M / STRUCTURAL, written knowing the arm; implementer arm
+per block LIB-13 slot 2, branch-side on `lib/block-13`). Targets:
+symmetric — the implementer's warm workspace and tour targets with
+`incremental/` dropped, R1 taking the originals and R2 a byte copy;
+both lanes on one 4-core cloud box behind the build-slot mutex, no
+other build live. The implementer lane was killed once by a container
+restart mid-unit (~14:12Z, branch not yet pushed, clone survived) and
+resumed from its own transcript; the arm and slot are unchanged and
+the row at merge annotates it per the resume precedent. The head's
+first CI run was red on one fuzzed geometry row (per-process seed;
+`curves_review_m5_pr3_attack::f5_…_fuzzed`, code the diff does not
+touch) and the lane re-ran the same head by draft/undraft (the rerun
+API is 403 for this integration) to green — recorded here as the
+lane's action, judged at the row. Sample number assigned at merge in
+main's merge order.
