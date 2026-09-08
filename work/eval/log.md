@@ -196,3 +196,17 @@ on `discipline (evaluation-code)` — `no-extra-real-bounds` reads
 `#[cfg(test)]` modules too, and the probe's helper said `T: Real +
 Copy`. `scripts/gates/*.sh` run in seconds and are the pre-push
 check every lane brief names from now on.
+
+## EVAL-1 MERGED (2026-09-08, PR 2139, merge 51820f3ce)
+
+Full matrix green on the merged head (37 checks: twelve `test`, five
+`k-lint (gate)`, discipline, render lanes; four habitual skips).
+`embed_affine` is gone, the plane lifts go through `SketchPlane::map`
+and the vertex point through `Point2::map`; `map_affine` keeps the
+fallible direction with the reviewer's identity probe pinning it to
+the kernel's walk; both items closed; `D368` closed by construction.
+Residue with files: `map-affine-retires-into-affine3-try-map`
+(parked on PROPS' `affine3-try-map-…`), the profile embed lift twice
+(`work/issues/`), `m10_p_lift`'s hand-built interval plane (TCOST's
+slate), `placement.rs`'s hand lift (`work/issues/`). EVAL-3 dispatched
+next (prose-only; runs beside EVAL-2's CI).
