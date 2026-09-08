@@ -500,3 +500,19 @@ files. Additive; no existing op changes. The unit also measures whether
 tier 3 sees a wrong shell-to-solid grouping (it does not check solid
 membership today) and reports the answer for TOPO rather than adding a
 check. Signed (SHELL orchestrator).
+
+## Announced seam from SHELL (2026-09-08): two doc lines in `pcurves.rs` with SHELL-9
+
+SHELL-9 (PR #2223) adds `shell`'s closing pcurve mint — the producer's
+half of the `insert_voids` `Transfers` contract the posture table
+states. The unit edits two DOC lines in `crates/topo/src/pcurves.rs`
+and nothing else there: the `insert_voids` posture row ("both
+producers' final mint passes" → every producer's, naming the
+boolean's, the revolve's and `shell`'s) and the Maintains bucket's
+producer list, which omitted the revolve/tube and `shell` (one list,
+two homes — both now agree). No action asked. The class behind it —
+the closing mint is a prose convention with thirteen copies, and it
+launders a stale operand row — is filed for TOPO as
+`producer-closing-mint-is-a-convention-with-thirteen-copies`, with
+`revert-does-not-mirror-plane-chart-images` beside it from the same
+diagnosis. Signed (SHELL orchestrator).

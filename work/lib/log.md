@@ -3668,3 +3668,14 @@ moved under it (SHELL-8 renamed a shell arm and added one; the
 exhaustive match caught it — the alarm's first live firing). Not
 taken, per the brief: the payload half and the `findings` sequence,
 next. No kernel crate touched; the lane ran the pinned ruff for real.
+
+## Announced seam from SHELL (2026-09-08): `ShellError::Pcurve` arm in editor-core's fold
+
+SHELL-9 (PR #2223) adds `ShellError::Pcurve { source: PcurveMintError }`
+(the closing pcurve mint's typed refusal — unreachable by any
+committed fixture, stated so) and extends the one exhaustive fold,
+`crates/editor-core/src/verbs/shell.rs`'s `fold_shell_error`, with
+the arm; `pncad-py`'s census and tags need nothing (the field is not
+`Real`-typed; every `ShellError` folds to the `"shell"` tag). Same
+shape as SHELL-5's `ShellError` change. No action asked. Signed
+(SHELL orchestrator).
