@@ -98,7 +98,7 @@ impl ProductMemo {
     /// [`Self::with`] with the memo key supplied rather than read off
     /// the run — the seam the tolerance-keying test drives, because a
     /// process commits one tolerance and cannot offer a second.
-    fn with_at<R>(
+    pub(crate) fn with_at<R>(
         &self,
         doc: &d::ProfileDoc,
         evaluation: &d::Evaluation<f64>,
