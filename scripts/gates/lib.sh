@@ -763,11 +763,22 @@ gate_ere_alternation() {
 #
 # NO HOMES IS A REFUSAL, not an empty pattern: `gate_grep -vE ''` drops
 # EVERY record, so a gate whose home list came out empty would go green
-# over a scan it never filtered. Spelled as `gate_exact_skip`'s arity
-# refusal is — a caller's programming error, diagnosed and terminal.
+# over a scan it never filtered.
+#
+# AND THE REFUSAL NEEDS THE MARKER TO BE TERMINAL, which is the same
+# boundary `gate_grep` and `gate_exact_skip_record_for` cross the same
+# way. Every caller reads this builder inside `gate_grep -vE "$(…)"`, so
+# the `exit` below is the SUBSTITUTION's status and the expansion throws
+# it away: the gate printed the diagnosis on stderr, filtered on the
+# empty pattern the refusal left behind, matched nothing, and said `OK`
+# with status 0. The marker crosses the boundary the status cannot, and
+# `gate_ok` — the one place a gate says green — refuses to print over
+# it. (Found by PR 2157's review; the comment here used to claim the
+# refusal was terminal, and it was only diagnosed.)
 gate_record_anchor_any() {
   [ $# -gt 0 ] || {
     gate_error "$(gate_name): gate_record_anchor_any was given no home, and an empty alternation is not an empty skip — it matches every record, so the filter built from it would drop the whole scan and the gate would go green over nothing"
+    : >> "$GATE_MATCHER_FAILED"
     exit 1
   }
   local home
@@ -806,17 +817,28 @@ gate_record_anchor_any() {
 # records `GATE_SCAN_FILES=1`, and a skip's home is the one file the
 # scan decides nothing about, so a gate that counted its exemptions as
 # its scan would print a count that is not what it read.
+#
+# BOTH REFUSALS SET THE MARKER, in the shape `gate_record_anchor_any`'s
+# does one function up. Here the `exit` is already terminal — this runs
+# as a statement of its own — so the marker is redundant TODAY and is
+# written anyway: the two refusals are about the same list, a reader
+# comparing them should not have to work out that one of them is safe
+# for a reason the other is not, and a caller that ever reads this from
+# inside a substitution inherits the safe answer rather than the silent
+# green that shape produced at the builder.
 gate_require_homes() {
   local subject=$1
   shift
   [ $# -gt 0 ] || {
     gate_error "$(gate_name): gate_require_homes was given no home — this is the list the filter is built from, so an empty one here is an empty alternation there, and that matches every record"
+    : >> "$GATE_MATCHER_FAILED"
     exit 1
   }
   local home
   for home in "$@"; do
     if [ ! -f "$home" ]; then
       gate_error "$(gate_name): this gate's whole-file skip is anchored at a path this tree does not have — $home is not a file under $PWD, and the skip anchored there would have exempted $subject. A skip whose home is gone exempts nothing, and left standing it is a ratification the next file written at that path inherits without argument, so it is a red here and not an abstention. If the home MOVED, re-anchor the skip to the new path — what is at the new path is an ordinary hit and needs its own ratification; if what it exempted was RETIRED, drop the entry in the change that retires it"
+      : >> "$GATE_MATCHER_FAILED"
       exit 1
     fi
   done
@@ -1967,6 +1989,62 @@ gate_exact_skip_selftest() {
 # remaining entries prove is that they are each reached. That is the
 # direction with the population — a home is renamed one at a time.
 
+# AN EMPTY HOME LIST IS A RED, AND IT IS THE MARKER THAT MAKES IT ONE.
+# The refusal is inside `gate_record_anchor_any`, every caller reads
+# that builder inside `gate_grep -vE "$(…)"`, and a substitution's exit
+# status is discarded by the expansion — so the diagnosis printed, the
+# filter ran on the empty pattern the refusal left behind, and the gate
+# said `OK` with status 0 over a scan every record of which it had just
+# dropped. That is `gate_exact_skip_two_record_case`'s finding at the
+# other builder, so this case has its shape: a REAL SUBPROCESS whose
+# gate is the ordinary spelling — build the filter in the substitution,
+# then `gate_ok`. Inside this process an `if` would suppress errexit,
+# and errexit is not what carries this one anyway.
+#
+# THE SCRATCH GATE IS THE CALLERS' OWN SPELLING, not a direct call to
+# the builder: what is being proved is that the refusal survives the
+# substitution, and a builder called as a bare statement would exit
+# terminally and prove nothing.
+gate_empty_home_list_case() {
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean_sources "$tmp"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'set -euo pipefail\n'
+    printf '. %s\n' "${BASH_SOURCE[0]}"
+    printf 'HOMES=()\n'
+    printf 'gate() {\n'
+    printf '  gate_require_crate_sources\n'
+    printf '  local hits\n'
+    printf '  hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \\\n'
+    printf '    | gate_grep -vE "$(gate_record_anchor_any ${HOMES[@]+"${HOMES[@]}"})")\n'
+    printf '  [ -z "$hits" ] || exit 1\n'
+    printf '  gate_ok "nothing matched"\n'
+    printf '}\n'
+    printf 'gate_selftest() { :; }\n'
+    printf 'gate_parse_args "$@"\n'
+    printf 'gate_main\n'
+  } > "$tmp/empty-homes.sh"
+  if out=$(bash "$tmp/empty-homes.sh" --root "$tmp" 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: a gate whose home list is EMPTY passed — the refusal inside `gate_record_anchor_any` is the substitution'"'"'s exit and the expansion discards it, so `grep -vE ""` dropped every record and the gate reported green over a scan it decided nothing about:\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "an empty home list" "$out"
+  case "$out" in
+    *"was given no home"*) ;;
+    *) printf 'SELFTEST FAILED (an empty home list): the gate failed for some OTHER reason than the refusal:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
+  case "$out" in
+    *"OK: nothing matched"*)
+      printf 'SELFTEST FAILED (an empty home list): the gate printed its OK line and failed after it — `gate_ok` is the choke point, and a green printed beside a red is what a CI reader acts on:\n%s\n' "$out" >&2
+      exit 1 ;;
+  esac
+}
+
 # The home gone. REMOVED rather than not planted, because the clean
 # fixture of a gate that declares a whole-file skip plants every one of
 # its homes; that is what makes this a mutation of the clean tree and
@@ -1981,10 +2059,11 @@ gate_plant_home_gone() {
 # other home — or named none — fails here rather than reading as a pass.
 gate_selftest_homes() {
   local home
+  gate_empty_home_list_case
   for home in "$@"; do
     gate_selftest_case "$home is not a file under" gate_plant_home_gone "$home"
   done
-  printf '%s selftest OK (the whole-file skip'"'"'s subject): each of the %d home(s) it exempts is a red naming that path when it leaves the tree, so a skip cannot outlive its home and ratify whatever lands there next; and because the clean fixture plants the same list, a home named in the filter that the fixture does not plant reds the clean case\n' \
+  printf '%s selftest OK (the whole-file skip'"'"'s subject): each of the %d home(s) it exempts is a red naming that path when it leaves the tree, so a skip cannot outlive its home and ratify whatever lands there next; and because the clean fixture plants the same list, a home named in the filter that the fixture does not plant reds the clean case; and a home list that came out EMPTY is a red at `gate_ok` rather than a filter that drops every record\n' \
     "$(gate_name)" "$#"
 }
 

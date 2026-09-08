@@ -110,6 +110,23 @@ seven (4, 1, 2, 7, 3, 5+3, 1).
 | **filter→fixture**: a home kept in the filter, dropped from `gate_plant_clean` (`bit-identity-consumer`'s `geom-core/src/interval.rs`; `witness-not-ambient`'s `HOME_FILE`) | reds "the gate FAILED on a clean fixture", through this check's diagnosis |
 | the same fixture mutation with the whole unit backed out | **green** — which is the direction PR 2077 left unproved, now closed |
 
+**The builder's own refusal, from PR 2157's review.**
+`gate_record_anchor_any`'s no-homes refusal (`lib.sh`) was diagnosed but
+not terminal: every caller reads the builder inside
+`gate_grep -vE "$(…)"`, so the `exit 1` is the substitution's, the
+expansion discards it, `grep -vE ''` drops every record and the gate
+prints `OK` with status 0. Fixed the way `gate_exact_skip_record_for`
+does — the refusal writes the `GATE_MATCHER_FAILED` marker, which
+`gate_ok` refuses to print over — with the comment corrected from
+"diagnosed and terminal" to what it is. `gate_require_homes`'s two
+refusals write the marker in the same shape, though their `exit` is
+already terminal, so the two refusals over one list read alike.
+`gate_empty_home_list_case` plants it in `lib.sh`: a scratch gate whose
+home list is empty, in a real subprocess, in the callers' own spelling.
+Mutation: drop the marker line and the case reds with the finding
+reproduced verbatim — the diagnosis on stderr, then
+`empty-homes OK: nothing matched (1 source file scanned)`.
+
 **Live output is byte-identical** for all seven gates, stdout and
 stderr `cmp`'d against the merge base (`dfa569e01`): every home is in
 the tree, so the check prints nothing. `gate-roster.sh` green; every
