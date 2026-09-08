@@ -1299,6 +1299,52 @@ its A/B row is MODEL-AB-LOG SEAT9.
 
 - `SEAT-9-SPEC.md` — SEAT-9, the shell arm on `Verb` and ε travelling only as `Tol` down the offset-fit chain (#1995)
 
+## Sweep 7 — 2026-09-08: GATES leaves the tracker
+
+Sweep SHA: `5ce54b35bf355241de5fa5e3bb0cfeb264bf52af` — `main`'s tip immediately before the deletion,
+so every path below is recoverable at
+`git show 5ce54b35bf355241de5fa5e3bb0cfeb264bf52af:work/gates/<FILE>` and
+`git show 5ce54b35bf355241de5fa5e3bb0cfeb264bf52af:docs/GATES-EXIT-WALK.md`.
+
+GATES — the CI gate scripts, code-quality Track K's `scripts/gates/*`
+half — opened 2026-09-06 in the tracker-wide cut and closed 2026-09-08
+on Ev's ratification of `docs/GATES-EXIT-WALK.md` (PR #2185, "lgtm!").
+Per the sweep-5 rule the program's directory leaves whole:
+`program.md`, `plan.md`, `log.md`, and every closed item file
+(26 of them: `D102`, `D103`, `D109`, `D211`, `S13`, `S49`, `anchored-exact-text-skip-has-three-homes`, `bit-identity-debug-only-gate-ends-an-item-at-a-semicolon`, `bounds-allowlist-select-cuts-at-the-first-colon`, `bounds-tripwire-blind-to-named-alias`, `clippy-panic-gate-blind-in-macros`, `debug-only-assert-euler-postcondition-is-on-no-row`, `debug-only-bit-witness-callers-are-on-no-row`, `debug-only-counters-have-no-gate`, `debug-only-helpers-outside-the-subject-list`, `debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`, `gate-mod-path-resolved-textually`, `home-anchored-file-skip-is-unescaped`, `record-file-column-read-by-first-colon-split`, `test-module-resolution-has-three-homes`, `trait-generic-sole-bracket`, `unanchored-definition-skip`, `viewer-module-kinds-six-unreached-guards`, `whole-file-skips-are-hand-spelled-not-anchored`, `whole-file-skips-do-not-check-their-subject`, `window-view-emits-a-record-for-a-comment-only-line`). Twenty-six
+rows landed over twenty-five PRs (2029–2069, 2077, 2156, 2157, 2170,
+2174), each under one style review with a planted breach and a fix
+pass; one `[ev]` ruling ratified (PR 2067, the gates stay greps); one
+`[ev]` ruling open at the sweep (PR 2171, below). Infra-only: no A/B
+rows; the band 3100–3199 was claimed for bookkeeping and stays
+allocated.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `gates` | GATES — the CI gate scripts | 2026-09-08 | this row and the exit-walk row below; design at `scripts/gates/README.md` (the directory's page, listed in `docs/DESIGN.md`'s companion table) and in `scripts/gates/lib.sh`'s own headers |
+
+### Residue re-homed before the deletion
+
+Moved by `git mv` with ids kept (ownership is the directory):
+
+| item | to |
+| --- | --- |
+| `D212` | `work/code-quality/` — rides `G4`, Track V's, which lives there |
+| `directory-prefix-skips-have-no-subject-check` | `work/code-quality/` — open on its `crates/*/src/bin/` half, `blocked_on` `[ev]` PR 2171; the two-directory half closed with PR 2170 |
+
+Filed on other slates during the program and already there:
+`work-set-accepts-a-scalar-for-a-list-field` (META),
+`doc-gate-error-sites-outside-the-gate-population` (CIW),
+`bound-list-readers-have-three-homes` (code-quality). Nothing went to
+`work/issues/`. Track K's `scripts/gates/*` fence returns to
+code-quality with the two rows.
+
+### The exit walk's row
+
+| walk | program closed | ratified on | done-state now |
+| --- | --- | --- | --- |
+| `GATES-EXIT-WALK.md` | 2026-09-08 | PR #2185, in a PR comment | this row; the residue table above; `scripts/gates/README.md` |
+
 ## Sweep 7 — 2026-09-06: FILLET leaves the tracker
 
 Sweep SHA: `efe21acb8f599dd146fbaadc0251dc3981ebbf9a` — `main`'s tip immediately before the deletion,

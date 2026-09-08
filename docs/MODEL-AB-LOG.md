@@ -239,7 +239,8 @@ amended:
      full-dual posture and draws from 2900 on, EVAL runs style reviews
      with a correctness arm where a unit moves what a document
      evaluates to, GATES and METER are infra-only and claim their bands
-     for bookkeeping),
+     for bookkeeping; GATES closed 2026-09-08 with no row recorded,
+     its band staying allocated),
      with **3300+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
