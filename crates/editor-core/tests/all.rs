@@ -155,8 +155,6 @@ mod lib_g16_corpus_name_digests;
 mod lib_g17_r1_probes;
 #[path = "lib_g17_r2_probes.rs"]
 mod lib_g17_r2_probes;
-#[path = "lib_teapot_r2_probes.rs"]
-mod lib_teapot_r2_probes;
 #[path = "lib_g17_shell_node.rs"]
 mod lib_g17_shell_node;
 #[path = "lib_placedunion.rs"]
@@ -165,6 +163,8 @@ mod lib_placedunion;
 mod lib_sel1_geoselect;
 #[path = "lib_sel2_flush.rs"]
 mod lib_sel2_flush;
+#[path = "lib_teapot_r2_probes.rs"]
+mod lib_teapot_r2_probes;
 #[path = "lib_u5_interrogate.rs"]
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]

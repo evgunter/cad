@@ -13,10 +13,10 @@ use core::f64::consts::TAU;
 use crate::corpus::{body_of, eval};
 use crate::fixture::{Recorder, ang, axis_in_plane, frame, len, scl};
 use editor_core::{
-    EntityKind, Expr, LoopProgram, MeridianEnd, NamePat, Node,
-    NodeErrorKind, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, edge_frame,
-    edge_name, face_carrier_kind, face_frame, face_name, select, vertex_position,
+    EntityKind, Expr, LoopProgram, MeridianEnd, NamePat, Node, NodeErrorKind, ProfileEdgeRef,
+    ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, SegPat, SegTag, Selector, StableName, edge_frame, edge_name, face_carrier_kind,
+    face_frame, face_name, select, vertex_position,
 };
 use geom_core::{Mat3, Point3, Tol, Vec3};
 use topo::ShellError;
@@ -146,7 +146,12 @@ fn frame_axis(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     (plane, axis)
 }
-fn revolved(r: &mut Recorder, plane: RecipeNodeId, axis: RecipeNodeId, lp: LoopProgram) -> RecipeNodeId {
+fn revolved(
+    r: &mut Recorder,
+    plane: RecipeNodeId,
+    axis: RecipeNodeId,
+    lp: LoopProgram,
+) -> RecipeNodeId {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![lp],
@@ -169,7 +174,11 @@ fn tori(b: &topo::Body<f64>) -> Vec<(u64, u64, u64)> {
                 minor_radius,
                 center,
                 ..
-            }) => Some((center.y.to_bits(), major_radius.to_bits(), minor_radius.to_bits())),
+            }) => Some((
+                center.y.to_bits(),
+                major_radius.to_bits(),
+                minor_radius.to_bits(),
+            )),
             _ => None,
         })
         .collect();
@@ -245,10 +254,17 @@ fn r2_two_requests_equal_the_kernels_one_request() {
     let second = r.insert(Node::fillet(
         first,
         len(ROLL),
-        vec![carried(first, band_rim(lid, 2)), carried(first, band_rim(lid, 4))],
+        vec![
+            carried(first, band_rim(lid, 2)),
+            carried(first, band_rim(lid, 4)),
+        ],
     ));
     let ev = eval::<f64>(&r.doc);
-    assert!(ev.node_error(second).is_none(), "{:?}", ev.node_error(second));
+    assert!(
+        ev.node_error(second).is_none(),
+        "{:?}",
+        ev.node_error(second)
+    );
     let sharp = body_of(&ev, lid).clone();
     let two = body_of(&ev, second).clone();
 
@@ -281,7 +297,10 @@ fn r2_two_requests_equal_the_kernels_one_request() {
     let t1 = tori(&one);
     let t2 = tori(&two);
     println!("tori one={t1:?}\ntori two={t2:?}");
-    assert_eq!(t1, t2, "the three bands' stored (station, R, r) differ between the two spellings");
+    assert_eq!(
+        t1, t2,
+        "the three bands' stored (station, R, r) differ between the two spellings"
+    );
     assert!(((p1.volume - p2.volume) / p1.volume).abs() < 1e-14);
     // The face ORDER: the torus bands' positions in face iteration.
     let order = |b: &topo::Body<f64>| -> Vec<String> {
@@ -296,7 +315,11 @@ fn r2_two_requests_equal_the_kernels_one_request() {
             })
             .collect()
     };
-    println!("face order one={:?}\nface order two={:?}", order(&one), order(&two));
+    println!(
+        "face order one={:?}\nface order two={:?}",
+        order(&one),
+        order(&two)
+    );
 }
 
 #[test]
@@ -324,9 +347,18 @@ fn r2_spout_placement_measured_off_the_placed_body() {
     let (a, b) = (format!("{m:?}"), format!("{hand:?}"));
     println!("rotation_about = {a}\nhand           = {b}");
     for (x, y) in [
-        (m * Vec3::new(1.0, 0.0, 0.0), hand * Vec3::new(1.0, 0.0, 0.0)),
-        (m * Vec3::new(0.0, 1.0, 0.0), hand * Vec3::new(0.0, 1.0, 0.0)),
-        (m * Vec3::new(0.0, 0.0, 1.0), hand * Vec3::new(0.0, 0.0, 1.0)),
+        (
+            m * Vec3::new(1.0, 0.0, 0.0),
+            hand * Vec3::new(1.0, 0.0, 0.0),
+        ),
+        (
+            m * Vec3::new(0.0, 1.0, 0.0),
+            hand * Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            m * Vec3::new(0.0, 0.0, 1.0),
+            hand * Vec3::new(0.0, 0.0, 1.0),
+        ),
     ] {
         assert_eq!(
             (x.x.to_bits(), x.y.to_bits(), x.z.to_bits()),
@@ -380,7 +412,10 @@ fn r2_mouth_by_name_and_its_mutants() {
     let (_, _, cup, ev) = cup_with(|pot| vec![band_pi(pot, 3)]);
     match ev.node_error(cup).map(|e| &e.kind) {
         Some(NodeErrorKind::Shell(inner)) => {
-            assert!(matches!(**inner, ShellError::OpenFaceChartPartial { .. }), "{inner:?}");
+            assert!(
+                matches!(**inner, ShellError::OpenFaceChartPartial { .. }),
+                "{inner:?}"
+            );
             println!("BandPi only -> {inner}");
         }
         other => panic!("expected the shell gate, got {other:?}"),
@@ -399,16 +434,26 @@ fn r2_mouth_by_name_and_its_mutants() {
         let p = topo::mass_properties(body, Tol::witness()).unwrap();
         println!(
             "{what}: rim names {:?}; census {:?}; V bits {:#x}; A bits {:#x}",
-            rims.iter().map(|n| format!("{:?}", n.path)).collect::<Vec<_>>(),
+            rims.iter()
+                .map(|n| format!("{:?}", n.path))
+                .collect::<Vec<_>>(),
             census(body),
             p.volume.to_bits(),
             p.surface_area.to_bits()
         );
         assert_eq!(rims.len(), 1);
     }
-    let va = topo::mass_properties(body_of(&ev_a, cup_a), Tol::witness()).unwrap().volume;
-    let vb = topo::mass_properties(body_of(&ev_b, cup_b), Tol::witness()).unwrap().volume;
-    assert_eq!(va.to_bits(), vb.to_bits(), "the two orders differ in volume");
+    let va = topo::mass_properties(body_of(&ev_a, cup_a), Tol::witness())
+        .unwrap()
+        .volume;
+    let vb = topo::mass_properties(body_of(&ev_b, cup_b), Tol::witness())
+        .unwrap()
+        .volume;
+    assert_eq!(
+        va.to_bits(),
+        vb.to_bits(),
+        "the two orders differ in volume"
+    );
 }
 
 #[test]
@@ -426,7 +471,12 @@ fn r2_select_canonical_order_by_geometry() {
     );
     for (i, n) in bands.iter().enumerate() {
         let f = face_frame(&ev, pot, n).unwrap();
-        println!("bands[{i}] = {:?} kind {:?} origin.y {}", n.path, face_carrier_kind(&ev, pot, n).unwrap(), f.origin.y);
+        println!(
+            "bands[{i}] = {:?} kind {:?} origin.y {}",
+            n.path,
+            face_carrier_kind(&ev, pot, n).unwrap(),
+            f.origin.y
+        );
     }
     assert_eq!(bands.len(), 4);
     assert_eq!(face_frame(&ev, pot, &bands[3]).unwrap().origin.y, Y_MOUTH);
@@ -439,30 +489,46 @@ fn r2_select_canonical_order_by_geometry() {
     for (i, n) in rims.iter().enumerate() {
         let f = edge_frame(&ev, lid, n).unwrap();
         let p = vertex_position(&ev, lid, &meridian_vertex(lid, i as u32)).unwrap();
-        println!("rims[{i}] = {:?} centre.y {} radius {}", n.path, f.origin.y, p.x.hypot(p.z));
+        println!(
+            "rims[{i}] = {:?} centre.y {} radius {}",
+            n.path,
+            f.origin.y,
+            p.x.hypot(p.z)
+        );
         assert_eq!(f.origin.y, stations[i]);
     }
     let carried_rims = select(
         &ev,
         first,
-        &Selector::of(
-            NamePat::of_kind(EntityKind::Edge).seg(
-                SegPat::tag(SegTag::FromTarget).of([NamePat::any().seg(SegPat::tag(SegTag::BandRim))]),
-            ),
-        ),
+        &Selector::of(NamePat::of_kind(EntityKind::Edge).seg(
+            SegPat::tag(SegTag::FromTarget).of([NamePat::any().seg(SegPat::tag(SegTag::BandRim))]),
+        )),
     );
     for (i, n) in carried_rims.iter().enumerate() {
-        println!("carried[{i}] = {:?} centre.y {}", n.path, edge_frame(&ev, first, n).unwrap().origin.y);
+        println!(
+            "carried[{i}] = {:?} centre.y {}",
+            n.path,
+            edge_frame(&ev, first, n).unwrap().origin.y
+        );
     }
     assert_eq!(carried_rims.len(), 5);
-    assert_eq!(edge_frame(&ev, first, &carried_rims[1]).unwrap().origin.y, Y_FLANGE);
-    assert_eq!(edge_frame(&ev, first, &carried_rims[3]).unwrap().origin.y, Y_TOP);
+    assert_eq!(
+        edge_frame(&ev, first, &carried_rims[1]).unwrap().origin.y,
+        Y_FLANGE
+    );
+    assert_eq!(
+        edge_frame(&ev, first, &carried_rims[3]).unwrap().origin.y,
+        Y_TOP
+    );
     // The mutant the brief asks for: vertex 3 (the dome/knob junction) in
     // place of vertex 4. Does it roll, and what does it look like?
     let second = r.insert(Node::fillet(
         first,
         len(ROLL),
-        vec![carried(first, band_rim(lid, 2)), carried(first, band_rim(lid, 3))],
+        vec![
+            carried(first, band_rim(lid, 2)),
+            carried(first, band_rim(lid, 3)),
+        ],
     ));
     let ev = eval::<f64>(&r.doc);
     match ev.node_error(second) {
@@ -472,7 +538,11 @@ fn r2_select_canonical_order_by_geometry() {
             let sharp = body_of(&ev, lid);
             let dv = topo::mass_properties(sharp, Tol::witness()).unwrap().volume
                 - topo::mass_properties(b, Tol::witness()).unwrap().volume;
-            println!("mutant v=3: builds, census {:?}, dV = {dv:e}, tori {:?}", census(b), tori(b));
+            println!(
+                "mutant v=3: builds, census {:?}, dV = {dv:e}, tori {:?}",
+                census(b),
+                tori(b)
+            );
         }
     }
 }
@@ -487,7 +557,11 @@ fn r2_wall3_payload_document_vs_kernel_direct() {
     let mut r = Recorder::new();
     let (plane, axis) = frame_axis(&mut r);
     let pot = revolved(&mut r, plane, axis, vessel_meridian());
-    let cup = r.insert(Node::shell(pot, len(WALL), vec![band(pot, 3), band_pi(pot, 3)]));
+    let cup = r.insert(Node::shell(
+        pot,
+        len(WALL),
+        vec![band(pot, 3), band_pi(pot, 3)],
+    ));
     let sbody = revolved(&mut r, plane, axis, spout_meridian());
     let turn = (-SPOUT_DIR[0]).atan2(SPOUT_DIR[1]);
     let spout = r.insert(Node::Transform {
@@ -510,7 +584,9 @@ fn r2_wall3_payload_document_vs_kernel_direct() {
                 .expect("the mouth half's key")
         })
         .collect();
-    let kernel_cup = topo::shell_open(bellied, WALL, &mouth, tol).expect("kernel cup").body;
+    let kernel_cup = topo::shell_open(bellied, WALL, &mouth, tol)
+        .expect("kernel cup")
+        .body;
     let planes = |b: &topo::Body<f64>| -> Vec<String> {
         b.faces()
             .filter_map(|(k, f)| match b.get_surface(f.surface) {
@@ -523,9 +599,15 @@ fn r2_wall3_payload_document_vs_kernel_direct() {
     println!("kernel   cup planar faces: {:?}", planes(&kernel_cup));
     let doc_face_order: Vec<String> = doc_cup.faces().map(|(k, _)| format!("{k:?}")).collect();
     let ker_face_order: Vec<String> = kernel_cup.faces().map(|(k, _)| format!("{k:?}")).collect();
-    println!("document cup face keys: {doc_face_order:?}\nkernel   cup face keys: {ker_face_order:?}");
-    let d = topo::union(doc_cup, spout_b, tol).err().map(|e| format!("{e:?}"));
-    let k = topo::union(&kernel_cup, spout_b, tol).err().map(|e| format!("{e:?}"));
+    println!(
+        "document cup face keys: {doc_face_order:?}\nkernel   cup face keys: {ker_face_order:?}"
+    );
+    let d = topo::union(doc_cup, spout_b, tol)
+        .err()
+        .map(|e| format!("{e:?}"));
+    let k = topo::union(&kernel_cup, spout_b, tol)
+        .err()
+        .map(|e| format!("{e:?}"));
     println!("document cup ∪ spout -> {d:?}\nkernel   cup ∪ spout -> {k:?}");
     assert_eq!(d, k, "the two cups' refusals differ");
 }
@@ -552,9 +634,15 @@ fn r2_rim_circle_readback_cannot_see_a_wrong_rim_on_the_same_station() {
     let honest = readback(1, 1);
     let mutant = readback(0, 1);
     println!("honest (edge 1, vertex 1) = {honest:?}; mutant (edge 0, vertex 1) = {mutant:?}");
-    assert_eq!(honest, mutant, "the read-back distinguishes the two rims after all");
+    assert_eq!(
+        honest, mutant,
+        "the read-back distinguishes the two rims after all"
+    );
     let mutant_top = readback(5, 4);
-    println!("mutant (edge 5, vertex 4) = {mutant_top:?} vs honest {:?}", readback(4, 4));
+    println!(
+        "mutant (edge 5, vertex 4) = {mutant_top:?} vs honest {:?}",
+        readback(4, 4)
+    );
     assert_eq!(mutant_top, readback(4, 4));
 }
 
@@ -593,14 +681,17 @@ fn r2_which_adjacent_pairs_collide() {
         .collect();
         println!(
             "rim v={v} alone at ROLL/4: {} ; slits {slits:?}",
-            ev.node_error(rolled).map_or("builds".to_string(), |e| format!("{:?}", e.kind))
+            ev.node_error(rolled)
+                .map_or("builds".to_string(), |e| format!("{:?}", e.kind))
         );
     }
     for pair in [[0u32, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0]] {
         let out = roll_once_at(&pair, ROLL / 4.0);
         let verdict = match &out {
             Ok(c) => format!("builds {c:?}"),
-            Err(e) if e.starts_with("Naming(Duplicate") => "COLLIDES (Naming(Duplicate))".to_string(),
+            Err(e) if e.starts_with("Naming(Duplicate") => {
+                "COLLIDES (Naming(Duplicate))".to_string()
+            }
             Err(e) => format!("refuses otherwise: {}", &e[..e.len().min(120)]),
         };
         println!("adjacent pair {pair:?}: {verdict}");
@@ -658,7 +749,9 @@ fn r2_wall3_other_face_on_the_merge_base_spelling() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(mouth.len(), 2);
-    let cup = topo::shell_open(&bellied, WALL, &mouth, tol).expect("base cup").body;
+    let cup = topo::shell_open(&bellied, WALL, &mouth, tol)
+        .expect("base cup")
+        .body;
     let planes: Vec<String> = cup
         .faces()
         .filter_map(|(k, f)| match cup.get_surface(f.surface) {
@@ -669,7 +762,9 @@ fn r2_wall3_other_face_on_the_merge_base_spelling() {
     println!("merge-base-style cup planar faces: {planes:?}");
     println!(
         "merge-base-style cup face keys: {:?}",
-        cup.faces().map(|(k, _)| format!("{k:?}")).collect::<Vec<_>>()
+        cup.faces()
+            .map(|(k, _)| format!("{k:?}"))
+            .collect::<Vec<_>>()
     );
     // The document's spout, as before.
     let mut r = Recorder::new();
@@ -683,6 +778,8 @@ fn r2_wall3_other_face_on_the_merge_base_spelling() {
         rotation_angle: ang(turn),
     });
     let ev = eval::<f64>(&r.doc);
-    let e = topo::union(&cup, body_of(&ev, spout), tol).err().map(|e| format!("{e:?}"));
+    let e = topo::union(&cup, body_of(&ev, spout), tol)
+        .err()
+        .map(|e| format!("{e:?}"));
     println!("merge-base-style cup ∪ spout -> {e:?}");
 }
