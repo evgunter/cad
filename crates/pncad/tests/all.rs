@@ -739,11 +739,7 @@ fn the_polygon_door_authors_through_the_lattice() {
 
     // Three corners is the floor, and the arm says which count it
     // refused — every sub-three table takes the same door.
-    for table in [
-        &[(0.0, 0.0), (1.0, 0.0)][..],
-        &[(0.0, 0.0)][..],
-        &[][..],
-    ] {
+    for table in [&[(0.0, 0.0), (1.0, 0.0)][..], &[(0.0, 0.0)][..], &[][..]] {
         let given = table.len();
         match polygon::<f64>(table, tol) {
             Err(PathError::PolygonTooFewVertices { given: n }) => assert_eq!(n, given),

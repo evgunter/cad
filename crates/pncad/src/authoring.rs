@@ -163,10 +163,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// ));
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-pub fn polygon<T: Decide>(
-    points: &[(f64, f64)],
-    tol: Tol,
-) -> Result<ProfileLoop<T>, PathError<T>> {
+pub fn polygon<T: Decide>(points: &[(f64, f64)], tol: Tol) -> Result<ProfileLoop<T>, PathError<T>> {
     let too_few = || PathError::PolygonTooFewVertices {
         given: points.len(),
     };
