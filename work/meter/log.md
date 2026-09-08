@@ -1032,3 +1032,58 @@ Verified here before merging: `:358`, `:392` and `:263` are
 `SceneTotals` triple `:1285`/`:1292`/`:1330` is `recoverable`,
 `span_held`, `total_slack` — the corrected order, which the first
 version had inverted.
+
+## Unit 12 CLOSED and merged; the scope of a figure is not the scope of the command (2026-09-08)
+
+Merged at `51c5aebda` (PR 2179), head `647726cf3`, CI green, after
+three rounds. `tools/tess-lint`'s CSV fixture now has one home,
+`src/tests/csv_fixture.rs`, mounted into the crate's test module and
+into `tests/cli_contract.rs` with `#[path]`, so a value drift between
+the two sides can no longer be WRITTEN. The unit also overturned the
+finding that promoted it: blanking the token was not silent on CI
+(clippy's `dead_code` caught it, by accident of reachability rather
+than by any content check), and the failure mode nobody had measured —
+drifting the constant's VALUE on one side — was invisible to tests and
+clippy on both.
+
+**The unit's two self-caught errors have one mechanism, and the lane
+named it better than I did.** It reported a clippy grid it had not run,
+and a drill count scoped to the lib binary as though it were the
+tree's. The second has a concrete cause worth keeping: **`cargo test`
+fail-fasts at the lib binary, so a drill run without `--no-fail-fast`
+never sees the rest.** Every drill the lane ran was `--lib` or a
+fail-fasting `cargo test`, so it reported a number whose scope came
+from the command it happened to type rather than from the claim it was
+making. The true figure is 5 crate-wide, not 1: the other four are the
+two census files reading a committed baseline whose header no longer
+matches.
+
+**And the S3 argument, which the orchestrator relayed onward and
+praised.** The lane argued that a pin on the reader census would
+manufacture the finding it was checking for, since it would name a
+`.rs` file without mounting it. False: **owing a ledger line is not a
+finding** — `reader_census.rs`'s own header says so in plain words
+eight lines in, *"not 'you did something wrong'"* — and
+`tools/k-lint/tests/predicate_roster.rs` and
+`tools/tess-meter/tests/derivations.rs` both carry `Shared` lines and
+dev-depend on `test-utils` to earn them. The real blocker is narrower:
+`tools/tess-lint`'s manifest declares NO DEPENDENCIES AT ALL as a
+stated property, so reaching `test_utils::source` changes that
+property; and the ledger line is outside METER's fence. Conclusion
+right, reason wrong. It never reached the tree — only the PR body, the
+lane's report, my relay to the reviewer, and my summary to Ev — and the
+body now carries the correction as a correction rather than a silent
+rewrite.
+
+The lane's own diagnosis ties the day together: *"both were conclusions
+I reached without opening the thing I was reasoning about. I inferred
+the ledger's semantics from the shape of a red instead of reading its
+header — the same move as citing a line without opening it."*
+
+**That is the day's finding in one sentence.** Every error today, the
+orchestrator's six included, was an inference from the shape of a thing
+in place of a reading of it: which function a doc list implied was
+gated, which spelling produced a measured movement, which file a quoted
+figure lived in, what a census red means, how many tests a drill reds.
+None needed cleverness to catch. Each needed one `grep`, one control,
+or one header read.
