@@ -4030,6 +4030,31 @@ both lanes on one 4-core cloud box at `-j2` (a method note applying to
 both arms equally). The implementer's unit log entry is not written
 until the dual concludes.
 
+## SHELL-9 review ordinal fixed at dispatch (2026-09-08)
+
+SHELL-9 (`void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`,
+sphere half; PR #2223 open — frozen head `273b8603`): **ordinal 2306**
+(SHELL band; after 2305). Pre-draw fields at the item
+(`work/shell/SHELL-9.md`): difficulty **S**, task-class **STRUCTURAL**,
+logged BEFORE block SHELL-B3's byte was drawn (a clean covariate);
+implementer arm per block SHELL-B3 slot 0 (record branch-side on the
+SHELL orchestrator branch). Protocol v6 dual: draw = `/dev/urandom`
+byte **119**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded
+before either review runs: CONCURRENT same-head on frozen `273b8603`,
+both briefs authored and STORED with sha256 before either dispatches
+(sha256 c53bc5ad58f4… r1 / 07b10e0f9933… r2 — identical text modulo lane
+names and lane paths, verified by diff), neither reviewer sees the
+other's report, v6 item 5 isolation in both briefs (the process table
+named alongside branches and scratch, after SHELL-8's disclosed
+glimpse), PRIVATE `CARGO_TARGET_DIR` per reviewer (both EMPTY — cold and
+symmetric), both lanes on one 4-core cloud box at `-j2` (a method note
+applying to both arms equally). Disclosed: the unit was preceded by a
+diagnosis lane (branch `shell/9-probe`, no arm recorded — a
+measurement, not an implementation) whose rows the unit merged; the
+cut commit on the unit branch carries no orchestrator trailer (an
+omission, not a blinding fact). The implementer's unit log entry is not
+written until the dual concludes.
+
 ## SHELL-8 review ordinal fixed at dispatch (2026-09-08)
 
 SHELL-8 (`shell-open-on-a-multi-solid-body`, PR #2207 open — frozen
