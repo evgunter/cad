@@ -13,8 +13,8 @@ use crate::errors::{
     ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose,
 };
 use crate::tags::{
-    expr_dimension_error_tag, path_error_tag, persist_error_tag, step_import_error_tag,
-    workspace_error_tag,
+    expr_dimension_error_tag, path_error_tag, persist_error_tag, promoted_kind_tag,
+    step_import_error_tag, workspace_error_tag,
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
@@ -113,6 +113,9 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::NodePick => "NodePickError",
             ErrorClass::Checks => "ChecksError",
             ErrorClass::Enforce => "CheckRefusal",
+            ErrorClass::Distribution => "DistributionFault",
+            ErrorClass::Measure => "MeasureUnavailable",
+            ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
         }
     }
     for class in [
@@ -145,9 +148,113 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::NodePick,
         ErrorClass::Checks,
         ErrorClass::Enforce,
+        ErrorClass::Distribution,
+        ErrorClass::Measure,
+        ErrorClass::AnalysisPolicy,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
+}
+
+/// LIB-B-DISTRIBUTIONS: the four form words and the three faults,
+/// CONSTRUCTED rather than listed.
+///
+/// The tag inventory pins the words `src/tags.rs` can emit; it cannot
+/// say which kernel value emits which. These rows do, from real
+/// `Distribution` values built through the kernel's own doors — so a
+/// form silently renamed onto another word reds here rather than at a
+/// Python caller.
+///
+/// The faults come out of `Distribution::check` rather than being
+/// written by hand, which is the point one rung further: the binding
+/// raises what the check answers, and this pins that the check
+/// answers what the tags claim it does. `check` is also the reason the
+/// Python constructor needs no rule of its own.
+#[test]
+fn distribution_form_and_fault_tags_are_stable() {
+    use crate::tags::{distribution_fault_tag, distribution_field_tag, distribution_kind_tag};
+    use pncad::document::{Distribution as D, DistributionField};
+
+    let band = D::Band { lo: -1.0, hi: 1.0 };
+    let uniform = D::Uniform { lo: -1.0, hi: 1.0 };
+    let normal = D::Normal { sigma: 1.0 };
+    let window = D::TruncatedNormal {
+        sigma: 1.0,
+        lo: -1.0,
+        hi: 1.0,
+    };
+    assert_eq!(distribution_kind_tag(&band), "band");
+    assert_eq!(distribution_kind_tag(&uniform), "uniform");
+    assert_eq!(distribution_kind_tag(&normal), "normal");
+    assert_eq!(distribution_kind_tag(&window), "truncated_normal");
+    // Every one of those four is an inhabitant: a form word is only
+    // reachable from Python if the constructor that mints it passes.
+    for form in [band, uniform, normal, window] {
+        assert_eq!(form.check(), Ok(()), "{form:?}");
+    }
+
+    let fault = |d: D| {
+        d.check()
+            .expect_err("this distribution breaks an E2 invariant")
+    };
+    assert_eq!(
+        distribution_fault_tag(&fault(D::Normal { sigma: 0.0 })),
+        "sigma_not_positive"
+    );
+    assert_eq!(
+        distribution_fault_tag(&fault(D::Band { lo: 1.0, hi: 2.0 })),
+        "nominal_outside_support"
+    );
+    assert_eq!(
+        distribution_fault_tag(&fault(D::Normal {
+            sigma: f64::INFINITY
+        })),
+        "non_finite"
+    );
+    assert_eq!(distribution_field_tag(&DistributionField::Sigma), "sigma");
+    assert_eq!(distribution_field_tag(&DistributionField::Lo), "lo");
+    assert_eq!(distribution_field_tag(&DistributionField::Hi), "hi");
+}
+
+/// LIB-B-DISTRIBUTIONS: the analysis lane's two refusals, from the
+/// doors that answer them.
+///
+/// Both are constructed by CALLING the door rather than by naming the
+/// variant, so the rows say the band really does refuse a
+/// shape-dependent price and the policy really does refuse a mass
+/// outside `(0, 1)` — which is what the Python classes are for.
+#[test]
+fn analysis_refusal_tags_are_stable() {
+    use crate::tags::{analysis_policy_error_tag, measure_unavailable_tag};
+    use pncad::analysis::{AnalysisPolicy, box_mass};
+    use pncad::document::{Distribution, ParamName};
+
+    let bore = ParamName::new("bore");
+    let refusal = box_mass(
+        &bore,
+        &Distribution::Band { lo: -1.0, hi: 1.0 },
+        (-0.5, 0.5),
+    )
+    .expect_err("a band prices nothing whose answer depends on its shape");
+    assert_eq!(measure_unavailable_tag(&refusal), "band_has_no_measure");
+
+    let policy = AnalysisPolicy::new(1.0).expect_err("mass 1 asks for an infinite box");
+    assert_eq!(
+        analysis_policy_error_tag(&policy),
+        "quantile_mass_out_of_range"
+    );
+    // And the whole point of the pair: the same band ANSWERS the two
+    // set-theoretic cases, so the refusal above is about the shape and
+    // not about bands.
+    assert_eq!(
+        box_mass(
+            &bore,
+            &Distribution::Band { lo: -1.0, hi: 1.0 },
+            (-2.0, 2.0)
+        ),
+        Ok(1.0)
+    );
+    assert!(AnalysisPolicy::new(0.5).is_ok());
 }
 
 /// LIB-B-READBACK: the read-back doors' tag map, arm by arm.
@@ -228,20 +335,23 @@ fn readback_refusal_tags_are_stable() {
 /// true, so the assertions below are written to fail if a wrapper tag
 /// is ever introduced.
 ///
-/// Two arms have no façade constructor and so no line here — the
+/// ONE arm has no façade constructor and so no line here — the
 /// `select_refusal_tags_are_stable` caveat, for a different reason.
 /// `HitTestError::Unnamed`'s payload is an `EntityRef`, an arena key
 /// beside a body index, and the façade deliberately does not name that
-/// type; `NodePickError::Index`'s payload is `MeshPickError`, which
-/// CUR3 recorded DECIDED absent. Both tags are covered by the matches
-/// themselves, which are exhaustive and would stop compiling if an arm
-/// moved.
+/// type; its tag is covered by the match itself, which is exhaustive
+/// and would stop compiling if the arm moved.
+///
+/// The index arm HAS one, and the pin below is what that buys: the
+/// payload rides on the curated surface beside the refusal that
+/// carries it, so this crate names it, constructs it, and pins both
+/// words — the carrier's `mesh_index` and the payload's own.
 #[test]
 fn picking_refusal_tags_are_stable() {
-    use crate::tags::{hit_test_error_tag, node_pick_error_tag};
+    use crate::tags::{hit_test_error_tag, mesh_pick_error_tag, node_pick_error_tag};
     use pncad::document::RecipeNodeId;
     use pncad::mesh::TessellateError;
-    use pncad::select::{HitTestError as H, NodePickError as N};
+    use pncad::select::{HitTestError as H, MeshPickError as M, NodePickError as N};
 
     let node = RecipeNodeId(0);
     assert_eq!(
@@ -289,6 +399,18 @@ fn picking_refusal_tags_are_stable() {
         })),
         "invalid_chordal_tolerance"
     );
+
+    // The index arm does NOT forward: `mesh_index` names the door
+    // whose invariant broke, and the payload's own word is pinned
+    // beside it rather than in place of it. Both are Python-visible —
+    // `variant` and `index_variant` — so both are contract.
+    let corrupt = M::PositionOutOfRange {
+        patch: 0,
+        triangle: 0,
+        index: 0,
+    };
+    assert_eq!(node_pick_error_tag(&N::Index(corrupt)), "mesh_index");
+    assert_eq!(mesh_pick_error_tag(&corrupt), "position_out_of_range");
 }
 
 /// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
@@ -334,13 +456,16 @@ fn the_evaluation_door_speaks_the_standing_ladder() {
 /// and pinned by CONSTRUCTING them, because nothing else can.
 ///
 /// Every other pin in this file builds its subject by naming a variant
-/// and filling its fields. That is unavailable here: `Resolved`,
-/// `ResolutionFailure` and `ResolveIndeterminate` are decided absent
-/// from the façade (`crates/pncad/tests/all.rs`'s `NOT_CARRIED`), so a
-/// `Resolution` cannot be assembled at all through `pncad` — it can
-/// only be OBTAINED, by resolving a real name against a real run. So
-/// this test builds a document, and the three states are three things
-/// that happen to it.
+/// and filling its fields. That is unavailable here: `Resolved` is
+/// decided absent from the façade (`crates/pncad/tests/all.rs`'s
+/// `NOT_CARRIED`, and its field is an arena key), and the two failure
+/// arms that can be spelled cannot be FILLED — `Vanished` needs a
+/// `Diagnosis`, `Ambiguous` a `TieWitness`, `NodeGone` a
+/// `RecipeEditRef`, all three of them interior. So a `Resolution`
+/// cannot be assembled through `pncad` at all; it can only be
+/// OBTAINED, by resolving a real name against a real run. This test
+/// builds a document, and the three states are three things that
+/// happen to it.
 ///
 /// That is a stronger pin than the literal one it replaces, and worth
 /// naming as such: it asserts that each state is REACHABLE by the
@@ -348,19 +473,45 @@ fn the_evaluation_door_speaks_the_standing_ladder() {
 /// string. It runs on the default no-Python path, so hosted CI checks
 /// the words a Python caller branches on without an interpreter.
 ///
-/// The `ambiguous` and `vanished` failures are not separately reached
-/// and do not need to be: they are the same `failed` word by the same
-/// arm of the same match, and what distinguishes them does not cross
-/// (this function's own doc comment says why).
+/// **The per-arm words are pinned wherever this fixture reaches the
+/// arm**, which is two of six: `node_gone` on the deleted node and
+/// `target_not_evaluated` on the canceled run. `ResolveIndeterminate`
+/// is constructible — its arms carry a `RecipeNodeId` and nothing
+/// else — so the other two of ITS three are pinned as literals below.
+/// `vanished` needs two runs of two documents, which
+/// `tests/test_resolve.py` already builds, so it is pinned there
+/// rather than duplicated here. `ambiguous` is reached by no test on
+/// either side of the boundary: an N2 tie needs a tie-marked table
+/// and no door on this surface authors one. Its word cannot silently
+/// move even so — the match is exhaustive and the inventory pins
+/// every literal — but nothing here asserts that a real tie arrives
+/// under it, and that is the honest statement of this pin's reach.
 #[test]
 fn resolution_status_tags_are_stable() {
-    use crate::tags::resolution_status_tag;
+    use crate::tags::{resolution_status_tag, resolve_error_tag, resolve_indeterminate_tag};
     use pncad::document::{
         CancelToken, Datum, DocEdit, EvalOptions, Expr, LoopProgram, Node, ProfileDoc,
         ProfileProgram, apply, evaluate,
     };
     use pncad::prelude::Dimension;
-    use pncad::select::{RunCtx, all_faces, resolve};
+    use pncad::select::{Resolution, ResolveIndeterminate, RunCtx, all_faces, resolve};
+
+    // The indeterminate arms carry a node id and nothing else, so all
+    // three are spellable here; the failure arms are not (this
+    // function's own doc comment says why).
+    let node = pncad::document::RecipeNodeId(0);
+    assert_eq!(
+        resolve_indeterminate_tag(&ResolveIndeterminate::TargetFailed { node }),
+        "target_failed"
+    );
+    assert_eq!(
+        resolve_indeterminate_tag(&ResolveIndeterminate::TargetPoisoned { through: node }),
+        "target_poisoned"
+    );
+    assert_eq!(
+        resolve_indeterminate_tag(&ResolveIndeterminate::TargetNotEvaluated { node }),
+        "target_not_evaluated"
+    );
 
     let tol = Tol::witness();
     let doc: ProfileDoc = crate::identity::derived("resolution-status-probe", tol);
@@ -426,16 +577,23 @@ fn resolution_status_tags_are_stable() {
         .expect("the leaf deletes")
         .doc;
     let after = run(&pruned, &live);
-    assert_eq!(
-        resolution_status_tag(&resolve(
-            RunCtx {
-                doc: &pruned,
-                eval: &after
-            },
-            &stored
-        )),
-        "failed"
+    let verdict = resolve(
+        RunCtx {
+            doc: &pruned,
+            eval: &after,
+        },
+        &stored,
     );
+    assert_eq!(resolution_status_tag(&verdict), "failed");
+    // ...and WHICH failure, which is the word a repair branches on: a
+    // node that left the document is rebound onto a different
+    // feature, where a tie would have been refined among `offers`.
+    match &verdict {
+        Resolution::Failed(failure) => {
+            assert_eq!(resolve_error_tag(&failure.error), "node_gone");
+        }
+        other => panic!("a deleted minting node must fail: {other:?}"),
+    }
 
     // INDETERMINATE: the node is still there and the RUN did not reach
     // it — a canceled run's suffix, which is the one arm of this state
@@ -445,16 +603,20 @@ fn resolution_status_tags_are_stable() {
     let canceled = CancelToken::new();
     canceled.cancel();
     let partial = run(&doc, &canceled);
-    assert_eq!(
-        resolution_status_tag(&resolve(
-            RunCtx {
-                doc: &doc,
-                eval: &partial
-            },
-            &stored
-        )),
-        "indeterminate"
+    let verdict = resolve(
+        RunCtx {
+            doc: &doc,
+            eval: &partial,
+        },
+        &stored,
     );
+    assert_eq!(resolution_status_tag(&verdict), "indeterminate");
+    match &verdict {
+        Resolution::Indeterminate(cause) => {
+            assert_eq!(resolve_indeterminate_tag(cause), "target_not_evaluated");
+        }
+        other => panic!("a canceled run's suffix must be indeterminate: {other:?}"),
+    }
 }
 
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
@@ -1038,6 +1200,23 @@ fn workspace_error_tags_are_stable() {
     let missing = Workspace::open(Path::new("/nonexistent/pncad-workspace"))
         .expect_err("a directory that is not there refuses");
     assert_eq!(workspace_error_tag(&missing), "io");
+
+    // The save door's own two arms, constructed: neither is reachable
+    // from a store that holds nothing, and both are Python-visible.
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::SaveWouldDuplicateId {
+            id: pncad::document::DocumentId::derive("tagged"),
+            existing: std::path::PathBuf::from("/store/a.pncad"),
+            requested: std::path::PathBuf::from("/store/b.pncad"),
+        }),
+        "save_would_duplicate_id"
+    );
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::SaveTargetNotInStore {
+            path: std::path::PathBuf::from("/elsewhere/a.pncad"),
+        }),
+        "save_target_not_in_store"
+    );
 }
 
 /// The STEP importer's tags. Every arm of this enum is reachable
@@ -1059,9 +1238,38 @@ fn step_import_error_tags_are_stable() {
     );
 }
 
+/// The recognition arm's PAYLOAD tag, beside the arm's own.
+///
+/// Minted rather than reached, and the reason is the arm: firing
+/// `recognition_ambiguous` needs a file with a multi-bound curved face
+/// on a NURBS surface whose estimator is ill-conditioned at the
+/// declared tolerance, which is a fixture and `step-import`'s own
+/// suite's. What this pins is the wire spelling of both words and the
+/// fact that they arrive TOGETHER — the carrier's word naming the
+/// condition, the payload's naming which estimator declined.
+#[test]
+fn promoted_kind_tags_are_stable() {
+    let ambiguous = |kind| pncad::step_import::StepImportError::RecognitionAmbiguous {
+        id: 104,
+        surface: 105,
+        kind,
+        margin: 1e-9,
+    };
+    for (kind, word) in [
+        (pncad::step_import::PromotedKind::Plane, "plane"),
+        (pncad::step_import::PromotedKind::Cylinder, "cylinder"),
+    ] {
+        assert_eq!(promoted_kind_tag(&kind), word);
+        assert_eq!(
+            step_import_error_tag(&ambiguous(kind)),
+            "recognition_ambiguous"
+        );
+    }
+}
+
 #[test]
 fn path_error_tags_are_stable() {
-    use pncad::prelude::{Open, Start, circle, p2};
+    use pncad::prelude::{Open, Start, circle, p2, polygon};
 
     let zero = circle(p2(0.0, 0.0), 0.0, Tol::witness()).expect_err("a zero radius refuses");
     assert_eq!(path_error_tag(&zero), "nonpositive_circle_radius");
@@ -1112,6 +1320,13 @@ fn path_error_tags_are_stable() {
         .map(|c| crate::tags::corner_reason_tag(&c.reason))
         .collect();
     assert_eq!(entries, ["anchor_outside_trimmed_extent"]);
+
+    // The whole-table door's count precondition: the lattice's own
+    // verbs take one vertex at a time and have no count to gate, so
+    // `polygon` is the only place this arm is reachable from.
+    let too_few = polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0)], Tol::witness())
+        .expect_err("two vertices name no polygon");
+    assert_eq!(path_error_tag(&too_few), "polygon_too_few_vertices");
 }
 
 /// The prose rule's guard, checked against what it actually guards
@@ -1484,6 +1699,11 @@ struct TagEntry {
 /// level reshuffle that no Python caller can observe.
 const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
+        function: "analysis_policy_error_tag",
+        values: &["quantile_mass_out_of_range"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "assembly_error_tag",
         values: &[
             "at_rest",
@@ -1536,6 +1756,25 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "declare_error_tag",
         values: &["no_findings", "no_minted_id"],
         delegates: &["edit_error_tag"],
+    },
+    TagEntry {
+        function: "distribution_fault_tag",
+        values: &[
+            "nominal_outside_support",
+            "non_finite",
+            "sigma_not_positive",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "distribution_field_tag",
+        values: &["hi", "lo", "sigma"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "distribution_kind_tag",
+        values: &["band", "normal", "truncated_normal", "uniform"],
+        delegates: &[],
     },
     TagEntry {
         function: "edit_error_tag",
@@ -1720,6 +1959,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "measure_unavailable_tag",
+        values: &["band_has_no_measure"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "mesh_pick_error_tag",
+        values: &["position_out_of_range"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "node_error_tag",
         values: &[
             "assertion_dimension",
@@ -1857,6 +2106,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "nonpositive_fillet_radius",
             "nonpositive_leg",
             "overdetermined_junction",
+            "polygon_too_few_vertices",
             "seam_arrival_lever_too_short",
             "seam_arrival_off_direction",
             "seam_retrims_arc_first_side",
@@ -1924,6 +2174,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "promoted_kind_tag",
+        values: &["cylinder", "plane"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "readback_error_tag",
         values: &[
             "dangling_entity",
@@ -1954,8 +2209,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "resolve_error_tag",
+        values: &["ambiguous", "node_gone", "vanished"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "resolve_fault_tag",
         values: &["part_epsilon_seam", "part_pin_mismatch", "part_unresolved"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "resolve_indeterminate_tag",
+        values: &["target_failed", "target_not_evaluated", "target_poisoned"],
         delegates: &[],
     },
     TagEntry {
@@ -2082,6 +2347,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pin_mismatch",
             "randomness_unavailable",
             "save",
+            "save_target_not_in_store",
+            "save_would_duplicate_id",
             "unknown_id",
             "update",
         ],
@@ -2595,7 +2862,7 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `persist_error`, `workspace_error`, `step_import_error`,
 /// `path_error`, `checks_error`, `check_evidence` — and even those
 /// are samples (`persist_error_tag`: two of thirteen arms;
-/// `step_import_error_tag`: two of twenty-two; `path_error_tag`: three
+/// `step_import_error_tag`: two of twenty-two; `path_error_tag`: four
 /// of thirty). The other nineteen — `assembly`, `binary_header`,
 /// `edit`, `export`, `frame`, `inline`, `mate_fault`, `node_error`,
 /// `part_fault`, `placement_rule_fault`, `product`,
@@ -2903,4 +3170,274 @@ fn the_node_kind_vocabulary_matches_its_committed_roster() {
          that is not really bound",
         unlisted.len()
     );
+}
+
+// ---- the gathered product, memoized on an evaluation -----------------
+//
+// `crate::product_memo` is the behaviour behind four bound doors, and
+// these are its acceptance rows. They live HERE, on the default build
+// path, for the reason the module does: a `#[pyfunction]` needs an
+// interpreter and this does not, so the count that matters — how many
+// times the document was gathered — is pinned in the twelve `test`
+// jobs of every code-tier run rather than only in the python suite.
+//
+// The witness is `pncad::document::gathers_on_this_thread`, the
+// gather's own thread-local counter, read as a DIFFERENCE across the
+// calls being asked about. It is `cfg(debug_assertions)`-gated, so
+// these rows are too; every profile this workspace builds keeps it on.
+mod product_memo_rows {
+    use crate::product_memo::{self, ProductMemo};
+    use pncad::document as d;
+    use pncad::tolerance::Tol;
+
+    /// The world xy frame, the plane the fixture sketches on.
+    fn xy_frame() -> d::Node<d::ProfileProgram> {
+        let len = |v: f64| d::Expr::literal(v, d::Dimension::Length).expect("a length literal");
+        let scl = |v: f64| d::Expr::literal(v, d::Dimension::Scalar).expect("a scalar literal");
+        d::Node::Datum(d::Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        })
+    }
+
+    /// A square `[0,s]²` on `plane`.
+    fn square(plane: d::RecipeNodeId, s: f64) -> d::Node<d::ProfileProgram> {
+        let lit = |v: f64| d::Expr::literal(v, d::Dimension::Length).expect("a length literal");
+        d::Node::Profile(d::ProfileProgram {
+            plane,
+            loops: vec![d::LoopProgram::Chain(vec![
+                d::ProgramStep::At([lit(0.0), lit(0.0)]),
+                d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(s), lit(0.0)])),
+                d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(s), lit(s)])),
+                d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(0.0), lit(s)])),
+                d::ProgramStep::LineTo(d::ProgramTarget::Start),
+            ])],
+        })
+    }
+
+    fn insert(
+        doc: d::ProfileDoc,
+        node: d::Node<d::ProfileProgram>,
+    ) -> (d::ProfileDoc, d::RecipeNodeId) {
+        let applied = d::apply(&doc, &d::DocEdit::InsertNode { node }, Tol::witness())
+            .expect("the edit is accepted");
+        let minted = applied.record.minted.expect("an insert mints an id");
+        (applied.doc, minted)
+    }
+
+    /// One box: square(2) extruded 1.5, under the id `label` derives.
+    fn box_doc(label: &str) -> d::ProfileDoc {
+        let lit = |v: f64| d::Expr::literal(v, d::Dimension::Length).expect("a length literal");
+        let doc = d::ProfileDoc::empty_derived(label, Tol::witness());
+        let (doc, plane) = insert(doc, xy_frame());
+        let (doc, profile) = insert(doc, square(plane, 2.0));
+        let (doc, _) = insert(
+            doc,
+            d::Node::Extrude {
+                profile,
+                distance: lit(1.5),
+            },
+        );
+        doc
+    }
+
+    /// A document that draws nothing: a plane and a sketch, no solid.
+    fn sketch_only(label: &str) -> d::ProfileDoc {
+        let doc = d::ProfileDoc::empty_derived(label, Tol::witness());
+        let (doc, plane) = insert(doc, xy_frame());
+        let (doc, _) = insert(doc, square(plane, 2.0));
+        doc
+    }
+
+    fn evaluated(doc: &d::ProfileDoc) -> d::Evaluation<f64> {
+        d::evaluate::<f64>(
+            doc,
+            None,
+            &d::CancelToken::new(),
+            &d::EvalOptions::default(),
+            Tol::witness(),
+        )
+    }
+
+    /// Gathers performed while `body` ran.
+    #[cfg(debug_assertions)]
+    fn gathers(body: impl FnOnce()) -> u64 {
+        let before = d::gathers_on_this_thread();
+        body();
+        d::gathers_on_this_thread() - before
+    }
+
+    /// The unit's whole point: a Python caller asking both questions
+    /// of one evaluation pays for ONE gather, whichever order it asks
+    /// in. Before the memo each wrapper gathered for itself.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_checks_registry_and_the_assembly_gate_share_one_gather() {
+        let doc = box_doc("memo-both-orders");
+        let ev = evaluated(&doc);
+        let cfg = d::ChecksConfig::default();
+        let tol = Tol::witness();
+
+        let memo = ProductMemo::default();
+        let checks_then_assembly = gathers(|| {
+            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::assembly(&memo, &doc, &ev, tol).expect("the gate passes");
+        });
+        assert_eq!(checks_then_assembly, 1);
+
+        let memo = ProductMemo::default();
+        let assembly_then_checks = gathers(|| {
+            product_memo::assembly(&memo, &doc, &ev, tol).expect("the gate passes");
+            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+        });
+        assert_eq!(assembly_then_checks, 1);
+    }
+
+    /// The sweep: every door that wants a product joins the memo, so
+    /// all four together are still one gather.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn all_four_product_doors_share_one_gather() {
+        let doc = box_doc("memo-four-doors");
+        let ev = evaluated(&doc);
+        let cfg = d::ChecksConfig::default();
+        let tol = Tol::witness();
+        let memo = ProductMemo::default();
+        let count = gathers(|| {
+            product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
+            product_memo::body_and_names(&memo, &doc, &ev, tol).expect("and names its entities");
+            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::assembly(&memo, &doc, &ev, tol).expect("the gate passes");
+        });
+        assert_eq!(count, 1);
+    }
+
+    /// The clone the assembly gate is handed is a clone of the SAME
+    /// product the registry read: the memo outlives the consuming
+    /// door, so a later caller finds it rather than re-earning it.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_gate_consumes_a_copy_and_the_memo_survives_it() {
+        let doc = box_doc("memo-survives-the-gate");
+        let ev = evaluated(&doc);
+        let tol = Tol::witness();
+        let memo = ProductMemo::default();
+        product_memo::assembly(&memo, &doc, &ev, tol).expect("the gate passes");
+        let again = gathers(|| {
+            product_memo::assembly(&memo, &doc, &ev, tol).expect("and passes again");
+            product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
+        });
+        assert_eq!(again, 0);
+    }
+
+    /// The registry's laziness survives the memo, and it is the point:
+    /// a configuration whose enabled residents all read the evaluation
+    /// has nothing to gather FOR, so nothing is gathered and the memo
+    /// is not filled either.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_subject_free_configuration_gathers_nothing() {
+        let doc = box_doc("memo-lazy");
+        let ev = evaluated(&doc);
+        let cfg = d::ChecksConfig {
+            separation: d::Advisory::Off,
+            ..d::ChecksConfig::default()
+        };
+        assert!(!cfg.needs_a_subject());
+        let tol = Tol::witness();
+        let memo = ProductMemo::default();
+        let none = gathers(|| {
+            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+        });
+        assert_eq!(none, 0);
+        let first = gathers(|| {
+            product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
+        });
+        assert_eq!(first, 1);
+    }
+
+    /// A gather that REFUSES carries no product to keep, so the memo
+    /// stays empty and the next ask re-gathers — never worse than a
+    /// façade that gathered every time, and never a cached refusal
+    /// standing in for one the gather would re-derive.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_refusing_gather_is_not_memoized() {
+        let doc = sketch_only("memo-refusal");
+        let ev = evaluated(&doc);
+        let tol = Tol::witness();
+        let memo = ProductMemo::default();
+        let count = gathers(|| {
+            for _ in 0..2 {
+                let refusal = product_memo::body(&memo, &doc, &ev, tol)
+                    .expect_err("a document with no body root has no product");
+                assert!(matches!(refusal, d::ProductError::NoBodyRoots));
+            }
+        });
+        assert_eq!(count, 2);
+    }
+
+    /// The gather's refusal is a SUBJECT the residents report over,
+    /// not an error — the posture `editor_core::run_checks` takes, kept
+    /// by the memo path that replaces it.
+    #[test]
+    fn a_gather_refusal_reaches_the_registry_as_a_subject() {
+        let doc = sketch_only("memo-refusal-subject");
+        let ev = evaluated(&doc);
+        let memo = ProductMemo::default();
+        let report = product_memo::checks_report(
+            &memo,
+            &doc,
+            &ev,
+            &d::ChecksConfig::default(),
+            Tol::witness(),
+        )
+        .expect("no body roots is a subject, not a refusal");
+        assert!(report.findings.is_empty());
+    }
+
+    /// A product is the answer for the tolerance it was gathered at,
+    /// and the memo says so: asked at another, it gathers again and
+    /// keeps the entry it has. Driven through the keyed seam because a
+    /// process commits exactly ONE tolerance and cannot offer a second
+    /// (`Tol` is the witness of that commitment).
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_different_tolerance_gathers_again() {
+        let doc = box_doc("memo-tolerance-key");
+        let ev = evaluated(&doc);
+        let tol = Tol::witness();
+        let at = tol.get();
+        let other = pncad::tolerance::Tolerance {
+            eps: at.eps * 2.0,
+            ..at
+        };
+        let memo = ProductMemo::default();
+        let count = gathers(|| {
+            memo.with_at(&doc, &ev, at, tol, |_| ())
+                .expect("the gather succeeds");
+            memo.with_at(&doc, &ev, at, tol, |_| ())
+                .expect("and is memoized");
+            memo.with_at(&doc, &ev, other, tol, |_| ())
+                .expect("a second tolerance is a second question");
+            memo.with_at(&doc, &ev, at, tol, |_| ())
+                .expect("and the held entry is still the held entry");
+        });
+        assert_eq!(count, 2);
+    }
+
+    /// The DI3 pairing gate, asked BEFORE the memo is consulted: a
+    /// memo answers without reaching a gather, so the refusal a gather
+    /// would have raised has to be raised here or not at all.
+    #[test]
+    fn a_mispaired_document_is_refused_before_the_memo_is_consulted() {
+        let doc = box_doc("memo-paired");
+        let other = box_doc("memo-paired-other");
+        let ev = evaluated(&doc);
+        assert!(ProductMemo::paired(&ev, doc.id()).is_ok());
+        let mispaired = ProductMemo::paired(&ev, other.id()).expect_err("a foreign document");
+        assert_eq!(mispaired.expected, other.id());
+        assert_eq!(mispaired.found, doc.id());
+    }
 }

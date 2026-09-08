@@ -136,7 +136,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, doc comments, a string literal and a longer name starting with EvalScalar" plant_prose_only
-  gate_selftest_homes "${SEAM_HOMES[@]}"
+  gate_selftest_homes --subject "$SEAM_SUBJECT" "${SEAM_HOMES[@]}"
   printf '%s selftest OK: passes a clean fixture carrying every seam file, prose/doc/string mentions and `EvalScalarish`; fires in both bound positions, on a rustfmt-wrapped plus, on a bound hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 

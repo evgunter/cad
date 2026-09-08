@@ -41,7 +41,9 @@ mod table;
 pub use attribute::{NameOrigin, attribute};
 pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
-pub(crate) use emit::{check_total, empty, name_pattern, name_placed_union};
+pub(crate) use emit::{
+    check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body,
+};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;

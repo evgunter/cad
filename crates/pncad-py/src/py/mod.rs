@@ -1,5 +1,6 @@
 //! The PyO3 surface. Compiled only under the `python` feature.
 
+mod analysis;
 mod assembly;
 pub(crate) mod checks;
 pub(crate) mod doc;
@@ -186,9 +187,21 @@ pyo3::create_exception!(
     StepImportError,
     PncadError,
     "A STEP text the importer refused, or one that parsed to a \
-     non-solid. Carries `variant` (`refused` or `wireframe`); \
-     per-variant field projection is deferred with the rest of the \
-     read-back surface."
+     non-solid. Carries `variant` — the importer's own refusal tag, \
+     one word per arm — or `wireframe`, which is not a refusal at \
+     all: the file parsed, to something this door does not adopt. \
+     Carries `promoted_kind` beside it, present on every arm and \
+     `None` where that arm does not carry it.\n\n\
+     `recognition_ambiguous` neither forwards nor withholds. The word \
+     names the CONDITION — a face that cannot import without \
+     promotion sits on a surface whose recognition estimator is \
+     ill-conditioned at the file's own tolerance — and \
+     `promoted_kind` says which analytic kind's estimator declined, \
+     `plane` or `cylinder`. The two lead different places: a plane \
+     that will not certify is a flatness question at the import \
+     tolerance, a cylinder that will not is an ill-conditioned axis \
+     and wants more of the patch. The entity ids and the conditioning \
+     margin are in the message."
 );
 pyo3::create_exception!(
     pncad,
@@ -367,9 +380,9 @@ pyo3::create_exception!(
     NodePickError,
     PncadError,
     "A pick index could not be built. Carries `variant`, the stable \
-     tag of the refusing arm, plus `node`, `through`, `kind` and \
-     `body`, each present on every arm and `None` where that arm does \
-     not carry it.\n\n\
+     tag of the refusing arm, plus `node`, `through`, `kind`, `body` \
+     and `index_variant`, each present on every arm and `None` where \
+     that arm does not carry it.\n\n\
      `not_a_body` and `no_such_body` are different states and stay \
      apart: a datum, profile, declaration or mate NEVER draws, while a \
      node that draws nothing today (an annihilated boolean, an empty \
@@ -380,10 +393,11 @@ pyo3::create_exception!(
      prose. What a forwarded arm does not bring is the inner refusal's \
      extra ATTRIBUTES — a tessellation refusal's `value`, `bound`, \
      `requested` and `note` stay on `TessellateError`, where \
-     `Body.tessellate` raises them. `mesh_index` is the arm with \
-     nothing to forward: its payload type is deliberately absent from \
-     the façade, so it crosses as one tag plus the kernel's own prose, \
-     which states the offending patch, triangle and index."
+     `Body.tessellate` raises them. `mesh_index` neither forwards nor \
+     withholds: the word names the door whose invariant broke — the \
+     pick INDEX's — and `index_variant` carries the payload's own \
+     discriminant beside it, `position_out_of_range` today. The \
+     offending patch, triangle and position index are in the message."
 );
 pyo3::create_exception!(
     pncad,
@@ -416,6 +430,46 @@ pyo3::create_exception!(
      usable (coincident eye and target, a roll reference along the \
      aim, a zero mirror normal), or a tolerance yielding no usable \
      band. Carries `variant`, the stable tag of the refusing arm."
+);
+
+pyo3::create_exception!(
+    pncad,
+    DistributionFault,
+    PncadError,
+    "A `Distribution` constructor was handed offsets that break an \
+     E2 invariant. Carries `variant` (the stable tag), and `field`, \
+     `sigma`, `lo`, `hi` — the arms' payloads, present on every arm \
+     and `None` where that arm does not carry one.\n\n\
+     The kernel's own `Distribution::check` decides this, so a \
+     distribution Python accepts is one the edit door and the \
+     persistence validator accept too. Raised EARLY, at the value \
+     rather than at the edit: the same fault reaches `EditError` as \
+     `invalid_distribution` when a document is loaded or edited \
+     another way."
+);
+pyo3::create_exception!(
+    pncad,
+    MeasureUnavailable,
+    PncadError,
+    "A mass could not be priced: the parameter carries a BAND, which \
+     states limits without a shape. Carries `variant` and `param`, \
+     the parameter that blocked the pricing.\n\n\
+     A refusal, not an absence. `band` is the author saying they know \
+     the extremes and not the distribution, and promoting it to a \
+     uniform would be a strictly stronger claim than they made — so \
+     the door refuses anything whose answer would depend on the \
+     shape, and answers only the two cases every measure on the band \
+     agrees about."
+);
+pyo3::create_exception!(
+    pncad,
+    AnalysisPolicyError,
+    PncadError,
+    "An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is \
+     not a finite number strictly inside `(0, 1)`. Carries `variant` \
+     and `mass`, the requested share.\n\n\
+     Mass 1 asks for an infinite box and mass 0 for an empty one, and \
+     neither is a box."
 );
 
 /// Raise the exception class [`ErrorClass`] names, with `fields`
@@ -506,6 +560,9 @@ fn raise_typed(
         ErrorClass::NodePick => NodePickError::new_err(message),
         ErrorClass::Checks => ChecksError::new_err(message),
         ErrorClass::Enforce => CheckRefusal::new_err(message),
+        ErrorClass::Distribution => DistributionFault::new_err(message),
+        ErrorClass::Measure => MeasureUnavailable::new_err(message),
+        ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -563,6 +620,9 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("NodePickError", py.get_type::<NodePickError>())?;
     m.add("ChecksError", py.get_type::<ChecksError>())?;
     m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
+    m.add("DistributionFault", py.get_type::<DistributionFault>())?;
+    m.add("MeasureUnavailable", py.get_type::<MeasureUnavailable>())?;
+    m.add("AnalysisPolicyError", py.get_type::<AnalysisPolicyError>())?;
 
     quantity::register(m)?;
     path::register(m)?;
@@ -581,6 +641,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     checks::register(m)?;
     mesh::register(m)?;
     value::register(m)?;
+    analysis::register(m)?;
 
     // Build-provenance surface. The persistence format carries no
     // schema version to publish here (the persist module docs say

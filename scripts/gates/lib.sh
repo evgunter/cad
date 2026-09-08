@@ -84,6 +84,33 @@ gate_error() {
 
 gate_name() { basename "$0" .sh; }
 
+# gate_reader_died_refusal WHO STATUS [TAIL] — ONE TEXT for a reader or
+# a matcher that COULD NOT RUN, which is the failure this whole file is
+# a reaction to: a dead reader delivers nothing, every matcher below it
+# finds nothing in what is missing, and that is byte-for-byte what a
+# clean tree looks like. WHO names the reader in the caller's own words
+# (it is what a self-test aims at), TAIL is whatever that caller knows
+# and this text cannot.
+#
+# ONE TEXT BECAUSE IT IS ONE FACT. It was four spellings — `gate_grep`'s,
+# the shared Rust reader's, the record columns' and
+# `viewer-vocab-declared-once.sh`'s `reader_failed` — each saying the
+# same thing differently, so a reader of a CI log met the same event
+# under four descriptions and none of them was the canonical one. What
+# is NOT this class, and keeps its own text: a refusal about something
+# the gate READ and could not place (`gate_refuse_declaration`,
+# `bit-identity-debug-only.sh`'s lost bracket depth), and the four
+# refusals about a SKIP or a LIST being wrong, which are decisions and
+# not deaths.
+#
+# THE MARKER, ALWAYS. The status alone cannot leave a pipeline stage or
+# a substitution, and `gate_ok` is the one place a gate says green.
+gate_reader_died_refusal() {
+  gate_error "$(gate_name): $1 exited $2, so what it did not read is unknown and every check below it decided less than the gate claims — that is not a clean scan.${3:+ $3}"
+  : >> "$GATE_MATCHER_FAILED"
+  exit "$2"
+}
+
 # A GATE THAT SCANNED NOTHING IS NOT A PASS. `crates/*/src` is a glob:
 # with no match bash hands the literal to grep, grep finds nothing, and
 # the gate reports green for the wrong reason — green because it looked
@@ -163,15 +190,17 @@ gate_grep() {
   if [ "${#shown}" -gt 160 ]; then
     shown="${shown:0:160}... (arguments trimmed)"
   fi
-  gate_error "$(gate_name): grep exited $status, which is not \"no match\" (exit 1) — it is grep saying it could not search, so the scan below it decided nothing. Call: grep $shown"
   # THE EXIT STATUS ALONE IS NOT ENOUGH, and this file is where that is
   # already known: a stage inside `< <(…)` feeding `mapfile` or a `while
   # read` cannot fail its caller, because a process substitution's
   # status is not the reader's. The marker crosses the boundary the
   # status cannot, and `gate_ok` — the single place a gate says green —
-  # refuses to print over it.
-  : >> "$GATE_MATCHER_FAILED"
-  exit "$status"
+  # refuses to print over it. Both of those are
+  # `gate_reader_died_refusal`'s, which is the one text for a reader that
+  # could not run; what only this caller knows is that exit 1 was already
+  # handled above, so a status reaching here is not "no match".
+  gate_reader_died_refusal grep "$status" \
+    "Exit 1 is \"no match\" and this is not that — it is grep saying it could not search. Call: grep $shown"
 }
 
 # Subshells INHERIT this trap, so the marker may only be removed by the
@@ -639,9 +668,8 @@ gate_rust_code() {
   # cross-checks record count against file count, and that is the shape
   # of the guard that would.
   [ "$status" -eq 0 ] && return 0
-  gate_error "$(gate_name): the shared Rust reader exited $status, so the code view it was asked for is short of what the caller handed it and every matcher reading it decided less than the gate claims — that is not a clean scan"
-  : >> "$GATE_MATCHER_FAILED"
-  exit "$status"
+  gate_reader_died_refusal "the shared Rust reader" "$status" \
+    "The code view is short of the files the caller handed it."
 }
 
 # --- AN EXACT-TEXT SKIP, ANCHORED AT ITS HOME -------------------------
@@ -707,6 +735,133 @@ gate_ere_escape() {
   printf '%s' "$1" | sed 's/[][\\^$.|?*+(){}]/\\&/g'
 }
 
+# --- THE COLUMNS OF A RECORD ---------------------------------------------
+#
+# WHERE THE FILE COLUMN ENDS, for every reader in this directory. A
+# record is `FILE:LINE:TEXT` and a `:` is LEGAL in a path, here and in
+# git, so "everything before the first colon" is the FILE column only
+# while no scanned path carries one. Every reader that split there read
+# a record from `a:b.rs` wrong, and wrong in the blind direction: a
+# union deduplicated on `$1 ":" $2` collapses every site in such a file
+# onto one key and drops all but the first, and a `mod` declaration
+# narrowed with `^[^:]*:[0-9]+:` matches nothing at all — so a
+# `#[cfg(test)] mod x;` is never registered and the subtree it mounts
+# is read as production by every gate that narrows.
+#
+# THE READING IS THE `:LINE:` THE READER ITSELF EMITTED. All three of
+# `gate_rust_code`'s views write the line number between two colons
+# after the path, so the FILE column ends at the record's FIRST
+# `:digits:`. One constant, one arithmetic, three ways in: the two
+# filters below for a pipeline, and `GATE_RECORD_AWK` for a reader that
+# needs the columns inside an `awk` program — through `ENVIRON` and
+# never `-v`, for the reason the test-only `cfg` block above gives.
+#
+# THE ONE SHAPE NO READER OF A `FILE:LINE:TEXT` RECORD CAN RESOLVE, and
+# it is registered here rather than once per gate: a path that carries a
+# `:LINE:` SHAPE OF ITS OWN — `foo:12:bar.rs` — makes TWO well-formed
+# readings of one record, and nothing in the record says which was
+# meant. This reading takes the first `:digits:`, which is the SHORTER
+# path. What that costs is per gate and stated where it bites —
+# `bounds-allowlist.sh`'s KNOWN GAP 8 is the worked instance, where the
+# diagnosis names the entry rather than the file that gained the bound
+# and a tail of the path reaches the bound walk as code. Population is
+# zero (`find crates/*/src -name '*:*'` returns nothing) and narrower
+# than the plain colon path, which every reader below takes exactly.
+# Closing it means a reader that knows the scan's own file list instead
+# of parsing the record — a different instrument, and one no gate here
+# has.
+GATE_RECORD_LINE_RE=':[0-9]+:'
+
+# THE SAME READING INSIDE `awk`, and there is ONE way to reach it:
+# `gate_record_awk [-v NAME=VALUE ...] PROGRAM [FILE ...]`, which puts
+# the constant in the environment and prepends the snippet, so a caller
+# writes its program and nothing else. Inside, call
+# `gate_record_split($0)`: it answers 0 for a line carrying no `:LINE:`
+# at all, and otherwise fills GR_FILE, GR_LINE and GR_TEXT. A FUNCTION
+# rather than three `substr` calls per caller, because the offsets ARE
+# the reading and a caller that respells them is a caller that can
+# respell them wrong — which is how this directory came to hold seven
+# hand-written `index($0, ":")` pairs, in six gates, each of them the
+# first-colon split under another spelling.
+#
+# THE WRAPPER IS THE POINT, NOT A CONVENIENCE. Spelled by hand the call
+# is two parts that must agree — the env assignment and the prepended
+# snippet — at eleven sites, and the failure of forgetting the env half
+# is SILENT in the worst way: `ENVIRON["GATE_RECORD_LINE_RE"]` is the
+# empty string, `match(rec, "")` succeeds at position 1 with length 0,
+# and every record reads as an empty FILE column and a whole-record
+# TEXT. One call cannot half-arrive; and the function refuses the empty
+# constant anyway (below), so the two-part spelling is unreachable and
+# diagnosed rather than merely discouraged.
+GATE_RECORD_AWK='
+function gate_record_split(rec) {
+  if (GR_LN == "") {
+    GR_LN = ENVIRON["GATE_RECORD_LINE_RE"]
+    # AN EMPTY CONSTANT IS NOT A READING. It matches at position 1 with
+    # length 0, which would hand every caller an empty FILE column and
+    # call it a record. The marker is what crosses a pipeline stage a
+    # status cannot leave; gate_ok refuses to print over it.
+    if (GR_LN == "") {
+      print "ERROR: gate_record_split was reached with GATE_RECORD_LINE_RE unset, so where the FILE column ends was not decided and every column it handed back would be empty - call gate_record_awk rather than spelling the env and the snippet by hand" > "/dev/stderr"
+      if (ENVIRON["GATE_MATCHER_FAILED"] != "") print "" >> ENVIRON["GATE_MATCHER_FAILED"]
+      exit 2
+    }
+  }
+  if (!match(rec, GR_LN)) { GR_FILE = ""; GR_LINE = ""; GR_TEXT = ""; return 0 }
+  GR_FILE = substr(rec, 1, RSTART - 1)
+  GR_LINE = substr(rec, RSTART + 1, RLENGTH - 2)
+  GR_TEXT = substr(rec, RSTART + RLENGTH)
+  return 1
+}
+'
+
+# gate_record_awk — the one way in. `-v` assignments pass through in
+# either spelling `awk` accepts; everything after the first non-option
+# word is the program and its file operands. `GATE_MATCHER_FAILED` goes
+# into the environment too, because the refusal above writes it from
+# inside `awk`.
+gate_record_awk() {
+  local -a opts=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -v) opts+=("$1" "$2"); shift 2 ;;
+      -v*) opts+=("$1"); shift ;;
+      *) break ;;
+    esac
+  done
+  local prog=${1:-}
+  [ $# -gt 0 ] && shift
+  GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" \
+  GATE_MATCHER_FAILED="$GATE_MATCHER_FAILED" \
+    awk ${opts[@]+"${opts[@]}"} "$GATE_RECORD_AWK$prog" "$@"
+}
+
+# gate_record_file / gate_record_text — records on stdin, one column per
+# line. A line carrying no `:LINE:` is not a record and passes through
+# WHOLE rather than as an empty line: a reader that emptied it would
+# hand its caller a list that is short by something it cannot see, which
+# is the direction this file refuses everywhere else.
+#
+# A READER THAT DIED IS NOT AN EMPTY COLUMN, which is `gate_rust_code`'s
+# rule at the other end of the same pipeline: these run as a pipeline
+# stage, often inside a substitution whose status the caller never sees,
+# so a dead `awk` would deliver no columns and every matcher downstream
+# would find nothing in what is missing. The marker crosses what the
+# status cannot and `gate_ok` refuses to print over it.
+gate_record_column() {
+  local status=0
+  gate_record_awk -v COL="$1" '
+    {
+      if (!gate_record_split($0)) { print $0; next }
+      print (COL == "file") ? GR_FILE : GR_TEXT
+    }' || status=$?
+  [ "$status" -eq 0 ] && return 0
+  gate_reader_died_refusal "reading the $1 column of every record" "$status" \
+    "The column list is short of the records the caller handed it."
+}
+gate_record_file() { gate_record_column file; }
+gate_record_text() { gate_record_column text; }
+
 # THE `FILE:LINE:` PREFIX EVERY RECORD CARRIES, in the two shapes a
 # matcher wants it: pinned to one path, and open. All three of
 # `gate_rust_code`'s views emit `FILE:LINE:TEXT`, so a matcher that
@@ -740,9 +895,26 @@ gate_ere_escape() {
 # where it bites, since a ratified line carries `+`, `.` and brackets —
 # and a reader should not have to case-split it to know the anchor is
 # the path.
-GATE_RECORD_PREFIX_RE='^[^:]*:[0-9]+:'
+# IT IS AN ANCHOR AND IT IS NOT A PARSER — the distinction §"THE
+# RECORD'S COLUMNS" above exists to hold. `^[^:]*` says "a FILE column
+# with no colon of its own in it", which as an ANCHOR is exact and is
+# the direction a skip wants: a record from a colon-carrying path is
+# not CLAIMED by the open form, and the pinned form built below claims
+# a colon-carrying home because the path goes in escaped. Asked instead
+# where the FILE column ENDS, the same expression matches NOWHERE in a
+# record from such a path, and every reader that took no match for "no
+# such record" went blind on all of them. That question is
+# `gate_record_split`'s, never this constant's.
+#
+# THE OPEN FORM HAS NO CALLER TODAY, said rather than left to be
+# discovered: every anchor this directory builds is PINNED to a home, so
+# what the constant carries is the shape and the argument above it, and
+# the next matcher that wants "a record from any file" takes it from
+# here instead of respelling it. A caller that reaches for it to find
+# where a column ENDS has misread the paragraph above.
+GATE_RECORD_PREFIX_RE="^[^:]*$GATE_RECORD_LINE_RE"
 gate_record_anchor() {
-  printf '^%s:[0-9]+:' "$(gate_ere_escape "$1")"
+  printf '^%s%s' "$(gate_ere_escape "$1")" "$GATE_RECORD_LINE_RE"
 }
 
 # THE ALTERNATION, which is the line every multi-part matcher in this
@@ -928,8 +1100,13 @@ gate_exact_skip() {
 # handed to `gate_rust_code` as a file of its own, so what comes back is
 # exactly what the scan would carry for that line, whitespace collapsing
 # and delimiter cutting included, and the `FILE:LINE:` prefix is dropped
-# because the anchor supplies it. VIEW is the reader's flags as one
-# word-split string, empty for the line view.
+# — by `gate_record_text`, the one reading of that column — because the
+# anchor supplies it. VIEW is the reader's flags as one word-split
+# string, empty for the line view. The text is handed over as a process
+# substitution, whose `/dev/fd/N` path carries no colon, so this caller
+# could not tell the two readings apart; it takes the shared one because
+# the expression is the same expression, and a site left behind is the
+# one a later reader copies.
 #
 # EXACTLY ONE RECORD, or the skip is refused, and the refusal ENDS the
 # gate. A text that renders as two records (a `;` or a `{` in the middle
@@ -946,7 +1123,7 @@ gate_exact_skip_record_for() {
   # reader's arguments.
   # shellcheck disable=SC2086
   mapfile -t recs < <(gate_rust_code $view <(printf '%s\n' "$2") \
-    | sed -E "s/$GATE_RECORD_PREFIX_RE//")
+    | gate_record_text)
   if [ "${#recs[@]}" -ne 1 ]; then
     gate_error "$(gate_name): the skipped text \`$2\` renders as ${#recs[@]} records in this gate's view, and a skip is one record — so the pattern built from it would match something other than the line it names. Re-derive the skip against a single record of the view the gate reads"
     : >> "$GATE_MATCHER_FAILED"
@@ -1116,8 +1293,7 @@ gate_norm_path() {
 # also a refusal, and the caller says so.
 gate_declaration_shape() {
   gate_rust_code "$1" \
-    | GATE_RECORD_PREFIX_RE="$GATE_RECORD_PREFIX_RE" \
-      awk -v start="$2" -v name="$3" '
+    | gate_record_awk -v start="$2" -v name="$3" '
     # THE ANSWER IS HELD TO `END`, NOT PRINTED AND EXITED ON. This `awk`
     # reads a pipe, and exiting at the declaration closes it while the
     # shared reader upstream is still writing: that write fails, the
@@ -1137,11 +1313,9 @@ gate_declaration_shape() {
     }
     done { next }
     {
-      s = $0
-      if (!match(s, ENVIRON["GATE_RECORD_PREFIX_RE"])) next
-      ln = substr(s, RSTART, RLENGTH); sub(/^[^:]*:/, "", ln); sub(/:$/, "", ln)
-      s = substr(s, RSTART + RLENGTH)
-      ln += 0
+      if (!gate_record_split($0)) next
+      s = GR_TEXT
+      ln = GR_LINE + 0
       if (ln >= start && pline == 0) {
         k = 0; t = s
         while (match(t, /#\[[ \t]*path[ \t]*=/)) { k++; t = substr(t, RSTART + RLENGTH) }
@@ -1220,7 +1394,7 @@ gate_refuse_declaration() {
 # directories the given sources mount, one entry per line: a FILE entry
 # is a whole path, a DIRECTORY entry ends in `/` and is a path prefix.
 gate_test_only_mounts() {
-  local decl file rest line name shape kind chain pline pidx pcount
+  local file line name shape kind chain pline pidx pcount
   local base payload target narrowed=() cands=()
   [ $# -gt 0 ] || return 0
   # TWO STAGES, because reading every source twice costs more than any
@@ -1245,9 +1419,14 @@ gate_test_only_mounts() {
     mapfile -t cands < <(gate_grep -lE '(^|[[:space:]])mod [a-z_][a-z0-9_]*;' "${narrowed[@]}")
   fi
   [ "${#cands[@]}" -gt 0 ] || return 0
-  while IFS= read -r decl; do
-    [ -n "$decl" ] || continue
-    file=${decl%%:*}; rest=${decl#*:}; line=${rest%%:*}; name=${rest#*:}
+  # `LINE:NAME:FILE`, AND THE ORDER IS THE POINT. The path is the one
+  # field of the three that may carry a `:` (§"THE COLUMNS OF A RECORD"),
+  # so it goes LAST, where `read` hands the remainder — colons included
+  # — to the final name and no reading is needed to recover it. The two
+  # fields before it are a line number and a `mod` name, neither of
+  # which can hold a colon by the shapes that produced them.
+  while IFS=: read -r line name file; do
+    [ -n "$file" ] || continue
     # A READER THAT DIED IS NOT AN ANSWER either, and captured in a
     # command substitution it would otherwise die under errexit with
     # its status thrown away and no diagnosis at all.
@@ -1289,11 +1468,25 @@ gate_test_only_mounts() {
     # is a different file and a real resolution of that declaration.
     [ "$target" = "$file" ] || printf '%s\n' "$target"
     printf '%s\n' "${target%.rs}/"
+  # THE NARROWING IS THE DECLARATION'S TAIL AND NOTHING ELSE. It used to
+  # be `-oE "$GATE_RECORD_PREFIX_RE.*[[:space:]]mod …$"`, which is the
+  # record prefix asked to say where the FILE column ends: a record from
+  # a colon-carrying path matched nowhere, `-oE` emitted nothing, the
+  # declaration was never registered and every gate that narrows read
+  # the subtree it mounts as production. What the anchor added over the
+  # tail was a shape every record of every view already has, so the
+  # filter loses nothing by dropping it and the columns come from the
+  # one reading below.
   done < <(gate_rust_code --statements "${cands[@]}" \
     | gate_grep -E "$GATE_CFG_TEST_RE" \
     | gate_grep -vE "$GATE_CFG_TEST_NOT_RE" \
-    | gate_grep -oE "$GATE_RECORD_PREFIX_RE.*[[:space:]]mod [a-z_][a-z0-9_]*\$" \
-    | sed -E 's/:([0-9]+):.*[[:space:]]mod /:\1:/')
+    | gate_grep -E "[[:space:]]mod [a-z_][a-z0-9_]*\$" \
+    | gate_record_awk '
+        gate_record_split($0) {
+          name = GR_TEXT
+          sub(/^.*[[:space:]]mod[[:space:]]+/, "", name)
+          print GR_LINE ":" name ":" GR_FILE
+        }')
 }
 
 # gate_filter_test_only_paths PATH... — the paths `GATE_TEST_ONLY_MOUNTS`
@@ -1535,6 +1728,52 @@ win.rs:4: }" ]; then
     *) printf 'SELFTEST FAILED (a caller defining no gate_selftest): it failed for some OTHER reason:\n%s\n' "$out" >&2
        exit 1 ;;
   esac
+  # THE RECORD SNIPPET WITHOUT ITS CONSTANT, which is the one way the
+  # column reading can be reached wrong now that `gate_record_awk` is
+  # the way in: a caller that spells the two parts by hand and forgets
+  # the env half gets `match(rec, "")`, an empty FILE column for every
+  # record, and no complaint at all. The scratch gate runs the awk
+  # inside a SUBSTITUTION, whose status its caller never sees, and then
+  # calls `gate_ok` — so what has to stop the green is the marker, the
+  # way `gate_empty_home_list_case` proves the other substitution-swallowed
+  # refusal. Written here rather than in one gate because the snippet is
+  # this file's.
+  tmp=$(mktemp -d)
+  gate_plant_clean_sources "$tmp"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'set -euo pipefail\n'
+    printf '. %s\n' "${BASH_SOURCE[0]}"
+    cat <<'SH'
+gate() {
+  gate_require_crate_sources
+  local files
+  files=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
+    | awk "$GATE_RECORD_AWK"'{ if (gate_record_split($0)) print GR_FILE }')
+  gate_ok "the file column of every record was read"
+}
+gate_selftest() { :; }
+gate_parse_args "$@"
+gate_main
+SH
+  } > "$tmp/no-constant.sh"
+  if out=$(bash "$tmp/no-constant.sh" --root "$tmp" 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the record snippet reached WITHOUT GATE_RECORD_LINE_RE passed — an unset constant is `match(rec, "")`, which succeeds at position 1 and hands back an empty FILE column for every record, so the gate decided nothing and said so with a green:\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "the record snippet without its constant" "$out"
+  case "$out" in
+    *"GATE_RECORD_LINE_RE unset"*) ;;
+    *) printf 'SELFTEST FAILED (the record snippet without its constant): it failed for some OTHER reason than the refusal:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
+  case "$out" in
+    *"OK: the file column"*)
+      printf 'SELFTEST FAILED (the record snippet without its constant): the gate printed its OK line and failed after it — `gate_ok` is the choke point, and a green printed beside a red is what a CI reader acts on:\n%s\n' "$out" >&2
+      exit 1 ;;
+  esac
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
@@ -1545,12 +1784,20 @@ win.rs:4: }" ]; then
   rm -rf "$tmp"
 }
 
-# gate_selftest_case WANT PLANTER [ARGS...] — one positive case: the
-# clean fixture plus whatever PLANTER writes must FAIL, with a
-# gate_error diagnosis containing WANT. The gate body is unparameterised
-# apart from its root, so every case exercises the real matcher, the
-# scan-target guard, and the diagnostic path.
+# gate_selftest_case [--also WANT]... WANT PLANTER [ARGS...] — one
+# positive case: the clean fixture plus whatever PLANTER writes must
+# FAIL, with a gate_error diagnosis containing WANT. The gate body is
+# unparameterised apart from its root, so every case exercises the real
+# matcher, the scan-target guard, and the diagnostic path.
+#
+# `--also` IS FOR A DIAGNOSIS THAT CARRIES TWO INDEPENDENT FACTS in
+# places a single substring cannot span — the missing home and the
+# subject it exempted, say. Each is required of the same output, so a
+# message that names the right path with the wrong reason fails here
+# instead of reading as a pass.
 gate_selftest_case() {
+  local -a also=()
+  while [ "${1:-}" = --also ]; do also+=("$2"); shift 2; done
   local want=$1; shift
   # THE PLANTER AND ITS ARGUMENTS, captured before the planter runs. The
   # planter NAME alone names the wrong thing at a distance the moment a
@@ -1571,11 +1818,14 @@ gate_selftest_case() {
   fi
   rm -rf "$tmp"
   gate_selftest_assert_diagnosed "$case_name" "$out"
-  case "$out" in
-    *"$want"*) ;;
-    *) printf 'SELFTEST FAILED: %s fired on (%s) with an unexpected message — wanted a diagnosis carrying `%s`:\n%s\n' "$(gate_name)" "$case_name" "$want" "$out" >&2
-       exit 1 ;;
-  esac
+  local w
+  for w in "$want" ${also[@]+"${also[@]}"}; do
+    case "$out" in
+      *"$w"*) ;;
+      *) printf 'SELFTEST FAILED: %s fired on (%s) with an unexpected message — wanted a diagnosis carrying `%s`:\n%s\n' "$(gate_name)" "$case_name" "$w" "$out" >&2
+         exit 1 ;;
+    esac
+  done
 }
 
 # gate_selftest_passes WHAT PLANTER [ARGS...] — gate_selftest_case's
@@ -1824,6 +2074,23 @@ gate_plant_home_early_declaration_in_a_long_file() {
   "$1" "$2/crates/planted/src/probes.rs"
 }
 
+# A DECLARER WHOSE OWN PATH CARRIES A COLON, which is legal here and in
+# git. Its record is `a:b.rs:2: #[cfg(test)] mod probes`, and every part
+# of the resolver reads the FILE column out of it: the narrowing that
+# selects the declaration, the shape reader that places it, and the
+# split that hands the three columns on. Read to the FIRST colon, that
+# record matched the prefix anchor NOWHERE — the declaration was never
+# registered, `a:b/probes.rs` stayed in the production set, and a gate
+# that scans production code only cried wolf on test-only code. The
+# breach goes in the module the declaration mounts, so this case fires
+# only if the mount was missed.
+gate_plant_home_colon_path_declarer() {
+  mkdir -p "$2/crates/planted/src/a:b"
+  printf 'mod other;\n' > "$2/crates/planted/src/lib.rs"
+  printf '#[cfg(test)]\nmod probes;\n' > "$2/crates/planted/src/a:b.rs"
+  "$1" "$2/crates/planted/src/a:b/probes.rs"
+}
+
 # gate_selftest_test_module_homes WANT PLANT — every case above, in both
 # directions, for one gate. WANT is the fragment that gate's own
 # diagnosis carries; PLANT appends its breach to a file.
@@ -1863,7 +2130,9 @@ gate_selftest_test_module_homes() {
     gate_plant_home_nested_target "$plant"
   gate_selftest_passes "a gated declaration near the top of a file longer than a pipe buffer" \
     gate_plant_home_early_declaration_in_a_long_file "$plant"
-  printf '%s selftest OK (test-module homes): places a cfg(test) declaration where rustc mounts it, so a production sibling, a production file under an inline module, a file whose path merely extends an exclusion, an ungated declaration and an any(test, …) one all stay in the scan and red, while the file the declaration names — positional, one-line or two, gated on `test` alone or inside an all(…), #[path]-mounted, directory-form or nested in an inline module — does not; and it REFUSES, with its own diagnosis and never a second false one, a declaration it cannot place, while a declaration it CAN place stays placed however long the file under it runs and a tree whose sources exclude each other is not a clean tree\n' "$(gate_name)"
+  gate_selftest_passes "a breach in the module file a declarer whose own path carries a colon mounts" \
+    gate_plant_home_colon_path_declarer "$plant"
+  printf '%s selftest OK (test-module homes): places a cfg(test) declaration where rustc mounts it, so a production sibling, a production file under an inline module, a file whose path merely extends an exclusion, an ungated declaration and an any(test, …) one all stay in the scan and red, while the file the declaration names — positional, one-line or two, gated on `test` alone or inside an all(…), #[path]-mounted, directory-form, nested in an inline module or mounted by a declarer whose own path carries a colon — does not; and it REFUSES, with its own diagnosis and never a second false one, a declaration it cannot place, while a declaration it CAN place stays placed however long the file under it runs and a tree whose sources exclude each other is not a clean tree\n' "$(gate_name)"
 }
 
 # --- THE ANCHORED SKIP'S OWN CASES ------------------------------------
@@ -2099,18 +2368,37 @@ gate_plant_home_gone() {
 # calls `gate_production_sources` no longer reads the home, so its skip
 # exempts nothing and it must red; a gate that scans `GATE_SOURCE_FILES`
 # whole still reads it, the skip still covers it, and it must not.
+#
+# A `mod.rs` HOME IS ITS DIRECTORY'S MODULE, so the declaration that
+# mounts it names the DIRECTORY and sits ONE LEVEL UP: `mod py;` beside
+# `py/`, not `mod mod;` inside it. A declaration resolving onto its own
+# declarer names no other file, so the sibling rule applied literally to
+# such a home mounts nothing at all.
 gate_plant_home_unscanned() {
   local home=$1 tmp=$2
-  local base=${home##*/}
-  printf '#[cfg(test)]\nmod %s;\n' "${base%.rs}" > "$tmp/${home%/*}/mod.rs"
+  local base=${home##*/} dir=${home%/*}
+  if [ "$base" = mod.rs ]; then
+    printf '#[cfg(test)]\nmod %s;\n' "${dir##*/}" > "$tmp/${dir%/*}/mod.rs"
+    return
+  fi
+  printf '#[cfg(test)]\nmod %s;\n' "${base%.rs}" > "$tmp/$dir/mod.rs"
 }
 
-# gate_selftest_homes [--narrowed] HOME... — the check's cases, for one
-# gate, over the SAME list the gate hands its filter and its clean
-# fixture. Each case wants the missing path BY NAME, so a diagnosis that
-# named some other home — or named none — fails here rather than reading
-# as a pass. `--narrowed` says the gate calls `gate_production_sources`,
-# which decides which way the out-of-scan case points.
+# gate_selftest_homes [--narrowed] [--subject S] HOME... — the check's
+# cases, for one gate, over the SAME list the gate hands its filter and
+# its clean fixture. Each case wants the missing path BY NAME, so a
+# diagnosis that named some other home — or named none — fails here
+# rather than reading as a pass. `--narrowed` says the gate calls
+# `gate_production_sources`, which decides which way the out-of-scan
+# case points.
+#
+# `--subject` BINDS THE HOMES THAT FOLLOW IT to the sentence the gate
+# hands `gate_require_homes`, and it is the half a path alone cannot
+# check: the refusal prints the subject, so without this a gate that
+# attaches one home's subject to another's skip reads as a pass, and
+# with it that swap reds here. Repeat the flag to open a new group; the
+# homes before any flag are checked by path alone, which is what a
+# caller that has not adopted it gets.
 #
 # ONE RUN PER HOME, rather than one run with the whole list removed: the
 # refusal is terminal at the FIRST home it rejects, so a case that
@@ -2120,10 +2408,15 @@ gate_plant_home_unscanned() {
 gate_selftest_homes() {
   local narrowed=false
   if [ "${1:-}" = --narrowed ]; then narrowed=true; shift; fi
-  local home
+  local home count=0
+  local -a also=()
   gate_empty_home_list_case
-  for home in "$@"; do
-    gate_selftest_case "$home is not a file under" gate_plant_home_gone "$home"
+  while [ $# -gt 0 ]; do
+    if [ "$1" = --subject ]; then also=(--also "$2"); shift 2; continue; fi
+    home=$1; shift
+    count=$((count + 1))
+    gate_selftest_case ${also[@]+"${also[@]}"} "$home is not a file under" \
+      gate_plant_home_gone "$home"
     if [ "$narrowed" = true ]; then
       gate_selftest_case "$home is in this tree but is not one of the" \
         gate_plant_home_unscanned "$home"
@@ -2132,8 +2425,8 @@ gate_selftest_homes() {
         gate_plant_home_unscanned "$home"
     fi
   done
-  printf '%s selftest OK (the whole-file skip'"'"'s subject): each of the %d home(s) it exempts is a red naming that path when it leaves the tree, and %s; the clean fixture plants the same list, so a home named in the filter that the fixture does not plant reds the clean case; and `lib.sh`'"'"'s empty-list refusal is terminal through the marker rather than a diagnosis a substitution swallows\n' \
-    "$(gate_name)" "$#" \
+  printf '%s selftest OK (the whole-file skip'"'"'s subject): each of the %d home(s) it exempts is a red naming that path — and, where the caller declared one, the subject it exempted — when it leaves the tree, and %s; the clean fixture plants the same list, so a home named in the filter that the fixture does not plant reds the clean case; and `lib.sh`'"'"'s empty-list refusal is terminal through the marker rather than a diagnosis a substitution swallows\n' \
+    "$(gate_name)" "$count" \
     "$([ "$narrowed" = true ] \
       && printf 'a red when a cfg(test) mount takes it out of the production set, which is a home this gate no longer reads' \
       || printf 'still exempt when a cfg(test) mount would take it out of a NARROWED set, since this gate scans every source')"

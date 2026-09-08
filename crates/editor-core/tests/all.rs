@@ -122,6 +122,12 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "eval4_accept_funnel.rs"]
 mod eval4_accept_funnel;
+#[path = "eval6_placers_over_instances.rs"]
+mod eval6_placers_over_instances;
+#[path = "eval6_placers_over_instances_interval.rs"]
+mod eval6_placers_over_instances_interval;
+#[path = "eval9_nominal_in_the_key.rs"]
+mod eval9_nominal_in_the_key;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
@@ -346,6 +352,8 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "pinned_lift_validates_once.rs"]
+mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]

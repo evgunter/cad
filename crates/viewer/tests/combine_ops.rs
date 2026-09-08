@@ -2141,6 +2141,23 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             );
             continue;
         }
+        if name == "pattern" {
+            // The probe's own door is wider than the seat's question:
+            // a transform is shape-preserving over its input's value
+            // (`Body → Body`, `Instances → Instances`), so it ADMITS
+            // a pattern and yields instances — several bodies, which
+            // the seat is right to refuse. The seat's answer here is
+            // not the transform door's to confirm — a consumer that
+            // takes one body would be, and this row's probe is not
+            // one.
+            assert!(!admitted, "the seat refuses a pattern");
+            assert!(
+                !refused_as_operand,
+                "the transform takes the pattern's instances whole: {:?}",
+                eval.result(probe).and_then(NodeResult::error)
+            );
+            continue;
+        }
         if admitted {
             assert!(
                 eval.value(candidate).is_some(),

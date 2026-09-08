@@ -77,8 +77,8 @@ type OpResult<T> = Result<OpOut<T>, NodeErrorKind>;
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
 /// The LANE half of an evaluation's environment: where profile
-/// geometry comes from at `T`, and the parameter environment it is
-/// elaborated over. The two travel together because they are one
+/// geometry comes from at `T`, and the parameter environments it is
+/// elaborated over. They travel together because they are one
 /// decision — a guided elaboration is guided over SOME environment,
 /// and a call site that could pass the lift without the environment
 /// could elaborate the lift's second pass over a different box than
@@ -92,6 +92,12 @@ pub(crate) struct LaneEnv<'a, T> {
     /// The evaluation's parameter environment — nominals, or nominals
     /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
     pub params: &'a crate::expr::ParamEnv<T>,
+    /// The document's own f64 parameter environment, under no box and
+    /// no seed. It is what every f64-pinned reader below decides from
+    /// — the profile plane read, the pre-pass's program resolution,
+    /// the placement the pinned lift embeds — and therefore what a
+    /// content key owes ([`super::tag::slot`]).
+    pub nominal: &'a crate::expr::ParamEnv<f64>,
     /// The E4 seed this evaluation carries, by name (`None` on the
     /// build path). Consulted by the one place the lift cannot reach:
     /// a C6/D9-pinned section refuses a seed it would otherwise embed
@@ -127,7 +133,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
 /// slots, emitting the node's name table alongside the payload.
 /// `profile_pre` is the profile node's f64 precompute (present exactly
 /// for `Node::Profile` — computed in `eval_node`'s resolution stage,
-/// outside the verdict bracket).
+/// inside the node's verdict frame and ahead of this op).
 #[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
@@ -381,17 +387,8 @@ where
     // The identity fast-path is admitted only for a BIT-exact identity
     // frame: any other value could round, and `transform_rigid` is what
     // decides whether it stayed rigid.
-    let mut placed = if placement.is_identity_bits() {
-        (*part.body).clone()
-    } else {
-        transform_rigid(&part.body, &placement.affine::<T>(), tol)
-            .map_err(NodeErrorKind::Transform)?
-    };
-    // N6 composition, the Transform precedent: `transform_rigid`
-    // cleared the source records, so each description is re-stamped
-    // with the part's own source wrapped by THIS placing node. Keys are
-    // stable across the op, and the identity path never cleared them.
-    compose_placed(&part.body, &mut placed, id, 0);
+    let map = (!placement.is_identity_bits()).then(|| placement.affine::<T>());
+    let placed = place(&part.body, map.as_ref(), id, 0, tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive
     // instantiation. INVARIANT — the records ride the placement
@@ -516,7 +513,20 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
 /// Re-stamps `placed`'s descriptions with `input`'s sources wrapped
 /// by placing node `by` at `instance` (N6: the transform node
 /// composes into `expr`). Keys are stable across `transform_rigid`,
-/// so the input's rows map key-for-key.
+/// so the input's rows map key-for-key. Unsourced input descriptions
+/// stay unsourced — never invented.
+///
+/// **The ordinal.** `instance` is the body's OUTPUT index in the
+/// placing node's value, and that is the whole rule: a transform of
+/// one body stamps 0, a transform of instances stamps body `i` as
+/// `i`, a pattern stamps every placed body with its flat index
+/// `j·M + i` (the structural index `j` when the master is one body),
+/// and an instantiated part is placement 0 of its document. A
+/// pattern's placement 0 is the master's own bodies VERBATIM — their
+/// `Arc`s, carrying the master's stamps, unstamped by the pattern —
+/// so distinct bodies of one node never share a source: two placed
+/// bodies differ in the ordinal, and placement 0 differs from every
+/// placed body in the wrapping node.
 fn compose_placed<T: Decide>(
     input: &Body<T>,
     placed: &mut Body<T>,
@@ -550,6 +560,32 @@ fn compose_placed<T: Decide>(
     }
 }
 
+/// **A rigid placement of `body` by node `by`, stamped** — the one site
+/// that pairs `transform_rigid` with [`compose_placed`], so every
+/// placing door (instantiate, transform, pattern, placed union) places
+/// and stamps the same way. `None` is the bit-exact identity the
+/// instantiate door admits (a clone: the arenas are untouched, so no
+/// re-certification is owed), stamped like any other placement.
+///
+/// # Errors
+///
+/// The kernel's own [`topo::transform::TransformError`] as
+/// [`NodeErrorKind::Transform`].
+fn place<T: Decide + geom_brep::PcurveFittedLane>(
+    body: &Body<T>,
+    map: Option<&Affine3<T>>,
+    by: RecipeNodeId,
+    ordinal: u32,
+    tol: Tol,
+) -> Result<Body<T>, NodeErrorKind> {
+    let mut placed = match map {
+        None => body.clone(),
+        Some(map) => transform_rigid(body, map, tol).map_err(NodeErrorKind::Transform)?,
+    };
+    compose_placed(body, &mut placed, by, ordinal);
+    Ok(placed)
+}
+
 /// The (Ok) value of an input node.
 fn value_of<T: Decide>(
     results: &Results<T>,
@@ -565,20 +601,93 @@ fn value_of<T: Decide>(
 }
 
 /// A single-body operand: a Body value, or a boolean's non-empty
-/// result. Splits and patterns need PR 3's naming layer to select a
-/// part — typed refusal, not a guess.
+/// result — what every consumer that genuinely takes ONE body reads
+/// through (a datum's face frame, a blend, a shell, a split's target,
+/// a boolean's and a union's members, a placed union's prototype).
+/// Written through [`placeable_operand`]: the admitted one-body set is
+/// that door's `Body` arm, and this door's only addition is the
+/// refusal of the other arm, in its own one-body word.
 fn body_operand<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
 ) -> Result<Arc<Body<T>>, NodeErrorKind> {
-    let v = value_of(results, input)?;
-    match &v.payload {
-        ValuePayload::Body(b) => Ok(Arc::clone(b)),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => Ok(Arc::clone(body)),
-        ValuePayload::Boolean(BooleanValue::Empty) => Err(NodeErrorKind::EmptyOperand { input }),
-        other => Err(NodeErrorKind::WrongOperand {
+    match placeable_operand(value_of(results, input)?, input) {
+        Ok(Placeable::Body(b)) => Ok(b),
+        Ok(Placeable::Instances(_)) => Err(NodeErrorKind::WrongOperand {
             input,
             expected: "body",
+            found: "instances",
+        }),
+        Err(NodeErrorKind::WrongOperand { input, found, .. }) => Err(NodeErrorKind::WrongOperand {
+            input,
+            expected: "body",
+            found,
+        }),
+        Err(other) => Err(other),
+    }
+}
+
+/// **What a placer places**: the two value shapes a rigid map is
+/// defined over. The placers (`Transform`, `Pattern`) are
+/// shape-preserving over their input's value — `Body → Body`,
+/// `Instances → Instances` — so this is the operand they read, and
+/// [`body_operand`] is its one-body restriction.
+enum Placeable<T: Decide> {
+    /// One body: a `Body` value or a boolean's non-empty result.
+    Body(Arc<Body<T>>),
+    /// Several placed bodies, in the input's own instance order; the
+    /// input's name table indexes them by that order.
+    Instances(Vec<Arc<Body<T>>>),
+}
+
+impl<T: Decide> Placeable<T> {
+    /// The bodies, in value order — one for a body, the list for
+    /// instances — so a placer that walks its master reads one shape.
+    fn bodies(&self) -> &[Arc<Body<T>>] {
+        match self {
+            Self::Body(b) => core::slice::from_ref(b),
+            Self::Instances(bs) => bs,
+        }
+    }
+
+    /// **The shape-preserving map**: `f` over every body with its
+    /// index in the value, yielding the SAME shape as a payload —
+    /// `Body → Body`, `Instances → Instances`. This is the ruling as
+    /// a function: a placer decides only what `f` does to one body.
+    fn map(
+        &self,
+        mut f: impl FnMut(&Body<T>, usize) -> Result<Body<T>, NodeErrorKind>,
+    ) -> Result<ValuePayload<T>, NodeErrorKind> {
+        Ok(match self {
+            Self::Body(b) => ValuePayload::Body(Arc::new(f(b, 0)?)),
+            Self::Instances(bs) => ValuePayload::Instances(
+                bs.iter()
+                    .enumerate()
+                    .map(|(i, b)| f(b, i).map(Arc::new))
+                    .collect::<Result<_, _>>()?,
+            ),
+        })
+    }
+}
+
+/// The operand of a placer, read off its evaluated value: one body
+/// (a `Body` value or a boolean's non-empty result), or an `Instances`
+/// value taken whole. Everything else refuses typed naming both
+/// admitted shapes; an empty boolean is a typed absence.
+fn placeable_operand<T: Decide>(
+    v: &super::NodeValue<T>,
+    input: RecipeNodeId,
+) -> Result<Placeable<T>, NodeErrorKind> {
+    match &v.payload {
+        ValuePayload::Body(b) => Ok(Placeable::Body(Arc::clone(b))),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            Ok(Placeable::Body(Arc::clone(body)))
+        }
+        ValuePayload::Boolean(BooleanValue::Empty) => Err(NodeErrorKind::EmptyOperand { input }),
+        ValuePayload::Instances(bodies) => Ok(Placeable::Instances(bodies.clone())),
+        other => Err(NodeErrorKind::WrongOperand {
+            input,
+            expected: "body or instances",
             found: other.kind_name(),
         }),
     }
@@ -1096,11 +1205,14 @@ fn wire_datum<T: Decide>(
 /// path from steps to geometry — then the assembled `Profile<f64>`
 /// validates at f64 (the C6 structure-selection gate, which also
 /// yields the canonical form the program-anchor naming map is derived
-/// from). Runs OUTSIDE the verdict bracket (`eval_node`): these are
-/// structure decisions, the successor of the stored f64 bits, not
-/// per-lane op decisions. VQ6 is closed here and in the op below: the
-/// replay-time junction checks and both validations run under the
-/// SAME `Tolerance::get()` the evaluation pins.
+/// from). Runs inside the node's verdict frame (`eval_node`) ahead of
+/// the op: structure decisions, the successor of the stored f64 bits,
+/// logged as the node's own. The validated form is kept: under the
+/// pinned lift it IS the op's value, lifted (`wire_profile`), so the
+/// node decides each structure question once. VQ6 is closed here and
+/// in the guided op below: the replay-time junction checks and every
+/// validation run under the SAME `Tolerance::get()` the evaluation
+/// pins.
 pub(crate) fn prepare_profile(
     placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
@@ -1136,6 +1248,7 @@ pub(crate) fn prepare_profile(
     })?;
     Ok(ProfilePre {
         profile_f64,
+        validated_f64,
         placement_f64: placement,
         naming,
         structure: profile::ProfileStructure {
@@ -1224,21 +1337,28 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         });
     };
     let validated = match lane.lift {
-        // The build path: the `f64` elaboration embedded bit for bit —
-        // loops AND placement for an authored frame. A DERIVED frame
-        // has no `f64` elaboration of its placement (DM1c: the
-        // document holds a face name, not nine numbers), so its loops
-        // embed exactly the same way and its placement is the lane's
-        // own value, read where every by-value reader of a frame reads
-        // it. The fork is by node kind; the numbers on both sides are
-        // the ones already computed.
+        // The build path: the precompute's VALIDATED form embedded
+        // through `from_f64` (`ValidatedProfile::lift_onto`), every
+        // decision carried as the f64 one and none remade. That is
+        // this lift's design, not predicate agreement: structure is
+        // selected once, at f64, identically for every lane
+        // (`ProfileLift`); a margin an `Interval` validation would
+        // escalate on is decided here by its f64 verdict, and the
+        // guided lift is where that margin escalates. Placed on the
+        // lane's plane: an authored frame at its `f64` elaboration
+        // lifted; a DERIVED frame has no `f64` elaboration of its
+        // placement (DM1c: the document holds a face name, not nine
+        // numbers), so its placement is the lane's own value, read
+        // where every by-value reader of a frame reads it. The fork is
+        // by node kind; the numbers on both sides are the ones already
+        // computed, and the op decides nothing: the node's log under
+        // this lift is the precompute's.
         super::ProfileLift::Pinned => {
-            let mut embedded = anchor::embed_profile::<T>(&pre.profile_f64);
-            embedded.plane = match &pre.placement_f64 {
+            let plane = match &pre.placement_f64 {
                 Some(placement) => placement.map(T::from_f64),
                 None => frame_plane_lane(results, program.plane)?,
             };
-            embedded.validate(tol).map_err(NodeErrorKind::Profile)?
+            pre.validated_f64.clone().lift_onto(plane)
         }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,
@@ -2597,15 +2717,15 @@ fn wire_part<T: Decide>(
             let index = slots::count(vals, SlotId::Instance).ok_or(NodeErrorKind::MissingSlot {
                 slot: SlotId::Instance,
             })?;
+            // The index is into the value's FLAT list: over a nested
+            // pattern's value, body `j·M + i` (placement `j` of the
+            // inner instance `i`, the layout `wire_pattern` fixes),
+            // and the out-of-range refusal reads the flat count.
             // The count is a u32 quantity in every table row (a name's
             // output-body index), so a value past that is the
             // pattern's own emission bug, refused typed before any
             // index is judged against it.
-            let count = u32::try_from(instances.len()).map_err(|_| {
-                NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: "a pattern's instance count exceeds u32",
-                })
-            })?;
+            let count = names::output_body(instances.len()).map_err(NodeErrorKind::Naming)?;
             // ONE refusal, one fold: a negative index and one past the
             // end fail the same way, and an index the fold admits is
             // in range by construction.
@@ -3700,6 +3820,21 @@ pub(crate) fn transform_map<T: Decide>(
     Affine3::from_parts(Mat3::rotation_about(axis, angle), translation)
 }
 
+/// **The transform node**: ONE rigid map, shape-preserving over its
+/// input's value — `Body → Body`, `Instances → Instances` — so a
+/// transform of N bodies is N transforms in the input's own order,
+/// and body `i` of a transform of instances is bit for bit what the
+/// same map does to that body selected alone through `Node::Part`.
+///
+/// Identity-preserving pass-through (spec D2): the transform
+/// contributes NO `RolePath` segment. `transform_rigid` is key-stable
+/// (arenas rewritten in place of a clone), so the input's table holds
+/// verbatim — same names, same keys, same output-body indices, the N1
+/// derivation-path semantics (a name still points at the MINTING node;
+/// the placement is recipe context, not identity) — and over
+/// `Instances` this holds body by body because a row's output-body
+/// index is the instance index and the i-th output body is the i-th
+/// input body placed. Stamps: [`compose_placed`].
 fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
@@ -3707,7 +3842,8 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, input)?;
+    let value = value_of(results, input)?;
+    let operand = placeable_operand(value, input)?;
     let translation = need_vec3(vals, SlotId::Translation)?;
     let rot_axis = unit(
         need_vec3(vals, SlotId::RotationAxis)?,
@@ -3716,21 +3852,11 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     )?;
     let angle = need_scalar(vals, SlotId::RotationAngle)?;
     let map = transform_map(translation, rot_axis, angle);
-    let mut placed = transform_rigid(&body, &map, tol).map_err(NodeErrorKind::Transform)?;
-    // N6 composition: `transform_rigid` cleared the source records
-    // (its geometric rewrite invalidates the bit-identity claim); the
-    // recipe layer re-stamps each description with the INPUT's source
-    // wrapped by this placing node (keys are stable across the op).
-    // Unsourced input descriptions stay unsourced — never invented.
-    compose_placed(&body, &mut placed, id, 0);
-    // Identity-preserving pass-through (spec D2): the transform
-    // contributes NO RolePath segment — `transform_rigid` is
-    // key-stable (arenas rewritten in place of a clone), so the
-    // input's table rows hold verbatim: same names, same keys, the
-    // N1 derivation-path semantics (the name still points at the
-    // MINTING node; the placement is recipe context, not identity).
-    let table = Arc::clone(&value_of(results, input)?.name_table);
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(placed)), table))
+    let payload = operand.map(|body, i| {
+        let ordinal = names::output_body(i).map_err(NodeErrorKind::Naming)?;
+        place(body, Some(&map), id, ordinal, tol)
+    })?;
+    Ok(OpOut::plain(payload, Arc::clone(&value.name_table)))
 }
 
 /// The resolved operands of a stepped placement rule: what the rule's
@@ -3830,6 +3956,20 @@ fn stepped_map<T: Decide>(
     Ok(stepped_rule_map(&ops, i))
 }
 
+/// **The pattern node**: a stepped rule over its input's value,
+/// shape-preserving — a body or an `Instances` value is the MASTER,
+/// placed whole — yielding `Instances`.
+///
+/// **The layout, placement-major** (D9's order, the one the rule is
+/// walked in): output body `j·M + i` is placement `j` of the master's
+/// body `i`, `M` the master's body count — the instance index itself
+/// for a one-body master, and for a nested pattern the flat list
+/// `Node::Part` selects from and the product gathers. Placement 0 is
+/// the master's own bodies verbatim (the rule at 0 IS the identity);
+/// every other placement goes through [`place`]. The one home of the
+/// arithmetic is [`names::flat_body_index`], which the name table is
+/// keyed by too: every master name wraps `Instance(j)` per placement
+/// (A8/N1), and key-stability means instance keys equal master keys.
 fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
@@ -3847,31 +3987,31 @@ fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(
             crate::node::PlacementRuleFault::CountSpelling,
         ));
     }
-    let body = body_operand(results, input)?;
+    let value = value_of(results, input)?;
+    let operand = placeable_operand(value, input)?;
+    let master = operand.bodies();
     let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
         slot: SlotId::Count,
     })?;
     if n < 1 {
         return Err(NodeErrorKind::NonPositiveCount { count: n });
     }
-    let mut instances = Vec::new();
-    // Instance 0 is the input body itself (identity placement, no op
-    // re-run — `stepped_map` at i = 0 IS the identity).
-    instances.push(Arc::clone(&body));
-    for i in 1..n {
-        let map = stepped_map(kind, i, results, vals, tol)?;
-        let mut placed = transform_rigid(&body, &map, tol).map_err(NodeErrorKind::Transform)?;
-        // N6 composition, per structural instance (`Placed { node,
-        // instance: i, .. }`): distinct instances are distinct
-        // sources — their descriptions genuinely differ.
-        compose_placed(&body, &mut placed, id, i as u32);
-        instances.push(Arc::new(placed));
+    let naming = NodeErrorKind::Naming;
+    let per = names::output_body(master.len()).map_err(naming)?;
+    let mut instances: Vec<Arc<Body<T>>> = master.to_vec();
+    for j in 1..n {
+        let map = stepped_map(kind, j, results, vals, tol)?;
+        let placement =
+            names::output_body(usize::try_from(j).unwrap_or(usize::MAX)).map_err(naming)?;
+        for (i, body) in master.iter().enumerate() {
+            let ordinal = names::output_body(i)
+                .and_then(|i| names::flat_body_index(placement, per, i))
+                .map_err(naming)?;
+            instances.push(Arc::new(place(body, Some(&map), id, ordinal, tol)?));
+        }
     }
-    // Instance(i) wrapping (A8/N1): every master entity name wraps
-    // per structural index; `transform_rigid` key-stability means
-    // instance keys equal master keys.
-    let master = Arc::clone(&value_of(results, input)?.name_table);
-    let table = names::name_pattern(id, &master, n, &instances).map_err(NodeErrorKind::Naming)?;
+    let table =
+        names::name_pattern(id, &value.name_table, n, master.len(), &instances).map_err(naming)?;
     Ok(OpOut::plain(ValuePayload::Instances(instances), table))
 }
 
@@ -3942,10 +4082,10 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane
     let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
     let mut targets: Vec<topo::SolidKey> = Vec::new();
     for (i, map) in maps.iter().enumerate() {
-        let mut placed = transform_rigid(&body, map, tol).map_err(NodeErrorKind::Transform)?;
-        // N6 composition, per structural instance — the pattern node's
-        // rule verbatim: distinct instances are distinct sources.
-        compose_placed(&body, &mut placed, id, i as u32);
+        // Stamped per structural instance — the pattern node's rule
+        // verbatim: distinct instances are distinct sources.
+        let ordinal = names::output_body(i).map_err(NodeErrorKind::Naming)?;
+        let placed = place(&body, Some(map), id, ordinal, tol)?;
         // Placement 0 MINTS the destination solids (one per prototype
         // solid, provenance carried); every later placement grafts ONTO
         // those same solids, so the fused body has the prototype's own
