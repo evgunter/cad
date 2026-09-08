@@ -735,15 +735,6 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES = {
-    "B-NOTATION": (
-        "authored notation, the D6 boundary's other half; closing it "
-        "binds `WrittenLength` / `WrittenAngle` onto the `DocParam` and "
-        "expression constructors, so a Python caller who writes "
-        "`25 * mm` gets a parameter that REMEMBERS the millimetres — "
-        "today the unit erases at the `Length` door and the document "
-        "records the canonical row, which is what Rust authoring "
-        "stopped doing at schema v20"
-    ),
     "B-DISTRIBUTIONS": (
         "parameter uncertainty and the analysis lane (ERROR-DESIGN "
         "E1/E2); closing it binds `Distribution`'s four forms onto a "
@@ -1179,6 +1170,47 @@ FAMILIES = {
 #: `PartSelect.split_half` / `PartSelect.instance`, `Node.pattern`,
 #: and `DocEdit.bind_instance_param`. The positive form is
 #: `tests/test_part_select.py`.
+#: **B-NOTATION is CLOSED and no longer a `gap` id here**
+#: (LIB-B-NOTATION), and it is the first family whose roster was
+#: HONEST about its own entries: it cited two names, `WrittenLength`
+#: and `WrittenAngle`, the family needed exactly those two bound, and
+#: both now leave the roster under rule 1. What it could not see was
+#: everything ELSE closing them required, which is B-FACE-FRAME's
+#: lesson arriving on a family that had no accounting error at all.
+#:
+#: The measurement first, because the charter's claim was executed
+#: rather than repeated: `DocParam.length(25 * mm)` saved
+#: `"display_unit": "m"`. The `mm` erases at the `Length` door,
+#: because a Python `Length` wraps `quantity::Length` and is canonical
+#: metres and nothing else — and it CANNOT be taught the unit, since
+#: it carries the arithmetic `quantity::written` refuses to define a
+#: notation for. So the notation crosses as the second type, which is
+#: what these two entries always named.
+#:
+#: `Doc.params` is a METHOD of a curated type. `Doc` is curated and
+#: the stub declares a top-level `Doc`, so rule 1 accounts it WHOLE —
+#: and Python had NO door that answered a document parameter back, not
+#: the map and not one by name. `Doc.eval` answers a parameter
+#: reference's number with the dimension and the notation both erased,
+#: so a document could remember `mm` and no caller could ask. Binding
+#: the authoring half alone would have shipped a memory nothing could
+#: read except by saving to text and parsing the JSON by hand.
+#:
+#: `LengthUnit.__eq__` is a MISSING DUNDER, one level further in than
+#: a method and invisible to BOTH rosters here: `test_stubs.py` checks
+#: stub-declared operators against the compiled class, so an operator
+#: neither side declares is unreportable. The unit classes carried no
+#: comparison at all, so `mm == mm` was true only by identity, and a
+#: unit read back off a value compared unequal to the constant it was
+#: written in. A read door for a notation is unusable without it.
+#:
+#: What closing it bound: `WrittenLength` / `WrittenAngle`,
+#: `DocParam.written_length` / `written_angle`, `DocParam.unit`,
+#: `Doc.params`, and equality and hashing on `LengthUnit` /
+#: `AngleUnit`. `Expr::written_length` needed nothing:
+#: `Doc.parse_expr("25 mm")` already reaches `literal_with_unit` and
+#: `Expr.text` reads the notation back. The positive form is
+#: `tests/test_notation.py`.
 #: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
 #: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
 #: `EvalError` — and closing it moved NINE, because the three could
@@ -1792,8 +1824,13 @@ NOT_BOUND = {
     # The closure paragraph in this constant's docstring says what the
     # family's other two charter names were, and why neither was ever
     # a row.
-    "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
-    "WrittenLength": f"{GAP}: B-NOTATION authored notation",
+    # B-NOTATION IS GONE FROM THIS ROSTER, closed at LIB-B-NOTATION,
+    # and the id left `FAMILIES` with it. It cited TWO names here —
+    # `WrittenLength` and `WrittenAngle` — and both leave the roster
+    # ENTIRELY rather than moving to `BOUND_AS`: `pncad.pyi` declares
+    # both at the same spelling, so rule 1 accounts them. The closure
+    # paragraph in this constant's docstring records what a roster
+    # honest about its own two entries still could not see.
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six

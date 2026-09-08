@@ -41,6 +41,21 @@
 //! lives. `Length.format(deg)` is then a `ty` error statically and a
 //! `TypeError` at run time, which is the same pair of answers every
 //! other dimension confusion at this boundary gets.
+//!
+//! # The authored pair, beside the arithmetic pair
+//!
+//! `Length` and `Angle` erase: `25 * mm` is canonical metres and the
+//! `mm` is gone at the multiply, which is what makes their arithmetic
+//! closed and what the kernel below wants. `WrittenLength` and
+//! `WrittenAngle` are the other half of the same boundary — the value
+//! WITH the notation it was typed in — and they exist because a
+//! document has to be readable back the way it was written.
+//!
+//! They are separate types rather than a field on `Length` for the
+//! reason `quantity::written`'s module docs give: an authored quantity
+//! has no arithmetic, because there is no answer to what notation the
+//! sum of a millimetre and an inch is written in. A `Length` that
+//! carried a unit would have to invent one at every `+`.
 
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
@@ -372,6 +387,28 @@ impl LengthUnit {
         Length(value * self.0)
     }
 
+    /// Rust's derived `PartialEq`, mirrored: two views of the same
+    /// table row are the same unit. The symbol DETERMINES the row (the
+    /// #650 seal), so comparing symbols compares rows.
+    ///
+    /// Bound because a unit is now something a caller gets BACK —
+    /// `WrittenLength.unit` — and not only something the module hands
+    /// out as a constant. Without it the fallback is identity, and a
+    /// unit read off a value compares unequal to the `mm` it was
+    /// written in.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`]: the row's symbol, which is
+    /// what that comparison reads.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        self.0.symbol().hash(&mut h);
+        h.finish()
+    }
+
     fn __repr__(&self) -> String {
         format!("LengthUnit({})", self.0.symbol())
     }
@@ -405,8 +442,200 @@ impl AngleUnit {
         Angle(value * self.0)
     }
 
+    /// [`LengthUnit::__eq__`]'s mirror, for its reason.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// [`LengthUnit::__hash__`]'s mirror.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        self.0.symbol().hash(&mut h);
+        h.finish()
+    }
+
     fn __repr__(&self) -> String {
         format!("AngleUnit({})", self.0.symbol())
+    }
+}
+
+/// Fold `-0.0` to `0.0` before hashing, so a hash never splits two
+/// values the IEEE equality above calls the same.
+fn fold_zero(v: f64) -> f64 {
+    if v == 0.0 { 0.0 } else { v }
+}
+
+/// A length as it was AUTHORED: canonical metres plus the notation it
+/// was written in (`quantity::WrittenLength`).
+///
+/// `Length` is the arithmetic type and it erases — `25 * mm` is
+/// `Length(0.025)` and the `mm` is gone at the multiply, which is
+/// correct for everything downstream, since the kernel only ever sees
+/// metres. This type is the record of what was TYPED, so a document
+/// can be read back the way it was written, and it is what
+/// `DocParam.written_length` takes.
+///
+/// **No arithmetic, deliberately** — the Rust type has none for the
+/// reason its module docs give: there is no answer to what notation
+/// the sum of a millimetre and an inch is written in. Compute on the
+/// `Length` inside (`length`), where the algebra is closed and the
+/// unit has already erased, and author the result through
+/// `canonical_in`.
+///
+/// **The notation is not optional.** Every value here names a unit;
+/// there is no "canonical, notation unknown" state, which is what
+/// stops two readers of one document from applying two fallbacks.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct WrittenLength(pub(crate) q::WrittenLength);
+
+#[pymethods]
+impl WrittenLength {
+    /// `value` written in `unit` — the multiply happens here, and the
+    /// notation survives it. `WrittenLength.in_unit(25.0, mm)` is
+    /// `25 * mm` that remembers the `mm`.
+    ///
+    /// The name is `Length.in_unit`'s, in the opposite direction, and
+    /// the collision is the kernel's own: `WrittenLength::in_unit` is
+    /// documented there as "the inverse of `Length::in_unit`". A
+    /// second spelling here would make the two surfaces disagree about
+    /// one pair of doors.
+    #[staticmethod]
+    fn in_unit(value: f64, unit: &LengthUnit) -> Self {
+        Self(q::WrittenLength::in_unit(value, unit.0))
+    }
+
+    /// An ALREADY-canonical length that remembers `unit` as its
+    /// notation — no multiply, because the caller's arithmetic has
+    /// happened.
+    ///
+    /// This is the door for a value arrived at by computing: a length
+    /// summed or scaled out of others is canonical metres, and this
+    /// says which notation to record it in. It takes a `Length` where
+    /// the Rust door takes bare metres, for the reason this module's
+    /// docs give for `format`'s receiver — Rust reaches the type from
+    /// below, with the newtype already unwrapped, and what a Python
+    /// caller holds is the quantity.
+    #[staticmethod]
+    fn canonical_in(value: &Length, unit: &LengthUnit) -> Self {
+        Self(q::WrittenLength::canonical_in(value.0.meters(), unit.0))
+    }
+
+    /// The canonical value — the erasure door, past which nothing
+    /// knows this was authored in anything.
+    #[getter]
+    fn length(&self) -> Length {
+        Length(self.0.length())
+    }
+
+    /// The canonical value in metres (`length` then `meters`).
+    #[getter]
+    fn meters(&self) -> f64 {
+        self.0.meters()
+    }
+
+    /// The notation this was authored in.
+    #[getter]
+    fn unit(&self) -> LengthUnit {
+        LengthUnit(self.0.unit())
+    }
+
+    /// Rust's derived `PartialEq`, mirrored: BOTH halves, so the same
+    /// magnitude authored in two units is two authorings. That is the
+    /// opposite of the stored literal this feeds, where the display
+    /// unit is presentation metadata excluded from expression
+    /// identity — and the difference is the point, because here the
+    /// notation is the payload.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`], on `DocParam`'s already
+    /// settled shape rather than `Length`'s: `-0.0` folds to `0.0`
+    /// before the value's bits are hashed, because the equality this
+    /// mirrors calls the two spellings of zero the same value and a
+    /// hash that split them would break the invariant Python dicts
+    /// rely on. The unit is part of the equality, so it is part of the
+    /// hash.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        fold_zero(self.0.meters()).to_bits().hash(&mut h);
+        self.0.unit().symbol().hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "WrittenLength({} m in {})",
+            self.0.meters(),
+            self.0.unit().symbol()
+        )
+    }
+}
+
+/// An angle as it was AUTHORED — [`WrittenLength`]'s mirror, canonical
+/// radians plus its notation (`quantity::WrittenAngle`). Everything
+/// that type's docs say holds here.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct WrittenAngle(pub(crate) q::WrittenAngle);
+
+#[pymethods]
+impl WrittenAngle {
+    /// `value` written in `unit` — [`WrittenLength::in_unit`]'s
+    /// mirror, and the one door here that multiplies.
+    #[staticmethod]
+    fn in_unit(value: f64, unit: &AngleUnit) -> Self {
+        Self(q::WrittenAngle::in_unit(value, unit.0))
+    }
+
+    /// An already-canonical angle that remembers `unit` —
+    /// [`WrittenLength::canonical_in`]'s mirror.
+    #[staticmethod]
+    fn canonical_in(value: &Angle, unit: &AngleUnit) -> Self {
+        Self(q::WrittenAngle::canonical_in(value.0.radians(), unit.0))
+    }
+
+    /// The canonical value — the erasure door.
+    #[getter]
+    fn angle(&self) -> Angle {
+        Angle(self.0.angle())
+    }
+
+    /// The canonical value in radians (`angle` then `radians`).
+    #[getter]
+    fn radians(&self) -> f64 {
+        self.0.radians()
+    }
+
+    /// The notation this was authored in.
+    #[getter]
+    fn unit(&self) -> AngleUnit {
+        AngleUnit(self.0.unit())
+    }
+
+    /// [`WrittenLength::__eq__`]'s mirror: both halves.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// [`WrittenLength::__hash__`]'s mirror, same fold.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        fold_zero(self.0.radians()).to_bits().hash(&mut h);
+        self.0.unit().symbol().hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "WrittenAngle({} rad in {})",
+            self.0.radians(),
+            self.0.unit().symbol()
+        )
     }
 }
 
@@ -415,6 +644,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Length>()?;
     m.add_class::<Angle>()?;
     m.add_class::<Count>()?;
+    m.add_class::<WrittenLength>()?;
+    m.add_class::<WrittenAngle>()?;
     m.add_class::<LengthUnit>()?;
     m.add_class::<AngleUnit>()?;
 
