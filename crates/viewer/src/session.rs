@@ -306,7 +306,11 @@ impl Derived {
 ///
 /// `scratch` is carried as its presence: it is a whole `Doc`, and that
 /// one is in flight is the fact — it is `Some` exactly while
-/// [`DocSession::gesture`] is.
+/// [`DocSession::gesture`] is. It renders as an ELISION —
+/// `Some(<Doc>)`, never the `bool` the presence is — because `finish`
+/// says only that every field is SHOWN, and whether the value shown is
+/// the whole field is a question each summarised field answers for
+/// itself.
 impl core::fmt::Debug for Derived {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
@@ -319,7 +323,7 @@ impl core::fmt::Debug for Derived {
         f.debug_struct("Derived")
             .field("selection", selection)
             .field("hover", hover)
-            .field("scratch", &scratch.is_some())
+            .field("scratch", &scratch.as_ref().map(|_| format_args!("<Doc>")))
             .field("landed", landed)
             .field("bounds", bounds)
             .finish()
@@ -420,7 +424,10 @@ struct LandedRun {
 /// here is a verdict ABOUT that pair. `checks` is a `Vec` per finding
 /// and is carried as its two counts; `body` is a gathered aggregate
 /// and is carried as its presence, which is whether the landing's
-/// gather is still memoized.
+/// gather is still memoized. Both render as SUMMARIES — two counts,
+/// and the elision `Some(<Body>)` — so neither can be read as the
+/// field's own value; `finish_non_exhaustive` here is about the `_`
+/// arms and says nothing about them.
 impl core::fmt::Debug for LandedRun {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
@@ -447,7 +454,8 @@ impl core::fmt::Debug for LandedRun {
             ),
             None => out.field("checks", &Option::<()>::None),
         };
-        out.field("body", &body.is_some()).finish_non_exhaustive()
+        out.field("body", &body.as_ref().map(|_| format_args!("<Body>")))
+            .finish_non_exhaustive()
     }
 }
 
@@ -1953,6 +1961,13 @@ fn session_dir(path: &Path) -> PathBuf {
 /// not derived from the document, is as large as the document's hidden
 /// and moved sets, and has its own [`DocSession::display`] door to be
 /// dumped through.
+///
+/// Three carried fields are summaries and each says so where it
+/// renders: `states` is the history's LENGTH, and a count cannot be
+/// read as the `Vec`; `gesture` and `resolver` are elisions naming
+/// what is there, `Some(<Gesture>)` and `Some(<DirResolver>)`, rather
+/// than the `bool` their presence is. `finish_non_exhaustive` is about
+/// the `_` arms above and is true for reasons unrelated to these.
 impl core::fmt::Debug for DocSession {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
@@ -1970,9 +1985,15 @@ impl core::fmt::Debug for DocSession {
         f.debug_struct("DocSession")
             .field("generation", generation)
             .field("states", &history.len())
-            .field("gesture", &gesture.is_some())
+            .field(
+                "gesture",
+                &gesture.as_ref().map(|_| format_args!("<Gesture>")),
+            )
             .field("path", path)
-            .field("resolver", &resolver.is_some())
+            .field(
+                "resolver",
+                &resolver.as_ref().map(|_| format_args!("<DirResolver>")),
+            )
             .field("derived", derived)
             .finish_non_exhaustive()
     }
