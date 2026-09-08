@@ -142,6 +142,8 @@ mod blend3_r2_probes;
 mod blend4_concave_fillet;
 #[path = "blend4_r1_probes.rs"]
 mod blend4_r1_probes;
+#[path = "blend6_r1_probes.rs"]
+mod blend6_r1_probes;
 #[path = "blend6_ring_clearance.rs"]
 mod blend6_ring_clearance;
 #[path = "blend6_verb_vocab.rs"]
