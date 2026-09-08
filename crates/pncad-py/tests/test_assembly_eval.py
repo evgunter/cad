@@ -1,76 +1,83 @@
 """Evaluating an assembly from Python: the resolver seam and the memo.
 
-The audit's G18 row named a STRUCTURAL first door — "`evaluate(doc)`
-takes no resolver, so an `InstantiatePart` node cannot evaluate from
-Python at all" — and this file is the positive form of that sentence.
 `evaluate(doc, resolver=store)` carries the document seam, so an
-assembly document that already CARRIES instantiate nodes evaluates,
-its parts resolved through a `Workspace` on disk.
+assembly document that carries instantiate nodes evaluates, its parts
+resolved through a `Workspace` on disk. That is what this file proves,
+and it proves it over the tour's own bench scene.
 
-What is still not here, and is G18b: Python cannot AUTHOR an
-instantiate node, a mate, or a placement. So the documents under test
-arrive through the persistence door, exactly as `plate_param` does for
-the parametric flagship — which is why the corpus is the tour's own.
+WHERE THE SCENE COMES FROM
+--------------------------
+`bench_scene.py` is the scene, authored from Python: the `post` and
+`shelf` parts, the flat-pack `layout` (one post instance patterned
+along +y plus the shelf) and the mated `stand` (two posts, a shelf, two
+mates). `opened()` writes all four into a temp `Workspace` and then
+RESOLVES each one back out of it, so every document under test below
+arrived through the persistence door — the load path is exercised on
+every call, over documents nothing had to keep on disk between runs.
 
-THE CORPUS AND ITS PROVENANCE
------------------------------
-`corpus/bench/` is the tour's assembly scene, written by that scene's
-own authoring functions (`demos/tour/src/assembly.rs`), so the oracle
-below is the oracle the Rust side already asserts on this model and
-not a second one invented here. Four documents: the `post` and `shelf`
-parts, the flat-pack `layout` (one post instance patterned two ways
-plus the shelf) and the mated `stand` (two posts, a shelf, two mates).
-A store names its files by identity, so `MANIFEST` carries the label
-each identity was derived from.
+`test_assembly_author.py` authors the same scene from the same module.
+The two files share one definition of the constants and one definition
+of each document, so neither can drift from the other.
 
-Regenerate it with the tour's own door:
+WHAT THIS FILE PROVES, AND WHAT IT DOES NOT
+-------------------------------------------
+It proves the seam and the memo: the refusal family a reference can
+raise, the sharing `part_evaluations` counts, the memo's `prior=`
+counters and the contract that a memo hit never asks the resolver. It
+does NOT prove that the bindings can author an assembly — that is
+`test_assembly_author.py`'s subject, and every document here is
+authored through the same public doors it uses.
 
-    cd demos/tour && cargo run -- asm-corpus \\
-        ../../crates/pncad-py/tests/corpus/bench
+WHAT KEEPS THE SCENE HONEST, AND WHAT DOES NOT
+----------------------------------------------
+`TestTheSceneIsTheToursOwn` is the guard. The tour's bench
+(`demos/tour/src/assembly.rs`) is a detached workspace no test here can
+call, so the guard READS ITS SOURCE and compares four things against
+`bench_scene`:
 
-WHAT KEEPS THE CORPUS HONEST, AND WHAT DOES NOT
-------------------------------------------------
-`test_the_corpus_still_matches_the_scene_it_came_from` reads the five
-BASE dimension constants out of `assembly.rs` and checks them, and
-`test_the_patterned_posts_sit_where_the_scene_places_them` pins where
-the layout actually puts its two posts. Between them a numeric or
-placement drift in the tour goes red here. Three things they do NOT
-catch, named rather than summarised, because the first draft of this
-header disclosed only the first:
+* the six base constants, by value;
+* the three derived seats, by FORMULA — the expression is parsed out of
+  the tour and computed, so a changed formula reds even though the five
+  bases it is built from did not move;
+* the flat-pack's placement literals — the post's rotation axis, its
+  angle, its offset, the pattern's count and spacing, the shelf's
+  offset — each by formula;
+* the stand's gauge offset and the seats its two mates are authored
+  against, in document order.
 
-1. STRUCTURE with the constants left alone — a fifth patterned post, a
-   third mate, a different node order. The corpus would stay green
-   while no longer being the tour's scene.
-2. DERIVED constants. `SEAT_A`, `SEAT_B` and `POST_SEAT` are computed
-   FROM the five (`[POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0]` and
-   friends), and the guard reads only the five bases — so a changed
-   FORMULA passes it. The placement row above is what would catch the
-   consequence for the layout; the stand's two seats have no such row,
-   because a mated placement is not readable from Python (no `roots`
-   door, `gap: G18 explicit product roots`).
-3. That a VOLUME is invariant under placement. That was the whole of
-   this file's original oracle set, which is why item 2 went unnoticed
-   until review: every committed number could be reproduced by a scene
-   that put the parts anywhere at all.
+Four things the guard does NOT see, named rather than summarised:
 
-Closing (1) properly needs the tour's authoring functions callable
-from a code-tier test, and `demos/tour` is a detached workspace — so
-it is scheduled rather than banked: **issue #1186**.
+1. STRUCTURE. It reads named constants and named call sites, not the
+   recipe: a third mate, a fourth instance, a different node order in
+   either document is invisible to it. `test_the_scene_evaluates_to_
+   the_material_the_tour_asserts` and the placement row below pin the
+   consequences a body can show; a change that moves neither is not
+   caught here.
+2. The two DELIBERATE differences between this scene and the tour's,
+   which are `bench_scene`'s own subject: the tour's prisms are
+   parametric where Python's are drawn from literals, and the tour
+   patterns with `Node::Pattern` where Python uses
+   `Node.placed_union`. The guard would red if it compared recipes,
+   and it does not compare recipes.
+3. Anything in `assembly.rs` outside its constant block, `layout_doc`
+   and `stand_doc` — the tour's own assertions above all.
+4. A rename or a reformat in the tour, which reds this guard as a false
+   alarm rather than as a drift. It reads source text; that is the
+   price of reaching into a detached workspace at all.
 
-THE TOLERANCE THE CORPUS RECORDS
---------------------------------
-All four documents record `epsilon: 1e-9`, the default, because that
-is the ambient ε they were generated under; the CI python-suite job
-runs at the default ε and sets no `CAD_TOLERANCE_EPS`. One process has
-one ε, so loading a document that records a different one refuses
-(`PersistError` / `ToleranceConflict` at the door, `part_epsilon_seam`
-across the seam). If this file is ever run under a swept ε it will
-refuse at `Workspace.resolve`, and that is the reason — not a mystery,
-and not a defect in the corpus. Regenerate under the ε you mean to
-test at.
-
+THE TOLERANCE THE SCENE IS AUTHORED AT
+--------------------------------------
+The documents are written by this process, so they record the ambient
+ε this process runs at and load back at it. One process has one ε, so
+there is nothing here to conflict with — which is the difference a
+scene authored per run makes over bytes carrying the ε they were
+generated under.
 """
 
+import ast
+import atexit
+import math
+import operator
 import os
 import re
 import shutil
@@ -78,61 +85,76 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import bench_scene
 import pncad
-from pncad import (
-    DocEdit,
-    DocParamValue,
-    DocRef,
-    ParamName,
-    Workspace,
-    evaluate,
-    m,
-    mm,
+from bench_scene import (
+    FLAT_PACK_GAP,
+    FLAT_PACK_SHELF_Y,
+    GAUGE_OFFSET_Y,
+    PATTERN_COUNT,
+    PATTERN_SPACING,
+    POST_HEIGHT,
+    POST_SECTION,
+    POST_SEAT,
+    POST_VOLUME,
+    SEAT_A,
+    SEAT_B,
+    SHELF_DEPTH,
+    SHELF_LENGTH,
+    SHELF_THICKNESS,
+    SHELF_VOLUME,
+    STAND_SEATS,
 )
+from pncad import CapEnd, DocEdit, DocRef, Node, SegTag, Workspace, evaluate, m, mm
 
-CORPUS = Path(__file__).resolve().parent / "corpus" / "bench"
-SCENE = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
+TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
-# The scene's dimensions, in metres — the same numbers `assembly.rs`
-# declares, restated here and CHECKED against it below.
-POST_SECTION = 0.12
-POST_HEIGHT = 0.5
-SHELF_LENGTH = 0.9
-SHELF_DEPTH = 0.30
-SHELF_THICKNESS = 0.04
-
-POST_VOLUME = POST_SECTION * POST_SECTION * POST_HEIGHT
-SHELF_VOLUME = SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
-
-# The layout's declared PLACEMENTS, which no volume can see: the post
-# is laid on its side (rotated -pi/2 about +y, so POST_HEIGHT runs
-# along x and POST_SECTION along y and z), set FLAT_PACK_GAP along +x
-# so the flat-pack sits beside the assembled bench, and patterned two
-# times along +y at this spacing.
-FLAT_PACK_GAP = 1.4
-PATTERN_SPACING = 0.2
-PATTERN_COUNT = 2
+_SCENE = None
 
 
-def manifest():
-    """Label → document identity, as the corpus generator wrote it."""
-    text = (CORPUS / "MANIFEST").read_text(encoding="utf-8")
-    return dict(line.split() for line in text.splitlines() if line.strip())
+def _authored():
+    """The scene's directory and its label -> identity map, authored
+    ONCE per process.
+
+    Authoring is not free and nothing below mutates this store: the
+    rows that move a document copy it first (`CorpusCase.scratch`), so
+    one write serves the file.
+    """
+    global _SCENE
+    if _SCENE is None:
+        root = Path(tempfile.mkdtemp(prefix="pncad-bench-"))
+        atexit.register(shutil.rmtree, root, True)
+        directory = root / "bench"
+        directory.mkdir()
+        docs = bench_scene.write(Workspace(str(directory)))
+        _SCENE = (directory, {label: doc.id for label, doc in docs.items()})
+    return _SCENE
 
 
-def opened(directory=CORPUS):
-    """The store, and the label → `Doc` map its CURRENT content gives.
+def written():
+    """The directory the scene was written into."""
+    return _authored()[0]
+
+
+def identities():
+    """Label -> document identity, for the four documents the scene
+    authors. A store names its files by identity, so this is what a
+    consumer needs to ask the scan for one of them by name."""
+    return dict(_authored()[1])
+
+
+def opened(directory=None):
+    """The store, and the label -> `Doc` map its CURRENT content gives.
 
     Resolution goes through a reference built from `current_pin`, which
     is the honest spelling for "whatever version this store holds": the
     assemblies' own references carry the pins they were authored
     against, and those are what the evaluation checks.
     """
-    store = Workspace(str(directory))
-    names = manifest()
+    store = Workspace(str(directory or written()))
     docs = {
         label: store.resolve(DocRef(ident, store.current_pin(ident)))
-        for label, ident in names.items()
+        for label, ident in identities().items()
     }
     return store, docs
 
@@ -166,9 +188,9 @@ class CorpusCase(unittest.TestCase):
     """The shared spellings: a scratch copy of the store for the tests
     that MOVE it, and the volume comparison the tour itself uses.
 
-    The committed corpus is read-only evidence; a test that resaved a
-    part into it would leave the next test a store whose assemblies
-    pin a version nobody wrote.
+    The process's own store is shared evidence; a test that resaved a
+    part into it would leave the next test a store whose assemblies pin
+    a version nobody wrote.
     """
 
     #: The tour's own agreement bound on this model (`assembly.rs`
@@ -187,7 +209,7 @@ class CorpusCase(unittest.TestCase):
 
     def scratch(self):
         directory = Path(tempfile.mkdtemp()) / "bench"
-        shutil.copytree(CORPUS, directory)
+        shutil.copytree(written(), directory)
         self.addCleanup(shutil.rmtree, directory.parent, ignore_errors=True)
         return directory
 
@@ -209,13 +231,20 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
 
     def test_the_layout_evaluates_through_the_store(self):
         """The tour's flat-pack oracle, reproduced: one post instance
-        patterned PATTERN_COUNT ways, plus the shelf."""
+        placed PATTERN_COUNT ways, plus the shelf.
+
+        The family denotes ONE body of PATTERN_COUNT posts' material.
+        That is `bench_scene`'s stated substitution — `placed_union`
+        where the tour spells `Node::Pattern`, whose value is a plural
+        payload — and over a disjoint arrangement the material is the
+        same sum either way.
+        """
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
         self.assertEqual(failures(evaluation), {})
-        instance, pattern, shelf = evaluation.order()
+        instance, family, shelf = evaluation.order()
         self.assertVolumes(volumes(evaluation, instance), [POST_VOLUME])
-        self.assertVolumes(volumes(evaluation, pattern), [POST_VOLUME] * PATTERN_COUNT)
+        self.assertVolumes(volumes(evaluation, family), [PATTERN_COUNT * POST_VOLUME])
         self.assertVolumes(volumes(evaluation, shelf), [SHELF_VOLUME])
 
     def test_the_stand_evaluates_through_the_store(self):
@@ -278,12 +307,10 @@ class TestTheResolutionRefusals(CorpusCase):
         teach that it is."""
         directory = self.scratch()
         store, docs = opened(directory)
-        docs["shelf"].apply(
-            DocEdit.set_doc_param_value(
-                ParamName("thickness"), DocParamValue.length(SHELF_THICKNESS * 1.5 * m)
-            )
-        )
-        store.resave(docs["shelf"])
+        # A part legitimately changes on disk: the shelf is re-authored
+        # thicker under the same label, so it keeps its identity and
+        # moves its pin — which is the version the assemblies hold.
+        store.resave(bench_scene.shelf(thickness=SHELF_THICKNESS * 1.5))
 
         refusals = failures(evaluate(docs["layout"], resolver=store))
         self.assertEqual(
@@ -296,8 +323,7 @@ class TestTheResolutionRefusals(CorpusCase):
 
     def test_a_document_the_store_does_not_hold_refuses_naming_the_reference(self):
         directory = self.scratch()
-        names = manifest()
-        os.remove(directory / f"{names['post']}.pncad")
+        os.remove(directory / f"{identities()['post']}.pncad")
 
         _, docs = opened()
         refusals = failures(
@@ -380,20 +406,27 @@ class TestTheMemoIsObservable(CorpusCase):
         self.assertEqual(again.part_evaluations, 0)
 
     def test_an_edit_recomputes_only_the_cone_below_it(self):
-        """The memo's point, measured on a part document: change the
-        one parameter the extrude consumes and the profile above it is
-        still reused."""
+        """The memo's point, measured on a part document: make the post
+        twice as long and the section drawn under it is still reused.
+
+        Putting an expression into an authoring step is a named gap, so
+        the length is not a parameter this document holds and the edit
+        is the one a Python author actually has — delete the extrude
+        and insert a longer one over the same profile. What the memo
+        answers to is the same either way: the frame and the profile
+        are unchanged, so they are served, and only the node that
+        changed runs.
+        """
         _, docs = opened()
         post = docs["post"]
         first = evaluate(post)
-        post.apply(
-            DocEdit.set_doc_param_value(
-                ParamName("height"), DocParamValue.length(2 * POST_HEIGHT * m)
-            )
-        )
+        frame, profile, extrude = first.order()
+        post.apply(DocEdit.delete_node(extrude))
+        post.insert(Node.extrude(profile, 2 * POST_HEIGHT * m))
         again = evaluate(post, prior=first)
-        # TWO reused: the post's sketch frame carries no parameter, so
-        # a height edit reuses it beside the profile drawn on it.
+        # TWO reused: the post's sketch frame and the section drawn on
+        # it are what the deleted extrude consumed, and neither moved.
+        self.assertEqual(again.order()[:2], [frame, profile])
         self.assertEqual((again.reused, again.recomputed), (2, 1))
         self.assertVolumes(volumes(again, again.order()[-1]), [2 * POST_VOLUME])
 
@@ -470,12 +503,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         shelf_node = before.order()[2]
         pinned_body = volumes(before, shelf_node)
 
-        docs["shelf"].apply(
-            DocEdit.set_doc_param_value(
-                ParamName("thickness"), DocParamValue.length(SHELF_THICKNESS * 1.5 * m)
-            )
-        )
-        store.resave(docs["shelf"])
+        store.resave(bench_scene.shelf(thickness=SHELF_THICKNESS * 1.5))
 
         # The same call, the same store, differing only in the prior.
         fresh = evaluate(docs["layout"], resolver=store)
@@ -504,7 +532,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         store, docs = opened(directory)
         before = evaluate(docs["layout"], resolver=store)
 
-        os.remove(directory / f"{manifest()['post']}.pncad")
+        os.remove(directory / f"{identities()['post']}.pncad")
         gone = Workspace(str(directory))
 
         self.assertEqual(
@@ -547,12 +575,7 @@ class TestTheResolverSnapshot(CorpusCase):
     def test_a_resave_through_the_same_object_is_seen_by_a_later_evaluate(self):
         directory = self.scratch()
         store, docs = opened(directory)
-        docs["shelf"].apply(
-            DocEdit.set_doc_param_value(
-                ParamName("thickness"), DocParamValue.length(SHELF_THICKNESS * 1.5 * m)
-            )
-        )
-        store.resave(docs["shelf"])
+        store.resave(bench_scene.shelf(thickness=SHELF_THICKNESS * 1.5))
         self.assertEqual(
             [
                 r.kind
@@ -564,7 +587,7 @@ class TestTheResolverSnapshot(CorpusCase):
 
     def test_a_create_before_the_call_is_inside_the_snapshot(self):
         directory = self.scratch()
-        os.remove(directory / f"{manifest()['post']}.pncad")
+        os.remove(directory / f"{identities()['post']}.pncad")
         gone = Workspace(str(directory))
         _, whole = opened()
 
@@ -583,96 +606,242 @@ class TestTheResolverSnapshot(CorpusCase):
         )
 
 
-class TestTheCorpusIsTheToursOwn(unittest.TestCase):
-    """The corpus is committed BYTES, and bytes rot. This is the guard
-    that says so: the dimensions the assertions above are written
-    against are read out of the scene that generated it."""
+class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
+    """The scene's material and its placements, read off the store.
 
-    def test_the_corpus_still_matches_the_scene_it_came_from(self):
-        source = SCENE.read_text(encoding="utf-8")
-        for name, value in [
-            ("FLAT_PACK_GAP", FLAT_PACK_GAP),
-            ("POST_SECTION", POST_SECTION),
-            ("POST_HEIGHT", POST_HEIGHT),
-            ("SHELF_LENGTH", SHELF_LENGTH),
-            ("SHELF_DEPTH", SHELF_DEPTH),
-            ("SHELF_THICKNESS", SHELF_THICKNESS),
-        ]:
-            with self.subTest(constant=name):
-                found = re.search(rf"^const {name}: f64 = ([0-9.]+);$", source, re.M)
-                self.assertIsNotNone(found, f"{name} is no longer declared there")
-                self.assertEqual(
-                    float(found.group(1)),
-                    value,
-                    f"{name} moved in the tour — regenerate the corpus "
-                    f"(cd demos/tour && cargo run -- asm-corpus "
-                    f"../../crates/pncad-py/tests/corpus/bench)",
-                )
-        # The pattern's count and spacing are authored INLINE in the
-        # layout scene (`count: pe("2", ...)`, `spacing: pe("200 mm",
-        # ...)`), not as `const`s, so they are read out of `layout_doc`'s
-        # own body — the two remaining quantities the corpus pins, and
-        # the two that drifted unseen once (PR 1506 took the flat-pack
-        # from four posts to two and the corpus was not regenerated).
-        start = source.index("fn layout_doc(")
-        layout = source[start : source.index("\n}\n", start)]
-        count = re.search(r'count: pe\("(\d+)", &scope\)', layout)
-        self.assertIsNotNone(count, "layout_doc no longer authors its pattern count inline")
-        self.assertEqual(int(count.group(1)), PATTERN_COUNT, "PATTERN_COUNT moved in the tour")
-        spacing = re.search(r'spacing: pe\("(\d+) mm", &scope\)', layout)
-        self.assertIsNotNone(spacing, "layout_doc no longer authors its spacing inline, in mm")
-        self.assertEqual(
-            int(spacing.group(1)) / 1000.0,
-            PATTERN_SPACING,
-            "PATTERN_SPACING moved in the tour",
-        )
+    A VOLUME is invariant under placement, so the rows above could all
+    be met by a scene that put the parts anywhere at all. This is the
+    cheapest oracle that reads POSITION, through the tessellator the
+    binding already exposes.
+    """
 
-    def test_the_patterned_posts_sit_where_the_scene_places_them(self):
-        """A VOLUME is invariant under placement, and until this row
-        every oracle in this file was a volume — so the whole committed
-        set could have been reproduced by a scene that put the parts
-        anywhere at all. This is the cheapest oracle that reads
-        position, through the tessellator the binding already exposes.
+    def test_the_placed_posts_lie_where_the_scene_places_them(self):
+        """It pins three things a volume cannot: the placement's
+        ROTATION — the post is on its side, so its long axis is x and
+        its square section is y-z — the FLAT_PACK_GAP that stands it
+        clear of the bench, and the pattern's extent along +y.
 
-        It pins three things a volume cannot: the pattern's SPACING,
-        its COUNT, and the instance's ROTATION — the post is on its
-        side, so its long axis is x and its square section is y-z. Any
-        of the three drifting in `assembly.rs` reds here after a
-        regeneration. Adopted from `lib/g18a-r1b-probes`, widened from
-        "four distinct origins" to the boxes themselves.
+        The whole family's box, through the tessellator the binding
+        already exposes: `placed_union` denotes one body, so this is
+        the outline of all PATTERN_COUNT posts together and the row
+        below is what separates them.
         """
-        store = Workspace(str(CORPUS))
-        names = manifest()
-        layout = store.resolve(
-            DocRef(names["layout"], store.current_pin(names["layout"]))
+        store, docs = opened()
+        evaluation = evaluate(docs["layout"], resolver=store)
+        family = evaluation.order()[1]
+        mesh = evaluation.value(family).body().tessellate(5 * mm)
+        axes = [[p[i].meters for p in mesh.positions] for i in range(3)]
+        self.assertEqual(
+            tuple((round(min(a), 9), round(max(a), 9)) for a in axes),
+            (
+                (round(FLAT_PACK_GAP, 9), round(FLAT_PACK_GAP + POST_HEIGHT, 9)),
+                (0.0, round((PATTERN_COUNT - 1) * PATTERN_SPACING + POST_SECTION, 9)),
+                (0.0, round(POST_SECTION, 9)),
+            ),
+            "the posts lie on their side beside the bench, stepped along +y",
         )
-        evaluation = evaluate(layout, resolver=store)
-        pattern = evaluation.order()[1]
 
-        def box(body):
-            mesh = body.tessellate(5 * mm)
-            axes = [[p[i].meters for p in mesh.positions] for i in range(3)]
-            return tuple((round(min(a), 9), round(max(a), 9)) for a in axes)
+    def test_each_placed_post_answers_at_its_own_step(self):
+        """Where each post in the family actually IS, one cap frame per
+        placement — the COUNT and the SPACING, which an outline over
+        the whole family cannot separate.
 
-        boxes = sorted(box(b) for b in evaluation.value(pattern).bodies())
-        self.assertEqual(len(boxes), PATTERN_COUNT)
-        for index, found in enumerate(boxes):
-            with self.subTest(instance=index):
-                y0 = index * PATTERN_SPACING
-                self.assertEqual(
-                    found,
-                    (
-                        (round(FLAT_PACK_GAP, 9), round(FLAT_PACK_GAP + POST_HEIGHT, 9)),
-                        (round(y0, 9), round(y0 + POST_SECTION, 9)),
-                        (0.0, round(POST_SECTION, 9)),
-                    ),
-                    "the post lies on its side beside the bench, stepped along +y",
+        The cap is the post's top in its own coordinates; lying down
+        about +y puts it at the -x end, which is why every one of them
+        answers at exactly FLAT_PACK_GAP.
+        """
+        store, docs = opened()
+        evaluation = evaluate(docs["layout"], resolver=store)
+        family = evaluation.order()[1]
+        caps = evaluation.select(
+            family,
+            bench_scene.cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart]),
+        )
+        read = sorted(
+            tuple(round(c.meters, 9) for c in evaluation.face_frame(family, cap).origin)
+            for cap in caps
+        )
+        self.assertEqual(
+            read,
+            [
+                (
+                    round(FLAT_PACK_GAP, 9),
+                    round(POST_SECTION / 2.0 + index * PATTERN_SPACING, 9),
+                    round(POST_SECTION / 2.0, 9),
+                )
+                for index in range(PATTERN_COUNT)
+            ],
+        )
+
+    def test_the_store_holds_exactly_the_four_documents_the_scene_authors(self):
+        store, _ = opened()
+        self.assertEqual(sorted(store.documents()), sorted(identities().values()))
+        self.assertEqual(sorted(identities()), ["layout", "post", "shelf", "stand"])
+
+
+#: The tour's arithmetic vocabulary: the names its constants and its
+#: placement literals are built from, with the values `bench_scene`
+#: declares. `PI` is `std::f64::consts::PI`, which the flat-pack's
+#: rotation is a quarter of.
+TOUR_NAMES = {
+    "POST_SECTION": POST_SECTION,
+    "POST_HEIGHT": POST_HEIGHT,
+    "SHELF_LENGTH": SHELF_LENGTH,
+    "SHELF_DEPTH": SHELF_DEPTH,
+    "SHELF_THICKNESS": SHELF_THICKNESS,
+    "FLAT_PACK_GAP": FLAT_PACK_GAP,
+    "PI": math.pi,
+}
+
+_ARITHMETIC = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+}
+
+
+def tour_value(source):
+    """What a Rust arithmetic expression over `TOUR_NAMES` is worth.
+
+    The tour spells its derived seats and its placement offsets as
+    FORMULAS over the base dimensions, and the formula is what changes
+    when a seat moves — so the guard reads the expression and computes
+    it rather than comparing a number that would move on both sides at
+    once. Rust's arithmetic on `f64` literals and its array literals
+    are also Python's, so the expression is parsed rather than
+    translated; anything richer than `+ - * /`, a name, a number, a
+    parenthesis and a bracketed list refuses instead of guessing.
+    """
+
+    def walk(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.Name):
+            return TOUR_NAMES[node.id]
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+            return -walk(node.operand)
+        if isinstance(node, ast.BinOp) and type(node.op) in _ARITHMETIC:
+            return _ARITHMETIC[type(node.op)](walk(node.left), walk(node.right))
+        if isinstance(node, (ast.List, ast.Tuple)):
+            return tuple(walk(element) for element in node.elts)
+        raise AssertionError(f"not the tour's arithmetic: {source!r}")
+
+    return walk(ast.parse(source.strip(), mode="eval").body)
+
+
+class TestTheSceneIsTheToursOwn(unittest.TestCase):
+    """`bench_scene` claims to be the tour's bench. This is the guard
+    that holds it to that.
+
+    `demos/tour` is a detached workspace — its own `[workspace]` table,
+    excluded from the root manifest — so no test here can call its
+    authoring functions and compare documents. What it can do is READ
+    THE SOURCE, and every number the scene is built from is declared
+    there as a constant or written at a named call site. The file
+    header says what that reaches and what it does not.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.source = TOUR.read_text(encoding="utf-8")
+
+    def body_of(self, function):
+        """The text of one of the tour's authoring functions."""
+        start = self.source.index(f"fn {function}(")
+        return self.source[start : self.source.index("\n}\n", start)]
+
+    def declared(self, name, kind):
+        """The right-hand side of a `const` the tour declares."""
+        found = re.search(rf"^const {name}: {kind} = (.+);$", self.source, re.M)
+        self.assertIsNotNone(found, f"{name} is no longer declared in the tour")
+        return found.group(1)
+
+    def assertScene(self, found, want, what):
+        """A tour reading against the Python scene's own value."""
+        self.assertEqual(found, want, f"{what} moved in the tour")
+
+    def test_the_base_dimensions_still_match_the_tour(self):
+        for name, value in TOUR_NAMES.items():
+            if name == "PI":
+                continue
+            with self.subTest(constant=name):
+                self.assertScene(tour_value(self.declared(name, "f64")), value, name)
+
+    def test_the_derived_seats_still_use_the_tours_formulas(self):
+        """The hole a value comparison leaves: `SEAT_A`, `SEAT_B` and
+        `POST_SEAT` are COMPUTED from the bases, so a guard that read
+        only the bases passed a changed formula. The formula is read
+        and evaluated here, against the values `bench_scene` derives
+        the same way."""
+        for name, value in (
+            ("SEAT_A", SEAT_A),
+            ("SEAT_B", SEAT_B),
+            ("POST_SEAT", POST_SEAT),
+        ):
+            with self.subTest(constant=name):
+                self.assertScene(
+                    tour_value(self.declared(name, r"\[f64; 3\]")), value, name
                 )
 
-    def test_the_store_holds_exactly_the_four_documents_the_manifest_names(self):
-        store = Workspace(str(CORPUS))
-        self.assertEqual(sorted(store.documents()), sorted(manifest().values()))
-        self.assertEqual(sorted(manifest()), ["layout", "post", "shelf", "stand"])
+    def test_the_flat_packs_placement_literals_still_match_the_tour(self):
+        """The layout's placements are literals at their call sites,
+        read by nothing until this row: the post's rotation and offset,
+        the pattern's count and spacing, the shelf's offset."""
+        layout = self.body_of("layout_doc")
+        placed = re.search(
+            r"Frame::rotate_then_translate\(\s*(\[[^\]]*\]),\s*([^,]+),\s*(\[[^\]]*\]),",
+            layout,
+        )
+        self.assertIsNotNone(placed, "the post is no longer placed by a rotated frame")
+        self.assertScene(tour_value(placed.group(1)), (0.0, 1.0, 0.0), "the post's axis")
+        self.assertScene(
+            tour_value(placed.group(2)), -math.pi / 2, "the post's rotation"
+        )
+        self.assertScene(
+            tour_value(placed.group(3)),
+            (FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0),
+            "the post's flat-pack offset",
+        )
+
+        count = re.search(r'count: pe\("(\d+)", &scope\)', layout)
+        self.assertIsNotNone(count, "layout_doc no longer authors its count inline")
+        self.assertScene(int(count.group(1)), PATTERN_COUNT, "PATTERN_COUNT")
+        spacing = re.search(r'spacing: pe\("(\d+) mm", &scope\)', layout)
+        self.assertIsNotNone(spacing, "layout_doc no longer authors its spacing in mm")
+        self.assertScene(
+            int(spacing.group(1)) / 1000.0, PATTERN_SPACING, "PATTERN_SPACING"
+        )
+
+        shelf = re.search(r"Frame::translation\((\[[^\]]*\])\)", layout)
+        self.assertIsNotNone(shelf, "the shelf is no longer placed by a translation")
+        self.assertScene(
+            tour_value(shelf.group(1)),
+            (FLAT_PACK_GAP, FLAT_PACK_SHELF_Y, 0.0),
+            "the shelf's flat-pack offset",
+        )
+
+    def test_the_stands_placement_and_seats_still_match_the_tour(self):
+        """The gauge post's inset, and the seat each of the two mates
+        is authored against IN DOCUMENT ORDER — a swapped pair of seats
+        is a different bench that every volume in this file would
+        still accept."""
+        stand = self.body_of("stand_doc")
+        gauge = re.search(r"Frame::translation\((\[[^\]]*\])\)", stand)
+        self.assertIsNotNone(gauge, "the gauge post no longer carries a frame")
+        self.assertScene(
+            tour_value(gauge.group(1)),
+            (0.0, GAUGE_OFFSET_Y, 0.0),
+            "the gauge post's offset",
+        )
+        seats = re.findall(r"^\s+[ab]: mate_frame\((\w+)\),$", stand, re.M)
+        self.assertEqual(len(seats), 4, "the stand no longer authors exactly two mates")
+        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "POST_SEAT": POST_SEAT}
+        self.assertScene(
+            tuple(named[name] for name in seats),
+            tuple(seat for mate in STAND_SEATS for seat in mate),
+            "the stand's mate seats",
+        )
 
 
 if __name__ == "__main__":

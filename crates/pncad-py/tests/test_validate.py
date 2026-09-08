@@ -31,10 +31,10 @@ checked against the third (which already shipped), against the
 `assemble` gate (which takes the same verdict attributed, and whose
 passing is the precondition for reaching an `Assembly` at all), and
 against `Assembly.minted` (which counts the declarations whose
-presence is the whole question). The corpus is the tour's own scene,
-loaded through `test_assembly_eval.opened` rather than rebuilt here,
-so the geometry under test is geometry the Rust side already asserts
-about.
+presence is the whole question). The geometry is the tour's own bench,
+taken through `test_assembly_eval.opened` rather than rebuilt here, so
+this file and the two assembly files agree on the scene by
+construction (`bench_scene.py` is the one definition of it).
 
 ONE THING MEASURED AND NOT PINNED
 ---------------------------------
