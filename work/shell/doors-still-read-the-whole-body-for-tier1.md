@@ -41,28 +41,49 @@ narrow the check, it changes it:
 private helper takes a `ShellKey`. The spec forbids a second validator,
 so the check stayed whole-body and the doc sentences say so.
 
-There is a second, larger whole-body tier-1 read the original item did
-not name, found while pinning SHELL-10's acceptance row 2: **the
-asserting setters.** `Body::set_face_surface` and `Body::set_edge_curve`
-each run `validate(&self)` as a postcondition
-(`crates/topo/src/attach.rs:93`, "set_face_surface postcondition: result
-is not tier-1 valid (kernel bug)"), and a door performs one per moved
-face and one per re-described edge — so a scoped call on an N-solid body
-pays O(faces + edges) whole-body tier-1 walks, not one. It is also a
-**panic, not a typed refusal**, and this workspace's release profile
-sets `debug-assertions = true`, so it is compiled in release too. That
-is why SHELL-10's structural-corruption row stops at the scope walk: on
-a body whose out-of-scope solid is malformed the door panics inside the
-first setter, before either the mint or the closure check is reached
-(`crates/topo/src/offset_together.rs`, `mod scope_walks`,
-`an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`,
-whose doc records it).
+**The three whole-arena iterations, which the SHELL-10 PR's first
+draft did not name.** Each door's decide phase visits every entity of
+the body and filters with the scope's maps, so the ANSWER is scoped and
+the ITERATION is not: the plane/chart sweep, the corner walk and the
+edge walk (`crates/topo/src/offset_together.rs:229`, `:241`, `:262`;
+`crates/topo/src/offset_axial.rs:409`, `:482`, `:507`), plus
+`axial_frame`'s own `body.vertices()` sweep at `offset_axial.rs:816`.
+The clone each door writes to is a fourth. Together with the tier-1
+reads below they make a scoped call **linear in the whole body, not in
+its scope**, and both reviewers measured it: the same one-solid move
+set costs about 0.20, 0.30, 0.51 and 1.00 ms on bodies of one, two,
+four and eight solids. Nothing pins that — no guard, no register — so
+a regression in it is invisible.
 
-What would close this: a tier-1 entry that takes a shell subset and is
-the same passes restricted rather than a second implementation — which
-means first separating the arena-global passes from the local ones, a
-`validate.rs` change with its own evidence — and a decision about the
-setters' postcondition (a scoped postcondition, or one paid once per
-door rather than once per write). Neither is SHELL-10's, and neither is
-free: the setters' assert is the guard that made every mutation door's
-tier-1 claim mechanical (`review_m1_pr5_internal`'s door table).
+**The larger tier-1 read: the asserting setters — TOPO's, not this
+item's.** `Body::set_face_surface` and `Body::set_edge_curve` each run
+a whole-body `validate(&self)` as a postcondition
+(`crates/topo/src/attach.rs:92-97` and `:331-336`), and a door performs
+one per moved face and one per re-described edge: **18** whole-body
+tier-1 walks for a scoped planar call on a unit box (6 + 12), 16 for
+the axial door, 90 for `shell_open` on the hollow-hollow-open body and
+101 on box-beside-vessel opened. It is also a **panic, not a typed
+refusal**, and this workspace's release profile sets
+`debug-assertions = true`, so it is compiled there too. Both SHELL-10
+reviewers ruled it `attach.rs`'s finding rather than the doors' — the
+convention is the postcondition's, and every mutation door in the crate
+pays it — so it carries on as TOPO's own item,
+`attach-postconditions-validate-the-whole-body-and-panic`, filed by the
+orchestrator at merge. It is named here only because it is what a
+reader of THIS item will otherwise measure and misattribute, and
+because it is why SHELL-10's structural-corruption row stops at the
+scope walk: on a body whose out-of-scope solid is malformed the door
+panics inside the first setter, before either the mint or the closure
+check is reached (`crates/topo/src/shell10_r2_probes.rs`,
+`r2_the_door_panics_in_the_first_setter_on_an_out_of_scope_malformed_solid`,
+and the doc of `offset_together.rs`'s
+`an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`).
+
+What would close this item: a tier-1 entry that takes a shell subset
+and is the same passes restricted rather than a second implementation
+— which means first separating the arena-global passes from the local
+ones, a `validate.rs` change with its own evidence — and decide-phase
+walks driven by the scope's own entities rather than by the arenas.
+Neither is SHELL-10's. The setters' postcondition is not either, and
+not free: it is the guard that made every mutation door's tier-1 claim
+mechanical (`review_m1_pr5_internal`'s door table).

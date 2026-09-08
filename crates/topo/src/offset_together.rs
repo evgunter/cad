@@ -141,15 +141,10 @@ struct MovedPlane<T: Real> {
 /// and no solid may be touched in part; a solid the moves do not name
 /// is not offset and its geometry is not written.
 ///
-/// **What it READS, as tightly as what it writes.** The scope is built
-/// by walking the named solids' shells alone, so a solid the moves do
-/// not name is not walked and its structure cannot refuse this call;
-/// and the closing pcurve pass re-derives the rows of the scope's faces
-/// alone ([`crate::pcurves::mint_pcurves_of`]) — a row outside it
-/// belongs to an edge this door did not touch and stays as it was
-/// found. The one whole-body read left is the closing tier-2 check on
-/// the door's own clone, whose passes are arena-global by construction
-/// (`Scope`'s docs).
+/// **What it READS is not as tight as what it writes**, and the whole
+/// account — which two reads are scope-sized, which four are still
+/// linear in the body, and what that costs — is [`Scope`]'s, stated
+/// there once for both doors.
 ///
 /// # Errors
 ///
@@ -418,18 +413,12 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     // would be storing stale rows the moment they arrive. The census
     // posture (`Maintains`, by re-minting) is therefore honest now and
     // stays honest then.
-    let minting = scope
-        .faces_in_scope(&work)
-        .ok_or(ReplaceFaceError::Corrupt)?;
+    let minting = scope.faces_in_scope();
     crate::pcurves::mint_pcurves_of(&mut work, &minting, tol)
         .map_err(|source| ReplaceFaceError::Pcurve { source })?;
-    // Tier 2 over the WHOLE clone, and deliberately: tier 1's passes
-    // are arena-global (ownership partitions, the edge <-> half-edge
-    // bijection, orphan geometry, edge-adjacency shell coherence), so
-    // there is no shell-subset reading of them that is the same check
-    // narrowed rather than a different check. The clone differs from
-    // the operand only inside the scope, so what this can report about
-    // an out-of-scope solid is a defect the operand already had.
+    // Tier 2 over the WHOLE clone, deliberately, and one of the four
+    // reads that stay linear in the body (`Scope`'s docs carry the
+    // account and the reason for each).
     if let Err(errors) = crate::validate::validate_closed(&work) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
@@ -719,29 +708,78 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// the named solids' vertices, and the edge walk their edges, so no
 /// entity outside the scope is offset or re-authored.
 ///
-/// **Constructing one walks the named solids and nothing else.** The
-/// maps hold the entities of the solids that have been walked, so a
-/// shell, face, loop or half-edge that does not resolve refuses the
-/// construction only when it belongs to a solid this scope was asked
-/// about: a call about one solid is not refused for another solid's
-/// corruption. The closing pcurve pass is scope-sized for the same
-/// reason ([`crate::pcurves::mint_pcurves_of`], over
-/// [`Scope::faces_in_scope`]).
+/// # What a scoped call reads — the whole account, stated once
 ///
-/// The closure check each door ends with is NOT: `validate_closed` is
-/// whole-body on the door's own clone, because tier 1's passes are
-/// global by construction — ownership partitions, the edge ↔ half-edge
-/// bijection, orphan geometry refcounts and edge-adjacency shell
-/// coherence are statements about the whole arena, and evaluating them
-/// over a shell subset reports every entity outside the subset as
-/// unowned or orphaned. That is a read on a clone, and it is stated
-/// here rather than left for a reader to find.
+/// Both doors point here rather than restating it, because the two
+/// statements were byte-identical twins and a fact spelled twice is a
+/// fact that drifts.
+///
+/// **Narrowed to the scope, and only these two things.** (1) This
+/// partition: `of_solids` walks the named solids' shells and nothing
+/// else, so a shell, face, loop or half-edge that does not resolve
+/// refuses the construction only when it belongs to a solid the scope
+/// was asked about — a call about one solid is not refused for another
+/// solid's corruption. (2) The closing pcurve pass
+/// ([`crate::pcurves::mint_pcurves_of`], over
+/// [`Scope::faces_in_scope`]): the rows of the scope's faces are
+/// re-derived and no others are read or written.
+///
+/// **Everything else a door does is still O(body), and there is a lot
+/// of it.** In decreasing order of cost:
+///
+/// - **The asserting setters.** `set_face_surface` and `set_edge_curve`
+///   each run a whole-body tier-1 [`crate::validate`] as a
+///   postcondition, and a door performs one per moved face and one per
+///   re-described edge. A scoped planar call on a unit box pays 18 of
+///   them (6 + 12); the axial door pays 16; `shell_open` on the
+///   hollow-hollow-open body pays 90, and on box-beside-vessel opened,
+///   101. This dominates, and it is not this scope's to fix — it is
+///   `attach.rs`'s postcondition convention, filed as TOPO's own.
+/// - **Three whole-arena iterations in each door's decide phase**,
+///   filtered by `holds_face` / `holds_vertex` / `holds_edge`: the
+///   plane (or chart) sweep, the corner walk and the edge walk visit
+///   every entity of the body and skip the ones the scope does not
+///   hold. `axial_frame` sweeps `body.vertices()` the same way. The
+///   maps make the ANSWER scoped; the iteration is not.
+/// - **The clone** each door writes to.
+/// - **The closing tier-2 check**, `validate_closed` on that clone.
+///   Tier 1's passes are global by construction — ownership
+///   partitions, the edge ↔ half-edge bijection, orphan-geometry
+///   refcounts and edge-adjacency shell coherence are statements about
+///   the whole arena, and evaluating them over a shell subset reports
+///   every entity outside the subset as unowned or orphaned — so there
+///   is no restriction of them that is the same check narrowed rather
+///   than a different one.
+///
+/// So a scoped call is **linear in the whole body, not in its scope**,
+/// and it is measured that way: the same one-solid move set costs about
+/// 0.20, 0.30, 0.51 and 1.00 ms on bodies of one, two, four and eight
+/// solids. What this unit bought is which entities are WRITTEN and
+/// which failures are this call's — not the asymptotics. **Nothing
+/// pins that cost**: there is no guard and no register, so the numbers
+/// above are a measurement taken once, not a contract. The residue and
+/// what would close it: `work/shell/doors-still-read-the-whole-body-for-tier1.md`.
+///
+/// **Tier 2 is the whole contract on the result, and it is tier 2
+/// only.** A door returns `Ok` on a body that then fails
+/// `validate_geometric` or refuses to tessellate because of a solid it
+/// was never asked about — that solid's state is the operand's, and no
+/// tier-3 claim is made about it or about the result.
 ///
 /// The scope is total on the entities a shell owns, lone vertices
 /// included: an empty loop's vertex is reached through the loop's own
-/// face rather than through an orbit it has no half-edge for.
+/// face rather than through an orbit it has no half-edge for. It is
+/// **not** total on a body whose shells are not all owned: the walk
+/// runs solids → shells, so a shell no solid claims is in no scope,
+/// [`Scope::whole`] included. Such a body is tier-1 invalid (a shell's
+/// `solid` back-pointer and its owner's list are validated against
+/// each other), so no valid body has one.
 #[derive(Clone)]
 pub(crate) struct Scope {
+    /// The solids in scope. A `Vec` and a linear `contains`, like
+    /// `built` below: both hold the solids of ONE body — single digits
+    /// on every fixture this workspace builds — and a set would cost
+    /// more to build than the scans it saves.
     solids: Vec<SolidKey>,
     /// The solids whose shells have been walked into the maps. A
     /// superset of `solids` after a re-scope down, and what makes a
@@ -807,18 +845,21 @@ impl Scope {
         Some(())
     }
 
-    /// Every face of every solid this scope names, in solid-then-shell
-    /// order — the faces a door's closing pcurve pass is entitled to
-    /// re-mint. `None` on a solid or shell of the scope that does not
-    /// resolve.
-    pub(crate) fn faces_in_scope<T: Real>(&self, body: &Body<T>) -> Option<Vec<FaceKey>> {
-        let mut out: Vec<FaceKey> = Vec::new();
-        for &solid in &self.solids {
-            for &shell in &body.get_solid(solid)?.shells {
-                out.extend_from_slice(&body.get_shell(shell)?.faces);
-            }
-        }
-        Some(out)
+    /// Every face of every solid this scope names — the faces a door's
+    /// closing pcurve pass is entitled to re-mint.
+    ///
+    /// **In face-arena order**, and that is a contract, not an
+    /// accident: it is read off the partition the walk already built,
+    /// whose `SecondaryMap` iterates in key-slot order, so this is
+    /// exactly [`crate::pcurves::mint_pcurves`]'s own order restricted
+    /// to the scope. No second walk of the body, and nothing here can
+    /// fail — the entities were resolved when the scope was built.
+    pub(crate) fn faces_in_scope(&self) -> Vec<FaceKey> {
+        self.faces
+            .iter()
+            .filter(|(_, solid)| self.solids.contains(solid))
+            .map(|(face, _)| face)
+            .collect()
     }
 
     /// The solid `face` belongs to as recorded by the walk: `Some` for
@@ -835,6 +876,16 @@ impl Scope {
     /// swap of one `Vec`; re-scoping up to a solid never walked extends
     /// the maps rather than answering `false` about entities that are
     /// in scope. `None` on a structural failure in what it had to walk.
+    ///
+    /// **Extending rather than refusing, deliberately**: it makes "a
+    /// scope whose maps do not cover its own solids" unrepresentable
+    /// instead of typed, so no caller has a wrong answer to mishandle.
+    /// Nothing in the crate re-scopes UP today — the verb only narrows
+    /// from [`Scope::whole`] — so the arm is exercised by its pin
+    /// alone, `shell10_r2_probes::r2_a_re_scope_up_holds_the_solid_it_was_aimed_at`,
+    /// which reds if this becomes a bare `Vec` swap. The `None` the two
+    /// `shell.rs` callers map to `Corrupt` is likewise unreachable from
+    /// them by construction, and honest by type.
     pub(crate) fn re_scope<T: Real>(&mut self, body: &Body<T>, solids: &[SolidKey]) -> Option<()> {
         self.walk(body, solids)?;
         self.solids.clear();
@@ -1009,7 +1060,10 @@ mod scope_walks {
         );
         let moves = moves_of(&body, first, 0.0);
         let scope = scope_of_moves(&body, &moves).expect("the sound solid's scope builds");
-        assert_eq!(scope.faces_in_scope(&body).unwrap(), faces_of(&body, first));
+        // `faces_in_scope` is face-arena order by contract and
+        // `faces_of` reads the arena, so this is an equality of
+        // sequences, not of sets.
+        assert_eq!(scope.faces_in_scope(), faces_of(&body, first));
         for f in faces_of(&body, second) {
             assert!(!scope.holds_face(f));
         }

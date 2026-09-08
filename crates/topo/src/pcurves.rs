@@ -102,11 +102,15 @@
 //!
 //! **Maintains the map** — runs [`mint_pcurves`] on the result, and
 //! that pass CLEARS the map before re-minting. [`mint_pcurves_of`] is
-//! the same posture over a SUBSET: a producer that writes only part of
-//! a body re-derives the rows of exactly the faces it wrote and leaves
-//! the rest as it found them, which maintains the map for the same
-//! reason — no row it could have staled survives its return. The two
-//! simultaneous offset doors hold it that way. In this crate: the
+//! the same posture over a SUBSET, **for a producer that kills no
+//! half-edge**: it re-derives the rows of exactly the faces it wrote
+//! and leaves the rest as found, so no row it could have staled
+//! survives its return. It does NOT discharge the whole-body claim —
+//! a row on a dead half-edge is reachable from no face, so it survives
+//! that pass over every face of the body (the entry's own docs carry
+//! the case, pinned in `sweep`'s SHELL-10 probes). The two simultaneous
+//! offset doors are entitled to it because they perform no surgery. In
+//! this crate: the
 //! splitting lane (on each side it produces), the boolean pipeline (on
 //! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
 //! staged result before commit, and only when the input carried
@@ -1339,21 +1343,48 @@ pub fn mint_pcurves<T: PcurveFittedLane>(
     Ok(())
 }
 
-/// [`mint_pcurves`] restricted to `faces`: clears the rows of exactly
-/// those faces' half-edges and re-mints exactly those faces, leaving
-/// every other row of `body` untouched. Returns the number of rows the
-/// pass left behind for `faces`.
+/// [`mint_pcurves`] restricted to `faces`: the rows of exactly those
+/// faces' half-edges are cleared and re-derived, and **every other row
+/// of `body` is left exactly as it was found**.
 ///
 /// The pass is **per face**: a face's window, branch pinning and
 /// certification read that face's own loops, surface and edge
-/// descriptions and nothing else, so the subset's result is the
-/// whole-body result restricted to the subset, and the idempotence and
-/// determinism statements of [`mint_pcurves`] hold verbatim for the
-/// faces named here — in the order they are named.
+/// descriptions and nothing else, so on the named faces the result is
+/// bit-for-bit [`mint_pcurves`]'s, and that pass's idempotence and
+/// determinism statements hold verbatim for them — in the order they
+/// are named.
 ///
-/// Rows outside `faces` are left exactly as they are found, which is
-/// what makes this the pass a scoped producer owes: it re-derives the
-/// rows it may have staled and asserts nothing about the rest.
+/// # This is NOT `mint_pcurves` over a subset of the map
+///
+/// The two differ in what they CLEAR, and the difference is not
+/// cosmetic. `mint_pcurves` empties the map first, so it also drops
+/// rows whose half-edge no longer exists — a `SecondaryMap` row
+/// outlives its key until the slot is reused. This entry reaches rows
+/// through the faces it is given, and **a dead half-edge is reachable
+/// from no face**: after a kill op, the rows of the killed half-edges
+/// survive this pass over *every* face of the body, where the
+/// whole-body pass leaves none. `validate_pcurves` cannot see them
+/// either — it reaches rows through face loops — so they are invisible
+/// to tier 3 until the slot is recycled.
+///
+/// **A caller that has killed a half-edge and wants the map's at-rest
+/// guarantee must use [`mint_pcurves`].** What this entry gives is the
+/// weaker, scoped statement a partial producer can honestly make: the
+/// rows it may have staled are re-derived, and it asserts nothing at
+/// all about the rest of the map. The simultaneous offset doors are
+/// exactly that caller: they perform no topological surgery, so no
+/// half-edge of theirs ever dies and the two statements coincide.
+/// Pinned by `sweep`'s `shell10_r1_probes` and `shell10_r2_probes`,
+/// which kill a half-edge through the public `kef` and count what each
+/// pass leaves.
+///
+/// # Returns
+///
+/// The number of rows the named faces carry when the pass returns.
+/// Computed as the map's growth across the mint, which is the same
+/// number: every row cleared above belonged to a named face, and a
+/// half-edge lies on exactly one loop and so on exactly one face, so
+/// minting a named face can only re-fill rows the clearing emptied.
 ///
 /// # Errors
 ///
@@ -2213,7 +2244,10 @@ pub(crate) mod staleness_posture {
                 "mint_pcurves_of",
                 Maintains,
                 "IS the pass restricted to a face subset: clears exactly those faces' rows, \
-             then re-mints exactly those faces",
+             then re-mints exactly those faces. `Maintains` FOR A CALLER THAT KILLS NO \
+             HALF-EDGE, which is the whole of its production population (the two \
+             simultaneous offset doors); it cannot discharge the whole-body claim, and its \
+             own docs carry why",
             ),
             // ---- Transfers: the graft's remap-and-drop. ----
             (
@@ -2371,7 +2405,18 @@ pub(crate) mod staleness_posture {
     /// re-mint reached through a delegate is invisible to a source
     /// read, so those two entries are taken at their word — the guard
     /// establishes that every door is sorted and that no door has
-    /// silently started minting, not that each sort is correct. The
+    /// silently started minting, not that each sort is correct.
+    ///
+    /// **Nor which SPELLING of the pass a door calls, nor what it
+    /// passes.** A `mint_pcurves_of(` call reads as `Maintains` here
+    /// whatever face list it is handed — including an empty one — and
+    /// the subset pass's guarantee is strictly weaker than the
+    /// whole-body pass's: it cannot reach a row whose half-edge is
+    /// dead ([`mint_pcurves_of`]'s docs). So a door that KILLS a
+    /// half-edge and closes with the subset pass is classified
+    /// `Maintains` by this walk and is not. Nothing in this crate does
+    /// today, and a source read has no way to tell; what covers it is
+    /// the entry's own text and the SHELL-10 probe rows in `sweep`. The
     /// module docs' *"what the guard does NOT establish"* list carries
     /// this and the rest of the blind spot: delegation, and everything
     /// outside `topo/src`'s `&mut Body` surface. The full inherited

@@ -111,8 +111,5 @@ fn r2_a_re_scope_up_holds_the_solid_it_was_aimed_at() {
             "though its maps still hold it"
         );
     }
-    assert_eq!(
-        scope.faces_in_scope(&body).unwrap(),
-        faces_of(&body, second)
-    );
+    assert_eq!(scope.faces_in_scope(), faces_of(&body, second));
 }
