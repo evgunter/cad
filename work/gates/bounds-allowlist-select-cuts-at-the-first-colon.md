@@ -2,9 +2,10 @@
 id: bounds-allowlist-select-cuts-at-the-first-colon
 kind: issue
 title: bounds-allowlist.sh's per-file SELECT cuts the FILE column at the first colon, so a colon-carrying path rides an allowlist entry
-status: open
+status: review
 opened: 2026-09-06
 refs: [whole-file-skips-are-hand-spelled-not-anchored]
+branch: gates/bounds-select-anchor
 ---
 
 ## Finding
@@ -78,3 +79,58 @@ already build, or to read the FILE column the way `lib.sh`'s
 picks its hits, in the file D102 and D103 both landed in, and it wants
 its own fixture: a compound bound planted at `<entry>.rs:x.rs` must
 fire while the entry itself stays exempt at its pinned count.
+
+## Landed
+
+**The select is the count check's own predicate, negated.** The `cut`
+and the `-vxF` set membership are gone; the scan drops a record when
+`gate_record_anchor_any` over `gate_allowlist_paths` claims it, which is
+`gate_record_anchor "$path"` — the pattern `gate_allowlist_counts`
+already attributes a record to an entry with. One builder, one reading
+of the FILE column, so no record can be exempt from the scan while
+being invisible to the pin beside it.
+
+The row's second candidate (parse the column through
+`GATE_RECORD_PREFIX_RE`) was not taken. It fixes the drop — that RE is
+`^[^:]*:[0-9]+:`, which a colon-carrying record does not match at all,
+so nothing is extracted and the membership fails — but it leaves TWO
+readings of the column in the file, agreeing only where the record is
+ordinary, and it decides an exemption on a string a record may not
+yield. The anchor decides it on the record.
+
+**The FILE column survives for the DIAGNOSIS only**, as
+`gate_record_file_column`: the record up to its first `:LINE:`, so the
+colon-carrying file is named whole rather than as the entry it merely
+begins with. A path carrying a `:LINE:` shape of its own
+(`foo:12:bar.rs`) is ambiguous in a `FILE:LINE:TEXT` record at any
+reader and is named short; that costs a misnamed file in a diagnosis
+and never an exemption, which is why the selection does not come
+through it. There is no `lib.sh` helper for this reading —
+`GATE_RECORD_PREFIX_RE` is the first-colon one — so it is spelled in
+this gate; a shared `gate_record_file_column` beside the prefix RE is
+the natural home and is reported rather than taken here.
+
+**Fixture**: `plant_colon_path_beside_entry` writes the compound bound
+at `crates/topo/src/boolean/boxes.rs:x.rs` while the clean fixture
+leaves `boxes.rs` itself at its pinned 4, so the count check is silent
+and the SCAN is what fires. Asserted on the PATH: firing at all is the
+harness' own assertion, so the want pins the other half — the
+diagnosis names the colon-carrying file whole.
+
+**Mutation-proved.** Restoring `cut -d: -f1 | sort -u | gate_grep -vxF
+-f <(gate_allowlist_paths)`: the selftest fails at
+`plant_colon_path_beside_entry` ("the gate PASSED on a planted
+violation") and, with that one case removed, is green again — only the
+new case reds. Reverting `gate_record_file_column` to `cut -d: -f1`
+reds the same one case, on the message. Dropping the anchor filter
+altogether reds the clean fixture, which is the filter being
+load-bearing.
+
+**Live output is byte-identical** to the merge base, `cmp` on stdout
+and on stderr: 26 ratified files, 183 occurrences, 440 source files.
+
+**Residue, filed**: `record-file-column-read-by-first-colon-split` —
+two more readers of the FILE column split at the first colon
+(`viewer-module-kinds.sh:469`'s dedupe key, and
+`GATE_RECORD_PREFIX_RE`'s use as a PARSER at `lib.sh:1195`/`:1150`),
+neither of them a skip and neither reachable by this row's grep.

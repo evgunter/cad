@@ -479,12 +479,29 @@ BOUNDS_ALLOWLIST=(
   "crates/profile/src/path/arc_fillet.rs 3 LIB-G2's LB3 (ruled 2026-08-08), in the file's module docs"
 )
 
-# The paths alone, for the SCAN's exclusion filter.
+# The paths alone, for the SCAN's exclusion filter, which reads them
+# through `gate_record_anchor_any` — the same builder the per-entry count
+# check reads one path through. See the select in `gate()` for why the
+# two halves have to be one predicate.
 gate_allowlist_paths() {
   local entry
   for entry in "${BOUNDS_ALLOWLIST[@]}"; do
     printf '%s\n' "${entry%% *}"
   done
+}
+
+# THE FILE COLUMN OF A RECORD, FOR THE DIAGNOSIS AND NOTHING ELSE. What
+# is EXEMPT is decided by the anchor above, on the record; this only
+# names, one line per file, what the anchor let through. The reading is
+# "up to the FIRST `:LINE:`", so a path carrying a `:` of its own — legal
+# here and in git — is named whole rather than truncated at that colon.
+# What it cannot resolve is a path that carries a `:LINE:` shape ITSELF
+# (`foo:12:bar.rs`), which is ambiguous in a `FILE:LINE:TEXT` record and
+# not resolvable at any reader: it names the shorter path. That costs a
+# misnamed file in a diagnosis and never an exemption, which is the whole
+# reason the selection does not come through here.
+gate_record_file_column() {
+  sed -E 's/:[0-9]+:.*$//'
 }
 
 # THE LIST IS READ BEFORE IT IS USED, and a malformed entry is refused
@@ -931,15 +948,33 @@ gate() {
   gate_require_crate_sources
   gate_exact_skip_subject
   local records hits
+  local -a allowed=()
   # The shared CODE-ONLY view in its STATEMENT record shape, so comment
   # text and literal bodies never reach the matcher and a declaration
   # arrives with its whole `where` clause whatever the line breaks (see
   # the header). Read ONCE: the scan, the census and the per-entry count
   # are three questions about one record set.
   records=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" | gate_matcher)
+  # THE EXEMPTION IS THE COUNT CHECK'S PREDICATE, NOT A SECOND READING OF
+  # THE FILE COLUMN. `gate_allowlist_counts` attributes a record to an
+  # entry with `gate_record_anchor "$path"`, so the scan drops exactly
+  # what that anchor claims — `gate_record_anchor_any` over the same
+  # paths, negated. A record whose FILE the anchor does not claim is a
+  # hit, and there is no way for one half of this gate to exempt a file
+  # the other half is not pinning.
+  #
+  # WHAT A SET MEMBERSHIP ON A CUT COLUMN COSTS, since that is the
+  # spelling this replaced: `cut -d: -f1` reads the FILE column as
+  # "everything before the first colon", so a record from a path carrying
+  # a `:` of its own (`…/boxes.rs:x.rs`) arrives as the entry's own path,
+  # matches it under `-vxF`, and is dropped — while the anchored count
+  # check does not match that record at all, so the pin beside it does
+  # not move. The bound rides a ratification granted to a different file
+  # and nothing reds. Planted as `plant_colon_path_beside_entry`.
+  mapfile -t allowed < <(gate_allowlist_paths)
   hits=$(printf '%s\n' "$records" | gate_grep -v '^$' |
-    cut -d: -f1 | sort -u |
-    gate_grep -vxF -f <(gate_allowlist_paths))
+    gate_grep -vE "$(gate_record_anchor_any "${allowed[@]}")" |
+    gate_record_file_column | sort -u)
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
@@ -1424,6 +1459,28 @@ plant_trait_generic_sole_bracket_ratified() {
   printf 'pub trait ArrivalSpec<T: CertifiedBounds> {}\n' >> "$1/crates/topo/src/props.rs"
 }
 
+# A COMPOUND BOUND IN A FILE WHOSE PATH CARRIES A COLON, beside a
+# ratified entry whose path is a PREFIX of it. `boxes.rs:x.rs` is a
+# different file from `boxes.rs` — a `:` is legal in a path here and in
+# git — and no entry names it, so its bound is an ordinary scan hit. It
+# is the case that separates the two readings of the FILE column: cut at
+# the first colon the record reads as `boxes.rs` and is dropped as
+# exempt, while the count check's anchor never matches it, so the pin
+# stays put and the ride-along is silent in both halves. The entry's own
+# file is left at its pinned count by the clean fixture, so what fires
+# here is the SCAN alone.
+#
+# THE CASE IS ASSERTED ON THE PATH AND NOT ON THE SCAN'S SENTENCE, which
+# every other must-FIRE case here already pins. Firing at all is the
+# harness' own assertion -- a planted violation that PASSES fails the
+# case -- so what the WANT adds is the other half of the same column
+# reading: the diagnosis NAMES the colon-carrying file whole, rather than
+# naming the ratified entry it merely begins with.
+plant_colon_path_beside_entry() {
+  printf 'pub fn f<T: Decide + Bounds>(_t: T) {}\n' \
+    > "$1/crates/topo/src/boolean/boxes.rs:x.rs"
+}
+
 # THE PIN'S TWO DIRECTIONS, one fixture each, on a file the list
 # ratifies and the clean fixture writes at its pinned count. The GAIN is
 # what the pin exists for: a second compound bound riding a ratification
@@ -1543,6 +1600,7 @@ gate_selftest() {
   gate_selftest_case "is not on this gate's alias roster" plant_bracket_only_alias_in_ratified_file
   gate_selftest_case "$want" plant_alias_declaration_moved
   gate_selftest_case "FILE NOT IN THE TREE" plant_roster_file_gone
+  gate_selftest_case "crates/topo/src/boolean/boxes.rs:x.rs" plant_colon_path_beside_entry
   gate_selftest_case "MORE than the entry argues for" plant_ratified_file_gains_a_bound
   gate_selftest_case "FEWER than the entry argues for" plant_ratified_file_loses_a_bound
   gate_selftest_case "MORE than the entry argues for" plant_second_bound_on_one_record
@@ -1565,7 +1623,7 @@ gate_selftest() {
     plant_trait_generic_sole_bracket_ratified
   gate_selftest_passes "one ratified compound bound replaced by another at the same count" \
     plant_ratified_file_swaps_a_bound
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through gate_exact_skip_subject), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through gate_exact_skip_subject), and on the equivalent spelling of dual.rs Bounds impl (GAP 2), and on a compound bound in a file whose PATH carries a colon beside a ratified entry (boxes.rs:x.rs), which a FILE column cut at the first colon reads as the entry itself and exempts while the anchored count check beside it never sees the record at all; fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
