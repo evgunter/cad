@@ -93,7 +93,11 @@ fn p1_order_swap_changes_only_the_rim_name() {
     );
     assert_eq!(ta.iter().count(), tb.iter().count());
     // The volumes should agree exactly; record if they do not.
-    assert_eq!(ma.volume.to_bits(), mb.volume.to_bits(), "volume bits moved with the order");
+    assert_eq!(
+        ma.volume.to_bits(),
+        mb.volume.to_bits(),
+        "volume bits moved with the order"
+    );
 }
 
 /// P1b — two designated faces on DISTINCT charts: the order carries no
@@ -105,11 +109,19 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     let blank = blank_of(&d.doc);
     let (da, sa) = fixture::insert(
         d.doc.clone(),
-        Node::shell(blank, fixture::len(cup::T), vec![cup::top(blank), cup::bottom(blank)]),
+        Node::shell(
+            blank,
+            fixture::len(cup::T),
+            vec![cup::top(blank), cup::bottom(blank)],
+        ),
     );
     let (db, sb) = fixture::insert(
         d.doc.clone(),
-        Node::shell(blank, fixture::len(cup::T), vec![cup::bottom(blank), cup::top(blank)]),
+        Node::shell(
+            blank,
+            fixture::len(cup::T),
+            vec![cup::bottom(blank), cup::top(blank)],
+        ),
     );
     let (ea, eb) = (eval::<f64>(&da), eval::<f64>(&db));
     assert!(failures(&ea).is_empty(), "{:?}", failures(&ea));
@@ -166,7 +178,9 @@ fn p2_raw_variant_with_a_repeat_bypasses_the_construction_door() {
             eprintln!("P2: the edit door accepted a document that SAVE refuses");
         }
         Ok(text) => match load(&text, Tol::witness()) {
-            Err(PersistError::Snapshot(editor_core::SnapshotError::ShellOpenRepeated { .. })) => {
+            Err(PersistError::Snapshot(editor_core::SnapshotError::ShellOpenRepeated {
+                ..
+            })) => {
                 eprintln!("P2: saved, and the load door refuses");
             }
             other => panic!("P2: expected the load refusal, got {other:?}"),
@@ -187,7 +201,11 @@ fn p3_rebind_keeps_the_earlier_position() {
     let c = fixture::fname(blank, fixture::wall(2));
     let (doc, id) = fixture::insert(
         d.doc.clone(),
-        Node::shell(blank, fixture::len(cup::T), vec![a.clone(), b.clone(), c.clone()]),
+        Node::shell(
+            blank,
+            fixture::len(cup::T),
+            vec![a.clone(), b.clone(), c.clone()],
+        ),
     );
     let open_of = |doc: &ProfileDoc| match doc.node(id) {
         Some(Node::Shell { open, .. }) => open.clone(),
@@ -346,9 +364,13 @@ fn p6_rebinding_the_designation_moves_the_rim() {
 fn p7_a_holed_designated_face_mints_a_hole_rim() {
     let mut r = corpus::Recorder::new();
     let outer = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
-    let hole =
-        LoopProgram::polygon([(0.375, 0.375), (0.625, 0.375), (0.625, 0.625), (0.375, 0.625)])
-            .unwrap();
+    let hole = LoopProgram::polygon([
+        (0.375, 0.375),
+        (0.625, 0.375),
+        (0.625, 0.625),
+        (0.375, 0.625),
+    ])
+    .unwrap();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
