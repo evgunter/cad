@@ -16,9 +16,14 @@
 # type system cannot do.
 #
 # THE RULE. `Tol::witness()` is an ENTRY-POINT act. It belongs where
-# a run begins — a `main`, a test, the curated `pncad` door — and
-# nowhere else. Library code under crates/*/src takes the witness as
-# a parameter from its caller, up to whichever entry point minted it.
+# a run begins — a test, the curated `pncad` door, and the one
+# allowlisted binary `main` — and nowhere else. Library code under
+# crates/*/src takes the witness as a parameter from its caller, up to
+# whichever entry point minted it. WHICH `main`s ARE ENTRY POINTS HERE
+# IS A LIST AND NOT A SHAPE, by Ev's ruling: being a `main`, or sitting
+# under cargo's `src/bin/`, buys nothing on its own — the exemption
+# names a file. The argument for that, and the way back to a shape, is
+# at `BIN_HOME` below.
 #
 # WHAT IS NOT SCANNED, and why each is sound:
 #  - `#[cfg(test)]` blocks (via --skip-cfg-test) and whole modules
@@ -43,19 +48,17 @@
 #    crate root and the module root, not the directory name. How WIDE
 #    either exemption should be is argued there too, and is not what
 #    the check answers.
-#  - crates/viewer/src/bin/viewer.rs — a BINARY TARGET's `main`,
-#    which THE RULE above already names as an entry point ("a
-#    `main`, a test, the curated `pncad` door"). It is sound for the
-#    reason the rule gives: a bin target is not library code —
-#    nothing can call into it, so nothing downstream can inherit an
-#    ambient read from it — and it is where a run's eps is chosen.
-#    ONE FILE, NOT CARGO'S `src/bin/` CONVENTION, and that is a
-#    ruling rather than a preference: the trade, and the way back to
-#    the glob, is written at `BIN_HOME` below, which is also where
-#    the subject check that files this skip beside the other three
-#    lives. A `main` written anywhere else — elsewhere under `src/`,
-#    or under another crate's `src/bin/` — is scanned like the
-#    library code it sits beside.
+#  - crates/viewer/src/bin/viewer.rs — the one binary `main` THE RULE
+#    above allowlists. It is sound for the reason the rule gives: a
+#    bin target is not library code — nothing can call into it, so
+#    nothing downstream can inherit an ambient read from it — and it
+#    is where a run's eps is chosen. It is a NAME and not a shape:
+#    a `main` written anywhere else — elsewhere under `src/`, or
+#    under another crate's `src/bin/` — is scanned like the library
+#    code it sits beside, and its own entry-point argument is made
+#    by adding it here. Argued at `BIN_HOME` below, which is also
+#    where the subject check that files this skip beside the other
+#    three lives.
 #
 # TWO SPELLINGS ARE MATCHED, and this is the whole of the gate's
 # completeness argument. `Tol::witness` is the kernel's; and since
@@ -84,7 +87,7 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# THE FOUR SUBJECTS THIS GATE'S EXEMPTIONS ANSWER FOR, held once: the
+# EVERY SUBJECT THIS GATE'S EXEMPTIONS ANSWER FOR, held once: the
 # filter is BUILT from them, the clean fixture plants them, and
 # `gate_require_homes` proves each is a file this scan actually reads.
 #
@@ -150,7 +153,7 @@ FFI_SUBJECT="everything under $FFI_DIR, the pyo3 boundary where a PYTHON program
 # price of the check; a list of them is the point at which the price
 # stops being worth paying.
 BIN_HOME=crates/viewer/src/bin/viewer.rs
-BIN_SUBJECT="$BIN_HOME, a binary's \`main\`, where a run's eps is chosen and which nothing can call into, so nothing downstream can inherit an ambient read from it"
+BIN_SUBJECT="a binary's \`main\`, where a run's eps is chosen and which nothing can call into, so nothing downstream can inherit an ambient read from it"
 
 # THE SKIP A LICENSED DIRECTORY IS: its path, escaped as an ERE and
 # anchored at the start of the record, which every view emits as
@@ -188,7 +191,7 @@ gate() {
     | gate_grep -vE "$(gate_record_anchor "$BIN_HOME")")
   if [ -n "$hits" ]; then
     echo "$hits"
-    gate_error "kernel library code minted a tolerance witness instead of receiving one. Tol::witness() — and its façade spelling pncad::tolerance::witness() — commits the run's eps: it is an entry-point act (a test, the pncad door, or the one bin target this gate allowlists). Take \`tol: Tol\` as a parameter and pass it down — a witness minted mid-library is the ambient read the parameter exists to replace."
+    gate_error "kernel library code minted a tolerance witness instead of receiving one. Tol::witness() — and its façade spelling pncad::tolerance::witness() — commits the run's eps: it is an entry-point act (a test, the pncad door, or the one binary main this gate allowlists, $BIN_HOME). Take \`tol: Tol\` as a parameter and pass it down — a witness minted mid-library is the ambient read the parameter exists to replace."
     exit 1
   fi
   gate_ok "no kernel library code mints a tolerance witness"
@@ -201,18 +204,21 @@ gate() {
 # clean case reds the moment that exemption stops covering it — the
 # defining file for the anchored home skip, the crate root for the
 # curated door's prefix, the module root for the pyo3 boundary's, and
-# the viewer's binary for the bin skip.
+# the viewer's binary for the one this gate allowlists by name.
+#
+# ONE BODY FOR ALL FOUR, and that is not a shortcut: every skip here is
+# anchored on a PATH, so the only thing the fixture needs from a plant
+# is that it mints the witness at that path. Nothing about the shape of
+# the file is read — the door plant is not a door and the bin plant is
+# not a `main` — and a plant dressed up as the thing it stands for would
+# be claiming a fidelity the anchor does not have.
 gate_plant_clean() {
   gate_plant_clean_sources "$1"
   local home
-  for home in "$HOME_FILE" "$DOOR_HOME" "$FFI_HOME"; do
+  for home in "$HOME_FILE" "$DOOR_HOME" "$FFI_HOME" "$BIN_HOME"; do
     mkdir -p "$1/${home%/*}"
     printf 'pub fn witness() -> Tol { Tol::witness() }\n' > "$1/$home"
   done
-  # THE BIN HOME MINTS IT THE WAY A BIN TARGET DOES, in a `main`, which
-  # is the act the exemption is about and not merely the path it is at.
-  mkdir -p "$1/${BIN_HOME%/*}"
-  printf 'fn main() { let _ = pncad::tolerance::witness(); }\n' > "$1/$BIN_HOME"
 }
 
 # The home followed by a colon that is not a line number — one of the
@@ -265,17 +271,11 @@ plant_facade_spelling() {
     > "$1/crates/planted/src/lib.rs"
 }
 
-# A `main` under ANOTHER crate's `src/bin/`, which FIRES — and this
-# fixture is where the ruling's cost is stated. Under the glob it passed:
-# a bin target is an entry point by cargo's convention, wherever it is.
-# The skip is one file now, so a second bin target minting the witness is
-# an ordinary hit and its crate has to be argued into the allowlist (or
-# the glob restored, per `BIN_HOME`). That is the trade Ev's ruling
-# takes: a skip that can say it went stale, at the price of a line per
-# entry point.
+# A `main` under ANOTHER crate's `src/bin/`, which FIRES. This is the
+# fixture the ruling flipped, and it is what `BIN_HOME`'s trade costs
+# when it is paid: an unlisted bin target is an ordinary hit.
 plant_in_bin() {
   mkdir -p "$1/crates/planted/src/bin"
-  printf 'pub fn ok(a: f64) -> f64 { a }\n' > "$1/crates/planted/src/lib.rs"
   printf 'fn main() { let _ = pncad::tolerance::witness(); }\n' \
     > "$1/crates/planted/src/bin/prog.rs"
 }
