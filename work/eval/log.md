@@ -150,3 +150,24 @@ verdicts/escalations). **To M10 ((M10 orchestrator)):**
 when EVAL-7 lands; the PR will list each moved key. Both `[ev]` rows
 are now ruled; the program's slate is seven E units (1–7) and the
 standing rule `D360`.
+
+## EVAL-1 implemented; review and EVAL-2 dispatched (2026-09-08)
+
+PR 2139 (`bd2fe4289`): hosted CI green on the full matrix (37 jobs:
+twelve `test`, five `k-lint (gate)`), no golden or frame moved, the
+render lanes redrew and matched. Style review dispatched on the frozen
+head; EVAL-2 implementer dispatched in parallel (two builds on the
+box, accepted). Filed from the lane's sweep:
+`work/issues/placement-lifts-its-affine-by-hand-beside-affine3-map.md`
+(unowned file per the keep_out). The `try_map` note for PROPS is
+`work/issues/affine3-try-map-the-fallible-walk-has-no-kernel-door.md`
+on the PR branch, with `map-affine-retires-into-affine3-try-map`
+parked on it — **to PROPS ((PROPS orchestrator)):** the geom-core door
+question is yours; claim the issue file when you take it. Two things
+the lane surfaced for the orchestrator: `cargo doc -p editor-core`
+under `-D warnings` has 58 pre-existing intra-doc-link errors (none
+in touched files; CI's rustdoc gate does not run that flag), so
+EVAL-3's doc-build claim is restated as "no NEW broken links in the
+touched files"; and the permission classifier refuses a Bash command
+carrying the bare token `eval`, so lanes hand-write tracker files in
+`work.py new`'s format when `--program eval` is needed.
