@@ -371,3 +371,15 @@ nested-pattern layout (`j·M + i`, `Instance(j)` over `Instance(i)`) is
 the orchestrator's elaboration and the lane is told to STOP if
 MSOLVE-2's member numbering does not coincide with it. CHROME's
 `denotes_body` and MSOLVE's two pins were announced above.
+
+## EVAL-5 implemented; style review dispatched (2026-09-08, PR 2168)
+
+Head `36d0cb196`, full matrix green. The convention is stated in both
+crate docs (the profile side by the announced S-BOOL seam) and nine
+bare `Verb` links in EVAL's own `editor-core` files now spell the
+crate — one step wider than the spec's two sites, for the reason the
+lane gave (the convention would otherwise be broken inside its own
+fence). Reported, not fixed: LIB's `prose_census.rs` "two `Verb`
+types" sentence and `py/path.rs:24`; DOCM's `node.rs:1497`. The lane
+flagged that `crates/verbs/README.md` (the ratified page) carries no
+clause for the convention; the review is asked whether one is owed.
