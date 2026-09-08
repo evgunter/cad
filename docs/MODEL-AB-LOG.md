@@ -3990,6 +3990,26 @@ equally). The implementer's unit log entry is not written until the
 dual concludes. Disclosed: the PR body carries no harness footer (the
 lane left it off).
 
+## SHELL-7 review ordinal fixed at dispatch (2026-09-08)
+
+SHELL-7 (`axial-door-refuses-a-one-surface-seam-corner`, PR #2200 open —
+frozen head `4adb70dd`): **ordinal 2304** (SHELL band; after 2303).
+Pre-draw fields at the item (`work/shell/SHELL-7.md`): difficulty
+**S–M**, task-class **NUMERIC**, logged after block SHELL-B2's byte was
+drawn (disclosed there; the covariate is contaminated for this row);
+implementer arm per block SHELL-B2 slot 1 (record branch-side on the
+SHELL orchestrator branch). Protocol v6 dual: draw = `/dev/urandom`
+byte **135**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded
+before either review runs: CONCURRENT same-head on frozen `4adb70dd`,
+both briefs authored and STORED with sha256 before either dispatches
+(sha256 f4b572a985cc… r1 / dc2f923bbdae… r2 — identical text modulo
+lane names and lane paths, verified by diff), neither reviewer sees the
+other's report, v6 item 5 isolation in both briefs, PRIVATE
+`CARGO_TARGET_DIR` per reviewer (both EMPTY — cold and symmetric),
+both lanes on one 4-core cloud box at `-j2` (a method note applying to
+both arms equally). The implementer's unit log entry is not written
+until the dual concludes.
+
 ## VERBS-C5ARMS PR-2 review ordinal fixed at dispatch (2026-09-05)
 
 VERBS-C5ARMS PR-2 (`work/curved/VERBS-C5ARMS.md`, PR #1864 open —
