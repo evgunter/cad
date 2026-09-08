@@ -265,7 +265,7 @@ fn a_declared_split_is_the_legs_alone_not_the_fused_incomings() {
     assert_eq!(joints.len(), 4, "four declared stations: {joints:?}");
     for &k in joints {
         let v = split.loop_.vertices()[k].pos();
-        let r = ((v.x - 0.0).powi(2) + (v.y - 2.0).powi(2)).sqrt();
+        let r = (v.x.powi(2) + (v.y - 2.0).powi(2)).sqrt();
         assert!(
             (r - 2.0).abs() < 1e-12,
             "station {k} at {v:?} is off the carrier: r = {r}"

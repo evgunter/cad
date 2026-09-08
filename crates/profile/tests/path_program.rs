@@ -29,8 +29,8 @@ use common::{coverage_corpus, pinned};
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{
-    ArcMode, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind,
-    Start, Step, Target, TipState, Verb, replay,
+    ArcMode, ArcSide, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError,
+    ReplayErrorKind, Start, Step, Sweep, Target, TipState, Verb, replay,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -964,7 +964,7 @@ fn split_arc_on_a_directed_leg_lands_where_the_unsplit_leg_does() {
     for k in 0..3 {
         let v = split.vertices()[k];
         assert_eq!(bits(v.bulge()), bits(piece), "piece {k}");
-        let radial = ((v.pos().x - 0.0).powi(2) + (v.pos().y - 0.5).powi(2)).sqrt();
+        let radial = (v.pos().x.powi(2) + (v.pos().y - 0.5).powi(2)).sqrt();
         assert!(
             (radial - 0.5).abs() < 1e-15,
             "station {k} off the carrier by {radial}"
@@ -994,4 +994,66 @@ fn split_arc_closes_with_its_stations_declared() {
         assert_eq!(bits(closed.vertices()[k].bulge()), bits(piece), "piece {k}");
     }
     validate_ok(&closed);
+}
+
+/// **The split's domain is the leg's own, |θ| < 2π** (PATHS §4's
+/// placement contract), and OUTSIDE it the plain leg and its split
+/// disagree. `Sweep` gates its angle positive and nothing else, so a
+/// full or over-full sweep reaches the leg: the plain leg FOLDS it — a
+/// zero-chord vertex at 2π, `tan(3π/4) = −1` (a CW semicircle) at 3π
+/// — which is the leg's pre-existing hole, filed on the bool slate and
+/// not this unit's to fix; the split places its stations by parameter
+/// through the AUTHORED sweep and so reads the angle as written: a
+/// full circle as two semicircles through `(0, 2)`, three half-turns
+/// as two major arcs through `(1, 1)`. This row pins both readings so
+/// the disagreement stays visible rather than being masked by a split.
+#[test]
+fn an_over_full_sweep_split_reads_the_authored_angle_while_the_plain_leg_folds_it() {
+    use core::f64::consts::{PI, TAU};
+    let leg = |angle: f64, n: Option<usize>| {
+        let spec = Sweep {
+            r: 1.0,
+            side: ArcSide::Left,
+            angle,
+        };
+        let dir = Open.at(p2(0.0, 0.0)).angle(0.0, Tol::witness()).unwrap();
+        let open = match n {
+            None => dir.arc_to(spec, Tol::witness()),
+            Some(n) => dir.arc_to(spec.split(n), Tol::witness()),
+        }
+        .expect("the leg builds; the hole is in what it emits");
+        // A detour with corners at every junction, so the LEG's own
+        // vertices are readable where a direct closer would refuse.
+        open.line_to(p2(3.0, 1.0), Tol::witness())
+            .unwrap()
+            .line_to(p2(0.0, -1.0), Tol::witness())
+            .unwrap()
+            .line_to(Start, Tol::witness())
+            .map(|c| c.loop_)
+    };
+    // 3π, plain: folded to a single CW semicircle.
+    let plain = leg(3.0 * PI, None).unwrap();
+    assert_eq!(plain.vertices()[0].bulge(), (3.0 * PI / 4.0).tan());
+    assert!(plain.tangent_joints().is_empty());
+    // 3π split in two: two major arcs of 3π/2 each through (1, 1).
+    let two = leg(3.0 * PI, Some(2)).unwrap();
+    let piece = (3.0 * PI / 8.0).tan();
+    assert_eq!(two.vertices()[0].bulge(), piece);
+    assert_eq!(two.vertices()[1].bulge(), piece);
+    let s = two.vertices()[1].pos();
+    assert!(
+        (s.x - 1.0).abs() < 1e-15 && (s.y - 1.0).abs() < 1e-15,
+        "{s:?}"
+    );
+    assert_eq!(two.tangent_joints(), &[1]);
+    // 2π split in two: a full circle as two semicircles, the middle
+    // station on the axis exactly (the even split's closed form).
+    let circle = leg(TAU, Some(2)).unwrap();
+    let s = circle.vertices()[1].pos();
+    assert_eq!(
+        (s.x.to_bits(), s.y.to_bits()),
+        (0.0f64.to_bits(), 2.0f64.to_bits())
+    );
+    assert_eq!(circle.vertices()[0].bulge(), (TAU / 8.0).tan());
+    assert_eq!(circle.tangent_joints(), &[1]);
 }

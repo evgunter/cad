@@ -3762,7 +3762,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
         }
         Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
-        Step::ArcTo { spec: s, .. } => spec(h, s),
+        Step::ArcTo { spec: s, splits: _ } => spec(h, s),
         Step::Fillet { radius } => f(h, radius),
         Step::FilletArc { radius, spec: s } => {
             f(h, radius);

@@ -1986,6 +1986,7 @@ impl<T: Real> Core<T> {
         end: Point2<T>,
         bulge: T,
         chord: T,
+        carrier: &ArcData<T>,
         split: Option<SplitLeg<T>>,
     ) -> Result<(T, T), PathError<T>> {
         let Some(split) = split else {
@@ -1994,10 +1995,9 @@ impl<T: Real> Core<T> {
         if split.n < 2 {
             return Err(PathError::ArcSplitCount { n: split.n });
         }
-        let (centre, sweep) = match split.carrier {
-            SplitCarrier::Chord => split_carrier_from_chord(at, end, bulge),
-            SplitCarrier::About { centre, sweep } => (centre, sweep),
-        };
+        let (centre, sweep) = split
+            .about
+            .unwrap_or((carrier.center, bulge.atan() * T::from_f64(4.0)));
         let piece = (sweep / (T::from_f64(4.0) * T::from_f64(split.n as f64))).tan();
         let mut last = at;
         for station in split_stations(at, end, centre, sweep, split.n) {
@@ -2105,44 +2105,30 @@ fn arc_carrier<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> ArcData<T> {
 // The declared split: station placement.
 // ------------------------------------------------------------------
 
-/// The carrier a declared split places its stations on — the leg's
-/// OWN, as its mode determines it.
-#[derive(Clone, Copy, Debug)]
-enum SplitCarrier<T: Real> {
-    /// Derived from the chord and the bulge (the `Bulge` and `Via`
-    /// legs, whose centre is nobody's authored datum), by the
-    /// SYMMETRIC closed form: the midpoint as `(a + b)/2` component by
-    /// component, so the leg authored backwards derives the same
-    /// centre bit for bit.
-    Chord,
-    /// The mode's own centre and signed sweep — `Center`'s AUTHORED
-    /// centre, the tangent legs' derived one — never a bulge round
-    /// trip, which would put an authored centre 1e-17 off itself.
-    About { centre: Point2<T>, sweep: T },
-}
-
-/// A declared split of the arc leg being emitted (the `n` of
-/// [`Split`], with where its stations go).
+/// A declared split of the arc leg being emitted: the `n` of [`Split`]
+/// and, for the modes with a centre of their own (`Center`'s AUTHORED
+/// one, the tangent legs' derived one — never a bulge round trip,
+/// which would put an authored centre 1e-17 off itself), that centre
+/// with the signed sweep. `about: None` is the chord-and-bulge leg,
+/// whose carrier is the ONE [`leg_carrier`] computes for the tip and
+/// the stations alike.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SplitLeg<T: Real> {
-    carrier: SplitCarrier<T>,
     n: usize,
+    about: Option<(Point2<T>, T)>,
 }
 
 impl<T: Real> SplitLeg<T> {
-    /// A split whose carrier is derived from the leg's chord and bulge.
+    /// A split about the leg's own chord-and-bulge carrier.
     pub(super) fn chord(n: usize) -> Self {
-        Self {
-            carrier: SplitCarrier::Chord,
-            n,
-        }
+        Self { n, about: None }
     }
 
     /// A split about the mode's own centre, through its signed sweep.
     pub(super) fn about(centre: Point2<T>, sweep: T, n: usize) -> Self {
         Self {
-            carrier: SplitCarrier::About { centre, sweep },
             n,
+            about: Some((centre, sweep)),
         }
     }
 }
@@ -2153,41 +2139,39 @@ fn chord_normal<T: Real>(d: Vec2<T>) -> (Vec2<T>, T) {
     (Vec2::new(-d.y, d.x) * (T::one() / l), l)
 }
 
-/// The split carrier of a chord-and-bulge leg: [`arc_carrier`]'s
-/// closed form with the symmetric midpoint, and the sweep 4·atan(b).
-/// Under reversal (a↔b, b↦−b) the normal and the apothem both negate
-/// exactly and the midpoint is commutative, so the centre is the same
-/// bits from either end.
-fn split_carrier_from_chord<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> (Point2<T>, T) {
+/// The sharp leg's carrier from its chord and bulge — [`arc_carrier`]'s
+/// closed form with the midpoint taken SYMMETRICALLY, `(a + b)/2`
+/// component by component: under reversal (a↔b, b↦−b) the normal and
+/// the apothem both negate exactly and the midpoint is commutative, so
+/// the leg authored backwards derives the same centre bit for bit.
+/// Computed ONCE per sharp leg: it is the tip's recorded carrier and
+/// the carrier a declared split places its stations on.
+fn leg_carrier<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> ArcData<T> {
     let (n_hat, l) = chord_normal(b - a);
     let four = T::from_f64(4.0);
     let half = T::from_f64(0.5);
     let mid = Point2::new((a.x + b.x) * half, (a.y + b.y) * half);
-    let apothem = l * (T::one() - bulge.powi(2)) / (four * bulge);
-    (mid + n_hat * apothem, bulge.atan() * four)
+    ArcData {
+        center: mid + n_hat * (l * (T::one() - bulge.powi(2)) / (four * bulge)),
+        radius: l * (T::one() + bulge.powi(2)) / (four * bulge.abs()),
+    }
 }
 
-/// **The placement contract of a declared split** (Ev, in-chat,
-/// 2026-09-07). The `n − 1` interior stations of the arc from `at` to
-/// `end` about `centre` through the signed `sweep` are placed BY
-/// PARAMETER — station `k` sits at `k/n` of the sweep — and each is
-/// computed from its NEARER endpoint, so the reversed leg (end → at,
-/// sweep negated) places the same stations bit for bit:
-///
-/// - `2k < n`: rotate `at − centre` about the centre by `+k·θ/n`;
-/// - `2k > n`: rotate `end − centre` about the centre by `−(n−k)·θ/n`;
-/// - `2k = n` (even `n`): the MIDDLE station is `centre + R·m̂`, with
-///   `m̂` the chord's unit normal on the arc's side (the right normal
-///   of `end − at` for a CCW sweep, the left for CW) and `R` the mean
-///   of the two endpoint radii. This is exact whenever the chord is
-///   axis-aligned — every symmetric meridian a revolve is authored
-///   with — where a station computed by rotation would sit
-///   `cos(π/2) ≈ 6e-17` off the axis, a vertex a revolve may read as
-///   off-axis.
-///
-/// Every piece carries the bulge tan(θ/4n), exactly. Nothing here reads
-/// the chain: the inputs are the leg's own authored data and the
-/// binding bits of its start (§2c).
+/// **The placement contract of a declared split.** The `n − 1` interior
+/// stations of the arc from `at` to `end` about `centre` through the
+/// signed `sweep` sit BY PARAMETER at `k/n` of the sweep, each computed
+/// from its NEARER endpoint — `at` rotated by `+kθ/n` for `2k < n`,
+/// `end` rotated by `−(n−k)θ/n` for `2k > n` — so the reversed leg
+/// places the same stations bit for bit; an even split's MIDDLE station
+/// is `centre + R·m̂`, `m̂` the chord's unit normal on the arc's side
+/// and `R` the mean endpoint radius, exact on an axis-aligned chord
+/// where a rotation would sit ~6e-17 off the axis. Every piece carries
+/// tan(θ/4n). The domain is the leg's own, |θ| < 2π. Outside it the
+/// plain leg FOLDS the angle (a zero-chord vertex at 2π, tan(3π/4) at
+/// 3π — its pre-existing hole, filed) while the split places by
+/// parameter through the authored sweep and reads the angle as
+/// written: the two disagree there, and the split does not paper over
+/// it. Nothing here reads the chain.
 fn split_stations<T: Real>(
     at: Point2<T>,
     end: Point2<T>,
@@ -3743,15 +3727,6 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         )
     }
 
-    fn arc_to_point(
-        self,
-        p: Point2<T>,
-        bulge: T,
-        tol: Tol,
-    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.arc_leg_to_point(p, bulge, None, tol)
-    }
-
     /// The sharp arc leg to an authored point, plain (`split: None`)
     /// or with its declared split: the split's pieces are emitted
     /// between the tip and `p`, and the tip lands at `p` exactly as
@@ -3780,8 +3755,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         if self.core.start_ang.is_none() {
             self.core.start_ang = Some(start_t);
         }
-        let carrier = arc_carrier(at, p, bulge);
-        let (seg_bulge, last_chord) = self.core.emit_split(at, p, bulge, chord, split)?;
+        let carrier = leg_carrier(at, p, bulge);
+        let (seg_bulge, last_chord) = self.core.emit_split(at, p, bulge, chord, &carrier, split)?;
         self.core.push_arc(p, seg_bulge)?;
         let arm = arc_arm(&carrier, last_chord);
         Ok(in_state(
@@ -3790,22 +3765,13 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         ))
     }
 
-    /// The SHARP arc seam. `arrival` is [`Start::arrives_tangent`]
-    /// carried by the `Bulge` spec's target: the arc's end tangent is
-    /// already fixed by the authored bulge, so the CHECK form applies
-    /// unchanged — one end is authored, the other is checked.
-    fn arc_to_start(
-        self,
-        bulge: T,
-        declared: bool,
-        tol: Tol,
-    ) -> Result<ClosedLoop<T>, PathError<T>> {
-        self.arc_leg_to_start(bulge, declared, None, tol)
-    }
-
-    /// The sharp arc seam, plain or with its declared split (the
+    /// The SHARP arc seam, plain or with its declared split (the
     /// pieces are emitted before the seam is classified; the seam's
-    /// lever is the last piece's chord).
+    /// lever is the last piece's chord). `declared` is
+    /// [`Start::arrives_tangent`] carried by the `Bulge` spec's target:
+    /// the arc's end tangent is already fixed by the authored bulge, so
+    /// the CHECK form applies unchanged — one end is authored, the
+    /// other is checked.
     pub(super) fn arc_leg_to_start(
         mut self,
         bulge: T,
@@ -3830,8 +3796,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             junction_check(inc, start_t, false, tol)?;
         }
         let start_ang = *self.core.start_ang.get_or_insert(start_t);
-        let carrier = arc_carrier(at, start_pos, bulge);
-        let (seg_bulge, last_chord) = self.core.emit_split(at, start_pos, bulge, chord, split)?;
+        let carrier = leg_carrier(at, start_pos, bulge);
+        let (seg_bulge, last_chord) = self
+            .core
+            .emit_split(at, start_pos, bulge, chord, &carrier, split)?;
         let arm = arc_arm(&carrier, last_chord);
         if declared {
             seam_arrival_check(end_t, arm, start_ang, tol)?;
