@@ -557,52 +557,127 @@ fn the_refusal_roster_names_every_arm_and_nothing_else() {
     );
 }
 
-/// **The spine-kind recourse names a family for every arm.**
-/// [`FILLET3_SPINE_KIND_RECOURSE`] states the door's extent as two
-/// FAMILIES — the coaxial rim that mints a torus band and the straight
-/// ruled edge that mints a cylinder band — and leaves the pairs to the
-/// roster the refusal's own payload carries. This row is what makes the
-/// two spellings one door: every fillet arm's band kind maps to a
-/// family, and the sentence has to name that family in so many words,
-/// so an arm whose pair the sentence would not endorse goes red here
-/// rather than reaching a caller who then reads the door as closed.
+/// **The spine-kind recourse names a kind and a family for every arm.**
+/// [`FILLET3_SPINE_KIND_RECOURSE`] states the door's extent in the
+/// order the door itself tests it: the four support KINDS the arm
+/// table traces, and then the two FAMILIES those kinds may meet in.
+/// This row is what makes that one door rather than two spellings of
+/// one — for every fillet arm, both of its
+/// [`BlendArm::kinds`] must appear in the sentence's KIND CLAUSE, and
+/// the family it belongs to (read off the arm's own
+/// [`BlendArm::is_coaxial_torus`] / [`BlendArm::is_ruled`] predicates,
+/// never off a re-split of the display name) must be named after it.
 ///
-/// A THIRD band goes red too, at the map itself: the sentence has two
-/// clauses, so a new family owes it a third.
+/// **The kind clause is the sentence's first `;`-delimited segment**,
+/// the same idiom the assembly sentence's open clause is read by. Its
+/// four words are a kind SET, not the eleven-pair roster: the pairs
+/// live in the refusal's payload and are checked by the row above.
+///
+/// Three ways to go red, all of them the defect this row exists for:
+/// an arm whose support kind the sentence does not name; an arm in
+/// neither family, which is a third family owing the sentence a third
+/// clause; and — the negative half — `torus` appearing among the named
+/// kinds, which would endorse the coaxial torus–plane rim the door
+/// refuses on kind (`review_blend3_r3_probes` follows that refusal).
 #[test]
 fn the_spine_kind_recourse_names_a_family_for_every_arm() {
-    // The family an arm belongs to, read off the band it mints — the
-    // arm table's own spelling, as the roster row above reads the pair
-    // half of the same name — and the phrase the sentence must carry
-    // for that family.
-    let family = |arm: BlendArm| -> &'static str {
-        let band = arm
-            .name()
-            .rsplit_once("\u{2192} ")
-            .expect("every arm's name states the band it mints")
-            .1;
-        match band {
-            "torus" => "two coaxial surfaces of revolution",
-            "cylinder" => "sharing one ruling direction",
-            other => panic!(
-                "the {other} band is a third family; the spine-kind recourse names two, \
-                 and a new one owes it a clause"
-            ),
+    // The sentence's KIND CLAUSE: everything before its first
+    // semicolon. The families and the leftovers come after it, so a
+    // kind word found here is one the sentence admits as a SUPPORT.
+    let kind_clause = FILLET3_SPINE_KIND_RECOURSE
+        .split(';')
+        .next()
+        .expect("the sentence's kind clause is its first ;-delimited segment");
+
+    // The phrase the sentence must carry for each family, keyed by the
+    // arm's own predicates rather than by anything parsed out of a
+    // name.
+    let family = |arm: BlendArm| -> Option<&'static str> {
+        if arm.is_coaxial_torus() {
+            Some("a rim they share as coaxial surfaces of revolution")
+        } else if arm.is_ruled() || arm.is_plane_plane() {
+            // Both mint a cylinder band about a straight spine; the
+            // plane–plane pair reaches its closed form before the
+            // shared-sheet reduction, but a caller reading the sentence
+            // is told about the request, not the branch.
+            Some("along a ruling shared by two supports that are each a plane or a cylinder")
+        } else {
+            None
         }
     };
+
+    // Collect every failure and report the SET, so one run names all of
+    // them rather than the first.
+    let mut missing_kind: Vec<(BlendArm, &'static str)> = Vec::new();
+    let mut no_family: Vec<BlendArm> = Vec::new();
+    let mut missing_family: Vec<(BlendArm, &'static str)> = Vec::new();
+    let mut kinds_off_name: Vec<(BlendArm, &'static str)> = Vec::new();
+
     for arm in BlendArm::ALL {
+        // `kinds()` is a second spelling of what `name()`'s pair half
+        // says; tie them here so it cannot drift.
+        let pair = arm
+            .name()
+            .split(" \u{2192}")
+            .next()
+            .expect("every arm's name states its pair");
+        for kind in arm.kinds() {
+            if !pair.contains(kind) {
+                kinds_off_name.push((arm, kind));
+            }
+        }
+
         // The strip is the CHAMFER's arm, refused by its own early
-        // return before any analytic-arm classification, so no caller
-        // reads this sentence about it.
+        // return ([`BlendError::ChamferArmUnsupported`]) before any
+        // analytic-arm classification, so no caller reads THIS sentence
+        // about it.
         if arm == BlendArm::PlanePlaneStrip {
             continue;
         }
-        let phrase = family(arm);
-        assert!(
-            FILLET3_SPINE_KIND_RECOURSE.contains(phrase),
-            "the spine-kind recourse must name the family {arm:?} belongs to ({phrase:?}), \
-             or the pair it blends reads as outside the door:\n  \
-             {FILLET3_SPINE_KIND_RECOURSE}"
-        );
+
+        for kind in arm.kinds() {
+            if !kind_clause.contains(kind) {
+                missing_kind.push((arm, kind));
+            }
+        }
+        match family(arm) {
+            None => no_family.push(arm),
+            Some(phrase) => {
+                if !FILLET3_SPINE_KIND_RECOURSE.contains(phrase) {
+                    missing_family.push((arm, phrase));
+                }
+            }
+        }
     }
+
+    assert!(
+        kinds_off_name.is_empty(),
+        "BlendArm::kinds disagrees with the pair half of BlendArm::name: {kinds_off_name:?}"
+    );
+    assert!(
+        missing_kind.is_empty(),
+        "the spine-kind recourse's kind clause does not name a support kind these arms \
+         blend: {missing_kind:?}\n  clause: {kind_clause}"
+    );
+    assert!(
+        no_family.is_empty(),
+        "these arms are in neither family the sentence names, which is a third family \
+         owing it a clause: {no_family:?}"
+    );
+    assert!(
+        missing_family.is_empty(),
+        "the spine-kind recourse does not name the family these arms belong to: \
+         {missing_family:?}\n  {FILLET3_SPINE_KIND_RECOURSE}"
+    );
+
+    // **The negative half.** A torus support is refused on KIND — the
+    // meridian reduction has no torus row — so the kind clause must not
+    // name one, whatever the rest of the sentence says about torus
+    // BANDS. Without this, widening the clause to "…or a torus" would
+    // pass every assert above and re-open the defect the item closed.
+    assert!(
+        !kind_clause.contains("torus"),
+        "a torus support is refused on kind; the kind clause must not admit one: \
+         {kind_clause}"
+    );
 }

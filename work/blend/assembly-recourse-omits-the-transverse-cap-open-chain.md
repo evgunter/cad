@@ -2,8 +2,10 @@
 id: assembly-recourse-omits-the-transverse-cap-open-chain
 kind: issue
 title: FILLET3_ASSEMBLY_RECOURSE's open clause omits the transverse-cap chain its sibling endorses
-status: open
+status: review
 opened: 2026-09-08
+pr: 2141
+branch: blend/3-spine-recourse
 ---
 
 Found by the unit-3 sweep over `ALL_RECOURSES`
@@ -57,3 +59,41 @@ inventory is held as match arms rather than as a roster
 enumerable rosters), so there is nothing to check a sentence against
 today — a row would have to build the chain and read the outcome, as
 `blend_recourse_followability` does.
+
+## Closed
+
+Closed on PR 2141, the same PR that filed it — the style review read
+the two findings as ONE CLASS rather than an item and its sibling, and
+that reading is what closed them together.
+
+**The class**: a recourse sentence that names a strict subset of what
+its door admits. Not a dead recourse — following any of these sentences
+succeeds — so the followability bar FILLET-E2 set cannot see it. What
+sees it is asking the door what it tests, and in what ORDER, and
+checking the sentence against that.
+
+Three sentences in `crates/sweep/src/blend/mod.rs` carried it, and all
+three are fixed on that PR:
+
+- `FILLET3_SPINE_KIND_RECOURSE` named two of eleven pairs. It now names
+  the four support KINDS the arm table traces and then the two families
+  those kinds may meet in — kinds first, because the door tests kind
+  membership (`coaxial_arm`/`ruling_arm`, `Meridian::trace`) before it
+  decides the coaxiality hypothesis. Tied to the table by
+  `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`.
+- `FILLET3_ASSEMBLY_RECOURSE` — this item — named only the plane–plane
+  link at a fully-requested trivalent corner. Its open clause now names
+  the RULED link too, ending at transverse caps, conditioned as OQ6 and
+  `fillet3_cap_transverse` state it. Held by
+  `review_blend3_r3_probes::the_ruled_crease_carves_and_all_three_sentences_name_it`,
+  which carves the rod's cylinder–plane creases and then reads the
+  clause.
+- `FILLET3_GEOMETRY_RECOURSE` named "planes (for a fillet's rim, also a
+  sphere cap)" as the surgery's support forms while cylinder and cone
+  supports carve. It now names the same four kinds
+  (`BlendArm::kinds`), and the same probe row holds it.
+
+The sibling disagreement this item reported — `FILLET3_CORNER_RECOURSE`
+endorsing the transverse-cap termination that `FILLET3_ASSEMBLY_RECOURSE`
+withheld — is therefore gone by the assembly sentence widening to meet
+the corner one, not by the corner one narrowing.

@@ -1,7 +1,11 @@
-//! **Review probes for the spine-kind recourse (unit 3).** Each row
-//! executes a request the sentence endorses, or one its sibling
-//! sentences omit, and reads the rendered refusal or the carve against
-//! the wording.
+//! **Review probes for the spine-kind recourse (unit 3), adopted into
+//! the fix.** Each row executes a real request and reads the rendered
+//! refusal, or the carve, against the wording that reaches the caller.
+//!
+//! Both rows arrived as the review's evidence that two sentences
+//! under-described their doors, and both are kept with their asserts
+//! turned round the moment the wording was fixed: what they measured
+//! as a defect they now hold as the contract.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
@@ -30,19 +34,22 @@ fn surfaces_of(body: &Body<f64>, e: EdgeKey) -> (Surface<f64>, Surface<f64>) {
     (surface(ed.he_plus), surface(ed.he_minus))
 }
 
-/// **C2 / Q5 — the coaxial clause endorses a rim the door refuses.**
-/// The spool's torus wall meets its base plane in a latitude circle:
-/// the torus and the plane are two surfaces of revolution about ONE
-/// axis, so the pair is "a rim between two coaxial surfaces of
-/// revolution" in the sentence's own words — and its rolling ball's
-/// centre is confined to the meridian, its spine is a circle, its
-/// band a torus. The door refuses it on KIND (`Meridian::trace` has no
-/// torus row), with the pair roster as payload; the sentence appended
-/// to that refusal endorses the configuration just refused and calls
-/// it, by elimination, a pair that "needs the canal-surface
-/// approximating blend".
+/// **C2 / Q5 — the coaxial torus rim is refused on KIND, and the
+/// sentence says so.** The spool's torus wall meets its base plane in
+/// a latitude circle: the torus and the plane are two surfaces of
+/// revolution about ONE axis, and the rolling ball's spine there IS a
+/// circle. So the symmetry hypothesis holds and the door still
+/// refuses — on kind, because `Meridian::trace` has no torus row and
+/// `coaxial_arm` no torus pair — with the arm roster as payload.
+///
+/// That is why the sentence leads with its four KINDS and only then
+/// names the two families: a wording that led with "a rim between two
+/// coaxial surfaces of revolution" endorsed, in so many words, the
+/// configuration this row just had refused. This row holds the fixed
+/// contract from the caller's side — the kind clause admits no torus,
+/// so the refusal and the recourse agree.
 #[test]
-fn the_spine_kind_sentence_endorses_the_coaxial_torus_rim_the_door_refuses() {
+fn the_spine_kind_sentence_refuses_the_coaxial_torus_rim_on_kind() {
     let s = spool(Revolution::Full, tol());
     let rims: Vec<EdgeKey> = query::all_edges(&s)
         .into_iter()
@@ -79,24 +86,43 @@ fn the_spine_kind_sentence_endorses_the_coaxial_torus_rim_the_door_refuses() {
         );
         let text = err.to_string();
         assert!(text.contains(FILLET3_SPINE_KIND_RECOURSE));
+        // The sentence a caller reads here must not name TORUS among
+        // the support kinds it admits, or it would endorse the pair
+        // this row just watched refuse. The kind clause is the
+        // sentence's first `;`-delimited segment.
+        let kind_clause = FILLET3_SPINE_KIND_RECOURSE
+            .split(';')
+            .next()
+            .expect("the sentence's kind clause is its first ;-delimited segment");
         assert!(
-            text.contains("a rim between two coaxial surfaces of revolution"),
-            "the sentence endorses, in so many words, the coaxial rim it just refused:\n{text}"
+            !kind_clause.contains("torus"),
+            "the refusal is on kind, so the recourse must not admit a torus support:\n{text}"
+        );
+        assert!(
+            kind_clause.contains("plane")
+                && kind_clause.contains("sphere")
+                && kind_clause.contains("cylinder")
+                && kind_clause.contains("cone"),
+            "and it must name the four kinds the arm table does trace:\n{text}"
         );
     }
 }
 
 /// **C3 / C5 / C4 — the ruled family's own door, followed as a caller
-/// would.** "A straight edge between two supports sharing one ruling
-/// direction" read by a caller with a rod is the cylinder–plane
-/// crease, not a cube edge; it carves through `fillet_edges` at
-/// `r = 0.1`, tier-3 valid. The assembly sentence's open clause names
-/// only plane–plane links at trivalent corners, and the geometry
-/// sentence says the surgery reads "planes (for a fillet's rim, also
-/// a sphere cap)" — both narrower than the cylinder supports this
-/// carve reads.
+/// would, and named by all three sentences that describe it.** "A
+/// ruling shared by two supports that are each a plane or a cylinder"
+/// read by a caller with a rod is the cylinder–plane crease, not a
+/// cube edge; it carves through `fillet_edges`, tier-3 valid.
+///
+/// The same carve is described by two SIBLING sentences, and both
+/// under-described it: the assembly sentence's open clause named only
+/// plane–plane links at trivalent corners, and the geometry sentence
+/// said the surgery reads "planes (for a fillet's rim, also a sphere
+/// cap)" — narrower than the cylinder supports and the transverse-cap
+/// termination this one carve exercises. Both now name it, and this
+/// row is what holds them to it.
 #[test]
-fn the_ruled_crease_carves_and_two_sibling_sentences_do_not_name_it() {
+fn the_ruled_crease_carves_and_all_three_sentences_name_it() {
     let rod = rod_with_flat(tol());
     let creases = rod_creases(&rod);
     assert_eq!(creases.len(), 2, "two cylinder–plane creases");
@@ -114,13 +140,24 @@ fn the_ruled_crease_carves_and_two_sibling_sentences_do_not_name_it() {
     let out = fillet_edges(&rod, &creases, ROD_FILLET, tol())
         .unwrap_or_else(|e| panic!("the ruled crease carves, got {e}"));
     validate_geometric(&out.body, tol()).expect("tier 3");
+    // The assembly sentence's OPEN clause — its first `;`-delimited
+    // segment — must name this termination, not only the plane–plane
+    // link at a trivalent corner.
     let open_clause = FILLET3_ASSEMBLY_RECOURSE.split(';').next().unwrap();
-    assert!(
-        !open_clause.contains("cylinder") && !open_clause.contains("ruling"),
-        "the assembly sentence's open clause names no ruled chain: {open_clause}"
-    );
-    assert!(
-        !FILLET3_GEOMETRY_RECOURSE.contains("cylinder"),
-        "the geometry sentence names no cylinder support: {FILLET3_GEOMETRY_RECOURSE}"
-    );
+    for want in ["cylinder", "ruling", "TRANSVERSE CAPS"] {
+        assert!(
+            open_clause.contains(want),
+            "the assembly sentence's open clause must name the ruled chain ({want:?} \
+             missing): {open_clause}"
+        );
+    }
+    // And the geometry sentence must name the support kinds the
+    // surgery actually reads, cylinder among them.
+    for want in ["cylinder", "cone", "sphere", "plane"] {
+        assert!(
+            FILLET3_GEOMETRY_RECOURSE.contains(want),
+            "the geometry sentence must name the {want} support the surgery reads: \
+             {FILLET3_GEOMETRY_RECOURSE}"
+        );
+    }
 }

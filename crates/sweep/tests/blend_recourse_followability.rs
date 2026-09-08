@@ -64,7 +64,8 @@ use sweep::blend::{
     FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::{
-    closed_plane_sphere_rim, cube, dome, prism, rim_arcs_at, spool, waisted,
+    ROD_FILLET, closed_plane_sphere_rim, cube, dome, prism, rim_arcs_at, rod_creases,
+    rod_with_flat, spool, waisted,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
@@ -519,17 +520,23 @@ fn the_body_recourse_names_a_single_solid_that_builds() {
     );
 }
 
-/// **`FILLET3_SPINE_KIND_RECOURSE` — "a rim between two coaxial
-/// surfaces of revolution … or a straight edge between two supports
-/// sharing one ruling direction".**
+/// **`FILLET3_SPINE_KIND_RECOURSE` — four support kinds, then two
+/// families they may meet in.**
 ///
-/// The spool's outer wall is a torus, whose pairs the arm table does
-/// not carry. The sentence names two FAMILIES rather than a pair list,
-/// so the second request is followed ONCE PER FAMILY: the dome's
-/// plane–sphere rim is a rim between two coaxial surfaces of
-/// revolution, the cube's chain is a straight edge between two supports
-/// sharing the ruling they meet along, and both carve. A clause the
-/// door cannot serve would then be red here, whichever clause it is.
+/// The spool's outer wall is a TORUS, a kind no arm traces, so it
+/// reaches the refusal that carries the sentence.
+///
+/// **What this row pins is that a representative request of each
+/// family BUILDS**, which is the followability bar: the dome's
+/// plane–sphere rim for the coaxial family, and the rod's
+/// cylinder–plane crease — the ruled door's own pair, terminating in
+/// transverse caps — for the ruled one. It is deliberately not a
+/// completeness check over the arm table: whether the sentence names a
+/// kind and a family for EVERY arm is decided by reading the table,
+/// which
+/// `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`
+/// does. A clause naming a door that does not open is caught here; a
+/// door the sentence forgets to name is caught there.
 #[test]
 fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
     let s = spool(Revolution::Full, tol());
@@ -557,12 +564,16 @@ fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
         "a rim between two coaxial surfaces of revolution",
     );
 
-    let boxy = cube(1.0, tol());
+    // The ruled family's own pair, not a cube edge: a caller reading
+    // "a ruling shared by two supports that are each a plane or a
+    // cylinder" and holding a rod requests its cylinder–plane creases,
+    // which carve between transverse caps.
+    let rod = rod_with_flat(tol());
     builds(
-        &boxy,
-        &query::all_edges(&boxy),
-        0.1,
-        "a straight edge between two supports sharing one ruling",
+        &rod,
+        &rod_creases(&rod),
+        ROD_FILLET,
+        "a straight edge along a ruling shared by a cylinder and a plane",
     );
 }
 
