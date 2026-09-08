@@ -938,3 +938,9 @@ verdict precedes the budget exit (a fixture found — bumpy patch at
 is tested and carries `last_finite` and `d`, `QuadratureBudget` filed
 for the rational quad lane. Item closed; spec into the ledger. E rider
 — no A/B row.
+
+**Mignitude-floor dispatched (2026-09-08).** Block PROPS-B2 slot 2;
+branch `props/mignitude-floor`, cut from main at `b88e2ac07`; dual
+review at the frozen head. The block's three slots are now all
+assigned (coeffs, sign-hull, mignitude-floor); the next kernel unit
+draws block PROPS-B3.
