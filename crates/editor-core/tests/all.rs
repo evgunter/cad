@@ -143,6 +143,8 @@ mod lib_g16_chamfer_node;
 mod lib_g16_corpus_name_digests;
 #[path = "lib_g17_shell_node.rs"]
 mod lib_g17_shell_node;
+#[path = "lib_g17_r2_probes.rs"]
+mod lib_g17_r2_probes;
 #[path = "lib_placedunion.rs"]
 mod lib_placedunion;
 #[path = "lib_sel1_geoselect.rs"]
