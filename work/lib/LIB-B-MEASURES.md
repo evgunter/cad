@@ -174,6 +174,142 @@ inside that. What no roster in this file can see:
   already takes, flattened there because a mate has exactly two sides
   and a list here because a measure's arity is its reference list.
 
+## Outcome
+
+The family closed, and with it the LAST census-owned charter:
+`FAMILIES` is now empty, which is a state
+`test_every_gap_entry_names_a_defined_id` reads in both directions and
+passes over. Bound at these spellings:
+
+- `MeasurePrimitive.distance(a, b)` / `.angle(a, b)` /
+  `.min_clearance(a, b)` / `.gap(outer, inner)` — a frozen value class
+  of static constructors, `PatternKind`'s and `PartSelect`'s shape,
+  with `verb`, `dimension` and an ARGUMENT-ordered `refs` pair read
+  off the kernel's own three accessors. The indices are plain `int`s,
+  the structural-slot exception `NodePick.build`'s `body` already
+  rides.
+- `AssertionDir.AtLeast` / `.AtMost` with `symbol` — the `BooleanOp`
+  MIRROR rather than a static-constructor class, which is a stated
+  deviation from the brief and is argued below.
+- `MeasureExpr.primitive` / `.value` / `.add` / `.sub` / `.neg` /
+  `.mul` / `.div` / `.min` / `.max`, plus `dimension` and a pre-order
+  `primitives`. The whole arithmetic, not a subset: a caller who can
+  write `distance - 2 * r` and not `min(a, b)` has an arbitrary
+  language. `MeasureExpr.value` takes an `Expr` from `Doc.parse_expr`,
+  the one text door, because a second spelling of that grammar is what
+  `py/expr.rs` already rules out.
+- `Node.measure(expr, refs)` with `refs: list[tuple[NodeId, str]]` —
+  a `SitedRef` crossing as the pair `Node.mate` already takes each of
+  its two sides as, a LIST here because a measure's arity is its
+  reference list.
+- `Node.assertion(measure, dir, bound)` with `bound: Expr`. Every
+  other node door takes a typed quantity because a slot's ADDRESS
+  fixes its dimension; this one's is fixed by the node it points at,
+  and the `Expr` seat is what lets a bound be a document parameter —
+  which is what makes a recorded requirement re-decidable by an edit.
+- Two typed exceptions, each keeping its Rust type's own name:
+  `MeasureNodeFault` (`variant`, `verb`, `index`, `refs`) raised at
+  the construction door, and `MeasureUnavailableAt` (`variant`,
+  `verb`, `scalar`, `door`) raised by `Value.measure`.
+
+### The gate, and it is the LANE
+
+Nothing in this family is behind `interval` on the façade —
+`crates/pncad/src/document.rs` carries no `cfg`. What gates the fourth
+verb's second refusal is the SCALAR: `MinClearanceRefusal`'s only
+producer is `impl MinClearanceLane for geom_core::Interval`, and the
+binding evaluates at `f64` alone, so `pncad-py --features interval`
+reaches it no better than the default build. `MeasureUnavailableAt` is
+what the `f64` lane answers `min_clearance` WITH, so it is reachable
+and is reached. One kernel file, one verb, two refusals, and the lane
+decides which of them a Python caller can ever see.
+
+### Census delta, exactly as the scope predicted
+
+Five of the seven rows leave `NOT_BOUND` ENTIRELY under rule 1
+(`MeasureExpr`, `MeasurePrimitive`, `AssertionDir`, `MeasureNodeFault`,
+`MeasureUnavailableAt`); `SitedRef` and `MinClearanceRefusal` stay and
+are RETAGGED `SHAPE`, each argued at its own entry. That third way off
+a charter is new — B-DISTRIBUTIONS demonstrated two — and it is the
+honest one where the census's own `sweep_body` precedent applies.
+
+### The positive form
+
+`crates/pncad-py/tests/test_measures.py`, 42 tests. Every number is an
+oracle re-derived from the authoring (two cylinders at x = ±0.30 make
+their walls 0.60 apart; two slabs 2 m apart gap +2 both role orders; a
+prism's opposed caps subtend pi; a coaxial bore and pin gap
+`r_bore - r_pin` across all three C5 regimes), never a constant
+transcribed from `m10_2_measure.rs`. Four Rust construction pins in
+`src/tests.rs` on the default no-interpreter row, including the only
+place `MinClearanceRefusal`'s tag and prose are pinned at all. Six ty
+fixture rows legal, seven illegal.
+
+### Sweeps
+
+**Every `Node` arm still unconstructible from Python.** 23 kernel
+variants against `pncad.pyi`'s `Node` constructors: `Sweep` (banked,
+`wire_sweep` refuses unconditionally) and `Union` (the n-ary
+member-list fold, with `DocEdit::SetMembers` beside it). Filed as
+`work/lib/n-ary-union-and-set-members-have-no-python-door.md`. Blind
+spot: the sweep reads the STUB, so a constructor in the compiled
+module and not the stub would be missed — `test_stubs.py` is what
+watches that edge.
+
+**Every measurement refusal arm and the door it crosses at.** Nine
+`NodeErrorKind` arms plus three `EditError` arms plus the two new
+classes. Reached: `measure_unsupported`, `measure_selection_kind`,
+`measure_not_parallel`, `measure_non_finite`, `measure_ref_resolve`,
+`assertion_dimension`, `assertion_target`, `ref_index_out_of_range`,
+`needs_enclosure`, and `wrong_kind` on the read door. Not reached, each
+with its reason: `measure_clearance_refused` (the lane, above);
+`measure_malformed` on the EDIT door (unreachable by construction —
+`Node.measure` pre-checks, which is the door's purpose), whose LOAD-door
+twin is reached and arrives as `PersistError` variant `snapshot`;
+`measure_ref_unreadable` (needs a name that resolves onto an unreadable
+carrier, the same state `test_face_frame.py` records as unreachable for
+`face_frame_readback`). Blind spot: the sweep is over the TAG functions,
+so a refusal with no tag arm would be invisible — the tag table's own
+`match` exhaustiveness is what watches that.
+
+### Findings
+
+- **In the fence, filed**:
+  `work/lib/n-ary-union-and-set-members-have-no-python-door.md`.
+- **In the fence, already filed**: the load door surfacing a
+  `MeasureNodeFault` as `PersistError` variant `snapshot` with the
+  fault in prose is a second instance of
+  `work/lib/load-path-stringifies-structured-refusals.md` (#694) at a
+  different site (`Snapshot` rather than `Expr`'s `Deserialize`); the
+  class has its file and this PR names the new site.
+- **Outside the fence**: a measure authored over a document's current
+  product ROOTS takes them (D-3 tip transfer) and the document loses
+  its body product with no `set_roots` able to restore one. In the PR
+  body; `crates/editor-core/src/roots.rs` is not LIB's.
+
+### Deviations from the brief, argued rather than taken
+
+- **`AssertionDir` is the `BooleanOp` mirror, not a static-constructor
+  class.** The brief named `PatternKind`/`PartSelect`'s shape for both
+  vocabularies; that shape exists because those two arms carry
+  PAYLOAD. `AssertionDir` is fieldless, and every fieldless kernel enum
+  on this surface — `BooleanOp`, `CapEnd`, `SplitHalf`, `RimSupport`,
+  `MeridianEnd`, `EntityKind`, `SegTag`, `Cmp` — is an `eq_int` mirror
+  with `Final` members. Taking the sibling spelling also buys the
+  compile-time exhaustiveness witness (`_binds_every_kernel_direction`),
+  which a static-constructor class has no place for.
+- **`MinClearanceRefusal` is not bound as an exception class**, for
+  the lane reason above and on `sweep_body`'s precedent.
+
+### The name collision, resolved
+
+LIB-B-DISTRIBUTIONS landed a Python `MeasureUnavailable` for the
+analysis lane's band refusal one unit earlier. This family's kernel
+type is `MeasureUnavailableAt` and it is bound at that name — the
+taxonomy's own convention, and what keeps a caller's `except` clause
+honest. Neither subclasses the other; both subclass `PncadError`; the
+two tag functions are deliberately not one function.
+
 ## Home
 
 LIB's (the Python surface is outside M10's fence). Filed 2026-09-06

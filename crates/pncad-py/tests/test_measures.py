@@ -733,7 +733,7 @@ class TestTheRefusals(unittest.TestCase):
         ev = evaluate(doc)
         bottom = face_at_height(ev, node, 0.0)
         top = face_at_height(ev, node, 1.0)
-        side = [f for f in ev.all_faces(node) if f not in (bottom, top)][0]
+        side = next(f for f in ev.all_faces(node) if f not in (bottom, top))
         measure = doc.insert(
             Node.measure(
                 MeasureExpr.primitive(MeasurePrimitive.gap(0, 1)),
