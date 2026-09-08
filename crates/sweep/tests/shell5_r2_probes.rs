@@ -430,3 +430,63 @@ fn r2_e2e_hollow_twice_then_open_the_inner_wall() {
         step.as_ref().map(|s| s.len()).map_err(|e| format!("{e}"))
     );
 }
+
+// ---------------------------------------------------------------------
+// Claim 4: the grouping is pinned; is the PAIRING?
+// ---------------------------------------------------------------------
+
+/// **The V ↔ V′ pairing, pinned.** The spec calls the pairing
+/// STRUCTURAL (the graft map). Nothing in the acceptance rows reads it:
+/// a two-void body whose voids are paired with each OTHER's twin has
+/// the same solid count, the same shell count, the same `[Outer, Void]`
+/// per solid, the same volume (signed volumes sum the same however the
+/// shells are grouped) and the same tier-3 verdict.
+///
+/// This row reads the pairing itself, through the public record: every
+/// face of a thin solid's OTHER shell must be an `inner` twin whose
+/// SOURCE face belongs to that solid's own operand void.
+#[test]
+fn r2_each_thin_solid_pairs_its_own_voids_twin() {
+    let tol = Tol::witness();
+    let outer = boxy(6.0, 4.0, 4.0);
+    let one = cut(&outer, &brick(1.0, 2.2, 1.0, 3.0, 1.0, 3.0));
+    let body = cut(&one, &brick(3.8, 5.0, 1.0, 3.0, 1.0, 3.0));
+    assert_eq!(body.shells().count(), 3, "outer plus two voids");
+    let voids = void_shells(&body);
+    assert_eq!(voids.len(), 2);
+
+    let shelled = topo::shell(&body, 0.15, tol).expect("well clear of every wall");
+    let out = &shelled.body;
+    assert_eq!(out.solids().count(), 3);
+    // `naming.inner` rows are (RESULT twin, SOURCE operand face).
+    let inner = &shelled.naming.inner;
+
+    for &(solid, shell) in &shelled.naming.thickened {
+        if !voids.contains(&shell) {
+            continue;
+        }
+        let own: Vec<topo::FaceKey> = body
+            .get_shell(shell)
+            .expect("the operand void")
+            .faces
+            .clone();
+        let shells = &out.get_solid(solid).expect("a thin solid").shells;
+        assert_eq!(shells.len(), 2, "a thin solid is twin plus void");
+        let twin = *shells
+            .iter()
+            .find(|s| **s != shell)
+            .expect("the twin shell");
+        for &face in &out.get_shell(twin).expect("the twin").faces {
+            let source = inner
+                .iter()
+                .find(|(t, _)| *t == face)
+                .map(|(_, s)| *s)
+                .expect("every twin face names a source");
+            assert!(
+                own.contains(&source),
+                "MUTANT-KILLER: thin solid {solid:?} carries a twin face whose source \
+                 {source:?} is on another void, not on {shell:?}"
+            );
+        }
+    }
+}
