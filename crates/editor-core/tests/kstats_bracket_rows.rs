@@ -366,7 +366,7 @@ fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass<T: EvalScalar>() 
 }
 
 #[test]
-fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_every_scalar() {
+fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_f64_and_dual() {
     let at_f64 = the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<f64>();
     let at_dual =
         the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<geom_core::Dual64>();
@@ -374,15 +374,18 @@ fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_every_scalar()
         at_f64, at_dual,
         "the precompute decides at f64 under every lane"
     );
-    #[cfg(feature = "interval")]
-    {
-        let at_interval =
-            the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<geom_core::Interval>();
-        assert_eq!(
-            at_f64, at_interval,
-            "the precompute decides at f64 under every lane"
-        );
-    }
+}
+
+#[cfg(feature = "interval")]
+#[test]
+fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_interval() {
+    let at_f64 = the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<f64>();
+    let at_interval =
+        the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<geom_core::Interval>();
+    assert_eq!(
+        at_f64, at_interval,
+        "the precompute decides at f64 under every lane"
+    );
 }
 
 /// **Under the guided lift the op's own decisions follow the
