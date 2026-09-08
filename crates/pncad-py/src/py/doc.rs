@@ -1463,6 +1463,48 @@ impl Node {
         })
     }
 
+    /// Hollow `target` into a thin solid of wall `thickness`, with the
+    /// faces in `open` re-authored as annular RIMS.
+    ///
+    /// `open` is face names as TEXT, the strings `Evaluation.all_faces`
+    /// or a selector answers with, CARRIED and never composed — and,
+    /// unlike a blend's selection, IN THE ORDER GIVEN. The order is
+    /// meaning: the kernel's record keeps a chart's designated faces
+    /// in designation order, and the chart's rim is its FIRST
+    /// designated face (the chart's members merge onto it, and the
+    /// rim's name is that face's), so name first the face you want to
+    /// carry the rim's identity. A repeated name keeps its first
+    /// occurrence. An EMPTY
+    /// list is the SEALED hollow — every face offset inward, a cavity
+    /// and no rim — which is legal and not a refusal.
+    ///
+    /// Every face on a chart must be named together: a full revolve's
+    /// cap is two half-faces on one plane, and naming one of them
+    /// refuses (`shell`, the kernel's `OpenFaceChartPartial`). The
+    /// designation FREEZES in the sense `Node.fillet` states.
+    ///
+    /// A name that resolves to nothing (`shell_open_resolve`), a name
+    /// of the wrong kind (`shell_open_kind`), a non-positive wall or a
+    /// wall two facing faces cannot both afford, a curved designated
+    /// face (`shell`) — every one of those is the kernel's own typed
+    /// refusal at `evaluate`.
+    #[staticmethod]
+    fn shell(
+        py: Python<'_>,
+        target: &NodeId,
+        thickness: &super::quantity::Length,
+        open: Vec<String>,
+    ) -> PyResult<Self> {
+        let thickness = literal(py, thickness.0.meters(), d::Dimension::Length)?;
+        let open = open
+            .iter()
+            .map(|text| name_from_text(text))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(Self {
+            inner: d::Node::shell(target.0, thickness, open),
+        })
+    }
+
     /// Split a target body by a tool — today a `Node.datum_plane`.
     ///
     /// The value is a SPLIT, not a body: read it with `Value.split()`,
