@@ -78,10 +78,12 @@ arm must agree with `ShellNaming`), `editor-core`'s recipe doors
    closed. Block SHELL-B3 slot 0. Filed by the lane:
    `shell-launders-a-stale-operand-row` (the class is kernel-wide —
    TOPO's `producer-closing-mint-is-a-convention-with-thirteen-copies`).
-4e. **Next: SHELL-10, the doors walk only their scope** —
-   `shell-doors-still-walk-the-whole-body`: the partition, the pcurve
-   pass and the closure check narrowed to the solids a move set
-   names; spec `docs/SHELL-10-SPEC.md`; block SHELL-B3 slot 1. The drum half is TOPO's
+4e. **SHELL-10** — LANDED (PR #2229, 2026-09-08): the partition and
+   the pcurve pass narrowed to the scope; the closure check could not
+   be (tier 1 has no per-shell entry — `doors-still-read-the-whole-body-for-tier1`,
+   with the setters' whole-body postcondition placed for TOPO as
+   `attach-postconditions-validate-the-whole-body-and-panic`). Block
+   SHELL-B3 slot 1. The drum half is TOPO's
    (`work/topo/revert-does-not-mirror-plane-chart-images`); the
    cone-hyperbola refusal is parked on
    `offset-lane-has-no-conic-carrier` (Ev's fork).

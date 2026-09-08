@@ -2,11 +2,12 @@
 id: SHELL-10
 kind: unit
 title: the simultaneous doors walk only their scope — construction, the pcurve pass and the closure check narrowed to the solids a move set names
-status: dispatched
+status: closed
 opened: 2026-09-08
 branch: shell/10-scoped-walks
 refs: [shell-doors-still-walk-the-whole-body, SHELL-8, SHELL-9]
 pr: 2229
+closed: 2026-09-08
 ---
 
 
