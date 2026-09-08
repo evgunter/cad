@@ -43,3 +43,23 @@ with the negated normal) — TOPO's,
 `work/topo/revert-does-not-mirror-plane-chart-images`; the sphere
 fails because `shell` runs no closing pcurve mint after the void
 door's `Transfers` — SHELL-9. This item closes when both have landed.
+
+
+## Sphere half closed (SHELL-9, 2026-09-08)
+
+`shell` / `shell_open` now run the closing pcurve mint
+(`crate::pcurves::mint_pcurves`) once on the assembled body, after
+the last surgery and before `validate_geometric` — the producer's
+half of the void door's `Transfers` posture, as the boolean and the
+revolve already ran it. The two-arc sphere shells to its closed form
+(`shell7_seam_corner::a_two_arc_sphere_shells_to_its_closed_form`:
+cavity `4/3·π(r−t)³ = 3.591364001828733`, thin solid
+`4/3·π(r³ − (r−t)³) = 0.5974262029576595` to `1e-12`, tier-3 valid,
+tessellates); the mint's refusal is typed as `ShellError::Pcurve`.
+The drum half stays open on TOPO's
+`revert-does-not-mirror-plane-chart-images` — the graft's
+re-certification refuses before any pcurve pass runs, so no closing
+mint can reach it — and
+`shell7_seam_corner::a_collinear_cap_vertex_drum_is_taken_by_the_door_and_stops_at_void_insertion`
+keeps refusing `ShellError::Insert` naming that item. This item
+closes when the drum half lands.
