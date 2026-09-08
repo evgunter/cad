@@ -2,9 +2,11 @@
 id: tools-readme-is-unratified-and-owes-a-design-row
 kind: issue
 title: tools/README.md carries clause law six code sites cite and has no ratification
-status: open
+status: closed
 opened: 2026-09-08
-needs_ev: true
+closed: 2026-09-08
+branch: meter/tools-readme-ratification
+pr: 2147
 ---
 
 
@@ -51,3 +53,16 @@ reaches this file is not misled in the meantime.
 
 Disclosed by METER unit 3's fix pass (`D203`), which moved the rule to
 `tools/README.md` and made the citations rot loudly.
+
+## Closed
+
+Ratified. `docs/DESIGN.md` carries the row, reading *"Ratified (Ev,
+2026-09-08)"*, and `tools/README.md`'s own `## Ratification` section
+says the same.
+
+Ev also settled the scope question the ratification surfaced: the page
+is the **reading-boundary** rule, of which cross-column admissions are
+the largest instance, not the cross-column rule. `CC1` and `CC5` are
+now stated over readings generally and `CC2`, `CC3` and `CC4` carry
+explicit per-column scope labels, which is the cost of the broad
+reading and the thing that keeps the page from drifting the other way.
