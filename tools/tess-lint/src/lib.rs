@@ -1810,59 +1810,26 @@ mod tests {
         );
     }
 
-    /// A two-face fixture: one plane (empty NURBS columns), one NURBS
-    /// wall at ordinal 1.
-    ///
-    /// Twinned in `tests/cli_contract.rs`, deliberately: an
-    /// integration test cannot see a `#[cfg(test)]` item, so the two
-    /// cannot share one. Keep them in step.
-    fn csv(tris: usize, span_opt: f64) -> String {
-        format!(
-            "{EXPECTED_HEADER}\n{}\
-             s/b,1,{FIXTURE_NAME},nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,\
-             2e0,3e0,4,1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n",
-            unsized_row(0, "plane", 4)
-        )
-    }
-
-    /// A row on a lane that sizes nothing, at a chosen ordinal and
-    /// chart — enough to move a scene's roster without moving a
-    /// triangle. The empty tail is COUNTED from the header, at the
-    /// column [`IDENTITY_FIRST`] names, so a schema change cannot turn
-    /// these fixtures into short rows that fail for the wrong reason.
-    fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
-        // The HEAD is counted too, and the twin in
-        // `tests/cli_contract.rs` does the same: a column inserted
-        // before [`IDENTITY_FIRST`] moves the tail's start and the two
-        // moves cancel, so the row keeps the header's width in the
-        // count and loses a field in fact.
-        let head = format!("s/b,{face},,{chart},2e-3,{tris}");
-        assert_eq!(
-            head.split(',').count(),
-            IDENTITY_FIRST,
-            "the fixture's head is {} fields and the header's is {IDENTITY_FIRST}: a head \
-             column was added and this row would go in short",
-            head.split(',').count()
-        );
-        let blanks = ",".repeat(EXPECTED_HEADER.split(',').count() - IDENTITY_FIRST);
-        format!("{head}{blanks}\n")
-    }
-
-    /// A `name` token of the shape the tour writes: structural, flat,
-    /// and carrying no `,`. The fixtures use it on the sized row and
-    /// leave the unsized rows unnamed, so both spellings of the column
-    /// — a token and the honest absence — go through [`parse`].
-    const FIXTURE_NAME: &str = "{\"kind\":\"Face\";\"node\":3;\"path\":[\"OutputBody\"]}";
+    // The two-face CSV fixture, with one home: `scene`, `unsized_row`
+    // and the `name` token this module builds rows from are the same
+    // file `tests/cli_contract.rs` mounts, so a column cannot be
+    // transcribed into one side and not the other. A mounted module
+    // and not an `include!`: the file's own header says why.
+    mod csv_fixture;
+    use self::csv_fixture::{FIXTURE_NAME, scene, unsized_row};
 
     #[test]
     fn parses_both_chart_shapes() {
-        let rows = parse(&csv(100, 2.5e1)).unwrap();
+        let rows = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(rows.len(), 2);
         assert!(!rows[0].is_sized(), "a plane row carries no sizing");
-        // `name` is read by no rule, so the only thing that can catch
-        // [`parse`] reading it out of the wrong column is this: the
+        // `name` is read by no rule, so what catches [`parse`] reading
+        // it out of the wrong column is this and nothing else: the
         // header check pins where `name` SITS and says nothing about
-        // where its value lands.
+        // where its value lands. The fixture's own test is the other
+        // reader of the token and not a substitute for this one — it
+        // says the token was WRITTEN at the column the header names,
+        // without ever calling [`parse`]. This is the round trip.
         assert_eq!(
             (rows[0].name.as_str(), rows[1].name.as_str()),
             ("", FIXTURE_NAME),
@@ -1879,7 +1846,7 @@ mod tests {
 
     #[test]
     fn a_renamed_column_is_harness_breakage_not_a_finding() {
-        let drifted = csv(100, 2.5e1).replacen("span_opt_cells", "span_best_cells", 1);
+        let drifted = scene(100, 2.5e1).replacen("span_opt_cells", "span_best_cells", 1);
         let e = parse(&drifted).unwrap_err();
         assert_eq!(e.line, 1);
         assert!(e.text.contains("unexpected header"), "{}", e.text);
@@ -1913,21 +1880,21 @@ mod tests {
 
     #[test]
     fn an_unmoved_sweep_is_clean() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(compare(&base, &base), Report::default());
     }
 
     #[test]
     fn growth_inside_the_tolerance_is_not_a_finding() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(104, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(104, 2.5e1)).unwrap();
         assert_eq!(compare(&base, &fresh), Report::default());
     }
 
     #[test]
     fn triangle_growth_fires() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(200, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(200, 2.5e1)).unwrap();
         // The plane's 4 triangles ride along in the scene total.
         assert_eq!(
             fired(&base, &fresh),
@@ -1942,8 +1909,8 @@ mod tests {
     /// got SMALLER while the sizing schedule got wastefuller.
     #[test]
     fn slack_growth_fires_even_as_the_mesh_shrinks() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(50, 1.0e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(50, 1.0e1)).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![Kind::Slack {
@@ -1956,7 +1923,7 @@ mod tests {
 
     #[test]
     fn a_vanished_scene_is_a_finding_not_an_improvement() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         let fresh = parse(EXPECTED_HEADER).unwrap();
         assert_eq!(
             fired(&base, &fresh),
@@ -1972,7 +1939,7 @@ mod tests {
     #[test]
     fn an_uncovered_scene_is_a_finding_not_a_note() {
         let base = parse(EXPECTED_HEADER).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![Kind::Uncovered { triangles: 104.0 }]
@@ -1986,8 +1953,8 @@ mod tests {
     /// be allowed to bury the first.
     #[test]
     fn an_uncovered_scene_does_not_shadow_a_vanished_one() {
-        let base = parse(&csv(100, 2.5e1).replace("s/b", "gone/gone")).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1).replace("s/b", "gone/gone")).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![
@@ -2003,7 +1970,7 @@ mod tests {
     fn a_sweep_records_the_tree_it_was_cut_from() {
         let text = format!(
             "{CUT_PREFIX} 1a2b3c4d5e6f 2026-08-30T12:00:00+00:00\n{}",
-            csv(100, 2.5e1)
+            scene(100, 2.5e1)
         );
         assert_eq!(
             cut(&text).unwrap(),
@@ -2013,21 +1980,21 @@ mod tests {
             })
         );
         // And the rows behind it parse exactly as they do without one.
-        assert_eq!(parse(&text).unwrap(), parse(&csv(100, 2.5e1)).unwrap());
+        assert_eq!(parse(&text).unwrap(), parse(&scene(100, 2.5e1)).unwrap());
     }
 
     #[test]
     fn a_dirty_cut_says_so_rather_than_reading_as_clean() {
         let text = format!(
             "{CUT_PREFIX} 1a2b3c4d-dirty 2026-08-30\n{}",
-            csv(100, 2.5e1)
+            scene(100, 2.5e1)
         );
         assert_eq!(cut(&text).unwrap().unwrap().commit, "1a2b3c4d-dirty");
     }
 
     #[test]
     fn a_sweep_without_a_cut_line_records_none() {
-        assert_eq!(cut(&csv(100, 2.5e1)).unwrap(), None);
+        assert_eq!(cut(&scene(100, 2.5e1)).unwrap(), None);
     }
 
     /// A provenance line the lint cannot read is the sweep and the
@@ -2053,7 +2020,7 @@ mod tests {
             // Not the prefix at all, deliberately.
             "# swept at 1a2b3c4d5e6f 2026-08-30",
         ] {
-            let text = format!("{bad}\n{}", csv(100, 2.5e1));
+            let text = format!("{bad}\n{}", scene(100, 2.5e1));
             let e = cut(&text).unwrap_err();
             assert_eq!(e.line, 1, "{bad}");
             assert!(parse(&text).is_err(), "parse admitted {bad}");
@@ -2073,14 +2040,21 @@ mod tests {
 
     /// Sizing columns are all-or-nothing: a half-filled row means the
     /// sweep and the lint disagree about the schema.
+    ///
+    /// The row is the fixture with ONE sizing column blanked, not a
+    /// row typed out: a typed row carries the header's width as a
+    /// literal, so a column added to the schema makes it a SHORT row
+    /// and it reds on the field count instead of on the half-filled
+    /// block — right test, wrong reason. Counting from the header is
+    /// what [`unsized_row`] does for the same reason.
     #[test]
     fn a_half_filled_sizing_row_is_harness_breakage() {
-        let bad = format!(
-            "{EXPECTED_HEADER}\n\
-             s/b,1,,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,1e2,,5e1,\
-             2.5e1,1e-4,5e-5,99,2,1,0,3e0\n"
+        const BLANKED: usize = 1;
+        assert_eq!(
+            SIZING_COLUMNS[BLANKED].0, "patch_cells",
+            "the sizing block moved under this test"
         );
-        let e = parse(&bad).unwrap_err();
+        let e = parse(&with_column(BLANKED, "")).unwrap_err();
         assert!(e.text.contains("partially filled"), "{}", e.text);
     }
 
@@ -2101,14 +2075,14 @@ mod tests {
 
     /// [`with_field`] addressed within the sizing block.
     fn with_column(k: usize, value: &str) -> String {
-        with_field(&csv(100, 2.5e1), SIZING_FIRST + k, value)
+        with_field(&scene(100, 2.5e1), SIZING_FIRST + k, value)
     }
 
     /// The shape of the sweep CI actually gates on: `--sizing-only`
     /// resamples nothing, so `worst_dev` is `NaN` and `dev_samples` is
     /// zero.
     fn sizing_only(tris: usize, span_opt: f64) -> Vec<Row> {
-        let text = with_field(&csv(tris, span_opt), SIZING_FIRST + 5, "NaN");
+        let text = with_field(&scene(tris, span_opt), SIZING_FIRST + 5, "NaN");
         let text = with_field(&text, DEV_SAMPLES, "0");
         parse(&text).unwrap()
     }
@@ -2195,7 +2169,7 @@ mod tests {
         for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
             assert_eq!(*name, IDENTITY_MEASURES[k].0, "column {k} of the table");
             for (b, bad) in BAD.iter().enumerate() {
-                let got = parse(&with_field(&csv(100, 2.5e1), IDENTITY_FIRST + k, bad)).is_ok();
+                let got = parse(&with_field(&scene(100, 2.5e1), IDENTITY_FIRST + k, bad)).is_ok();
                 assert_eq!(got, admitted[b], "{name} = {bad}: admitted = {got}");
             }
         }
@@ -2207,8 +2181,8 @@ mod tests {
     /// numbers for this reason; `{:?}` renders the two differently.
     #[test]
     fn a_signed_zero_extent_is_not_a_re_key() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&with_field(&csv(100, 2.5e1), IDENTITY_FIRST, "-0e0")).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&with_field(&scene(100, 2.5e1), IDENTITY_FIRST, "-0e0")).unwrap();
         assert_eq!(fresh[1].nurbs.unwrap().u0, 0.0, "and it parsed as an edge");
         assert!(
             fresh[1].nurbs.unwrap().u0.is_sign_negative(),
@@ -2311,7 +2285,7 @@ mod tests {
         for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
             assert_eq!(*name, INDICATOR_COLUMNS[k].0, "column {k} of the table");
             for (b, bad) in BAD.iter().enumerate() {
-                let got = parse(&with_field(&csv(100, 2.5e1), INDICATOR_FIRST + k, bad)).is_ok();
+                let got = parse(&with_field(&scene(100, 2.5e1), INDICATOR_FIRST + k, bad)).is_ok();
                 assert_eq!(got, admitted[b], "{name} = {bad}: admitted = {got}");
             }
         }
@@ -2335,8 +2309,8 @@ mod tests {
     /// a face that improved.
     #[test]
     fn a_collapsed_denominator_fires_rather_than_passing() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(100, 1.0)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(100, 1.0)).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![Kind::Slack {
@@ -2406,11 +2380,11 @@ mod tests {
     #[test]
     fn a_broken_delta_is_harness_breakage() {
         for bad in ["0e0", "-2e-3", "NaN", "inf"] {
-            let e = parse(&with_field(&csv(100, 2.5e1), DELTA, bad)).unwrap_err();
+            let e = parse(&with_field(&scene(100, 2.5e1), DELTA, bad)).unwrap_err();
             assert!(e.text.contains("delta"), "{bad}: {}", e.text);
             assert!(e.text.contains("tessellation target"), "{bad}: {}", e.text);
         }
-        assert!(parse(&with_field(&csv(100, 2.5e1), DELTA, "2e-3")).is_ok());
+        assert!(parse(&with_field(&scene(100, 2.5e1), DELTA, "2e-3")).is_ok());
     }
 
     /// A resampled face that attained EXACTLY zero deviation spent
@@ -2444,7 +2418,7 @@ mod tests {
     #[test]
     fn the_two_nans_are_told_apart_by_dev_samples() {
         // Resampled 99 triangles, and the answer was NaN.
-        let drift = with_field(&csv(100, 2.5e1), SIZING_FIRST + 5, "NaN");
+        let drift = with_field(&scene(100, 2.5e1), SIZING_FIRST + 5, "NaN");
         let e = parse(&drift).unwrap_err();
         assert_eq!(e.line, 3);
         assert!(e.text.contains("worst_dev"), "{}", e.text);
@@ -2458,7 +2432,7 @@ mod tests {
         // And the third combination is the producer contradicting
         // itself: `mesh::trimmed` writes `worst_dev` only from inside
         // the sample loop, so a reading over zero samples is drift.
-        let e = parse(&with_field(&csv(100, 2.5e1), DEV_SAMPLES, "0")).unwrap_err();
+        let e = parse(&with_field(&scene(100, 2.5e1), DEV_SAMPLES, "0")).unwrap_err();
         assert!(e.text.contains("zero deviation samples"), "{}", e.text);
     }
 
@@ -2469,13 +2443,13 @@ mod tests {
     #[test]
     fn an_unreadable_sample_count_is_harness_breakage() {
         for bad in ["-1", "1e2", "9.5", "NaN"] {
-            let e = parse(&with_field(&csv(100, 2.5e1), DEV_SAMPLES, bad)).unwrap_err();
+            let e = parse(&with_field(&scene(100, 2.5e1), DEV_SAMPLES, bad)).unwrap_err();
             assert!(e.text.contains("dev_samples"), "{bad}: {}", e.text);
         }
         // Blank is the other failure and it is a DIFFERENT one: the
         // sizing block is all-present or all-absent, so an emptied
         // count is a half-filled row, refused one check earlier.
-        let e = parse(&with_field(&csv(100, 2.5e1), DEV_SAMPLES, "")).unwrap_err();
+        let e = parse(&with_field(&scene(100, 2.5e1), DEV_SAMPLES, "")).unwrap_err();
         assert!(e.text.contains("partially filled"), "{}", e.text);
     }
 
@@ -2484,8 +2458,8 @@ mod tests {
     /// clean, so the constant cannot be cut under 1.04.
     #[test]
     fn a_four_percent_scene_is_inside_the_tolerance() {
-        let base = parse(&csv(96, 2.5e1)).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(96, 2.5e1)).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(compare(&base, &fresh), Report::default());
     }
 
@@ -2495,8 +2469,8 @@ mod tests {
     /// the pair leaves a 2-point window to raise it into.
     #[test]
     fn a_six_percent_scene_is_a_finding() {
-        let base = parse(&csv(96, 2.5e1)).unwrap();
-        let fresh = parse(&csv(102, 2.5e1)).unwrap();
+        let base = parse(&scene(96, 2.5e1)).unwrap();
+        let fresh = parse(&scene(102, 2.5e1)).unwrap();
         assert!(
             matches!(fired(&base, &fresh)[..], [Kind::Triangles { .. }]),
             "{:?}",
@@ -2509,8 +2483,8 @@ mod tests {
     /// 26 → 25 is exactly 1.04 and stays clean.
     #[test]
     fn a_four_percent_slack_growth_is_inside_the_tolerance() {
-        let base = parse(&csv(100, 2.6e1)).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.6e1)).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(compare(&base, &fresh), Report::default());
     }
 
@@ -2519,8 +2493,8 @@ mod tests {
     /// split in two: a second threshold with no box would red here.
     #[test]
     fn a_six_percent_slack_growth_is_a_finding() {
-        let base = parse(&csv(100, 2.65e1)).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.65e1)).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert!(
             matches!(fired(&base, &fresh)[..], [Kind::Slack { .. }]),
             "{:?}",
@@ -2533,7 +2507,7 @@ mod tests {
     /// nothing, and the face the slack rule was watching is gone.
     #[test]
     fn a_face_missing_from_a_surviving_scene_is_a_finding() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         let fresh = parse(&format!(
             "{EXPECTED_HEADER}\n{}",
             unsized_row(0, "plane", 4)
@@ -2552,10 +2526,10 @@ mod tests {
     /// has.
     #[test]
     fn a_face_only_the_fresh_sweep_has_is_a_finding() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         let fresh = parse(&format!(
             "{}{}",
-            csv(100, 2.5e1),
+            scene(100, 2.5e1),
             unsized_row(2, "plane", 0)
         ))
         .unwrap();
@@ -2583,7 +2557,7 @@ mod tests {
             ("cap_bands", INDICATOR_FIRST + 1),
             ("snap_bands", INDICATOR_FIRST + 2),
         ] {
-            let e = parse(&with_field(&csv(100, 2.5e1), col, "3e0"))
+            let e = parse(&with_field(&scene(100, 2.5e1), col, "3e0"))
                 .expect_err("a subset cannot outnumber its set");
             assert_eq!(e.line, 3, "{name}: the row that carries it");
             assert!(
@@ -2596,7 +2570,7 @@ mod tests {
             // same constraint — so the refusal is the containment and
             // not a strict inequality smuggled in beside it.
             assert!(
-                parse(&with_field(&csv(100, 2.5e1), col, "2e0")).is_ok(),
+                parse(&with_field(&scene(100, 2.5e1), col, "2e0")).is_ok(),
                 "{name}: every band may be bound"
             );
         }
@@ -2622,7 +2596,7 @@ mod tests {
         // edge is what collapses or inverts it.
         for (hi, axis) in [(IDENTITY_FIRST + 1, "u"), (IDENTITY_FIRST + 3, "v")] {
             for (value, shape) in [("0e0", "collapsed"), ("-1e0", "inverted")] {
-                let e = parse(&with_field(&csv(100, 2.5e1), hi, value))
+                let e = parse(&with_field(&scene(100, 2.5e1), hi, value))
                     .expect_err("a box with no area is not a face");
                 assert_eq!(e.line, 3, "{axis}: {shape} — the row that carries it");
                 assert!(
@@ -2636,7 +2610,7 @@ mod tests {
             // open still parses, so what is refused is the relation
             // and not a per-column policy smuggled in beside it.
             assert!(
-                parse(&with_field(&csv(100, 2.5e1), hi - 1, "5e-1")).is_ok(),
+                parse(&with_field(&scene(100, 2.5e1), hi - 1, "5e-1")).is_ok(),
                 "{axis}: a narrower box is still a face"
             );
         }
@@ -2659,14 +2633,14 @@ mod tests {
             (IDENTITY_FIRST + 4, "5e0", "nu"),
             (IDENTITY_FIRST + 5, "1e1", "nv"),
         ] {
-            let e = parse(&with_field(&csv(100, 2.5e1), col, value))
+            let e = parse(&with_field(&scene(100, 2.5e1), col, value))
                 .expect_err("the product is not the one the row states");
             assert_eq!(e.line, 3, "{moved}: the row that carries it");
             assert!(e.text.starts_with("patch_cells: "), "{moved}: {}", e.text);
         }
         // Either factor may move as long as the product follows: what
         // is pinned is the identity, not the fixture's numbers.
-        let halved = with_field(&csv(100, 2.5e1), IDENTITY_FIRST + 4, "5e0");
+        let halved = with_field(&scene(100, 2.5e1), IDENTITY_FIRST + 4, "5e0");
         assert!(
             parse(&with_field(&halved, PATCH, "1e2")).is_ok(),
             "a 5 x 20 counterfactual costs 100 cells"
@@ -2684,12 +2658,12 @@ mod tests {
     #[test]
     fn the_cheapest_split_never_costs_more_than_the_schedule() {
         const OPT: usize = SIZING_FIRST + 2;
-        let e = parse(&with_field(&csv(100, 2.5e1), OPT, "2.01e2"))
+        let e = parse(&with_field(&scene(100, 2.5e1), OPT, "2.01e2"))
             .expect_err("a minimum cannot exceed the value it was seeded with");
         assert_eq!(e.line, 3);
         assert!(e.text.starts_with("opt_cells: "), "{}", e.text);
         assert!(
-            parse(&with_field(&csv(100, 2.5e1), OPT, "2e2")).is_ok(),
+            parse(&with_field(&scene(100, 2.5e1), OPT, "2e2")).is_ok(),
             "a schedule that is already the cheapest split"
         );
     }
@@ -2724,7 +2698,7 @@ mod tests {
     /// the tag.
     #[test]
     fn an_unsized_chart_carrying_the_sizing_block_is_harness_breakage() {
-        let text = with_field(&csv(100, 2.5e1), CHART, "cylinder");
+        let text = with_field(&scene(100, 2.5e1), CHART, "cylinder");
         let e = parse(&text).unwrap_err();
         assert_eq!(e.line, 3, "the row that carries it");
         assert_eq!(
@@ -2751,7 +2725,7 @@ mod tests {
     fn every_chart_tag_owes_the_sizing_block_or_refuses_it() {
         for tag in CHART_TAGS {
             let sized = SIZED_CHART_TAGS.contains(&tag);
-            let with = with_field(&csv(100, 2.5e1), CHART, tag);
+            let with = with_field(&scene(100, 2.5e1), CHART, tag);
             let without = format!("{EXPECTED_HEADER}\n{}", unsized_row(0, tag, 4));
             assert_eq!(
                 parse(&with).is_ok(),
@@ -2817,9 +2791,9 @@ mod tests {
             ("nu", IDENTITY_FIRST + 4, "9e0", Some("1.8e2")),
             ("nv", IDENTITY_FIRST + 5, "9e0", Some("9e1")),
         ];
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         for (name, col, value, patch) in MOVED {
-            let moved = with_field(&csv(100, 2.5e1), col, value);
+            let moved = with_field(&scene(100, 2.5e1), col, value);
             let moved = match patch {
                 Some(p) => with_field(&moved, SIZING_FIRST + 1, p),
                 None => moved,
@@ -2839,7 +2813,7 @@ mod tests {
         }
         // …and one case pinned with both readings, so the message's
         // evidence is asserted somewhere and not just its shape.
-        let moved = with_field(&csv(100, 2.5e1), IDENTITY_FIRST + 4, "9e0");
+        let moved = with_field(&scene(100, 2.5e1), IDENTITY_FIRST + 4, "9e0");
         let fresh = parse(&with_field(&moved, SIZING_FIRST + 1, "1.8e2")).unwrap();
         assert_eq!(
             fired(&base, &fresh),
@@ -2860,8 +2834,8 @@ mod tests {
     /// would suppress the very comparison this gate exists to make.
     #[test]
     fn a_face_whose_measurements_moved_is_still_the_same_face() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(100, 1.0e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(100, 1.0e1)).unwrap();
         assert!(
             matches!(fired(&base, &fresh)[..], [Kind::Slack { .. }]),
             "{:?}",
@@ -2874,11 +2848,11 @@ mod tests {
     /// recourse is "re-cut", which commits the regression unnamed.
     #[test]
     fn a_re_key_does_not_mask_a_regression_below_it() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         // Face 1 regresses; face 2 is added above it.
         let fresh = parse(&format!(
             "{}{}",
-            csv(100, 1.0e1),
+            scene(100, 1.0e1),
             unsized_row(2, "plane", 0)
         ))
         .unwrap();
@@ -2905,8 +2879,8 @@ mod tests {
     /// ordinal carrying the wall's numbers.
     #[test]
     fn a_shifted_face_above_the_disagreement_is_not_compared() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let shifted = with_field(&csv(100, 1.0e1), 1, "2");
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let shifted = with_field(&scene(100, 1.0e1), 1, "2");
         let fresh = parse(&format!("{}{}", shifted, unsized_row(1, "plane", 0))).unwrap();
         assert_eq!(
             fired(&base, &fresh),
@@ -2924,7 +2898,7 @@ mod tests {
     /// A re-key is a FINDING where it can cost a measurement…
     #[test]
     fn a_re_key_in_a_scene_with_a_sized_face_reds_the_row() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         let fresh = parse(&format!(
             "{EXPECTED_HEADER}\n{}",
             unsized_row(0, "plane", 4)
@@ -2978,7 +2952,7 @@ mod tests {
         ))
         .unwrap();
         // The same 14 triangles, so rule 1 cannot speak for it.
-        let fresh = parse(&csv(10, 2.5e1)).unwrap();
+        let fresh = parse(&scene(10, 2.5e1)).unwrap();
         assert_eq!(noted(&base, &fresh), vec![], "nothing was reported quietly");
         assert_eq!(
             fired(&base, &fresh),
@@ -3000,7 +2974,7 @@ mod tests {
     fn a_repeated_face_row_is_harness_breakage() {
         let e = parse(&format!(
             "{}{}",
-            csv(100, 2.5e1),
+            scene(100, 2.5e1),
             unsized_row(1, "plane", 7)
         ))
         .unwrap_err();
@@ -3028,7 +3002,7 @@ mod tests {
                                plane, cylinder, cone, sphere, torus, nurbs, approx \
                                (sweep drift?)";
         for (text, line) in [
-            (with_field(&csv(100, 2.5e1), CHART, "hessian"), 3),
+            (with_field(&scene(100, 2.5e1), CHART, "hessian"), 3),
             (
                 format!("{EXPECTED_HEADER}\n{}", unsized_row(0, "hessian", 4)),
                 2,
@@ -3065,14 +3039,14 @@ mod tests {
     fn an_unknown_tag_is_refused_for_being_unknown_before_the_pairing() {
         // Unknown tag AND the sized shape the pairing refuses: the
         // roster speaks.
-        let e = parse(&with_field(&csv(100, 2.5e1), CHART, "hessian")).unwrap_err();
+        let e = parse(&with_field(&scene(100, 2.5e1), CHART, "hessian")).unwrap_err();
         assert!(e.text.contains("is not one of"), "{}", e.text);
         // The pairing in turn runs ahead of `face`, which is the first
         // counted column read after it. A row that is both a schema
         // move and an unreadable count is harness breakage either way;
         // the pairing names the schema, which is the fault that
         // explains the other.
-        let text = with_field(&with_field(&csv(100, 2.5e1), CHART, "plane"), 1, "x");
+        let text = with_field(&with_field(&scene(100, 2.5e1), CHART, "plane"), 1, "x");
         let e = parse(&text).unwrap_err();
         assert!(e.text.contains("carries the sizing columns"), "{}", e.text);
     }
