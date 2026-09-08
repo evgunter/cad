@@ -2,10 +2,11 @@
 id: debug-only-bit-witness-callers-are-on-no-row
 kind: issue
 title: Two cfg(debug_assertions) callers of the bit-channel witnesses are in files with no row
-status: review
+status: closed
 opened: 2026-09-06
 branch: gates/bit-witness-callers
 pr: 2069
+closed: 2026-09-06
 ---
 
 
