@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/doors-2
 refs: [pncad-py-seven-doors-lack-field-projection]
+pr: 2228
 ---
 
 
