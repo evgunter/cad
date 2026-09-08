@@ -38,8 +38,8 @@
 
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Vec3};
-use sweep::blend::Convexity;
 use sweep::blend::arms::{BlendArm, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
+use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE};
 
 const EPS: f64 = 1e-12;
 
@@ -555,4 +555,54 @@ fn the_refusal_roster_names_every_arm_and_nothing_else() {
         "the SpineUnsupported roster and the arm table disagree: roster {have:?}, arms \
          {want:?}"
     );
+}
+
+/// **The spine-kind recourse names a family for every arm.**
+/// [`FILLET3_SPINE_KIND_RECOURSE`] states the door's extent as two
+/// FAMILIES — the coaxial rim that mints a torus band and the straight
+/// ruled edge that mints a cylinder band — and leaves the pairs to the
+/// roster the refusal's own payload carries. This row is what makes the
+/// two spellings one door: every fillet arm's band kind maps to a
+/// family, and the sentence has to name that family in so many words,
+/// so an arm whose pair the sentence would not endorse goes red here
+/// rather than reaching a caller who then reads the door as closed.
+///
+/// A THIRD band goes red too, at the map itself: the sentence has two
+/// clauses, so a new family owes it a third.
+#[test]
+fn the_spine_kind_recourse_names_a_family_for_every_arm() {
+    // The family an arm belongs to, read off the band it mints — the
+    // arm table's own spelling, as the roster row above reads the pair
+    // half of the same name — and the phrase the sentence must carry
+    // for that family.
+    let family = |arm: BlendArm| -> &'static str {
+        let band = arm
+            .name()
+            .rsplit_once("\u{2192} ")
+            .expect("every arm's name states the band it mints")
+            .1;
+        match band {
+            "torus" => "two coaxial surfaces of revolution",
+            "cylinder" => "sharing one ruling direction",
+            other => panic!(
+                "the {other} band is a third family; the spine-kind recourse names two, \
+                 and a new one owes it a clause"
+            ),
+        }
+    };
+    for arm in BlendArm::ALL {
+        // The strip is the CHAMFER's arm, refused by its own early
+        // return before any analytic-arm classification, so no caller
+        // reads this sentence about it.
+        if arm == BlendArm::PlanePlaneStrip {
+            continue;
+        }
+        let phrase = family(arm);
+        assert!(
+            FILLET3_SPINE_KIND_RECOURSE.contains(phrase),
+            "the spine-kind recourse must name the family {arm:?} belongs to ({phrase:?}), \
+             or the pair it blends reads as outside the door:\n  \
+             {FILLET3_SPINE_KIND_RECOURSE}"
+        );
+    }
 }

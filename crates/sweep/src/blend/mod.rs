@@ -687,10 +687,8 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// CONDITIONED because the door is.** Any coaxial revolution pair
 /// carves — the plane–cylinder top rim of
 /// `review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`
-/// included, which answers §2 of
-/// `work/fillet/blend-recourses-under-describe-their-doors.md` (§1, the
-/// spine-kind sentence, stays open there) — either with each support
-/// face carrying one arc of the rim, or with ONE face carrying them all.
+/// included — either with each support face carrying one arc of the
+/// rim, or with ONE face carrying them all.
 /// The second is the pole-touching body whose merged cap hosts every arc
 /// on one plane face, and it carves through the annulus band's HOSTLESS
 /// crossing (README A3-2; the surgery's `HostFoot`).
@@ -773,14 +771,25 @@ pub const FILLET3_RING_RECOURSE: &str =
 /// ([`BlendError::ChamferArmUnsupported`]), taken before any
 /// analytic-arm classification.
 ///
-/// **Under-describes its door**, and is filed rather than reworded
-/// here: the refusal's own payload rosters nine more admitted pairs
-/// than the two this names. Following the sentence succeeds, so it is
-/// not a dead recourse — the wording is a door-inventory question.
-/// `work/fillet/blend-recourses-under-describe-their-doors.md`.
-pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms (plane–plane or \
-     plane–sphere); other pairs need the canal-surface approximating blend, which is \
-     not implemented";
+/// **The sentence names the FAMILIES, the payload names the PAIRS, and
+/// a row ties them.** A family is the spine symmetry an arm is derived
+/// from, and the table has exactly two: a rim between two coaxial
+/// surfaces of revolution traces a circular spine and mints a torus
+/// band, and a straight edge between two supports sharing one ruling
+/// traces a line and mints a cylinder band. So the sentence states the
+/// door's extent, and the admitted pairs stay in the one roster
+/// [`battery::arm_roster`] the payload carries when the pair kinds are
+/// the blocker — not in a third copy here.
+/// `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`
+/// is the tie: every fillet arm in [`arms::BlendArm::ALL`] maps by its
+/// band kind to a family this sentence names, so an arm whose band is
+/// neither a torus nor a cylinder goes red there rather than shipping a
+/// sentence that omits the door it opened.
+pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms: a rim between two coaxial \
+     surfaces of revolution, which blends to a torus band, or a straight edge between \
+     two supports sharing one ruling direction, which blends to a cylinder band — where \
+     a pair roster is named above, it lists the admitted pairs of both families. Any \
+     other pair needs the canal-surface approximating blend, which is not implemented";
 /// The recourse for a CHAMFER over a support pair its one arm does not
 /// cover. Its own sentence rather than the fillet's: the chamfer's
 /// missing door is the curved-support strip, not the canal surface,

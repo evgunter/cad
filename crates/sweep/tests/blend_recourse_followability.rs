@@ -519,18 +519,17 @@ fn the_body_recourse_names_a_single_solid_that_builds() {
     );
 }
 
-/// **`FILLET3_SPINE_KIND_RECOURSE` — "a chain whose support pairs have
-/// analytic blend arms (plane–plane or plane–sphere)".**
+/// **`FILLET3_SPINE_KIND_RECOURSE` — "a rim between two coaxial
+/// surfaces of revolution … or a straight edge between two supports
+/// sharing one ruling direction".**
 ///
 /// The spool's outer wall is a torus, whose pairs the arm table does
-/// not carry. The plane–plane chain the sentence names is built here
-/// and carves.
-///
-/// The sentence names a NARROWER set than the table now holds — the
-/// refusal's own payload rosters cylinder and cone pairs too — so
-/// following it succeeds while under-describing the door. That
-/// mismatch is a finding for the door inventory, not a dead recourse,
-/// and is left as measured.
+/// not carry. The sentence names two FAMILIES rather than a pair list,
+/// so the second request is followed ONCE PER FAMILY: the dome's
+/// plane–sphere rim is a rim between two coaxial surfaces of
+/// revolution, the cube's chain is a straight edge between two supports
+/// sharing the ruling they meet along, and both carve. A clause the
+/// door cannot serve would then be red here, whichever clause it is.
 #[test]
 fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
     let s = spool(Revolution::Full, tol());
@@ -550,12 +549,20 @@ fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
     let err = refusal(&s, &torus_edges[..1], 0.05, "a torus-supported edge", false);
     carries(&err, FILLET3_SPINE_KIND_RECOURSE, "spine unsupported");
 
+    let coaxial = dome(1.0, tol());
+    builds(
+        &coaxial,
+        &[closed_plane_sphere_rim(&coaxial, 1.0)],
+        0.1,
+        "a rim between two coaxial surfaces of revolution",
+    );
+
     let boxy = cube(1.0, tol());
     builds(
         &boxy,
         &query::all_edges(&boxy),
         0.1,
-        "a plane–plane chain (the pair the sentence names)",
+        "a straight edge between two supports sharing one ruling",
     );
 }
 

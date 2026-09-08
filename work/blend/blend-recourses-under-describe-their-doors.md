@@ -1,9 +1,10 @@
 ---
 id: blend-recourses-under-describe-their-doors
-kind: issue
+kind: unit
 title: Two blend recourse sentences under-describe the doors they endorse
-status: open
+status: dispatched
 opened: 2026-09-04
+branch: blend/3-spine-recourse
 ---
 
 Neither of these is a DEAD recourse: following either sentence
@@ -70,3 +71,32 @@ Former `refs` `recourse-sentences-owe-followability-pin` named FILLET items now 
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). The open half (§1) is a `blend/mod.rs` recourse-table decision, BLEND's ground.
+
+## Landed
+
+§1 closes on branch `blend/3-spine-recourse`, and with §2 already
+answered the item closes whole.
+
+`FILLET3_SPINE_KIND_RECOURSE` no longer enumerates pairs. It names the
+two FAMILIES the arm table has — a rim between two coaxial surfaces of
+revolution, which blends to a torus band, and a straight edge between
+two supports sharing one ruling direction, which blends to a cylinder
+band — and points the reader at the pair roster the refusal's own
+payload carries (`crates/sweep/src/blend/battery.rs:914`,
+`ARM_ROSTER`). The eleven pairs are therefore still in ONE place: the
+roster, checked against `BlendArm::ALL` by
+`verbs_arms2_arms::the_refusal_roster_names_every_arm_and_nothing_else`.
+That is the decision the item asked for — the sentence POINTS at the
+roster rather than quoting it, so there is no third copy to drift.
+
+The tie the item asked for is
+`crates/sweep/tests/verbs_arms2_arms.rs::the_spine_kind_recourse_names_a_family_for_every_arm`:
+every fillet arm in `BlendArm::ALL` maps by its band kind (the band
+half of `BlendArm::name`) to a family, and the sentence must carry that
+family's phrase. A third band goes red at the map itself, so a family
+added to the table without its clause in the sentence cannot ship.
+
+`blend_recourse_followability::the_spine_kind_recourse_names_an_analytic_pair_that_builds`
+now follows the sentence once per family — the dome's plane–sphere rim
+and the cube's plane–plane chain — instead of following its former
+literal pair list.
