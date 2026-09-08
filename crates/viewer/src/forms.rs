@@ -182,21 +182,16 @@ vocabulary! {
     /// Every verb with the word the chrome shows for it, in the
     /// algebra's own order — the "add step" menu and the row combo's
     /// options, which draw an option per entry and read the word off
-    /// the entry.
+    /// the entry. No row can check this list: the type is `pub(crate)`
+    /// behind the `app` feature, so no integration test sees it — the
+    /// coverage gap #1385 names, and the reason the membership has to
+    /// be held by the projection rather than by a test.
     pub(crate) const ALL;
 
     /// This verb's word, for the one place a verb is asked on its own:
     /// the combo's closed face, which names the verb of the step the
-    /// row is showing. The same literal the list above carries, and a
-    /// verb with no word does not parse — there is no reading of a
-    /// verb that a `?` on somebody's screen could come out of.
-    /// (Whether a verb reaches the MENU is not a question anything has
-    /// to answer either: [`PathVerb::ALL`] is projected from the
-    /// declaration above, so there is no list for a verb to be missing
-    /// from. That matters here because no row could have checked it —
-    /// the type is `pub(crate)` behind the `app` feature, so no
-    /// integration test can see it, which is the coverage gap issue
-    /// #1385 names.)
+    /// row is showing. The same literal the list above carries, so the
+    /// closed face and the options it opens on cannot disagree.
     pub(crate) fn label;
 }
 

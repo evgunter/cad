@@ -942,20 +942,39 @@ the same list as a match, so the closed face of a combo is served
 without a second ordered reading.
 
 **The sweep that produces the population** is a walk of every loop over
-a vocabulary's `ALL` under `src/`, read for what the loop asks each
-entry for. Two ask for the word: `pane::create`'s path-verb combo draws
-an option per verb with that verb's word on it, and `widgets`'
-`arc_fields` picker does the same per mode. So `PathVerb` and `ArcMode`
-are labelled, each also declaring `fn label;` for the combo's closed
-face. `ToolKind` and `Seat` are bare, because under `src/` nothing
-walks their lists at all: a kind's word appears inside a sentence
-`tools` composes, and a seat's inside the refusal sentences `seats` and
-`session::refuse` write — wording read against that discipline rather
-than against a row of buttons. The suites do walk both lists, and walk
-them for the VALUES: `tests/combine_ops.rs` maps kinds to booleans and
-drives one op per seat, where the seat's word reaches only an assertion
-message about the single seat that failed. A walk that would still do
-its job if the words did not exist is not a reader of them.
+a vocabulary's `ALL` — one of the nine declared by `vocabulary!`, so a
+loop over `Theme::ALL` or `pncad`'s `Axis3::ALL` is outside it — read
+for what the loop asks each entry for. It reads `src/` **and**
+`tests/`, because the discriminator is about the words and a word read
+in a suite is still a word read off the table; a sweep scoped to `src/`
+would have nothing to discriminate on the two vocabularies it rules
+bare, and the first tests-only word-walk would arrive unseen.
+
+**Seven of the nine are walked under `src/`, and all seven ask for the
+word.** Each binds `(value, label)` and puts that label on the control
+it draws: `pane::create`'s datum row (`:309`), profile row (`:409`),
+path-verb combo (`:727`), pattern-rule row (`:989`), pattern-output row
+(`:995`) and blend-kind row (`:1093`), and `widgets::arc_fields`' mode
+picker (`:300`). So all seven are LABELLED, and there is no shorter
+account of them than the sweep itself: their words are table data
+because a table walk reads them. `PathVerb` and `ArcMode` additionally
+declare `fn label;` under their `ALL`, for a combo's closed face; the
+other five are never asked for one value's word and carry no accessor.
+
+**`ToolKind` and `Seat` are the remaining two, and are BARE**, because
+no loop under `src/` walks their lists at all: a kind's word appears
+inside a sentence `tools` composes, and a seat's inside the refusal
+sentences `seats` and `session::refuse` write — wording read against
+that discipline rather than against a row of buttons. The suites do
+walk both lists, and walk them for the VALUES: `tests/combine_ops.rs`
+maps kinds to booleans and drives one op per seat, where the seat's
+word reaches only an assertion message about the single seat that
+failed. A walk that would still do its job if the words did not exist
+is not a reader of them. The suites also walk two ALREADY-labelled
+lists for their words (`tests/combine_ops.rs`'s pattern-output row,
+`tests/blend_authoring.rs`' blend-kind row), which confirms the shape
+those two already have rather than deciding it — and is the only thing
+the `tests/` half of the scope has yet had to report.
 
 **Neither shape holds a second ordered list of the words.** A labelled
 vocabulary's `ALL` and its `label` are projected from one list of

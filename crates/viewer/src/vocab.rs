@@ -112,12 +112,23 @@
 /// this".
 ///
 /// A labelled vocabulary whose word is ALSO asked for one value at a
-/// time declares `fn <name>;` under its `ALL`, and gets that accessor
+/// time declares `fn label;` under its `ALL`, and gets that accessor
 /// projected from the same list as a match. **Declaring it is how the
 /// vocabulary asks for it**: a projection nobody asked for would be
 /// dead code in the five labelled vocabularies that never read one,
 /// and an `#[allow(dead_code)]` blanketing all of them would silence
 /// the report that an accessor has lost its last reader.
+///
+/// The name is `label` and the matcher spells it literally, not as a
+/// free parameter. A free one would let each site name the accessor
+/// whatever it liked, and the crate already spells this concept two
+/// ways — `ToolKind::label` and `Seat::name`, hand-written beside
+/// their bare enums. That is this macro's own argument turned on
+/// itself: `vocabulary!` exists because a second hand-written copy of
+/// a list drifts from the first, and an accessor whose name is a
+/// parameter reintroduces the drift one level up, in what the readers
+/// have to call. The VISIBILITY stays free, because it is a fact about
+/// who may read the word rather than a second spelling of anything.
 ///
 /// `N` is counted from the same list, so no count is written down
 /// either.
@@ -164,7 +175,7 @@ macro_rules! vocabulary {
         $avis:vis const $all:ident;
 
         $(#[$fmeta:meta])*
-        $fvis:vis fn $word:ident;
+        $fvis:vis fn label;
     ) => {
         crate::vocab::vocabulary! {
             $(#[$emeta])*
@@ -184,7 +195,7 @@ macro_rules! vocabulary {
             /// (`crates/viewer/src/vocab.rs`): the two readings are
             /// the same tokens, and a variant with no word does not
             /// parse.
-            $fvis const fn $word(self) -> &'static str {
+            $fvis const fn label(self) -> &'static str {
                 match self {
                     $( Self::$variant => $label, )+
                 }

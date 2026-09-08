@@ -31,7 +31,7 @@ a production reader (`crates/viewer/src/pane/create.rs:892`), so it is
 NOT an instance of the reader-count class that
 `tool-kind-all-and-ordinal-have-no-production-reader` was about.
 
-`forms::MATE_PRIMITIVES` (`crates/viewer/src/forms.rs:487`, reader
+`forms::MATE_PRIMITIVES` (`crates/viewer/src/forms.rs:482`, reader
 `pane/create.rs:132,147`) is the same shape one step weaker. It lists
 three of `MatePrimitive`'s four variants
 (`crates/editor-core/src/mate.rs:155`) **on purpose** — `Clocking`
