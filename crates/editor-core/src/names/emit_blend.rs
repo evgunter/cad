@@ -243,10 +243,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
             // arena key — UNLESS the records say that key was retired,
             // in which case the match is not provenance.
             //
-            // Unreachable while the arenas reissue no retired key —
-            // the kernel's statement, at `sweep::blend::naming`'s
-            // module doc, of what `Retired` is for here: a guard that
-            // cannot fire, holding the invariant against that changing.
+            // Unreachable while the arenas reissue no retired key (the
+            // module doc, citing `sweep::blend::naming`).
             None => {
                 let dead = match key {
                     EntityKey::Edge(k) => retired_e.contains(&k),

@@ -2,7 +2,9 @@
 id: emitters-carry-pr-and-unit-archaeology-in-comments
 kind: issue
 title: Two names emitters carry PR/unit archaeology in comments where the invariant should stand alone
-status: open
+status: closed
+closed: 2026-09-08
+pr: 2160
 opened: 2026-09-08
 ---
 
@@ -31,3 +33,10 @@ EVAL's ground carry history where `docs/prompts/implementer-discipline.md`
 Neither is EVAL-3's class (a consumer re-deriving a kernel argument it
 could cite), so neither was edited there; both are one-comment
 rewrites. Citations accurate as of 2026-09-08.
+
+## Closed (2026-09-08, EVAL-3 fix pass, PR 2160)
+
+Fixed in the disclosing PR after its style review judged the file
+heavier than the fix: the two sites named above and a third the
+review added (`emit_topo.rs`'s graft-copies-provenance paragraph,
+which cited an issue number) now state their invariants alone.

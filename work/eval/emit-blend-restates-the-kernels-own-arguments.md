@@ -64,18 +64,11 @@ parked there.
 
 Moved from `work/code-quality/` to `work/eval/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track V; `names/emit_blend.rs` is EVAL's ground.
 
-## Closed
+## Closed (2026-09-08, PR 2160)
 
-PR 2160 (`eval/3-emit-blend-cites`). Both restatements in
-`crates/editor-core/src/names/emit_blend.rs` are citations now: the
-module-doc paragraph and the guard-site comment cite
-`sweep::blend::naming`'s module doc (a rustdoc link in the module doc,
-so a moved home reds the doc build) for "the guard cannot fire while
-the arenas reissue no retired key", and the face arm cites `Retired`'s
-own doc for "no face channel", keeping one line of consumer meaning
-("so a face key here is a real survivor"). The consumer's coverage
-sentence is dropped; the kernel's names both rows. The `wire_blend`
-cross-reference stays (its premise holds at `eval/wire.rs`); its
-parenthetical naming `wire_fillet`/`wire_chamfer`, which no longer
-exist, is gone. Sweep residue filed as
-`emitters-carry-pr-and-unit-archaeology-in-comments`.
+Both restatements are citations of `sweep::blend::naming` (its
+module doc for the reissue conditional, `Retired`'s doc for the
+no-face-channel rule); the consumer's coverage sentence is gone. The
+argument is the PR body's; the review's residue (the mechanism behind
+"no reissue" is stated nowhere on the tree — `topo::Body`'s doc is its
+home) is the orchestrator's log line.
