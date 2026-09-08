@@ -115,6 +115,8 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Enforce => "CheckRefusal",
             ErrorClass::Distribution => "DistributionFault",
             ErrorClass::Measure => "MeasureUnavailable",
+            ErrorClass::MeasureNode => "MeasureNodeFault",
+            ErrorClass::MeasureUnavailableAt => "MeasureUnavailableAt",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
         }
     }
@@ -150,6 +152,8 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Enforce,
         ErrorClass::Distribution,
         ErrorClass::Measure,
+        ErrorClass::MeasureNode,
+        ErrorClass::MeasureUnavailableAt,
         ErrorClass::AnalysisPolicy,
     ] {
         assert_eq!(class.class_name(), expected(class));
@@ -255,6 +259,129 @@ fn analysis_refusal_tags_are_stable() {
         Ok(1.0)
     );
     assert!(AnalysisPolicy::new(0.5).is_ok());
+}
+
+/// LIB-B-MEASURES: the measurement AUTHORING vocabulary, minted from
+/// real kernel values on the default no-interpreter build path.
+///
+/// The four verbs, their fixed dimensions and their ARGUMENT-ordered
+/// reference pairs, taken from the kernel's own `verb`, `dim` and
+/// `refs` rather than restated — so a fifth primitive breaks the
+/// exhaustive matches behind those three and this row goes red on the
+/// vocabulary rather than on a list.
+#[test]
+fn the_measure_verb_vocabulary_is_stable() {
+    use pncad::document::{Dimension, MeasurePrimitive};
+
+    let distance = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let angle = MeasurePrimitive::Angle { a: 2, b: 3 };
+    let clearance = MeasurePrimitive::MinClearance { a: 4, b: 5 };
+    let gap = MeasurePrimitive::Gap { outer: 6, inner: 7 };
+
+    assert_eq!(distance.verb(), "distance");
+    assert_eq!(angle.verb(), "angle");
+    assert_eq!(clearance.verb(), "min_clearance");
+    assert_eq!(gap.verb(), "gap");
+
+    // Three of the four are lengths and exactly one is an angle: the
+    // kind rides the verb, which is what makes an assertion's bound
+    // type-checkable against the measure it constrains.
+    assert_eq!(distance.dim(), Dimension::Length);
+    assert_eq!(clearance.dim(), Dimension::Length);
+    assert_eq!(gap.dim(), Dimension::Length);
+    assert_eq!(angle.dim(), Dimension::Angle);
+
+    // A gap's pair is (outer, inner) and NOT re-sorted — C5's formulas
+    // are asymmetric in the roles, so the order is authored data.
+    assert_eq!(gap.refs(), [6, 7]);
+    assert_eq!(distance.refs(), [0, 1]);
+}
+
+/// LIB-B-MEASURES: the construction door's refusal, from the door.
+///
+/// `Node::measure` is called with an index past the end of the
+/// reference list, so the fault is the kernel's answer rather than a
+/// named variant — the shape `analysis_refusal_tags_are_stable` uses
+/// one family over.
+#[test]
+fn the_measure_node_fault_tag_is_stable() {
+    use crate::tags::measure_node_fault_tag;
+    use pncad::document::{
+        MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, ProfileProgram, RecipeNodeId,
+        SitedRef,
+    };
+    use pncad::prelude::StableName;
+    use pncad::select::{EntityKind, RoleSeg};
+
+    let one_reference = vec![SitedRef::at_mint(StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(0),
+        path: vec![RoleSeg::OutputBody],
+    })];
+    let fault = Node::<ProfileProgram>::measure(
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        one_reference,
+    )
+    .expect_err("reference 1 of a one-reference measure names nothing");
+    assert_eq!(measure_node_fault_tag(&fault), "ref_index_out_of_range");
+    let MeasureNodeFault::RefIndexOutOfRange { verb, index, refs } = fault;
+    assert_eq!((verb, index, refs), ("distance", 1, 1));
+    // The message is prose, which is what `typed_err` asserts on every
+    // raise — pinned here so the Python class's human half is checked
+    // on the build path that has no interpreter.
+    assert!(crate::errors::reads_as_prose(&fault.to_string()));
+}
+
+/// LIB-B-MEASURES: the two refusals the FOURTH verb adds, and the
+/// asymmetry between them.
+///
+/// `MeasureUnavailableAt` is what the `f64` lane answers a
+/// `min_clearance` with, and the binding evaluates at `f64` — so it is
+/// reachable from Python and `tests/test_measures.py` reaches it
+/// through a real document. `MinClearanceRefusal` is the interval
+/// engine's own, and its ONLY producer is
+/// `impl MinClearanceLane for geom_core::Interval`, behind the
+/// `interval` feature; no Python evaluation reaches it at any feature
+/// set, because the lane and not the feature is what gates it. So this
+/// row is where the second one's tag and prose are pinned at all.
+#[test]
+fn the_fourth_verbs_two_refusals_are_stable() {
+    use crate::tags::{measure_unavailable_at_tag, node_error_tag};
+    use pncad::document::{MeasureUnavailableAt, MinClearanceRefusal};
+
+    let absent = MeasureUnavailableAt::NeedsEnclosure {
+        verb: "min_clearance",
+        scalar: "f64",
+        door: "clearance::min_separation",
+    };
+    assert_eq!(measure_unavailable_at_tag(&absent), "needs_enclosure");
+    assert_eq!(absent.verb(), "min_clearance");
+    assert!(crate::errors::reads_as_prose(&absent.to_string()));
+    // The recourse is IN the refusal: it names the door that answers
+    // rather than handing back a worse number.
+    assert!(absent.to_string().contains("clearance::min_separation"));
+
+    let refused = MinClearanceRefusal {
+        class: "SubdivisionBudget",
+        payload: "depth 12".to_string(),
+    };
+    assert_eq!(
+        node_error_tag(&pncad::document::NodeErrorKind::MeasureClearanceRefused(
+            refused.clone()
+        )),
+        "measure_clearance_refused"
+    );
+    assert!(crate::errors::reads_as_prose(&refused.to_string()));
+}
+
+/// LIB-B-MEASURES: an assertion's two directions, and the symbols a
+/// report reads them as.
+#[test]
+fn the_assertion_directions_keep_their_symbols() {
+    use pncad::document::AssertionDir;
+
+    assert_eq!(AssertionDir::AtLeast.symbol(), ">=");
+    assert_eq!(AssertionDir::AtMost.symbol(), "<=");
 }
 
 /// LIB-B-READBACK: the read-back doors' tag map, arm by arm.
@@ -1956,6 +2083,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_table_lacks",
             "mate_under",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "measure_node_fault_tag",
+        values: &["ref_index_out_of_range"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "measure_unavailable_at_tag",
+        values: &["needs_enclosure"],
         delegates: &[],
     },
     TagEntry {

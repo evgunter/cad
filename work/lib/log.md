@@ -3484,3 +3484,76 @@ EVAL's per-node nominal-environment work (`editor-core/src/eval/`,
 its tests) and an AB-LOG row after this head's last merge, none of
 which overlaps the diff, so it landed on that run's green without
 another chase.
+
+**LIB-B-MEASURES MERGED (2026-09-08, #2198; mechanical under the
+08-29 ruling, no A/B row). The authoring half of measurement bound,
+and `FAMILIES` is EMPTY.** Two of the kernel's twenty-three recipe
+node kinds — `Measure` and `Assertion` — had been unconstructible from
+Python for the life of the binding while `Value.measure`/`assertion`
+read them; now `MeasurePrimitive` (`.distance/.angle/.min_clearance/
+.gap`, frozen static constructors reading `verb`/`dimension`/an
+argument-ordered `refs` pair off the kernel's own doors),
+`AssertionDir` (`AtLeast`/`AtMost` with `symbol` — the `BooleanOp`
+MIRROR rather than the brief's constructor-class shape, argued: every
+fieldless kernel enum on this surface is an `eq_int` mirror and the
+spelling buys the exhaustiveness witness
+`_binds_every_kernel_direction`), `MeasureExpr` (the WHOLE arithmetic
+— `primitive/value/add/sub/neg/mul/div/min/max`, `dimension`, a
+pre-order `primitives`; `value` takes an `Expr` from `Doc.parse_expr`,
+the one text door), `Node.measure(expr, refs: list[tuple[NodeId,
+str]])` through the kernel's own `Node::measure` so an index past the
+end refuses where it is written (`MeasureNodeFault`:
+`variant/verb/index/refs`), and `Node.assertion(measure, dir, bound:
+Expr)` — the bound an `Expr` because its dimension is fixed by the
+node it points at, not by a slot address, and so a bound can BE a
+document parameter (re-decidable by an edit; pinned Holds → Violated
+on one `set_doc_param_value`). The gate measured and it is the LANE,
+not a feature: every curated name sits in `pncad/src/document.rs`
+under no `cfg`; `min_clearance` is answered by `MinClearanceLane`,
+whose only `Some` impl is `Interval`, and the binding evaluates at
+`f64` alone — so `MeasureUnavailableAt` (`variant/verb/scalar/door`,
+tag `needs_enclosure`, raised by `Value.measure` in place of
+`EvaluationError`) IS reachable on the default build and
+`MinClearanceRefusal` is reachable at NO feature set; it stays on the
+roster retagged SHAPE with that sentence (a third way off a charter,
+after B-DISTRIBUTIONS's two), and `SitedRef` retagged SHAPE (never
+handed across — both authoring doors take a node and a name). The
+name collision with B-DISTRIBUTIONS's `MeasureUnavailable` resolved by
+keeping the Rust type's own name: neither subclasses the other, the
+two tag functions deliberately not one, the non-subclassing pinned.
+`MeasureExpr`'s arithmetic raises the expression layer's own
+`DimensionError` through `LiteralError` (a shared class WIDENED:
+`LiteralError.value` now `Optional[float]`, the door inventory at four
+doors, the "every kind on this class is a literal-value refusal"
+sentence rewritten because the unit made it false; routing to
+`ErrorClass::Dimension` rejected to keep "never intercepts an
+expression-layer mismatch" true). Five rows leave `NOT_BOUND` under
+rule 1; every remaining `gap:` cites an AUDIT id (`G2`), none the
+census owns. Closed forms re-derived, not transcribed from
+`m10_2_measure.rs`: ±0.30 cylinders measure 0.60, slabs gap +2 in
+both role orders, opposed caps subtend exactly pi, bore/pin gap
+`r_bore - r_pin` across all three C5 regimes, the same vertex name at
+an extrude and its transform exactly the translation apart; a
+`min_clearance` measure evaluates with no value and its assertion
+reports `Unevaluated` naming verb and door; a document carrying both
+saves, loads and `bit_eq`s. Sweeps: every `Node` arm's constructor
+(two absent: `Sweep`, not-this-unit, and the n-ary `Union` with
+`SetMembers` beside it, FILED as
+`n-ary-union-and-set-members-have-no-python-door`); every measurement
+refusal arm with ten reached and three not, each with its reason
+(`measure_malformed` at the EDIT door unreachable by construction,
+its LOAD twin reached; `measure_ref_unreadable` needs the state
+`test_face_frame.py` records as unreachable). `test_north_star.py`'s
+G1-residue paragraph ("an expression goes in through no door at all")
+corrected — narrower, still there. A second site of #694
+(`load-path-stringifies-structured-refusals`, at `Snapshot`) named
+and pinned. Outside the fence, PR body only: a measure authored over
+the product ROOTS takes them (D-3's tip transfer) and `product` then
+refuses `no_body_roots` with no `set_roots` repair — pinned as a row
+whose docstring says it exists to go red with the argument in hand.
+42 new Python tests; the lane ran the pinned ruff for real; no kernel
+crate touched. Orchestrator note: main gained BENCH-PATTERN after
+this head's last merge (`bench_scene.py`, the assembly tests, the
+audit page, tracker files), none overlapping the diff; merged in for
+the log tail alone and landed on run 34225477952's green without
+another chase.
