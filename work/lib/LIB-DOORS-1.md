@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/doors-1
 refs: [pncad-py-seven-doors-lack-field-projection]
+pr: 2227
 ---
 
 The first door under the rule ruled (A) on
