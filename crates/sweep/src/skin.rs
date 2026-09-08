@@ -937,12 +937,23 @@ pub fn loft_geometry(
 ///
 /// ```
 /// use geom_core::{Affine3, Point2, Tol, Vec3};
-/// use profile::RawLoop;
+/// use profile::{Open, Start};
 /// use sweep::{ProfileLoop, Section, loft_parameters};
 ///
 /// let tol = Tol::witness();
+/// // A section is authored through the PATHS lattice, which classifies
+/// // each corner as it is written; the loop it lowers to is the vertex
+/// // table this door consumes.
 /// let quad = |pts: [(f64, f64); 4]| -> Section {
-///     vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)))]
+///     let p = |i: usize| Point2::new(pts[i].0, pts[i].1);
+///     let loop_: ProfileLoop<f64> = Open
+///         .at(p(0))
+///         .line_to(p(1), tol).expect("a definitely-sharp corner")
+///         .line_to(p(2), tol).expect("a definitely-sharp corner")
+///         .line_to(p(3), tol).expect("a definitely-sharp corner")
+///         .line_to(Start, tol).expect("the seam closes")
+///         .into();
+///     vec![loop_]
 /// };
 /// // The corpus's non-uniform prism: square, flared trapezoid,
 /// // square — placed at z = 0, 1, 3.
