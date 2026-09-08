@@ -6,6 +6,11 @@ declares unrepresentable, plus the typed-quantity boundary.
 """
 
 from pncad import (
+    MeasurePrimitive,
+    MeasureExpr,
+    AssertionDir,
+    AnalysisPolicy,
+    analyzed_box,
     ArcSide,
     ChecksConfig,
     Severity,
@@ -13,7 +18,9 @@ from pncad import (
     CancelToken,
     Cmp,
     CurveKind,
+    Distribution,
     Doc,
+    DocParam,
     DocEdit,
     DocRef,
     EntityKind,
@@ -25,11 +32,14 @@ from pncad import (
     NodePick,
     Ray,
     Open,
+    ParamName,
+    PartSelect,
     PatternKind,
     SegPat,
     SegTag,
     Selector,
     SketchPlane,
+    SplitHalf,
     Start,
     SurfaceKind,
     TubeWindow,
@@ -51,6 +61,8 @@ from pncad import (
     evaluate,
     m,
     mm,
+    WrittenAngle,
+    WrittenLength,
     product,
     solve_document,
     split,
@@ -113,6 +125,10 @@ Node.fillet(solid, 1.0, [])  # ty: error
 # names — the twin holds the same two lines.
 Node.chamfer(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, 1 * m, [solid])  # ty: error
+
+# The shell's wall is a Length too, and its open list is names as text.
+Node.shell(solid, 1.0, [])  # ty: error
+Node.shell(solid, 0.01 * m, [solid])  # ty: error
 
 # A tube's radii are Lengths, its window is a `TubeWindow` and never a
 # pair of raw angles, and the hollow kind's WALL IS REQUIRED — the
@@ -206,6 +222,29 @@ Node.placed_union(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  #
 
 # The narrowed count edit takes a ParamName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
+
+# LIB-B-PART. A HALF IS NOT AN INSTANCE, and this is the pair of lines
+# that says so: the two arms of one selector take different types, and
+# neither accepts the other's, so the confusion the kernel refuses at
+# evaluation is refused here at authoring.
+PartSelect.instance(SplitHalf.Above)  # ty: error
+PartSelect.split_half(0)  # ty: error
+
+# The selector is a VALUE with its own type: a bare half is not one,
+# any more than a `Frame` is a `PatternKind`.
+Node.part(solid, SplitHalf.Below)  # ty: error
+
+# An index is an integer — the structural-slot exception — never a
+# dimensioned quantity, and the pattern's count is the same rule.
+PartSelect.instance(2 * m)  # ty: error
+Node.pattern(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  # ty: error
+
+# The instance edit is `bind_count_param`'s sibling, not its keyword
+# argument: the slot is named by the door, so there is no `slot=` to
+# pass. (`name` is whatever a caller has in hand; the keyword is the
+# error, and the second argument is deliberately not.)
+name: ParamName = ParamName("which")
+DocEdit.bind_count_param(solid, name, slot="instance")  # ty: error
 
 # A reference is (identity, pin) in that order and neither is the
 # other's type: an id is the canonical hex TEXT, a pin is a value.
@@ -356,6 +395,11 @@ where: NodeId = evaluate(doc).resolve("a face").node  # ty: error
 # `None` on a resolved verdict, so it is not a `str`.
 reason: str = evaluate(doc).resolve("a face").detail  # ty: error
 
+# `variant` is the ARM under the state, and a resolved verdict has
+# none — so binding it to a bare `str` makes the same claim `node`
+# above does, one vocabulary over.
+arm: str = evaluate(doc).resolve("a face").variant  # ty: error
+
 # `offers` is a list of NAMES — opaque texts — not of parsed
 # structures, and it is `None` where suggestions do not apply.
 rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
@@ -363,6 +407,40 @@ rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
 # The status is a stable tag STRING, not the kind enum: "which of the
 # three states" and "what kind of entity" are different questions.
 tag: EntityKind = evaluate(doc).resolve("a face").status  # ty: error
+
+# The derived sketch frame. The SPIN is an angle, and the typed
+# quantity boundary is what stops a bare number meaning radians by
+# convention — the `place.rs` rule the datum doors are written to: a
+# dimensionless direction crosses as floats, anything with a dimension
+# crosses typed.
+Node.datum_face_frame(solid, "a face", 0.3)  # ty: error
+
+# ...and a LENGTH is not an angle, however plausible the arithmetic
+# looks.
+Node.datum_face_frame(solid, "a face", 1 * m)  # ty: error
+
+# The face is opaque TEXT, never the `NodeId` that minted it — the
+# same confusion the read doors refuse, on the authoring side.
+Node.datum_face_frame(solid, solid, 0 * rad)  # ty: error
+
+# There is no default spin: which way a sketch faces on a face is an
+# authoring decision, and the door does not choose one.
+Node.datum_face_frame(solid, "a face")  # ty: error
+
+# The carrier-kind read answers the `SurfaceKind` enum, not the tag as
+# a string: "which surface variant" is a value to compare, not prose
+# to parse.
+kind_text: str = evaluate(doc).face_carrier_kind(solid, "a face")  # ty: error
+
+# ...and it is node-scoped like the frame doors, so it takes the node
+# the name was minted for. Dropping it is the `resolve` confusion in
+# the other direction.
+evaluate(doc).face_carrier_kind("a face")  # ty: error
+
+# The orientation sense is a BOOL beside the axis, never a signed
+# direction: folding it in is exactly what the field exists to stop.
+pose_here = evaluate(doc).face_frame(solid, "a face")
+signed: tuple[float, float, float] = pose_here.sense  # ty: error
 # The two evaluators are not interchangeable and neither takes text:
 # an expression is a VALUE, built by the document that declares the
 # parameters it references.
@@ -419,3 +497,82 @@ product(doc, evaluate(doc)).validate_pseudomanifold(doc)  # ty: error
 # And it answers nothing. A rung that returned a verdict would be a
 # gate a caller could pass without reading; every rung raises instead.
 verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: error
+
+# `node_kind` reads a document's node BY ID and answers TEXT. Both ends
+# invite the same confusion, because `Node` and `NodeId` are two types
+# one sentence apart: the constructor value is not a handle onto an
+# inserted node, and the word that comes back is not the node.
+doc.node_kind(Node.extrude(solid, 1 * m))  # ty: error
+which: Node = doc.node_kind(solid)  # ty: error
+
+# A structural count is FIXED under any error analysis, so the count
+# constructor takes no annotation — the one `DocParam` door that does
+# not, and the type is what says so rather than a runtime check.
+DocParam.count(4, Distribution.normal(1.0))  # ty: error
+
+# A distribution is a frozen value: an annotation is restated by
+# building a new one, never by editing the one a document handed back.
+Distribution.normal(1 * mm).kind = "band"  # ty: error
+
+# The mass doors are keyed by a `ParamName`, not by its text — the
+# same distinction `Doc.doc_param` draws, and the reason a name is a
+# type here at all.
+analyzed_box(doc).tail_mass("bore_r")  # ty: error
+
+# The policy is the ANALYSIS's knob and takes a bare mass, not a
+# quantity: a share of a distribution's mass is dimensionless.
+AnalysisPolicy(1 * mm)  # ty: error
+
+# Two refusals in one line, and both are the point. A name the
+# document does not declare is not an axis, so `get` answers an
+# OPTION that has to be narrowed; and an axis speaks its parameter's
+# dimension, so its nominal is a quantity rather than a bare float.
+nominal_as_float: float = analyzed_box(doc).get(ParamName("h")).nominal  # ty: error
+# THE MIS-DIMENSIONED WRITTEN VALUE IS UNREPRESENTABLE, not refused.
+# A `WrittenLength` holds a LENGTH unit, so "a length written in
+# degrees" is not a value the type can hold and no door has to refuse
+# one — the illegal state is excluded one layer out, at the table.
+WrittenLength.in_unit(25.0, deg)  # ty: error
+WrittenAngle.in_unit(90.0, mm)  # ty: error
+DocParam.written_length(WrittenAngle.in_unit(90.0, deg))  # ty: error
+
+# The authored pair has NO arithmetic: there is no answer to what
+# notation the sum of a millimetre and an inch is written in. Compute
+# on the `Length` inside instead.
+WrittenLength.in_unit(25.0, mm) + WrittenLength.in_unit(1.0, mm)  # ty: error
+
+# `canonical_in` takes the QUANTITY, not bare canonical metres — the
+# crossing rule this whole boundary follows.
+WrittenLength.canonical_in(0.025, mm)  # ty: error
+
+# A DIRECTION IS NOT A BOUND, and a bound is not a direction. The two
+# sit side by side on `Node.assertion` and the types are what keep the
+# order from being a thing to remember.
+Node.assertion(solid, doc.parse_expr("1 m"), AssertionDir.AtLeast)  # ty: error
+Node.assertion(solid, AssertionDir.AtLeast, AssertionDir.AtMost)  # ty: error
+
+# A MEASURE IS NOT A NODE. The expression is a value the node is built
+# FROM; handing it where an id belongs confuses the two halves the
+# measurement vocabulary keeps apart.
+_span = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
+Node.assertion(_span, AssertionDir.AtLeast, doc.parse_expr("1 m"))  # ty: error
+doc.insert(MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)))  # ty: error
+
+# A PRIMITIVE IS NOT AN EXPRESSION either: the leaf has to be lifted
+# through `MeasureExpr.primitive`, which is where the dimension is
+# read off the verb.
+MeasureExpr.add(MeasurePrimitive.distance(0, 1), _span)  # ty: error
+
+# A reference is a PAIR — the name alone does not say where its
+# carrier is read, which is the half that makes a measure report
+# placed geometry.
+Node.measure(_span, ["a face", "another"])  # ty: error
+
+# The bound takes the expression door and not the quantity one: a
+# typed length cannot be an angle bound, and the whole point of the
+# `Expr` seat is that the dimension is the measure's.
+Node.assertion(solid, AssertionDir.AtLeast, 1 * mm)  # ty: error
+
+# The verb vocabulary is a frozen value: a primitive is restated by
+# building a new one, never by editing one in place.
+MeasurePrimitive.distance(0, 1).verb = "gap"  # ty: error

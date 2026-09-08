@@ -106,7 +106,10 @@ use crate::replace_face::ReplaceFaceError;
 pub struct ChartMove<T: Real> {
     /// The faces wearing the chart. They share one surface key.
     pub faces: Vec<FaceKey>,
-    /// The signed offset along the chart's stored normal.
+    /// The signed offset along the chart's normal AT THESE FACES. On a
+    /// cone's mirror nappe that is the negation of the stored `v > 0`
+    /// field, and the door turns it (`crate::offset_nappe`) before the
+    /// mint sees it.
     pub distance: T,
 }
 

@@ -409,6 +409,51 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             },
         },
     );
+    // The shell's wire shape: an `open` list of face names in
+    // DESIGNATION ORDER (the first named face carries the rim), here
+    // one name — a box's end cap. The box is its own three nodes (a
+    // square on the sketch frame, its extrude, the shell) rather than
+    // a shell of node 2: the shell verb refuses the bulged block's
+    // cylindrical wall at its inward offset (`ReanchorOffCarrier`), a
+    // kernel scope fact this fixture is not the place to argue.
+    // Appended after the tubes for the reason they were appended after
+    // the measurement pair: every existing id and every name the rows
+    // above address is untouched. The wall clears every dimension of
+    // the box by an order of magnitude, so the golden evaluates green.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(desc(
+                plane,
+                vec![vec![(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)]],
+            )),
+        },
+    );
+    let box_profile = *doc.order().last().expect("the square was inserted");
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: box_profile,
+                distance: Expr::literal(0.5, Dimension::Length).expect("finite"),
+            },
+        },
+    );
+    let block = *doc.order().last().expect("the box was inserted");
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::shell(
+                block,
+                Expr::literal(0.0625, Dimension::Length).expect("finite"),
+                vec![StableName {
+                    kind: EntityKind::Face,
+                    node: block,
+                    path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
+                }],
+            ),
+        },
+    );
     // The committed EDIT LOG half: one trailing continuous edit —
     // authored through the TEXT door with a display unit, so the v4
     // wire's per-literal `unit` field is pinned in the FROZEN bytes

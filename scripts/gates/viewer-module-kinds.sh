@@ -454,6 +454,16 @@ gate() {
   # the union is deduplicated on that key — otherwise an exception's
   # site count would depend on which arms fired.
   #
+  # THE KEY IS THE RECORD'S OWN FILE AND LINE, read by `lib.sh`'s
+  # `gate_record_split` (§"THE COLUMNS OF A RECORD"). It used to be `awk
+  # -F: '{ k = $1 ":" $2 }'`, which is the FILE column read as
+  # everything before the first colon — so for a module at `a:b.rs`
+  # every record in the file shared ONE key whatever line it sat on,
+  # and all but the first were DROPPED. The direction is blind: sites
+  # vanish from the count an exception entry is compared against, so a
+  # count reads low, an entry the tree has outgrown reads as still
+  # exact, and the gate goes green over a site nobody argued.
+  #
   # `gate_grep` ON THE FILTER, NOT `|| true` ON THE PIPELINE. With no
   # vocabulary naming anything forbidden — the tree since #1883 hoisted
   # the last two reads — both arms are empty, the blank-line filter
@@ -466,7 +476,9 @@ gate() {
   # the distinction per stage — 1 becomes 0, anything else is diagnosed
   # and marks `GATE_MATCHER_FAILED` so `gate_ok` refuses to print.
   hits=$(printf '%s\n%s\n' "$lines_hits" "$tree_hits" | gate_grep -v '^[[:space:]]*$' |
-    awk -F: '{ k = $1 ":" $2 } !(k in seen) { seen[k] = 1; print }' | sort)
+    gate_record_awk '
+      { k = gate_record_split($0) ? GR_FILE ":" GR_LINE : $0 }
+      !(k in seen) { seen[k] = 1; print }' | sort)
 
   # --- 8. THE EXCEPTIONS, SITE BY SITE -------------------------------
   local found kept exre
@@ -994,6 +1006,24 @@ gate_selftest() {
   gate_selftest_case "has outlived part of its reason" plant_exception_loses_a_site
   gate_selftest_case "$want" plant_exception_file_gains_another_needle
   gate_selftest_case "its doc header does not say so" plant_exception_header_denies_it
+
+  # A COLON-CARRYING PATH, WHOSE TWO SITES ARE TWO SITES. `a:b.rs` is a
+  # legal path here and in git, and the union's dedupe key used to read
+  # the FILE column as everything before the first colon: both records
+  # then shared one key, all but the first were dropped, and the count
+  # read 1 against an entry pinning 2 — so the entry read as having
+  # outlived part of its reason while the site it no longer covered was
+  # sitting in the file. The ENTRY is the whole fixture: the clean
+  # fixture plants an exempted file from its own entry, at its own path,
+  # with exactly the recorded count of sites in it. The second case is
+  # the same path in the other direction, and it is what says the count
+  # is still a count rather than a constant: a THIRD site must red as a
+  # site the exception does not cover, which is a different diagnosis
+  # from the one a collapsed key produces.
+  export GATE_SELFTEST_VOCAB_EXCEPTIONS='a:b.rs|DocSession|2'
+  VOCAB_EXCEPTIONS=('a:b.rs|DocSession|2')
+  gate_selftest_passes "two sites in a path that carries a colon, counted as two" plant_nothing
+  gate_selftest_case "and its recorded exception covers" plant_exception_gains_a_site
   # This one needs no entry: it is a module writing ITSELF a permission,
   # which an empty list must still refuse.
   export GATE_SELFTEST_VOCAB_EXCEPTIONS=''
@@ -1043,7 +1073,7 @@ gate_selftest() {
   gate_selftest_passes "a default-feature dependency (pollster)" \
     plant_names_a_default_feature_dependency
 
-  printf '%s selftest OK: every forbidden name has its own fixture, and the fixture LIST is derived from the same two documents the matcher is — one case per driver type, one per `dep:` in %s'"'"'s `app` feature, and five per driver module path — an ISOLATING fixture for each of the three spellings the matcher has (aliased bare import, `self::`-qualified segment, wrapped use tree, one-line use tree) plus the realistic child path that trips two arms at once, so deleting any one arm turns this self-test red. The clean fixture proves lib.rs and bin/ are excluded on purpose, and four cases leave the gate nothing to decide over — the src tree gone, a tree holding only lib.rs and bin/, every module declaring itself a driver, and a driver roster whose every entry hosts a vocabulary — each of which the gate REFUSES rather than reporting green over an empty set. The exception list is EMPTY since #1883 hoisted the last two reads, so every arm that needs an entry to aim at supplies its own: four over an entry the fixture honours (a SIXTH site, a lost site, a different forbidden name in the same file, a header that denies the exception) and two over one it deliberately does not — an entry naming a file outside the tree and one naming a module the tree writes as a driver, which are the two bounds on the list itself. A seventh, a module writing ITSELF a permission, needs no entry — and every driver-name case above is a vocabulary naming a driver with no exemption in force at all. The README arms fire on a ghost driver row, a demoted driver, either table heading renamed, a ghost vocabulary row, a driver listed as a vocabulary, and the rule text losing a type name; the manifest arm fires when the `app` feature can no longer be read. Prose, string literals, an import under `session::`, an innocent nested use tree and a default-feature dependency stay green; and the gate stays RED, with a diagnosis, when `grep` itself cannot run\n' \
+  printf '%s selftest OK: every forbidden name has its own fixture, and the fixture LIST is derived from the same two documents the matcher is — one case per driver type, one per `dep:` in %s'"'"'s `app` feature, and five per driver module path — an ISOLATING fixture for each of the three spellings the matcher has (aliased bare import, `self::`-qualified segment, wrapped use tree, one-line use tree) plus the realistic child path that trips two arms at once, so deleting any one arm turns this self-test red. The clean fixture proves lib.rs and bin/ are excluded on purpose, and four cases leave the gate nothing to decide over — the src tree gone, a tree holding only lib.rs and bin/, every module declaring itself a driver, and a driver roster whose every entry hosts a vocabulary — each of which the gate REFUSES rather than reporting green over an empty set. The exception list is EMPTY since #1883 hoisted the last two reads, so every arm that needs an entry to aim at supplies its own: four over an entry the fixture honours (a SIXTH site, a lost site, a different forbidden name in the same file, a header that denies the exception), two more over an entry whose path CARRIES A COLON — its two sites counted as two, and a third one red — and two over one it deliberately does not — an entry naming a file outside the tree and one naming a module the tree writes as a driver, which are the two bounds on the list itself. A seventh, a module writing ITSELF a permission, needs no entry — and every driver-name case above is a vocabulary naming a driver with no exemption in force at all. The README arms fire on a ghost driver row, a demoted driver, either table heading renamed, a ghost vocabulary row, a driver listed as a vocabulary, and the rule text losing a type name; the manifest arm fires when the `app` feature can no longer be read. Prose, string literals, an import under `session::`, an innocent nested use tree and a default-feature dependency stay green; and the gate stays RED, with a diagnosis, when `grep` itself cannot run\n' \
     "$(gate_name)" "$MANIFEST"
 }
 

@@ -2,7 +2,7 @@ id: 7ddec231df0049f879136a2f7624647d
 {
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
-    "next_id": 13,
+    "next_id": 16,
     "nodes": {
       "0": {
         "Datum": {
@@ -991,6 +991,133 @@ id: 7ddec231df0049f879136a2f7624647d
             }
           }
         }
+      },
+      "13": {
+        "Profile": {
+          "plane": 0,
+          "loops": [
+            {
+              "Chain": [
+                {
+                  "At": [
+                    {
+                      "Literal": {
+                        "value": 3.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "value": 0.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 4.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 4.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 3.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": "Start"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "14": {
+        "Extrude": {
+          "profile": 13,
+          "distance": {
+            "Literal": {
+              "value": 0.5,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        }
+      },
+      "15": {
+        "Shell": {
+          "target": 14,
+          "thickness": {
+            "Literal": {
+              "value": 0.0625,
+              "dim": "Length",
+              "unit": "m"
+            }
+          },
+          "open": [
+            {
+              "kind": "Face",
+              "node": 14,
+              "path": [
+                {
+                  "Cap": "End"
+                }
+              ]
+            }
+          ]
+        }
       }
     },
     "order": [
@@ -1006,7 +1133,10 @@ id: 7ddec231df0049f879136a2f7624647d
       9,
       10,
       11,
-      12
+      12,
+      13,
+      14,
+      15
     ],
     "roots": [
       9,
@@ -1014,7 +1144,8 @@ id: 7ddec231df0049f879136a2f7624647d
       4,
       7,
       11,
-      12
+      12,
+      15
     ],
     "placements": {},
     "params": {

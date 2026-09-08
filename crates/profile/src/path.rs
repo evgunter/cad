@@ -1097,6 +1097,21 @@ pub enum PathError<T: Real> {
         /// The refused split count.
         n: usize,
     },
+    /// A polygon authored from fewer than three vertices: a closed
+    /// chain of straight legs needs three corners before it bounds
+    /// anything, and two or fewer name a segment, a point or nothing
+    /// at all. The recourse is to author the missing vertices. A
+    /// structural check, not a classified one: `given` is a count,
+    /// never a measured value.
+    ///
+    /// The count precondition belongs to a whole-table polygon door
+    /// (`pncad::authoring::polygon`), which spells the table through
+    /// this lattice; the lattice's own verbs take one vertex at a
+    /// time and have no count to gate.
+    PolygonTooFewVertices {
+        /// The number of vertices given.
+        given: usize,
+    },
     /// A director spelled as components named no direction: the norm of
     /// `(dx, dy)` is within ε_input of zero
     /// ([`PartialPath::toward`]). Only the components' ratio is read,
@@ -1251,6 +1266,8 @@ pub enum PathErrorKind {
     CircleSplitCount,
     /// [`PathError::ArcSplitCount`].
     ArcSplitCount,
+    /// [`PathError::PolygonTooFewVertices`].
+    PolygonTooFewVertices,
     /// [`PathError::ZeroDirection`].
     ZeroDirection,
     /// [`PathError::ArcViaCollinear`].
@@ -1299,6 +1316,7 @@ impl<T: Real> PathError<T> {
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
             Self::ArcSplitCount { .. } => PathErrorKind::ArcSplitCount,
+            Self::PolygonTooFewVertices { .. } => PathErrorKind::PolygonTooFewVertices,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
             Self::ArcViaCollinear { .. } => PathErrorKind::ArcViaCollinear,
             Self::DegenerateArcChord { .. } => PathErrorKind::DegenerateArcChord,
@@ -1536,6 +1554,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "circle_split needs at least 2 arcs (got n = {n}): a single vertex cannot \
                  carry a full turn (bulge diverges), so the smallest subdivision of a \
                  closed carrier is two arcs"
+            ),
+            Self::PolygonTooFewVertices { given } => write!(
+                f,
+                "a polygon needs at least 3 vertices (got {given}): a closed chain of \
+                 straight legs bounds nothing with fewer corners — author the missing \
+                 vertices"
             ),
             Self::ArcSplitCount { n } => write!(
                 f,

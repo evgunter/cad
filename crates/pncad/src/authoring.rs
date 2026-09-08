@@ -9,11 +9,12 @@
 //! This module is that seam and nothing more. Every function here
 //! takes plain `f64` literals and embeds them with [`Real::from_f64`]
 //! — an *exact* embedding for every implementor, so nothing here can
-//! change a number. Five of the six are one kernel constructor call;
-//! [`validated`] is the two-call `Profile::new` + `Profile::validate`
-//! pair. There is no arithmetic, no defaulting, and no panicking:
-//! `validated` returns the kernel's own `Result` with the kernel's own
-//! error.
+//! change a number. Five of the seven are one kernel constructor
+//! call; the other two are the seam's fallible pair — [`validated`]
+//! is `Profile::new` + `Profile::validate`, and [`polygon`] is the
+//! lattice chain a coordinate table lowers to. There is no
+//! arithmetic, no defaulting, and no panicking: both return the
+//! kernel's own `Result` with the kernel's own error.
 //!
 //! Before this seam existed, the demo corpus carried six
 //! near-identical `p2` helpers and four `validated` wrappers, one per
@@ -35,7 +36,9 @@
 //! same source still instantiates at `f64` for a normal build and at a
 //! telemetry or interval scalar for a certified one.
 
-use ::profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
+use ::profile::{
+    Open, PathError, Profile, ProfileError, ProfileLoop, SketchPlane, Start, ValidatedProfile,
+};
 use geom_core::Tol;
 use geom_core::{Decide, Point2, Point3, Real, Vec2, Vec3};
 
@@ -112,20 +115,71 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
     Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
 }
 
-// REMOVED: the f64-first
-// `polygon(&[(f64, f64)]) -> ProfileLoop` door. It minted a raw vertex
-// table — zero bulges, no declared joints, no junction classification —
-// which is exactly the public authoring tier that is demoted. The
-// straight-segment table is said through the PATHS lattice instead
-// (`Open.at(p0)`, a `line_to` per vertex, `line_to(Start)` as the
-// seam), which refuses a within-band-tangent or cusped corner AT
-// AUTHORING rather than at validate. The tour's `paths::path_polygon`
-// is that spelling, fail-loud for demo code.
-//
-// A façade-level lattice-backed `polygon` is a reasonable future door,
-// but it must be fallible, and the sub-two-vertex case has no honest
-// `PathError` today; minting a lattice refusal variant is vocabulary
-// change, fenced out of this unit.
+/// A closed polygon from a coordinate table, authored through the
+/// PATHS lattice.
+///
+/// `Open.at(p0)`, a [`line_to`](crate::prelude::PartialPath::line_to) per subsequent
+/// vertex, and `line_to(Start)` as the sharp seam — the whole table
+/// said as the lattice says it, so every corner is CLASSIFIED at
+/// authoring. What that buys, and why this door is fallible where a
+/// raw vertex table would not be:
+///
+/// - A corner whose departure lies within ε_input of the incoming
+///   tangent, or of its reverse, refuses here
+///   ([`PathError::JunctionTangent`], [`PathError::JunctionCusp`]) —
+///   including at the seam, whose two junction checks run with both
+///   directions known. A raw table cannot refuse: it carries no
+///   junction, so the same geometry reaches
+///   [`validate`](Profile::validate) as a loop that has
+///   already been minted, and the refusal arrives a tier later and
+///   further from the coordinates that caused it.
+/// - Fewer than three vertices refuses
+///   ([`PathError::PolygonTooFewVertices`]): a closed chain of
+///   straight legs bounds nothing with fewer corners.
+///
+/// The emitted [`ProfileLoop`] is the authored table verbatim —
+/// every point in order, bulge 0, no declared joints. The lattice
+/// changes what is CHECKED, not what is minted.
+///
+/// Fails loud: the typed [`PathError`] is returned unchanged. A
+/// demo may `.expect()` it — a library must not.
+///
+/// ```
+/// use geom_core::Tol;
+/// use pncad::prelude::*;
+///
+/// let tol = Tol::witness();
+/// let square: ProfileLoop<f64> =
+///     polygon(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], tol)?;
+/// assert_eq!(square.vertices().len(), 4);
+/// assert!(square.tangent_joints().is_empty());
+///
+/// // Three corners is the minimum a closed chain of straight legs
+/// // can bound anything with.
+/// let two = polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0)], tol);
+/// assert!(matches!(
+///     two,
+///     Err(PathError::PolygonTooFewVertices { given: 2 })
+/// ));
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+pub fn polygon<T: Decide>(points: &[(f64, f64)], tol: Tol) -> Result<ProfileLoop<T>, PathError<T>> {
+    let too_few = || PathError::PolygonTooFewVertices {
+        given: points.len(),
+    };
+    let [first, second, third, rest @ ..] = points else {
+        return Err(too_few());
+    };
+    let at = |&(x, y): &(f64, f64)| Point2::new(T::from_f64(x), T::from_f64(y));
+    let mut tip = Open
+        .at(at(first))
+        .line_to(at(second), tol)?
+        .line_to(at(third), tol)?;
+    for q in rest {
+        tip = tip.line_to(at(q), tol)?;
+    }
+    Ok(tip.line_to(Start, tol)?.into())
+}
 
 /// Validates a profile at the ambient tolerance — the authoring
 /// ladder's first rung.

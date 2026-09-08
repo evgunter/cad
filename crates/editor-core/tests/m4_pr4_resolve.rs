@@ -901,7 +901,10 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::BandFoot(x)
         | RoleSeg::BandCross(x)
         | RoleSeg::BandCut(x)
-        | RoleSeg::BandSlit(x) => under(x),
+        | RoleSeg::BandSlit(x)
+        | RoleSeg::Inner(x)
+        | RoleSeg::Rim(x)
+        | RoleSeg::HoleRim { of: x, .. } => under(x),
         // Two.
         RoleSeg::Seam { a: x, b: y }
         | RoleSeg::TrimEdge {

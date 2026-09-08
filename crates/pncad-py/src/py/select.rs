@@ -140,6 +140,10 @@ pub(crate) enum SegTag {
     BandCross,
     BandCut,
     BandSlit,
+    // Shell
+    Inner,
+    Rim,
+    HoleRim,
     // Pattern
     Instance,
     // Instantiate part
@@ -188,6 +192,9 @@ impl SegTag {
             Self::BandCross => s::SegTag::BandCross,
             Self::BandCut => s::SegTag::BandCut,
             Self::BandSlit => s::SegTag::BandSlit,
+            Self::Inner => s::SegTag::Inner,
+            Self::Rim => s::SegTag::Rim,
+            Self::HoleRim => s::SegTag::HoleRim,
             Self::Instance => s::SegTag::Instance,
             Self::InPart => s::SegTag::InPart,
         }
@@ -210,6 +217,7 @@ pub(crate) enum OpGroup {
     Fillet,
     Pattern,
     InstantiatePart,
+    Shell,
 }
 
 impl OpGroup {
@@ -223,6 +231,7 @@ impl OpGroup {
             Self::Fillet => s::OpGroup::Fillet,
             Self::Pattern => s::OpGroup::Pattern,
             Self::InstantiatePart => s::OpGroup::InstantiatePart,
+            Self::Shell => s::OpGroup::Shell,
         }
     }
 }
@@ -266,6 +275,21 @@ pub(crate) enum SplitHalf {
     Below,
 }
 
+impl SplitHalf {
+    /// The kernel half this mirrors.
+    ///
+    /// ONE mapping, two callers: the side vocabulary a selector
+    /// pattern takes, and the projection `PartSelect.split_half`
+    /// authors. A second copy would be a second answer to "which half
+    /// is Above".
+    pub(crate) fn to_kernel(self) -> s::SplitHalf {
+        match self {
+            Self::Above => s::SplitHalf::Above,
+            Self::Below => s::SplitHalf::Below,
+        }
+    }
+}
+
 /// Which support of a rim blend.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
@@ -304,8 +328,7 @@ impl SideArg {
             Self::Meridian(MeridianEnd::End) => s::Side::Meridian(s::MeridianEnd::End),
             Self::Meridian(MeridianEnd::Seam) => s::Side::Meridian(s::MeridianEnd::Seam),
             Self::Meridian(MeridianEnd::Pi) => s::Side::Meridian(s::MeridianEnd::Pi),
-            Self::Split(SplitHalf::Above) => s::Side::Split(s::SplitHalf::Above),
-            Self::Split(SplitHalf::Below) => s::Side::Split(s::SplitHalf::Below),
+            Self::Split(half) => s::Side::Split(half.to_kernel()),
             Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
             Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }
@@ -354,6 +377,25 @@ pub(crate) enum SurfaceKind {
     Torus,
     Nurbs,
     Approx,
+}
+
+/// Crossing helper: the kernel kind as the Python mirror.
+///
+/// Exhaustive over the KERNEL enum with no wildcard arm, so a kernel
+/// kind this file does not mirror stops the build — the direction the
+/// tripwire module at the foot of this file asserts for every other
+/// mirrored enum, and which this one asserts by being called, exactly
+/// as [`entity_kind`] does.
+pub(crate) fn surface_kind(kind: KSurfaceKind) -> SurfaceKind {
+    match kind {
+        KSurfaceKind::Plane => SurfaceKind::Plane,
+        KSurfaceKind::Cylinder => SurfaceKind::Cylinder,
+        KSurfaceKind::Cone => SurfaceKind::Cone,
+        KSurfaceKind::Sphere => SurfaceKind::Sphere,
+        KSurfaceKind::Torus => SurfaceKind::Torus,
+        KSurfaceKind::Nurbs => SurfaceKind::Nurbs,
+        KSurfaceKind::Approx => SurfaceKind::Approx,
+    }
 }
 
 impl SurfaceKind {
@@ -789,12 +831,12 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
 )]
 mod growth_tripwire {
     use super::{
-        CapEnd, Cmp, CurveKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg,
-        SplitHalf, SurfaceKind, s,
+        CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, SplitHalf, s,
     };
 
-    // `EntityKind`'s tripwire is `super::entity_kind`, which is the
-    // same exhaustive match with a caller — a mirror that CROSSES
+    // `EntityKind`'s and `SurfaceKind`'s tripwires are
+    // `super::entity_kind` and `super::surface_kind`, which are the
+    // same exhaustive matches with a caller — a mirror that CROSSES
     // needs no dead twin to assert what the crossing already asserts.
 
     fn seg_tag(k: s::SegTag) -> SegTag {
@@ -838,6 +880,9 @@ mod growth_tripwire {
             s::SegTag::BandCross => SegTag::BandCross,
             s::SegTag::BandCut => SegTag::BandCut,
             s::SegTag::BandSlit => SegTag::BandSlit,
+            s::SegTag::Inner => SegTag::Inner,
+            s::SegTag::Rim => SegTag::Rim,
+            s::SegTag::HoleRim => SegTag::HoleRim,
             s::SegTag::Instance => SegTag::Instance,
             s::SegTag::InPart => SegTag::InPart,
         }
@@ -853,6 +898,7 @@ mod growth_tripwire {
             s::OpGroup::Fillet => OpGroup::Fillet,
             s::OpGroup::Pattern => OpGroup::Pattern,
             s::OpGroup::InstantiatePart => OpGroup::InstantiatePart,
+            s::OpGroup::Shell => OpGroup::Shell,
         }
     }
 
@@ -877,18 +923,6 @@ mod growth_tripwire {
             s::CurveKind::Circle => CurveKind::Circle,
             s::CurveKind::Ellipse => CurveKind::Ellipse,
             s::CurveKind::Nurbs => CurveKind::Nurbs,
-        }
-    }
-
-    fn surface_kind(k: KSurfaceKind) -> SurfaceKind {
-        match k {
-            KSurfaceKind::Plane => SurfaceKind::Plane,
-            KSurfaceKind::Cylinder => SurfaceKind::Cylinder,
-            KSurfaceKind::Cone => SurfaceKind::Cone,
-            KSurfaceKind::Sphere => SurfaceKind::Sphere,
-            KSurfaceKind::Torus => SurfaceKind::Torus,
-            KSurfaceKind::Nurbs => SurfaceKind::Nurbs,
-            KSurfaceKind::Approx => SurfaceKind::Approx,
         }
     }
 

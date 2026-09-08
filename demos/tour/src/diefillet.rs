@@ -644,7 +644,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("diefillet", [0.80, 0.72, 0.55], blank)],
+            bodies: vec![
+                SceneBody::plain("diefillet", [0.80, 0.72, 0.55], blank).named(&ev, die.blank),
+            ],
         },
         Stop {
             name: "diepips",
@@ -672,7 +674,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped)],
+            bodies: vec![
+                SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped).named(&ev, die.pipped),
+            ],
         },
         Stop {
             name: "diecomposed",
@@ -703,11 +707,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain(
-                "diecomposed",
-                [0.85, 0.63, 0.46],
-                composed,
-            )],
+            bodies: vec![
+                SceneBody::plain("diecomposed", [0.85, 0.63, 0.46], composed)
+                    .named(&ev, die.composed),
+            ],
         },
     ]
 }
