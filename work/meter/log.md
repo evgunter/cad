@@ -447,3 +447,160 @@ here; `C15` and `D201` restated it too and are corrected. `D213`'s
 close is rewritten to lead with the argument that carries it — a
 property of `parse` and `first_disagreement`, no kernel content — with
 the mesh chain demoted to what it is actually for.
+
+## Unit 3 — `D203`, the cross-column rule (2026-09-08)
+
+The rule gets one home: `tools/tess-lint/README.md`, clauses
+`CC1`–`CC5`, cited by path from `k-lint`'s `Admissible` and from the
+band check in `lint_csv`, and by clause from four sites in
+`tess-lint`. First `tools/*/README.md` in the tree; the precedent is
+`scripts/gates/README.md` — a design page beside the code it governs,
+where the governed code is not one crate.
+
+**The unit was briefed with two instances and the sweep found seven.**
+The lane pairing unit 1 landed four commits earlier is a genuine third
+— checked against the merged source, not assumed: `parse`, harness
+voice, two columns `Admissible` polices singly, and a comment already
+calling itself *"the second cross-column rule"*. The others: the
+all-or-none sizing tail, `worst_dev` against `dev_samples`, `k-lint`'s
+`Margin` against `outcome` (which resolves a cross-column invariant by
+WIDENING the table's signature rather than checking beside it, and is
+the reason `CC2` exists as a separate clause), and `Extent`'s trim-box
+non-degeneracy, which is checked nowhere because `span_opt_cells`'
+geometric floor already refuses every violating row.
+
+`cap_bands` / `snap_bands` against `bands` was the one instance
+closable from the consumer's side and is now refused at `parse`. The
+report prints those counts `of {bands}`, so an unrefused one reached
+the reader as a reading. Mutation-checked in both directions: red with
+the guard removed, red with `>` widened to `>=`.
+
+`CC5` is the clause that did the most work in the sweep — an admission
+refuses what the producer could not have written, never what the
+instrument exists to measure. `grid_cells` against `span_opt_cells`
+has exactly the shape of an invariant and is the `split` ratio the
+report is for; the committed baseline carries rows on both sides of
+it.
+
+Filed: `tess-lint-zero-certificate-two-meanings` — `worst_cert = 0`
+has two meanings in `mesh::budget` and one in `Admissible::Certificate`,
+and the discriminant the kernel names is `0` on every row of the
+`--sizing-only` sweep CI gates on. Producer-side fix, outside `D203`'s
+fence.
+
+### Unit 3, fix pass (2026-09-08)
+
+**`CC4` was false and the style review broke it by construction.** It
+claimed the trim box's non-degeneracy was a property *"no row
+surviving the per-column table can violate"*. Reproduced: a row with
+`u0 = u1 = 0e0` beside `span_opt_cells = 2.5e1` parses, and the
+collapsed box reaches rule 4's `identity` as the face-identity reading
+`["nurbs", "0.0", "0.0", "0.0", "1.0", …]`. The true criterion was "no
+row THIS PRODUCER writes can violate" — producer-correctness, which is
+the one thing the instrument exists not to assume and which
+`tess-meter`'s own header says outright.
+
+The clause is not rewritten as a conditional exemption; it is
+**inverted**. `CC4` now says there is no fourth disposition: a
+producer-side entailment is not one, because the boundary cannot see
+the producer's code. `Extent` moves to `CC3` and is checked. That
+disposes of the cross-crate entailment nobody could invalidate, and of
+the exemption that was facing the wrong way.
+
+**The page moved to `tools/README.md`.** The cited precedent
+(`scripts/gates/README.md`) is a DIRECTORY page, the rule's subject is
+two instruments, and hosting a shared rule inside one of its two
+consumers is the drift shape. `tools/tess-lint/README.md` held nothing
+else and is deleted; eight citations across the two crates now name
+the new path. The `CC3` instance roster is deleted with it — each site
+cites the clause where it stands, and a census on a clause page rots.
+
+**Citations rot loudly now.** Each citing crate `include_str!`s the
+page (a moved page stops both crates compiling) and asserts that every
+clause id it cites is a heading there and that the page carries no
+clause it has not seen (a `CC6` reds both). Negation-checked in all
+three directions.
+
+**Two more instances by the unit's own criterion**, both checked at
+`parse` in the harness voice: `patch_cells = nu · nv`, stated in
+`tess_meter::columns` and in the header and printed by the report; and
+`opt_cells ≤ patch_cells`, since `best_split_scan` seeds its running
+minimum with the same whole-patch schedule. The blanket "optimality
+relations are the report's subject" that swept the second one out had
+been verified only for `grid_cells`/`span_opt_cells`; it does not
+generalise, and the distinction is now written into `CC5`. Both are
+exact on all 64 sized rows of the committed baseline, `opt_cells`
+equal on six of them.
+
+**Three claims corrected.** `CC1` no longer says the row type is the
+contract past the boundary — `tess_lint::Row` says the opposite at
+itself, and `k-lint` has no row type at all and exports `lint_sample`
+over raw scalars its own tests call with hand-written bands.
+`tess-meter`'s "diagnostics no rule reads" is retired: the consumers
+arrived. And `tess-lint-zero-certificate-two-meanings` rested on a
+false premise — the gate reads TWO CSVs through the same `parse`, and
+`dev_samples` is 2464–201096 on all 64 sized rows of the committed
+baseline, so the discriminant is live on that side.
+
+**The page is unratified and now says so.** Six code sites cite
+`CC1`–`CC5` as clause law and `docs/DESIGN.md`'s companion table
+carries no row for the page. The criterion for such a row is Ev's
+ratification, not a program close: `scripts/gates/README.md`'s row
+landed in the commit recording Ev's ratification while `work/gates`
+was still open. No row is added here.
+
+## Unit 4 — the cut line's two halves, pinned (2026-09-08)
+
+`cut-prefix-three-unpinned-spellings` closed on `meter/cut-prefix-pin`.
+`tools/tess-lint/tests/cut_line_pin.rs` reads
+`scripts/tess_budget_cut.sh` as text and holds its three spellings of
+the prefix to `CUT_PREFIX`, each located separately so each reds
+alone.
+
+**The finding was the shape, and it had moved under the filing.**
+`split_cut` grew a shape check between the filing and the lane, so the
+open question became whether the two constraints are the SAME. They
+were not: this crate admitted uppercase hex, an over-long object name
+and arbitrary whitespace after the prefix — three spellings
+`tess_budget_cut.sh` cannot emit and its `CUT_RE` does not match. The
+asymmetry costs in one direction only, and it is the bad one: the
+script's already-stamped arm would not recognise such a line, so it
+re-stamps a file that already carries a cut. `split_cut` is tightened
+to the script's language and a truth table now runs both readings
+side by side, the script's own regex extracted from its text and run
+by `grep -E`. Cited to `tess_lint::Report`, whose test decides both
+that a check is owed and that its voice is the harness voice;
+`tools/README.md`'s `CC1`–`CC5` were cited at first and are not any
+more, since they are stated over cross-column admissions and hand the
+general test back to `Report` themselves. The separate finding about
+that page's scope stands and is with Ev on #2147.
+
+**The fix pass, same PR.** Two assertions that could not fail went:
+the containment `!(reads && !recognises)` read the table's own
+constants rather than the computed answers, and a coverage predicate
+over the const table was subsumed by the per-row asserts. The
+containment now runs on the computed pair and runs FIRST, so a real
+inversion reds with what it costs rather than with a table mismatch.
+The stem sweep was narrowed to EXECUTABLE spellings — a comment line
+is skipped, proved by a decoy fixture — because
+`scripts/tess_budget_cut.sh` is CIW's and an ordinary sentence there
+was reddening a suite in a cargo root outside the workspace, with a
+message naming neither the rule nor the fix; every failure the sweep
+can produce now carries both. The floor moved from `>= 4` over five
+mentions to `>= 4` over exactly four executable ones.
+
+**Residue, filed on CIW's slate** (the fixes are edits to
+`scripts/tess_budget_cut.sh`, so they go where the owner will see them
+rather than waiting on this program's pre-close sweep):
+`cut-regex-unanchored-admits-a-line-the-lint-refuses`, `CUT_RE`
+lacking an end anchor, pinned meanwhile as the one row of the truth
+table where the two halves disagree; and
+`cut-script-header-claims-no-cross-language-gate-exists`, the script
+header sentence this unit falsified. On METER's own slate,
+`baseline-census-partition-assert-cannot-fail` — the second and only
+other `tools/` instance of the cannot-fail assertion class.
+
+**Left, deliberately:** `cut-line-commit-names-no-baseline-change`.
+Same seam, different defect, and its substance is what the verdict
+PRINTS rather than what the parser admits. A doc-only rider would
+half-close it.

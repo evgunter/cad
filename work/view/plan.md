@@ -131,8 +131,8 @@ should be visible on its own.
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
 | `view/censuses` (seven censuses in four hats, and an eighth) | #2103 | style + fix pass |
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
-| `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass |
-| `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass |
+| `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass — **merged** |
+| `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass — **merged** |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -243,6 +243,26 @@ word proof and overwrote four files of those exact names that another
 lane had left there. Nothing was lost that mattered, and the collision
 is silent by construction — a lane cannot tell whether a scratchpad
 file is its own. Dispatches carry a per-lane prefix now.
+
+**Asserted-somewhere is not asserted-here, and only a MUTATION tells
+them apart.** #2148 shipped a test file whose stated job was to hold
+seven renderings to their spellings. Its reviewer did not read the file
+and agree — it changed one rendering and ran the suite, which stayed
+green. Six were held; the seventh was asserted nowhere, because the row
+covering it pinned the field's absent arm. The counterpart to #2103's
+*rendered-and-unasserted is not unrendered*: there the compiler
+answered, here only a perturbation could, and in both cases reading the
+code would have confirmed the wrong thing.
+
+**An item's own menu of options is a claim like any other.** Both of
+2026-09-08's forks went to Ev with the tree re-read rather than the
+item summarised, and in both the re-derivation moved the question
+before he ruled: `finish-marker` offered three candidates and the tree
+held a cheaper fourth already in use one impl away; `bare-vocabularies`
+framed all-four-or-none and the readers gave two. An item is written at
+a moment and reasons from the tree of that moment; costing its options
+against the tree of today is what a fork costs, and skipping it is how
+a ruling gets made on a question nobody still has.
 
 **A count fixed in ONE place contradicts itself, which is worse than
 one uniformly stale.** #2148 re-derived `1,779` to `1,780` at

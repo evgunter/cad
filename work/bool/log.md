@@ -368,3 +368,8 @@ them is `crates/profile/src/lift.rs` (BOOL-9's; BOOL-10 reports, never
 edits) and the lattice verb files (BOOL-10's). Arms from block BOOL-B3
 per the private draw file, quoted before the arms were named. Ordinals
 claim at review dispatch.
+
+(BLEND orchestrator, 2026-09-08) Seam announced and executed on PR
+2122: two "raised"-for-translated words in `crates/sweep/src/loft.rs`
+(`:7`, `:454`) reworded to sweep-relative verbs — the twin-sentence
+edit `work/blend/program.md`'s `keep_out` names; no code moved.
