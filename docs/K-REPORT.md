@@ -2355,29 +2355,33 @@ continued by more arithmetic. The M2-era instrument's own population
 beside the linted CSV) reads 17 494 samples over 112 names at this tip,
 of which 24 are `props_meridian_pole`, all `zero`.
 
-### These figures have no mechanical guard, and here is the one that should exist
+### What guards these figures, and what still has none
 
 Everything in this section is a dated reading of a moving quantity
 (#651). Two of the readings are load-bearing in executable pins the
 text cites (`cert1_sphere_polar.rs` for the fold arm,
 `rim_dim_scale_twins.rs` for the chord and the two-population shape),
-and the gate verdict is re-taken on every `k-lint (gate)` run. **The
-era claim is not covered by either**, and it is the one claim here that
-something computes with: `tools/k-lint`'s four shipped constants are
+and the gate verdict is re-taken on every `k-lint (gate)` run.
+
+**The era claim is covered too, and it is the one claim here that
+something computes with**: `tools/k-lint`'s four shipped constants are
 re-derived against `M7` on every gate run, so if M7 ever stopped being
 the right era the gate would go on re-deriving against the wrong one
-silently.
-
-That claim is guardable and cheaply. It rests on three `f64`s in the
-committed `.gz`, extractable in one `awk` pass, and
-`threshold_provenance.rs` already opens exactly these files through
-`gzip -dc`:
+silently. `tools/k-lint/tests/threshold_provenance.rs`'s
+`the_m7_era_still_carries_the_witnesses_the_report_names` reads the
+three `f64`s that decision rests on straight out of the committed
+`.gz`, at every ε row, with the witness NAME beside each value — a
+floor that stayed at 4.79652e-5 under a different name is a moved
+distribution wearing the old number:
 
 | quantity | witness | value |
 | --- | --- | --: |
 | definite-side floor (excluding the ε-coupled family) | `volume_backstop` | 4.79652e-5 |
 | ε-coupled ratio, binding row (1e-9) | `props_quad_converged` | 164.674 |
 | zero-side ceiling in the ambient band | `pm_census_ee_span` | 5.32907e-15 |
+
+The same three by hand, since the row asserts them and does not print
+them:
 
 ```sh
 gzip -dc docs/k-report-data/m7-eps-1e-9.csv.gz | awk -F, '
@@ -2392,14 +2396,27 @@ gzip -dc docs/k-report-data/m7-eps-1e-9.csv.gz | awk -F, '
 (`$4+0` is not decoration: `mawk` compares the string `5e-324` as
 `>= 1e-13` unless it is coerced, which silently drops the tie-break
 family into the ambient population and returns 5.55112e-17 as the
-floor.)
+floor. The Rust reader parses before it compares and cannot take that
+branch; `the_ambient_side_is_chosen_by_the_parsed_band_not_its_spelling`
+runs the selection both ways over the committed rows and pins what each
+returns, so the trap is exhibited rather than described.)
 
-A row asserting those three against the era `threshold_provenance.rs`
-names would go red the moment the era claim went false, and it belongs
-beside that test rather than here. `tools/k-lint/*` is outside this
-unit's fence, so it is filed with the values and the extraction:
-`work/meter/k-report-era-witnesses-have-no-guard.md`. Until it lands,
-these figures are dated to `c39a904e` and nothing re-takes them.
+**What that row does not say, since it is the half a reader will take
+the wrong way.** It reads the committed files, which
+`docs/k-report-data/README.md` rule 1 freezes, so it says the values M7
+carries are the values this report names — never that M7 is still the
+era that SHOULD be shipping. Whether a new one is owed is decided by a
+fresh sweep measured against those files, and that comparison is
+nobody's gate (rule 2 of the same page): a distribution that moved
+under a corpus the row never opens leaves it green. The measurement
+this section reports IS that comparison, taken by hand at `c39a904e`.
+
+**The rest of this section has no guard and gets none here.** The
+281-name census, the 15% corpus growth and the M2-era instrument's
+17 494 samples are readings of a tip that moves, and nothing re-takes
+them; they are dated to `c39a904e` and are stale the moment something
+merges. The committed side of the census pair — the M7 snapshot's 233 —
+is the exception, re-counted off the frozen files by the same row.
 
 **Nothing above re-cuts a committed row and nothing above rewrites a
 dated figure.** The M2-era, M4, M5 and M7 numbers in this report
