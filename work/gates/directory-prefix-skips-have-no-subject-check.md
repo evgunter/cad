@@ -190,10 +190,10 @@ the check could take, one cost each:
     a second source of truth to keep in step with the scan, where the
     other two are one line each.
 
-**The question:** is a convention-class exemption — one naming a
-construction rather than a place — exempt from the subject check the
-rest of this class now carries, or must it name a resident and red on a
-tree that has none?
+**The question:** does a convention-class exemption — one matching by a
+construction rather than naming a place — owe the subject check the rest
+of this class now carries, and if so which of the three shapes above is
+its subject?
 
 Asked of Ev in the `[ev]` PR named in `blocked_on`. This row stays open
 on this half.
