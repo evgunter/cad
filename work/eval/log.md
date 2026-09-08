@@ -698,3 +698,33 @@ narrowed — `loft::end_profile` both lifts AND re-validates an exact
 lift (this unit's class one crate over, **for BLEND/S-BOOL
 ((S-BOOL orchestrator))**), and two test copies of the raw lift
 remain.
+
+## EVAL-9 reviews adjudicated; fix pass dispatched (2026-09-08)
+
+Correctness: the probe's red-on-base established by a knockout of the
+one nominal word (the item's exact numbers), the box arithmetic read
+(`point(0.0) + [-0.25, 0.25]` and `point(0.5) + [-0.75, -0.25]` are
+the same exact interval), every memo row green in both builds, the
+sweep complete; no MAJOR. Two corrections it adds: the bijection
+table is a determinism check (0-merged by construction, 0-split on a
+box-free corpus) and the "adds no information at f64/`Dual64`" claim
+rests on the environment construction in code; and "at f64 the bits
+ARE the nominal" holds only under no box or a zero box — a degenerate
+offset box (`Varying{lo: c, hi: c}`, accepted by `f64::axis`) shifts
+the lane off the nominal, the base had that hole at f64 too, and the
+uniform feed closes it there as well. Style: five MAJOR-class, upheld.
+**Ruling on the shape:** the ninth `eval_node` argument defended by a
+paragraph committed after the code is the rationalization shape; the
+nominal environment rides `LaneEnv` beside `params` (the carrier the
+lane's own residue file names), the nominal slot values come through
+the same `eval_slots` door as the lane values, and a refusing nominal
+fails the node typed as every other nominal reader does — the
+`REFUSED` word retires and a row reaches the typed refusal under an
+offset box. `program::NONE`'s retirement is recorded by a census row
+(the first retirement inside a `tag_groups!` group). The rule keeps
+one home at `tag::slot` with its exceptions stated there. **To DOCM
+((DOCM orchestrator))**: `memo.rs`'s header defines the key without
+the nominal and is now incomplete; untouched by EVAL. **For the exit
+walk / Ev**: `docs/DESIGN.md`'s list of the content key's inputs
+(~1071) needs the nominal added — a DESIGN revision, carried to the
+`[ev]` PR.
