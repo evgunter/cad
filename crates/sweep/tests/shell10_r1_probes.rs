@@ -9,7 +9,9 @@
 use geom_core::{Point3, Vec3};
 use topo::{Body, FaceKey, HalfEdgeKey, SolidKey};
 
-use crate::shell8_common::{band, beside, cap, deep_dump, faces_of, outer_and_void_of, tol, volume};
+use crate::shell8_common::{
+    band, beside, cap, deep_dump, faces_of, outer_and_void_of, tol, volume,
+};
 use crate::verbs_shell::{boxy, vessel};
 
 fn y() -> Vec3<f64> {
@@ -122,7 +124,9 @@ fn r1_e2e_box_beside_a_hollow_vessel_opened_on_its_void_ceiling() {
     );
 
     let t0 = 0.1;
-    let hollow = topo::shell(&pair, t0, tol()).expect("both solids hollow").body;
+    let hollow = topo::shell(&pair, t0, tol())
+        .expect("both solids hollow")
+        .body;
     let want = (24.0 - 1.8 * 2.8 * 3.8) + (pi * 2.0 - pi * 0.9 * 0.9 * 1.8);
     println!("[r1e2e-a] hollow volume {} want {want}", volume(&hollow));
     assert!(
@@ -136,10 +140,12 @@ fn r1_e2e_box_beside_a_hollow_vessel_opened_on_its_void_ceiling() {
         .iter()
         .copied()
         .find(|s| {
-            faces_of(&hollow, *s)
-                .iter()
-                .any(|f| !matches!(hollow.get_surface(hollow.get_face(*f).unwrap().surface),
-                    Some(geom::Surface::Plane { .. })))
+            faces_of(&hollow, *s).iter().any(|f| {
+                !matches!(
+                    hollow.get_surface(hollow.get_face(*f).unwrap().surface),
+                    Some(geom::Surface::Plane { .. })
+                )
+            })
         })
         .expect("the vessel is the curved solid");
     let bx = *solids.iter().find(|s| **s != ves).expect("the box");
@@ -194,7 +200,10 @@ fn r1_e2e_four_solids_hollowed_then_one_opened() {
     let t = 0.2;
     let hollow = topo::shell(&four, t, tol()).expect("all four hollow").body;
     let want = 4.0 * (8.0 - 1.6 * 1.6 * 1.6);
-    println!("[r1e2e-b] four-solid hollow {} want {want}", volume(&hollow));
+    println!(
+        "[r1e2e-b] four-solid hollow {} want {want}",
+        volume(&hollow)
+    );
     assert!((volume(&hollow) - want).abs() < 1e-9, "closed form, x4");
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()));
 
