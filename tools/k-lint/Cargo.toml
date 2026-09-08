@@ -24,4 +24,8 @@ publish = false
 # crate, so nothing ships with the feature on.
 [dev-dependencies]
 geom-core = { path = "../../crates/geom-core", features = ["probe"] }
-profile = { path = "../../crates/profile", features = ["probe"] }
+# `test-support` ON: `profile::RawLoop` — the vertex-table fixture door
+# this crate's rows build their loops with — is gated behind it (the
+# trait's own docs carry the argument). Off by default and named only
+# here, so no shipped build of this crate can mint a table.
+profile = { path = "../../crates/profile", features = ["probe", "test-support"] }

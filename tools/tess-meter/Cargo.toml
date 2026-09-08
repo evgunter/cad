@@ -35,6 +35,10 @@ topo = { path = "../../crates/topo" }
 [dev-dependencies]
 mesh = { path = "../../crates/mesh", features = ["budget"] }
 geom-core = { path = "../../crates/geom-core" }
-profile = { path = "../../crates/profile" }
+# `test-support` ON: `profile::RawLoop` — the vertex-table fixture door
+# this crate's rows build their loops with — is gated behind it (the
+# trait's own docs carry the argument). Off by default and named only
+# here, so no shipped build of this crate can mint a table.
+profile = { path = "../../crates/profile", features = ["test-support"] }
 sweep = { path = "../../crates/sweep" }
 test-utils = { path = "../../crates/test-utils" }

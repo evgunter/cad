@@ -30,7 +30,7 @@
 //! the offset, and the bulge sign pins the orientation parity (which
 //! positions alone cannot decide at n = 2 — see `derive_naming`).
 
-use profile::{Profile, ProfileLoop, RawLoop, ValidatedProfile};
+use profile::{Profile, ProfileLoop, ValidatedProfile};
 
 use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName};
 
@@ -279,27 +279,7 @@ pub(crate) fn embed_affine<T: geom_core::Real>(
 /// embedding the parameter environment uses).
 pub fn embed_profile<T: geom_core::Real>(p: &Profile<f64>) -> Profile<T> {
     let placement = embed_affine::<T>(&p.plane.placement);
-    let loops = p
-        .loops
-        .iter()
-        .map(|lp| {
-            ProfileLoop::new(
-                lp.vertices()
-                    .iter()
-                    .map(|vx| {
-                        profile::ProfileVertex::new(
-                            geom_core::Point2::new(
-                                T::from_f64(vx.pos().x),
-                                T::from_f64(vx.pos().y),
-                            ),
-                            T::from_f64(vx.bulge()),
-                        )
-                    })
-                    .collect(),
-            )
-            .with_tangent_joints(lp.tangent_joints().to_vec())
-        })
-        .collect();
+    let loops = p.loops.iter().map(ProfileLoop::embed::<T>).collect();
     Profile::new(profile::SketchPlane::new(placement), loops)
 }
 

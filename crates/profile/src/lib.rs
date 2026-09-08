@@ -177,10 +177,10 @@ impl<T: Real> ProfileVertex<T> {
     /// this door is unconditional and every field reads back, exactly
     /// as for [`Point2`]. Privacy here buys representation freedom, not
     /// mint-prevention. The funnel claim is about LOOPS: outside this
-    /// crate a [`ProfileLoop`] cannot be spelled from a vertex table,
-    /// because the only raw loop door is [`RawLoop`] and that trait is
-    /// off the presented surface. A caller holding a bag of vertices
-    /// has nothing to put them in.
+    /// crate a [`ProfileLoop`] cannot be spelled from a vertex table:
+    /// the lattice's emission layer and [`ProfileLoop::embed`] are the
+    /// only doors a shipped build has, and neither takes one. A caller
+    /// holding a bag of vertices has nothing to put them in.
     pub fn new(pos: Point2<T>, bulge: T) -> Self {
         Self { pos, bulge }
     }
@@ -205,16 +205,25 @@ impl<T: Real> ProfileVertex<T> {
 /// Plain data — conventions are carried by data (D2), and nothing is
 /// checked at construction: [`Profile::validate`] is the gate.
 ///
+/// **A cache, not an authoring form.** The vertex table is what an
+/// intensional recipe evaluates INTO — the same recipe→geometry seam
+/// the kernel draws everywhere else — so nothing authors one by
+/// writing coordinates down. Three doors mint a loop and there is no
+/// fourth: the [`path`] lattice's emission layer (the authoring door,
+/// and the only one on the presented surface), [`ProfileLoop::embed`]
+/// (the materialization door: a table that already exists, crossed
+/// into another scalar), and [`RawLoop`] (fixtures, behind
+/// `#[cfg(any(test, feature = "test-support"))]` and absent from every
+/// shipped build).
+///
 /// **Sealed at the crate boundary.** The fields are private and read
 /// back through [`vertices`](Self::vertices) /
-/// [`tangent_joints`](Self::tangent_joints), so outside this crate the
-/// only compilable route to a loop is a door: the [`path`] lattice (the
-/// presented channel) or [`RawLoop`] (kernel vocabulary, omitted from
-/// the façade). Naming the type, reading it, and matching on error
-/// payloads all still work; spelling one from a vertex table does not.
-/// The seal is a CRATE boundary, not a module one — `crates/profile`'s
-/// own internals construct loops directly and stay on the sealed-verbs
-/// discipline instead.
+/// [`tangent_joints`](Self::tangent_joints), so outside this crate
+/// there is no route around those three. Naming the type, reading it,
+/// and matching on error payloads all still work; spelling one from a
+/// vertex table does not. The seal is a CRATE boundary, not a module
+/// one — `crates/profile`'s own internals construct loops directly and
+/// stay on the sealed-verbs discipline instead.
 ///
 /// A doctest is a separate crate, so these two blocks are the seal
 /// executed at the boundary it claims. A struct literal is a PRIVACY
@@ -228,20 +237,25 @@ impl<T: Real> ProfileVertex<T> {
 /// };
 /// ```
 ///
-/// The doors compile, in the same position:
+/// The authoring door compiles, in the same position — and it is the
+/// lattice, which classifies each junction as it is authored rather
+/// than accepting the table and waiting for [`Profile::validate`]:
 ///
 /// ```
-/// use geom_core::Point2;
-/// use profile::{ProfileLoop, RawLoop};
+/// use geom_core::{Point2, Tol};
+/// use profile::{Open, ProfileLoop, Start};
 ///
-/// let square: ProfileLoop<f64> = RawLoop::polygon([
-///     Point2::new(0.0, 0.0),
-///     Point2::new(1.0, 0.0),
-///     Point2::new(1.0, 1.0),
-///     Point2::new(0.0, 1.0),
-/// ]);
+/// let tol = Tol::witness();
+/// let square: ProfileLoop<f64> = Open
+///     .at(Point2::new(0.0, 0.0))
+///     .line_to(Point2::new(1.0, 0.0), tol)?
+///     .line_to(Point2::new(1.0, 1.0), tol)?
+///     .line_to(Point2::new(0.0, 1.0), tol)?
+///     .line_to(Start, tol)?
+///     .into();
 /// assert_eq!(square.vertices().len(), 4);
 /// assert!(square.tangent_joints().is_empty());
+/// # Ok::<(), profile::PathError<f64>>(())
 /// ```
 #[derive(Clone, Debug)]
 pub struct ProfileLoop<T: Real> {
@@ -253,73 +267,147 @@ pub struct ProfileLoop<T: Real> {
     tangent_joints: Vec<usize>,
 }
 
-/// The raw loop-minting doors — **kernel vocabulary, off the presented
-/// surface** (Ev's ruling on #413, executed by LIB-RETTAIL).
-///
-/// The invariant this trait exists to hold: a caller who can NAME
-/// [`ProfileLoop`] cannot thereby MINT one from a vertex table. Inherent
-/// methods travel with their type, so as long as `new`/`polygon` were
-/// inherent, every surface that made the type nameable — and the type
-/// must stay nameable, since read-back, error payloads and
-/// [`ValidatedLoop`] all hand one back — re-exported the authoring tier
-/// with it. Trait methods travel with the TRAIT instead: the façade's
-/// curated `pncad::profile` module omits `RawLoop`, and a downstream
-/// caller who never imports it has no `ProfileLoop::polygon` in scope.
-///
-/// Authoring goes through [`path`] (the PATHS lattice), which classifies
-/// junctions at authoring time and declares tangency by construction.
-/// This trait is what the kernel's own crates and their fixtures use to
-/// spell a vertex table directly.
-///
-/// The seal is what makes that invariant total: [`ProfileLoop`]'s
-/// fields are private, so outside this crate there is no struct-literal
-/// route around the trait — a downstream `ProfileLoop { .. }` does not
-/// compile (E0451, under test).
-pub trait RawLoop<T: Real>: Sized {
-    /// Builds a loop from a vertex chain, with no declared-tangent
-    /// joints — add them with [`with_tangent_joints`](Self::with_tangent_joints),
-    /// or author the loop through [`path`], which declares by
-    /// construction.
-    fn new(vertices: Vec<ProfileVertex<T>>) -> Self;
+mod raw_loop {
+    use super::{Point2, ProfileLoop, ProfileVertex, Real};
 
-    /// Builds a loop of straight segments through the given points (all
-    /// bulges zero) — polygon sugar.
-    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self;
-
-    /// The same loop with its **declared-tangent joints** set to the
-    /// given vertex indices (see
-    /// [`ProfileLoop::tangent_joints`](ProfileLoop::tangent_joints) for
-    /// what a declaration means and how validation verifies it).
+    /// The raw loop-minting door — **a dev-only fixture door**, absent
+    /// from every shipped build (Ev's Q1 ruling half (ii), in-chat
+    /// 2026-09-01).
     ///
-    /// Declaring by hand is the explicit hand-authoring/persistence
-    /// form; `.fillet(r)` on the [`path`] lattice declares by
-    /// construction and is the authoring path.
-    fn with_tangent_joints(self, tangent_joints: Vec<usize>) -> Self;
-}
+    /// A [`ProfileLoop`] is a CACHE: the materialized form an
+    /// intensional recipe evaluates into, like the kernel's other
+    /// recipe→geometry seams. Nothing AUTHORS one from a vertex table.
+    /// A loop comes to exist in exactly three ways, and this trait is
+    /// the third:
+    ///
+    /// 1. **The lattice's emission layer** — the [`path`](crate::path)
+    ///    verbs lower an authored chain, classifying every junction and
+    ///    declaring every tangency by construction. This is the
+    ///    authoring door, and the only one on the presented surface.
+    /// 2. **The materialization doors** — a table that already exists,
+    ///    re-materialized. [`ProfileLoop::embed`] is the whole
+    ///    population: the exact `f64 → T` embedding an evaluation
+    ///    scalar needs.
+    /// 3. **This trait**, for FIXTURES: the vertex tables a data-gate
+    ///    refusal row needs and the lattice must not be able to author
+    ///    — an out-of-range `tangent_joints` index, an undeclared exact
+    ///    tangency, a self-touching loop. It is gated
+    ///    `#[cfg(any(test, feature = "test-support"))]`, the
+    ///    `sweep::test_support` precedent's own gate, turned on only
+    ///    from `[dev-dependencies]`. Neither arm is satisfied by
+    ///    `cargo build [--release]`, so a shipped build of any
+    ///    downstream crate cannot name it and therefore cannot mint a
+    ///    table — the compile error is the enforcement.
+    ///
+    /// Why a trait rather than inherent methods, still: inherent
+    /// methods travel with their type, and the type must stay nameable
+    /// (read-back, error payloads and [`ValidatedLoop`](crate::ValidatedLoop)
+    /// all hand one back). Trait methods travel with the TRAIT, so
+    /// gating the trait gates the authoring tier without touching the
+    /// type.
+    ///
+    /// The seal is what makes the door total: [`ProfileLoop`]'s fields
+    /// are private, so outside this crate there is no struct-literal
+    /// route around it — a downstream `ProfileLoop { .. }` does not
+    /// compile (E0451, under test).
+    // Under the narrow arm this door is shut, so both allows name that
+    // arm and nothing else. `pub` is right for the arm the door OPENS
+    // in and unreachable from the root under the other, which is the
+    // cfg-gated-facade shape the workspace `unreachable_pub` comment
+    // describes; and the crate's own emission layer calls `new` while
+    // nothing calls the other two, which is what a fixture door looks
+    // like when no fixture is being built — not a corpse.
+    #[cfg_attr(
+        not(any(test, feature = "test-support")),
+        allow(dead_code, unreachable_pub)
+    )]
+    pub trait RawLoop<T: Real>: Sized {
+        /// Builds a loop from a vertex chain, with no declared-tangent
+        /// joints — add them with
+        /// [`with_tangent_joints`](Self::with_tangent_joints).
+        fn new(vertices: Vec<ProfileVertex<T>>) -> Self;
 
-impl<T: Real> RawLoop<T> for ProfileLoop<T> {
-    fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
-        Self {
-            vertices,
-            tangent_joints: Vec::new(),
+        /// Builds a loop of straight segments through the given points
+        /// (all bulges zero) — polygon sugar.
+        fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self;
+
+        /// The same loop with its **declared-tangent joints** set to
+        /// the given vertex indices (see
+        /// [`ProfileLoop::tangent_joints`] for what a declaration means
+        /// and how validation verifies it).
+        ///
+        /// A fixture declares by hand; the [`path`](crate::path)
+        /// lattice declares by construction, which is what makes it the
+        /// authoring door.
+        fn with_tangent_joints(self, tangent_joints: Vec<usize>) -> Self;
+    }
+
+    impl<T: Real> RawLoop<T> for ProfileLoop<T> {
+        fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
+            Self {
+                vertices,
+                tangent_joints: Vec::new(),
+            }
+        }
+
+        fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
+            <Self as RawLoop<T>>::new(
+                points
+                    .into_iter()
+                    .map(|pos| ProfileVertex::new(pos, T::zero()))
+                    .collect(),
+            )
+        }
+
+        fn with_tangent_joints(mut self, tangent_joints: Vec<usize>) -> Self {
+            self.tangent_joints = tangent_joints;
+            self
         }
     }
+}
 
-    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
-        <Self as RawLoop<T>>::new(
-            points
-                .into_iter()
-                .map(|pos| ProfileVertex {
-                    pos,
-                    bulge: T::zero(),
-                })
+// The door's two arms. The trait itself is one item in a private
+// module; only its REACH changes with the gate, so `crate::RawLoop`
+// resolves identically in both configurations and the emission layer
+// needs no second spelling.
+#[cfg(any(test, feature = "test-support"))]
+pub use raw_loop::RawLoop;
+#[cfg(not(any(test, feature = "test-support")))]
+pub(crate) use raw_loop::RawLoop;
+
+impl ProfileLoop<f64> {
+    /// **A materialization door**: the exact `f64 → T` embedding of a
+    /// stored loop into an evaluation scalar.
+    ///
+    /// This is re-materialization, not authoring. The table already
+    /// exists — it was emitted by the lattice, or read back from a
+    /// validated profile — and an evaluation at `T` needs the same
+    /// table in `T`'s arithmetic. Positions, bulges and the declared
+    /// tangent joints all travel; the declarations are re-verified in
+    /// the evaluation scalar by [`Profile::validate`], so nothing is
+    /// taken on trust by crossing.
+    ///
+    /// Every coordinate crosses through `T::from_f64`, which is the
+    /// widening direction and never refuses, so the embedding is total
+    /// and — for any `T` whose `from_f64` is exact on `f64`, `f64`
+    /// itself included — bit-identical.
+    ///
+    /// This door and the [`path`](crate::path) lattice's emission layer
+    /// are the whole production population. The Q1 ruling anticipated
+    /// two more materialization doors, a STEP-import face loop and a
+    /// persisted-document read; **neither exists.** `crates/step-import`
+    /// never names this crate, and deserialization can never mint a
+    /// `ProfileLoop` — `editor-core/src/persist/wire.rs`'s header says
+    /// so at the site.
+    pub fn embed<T: Real>(&self) -> ProfileLoop<T> {
+        ProfileLoop {
+            vertices: self
+                .vertices
+                .iter()
+                .map(|v| ProfileVertex::new(v.pos.map(T::from_f64), T::from_f64(v.bulge)))
                 .collect(),
-        )
-    }
-
-    fn with_tangent_joints(mut self, tangent_joints: Vec<usize>) -> Self {
-        self.tangent_joints = tangent_joints;
-        self
+            tangent_joints: self.tangent_joints.clone(),
+        }
     }
 }
 
@@ -347,18 +435,30 @@ impl<T: Real> ProfileLoop<T> {
     ///   numerically happens-to-hold is the pattern the boolean door's
     ///   UndeclaredCoincidence retired; lifted here to the profile
     ///   door).
-    /// - **Same-carrier continuation is not tangency**: collinear
-    ///   line/line joints and cocircular arc/arc joints (the two-arc
-    ///   circle's joints) are carrier *identity*, legal undeclared, and
-    ///   a declaration there is contradicted.
+    /// - **Carrier identity is not a reason for anything** (Ev,
+    ///   in-chat, 2026-09-02): a zero-turn joint is a tangent joint
+    ///   whatever the carriers do, so a declaration on a collinear
+    ///   line/line or cocircular arc/arc joint is honoured, not
+    ///   contradicted. Identity is a fact about carriers, tangency a
+    ///   fact about directions, and this rule reads the directions.
     /// - Duplicate indices are harmless (set semantics); an
     ///   out-of-range index is a typed validation error. Order is not
     ///   significant.
     ///
-    /// The PATHS lattice's `.fillet(r)` ([`path`]) is the authoring
-    /// path (it computes tangent geometry exactly and declares by
-    /// construction); [`RawLoop::with_tangent_joints`] is the
-    /// explicit hand-authoring/persistence form.
+    /// **This list is `validate`'s question, and it is not the
+    /// lattice's.** The lattice checks AUTHORING — declarations
+    /// against authored data, at the moment a verb is written — and
+    /// `validate` checks the MATERIALIZED TABLE, where
+    /// `tangent_joints` is data like any other field. Two questions,
+    /// never one rule with two answers; `validate`'s module header
+    /// carries the full statement.
+    ///
+    /// The [`path`] lattice declares by construction (`.fillet(r)`
+    /// computes the tangent geometry exactly; the continuation verbs
+    /// declare the zero-turn joint they mint), which is what makes it
+    /// the authoring door. [`RawLoop::with_tangent_joints`] declares by
+    /// hand, and is a fixture door — see [`RawLoop`] for why the two
+    /// are not alternatives.
     ///
     /// [`ProfileError::TangencyContradicted`]: validate::ProfileError::TangencyContradicted
     /// [`ProfileError::UndeclaredTangency`]: validate::ProfileError::UndeclaredTangency

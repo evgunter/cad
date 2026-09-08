@@ -38,7 +38,11 @@ topo = { path = "../topo" }
 test-utils = { path = "../test-utils" }
 # Building acceptance bodies end-to-end (cube, the M3 pocketed die,
 # boolean-result assemblies) through the public profile/sweep APIs.
-profile = { path = "../profile" }
+# `test-support` ON: `profile::RawLoop` — the vertex-table fixture door
+# this crate's rows build their loops with — is gated behind it (the
+# trait's own docs carry the argument). Off by default and named only
+# here, so no shipped build of this crate can mint a table.
+profile = { path = "../profile", features = ["test-support"] }
 # `test-support` ON: the corpus swept elbow this crate exports is
 # `sweep::test_support`'s rather than a per-crate rebuild of the same
 # six constants. NOT every construction here: `examples/` keeps an

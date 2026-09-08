@@ -64,9 +64,7 @@ use geom_core::spline::SplineError;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
-use profile::{
-    Profile, ProfileError, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile,
-};
+use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
     PcurveMintError, ShellKey, SolidKey,
@@ -227,18 +225,7 @@ fn end_profile<T: Decide>(
     place: &Affine3<f64>,
     tol: Tol,
 ) -> Result<ValidatedProfile<T>, LoftError> {
-    let loops = section
-        .iter()
-        .map(|lp| {
-            ProfileLoop::new(
-                lp.vertices()
-                    .iter()
-                    .map(|v| ProfileVertex::new(v.pos().map(T::from_f64), T::from_f64(v.bulge())))
-                    .collect(),
-            )
-            .with_tangent_joints(lp.tangent_joints().to_vec())
-        })
-        .collect();
+    let loops = section.iter().map(ProfileLoop::embed::<T>).collect();
     Profile::new(SketchPlane::new(place.map(T::from_f64)), loops)
         .validate(tol)
         .map_err(LoftError::Profile)

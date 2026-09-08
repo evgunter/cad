@@ -36,7 +36,11 @@ test-utils = { path = "../test-utils" }
 # CI-facing acceptance-export example (examples compile against
 # dev-dependencies).
 geom-core = { path = "../geom-core" }
-profile = { path = "../profile" }
+# `test-support` ON: `profile::RawLoop` — the vertex-table fixture door
+# this crate's rows build their loops with — is gated behind it (the
+# trait's own docs carry the argument). Off by default and named only
+# here, so no shipped build of this crate can mint a table.
+profile = { path = "../profile", features = ["test-support"] }
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
 
