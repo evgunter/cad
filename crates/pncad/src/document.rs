@@ -30,8 +30,23 @@
 // `ProgramRefusal` rides with `EditError` by the `VerbKind` rule below:
 // it is `EditError::ProfileProgramRefused`'s payload, and nothing else
 // this crate carries answers in it, so without it a consumer can match
-// the variant and read its refusal only out of prose.
-pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, ProgramRefusal, apply};
+// the variant and read its refusal only out of prose. `AttrKind` rides
+// for the same reason at the appearance arms — it is what
+// `EditError::{RebindAppearanceCollision, AppearanceNotSet}` name, and
+// which of the three display attributes collided is the whole of what
+// those two refusals say beyond the name. Carrying the KIND is not
+// carrying the appearance map: `Attr`, `AttrSet` and the record types
+// stay out, because nothing a consumer of this module holds answers in
+// them. `MetaVersionError` rides for the same rule at the metadata
+// arm: it is the typed shape refusal `EditError::MetaUnversioned`
+// holds, and which of the three ways a stored value breaks the D7
+// producer convention — not a map, no `"v"` entry, a `"v"` that is not
+// an integer — is the whole of what that arm says beyond the name and
+// the key. Carrying the refusal is not carrying the value tree:
+// `MetaValue` and `MetaError` stay out, because the arm names neither.
+pub use editor_core::{
+    Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, MetaVersionError, ProgramRefusal, apply,
+};
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.
@@ -74,7 +89,12 @@ pub use editor_core::{
 // `unparse` is `parse_expr`'s inverse, the text door OUTWARD: the
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
-pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr, unparse};
+// `ExprPath` is here by the payload rule: it is the ADDRESS
+// `EditError::PathOffTree` names, so without it a consumer can match
+// the refusal and cannot say which expression the address ran off.
+pub use editor_core::{
+    Dimension, DimensionError, Expr, ExprPath, ParamEnv, ParseError, parse_expr, unparse,
+};
 
 // The expression READ side: an expression's current value under a
 // document's parameter environment (`Doc::param_env`). A panel that

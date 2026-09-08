@@ -26,9 +26,19 @@
 //! that line are ordinary Rust that the default workspace build
 //! compiles and tests.
 
+pub mod edit_payload;
 pub mod errors;
 pub mod identity;
+// One mate refusal's payload as Python reads its attributes off it:
+// exhaustive over the kernel enum, Python-independent so the default
+// build compiles the drift alarm and tests the projection.
+pub mod mate_payload;
 pub mod node_kind;
+// The pick index's three numbers as Python reads them off a pick
+// refusal: exhaustive over both kernel enums, Python-independent so
+// the default build compiles the drift alarm and can construct the
+// one arm no authoring door reaches.
+pub mod pick_payload;
 // The gathered product memoized on an evaluation: the behaviour
 // behind four bound doors, Python-independent so the default build
 // tests it.

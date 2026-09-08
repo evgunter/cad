@@ -38,3 +38,10 @@ documents register and `Shell` leaves the frontier; or the shell door
 gains a non-validating form at a dual (SHELL's, and against the DL3
 pairing obligation). Until one lands the registry's universal claim
 stands and the two documents stay beside it.
+
+## Re-homed (2026-09-08, LIB orchestrator)
+
+Moved from `work/lib/` to `work/shell/`: the hold is the shell verb's certification rights under a dual lane (`crates/topo/src/shell.rs:713`, `crates/editor-core/src/verbs/shell.rs`) — SHELL's or DUAL's call, and SHELL owns the verb; the registry rows are TCOST's file and are one line each once decided. Id, body and header
+are unchanged; the directory is the claim (`work/README.md`). LIB's
+half — the Python/façade rows that move when this closes — is named in
+the body and stays LIB's to execute once the kernel side lands.

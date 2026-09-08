@@ -28,8 +28,6 @@ repair.
 **Class, not instance.** The same closing mint is spelled by thirteen
 producers, none of which gates its operand's rows first:
 `crates/topo/src/replace_face.rs:1274`,
-`crates/topo/src/offset_together.rs:409`,
-`crates/topo/src/offset_axial.rs:631`,
 `crates/topo/src/merge_faces.rs:1120`, `crates/topo/src/transform.rs:650`,
 `crates/topo/src/splitting/mod.rs:650`,
 `crates/topo/src/boolean/ops.rs:585`, `crates/topo/src/shell.rs:1686`,
@@ -44,3 +42,17 @@ rows are never load-bearing, is a posture-table decision for TOPO —
 it is not decided here and SHELL-9 adds no operand gate. The SHELL
 half is the disclosure: `shell.rs`'s "The closing mint" doc states
 the class, and the two R2 rows are what a gate would flip.
+
+**The two simultaneous offset doors have left this class** (SHELL-10,
+2026-09-08). `offset_together.rs` and `offset_axial.rs` no longer call
+`mint_pcurves`: each closes with `pcurves::mint_pcurves_of` over its
+scope's faces, which does not clear the map and re-derives nothing
+outside the solids the move set names. So they no longer launder an
+out-of-scope operand row in either direction — where the whole-body
+pass silently re-derived a half-minted out-of-scope face, the result
+now carries the operand's own missing row and `validate_geometric`
+reports `Pcurve { MissingCache }` (pinned:
+`crates/sweep/tests/shell10_r1_probes.rs`,
+`r1_the_door_no_longer_launders_a_half_minted_out_of_scope_face`).
+Eleven producers, not thirteen, and the laundering they do is still
+this item's.

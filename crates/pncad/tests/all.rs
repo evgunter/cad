@@ -444,6 +444,71 @@ fn stale_declaration_and_ring_contact_are_matchable(
     (stale, ring)
 }
 
+/// The profile refusals' payloads — what `ProfileError`,
+/// `CornerReason` and `PathError` say beyond their arm names.
+///
+/// `EscalationSite` is where the rung under it shows: two of its four
+/// arms hand back a `SegmentRef`, and reading the site's loop and
+/// segment indices is the whole point of binding one.
+fn profile_payloads_are_matchable(
+    contact: ContactKind,
+    site: EscalationSite,
+    leg: FilletLeg,
+    carrier: FilletLegCarrier,
+    reason: NoCornerReason,
+) -> (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+) {
+    let contact = match contact {
+        ContactKind::Crossing => "crossing",
+        ContactKind::Touch => "touch",
+        ContactKind::Overlap => "overlap",
+    };
+    let site = match site {
+        EscalationSite::Segment(at) => {
+            named::<usize>(at.loop_index);
+            named::<usize>(at.segment_index);
+            "segment"
+        }
+        EscalationSite::SegmentPair(first, second) => {
+            named::<SegmentRef>(first);
+            named::<SegmentRef>(second);
+            "segment_pair"
+        }
+        EscalationSite::Loop { loop_index } => {
+            named::<usize>(loop_index);
+            "loop"
+        }
+        EscalationSite::Fillet => "fillet",
+    };
+    let leg = match leg {
+        FilletLeg::Incoming => "incoming",
+        FilletLeg::Outgoing => "outgoing",
+    };
+    // The arc arm carries the two numbers that decide how the setback
+    // beside it is read; the line arm carries none.
+    let carrier = match carrier {
+        FilletLegCarrier::Line => "line",
+        FilletLegCarrier::Arc {
+            radius,
+            angular_margin,
+        } => {
+            named::<f64>(radius);
+            named::<f64>(angular_margin);
+            "arc"
+        }
+    };
+    let reason = match reason {
+        NoCornerReason::OffsetCarriersDisjoint => "offset_carriers_disjoint",
+        NoCornerReason::NoCornerSideCandidate => "no_corner_side_candidate",
+    };
+    (contact, site, leg, carrier, reason)
+}
+
 /// The carried payload vocabularies, matched through the prelude
 /// alone.
 ///
@@ -533,6 +598,41 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         )),
         ("face_pair", None)
     );
+
+    // The profile rung, by bare prelude name — and the pair this
+    // closes: the fillet constructor's no-corner reason beside the
+    // lattice door's, which was curated on its own.
+    assert_eq!(
+        profile_payloads_are_matchable(
+            ContactKind::Overlap,
+            EscalationSite::SegmentPair(
+                SegmentRef {
+                    loop_index: 0,
+                    segment_index: 1,
+                },
+                SegmentRef {
+                    loop_index: 0,
+                    segment_index: 3,
+                },
+            ),
+            FilletLeg::Outgoing,
+            FilletLegCarrier::Arc {
+                radius: 2.0,
+                angular_margin: -0.5,
+            },
+            NoCornerReason::OffsetCarriersDisjoint,
+        ),
+        (
+            "overlap",
+            "segment_pair",
+            "outgoing",
+            "arc",
+            "offset_carriers_disjoint"
+        )
+    );
+    match PathNoCornerReason::CarriersParallel {
+        PathNoCornerReason::CarriersParallel | PathNoCornerReason::CarriersDoNotMeet => {}
+    }
 
     assert_eq!(
         stale_declaration_and_ring_contact_are_matchable(
@@ -3851,9 +3951,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ExprPath`, `ParamValue`,
+///   (`ProfilePayload`, `ParamValue`,
 ///   `BifurcationKind`,
-///   `MetaValue`, `MetaError`, `MetaVersionError`, `from_value`,
+///   `MetaValue`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
 ///   behind one.
 ///
@@ -3869,6 +3969,29 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   can hold one to name. (`ClassAdmission`/`class_admission` left this family
 ///   at GUI-4: a mate-authoring consumer needs the admission table
 ///   BEFORE committing, so `crate::document` carries them now.)
+///
+///   **`AttrKind` and `ExprPath` were in it too, and the reading did
+///   not hold for them either.** Both are `EditError` payloads —
+///   `RebindAppearanceCollision` and `AppearanceNotSet` name a display
+///   attribute's KIND, `PathOffTree` names an expression ADDRESS — and
+///   neither has a curated door of its own, so the same payload rule
+///   carries them. Carrying them is not carrying their
+///   neighbourhoods: `Attr`, `AttrSet` and the appearance records stay
+///   out, because no curated carrier answers in those.
+///   **`MetaVersionError` left this family too, and what moved was
+///   the sentence that held it here.** It stayed on the reading that
+///   it is a nested REFUSAL rather than a leaf value, whose arm
+///   carried no inner word to name it by — so naming it was the
+///   per-arm-tag question and not the payload one. Both halves of
+///   that are spent: every refusal whose carrier projects a word now
+///   gains its own arm as a second attribute, so
+///   `EditError::MetaUnversioned` answers WHICH of the three ways a
+///   stored metadata value breaks the D7 producer convention, and the
+///   type that word is minted from has to be nameable to mint it.
+///   `crate::document` carries it now. Its neighbourhood does not
+///   come with it — `MetaValue` and `MetaError` are the value tree
+///   and the producer boundary's own refusal, and no curated carrier
+///   answers in either.
 ///
 ///   **The A5 gate used to be in this family and was wrong to be.**
 ///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
@@ -3973,14 +4096,13 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 87] = [
+const NOT_CARRIED: [&str; 84] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
     "AppearanceRecord",
     "AppearanceResolution",
     "Attr",
-    "AttrKind",
     "BracketEnd",
     "AttrSet",
     "AxisScalar",
@@ -3997,7 +4119,6 @@ const NOT_CARRIED: [&str; 87] = [
     "Entry",
     "Epoch",
     "EvalScalar",
-    "ExprPath",
     "FlipEvidence",
     "FlipSet",
     "Implicated",
@@ -4006,7 +4127,6 @@ const NOT_CARRIED: [&str; 87] = [
     "MeshPick",
     "MetaError",
     "MetaValue",
-    "MetaVersionError",
     "MinClearanceLane",
     "MinClearanceOperand",
     "MintRefusal",

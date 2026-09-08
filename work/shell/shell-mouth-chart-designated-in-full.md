@@ -36,3 +36,10 @@ key itself, with the rim's identity then needing a rule other than
 ONE face (SWEEP — the `Band`/`BandPi` split is the `kemr`-free
 ring-free representation, so this is a representation question).
 Recorded here so the choice is made once, against both.
+
+## Re-homed (2026-09-08, LIB orchestrator)
+
+Moved from `work/lib/` to `work/shell/`: the choice is a chart-taking designation door at `crates/topo/src/shell.rs` (SHELL's) or a full-period disc named as one face at the sweep emitter; SHELL owns the door the choice is made against, and the corpus/Python rows that follow are LIB's. Id, body and header
+are unchanged; the directory is the claim (`work/README.md`). LIB's
+half — the Python/façade rows that move when this closes — is named in
+the body and stays LIB's to execute once the kernel side lands.

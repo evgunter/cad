@@ -3,8 +3,18 @@
 //! is its shortest round-trip spelling, so equal text is equal bits):
 //! `shell9_probe` compares two bodies' rows with it, and [`print_rows`]
 //! is the dump form the corpora (`shell5_r1_dump`, `shell7_dump`,
-//! `shell8_dump`) call on every body they dump, for a base/head diff
-//! (`--nocapture`, grep `[rows]`, sort, diff). The row below shells
+//! `shell8_dump`, `shell10_r2_dump`) call on every body they dump, for
+//! a base/head diff.
+//!
+//! **How to take that diff, exactly.** `--nocapture` prints from every
+//! test thread into one stream, so two suites' lines interleave and a
+//! line can be split across a write; both SHELL-10 review lanes hit
+//! the same spurious one-line diff that way. Run the corpora with
+//! `-- --test-threads=1 --nocapture`, filter with a grep ANCHORED at
+//! the tag (`grep -E '^\[rows\]'`, not a bare `[rows]`), then sort and
+//! diff. A diff of one line whose neighbours are identical is this
+//! artefact, not a moved row — re-run single-threaded before reading
+//! it as a finding. The row below shells
 //! `verbs_shell`'s fixtures the same way and asserts each BUILDS.
 //!
 //! The closing mint re-derives every row of every body `shell`

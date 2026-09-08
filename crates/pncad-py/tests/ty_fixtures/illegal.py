@@ -24,11 +24,14 @@ from pncad import (
     DocEdit,
     DocRef,
     EditError,
+    PersistError,
+    StlError,
     EntityKind,
     EvaluationError,
     ValidationError,
     ValidationFinding,
     Frame,
+    FrameError,
     GeomPred,
     NamePat,
     Node,
@@ -63,6 +66,7 @@ from pncad import (
     deg,
     rad,
     evaluate,
+    load,
     m,
     mm,
     WrittenAngle,
@@ -597,6 +601,13 @@ try:
     doc.apply(DocEdit.delete_node(solid))
 except EditError as _refused:
     _edit_arm: str = _refused.inner_variant  # ty: error
+    # The arm's payload is optional for the same reason and reads the
+    # same way: every attribute is present on every arm, so the one a
+    # caller wants is `None` wherever the arm does not carry it and a
+    # bare read has not narrowed anything. The node id is the payload's
+    # most-reached attribute and the one worth pinning.
+    _dangling: NodeId = _refused.node  # ty: error
+    _which_slot: str = _refused.slot  # ty: error
 
 # The validator's findings are a SEQUENCE, not a scalar word. Reading
 # one as a `str` is the mistake the exception's shape exists to make
@@ -623,3 +634,23 @@ try:
 except ValidationError as _frozen:
     _finding: ValidationFinding = _frozen.findings[0]
     _finding.variant = "something_else"  # ty: error
+
+
+# The three projected doors' payloads are OPTIONAL on every arm — the
+# whole point of "present on every arm, `None` where the arm does not
+# carry one" is that reading one as its bare type is a narrowing the
+# caller has not done.
+try:
+    load("id: 00000000000000000000000000000000\n{}")
+except PersistError as _persist:
+    _at_line: int = _persist.line  # ty: error
+
+try:
+    Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+except FrameError as _frame:
+    _margin: float = _frame.margin  # ty: error
+
+try:
+    product(doc, evaluate(doc)).tessellate(1 * mm).to_stl_binary(header="x" * 81)
+except StlError as _stl:
+    _header_bytes: int = _stl.len  # ty: error

@@ -104,6 +104,18 @@ Three things to expect, all treated at length in the guide:
   carries `findings`, a sequence of `ValidationFinding`s, one per
   failure. The door's own shape is the whole argument for it; nothing
   else on the surface is shaped that way.
+- **Every arm's payload is an attribute**, present on every arm of the
+  class and `None` where that arm does not carry one — so `getattr`
+  never raises and a caller reads the payload without first branching
+  on the discriminant. Each door projects it from ONE exhaustive
+  match with no wildcard, so a kernel arm added without a payload
+  stops the bindings compiling. Where an arm wraps a refusal of
+  another layer, that refusal's own word rides on `inner_variant` and
+  its payload stays the inner door's surface. Two doors are still
+  tag-plus-prose, each with its reason at the site: `PathError` waits
+  on a kernel-side discriminant its tag map currently hand-writes, and
+  `StepImportError`'s twenty-one arms are all reachable with their
+  entity id and line in the message.
 
 ## Documentation
 

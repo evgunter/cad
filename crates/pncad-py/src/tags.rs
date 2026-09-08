@@ -59,13 +59,13 @@
 
 use pncad::analysis::{AnalysisPolicyError, MeasureUnavailable, ParamBoxError, SeedError};
 use pncad::document::{
-    AssemblyError, Attribution, CheckEvidence, ChecksError, DimensionError, Distribution,
-    DistributionFault, DistributionField, EditError, EvalError, InlineError, MateFault,
-    MeasureNodeFault, MeasureUnavailableAt, NodeErrorKind, ParseError, PersistError,
-    PlacementRuleFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault,
-    SplitError, UpdateError,
+    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
+    Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
+    MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, NodeErrorKind, ParseError,
+    PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
+    RefusedRef, Relation, RootFault, SlotId, SnapshotError, SplitError, UpdateError,
 };
-use pncad::geom_core::{BandError, FrameError, FrameInput};
+use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{
@@ -209,6 +209,95 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
     }
 }
 
+/// The stable tag for a NAMED expression slot — `EditError.slot`, the
+/// address a refusal is about.
+///
+/// A slot is a per-node-type NAME, never an index, so the word is the
+/// slot's own identity and not a position: `distance`, `count`,
+/// `origin_x`. The seven vector families spell their component into
+/// the word rather than beside it, because `origin` alone names three
+/// slots and a caller branching on it could not tell which expression
+/// refused.
+///
+/// `profile` is the one arm that stops one level, and it stops for the
+/// reason [`profile_error_tag`]'s family does: what is left below it —
+/// the loop index, the step index and which of the step's arguments —
+/// is two integers and a third enum, and no `&'static str` carries an
+/// integer. The address is in the refusal's prose; the word says the
+/// slot is a profile program's.
+pub fn slot_id_tag(slot: &SlotId) -> &'static str {
+    match slot {
+        SlotId::Origin(axis) => match axis {
+            Axis3::X => "origin_x",
+            Axis3::Y => "origin_y",
+            Axis3::Z => "origin_z",
+        },
+        SlotId::Normal(axis) => match axis {
+            Axis3::X => "normal_x",
+            Axis3::Y => "normal_y",
+            Axis3::Z => "normal_z",
+        },
+        SlotId::Direction(axis) => match axis {
+            Axis3::X => "direction_x",
+            Axis3::Y => "direction_y",
+            Axis3::Z => "direction_z",
+        },
+        SlotId::U(axis) => match axis {
+            Axis3::X => "u_x",
+            Axis3::Y => "u_y",
+            Axis3::Z => "u_z",
+        },
+        SlotId::V(axis) => match axis {
+            Axis3::X => "v_x",
+            Axis3::Y => "v_y",
+            Axis3::Z => "v_z",
+        },
+        SlotId::Translation(axis) => match axis {
+            Axis3::X => "translation_x",
+            Axis3::Y => "translation_y",
+            Axis3::Z => "translation_z",
+        },
+        SlotId::RotationAxis(axis) => match axis {
+            Axis3::X => "rotation_axis_x",
+            Axis3::Y => "rotation_axis_y",
+            Axis3::Z => "rotation_axis_z",
+        },
+        SlotId::Distance => "distance",
+        SlotId::Radius => "radius",
+        SlotId::ChamferDistance => "chamfer_distance",
+        SlotId::ShellThickness => "shell_thickness",
+        SlotId::RevolveAngle => "revolve_angle",
+        SlotId::Spin => "spin",
+        SlotId::TubeMajorRadius => "tube_major_radius",
+        SlotId::TubeMinorRadius => "tube_minor_radius",
+        SlotId::TubeWindowStart => "tube_window_start",
+        SlotId::TubeWindowEnd => "tube_window_end",
+        SlotId::TubeWall => "tube_wall",
+        SlotId::RotationAngle => "rotation_angle",
+        SlotId::Spacing => "spacing",
+        SlotId::Step => "step",
+        SlotId::Count => "count",
+        SlotId::Instance => "instance",
+        SlotId::VDegree => "v_degree",
+        SlotId::Stations => "stations",
+        SlotId::Profile { .. } => "profile",
+    }
+}
+
+/// The stable tag for an APPEARANCE attribute's kind — the `kind` an
+/// appearance refusal names.
+///
+/// The attribute's own vocabulary, not the entity's: `EntityKind` says
+/// what a name denotes and this says which of the three display
+/// attributes a rebind collided on or a clear did not find.
+pub fn attr_kind_tag(kind: &AttrKind) -> &'static str {
+    match kind {
+        AttrKind::Color => "color",
+        AttrKind::Label => "label",
+        AttrKind::Visibility => "visibility",
+    }
+}
+
 /// The stable tag for an edit refusal.
 pub fn edit_error_tag(err: &EditError) -> &'static str {
     match err {
@@ -216,10 +305,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ProfileProgramRefused { .. } => "profile_program_refused",
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
-        // The list-input door's three (DM4/DM5). Tags only: the Python
-        // SURFACE for `Node.union` and `SetMembers` is LIB's build,
-        // and this match is exhaustive, so the crate's compile is what
-        // requires these rows and nothing else here changes.
+        // The list-input door's three (DM4/DM5), reached from Python
+        // through `Node.union` and `DocEdit.set_members` — the node
+        // whose members are a list and the edit that rewrites one.
         EditError::DuplicateInput { .. } => "duplicate_input",
         EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
@@ -424,6 +512,19 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
         },
         FrameError::Band(_) => "band",
+    }
+}
+
+/// The stable tag for WHICH band threshold a
+/// `BandError::InvalidValue` is about.
+///
+/// The kernel's `BandField` has a `name()` of its own for messages;
+/// this is the FFI spelling, which is this crate's to own, and it is
+/// word for word that one.
+pub fn band_field_tag(field: &BandField) -> &'static str {
+    match field {
+        BandField::Zero => "zero",
+        BandField::Escalate => "escalate",
     }
 }
 
@@ -718,6 +819,10 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         // The direction door's refusal is a whole `NodeErrorKind`, so
         // its arm is the same vocabulary `EvaluationError.kind` speaks.
         EditError::PlacementAxis { error } => Some(node_error_tag(error.kind())),
+        // The metadata arm's refusal is a SHAPE refusal, so its word
+        // says which of the three ways the D7 producer convention was
+        // broken rather than which door broke it.
+        EditError::MetaUnversioned { error, .. } => Some(meta_version_error_tag(error)),
         EditError::Roots(_) => None,
         EditError::UnknownNode { .. } => None,
         EditError::UnresolvedInput { .. } => None,
@@ -759,7 +864,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::AppearanceNamesMissingNode { .. } => None,
         EditError::AppearanceNotSet { .. } => None,
         EditError::InvalidTolerance { .. } => None,
-        EditError::MetaUnversioned { .. } => None,
         EditError::MetaNonFinite { .. } => None,
         EditError::MetaNotSet { .. } => None,
         EditError::RebindMetadataCollision { .. } => None,
@@ -771,6 +875,23 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
         EditError::NonFiniteAlignment { .. } => None,
+    }
+}
+
+/// The stable tag for a stored metadata value that breaks the D7
+/// producer convention — the inner arm of
+/// [`EditError::MetaUnversioned`].
+///
+/// The convention is structural: a map carrying an integer `"v"`
+/// field. Its three refusals are three different repairs — wrap the
+/// value in a map, add the version, or make the version an integer —
+/// and the carrier's own word says only that the convention was
+/// broken.
+pub fn meta_version_error_tag(err: &MetaVersionError) -> &'static str {
+    match err {
+        MetaVersionError::NotAMap => "not_a_map",
+        MetaVersionError::MissingVersion => "missing_version",
+        MetaVersionError::VersionNotInt => "version_not_int",
     }
 }
 
@@ -1209,6 +1330,53 @@ pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
         F::PartProduct { .. } => "part_product",
         F::ReferenceCycle { .. } => "part_reference_cycle",
         F::DepthExceeded => "part_depth_exceeded",
+    }
+}
+
+/// The stable tag for a PROFILE-PROGRAM structure fault — the inner
+/// arm of [`PersistError::ProfileProgram`].
+///
+/// The fault's own payload (the slot, the two dimensions, the loop and
+/// step counters) is the profile layer's surface and stays in the
+/// message; what crosses here is the word a caller branches on.
+pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
+    match fault {
+        ProgramFault::SlotDimension { .. } => "slot_dimension",
+        ProgramFault::Lattice { .. } => "lattice",
+    }
+}
+
+/// The stable tag for a document-snapshot invariant refusal — the
+/// inner arm of [`PersistError::Snapshot`].
+///
+/// Nineteen arms, each naming a different invariant the parsed (or
+/// in-memory) snapshot broke. The arm's own payload is node ids,
+/// names and counts the snapshot door owns; the word is what the
+/// persistence door carries out.
+pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
+    match err {
+        SnapshotError::OrderMismatch => "order_mismatch",
+        SnapshotError::BlendSelectionNotCanonical { .. } => "blend_selection_not_canonical",
+        SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
+        SnapshotError::DanglingInput { .. } => "dangling_input",
+        SnapshotError::ForwardInput { .. } => "forward_input",
+        SnapshotError::DeclareInput { .. } => "declare_input",
+        SnapshotError::WitnessSite { .. } => "witness_site",
+        SnapshotError::CountContinuous { .. } => "count_continuous",
+        SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
+        // The product-root list's own invariant vocabulary, carried
+        // through: a root fault is the same fact here as at the edit
+        // door, so it keeps the tag it has there.
+        SnapshotError::Roots(fault) => root_fault_tag(fault),
+        SnapshotError::PlacementSite { .. } => "placement_site",
+        SnapshotError::PlacementFrame { .. } => "placement_frame",
+        SnapshotError::PlacementNotGauge { .. } => "placement_not_gauge",
+        SnapshotError::MateAlignment { .. } => "mate_alignment",
+        SnapshotError::PlacementRule { .. } => "placement_rule",
+        SnapshotError::MeasureRefs { .. } => "measure_refs",
+        SnapshotError::InputList { .. } => "input_list",
+        SnapshotError::AssertionBound { .. } => "assertion_bound",
+        SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",
     }
 }
 

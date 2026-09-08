@@ -540,6 +540,190 @@ fn picking_refusal_tags_are_stable() {
     assert_eq!(mesh_pick_error_tag(&corrupt), "position_out_of_range");
 }
 
+/// **Every `NodePickError` arm's index numbers, constructed and
+/// read.**
+///
+/// `crate::pick_payload::index_payload` is what the exception's
+/// `patch`, `triangle` and `index` attributes are read off, and this
+/// pin says which arm carries them and what they are.
+///
+/// It is here rather than in `tests/test_picking.py` because the arm
+/// that carries them cannot be provoked from Python at all: a
+/// tessellated mesh whose triangles index outside their own position
+/// buffer is a kernel-side invariant break, unauthorable through any
+/// door and unconstructible through the façade's Python surface. The
+/// payload IS constructible here, which is the whole reason the
+/// flattening sits outside `crate::py`. The Python rows own the other
+/// half — that the three attributes exist and read `None` on the arms
+/// a caller can reach.
+#[test]
+fn every_pick_arm_projects_the_index_numbers_it_carries() {
+    use crate::pick_payload::index_payload;
+    use pncad::document::RecipeNodeId;
+    use pncad::mesh::TessellateError;
+    use pncad::select::{HitTestError as H, MeshPickError as M, NodePickError as N};
+
+    let node = RecipeNodeId(0);
+    // The one arm that carries them, at numbers no two of which are
+    // equal: a slot swapped for another shows up as a moved number
+    // rather than as three zeroes agreeing.
+    let corrupt = N::Index(M::PositionOutOfRange {
+        patch: 3,
+        triangle: 11,
+        index: 47,
+    });
+    let numbers = index_payload(&corrupt);
+    assert_eq!(numbers.present(), ["patch", "triangle", "index"]);
+    assert_eq!(numbers.patch, Some(3));
+    assert_eq!(numbers.triangle, Some(11));
+    assert_eq!(numbers.index, Some(47));
+
+    // Every other arm answers all three by name, not by wildcard.
+    for other in [
+        N::Standing(H::NodeNotEvaluated { node }),
+        N::NotABody { node },
+        N::NoSuchBody { node, body: 1 },
+        N::Tessellate(TessellateError::InvalidChordalTolerance { value: 0.0 }),
+    ] {
+        let numbers = index_payload(&other);
+        assert_eq!(numbers, crate::pick_payload::IndexPayload::NONE);
+        assert!(numbers.present().is_empty());
+    }
+}
+
+/// **Every constructible `MateFault` arm's payload, built and read.**
+///
+/// The arm table, executable. `crate::mate_payload::mate_payload` is
+/// the projection `MateFault`'s seventeen Python attributes are read
+/// off, and this pin says what each arm puts on the wire: the exact
+/// set it CARRIES, in publication order, with the rest `None`.
+///
+/// **Nine of the thirteen arms are built here.** The other four —
+/// `Frame`, `Band`, `Indeterminate` and `Unleverable` — each hold a
+/// nested refusal whose TYPE the `pncad` façade does not re-export
+/// (`FrameError`, `BandField`, `MarginDiag`, `LeverRefusal`), so this
+/// crate cannot name a value to put in them. That costs the table its
+/// totality and nothing else: those four are exactly the arms whose
+/// payload is the nested refusal, which the projection does not
+/// flatten, and totality of the PROJECTION is a different guarantee
+/// and a stronger one — `mate_payload`'s match is exhaustive with no
+/// wildcard, so an arm that reached Python unprojected would not
+/// compile.
+#[test]
+fn every_mate_fault_arm_projects_the_payload_it_carries() {
+    use crate::mate_payload::mate_payload;
+    use pncad::document::{
+        DocumentId, MateFault as F, MateSide, NodeErrorKind, NodeRefusal, RecipeNodeId, Subgroup,
+    };
+
+    let id = RecipeNodeId;
+    let carries = |fault: &F, want: &[&str]| {
+        assert_eq!(
+            mate_payload(fault).present(),
+            want,
+            "the payload `{}` puts on the wire has moved",
+            crate::tags::mate_fault_tag(fault)
+        );
+    };
+
+    // The two documents a mispaired read named are the arm's whole
+    // payload and neither crosses: the subject is not a mate, and a
+    // document id is not one of this value's attributes.
+    carries(
+        &F::PosesOfAnotherDocument {
+            expected: DocumentId::derive("a"),
+            found: DocumentId::derive("b"),
+        },
+        &[],
+    );
+    carries(&F::ClassNotAdmitted { mate: id(1) }, &["mate"]);
+    carries(
+        &F::TableLacks {
+            mate: id(1),
+            what: "clocking on a planar rest",
+        },
+        &["mate", "what"],
+    );
+    carries(
+        &F::Contradictory {
+            held: id(1),
+            added: id(2),
+            predicate: "mate_member_empty",
+            clash: 0.25,
+            lever: None,
+        },
+        &["held", "added", "predicate", "clash"],
+    );
+    carries(
+        &F::Under {
+            mate: id(1),
+            parent: id(2),
+            child: id(3),
+            residual: Subgroup::Planar {
+                normal: pncad::authoring::v3(0.0, 0.0, 1.0),
+            },
+        },
+        &["mate", "parent", "child", "residual"],
+    );
+    carries(
+        &F::DanglingHead {
+            mate: id(1),
+            side: MateSide::B,
+            head: id(2),
+        },
+        &["mate", "side", "head"],
+    );
+    carries(
+        &F::PlacerRefused {
+            mate: id(1),
+            side: MateSide::A,
+            placer: id(2),
+            error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
+        },
+        &["mate", "side", "placer", "error"],
+    );
+    carries(
+        &F::PartSelectsAnotherCopy {
+            mate: id(1),
+            side: MateSide::B,
+            part: id(2),
+            named: 3,
+            selected: -1,
+        },
+        &["mate", "side", "part", "named", "selected"],
+    );
+    carries(
+        &F::SelfMate {
+            mate: id(1),
+            instance: id(2),
+        },
+        &["mate", "instance"],
+    );
+
+    // The node roles answer with the ids they were given, not with
+    // the first id repeated: the roles are what a caller acts on.
+    let under = F::Under {
+        mate: id(4),
+        parent: id(9),
+        child: id(16),
+        residual: Subgroup::Trivial,
+    };
+    let payload = mate_payload(&under);
+    assert_eq!(payload.mate, Some(id(4)));
+    assert_eq!(payload.parent, Some(id(9)));
+    assert_eq!(payload.child, Some(id(16)));
+
+    // The placer arm's `error` is the evaluation layer's own tag,
+    // unaltered — the vocabulary `EvaluationError.kind` speaks.
+    let placer = F::PlacerRefused {
+        mate: id(1),
+        side: MateSide::A,
+        placer: id(2),
+        error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
+    };
+    assert_eq!(mate_payload(&placer).error, Some("non_finite_direction"));
+}
+
 /// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
 /// says so against the doors that already speak it.
 ///
@@ -1277,6 +1461,141 @@ fn persist_error_tags_are_stable() {
     assert_eq!(persist_error_tag(&unreadable), "unreadable");
 }
 
+/// The persistence door's four NESTED arms, by construction: each
+/// wraps a refusal of another layer, and the word that rides out on
+/// `inner_variant` is the inner refusal's own.
+///
+/// Constructed rather than driven through `load`, and the reason is
+/// per arm:
+///
+/// * `profile_program` — a `ProgramFault` is a profile-program
+///   structure fault. A file carrying one is reachable, but building
+///   the tampered bytes means hand-assembling a lattice-violating
+///   step order, which pins the WIRE shape rather than the tag.
+/// * `distribution` — the same fault the edit door refuses, so a
+///   parsed file that reaches it has to smuggle a distribution the
+///   authoring doors cannot mint.
+/// * `snapshot` — reachable from Python (`tests/test_document.py`
+///   drives one), pinned here for the arms a tamper cannot select.
+/// * `edit_replay` — needs a save file whose LOG replays into a
+///   refusal, and the save door verifies the log symmetrically, so
+///   the file has to be assembled by hand.
+///
+/// What each pins is the tag the exhaustive map mints, which is what
+/// `inner_variant` carries; the projection itself is one positional
+/// tuple over the same arms, so an arm reaching Python unprojected is
+/// a compile error, not a missing test.
+#[test]
+fn the_persist_doors_nested_arms_carry_their_own_word() {
+    use crate::tags::{
+        distribution_fault_tag, edit_error_tag, program_fault_tag, snapshot_error_tag,
+    };
+    use pncad::document::{
+        DistributionFault, DistributionField, EditError, PersistError, ProgramFault, RecipeNodeId,
+        SnapshotError,
+    };
+
+    let program = ProgramFault::Lattice {
+        loop_: 0,
+        step: 1,
+        state: pncad::profile::TipState::Entry,
+        verb: None,
+    };
+    assert_eq!(program_fault_tag(&program), "lattice");
+
+    let distribution = DistributionFault::NonFinite {
+        field: DistributionField::Sigma,
+    };
+    assert_eq!(distribution_fault_tag(&distribution), "non_finite");
+
+    let snapshot = SnapshotError::OrderMismatch;
+    assert_eq!(snapshot_error_tag(&snapshot), "order_mismatch");
+
+    let replayed = EditError::UnknownNode {
+        id: RecipeNodeId(7),
+    };
+    let carrier = PersistError::EditReplay {
+        index: 3,
+        error: replayed.clone(),
+    };
+    assert_eq!(persist_error_tag(&carrier), "edit_replay");
+    assert_eq!(edit_error_tag(&replayed), "unknown_node");
+}
+
+/// The frame door's `band` arm, by construction: it is the one arm no
+/// Python door can reach.
+///
+/// Every `Frame` constructor derives its band from the process
+/// tolerance witness, whose invariant is ε finite and strictly
+/// positive with K > 1, so `Band::linear` cannot fail there and no
+/// argument a Python caller can pass changes that. The three
+/// `BandError` arms are therefore pinned here, with the payload each
+/// carries: which threshold (`field`), the rejected number (`value`),
+/// and the attempted pair a band could not be formed from.
+#[test]
+fn the_frame_doors_band_arm_is_construction_only() {
+    use crate::tags::{band_error_tag, band_field_tag, frame_error_tag};
+    use pncad::geom_core::{BandError, BandField, FrameError};
+
+    let invalid = FrameError::Band(BandError::InvalidValue {
+        field: BandField::Escalate,
+        value: f64::INFINITY,
+    });
+    assert_eq!(frame_error_tag(&invalid), "band");
+    let FrameError::Band(inner) = invalid else {
+        panic!("the arm just built is the band arm")
+    };
+    assert_eq!(band_error_tag(&inner), "invalid_value");
+    assert_eq!(band_field_tag(&BandField::Escalate), "escalate");
+    assert_eq!(band_field_tag(&BandField::Zero), "zero");
+
+    assert_eq!(
+        band_error_tag(&BandError::InvalidLeverArm { value: 0.0 }),
+        "invalid_lever_arm"
+    );
+    assert_eq!(
+        band_error_tag(&BandError::Empty {
+            zero: 1.0,
+            escalate: 1.0,
+        }),
+        "empty"
+    );
+}
+
+/// The STL writers' four arms, by construction: none is reachable
+/// from Python.
+///
+/// `Mesh.to_stl_ascii` and `Mesh.to_stl_binary` write into a `Vec<u8>`
+/// and tessellate their own mesh, so `io` has no failing sink,
+/// `degenerate_triangle` and `index_out_of_range` need a mesh that
+/// broke its own contract, and `too_many_triangles` needs more than
+/// `u32::MAX` facets. The two OPTION refusals are the reachable half
+/// and are driven through the real doors in `tests/test_mesh.py`.
+#[test]
+fn the_stl_writers_arms_are_construction_only() {
+    use crate::tags::stl_error_tag;
+    use pncad::stl::StlError;
+
+    assert_eq!(
+        stl_error_tag(&StlError::DegenerateTriangle {
+            triangle: [0, 1, 2]
+        }),
+        "degenerate_triangle"
+    );
+    assert_eq!(
+        stl_error_tag(&StlError::IndexOutOfRange { index: 9 }),
+        "index_out_of_range"
+    );
+    assert_eq!(
+        stl_error_tag(&StlError::TooManyTriangles { count: 1 << 33 }),
+        "too_many_triangles"
+    );
+    assert_eq!(
+        stl_error_tag(&StlError::Io(std::io::Error::other("sink"))),
+        "io"
+    );
+}
+
 /// The shell node's refusal tags, exercised by CONSTRUCTION for every
 /// arm buildable without geometry: the op family at its f64 witness,
 /// the mis-kinded open name, the lane refusal. `shell_open_resolve`
@@ -1398,7 +1717,11 @@ fn inner_arm_tags_are_stable() {
 #[test]
 fn edit_inner_variant_tags_are_stable() {
     use crate::tags::{edit_error_tag, edit_inner_variant_tag};
-    use pncad::document::{Distribution, EditError, ParamName, RecipeNodeId, RootFault};
+    use pncad::document::{
+        Distribution, EditError, MetaVersionError, ParamName, RecipeNodeId, RootFault,
+    };
+    use pncad::prelude::StableName;
+    use pncad::select::{EntityKind, RoleSeg};
 
     let pair = |err: &EditError| (edit_error_tag(err), edit_inner_variant_tag(err));
 
@@ -1416,6 +1739,20 @@ fn edit_inner_variant_tags_are_stable() {
         pair(&EditError::EmptyWitnessBulk),
         ("empty_witness_bulk", None)
     );
+    // The shape refusal under the metadata arm: which of the three
+    // ways the D7 producer convention was broken.
+    assert_eq!(
+        pair(&EditError::MetaUnversioned {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(7),
+                path: vec![RoleSeg::OutputBody],
+            },
+            key: "fit".to_owned(),
+            error: MetaVersionError::VersionNotInt,
+        }),
+        ("meta_unversioned", Some("version_not_int"))
+    );
     // `Roots` reads its word off the fault already, the way
     // `PlacementRule` does one carrier over.
     assert_eq!(
@@ -1424,6 +1761,403 @@ fn edit_inner_variant_tags_are_stable() {
         })),
         ("root_duplicate", None)
     );
+}
+
+/// **Every `EditError` arm's payload, constructed and read.**
+///
+/// The arm table, executable. `crate::edit_payload::edit_payload` is
+/// the projection Python reads its attributes off, and this pin says
+/// what each of the 58 arms puts on the wire: the exact set of
+/// attributes it CARRIES, in publication order, with the rest `None`.
+///
+/// It is here rather than in `tests/*.py` because most of these arms
+/// have no Python door — the bound `DocEdit` surface is ten verbs, and
+/// a rebind, a witness, an appearance write or an expression-path edit
+/// is not among them. A rename or a re-slotting of any arm's payload
+/// is a breaking change to the bindings whether or not a Python row
+/// can provoke it, so it is pinned where it can be provoked: by
+/// construction, on the row with no interpreter.
+///
+/// The pin is TOTAL over the enum: all 58 arms are built here, so an
+/// arm whose projection is dropped shows up as a changed set rather
+/// than as an absence nobody counted. Totality of the PROJECTION is a
+/// different guarantee and a stronger one: `edit_payload`'s match is
+/// exhaustive with no wildcard, so an arm that reached Python
+/// unprojected would not compile.
+#[test]
+fn every_edit_arm_projects_the_payload_it_carries() {
+    use crate::edit_payload::edit_payload;
+    use pncad::document::{
+        AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
+        EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
+        RecipeNodeId, RootFault, SlotId,
+    };
+    use pncad::prelude::StableName;
+    use pncad::select::{EntityKind, RoleSeg};
+
+    let id = |n: u64| RecipeNodeId(n);
+    let param = || ParamName::new("bore");
+    let named = || StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(7),
+        path: vec![RoleSeg::OutputBody],
+    };
+    let carries = |err: &E, want: &[&str]| {
+        assert_eq!(
+            edit_payload(err).present(),
+            want,
+            "the payload `{}` puts on the wire has moved",
+            crate::tags::edit_error_tag(err)
+        );
+    };
+
+    // ---- the node roles ----
+    carries(&E::UnknownNode { id: id(1) }, &["node"]);
+    carries(&E::WouldCycle { at: id(1) }, &["node"]);
+    carries(&E::ReadSiteMissingNode { at: id(1) }, &["node"]);
+    carries(&E::SetMembersOnNonList { node: id(1) }, &["node"]);
+    carries(&E::WitnessOnNonSketch { node: id(1) }, &["node"]);
+    carries(&E::DuplicateWitnessEntry { node: id(1) }, &["node"]);
+    carries(&E::PlacementOnNonInstance { node: id(1) }, &["node"]);
+    carries(&E::PlacementRuleMismatch { node: id(1) }, &["node"]);
+    carries(&E::EmptyPlacementList { node: id(1) }, &["node"]);
+    carries(&E::NonFinitePlacement { node: id(1) }, &["node"]);
+    carries(&E::NonFiniteAlignment { node: id(1) }, &["node"]);
+    carries(&E::UpdateOnNonInstance { node: id(1) }, &["node"]);
+    carries(&E::UnresolvedInput { input: id(2) }, &["input"]);
+    carries(
+        &E::DuplicateInput {
+            node: id(1),
+            input: id(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::DeclareInputNotDeclare {
+            node: id(1),
+            input: id(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::AssertionTarget {
+            node: id(1),
+            measure: id(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::DeleteWouldDangle {
+            id: id(1),
+            referenced_by: id(2),
+        },
+        &["node", "referenced_by"],
+    );
+
+    // The two-node arms answer with the ids they were given, not with
+    // the first id twice: the roles are what a caller acts on.
+    let dangle = E::DeleteWouldDangle {
+        id: id(4),
+        referenced_by: id(9),
+    };
+    let payload = edit_payload(&dangle);
+    assert_eq!(payload.node, Some(id(4)));
+    assert_eq!(payload.referenced_by, Some(id(9)));
+
+    // ---- slots and dimensions ----
+    carries(
+        &E::UnknownSlot {
+            id: id(1),
+            slot: SlotId::Count,
+        },
+        &["node", "slot"],
+    );
+    carries(
+        &E::SlotDimensionMismatch {
+            slot: SlotId::Distance,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        },
+        &["slot", "expected", "found"],
+    );
+    carries(
+        &E::StructuralSlotNeedsStructuralEdit {
+            slot: SlotId::Count,
+        },
+        &["slot"],
+    );
+    carries(
+        &E::NotStructuralSlot {
+            slot: SlotId::Radius,
+        },
+        &["slot"],
+    );
+    carries(
+        &E::AssertionDimension {
+            node: id(1),
+            measure: id(2),
+            measured: Dimension::Length,
+            bound: Dimension::Angle,
+        },
+        &["node", "input", "expected", "found"],
+    );
+
+    // `expected`/`found` are the DIMENSION pair under every spelling
+    // the kernel gives them, and they are tag words rather than prose.
+    let mismatch = E::SlotDimensionMismatch {
+        slot: SlotId::Origin(Axis3::Y),
+        expected: Dimension::Length,
+        found: Dimension::Count,
+    };
+    let payload = edit_payload(&mismatch);
+    assert_eq!(payload.slot, Some("origin_y"));
+    assert_eq!(payload.expected, Some("length"));
+    assert_eq!(payload.found, Some("count"));
+
+    // ---- document parameters ----
+    carries(
+        &E::UnknownPayloadParam {
+            name: param(),
+            node: id(1),
+        },
+        &["node", "param"],
+    );
+    carries(
+        &E::PayloadParamDimensionMismatch {
+            name: param(),
+            node: id(1),
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        },
+        &["node", "param", "expected", "found"],
+    );
+    carries(
+        &E::UnknownDocParam {
+            name: param(),
+            node: id(1),
+            slot: SlotId::Count,
+        },
+        &["node", "slot", "param"],
+    );
+    carries(
+        &E::DocParamDimensionMismatch {
+            name: param(),
+            node: id(1),
+            slot: SlotId::Count,
+            declared: Dimension::Count,
+            referenced: Dimension::Length,
+        },
+        &["node", "slot", "param", "expected", "found"],
+    );
+    carries(
+        &E::ContinuousParamCannotBeCount { name: param() },
+        &["param"],
+    );
+    carries(&E::DocParamNotDeclared { name: param() }, &["param"]);
+    carries(&E::NonFiniteDocParam { name: param() }, &["param"]);
+    carries(
+        &E::DocParamValueKindMismatch {
+            name: param(),
+            declared: Dimension::Length,
+            offered: DocParamValue::Count(3),
+        },
+        &["param", "expected", "offered"],
+    );
+
+    // ---- the list-shape arms ----
+    carries(
+        &E::TooFewMembers {
+            node: id(1),
+            found: 1,
+        },
+        &["node", "count"],
+    );
+    carries(
+        &E::RepeatedDesignation {
+            node: id(1),
+            first: 0,
+            again: 3,
+        },
+        &["node", "first", "again"],
+    );
+    // `found` on a short list is a COUNT and takes the `count`
+    // attribute, so it never lands where a dimension word would.
+    let short = E::TooFewMembers {
+        node: id(1),
+        found: 1,
+    };
+    let payload = edit_payload(&short);
+    assert_eq!(payload.count, Some(1));
+    assert_eq!(payload.found, None);
+
+    // ---- names, kinds and appearance ----
+    for arm in [
+        E::DeclareNamesMissingNode { name: named() },
+        E::RebindTargetMissingNode { name: named() },
+        E::RebindUnknownName { name: named() },
+        E::RebindIdentity { name: named() },
+        E::RebindNoReferences { name: named() },
+        E::NameUnresolvedInEvaluation { name: named() },
+        E::AppearanceWrongKind { name: named() },
+        E::AppearanceNamesMissingNode { name: named() },
+    ] {
+        carries(&arm, &["name"]);
+    }
+    carries(
+        &E::RebindKindMismatch {
+            from: EntityKind::Face,
+            to: EntityKind::Edge,
+        },
+        &["from_kind", "to_kind"],
+    );
+    carries(
+        &E::RebindAppearanceCollision {
+            name: named(),
+            kind: AttrKind::Color,
+        },
+        &["name", "kind"],
+    );
+    carries(
+        &E::AppearanceNotSet {
+            name: named(),
+            kind: AttrKind::Visibility,
+        },
+        &["name", "kind"],
+    );
+    let collision = E::RebindAppearanceCollision {
+        name: named(),
+        kind: AttrKind::Label,
+    };
+    assert_eq!(edit_payload(&collision).kind, Some("label"));
+
+    // ---- appearance metadata ----
+    carries(
+        &E::MetaNotSet {
+            name: named(),
+            key: "fit".to_owned(),
+        },
+        &["name", "key"],
+    );
+    carries(
+        &E::RebindMetadataCollision {
+            name: named(),
+            key: "fit".to_owned(),
+        },
+        &["name", "key"],
+    );
+    // The shape refusal is the arm's third field and rides on
+    // `inner_variant`, not on the payload: the projection is
+    // `MetaNotSet`'s, the same `name` and `key`.
+    carries(
+        &E::MetaUnversioned {
+            name: named(),
+            key: "fit".to_owned(),
+            error: MetaVersionError::MissingVersion,
+        },
+        &["name", "key"],
+    );
+    carries(
+        &E::MetaNonFinite {
+            name: named(),
+            key: "fit".to_owned(),
+            path: "clearance.lo".to_owned(),
+        },
+        &["name", "key", "value_path"],
+    );
+
+    // ---- scalars and addresses ----
+    carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
+    carries(
+        &E::ImproperPlacement {
+            node: id(1),
+            determinant: -1.0,
+        },
+        &["node", "determinant"],
+    );
+    carries(
+        &E::PinUnchanged {
+            node: id(1),
+            pin: ContentPin([0u8; 32]),
+        },
+        &["node", "pin"],
+    );
+    // An expression address decomposes into the two attributes that
+    // already name its halves plus the child indices below the slot;
+    // the metadata float's address is a `str` under `value_path`, a
+    // different address in a different tree.
+    let off_tree = E::PathOffTree {
+        path: ExprPath {
+            node: id(5),
+            slot: SlotId::Distance,
+            path: vec![0, 1],
+        },
+    };
+    carries(&off_tree, &["node", "slot", "path"]);
+    let payload = edit_payload(&off_tree);
+    assert_eq!(payload.node, Some(id(5)));
+    assert_eq!(payload.slot, Some("distance"));
+    assert_eq!(payload.path, Some(&[0u8, 1][..]));
+
+    // ---- the product-root invariants ----
+    carries(&E::Roots(RootFault::NotLive { root: id(1) }), &["node"]);
+    carries(&E::Roots(RootFault::Duplicate { root: id(1) }), &["node"]);
+    carries(&E::Roots(RootFault::Uncovered { node: id(1) }), &["node"]);
+    carries(
+        &E::Roots(RootFault::Ancestor {
+            ancestor: id(1),
+            descendant: id(2),
+        }),
+        &["node", "referenced_by"],
+    );
+
+    // ---- the arms that carry a nested refusal, and the empty one ----
+    //
+    // `inner_variant` names the arm of the refusal each holds and the
+    // fields INSIDE it stay on that type's own door, so what these
+    // project is the carrier's own payload and nothing more. The one
+    // with no payload at all is the whole of the empty case.
+    carries(
+        &E::ProfileProgramRefused {
+            node: id(1),
+            refusal: pncad::document::ProgramRefusal::Validate(
+                pncad::profile::ProfileError::EmptyProfile,
+            ),
+        },
+        &["node"],
+    );
+    carries(
+        &E::MeasureMalformed {
+            node: id(1),
+            fault: MeasureNodeFault::RefIndexOutOfRange {
+                verb: "distance",
+                index: 5,
+                refs: 0,
+            },
+        },
+        &["node"],
+    );
+    carries(
+        &E::Dimension(DimensionError::Mismatch {
+            op: "+",
+            left: Dimension::Length,
+            right: Dimension::Angle,
+        }),
+        &[],
+    );
+    carries(
+        &E::InvalidDistribution {
+            name: param(),
+            fault: Distribution::Normal { sigma: 0.0 }
+                .check()
+                .expect_err("a zero sigma breaks an E2 invariant"),
+        },
+        &["param"],
+    );
+    let band = pncad::geom_core::Band::linear(Tol::witness()).expect("the witness band");
+    let axis = Frame::rotate_then_translate([0.0, 0.0, 0.0], 1.0, [0.0, 0.0, 0.0], band)
+        .expect_err("a zero axis has no definite direction");
+    carries(&E::from(axis), &[]);
+    carries(&E::EmptyWitnessBulk, &[]);
 }
 
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is
@@ -2043,6 +2777,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["product_error_tag"],
     },
     TagEntry {
+        function: "attr_kind_tag",
+        values: &["color", "label", "visibility"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "attribution_tag",
         values: &[
             "carried_declined",
@@ -2056,6 +2795,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "band_error_tag",
         values: &["empty", "invalid_lever_arm", "invalid_value"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "band_field_tag",
+        values: &["escalate", "zero"],
         delegates: &[],
     },
     TagEntry {
@@ -2274,6 +3018,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "measure_node_fault_tag",
+            "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
         ],
@@ -2461,6 +3206,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "mesh_pick_error_tag",
         values: &["position_out_of_range"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "meta_version_error_tag",
+        values: &["missing_version", "not_a_map", "version_not_int"],
         delegates: &[],
     },
     TagEntry {
@@ -2747,6 +3497,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "program_fault_tag",
+        values: &["lattice", "slot_dimension"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "program_refusal_tag",
         values: &["geometry", "resolve", "transition", "validate"],
         delegates: &[],
@@ -2908,6 +3663,76 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "too_few_sections",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "slot_id_tag",
+        values: &[
+            "chamfer_distance",
+            "count",
+            "direction_x",
+            "direction_y",
+            "direction_z",
+            "distance",
+            "instance",
+            "normal_x",
+            "normal_y",
+            "normal_z",
+            "origin_x",
+            "origin_y",
+            "origin_z",
+            "profile",
+            "radius",
+            "revolve_angle",
+            "rotation_angle",
+            "rotation_axis_x",
+            "rotation_axis_y",
+            "rotation_axis_z",
+            "shell_thickness",
+            "spacing",
+            "spin",
+            "stations",
+            "step",
+            "translation_x",
+            "translation_y",
+            "translation_z",
+            "tube_major_radius",
+            "tube_minor_radius",
+            "tube_wall",
+            "tube_window_end",
+            "tube_window_start",
+            "u_x",
+            "u_y",
+            "u_z",
+            "v_degree",
+            "v_x",
+            "v_y",
+            "v_z",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "snapshot_error_tag",
+        values: &[
+            "assertion_bound",
+            "blend_selection_not_canonical",
+            "count_continuous",
+            "dangling_input",
+            "declare_input",
+            "epsilon_invalid",
+            "forward_input",
+            "id_beyond_counter",
+            "input_list",
+            "mate_alignment",
+            "measure_refs",
+            "metadata_unversioned",
+            "order_mismatch",
+            "placement_frame",
+            "placement_not_gauge",
+            "placement_rule",
+            "placement_site",
+            "witness_site",
+        ],
+        delegates: &["root_fault_tag"],
     },
     TagEntry {
         function: "solid_name_error_tag",

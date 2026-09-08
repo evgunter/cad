@@ -47,6 +47,8 @@ from pncad import (
     Doc,
     DocEdit,
     EditError,
+    PersistError,
+    StlError,
     DocRef,
     InlineOutcome,
     InterfaceRecord,
@@ -56,6 +58,7 @@ from pncad import (
     FlushFinding,
     FlushRung,
     Frame,
+    FrameError,
     GeomPred,
     Length,
     LengthUnit,
@@ -69,6 +72,7 @@ from pncad import (
     Node,
     NodeId,
     NodePick,
+    NodePickError,
     PickHit,
     Pose,
     Resolution,
@@ -101,6 +105,7 @@ from pncad import (
     rad,
     enforce_checks,
     evaluate,
+    load,
     gauge_of,
     header_document_id,
     inline,
@@ -549,6 +554,18 @@ which_body: int = index.body
 # slot it concerns.
 per_patch: list[str | HitTestError] = index.patch_names(seamed)
 per_edge: list[str | HitTestError] = index.boundary_names(seamed)
+# The pick refusal's payload, every attribute present and each typed.
+# `patch`, `triangle` and `index` are the index arm's three numbers —
+# `None` on every other arm, which is a value the stub types and not a
+# missing attribute.
+try:
+    NodePick.build(seamed, upright, 99, 1 * mm)
+except NodePickError as pick_refusal:
+    which_pick_arm: str = pick_refusal.variant
+    which_index_arm: str | None = pick_refusal.index_variant
+    bad_patch: int | None = pick_refusal.patch
+    bad_triangle: int | None = pick_refusal.triangle
+    bad_position: int | None = pick_refusal.index
 
 # Name resolution across re-evaluation. The verdict is a VALUE — a
 # name that no longer denotes is an answer, not a raise — so every
@@ -686,6 +703,33 @@ try:
 except EditError as edit_refusal:
     which_edit: str = edit_refusal.variant
     which_edit_arm: str | None = edit_refusal.inner_variant
+    # ...and the arm's PAYLOAD beside them, every attribute present and
+    # each typed. A delete that would dangle carries the two node
+    # roles; the rest are `None` here, which is a value the stub types
+    # and not a missing attribute.
+    dangling: NodeId | None = edit_refusal.node
+    consumer: NodeId | None = edit_refusal.referenced_by
+    operand: NodeId | None = edit_refusal.input
+    which_slot: str | None = edit_refusal.slot
+    which_param: str | None = edit_refusal.param
+    which_name: str | None = edit_refusal.name
+    which_key: str | None = edit_refusal.key
+    wanted_dim: str | None = edit_refusal.expected
+    offered_dim: str | None = edit_refusal.found
+    which_attr: str | None = edit_refusal.kind
+    rebound_from: EntityKind | None = edit_refusal.from_kind
+    rebound_to: EntityKind | None = edit_refusal.to_kind
+    members: int | None = edit_refusal.count
+    first_at: int | None = edit_refusal.first
+    again_at: int | None = edit_refusal.again
+    refused_eps: float | None = edit_refusal.value
+    refused_value: float | int | None = edit_refusal.offered
+    det: float | None = edit_refusal.determinant
+    address: tuple[int, ...] | None = edit_refusal.path
+    inside_meta: str | None = edit_refusal.value_path
+    already: ContentPin | None = edit_refusal.pin
+    if dangling is not None:
+        narrowed_node: NodeId = dangling
 
 # The one refusal on this surface whose discriminant is a SEQUENCE.
 # `findings` is a list, its length is `failure_count`, and each entry's
@@ -704,3 +748,45 @@ except ValidationError as validation_refusal:
     coincidence: str | None = first_finding.contact_kind
     if coincidence is not None:
         declarable: str = coincidence
+
+
+# The three doors LIB-DOORS-2 projected, typed. Every payload
+# attribute is `Optional[...]`, so a caller that has not narrowed one
+# is holding `X | None`; only the discriminant itself is a plain
+# `str`.
+try:
+    load("id: 00000000000000000000000000000000\n{}")
+except PersistError as persist_refusal:
+    which_stage: str = persist_refusal.variant
+    which_inner: str | None = persist_refusal.inner_variant
+    where: str | None = persist_refusal.site
+    which_param: str | None = persist_refusal.name
+    reporter_said: str | None = persist_refusal.detail
+    at_line: int | None = persist_refusal.line
+    recorded_epsilon: float | None = persist_refusal.document
+    if at_line is not None:
+        line_number: int = at_line
+
+try:
+    Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+except FrameError as frame_refusal:
+    which_input: str = frame_refusal.variant
+    which_band_arm: str | None = frame_refusal.inner_variant
+    in_band: float | None = frame_refusal.margin
+    lower: float | None = frame_refusal.margin_low
+    coincidence_at: float | None = frame_refusal.zero
+    escalation_at: float | None = frame_refusal.escalate
+    deciding: str | None = frame_refusal.predicate
+    if in_band is not None:
+        margin_value: float = in_band
+
+try:
+    gathered.tessellate(1 * mm).to_stl_binary(header="x" * 81)
+except StlError as stl_refusal:
+    which_stl_arm: str = stl_refusal.variant
+    facet: tuple[int, int, int] | None = stl_refusal.triangle
+    offending_char: str | None = stl_refusal.character
+    header_bytes: int | None = stl_refusal.len
+    sink_said: str | None = stl_refusal.detail
+    if header_bytes is not None:
+        how_long: int = header_bytes
