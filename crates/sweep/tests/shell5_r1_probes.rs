@@ -509,7 +509,11 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         + (v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58))
         + (v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5))
         - 1.52 * 2.52 * 0.01;
-    assert!((props.volume - want).abs() < 1e-12, "{} vs {want}", props.volume);
+    assert!(
+        (props.volume - want).abs() < 1e-12,
+        "{} vs {want}",
+        props.volume
+    );
     assert_eq!(three.body.solids().count(), 4);
     // Eight thin-solid shells less the one the rim fusion consumed.
     assert_eq!(three.body.shells().count(), 7);
@@ -524,11 +528,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         .get_shell(three.body.get_face(opened_solid).unwrap().shell)
         .unwrap()
         .solid;
-    let counts: Vec<usize> = three
-        .body
-        .solids()
-        .map(|(_, s)| s.shells.len())
-        .collect();
+    let counts: Vec<usize> = three.body.solids().map(|(_, s)| s.shells.len()).collect();
     assert_eq!(counts.iter().filter(|&&n| n == 1).count(), 1, "{counts:?}");
     assert_eq!(
         three.body.get_solid(opened_solid).unwrap().shells.len(),
