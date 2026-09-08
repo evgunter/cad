@@ -2,22 +2,53 @@
 //!
 //! Every value here holds NOTHING but binding bits and verb-authored
 //! arguments, and every function is PURE over its parameters. The
-//! enforcement is SIGNATURE PURITY, stated precisely: the state types
-//! carry no carrier field (`pending.carrier` is E0609 — no such
-//! field), so a verb that consults "what leg produced this point" has
-//! nothing in scope to read, and re-introducing carrier-awareness
-//! requires WIDENING A SIGNATURE here — the loud reviewable act such a
-//! change should be. (Rust module visibility alone is NOT the seal:
-//! as a child of `path`, this module could name `super::Core`; it is
-//! the parameter types that make the old wall unwritable.)
+//! enforcement is SIGNATURE PURITY, and it is ENFORCED, not a
+//! convention: no signature in this module admits a `Core`, a previous
+//! leg or an incoming carrier. The whole inventory is
+//! [`DirectedPoint`] `{ at, dir }` (the one incoming-state currency),
+//! the two `Pending*` values (a fillet verb's OWN authored incoming,
+//! carried forward as its output), and [`ArcResolver`], whose `Guide`
+//! is the discrete-choice ledger and carries no geometry. A verb over
+//! the bare state that reaches for "what leg produced this point" has
+//! nothing in scope to read, and the compiler says so — the seal's
+//! proof, as a doctest (the first `compile_fail` in this tree that
+//! pins a sealing rather than a type shape):
+//!
+//! ```compile_fail,E0609
+//! use profile::path::DirectedPoint;
+//! // The directed point is position and tangent, and nothing else:
+//! // there is no carrier field to read, so a carrier-aware verb is
+//! // unwritable against it.
+//! fn reads_the_carrier(dp: DirectedPoint<f64>) -> f64 {
+//!     dp.carrier.radius
+//! }
+//! ```
+//!
+//! Re-introducing carrier-awareness therefore requires WIDENING A
+//! SIGNATURE here — the loud reviewable act such a change should be.
+//! (Rust module visibility alone is NOT the seal: as a child of
+//! `path`, this module could name `super::Core`; it is the parameter
+//! types that make the old wall unwritable.)
 //!
 //! The chain (`path.rs`) threads these values through the verb
 //! functions and applies their EMISSIONS (append-leg / insert-arc /
 //! extend-ray) to the accumulating loop on the far side of this module
-//! boundary; the §4 junction/identity checks read the chain's own
-//! intrinsic leg data and stay chain-side. The arc-carrier RESOLUTION
-//! machinery (`arc_fillet::resolve`, unchanged bit for bit) is the
-//! kernel's arc half: it is already pure over `FilletSide` values.
+//! boundary; the §4 junction checks read the chain's own intrinsic
+//! leg data and stay chain-side. **The ONE chain-side datum a kernel
+//! in `path.rs` / `family.rs` can still see is the tip's incoming
+//! carrier** (`Incoming.carrier`, the arriving arc's circle), and its
+//! readers are NAMED so that a new one is a diff on this list rather
+//! than a quiet return of the old wall: the straight-origin test of
+//! ray extension (`Core::resolve_fillet`'s Positive-fit arm and
+//! `family::merge_of`, both asking only whether the by-tangent origin
+//! was a straight leg), and `carriers_are_identical` under the
+//! `path_carrier_identity` key in `family::leg_end_arc_open` — the arc
+//! extension's vertex-move choice, a same-carrier question the
+//! 2026-09-02 ruling retires in principle and which stands recorded
+//! here until its own unit takes it. The chain keeps no other memory
+//! of an emitted arc. The arc-carrier RESOLUTION machinery
+//! (`arc_fillet::resolve`, unchanged bit for bit) is the kernel's arc
+//! half: it is already pure over `FilletSide` values.
 //!
 //! # The spec family (§2c rounds 5–9): `ArcData` as standalone types
 //!

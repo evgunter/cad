@@ -1873,8 +1873,6 @@ pub struct Core<T: Real> {
     pending: Option<verbs::Pending<T>>,
     /// Chain-side knife-edge bookkeeping for `pending` (same lifetime).
     pending_meta: Option<PendingMeta<T>>,
-    /// The carrier of the last emitted segment when it is an arc.
-    last_arc: Option<ArcData<T>>,
     /// **Profiles-as-programs (v2)**: the authoring verbs, recorded as
     /// they lower. Each binder pushes exactly its own step, so one
     /// chain yields both the lowered loop and its program.
@@ -1897,7 +1895,6 @@ impl<T: Real> Core<T> {
             first_seg: FirstSeg::NotYet,
             pending: None,
             pending_meta: None,
-            last_arc: None,
             program: Vec::new(),
             guide: crate::structure::Guide::recording(),
         }
@@ -1961,24 +1958,18 @@ impl<T: Real> Core<T> {
             pos: p,
             bulge: T::zero(),
         });
-        self.last_arc = None;
         Ok(())
     }
 
     /// Appends an arc segment to `p` with `bulge` (the raw
-    /// `arc_to`), remembering the carrier for identity checks.
-    fn push_arc(
-        &mut self,
-        p: Point2<T>,
-        bulge: T,
-        carrier: ArcData<T>,
-    ) -> Result<(), PathError<T>> {
+    /// `arc_to`). The carrier is not kept: the chain remembers nothing
+    /// about an emitted arc beyond the tip's own incoming data.
+    fn push_arc(&mut self, p: Point2<T>, bulge: T) -> Result<(), PathError<T>> {
         self.set_leaving(bulge, FirstSeg::Arc)?;
         self.verts.push(ProfileVertex {
             pos: p,
             bulge: T::zero(),
         });
-        self.last_arc = Some(carrier);
         Ok(())
     }
 
@@ -1989,14 +1980,12 @@ impl<T: Real> Core<T> {
     /// tip's lever). `None` is the plain leg: nothing emitted, the
     /// leg's own bulge and chord handed back. A count below 2 refuses
     /// [`PathError::ArcSplitCount`].
-    #[allow(clippy::too_many_arguments)]
     fn emit_split(
         &mut self,
         at: Point2<T>,
         end: Point2<T>,
         bulge: T,
         chord: T,
-        carrier: ArcData<T>,
         split: Option<SplitLeg<T>>,
     ) -> Result<(T, T), PathError<T>> {
         let Some(split) = split else {
@@ -2012,7 +2001,7 @@ impl<T: Real> Core<T> {
         let piece = (sweep / (T::from_f64(4.0) * T::from_f64(split.n as f64))).tan();
         let mut last = at;
         for station in split_stations(at, end, centre, sweep, split.n) {
-            self.push_arc(station, piece, carrier)?;
+            self.push_arc(station, piece)?;
             self.declare_last();
             last = station;
         }
@@ -2737,7 +2726,7 @@ impl<T: Decide> Core<T> {
             }
             self.tangent.push(0);
         } else {
-            self.push_arc(trims.t2, trims.bulge, arc)?;
+            self.push_arc(trims.t2, trims.bulge)?;
             // The outgoing joint is declared only when something
             // tangent actually follows it (see [`ArrivalKind`]): a
             // continuing arrival always rides the arrival ray, and a
@@ -2775,15 +2764,7 @@ impl<T: Decide> Core<T> {
                 Some((centre, sweep)) => {
                     let head = self.head()?;
                     let bulge = bulge_from_center(head, t.t1, centre, sweep);
-                    let radius = (t.t1 - centre).norm_squared().sqrt();
-                    self.push_arc(
-                        t.t1,
-                        bulge,
-                        ArcData {
-                            center: centre,
-                            radius,
-                        },
-                    )?;
+                    self.push_arc(t.t1, bulge)?;
                 }
             }
             if !(t.in_arc.is_none() && merge) {
@@ -2839,11 +2820,6 @@ impl<T: Decide> Core<T> {
         let bulge = bulge_from_center(from, t1, centre, sweep);
         self.verts[n - 2].bulge = bulge;
         self.verts[n - 1].pos = t1;
-        let radius = (t1 - centre).norm_squared().sqrt();
-        self.last_arc = Some(ArcData {
-            center: centre,
-            radius,
-        });
         Ok(())
     }
 
@@ -2855,7 +2831,7 @@ impl<T: Decide> Core<T> {
         t: &arc_fillet::ArcFilletTrims<T>,
         declare: bool,
     ) -> Result<(), PathError<T>> {
-        self.push_arc(t.t2, t.bulge, t.arc)?;
+        self.push_arc(t.t2, t.bulge)?;
         if declare {
             self.declare_last();
         }
@@ -3544,7 +3520,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let g = self.tangent_arc_geom(p, tol)?;
-        self.core.push_arc(p, g.bulge, g.carrier)?;
+        self.core.push_arc(p, g.bulge)?;
         let arm = arc_arm(&g.carrier, g.chord);
         Ok(in_state(
             self.core,
@@ -3805,8 +3781,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             self.core.start_ang = Some(start_t);
         }
         let carrier = arc_carrier(at, p, bulge);
-        let (seg_bulge, last_chord) = self.core.emit_split(at, p, bulge, chord, carrier, split)?;
-        self.core.push_arc(p, seg_bulge, carrier)?;
+        let (seg_bulge, last_chord) = self.core.emit_split(at, p, bulge, chord, split)?;
+        self.core.push_arc(p, seg_bulge)?;
         let arm = arc_arm(&carrier, last_chord);
         Ok(in_state(
             self.core,
@@ -3855,9 +3831,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
         let start_ang = *self.core.start_ang.get_or_insert(start_t);
         let carrier = arc_carrier(at, start_pos, bulge);
-        let (seg_bulge, last_chord) = self
-            .core
-            .emit_split(at, start_pos, bulge, chord, carrier, split)?;
+        let (seg_bulge, last_chord) = self.core.emit_split(at, start_pos, bulge, chord, split)?;
         let arm = arc_arm(&carrier, last_chord);
         if declared {
             seam_arrival_check(end_t, arm, start_ang, tol)?;
