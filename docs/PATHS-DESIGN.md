@@ -1050,7 +1050,7 @@ structural closer (BOOL-11), the declared arrival that admits a
 subdivision or G1 seam (BOOL-12, §6's revised PQ4), and the raw-door
 demotion (BOOL-9). The last of those executes the companion sentence
 above: `ProfileLoop`'s vertex table is minted by the lattice's emission
-layer, by `ProfileLoop::embed` (an exact `f64 → T` re-materialization of
+layer, by `ProfileLoop::map` (an exact `f64 → T` re-materialization of
 a table that already exists), and — behind
 `cfg(any(test, feature = "test-support"))`, absent from every shipped
 build — by `RawLoop`, for the fixtures a data-gate refusal row needs

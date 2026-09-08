@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tol};
+use geom_core::{Point2, Real, Tol};
 use profile::{
     Fidelity, LiftOutcome, Open, ProfileLoop, ProfileVertex, RawLoop, Start, Step, Target,
     lift_checked,
@@ -42,7 +42,7 @@ fn stadium() -> ProfileLoop<f64> {
 // The materialization door
 // ------------------------------------------------------------------
 
-/// **`embed` at `f64` is the identity, bit for bit** — the receipt the
+/// **`map` at `f64` is the identity, bit for bit** — the receipt the
 /// two production sites that call it stand on.
 ///
 /// The door crosses every coordinate through `T::from_f64`. At `f64`
@@ -54,7 +54,7 @@ fn stadium() -> ProfileLoop<f64> {
 #[test]
 fn the_materialization_door_reproduces_the_table_bit_for_bit() {
     let source = stadium();
-    let crossed: ProfileLoop<f64> = source.embed();
+    let crossed: ProfileLoop<f64> = source.map(<f64 as Real>::from_f64);
 
     assert_eq!(crossed.vertices().len(), source.vertices().len());
     for (i, (a, b)) in source
@@ -85,7 +85,7 @@ fn the_materialization_door_does_not_re_adjudicate_the_table() {
         ProfileVertex::new(p2(1.0, 1.0), 0.0),
     ])
     .with_tangent_joints(vec![7]);
-    let crossed: ProfileLoop<f64> = odd.embed();
+    let crossed: ProfileLoop<f64> = odd.map(<f64 as Real>::from_f64);
     assert_eq!(crossed.tangent_joints(), [7]);
     assert_eq!(crossed.vertices().len(), 3);
 }

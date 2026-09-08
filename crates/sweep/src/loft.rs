@@ -225,7 +225,7 @@ fn end_profile<T: Decide>(
     place: &Affine3<f64>,
     tol: Tol,
 ) -> Result<ValidatedProfile<T>, LoftError> {
-    let loops = section.iter().map(ProfileLoop::embed::<T>).collect();
+    let loops = section.iter().map(|lp| lp.map(T::from_f64)).collect();
     Profile::new(SketchPlane::new(place.map(T::from_f64)), loops)
         .validate(tol)
         .map_err(LoftError::Profile)

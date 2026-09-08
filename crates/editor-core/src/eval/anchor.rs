@@ -279,7 +279,7 @@ pub(crate) fn embed_affine<T: geom_core::Real>(
 /// embedding the parameter environment uses).
 pub fn embed_profile<T: geom_core::Real>(p: &Profile<f64>) -> Profile<T> {
     let placement = embed_affine::<T>(&p.plane.placement);
-    let loops = p.loops.iter().map(ProfileLoop::embed::<T>).collect();
+    let loops = p.loops.iter().map(|lp| lp.map(T::from_f64)).collect();
     Profile::new(profile::SketchPlane::new(placement), loops)
 }
 

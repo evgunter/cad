@@ -122,7 +122,7 @@ pub use quantity::{
 // FIXTURE door behind that crate's `test-support` feature — absent from
 // every shipped build, so there is nothing here to decline. Loops are
 // authored through the lattice below, and a table that already exists
-// crosses scalars through `ProfileLoop::embed`.
+// crosses scalars through `ProfileLoop::map`.
 pub use ::profile::{
     ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
     SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,

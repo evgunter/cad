@@ -69,7 +69,7 @@
 //! raw table door is gated out of every shipped build
 //! ([`crate::RawLoop`]), so the tables that reach production callers
 //! come from the lattice's emission layer or from
-//! [`crate::ProfileLoop::embed`], and this gate re-checks them anyway.
+//! [`crate::ProfileLoop::map`], and this gate re-checks them anyway.
 //!
 //! Two materialization doors were anticipated and do not exist: a STEP
 //! import face loop (`crates/step-import` never names this crate) and a

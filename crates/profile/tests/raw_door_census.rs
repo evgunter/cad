@@ -8,7 +8,7 @@
 //!
 //! 1. [`no_production_source_writes_a_vertex_table`] — the census of
 //!    the tree as it stands. Every writer the emission layer and
-//!    [`profile::ProfileLoop::embed`] do not account for is inside a
+//!    [`profile::ProfileLoop::map`] do not account for is inside a
 //!    test region or a test target.
 //! 2. [`the_door_carries_its_gate`] — the door itself, so an edit that
 //!    widens the gate fails here rather than silently restoring the
@@ -235,40 +235,62 @@ fn no_production_source_writes_a_vertex_table() {
         hits.is_empty(),
         "production source writes a vertex table by hand — author \
          through the `path` lattice, or, for a table that already \
-         exists in another scalar, `ProfileLoop::embed`:\n  {}",
+         exists in another scalar, `ProfileLoop::map`:\n  {}",
         hits.join("\n  ")
     );
 }
 
-/// **The gate on the door**, read from the source that declares it: the
-/// trait is interior, and its two re-exports are the arms.
+/// **The two arms are still the two arms** — the shape, read from the
+/// source that declares it.
 ///
-/// A widening edit — dropping the `cfg`, or promoting the narrow arm to
-/// `pub` — fails here.
+/// This row is deliberately the WEAKEST of the three, and says so: the
+/// enforcement is the compiler. The trait item is declared at the
+/// visibility its arm grants (`raw_door!(pub)` / `raw_door!(pub(crate))`),
+/// so in a shipped build the item is crate-private and **any** `pub use`
+/// of it, under any name, anywhere in the crate, is E0365 — measured,
+/// with `pub use crate::RawLoop as LoopMint;` added to the carried
+/// `path` module: red in the shut arm, green in the wide one.
+///
+/// What is left for a row is that nobody quietly replaces that shape
+/// with a gated re-export again, which is the shape the reviews broke:
+/// while the item was `pub` in a private module, that same one-line
+/// re-export compiled and sixteen rows stayed green.
 #[test]
-fn the_door_carries_its_gate() {
+fn the_door_is_declared_at_its_arms_visibility() {
     let text = std::fs::read_to_string(repo_root().join("crates/profile/src/lib.rs"))
         .expect("profile's lib.rs reads");
     let view = code_and_literals(&text);
-    let gate = r#"#[cfg(any(test, feature = "test-support"))]"#;
-    let wide = format!("{gate}\npub use raw_loop::RawLoop;");
-    let narrow =
-        "#[cfg(not(any(test, feature = \"test-support\")))]\npub(crate) use raw_loop::RawLoop;";
+    let wide = "#[cfg(any(test, feature = \"test-support\"))]\nraw_door!(pub);";
+    let shut = "#[cfg(not(any(test, feature = \"test-support\")))]\nraw_door!(pub(crate));";
     assert!(
-        view.contains(&wide),
-        "the raw door's OPEN arm is not the gated `pub use` this census \
-         reads — if the spelling moved, move this row with it"
+        view.contains(wide),
+        "the door's OPEN arm is not `raw_door!(pub)` under the test gate \
+         — if the spelling moved, move this row with it"
     );
     assert!(
-        view.contains(narrow),
-        "the raw door's SHUT arm is not the `pub(crate) use` this census \
-         reads — a narrow arm spelled `pub` would put the minting tier \
-         back on every shipped build's surface"
+        view.contains(shut),
+        "the door's SHUT arm is not `raw_door!(pub(crate))` — a shut arm \
+         that declares the trait `pub` puts the minting tier back on \
+         every shipped build's surface, and a re-export of it would then \
+         compile"
     );
     assert!(
-        !view.contains("\npub trait RawLoop"),
-        "`RawLoop` is declared at the crate root again — a root `pub \
-         trait` is exported unconditionally, which is the gate gone"
+        view.contains("$vis trait RawLoop<T: Real>: Sized {"),
+        "the trait is no longer declared at the macro's visibility \
+         parameter — a literal visibility on the item is the gated \
+         re-export shape coming back under another name"
+    );
+    assert!(
+        !view.contains("pub trait RawLoop"),
+        "`RawLoop` is declared `pub` somewhere — a literal `pub trait` is \
+         exported unconditionally, and every re-export of it then \
+         compiles too"
+    );
+    assert!(
+        !view.contains("use raw_loop::RawLoop"),
+        "the door is reached through a re-export again; the arms are the \
+         declaration itself now, and a re-export is what this row exists \
+         to keep out"
     );
 }
 
@@ -383,5 +405,68 @@ fn every_crate_that_names_the_door_reaches_it() {
         faults.is_empty(),
         "a crate cannot reach the door it names:\n  {}",
         faults.join("\n  ")
+    );
+}
+
+/// **The type's own public surface mints nothing** — the hole the
+/// review's mutation C found, closed.
+///
+/// Gating the TRAIT gates the trait. It says nothing about an inherent
+/// `pub fn from_table(vertices) -> Self` added to `impl ProfileLoop`
+/// three lines below it, which is a fourth door wearing no gate at all
+/// — and when that mutation was applied, every row in this file, the
+/// façade's root-export census and `seal.rs` all stayed green.
+///
+/// So the type's public method set is PINNED. A method that reads is
+/// welcome and costs one line here; a method that MINTS a loop from
+/// data is the thing the Q1 ruling retired, and the line it costs is
+/// where someone has to argue for it.
+#[test]
+fn the_types_public_surface_mints_nothing() {
+    let text = std::fs::read_to_string(repo_root().join("crates/profile/src/lib.rs"))
+        .expect("profile's lib.rs reads");
+    let view = code_and_literals(&text);
+
+    // The inherent impl blocks on the type, by their opening lines; the
+    // trait impl inside the macro is not one of them.
+    let mut found: Vec<String> = Vec::new();
+    let mut inside = false;
+    for line in view.lines() {
+        if line.starts_with("impl ProfileLoop<") || line.starts_with("impl<T: Real> ProfileLoop<") {
+            inside = true;
+            continue;
+        }
+        if inside && line == "}" {
+            inside = false;
+            continue;
+        }
+        if inside && let Some(rest) = line.trim_start().strip_prefix("pub fn ") {
+            let name: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            found.push(name);
+        }
+    }
+    found.sort();
+    assert!(
+        !found.is_empty(),
+        "the scanner found no inherent methods on ProfileLoop — the impl \
+         blocks were re-spelled and this row is reading nothing"
+    );
+
+    // READERS hand back what is already stored; `map` is the
+    // materialization door (a loop that already exists, at another
+    // scalar); `reversed` derives from an existing loop. None of them
+    // takes a vertex table.
+    let pinned = ["map", "reversed", "tangent_joints", "vertices"];
+    assert_eq!(
+        found, pinned,
+        "the public surface of `ProfileLoop` moved.\n  \
+         found:  {found:?}\n  pinned: {pinned:?}\n\
+         A method that READS is welcome — add its name here. A method \
+         that MINTS a loop from a vertex table is the authoring tier \
+         coming back as an inherent method, where the raw door's gate \
+         cannot reach it: that is a ruling, not an edit."
     );
 }
