@@ -136,7 +136,11 @@ fn r2_diagonal_voids_slip_the_clearance_gate_and_cross() {
     let t = 0.3;
     let shelled = topo::shell(&body, t, tol).expect("MEASURED: the gate lets this through");
     let out = &shelled.body;
-    assert_eq!(topo::validate_geometric(out, tol), Ok(()), "tier 3 is green");
+    assert_eq!(
+        topo::validate_geometric(out, tol),
+        Ok(()),
+        "tier 3 is green"
+    );
     assert_eq!(out.solids().count(), 3);
     assert_eq!(out.shells().count(), 6);
 
@@ -304,8 +308,12 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 
     let props = topo::mass_properties(out, tol).expect("props");
     let pi = std::f64::consts::PI;
-    let naive = (2.0 * 2.0 * 3.0 - 1.7 * 1.7 * 2.7) + (pi * 0.95 * 0.95 * 1.3 - pi * 0.8 * 0.8 * 1.0);
-    println!("volume = {}, naive sum of the two walls = {naive}", props.volume);
+    let naive =
+        (2.0 * 2.0 * 3.0 - 1.7 * 1.7 * 2.7) + (pi * 0.95 * 0.95 * 1.3 - pi * 0.8 * 0.8 * 1.0);
+    println!(
+        "volume = {}, naive sum of the two walls = {naive}",
+        props.volume
+    );
     assert!(
         (props.volume - naive).abs() < 1e-9,
         "got {}, naive {naive}",
