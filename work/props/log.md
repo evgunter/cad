@@ -974,3 +974,17 @@ sphere lane is unblocked.
 **MESH-12 MERGED (2026-09-08).** PR #1617 at `a76597ee1` (run
 34174144611 green, `gate ok`), merged by PROPS at `0228c978c`. Sample
 #157, two duals under ordinal 1210. The sphere lane is unblocked.
+
+**Sphere-pole-side specified (2026-09-08).** `docs/PROPS-SPHERE-POLE-SIDE-SPEC.md`
+takes the sphere lane's first two items as one gap: a rim's traversal
+encodes which side of it the face lies on, and the parse never reads
+it — so the rim-only polar cap (levels silent) refuses
+`DegenerateFace` where the interior-side pole should be pushed, and
+the half-cap's L-shaped complement (traversal contradicts the levels)
+measures as a rectangle and cancels the closed sphere to `0.0`. One
+predicate, `props_rim_interior_side`, serves the first and refuses the
+second; CERT-1's and MESH-12's rows stay; the cone apex cap measured
+as the sibling. H / NUMERIC, block PROPS-B3 slot 0 (block drawn
+2026-09-08), dual; dispatch waits on disk. The lune items
+(`sphere-flux-arm-refuses-partial-bands`) follow as their own unit
+(extension 1) and an `[ev]` design conversation (extension 2).
