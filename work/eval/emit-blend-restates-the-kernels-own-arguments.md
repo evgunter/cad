@@ -2,9 +2,10 @@
 id: emit-blend-restates-the-kernels-own-arguments
 kind: issue
 title: editor-core's emit_blend re-derives two arguments that now have their home in sweep's kernel types, and one is already narrower
-status: open
+status: spec
 opened: 2026-09-04
 track: V
+branch: eval/3-emit-blend-cites
 ---
 
 
