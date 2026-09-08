@@ -141,39 +141,17 @@ When you do run locally:
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.
 
-**A test is not a test either, until you have seen it go red.** Three greens in
-one program measured the harness rather than the tree. Two were mutation drills
-whose mutation never reached executing code — one script failed its own
-assertion BEFORE writing the file, so the suite ran on an unmutated tree; the
-other landed on a doc comment 110 lines above the literal that executes.
-The third was a verification chain spelled
-`cargo test … | grep -E "^test result|FAILED" && …`, where **`grep` exits 0 on a
-match**: a run containing `FAILED` satisfied the `&&`, and three real failures
-went into a commit. All three were believed until someone asked what would have
-made them red. So:
+**A green you have not first seen red measures your harness, not the tree.**
+Break the check on purpose, confirm it fails at the line you named, then fix
+it. Three greens in one program meant nothing: two mutations never reached
+executing code, and one chain ended `| grep -E "^test result|FAILED" && …`,
+where `grep` exits 0 on a MATCH — so three real failures satisfied it. Trust a
+runner's exit status over a match on its output.
 
-- **Earn the green with a prior red.** Break the thing on purpose, watch it go
-  red, then fix it and watch it go green. That drill is an iteration tool like
-  any other local run — it establishes that the check CAN red; CI still says
-  whether the tree is green.
-- **Read what a red would have to travel through.** A drill that stays green is
-  a result about the drill until you have confirmed that the file on disk
-  changed and that the change sits in code which executes. A shell chain
-  reports its own exit status, not the suite's: check what each stage returns
-  before you trust an `&&`, and prefer the runner's status to a match on its
-  output.
-
-**An assertion that cannot fail is the same defect written down**, and it is
-common enough to look for by shape: *a predicate over things that cannot vary
-at runtime, standing beside the assertions that already subsume it*. One
-program found nine — `noted.len() == 60` where 60 is `72 - 12` by construction,
-`constant.len() + discriminating.len() == COLUMNS.len()` over two filters that
-partition by construction, a coverage predicate over a const table. When you
-write an assertion, name the runtime value that would make it false; if there
-is none it is documentation, and the repair is usually deletion in favour of
-the rows that assert the thing BY NAME. Ask also which way its red points: one
-that goes red when the corpus IMPROVES is a baseline pinned as a target (§3),
-not a guard.
+**Write assertions a bug could break.** Name the runtime value that would make
+one false; where there is none — a predicate over things fixed at compile time,
+or one its neighbours already subsume — it is documentation, and deleting it is
+the repair.
 
 ## 3. Baselines, demos, and the status quo
 
@@ -211,12 +189,16 @@ the logic of a change.
 
 If your unit fixes an instance of a class, say what pattern you swept with and
 **what that pattern could not match**. A sweep whose blind spot is unstated is
-an unverified claim, not a negative result — and stating one is not discharging
-it: *"my pattern could not match X"* is a work order to find X another way,
-never a boundary. Three PRs in one day disclosed a blind spot in their own
-sweep while claiming or implying it was empty. Note also that a sweep is
-accurate as of your merge base, not your merge: a long-running lane owes a
-re-sweep before it lands.
+an unverified claim, not a negative result — and disclosing a blind spot is not
+discharging it: *"my pattern could not match X"* is a work order to find X
+another way. **A uniqueness claim is a sweep result**, so *"the only"* and
+*"nowhere else"* are not writable before the sweep that could falsify them has
+run. And **a sweep is only as wide as the command you typed** — the paths are
+an axis as much as the pattern, and a figure's scope comes from the claim it is
+offered for, not from the command that produced it.
+
+Note also that a sweep is accurate as of your merge base, not your merge: a
+long-running lane owes a re-sweep before it lands.
 
 **Assume it is a class.** The trigger above is your own judgement that the
 defect has siblings, and that judgement is where this rule misses. Before you
@@ -224,22 +206,6 @@ write the scope sentence, grep for the **shape** — not the symbol — and put
 **the hit list and its disposition** in the PR description, one line per hit:
 fixed, or not-this-unit and why. A pattern with no hits recorded is a claim; a
 hit list is a receipt.
-
-**A uniqueness claim is a sweep result.** *"the only", "nowhere else", "the
-last one", "this is the sole caller"* — each is a claim about everywhere, and
-none is writable before the sweep that could falsify it has been run. Three
-reviews in one afternoon returned that same MAJOR, in different words, against
-three different units.
-
-**A sweep result is only as wide as the command actually typed.** The pattern
-is one axis and the paths are another: a re-sweep of `work/ docs/` under a
-claim about the tree returned 9 hits against the root's 10, and missed a site
-the same merge had created. The trap generalises to any figure you report —
-`cargo test` fail-fasts at the first failing binary, so a count taken without
-`--no-fail-fast` is a lower bound, and one drill reported 1 where the
-crate-wide truth was 5. **A figure's scope comes from the claim it is offered
-for, not from the command that produced it**; where the number depends on how
-you tokenized or filtered, the tokenization is part of the claim.
 
 Scope sentences read as completeness even when the claim above them does not
 share their scope. One euler-operator header asserts the universal — *"a
@@ -289,31 +255,16 @@ reads like one.)
 
 ## 7. Claims about the tree
 
-Every error one program made in a day — four units' MAJORs and the
-orchestrator's own six — was an inference from the SHAPE of a thing in place of
-a READING of it: which function a doc list implied was gated, which spelling
-produced a measured movement, which file a quoted figure lived in, how many
-tests a drill reds. None needed cleverness to catch; each needed one `grep`,
-one control run, or one header read. Before a claim about the tree goes into a
-report, a PR body or a comment, know which of those produced it.
+Every error one program made in a day was an inference from the SHAPE of a
+thing in place of a READING of it — which function a doc list implied was
+gated, which file a quoted figure lived in, what a lint's red meant. Each
+needed one `grep`, one control run or one header read. **Never cite a
+`file:line` you have not opened**, and **commit before you take citations**:
+any other order re-creates the defect, since a later edit shifts the lines you
+already wrote down. Prefer the enclosing test or symbol name.
 
-**Commit every edit first, then take citations from the committed tree, then
-write them up.** Any other order re-creates the defect by construction: one
-citation defect recurred inside the pass that was fixing it, because a gloss
-edit inserted lines above the two assertions it had just cited. That ordering
-is stronger than "check your citations" because it removes the window rather
-than asking for vigilance inside it. And **a test name survives an edit where a
-line number does not** — cite the enclosing symbol, with the number as a hint.
-
-**Say what you measured, not what you concluded from it.** A sound measurement
-with an invented attribution arrives wearing evidence. One unit's movement in a
-measured figure was real and survives; what was invented was that only one of
-two spellings produced it — the other was never implemented, so nothing had
-been measured about it at all. An unmeasured claim is caught by asking *"did
-you measure this?"*, and this one answers yes. The question that catches it is
-**"what did you measure, exactly, and what else would have produced the same
-number?"** Ask it of your own claims and of every one you pass on, because
-**evidence-shaped claims propagate faster than bare ones**: each reader takes
-the evidence as having been checked by the last. That one crossed a doc
-comment, a lane report, a PR body, a reviewer brief and a summary to Ev before
-a reviewer stopped it by implementing both versions.
+**Say what you measured, not what you concluded from it.** A measurement with
+an invented attribution arrives wearing evidence, so *"did you measure this?"*
+answers yes; what catches it is **"what exactly did you measure, and what else
+would have produced the same number?"** Ask it of claims you pass on as well as
+your own.
