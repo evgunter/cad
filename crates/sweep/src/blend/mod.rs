@@ -401,8 +401,9 @@ impl fmt::Display for RunOutPolicy {
 /// which both verbs now carve — so no refusal needs one, and no site
 /// mints [`Self::MixedConvexity`] with `convex: 0` any more. Whether
 /// the CARVED configuration deserves its own tag remains the
-/// corner-taxonomy question OQ6 reserves for Ev (evgunter/cad issue
-/// 1355, opened when only the chamfer carved it).
+/// corner-taxonomy question OQ6 reserves for Ev
+/// (`work/code-quality/corner-config-tag-all-concave-trihedron.md`,
+/// raised when only the chamfer carved it).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CornerConfig {
     /// Three edges, all definitely convex, support normals definitely
@@ -426,9 +427,9 @@ pub enum CornerConfig {
     /// the blend would have to change sides mid-corner. `0` and `3`
     /// never appear — those are the UNIFORM trihedra, which both
     /// verbs carve (`3` is [`Self::ThreeConvexEdges`]; the all-concave
-    /// corner has no tag because no refusal names it, evgunter/cad
-    /// issue 1355 being where a carved-configuration tag would be
-    /// ratified).
+    /// corner has no tag because no refusal names it,
+    /// `work/code-quality/corner-config-tag-all-concave-trihedron.md`
+    /// being where a carved-configuration tag would be ratified).
     MixedConvexity {
         /// How many of the three edges classified convex — `1` or
         /// `2`.
@@ -1300,8 +1301,24 @@ impl fmt::Display for BlendError {
                     Some("fillet3_face_clearance") => FILLET3_CLEARANCE_RECOURSE,
                     Some("fillet3_spine_regularity") => FILLET3_SPINE_RECOURSE,
                     Some("fillet3_chain_g1" | "fillet3_chain_arm") => FILLET3_CHAIN_RECOURSE,
-                    Some("fillet3_convexity_sign") => FILLET3_CONVEXITY_RECOURSE,
+                    // `fillet3_convexity_sign`'s definite refusal is
+                    // the decided `Zero` — `TangentialEdge`, whose
+                    // sentence is the tangential one. An in-band wedge
+                    // and a wedge decided Zero are one user situation
+                    // at the same site, so they carry one recourse.
+                    // `ConvexitySignFlip` is a different refusal at a
+                    // different site — a chain whose links all resolved
+                    // definitely and disagree — and keeps
+                    // `FILLET3_CONVEXITY_RECOURSE`.
+                    Some("fillet3_convexity_sign") => FILLET3_TANGENTIAL_RECOURSE,
                     Some("fillet3_ring_clearance") => FILLET3_RING_RECOURSE,
+                    // The in-band arm carries the definite arm's
+                    // recourse: a pair whose axes part by an amount
+                    // too small to call belongs to the same door as
+                    // one whose axes part definitely — a spine that is
+                    // neither line nor circle is the canal family
+                    // either way.
+                    Some("fillet3_support_coaxiality") => FILLET3_SPINE_KIND_RECOURSE,
                     // Predicate 6's two classifications share the corner
                     // recourse: the trihedron's independence and the
                     // ruled band's transverse cap.
@@ -1436,8 +1453,11 @@ mod recourse_tests {
         Exactly(&'static str),
         /// One sentence, chosen at render time by the escalation's own
         /// predicate name — so the contract is "at most one", not
-        /// "which one". (`Escalated` routes to six different
-        /// constants; a table row naming one of them would be false.)
+        /// "which one". (`Escalated`'s match routes each predicate to
+        /// the constant its own definite refusal carries, and a
+        /// predicate the match does not know renders the gap sentence
+        /// and no constant at all; a table row naming one of them
+        /// would be false.)
         RoutedByPredicate,
         /// None at all: the variant reports invalid input, or forwards
         /// another error's own text.

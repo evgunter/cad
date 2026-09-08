@@ -191,3 +191,14 @@ was 8), 10–13 shift by one. The reviewer's boolean NOTE (a definitely
 tilted boss refuses through the union as `ClassificationInvariant`, a
 row-4 sentence for a row-2 frontier) is filed on S-BOOL's slate as
 `union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`.
+
+**Unit 1 MERGED (2026-09-08)**, PR [#2123](https://github.com/evgunter/cad/pull/2123)
+at `124c8de1`, green on the full matrix. The coaxiality arm and, from
+the review's union, the convexity-sign arm; all six trios tie; the
+recourse list has one home; the reviewer's eight rows adopted, the
+three-arc rim's refusal pinned as unit 7's characterization row. Three
+class issues filed on this slate by the fix pass
+(`escalation-recourse-dispatch-has-three-homes`,
+`every-escalation-carries-the-coincidence-recourse-first`,
+`blend-mod-recourse-docs-accumulate`). Unit 3 (the spine-kind
+sentence, the other `blend/mod.rs` edit) dispatches next.
