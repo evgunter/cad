@@ -3055,3 +3055,118 @@ and the shell tracker) between the green run on `7239cf48` and the
 merge; no file overlaps this diff and nothing it touches reads shell
 geometry, so it landed on that run rather than chasing main a third
 time.
+
+**LIB-B-PART MERGED (2026-09-08, #2163; mechanical under the 08-29
+ruling, no A/B row). Census family B-PART CLOSED — one body out of a
+multi-body value, from Python.** `PartSelect.split_half` /
+`PartSelect.instance` (a frozen constructor pair, `PatternKind`'s
+shape, so the one roster row leaves under rule 1 rather than moving to
+`BOUND_AS`), `Node.part(of, select)`, `DocEdit.bind_instance_param`
+(`SlotId::Instance`'s own door beside the count's — a door per slot
+rather than a `slot=` argument, keeping the slot vocabulary off the
+crossing), and `Node.pattern`, which the charter never named. 20
+tests, every number an oracle against the split's or the pattern's own
+value; both chartered refusals (`empty_half`, `instance_out_of_range`)
+reached from Python for the first time; a half is not an instance at
+the type level (ty fixtures both ways). **LB18 — `Node.pattern` is
+bound outside the charter, and the orchestrator accepts it as a
+faithful consequence of DM3 rather than a widening.** The sweep found,
+before any code moved, that `PartSelect::Instance` selects out of a
+`ValuePayload::Instances` and exactly one node emits one
+(`Node::Pattern`), deliberately unbound under G8's reason that a
+plural payload fed no downstream door. `Node::Part` IS that door, so
+binding the projection without its only source would have shipped an
+unreachable half and an unconstructible refusal tag — which the census
+could not have reported, both names being arms behind `Node`. G8's
+conclusion is untouched: no audit row flips, no tour scene changes,
+`PlacedUnion` still authors the heat sink and a boolean still refuses a
+plural payload (`test_a_plural_payload_cannot_feed_a_boolean` now
+executes all three states). What moved is the rationale, recorded in
+the item file, the census closure paragraph and the G8/G18 cells; row
+43's star is now a JOB (`bench-flat-pack-star-is-now-a-pattern-job`)
+rather than a gap. Also banked: `structural-slots-without-a-binding-door`
+(`VDegree`, `Stations`). The census lesson lands a third time: an
+enum VARIANT behind a rule-1 name is as invisible as a field. Lane
+merged main twice (G17, then EVAL-2) under instruction, resolving the
+`pncad.pyi` absent-doors paragraph and the north-star rosters keeping
+both sides; landed on the re-run. Orchestrator note: main gained EVAL-5
+(`editor-core` verbs and eval), the tess tools and tour files, and a
+tracker regrouping between the green run on `4b33617e` and the merge;
+no file overlaps this diff, so it landed on that run rather than
+chasing main a fourth time.
+
+**LIB-PRODUCT MERGED (2026-09-08, #2181; mechanical under the 08-29
+ruling, no A/B row). The gathered product memoized on the Python
+`Evaluation` — Ev's option (5), the memo keyed by tolerance.** Measured
+first, as the brief required: at the heat sink's 160-fin point (161
+solids / 991 faces) a whole-`Product` clone is ~7.5 ms against a
+~372 ms gather — 2%, an order of magnitude inside the "under a tenth"
+line — so the memo keeps the product and hands `assemble_gathered` a
+COPY; the take was not needed, no DOCM hand-off, no kernel file
+touched. Shape: `crates/pncad-py/src/product_memo.rs`, Python-
+independent so the default build tests it; a `OnceLock` on
+`py::value::Evaluation` (the `NodePick` mesh-handle precedent, no new
+locking discipline) holding the product and the tolerance it was
+gathered at; a refusing gather is not memoized; four doors joined
+(`run_checks`, `assemble`, `product`, `product_named`), signatures
+unchanged, no new Python surface. Two decisions worth the record: the
+memo gathers from the document the evaluation CAPTURED, not the `doc`
+argument (a `Doc` is mutable and its id survives edits — the one
+behaviour change, disclosed: an old evaluation asked about an edited
+document now answers about the pair it is of, not a hybrid), and the
+DI3 pairing is asked BEFORE the memo is consulted at every door, each
+wrapping `Mispaired` in its own refusal under the unchanged tag, pinned
+from Python in the order that would catch a check sited behind the
+memo. Gather count is not a Python observable, so the brief's fallback
+shipped: eight Rust pins on the default build path reading
+`gathers_on_this_thread` as a difference (1 in either order, 1 across
+all four doors, 0 after the consuming gate, 0 for a subject-free
+config, 2 for two refusing asks, 2 for a different tolerance through
+the keyed seam, and the mispaired refusal), plus nine Python rows for
+everything a caller can see. One small deviation from the brief's
+"one entry (the last)": the slot holds the FIRST tolerance's product
+and answers a different tolerance by gathering without replacing — 
+unreachable while a process commits one tolerance (`Tol` is the
+witness), and answered rather than assumed away. Census: the six
+`behind-a-door` entries carry the true reason (the memo calls them);
+`gathers_on_this_thread` stays `INTERIOR` with the argument that a
+debug-only counter is not a public door. Findings outside the fence,
+reported not filed: `Subject`'s derivation in `editor-core`'s
+`run_checks` has to be re-spelled by any caller holding a product, and
+`Subject::not_needed` is private (DOCM's). Lane was cut off by an API
+session limit mid-unit and resumed in place once it reset.
+**LIB-CORPUS MERGED (2026-09-08, #2182; mechanical under the 08-29
+ruling, no A/B row). The bench corpus is authored, not committed —
+Ev's ruling (E), PR 2019.** `crates/pncad-py/tests/corpus/bench/` (four
+`.pncad` documents and the `MANIFEST`) deleted, and with it the whole
+staleness surface; `crates/pncad-py/tests/bench_scene.py` is the ONE
+Python definition of the tour's bench (six constants, three derived
+seats, two part shapes, the flat-pack layout, the mated stand), which
+`test_assembly_author.py` authors from as before and
+`test_assembly_eval.py` now writes into a temp `Workspace` and resolves
+back out through a `DocRef` on every call, so the load path is
+exercised over documents nothing keeps on disk. The header's false
+claim that Python could not author an instantiate node is gone with
+the bytes. The tour guard stays and widens: `TestTheSceneIsTheToursOwn`
+reads `demos/tour/src/assembly.rs`'s source and compares the six base
+constants by value, the three seats BY FORMULA (parsed and computed, so
+a changed derivation reds though the bases did not move), the flat-
+pack's placement literals and the stand's gauge offset and mate seats,
+each arm mutation-proven red (ten mutations of the tour, ten reds); what it cannot see (structure, the two
+deliberate Python/tour differences — literal prisms for parametric
+ones, `placed_union` for `Node::Pattern` — anything outside the
+constant block and the two authoring fns, and a rename or reformat,
+which reds as a false alarm) is stated in the test's header rather than
+banked. Every oracle the eval test carried is still asserted; the
+placement row was re-cut as a family outline plus one cap frame per
+placement, and three rows that moved the shelf's pin through a
+parameter edit now re-author the part under the same label, since the
+Python-authored parts hold no parameters. `demo-tour asm-corpus` and
+`assembly::corpus` RETIRED (its only consumer was the deleted corpus;
+`gallery` remains the door that saves documents), the render lanes
+reporting no moved frame. `ci.yml`'s die-corpus note re-pointed. Now
+that `Node.pattern` is bound (B-PART), authoring the posts as a pattern
+is the separately filed job
+(`bench-flat-pack-star-is-now-a-pattern-job`), not this unit's. Orchestrator
+note: main gained only LIB-PRODUCT between the green run on `dfb5e776`
+and the merge, no file overlapping this diff, so it landed on that run.

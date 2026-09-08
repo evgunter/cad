@@ -1087,3 +1087,129 @@ case; the missing-home and no-homes diagnoses each have one text; the
 substitution-swallows-the-exit argument has one home; the self-test's
 failure line names the gate, the planter and its argument; the seven
 array paragraphs are pointers; the planter argument convention stated.
+
+
+## Fourteenth wave dispatched (2026-09-08)
+
+The last two residue rows, both branched from PR 2156's closing head
+because both touch files it holds: `gates/record-column-parser`
+(`record-file-column-read-by-first-colon-split` — one `lib.sh` reading
+of a record's FILE and TEXT columns by the `:LINE:` the reader emitted,
+the viewer gate's dedupe key and the test-module resolver's parser
+converted, `bounds-allowlist.sh`'s local reading lifted) and
+`gates/dir-prefix-subject` (`directory-prefix-skips-have-no-subject-check`
+— the two named directory skips in `witness-not-ambient.sh` prove
+their subject; the `crates/*/src/bin/` convention-class skip is a
+ruling, routed to Ev in an `[ev]` PR, the row staying open on that
+half). Closing: PR 2156.
+
+## PR 2170 and [ev] PR 2171 opened (2026-09-08)
+
+`gates/dir-prefix-subject` reported: PR 2170
+(`directory-prefix-skips-have-no-subject-check`, the two named
+prefixes). The row's premise corrected: a directory prefix's subject
+is the file the directory is about — `crates/pncad/src/lib.rs` for
+the crate's curated door, `crates/pncad-py/src/py/mod.rs` for the
+module's FFI boundary — so `gate_require_homes` is called twice more
+and nothing new is built; a `[ -d ]` or membership check would be
+satisfied by the exempted file itself (D103's circle), and anchoring
+on the root reds the reviewer's scenario. One `lib.sh` fix in the
+home-check self-test: `gate_plant_home_unscanned` wrote `mod mod;` for
+a `mod.rs` home, so its case passed a gate it should red. Live
+byte-identical. The third prefix, `crates/*/src/bin/`, is cargo's
+convention and a ruling: `[ev]` PR 2171 puts the two options to Ev;
+the row stays open on that half, `blocked_on` 2171. Outside the
+fence, filed on META's slate: `work.py set` writes a scalar into a
+reflist field and `lint` crashes rather than diagnosing it. Reviewer
+dispatched.
+
+## PR 2174 opened (2026-09-08)
+
+`gates/record-column-parser` reported: PR 2174
+(`record-file-column-read-by-first-colon-split`). `lib.sh` states once
+where a record's FILE column ends (`GATE_RECORD_LINE_RE`), with a
+stdin filter pair and an awk function (`gate_record_split`) as the
+ways in, and the record prefix regex kept as an anchor and documented
+as not a parser. Converted: the viewer gate's union key, the
+test-module resolver's narrowing (its columns re-ordered so the
+colon-carrying field takes `read`'s remainder), two more `lib.sh`
+readers, `bounds-allowlist.sh`'s local reading lifted, and — beyond
+the row — seven hand-written `index()`/`substr()` pairs in six gates,
+one of which (`panic-free-macro-bodies.sh`'s fence) meant a panic
+token in a macro body in a colon-carrying file was seen by nothing.
+All 21 gates byte-identical live including exit status; five
+mutations each red on its colon fixture; one conversion
+(`bit-identity-debug-only.sh`) disclosed as fixture-less because its
+subject list is baked. Reviewer dispatched.
+
+## Stall (2026-09-08, ~06:00–06:10 UTC)
+
+Both style reviewers (PR 2170, PR 2174) were terminated by the
+session rate limit and resumed into their surviving worktrees once it
+reset.
+
+## PR 2170 reviewed (2026-09-08)
+
+Style review of `directory-prefix-skips-have-no-subject-check` (the
+two-directory half): mergeable. The root argument reproduced in both
+directions (root removed and a minting file rewritten under the
+prefix reds; the `py.rs` spelling reds safely), the `mod.rs` planter
+fix, six mutations, byte-identity. Fix pass sent: the composition
+fixture and the two prefix skips hand-spell the directories the held
+roots already name; no fixture reads a subject sentence (the two
+swapped is green — closed in `lib.sh`'s home-gone case for every
+caller); the "strictly stronger than a directory" argument holds only
+for the `mod.rs` spelling; the third prefix's site cites neither the
+row nor PR 2171; "no existing caller had a `mod.rs` home" was wrong
+in the letter (`evalscalar-allowlist.sh`'s eval/mod.rs, whose case
+passed for the wrong reason); the PR's D103 prose conflated the
+vacated-path route (fixed) with the live-directory route (the door
+exemption is crate-granular by its argument, stated rather than
+narrowed); PR 2171's body steered toward one option and omitted a
+third (anchor the class at cargo's declared bin targets).
+
+## PR 2174 reviewed (2026-09-08)
+
+Style review of `record-file-column-read-by-first-colon-split`:
+mergeable. The one constant with no first-colon reader left in the
+directory, the awk function on every probe under both awks (a record
+with no `:digits:` returns 0 and empties rather than inventing a
+FILE), the resolver byte-for-byte on the live tree and correct on the
+colon-declarer fixture, mutations A–E red where claimed, all 21 gates
+byte-identical with exit codes, the reader-death marker reachable.
+Fix pass sent: the awk function succeeds with an empty FILE when the
+constant's env prefix is forgotten (a two-part incantation copied at
+eleven sites) — made unreachable by a wrapper and a refusal; the
+bit-identity gate's fixture-less conversion gets its fixture through
+the env hook the viewer gate already uses for a baked array; a stale
+count in the row; a new justification contradicting the comment four
+lines below it; possessives mangled inside single-quoted awk
+comments at six sites; a third spelling of the reader-death refusal.
+## Landed: PR 2170 (2026-09-08)
+
+`directory-prefix-skips-have-no-subject-check`, the two-directory
+half: `witness-not-ambient.sh`'s named prefix skips prove their
+subject through `gate_require_homes` on the file each directory is
+about (`crates/pncad/src/lib.rs`, `crates/pncad-py/src/py/mod.rs`) —
+a root, not a directory or a resident, because a directory check is
+satisfied by the very file the skip exempts. Removing a root and
+writing a witness-minting file under the prefix is red now and was
+green. The clean fixture plants all three subjects minting the witness
+each exemption covers, so every skip is live in every fixture.
+`lib.sh`'s `gate_plant_home_unscanned` handles a `mod.rs` home (it
+declared `mod mod;`, which resolves onto its own declarer). The row
+stays open on the `crates/*/src/bin/` class, a ruling on `[ev]` PR
+2171.
+Fix pass from the review: the directory is held first and the root,
+the subject and the skip derive from it (deriving the prefix from the
+root would let a `py.rs` re-anchoring silently widen `src/py/` to
+`src/`, measured); `gate_selftest_homes --subject` lets a caller's
+home-gone case want the subject sentence, so a subject on the wrong
+home reds (opt-in; the six other callers to adopt it); the
+root-under-prefix condition stated; the third prefix's site cites the
+row and PR 2171; "no existing caller had a `mod.rs` home" corrected
+(`evalscalar-allowlist.sh`'s case now mounts for real); the D103
+prose separated into the vacated-path route (fixed here) and the
+live-directory route (the door exemption crate-granular by its
+argument, one live minting site under eleven files); PR 2171
+rewritten neutral with three shapes.

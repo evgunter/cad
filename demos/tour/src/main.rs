@@ -72,6 +72,7 @@ mod walls;
 
 use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
+use pncad::prelude::{Evaluation, RecipeNodeId};
 use pncad::topo::{Body, ContactRecords};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
@@ -98,6 +99,10 @@ struct SceneBody {
     /// STEP writer's named subset frontier. See
     /// [`SceneBody::step_at_frontier`].
     step_frontier: Option<StepFrontierPin>,
+    /// The durable name of every face of this body, where the scene
+    /// built it from an evaluated document and could hand one over.
+    /// See [`SceneBody::named`].
+    face_names: Option<tess_meter::FaceNames>,
 }
 
 impl SceneBody {
@@ -113,6 +118,7 @@ impl SceneBody {
             color,
             transparency: 0,
             step_frontier: None,
+            face_names: None,
         }
     }
 
@@ -177,6 +183,7 @@ impl SceneBody {
             color,
             transparency: 0,
             step_frontier: None,
+            face_names: None,
         }
     }
 
@@ -213,8 +220,59 @@ impl SceneBody {
             color,
             transparency: 0,
             step_frontier: None,
+            face_names: None,
         }
     }
+
+    /// **This body came out of an evaluated document, so its faces
+    /// have durable names** — the budget sweep writes them into its
+    /// `name` column, where `tools/tess-lint` can eventually join on
+    /// something a face reorder does not move.
+    ///
+    /// The scenes that can take this door are the ones that still hold
+    /// the evaluation when they hand the body over; a scene built
+    /// through the verbs or the kernel directly has no document to
+    /// name from, its rows carry an EMPTY name, and that is the honest
+    /// answer rather than a gap to paper over.
+    fn named(mut self, ev: &Evaluation<f64>, node: RecipeNodeId) -> Self {
+        self.face_names = Some(face_names(ev, node, &self.body));
+        self
+    }
+}
+
+/// Every face of `body` named through the façade's own door
+/// (`pncad::select::face_name`), rendered flat for one CSV field.
+///
+/// **The rendering is the ratified structural serialization (F3) with
+/// one substitution, and both halves of that matter.** A
+/// `StableName`'s `Display` is prose — *"face name minted by node 3"*
+/// — which drops the role path, so every face one node mints renders
+/// alike and the token would not be a key at all. Its serde form
+/// carries the whole derivation path. A `StableName` holds no strings
+/// anywhere (every payload is a closed enum or an integer), so the
+/// only `,` its JSON can contain is a structural separator and the
+/// only `;` it can contain is none: swapping the one for the other is
+/// injective, and it is what makes the token a single CSV field.
+///
+/// # Panics
+///
+/// If `node`'s table does not name a face of `body` — the caller has
+/// paired an evaluation with a body that did not come out of it, and
+/// every name it DID hand over would then be on the wrong face.
+fn face_names(ev: &Evaluation<f64>, node: RecipeNodeId, body: &Body<f64>) -> tess_meter::FaceNames {
+    body.faces()
+        .map(|(key, _)| {
+            let name = pncad::select::face_name(ev, node, 0, key).unwrap_or_else(|e| {
+                panic!("node {node:?} does not name face {key:?} of the body it evaluated: {e:?}")
+            });
+            let token = serde_json::to_string(name)
+                .expect("a StableName is structurally serializable (F3)")
+                .replace(',', ";");
+            let name = tess_meter::FaceName::new(token)
+                .expect("a StableName's JSON has no comma left in it and is never empty");
+            (key, name)
+        })
+        .collect()
 }
 
 /// Scene presentation: the classic matplotlib view spec (elevation and
@@ -764,7 +822,6 @@ fn main() {
     let tol = Tol::witness();
     let outdir = std::env::args().nth(1).expect(
         "usage: demo-tour <outdir> | demo-tour gallery [dir] | \
-                 demo-tour asm-corpus <dir> | \
                  demo-tour die-corpus <file> | \
                  demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
@@ -775,20 +832,6 @@ fn main() {
     // run does and links nothing extra.
     if outdir == "gallery" {
         gallery::run(std::env::args().nth(2), tol);
-        return;
-    }
-    // The assembly scene's four AUTHORED documents and nothing else —
-    // what `crates/pncad-py/tests/corpus/bench/` is regenerated from.
-    // Separate from `gallery`, which runs the assembly WALK: that
-    // walk's update door deliberately resaves a part and leaves every
-    // assembly pinning a version the store no longer holds — the right
-    // end state for a demo about the pin gate, the wrong one for a
-    // corpus whose job is to evaluate.
-    if outdir == "asm-corpus" {
-        let dir = std::env::args()
-            .nth(2)
-            .expect("usage: demo-tour asm-corpus <dir>");
-        assembly::corpus(std::path::Path::new(&dir), tol);
         return;
     }
     // The composed die's own document and nothing else — what
