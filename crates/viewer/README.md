@@ -1042,12 +1042,18 @@ the same reason the second shape exists. A converted vocabulary is not
 a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
 the nine are quiet without an entry. What the gate reads is this
 section rather than a list of its own: the ROWS below are the
-allowlist, and the KINDS they may claim are the **bolded bullets**
-above. Both are read only WITHIN this section, so the roster cannot
-drift onto another page's heading and go on being read; and the gate
-carries the NUMBER of bullets as its own constant, so a fourth kind is
-an amendment argued here AND an edit to that file, not a new word in a
-table cell.
+allowlist, and the KINDS they may claim are the bullets of the
+three-kinds list above — the list the sentence *"Three kinds of list
+stay hand-written"* announces, and no other. Both are read only WITHIN
+this section, so the roster cannot drift onto another page's heading
+and go on being read. The kinds are read only under that sentence, and
+that scope is load-bearing in the other direction too: **the prose in
+this section may carry bulleted lists like any other prose**, because a
+bolded bullet outside the announced list is not a ratified kind and the
+gate does not count one. It pins the announcing sentence and carries
+the NUMBER of bullets as its own constant, so a fourth kind is an
+amendment argued here — rewording that sentence and adding a bullet —
+AND an edit to that file, not a new word in a table cell.
 
 The roster retires itself in both directions — a list added without a
 row reds, and a row whose list has been converted reds too, because an
@@ -1089,7 +1095,8 @@ is what covers it.
 **This table is the roster**, not a summary of one. `Module` is the
 module the `const` is declared in, `List` is how it is written there
 (an associated constant carries its type, `Theme::ALL`), and `Kind` is
-the bolded bullet above that ratifies it, word for word.
+the bullet of the three-kinds list above that ratifies it, word for
+word.
 
 The type in `List` is for a reader, not for the gate: what the gate
 keys on is the module and the constant's own name, because an

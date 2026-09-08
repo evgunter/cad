@@ -49,11 +49,25 @@
 # kinds it is. This file reads that table, and reads it only INSIDE that
 # section, because the README's own word for where the roster sits is
 # "below" and a reader finding it anywhere on the page makes that word
-# decide nothing. It also reads the KINDS from the section's own bolded
-# bullets, so the vocabulary of reasons is the ratification itself and
-# not a copy of it — deleting a bullet while leaving a row that claims
-# it reds. That is `viewer-module-kinds.sh`'s contract and the reason
-# its rosters have not gone stale.
+# decide nothing. It also reads the KINDS from the bolded bullets of the
+# ONE list the section announces — the paragraph beginning "Three kinds
+# of list stay hand-written", `KIND_ANCHOR` below — so the vocabulary of
+# reasons is the ratification itself and not a copy of it: deleting a
+# bullet while leaving a row that claims it reds. That is
+# `viewer-module-kinds.sh`'s contract and the reason its rosters have
+# not gone stale.
+#
+# THE ANCHOR IS THE PARAGRAPH AND NOT THE SECTION, and the difference is
+# a defect this gate shipped with. The section is ~150 lines of
+# expository prose; a scan for `- **…**` across all of it does not read
+# "the ratified kinds", it reads "every bolded bullet in the section",
+# which is a rule saying an author may never write a bulleted list in
+# any paragraph of it. Nobody ratified that, and the red misdiagnosed
+# it: it told an author who bulleted a paragraph about something else
+# that they had added a KIND — a claim about a ratification they never
+# touched. It cost #2143's author every bulleted list in a README
+# rewrite. Anchoring on the announcing sentence is what makes this
+# gate's stated subject and its actual subject the same thing.
 #
 # HOW MANY KINDS is held here and nowhere else, and it is the one number
 # this file does keep. Reading the bullets makes a row's kind be the
@@ -139,9 +153,9 @@
 #     that the kind it claims is one of the three the section ratifies.
 #   * WHETHER THE ROSTER STILL SAYS WHAT WAS RATIFIED. What is held is
 #     the roster's INTERNAL consistency — every row claims a kind the
-#     section's bullets spell, the section spells `KIND_COUNT` of them,
-#     every row has exactly one list behind it, no two rows name one
-#     list — never its fidelity to the argument Ev approved. A bullet
+#     anchored list's bullets spell, that list holds `KIND_COUNT` of
+#     them, every row has exactly one list behind it, no two rows name
+#     one list — never its fidelity to the argument Ev approved. A bullet
 #     and the cells claiming it, REWORDED TOGETHER, are invisible here;
 #     that is a review's job and this gate does not pretend otherwise.
 #
@@ -192,8 +206,38 @@ TABLE_HEADER='| List | Module | Kind |'
 # already asserted for the neighbouring reason.
 TABLE_SEPARATOR='|---|---|---|'
 
-# HOW MANY KINDS THE SECTION RATIFIES. The README says "the KINDS they
-# may claim are the three bolded bullets above", and until this constant
+# THE PARAGRAPH THAT ENUMERATES THE KINDS, and it is an anchor for the
+# same reason `TABLE` is one. The kinds are the bolded bullets of ONE
+# list, and that list is announced by one sentence; the scan is anchored
+# to that sentence rather than to the section, because the section is
+# ~150 lines of expository prose whose paragraphs also open in bold. A
+# section-wide scan does not read "the ratified kinds", it reads "every
+# bolded bullet anywhere in the section" — a constraint nobody wrote
+# down, whose red says an author ADDED A RATIFIED KIND when what they
+# added was a bulleted list to a paragraph about something else. That
+# cost a README rewrite its bullets once, and a misdiagnosis pointing at
+# the wrong repair is the class `reader_failed` below exists for.
+#
+# A PREFIX OF THE LINE, NOT THE WHOLE LINE, unlike the four constants
+# above. Those name headings and a table's header row, which are whole
+# lines by construction. This names a PARAGRAPH, and where a paragraph's
+# prose wraps is an artifact of the fill column: pinning the whole line
+# would make an edit to the tail of the sentence — which cannot change
+# which paragraph it is — a red. The prefix is the identifying half.
+#
+# THE COUNT WORD IS INSIDE IT, deliberately. `KIND_COUNT` below is the
+# gate's copy of the number and this sentence is the README's; carrying
+# the word in the anchor is what holds them together, because a section
+# amended to four kinds without touching this file leaves no line
+# starting "Three kinds of list stay hand-written" and the gate reds
+# naming the anchor. Before this constant the prose number was read by
+# nothing at all: the section could say "Four" over three bullets and
+# every check stayed green.
+KIND_ANCHOR='Three kinds of list stay hand-written'
+
+# HOW MANY KINDS THE SECTION RATIFIES. The README says the kinds a row
+# may claim are the bolded bullets of the list `KIND_ANCHOR` announces,
+# and until this constant
 # nothing held that number: a fourth bullet plus a row claiming it both
 # green, and the gate checked the roster's internal CONSISTENCY rather
 # than its fidelity to what was ratified. It cannot check the fidelity —
@@ -415,19 +459,52 @@ const_hits() {
     { awk "$HIT_AWK" || reader_failed "hit classifier over $SRC" "$?"; }
 }
 
-# The README section's own bolded bullets: `- **A deliberately partial
-# list** claims no completeness…` yields `A deliberately partial list`.
-# Read between the section heading and the next heading of any level, so
-# the table below cannot contribute a kind to the vocabulary it is
-# checked against.
+# The ratified kinds, as `@` (the anchor paragraph was found) followed
+# by one line per bolded bullet of the list it announces: `- **A
+# deliberately partial list** claims no completeness…` yields `A
+# deliberately partial list`.
+#
+# EMITTING THE ANCHOR AS A RECORD, like `readme_table` below, is what
+# lets the caller tell "the paragraph is gone" from "the reader died"
+# from "the list is empty" — three answers a bare count folds into one,
+# and the first of them is a NEW way this half of the subject can go
+# wrong now that a sentence carries the scan.
+#
+# SCOPED TO THE SECTION FIRST, then to the paragraph. The section scope
+# is `readme_table`'s and is there for the same reason: the README says
+# these bullets are the ones "above" its table, so an anchor sentence
+# found under someone else's heading would make that word decide
+# nothing. The paragraph scope is what makes the gate's subject and its
+# stated subject the same thing — see `KIND_ANCHOR`.
+#
+# WHERE THE LIST ENDS, stated as a rule because a scan whose stopping
+# point is implied is the defect this reader is a fix for. Three states,
+# all inside the section:
+#
+#   0  looking for the anchor; the anchor line starts the paragraph.
+#   1  inside the anchor paragraph — its own sentence may wrap over as
+#      many lines as the fill column gives it, and none of them is a
+#      bullet. It ends at the blank line that ends any paragraph.
+#   2  at the list the paragraph announced: a blank line, an indented
+#      continuation line and a `- ` bullet keep it open; ANY other line
+#      closes it, and the bullets of the section's later prose are
+#      therefore not read. The list must be what follows the paragraph:
+#      a prose paragraph in between closes the scan with nothing
+#      collected, which the caller reds on.
 readme_kinds() {
   local status=0
-  awk -v want="$SECTION" '
-    $0 == want { inside = 1; next }
-    inside && /^#/ { inside = 0 }
-    inside && /^- \*\*/ { print }
+  awk -v sec="$SECTION" -v anchor="$KIND_ANCHOR" '
+    $0 == sec { insec = 1; st = 0; next }
+    insec && /^#/ { insec = 0; st = 0; next }
+    insec && index($0, anchor) == 1 { print "@"; st = 1; next }
+    st == 1 && /^[[:space:]]*$/ { st = 2; next }
+    st == 1 { next }
+    st == 2 && /^- \*\*/ { print; next }
+    st == 2 && /^[[:space:]]*$/ { next }
+    st == 2 && /^([[:space:]]|- )/ { next }
+    st == 2 { st = 0 }
   ' "$README" |
-    sed -nE 's/^- \*\*(.+)\*\*.*/\1/p' || status=$?
+    sed -nE -e 's/^- \*\*(.+)\*\*.*/\1/p' -e '/^@$/p' || status=$?
   if [ "$status" -ne 0 ]; then
     reader_failed "kinds reader over $README" "$status"
   fi
@@ -529,11 +606,34 @@ gate() {
   fi
 
   # --- what the README ratifies ---------------------------------------
-  local -a kinds=()
-  mapfile -t kinds < <(readme_kinds)
+  # `@` FIRST, THEN THE KINDS. The marker separates the three answers a
+  # bare count folds into: the anchor paragraph is gone, the anchor is
+  # there and announces no list, or the reader died. It is dropped by
+  # value rather than by position because a SECOND anchor is its own
+  # answer — two paragraphs announcing the ratified kinds, of which this
+  # reader would read only the list under the first.
+  local -a kindblock=()
+  mapfile -t kindblock < <(readme_kinds)
   abort_if_reader_failed
+  local -a kinds=()
+  local anchors=0 entry
+  for entry in ${kindblock[@]+"${kindblock[@]}"}; do
+    if [ "$entry" = '@' ]; then
+      anchors=$((anchors + 1))
+    else
+      kinds+=("$entry")
+    fi
+  done
+  if [ "$anchors" -eq 0 ]; then
+    gate_error "$(gate_name): no line inside $README's \"$SECTION\" section begins \"$KIND_ANCHOR\", so the paragraph that announces the ratified kinds is gone and this gate has no anchor to read them under. It reads that paragraph's bullets and NOT the section's, because the section is prose and a bolded bullet in it is not a ratified kind — restore the sentence, or change \`KIND_ANCHOR\` in $0 in the same diff"
+    exit 1
+  fi
+  if [ "$anchors" -ne 1 ]; then
+    gate_error "$(gate_name): $anchors lines inside $README's \"$SECTION\" section begin \"$KIND_ANCHOR\", so the section announces the ratified kinds more than once and this gate reads the bullets under the first. One paragraph enumerates them — delete the duplicate, or reword it so it does not claim to be the enumeration"
+    exit 1
+  fi
   if [ "${#kinds[@]}" -eq 0 ]; then
-    gate_error "$(gate_name): $README's \"$SECTION\" section yielded no \`- **kind**\` bullets, so the vocabulary of reasons a hand-written list may be kept came from nowhere. Either the heading was renamed or the bullets were reshaped — a roster that reads nothing is not a pass"
+    gate_error "$(gate_name): $README's \"$KIND_ANCHOR\" paragraph is followed by no \`- **kind**\` bullets, so the vocabulary of reasons a hand-written list may be kept came from nowhere. The list this gate reads is the one directly under that paragraph — either the bullets were reshaped or something was written between the two — and a roster that reads nothing is not a pass"
     exit 1
   fi
   if [ "${#kinds[@]}" -ne "$KIND_COUNT" ]; then
@@ -659,7 +759,7 @@ gate() {
   done
 
   [ "$rc" -eq 0 ] || exit 1
-  gate_ok "no hand-written membership list under $SRC that \"$TABLE\" does not ratify (${#rows[@]} ratified, one list each; ${#kinds[@]} kinds read from \"$SECTION\")"
+  gate_ok "no hand-written membership list under $SRC that \"$TABLE\" does not ratify (${#rows[@]} ratified, one list each; ${#kinds[@]} kinds read from \"$KIND_ANCHOR\")"
 }
 
 # --- THE FIXTURES ------------------------------------------------------
@@ -667,6 +767,14 @@ gate() {
 # The subject is a crate directory AND a README, so the clean tree
 # carries both. `gate_plant_clean_sources` keeps `lib.sh`'s own
 # `crates/*/src` line in one place rather than writing it a third time.
+#
+# THE FIXTURE HAS THE PAGE'S SHAPE, not only its readable parts. The
+# anchor paragraph WRAPS, as it does on the real page, so the reader's
+# state-1 rule — the tail of the announcing sentence is not a line that
+# closes the list — is exercised by every case rather than asserted in a
+# comment. Prose sits on both sides of the list, so a planter can put a
+# bolded bullet before the anchor and after the list, which is where the
+# section-wide scan this reader replaced counted one as a ratified kind.
 readme_fixture() {
   mkdir -p "$1/crates/viewer/src"
   printf 'pub fn identity(x: f64) -> f64 { x }\n' > "$1/crates/viewer/src/lib.rs"
@@ -675,9 +783,14 @@ readme_fixture() {
 
 Prose.
 
+Three kinds of list stay hand-written, and each is a different answer
+rather than an exception:
+
 - **A registry of struct constants** is not an enumeration of variants.
 - **A deliberately partial list** claims no completeness.
 - **A mirror of an enum declared in another crate** cannot be projected.
+
+More prose.
 
 #### The lists that stay hand-written
 
@@ -856,6 +969,35 @@ plant_kind_bullets_gone() {
   sed -i '/^- \*\*/d' "$1/crates/viewer/README.md"
 }
 
+# THE ANCHOR IS HALF THIS HALF OF THE SUBJECT, so it can go wrong the
+# same three ways the table heading can: reworded away, written twice,
+# or separated from the list it announces. Reworded is the live one — an
+# amendment to a fourth kind rewrites that sentence's first word — and
+# it must red rather than fall back to reading the whole section, which
+# is the behaviour this reader exists to end.
+plant_anchor_reworded() {
+  sed -i 's/^Three kinds of list stay hand-written,/Some kinds of list stay hand-written,/' \
+    "$1/crates/viewer/README.md"
+}
+
+# TWICE: two paragraphs claiming to enumerate the kinds, of which the
+# reader would read the first list only. The second here carries a
+# fourth kind, so a fold to "read the first" would be green over an
+# unratified bullet.
+plant_the_anchor_twice() {
+  sed -i 's#^More prose\.$#Three kinds of list stay hand-written, and each is a different answer\nrather than an exception:\n\n- **A fourth kind** announced a second time.#' \
+    "$1/crates/viewer/README.md"
+}
+
+# SEPARATED: the list is no longer what follows the paragraph. The scan
+# closes at the interposed prose with nothing collected, which is a red
+# naming the paragraph — not a silent hunt down the section for the next
+# bulleted list it can find.
+plant_a_paragraph_between_the_anchor_and_the_list() {
+  sed -i 's/^rather than an exception:$/rather than an exception:\n\nAn interposed paragraph./' \
+    "$1/crates/viewer/README.md"
+}
+
 plant_readme_gone() { rm -f "$1/crates/viewer/README.md"; }
 
 plant_src_gone() { rm -rf "$1/crates/viewer/src"; }
@@ -922,6 +1064,24 @@ pass_tests_are_not_scanned() {
     > "$1/crates/viewer/tests/suite.rs"
 }
 
+# A BOLDED BULLET IN THE SECTION'S PROSE IS NOT A RATIFIED KIND, in both
+# directions, and this is the pair the section-wide scan got wrong. That
+# scan collected every `- **…**` line between the heading and the next
+# heading of any level — a hundred and fifty lines of ordinary prose —
+# so a bulleted list written about anything else counted as a fourth
+# kind, and the red told its author they had amended a ratification they
+# had not touched. One README rewrite was written with no bulleted list
+# anywhere to keep this gate green.
+pass_a_bolded_bullet_before_the_anchor() {
+  sed -i 's/^Prose\.$/Prose, with a list of its own:\n\n- **A bolded bullet** that ratifies nothing.\n\nAnd more prose./' \
+    "$1/crates/viewer/README.md"
+}
+
+pass_a_bolded_bullet_after_the_list() {
+  sed -i 's/^More prose\.$/More prose, with a list of its own:\n\n- **A bolded bullet** that ratifies nothing./' \
+    "$1/crates/viewer/README.md"
+}
+
 gate_selftest() {
   gate_selftest_clean
   # THE SCAN-TARGET GUARDS, each shown to fire. A gate that reports
@@ -965,7 +1125,17 @@ gate_selftest() {
   gate_selftest_case "carries no \"$TABLE\" heading" plant_table_outside_the_section
   gate_selftest_case "does not open with the header row" plant_table_header_reordered
   gate_selftest_case "has no \`$TABLE_SEPARATOR\` row" plant_table_separator_gone
-  gate_selftest_case 'yielded no `- **kind**` bullets' plant_kind_bullets_gone
+  gate_selftest_case 'is followed by no `- **kind**` bullets' \
+    plant_kind_bullets_gone
+  # THE ANCHOR, every way it can go wrong. It carries the scan now, so
+  # each of these is a way the README half goes wrong that did not exist
+  # while the scan was the whole section.
+  gate_selftest_case 'begins "Three kinds of list stay hand-written"' \
+    plant_anchor_reworded
+  gate_selftest_case 'announces the ratified kinds more than once' \
+    plant_the_anchor_twice
+  gate_selftest_case 'is followed by no `- **kind**` bullets' \
+    plant_a_paragraph_between_the_anchor_and_the_list
   gate_selftest_case "ratifies $KIND_COUNT kinds of hand-written list and this pass read 4" \
     plant_a_fourth_kind
   gate_selftest_case "which is not one the" plant_row_of_an_unratified_kind
@@ -1011,7 +1181,14 @@ exec "$GATE_REAL_TOOL" "$@"' plant_named_all
     pass_tests_are_not_scanned
   gate_selftest_passes "a ratified list beside a scalar const on one line" \
     pass_two_consts_on_one_line
-  printf '%s selftest OK: passes a clean fixture and nine near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong, and on a reader that could not run — outright, mid-scan, and after consuming its input\n' "$(gate_name)"
+  gate_selftest_passes "a bolded bullet in the section's prose above the anchor" \
+    pass_a_bolded_bullet_before_the_anchor
+  gate_selftest_passes "a bolded bullet in the section's prose below the list" \
+    pass_a_bolded_bullet_after_the_list
+  # THE COUNT IS THE `gate_selftest_passes` ROWS ABOVE, one per near
+  # miss, so a reader can produce the population rather than trust the
+  # number: `grep -c '^  gate_selftest_passes ' $0`.
+  printf '%s selftest OK: passes a clean fixture and eleven near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong — its heading, its table, its kind bullets and the paragraph that announces them — and on a reader that could not run: outright, mid-scan, and after consuming its input\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
