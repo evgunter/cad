@@ -27,16 +27,17 @@
 
 use std::collections::BTreeMap;
 
-use pncad::document::{RefusingReach, 
+use pncad::document::{
     BooleanOp, CancelToken, ChecksConfig, Datum, Dimension, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, apply,
-    enforce_checks, evaluate, run_checks,
+    Evaluation, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach,
+    Severity, apply, enforce_checks, evaluate, run_checks,
 };
 use pncad::geom_core::Tol;
 
 /// Inserts a node and returns its minted id.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
+    let applied =
+        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
