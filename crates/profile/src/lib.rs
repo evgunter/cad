@@ -409,8 +409,8 @@ impl<T: Real> ProfileLoop<T> {
     /// [`SketchPlane::map`]) and named for it: every one of them is the
     /// same X read at another scalar, and a fourth private word for that
     /// was a fourth thing to learn. It takes `&self` where the family
-    /// takes `self`, because a loop owns two `Vec`s and both call sites
-    /// hold a borrow.
+    /// takes `self`, because a loop owns two `Vec`s and its caller holds
+    /// a borrow.
     ///
     /// This is re-materialization, not authoring. The table already
     /// exists — it was emitted by the lattice, or read back from a

@@ -24,6 +24,16 @@
 //! `src.embed()` here is `src.map(<f64 as Real>::from_f64)` or
 //! `src.map(Interval::from_f64)`; nothing else about what these rows
 //! measure has changed.
+//!
+//! **Second adoption note (the `origin/main` merge).** `embed_profile`
+//! no longer exists: main's `ValidatedProfile::lift_onto` moved
+//! editor-core's crossing onto the VALIDATED form, and the free
+//! function these rows name was deleted with it. The walk is kept here
+//! verbatim anyway — it is still one of the two walks the door was
+//! claimed to reproduce, the claim was made when both existed, and a
+//! row that measures a retired walk against the door that replaced it
+//! is exactly as informative now as it was then. `loft.rs::end_profile`
+//! is the surviving production caller.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

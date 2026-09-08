@@ -1051,8 +1051,10 @@ subdivision or G1 seam (BOOL-12, §6's revised PQ4), and the raw-door
 demotion (BOOL-9). The last of those executes the companion sentence
 above: `ProfileLoop`'s vertex table has one private constructor and
 three doors onto it — the lattice's emission layer, `ProfileLoop::map`
-(a table that already exists, read at another scalar), and, declared
-`pub` only under `test`/`test-support`, the fixture door `RawLoop`.
+(a table that already exists, read at another scalar; `sweep`'s loft is
+its production caller, editor-core having since moved its crossing onto
+the validated form), and, declared `pub` only under
+`test`/`test-support`, the fixture door `RawLoop`.
 `crates/profile/src/lib.rs`'s docs on the type are the ONE home for
 that list, including the two anticipated doors that turned out not to
 exist; everything else points there rather than restating it.

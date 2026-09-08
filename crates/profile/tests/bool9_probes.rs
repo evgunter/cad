@@ -42,8 +42,15 @@ fn stadium() -> ProfileLoop<f64> {
 // The materialization door
 // ------------------------------------------------------------------
 
-/// **`map` at `f64` is the identity, bit for bit** — the receipt the
-/// two production sites that call it stand on.
+/// **`map` at `f64` is the identity, bit for bit** — the receipt its
+/// production caller stands on.
+///
+/// It replaced TWO per-site walks when this unit was written
+/// (`sweep/src/loft.rs::end_profile` and
+/// `editor-core/src/eval/anchor.rs::embed_profile`); main has since
+/// moved editor-core's crossing onto the validated form
+/// (`ValidatedProfile::lift_onto`) and deleted the second, so `loft` is
+/// the one left.
 ///
 /// The door crosses every coordinate through `T::from_f64`. At `f64`
 /// that is the identity function, so this row measures the WALK — the
