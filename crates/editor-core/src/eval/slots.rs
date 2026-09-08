@@ -11,7 +11,9 @@
 //! the document's nominal, whose values the key's other half holds
 //! (`super::tag::slot`). Two environments, one door — so a slot's
 //! expression is looked up and evaluated in exactly one place, and a
-//! refusal at either environment arrives in one shape.
+//! refusal at either environment arrives in one shape. The profile
+//! plane read (`super::wire::profile_plane_f64`) reads a FRAME node's
+//! nine slots through the same door, at the nominal.
 
 use geom_core::Decide;
 

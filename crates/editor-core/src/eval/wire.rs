@@ -871,6 +871,16 @@ fn datum_unit<T: Decide>(
 /// same `Option`, so a consumer that places with a derived frame's
 /// record has nothing to mistake for a placement.
 ///
+/// # The environment it reads at
+///
+/// `nominal` is the evaluation's one f64 environment,
+/// [`LaneEnv::nominal`] — that field's doc says what it is and why
+/// every f64-pinned reader decides from it; this function is one of
+/// those readers and builds nothing of its own. The frame's nine
+/// slots are evaluated through [`slots::eval_slots`], the door
+/// `eval_node` reads every node's slots through, so a frame slot that
+/// refuses at the nominal refuses here in the shape it refuses there.
+///
 /// # Errors
 ///
 /// [`NodeErrorKind::WrongOperand`] when the reference does not name a
@@ -879,6 +889,7 @@ fn datum_unit<T: Decide>(
 pub(crate) fn profile_plane_f64(
     doc: &crate::doc::Doc<ProfileProgram>,
     plane: RecipeNodeId,
+    nominal: &crate::expr::ParamEnv<f64>,
     tol: Tol,
 ) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
     match frame_kind(doc, plane)? {
@@ -888,21 +899,16 @@ pub(crate) fn profile_plane_f64(
     let node = doc
         .node(plane)
         .ok_or(NodeErrorKind::MissingInput { input: plane })?;
-    let env = doc.param_env::<f64>();
-    let read = |family: fn(Axis3) -> SlotId| -> Result<Vec3<f64>, NodeErrorKind> {
-        let mut out = [0.0_f64; 3];
-        for axis in Axis3::ALL {
-            let slot = family(axis);
-            let expr = node.expr(slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
-            out[axis.index()] = crate::expr::eval(expr, &env)
-                .map_err(|source| NodeErrorKind::Expr { slot, source })?;
-        }
-        Ok(Vec3::new(out[0], out[1], out[2]))
-    };
-    let origin = read(SlotId::Origin)?;
-    let (u, v) = frame_axes(read(SlotId::U)?, read(SlotId::V)?, band(tol)?)?;
+    let vals = slots::eval_slots(node, nominal)
+        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
+    let origin = need_point3(&vals, SlotId::Origin)?;
+    let (u, v) = frame_axes(
+        need_vec3(&vals, SlotId::U)?,
+        need_vec3(&vals, SlotId::V)?,
+        band(tol)?,
+    )?;
     Ok(Some(profile::SketchPlane::from_frame(
-        Point3::new(origin.x, origin.y, origin.z),
+        origin,
         u.get(),
         v.get(),
     )))
@@ -4197,14 +4203,16 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         });
     }
     // LIB-SWITCH §4b at the loft/sweep seam: the section is the
-    // node's program RESOLVED at f64 and REPLAYED — the same C6/D9
-    // pipeline the profile node runs. The profile's own validation
-    // door still runs first, so a bad section reads as a profile
-    // error at the NODE (the §2 compatibility contract) before the
-    // library door re-gates it — and the f64 canonical form yields
+    // node's program RESOLVED at f64 — at the evaluation's one nominal
+    // environment, `LaneEnv::nominal`, which is where the profile
+    // node's own pre-pass resolves it too — and REPLAYED, the same
+    // C6/D9 pipeline the profile node runs. The profile's own
+    // validation door still runs first, so a bad section reads as a
+    // profile error at the NODE (the §2 compatibility contract) before
+    // the library door re-gates it — and the f64 canonical form yields
     // the program-anchor naming map for the loft emitter's refs.
     let resolved = program
-        .resolve(&doc.param_env::<f64>())
+        .resolve(lane.nominal)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     // The f64 ladder is `prepare_profile` ITSELF, not a copy of it:
     // this seam and the profile node's used to run the same four steps
@@ -4219,7 +4227,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // (`SectionScalar`, decided by the type); anywhere else the
     // section refuses typed, naming itself and the frame, rather than
     // placing on a fabricated point of the frame's bracket.
-    let plane = match profile_plane_f64(doc, program.plane, tol)? {
+    let plane = match profile_plane_f64(doc, program.plane, lane.nominal, tol)? {
         Some(authored) => authored,
         None => {
             let lane_plane = frame_plane_lane(results, program.plane)?;

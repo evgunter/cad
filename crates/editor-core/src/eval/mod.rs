@@ -2656,12 +2656,15 @@ where
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
             // The frame the profile is drawn on, at f64 and from the
-            // DOCUMENT — `wire::profile_plane_f64` carries why that is
-            // the right scalar and the right source.
-            let placement = match wire::profile_plane_f64(doc, program.plane, tol) {
-                Ok(placement) => placement,
-                Err(kind) => return fail(bracket, kind),
-            };
+            // DOCUMENT — the evaluation's nominal environment
+            // (`wire::LaneEnv::nominal`); `wire::profile_plane_f64`
+            // carries why that is the right scalar and the right
+            // source.
+            let placement =
+                match wire::profile_plane_f64(doc, program.plane, op_env.lane.nominal, tol) {
+                    Ok(placement) => placement,
+                    Err(kind) => return fail(bracket, kind),
+                };
             match wire::prepare_profile(placement, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(bracket, kind),
@@ -2965,9 +2968,9 @@ mod tag {
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
         /// after that slot's bits at the evaluation scalar, and it
-        /// carries the slot's expression evaluated in the document's
-        /// f64 parameter environment: no box, no seed
-        /// ([`crate::doc::Doc::param_env`] at f64).
+        /// carries the slot's expression evaluated at the evaluation's
+        /// nominal environment — [`super::wire::LaneEnv::nominal`],
+        /// whose doc says what that environment is.
         ///
         /// **Why the key owes it.** Evaluation has TWO f64-pinned
         /// readers of the document's nominals, and both decide what a
