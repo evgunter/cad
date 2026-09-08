@@ -2,8 +2,9 @@
 id: mesh-pick-error-is-unmatchable-under-node-pick-error
 kind: issue
 title: MeshPickError is unmatchable under NodePickError's carrier
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-08
 refs: [1661]
 ---
 
@@ -85,3 +86,29 @@ joined at LIB-B-READBACK.
 Whether it is worth doing is a judgement for the curation queue, not
 for a binding unit: the arm reports a corrupt mesh, which is a kernel
 defect rather than anything a user provokes.
+
+## Closed
+
+LIB-CUR5, under LB17's rule. `MeshPickError` alone is carried into
+`crates/pncad/src/select.rs` beside `NodePickError`; `MeshPick` stays
+interior, so every word of CUR3's construction argument holds — a raw
+`PickTarget` still has no constructor through the façade, and the
+stanza in `select.rs` says so where the carriage is. `tags.rs` gains
+`mesh_pick_error_tag` (`position_out_of_range`, the enum's one arm,
+matched exhaustively so a second indexing invariant stops the build),
+and `NodePickError`'s `mesh_index` arm projects it at `index_variant`
+rather than in place of `variant`: `mesh_index` says which door's
+invariant broke and a caller branching on the standing ladder needs
+it to stay put. Census row on the `DanglingRef` precedent
+(`BOUND_AS`, at the new spelling); `TAG_INVENTORY` row; the arm is
+constructible from `pncad-py`, so `picking_refusal_tags_are_stable`
+pins both words and its "two arms have no constructor" paragraph is
+down to one (`HitTestError::Unnamed`, whose payload is an arena key).
+
+**What this does NOT cover.** The three numbers the arm carries —
+patch, triangle and the out-of-range index — still reach Python only
+through the kernel's `Display`. Filed as
+`work/lib/mesh-index-numbers-cross-as-prose-under-a-projecting-door.md`.
+No Python test provokes the arm and none can: it reports a corrupt
+mesh, so the tag is pinned in Rust and `test_picking.py`'s class
+docstring says why there is no row for it there.
