@@ -723,6 +723,78 @@ class TestTheRefusals(unittest.TestCase):
             evaluate(doc).value(node).measure()
         self.assertEqual(caught.exception.kind, "measure_unsupported")
 
+    def test_a_gap_between_non_parallel_planes_refuses(self):
+        """C5's plane arm is about a SEPARATION along a shared normal,
+        so a cap and a side wall have no gap to report — the closed
+        form refuses rather than projecting one onto an axis nobody
+        named."""
+        doc = Doc()
+        node = slab(doc, 0.0)
+        ev = evaluate(doc)
+        bottom = face_at_height(ev, node, 0.0)
+        top = face_at_height(ev, node, 1.0)
+        side = [f for f in ev.all_faces(node) if f not in (bottom, top)][0]
+        measure = doc.insert(
+            Node.measure(
+                MeasureExpr.primitive(MeasurePrimitive.gap(0, 1)),
+                [(node, bottom), (node, side)],
+            )
+        )
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(measure).measure()
+        self.assertEqual(caught.exception.kind, "measure_not_parallel")
+
+    def test_a_reference_that_does_not_resolve_at_its_site_refuses(self):
+        """N5's typed vocabulary, on the measurement channel: a
+        well-formed name the reading site's own table does not carry
+        names nothing THERE, and the measure says so rather than
+        measuring what is left."""
+        doc = Doc()
+        here = slab(doc, 0.0)
+        elsewhere = slab(doc, 4.0)
+        ev = evaluate(doc)
+        alien = face_at_height(ev, here, 0.0)
+        measure = doc.insert(
+            Node.measure(
+                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
+                [(elsewhere, alien), (elsewhere, face_at_height(ev, elsewhere, 4.0))],
+            )
+        )
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(measure)
+        self.assertEqual(caught.exception.kind, "measure_ref_resolve")
+
+    def test_the_load_door_re_checks_the_reference_indices(self):
+        """`Node.measure` cannot mint an out-of-range index, so the
+        only way one reaches a document is a hand-edited file — and the
+        load door runs the SAME check, refusing with the fault's own
+        prose.
+
+        MEASURED, and reported: it arrives as `PersistError` with
+        `variant == "snapshot"`, so the fault is in the message and not
+        in a branchable tag. The edit door's `measure_malformed` is
+        unreachable from Python for the same reason the construction
+        door exists.
+        """
+        doc = Doc()
+        node = slab(doc, 0.0)
+        ev = evaluate(doc)
+        doc.insert(
+            Node.measure(
+                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
+                [
+                    (node, face_at_height(ev, node, 0.0)),
+                    (node, face_at_height(ev, node, 1.0)),
+                ],
+            )
+        )
+        tampered = doc.save().replace('"b": 1', '"b": 7')
+        self.assertNotEqual(tampered, doc.save(), "the tamper found its slot")
+        with self.assertRaises(pncad.PersistError) as caught:
+            load(tampered)
+        self.assertEqual(caught.exception.variant, "snapshot")
+        self.assertIn("reads reference 7", str(caught.exception))
+
     def test_a_value_that_is_not_a_measure_says_so(self):
         doc = Doc()
         node = slab(doc, 0.0)
