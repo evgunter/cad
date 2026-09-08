@@ -347,25 +347,19 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                 .clone();
             // **The cone's mirror nappe is a CONSUMER obligation, and
             // this is where this door discharges it.**
-            // [`geom_brep::ConeOffset`]'s header ratifies the action as
-            // the pushforward along the continuous extension of the
-            // OPENING nappe's normal field, and says in as many words
-            // that `n₊` does not flip across the apex — following the
-            // per-point chart normal instead would split the double
-            // cone rather than shift a parameter. The consequence it
-            // states is the one that matters here: a mirror-nappe
-            // face's material moves `−d` along its OWN chart normal.
-            //
-            // A `ChartMove`'s distance is along the FACE's outward
-            // direction, so on a face below its apex the two conventions
-            // are opposite and the caller's number has to be turned
-            // over before it reaches the mint. Measured on the cone
-            // frustum: unturned, the cavity comes back LARGER than its
-            // operand (0.001058 against 0.000895) — a shrink that grew.
-            // The nappe is a fact about the FACE and nothing but the
-            // face knows it, which is why the obligation lands on the
-            // consumer and is discharged here rather than in the mint.
-            let d = nappe_signed(body, face, &old, m.distance, band)?;
+            // [`geom_brep::ConeOffset`]'s action is the pushforward
+            // along the continuous extension of the OPENING nappe's
+            // normal field — `n₊` does not flip across the apex — so a
+            // mirror-nappe face's material moves `−d` along its OWN
+            // chart normal. A `ChartMove`'s distance is along the
+            // FACE's outward direction, so below the apex the two
+            // conventions are opposite and the caller's number is
+            // turned over before it reaches the mint. Measured on the
+            // cone frustum: unturned, the cavity comes back LARGER than
+            // its operand (0.001058 against 0.000895) — a shrink that
+            // grew. The nappe is a fact only the face has, decided at
+            // its one home for every door that needs it.
+            let d = crate::offset_nappe::face_nappe(body, face, band)?.turn(m.distance);
             let new = geom_brep::offset_surface(&old, d, band)
                 .map_err(|error| ReplaceFaceError::Offset { face, error })?;
             let constraint = classify(face, &old, &new, &frame, band)?;
@@ -867,56 +861,6 @@ fn corner_arms<T: Decide>(
         });
     }
     Ok(out)
-}
-
-/// `distance` in [`geom_brep::offset_surface`]'s own sign convention.
-///
-/// For every kind but the cone the two agree. A cone's mint moves
-/// material `+d` along the OPENING nappe's normal field and therefore
-/// `−d` along a mirror-nappe face's own chart normal — the ratified
-/// contract at [`geom_brep::ConeOffset`], not an accident of it. Which
-/// nappe a FACE is on is a fact only the face has, so the turn belongs
-/// here. Read from the face's own vertices and DECIDED rather than
-/// assumed: a face straddling the apex has no nappe and is refused.
-fn nappe_signed<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    surface: &Surface<T>,
-    distance: T,
-    band: Band,
-) -> Result<T, ReplaceFaceError<T>> {
-    let Surface::Cone { apex, axis, .. } = surface else {
-        return Ok(distance);
-    };
-    // The SUM of the face's own corner stations. Every corner of a cone
-    // face is on one nappe, so the sum carries that nappe's sign, and
-    // it is a length — no lever, and no comparison to pick a maximum.
-    let data = body.get_face(face).ok_or(ReplaceFaceError::Corrupt)?;
-    let mut v = T::zero();
-    for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
-        let crate::entity::LoopBoundary::Cycle { first } =
-            body.get_loop(lk).ok_or(ReplaceFaceError::Corrupt)?.boundary
-        else {
-            continue;
-        };
-        for he in body.loop_cycle(first).ok_or(ReplaceFaceError::Corrupt)? {
-            let p = body
-                .get_half_edge(he)
-                .and_then(|h| body.get_vertex(h.start))
-                .and_then(|x| body.get_point(x.point).copied())
-                .ok_or(ReplaceFaceError::Corrupt)?;
-            v = v + (p - *apex).dot(*axis);
-        }
-    }
-    match decide("offset_axial_nappe", Margin::of(v), band) {
-        Ok(Sign::Positive) => Ok(distance),
-        Ok(Sign::Negative) => Ok(-distance),
-        Ok(Sign::Zero) => Err(ReplaceFaceError::TogetherNotAxial {
-            face,
-            what: "a cone face standing at its own apex, which is on neither nappe",
-        }),
-        Err(source) => Err(ReplaceFaceError::Escalated { source }),
-    }
 }
 
 /// The chart's rigid displacement when its offset IS a translation.

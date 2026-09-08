@@ -560,3 +560,5 @@ mod shell5_r1_dump;
 mod shell5_r1_probes;
 #[path = "shell5_r2_probes.rs"]
 mod shell5_r2_probes;
+#[path = "shell6_nappe_home.rs"]
+mod shell6_nappe_home;

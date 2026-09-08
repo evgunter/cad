@@ -119,7 +119,7 @@
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKind};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfaceKind};
 use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -210,6 +210,18 @@ pub enum ReplaceFaceError<T: Real> {
         v_max: T,
         /// The parameter shift `d·cot α` the offset applies.
         shift: T,
+    },
+    /// **The nappe predicate** (`offset_nappe`, at
+    /// [`crate::offset_nappe::face_nappe`]). The cone face's corner
+    /// stations sum to zero: it stands at its own apex, so it is on
+    /// neither nappe and the offset has no sign for it. Refused rather
+    /// than guessed, at both offset doors.
+    NappeStraddles {
+        /// The face with no nappe.
+        face: FaceKey,
+        /// The summed corner station the predicate metered, echoed as
+        /// data.
+        station: T,
     },
     /// The face carries a cone but has no boundary carrier to read a
     /// `v`-window off. Refusing is the only honest answer: inventing a
@@ -520,6 +532,11 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                  — the minted cone's nappe attribution flips inside the window, so it is not \
                  this face's offset"
             ),
+            Self::NappeStraddles { face, station } => write!(
+                f,
+                "the offset: {face:?}'s corner stations sum to {station:?} m, so the cone face \
+                 stands at its own apex and is on neither nappe — the offset has no sign for it"
+            ),
             Self::ApexWindowUnknown { face } => write!(
                 f,
                 "replace_face_offset: {face:?} carries a cone but has no boundary carrier, so \
@@ -677,6 +694,7 @@ enum TransportError {
 
 fn transport_curve<T: Decide>(
     old: &Surface<T>,
+    nappe: Nappe,
     d: T,
     curve: &Curve3<T>,
     mid: Point3<T>,
@@ -733,7 +751,7 @@ fn transport_curve<T: Decide>(
                 // displacement is constant along one (the azimuth does
                 // not vary), so the transport is rigid.
                 Curve3::Line { .. } | Curve3::Nurbs(_) => {
-                    let delta = action.displacement(mid);
+                    let delta = action.displacement(nappe, mid);
                     Some((
                         translate_curve(curve, delta).map_err(TransportError::Structure)?,
                         Some(delta),
@@ -1039,6 +1057,24 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
         .get_surface(old_key)
         .ok_or(ReplaceFaceError::Corrupt)?
         .clone();
+    // **The cone's mirror nappe is a consumer obligation, and this is
+    // where this door discharges it.** `geom_brep::ConeOffset`'s action
+    // moves material along the OPENING nappe's normal field, so a
+    // mirror-nappe face's material moves `−d` along its own chart
+    // normal; `d` arrives at this door along the FACE's outward
+    // direction, so the two conventions are opposite below the apex and
+    // the number has to be turned over before it reaches the mint. The
+    // nappe is decided at its one home, from the face's own corners.
+    //
+    // The group's FIRST face decides for the chart, and the apex-window
+    // gate below re-reads that answer against the whole group's window:
+    // a group whose faces do not share a nappe has a window reaching
+    // past the apex and refuses there, so no chart is ever minted with
+    // one member's sign standing for another's.
+    //
+    // Below this line `d` is the mint's own convention, not the door's.
+    let nappe = crate::offset_nappe::face_nappe(body, face, band)?;
+    let d = nappe.turn(d);
     let new_surface = mint_offset(face, &old_surface, d, band, tol)?;
 
     // ---- Decide: the apex window (cones only). ----
@@ -1052,18 +1088,21 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     {
         let (v_min, v_max) = group_cone_v_window(body, faces, apex, axis, half_angle.cos())
             .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
-        // Which nappe the face lives on decides which end of its window
-        // is the one nearest the apex — and a window that already
-        // straddles the apex is a face with no single nappe to offset.
+        // The nappe decides which end of the window is the one nearest
+        // the apex; the window decides whether that end has CLEARED the
+        // apex. One predicate, on the near end alone — the far end's
+        // sign follows from `v_min ≤ v_max` and needs no meter of its
+        // own — and a window that has not cleared it (because it
+        // straddles, touches, or carries a face of the other nappe) is
+        // refused before the collapse margin is taken.
         let esc = |source| ReplaceFaceError::Escalated { source };
-        let low = decide("offset_apex_nappe", Margin::of(v_min), band).map_err(esc)?;
-        let high = decide("offset_apex_nappe", Margin::of(v_max), band).map_err(esc)?;
-        let (v_near, sense) = match (low, high) {
-            (Sign::Positive, _) => (v_min, T::one()),
-            (_, Sign::Negative) => (v_max, -T::one()),
-            // Zero at either end, or opposite signs: the window reaches
-            // the apex before any offset is applied.
-            _ => {
+        let (v_near, sense) = match nappe {
+            Nappe::Opening => (v_min, T::one()),
+            Nappe::Mirror => (v_max, -T::one()),
+        };
+        match decide("offset_apex_nappe", Margin::of(v_near * sense), band).map_err(esc)? {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => {
                 return Err(ReplaceFaceError::ApexWindow {
                     face,
                     v_min,
@@ -1071,7 +1110,7 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
                     shift,
                 });
             }
-        };
+        }
         // `inf(v-window) + d·cot α > 0` on the opening nappe, and its
         // mirror on the other — one margin, signed by the nappe.
         let realized = (v_near + shift) * sense;
@@ -1099,6 +1138,7 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
             &old_surface,
             old_key,
             &new_surface,
+            nappe,
             d,
             shift,
             band,
@@ -1221,22 +1261,9 @@ fn mint_offset<T: Decide + PropsQuadLane>(
             Some(Err(error)) => Err(ReplaceFaceError::Fit { face, error }),
         };
     }
-    // **A cone's mirror nappe is a consumer obligation this door does
-    // not discharge (#1199).** `ConeOffset`'s header ratifies that `n₊`
-    // does not flip across the apex and states the consequence: a
-    // mirror-nappe face's material moves `−d` along its OWN chart
-    // normal. `d` arrives here along the FACE's outward direction
-    // (`shell::inward` reads the sense bit), so on a face below its
-    // apex the two conventions are opposite and this call turns the
-    // offset the wrong way. `offset_axial::nappe_signed` discharges the
-    // same obligation for the simultaneous door.
-    //
-    // No wrong body ships from it today, measured on both review arms
-    // of #1180: on every reachable fixture the neighbouring caps refuse
-    // first at `ReanchorOffCarrier`, so the turned sign never reaches a
-    // body that gets built. A latent hazard behind a gate, filed with
-    // both arms' evidence rather than fixed in a unit that is not
-    // sweeping this door.
+    // `d` is `geom_brep::offset_surface`'s own convention here, turned
+    // at the door by the face's nappe (`crate::offset_nappe`) — the
+    // mint is nappe-blind by contract and this call does not re-read it.
     geom_brep::offset_surface(old, d, band)
         .map_err(|error| ReplaceFaceError::Offset { face, error })
 }
@@ -1397,6 +1424,7 @@ fn plan_edge<T: Decide>(
     old_surface: &Surface<T>,
     old_key: SurfaceKey,
     new_surface: &Surface<T>,
+    nappe: Nappe,
     d: T,
     shift: T,
     band: Band,
@@ -1531,7 +1559,7 @@ fn plan_edge<T: Decide>(
         });
     }
 
-    let (carrier, delta) = transport_curve(old_surface, d, &old_carrier, mid, band)
+    let (carrier, delta) = transport_curve(old_surface, nappe, d, &old_carrier, mid, band)
         .map_err(|e| match e {
             TransportError::Escalated(source) => ReplaceFaceError::Escalated { source },
             TransportError::Structure(error) => ReplaceFaceError::Structure { edge, error },

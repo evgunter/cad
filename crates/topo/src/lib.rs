@@ -177,6 +177,7 @@ pub mod movefac;
 mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
+pub mod offset_nappe;
 pub mod offset_together;
 pub mod param_source;
 pub mod pcurves;
@@ -328,6 +329,7 @@ pub use instance::{
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
+pub use offset_nappe::{Nappe, face_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, pcurve_of};
 pub use props::{
