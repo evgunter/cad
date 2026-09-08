@@ -2,11 +2,12 @@
 id: record-file-column-read-by-first-colon-split
 kind: issue
 title: the class - every reader that takes a record's FILE column as everything before the first colon
-status: review
+status: closed
 branch: gates/record-column-parser
 pr: 2174
 opened: 2026-09-08
 refs: [bounds-allowlist-select-cuts-at-the-first-colon]
+closed: 2026-09-08
 ---
 
 ## Finding
