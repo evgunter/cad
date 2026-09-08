@@ -395,3 +395,21 @@ the helper unit 4 retired — converted to `one_edge_rim_at(_, 1.0, 0.0)`
 at the dome's equator, compile-checked; `work/eval/` deleted on main
 by EVAL's sweep, so the seam line announced there goes with it). Head
 `dcc8fb18` awaits its run.
+
+**Unit 6 landed (2026-09-08)** on PR [#2215](https://github.com/evgunter/cad/pull/2215),
+head `41b45adc`, full matrix green; Phase 1's four carves at closed
+forms with pad 0, no stop-clause defect, every bit-dump identical at
+both trees. The lane corrected the spec twice by measurement: the
+boss's dome rim is CONCAVE (the ball rests in the void, the band adds
+material; `plane_sphere_cut` was the wrong oracle, the external
+tangency form is homed beside it), and the hostless annulus's rings
+were already metered externally behind `resolve_rim`'s refusal, so the
+fix is a form choice at the existing meter. Its substantive finding:
+the containment margins are bit-identical to predicate 2's sampled
+screen on every coaxial pair and the screen runs first, so the exact
+backstop has no reachable fixture (filed inside the fence). **Ordinal
+2900 claimed on main; the v6 dual dispatched concurrently on the
+frozen head** — byte 67 ⇒ R1 = FABLE, R2 = OPUS; briefs stored with
+digests on `blend/b1-block` before either ran; the two spec errors are
+stated in both briefs as the lane's corrections to verify. The unit's
+log entry waits for the dual.
