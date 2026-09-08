@@ -72,7 +72,10 @@ functions over these bare state values in a sealed kernel module;
 the chain threads values and applies their emissions. (The
 junction check's lever arm and the §4 item 4 identity data are the
 CHAIN's own emission-layer bookkeeping, not anything a verb can
-consult.)
+consult — and so are the stations a declared split mints:
+`arc_to(spec.split(n))` places its `n − 1` interior vertices from the
+leg's own authored data at emission, §3's row, which is where the
+"these pieces are one curve" fact lives and the only place it does.)
 
 ### Binders and directors
 
@@ -866,7 +869,7 @@ typestate, and it retires:
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
 | `circle_split(c, r, n, phase)` | — → complete loop | the declared-subdivision closed carrier: `n` equal arcs from `phase`, structural subdivisions of one carrier — the same no-seam story as `circle`, with the count and phase authored |
-| `arc_continue(p)` | directed point → directed point | continues the incoming ARC carrier to `p`, minting a structural subdivision vertex; a same-carrier identity, so no junction check runs and nothing is declared |
+| `arc_to(spec.split(n))` | as `arc_to(spec)` | the DECLARED split of the sharp arc leg — the open-carrier analog of `circle_split` (Ev, in-chat, 2026-09-01/-02, landed BOOL-10): the one leg `spec` authors, emitted as `n` arcs on its one carrier, its `n − 1` interior stations placed BY PARAMETER — station `k` at `k/n` of the sweep, each computed from its NEARER endpoint so the leg authored backwards places the same bits, and an even split's middle station by the closed form `centre + R·m̂`, exact on an axis-aligned chord (every revolve meridian) — and each minted a DECLARED TANGENT JOINT; every piece carries tan(θ/4n) exactly. The count rides the leg's own step (`ArcTo { spec, splits }`, 1 = the plain leg). Admissibility is the wrapped mode's own matrix row, so a split on a fused verb's spec or on a straight leg is unrepresentable, not refused; `n < 2` refuses `ArcSplitCount` (a declaration of one piece distinguishes nothing). Nothing is read off the chain: the carrier is the leg's own — `Center`'s authored centre, the chord-and-bulge closed form otherwise — never the incoming leg's. This row is what `arc_continue(p)` re-spelled as: that verb read the previous leg's carrier, the one thing §2c calls unrepresentable, and is REMOVED |
 | **TIER 1 — SUGAR** (one call each; expands to core; adds no semantics) | | |
 | `line_to(p)` | Point → Point (also from line arrivals) | `.angle(toward p).line(dist)` |
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc |
@@ -931,9 +934,8 @@ side 1 — closing onto a carrier while keeping the entry vertex is
 `DegenerateArcChord`; `DegenerateArcSpec` (a zero bulge, a
 non-positive sweep/arc-length); `ArcCenterNotEquidistant`;
 `DegenerateArcCenter`; `FarEndAnchorWithoutFillet`;
-`CircleSplitCount`; `ArcContinueNeedsArcCarrier` and
-`ArcContinueOffCarrier` (no incoming arc carrier to continue; an
-authored target off it — authored points never re-project);
+`CircleSplitCount`; `ArcSplitCount` (a declared split of fewer than
+two arcs — the count that distinguishes nothing from the plain leg);
 `SeamArrivalOffDirection` (a DECLARED seam arrival that definitely
 does not continue the entry's outgoing direction — the levered
 miss, its lever and the member that declared, in the payload; a
@@ -1031,21 +1033,37 @@ AUTHORED direction landing in the tangent band still refuses,
 recourse as in item 1: a target that happens to be collinear is a
 value coincidence, and the ladder never reads intent off a margin.
 
-Per the ruling's second-round extension, `arc_continue` is NOT kept
-as the §2c axiom's exception: it is scheduled for REMOVAL, its
-subdivision need re-spelling as declared subdivision on the arc leg
-itself — the open-carrier analog of `circle_split`, with vertices
-minted at the chain's emission layer where the axiom's bookkeeping
-legitimately lives. Companion: `RawLoop` is not an authoring door —
-the vertex table is the materialized form intensional recipes
-evaluate into. The units: this half is **BOOL-8**, the
-`arc_continue` retirement **BOOL-10**, the declared point-target
-continuation and its closer **BOOL-11**, the raw-door demotion
-**BOOL-9** (resequenced behind BOOL-11), the seam's declared arrival
-**BOOL-12**. **Both lattice halves and the SEAM have landed** — the
-interior continuation (BOOL-8), the declared point-target form with its
-structural closer (BOOL-11), and the declared arrival that admits a
-subdivision or G1 seam (BOOL-12, §6's revised PQ4); the RAW DOOR remains
+Per the ruling's second-round extension, `arc_continue` was NOT kept
+as the §2c axiom's exception: it is REMOVED (BOOL-10, landed). It
+consulted the incoming leg's carrier and branched on what the previous
+leg was — the one thing the axiom calls unrepresentable — and its need
+(authored arc subdivision: the half-disc equator a revolve's poles
+anchor on) re-spelled as the declared split ON the arc leg itself,
+`arc_to(spec.split(n))` (§3's row): the open-carrier analog of
+`circle_split`, its stations minted at the chain's emission layer where
+the axiom's bookkeeping legitimately lives, each a declared tangent
+joint on the one carrier (the sixth round's name for it — there is no
+"subdivision" at the lattice, only declared tangent joints, and the
+"one curve" fact is the leg's own step). What it authored, the split
+authors: the equator vertex is the authored geometry's own axis point,
+exact, and every piece carries tan(θ/4n) exactly. With it the seal the
+§2c axiom rests on became real rather than assumed: no signature in the
+sealed verb module admits a `Core`, a previous leg or an incoming
+carrier, the module header carries the inventory, and a `compile_fail`
+doctest proves it — a verb over the directed point reaching for a
+carrier does not compile. The one chain-side carrier datum kernels can
+still see is the tip's incoming carrier, whose readers the header
+names. Companion: `RawLoop` is not an authoring door — the vertex
+table is the materialized form intensional recipes evaluate into. The
+units: this half is **BOOL-8**, the `arc_continue` retirement
+**BOOL-10**, the declared point-target continuation and its closer
+**BOOL-11**, the raw-door demotion **BOOL-9** (resequenced behind
+BOOL-11), the seam's declared arrival **BOOL-12**. **Both lattice
+halves, the SEAM and the retirement have landed** — the interior
+continuation (BOOL-8), the declared point-target form with its
+structural closer (BOOL-11), the declared arrival that admits a
+subdivision or G1 seam (BOOL-12, §6's revised PQ4), and the declared
+split with `arc_continue` gone (BOOL-10); the RAW DOOR remains
 (BOOL-9), and #433 closes when it lands.
 
 **The seam, measured here and RULED (third round, Ev, in-chat,
@@ -1064,9 +1082,10 @@ both. The lift layer has carried a name for this wall since it was written:
 whose message says a run's "leaving segment closes the loop straight;
 `.tangent().line(len)` cannot close" — the straight wall exactly. (An
 earlier draft cited `SameCarrierClose` here. That variant is about ARC
-runs — `arc_continue` has no closing form — so it names a different
-wall; the identical mis-citation was dropped from the lily demo's
-comment in the same unit, and this is its retained sibling.)
+runs reaching the seam — the lift's declared-joint re-spelling of a
+cocircular run is mid-chain only — so it names a different wall; the
+identical mis-citation was dropped from the lily demo's comment in the
+same unit, and this is its retained sibling.)
 
 The ruling: the straight continuation gains a DECLARED POINT-TARGET
 form — the leg declared to land on a NAMED point, with the kernel

@@ -1087,7 +1087,7 @@ pub enum PathError<T: Real> {
         /// The refused subdivision count.
         n: usize,
     },
-    /// A declared arc split ([`Split`](verbs::Split)) whose count is
+    /// A declared arc split ([`Split`]) whose count is
     /// below 2. One arc declares nothing the plain leg does not already
     /// say and zero is no leg at all; the split is a DECLARATION, so the
     /// count that distinguishes nothing refuses rather than passing as
@@ -2122,7 +2122,7 @@ enum SplitCarrier<T: Real> {
 }
 
 /// A declared split of the arc leg being emitted (the `n` of
-/// [`Split`](verbs::Split), with where its stations go).
+/// [`Split`], with where its stations go).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SplitLeg<T: Real> {
     carrier: SplitCarrier<T>,
