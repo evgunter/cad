@@ -989,6 +989,18 @@ as the sibling. H / NUMERIC, block PROPS-B3 slot 0 (block drawn
 (`sphere-flux-arm-refuses-partial-bands`) follow as their own unit
 (extension 1) and an `[ev]` design conversation (extension 2).
 
+## Announced seam from SHELL (2026-09-08): SHELL-3 moves `clearance.rs` after sign-hull lands
+
+SHELL-3 (ruled B on #1737; draft `docs/SHELL-3-SPEC.md`) moves the
+body-level half of `crates/editor-core/src/clearance.rs` into `topo`
+behind `interval`. PROPS' sign-hull unit (`props/sign-hull`) retires
+the planar re-chart inside the same file (`in_plane_axis`,
+`chart_frame`, the `chart_axis` fields, the witness `chart=` columns).
+A move and an in-file edit do not run concurrently: SHELL-3 dispatches
+AFTER the sign-hull unit merges and moves the file as it then is. No
+action asked of PROPS; if sign-hull's landing order changes, SHELL
+reads it off main. Signed (SHELL orchestrator).
+
 (BLEND orchestrator, 2026-09-08) Seam announced: BLEND's K-ruling
 unit (`work/blend/ambiguity-k-below-the-cap-rim-crossover.md`, Ev on
 PR 2119 — no floor on K) adds ONE sentence to `Tolerance.k`'s doc in

@@ -2,8 +2,11 @@
 id: fold-the-two-baseline-census-files
 kind: issue
 title: the two baseline census files should be one
-status: open
+status: closed
 opened: 2026-09-07
+closed: 2026-09-08
+branch: meter/10-fold-baseline-censuses
+refs: [baseline-sizing-census-pointers-stale, baseline-sizing-census-second-copy]
 ---
 
 
@@ -58,3 +61,98 @@ PRs are merged**, on a tree where neither file is held.
 
 disclosed by METER unit 2's style review (finding S7, `sure`), filed
 in the PR that carries the unit.
+
+## Closed
+
+One file, `tools/tess-lint/tests/baseline_census.rs`, holding all
+seven tests over one `BASELINE` const behind one `include_str!`;
+`baseline_sizing_census.rs` deleted.
+
+**Not the name this item proposed, and the reason is the pointer
+count.** `tests/baseline.rs` would have been a third name neither file
+had. Twenty-four live mentions across fourteen files name
+`baseline_census.rs` — `tools/tess-lint/src/lib.rs` at four,
+`tests/cut_line_pin.rs`, `docs/TESS-BUDGET.md` at two and seventeen
+`work/` mentions across eleven rows — against seven that name
+`baseline_sizing_census.rs`, across six files. Renaming both would
+have staled all 31 to remove a duplication; folding into the majority
+name stales seven.
+`work/meter/baseline-sizing-census-pointers-stale` carries them.
+
+**Three claims above did not survive to the fold, and they are the
+same defect this file is about — a description drifting from the
+thing it describes.**
+
+- *"the three test functions"* — there are seven. Six of the
+  face-identity census (three of them added by the `C15` swap-cost
+  unit after this row was filed) and one of the sizing census.
+- *"`six_of_the_eight_identity_entries_…`"* — the function is
+  `five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows`.
+  `IDENTITY_COLUMNS` lost an entry, and this row's copy of the name
+  did not follow.
+- *"both point at the other"* — only `baseline_sizing_census.rs`
+  pointed, at four sites (`:28`, `:148`, `:164`, `:183`).
+  `baseline_census.rs` named no sibling at any of its 664 lines.
+
+**What was verified rather than assumed.**
+
+- *A `cargo test` failure is named by its `#[test]`, not by its
+  file.* Executed: three literals mutated at once in the merged file
+  gives `failures:` listing three distinct test names out of one
+  binary, with the file appearing only as the binary name in the
+  rerun hint and as a source location in the backtrace. The second
+  file's stated reason not to fold — that folding *"would put one
+  file's failure under two unrelated headings"* — is exactly backwards:
+  the headings are the test names and folding does not touch them.
+- *No figure is asserted twice.* Checked mechanically over the merged
+  file rather than argued from the split's shape: every numeric
+  literal inside an `assert*!` extracted per test function — function
+  bounds by brace matching — and compared across functions.
+
+  **The tokenization is Rust's**, stated because the answer depends on
+  it: a token is a decimal literal not preceded by an identifier
+  character or a dot, consuming its exponent, so `5e-4` is ONE token,
+  `0.0` is one, and the `15` of `C15` is not a literal at all. Under
+  it **exactly one token is shared between two tests: `72`** — two
+  different predicates that agree on this corpus, *scenes carrying a
+  corpus-wide indistinguishable pair* (`:468`) and *scenes in the
+  baseline* (`:595`). Both were already in `baseline_census.rs` before
+  this fold, neither was introduced by it, and the coincidence is now
+  dispositioned at the site rather than only here. The two censuses'
+  asserted figures are disjoint: 1353 / 64 / 12 / 7 / 14 / 22,352
+  against 1,552,822 / 164,710 / 46,019 / 110,811 / 93,066 / 44,162 /
+  2.408 / 1.0420.
+
+  **This paragraph was wrong twice before it was right, and both
+  errors were in the checking rather than in the property.** The first
+  pass reported three collisions — `0`, `4` and `72`. `0` came from
+  splitting function bodies on the next `///` line, which does not
+  bound a function, so one test's literals leaked into a neighbour's
+  set; there is exactly one `[] as [&str; 0]` in the file (`:801`) and
+  a single occurrence cannot collide with itself. The second pass
+  fixed the bounds, retracted `0`, and kept `4` — which was the same
+  class of error one level down: a pattern that stopped at `5e-`
+  and read the exponent of `5e-4` as its own token, against the prose
+  *"rule 4"* inside another test's failure message. Neither was ever a
+  quantity, the property held throughout, and the lesson is the
+  tokenization: **a shared-literal list is a function of how you
+  tokenize, so the tokenization is part of the claim.**
+
+**Test count: 7 before (6 + 1 across two binaries), 7 after (one
+binary), each of the seven names read out of `cargo test`'s output on
+both sides.** Crate total 80 at the branch point and 84 after merging
+`origin/main`; the +4 is unit 9's new `tests/report_columns_pin.rs`
+arriving with the merge and is nothing to do with this fold.
+
+**Two false claims in the folded prose were corrected rather than
+carried over**, after the style review found them. Both were inherited
+from `baseline_sizing_census.rs` and one had been widened by the fold
+itself: the opening said `docs/TESS-BUDGET.md` *"point[s] here rather
+than carrying a second copy"* — true of `lib.rs` for the face-identity
+count, false of the document for sizing, and stated by the fold as a
+joint claim about both censuses — and the sizing section said *"there
+is no longer a citation to guard"*. The document carries four of the
+sizing census's asserted figures present-tense. The sentences now say
+what is true and point at the row that carries the rest:
+`work/meter/baseline-sizing-census-second-copy`. Nothing outside this
+file was edited for it.

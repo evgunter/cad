@@ -485,3 +485,18 @@ door and rows in `readback.rs`, `topo`'s own sites converted,
 demo sources (in no program's `paths`) in the same PR under the
 demo-purpose rule. Difficulty pre-logged M, task class STRUCTURAL —
 again written knowing the slot's arm; disclosed.
+
+## Announced seam from SHELL (2026-09-08): an ownership re-partition op beside `movefac`
+
+SHELL-5 (`shell/5-hollow-operand`, `docs/SHELL-5-SPEC.md`) — shell of
+a hollow operand thickens every boundary, one thin solid per operand
+shell — needs to move an operand void and its dilated twin out of the
+operand's solid into a new solid. That is a re-partition of ownership
+in `movefac`'s shape one level up (mints a solid, rewrites the moved
+shells' `solid` back-pointers, asserts `ArenaDelta { solids: 1, .. }`),
+so it lands beside `movefac` in `crates/topo/src/movefac.rs` with one
+provenance variant in `crates/topo/src/provenance.rs` — both TOPO's
+files. Additive; no existing op changes. The unit also measures whether
+tier 3 sees a wrong shell-to-solid grouping (it does not check solid
+membership today) and reports the answer for TOPO rather than adding a
+check. Signed (SHELL orchestrator).

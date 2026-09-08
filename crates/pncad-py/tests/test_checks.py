@@ -8,10 +8,11 @@ certificate, and the touching union really fails to evaluate.
 
 ONE EXCEPTION, and it is deliberate:
 `TestSubjectBodyCarriesItsDeclarations` instantiates the bench
-corpus's MATED stand, because the claim it pins is about DECLARED
-contacts and the authoring vocabulary above declares none. It is
-loaded rather than rebuilt for the same reason `test_validate` loads
-it — the geometry is geometry the Rust side already asserts about.
+scene's MATED stand, because the claim it pins is about DECLARED
+contacts and the authoring vocabulary above declares none. It comes
+through `test_assembly_eval.opened` for the same reason `test_validate`
+takes it from there — one definition of that scene, authored in
+`bench_scene.py` and read back out of a store.
 
 WHAT THIS FILE IS FOR, ABOVE COVERAGE
 -------------------------------------
@@ -55,7 +56,7 @@ from pncad import (
     run_checks,
     subject_body,
 )
-from test_assembly_eval import manifest, opened
+from test_assembly_eval import identities, opened
 
 
 def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0):
@@ -319,14 +320,14 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
     """
 
     def instance_of_the_stand(self):
-        """A one-root document instantiating the corpus's mated stand.
+        """A one-root document instantiating the bench scene's mated stand.
 
         The stand's product carries the records its two mates minted,
         and those cross the document seam with the instance — so this
         node's value is a body whose seats are declared.
         """
         store, _ = opened()
-        ident = manifest()["stand"]
+        ident = identities()["stand"]
         doc = Doc("checks-instantiated-assembly")
         instance = doc.insert(
             Node.instantiate_part(DocRef(ident, store.current_pin(ident)))

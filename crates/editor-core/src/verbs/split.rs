@@ -26,7 +26,7 @@
 //! # Every field is direct per-instance data
 //!
 //! As in the sibling modules: function pointers and literals per
-//! instance, no match over a verb vocabulary anywhere in this file, so
+//! instance, no match over the kernel's verb vocabulary anywhere in this file, so
 //! a future verb never has to open it. The one match here is over the
 //! DATUM vocabulary — which kind of datum is a split's tool — and it is
 //! exhaustive with no wildcard arm (D3), so a datum kind added upstairs
@@ -76,7 +76,7 @@ pub(crate) type SplitEmitter<T> = fn(
 ) -> Result<Arc<NameTable>, NamingError>;
 
 /// **The split's correspondence**, as data — everything the split's
-/// lowering needs to turn a `Node::Split` into a [`Verb`] and its two
+/// lowering needs to turn a `Node::Split` into a [`verbs::Verb`] and its two
 /// sides into a name table. Adding a field here is how the verb
 /// declares something the lowering must know.
 pub(crate) struct SplitVerb<T: Decide> {
@@ -89,7 +89,7 @@ pub(crate) struct SplitVerb<T: Decide> {
     /// `WrongOperand` refusal carries when it is not.
     pub(crate) tool_expected: &'static str,
     /// **The plane → the kernel verb.** The one place a document's
-    /// resolved tool plane becomes a [`Verb`] payload, per instance.
+    /// resolved tool plane becomes a [`verbs::Verb`] payload, per instance.
     pub(crate) build: fn(SplitPlane<T>) -> Verb<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: SplitEmitter<T>,

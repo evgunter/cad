@@ -35,10 +35,9 @@ use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanBody, BooleanResult, validate_pseudomanifold};
 
 use crate::booleans::{check, expect_seamed, try_intersect};
-use crate::paths::path_polygon;
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::validated;
+use pncad::authoring::{polygon, validated};
 use pncad::geom_core::Tol;
 
 /// "H" sketch: xy plane at z = -0.25, extruded 3.5 (z ∈ [-0.25, 3.25] —
@@ -49,8 +48,9 @@ fn h_prism<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> Body<S> {
         Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
         Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
     );
+    let outline = polygon(poly, tol).expect("letterform outline");
     extrude(
-        &validated(plane, vec![path_polygon(poly, tol)], tol).expect("letterform profile"),
+        &validated(plane, vec![outline], tol).expect("letterform profile"),
         Extrusion::Distance(S::from_f64(3.5)),
         tol,
     )
@@ -65,8 +65,9 @@ fn t_prism<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> Body<S> {
         Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
         Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
     );
+    let outline = polygon(poly, tol).expect("letterform outline");
     extrude(
-        &validated(plane, vec![path_polygon(poly, tol)], tol).expect("letterform profile"),
+        &validated(plane, vec![outline], tol).expect("letterform profile"),
         Extrusion::Distance(S::from_f64(2.5)),
         tol,
     )
@@ -103,8 +104,9 @@ fn c_prism<S: Scalar>(tol: Tol) -> Body<S> {
         (0.8125, 2.0625),
         (0.1875, 2.0625),
     ];
+    let outline = polygon(&poly, tol).expect("letterform outline");
     extrude(
-        &validated(plane, vec![path_polygon(&poly, tol)], tol).expect("letterform profile"),
+        &validated(plane, vec![outline], tol).expect("letterform profile"),
         Extrusion::Distance(S::from_f64(4.0)),
         tol,
     )

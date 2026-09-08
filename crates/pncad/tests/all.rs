@@ -348,23 +348,75 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         CensusContact::EdgeEdgeCross { .. } => true,
         CensusContact::EdgeEdgeOverlap { .. } => true,
         CensusContact::EdgeFaceOverlap { .. } => true,
-        // ONE RUNG, AND THIS IS WHERE IT STOPS. The arm binds its
-        // `ContactFinding` without naming it, which is exactly why the
-        // rung below is a banked finding and not this unit's scope:
-        // the DISCRIMINANT is matchable, and that is what the curated
-        // list owes. CUR3 stopped in the same place — `DanglingRef`'s
-        // arms carry `EntityId` and `GeomRef`, both still uncurated.
-        CensusContact::ConformalPatch { .. } => false,
+        // The arm the stop was named at, and its payload has a name
+        // now: a caller that reaches a conformal patch asks what the
+        // finding CLAIMS and what verdict decided it, instead of
+        // binding a value it cannot spell. Still undeclarable — the
+        // arm reports a coincidence the census found, and this
+        // function answers whether a declaration would certify it —
+        // and the difference is that the answer is now readable.
+        CensusContact::ConformalPatch { finding } => {
+            named::<ContactFinding>(finding);
+            named::<DeclaredContact>(finding.pair);
+            let _bridgeable = match finding.verdict {
+                // A finding is only minted on definite evidence, so
+                // this is the arm that arrives; the other is the
+                // shape of the verdict type and not of this payload.
+                ContactVerdict::Definite => false,
+                ContactVerdict::Bridged => true,
+            };
+            false
+        }
+    }
+}
+
+/// `ValidationError::CensusUnsupported`'s and
+/// `CensusLaneUnsupported`'s payload — what the refusing arm was
+/// examining, and therefore whose recourse applies.
+///
+/// The two arms are two different repairs, which is the CUR3 test.
+/// An `Entity` subject is one carrier outside the certifiable
+/// inventory: simplify that carrier, or certify it through a
+/// supported lane. A `FacePair` is a candidate CONTACT, so the
+/// recourse is the declaration protocol — declare the coincidence, or
+/// separate the two faces. Both payload types are on the prelude, so
+/// the answer is read out whole rather than bound and re-rendered.
+///
+/// The pair is UNORDERED as a subject, which a caller resolving a
+/// refusal against its own records depends on. That half is NOT
+/// pinned here and the reason is the same stop every key row on this
+/// list hits: distinguishing `(a, b)` from `(b, a)` needs two
+/// distinct `FaceKey`s, and nothing on the curated lists mints one —
+/// `topo`'s own suites own that pin. What this signature pins is the
+/// discriminant, which is what a curated list owes.
+fn census_subject_is_matchable(subject: CensusSubject) -> (&'static str, Option<EntityId>) {
+    match subject {
+        CensusSubject::Entity(what) => {
+            named::<EntityId>(what);
+            ("entity", Some(what))
+        }
+        CensusSubject::FacePair(a, b) => {
+            named::<FaceKey>(a);
+            named::<FaceKey>(b);
+            ("face_pair", None)
+        }
     }
 }
 
 /// `ValidationError::StaleContactDeclaration`'s and `RingMeetsOuter`'s
 /// payloads — which record to withdraw, and how the ring meets the
 /// loop it should not be touching.
+///
+/// The `ring` argument is the third key type `RingMeetsOuter` names,
+/// beside the `FaceKey` and the `RingContact`: a caller matching that
+/// arm binds all three, and this signature is the pin that all three
+/// are spellable from the prelude in one import.
 fn stale_declaration_and_ring_contact_are_matchable(
     declaration: StaleDeclaration,
+    ring: LoopKey,
     contact: RingContact,
 ) -> (&'static str, &'static str) {
+    named::<LoopKey>(ring);
     let stale = match declaration {
         StaleDeclaration::VertexVertex { a, b } => {
             named::<VertexKey>(a);
@@ -451,18 +503,210 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         }
     ));
 
+    // The two entity sums, matched by bare prelude name — the rung
+    // `DanglingRef`'s arms and three `BlendError` arms sit on.
+    assert_eq!(
+        entity_and_geometry_sites_are_matchable(
+            EntityId::Loop(LoopKey::default()),
+            GeomRef::Surface(Default::default()),
+        ),
+        ("loop", "surface")
+    );
+
+    // The escalation payload is reached by bare prelude name too, and
+    // by SIGNATURE rather than by value: nothing on this list can
+    // build one, which is the rung below stopping.
+    named::<fn(&Indeterminate) -> (Band, Option<&'static str>)>(escalation_is_readable);
+
+    // What a census refusal is ABOUT, and the two recourses it
+    // separates. Both payload types are prelude names, so the entity
+    // arm's subject comes back whole rather than as a rendered
+    // string.
+    assert_eq!(
+        census_subject_is_matchable(CensusSubject::Entity(EntityId::Face(FaceKey::default()))),
+        ("entity", Some(EntityId::Face(FaceKey::default())))
+    );
+    assert_eq!(
+        census_subject_is_matchable(CensusSubject::FacePair(
+            FaceKey::default(),
+            FaceKey::default()
+        )),
+        ("face_pair", None)
+    );
+
     assert_eq!(
         stale_declaration_and_ring_contact_are_matchable(
             StaleDeclaration::Patch {
                 face_a: FaceKey::default(),
                 face_b: FaceKey::default(),
             },
+            LoopKey::default(),
             RingContact::Edge {
                 ring_edge: EdgeKey::default(),
                 outer_edge: EdgeKey::default(),
             },
         ),
         ("patch", "edge")
+    );
+}
+
+/// The two type-erased entity sums, matched through the prelude —
+/// what a dangling read-back reports its site as, and what three
+/// `BlendError` arms name directly.
+///
+/// Both are matched EXHAUSTIVELY, which is what a curated list owes
+/// about them: seven entity kinds and three geometry kinds, and a
+/// caller branches on which. Four of the seven keys and all three
+/// geometry keys are BOUND and never named here — they are the rung
+/// this list stops at, one module hop away at `pncad::topo::…`, and
+/// binding them without naming them is exactly what a consumer does.
+fn entity_and_geometry_sites_are_matchable(
+    site: EntityId,
+    geometry: GeomRef,
+) -> (&'static str, &'static str) {
+    let what = match site {
+        EntityId::Solid(_) => "solid",
+        EntityId::Shell(_) => "shell",
+        EntityId::Face(key) => {
+            named::<FaceKey>(key);
+            "face"
+        }
+        EntityId::Loop(key) => {
+            named::<LoopKey>(key);
+            "loop"
+        }
+        EntityId::HalfEdge(_) => "half_edge",
+        EntityId::Edge(key) => {
+            named::<EdgeKey>(key);
+            "edge"
+        }
+        EntityId::Vertex(key) => {
+            named::<VertexKey>(key);
+            "vertex"
+        }
+    };
+    let carrier = match geometry {
+        GeomRef::Point(_) => "point",
+        GeomRef::Curve(_) => "curve",
+        GeomRef::Surface(_) => "surface",
+    };
+    (what, carrier)
+}
+
+/// The escalation payload, read through the prelude alone.
+///
+/// `Indeterminate` is a STRUCT, so what a curated list owes about it
+/// is field access rather than a match: a caller holding an
+/// `Escalated` arm out of any of the thirteen refusals that carry one
+/// asks which band the margin was classified against and which
+/// predicate could not decide. `Band` is on the same list, which is
+/// what makes the pair readable in one import.
+///
+/// **No value is built here, and the reason IS the stop.** Building
+/// one means writing `margin:`, and that field's type is
+/// deliberately uncurated — so this function reads an escalation it
+/// is handed and cannot fabricate one, which is exactly the shape a
+/// consumer is left in. `margin` is bound and never named.
+fn escalation_is_readable(escalation: &Indeterminate) -> (Band, Option<&'static str>) {
+    let Indeterminate {
+        margin,
+        band,
+        predicate,
+    } = escalation;
+    let _ = margin;
+    (*band, *predicate)
+}
+
+/// The picking refusal's own payload, matched through `crate::select`
+/// — the list that carries it.
+///
+/// The import is the pin: `MeshPickError` is a `crate::select` name
+/// and not a prelude one, so the claim is that the SELECT list carries
+/// it, and dropping it from that list stops this file compiling even
+/// though `pncad::editor_core` does not exist to reach it another way.
+///
+/// The match is exhaustive for the reason every tag map in this tree
+/// is: an indexing invariant added kernel-side has to break a build
+/// rather than quietly join the one already here under a single word.
+#[test]
+fn the_pick_index_refusal_is_matchable_through_the_select_list() {
+    use pncad::select::MeshPickError;
+
+    let site = |e: MeshPickError| match e {
+        // The one arm, and its three numbers are the whole of what a
+        // report about a corrupt mesh can act on: no arena key, by the
+        // type's own contract.
+        MeshPickError::PositionOutOfRange {
+            patch,
+            triangle,
+            index,
+        } => {
+            named::<usize>(patch);
+            named::<usize>(triangle);
+            named::<u32>(index);
+            (patch, triangle, index)
+        }
+    };
+    assert_eq!(
+        site(MeshPickError::PositionOutOfRange {
+            patch: 2,
+            triangle: 7,
+            index: 41,
+        }),
+        (2, 7, 41)
+    );
+}
+
+/// The resolution verdict's three payloads, matched through
+/// `crate::select` — the list that carries them.
+///
+/// The two enums are matched arm by arm and exhaustively, which is
+/// the whole claim: a consumer branches on WHICH failure it got, and
+/// the six words below are six different repairs. `ResolutionFailure`
+/// is the struct that pairs one of them with the offers, and it is
+/// read by field for the same reason.
+///
+/// **What is bound and not named is the point of the stop.** The
+/// diagnosis, the tombstone, the tie witness and the recipe-edit
+/// reference are all reached here as `_` — a caller holds them and
+/// cannot spell them, which is exactly what the curated list decided.
+#[test]
+fn the_resolution_payloads_are_matchable_through_the_select_list() {
+    use pncad::select::{ResolutionFailure, ResolveError, ResolveIndeterminate};
+
+    // The repair each failure asks for, which is why the three stay
+    // three: rebind, refine among the candidates, or rebind onto a
+    // node that still exists.
+    fn repair(failure: &ResolutionFailure) -> (&'static str, usize) {
+        let word = match &failure.error {
+            ResolveError::Vanished { name, .. } => {
+                named::<&StableName>(name);
+                "vanished"
+            }
+            ResolveError::Ambiguous { candidates, .. } => {
+                named::<&Vec<StableName>>(candidates);
+                "ambiguous"
+            }
+            ResolveError::NodeGone { .. } => "node_gone",
+        };
+        (word, failure.offers.len())
+    }
+    named::<fn(&ResolutionFailure) -> (&'static str, usize)>(repair);
+
+    // ...and which node to look at, on the state where the NAME is
+    // fine and the run is not.
+    fn upstream(cause: ResolveIndeterminate) -> (&'static str, RecipeNodeId) {
+        match cause {
+            ResolveIndeterminate::TargetFailed { node } => ("target_failed", node),
+            ResolveIndeterminate::TargetPoisoned { through } => ("target_poisoned", through),
+            ResolveIndeterminate::TargetNotEvaluated { node } => ("target_not_evaluated", node),
+        }
+    }
+    assert_eq!(
+        upstream(ResolveIndeterminate::TargetPoisoned {
+            through: RecipeNodeId(4)
+        }),
+        ("target_poisoned", RecipeNodeId(4))
     );
 }
 
@@ -521,6 +765,97 @@ fn the_f64_seam_is_exact() {
     assert_eq!(real::<f64>(0.1), 0.1);
     let q = p2::<f64>(7.25, -0.0);
     assert_eq!((q.x, q.y), (7.25, -0.0));
+}
+
+/// The lattice-backed polygon door: what it accepts, what it refuses,
+/// and that what it emits is the raw vertex table.
+///
+/// The refusals are the point of the door. A coordinate table minted
+/// straight into a loop carries no junction, so a corner that is
+/// tangent (or cusped) within the band is discovered a tier later, at
+/// `validate`. Here it is discovered at the corner.
+#[test]
+fn the_polygon_door_authors_through_the_lattice() {
+    let tol = Tol::witness();
+
+    let square: ProfileLoop<f64> =
+        polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)], tol).expect("a square authors");
+    assert_eq!(square.vertices().len(), 4);
+
+    let triangle: ProfileLoop<f64> =
+        polygon(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], tol).expect("a triangle authors");
+    assert_eq!(triangle.vertices().len(), 3);
+
+    // Three corners is the floor, and the arm says which count it
+    // refused — every sub-three table takes the same door.
+    for table in [&[(0.0, 0.0), (1.0, 0.0)][..], &[(0.0, 0.0)][..], &[][..]] {
+        let given = table.len();
+        match polygon::<f64>(table, tol) {
+            Err(PathError::PolygonTooFewVertices { given: n }) => assert_eq!(n, given),
+            other => panic!("{given} vertices must refuse as PolygonTooFewVertices: {other:?}"),
+        }
+    }
+
+    // Three collinear points: the corner at (1, 0) departs along its
+    // own incoming tangent, which the lattice classifies AT THE
+    // CORNER. A raw vertex table would have accepted this and left it
+    // for validate.
+    match polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)], tol) {
+        Err(PathError::JunctionTangent { .. }) => {}
+        other => panic!("a collinear corner must refuse as JunctionTangent: {other:?}"),
+    }
+}
+
+/// **The identity claim**: the door changes how a polygon is SAID, not
+/// what it is. The emitted loop is the raw vertex table — every
+/// authored point in order, every bulge zero, no declared joints.
+///
+/// The claim is pinned against the table rather than against a call to
+/// the raw minting door, because that door is unreachable from here by
+/// construction: `RawLoop` is off the façade's presented surface
+/// (`no_raw_loop_minting_door_is_nameable_through_the_facade`) and this
+/// file may name no crate but `pncad` (the guard at the bottom). What
+/// is asserted is what `RawLoop::polygon` mints for the same points —
+/// its whole contract — read back through the façade's own readers.
+#[test]
+fn the_polygon_door_emits_the_raw_vertex_table() {
+    let tol = Tol::witness();
+    let table = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.5, 4.0), (0.0, 3.0)];
+    let loop_: ProfileLoop<f64> = polygon(&table, tol).expect("the outline authors");
+
+    let want: Vec<ProfileVertex<f64>> = table
+        .iter()
+        .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+        .collect();
+    let got = loop_.vertices();
+    assert_eq!(got.len(), want.len(), "one vertex per authored point");
+    for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+        assert_eq!((g.pos().x, g.pos().y), (w.pos().x, w.pos().y), "vertex {i}");
+        assert_eq!(g.bulge(), w.bulge(), "vertex {i} bulge");
+    }
+    assert!(
+        loop_.tangent_joints().is_empty(),
+        "a polygon declares no tangent joint"
+    );
+
+    // And the same loop the hand-spelled chain emits: the door IS that
+    // chain, not a second lowering of the same table.
+    let chain: ProfileLoop<f64> = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), tol)
+        .and_then(|t| t.line_to(p2(2.0, 3.0), tol))
+        .and_then(|t| t.line_to(p2(0.5, 4.0), tol))
+        .and_then(|t| t.line_to(p2(0.0, 3.0), tol))
+        .and_then(|t| t.line_to(Start, tol))
+        .expect("the hand-spelled chain authors")
+        .into();
+    let hand = chain.vertices();
+    assert_eq!(hand.len(), got.len());
+    for (i, (g, h)) in got.iter().zip(hand).enumerate() {
+        assert_eq!((g.pos().x, g.pos().y), (h.pos().x, h.pos().y), "vertex {i}");
+        assert_eq!(g.bulge(), h.bulge(), "vertex {i} bulge");
+    }
+    assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
 }
 
 /// The validation ladder as the corpus actually walks it.
@@ -587,6 +922,157 @@ fn the_authoring_ladder_runs_on_one_dependency() {
 
     let step = step_string(&built.body, &StepOptions::default(), Tol::witness()).expect("step");
     assert!(step.starts_with("ISO-10303-21;"));
+}
+
+/// **A carried RESULT's discriminant, matched through the prelude —
+/// and CONSTRUCTED here rather than fabricated.**
+///
+/// `revolve` is a prelude door and its answer is a `Revolved`, whose
+/// `kind` is the ratified case split. The two arms are two disjoint
+/// sets of handles rather than one shape with a label: a partial
+/// revolution has wedge CAPS and both meridian chains, a full one has
+/// no caps, one seam chain, and the wire case's second π-band. So
+/// "which faces did my revolve make" is answered by this branch and
+/// by no other, and every key type the arms carry is on the same
+/// list.
+///
+/// Both arms are reached by calling the door, which makes this a
+/// construction pin and not only a naming one.
+#[test]
+fn a_revolve_result_is_matchable_through_the_prelude() {
+    // An off-axis rectangle, revolved about the sketch y axis: x is
+    // the radius, so the profile never touches the axis and the full
+    // case is the lamina one.
+    let rect: ClosedLoop<f64> = Open
+        .at(p2(1.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .and_then(|t| t.line_to(p2(2.0, 1.0), Tol::witness()))
+        .and_then(|t| t.line_to(p2(1.0, 1.0), Tol::witness()))
+        .and_then(|t| t.line_to(Start, Tol::witness()))
+        .expect("the rectangle authors");
+    let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], Tol::witness())
+        .expect("profile validates");
+    let axis = RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
+    };
+
+    let quarter = revolve(
+        &profile,
+        axis,
+        Revolution::Partial(std::f64::consts::FRAC_PI_2),
+        Tol::witness(),
+    )
+    .expect("a quarter revolution builds");
+    assert_eq!(revolved_kind_is_matchable(&quarter.kind), "partial");
+
+    let whole = revolve(&profile, axis, Revolution::Full, Tol::witness())
+        .expect("a full revolution builds");
+    assert_eq!(revolved_kind_is_matchable(&whole.kind), "full");
+}
+
+/// The case split, matched exhaustively with every field's type
+/// spelled from the prelude — the pin that a caller can read the
+/// handles out and not merely see which arm it got.
+fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
+    match kind {
+        RevolvedKind::Partial {
+            start_cap,
+            end_cap,
+            start_meridians,
+            end_meridians,
+        } => {
+            named::<FaceKey>(*start_cap);
+            named::<FaceKey>(*end_cap);
+            named::<&Vec<Vec<EdgeKey>>>(start_meridians);
+            named::<&Vec<Vec<EdgeKey>>>(end_meridians);
+            "partial"
+        }
+        RevolvedKind::Full {
+            meridians,
+            pi_walls,
+            pi_meridians,
+            pi_rims,
+        } => {
+            named::<&Vec<Vec<Option<EdgeKey>>>>(meridians);
+            named::<&Vec<Option<FaceKey>>>(pi_walls);
+            named::<&Vec<Option<EdgeKey>>>(pi_meridians);
+            named::<&Vec<Option<EdgeKey>>>(pi_rims);
+            "full"
+        }
+    }
+}
+
+/// **The import surface, on both sides of the call** — the refusal a
+/// caller matches, and the options a caller fills.
+///
+/// The two halves are two different curation defects and this pins
+/// each. `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the
+/// arm was matchable and the kind whose estimator declined was
+/// readable only out of the message prose. `ImportContact` is the
+/// element type of a `pub` field on the options struct, so the
+/// declaration channel was callable and not FILLABLE — the value
+/// below could not be written from this list at all.
+///
+/// What the `import_step` call pins is exactly that: the door accepts
+/// options a prelude caller filled. Whether an anchor RESOLVES is
+/// `step-import`'s own suite, on a file with vertices to resolve
+/// against; here the text is not a STEP file and the refusal is the
+/// parser's.
+#[test]
+fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::RecognitionAmbiguous {
+            id: 104,
+            surface: 105,
+            kind: PromotedKind::Plane,
+            margin: 1e-9,
+        }),
+        Some("plane")
+    );
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::RecognitionAmbiguous {
+            id: 142,
+            surface: 143,
+            kind: PromotedKind::Cylinder,
+            margin: 1e-9,
+        }),
+        Some("cylinder")
+    );
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::NothingToImport),
+        None
+    );
+
+    let options = ImportOptions {
+        eps_in: Some(1e-7),
+        declared_contacts: vec![ImportContact::VertexRest {
+            at: [0.0, 0.0, 0.5],
+        }],
+    };
+    assert!(matches!(
+        import_step("not a step file", &options, Tol::witness()),
+        Err(StepImportError::Syntax { .. })
+    ));
+}
+
+/// Which analytic kind's estimator declined, read off the arm that
+/// reports it — `None` on every other refusal.
+///
+/// The kinds are matched EXHAUSTIVELY, so a third one recognised
+/// kernel-side stops this compiling rather than arriving under an
+/// existing word. Their recourses differ, which is why the
+/// discriminant is worth a curated name: a plane that will not
+/// certify is a flatness question at ε_in, a cylinder that will not
+/// is an ill-conditioned axis and wants more of the patch.
+fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static str> {
+    match err {
+        StepImportError::RecognitionAmbiguous { kind, .. } => Some(match kind {
+            PromotedKind::Plane => "plane",
+            PromotedKind::Cylinder => "cylinder",
+        }),
+        _ => None,
+    }
 }
 
 /// The other arm of the ladder: a Boolean result carries its own
@@ -773,6 +1259,68 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
     );
 }
 
+/// The 1-based line the byte offset `at` falls on in `code`.
+fn line_of(code: &str, at: usize) -> usize {
+    code[..at].matches('\n').count() + 1
+}
+
+/// Every `pub use` STATEMENT in already-comment-stripped `code`: the
+/// line the statement opens on, and its text from `pub use` through
+/// its terminating `;` with every run of whitespace collapsed to one
+/// space.
+///
+/// **Statements, not lines, is the whole point.** The façade's
+/// dominant idiom is the multi-line brace list — `pub use
+/// editor_core::{` on one line and the names on the next — so a name
+/// matched against a LINE is invisible whenever it is added inside an
+/// existing list, which is the cheapest spelling of the regressions
+/// the guards below forbid. The accumulation is [`pub_use_names`]'s,
+/// which has always read statements.
+///
+/// A `pub use` whose `;` never arrives is dropped rather than guessed
+/// at, and a `pub use` inside a string literal is read as one: this
+/// errs toward false ALARM, the safe direction for a guard.
+fn pub_use_statements(code: &str) -> Vec<(usize, String)> {
+    let mut out = Vec::new();
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("pub use") {
+        let at = from + off;
+        let Some(end) = code[at..].find(';') else {
+            break;
+        };
+        let text = code[at..=at + end]
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        out.push((line_of(code, at), text));
+        from = at + end + 1;
+    }
+    out
+}
+
+/// `code` with every whitespace character removed, and the byte offset
+/// in `code` each surviving byte came from — so a match in the
+/// squashed view is still reportable at the line it starts on.
+///
+/// A pattern matched here is whitespace-insensitive across LINE BREAKS
+/// as well as spaces, which is what makes `ProfileLoop::new(`,
+/// `ProfileLoop :: new (` and a call whose `::new(` wrapped to the
+/// next line one pattern.
+fn squashed_with_offsets(code: &str) -> (String, Vec<usize>) {
+    let mut text = String::with_capacity(code.len());
+    let mut offsets = Vec::with_capacity(code.len());
+    for (at, c) in code.char_indices() {
+        if c.is_whitespace() {
+            continue;
+        }
+        text.push(c);
+        for _ in 0..c.len_utf8() {
+            offsets.push(at);
+        }
+    }
+    (text, offsets)
+}
+
 // ---------------------------------------------------------------
 // LB13: the document layer's boundary, guarded.
 // ---------------------------------------------------------------
@@ -809,6 +1357,14 @@ const FACADE_SOURCES: [(&str, &str); 11] = [
 ///    nameable again, and nothing else in the tree would notice.
 /// 2. Any `pub use` in `pncad`'s own source that names `EntityRef`,
 ///    `EntityKey`, or `Entry` — the LIB-U5 seal, kept sealed.
+///
+/// **It reads `pub use` STATEMENTS, not lines** — the accumulation is
+/// [`pub_use_statements`]. The façade's dominant idiom is the
+/// multi-line brace list, so the cheapest spelling of regression 2 is
+/// a key added inside an existing list, where the name lands on a
+/// continuation line and never shares a line with the `pub use`. That
+/// name is inside the statement this guard matches; the line it
+/// reports is the one the statement opens on.
 ///
 /// **The two limits, and why they are acceptable** — stated so the
 /// next reader neither over-trusts this scan nor re-derives the
@@ -847,37 +1403,31 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in FACADE_SOURCES {
         let code = code_without_comments(src);
-        for (n, line) in code.lines().enumerate() {
-            let t = line.trim();
-            if t.contains(&module_reexport) {
+        for (n, stmt) in pub_use_statements(&code) {
+            if stmt.contains(&module_reexport) {
                 violations.push(format!(
-                    "{name}:{}: the whole-crate `editor_core` re-export is back — \
-                     it makes arena keys nameable again (LB13)",
-                    n + 1
+                    "{name}:{n}: the whole-crate `editor_core` re-export is back — \
+                     it makes arena keys nameable again (LB13)"
                 ));
-            }
-            if !t.contains("pub use") {
-                continue;
             }
             for k in keys {
                 // Word-boundary check: `EntityKind` must not trip on
                 // the `EntityKey` needle.
                 let mut from = 0usize;
-                while let Some(off) = t[from..].find(k) {
+                while let Some(off) = stmt[from..].find(k) {
                     let at = from + off;
                     from = at + k.len();
-                    let after_ok = !t[from..]
+                    let after_ok = !stmt[from..]
                         .chars()
                         .next()
                         .is_some_and(|c| c.is_alphanumeric() || c == '_');
-                    let before_ok = !t[..at]
+                    let before_ok = !stmt[..at]
                         .chars()
                         .next_back()
                         .is_some_and(|c| c.is_alphanumeric() || c == '_');
                     if before_ok && after_ok {
                         violations.push(format!(
-                            "{name}:{}: `pub use` names the arena key `{k}` (LIB-U5 seal)",
-                            n + 1
+                            "{name}:{n}: `pub use` names the arena key `{k}` (LIB-U5 seal)"
                         ));
                     }
                 }
@@ -896,8 +1446,10 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// ruling on #413 (LIB-RETTAIL), enforced rather than asserted in a
 /// report.
 ///
-/// Same mechanism as the LB13 guard above, permanent for the same
-/// reasons and carrying the same two limits: an `as`-aliased
+/// Same statement-based mechanism as the LB13 guard above — and
+/// statement-based for the same reason, a multi-line brace list being
+/// where a name is cheapest to add — permanent for the same reasons
+/// and carrying the same two limits: an `as`-aliased
 /// re-export, and a name reachable as a public field, associated type
 /// or return type of an allowed type. Neither has a live instance,
 /// and neither is reachable by an ordinary edit the way the
@@ -912,7 +1464,10 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// 2. Any `pub use` in `pncad`'s own source that names `RawLoop`.
 /// 3. Any construction call — `ProfileLoop::new` / `ProfileLoop::polygon`
 ///    — written in façade source (comments excluded), which would mean
-///    the façade itself still authors through the retired tier.
+///    the façade itself still authors through the retired tier. This
+///    one is matched on the source with ALL whitespace removed, so a
+///    call broken across lines is the same pattern as a call written
+///    on one.
 /// 4. Any `ProfileLoop`/`ProfileVertex` STRUCT LITERAL in façade
 ///    source. This row's declared blind spot until the seal landed:
 ///    the fields were public, so a literal type-checked wherever the
@@ -943,32 +1498,33 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in FACADE_SOURCES {
         let code = code_without_comments(src);
-        for (n, line) in code.lines().enumerate() {
-            let t = line.trim();
-            if t.contains(&module_reexport) {
+        for (n, stmt) in pub_use_statements(&code) {
+            if stmt.contains(&module_reexport) {
                 violations.push(format!(
-                    "{name}:{}: the whole-crate `profile` re-export is back — it makes \
-                     the RawLoop minting doors nameable again (#413)",
-                    n + 1
+                    "{name}:{n}: the whole-crate `profile` re-export is back — it makes \
+                     the RawLoop minting doors nameable again (#413)"
                 ));
             }
-            if t.contains("pub use") && t.contains("RawLoop") {
+            if stmt.contains("RawLoop") {
                 violations.push(format!(
-                    "{name}:{}: `pub use` names the raw minting trait `RawLoop` (#413)",
-                    n + 1
+                    "{name}:{n}: `pub use` names the raw minting trait `RawLoop` (#413)"
                 ));
             }
-            // Matched against the line with ALL whitespace removed, so
-            // `ProfileLoop{`, `ProfileLoop  {` and `ProfileLoop::new (`
-            // are one pattern to this guard.
-            let squashed: String = t.chars().filter(|c| !c.is_whitespace()).collect();
-            for m in &minting {
-                if squashed.contains(m.as_str()) {
-                    violations.push(format!(
-                        "{name}:{}: the façade authors through `{m}` — the retired raw tier",
-                        n + 1
-                    ));
-                }
+        }
+        // Matched against the source with ALL whitespace removed, so
+        // `ProfileLoop{`, `ProfileLoop  {`, `ProfileLoop::new (` and a
+        // call whose `::new(` wrapped to the next line are one pattern
+        // to this guard.
+        let (squashed, offsets) = squashed_with_offsets(&code);
+        for m in &minting {
+            let mut from = 0usize;
+            while let Some(off) = squashed[from..].find(m.as_str()) {
+                let at = from + off;
+                from = at + m.len();
+                violations.push(format!(
+                    "{name}:{}: the façade authors through `{m}` — the retired raw tier",
+                    line_of(&code, offsets[at])
+                ));
             }
         }
     }
@@ -977,6 +1533,44 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
         "raw loop construction must not be presented surface — found {} violation(s):\n  {}",
         violations.len(),
         violations.join("\n  ")
+    );
+}
+
+/// **The two readers the guards above are built on, on the shape they
+/// exist for**: a `pub use` whose names are on continuation lines, and
+/// a construction call broken across them. Both are matched here, and
+/// both report the line their statement OPENS on.
+#[test]
+fn the_boundary_readers_read_across_line_breaks() {
+    // Assembled at runtime for the same reason the guards' needles
+    // are: this file is scanned by the U1 guard, and a contiguous
+    // kernel path here would be its own first match.
+    let layer = ["editor", "core"].join("_");
+    let list = format!("// prose about it\npub use {layer}::{{\n    Doc,\n    EntityRef,\n}};\n");
+    let code = code_without_comments(&list);
+    let stmts = pub_use_statements(&code);
+    assert_eq!(
+        stmts.len(),
+        1,
+        "one statement, whatever its line count: {stmts:?}"
+    );
+    assert_eq!(stmts[0].0, 2, "reported at the line the statement opens on");
+    assert!(
+        stmts[0].1.contains("EntityRef"),
+        "a name on a continuation line is inside the statement: {}",
+        stmts[0].1
+    );
+
+    let wrapped = "fn f() {\n    let _ = ProfileLoop\n        ::polygon(v);\n}\n";
+    let (squashed, offsets) = squashed_with_offsets(wrapped);
+    let needle = ["ProfileLoop::", "polygon("].concat();
+    let at = squashed
+        .find(&needle)
+        .expect("a call broken across lines is one pattern in the squashed view");
+    assert_eq!(
+        line_of(wrapped, offsets[at]),
+        2,
+        "reported at the line the call opens on"
     );
 }
 
@@ -1928,6 +2522,206 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
         }
         other => panic!("the raw snapshot's pin must refuse PinMismatch, got {other:?}"),
     }
+}
+
+// ---- A4: a save is two acts (the save door and the fork) ----
+
+/// The store directory's `*.pncad` file names, sorted — what a
+/// refusal must leave untouched.
+fn ws_listing(dir: &WsDir) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(&dir.0)
+        .expect("the scratch dir reads")
+        .map(|entry| {
+            entry
+                .expect("the entry reads")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// A4's FIRST act: saving a document at a path keeps its identity, so
+/// "save a copy beside the original" refuses typed at the save door.
+/// Nothing is written — and the store still opens, which is the whole
+/// point: a second file claiming the id would make every later scan
+/// refuse for every document in the directory.
+#[test]
+fn workspace_save_at_refuses_a_second_file_for_one_identity() {
+    let dir = WsDir::new("save-dup");
+    let (doc, text) = ws_doc("ws-save-dup");
+    let original = dir.write("a.pncad", &text);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+
+    match ws.save_at(&doc, "b.pncad", Tol::witness()) {
+        Err(pncad::workspace::WorkspaceError::SaveWouldDuplicateId {
+            id,
+            existing,
+            requested,
+        }) => {
+            assert_eq!(id, doc.id());
+            assert_eq!(existing, original);
+            assert_eq!(requested, dir.0.join("b.pncad"));
+        }
+        other => {
+            panic!("a save beside the original must refuse SaveWouldDuplicateId, got {other:?}")
+        }
+    }
+
+    // BEFORE the file exists: the directory is what it was.
+    assert_eq!(ws_listing(&dir), vec!["a.pncad".to_string()]);
+    assert_eq!(ws.documents().len(), 1);
+    // And a later open still scans clean — the store is not bricked.
+    let reopened = pncad::workspace::Workspace::open(&dir.0).expect("the store still opens");
+    assert_eq!(reopened.documents().get(&doc.id()), Some(&original));
+}
+
+/// A save at the id's OWN scanned path is a resave: the file keeps its
+/// name, the identity does not move and the content does.
+#[test]
+fn workspace_save_at_the_scanned_path_is_a_resave() {
+    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    let dir = WsDir::new("save-resave");
+    let (doc, text) = ws_doc("ws-save-resave");
+    let original = dir.write("part.pncad", &text);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let before = pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes");
+
+    let edited = pncad::document::apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("depth"),
+            value: DocParam::continuous(Dimension::Length, 0.9),
+        },
+        Tol::witness(),
+    )
+    .expect("the edit applies")
+    .doc;
+    assert_eq!(edited.id(), doc.id(), "an edit never moves the identity");
+
+    let written = ws
+        .save_at(&edited, "part.pncad", Tol::witness())
+        .expect("a save at the scanned path is a resave");
+    assert_eq!(written, original);
+    assert_eq!(ws_listing(&dir), vec!["part.pncad".to_string()]);
+    assert_eq!(ws.documents().len(), 1);
+
+    let after = ws
+        .current_pin(doc.id(), Tol::witness())
+        .expect("the store pins its current content");
+    assert_ne!(after, before, "the content moved, so the pin did");
+    assert_eq!(
+        after,
+        pncad::document::content_pin(&edited, Tol::witness()).expect("the pin computes")
+    );
+}
+
+/// An UNCLAIMED id saved at a chosen file name is a create at that
+/// name — the door the refactorings' `create` cannot spell, since it
+/// forces `{id}.pncad`. A target that is not a save file of THIS store
+/// refuses instead, before anything is written.
+#[test]
+fn workspace_save_at_creates_an_unclaimed_id_under_the_chosen_name() {
+    let dir = WsDir::new("save-create");
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("an empty store scans clean");
+    let (doc, _) = ws_doc("ws-save-create");
+
+    let path = ws
+        .save_at(&doc, "chosen-name.pncad", Tol::witness())
+        .expect("an unclaimed id creates at the caller's name");
+    assert_eq!(path, dir.0.join("chosen-name.pncad"));
+    assert_eq!(ws.documents().get(&doc.id()), Some(&path));
+    // A fresh scan agrees, at the caller's name and not `{id}.pncad`.
+    let scanned = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    assert_eq!(scanned.documents(), ws.documents());
+
+    // The root written out is the same target as the bare name.
+    assert_eq!(
+        ws.save_at(&doc, dir.0.join("chosen-name.pncad"), Tol::witness())
+            .expect("the same file, spelled with its directory"),
+        path
+    );
+
+    // A target that is not a `*.pncad` file directly in this root is
+    // refused: a different root is a different store.
+    for target in [
+        std::path::PathBuf::from("notes.txt"),
+        std::path::PathBuf::from("sub/chosen-name.pncad"),
+        dir.0.join("sub").join("chosen-name.pncad"),
+    ] {
+        match ws.save_at(&doc, &target, Tol::witness()) {
+            Err(pncad::workspace::WorkspaceError::SaveTargetNotInStore { path }) => {
+                assert_eq!(path, target);
+            }
+            other => panic!(
+                "`{}` is not a store save target, got {other:?}",
+                target.display()
+            ),
+        }
+    }
+    assert_eq!(ws_listing(&dir), vec!["chosen-name.pncad".to_string()]);
+}
+
+/// A4's SECOND act: saving AS A NEW DOCUMENT mints a fresh id — an
+/// explicit fork. The original is untouched and every inbound `DocRef`
+/// pinning the old id still resolves to it; the new id resolves to the
+/// fork; both files coexist in one scan. The fork's CONTENT PIN equals
+/// the original's, because the pin's preimage excludes the id.
+#[test]
+fn workspace_save_as_new_document_mints_a_fresh_identity() {
+    let dir = WsDir::new("fork");
+    let (doc, text) = ws_doc("ws-fork");
+    let original = dir.write("original.pncad", &text);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let pin = pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes");
+    let inbound = pncad::document::DocRef { id: doc.id(), pin };
+
+    let (new_id, new_path) = ws
+        .save_as_new_document(&doc, Tol::witness())
+        .expect("the fork writes");
+    assert_ne!(new_id, doc.id(), "a fork is a new part");
+    assert_eq!(new_path, dir.0.join(format!("{new_id}.pncad")));
+
+    // The original is untouched, so the inbound reference still names
+    // it — which is what a fork MEANS.
+    assert_eq!(ws.documents().get(&doc.id()), Some(&original));
+    assert!(
+        ws.resolve(&inbound, Tol::witness())
+            .expect("the old reference still resolves")
+            .bit_eq(&doc)
+    );
+
+    // The new id resolves to the fork, under the SAME pin: identity is
+    // not content (the canonical bytes are the serde form with `id`
+    // removed), so the fork is detectably the same version.
+    assert_eq!(
+        ws.current_pin(new_id, Tol::witness())
+            .expect("the fork pins"),
+        pin,
+        "the fork's content pin is the original's"
+    );
+    let forked = ws
+        .resolve(&pncad::document::DocRef { id: new_id, pin }, Tol::witness())
+        .expect("the new id resolves to the fork");
+    assert_eq!(forked.id(), new_id);
+    assert!(
+        !forked.bit_eq(&doc) && forked.under_identity(doc.id()).bit_eq(&doc),
+        "the fork differs from the original in its identity and nothing else"
+    );
+    // The two save FILES differ, in the `id:` header and the
+    // snapshot's own id.
+    assert_ne!(
+        std::fs::read_to_string(&original).expect("the original reads"),
+        std::fs::read_to_string(&new_path).expect("the fork reads")
+    );
+
+    // Both files coexist in one scan, and the store grew by one.
+    assert_eq!(ws.documents().len(), 2);
+    let scanned = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    assert_eq!(scanned.documents(), ws.documents());
+    assert_eq!(ws_listing(&dir).len(), 2);
 }
 
 // ---- ASM-2A: instantiate-part, end to end through a real workspace ----
@@ -3010,23 +3804,39 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
 ///   briefly as the payloads of a resolution failure and then put them
-///   back: the panel renders the failure through its `Display`, so
-///   nothing consumed the payload types, and a door carried for a
-///   consumer that does not exist is a claim nobody is checking.
+///   back, on the reading that the panel renders the failure through
+///   its `Display`, so nothing consumed the payload types.
+///
+///   **That reading held for one consumer and there are two.** A Rust
+///   panel rendering `Display` has the payload one field away whenever
+///   it wants it; a Python caller holds a string and has nothing else.
+///   So the three types the arms ARE left this family — they are
+///   listed with the naming interior below, which is where the
+///   carriage is argued — and what stays here is what neither
+///   consumer reads: the diagnosis, the tombstone, the tie witness
+///   and the edit reference, bound out of an arm and branched on
+///   through the arm's own discriminant.
 /// - **Naming interior** (`Qualifier`, `Coset`, `Resolved`,
-///   `ResolveError`, `ResolutionFailure`, `ResolveIndeterminate`,
-///   `resolve_with_prior`): the shapes the name algebra and the
-///   resolution ladder work in, below the verdict that is the curated
-///   face.
+///   `resolve_with_prior`): the shapes the name algebra works in, and
+///   the one resolution payload that holds an `EntityRef` outright.
 ///
 ///   **The resolution VERDICT left this family at GUI-2** — exactly
 ///   three names: `resolve`, `RunCtx`, `Resolution`. It is not
 ///   plumbing behind a door; it IS the door for the question a
-///   consumer that stores names must ask on every re-evaluation, and
-///   `Resolution`'s arms answer it (`Resolved(_)` / `Failed(f)` /
-///   `Indeterminate(c)`) through pattern matching and `Display`,
-///   without naming a payload type. The ladder's own vocabulary stays
-///   here until something consumes it.
+///   consumer that stores names must ask on every re-evaluation.
+///
+///   **Its three ARMS have left too** (`ResolutionFailure`,
+///   `ResolveError`, `ResolveIndeterminate`), and the argument is the
+///   same one a rung down. The verdict answers THAT a stored name did
+///   not resolve; which of six things happened to it is a different
+///   question, and the six ask for different repairs — a rebind, a
+///   refinement among tied candidates, a look upstream at a named
+///   node. A consumer that could name only the verdict read those out
+///   of `Display` prose, which is not an interface. `Resolved` stays:
+///   its field is an `EntityRef`, so carrying it would name a key
+///   type, and what a caller wants from a resolved verdict is the
+///   node, the body index and the kind, all of them values it reaches
+///   by field access already.
 /// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
 ///   service's own machinery behind `evaluate`.
@@ -3095,23 +3905,37 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   direct `editor-core` edge — hands layer 3 the arena keys the
 ///   façade's curation exists to seal.
 ///
-///   **`MeshPick` and `MeshPickError` stay, and that is what closes
-///   #1098's lane at the façade.** They are the raw index a
-///   hand-assembled `PickTarget` needs, and `PickTarget::pick` is a
-///   `&MeshPick` — so with the index unnameable here, the target whose
-///   contract warns of a confidently wrong name has no constructor a
-///   façade consumer can reach, and `NodePick` is not merely the
-///   preferred door but the only one. `PickTarget` is carried because
-///   `pick_face`'s signature names it, not because it can be built.
+///   **`MeshPick` stays, and that is what closes the raw-target lane
+///   at the façade.** It is the raw index a hand-assembled
+///   `PickTarget` needs, and `PickTarget::pick` is a `&MeshPick` — so
+///   with the index unnameable here, the target whose contract warns
+///   of a confidently wrong name has no constructor a façade consumer
+///   can reach, and `NodePick` is not merely the preferred door but
+///   the only one. `PickTarget` is carried because `pick_face`'s
+///   signature names it, not because it can be built.
+///
+///   **`MeshPickError` left this list, and the construction argument
+///   above is untouched by that.** An index is BUILT and a refusal is
+///   RECEIVED, so nothing about carrying the payload gives a consumer
+///   a `MeshPick`. What it gives is the thing a curated list owes
+///   about a refusal it names: `NodePickError::Index` was the one arm
+///   of five whose payload could not be matched, while its siblings
+///   carry a curated `HitTestError`, a prelude-curated
+///   `TessellateError`, a `RecipeNodeId` and a `u32`.
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `param_env_over`, `SeedScalar`,
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
 ///   placement off a derived frame — a lane fact, decided by the type),
 ///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
-///   `PairingViolation`; and the third lane seam `MinClearanceLane`
+///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry).
+///   can carry; the fourth, `ShellLane` — which scalars can form
+///   the shell door's call at all, a lane fact decided by the type: a
+///   dual does not certify, and the door validates what it built; and
+///   the identity the lane seams share, `Lane` with its `BracketEnd`,
+///   which is how a lane names itself and reads a bracket's end when a
+///   refusal's number crosses into the scalar-free vocabulary).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   behind the `interval` feature (M10-6): the driver and its box,
@@ -3130,7 +3954,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 91] = [
+const NOT_CARRIED: [&str; 90] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3138,6 +3962,7 @@ const NOT_CARRIED: [&str; 91] = [
     "AppearanceResolution",
     "Attr",
     "AttrKind",
+    "BracketEnd",
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
@@ -3157,9 +3982,9 @@ const NOT_CARRIED: [&str; 91] = [
     "FlipEvidence",
     "FlipSet",
     "Implicated",
+    "Lane",
     "MeshPatchKey",
     "MeshPick",
-    "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",
@@ -3178,15 +4003,13 @@ const NOT_CARRIED: [&str; 91] = [
     "ProgramRefusal",
     "Qualifier",
     "RecipeEditRef",
-    "ResolutionFailure",
-    "ResolveError",
-    "ResolveIndeterminate",
     "Resolved",
     "Rgba8",
     "RunStatus",
     "SectionScalar",
     "SeedError",
     "SeedScalar",
+    "ShellLane",
     "SideVerdict",
     "StructureFlip",
     "SummaryDelta",
@@ -3449,22 +4272,6 @@ fn assert_layer_root_exports_are_carried_or_listed(
 // claim that there are only two.
 // ---------------------------------------------------------------
 
-/// Every `pub` item a crate root DECLARES rather than re-exports:
-/// `pub struct`/`enum`/`fn`/`trait`/`type`/`const`/`static`/`union`,
-/// plus the `pub mod` declarations, written at column 0.
-///
-/// Column 0 is the whole scope rule — an item inside a `mod` block in
-/// the same file is indented, and is not a root export.
-///
-/// [`module_pub_use_names`] alone misses all of these. For the
-/// document layer that costs nothing today, which is why its guard
-/// records it as a blind spot rather than closing it: that root is a
-/// module tree, its declarations are the crate's twenty-six interior
-/// modules, and the façade curates ACROSS them rather than carrying
-/// them. The profile layer's root is the opposite shape — a presented
-/// surface that declares five of the types the façade carries and one
-/// it deliberately does not — so for that layer the same omission
-/// would be a hole, and this closes it.
 /// The source with every `#[cfg(…)]`-gated item removed, attribute and
 /// all.
 ///
@@ -3510,6 +4317,23 @@ fn code_without_cfg_gated(src: &str) -> String {
     out
 }
 
+/// Every `pub` item a crate root DECLARES rather than re-exports:
+/// `pub struct`/`enum`/`fn`/`trait`/`type`/`const`/`static`/`union`,
+/// plus the `pub mod` declarations, written at column 0.
+///
+/// Column 0 is the whole scope rule — an item inside a `mod` block in
+/// the same file is indented, and is not a root export.
+///
+/// [`module_pub_use_names`] alone misses all of these. For the
+/// document layer that costs nothing today, which is why its guard
+/// records it as a blind spot rather than closing it: that root is a
+/// module tree, its declarations are its interior modules — every one
+/// of them, whatever the count is on any given day — and the façade
+/// curates ACROSS them rather than carrying them. The profile layer's
+/// root is the opposite shape — a presented surface that declares
+/// five of the types the façade carries and one it deliberately does
+/// not — so for that layer the same omission would be a hole, and
+/// this closes it.
 fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
     let code = code_without_comments(src);
     let mut names = std::collections::BTreeSet::new();
@@ -3731,22 +4555,27 @@ fn every_facade_layer_is_whole_re_exported_or_per_name_guarded() {
 /// **The crate doc's claim about the authoring seams, guarded.**
 ///
 /// The claim is that every [`pncad::authoring`] seam is a single
-/// kernel constructor call except `validated`, which is the two-call
-/// form. Its predecessor was a COUNT ("six of the seven"), and the
-/// count went stale the moment the `polygon` door was removed —
-/// nothing was watching, so the sentence outlived the surface it
-/// described by two units.
+/// kernel constructor call except two — `validated`, the
+/// `Profile::new` + `Profile::validate` pair, and `polygon`, the
+/// PATHS-lattice chain a coordinate table lowers to.
 ///
-/// This watches the failure mode that actually happened: the roster
-/// moving under a sentence about it. Adding or removing a seam fails
-/// here, and so does a second seam chaining a follow-up kernel call
-/// onto its constructor.
+/// The failure mode this watches is the roster moving under a
+/// sentence about it: a prose COUNT is checked only when someone
+/// happens to look, so the roster is asserted by name here instead.
+/// Adding or removing a seam fails here, and so does a second seam
+/// chaining a `Profile::validate` onto its constructor. That chain is
+/// matched as `.validate(` and not as `).validate(`, because the
+/// receiver and the call it chains onto need not share a line: a
+/// chain rustfmt wrapped is the same hit.
 ///
 /// **Not guarded, stated:** "a single kernel constructor call" is
 /// about a body's SHAPE, and counting calls in source text is the
 /// kind of scan that reports its own parser rather than the code. The
-/// roster plus the chain check is what a text scan can honestly
-/// assert; the rest is the per-function rustdoc and its doctests.
+/// chain check reads ONE shape, `validated`'s; `polygon`'s multi-call
+/// shape is a lattice chain this scan does not look for, and what
+/// holds it to its documented behaviour is its own doctest and the
+/// door tests above. The roster plus the chain check is what a text
+/// scan can honestly assert; the rest is the per-function rustdoc.
 #[test]
 fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
     let code = code_without_comments(include_str!("../src/authoring.rs"));
@@ -3767,7 +4596,7 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
         if line.starts_with('}') {
             current = None;
         } else if let Some(name) = current
-            && line.contains(").validate(")
+            && line.contains(".validate(")
         {
             chaining.push(name);
         }
@@ -3775,16 +4604,16 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
     seams.sort_unstable();
     assert_eq!(
         seams,
-        ["p2", "p3", "real", "v2", "v3", "validated"],
+        ["p2", "p3", "polygon", "real", "v2", "v3", "validated"],
         "the authoring seam roster moved — re-read the crate doc's \
          sentence about it before changing this list"
     );
     assert_eq!(
         chaining,
         ["validated"],
-        "`validated` is documented as the ONE two-call seam; another \
-         seam now chains a follow-up kernel call, so the crate doc's \
-         claim needs re-wording"
+        "`validated` is documented as the seam that chains \
+         `Profile::validate` onto its constructor; another seam now \
+         does too, so the crate doc's claim needs re-wording"
     );
 }
 

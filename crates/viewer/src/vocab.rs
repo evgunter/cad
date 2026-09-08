@@ -18,6 +18,17 @@
 //! [`crate::tools`] argument one level down, a state that cannot be
 //! written down rather than one a check has to catch.
 //!
+//! **The words ride that same list where they are table data.**
+//! Where something walks a vocabulary's table and reads every entry's
+//! word — a combo drawing an option per row, a picker drawing a
+//! button per mode — the word belongs to the declaration and the
+//! table carries it; the accessor a single value's word is asked
+//! through is projected from that same list rather than written
+//! beside it as a second ordered reading. Where nothing walks the
+//! table for words, they are not table data and a match beside the
+//! enum is the whole of it (`crates/viewer/README.md`, **Closed
+//! vocabularies are declared once**).
+//!
 //! **The order is the declaration's.** These lists are read in order
 //! by menus and radio rows, and several of them say so in their own
 //! docs, so the projection preserves it: what a reader sees on screen
@@ -92,12 +103,32 @@
 /// every one of its variants, from one list of variants.
 ///
 /// Two shapes, because the crate has two. A BARE vocabulary projects
-/// `[Self; N]` and keeps its wording in a `label` match beside it; a
-/// LABELLED one writes each variant's word in the declaration and
-/// projects `[(Self, &'static str); N]`, which is what a radio row
-/// iterates. Every variant carries a label or none does — a
-/// half-labelled list matches neither arm and fails to compile, which
-/// is the right answer to "which shape is this".
+/// `[Self; N]` and keeps its wording in a `label`/`name` match beside
+/// it; a LABELLED one writes each variant's word in the declaration
+/// and projects `[(Self, &'static str); N]`, which is what a row that
+/// walks the table for its words iterates. Every variant carries a
+/// label or none does — a half-labelled list matches neither arm and
+/// fails to compile, which is the right answer to "which shape is
+/// this".
+///
+/// A labelled vocabulary whose word is ALSO asked for one value at a
+/// time declares `fn label;` under its `ALL`, and gets that accessor
+/// projected from the same list as a match. **Declaring it is how the
+/// vocabulary asks for it**: a projection nobody asked for would be
+/// dead code in the five labelled vocabularies that never read one,
+/// and an `#[allow(dead_code)]` blanketing all of them would silence
+/// the report that an accessor has lost its last reader.
+///
+/// The name is `label` and the matcher spells it literally, not as a
+/// free parameter. A free one would let each site name the accessor
+/// whatever it liked, and the crate already spells this concept two
+/// ways — `ToolKind::label` and `Seat::name`, hand-written beside
+/// their bare enums. That is this macro's own argument turned on
+/// itself: `vocabulary!` exists because a second hand-written copy of
+/// a list drifts from the first, and an accessor whose name is a
+/// parameter reintroduces the drift one level up, in what the readers
+/// have to call. The VISIBILITY stays free, because it is a fact about
+/// who may read the word rather than a second spelling of anything.
 ///
 /// `N` is counted from the same list, so no count is written down
 /// either.
@@ -115,6 +146,9 @@
 ///
 ///     /// Both ends with their button labels, in form order.
 ///     pub const ALL;
+///
+///     /// This end's word.
+///     pub fn label;
 /// }
 /// ```
 macro_rules! vocabulary {
@@ -122,6 +156,51 @@ macro_rules! vocabulary {
     (@count) => { 0usize };
     (@count $head:ident $($tail:ident)*) => {
         1usize + crate::vocab::vocabulary!(@count $($tail)*)
+    };
+
+    // LABELLED, and the word is asked for one value at a time too:
+    // the accessor is projected from the same list, so declaring it is
+    // how a vocabulary asks for it and no vocabulary carries one it
+    // never reads.
+    (
+        $(#[$emeta:meta])*
+        $evis:vis enum $name:ident {
+            $(
+                $(#[$vmeta:meta])*
+                $variant:ident = $label:literal
+            ),+ $(,)?
+        }
+
+        $(#[$ameta:meta])*
+        $avis:vis const $all:ident;
+
+        $(#[$fmeta:meta])*
+        $fvis:vis fn label;
+    ) => {
+        crate::vocab::vocabulary! {
+            $(#[$emeta])*
+            $evis enum $name {
+                $( $(#[$vmeta])* $variant = $label ),+
+            }
+
+            $(#[$ameta])*
+            $avis const $all;
+        }
+
+        impl $name {
+            $(#[$fmeta])*
+            ///
+            /// A match over the same list the array above is built
+            /// from, projected by the crate's `vocabulary!` macro
+            /// (`crates/viewer/src/vocab.rs`): the two readings are
+            /// the same tokens, and a variant with no word does not
+            /// parse.
+            $fvis const fn label(self) -> &'static str {
+                match self {
+                    $( Self::$variant => $label, )+
+                }
+            }
+        }
     };
 
     // LABELLED: every variant states the word the chrome shows.

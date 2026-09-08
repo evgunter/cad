@@ -360,7 +360,17 @@ class TestEnumeratingAWholeNode(unittest.TestCase):
 
 
 class TestTheIndexRefusesTyped(unittest.TestCase):
-    """`NodePickError`, arm by arm."""
+    """`NodePickError`, arm by arm.
+
+    ONE arm is not here, and its absence is a fact about the arm
+    rather than about this class. `mesh_index` reports a tessellated
+    mesh whose triangles index outside their own position buffer — a
+    kernel bug, not anything a caller can author — so no test below
+    can provoke it. Its two words (`mesh_index` on `variant`,
+    `position_out_of_range` on `index_variant`) are pinned in Rust,
+    where the payload can be constructed:
+    `src/tests.rs::picking_refusal_tags_are_stable`.
+    """
 
     def setUp(self):
         self.doc = Doc()
@@ -425,8 +435,18 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         ):
             err = self.refusal(call)
             with self.subTest(variant=err.variant):
-                for field in ("variant", "node", "through", "kind", "body"):
+                for field in (
+                    "variant",
+                    "node",
+                    "through",
+                    "kind",
+                    "body",
+                    "index_variant",
+                ):
                     self.assertTrue(hasattr(err, field), field)
+                # The index arm is the only one that carries it, and
+                # none of these three is that arm.
+                self.assertIsNone(err.index_variant)
 
     def test_the_refusal_is_a_pncad_error(self):
         err = self.refusal(lambda: NodePick.build(self.ev, self.cube, 9, DELTA))
