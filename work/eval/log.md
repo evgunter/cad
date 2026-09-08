@@ -606,3 +606,248 @@ second merges main first. Correctness arms on both.
 The first EVAL-9 lane ended at launch on a model-side safeguard
 error before touching the branch (no commits, worktree removed);
 relaunched fresh with the same brief.
+
+## Both lanes interrupted by the session's rate limit (2026-09-08)
+
+At 08:30Z the session hit its API limit and both implementer lanes
+ended mid-turn. EVAL-8 had already pushed and opened PR 2186 (head
+`4d07e6360`); its matrix came back green except `discipline
+(evaluation-code)`: `check-interval-cfg-additive.py` refuses an
+interval `cfg` gating a block inside `kstats_bracket_rows.rs`'s new
+log-identity row (a row present in both builds must run identical
+code; the interval leg becomes its own `#[test]`). EVAL-9 had three
+commits on its branch and no PR. Both lanes resumed from their
+transcripts once the limit reset, the EVAL-8 one with the split as
+its first job. Lesson for every brief: the interval-additivity
+script joins the gate list a lane runs before pushing — it is a CI
+gate the local `scripts/gates/*.sh` sweep does not cover.
+
+## EVAL-8 to review (2026-09-08, PR 2186, head `6e1cb1250`)
+
+Full matrix green on the head (the first head's one red — the
+interval-additivity gate — fixed by splitting the pinned-log row's
+interval leg into its own gated row). The lane's deviations, to be
+adjudicated with the reviews: (1) the lift RE-DERIVES arc carriers at
+the target scalar through a factored `seg::arc_carrier` rather than
+mapping the f64 carrier's bits — mapped bits are a point interval at
+`Interval` where validation mints an enclosure, measured on the
+rounded-rectangle fixture, so the spec's "every stored scalar maps"
+premise was wrong for derived data; (2) `m10_6_certifying_keys.txt`
+does not move because its rows evaluate under `Guided`; (3) claim 2
+is shown by cross-scalar equality plus the `Guided` log's prefix rather
+than a pre-pass re-run outside the evaluator. One open question the
+lane flags: a `Dual64` derivative channel is `+0.0` from the lift and
+`-0.0` from a re-validation of a reversed loop (equal, zero, read by
+no predicate). Style and correctness lanes dispatched on `6e1cb1250`;
+the correctness lane is asked whether any consumer reads a zero
+derivative's sign.
+
+## EVAL-9 to review (2026-09-08, PR 2190, head `f6aa77504`)
+
+Full matrix green. The lane's main deviation is a correction to the
+spec: its item 1 (a uniform nominal feed at every lane) and its claim 2
+("under a forced format 6 the f64 and `Dual64` keys are identical to
+the base") cannot both hold — a written word moves a hash. The lane
+kept the uniform rule and proved what claim 2 was after in the form
+that survives it: per pass the base-key → forced-key map is a
+bijection (no split, no merge), so the nominal adds a word and no
+information at f64/`Dual64`; the count words move every profile
+node and its cone by design. The spec was wrong on that claim and the
+lane's reading is adopted. The probe row is red on the base with the
+item's exact numbers and green on the head; the f64 cost is below the
+corpus noise floor. New residue on EVAL's slate:
+`nominal-environment-is-rebuilt-per-node-in-wire.md` (`wire.rs`
+builds the f64 environment per profile-bearing node although the
+evaluation now holds one). Style and correctness lanes dispatched on
+`f6aa77504`.
+
+## EVAL-8 reviews adjudicated; fix pass dispatched (2026-09-08)
+
+Correctness: all five claims reproduced with the reviewer's own base
+build and dump (2262 rows, 261 moved, every one `Pinned`, zero
+`Guided`, zero value digests); no MAJOR. Style: two MAJORs, both
+upheld. (1) The door's doc argues the lift needs no re-check because
+`from_f64` preserves every predicate margin — false at `Interval`,
+where outward rounding makes a margin an enclosure and
+`sign_within` can escalate where f64 decided definitely. **Ruling:**
+the lift is right BY DESIGN, not by predicate agreement:
+`ProfileLift`'s own doc makes the pinned lift the build path where
+"structure must be selected once, identically for every lane" and
+the guided lift the one that re-verifies and refuses; the doc is
+restated on that basis, the PR body names the behaviour change (a
+profile marginal at `Interval` was refused by the pinned op's
+re-validation before and now carries f64's verdicts; `Guided` is
+where such a margin escalates), and the lane attempts one fixture
+that pins it. (2) A public generic `map` admits every map the doc
+then argues away; the door closes by type —
+`ValidatedProfile<f64>::lift_onto<U>(plane)` with `from_f64` inside,
+retiring `with_plane` (whose one caller discarded the plane `map`
+had just lifted) and the spec's `map` name; the spec's own premise
+("any injective map preserves the invariants") was false — a
+reflection is injective — and is recorded as such. Minor fixes:
+`arc_carrier` takes the chord frame instead of recomputing it; the
+value-identity row's plane column compared the lifted plane to
+itself; a stale "ahead of the lane validation" sentence at the memo
+hit; the eps-audit golden rule narrating three re-pins; the README
+V6 sentence; one hole-before-outer fixture and per-segment
+`blend_arcs`; the PR body owes the derivative-channel exclusion
+(`-0.0 → +0.0` on reversed loops, no reader of a zero's sign found)
+and the full historical-mention list. Orchestrator's edit:
+`work/issues/profile-embed-lift-has-two-homes-anchor-and-loft.md`
+narrowed — `loft::end_profile` both lifts AND re-validates an exact
+lift (this unit's class one crate over, **for BLEND/S-BOOL
+((S-BOOL orchestrator))**), and two test copies of the raw lift
+remain.
+
+## EVAL-9 reviews adjudicated; fix pass dispatched (2026-09-08)
+
+Correctness: the probe's red-on-base established by a knockout of the
+one nominal word (the item's exact numbers), the box arithmetic read
+(`point(0.0) + [-0.25, 0.25]` and `point(0.5) + [-0.75, -0.25]` are
+the same exact interval), every memo row green in both builds, the
+sweep complete; no MAJOR. Two corrections it adds: the bijection
+table is a determinism check (0-merged by construction, 0-split on a
+box-free corpus) and the "adds no information at f64/`Dual64`" claim
+rests on the environment construction in code; and "at f64 the bits
+ARE the nominal" holds only under no box or a zero box — a degenerate
+offset box (`Varying{lo: c, hi: c}`, accepted by `f64::axis`) shifts
+the lane off the nominal, the base had that hole at f64 too, and the
+uniform feed closes it there as well. Style: five MAJOR-class, upheld.
+**Ruling on the shape:** the ninth `eval_node` argument defended by a
+paragraph committed after the code is the rationalization shape; the
+nominal environment rides `LaneEnv` beside `params` (the carrier the
+lane's own residue file names), the nominal slot values come through
+the same `eval_slots` door as the lane values, and a refusing nominal
+fails the node typed as every other nominal reader does — the
+`REFUSED` word retires and a row reaches the typed refusal under an
+offset box. `program::NONE`'s retirement is recorded by a census row
+(the first retirement inside a `tag_groups!` group). The rule keeps
+one home at `tag::slot` with its exceptions stated there. **To DOCM
+((DOCM orchestrator))**: `memo.rs`'s header defines the key without
+the nominal and is now incomplete; untouched by EVAL. **For the exit
+walk / Ev**: `docs/DESIGN.md`'s list of the content key's inputs
+(~1071) needs the nominal added — a DESIGN revision, carried to the
+`[ev]` PR.
+
+## EVAL-8 MERGED (2026-09-08, PR 2186, merge 51729fc1d)
+
+Green on the fix-pass head (`d285b8301`; the state-sync commit on top
+is docs-only). Under the pinned lift the op reuses the pre-pass's
+validated form: `ValidatedProfile<f64>::lift_onto(plane)` in
+`crates/profile` — **announced seam to S-BOOL ((S-BOOL
+orchestrator))**: the door plus `seg::ChordFrame`/`arc_carrier`
+factored out of `build_seg` (bit-identical), the README V6 sentence,
+`tests/validated_map.rs`, and one paragraph dropped from
+`resolve/vdiff.rs`'s module doc. The door carries the f64 decisions by
+the pinned lift's design, not by predicate agreement; the one
+behaviour change (a margin definite at f64 and indeterminate at
+`Interval` is now served under `Pinned` with the f64 log and refused
+under `Guided`) is pinned by a row. `anchor::embed_profile` is
+retired. **Re-baselined by ruling, to M10 ((M10 orchestrator))**:
+`kstats_bracket_rows` `PROFILE_LOG` 144 → 75, `asm2a_instantiate`
+799 → 730, `m4_pr6_eps_diff` populations halved back to their
+pre-EVAL-7 literal (byte-identical to `525f16043`'s); the
+certification keys did NOT move (their rows run under `Guided`).
+Lessons: a lane that reads a truncated CI summary pushes red — it
+happened twice on this unit (the interval-additivity gate, then
+clippy on imports gated only by use); the brief's pre-push list now
+names the additivity script and clippy in BOTH feature sets, and
+"verified" means the untruncated output was read.
+
+## EVAL-9 MERGED (2026-09-08, PR 2190, merge 5c9f167f9)
+
+Green on the merged head (`201163481`, main merged after EVAL-8; the
+state-sync commit on top is docs-only). Every slot feeds its nominal
+f64 beside its lane bits under `tag::slot`'s word; both lists come
+through one door (`slots::eval_slots` at the lane environment and at
+the document's nominal one, carried on `wire::LaneEnv::nominal`) and a
+slot that refuses at the nominal refuses its node typed; format 6 → 7;
+the profile stream's loop and step lists are length-prefixed and
+`program::NONE` retires into `tag::presence` with its number recorded
+dead by the group census (the first retirement inside a `tag_groups!`
+group, and the mechanism now exists for the next). Closes
+`interval-content-key-hashes-bits-the-pre-pass-does-not-read` and
+`profile-program-stream-is-not-length-prefixed`. **To DOCM ((DOCM
+orchestrator))**: `eval/memo.rs`'s slot hashing is untouched, and its
+header sentence defining the key without the nominal is now
+incomplete — theirs to reword. **For the `[ev]` PR**: `docs/DESIGN.md`'s
+list of the content key's inputs needs the nominal. Residue on EVAL's
+slate: `nominal-environment-is-rebuilt-per-node-in-wire` (unit 10,
+below). Spec lesson recorded above: item 1 and claim 2 of the EVAL-9
+spec contradicted each other and the lane was right to keep the rule
+and change the proof.
+
+## Units 10 and 11 dispatched (2026-09-08)
+
+The two open items left on EVAL's own slate are both S and both this
+program's, so they land before the exit walk rather than being
+re-homed by it: `docs/EVAL-10-SPEC.md` (the evaluation's one nominal
+environment reaches `profile_plane_f64` and `section_of`; threading,
+no keying) and `docs/EVAL-11-SPEC.md` (`node_value_kind` reads a
+transform's family through its input — **announced seam to MSOLVE
+((MSOLVE orchestrator))**: the one caller line in `mate/member.rs`).
+In parallel on branches cut from main; unit 11's edit is one function
+and its caller, unit 10's is `wire.rs` and the pre-pass call site, so
+they should not meet. After these the slate is `D360` (standing),
+`map-affine-retires-into-affine3-try-map` (parked on PROPS's door) and
+`two-verb-seats-do-not-compose` (deferred with its ratification
+cited) — the exit shape the plan names. Lesson from EVAL-9's close: a
+lane's worktree is reclaimed only after its final report lands — the
+EVAL-9 lane was still polling when its worktree went and lost its
+shell for the last two housekeeping steps (nothing substantive was
+lost; the target had already been removed here).
+
+## EVAL-11 MERGED (2026-09-08, PR 2195, merge cf2f67c6d)
+
+Green on the fix-pass head (`bae4c169f`; the closing commit is
+docs-only). `node_value_kind` takes the document and reads a
+transform's family through its input (a walk, then the table), returns
+a typed `MissingInput` for a dangling input instead of a made-up
+word, and the value-family words have one home (`eval::family`)
+shared by `kind_name`, `node_value_kind` and `body_operand`. The
+transform-of-pattern row was red on the real base (found "body"
+against "instances") and is green on the head. **Announced seam to
+MSOLVE ((MSOLVE orchestrator))**: one line in `mate/member.rs`
+(`axis_datum` passes the document and takes the `?`). Residue filed:
+`work/msolve/axis-datum-names-the-pattern-where-the-evaluation-names-the-transform.md`
+(one dangling-input condition, two refusal seats; unreachable through
+`apply`), `work/eval/wire-expected-phrases-spell-family-words-as-literals.md`
+(the `expected:` literals the family consts did not reach), and, to
+DOCM from the review,
+`work/docm/node-placer-field-docs-say-body-where-instances-are-accepted.md`.
+The review's Q8 note for the exit walk: `eval/mod.rs` is two files —
+the evaluation driver and, from ~2900 on, the content-key vocabulary
+and its census — glued together.
+
+## EVAL-10 MERGED (2026-09-08, PR 2194, merge 5704d502a)
+
+Green on the merged head (`279dcf51e`, main merged after EVAL-11; the
+closing commit is docs-only). The evaluation's one nominal environment
+reaches every reader: `section_of` and `profile_plane_f64` read
+`LaneEnv::nominal`, the frame's slots go through the one slot door,
+one `frame_from_slots` serves both frame reads, the reader census has
+one home, and a row pins the f64 offset-box case. Filed from the
+review: `frame-f64-placement-is-re-evaluated-per-profile` (EVAL's
+slate; a unit with a correctness arm) and, **to MSOLVE ((MSOLVE
+orchestrator))**, `mate-solve-rebuilds-the-nominal-environment-per-check`.
+
+## EXIT (2026-09-08): every unit merged; the walk goes to Ev
+
+Eleven units and two rulings merged (PRs 2137–2138, 2139, 2153, 2160,
+2165, 2168, 2173, 2176, 2186, 2190, 2194, 2195). The slate at exit:
+`D360` (standing rule → TOPO), `map-affine-retires-into-affine3-try-map`
+(parked → PROPS), `two-verb-seats-do-not-compose` (deferred →
+`work/issues/`), and the two S residues from units 10 and 11
+(`work/issues/`, the successor's opening slate). `docs/EVAL-EXIT-WALK.md`
+is the criteria-vs-evidence walk with ten honesty rows; it goes to Ev
+on an `[ev]` PR together with the one-line `docs/DESIGN.md` Band 1
+revision (the content key's inputs gain each slot's f64 nominal, row
+9). Recommendation in the walk: close, residue to `work/issues/`; the
+alternative (EVAL stays open as the seat's standing owner) is Ev's to
+pick. The sweep (moves, ledger, directory deletion) follows
+ratification.
+
+## [ev] 2201 open: the exit walk (2026-09-08)
+
+`docs/EVAL-EXIT-WALK.md` and the DESIGN Band 1 line are on
+`[ev]` PR 2201 with the program flagged `needs_ev`. Waits for Ev.
