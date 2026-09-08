@@ -2,8 +2,9 @@
 id: escalation-payload-is-uncarried-under-thirteen-refusals
 kind: issue
 title: Indeterminate is the most-carried uncurated payload in the tree, and MarginDiag under it
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-08
 refs: [LIB-CUR4]
 ---
 
@@ -45,3 +46,36 @@ accept the ambiguity), so the discriminant may be constant at the
 curated boundary the way LIB-CUR4 measured `BandField`'s to be. That
 measurement — is `MarginDiag`'s discriminant something a caller
 branches on, or prose? — is the unit's first job, not an assumption.
+
+## Closed
+
+LIB-CUR5, under LB17's rule. `Indeterminate` is carried on the
+prelude's group 1 beside `Band` and `BandError` — contract clause 1
+was met already at `pncad::geom_core::Indeterminate`, and what is
+owed by a curated list is what landed: a consumer holding an
+`Escalated` arm out of any of the thirteen refusals can now name what
+it holds in the same import.
+
+**`MarginDiag` is INTERIOR, and the measurement this item asked for is
+the reason.** The question was whether any curated refusal's Python
+projection exposes the escalation's discriminant, or whether this unit
+would add one. Both answers are no. `crates/pncad-py` names neither
+`Indeterminate` nor `MarginDiag` anywhere; every one of the thirteen
+crosses as a single tag plus the kernel's prose (`escalated` at the
+node, path and check doors, `in_band` / `pair_in_band` at the
+selection funnel, `mate_indeterminate` at the mate gate) and no bound
+exception carries a margin, an enclosure bound or a band. The type's
+own documentation settles the other half — its arms are "here for
+error messages and margin telemetry, not to be branched on", because
+recovering the margin to make the decision the classifier refused is
+what the escalation contract forbids. So the disposition is
+`BandField`'s with a different reason: there the discriminant was
+constant, here it varies and is not a decision. The argument is
+written into `prelude.rs` beside the carriage with its own falsifier —
+a door that ever projects the escalation's shape flips it, because
+"the enclosure straddles" and "the margin is in band" have different
+recourses.
+
+**What this does NOT cover.** The census entry for `Indeterminate` is
+`INTERIOR`; nothing about the escalation channel crosses into Python
+that did not before, and no tag moves.
