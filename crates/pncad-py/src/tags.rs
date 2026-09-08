@@ -61,9 +61,9 @@ use pncad::analysis::{AnalysisPolicyError, MeasureUnavailable, ParamBoxError, Se
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
-    MateFault, MeasureNodeFault, MeasureUnavailableAt, NodeErrorKind, ParseError, PersistError,
-    PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation,
-    RootFault, SlotId, SnapshotError, SplitError, UpdateError,
+    MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, NodeErrorKind, ParseError,
+    PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
+    RefusedRef, Relation, RootFault, SlotId, SnapshotError, SplitError, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -819,6 +819,10 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         // The direction door's refusal is a whole `NodeErrorKind`, so
         // its arm is the same vocabulary `EvaluationError.kind` speaks.
         EditError::PlacementAxis { error } => Some(node_error_tag(error.kind())),
+        // The metadata arm's refusal is a SHAPE refusal, so its word
+        // says which of the three ways the D7 producer convention was
+        // broken rather than which door broke it.
+        EditError::MetaUnversioned { error, .. } => Some(meta_version_error_tag(error)),
         EditError::Roots(_) => None,
         EditError::UnknownNode { .. } => None,
         EditError::UnresolvedInput { .. } => None,
@@ -860,7 +864,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::AppearanceNamesMissingNode { .. } => None,
         EditError::AppearanceNotSet { .. } => None,
         EditError::InvalidTolerance { .. } => None,
-        EditError::MetaUnversioned { .. } => None,
         EditError::MetaNonFinite { .. } => None,
         EditError::MetaNotSet { .. } => None,
         EditError::RebindMetadataCollision { .. } => None,
@@ -872,6 +875,23 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
         EditError::NonFiniteAlignment { .. } => None,
+    }
+}
+
+/// The stable tag for a stored metadata value that breaks the D7
+/// producer convention — the inner arm of
+/// [`EditError::MetaUnversioned`].
+///
+/// The convention is structural: a map carrying an integer `"v"`
+/// field. Its three refusals are three different repairs — wrap the
+/// value in a map, add the version, or make the version an integer —
+/// and the carrier's own word says only that the convention was
+/// broken.
+pub fn meta_version_error_tag(err: &MetaVersionError) -> &'static str {
+    match err {
+        MetaVersionError::NotAMap => "not_a_map",
+        MetaVersionError::MissingVersion => "missing_version",
+        MetaVersionError::VersionNotInt => "version_not_int",
     }
 }
 

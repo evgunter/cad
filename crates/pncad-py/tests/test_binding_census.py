@@ -579,6 +579,26 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
+    # `MetaVersionError` is the same row one arm over, and it arrives
+    # by the same reading failing. It was `NOT_CARRIED` under "the
+    # curated face is a different shape", qualified: it is a nested
+    # REFUSAL rather than a leaf value, and the arm holding it carried
+    # no inner word to name it by, so naming it was the per-arm-tag
+    # question. That question is answered — every carrier that
+    # projects a word now projects its arm's word beside it — and
+    # `EditError::MetaUnversioned` answers WHICH of the three ways a
+    # stored metadata value breaks the D7 producer convention
+    # (`not_a_map`, `missing_version`, `version_not_int`) rather than
+    # only that it did.
+    #
+    # THE MEASUREMENT: there is no Python door that mints a
+    # `SetAppearanceMeta`, so no Python row can provoke this arm and
+    # the reach is a Rust construction pin — `src/tests.rs`'s
+    # `every_edit_arm_projects_the_payload_it_carries`, which the
+    # carriage moves from 57 of 58 arms to 58 of 58, because the arm
+    # it could not build was the one whose third field this façade did
+    # not carry.
+    "MetaVersionError": "EditError.inner_variant",
     # THE PERSISTENCE DOOR'S PAYLOAD, under the same rule at the
     # carrier that wraps the most refusals of other layers.
     # `PersistError.variant` says WHICH stage refused; three of these
@@ -1648,9 +1668,20 @@ NOT_BOUND = {
     # the same content off `PathError.corners` — one `(x, y, reason)`
     # row per refusing corner, the reason its stable tag — so the Rust
     # enums have no Python spelling of their own.
+    #
+    # `NoCornerReason` is new to the curated lists and joins them
+    # rather than arriving as a gap, because its two arms are already
+    # IN those rows: `corner_reason_tag` matches the no-tangent-circle
+    # arm one level in, so a corner refuses as `offset_carriers_
+    # disjoint` or `no_corner_side_candidate` and never as the arm
+    # name alone. It is curated at the prelude for the pair it closes
+    # there — the fillet constructor's no-corner reason beside the
+    # lattice door's `PathNoCornerReason`, which was carried on its
+    # own — and its Python half was never the gap.
     "CornerReason": SHAPE,
     "CornerRefusal": SHAPE,
     "CornerWindow": SHAPE,
+    "NoCornerReason": SHAPE,
     "PathNoCornerReason": SHAPE,
     "Point2": SHAPE,
     "Point3": SHAPE,
@@ -1775,6 +1806,33 @@ NOT_BOUND = {
     "ContactFinding": INTERIOR,
     "ContactRefusal": INTERIOR,
     "ContactVerdict": INTERIOR,
+    # THE PROFILE REFUSALS' PAYLOAD VOCABULARY, curated at the prelude
+    # so a prelude-carried `ProfileError`, `CornerReason` or
+    # `PathError` is matchable THROUGH the prelude rather than only
+    # nameable one module hop away.
+    #
+    # `INTERIOR` by the carrier rule, and the measurement is that both
+    # carriers cross as words with their FIELDS left behind.
+    # `ProfileError` reaches Python at `EvaluationError.inner_kind` —
+    # `non_simple`, `escalated`, one word per arm — so which contact
+    # two segments made, which stage escalated and which segment it
+    # was are in the kernel's prose and nowhere else. `PathError`
+    # reaches it with a `corners` list, and that list carries the
+    # corner's point and its reason word: the anchor arm flattens to
+    # `anchor_outside_trimmed_extent`, so the side and its carrier
+    # kind — and with the carrier kind, whether the setback beside it
+    # is a distance or an arc length — do not cross either.
+    #
+    # Not a `gap:`, for the reason the blend four are not: the debt is
+    # a door projecting its arms' FIELDS, which is
+    # `work/lib/pncad-py-seven-doors-lack-field-projection.md`'s
+    # (the `path` door is one of the six it names), and not a missing
+    # binding for these five types.
+    "ContactKind": INTERIOR,
+    "EscalationSite": INTERIOR,
+    "FilletLeg": INTERIOR,
+    "FilletLegCarrier": INTERIOR,
+    "SegmentRef": INTERIOR,
     "ContentBits": INTERIOR,
     # `BlendError::ConvexitySignFlip`'s payload and
     # `UnsupportedCorner`'s, the other two of the blend four.

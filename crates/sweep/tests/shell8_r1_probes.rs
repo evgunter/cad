@@ -126,9 +126,10 @@ fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
 /// untouched DEEPER than the pinned row measures.** The unit's own STOP
 /// row is the PLANAR door and compares vertex points only. This one
 /// runs `offset_charts_together` — whose write phase mints surfaces,
-/// re-authors edge carriers and then runs `mint_pcurves` over the WHOLE
-/// clone — and compares the out-of-scope solid's faces, surfaces, edge
-/// carriers, parameters, descriptions AND vertex bit patterns.
+/// re-authors edge carriers and then re-mints the pcurve rows of its
+/// SCOPE's faces — and compares the out-of-scope solid's faces,
+/// surfaces, edge carriers, parameters, descriptions AND vertex bit
+/// patterns.
 #[test]
 fn r1_axial_door_leaves_the_other_solid_deep_identical() {
     let pair = beside(&vessel(1.0, 2.0), &boxy(2.0, 3.0, 4.0), 10.0);
