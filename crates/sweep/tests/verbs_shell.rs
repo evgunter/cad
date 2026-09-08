@@ -623,19 +623,20 @@ fn shelling_a_hollow_vessel_thickens_every_boundary() {
     assert_eq!(shelled.naming.thickened.len(), 2);
 }
 
-/// **Curved: the full-period torus, MEASURED.** The hollow torus
-/// (`R = 2`, outer `r = 0.5`, wall `w = 0.125`) shelled at `t = 0.05`
-/// would be two thin tori, `2π²R[(r² − (r−t)²) + ((r−w+t)² −
-/// (r−w)²)]`. It does not get there: the axial door's corner solve
-/// refuses at the tube's SEAM vertex — a vertex where one surface
-/// meets itself, so its station is determined but its radius is not
-/// (`TogetherAxialCorner { surfaces: 1 }`) — and it refuses the SOLID
-/// full torus the same way, so the refusal is the offset door's own
-/// and nothing about the hollow operand. This row is that measurement,
-/// naming the door; the closed form above is what the row asserts the
-/// day the door takes a one-surface seam corner.
+/// **Curved: the full-period torus, solid and hollow alike.** The
+/// hollow torus (`R = 2`, outer `r = 0.5`, wall `w = 0.125`) shelled
+/// at `t = 0.05` is two thin tori — `2π²R[(r² − (r−t)²) + ((r−w+t)² −
+/// (r−w)²)]`, two solids, four shells, each solid `[Outer, Void]` — and
+/// the solid torus is one, `2π²R[r² − (r−t)²]`. Both pass the axial
+/// door's corner solve at the tube's SEAM vertex, where one surface
+/// meets itself: a vertex all of whose faces lie on one surface of
+/// revolution is a point of it and moves concentrically on the tube's
+/// own profile circle (`crates/sweep/tests/shell7_seam_corner.rs`
+/// carries the corner's own closed forms). The hollow twin's row is
+/// the hollow-operand rule on a curved operand: every boundary
+/// thickens, one thin solid per operand shell.
 #[test]
-fn the_full_period_torus_refuses_at_the_axial_doors_seam_corner_solid_and_hollow_alike() {
+fn the_full_period_torus_shells_solid_and_hollow_alike() {
     let tol = Tol::witness();
     let (big_r, r, w, t) = (2.0, 0.5, 0.125, 0.05);
     let solid = sweep::tube_along_arc::<f64>(
@@ -663,26 +664,44 @@ fn the_full_period_torus_refuses_at_the_axial_doors_seam_corner_solid_and_hollow
     .body;
     assert_eq!(solid.shells().count(), 1);
     assert_eq!(hollow.shells().count(), 2, "a torus shell");
-    for (what, body) in [("solid", &solid), ("hollow", &hollow)] {
-        let e = topo::shell(body, t, tol)
-            .expect_err("the full torus refuses at the axial door's seam corner");
-        let ShellError::Face { face, error } = e else {
-            panic!("{what} torus: expected the offset door's refusal, got {e}");
-        };
-        assert!(
-            matches!(
-                *error,
-                topo::ReplaceFaceError::TogetherAxialCorner { surfaces: 1, .. }
-            ),
-            "{what} torus: expected the one-surface seam corner, got {error}"
-        );
-        let shell = body.get_face(face).expect("names an operand face").shell;
-        println!("[measured] {what} torus: {face:?} on {shell:?} refuses: {error}");
+    let pi2r = 2.0 * core::f64::consts::PI.powi(2) * big_r;
+    let ring = |a: f64, b: f64| a * a - b * b;
+
+    let shelled = topo::shell(&solid, t, tol).expect("the solid torus shells");
+    let body = &shelled.body;
+    assert_eq!(topo::validate_geometric(body, tol), Ok(()), "solid: tier 3");
+    assert_eq!(body.solids().count(), 1);
+    assert_eq!(body.shells().count(), 2);
+    let props = topo::mass_properties(body, tol).expect("solid: props");
+    let want = pi2r * ring(r, r - t);
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "solid torus wall: got {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
+    );
+
+    let shelled = topo::shell(&hollow, t, tol).expect("the hollow torus shells");
+    let body = &shelled.body;
+    assert_eq!(
+        topo::validate_geometric(body, tol),
+        Ok(()),
+        "hollow: tier 3"
+    );
+    assert_eq!(body.solids().count(), 2);
+    assert_eq!(body.shells().count(), 4);
+    for (solid, kinds) in roles_by_solid(body) {
+        assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
     }
-    let _want = 2.0
-        * core::f64::consts::PI.powi(2)
-        * big_r
-        * ((r * r - (r - t) * (r - t)) + ((r - w + t) * (r - w + t) - (r - w) * (r - w)));
+    let props = topo::mass_properties(body, tol).expect("hollow: props");
+    let want = pi2r * (ring(r, r - t) + ring(r - w + t, r - w));
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "two thin tori: got {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
+    );
+    assert_eq!(shelled.naming.thickened.len(), 2);
 }
 
 /// **The opened arm on the OUTER shell** of a hollow operand: the
