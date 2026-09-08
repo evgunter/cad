@@ -799,6 +799,36 @@ pub struct ValidatedSegment<T: Real> {
     pub kind: SegmentKind<T>,
 }
 
+impl<T: Real> ValidatedSegment<T> {
+    /// The per-scalar lift of one segment: the endpoints and the bulge
+    /// through `f`, the classification and turn carried, and an arc's
+    /// carrier RE-DERIVED at `U` from the lifted endpoints and bulge
+    /// through validation's own arithmetic ([`seg::arc_carrier`]) —
+    /// the carrier is derived data, not a stored value, and at a
+    /// certified scalar the derivation is what mints its enclosure.
+    /// See [`ValidatedProfile::map`].
+    fn map<U: Real>(self, f: &impl Fn(T) -> U) -> ValidatedSegment<U> {
+        let (start, end, bulge) = (self.start.map(f), self.end.map(f), f(self.bulge));
+        let kind = match self.kind {
+            SegmentKind::Line => SegmentKind::Line,
+            SegmentKind::Arc { turn, .. } => {
+                let carrier = seg::arc_carrier(start, end, bulge);
+                SegmentKind::Arc {
+                    center: carrier.center,
+                    radius: carrier.radius,
+                    turn,
+                }
+            }
+        };
+        ValidatedSegment {
+            start,
+            end,
+            bulge,
+            kind,
+        }
+    }
+}
+
 /// A canonicalized loop: role, chain, and classified segments —
 /// read-only.
 #[derive(Debug, Clone)]
@@ -833,6 +863,22 @@ impl<T: Real> ValidatedLoop<T> {
     /// ascending, deduplicated.
     pub fn tangent_joints(&self) -> &[usize] {
         &self.tangent_joints
+    }
+
+    /// The per-scalar lift of one canonical loop: vertices and segments
+    /// through `f` in place, the role and the joint set carried. See
+    /// [`ValidatedProfile::map`].
+    fn map<U: Real>(self, f: &impl Fn(T) -> U) -> ValidatedLoop<U> {
+        ValidatedLoop {
+            vertices: self
+                .vertices
+                .into_iter()
+                .map(|v| ProfileVertex::new(v.pos().map(f), f(v.bulge())))
+                .collect(),
+            segments: self.segments.into_iter().map(|s| s.map(f)).collect(),
+            tangent_joints: self.tangent_joints,
+            role: self.role,
+        }
     }
 
     /// **Which segment is the fillet at corner k?** — every arc
@@ -973,6 +1019,78 @@ impl<T: Real> ValidatedProfile<T> {
     /// order).
     pub fn loops(&self) -> &[ValidatedLoop<T>] {
         &self.loops
+    }
+
+    /// The per-scalar lift of the canonical form: every STORED scalar
+    /// — the plane's placement, each vertex's position and bulge, each
+    /// segment's endpoints and bulge — goes through `f`; each arc's
+    /// carrier (center, radius), which is DERIVED data, is re-derived
+    /// at `U` from the lifted endpoints and bulge through validation's
+    /// own arithmetic; everything else is carried unchanged. This is
+    /// the second and only other way a `ValidatedProfile` is minted,
+    /// and it decides nothing: no predicate runs, no verdict is logged.
+    ///
+    /// # What is carried, and why it needs no re-check
+    ///
+    /// The canonical form is two kinds of fact. The COMBINATORIAL ones
+    /// — loop order (outer first, holes in input order), the loop
+    /// count, each loop's vertex count, segment `k` running from vertex
+    /// `k` to `k + 1 mod n`, the tangent-joint set as sorted canonical
+    /// vertex indices — are index structure. A lift maps coordinates
+    /// and touches no index, so these hold at `U` by construction under
+    /// ANY `f`. The DECIDED ones — each loop's role, its traversal
+    /// sense (outer counterclockwise, holes clockwise), its start at
+    /// the lex-min vertex, each segment's `Line`/`Arc` classification
+    /// and turn, each joint's verified tangency, the absence of
+    /// contact — are verdicts of the predicates `validate` ran at `T`
+    /// over the stored values. They are carried as decided; nothing
+    /// here re-decides them.
+    ///
+    /// The carried verdicts are true of the `U`-valued form exactly
+    /// when the predicates would decide the same over `f`'s images —
+    /// i.e. when `f` is an EXACT EMBEDDING, injective and preserving
+    /// the ordered-field operations on every value the predicates
+    /// read. `Real::from_f64` is one at every scalar: `f64` identity,
+    /// the constant dual number, the point interval (its contract).
+    /// Under it every predicate margin is the same number the `T`
+    /// decision was made from, so the verdict sequence at `U` IS the
+    /// `T` one (the D9 argument the evaluator's pinned lift rests on),
+    /// and the re-derived carrier is bit for bit the one a validation
+    /// at `U` would mint from the same endpoints and bulge. Two things
+    /// the embedding does NOT make identical, stated: a channel the
+    /// `f64` form does not carry is `from_f64`'s (a dual's derivative
+    /// is `+0.0` here where a negated constant's derivative at `U`
+    /// would be `-0.0` — equal as numbers, read by no predicate), and
+    /// nothing is said of a map that is not an exact embedding. Such a
+    /// map leaves a form whose carried claims can be false of its
+    /// values, which is why the caller chooses `f`: a reflection
+    /// (`x ↦ -x`) keeps every index and inverts every traversal sense;
+    /// a rounding map can merge two distinct vertices into a
+    /// zero-length segment or move a lex-min start; a map onto a
+    /// coarser scalar can turn a definite `Line` bulge into a non-zero
+    /// arc. None of those is `from_f64`, and no such map has a caller.
+    /// Validate the mapped raw profile instead when the verdicts at
+    /// `U` are the question; use this when the value at `U` is, and
+    /// the verdicts were already made at `T`.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> ValidatedProfile<U> {
+        ValidatedProfile {
+            plane: self.plane.map(&f),
+            loops: self.loops.into_iter().map(|lp| lp.map(&f)).collect(),
+        }
+    }
+
+    /// The same canonical form on another plane. The plane is
+    /// conventional data passed through from the input (validation is
+    /// 2-D and reads nothing of it — [`ValidatedProfile::plane`]), so
+    /// replacing it decides nothing and re-checks nothing: the 2-D
+    /// values and every carried verdict are those of `self`.
+    #[must_use]
+    pub fn with_plane(self, plane: crate::SketchPlane<T>) -> Self {
+        Self {
+            plane,
+            loops: self.loops,
+        }
     }
 }
 

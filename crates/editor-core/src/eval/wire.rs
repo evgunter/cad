@@ -1201,9 +1201,12 @@ fn wire_datum<T: Decide>(
 /// yields the canonical form the program-anchor naming map is derived
 /// from). Runs inside the node's verdict frame (`eval_node`) ahead of
 /// the op: structure decisions, the successor of the stored f64 bits,
-/// logged as the node's own. VQ6 is closed here and in the op below:
-/// the replay-time junction checks and both validations run under the
-/// SAME `Tolerance::get()` the evaluation pins.
+/// logged as the node's own. The validated form is kept: under the
+/// pinned lift it IS the op's value, lifted (`wire_profile`), so the
+/// node decides each structure question once. VQ6 is closed here and
+/// in the guided op below: the replay-time junction checks and every
+/// validation run under the SAME `Tolerance::get()` the evaluation
+/// pins.
 pub(crate) fn prepare_profile(
     placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
@@ -1239,6 +1242,7 @@ pub(crate) fn prepare_profile(
     })?;
     Ok(ProfilePre {
         profile_f64,
+        validated_f64,
         placement_f64: placement,
         naming,
         structure: profile::ProfileStructure {
@@ -1327,28 +1331,24 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         });
     };
     let validated = match lane.lift {
-        // The build path: the `f64` elaboration embedded bit for bit —
-        // loops AND placement for an authored frame. A DERIVED frame
-        // has no `f64` elaboration of its placement (DM1c: the
-        // document holds a face name, not nine numbers), so its loops
-        // embed exactly the same way and its placement is the lane's
-        // own value, read where every by-value reader of a frame reads
-        // it. The fork is by node kind; the numbers on both sides are
-        // the ones already computed.
+        // The build path: the precompute's VALIDATED form embedded bit
+        // for bit (`ValidatedProfile::map` under `from_f64` — exact,
+        // every decision carried, none remade: the validation is 2-D
+        // and reads point values only, so its verdicts at `T` are the
+        // f64 ones, D9), placed on the lane's plane. An authored frame
+        // places at its `f64` elaboration lifted; a DERIVED frame has
+        // no `f64` elaboration of its placement (DM1c: the document
+        // holds a face name, not nine numbers), so its placement is the
+        // lane's own value, read where every by-value reader of a frame
+        // reads it. The fork is by node kind; the numbers on both sides
+        // are the ones already computed, and the op decides nothing:
+        // the node's log under this lift is the precompute's.
         super::ProfileLift::Pinned => {
-            let mut embedded = anchor::embed_profile::<T>(&pre.profile_f64);
-            embedded.plane = match &pre.placement_f64 {
+            let plane = match &pre.placement_f64 {
                 Some(placement) => placement.map(T::from_f64),
                 None => frame_plane_lane(results, program.plane)?,
             };
-            // Validated again at `T`: the validated form is minted by
-            // `validate` at the scalar it is built at, and the pinned
-            // lift embeds the f64 form whole rather than the
-            // precompute's validated one, so at the build scalar this
-            // repeats the precompute's validation decision for
-            // decision and the node's log holds both (the doubled
-            // populations `resolve::vdiff` describes).
-            embedded.validate(tol).map_err(NodeErrorKind::Profile)?
+            pre.validated_f64.clone().map(T::from_f64).with_plane(plane)
         }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,

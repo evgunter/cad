@@ -89,6 +89,48 @@ pub(crate) enum SegIssue {
     Escalated(Indeterminate),
 }
 
+/// The carrier of the arc a → b with `bulge`, with the chord frame it
+/// is built on: the chord's midpoint and left normal, the center at
+/// apothem L·(1 − b²)/(4b) along that normal, the radius
+/// |L·(1 + b²)/(4b)|. Pure arithmetic over the segment's stored
+/// values — no predicate runs here — and the ONE spelling of it:
+/// [`build_seg`] mints a classified segment's carrier through this,
+/// and the validated form's per-scalar lift re-derives a carried arc's
+/// carrier through it, so the carrier at any scalar is one expression
+/// of the endpoints and bulge at that scalar (at a certified scalar,
+/// its own enclosure).
+pub(crate) fn arc_carrier<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> ArcCarrier<T> {
+    let len = a.distance(b);
+    let unit = (b - a) / len;
+    let half = T::from_f64(0.5);
+    let mid = a.lerp(b, half);
+    let normal = perp(unit);
+    let b2 = bulge.powi(2);
+    let four_bulge = T::from_f64(4.0) * bulge;
+    let apothem = len * (T::one() - b2) / four_bulge;
+    let signed_radius = len * (T::one() + b2) / four_bulge;
+    ArcCarrier {
+        mid,
+        normal,
+        center: mid + normal * apothem,
+        radius: signed_radius.abs(),
+    }
+}
+
+/// [`arc_carrier`]'s answer: the carrier and the chord frame it sits
+/// on.
+pub(crate) struct ArcCarrier<T: Real> {
+    /// The chord's midpoint.
+    pub mid: Point2<T>,
+    /// The chord's left unit normal (the apex side for a positive
+    /// bulge is −normal).
+    pub normal: Vec2<T>,
+    /// The carrier circle's center.
+    pub center: Point2<T>,
+    /// The carrier circle's radius (positive).
+    pub radius: T,
+}
+
 /// Builds and classifies a segment.
 ///
 /// Predicates fired, in order:
@@ -138,15 +180,13 @@ pub(crate) fn build_seg<T: Decide>(
     {
         Sign::Zero => SegKind::Line,
         turn => {
-            let mid = a.lerp(b, half);
-            let n = perp(unit);
-            let b2 = bulge.powi(2);
-            let four_bulge = T::from_f64(4.0) * bulge;
-            let apothem = len * (T::one() - b2) / four_bulge;
-            let signed_radius = len * (T::one() + b2) / four_bulge;
-            let center = mid + n * apothem;
-            let apex = mid - n * sagitta;
-            let radius = signed_radius.abs();
+            let ArcCarrier {
+                mid,
+                normal,
+                center,
+                radius,
+            } = arc_carrier(a, b, bulge);
+            let apex = mid - normal * sagitta;
             let span_chord = a.distance(apex);
             match decide(
                 "arc_diameter_clearance",

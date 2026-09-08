@@ -132,7 +132,8 @@ persistence header door.
 replayed output under every binding: flags verified-never-trusted
 (`UndeclaredTangency`, `TangencyContradicted`), same-carrier
 continuation is identity, fit gating; `ValidatedProfile` is minted only
-by `validate` on segments, and extrude/revolve/fillet/loft/sweep never
+by `validate` on segments (and lifted scalar-to-scalar, decisions
+carried, by `ValidatedProfile::map`), and extrude/revolve/fillet/loft/sweep never
 see a program. Junction predicates classify at replay exactly as at
 typed authoring. Replay is deterministic (libm-pure, no ordering
 effects). A chain's seam still sits at a junction or fillet, never

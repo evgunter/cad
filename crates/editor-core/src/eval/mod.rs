@@ -34,7 +34,7 @@ pub(crate) use wire::{
     need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
 };
 
-pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
+pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 
 use std::collections::BTreeMap;

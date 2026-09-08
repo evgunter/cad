@@ -9,7 +9,8 @@
 //! - a cancelled prefix leaves the frame stack intact;
 //! - every decision the part makes lands on one of its nodes' brackets,
 //!   and the assembly decides nothing outside its instances';
-//! - the Profile node's log opens with the precompute and the op's follow;
+//! - the Profile node's log under the pinned lift IS the precompute's,
+//!   at every scalar, and under the guided lift the op's own follow it;
 //! - a memo hit runs the precompute in a frame it drops (f64, Interval),
 //!   and a hit whose prefix disagrees with the reused log refuses loud;
 //! - three pre-op refusals told apart: the D4 ε door (no frame is ever
@@ -26,12 +27,13 @@ use std::sync::Arc;
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions,
     EvalScalar, Evaluation, Expr, Frame, LoopProgram, Node, NodeResult, ParamName, PartResolver,
-    ProfileDoc, ProfileProgram, RecipeNodeId, ResolveFailure, ResolveFault, content_pin, evaluate,
+    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, ResolveFailure, ResolveFault,
+    content_pin, evaluate,
 };
 use fixture::{frame, insert, len, on_frame, square, step};
 use geom_core::Band;
 use geom_core::Tol;
-use geom_core::k_stats::Bracket;
+use geom_core::k_stats::{Bracket, Verdict};
 
 #[derive(Debug, Default)]
 struct Store {
@@ -114,8 +116,11 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 /// f64 validation of the assembled profile.
 const PRE_PASS: usize = 75;
 /// The one-solid part's log sizes by node: frame, profile, extrude.
+/// Under the pinned lift (the default) the Profile node's op reuses
+/// the pre-pass's validated form and decides nothing, so its log is
+/// the pre-pass's.
 const FRAME_LOG: usize = 2;
-const PROFILE_LOG: usize = 144;
+const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 653;
 
 /// Two instances, both placed, so both ops do the same work.
@@ -275,8 +280,8 @@ fn a_cancelled_run_leaves_the_next_runs_logs_and_the_frame_stack_intact() {
 /// brackets.** Evaluated inside an outer bracket, the part leaves that
 /// frame empty: the profile's f64 precompute — the plane's axes, the
 /// program's replay, the validation — decides on the Profile node's
-/// behalf and its log holds those decisions ahead of its op's, so the
-/// Profile node's count is the precompute's plus the op's.
+/// behalf and its log holds those decisions; under the pinned lift
+/// the op adds none, so the Profile node's count is the precompute's.
 #[test]
 fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
     let part_doc = part("kstats-outside-part", 0.0, 1.0);
@@ -316,29 +321,32 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     );
 }
 
-/// **The Profile node's log opens with the precompute and the op's
-/// decisions follow.** One frame, in the order made: the plane's two
+/// **The Profile node's log under the pinned lift is the precompute's,
+/// at every scalar.** One frame, in the order made: the plane's two
 /// axis decisions first, then the program's replay, then the f64
-/// validation, then the op's. The histogram moves legitimately only
-/// when `profile::validate`'s probes change (a predicate added, a
-/// probe count per segment pair changed) or the fixture does. The last
-/// assertion pins TODAY's double run — under the pinned lift at f64
-/// the op validates the embedded f64 form again, decision for decision
-/// (`work/eval/profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift.md`)
-/// — and is the line to drop when that unit lands, not a property of
-/// the log.
-#[test]
-fn the_profile_nodes_log_opens_with_the_pre_pass_and_the_ops_decisions_follow() {
+/// validation — and nothing after it, because the op lifts the
+/// precompute's validated form instead of validating again. The
+/// precompute is an `f64` computation whatever the lane scalar, so the
+/// log at `Dual64` and at `Interval` is the `f64` log, verdict for
+/// verdict. The histogram moves legitimately only when
+/// `profile::validate`'s probes change (a predicate added, a probe
+/// count per segment pair changed) or the fixture does.
+fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass<T: EvalScalar>() -> Vec<Verdict> {
     let part_doc = part("kstats-order-part", 0.0, 1.0);
-    let ev = run(&part_doc, &EvalOptions::default());
+    let ev = evaluate::<T>(
+        &part_doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let log = &ev
         .value(profile_node(&part_doc))
         .expect("the profile evaluates")
         .verdicts;
-    assert_eq!(log.len(), PROFILE_LOG);
-    let (pre, op) = log.split_at(PRE_PASS);
+    assert_eq!(log.len(), PRE_PASS, "the pre-pass's decisions and no other");
     let mut histogram: BTreeMap<&str, usize> = BTreeMap::new();
-    for v in pre {
+    for v in log.iter() {
         *histogram.entry(v.predicate).or_default() += 1;
     }
     assert_eq!(histogram["datum_unit_norm"], 2, "{histogram:?}");
@@ -346,18 +354,82 @@ fn the_profile_nodes_log_opens_with_the_pre_pass_and_the_ops_decisions_follow() 
     assert_eq!(histogram["chord_side"], 28, "{histogram:?}");
     assert_eq!(histogram["line_span"], 8, "{histogram:?}");
     assert_eq!(
-        pre[0].predicate, "datum_unit_norm",
+        log[0].predicate, "datum_unit_norm",
         "the plane's axes decide first"
     );
-    assert_eq!(pre[2].predicate, "path_junction_turn", "then the replay");
+    assert_eq!(log[2].predicate, "path_junction_turn", "then the replay");
     assert_eq!(
-        op[0].predicate, "vertex_separation",
-        "then the op's validation"
+        log[6].predicate, "vertex_separation",
+        "then the f64 validation"
+    );
+    log.to_vec()
+}
+
+#[test]
+fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_every_scalar() {
+    let at_f64 = the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<f64>();
+    let at_dual =
+        the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<geom_core::Dual64>();
+    assert_eq!(
+        at_f64, at_dual,
+        "the precompute decides at f64 under every lane"
+    );
+    #[cfg(feature = "interval")]
+    {
+        let at_interval =
+            the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass::<geom_core::Interval>();
+        assert_eq!(
+            at_f64, at_interval,
+            "the precompute decides at f64 under every lane"
+        );
+    }
+}
+
+/// **Under the guided lift the op's own decisions follow the
+/// precompute's.** The guided op resolves the program at the lane
+/// scalar and validates what IT elaborated — a genuine second
+/// decision sequence, not the precompute's again — so its log is the
+/// pinned log as a prefix, then the op's own replay and validation.
+/// The pinned log holds nothing of an op: it is exactly this prefix.
+#[test]
+fn under_the_guided_lift_the_ops_decisions_follow_the_pre_pass() {
+    let part_doc = part("kstats-order-part", 0.0, 1.0);
+    let pinned = run(&part_doc, &EvalOptions::default());
+    let guided = run(
+        &part_doc,
+        &EvalOptions {
+            profile_lift: ProfileLift::Guided,
+            ..EvalOptions::default()
+        },
+    );
+    let profile = profile_node(&part_doc);
+    let pinned_log = &pinned
+        .value(profile)
+        .expect("the profile evaluates")
+        .verdicts;
+    let guided_log = &guided
+        .value(profile)
+        .expect("the profile evaluates")
+        .verdicts;
+    assert_eq!(pinned_log.len(), PRE_PASS);
+    assert!(
+        guided_log.len() > PRE_PASS,
+        "the guided op validates its own elaboration: {}",
+        guided_log.len()
+    );
+    let (pre, op) = guided_log.split_at(PRE_PASS);
+    assert_eq!(
+        pre,
+        &pinned_log[..],
+        "the precompute's decisions, the same under either lift"
     );
     assert_eq!(
-        &pre[6..],
-        op,
-        "the f64 validation, recorded by the precompute and again by the op"
+        op[0].predicate, "path_junction_turn",
+        "then the guided op's own replay at the lane scalar"
+    );
+    assert!(
+        op.iter().any(|v| v.predicate == "vertex_separation"),
+        "and its own validation"
     );
 }
 
