@@ -422,6 +422,7 @@ fn fold_iso_row_error<T: Bounds>(error: geom_brep::IsoRowError<T>) -> geom_brep:
         I::Interior { u, domain } => I::Interior { u: u.lo(), domain },
         I::Structure { source } => I::Structure { source },
         I::Escalated { source } => I::Escalated { source },
+        I::WeightsNotSeparable { control_counts } => I::WeightsNotSeparable { control_counts },
     }
 }
 

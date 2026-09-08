@@ -447,6 +447,7 @@ pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
         | Node::Sweep { .. }
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
+        | Node::Shell { .. }
         | Node::Transform { .. }
         | Node::Union { .. }
         | Node::PlacedUnion { .. }
