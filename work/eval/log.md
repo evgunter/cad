@@ -210,3 +210,18 @@ Residue with files: `map-affine-retires-into-affine3-try-map`
 (`work/issues/`), `m10_p_lift`'s hand-built interval plane (TCOST's
 slate), `placement.rs`'s hand lift (`work/issues/`). EVAL-3 dispatched
 next (prose-only; runs beside EVAL-2's CI).
+
+## EVAL-2 implemented; two reviews dispatched (2026-09-08)
+
+PR 2153 (`aecc5ffda`): full matrix green (37 checks); key dump at
+base and head over 1053 rows diffs to zero; acceptance grep returns
+nothing; `D365` claimed by `git mv` (**announced to DOCM ((DOCM
+orchestrator))** in the PR body — DOCM's `plan.md:35`/`:65` still
+list it under Track V, DOCM's file to fix). Correctness and style
+reviews dispatched on the frozen head; the correctness lane
+reproduces the dump on documents the implementer's did not reach
+(assemblies, mates) and attacks the filed residue
+(`profile-program-stream-is-not-length-prefixed`: `LANE` and
+`verb_tag(Cusp)` are both 41 at one grammar position, argued
+unreachable). One rustdoc red on the way (an intra-doc link to a
+`#[cfg(test)]` const), fixed before the run of record.
