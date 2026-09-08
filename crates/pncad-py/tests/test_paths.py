@@ -175,16 +175,6 @@ class TestTheLatticeWalks(unittest.TestCase):
         )
         self.assertEqual(loop.vertex_count, 3)
 
-    def test_a_declared_split_below_two_arcs_refuses(self):
-        # `splits=1` is the plain leg; a DECLARED count below 2 through
-        # the kernel's own `.split(n)` refuses typed.
-        self.refuses(
-            "arc_split_count",
-            lambda: Open.at((1 * m, 0 * m)).arc_to(
-                Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=0
-            ),
-        )
-
     def test_the_fused_verb_authors_both_carriers_and_closes(self):
         # The rocker eye's lens: the entry side rides the left lobe's
         # carrier, one fillet rounds the tip, and the arrival rides the
@@ -396,6 +386,16 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
             .line_to((1 * m, 0 * m))
             .toward(0.0, 1.0)
             .fillet(0 * m),
+        )
+
+    def test_a_declared_split_below_two_arcs_refuses(self):
+        # `splits=1` is the plain leg; a DECLARED count below 2 through
+        # the kernel's own `.split(n)` refuses typed.
+        self.refuses(
+            "arc_split_count",
+            lambda: Open.at((1 * m, 0 * m)).arc_to(
+                Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=0
+            ),
         )
 
     def test_arc_continue_needs_an_arc_carrier(self):

@@ -541,33 +541,36 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   },
                   {
                     "ArcTo": {
-                      "Bulge": {
-                        "target": {
-                          "Point": [
-                            {
-                              "Literal": {
-                                "value": 0.0,
-                                "dim": "Length",
-                                "unit": "mm"
+                      "spec": {
+                        "Bulge": {
+                          "target": {
+                            "Point": [
+                              {
+                                "Literal": {
+                                  "value": 0.0,
+                                  "dim": "Length",
+                                  "unit": "mm"
+                                }
+                              },
+                              {
+                                "Literal": {
+                                  "value": 0.09,
+                                  "dim": "Length",
+                                  "unit": "mm"
+                                }
                               }
-                            },
-                            {
-                              "Literal": {
-                                "value": 0.09,
-                                "dim": "Length",
-                                "unit": "mm"
-                              }
+                            ]
+                          },
+                          "b": {
+                            "Literal": {
+                              "value": 1.0,
+                              "dim": "Scalar",
+                              "unit": ""
                             }
-                          ]
-                        },
-                        "b": {
-                          "Literal": {
-                            "value": 1.0,
-                            "dim": "Scalar",
-                            "unit": ""
                           }
                         }
-                      }
+                      },
+                      "splits": 1
                     }
                   },
                   {

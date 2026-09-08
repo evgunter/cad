@@ -323,33 +323,36 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
                 },
                 {
                   "ArcTo": {
-                    "Bulge": {
-                      "target": {
-                        "Point": [
-                          {
-                            "Literal": {
-                              "value": 0.0,
-                              "dim": "Length",
-                              "unit": "m"
+                    "spec": {
+                      "Bulge": {
+                        "target": {
+                          "Point": [
+                            {
+                              "Literal": {
+                                "value": 0.0,
+                                "dim": "Length",
+                                "unit": "m"
+                              }
+                            },
+                            {
+                              "Literal": {
+                                "value": 0.09,
+                                "dim": "Length",
+                                "unit": "m"
+                              }
                             }
-                          },
-                          {
-                            "Literal": {
-                              "value": 0.09,
-                              "dim": "Length",
-                              "unit": "m"
-                            }
+                          ]
+                        },
+                        "b": {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
                           }
-                        ]
-                      },
-                      "b": {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Scalar",
-                          "unit": ""
                         }
                       }
-                    }
+                    },
+                    "splits": 1
                   }
                 },
                 {

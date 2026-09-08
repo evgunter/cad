@@ -409,6 +409,10 @@ BOUND_AS = {
     "UnitVec3": "Datum.direction",
     "UnitVec3Error": "EvaluationError.kind",
     "PI": "pi_rad",
+    # The declared-split arc leg: Rust wraps the spec (`spec.split(n)`);
+    # Python says the same thing as the `splits=` keyword on every
+    # `arc_to`, so the wrapper type has no class of its own to bind.
+    "Split": "PathPoint.arc_to",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
