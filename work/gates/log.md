@@ -1213,3 +1213,33 @@ prose separated into the vacated-path route (fixed here) and the
 live-directory route (the door exemption crate-granular by its
 argument, one live minting site under eleven files); PR 2171
 rewritten neutral with three shapes.
+
+## Landed: PR 2174 (2026-09-08)
+
+`record-file-column-read-by-first-colon-split` closed. A record is
+`FILE:LINE:TEXT` and FILE may carry a colon; `lib.sh` now says once
+where the FILE column ends (`GATE_RECORD_LINE_RE`, the `:LINE:` the
+reader emitted) and offers `gate_record_file` / `gate_record_text` and
+the awk `gate_record_split`, prepended through `ENVIRON`; the record
+prefix regex stays as an anchor and says it is not a parser. Every
+first-colon reading in the directory reads the columns that way now:
+the viewer gate's union key, the test-module resolver (a
+colon-carrying file's `#[cfg(test)] mod x;` is registered), two more
+`lib.sh` readers, `bounds-allowlist.sh`'s diagnosis column, and seven
+`index()`/`substr()` pairs in six gates the row's grep could not see —
+among them `panic-free-macro-bodies.sh`'s fence, under which a panic
+token in a macro body in a colon-carrying file was seen by nothing.
+All 21 gates byte-identical live; five mutations each red on the
+colon fixture at its site; `foo:12:bar.rs` registered once as the
+shape no reader of the record can resolve.
+Fix pass from the review: the awk snippet and its constant go in
+through one `gate_record_awk` wrapper at every site, and the split
+refuses an empty constant through the marker (planted in every gate's
+clean case); the bit-identity gate's colon fixture arrives through an
+env hook on its baked subject list, so no conversion is fixture-less;
+the reader-death refusal has one text (it was four spellings); a
+justification contradicting the comment below it corrected. Rider
+from PR 2170's review: the six gates that checked homes by path alone
+adopt `gate_selftest_homes --subject`, `register-equal-allowlist.sh`'s
+merged call split into one per subject, proved by swapping two
+subjects.
