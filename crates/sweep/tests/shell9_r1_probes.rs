@@ -20,7 +20,9 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ShellError, ShellRole};
 
-use super::shell7_common::{face_of_he, hollow_moves, point, polyline, tol, tube_torus, tube_torus_hollow};
+use super::shell7_common::{
+    face_of_he, hollow_moves, point, polyline, tol, tube_torus, tube_torus_hollow,
+};
 use super::shell8_common::{beside, cap, outer_and_void_of};
 use super::verbs_shell::{boxy, hollow_box, two_void_box, vessel};
 
@@ -65,7 +67,10 @@ fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
 
 /// `sf2b_axial`'s cone frustum.
 fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
-    polyline(&[(0.0, 0.0), (r0, 0.0), (r1, h), (0.0, h)], Revolution::Full)
+    polyline(
+        &[(0.0, 0.0), (r0, 0.0), (r1, h), (0.0, h)],
+        Revolution::Full,
+    )
 }
 
 /// A sphere of radius `r` authored as cocircular arcs meeting at the
@@ -75,7 +80,10 @@ fn multi_arc_sphere(r: f64, seams: &[f64]) -> Body<f64> {
     let mut angles = vec![-FRAC_PI_2];
     angles.extend_from_slice(seams);
     angles.push(FRAC_PI_2);
-    let pts: Vec<Point2<f64>> = angles.iter().map(|a| p2(r * a.cos(), r * a.sin())).collect();
+    let pts: Vec<Point2<f64>> = angles
+        .iter()
+        .map(|a| p2(r * a.cos(), r * a.sin()))
+        .collect();
     let mut verts = Vec::new();
     for i in 0..pts.len() - 1 {
         verts.push(ProfileVertex::new(pts[i], bulge(pts[i], pts[i + 1], c)));
@@ -130,7 +138,13 @@ fn dump_rows(label: &str, body: &Body<f64>) {
         let kind = body
             .get_face(face)
             .and_then(|f| body.get_surface(f.surface))
-            .map(|s| format!("{s:?}").split(['{', ' ']).next().unwrap_or("?").to_owned())
+            .map(|s| {
+                format!("{s:?}")
+                    .split(['{', ' '])
+                    .next()
+                    .unwrap_or("?")
+                    .to_owned()
+            })
             .unwrap_or_default();
         println!(
             "[r1rows] {label}: he {he:?} face {face:?} {kind} params {:?} pcurve {:?}",
@@ -139,7 +153,10 @@ fn dump_rows(label: &str, body: &Body<f64>) {
         );
     }
     let t3 = topo::validate_geometric(body, tol());
-    println!("[r1rows] {label}: {n} rows, tier3 {}", if t3.is_ok() { "Ok" } else { "Err" });
+    println!(
+        "[r1rows] {label}: {n} rows, tier3 {}",
+        if t3.is_ok() { "Ok" } else { "Err" }
+    );
 }
 
 fn dump_shelled(label: &str, body: &Body<f64>, t: f64, open: &[FaceKey]) -> Option<Body<f64>> {
@@ -165,15 +182,27 @@ fn r1_rows_corpus() {
     dump_rows("operand vase", &vase);
     dump_shelled("vase sealed", &vase, t, &[]);
     dump_shelled("vase opened top", &vase, t, &cap_at_y(&vase, 2.0));
-    dump_shelled("vase opened both", &vase, t, &[cap_at_y(&vase, 2.0), cap_at_y(&vase, 0.0)].concat());
+    dump_shelled(
+        "vase opened both",
+        &vase,
+        t,
+        &[cap_at_y(&vase, 2.0), cap_at_y(&vase, 0.0)].concat(),
+    );
     let frustum = cone_frustum(1.0, 0.6, 2.0);
     dump_shelled("frustum sealed", &frustum, t, &[]);
     dump_shelled("frustum opened wide", &frustum, t, &cap_at_y(&frustum, 0.0));
-    dump_shelled("frustum opened narrow", &frustum, t, &cap_at_y(&frustum, 2.0));
+    dump_shelled(
+        "frustum opened narrow",
+        &frustum,
+        t,
+        &cap_at_y(&frustum, 2.0),
+    );
     // SHELL-8's multi-solid bodies.
     let pair = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
     dump_shelled("box beside vessel sealed", &pair, 0.1, &[]);
-    let hollow_vessel = topo::shell(&vessel(1.0, 2.0), 0.1, tol()).expect("hollows").body;
+    let hollow_vessel = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
+        .expect("hollows")
+        .body;
     let pair_h = beside(&boxy(2.0, 3.0, 4.0), &hollow_vessel, 10.0);
     dump_rows("operand box beside hollow vessel", &pair_h);
     let vessel_solid = pair_h
@@ -184,7 +213,12 @@ fn r1_rows_corpus() {
     let (_, void) = outer_and_void_of(&pair_h, vessel_solid);
     let ceiling = cap(&pair_h, void, Vec3::new(0.0, 1.0, 0.0), 1.9);
     dump_shelled("box beside hollow vessel sealed", &pair_h, 0.02, &[]);
-    dump_shelled("box beside hollow vessel opened void ceiling", &pair_h, 0.02, &ceiling);
+    dump_shelled(
+        "box beside hollow vessel opened void ceiling",
+        &pair_h,
+        0.02,
+        &ceiling,
+    );
     // verbs_shell's hollow operands.
     let hb = hollow_box();
     dump_shelled("hollow box sealed", &hb, 0.05, &[]);
@@ -192,14 +226,44 @@ fn r1_rows_corpus() {
     dump_shelled("two-void box sealed", &two, gap_t / 2.0 * 0.75, &[]);
     // The torus family.
     dump_shelled("tube torus sealed", &tube_torus(2.0, 0.5), 0.05, &[]);
-    dump_shelled("tube torus hollow sealed", &tube_torus_hollow(2.0, 0.5, 0.2), 0.05, &[]);
-    dump_shelled("three-arc torus sealed", &n_arc_torus(2.0, 0.5, 3), 0.05, &[]);
+    dump_shelled(
+        "tube torus hollow sealed",
+        &tube_torus_hollow(2.0, 0.5, 0.2),
+        0.05,
+        &[],
+    );
+    dump_shelled(
+        "three-arc torus sealed",
+        &n_arc_torus(2.0, 0.5, 3),
+        0.05,
+        &[],
+    );
     // Sphere seam variants.
-    dump_shelled("one-arc sphere sealed", &multi_arc_sphere(1.0, &[]), 0.05, &[]);
+    dump_shelled(
+        "one-arc sphere sealed",
+        &multi_arc_sphere(1.0, &[]),
+        0.05,
+        &[],
+    );
     dump_shelled("two-arc sphere sealed", &two_arc_sphere(), 0.05, &[]);
-    dump_shelled("two-arc sphere seam -pi/4", &multi_arc_sphere(1.0, &[-PI / 4.0]), 0.05, &[]);
-    dump_shelled("two-arc sphere seam 0", &multi_arc_sphere(1.0, &[0.0]), 0.05, &[]);
-    dump_shelled("four-arc sphere", &multi_arc_sphere(1.0, &[-PI / 4.0, 0.0, PI / 4.0]), 0.05, &[]);
+    dump_shelled(
+        "two-arc sphere seam -pi/4",
+        &multi_arc_sphere(1.0, &[-PI / 4.0]),
+        0.05,
+        &[],
+    );
+    dump_shelled(
+        "two-arc sphere seam 0",
+        &multi_arc_sphere(1.0, &[0.0]),
+        0.05,
+        &[],
+    );
+    dump_shelled(
+        "four-arc sphere",
+        &multi_arc_sphere(1.0, &[-PI / 4.0, 0.0, PI / 4.0]),
+        0.05,
+        &[],
+    );
     // A vase whose belly is two cocircular arcs.
     let c = p2(0.0, 1.0);
     let m = p2(2.0f64.sqrt(), 1.0);
@@ -211,7 +275,12 @@ fn r1_rows_corpus() {
         ProfileVertex::new(p2(0.0, 2.0), 0.0),
     ]));
     dump_shelled("two-arc vase sealed", &two_arc_vase, t, &[]);
-    dump_shelled("two-arc vase opened top", &two_arc_vase, t, &cap_at_y(&two_arc_vase, 2.0));
+    dump_shelled(
+        "two-arc vase opened top",
+        &two_arc_vase,
+        t,
+        &cap_at_y(&two_arc_vase, 2.0),
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -224,7 +293,11 @@ fn zone(rho: f64, c: f64, a: f64, b: f64) -> f64 {
 }
 
 fn check_result(what: &str, body: &Body<f64>, want: f64, tol_abs: f64) {
-    assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "{what}: tier 3");
+    assert_eq!(
+        topo::validate_geometric(body, tol()),
+        Ok(()),
+        "{what}: tier 3"
+    );
     let roles = topo::classify_shells(body, tol()).expect("classifies");
     let outers = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
     let voids = roles.iter().filter(|c| c.role == ShellRole::Void).count();
@@ -263,14 +336,20 @@ fn r1_end_to_end() {
     for &(new, old) in &out.naming.inner_vertices {
         let p = point(&out.body, new);
         let n = (p.x * p.x + p.y * p.y + p.z * p.z).sqrt();
-        assert!((n - (r - t)).abs() <= 1e-15, "{old:?} -> {new:?} at radius {n}");
+        assert!(
+            (n - (r - t)).abs() <= 1e-15,
+            "{old:?} -> {new:?} at radius {n}"
+        );
     }
     assert_eq!(out.naming.inner_vertices.len(), sphere.vertices().count());
     let cavity = 4.0 / 3.0 * PI * (r - t).powi(3);
     println!(
         "[r1e2e] closed forms: cavity {cavity} (spec 3.591364001828733), thin solid {want} (spec 0.5974262029576595)"
     );
-    assert!((cavity - 3.591_364_001_828_733).abs() < 1e-14, "closed form re-derived: {cavity}");
+    assert!(
+        (cavity - 3.591_364_001_828_733).abs() < 1e-14,
+        "closed form re-derived: {cavity}"
+    );
     assert!((want - 0.597_426_202_957_659_5).abs() < 1e-15);
 
     // 2. The sphere-zone vase, hollowed then opened at its top cap.
@@ -295,7 +374,9 @@ fn r1_end_to_end() {
     assert_eq!(opened.naming.rims.len(), 1);
 
     // 3. SHELL-8: a box beside a hollow vessel, opened on the void ceiling.
-    let hv = topo::shell(&vessel(1.0, 2.0), 0.1, tol()).expect("the vessel hollows").body;
+    let hv = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
+        .expect("the vessel hollows")
+        .body;
     let pair = beside(&boxy(2.0, 3.0, 4.0), &hv, 10.0);
     let vessel_solid = pair
         .solids()
@@ -338,9 +419,16 @@ fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
 /// **The drum**: the reverted cavity alone, through `validate_geometric`.
 #[test]
 fn r1_drum_reverted_cavity_alone() {
-    let drum = polyline(&[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.5, 2.0), (0.0, 2.0)], Revolution::Full);
+    let drum = polyline(
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.5, 2.0), (0.0, 2.0)],
+        Revolution::Full,
+    );
     let cavity = door_cavity(&drum, 0.05);
-    assert_eq!(topo::validate_geometric(&cavity, tol()), Ok(()), "cavity tier 3");
+    assert_eq!(
+        topo::validate_geometric(&cavity, tol()),
+        Ok(()),
+        "cavity tier 3"
+    );
     let reverted = cavity.revert().expect("revert");
     let v = topo::validate_geometric(&reverted, tol());
     println!("[r1drum] reverted cavity alone: {v:?}");
@@ -358,11 +446,23 @@ fn r1_drum_reverted_cavity_alone() {
 #[test]
 fn r1_hunt_the_pcurve_arm() {
     let cases: Vec<(&str, Body<f64>, f64)> = vec![
-        ("four-arc sphere", multi_arc_sphere(1.0, &[-PI / 4.0, 0.0, PI / 4.0]), 0.05),
+        (
+            "four-arc sphere",
+            multi_arc_sphere(1.0, &[-PI / 4.0, 0.0, PI / 4.0]),
+            0.05,
+        ),
         ("three-arc torus", n_arc_torus(2.0, 0.5, 3), 0.05),
         ("five-arc torus", n_arc_torus(2.0, 0.5, 5), 0.05),
-        ("sphere seam near pole", multi_arc_sphere(1.0, &[FRAC_PI_2 - 0.05]), 0.02),
-        ("sphere seams both near poles", multi_arc_sphere(1.0, &[-FRAC_PI_2 + 0.05, FRAC_PI_2 - 0.05]), 0.02),
+        (
+            "sphere seam near pole",
+            multi_arc_sphere(1.0, &[FRAC_PI_2 - 0.05]),
+            0.02,
+        ),
+        (
+            "sphere seams both near poles",
+            multi_arc_sphere(1.0, &[-FRAC_PI_2 + 0.05, FRAC_PI_2 - 0.05]),
+            0.02,
+        ),
     ];
     for (name, body, t) in cases {
         let v = topo::validate_geometric(&body, tol());
@@ -376,6 +476,9 @@ fn r1_hunt_the_pcurve_arm() {
             ),
             Err(e) => println!("[r1hunt] {name}: operand tier3 {} -> Err {e}", v.is_ok()),
         }
-        assert!(!matches!(out, Err(ShellError::Pcurve { .. })), "{name}: the arm is reached");
+        assert!(
+            !matches!(out, Err(ShellError::Pcurve { .. })),
+            "{name}: the arm is reached"
+        );
     }
 }
