@@ -840,3 +840,115 @@ found — every other whole-file skip is a hand-escaped literal, none
 pinning the shape, none checking its home exists — is on the slate as
 `whole-file-skips-are-hand-spelled-not-anchored`, defined by its grep
 rather than a count.
+
+
+## Stall (2026-09-06 15:57 – 2026-09-08)
+
+The orchestrator session was suspended after PR 2065's merge with two
+PRs open and green: PR 2069 (fix pass landed, awaiting close) and
+PR 2077 (`gates/whole-file-skips`, reported and awaiting review). Both
+resumed on 2026-09-08; main moved by other programs' PRs in between,
+none touching `scripts/gates/*`.
+
+## PR 2077 opened (2026-09-06)
+
+`gates/whole-file-skips` reported: PR 2077
+(`whole-file-skips-are-hand-spelled-not-anchored`, conversion half).
+Thirteen literal skip lines naming eighteen homes in six gates now
+build their anchors with `gate_record_anchor`, each gate declaring its
+homes once for both the filter and the clean fixture, each clean
+fixture planting every home with the very use its gate forbids, each
+gate carrying the colon-path case; `gate-roster.sh`'s dot-only escape
+through `gate_ere_escape`. Seven gates byte-identical live; per gate,
+the literal restored reds at the colon case only and an over-narrow
+anchor reds the clean fixture. Two residues filed on this slate: the
+subject half (none of the six checks its home exists) and a live hole
+the sweep found — `bounds-allowlist.sh`'s per-file select cuts the
+FILE column at the first colon, so a compound bound at
+`boxes.rs:x.rs` rides `boxes.rs`'s ratification. A `lib.sh` change
+wanted and not made (the shared every-source-excluded planter assumes
+the clean tree holds only the two shared sources). Reviewer dispatched.
+## Landed: PR 2069 (2026-09-06)
+
+`debug-only-bit-witness-callers-are-on-no-row` closed.
+`bit-identity-debug-only.sh` has rows for the two caller files of the
+bit-channel witnesses — `boolean/plane_eq.rs` (`plane_bits_witness`,
+pin 1) and `merge_faces.rs` (`plane_bits_witness|vec3_bits_witness`,
+pin 2) — so dropping either statement-position attribute, which a
+consumer's release build refuses, is red here now; 15 subjects, 38
+spellings, 97 uses scanned. No caller of the witnesses exists outside
+`crates/topo/src`. The self-test runs each case once over all
+subjects, asserting per subject that a diagnosis names its path and
+the wanted text (spellings taken by index; `plant_subject_gone` stays
+per subject because `gate_require_file` stops at the first missing
+file): 110 s → 14 s, and a gate that stops at its first failing
+subject now reds where the per-subject form could not tell.
+Fix pass from the review: the fixtures header describes the loop that
+runs; no subject count in a comment; history out of the loop's
+comments; the pass twin names planter and spelling index; one shared
+run skeleton and one diagnosis matcher, the pin harness reading
+through it with both arms shown to fire; the substring assumption on
+subject paths proved by a distinctness guard before any case runs; the
+sweep's hit list completed (twelve files). Twelve mutations red.
+Follow-up stated for the exit walk: the all-subjects run skeleton is
+gate-agnostic and belongs in `lib.sh` beside `gate_selftest_case`.
+
+
+## PR 2077 reviewed (2026-09-08)
+
+Style review of `whole-file-skips-are-hand-spelled-not-anchored`:
+mergeable. The class grep (13 lines, 18 homes → none), the two-direction
+mutations on three gates, the seven-gate byte-identity, the roster
+escape's value identity and the `bounds-allowlist.sh` live hole all
+reproduced. One correction: "single source" holds mechanically only
+fixture→filter (an over-narrow anchor reds the clean fixture); a home
+dropped from the fixture but kept in the filter is green, which is the
+subject-half residue's job. Fix pass sent, and since `lib.sh` is free
+now it takes the two `lib.sh` items the PR had deferred: the
+every-source-excluded planter clears what the gate's clean fixture
+planted (the two local overrides deleted), and one
+`gate_record_anchor_any` replaces the four-copy alternation builder.
+Also: counts in OK lines derived from the arrays, the colon fixture
+over every home, `march.rs` read from the array, the roster comment
+trimmed, the residue row's "last one" given its grep, and a re-sweep
+over the two gates main gained since the branch.
+
+## Twelfth wave dispatched (2026-09-08)
+
+`gates/bounds-select-anchor`
+(`bounds-allowlist-select-cuts-at-the-first-colon` — the per-file
+select reads the FILE column the way the record prefix defines it
+rather than cutting at the first colon, with the fixture that a
+compound bound at `<entry>.rs:x.rs` fires while the entry stays exempt
+at its pin), from main, on the one gate no open PR touches. In fix
+pass: PR 2077 (with the `lib.sh` planter fix and the shared
+alternation builder folded in). Closing: PR 2069. Remaining after
+these: the subject-half residue
+(`whole-file-skips-do-not-check-their-subject`, on the six gates PR
+2077 holds) and `D212`, parked on `G4`.
+
+## Landed: PR 2077 (2026-09-08)
+
+`whole-file-skips-are-hand-spelled-not-anchored` closed (its conversion
+half; the subject half is its own row). Every whole-file skip in the
+directory builds its pattern with `gate_record_anchor` — twenty-six
+homes over seven gates, `register-equal-allowlist.sh` included after
+the re-sweep over the gates main gained (its two `_RE` variables were
+the class in the one spelling both greps miss, a literal assigned to a
+variable) — each gate declaring its homes once for the filter and the
+clean fixture, each clean fixture planting every home with the very
+use its gate forbids, each gate carrying the colon-path case over
+every home. `lib.sh` gained `gate_ere_alternation` and
+`gate_record_anchor_any` (refusing an empty list), and its
+every-source-excluded planter clears what the gate's clean fixture
+planted, so the two local overrides are gone and
+`panic-free-macro-bodies.sh` stays correct without one; the
+dot-only escape in `gate-roster.sh` reads `gate_ere_escape`. Per gate,
+the literal restored reds at the colon case only and an over-narrow
+anchor reds the clean fixture; live output byte-identical as a
+same-tree differential (one OK line now derives a count it used to
+spell). The single-source claim holds mechanically only
+fixture→filter; the other direction is
+`whole-file-skips-do-not-check-their-subject`'s job. Noted for the
+walk: `gated-suite-paths.sh` walks `.claude/worktrees/*` when lanes'
+worktrees sit inside the checkout, so it reds locally and not in CI.

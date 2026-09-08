@@ -2,10 +2,12 @@
 id: affine-lift-has-a-second-home-in-anchor-embed-affine
 kind: issue
 title: Affine3::map has a second home: editor-core's anchor::map_affine/embed_affine walk the twelve components again, and wire.rs:1132 is placement.map(T::from_f64) by another name
-status: spec
+status: closed
 opened: 2026-09-05
 refs: [1977]
 branch: eval/1-affine-lift
+pr: 2139
+closed: 2026-09-08
 ---
 
 The per-coordinate walk over an `Affine3` — twelve components through
@@ -43,3 +45,19 @@ for the owner of `editor-core/src/eval/` to place.
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/eval/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). `crates/editor-core/src/eval/anchor.rs` and `eval/wire.rs` are EVAL's ground; one lane with code-quality `D368` (the same file's hand-lifted `Vec3`).
+
+## Closed (2026-09-08, EVAL-1)
+
+`embed_affine` is deleted; its two callers (`wire.rs:1226` in
+`ProfileLift::Pinned`, `anchor.rs:281` in `embed_profile`) go through
+`SketchPlane::map(T::from_f64)` on the `SketchPlane<f64>` each already
+held. `map_affine` stays private with its one caller
+(`wire::pinned_plane`, the fallible lane → `f64` direction) and a doc
+that states the invariant: the kernel owns the infallible direction,
+this walk exists only until it offers a fallible one. That question
+is put to PROPS as
+`work/issues/affine3-try-map-the-fallible-walk-has-no-kernel-door.md`;
+`map_affine`'s retirement into it is
+`work/eval/map-affine-retires-into-affine3-try-map.md`, parked on that
+issue. `D368` closes with this unit by construction. Bit-identity of
+every golden held (the PR body has the receipt).
