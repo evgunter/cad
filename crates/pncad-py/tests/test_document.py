@@ -20,8 +20,11 @@ from pncad import (
     Frame,
     MeasureExpr,
     MeasurePrimitive,
+    DocParamValue,
     Node,
     Open,
+    ParamName,
+    PatternKind,
     SketchPlane,
     Start,
     evaluate,
@@ -951,3 +954,239 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         # that could carry a second one.
         self.assertFalse(hasattr(DocEdit, "set_expr_at"))
         self.assertEqual(len(doc.order()), 0)
+
+
+#: Every attribute an `EditError` carries, in publication order — the
+#: whole of the class's shape, and what "present on every arm" is a
+#: claim about.
+EDIT_ATTRS = (
+    "variant",
+    "inner_variant",
+    "node",
+    "input",
+    "referenced_by",
+    "slot",
+    "param",
+    "name",
+    "key",
+    "expected",
+    "found",
+    "kind",
+    "from_kind",
+    "to_kind",
+    "count",
+    "first",
+    "again",
+    "value",
+    "offered",
+    "determinant",
+    "path",
+    "value_path",
+    "pin",
+)
+
+
+class TestTheEditDoorsPayload(unittest.TestCase):
+    """The refusing arm's payload, off real edits.
+
+    The document layer's `EditError` has 58 arms and most have no
+    Python door — a rebind, a witness, an appearance write and an
+    expression-path edit are not among the ten `DocEdit` verbs. What
+    the rows below pin is the half a Python caller can provoke: the
+    payload arrives as attributes, the ids are the ids that were used,
+    and the words are stable words rather than prose sliced out of the
+    message. The arms with no door are pinned by construction in
+    `src/tests.rs`, where they can be built.
+    """
+
+    @staticmethod
+    def slab(doc, x, y, z):
+        x0, x1 = x
+        y0, y1 = y
+        z0, z1 = z
+        profile = doc.insert(
+            Node.polygon(
+                [(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+                plane=doc.sketch_frame(elevation=z0),
+            )
+        )
+        return doc.insert(Node.extrude(profile, z1 - z0))
+
+    def set_of(self, refusal):
+        """The attributes this refusal CARRIES, with the rest asserted
+        present and `None` — the two halves of the rule in one read."""
+        for attr in EDIT_ATTRS:
+            self.assertTrue(
+                hasattr(refusal, attr),
+                f"`{attr}` is missing from a {refusal.variant} refusal",
+            )
+        return {a for a in EDIT_ATTRS if getattr(refusal, a) is not None}
+
+    def test_the_two_node_roles_answer_with_the_ids_that_were_used(self):
+        # A delete that would dangle names BOTH ends: the node asked
+        # for, and the live node still reading it. They are different
+        # roles, so folding them into one attribute would lose which
+        # is which — and the pair is what a caller needs to build the
+        # cascade.
+        doc = Doc()
+        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        profile = doc.order()[1]
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.delete_node(profile))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "delete_would_dangle")
+        self.assertEqual(refusal.node, profile)
+        self.assertEqual(refusal.referenced_by, box)
+        self.assertEqual(self.set_of(refusal), {"variant", "node", "referenced_by"})
+
+    def test_a_foreign_id_arrives_under_the_role_the_door_read_it_in(self):
+        # The SAME id, refused at two doors, lands under two different
+        # attributes: as the target of a read (`node`) and as the
+        # unresolvable operand of an insert (`input`). The role is the
+        # answer, not the id.
+        doc = Doc()
+        self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        other = Doc()
+        for _ in range(4):
+            self.slab(other, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        stray = other.order()[-1]
+
+        with self.assertRaises(EditError) as read:
+            doc.node_kind(stray)
+        self.assertEqual(read.exception.variant, "unknown_node")
+        self.assertEqual(read.exception.node, stray)
+        self.assertIsNone(read.exception.input)
+        self.assertEqual(self.set_of(read.exception), {"variant", "node"})
+
+        with self.assertRaises(EditError) as written:
+            doc.insert(Node.extrude(stray, 1 * m))
+        self.assertEqual(written.exception.variant, "unresolved_input")
+        self.assertEqual(written.exception.input, stray)
+        self.assertIsNone(written.exception.node)
+        self.assertEqual(self.set_of(written.exception), {"variant", "input"})
+
+    def test_a_parameter_binding_names_the_node_the_slot_and_the_param(self):
+        # A slot is a NAME, never an index: `count` is the word, and it
+        # is the same word whichever door refused at it.
+        doc = Doc()
+        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        pattern = doc.insert(
+            Node.pattern(box, 3, PatternKind.linear((1.0, 0.0, 0.0), 2 * m))
+        )
+        with self.assertRaises(EditError) as unknown:
+            doc.apply(DocEdit.bind_count_param(pattern, ParamName("n")))
+        self.assertEqual(unknown.exception.variant, "unknown_doc_param")
+        self.assertEqual(unknown.exception.node, pattern)
+        self.assertEqual(unknown.exception.slot, "count")
+        self.assertEqual(unknown.exception.param, "n")
+        self.assertEqual(
+            self.set_of(unknown.exception), {"variant", "node", "slot", "param"}
+        )
+
+        # A node with no count slot at all refuses at the same door and
+        # names the slot it lacks.
+        with self.assertRaises(EditError) as absent:
+            doc.apply(DocEdit.bind_count_param(box, ParamName("n")))
+        self.assertEqual(absent.exception.variant, "unknown_slot")
+        self.assertEqual(absent.exception.slot, "count")
+        self.assertEqual(self.set_of(absent.exception), {"variant", "node", "slot"})
+
+    def test_the_dimension_pair_crosses_as_words_not_prose(self):
+        # `expected` and `found` are the dimension the door required
+        # and the one it was offered, in the alphabet `Expr.dimension`
+        # answers in — one pair however the kernel's arm spells it.
+        doc = Doc()
+        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        pattern = doc.insert(
+            Node.pattern(box, 3, PatternKind.linear((1.0, 0.0, 0.0), 2 * m))
+        )
+        doc.apply(DocEdit.set_doc_param(ParamName("len"), DocParam.length(1 * m)))
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.bind_count_param(pattern, ParamName("len")))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "doc_param_dimension_mismatch")
+        self.assertEqual(refusal.expected, "length")
+        self.assertEqual(refusal.found, "count")
+        self.assertEqual(
+            self.set_of(refusal),
+            {"variant", "node", "slot", "param", "expected", "found"},
+        )
+
+        # The value door's own mismatch spells the offered VALUE
+        # beside the declared dimension — an exact `int`, because a
+        # count is exact and rounding it into a float would be the
+        # fabrication this surface refuses elsewhere.
+        with self.assertRaises(EditError) as offered:
+            doc.apply(
+                DocEdit.set_doc_param_value(ParamName("len"), DocParamValue.count(3))
+            )
+        self.assertEqual(offered.exception.variant, "doc_param_value_kind_mismatch")
+        self.assertEqual(offered.exception.expected, "length")
+        self.assertEqual(offered.exception.offered, 3)
+        self.assertIsInstance(offered.exception.offered, int)
+        self.assertEqual(
+            self.set_of(offered.exception), {"variant", "param", "expected", "offered"}
+        )
+
+    def test_a_refused_scalar_and_a_root_pair_cross_as_themselves(self):
+        doc = Doc()
+        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        with self.assertRaises(EditError) as eps:
+            doc.apply(DocEdit.set_tolerance(-1.0))
+        self.assertEqual(eps.exception.variant, "invalid_tolerance")
+        self.assertEqual(eps.exception.value, -1.0)
+        self.assertEqual(self.set_of(eps.exception), {"variant", "value"})
+
+        # A root that is an ancestor of another root reads the same
+        # two node roles a dangling delete does: the offender, and the
+        # node downstream that references it. `variant` is the FAULT's
+        # word already, so `inner_variant` stays `None`.
+        pattern = doc.insert(
+            Node.pattern(box, 3, PatternKind.linear((1.0, 0.0, 0.0), 2 * m))
+        )
+        with self.assertRaises(EditError) as roots:
+            doc.apply(DocEdit.set_roots([box, pattern]))
+        self.assertEqual(roots.exception.variant, "root_ancestor")
+        self.assertEqual(roots.exception.node, box)
+        self.assertEqual(roots.exception.referenced_by, pattern)
+        self.assertIsNone(roots.exception.inner_variant)
+        self.assertEqual(
+            self.set_of(roots.exception), {"variant", "node", "referenced_by"}
+        )
+
+    def test_an_arm_with_no_payload_answers_none_all_the_way_down(self):
+        # The placement axis refuses with an inner word and NOTHING
+        # else: the axis it was given is not a document node, a slot
+        # or a name, so every payload attribute is present and `None`.
+        # `getattr` still answers, which is the whole point.
+        with self.assertRaises(EditError) as caught:
+            Frame.rotate_then_translate(
+                (0.0, 0.0, 0.0), 1 * rad, (0 * m, 0 * m, 0 * m)
+            )
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "placement_axis")
+        self.assertEqual(refusal.inner_variant, "degenerate_direction")
+        self.assertEqual(self.set_of(refusal), {"variant", "inner_variant"})
+
+    def test_the_declare_sugars_own_arms_carry_the_shape_and_no_payload(self):
+        # `DeclareError` is a second raise site of this class, and its
+        # own two arms hold no document-layer payload — so they answer
+        # `None` for all of it rather than dropping the attributes a
+        # caller reads without branching.
+        doc = Doc()
+        with self.assertRaises(EditError) as caught:
+            doc.declare_all([])
+        self.assertEqual(caught.exception.variant, "no_findings")
+        self.assertEqual(self.set_of(caught.exception), {"variant"})
+
+    def test_a_refusal_the_boundary_builds_has_the_same_shape(self):
+        # `Node.placed_union` refuses BEFORE the document layer sees
+        # the edit — the boundary decides it — and the exception is
+        # still one shape: every attribute present, `None` where this
+        # refusal carries nothing.
+        doc = Doc()
+        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        with self.assertRaises(EditError) as caught:
+            Node.placed_union(box, 3, PatternKind.explicit([]))
+        self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
+        self.assertEqual(self.set_of(caught.exception), {"variant"})
