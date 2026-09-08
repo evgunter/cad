@@ -302,10 +302,16 @@ fn r2_the_new_value_row_has_a_ceiling_of_its_own() {
         other => panic!("rounded_rect should lift value-equal: {other:?}"),
     }
 
-    let census = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/lift_census.rs"),
-    )
-    .expect("the lift census reads");
+    // Read through the shared lexer, per the reader ledger's rule: the
+    // needles are code plus one float literal, so this is the
+    // code-and-literals view and a commented-out ceiling answers for
+    // nothing.
+    let census = test_utils::source::code_and_literals(
+        &std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/lift_census.rs"),
+        )
+        .expect("the lift census reads"),
+    );
     assert!(
         census.contains("rounded_rect(4.0, 3.0, 0.5), Tol::witness()")
             && census.contains("worst_abs < 1e-14"),

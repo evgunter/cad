@@ -174,6 +174,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/profile/tests/r2_bool9_review_probes.rs",
+        disposition: Shared, // the value-equal row's ceiling is asserted to
+                             // EXIST in lift_census.rs, code+literal view
+    },
+    Entry {
         path: "crates/profile/tests/raw_door_census.rs",
         disposition: Shared, // production-writer census + the raw door's own
                              // gate, code+literal view
