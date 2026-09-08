@@ -1306,3 +1306,51 @@ disclosed-only: `session-start-hook-restates-ci-pins`,
 `seal-oracle-toolchain-read-first-match`,
 `pinned-version-named-in-present-tense-prose`,
 `python-suite-axis-skips-only-two-members`.
+
+## 2026-09-07 — F3 ruled: no post-merge run, and three rows close on it
+
+Ev, in chat: *"i'd be somewhat inclined to skip the post-merge run, just
+because i don't think anyone would actually check it"*, confirmed as the
+ruling. **F3 stands and the push job set is not restored.**
+
+This closes what the 2026-09-04 ruling left dangling. That one declined
+the push gate *in favour of* the merge queue; the queue turned out to be
+unavailable to a user-owned repository, so the decline had to be re-taken
+on its own terms, and it has been. The reason is a reader rather than a
+cost — minutes are free, and the objection is that a detector nobody
+reads is not a control.
+
+**The program had already produced the evidence for Ev's argument while
+the question was open**, which is worth recording because it is the
+strongest thing said on either side: `nightly-demotions-have-never-run`
+exists because three rows demoted to the nightly ran unattended for two
+nights and nobody looked. Their first reading was taken on 2026-09-06 by
+this orchestrator, going deliberately to the jobs API because an item
+told it to. A red push run would land in exactly that place.
+
+**Where the options table was arguing the wrong benefit, and this is the
+part that survives the ruling.** It prices *detection*. Both 2026-09-04
+instances were detected, quickly, by lanes tripping over a red `main` —
+F3's stated compensating control working as written. What they cost was
+**attribution**: 42 red runs on 20 branches, four innocent branches, and
+two agents diagnosing the same one-line break in the same hour, each
+paying the diagnosis independently because it is invisible from inside a
+single PR. A push run's value was never that someone would watch it; it
+was that the red would be attached to the merge that caused it.
+
+Opened as `inherited-red-is-not-attributed-to-its-merge`: not a gate,
+nothing on a green run, no watcher — it lands where a person is already
+looking, which is why it survives the ruling rather than being closed by
+it. It automates a convention that already exists by hand (Ev,
+2026-08-31: an inherited red does not block the merge but must be
+annotated with its issue, and the causing lane owes the fix), and it is
+opened with three unmeasured numbers named — the cost of reproducing on
+`main`'s tree, how much of the value the cheap "it is on the tip too"
+version buys, and whether the class fires often enough to be worth
+having. **Not dispatched until those are taken**; two samples in one day
+is not a rate.
+
+Closing three rows on one ruling tripped `work.py lint`'s fired-trigger
+error, exactly as designed — two rows parked on a trigger that had just
+closed. All three are this program's, so they close in the same PR,
+which is the case the rule's accepted cost (Ev, 2026-09-04) is about.
