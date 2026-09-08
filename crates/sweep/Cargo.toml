@@ -16,7 +16,16 @@ workspace = true
 # of the fixture and the copies drift (S52). Off by default and enabled
 # only through the self-dev-dependency below, so it is on exactly for
 # this crate's own tests and off for every normal build.
-test-support = []
+#
+# FORWARDS `profile/test-support`, and must: `src/test_support.rs` names
+# `profile::RawLoop` — a fixture door behind that crate's own test gate —
+# so a feature that turns this module on without turning that door on
+# does not stand alone. It did not, for one head: `cargo check -p verbs
+# --all-targets` (dev-dep `sweep/test-support`, plain `profile`) was red
+# with E0603 + 5×E0599, and the workspace was green only because
+# editor-core's dev-dep unified the missing feature into the same build
+# graph. A feature has to compile from the crates that name IT.
+test-support = ["profile/test-support"]
 # Forwards geom-core's certified interval scalar so the sweep operations
 # run at `Interval` — exercised by the feature-gated test files in CI's
 # interval lane.
