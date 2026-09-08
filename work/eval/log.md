@@ -268,3 +268,14 @@ NOTE-1):** two worktrees sharing one `CARGO_TARGET_DIR` resolve to one
 artifact hash and the second reads `Fresh` — a base-vs-head proof
 needs separate targets or a `touch`, and the printed package PATH is
 the confirmation, not the word `Compiling`.
+
+## EVAL-3 MERGED (2026-09-08, PR 2160, merge bb30d5a3f)
+
+Green on the merged head (the state-sync merge brought code from
+main under it, so it got its own run). `emit_blend` cites the kernel
+homes of its two arguments; three archaeology comments across the
+emitters state their invariants; `emit_chamfer` cites one-surgery-
+two-verbs. Both the unit item and the residue item are closed. Open
+residues from its review are in the previous entry (the reissue
+mechanism's home at `topo::Body`, TOPO's; the kernel's
+consumer-describing paragraph, BLEND's).
