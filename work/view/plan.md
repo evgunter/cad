@@ -131,7 +131,7 @@ should be visible on its own.
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
 | `view/censuses` (seven censuses in four hats, and an eighth) | #2103 | style + fix pass |
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
-| `view/summarised` (a summarised field renders as a summary) | — | dispatched 2026-09-07, Ev's ruling |
+| `view/summarised` (a summarised field renders as a summary) | #2148 | style — **in flight** |
 | `view/labelled` (two of the four bare vocabularies, and the corrected rule) | — | dispatched 2026-09-07, Ev's ruling |
 
 **Fifteen units on main. Two rules this wave earned**, both about
@@ -236,6 +236,15 @@ printing `OK` and exiting 0 over two planted breaches whenever its
 roster table was empty — a docs-tier edit away, and the #1953 class
 again. A style lane reads what the code says; only an adversarial one
 asks what it does when a reader dies.
+
+**A base worktree needs its OWN target dir, not the lane's.** The rule
+above says export `CARGO_TARGET_DIR` everywhere; #2148's lane did, and
+exported the SAME one in the throwaway base worktree it made to measure
+against — so the base build clobbered the lane's own test binaries. It
+caught this from a backtrace naming the base path, cleaned and
+re-measured, but the near-miss is the point: two trees sharing a target
+dir is the failure the private target dir exists to prevent, and a base
+worktree is a second tree. Dispatches say *its own target dir* now.
 
 **Operational, the box's `awk` is now gawk.** #2106's fix pass
 `apt-get install`ed gawk to test a regex on two implementations, and
