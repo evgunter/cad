@@ -31,9 +31,16 @@
 //!
 //! [`the_fixture_fills_the_head_block_the_header_declares`] lives here
 //! rather than beside one mounting site, so every binary that builds a
-//! row also checks it. That is the point: `name` is read by no rule
-//! and printed by no report, so the fixture's own test is the only
-//! thing in either root that can see its token.
+//! row also checks it. `name` is read by no rule and printed by no
+//! report, so **its token has exactly two readers in the tree, and
+//! they divide the way the mount does.** This file's test says the
+//! FIXTURE writes the token at the column the header names, and it
+//! runs in both binaries. `tess_lint`'s `parses_both_chart_shapes`
+//! says `parse` READS it back out of that column into `Row::name`,
+//! and being a `#[cfg(test)]` item it exists on the crate side only.
+//! Neither substitutes for the other — one never calls `parse`, the
+//! other never inspects the text — and the integration binary has
+//! only the first.
 
 use super::EXPECTED_HEADER;
 
@@ -96,24 +103,28 @@ fn column(name: &str) -> usize {
 /// The fixture's head block carries the values it declares, at the
 /// columns the header puts them in.
 ///
-/// **Width is loud without this and content is silent.** A row that
-/// loses a field fails the parse in whichever test reaches it first;
-/// a row that keeps its width and blanks a head token breaks nothing
-/// else, because `name` reaches no rule and no report and the one
-/// assertion over it compares this fixture's constant with itself.
-/// So this reads each head field by the header's index for its column
-/// — never by counting the literal, which is the thing under test —
-/// and says the sized row is named and the unsized row is not.
+/// **Width is loud without this; content is heard in two places and
+/// only one of them is here.** A row that loses a field fails the
+/// parse in whichever test reaches it first. A row that keeps its
+/// width and blanks a head token reaches exactly the two assertions
+/// that read the token: this one, and the crate-side
+/// `parses_both_chart_shapes`, which round-trips it through `parse`.
+/// This is the fixture-side half, and the only half the integration
+/// binary has: it reads each head field by the header's index for its
+/// column — never by counting the literal, which is the thing under
+/// test — and says the sized row is named and the unsized row is not.
 #[test]
 fn the_fixture_fills_the_head_block_the_header_declares() {
     let text = scene(100, 2.5e1);
-    let (header, body) = text
-        .split_once('\n')
-        .expect("the fixture has a header line");
-    assert_eq!(
-        header, EXPECTED_HEADER,
-        "the fixture's header is the crate's"
-    );
+    // The first line is not checked, and deliberately: `scene`
+    // interpolates `EXPECTED_HEADER` to build it, so asserting the two
+    // are equal would be asserting one expression against itself and
+    // could not fail — the crate's header can be rewritten wholesale
+    // and such a row stays green. What is typed out, and therefore
+    // what is under test, is everything BELOW that line: the width and
+    // head-field checks read the crate's header as the oracle and the
+    // row literals as the subject.
+    let rows: Vec<&str> = text.lines().skip(1).collect();
 
     // A name carrying a comma would split into two fields and every
     // measurement after it would be read one column to the left.
@@ -136,7 +147,6 @@ fn the_fixture_fills_the_head_block_the_header_declares() {
             ("chart", "nurbs"),
         ],
     ];
-    let rows: Vec<&str> = body.lines().collect();
     assert_eq!(rows.len(), want.len(), "the fixture is a two-face scene");
     for (row, head) in rows.iter().zip(want) {
         let field: Vec<&str> = row.split(',').collect();

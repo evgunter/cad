@@ -1765,10 +1765,13 @@ mod tests {
         let rows = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(rows.len(), 2);
         assert!(!rows[0].is_sized(), "a plane row carries no sizing");
-        // `name` is read by no rule, so the only thing that can catch
-        // [`parse`] reading it out of the wrong column is this: the
+        // `name` is read by no rule, so what catches [`parse`] reading
+        // it out of the wrong column is this and nothing else: the
         // header check pins where `name` SITS and says nothing about
-        // where its value lands.
+        // where its value lands. The fixture's own test is the other
+        // reader of the token and not a substitute for this one — it
+        // says the token was WRITTEN at the column the header names,
+        // without ever calling [`parse`]. This is the round trip.
         assert_eq!(
             (rows[0].name.as_str(), rows[1].name.as_str()),
             ("", FIXTURE_NAME),
@@ -1979,14 +1982,21 @@ mod tests {
 
     /// Sizing columns are all-or-nothing: a half-filled row means the
     /// sweep and the lint disagree about the schema.
+    ///
+    /// The row is the fixture with ONE sizing column blanked, not a
+    /// row typed out: a typed row carries the header's width as a
+    /// literal, so a column added to the schema makes it a SHORT row
+    /// and it reds on the field count instead of on the half-filled
+    /// block — right test, wrong reason. Counting from the header is
+    /// what [`unsized_row`] does for the same reason.
     #[test]
     fn a_half_filled_sizing_row_is_harness_breakage() {
-        let bad = format!(
-            "{EXPECTED_HEADER}\n\
-             s/b,1,,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,1e2,,5e1,\
-             2.5e1,1e-4,5e-5,99,2,1,0,3e0\n"
+        const BLANKED: usize = 1;
+        assert_eq!(
+            SIZING_COLUMNS[BLANKED].0, "patch_cells",
+            "the sizing block moved under this test"
         );
-        let e = parse(&bad).unwrap_err();
+        let e = parse(&with_column(BLANKED, "")).unwrap_err();
         assert!(e.text.contains("partially filled"), "{}", e.text);
     }
 
