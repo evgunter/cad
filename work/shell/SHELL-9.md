@@ -2,7 +2,7 @@
 id: SHELL-9
 kind: unit
 title: shell runs the closing pcurve mint — the void door transfers rows, the producer re-derives them
-status: spec
+status: dispatched
 opened: 2026-09-08
 branch: shell/9-closing-mint
 refs: [void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam, SHELL-7, SHELL-8]
