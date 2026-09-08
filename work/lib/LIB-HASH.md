@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/hash
 refs: [pncad-py-comparable-enums-do-not-hash]
+pr: 2242
 ---
 
 
