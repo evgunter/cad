@@ -776,3 +776,23 @@ slate: `nominal-environment-is-rebuilt-per-node-in-wire` (unit 10,
 below). Spec lesson recorded above: item 1 and claim 2 of the EVAL-9
 spec contradicted each other and the lane was right to keep the rule
 and change the proof.
+
+## Units 10 and 11 dispatched (2026-09-08)
+
+The two open items left on EVAL's own slate are both S and both this
+program's, so they land before the exit walk rather than being
+re-homed by it: `docs/EVAL-10-SPEC.md` (the evaluation's one nominal
+environment reaches `profile_plane_f64` and `section_of`; threading,
+no keying) and `docs/EVAL-11-SPEC.md` (`node_value_kind` reads a
+transform's family through its input — **announced seam to MSOLVE
+((MSOLVE orchestrator))**: the one caller line in `mate/member.rs`).
+In parallel on branches cut from main; unit 11's edit is one function
+and its caller, unit 10's is `wire.rs` and the pre-pass call site, so
+they should not meet. After these the slate is `D360` (standing),
+`map-affine-retires-into-affine3-try-map` (parked on PROPS's door) and
+`two-verb-seats-do-not-compose` (deferred with its ratification
+cited) — the exit shape the plan names. Lesson from EVAL-9's close: a
+lane's worktree is reclaimed only after its final report lands — the
+EVAL-9 lane was still polling when its worktree went and lost its
+shell for the last two housekeeping steps (nothing substantive was
+lost; the target had already been removed here).
