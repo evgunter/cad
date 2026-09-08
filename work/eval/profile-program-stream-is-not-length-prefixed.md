@@ -2,9 +2,10 @@
 id: profile-program-stream-is-not-length-prefixed
 kind: issue
 title: The profile node's program payload is not length-prefixed, so a resolved loop boundary reads the verb vocabulary beside the profile-payload words — where the lane opener and the Cusp verb are both 41
-status: spec
+status: review
 opened: 2026-09-08
 branch: eval/9-nominal-in-the-key
+pr: 2190
 ---
 
 (EVAL-2 implementer, found while declaring the content key's tag
@@ -49,3 +50,18 @@ a single vocabulary. That changes every profile-bearing key, so it is
 a key format bump (`tag::format::VERSION`) — free on disk (keys are
 process-internal) and a whole-memo invalidation once. EVAL-2 moved no
 number and no byte by its own acceptance, so the fix is not in it.
+
+## Closed
+
+EVAL-9 (PR 2190), riding the format bump the nominal feed needed
+anyway. Every list in the profile payload is length-prefixed — the
+loop count then, per loop, `LOOP_START`, the step count and the steps,
+in the resolved stream and the lane stream alike — and the resolved
+stream's presence is `tag::presence`'s word, since a loop count of `0`
+and the old `tag::program::NONE` would both be a single `0` at one
+position. The `Cusp` tip-state argument is kept at `tag::program`'s
+doc as the second, independent reason the boundary is
+single-vocabulary, beside the sentence that the payload's END is still
+read against the upstream-key count. Measured: the count words alone
+move 1245 corpus rows (249 per lane pass) — every profile node and its
+downstream cone.

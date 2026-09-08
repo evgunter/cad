@@ -2,10 +2,11 @@
 id: interval-content-key-hashes-bits-the-pre-pass-does-not-read
 kind: issue
 title: At Interval the content key hashes a slot's bounds while the profile precompute and the pinned op read its nominal f64, which the key does not hold
-status: spec
+status: review
 opened: 2026-09-08
 refs: [bracket-scope-is-run-op-not-the-node, 2176]
 branch: eval/9-nominal-in-the-key
+pr: 2190
 ---
 
 ## What
@@ -47,3 +48,16 @@ content-key format bump, `tag::format::VERSION`), so a nominal edit
 moves every key that reads the nominal. `content_key` is EVAL's; the
 slot hashing in `eval/memo.rs` is DOCM's, so the change crosses one
 announced seam. Not built in PR 2176; the orchestrator schedules it.
+
+## Closed
+
+EVAL-9 (PR 2190). Every slot feeds its nominal f64 — its expression
+evaluated in `doc.param_env::<f64>()`, one environment per evaluation
+— beside its bits at the evaluation scalar, under `tag::slot`'s word;
+`tag::format::VERSION` 6 -> 7. The probe is the row
+`a_nominal_edit_under_a_compensating_box_does_not_hit`
+(`crates/editor-core/tests/eval9_nominal_in_the_key.rs`), red at the
+merge base on the served plane (identity where the edited document's
+is `(0.894, 0.447, …)`) and green at the head, with the two
+neighbouring rows pinning that the box is still a real input.
+`eval/memo.rs` is untouched: the feed lives at the key.
