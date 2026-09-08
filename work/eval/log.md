@@ -555,3 +555,23 @@ gather. Item closed; residue on EVAL's slate:
 `denotes_body` read-through and MSOLVE's remaining index-space
 account are filed on their slates. EVAL-7's state-sync merged this
 in before its own run.
+
+## EVAL-7 fix pass green; state-sync pushed (2026-09-08, PR 2176)
+
+Fix pass `7e7bb8361`: the hit-site argument made true (a `Verdict` is
+`(predicate, sign)`; the key fixes what the pre-pass decides from at
+f64) with the Interval hole named and filed
+(`interval-content-key-hashes-bits-the-pre-pass-does-not-read`,
+scheduled as unit 9); the guard a full `assert!` with a should-panic
+row; the pre-op rows told apart (the D4 door refuses before
+`eval_node`; a new `Expr`-refusal row is the frame-open-no-decision
+case); the doubling stated at the Pinned arm and in `vdiff`'s doc
+with the fix scheduled as unit 8; the m4 golden rule corrected; the
+band formula through `Band::linear`. Declined: the inner-`Result`
+refactor of the nine `fail(bracket, ..)` sites (small diff kept, each
+refusal finishing at its own line). State-sync merged main (with
+EVAL-6) and runs once more before the merge. **Process note:** a
+persisted `cd` from one Bash call put the next call's log append into
+the lane's worktree as a stray commit — caught before it was pushed
+(the lane's branch was reset to its pushed head; the entry re-made
+here). Every orchestrator command now starts with an absolute `cd`.
