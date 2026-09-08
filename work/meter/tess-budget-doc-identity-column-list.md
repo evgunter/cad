@@ -8,10 +8,13 @@ opened: 2026-09-07
 
 
 Disclosed by METER unit 1 (`D213`/`D214`, branch
-`meter/d213-d214-sizing-block`). `docs/TESS-BUDGET.md` is held by
-unit 2 for the whole of this wave, so the edit is not this lane's to
-make; the file it would land in is one item's, and two lanes editing
-it is the merge conflict `work/README.md` designs for.
+`meter/d213-d214-sizing-block`). It was filed because unit 2 held
+`docs/TESS-BUDGET.md` for the wave; **unit 2 has since merged, so that
+reason has expired and the file is free.** What still keeps the edit
+out of unit 1 is the fence: `D213`'s is `scripts/gates/` less two,
+`tools/` and `docs/K-REPORT.md`, and `docs/TESS-BUDGET.md` is in
+none of them. The item is schedulable now by whoever takes the
+document next.
 
 `tess_lint::IDENTITY_COLUMNS` lost its `"the sizing block"` entry in
 that unit: with `parse` now refusing either half of the lane pairing
