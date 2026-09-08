@@ -217,3 +217,20 @@ prose goes with the arm (closing
 `Tolerance.k`'s doc gains the one sentence (PROPS' file; announced in
 `work/props/log.md`). E-shaped; single style review. Runs beside unit
 1's fix pass and unit 4.
+
+**Unit 4 landed (2026-09-08)** on PR [#2129](https://github.com/evgunter/cad/pull/2129),
+head `b0cbd30d`, green on the full matrix (a first run red on the
+bounds census: the new single-key door was generic over `Bounds` and
+owed a roster line; made `f64`, no interval caller needs the shape).
+No tolerance chosen and no `1e-9` moved: `closed_plane_sphere_rim`
+(`1e-6`) retired, seven test copies deleted onto
+`arcs_at`/`rim_arcs_at`/`one_edge_rim_at`, the lily probe's `5e-4`
+was pure slack (station-keyed at `1e-9` now), the teapot's `1e-12`
+converged with its reason. The tour keeps its own scans: measured, a
+`test-support` dev-dependency links that rlib into the demo binary,
+and the demo's scan is evidence about the API (no public way to name
+a rim by geometry — `rim_of` takes a seed edge; that half is this
+item's own text and the names vocabulary, no new file). One call
+site in `crates/verbs/tests/param_flow.rs` (EVAL's) retargeted —
+announced to EVAL at merge. Style review dispatched on the frozen
+head. Unit 1's fix pass runs beside it.
