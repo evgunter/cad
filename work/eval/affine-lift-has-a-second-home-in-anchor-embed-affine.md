@@ -2,11 +2,12 @@
 id: affine-lift-has-a-second-home-in-anchor-embed-affine
 kind: issue
 title: Affine3::map has a second home: editor-core's anchor::map_affine/embed_affine walk the twelve components again, and wire.rs:1132 is placement.map(T::from_f64) by another name
-status: review
+status: closed
 opened: 2026-09-05
 refs: [1977]
 branch: eval/1-affine-lift
 pr: 2139
+closed: 2026-09-08
 ---
 
 The per-coordinate walk over an `Affine3` — twelve components through
