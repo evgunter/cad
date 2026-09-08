@@ -2,11 +2,12 @@
 id: whole-file-skips-do-not-check-their-subject
 kind: issue
 title: the converted whole-file skips still do not check that the files they exempt exist
-status: review
+status: closed
 branch: gates/skip-subject-check
 pr: 2156
 opened: 2026-09-06
 refs: [whole-file-skips-are-hand-spelled-not-anchored]
+closed: 2026-09-06
 ---
 
 ## Finding
