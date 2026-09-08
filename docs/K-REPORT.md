@@ -2115,8 +2115,8 @@ above still holds.
 | `positive` | 0 | — |
 | `indeterminate` / `invalid` | **0** | — |
 
-Two populations ~15 decades apart with nothing between them, which is
-the shape `geom-brep/tests/rim_dim_scale_twins.rs` pins. `zero` is the
+Two populations 15.8 decades apart with nothing between them. `zero` is
+the
 ordinary case rather than the exceptional one: a sphere face whose
 meridian arc *ends* at a pole reads the chord from the pole direction
 to the nearer span end as zero, and most of this corpus's sphere faces
@@ -2134,8 +2134,8 @@ this report's own M10 addendum refuses to do.
 ### The reading that is the point of this addendum
 
 `props_meridian_pole` is decided at two doors with two dispositions.
-[`require_one_chart_branch`] REFUSES on a definite `Positive`.
-[`sphere_meridian_span_levels`] **FOLDS**: everything but a definite
+`require_one_chart_branch` REFUSES on a definite `Positive`.
+`sphere_meridian_span_levels` **FOLDS**: everything but a definite
 `Negative` — `Positive`, `Zero` and *the indeterminate band alike* —
 pushes the pole latitude into the face's extent. The decide still
 records, so an in-band sample here reaches this report through the
@@ -2177,14 +2177,27 @@ escalate, that test goes red before this section goes stale.
 
 ### The re-shaped rim margins, measured
 
-`level_coincides`' metric is the direction chord for both recording
-channels, and a chord is nonnegative by construction — so these
-populations have no `negative` arm at this tip.
+**Attribution first, because the comparand spans more than one PR.**
+The last committed era is M7 (2026-08-07) and CERT-1 merged on
+2026-08-29, so a fresh-versus-M7 delta on these two names is the sum of
+everything between. Only `props_meridian_pole` is wholly CERT-1's — the
+name did not exist before it. Of the rim movements below, the missing
+`negative` arm is **not** CERT-1's: `level_coincides`' metric is the
+direction chord for both recording channels and a chord is nonnegative
+by construction, which is S81's unification of the two sites onto one
+rule. What is CERT-1's is the sphere arm's second component, and the
+near-zero cluster that follows from it.
 
 | name | samples (1e-9) | shape |
 | --- | --: | --- |
 | `props_rim_level` | 790 | all `zero`; 492 bitwise 0, 298 residuals, largest **1.24127e-15 m** |
 | `props_rim_level_group` | 306 | 262 `positive` (smallest \|m\| **1.90693e-2 m**), 44 `zero`, every one bitwise 0 |
+
+`geom-brep/tests/rim_dim_scale_twins.rs`'s
+`mm_scale_sphere_rim_level_margin_is_the_direction_chord` is where the
+chord and this two-population shape — *"two honest populations and
+NOTHING in the ambiguity band"* — are pinned executably, at two model
+scales.
 
 **The near-zero cluster is the expected consequence of the re-shaping,
 not a regression.** A sphere rim sitting at its own extreme used to
@@ -2218,9 +2231,14 @@ Both constants' witnesses are **pointwise identical** between
 
 (The 8.9% headroom quoted at `EPS_COUPLED_FLOOR_RATIO` is 164.674 at
 the 1e-9 row, unchanged.) The definite side's other floor-adjacent
-names are unchanged too, and the two sub-1e-16 definite margins
-(`canonical_order_x`, `split_join_order_u`) carry tie-break bands below
-`AMBIENT_BAND_MIN` and are outside every rule, exactly as at M7.
+names are unchanged too. The two sub-1e-16 definite margins
+(`canonical_order_x` 4.16334e-17, `split_join_order_u` 5.55112e-17) do
+move — `canonical_order_x` was 2.22045e-16 at M7 — and neither is a
+threshold's witness: both record `band_zero = 5e-324`, below
+`AMBIENT_BAND_MIN`, so rules 2, 3 and 4 do not reach them at all. That
+is the tie-break family `threshold_provenance.rs` covers separately,
+and it is why the definite-side floor is read off `volume_backstop`
+rather than off the smallest margin in the file.
 
 **Disposition of `docs/k-report-data/`: no new file.** Its rule 1 cuts
 a new era when the *distribution* moves — a new floor, a filled gap, an
@@ -2245,9 +2263,10 @@ out**. The 13 are the six pooled sector spellings (#652), the two
 names and the two `revolve_axis_*_in_plane` names. `props_meridian_pole`
 is **one** of the 59 — the census note's running chain above stops at a
 predicted 232 and is superseded here by a count, not continued by more
-arithmetic. The M2-era instrument's own population (`crates/sweep/tests/k_report.rs`,
-ten M2 acceptance shapes, ridden beside the linted CSV)
-reads 17 470 samples over 110 names at this tip, of which 24 are
+arithmetic. The M2-era instrument's own population
+(`crates/sweep/tests/k_report.rs`, ten M2 acceptance shapes, ridden
+beside the linted CSV) reads 17 470 samples over 110 names at this tip,
+of which 24 are
 `props_meridian_pole`, all `zero`.
 
 **Nothing above re-cuts a committed row and nothing above rewrites a
