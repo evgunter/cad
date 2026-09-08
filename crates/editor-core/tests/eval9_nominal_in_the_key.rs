@@ -1,19 +1,23 @@
 //! **The nominal is an input to the key** — the rows for the rule at
-//! `eval::tag::slot`: a frame node's slot values are fixed at the
-//! evaluation scalar AND at the document's nominal f64, because the
-//! profile pre-pass and the pinned op read the nominal whatever the
+//! `eval::tag::slot`: a node's slot values are fixed at the evaluation
+//! scalar AND at the document's nominal f64, because the profile
+//! pre-pass and the pinned lift read the nominal whatever the
 //! evaluation scalar is.
 //!
 //! At `Interval` the bounds do not determine the nominal — a value
 //! edit under a compensating box leaves `(lo, hi, dec)` equal — so
 //! without the nominal in the key the second evaluation below hits the
 //! memo and serves a profile placed on the FIRST nominal's plane.
-//! Every row here is about that: the edit recomputes, the served
-//! plane is the cold run's, and the two neighbouring cases (same
-//! nominal under a different box; same nominal under the same box)
-//! still key the way a box being a real input says they should.
+//! Every interval row here is about that: the edit recomputes, the
+//! served plane is the cold run's, and the two neighbouring cases
+//! (same nominal under a different box; the same value re-applied
+//! under the same box) still key the way a box being a real input says
+//! they should.
+//!
+//! The last row is lane-free and runs in every build: a slot that
+//! refuses at the nominal refuses its NODE, typed, which is why the
+//! key has no word for an unreadable nominal.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -23,10 +27,10 @@ use crate::fixture;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    CancelToken, ContentKey, Datum, Dimension, DocEdit, DocParam, DocParamValue, EvalOptions,
-    Evaluation, Expr, Node, ParamName, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
+    Axis3, CancelToken, Datum, Dimension, DocEdit, DocParam, EvalOptions, Expr, Node,
+    NodeErrorKind, NodeResult, ParamName, ProfileDoc, RecipeNodeId, SlotId, evaluate,
 };
-use geom_core::{Interval, Tol};
+use geom_core::Tol;
 
 /// The frame is node 0 and the profile drawn on it node 1, in that
 /// insertion order.
@@ -38,10 +42,11 @@ fn p() -> ParamName {
 }
 
 /// The probe's document: `p` a scalar parameter at `nominal`, a frame
-/// whose first in-plane direction is `u = [1, p, 0]`, and a square
-/// profile drawn on it. The profile's own program holds no parameter,
-/// so everything that moves in these rows moves through the frame.
-fn doc_at(nominal: f64) -> ProfileDoc {
+/// whose first in-plane direction has `u_y` built by `u_y_of`, and a
+/// square profile drawn on it. The profile's own program holds no
+/// parameter, so everything that moves in these rows moves through the
+/// frame.
+fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("eval9_nominal_in_the_key", Tol::witness());
     let doc = doc
         .apply(
@@ -60,7 +65,7 @@ fn doc_at(nominal: f64) -> ProfileDoc {
                     origin: [fixture::len(0.0), fixture::len(0.0), fixture::len(0.0)],
                     u: [
                         fixture::scl(1.0),
-                        Expr::param(p(), Dimension::Scalar),
+                        u_y_of(Expr::param(p(), Dimension::Scalar)),
                         fixture::scl(0.0),
                     ],
                     v: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
@@ -80,17 +85,9 @@ fn doc_at(nominal: f64) -> ProfileDoc {
     .doc
 }
 
-/// The same document with `p`'s nominal moved — the edit under test.
-fn set_p(doc: &ProfileDoc, value: f64) -> ProfileDoc {
-    doc.apply(
-        &DocEdit::SetDocParamValue {
-            name: p(),
-            value: DocParamValue::Continuous(value),
-        },
-        Tol::witness(),
-    )
-    .expect("the value edit applies")
-    .doc
+/// `u = [1, p, 0]` — the probe's frame.
+fn doc_at(nominal: f64) -> ProfileDoc {
+    doc_with(nominal, |param| param)
 }
 
 /// A one-axis box: `p ∈ nominal + [lo, hi]`.
@@ -100,110 +97,200 @@ fn box_of(lo: f64, hi: f64) -> Arc<ParamBox> {
     Arc::new(ParamBox::from_axes(axes))
 }
 
-fn run(
-    doc: &ProfileDoc,
-    prior: Option<&Evaluation<Interval>>,
-    box_: &Arc<ParamBox>,
-) -> Evaluation<Interval> {
-    let opts = EvalOptions {
+fn boxed(box_: &Arc<ParamBox>) -> EvalOptions {
+    EvalOptions {
         param_box: Some(Arc::clone(box_)),
         ..EvalOptions::default()
+    }
+}
+
+/// **The rows that need a widened lane**, whose whole point is that
+/// the interval bits agree while the nominals do not. Gated as one
+/// module rather than row by row: a `#[cfg]` on a bare helper is a
+/// block gate, and the interval legs run only the tests the feature
+/// adds (`scripts/check-interval-cfg-additive.py`).
+#[cfg(feature = "interval")]
+mod over_a_param_box {
+    use super::{FRAME, PROFILE, box_of, boxed, doc_at, p};
+
+    use std::sync::Arc;
+
+    use editor_core::analysis::ParamBox;
+    use editor_core::{
+        CancelToken, ContentKey, DocEdit, DocParamValue, Evaluation, ProfileDoc, ValuePayload,
+        evaluate,
     };
-    evaluate::<Interval>(doc, prior, &CancelToken::new(), &opts, Tol::witness())
+    use geom_core::{Bounds, Interval, Tol};
+
+    /// The same document with `p`'s value re-applied — the edit under
+    /// test. `SetDocParamValue` is a value-only edit, so applying the
+    /// value the document already carries is a real edit that moves no
+    /// nominal.
+    fn set_p(doc: &ProfileDoc, value: f64) -> ProfileDoc {
+        doc.apply(
+            &DocEdit::SetDocParamValue {
+                name: p(),
+                value: DocParamValue::Continuous(value),
+            },
+            Tol::witness(),
+        )
+        .expect("the value edit applies")
+        .doc
+    }
+
+    fn run(
+        doc: &ProfileDoc,
+        prior: Option<&Evaluation<Interval>>,
+        box_: &Arc<ParamBox>,
+    ) -> Evaluation<Interval> {
+        evaluate::<Interval>(
+            doc,
+            prior,
+            &CancelToken::new(),
+            &boxed(box_),
+            Tol::witness(),
+        )
+    }
+
+    /// The profile's placement, as BITS: the pinned lift embeds the f64
+    /// plane whole, so these twelve enclosures are what the pre-pass read.
+    /// Read through the public accessors and compared by bits, which is
+    /// stricter than `==` on an interval and is the comparison these rows
+    /// mean.
+    fn plane_bits(ev: &Evaluation<Interval>) -> Vec<(u64, u64)> {
+        let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("the profile evaluates").payload
+        else {
+            panic!("a profile value");
+        };
+        let a = pv.validated.plane().placement;
+        let cols = [a.linear.c0, a.linear.c1, a.linear.c2, a.translation];
+        cols.iter()
+            .flat_map(|c| [c.x, c.y, c.z])
+            .map(|v: Interval| (v.lo().to_bits(), v.hi().to_bits()))
+            .collect()
+    }
+
+    fn keys(ev: &Evaluation<Interval>) -> (ContentKey, ContentKey) {
+        (
+            ev.value(FRAME).expect("the frame evaluates").content_key,
+            ev.value(PROFILE)
+                .expect("the profile evaluates")
+                .content_key,
+        )
+    }
+
+    /// **The hole, closed.**
+    ///
+    /// `p = 0` over `[-0.25, 0.25]`, then `p = 0.5` over `[-0.75, -0.25]`:
+    /// the two boxes bind the SAME interval for `p`, so every bit the lane
+    /// feed writes is equal, while the nominal — the value the pre-pass
+    /// resolves the plane at and the pinned lift embeds — moved from `0`
+    /// to `0.5`. The prior must not be served: the frame's key moves, the
+    /// profile's moves with it, the second run recomputes both, and the
+    /// plane it reports is the plane a cold run of the edited document
+    /// reports rather than the identity the prior held.
+    #[test]
+    fn a_nominal_edit_under_a_compensating_box_does_not_hit() {
+        let first = doc_at(0.0);
+        let prior = run(&first, None, &box_of(-0.25, 0.25));
+
+        let edited = set_p(&first, 0.5);
+        let narrow = box_of(-0.75, -0.25);
+        let hit = run(&edited, Some(&prior), &narrow);
+        let cold = run(&edited, None, &narrow);
+
+        // The plane really does move between the two nominals - `u` is
+        // the x axis at `p = 0` and normalized (1, 0.5, 0) at `p = 0.5` -
+        // so the row below is not vacuous.
+        assert_ne!(
+            plane_bits(&prior),
+            plane_bits(&cold),
+            "the two nominals are two planes"
+        );
+        // The harm: what the second evaluation reports as the
+        // profile's placement.
+        assert_eq!(
+            plane_bits(&hit),
+            plane_bits(&cold),
+            "the served profile is placed on the edited nominal's plane"
+        );
+        // And the mechanism: the nominal is in the key, so nothing of the
+        // edited document is served from the prior at all.
+        assert_eq!(
+            hit.recomputed, cold.recomputed,
+            "the edited document recomputes as much with the prior as without it"
+        );
+        assert_ne!(
+            keys(&prior),
+            keys(&hit),
+            "the keys must move with the nominal"
+        );
+    }
+
+    /// **The box is a real input, and the nominal did not swallow it.**
+    /// The document is EDITED in both halves — `SetDocParamValue` applying
+    /// the value it already carries — so each half is a prior served (or
+    /// refused) across a real edit rather than a re-run of one document.
+    #[test]
+    fn the_box_still_decides_a_hit_at_one_nominal() {
+        let doc = doc_at(0.25);
+        let narrow = box_of(-0.1, 0.1);
+        let prior = run(&doc, None, &narrow);
+        let edited = set_p(&doc, 0.25);
+
+        let widened = run(&edited, Some(&prior), &box_of(-0.2, 0.2));
+        assert_ne!(
+            keys(&prior),
+            keys(&widened),
+            "a widened box is a different evaluation of the same nominal"
+        );
+        assert_eq!(widened.reused, 0, "nothing may be served across a box edit");
+
+        let again = run(&edited, Some(&prior), &narrow);
+        assert_eq!(keys(&prior), keys(&again));
+        assert_eq!(
+            again.recomputed, 0,
+            "the same nominal under the same box is the memo's own case"
+        );
+        assert_eq!(again.reused, edited.len());
+    }
 }
 
-/// The profile's placement, as the value carries it: the pinned lift
-/// embeds the f64 plane whole, so this IS what the pre-pass read.
-/// Rendered, because the comparison wanted here is "the same twelve
-/// numbers", which is what `Debug` on the placement prints.
-fn plane_of(ev: &Evaluation<Interval>) -> String {
-    let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("the profile evaluates").payload
-    else {
-        panic!("a profile value");
-    };
-    format!("{:?}", pv.validated.plane().placement)
-}
-
-fn keys(ev: &Evaluation<Interval>) -> (ContentKey, ContentKey) {
-    (
-        ev.value(FRAME).expect("the frame evaluates").content_key,
-        ev.value(PROFILE)
-            .expect("the profile evaluates")
-            .content_key,
-    )
-}
-
-/// **The hole, closed** (EVAL-7's review probe).
+/// **A slot that refuses at the nominal refuses its node, typed** —
+/// which is why `tag::slot` has no word for an unreadable nominal.
 ///
-/// `p = 0` over `[-0.25, 0.25]`, then `p = 0.5` over `[-0.75, -0.25]`:
-/// the two boxes bind the SAME interval for `p`, so every bit the lane
-/// feed writes is equal, while the nominal — the value the pre-pass
-/// resolves the plane at and the pinned op embeds — moved from `0` to
-/// `0.5`. The prior must not be served: the frame's key moves, the
-/// profile's moves with it, the second run recomputes both, and the
-/// plane it reports is the plane a cold run of the edited document
-/// reports rather than the identity the prior held.
+/// The box is DEGENERATE at a non-zero offset, the one shape `f64`
+/// admits (`f64::axis` accepts `lo == hi` by bits and binds
+/// `nominal + c`), so the lane and the nominal genuinely disagree at
+/// f64: `u_y = 1 / p` with `p` at nominal `0` evaluates to `0.5` at
+/// the lane's `p = 2` and refuses non-finite at the nominal. The frame
+/// names the slot it refused at, and the profile downstream is
+/// poisoned through it.
 #[test]
-fn a_nominal_edit_under_a_compensating_box_does_not_hit() {
-    let first = doc_at(0.0);
-    let prior = run(&first, None, &box_of(-0.25, 0.25));
-
-    let edited = set_p(&first, 0.5);
-    let narrow = box_of(-0.75, -0.25);
-    let hit = run(&edited, Some(&prior), &narrow);
-    let cold = run(&edited, None, &narrow);
-
-    // The plane really does move between the two nominals - `u` is
-    // the x axis at `p = 0` and normalized (1, 0.5, 0) at `p = 0.5` -
-    // so the row below is not vacuous.
-    assert_ne!(
-        plane_of(&prior),
-        plane_of(&cold),
-        "the two nominals are two planes"
+fn a_slot_that_refuses_at_the_nominal_refuses_its_node() {
+    let doc = doc_with(0.0, |param| {
+        Expr::div(fixture::scl(1.0), param).expect("scalar over scalar")
+    });
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &boxed(&box_of(2.0, 2.0)),
+        Tol::witness(),
     );
-    // The harm: what the second evaluation reports as the
-    // profile's placement.
-    assert_eq!(
-        plane_of(&hit),
-        plane_of(&cold),
-        "the served profile is placed on the edited nominal's plane"
-    );
-    // And the mechanism: the nominal is in the key, so nothing of the
-    // edited document is served from the prior at all.
-    assert_eq!(
-        hit.recomputed, cold.recomputed,
-        "the edited document recomputes as much with the prior as without it"
-    );
-    assert_ne!(
-        keys(&prior),
-        keys(&hit),
-        "the keys must move with the nominal"
-    );
-}
-
-/// **The box is a real input, and the nominal did not swallow it**:
-/// the same document under a DIFFERENT box does not hit, and under the
-/// same box it does.
-#[test]
-fn the_box_still_decides_a_hit_at_one_nominal() {
-    let doc = doc_at(0.25);
-    let prior = run(&doc, None, &box_of(-0.1, 0.1));
-
-    let widened = run(&doc, Some(&prior), &box_of(-0.2, 0.2));
-    assert_ne!(
-        keys(&prior),
-        keys(&widened),
-        "a widened box is a different evaluation of the same nominal"
-    );
-    assert_eq!(widened.reused, 0, "nothing may be served across a box edit");
-
-    let again = run(&doc, Some(&prior), &box_of(-0.1, 0.1));
-    assert_eq!(keys(&prior), keys(&again));
-    assert_eq!(
-        again.recomputed, 0,
-        "the same nominal under the same box is the memo's own case"
-    );
-    assert_eq!(again.reused, doc.len());
+    match ev.nodes.get(&FRAME) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::Expr { slot, .. } => {
+                assert_eq!(*slot, SlotId::U(Axis3::Y), "the refusing slot is named");
+            }
+            other => panic!("expected a typed expression refusal, got {other:?}"),
+        },
+        other => panic!("expected the frame to refuse, got {other:?}"),
+    }
+    assert!(matches!(
+        ev.nodes.get(&PROFILE),
+        Some(NodeResult::Poisoned { through }) if *through == FRAME
+    ));
 }
 
 /// The document's own shape, so the rows above are about the key and
