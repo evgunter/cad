@@ -304,3 +304,20 @@ build-slot mutex, no away channel; lanes are worktrees under
 `/home/user/shell-lanes/<lane>/` with private targets beside them,
 one heavy cargo job at a time, hosted CI the gate. No lane exists
 yet; nothing is dispatched by this entry.
+
+## SHELL-5 cut and dispatched (2026-09-08)
+
+The hollow operand, the plan's next unit: spec `docs/SHELL-5-SPEC.md`,
+branch `shell/5-hollow-operand`, block SHELL-B1 slot 2 (the arm is in
+the branch-side record). Pre-draw fields M / STRUCTURAL, logged after
+the block byte — disclosed on the item. The design decision the spec
+binds, made here: the moved clone goes through `insert_void` WHOLE
+(every clone shell is strictly inside the material, which is what the
+reach decides and the planar gate establish), and a new ownership
+re-partition op beside `movefac` moves each operand void and its
+dilated twin into a new solid, paired STRUCTURALLY off the graft map —
+no classification, no probe. Rejected: teaching `insert_void` to mint
+solids (S-BOOL's door, and its contract is "no new solid"), and a
+containment-classified distribution (a probe where the construction
+already knows the answer). Lane at `/home/user/shell-lanes/shell-5/`
+(a worktree of this checkout), private target and scratch beside it.

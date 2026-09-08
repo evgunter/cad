@@ -5,7 +5,7 @@ title: shell of an already-hollow body - refused today; the ratified semantics i
 status: open
 opened: 2026-08-27
 github: 1056
-refs: [1048]
+refs: [1048, SHELL-5]
 ---
 
 ## From GitHub issue 1056
