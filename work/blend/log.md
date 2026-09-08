@@ -244,3 +244,24 @@ class issues filed on this slate by the fix pass
 `every-escalation-carries-the-coincidence-recourse-first`,
 `blend-mod-recourse-docs-accumulate`). Unit 3 (the spine-kind
 sentence, the other `blend/mod.rs` edit) dispatches next.
+
+**Unit 4 reviewed (2026-09-08): MERGEABLE-AFTER-FIXES**, single style
+review on frozen `b0cbd30d` of PR [#2129](https://github.com/evgunter/cad/pull/2129).
+Sixty-five of seventy converged selector calls choose the same keys
+as the deleted copies (a single-tree replay of every deleted
+predicate); one row's requested rim moved from the barrel's top to
+its bottom, undisclosed (the refusal is symmetric, so the row stayed
+green — the shape the review exists to catch); one scan kept on a
+reason that does not hold. Adjudicated TAKE: both MINORs; the review's
+six rows; the copies (a local `one_edge_rim` minted the day its home
+was, the hand-rolled kind-pair reads, the two tour selectors → one
+tour-side home, the lily constants' third derivation → the fixture
+returns its rims, the constant-vs-constant assertion → the body's
+radius, the teapot's thirty lines of justification → one sentence).
+Filed by the fix pass: the home reads `center.y` only (four z-poled
+scans, one at `1e-12`, cannot converge on it), and `test_support.rs`'s
+four-things accumulation. DECLINED: the panic-vs-empty semantics of
+`one_edge_rim_at` (documented, deliberate).
+
+**Unit K dispatched (2026-09-08)** on `blend/k-no-floor` after unit 2
+merged; runs beside unit 3 and unit 4's fix pass.
