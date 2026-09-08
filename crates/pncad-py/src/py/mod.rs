@@ -163,7 +163,16 @@ pyo3::create_exception!(
     "A save or load the persistence doors refused (bad header, \
      unknown schema, unparseable body, a snapshot or edit log that \
      fails the shared validator, ...). Carries `variant`, the stable \
-     tag of the refusing arm."
+     tag of the refusing arm, plus every arm's payload as \
+     attributes — `None` where the arm does not carry one.\n\n\
+     Four arms wrap a refusal of their own (a profile-program fault, \
+     a distribution fault, a snapshot invariant, a replayed edit's \
+     `EditError`), and its word rides beside the carrier's on \
+     `inner_variant`; the nested refusal's own payload is the inner \
+     door's surface. `detail` is the underlying reporter's own words \
+     wherever an arm has one, `document` the document's recorded ε \
+     wherever an arm reports it, and `site` the kernel's prose for \
+     where a non-finite float sits."
 );
 pyo3::create_exception!(
     pncad,

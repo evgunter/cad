@@ -88,21 +88,350 @@ fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
     )
 }
 
-/// Raise `PersistError` carrying the refusal's stable tag.
+/// Raise `PersistError` carrying the refusal's stable tag and the
+/// arm's payload.
 ///
 /// One door for the whole persistence vocabulary, the pin doors in
 /// `crate::py::store` included: they run the same validator and the
 /// same canonical serializer, so their refusals are the words
 /// `Doc.save` and `load` already speak.
+///
+/// The machine payload is `variant` plus the fields, each present on
+/// every arm and `None` where that arm does not carry it, so
+/// `getattr` never raises and a caller reads the payload without
+/// first branching on `variant`. The tuple is positional and the
+/// match is exhaustive, so an arm added kernel-side arrives here as a
+/// compile error rather than as a silently unprojected payload.
+///
+/// Two names are shared by arms that carry one concept under
+/// different spellings, and the mapping is stated at the match:
+/// `detail` is the underlying reporter's own words (the serializer's,
+/// the JSON reader's, the deserializer's), and `document` is the
+/// document's recorded ε, whichever arm reports it.
+///
+/// Four arms carry a NESTED refusal — a profile-program fault, a
+/// distribution fault, a snapshot refusal, a replayed edit's own
+/// `EditError`. Each crosses as its word on `inner_variant`; the
+/// nested arm's own payload is the inner door's surface (a
+/// `DistributionFault` has its own exception class, and an
+/// `EditError` its own projection) and stays in the message here.
 pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
-    let tag = persist_error_tag(err);
+    use d::PersistError as E;
+
+    let none = || py.None();
+    // A field whose own construction failed degrades to `None` rather
+    // than replacing the kernel's refusal with a boundary one: the
+    // caller asked why the persistence door refused, and that answer
+    // must survive a failure to build one of its attributes.
+    let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    // `usize`'s and `f64`'s conversions are INFALLIBLE (their error
+    // type is `Infallible`), so these two degrade nowhere: the match
+    // is total.
+    let int = |n: usize| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let real = |x: f64| -> Py<PyAny> {
+        match x.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let node = |n: d::RecipeNodeId| obj(Py::new(py, NodeId(n)).map(|v| v.into_any()));
+    let dim = |d: d::Dimension| text(crate::errors::dimension_tag(d));
+    let word = |tag: &'static str| inner_variant(py, Some(tag));
+
+    let (
+        inner,
+        site,
+        which,
+        name,
+        unit,
+        declared,
+        detail,
+        found,
+        header,
+        snapshot,
+        line,
+        column,
+        index,
+        process,
+        document,
+    ) = match err {
+        // The site is a RECURSIVE descriptor (an edit's index wrapping
+        // the site inside that edit's payload), so it crosses as the
+        // kernel's own prose for where the float sits rather than as a
+        // field per rung.
+        E::NonFinite { site } => (
+            none(),
+            text(&site.to_string()),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::ProfileProgram { node: n, fault } => (
+            word(crate::tags::program_fault_tag(fault)),
+            none(),
+            node(*n),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::Distribution { name: p, fault } => (
+            word(crate::tags::distribution_fault_tag(fault)),
+            none(),
+            none(),
+            text(&p.0),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::DisplayUnit {
+            name: p,
+            unit: measures,
+            declared: was,
+        } => (
+            none(),
+            none(),
+            none(),
+            text(&p.0),
+            dim(*measures),
+            dim(*was),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // `message` here, `message` at the parse arm and `detail` at
+        // the unreadable one are one concept — the reporter's own
+        // words — and cross on one attribute.
+        E::Serialize { message } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(message),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::HeaderId { found: what } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(what),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::IdMismatch {
+            header: from_header,
+            snapshot: from_snapshot,
+        } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&from_header.hex()),
+            text(&from_snapshot.hex()),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::Parse {
+            line: l,
+            column: c,
+            message,
+        } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(message),
+            none(),
+            none(),
+            none(),
+            int(*l),
+            int(*c),
+            none(),
+            none(),
+            none(),
+        ),
+        E::Unreadable {
+            line: l,
+            column: c,
+            detail: what,
+        } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(what),
+            none(),
+            none(),
+            none(),
+            int(*l),
+            int(*c),
+            none(),
+            none(),
+            none(),
+        ),
+        E::Snapshot(inner) => (
+            word(crate::tags::snapshot_error_tag(inner)),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::EditReplay { index: at, error } => (
+            word(edit_error_tag(error)),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*at),
+            none(),
+            none(),
+        ),
+        E::ToleranceConflict {
+            process: committed,
+            document: recorded,
+        } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            real(*committed),
+            real(*recorded),
+        ),
+        // `value` IS the document's recorded ε — the same concept the
+        // conflict arm reports as `document` — so it crosses there.
+        E::ToleranceInvalid { value } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            real(*value),
+        ),
+    };
     typed_err(
         py,
         ErrorClass::Persist,
         // `PersistError` implements `Display`, so the human message is
-        // real prose; the machine payload is still the tag.
+        // real prose; the machine payload is the tag and the fields.
         err.to_string(),
-        &[("variant", PyString::new(py, tag).unbind().into_any())],
+        &[
+            ("variant", text(persist_error_tag(err))),
+            ("inner_variant", inner),
+            ("site", site),
+            ("node", which),
+            ("name", name),
+            ("unit", unit),
+            ("declared", declared),
+            ("detail", detail),
+            ("found", found),
+            ("header", header),
+            ("snapshot", snapshot),
+            ("line", line),
+            ("column", column),
+            ("index", index),
+            ("process", process),
+            ("document", document),
+        ],
     )
 }
 

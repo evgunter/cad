@@ -526,7 +526,18 @@ class TestPersistence(unittest.TestCase):
     def test_a_garbage_file_is_a_typed_refusal(self):
         with self.assertRaises(pncad.PersistError) as caught:
             load("not a document")
-        self.assertEqual(caught.exception.variant, "header_id")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "header_id")
+        # The arm's payload: what the id line looked like. Every other
+        # attribute is present and `None`, so a caller reads the
+        # payload without first branching on `variant`.
+        self.assertEqual(refusal.found, "not a document")
+        for absent in (
+            "inner_variant", "site", "node", "name", "unit", "declared",
+            "detail", "header", "snapshot", "line", "column", "index",
+            "process", "document",
+        ):
+            self.assertIsNone(getattr(refusal, absent), absent)
 
     def test_a_body_this_build_cannot_read_is_a_typed_refusal(self):
         """The format carries no schema version: a document a build
@@ -535,9 +546,52 @@ class TestPersistence(unittest.TestCase):
         body = '{"snapshot": {"no_such_field": 1}, "edits": []}'
         with self.assertRaises(pncad.PersistError) as caught:
             load(f"id: {'0' * 32}\n{body}")
-        self.assertEqual(caught.exception.variant, "unreadable")
-        self.assertIn("no_such_field", str(caught.exception))
-        self.assertIn("regenerate", str(caught.exception))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "unreadable")
+        self.assertIn("no_such_field", str(refusal))
+        self.assertIn("regenerate", str(refusal))
+        # The deserializer's position and its own words, as payload
+        # rather than as prose to parse: `detail` is the reporter's
+        # words on this arm, on `parse` and on `serialize` alike.
+        self.assertEqual(refusal.line, 1)
+        self.assertGreater(refusal.column, 0)
+        self.assertIn("no_such_field", refusal.detail)
+        self.assertIsNone(refusal.found)
+
+    def test_a_header_that_disagrees_with_the_snapshot_names_both_ids(self):
+        """A tampered or hand-assembled file: the save door writes the
+        snapshot's id, so the two agree by construction."""
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        _, body = doc.save().split("\n", 1)
+        other = "0" * 32
+        with self.assertRaises(pncad.PersistError) as caught:
+            load(f"id: {other}\n{body}")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "id_mismatch")
+        self.assertEqual(refusal.header, other)
+        self.assertEqual(refusal.snapshot, doc.id)
+        self.assertIsNone(refusal.inner_variant)
+
+    def test_a_snapshot_invariant_names_the_invariant_it_broke(self):
+        """The wrapped refusal's own word rides beside the stage's:
+        `variant` says the snapshot failed, `inner_variant` says which
+        invariant."""
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        text = doc.save()
+        # Wind the mint counter back behind ids the document holds.
+        tampered = text.replace('"next_id": 3', '"next_id": 1')
+        self.assertNotEqual(tampered, text, "the tamper found its slot")
+        with self.assertRaises(pncad.PersistError) as caught:
+            load(tampered)
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "snapshot")
+        self.assertEqual(refusal.inner_variant, "id_beyond_counter")
+        # The snapshot refusal's own node ids are the snapshot door's
+        # surface, not this one's: the word crosses, the payload does
+        # not.
+        self.assertIsNone(refusal.node)
 
 
 class TestStepExport(unittest.TestCase):

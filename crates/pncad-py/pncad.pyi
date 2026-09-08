@@ -331,9 +331,48 @@ class EvalError(PncadError):
     count: Optional[int]
 
 class PersistError(PncadError):
-    """A save or load the persistence doors refused."""
+    """A save or load the persistence doors refused.
+
+    `variant` is the refusing arm's tag — `non_finite`,
+    `profile_program`, `distribution`, `display_unit`, `serialize`,
+    `header_id`, `id_mismatch`, `parse`, `unreadable`, `snapshot`,
+    `edit_replay`, `tolerance_conflict` or `tolerance_invalid`.
+
+    Four arms wrap a refusal of their own, and its word rides beside
+    the carrier's on `inner_variant`: a profile-program fault, a
+    distribution fault, a snapshot invariant, or the `EditError` a
+    replayed edit raised. The nested refusal's own payload is the
+    inner door's surface and stays in the message.
+
+    Two names are shared by arms that carry one concept under
+    different spellings: `detail` is the underlying reporter's own
+    words (the serializer's, the JSON reader's, the deserializer's),
+    and `document` is the document's recorded epsilon, whether the arm
+    reports it beside the process's or alone.
+
+    `site` is where a non-finite float sits, as the kernel's own prose
+    — the descriptor nests an edit's index around the site inside that
+    edit, so it crosses as one sentence rather than a field per rung.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
 
     variant: str
+    inner_variant: Optional[str]
+    site: Optional[str]
+    node: Optional[NodeId]
+    name: Optional[str]
+    unit: Optional[str]
+    declared: Optional[str]
+    detail: Optional[str]
+    found: Optional[str]
+    header: Optional[str]
+    snapshot: Optional[str]
+    line: Optional[int]
+    column: Optional[int]
+    index: Optional[int]
+    process: Optional[float]
+    document: Optional[float]
 
 class ExportError(PncadError):
     """The document-layer export door refused.
