@@ -960,7 +960,8 @@ class TestTheSketchPlaneVocabulary(unittest.TestCase):
 
 def loop_of(points):
     """A closed polygonal loop through `points`, in metres — the
-    PATHS spelling of `demos/tour/src/paths.rs::path_polygon`."""
+    Python spelling of the Rust façade's `authoring::polygon` door,
+    said one leg at a time because the lattice is what Python binds."""
     chain = Open.at((points[0][0] * m, points[0][1] * m))
     for x, y in points[1:]:
         chain = chain.line_to((x * m, y * m))

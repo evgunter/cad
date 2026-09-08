@@ -1093,6 +1093,23 @@ fn workspace_error_tags_are_stable() {
     let missing = Workspace::open(Path::new("/nonexistent/pncad-workspace"))
         .expect_err("a directory that is not there refuses");
     assert_eq!(workspace_error_tag(&missing), "io");
+
+    // The save door's own two arms, constructed: neither is reachable
+    // from a store that holds nothing, and both are Python-visible.
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::SaveWouldDuplicateId {
+            id: pncad::document::DocumentId::derive("tagged"),
+            existing: std::path::PathBuf::from("/store/a.pncad"),
+            requested: std::path::PathBuf::from("/store/b.pncad"),
+        }),
+        "save_would_duplicate_id"
+    );
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::SaveTargetNotInStore {
+            path: std::path::PathBuf::from("/elsewhere/a.pncad"),
+        }),
+        "save_target_not_in_store"
+    );
 }
 
 /// The STEP importer's tags. Every arm of this enum is reachable
@@ -1116,7 +1133,7 @@ fn step_import_error_tags_are_stable() {
 
 #[test]
 fn path_error_tags_are_stable() {
-    use pncad::prelude::{Open, Start, circle, p2};
+    use pncad::prelude::{Open, Start, circle, p2, polygon};
 
     let zero = circle(p2(0.0, 0.0), 0.0, Tol::witness()).expect_err("a zero radius refuses");
     assert_eq!(path_error_tag(&zero), "nonpositive_circle_radius");
@@ -1167,6 +1184,13 @@ fn path_error_tags_are_stable() {
         .map(|c| crate::tags::corner_reason_tag(&c.reason))
         .collect();
     assert_eq!(entries, ["anchor_outside_trimmed_extent"]);
+
+    // The whole-table door's count precondition: the lattice's own
+    // verbs take one vertex at a time and have no count to gate, so
+    // `polygon` is the only place this arm is reachable from.
+    let too_few = polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0)], Tol::witness())
+        .expect_err("two vertices name no polygon");
+    assert_eq!(path_error_tag(&too_few), "polygon_too_few_vertices");
 }
 
 /// The prose rule's guard, checked against what it actually guards
@@ -1917,6 +1941,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "nonpositive_fillet_radius",
             "nonpositive_leg",
             "overdetermined_junction",
+            "polygon_too_few_vertices",
             "seam_arrival_lever_too_short",
             "seam_arrival_off_direction",
             "seam_retrims_arc_first_side",
@@ -2152,6 +2177,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pin_mismatch",
             "randomness_unavailable",
             "save",
+            "save_target_not_in_store",
+            "save_would_duplicate_id",
             "unknown_id",
             "update",
         ],
@@ -2665,7 +2692,7 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `persist_error`, `workspace_error`, `step_import_error`,
 /// `path_error`, `checks_error`, `check_evidence` — and even those
 /// are samples (`persist_error_tag`: two of thirteen arms;
-/// `step_import_error_tag`: two of twenty-two; `path_error_tag`: three
+/// `step_import_error_tag`: two of twenty-two; `path_error_tag`: four
 /// of thirty). The other nineteen — `assembly`, `binary_header`,
 /// `edit`, `export`, `frame`, `inline`, `mate_fault`, `node_error`,
 /// `part_fault`, `placement_rule_fault`, `product`,

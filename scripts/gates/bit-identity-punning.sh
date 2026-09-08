@@ -90,7 +90,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, doc comments and a string literal naming the plumbing" plant_prose_only
-  gate_selftest_homes "$HOME_FILE"
+  gate_selftest_homes --subject "$HOME_SUBJECT" "$HOME_FILE"
   printf '%s selftest OK: passes a clean fixture carrying the sanctioned seam itself, and prose/doc/string mentions of the punning plumbing; fires on a downcast, on one hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 

@@ -15,6 +15,7 @@ from pncad import (
     CurveKind,
     Doc,
     DocEdit,
+    DocParam,
     DocRef,
     EntityKind,
     Frame,
@@ -54,6 +55,8 @@ from pncad import (
     evaluate,
     m,
     mm,
+    WrittenAngle,
+    WrittenLength,
     product,
     solve_document,
     split,
@@ -495,3 +498,20 @@ verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: err
 # inserted node, and the word that comes back is not the node.
 doc.node_kind(Node.extrude(solid, 1 * m))  # ty: error
 which: Node = doc.node_kind(solid)  # ty: error
+
+# THE MIS-DIMENSIONED WRITTEN VALUE IS UNREPRESENTABLE, not refused.
+# A `WrittenLength` holds a LENGTH unit, so "a length written in
+# degrees" is not a value the type can hold and no door has to refuse
+# one — the illegal state is excluded one layer out, at the table.
+WrittenLength.in_unit(25.0, deg)  # ty: error
+WrittenAngle.in_unit(90.0, mm)  # ty: error
+DocParam.written_length(WrittenAngle.in_unit(90.0, deg))  # ty: error
+
+# The authored pair has NO arithmetic: there is no answer to what
+# notation the sum of a millimetre and an inch is written in. Compute
+# on the `Length` inside instead.
+WrittenLength.in_unit(25.0, mm) + WrittenLength.in_unit(1.0, mm)  # ty: error
+
+# `canonical_in` takes the QUANTITY, not bare canonical metres — the
+# crossing rule this whole boundary follows.
+WrittenLength.canonical_in(0.025, mm)  # ty: error

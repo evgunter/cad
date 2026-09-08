@@ -34,7 +34,7 @@
 //! what it means.
 
 // --- 1. Numbers and frames ------------------------------------
-pub use crate::authoring::{p2, p3, real, v2, v3, validated};
+pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // `Band`/`BandError` are here because the verbs' typed refusals quote
 // them: a caller that matches `BlendError::Band` (this prelude) or
 // `ShellError::Band` (reachable as `pncad::topo::ShellError`, through

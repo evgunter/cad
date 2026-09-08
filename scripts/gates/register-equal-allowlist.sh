@@ -187,7 +187,14 @@ gate_selftest() {
   gate_selftest_case "$want" plant_call_in_another_sweep_file
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "the trait default, a scalar impl, the ratified caller and prose" gate_plant_clean
-  gate_selftest_homes "${DEFINITION_HOMES[@]}" "${CALLER_HOMES[@]}"
+  # ONE CALL PER SUBJECT, which is the shape `--subject` exists for: this
+  # gate keeps TWO home lists with two different sentences, and merged
+  # into one call either list would be checked against whichever sentence
+  # happened to be in force — so a definition home wearing the caller
+  # subject reads as a pass.
+  gate_selftest_homes \
+    --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}" \
+    --subject "$CALLER_SUBJECT" "${CALLER_HOMES[@]}"
   printf '%s selftest OK: passes a clean fixture carrying every definition and caller file it exempts, the trait default and prose that names the method; fires on a call from another crate, on one hidden behind a block comment, on a second file inside sweep, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 

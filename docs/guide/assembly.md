@@ -48,8 +48,12 @@ recorded edit.
 
 A **`Workspace`** is where the documents live: a directory of
 `*.pncad` files, scanned by each file's `id:` header line and never
-its body. Its write side is deliberately two doors — `create` and
-`resave` — and there is no general mutation API.
+its body. Its write side is deliberately small — `create` and
+`resave` for the refactorings, and `save_at` and
+`save_as_new_document` for the two acts a save is — and there is no
+general mutation API. A save at a path KEEPS the document's identity
+and refuses typed rather than letting a copy claim it a second time;
+saving it as a NEW document mints a fresh id, an explicit fork.
 
 ```python
 import tempfile
