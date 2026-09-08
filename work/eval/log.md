@@ -309,3 +309,19 @@ declared, the key dump re-taken at the new base with a shell document
 added). The `keep_out`'s announced seam (LIB-G17 reaches `crates/verbs`
 and, it turns out, the content key) landed while the unit was in
 review; the cost is one merge round.
+
+## EVAL-4 implemented; style review dispatched (2026-09-08, PR 2165)
+
+Head `eca39b5ce`, full matrix green with the python suite run
+(`RUN_PNCAD_PY: true` in the filter's log). `declare`/`declare_all`
+return `(Applied, id)`; `pncad-py`'s second copy of the declare body
+collapses onto the sugar; `refactor.rs` (FIX seam, announced on the
+PR) gains one private `Recording` swap point under `rem_apply`,
+`part_apply` and inline's `step`, with `SplitOutcome` carrying both
+sides' maintenance and `InlineOutcome` its own — the unit went one
+door further than the spec asked, and stated why. Filed from its
+survey onto the owners' slates:
+`work/lib/python-split-and-inline-outcomes-drop-the-maintenance.md`
+((LIB orchestrator)) and
+`work/docm/replay-and-load-keep-the-document-without-its-maintenance.md`
+((DOCM orchestrator)).
