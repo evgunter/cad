@@ -8,6 +8,10 @@ the guide's own executed blocks.
 
 from pncad import (
     Advisory,
+    AnalysisPolicy,
+    AnalyzedBox,
+    AnalyzedParam,
+    analyzed_box,
     Alignment,
     Angle,
     AngleUnit,
@@ -33,6 +37,7 @@ from pncad import (
     Datum,
     DocParam,
     Denotation,
+    Distribution,
     HitTestError,
     Expr,
     TubeWindow,
@@ -596,6 +601,30 @@ gathered.validate_pseudomanifold()
 # evaluation in hand at all.
 which_kind: str = doc.node_kind(upright)
 
+# Parameter uncertainty and the analysis lane. The offsets are typed
+# quantities in the parameter's own dimension, so the annotation and
+# the declaration agree by construction here and a mismatch is a
+# refusal at the door.
+spread: Distribution = Distribution.normal(1 * mm)
+window: Distribution = Distribution.truncated_normal(1 * mm, -2 * mm, 2 * mm)
+declared_form: str = spread.kind
+annotated: DocParam = DocParam.length(4 * mm, spread)
+unannotated: DocParam = DocParam.length(4 * mm)
+carried: Distribution | None = annotated.distribution
+read_back: DocParam | None = doc.params.get(ParamName("bore_r"))
+
+# The box is derived on request from a document and a policy, and the
+# policy is optional because the ±3σ convention is the default.
+policy: AnalysisPolicy = AnalysisPolicy(0.99)
+boxed: AnalyzedBox = analyzed_box(doc, policy)
+default_boxed: AnalyzedBox = analyzed_box(doc)
+one_axis: AnalyzedParam | None = boxed.get(ParamName("bore_r"))
+axis_names: list[ParamName] = boxed.names
+
+# Both mass columns answer `None` for a name the document does not
+# declare, so the caller's variable is optional whichever way it goes.
+tail: float | None = boxed.tail_mass(ParamName("bore_r"))
+leaf: float | None = boxed.box_mass(ParamName("bore_r"), -1 * mm, 1 * mm)
 # Authored notation: the value and the unit it was WRITTEN in, kept
 # together. `in_unit` multiplies (`25 * mm` that remembers the `mm`);
 # `canonical_in` takes a quantity whose arithmetic has already

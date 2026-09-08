@@ -365,11 +365,14 @@ class TestPlateParam(unittest.TestCase):
 
         `set_doc_param` is create-or-replace: passing it a `DocParam`
         rebuilt from a dimension and a number replaces the declaration,
-        and any distribution the parameter carried (ERROR-DESIGN E1/E2 —
-        which Python cannot spell) is deleted with no refusal. The value
-        door carries the declaration forward instead. Here it is doing
-        the ordinary job as well: the same oracle, through the other
-        door."""
+        and any distribution the parameter carried (ERROR-DESIGN E1/E2)
+        is deleted with no refusal. The value door carries the
+        declaration forward instead — it names no declaration, so it
+        cannot replace one. Python can now spell an annotation and read
+        one back (`tests/test_distributions.py` pins the edge from both
+        sides), which makes the deletion visible; it does not make it
+        stop happening. Here the door is doing the ordinary job as
+        well: the same oracle, through the other one."""
         for r in (0.25, 0.4):
             with self.subTest(hole_r=r):
                 doc, solid = self.plate()

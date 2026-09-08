@@ -113,6 +113,9 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::NodePick => "NodePickError",
             ErrorClass::Checks => "ChecksError",
             ErrorClass::Enforce => "CheckRefusal",
+            ErrorClass::Distribution => "DistributionFault",
+            ErrorClass::Measure => "MeasureUnavailable",
+            ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
         }
     }
     for class in [
@@ -145,9 +148,113 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::NodePick,
         ErrorClass::Checks,
         ErrorClass::Enforce,
+        ErrorClass::Distribution,
+        ErrorClass::Measure,
+        ErrorClass::AnalysisPolicy,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
+}
+
+/// LIB-B-DISTRIBUTIONS: the four form words and the three faults,
+/// CONSTRUCTED rather than listed.
+///
+/// The tag inventory pins the words `src/tags.rs` can emit; it cannot
+/// say which kernel value emits which. These rows do, from real
+/// `Distribution` values built through the kernel's own doors — so a
+/// form silently renamed onto another word reds here rather than at a
+/// Python caller.
+///
+/// The faults come out of `Distribution::check` rather than being
+/// written by hand, which is the point one rung further: the binding
+/// raises what the check answers, and this pins that the check
+/// answers what the tags claim it does. `check` is also the reason the
+/// Python constructor needs no rule of its own.
+#[test]
+fn distribution_form_and_fault_tags_are_stable() {
+    use crate::tags::{distribution_fault_tag, distribution_field_tag, distribution_kind_tag};
+    use pncad::document::{Distribution as D, DistributionField};
+
+    let band = D::Band { lo: -1.0, hi: 1.0 };
+    let uniform = D::Uniform { lo: -1.0, hi: 1.0 };
+    let normal = D::Normal { sigma: 1.0 };
+    let window = D::TruncatedNormal {
+        sigma: 1.0,
+        lo: -1.0,
+        hi: 1.0,
+    };
+    assert_eq!(distribution_kind_tag(&band), "band");
+    assert_eq!(distribution_kind_tag(&uniform), "uniform");
+    assert_eq!(distribution_kind_tag(&normal), "normal");
+    assert_eq!(distribution_kind_tag(&window), "truncated_normal");
+    // Every one of those four is an inhabitant: a form word is only
+    // reachable from Python if the constructor that mints it passes.
+    for form in [band, uniform, normal, window] {
+        assert_eq!(form.check(), Ok(()), "{form:?}");
+    }
+
+    let fault = |d: D| {
+        d.check()
+            .expect_err("this distribution breaks an E2 invariant")
+    };
+    assert_eq!(
+        distribution_fault_tag(&fault(D::Normal { sigma: 0.0 })),
+        "sigma_not_positive"
+    );
+    assert_eq!(
+        distribution_fault_tag(&fault(D::Band { lo: 1.0, hi: 2.0 })),
+        "nominal_outside_support"
+    );
+    assert_eq!(
+        distribution_fault_tag(&fault(D::Normal {
+            sigma: f64::INFINITY
+        })),
+        "non_finite"
+    );
+    assert_eq!(distribution_field_tag(&DistributionField::Sigma), "sigma");
+    assert_eq!(distribution_field_tag(&DistributionField::Lo), "lo");
+    assert_eq!(distribution_field_tag(&DistributionField::Hi), "hi");
+}
+
+/// LIB-B-DISTRIBUTIONS: the analysis lane's two refusals, from the
+/// doors that answer them.
+///
+/// Both are constructed by CALLING the door rather than by naming the
+/// variant, so the rows say the band really does refuse a
+/// shape-dependent price and the policy really does refuse a mass
+/// outside `(0, 1)` — which is what the Python classes are for.
+#[test]
+fn analysis_refusal_tags_are_stable() {
+    use crate::tags::{analysis_policy_error_tag, measure_unavailable_tag};
+    use pncad::analysis::{AnalysisPolicy, box_mass};
+    use pncad::document::{Distribution, ParamName};
+
+    let bore = ParamName::new("bore");
+    let refusal = box_mass(
+        &bore,
+        &Distribution::Band { lo: -1.0, hi: 1.0 },
+        (-0.5, 0.5),
+    )
+    .expect_err("a band prices nothing whose answer depends on its shape");
+    assert_eq!(measure_unavailable_tag(&refusal), "band_has_no_measure");
+
+    let policy = AnalysisPolicy::new(1.0).expect_err("mass 1 asks for an infinite box");
+    assert_eq!(
+        analysis_policy_error_tag(&policy),
+        "quantile_mass_out_of_range"
+    );
+    // And the whole point of the pair: the same band ANSWERS the two
+    // set-theoretic cases, so the refusal above is about the shape and
+    // not about bands.
+    assert_eq!(
+        box_mass(
+            &bore,
+            &Distribution::Band { lo: -1.0, hi: 1.0 },
+            (-2.0, 2.0)
+        ),
+        Ok(1.0)
+    );
+    assert!(AnalysisPolicy::new(0.5).is_ok());
 }
 
 /// LIB-B-READBACK: the read-back doors' tag map, arm by arm.
@@ -1592,6 +1699,11 @@ struct TagEntry {
 /// level reshuffle that no Python caller can observe.
 const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
+        function: "analysis_policy_error_tag",
+        values: &["quantile_mass_out_of_range"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "assembly_error_tag",
         values: &[
             "at_rest",
@@ -1644,6 +1756,25 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "declare_error_tag",
         values: &["no_findings", "no_minted_id"],
         delegates: &["edit_error_tag"],
+    },
+    TagEntry {
+        function: "distribution_fault_tag",
+        values: &[
+            "nominal_outside_support",
+            "non_finite",
+            "sigma_not_positive",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "distribution_field_tag",
+        values: &["hi", "lo", "sigma"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "distribution_kind_tag",
+        values: &["band", "normal", "truncated_normal", "uniform"],
+        delegates: &[],
     },
     TagEntry {
         function: "edit_error_tag",
@@ -1825,6 +1956,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_table_lacks",
             "mate_under",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "measure_unavailable_tag",
+        values: &["band_has_no_measure"],
         delegates: &[],
     },
     TagEntry {

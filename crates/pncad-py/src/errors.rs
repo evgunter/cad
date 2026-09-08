@@ -297,6 +297,40 @@ pub enum ErrorClass {
     /// refused on it. `run_checks` never raises this and
     /// `enforce_checks` never raises the other.
     Enforce,
+    /// A [`Distribution`](pncad::document::Distribution) that breaks
+    /// an E2 invariant, refused at the Python constructor. The Python
+    /// class keeps the Rust type's own name,
+    /// [`DistributionFault`](pncad::document::DistributionFault).
+    ///
+    /// The one class in this taxonomy raised by a VALUE constructor
+    /// rather than by a door that touches a document. It is not an
+    /// invented pre-check: `Distribution::check` is the kernel's own
+    /// single statement of the invariants, the one the edit door and
+    /// the persistence validator both run, and the binding calls it
+    /// rather than restating it. Calling it EARLY is what the value
+    /// class buys — a Python caller learns that a sigma is negative
+    /// where the sigma is written, not three edits later.
+    Distribution,
+    /// The analysis lane could not price a mass: the parameter
+    /// carries a band, which states limits without a shape (E2). The
+    /// Python class keeps the Rust type's own name,
+    /// [`MeasureUnavailable`](pncad::analysis::MeasureUnavailable).
+    ///
+    /// A REFUSAL, not an absence. "I know the limits but not the
+    /// shape" is real information and no report may quietly promote
+    /// it to uniform, so the door that would have to guess raises
+    /// instead, naming the parameter.
+    Measure,
+    /// An analysis policy that cannot be honoured: a quantile mass
+    /// outside `(0, 1)`. The Python class keeps the Rust type's own
+    /// name,
+    /// [`AnalysisPolicyError`](pncad::analysis::AnalysisPolicyError).
+    ///
+    /// Deliberately not [`Self::Measure`]: that one is about a
+    /// distribution the document declared, this one about the knob the
+    /// REQUEST set, and E2's whole point is that the analyzed box is
+    /// the analysis's property rather than the distribution's.
+    AnalysisPolicy,
 }
 
 impl ErrorClass {
@@ -332,6 +366,9 @@ impl ErrorClass {
             Self::NodePick => "NodePickError",
             Self::Checks => "ChecksError",
             Self::Enforce => "CheckRefusal",
+            Self::Distribution => "DistributionFault",
+            Self::Measure => "MeasureUnavailable",
+            Self::AnalysisPolicy => "AnalysisPolicyError",
         }
     }
 }

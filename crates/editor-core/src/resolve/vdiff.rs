@@ -33,12 +33,6 @@
 //! different number of times — a structural change, reported, never
 //! guessed about).
 //!
-//! A Profile node's populations are DOUBLED under the pinned lift at
-//! the build scalar: its log holds the f64 precompute's validation and
-//! the op's validation of the same embedded form (`eval::wire`), so a
-//! margin decided n times in one validation pass reports 2n, and one
-//! physical flip decided twice per pass reports `count: 4`.
-//!
 //! When the decision structure is stable (the ε-audit's common case:
 //! same recipe, same construction, a handful of margins re-classified)
 //! the residual IS the exact flip list. The documented blind spot:

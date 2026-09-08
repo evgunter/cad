@@ -2,8 +2,9 @@
 id: profile-program-stream-is-not-length-prefixed
 kind: issue
 title: The profile node's program payload is not length-prefixed, so a resolved loop boundary reads the verb vocabulary beside the profile-payload words — where the lane opener and the Cusp verb are both 41
-status: open
+status: spec
 opened: 2026-09-08
+branch: eval/9-nominal-in-the-key
 ---
 
 (EVAL-2 implementer, found while declaring the content key's tag

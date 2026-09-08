@@ -1,5 +1,6 @@
 //! The PyO3 surface. Compiled only under the `python` feature.
 
+mod analysis;
 mod assembly;
 pub(crate) mod checks;
 pub(crate) mod doc;
@@ -431,6 +432,46 @@ pyo3::create_exception!(
      band. Carries `variant`, the stable tag of the refusing arm."
 );
 
+pyo3::create_exception!(
+    pncad,
+    DistributionFault,
+    PncadError,
+    "A `Distribution` constructor was handed offsets that break an \
+     E2 invariant. Carries `variant` (the stable tag), and `field`, \
+     `sigma`, `lo`, `hi` — the arms' payloads, present on every arm \
+     and `None` where that arm does not carry one.\n\n\
+     The kernel's own `Distribution::check` decides this, so a \
+     distribution Python accepts is one the edit door and the \
+     persistence validator accept too. Raised EARLY, at the value \
+     rather than at the edit: the same fault reaches `EditError` as \
+     `invalid_distribution` when a document is loaded or edited \
+     another way."
+);
+pyo3::create_exception!(
+    pncad,
+    MeasureUnavailable,
+    PncadError,
+    "A mass could not be priced: the parameter carries a BAND, which \
+     states limits without a shape. Carries `variant` and `param`, \
+     the parameter that blocked the pricing.\n\n\
+     A refusal, not an absence. `band` is the author saying they know \
+     the extremes and not the distribution, and promoting it to a \
+     uniform would be a strictly stronger claim than they made — so \
+     the door refuses anything whose answer would depend on the \
+     shape, and answers only the two cases every measure on the band \
+     agrees about."
+);
+pyo3::create_exception!(
+    pncad,
+    AnalysisPolicyError,
+    PncadError,
+    "An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is \
+     not a finite number strictly inside `(0, 1)`. Carries `variant` \
+     and `mass`, the requested share.\n\n\
+     Mass 1 asks for an infinite box and mass 0 for an empty one, and \
+     neither is a box."
+);
+
 /// Raise the exception class [`ErrorClass`] names, with `fields`
 /// attached as instance attributes.
 ///
@@ -519,6 +560,9 @@ fn raise_typed(
         ErrorClass::NodePick => NodePickError::new_err(message),
         ErrorClass::Checks => ChecksError::new_err(message),
         ErrorClass::Enforce => CheckRefusal::new_err(message),
+        ErrorClass::Distribution => DistributionFault::new_err(message),
+        ErrorClass::Measure => MeasureUnavailable::new_err(message),
+        ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -576,6 +620,9 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("NodePickError", py.get_type::<NodePickError>())?;
     m.add("ChecksError", py.get_type::<ChecksError>())?;
     m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
+    m.add("DistributionFault", py.get_type::<DistributionFault>())?;
+    m.add("MeasureUnavailable", py.get_type::<MeasureUnavailable>())?;
+    m.add("AnalysisPolicyError", py.get_type::<AnalysisPolicyError>())?;
 
     quantity::register(m)?;
     path::register(m)?;
@@ -594,6 +641,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     checks::register(m)?;
     mesh::register(m)?;
     value::register(m)?;
+    analysis::register(m)?;
 
     // Build-provenance surface. The persistence format carries no
     // schema version to publish here (the persist module docs say

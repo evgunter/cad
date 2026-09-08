@@ -3335,3 +3335,57 @@ erasure one vocabulary over, and the typed doors disagree with the text
 door about one authoring). The lane ran the pinned ruff for real.
 Orchestrator merged main (SAVEFORK, overlapping `pncad.pyi` and the
 legal fixture — additive hunks, clean merge) and landed on the re-run.
+
+**LIB-B-DISTRIBUTIONS MERGED (2026-09-08, #2192; mechanical under the
+08-29 ruling, no A/B row). Census family B-DISTRIBUTIONS CLOSED —
+parameter uncertainty and the analysis lane (E1/E2).** The gate
+measured before scope, as the brief required: `crates/pncad/src/
+analysis.rs` splits at `:49` (ungated) and `:55`–`:104` (`interval`),
+all three chartered doors are on the ungated line, so the family
+closes on the default build the wheel is made from and nothing is
+deferred behind a feature; there is no precedent for a feature-gated
+Python door and none was minted. Bound: `Distribution.band / uniform /
+normal / truncated_normal` as a frozen constructor class whose offsets
+are TYPED quantities in the parameter's own dimension (the annotation
+carries none of its own — E2 — so it borrows the declaration's, which
+makes the read direction free and two disagreements checkable as
+`DimensionError` with `op` naming the door) and whose construction
+runs the kernel's own `Distribution::check`, so a document that would
+refuse to load cannot be authored and the refusal lands where the
+sigma is written (`DistributionFault`, every arm's payload present on
+every arm); `DocParam.length/angle/scalar(value, distribution=None)`
+and `DocParam.distribution`/`dimension`; `analyzed_box(doc, policy)`
+with `AnalysisPolicy`, `AnalyzedBox`, `AnalyzedParam`,
+`DEFAULT_QUANTILE_MASS`; the tail and leaf columns as METHODS ON THE
+BOX (`tail_mass`, `box_mass`) rather than the kernel's free functions,
+on the kernel's own argument that loose triples let a caller pair one
+parameter's distribution with another's box; `MeasureUnavailable` (a
+band prices nothing shape-dependent, and names the parameter) and
+`AnalysisPolicyError`. The sharp edge pinned in all three states
+(the rebuilt `DocParam` still deletes the annotation; the value door
+carries it forward; a redeclaration can now restate it) — there is no
+distribution-only edit arm and none was invented, so the closure is
+the constructor and the prose on `set_doc_param` says what the door
+does. Census: three rows left three ways (`Distribution`,
+`DistributionFault` under rule 1; `DistributionField` to `BOUND_AS` as
+`DistributionFault.field`); the charter leaves `FAMILIES`. The census
+lesson in its widest form yet: three of the charter's four things
+(`analyzed_box`, tail mass, leaf mass) were never rows and could not
+be, because `crates/pncad/src/analysis.rs` is outside the census's
+alphabet in both directions — which will do the same to B-MEASURES's
+read half. 36 Python rows mirroring `m10_1_analysis.rs` and the
+façade's end-to-end row, two Rust pins on the default path, five
+fixtures each way, a GUIDE §3.3 block executed by `test_guide.py`.
+Deviations with homes: a keyed `Doc.doc_param` was written and then
+deleted at the B-NOTATION merge in favour of `doc.params.get(name)`
+(one door per question); `written_length/angle` take no
+`distribution=` because the kernel's notation doors write none
+(reported as the kernel-side gap). Filed:
+`advisory-monte-carlo-lane-has-no-python-door` (the E11.1 estimator is
+ungated on the façade precisely for the caller with no certified
+scalar, and a Python caller is that caller). Reported outside the
+fence: `std_deviation`'s `NOT_CARRIED` row withholds a name whose
+answer is one method call away on a carried type (M10's call).
+Orchestrator note: main gained EVAL/RESOLVE internals and tests between
+the green run on `528d9274` and the merge, overlapping nothing in this
+diff, so it landed on that run.
