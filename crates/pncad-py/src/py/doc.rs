@@ -193,7 +193,7 @@ pub(crate) struct Doc {
 }
 
 /// The wrapper's own plumbing: the ONE place an accepted edit is taken
-/// up, and the two node-inserting doors that share it. None of it is a
+/// up, and the two shared door bodies that land there. None of it is a
 /// Python method.
 impl Doc {
     /// **The swap point.** Every accepting door lands here, and it
@@ -212,19 +212,20 @@ impl Doc {
     /// not by the type system**: `inner` and `maintenance` are
     /// `pub(crate)` because the rest of the crate reads the document,
     /// so nothing stops a new door assigning either field directly.
-    /// [`Doc::insert_node`] closes that hole for the node-inserting
-    /// doors by accepting internally; a door reaching `d::apply` for
-    /// any OTHER edit lands here or is a bug the test names.
+    /// [`Doc::insert_node`] closes that hole for `insert` by accepting
+    /// internally, and [`Doc::declare_findings`] closes it for the
+    /// declare doors by taking the kernel sugar's whole acceptance up
+    /// here; a door reaching `d::apply` for any OTHER edit lands here
+    /// or is a bug the test names.
     fn accept(&mut self, applied: d::Applied<d::ProfileProgram>) -> d::EditRecord {
         self.inner = applied.doc;
         self.maintenance = applied.maintenance;
         applied.record
     }
 
-    /// Insert a node and take the acceptance up: the shared body of
-    /// every node-inserting door, which is why it accepts internally
-    /// rather than handing an un-accepted `Applied` back for a caller
-    /// to remember to swap.
+    /// Insert a node and take the acceptance up: `insert`'s body,
+    /// which accepts internally rather than handing an un-accepted
+    /// `Applied` back for a caller to remember to swap.
     ///
     /// `Ok(None)` is the contract violation "an accepted `InsertNode`
     /// minted no id", and the document is **not** swapped on that arm:
@@ -245,27 +246,22 @@ impl Doc {
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
-    /// The declare doors' shared body: build the kernel's `Declare`
-    /// node from findings the caller already inspected, insert it, and
-    /// take the acceptance up through the swap point.
-    ///
-    /// It reaches `insert_node` rather than `pncad::select::declare_all`
-    /// because that sugar returns the new document alone: its own
-    /// insert's maintenance is dropped inside it, so a caller holding a
-    /// maintenance mirror cannot keep it honest through that door. The
-    /// refusal vocabulary is unchanged — the same `DeclareError` arms,
-    /// raised through the same `declare_err`.
+    /// The declare doors' shared body: the kernel's own declare sugar
+    /// (`pncad::select::declare_all`), whose acceptance — the new
+    /// document, its record and the maintenance the insert performed
+    /// — is taken up whole through the swap point. The id comes back
+    /// beside it already checked, so the `NoMintedId` arm is the
+    /// sugar's to raise; every `DeclareError` arm reaches Python
+    /// through the same `declare_err`.
     fn declare_findings(
         &mut self,
         py: Python<'_>,
         findings: &[pncad::select::FlushFinding],
     ) -> PyResult<NodeId> {
-        use pncad::select::DeclareError;
-        let raise = |err: DeclareError| declare_err(py, &err);
-        let node = pncad::select::declare_node(findings).map_err(raise)?;
-        self.insert_node(node)
-            .map_err(|err| raise(DeclareError::Edit(err)))?
-            .ok_or_else(|| raise(DeclareError::NoMintedId))
+        let (applied, id) = pncad::select::declare_all(&self.inner, findings, Tol::witness())
+            .map_err(|err| declare_err(py, &err))?;
+        self.accept(applied);
+        Ok(NodeId(id))
     }
 }
 
