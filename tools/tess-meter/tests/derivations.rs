@@ -1238,3 +1238,78 @@ fn the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it() {
         "the containment separates a roster short a tag from a complete one"
     );
 }
+
+/// **`tools/tess-lint`'s SIZED roster answers `Chart::sized_lane` on
+/// every tag this crate can emit** — the same pin as the one above,
+/// over the second roster and in both directions.
+///
+/// `tess_lint::SIZED_CHART_TAGS` restates [`Chart::sized_lane`] across
+/// a cargo-root boundary, and `tess_lint::parse` reads it as a PAIRING:
+/// a row whose `chart` is in that roster owes the sizing block, and a
+/// row whose `chart` is not in it owes an empty tail. Both arms refuse.
+/// So the roster being wrong in EITHER direction turns rows this crate
+/// legitimately writes into harness breakage — a sized chart missing
+/// from it refuses every sized row carrying that tag, and an unsized
+/// chart wrongly in it refuses every row carrying that one.
+///
+/// **Per-tag biconditional, not equality**, and the reason is
+/// [`the_lints_roster_admits_every_tag_this_crate_emits`]' reason one
+/// level down: the lint parses committed baselines cut from older
+/// trees, so a chart this crate RETIRES has to stay in both rosters
+/// for as long as a baseline row carries it, and equality would red
+/// this suite over an entry still doing the lint's work. What is owed,
+/// and what this asserts, is that every tag the crate emits TODAY is
+/// on the side of the roster [`Chart::sized_lane`] puts it on.
+#[test]
+fn the_lints_sized_roster_answers_sized_lane_for_every_tag_this_crate_emits() {
+    let sized = lint_string_array("pub const SIZED_CHART_TAGS");
+    for c in EVERY_CHART.iter().copied() {
+        assert_eq!(
+            sized.iter().any(|t| t == c.tag()),
+            c.sized_lane(),
+            "tess-lint's SIZED_CHART_TAGS is {sized:?}; {:?} is sized_lane = {} here, so \
+             the lint's parse refuses the rows this crate writes for it",
+            c.tag(),
+            c.sized_lane()
+        );
+    }
+}
+
+/// The sized-roster pin is falsifiable in both of the directions it
+/// asserts, constructed rather than assumed: a roster short a sized
+/// tag and a roster carrying an unsized one are both separated from
+/// the real thing. The locator's own failures are
+/// [`the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it`]'s
+/// — one array, one locator.
+#[test]
+fn the_sized_roster_pin_reds_on_a_missing_tag_and_on_an_extra_one() {
+    let read = |text: &str| {
+        string_array(
+            &source::code_only(text),
+            &source::code_and_literals(text),
+            "the decoy fixture",
+            "pub const SIZED_CHART_TAGS",
+        )
+    };
+    // The real roster answers `sized_lane` on every tag.
+    let disagreeing = |roster: &[String]| -> Vec<&'static str> {
+        EVERY_CHART
+            .iter()
+            .copied()
+            .filter(|c| roster.iter().any(|t| t == c.tag()) != c.sized_lane())
+            .map(|c| c.tag())
+            .collect()
+    };
+    let real = read("pub const SIZED_CHART_TAGS: [&str; 2] = [\"nurbs\", \"approx\"];\n");
+    assert_eq!(real, ["nurbs", "approx"]);
+    assert_eq!(disagreeing(&real), Vec::<&str>::new());
+    // Short a sized tag: every `approx` row this crate writes would be
+    // refused for carrying the block its lane filled.
+    let short = read("pub const SIZED_CHART_TAGS: [&str; 1] = [\"nurbs\"];\n");
+    assert_eq!(disagreeing(&short), ["approx"]);
+    // Carrying an unsized one: every `plane` row would be refused for
+    // the empty tail that is the honest reading of an unsized face.
+    let wide =
+        read("pub const SIZED_CHART_TAGS: [&str; 3] = [\"nurbs\", \"approx\", \"plane\"];\n");
+    assert_eq!(disagreeing(&wide), ["plane"]);
+}

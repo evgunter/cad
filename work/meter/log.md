@@ -94,3 +94,48 @@ doc says of the ADDED direction. And `docs/TESS-BUDGET.md` enumerates
 the identity list twice, both copies still eight entries — filed as
 `tess-budget-doc-identity-column-list` rather than edited, because unit
 2 holds that file for the wave.
+
+**Unit 1, fix pass.** The review found the unit had disarmed a guard it
+did not touch: `an_unknown_chart_tag_is_harness_breakage_not_a_re_key`
+asserted only `text.contains("chart")` and `contains("hessian")`, and
+the new pairing arm's `(false, true)` message names both — so deleting
+`CHART_TAGS`' roster check left all 65 tests green on this branch while
+the same deletion reds on `main`. Reproduced in both directions before
+the fix. The refusal is now compared WHOLE and on both row shapes (the
+unsized one, where the pairing has no opinion, is what the fixture was
+missing), the two lane-pairing tests compare whole messages for the
+same reason, and the vacuous `if let Err(e) { assert!(!contains(..)) }`
+loop is gone — its positive content is
+`every_chart_tag_owes_the_sizing_block_or_refuses_it`, which reads both
+shapes per tag.
+
+The sweep behind it is mechanical and is the instrument this class
+wants: **delete each refusal in `parse`, one at a time, and record
+which tests red.** Ten mutations over nine guards. Before the fix, one
+guard — the roster — had no red; every other guard reds at least one
+row, and the attribution is right in each. After, the roster reds two.
+Refusal ORDER is now pinned too (roster before pairing, pairing before
+`face`), proved by swapping the two blocks; nothing pinned it before.
+
+`SIZED_CHART_TAGS`' membership is no longer guarded only by a literal
+inside the test that reads it: the cross-root pin was WRITTEN rather
+than filed —
+`tess-meter`'s `the_lints_sized_roster_answers_sized_lane_for_every_tag_this_crate_emits`
+reads the declaration out of `tess-lint`'s source and asserts
+membership equals `Chart::sized_lane` per tag, with a falsification
+guard covering a roster short a sized tag and one carrying an unsized
+one. Per-tag biconditional rather than equality, for the same reason
+`CHART_TAGS`' pin is containment: the lint parses baselines cut from
+older trees, so a retired tag must stay in both rosters.
+
+Also this pass: `CHART_TAGS`' doc said closing its one-way asymmetry
+was "`tess-meter`'s ground" when `the_lints_roster_admits_every_tag_this_crate_emits`
+had already closed it — a stale sentence that steered the deferral
+above. `D214`'s history figures did not reproduce and were re-taken (20
+blobs, not 127; no pre-`triangles` header shape exists; the conclusion
+is unchanged). A third copy of the identity-column enumeration turned
+up in `local-scripts/ci-local.sh`'s hosted-mirror comment and is fixed
+here; `C15` and `D201` restated it too and are corrected. `D213`'s
+close is rewritten to lead with the argument that carries it — a
+property of `parse` and `first_disagreement`, no kernel content — with
+the mesh chain demoted to what it is actually for.

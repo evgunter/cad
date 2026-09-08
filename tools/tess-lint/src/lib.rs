@@ -222,25 +222,32 @@
 //! only, so any in-band fallback for an unreadable value is the
 //! smallest movement expressible and passes by construction. The
 //! sizing columns are therefore admitted or refused where they are
-//! read (`Admissible`, private), per column, and a refused one leaves in the
-//! harness voice — a sweep the lint cannot read is not a tessellation
-//! that got better. Two of those refusals are CROSS-column, because
-//! no one column can state either:
+//! read (`Admissible`, private), per column, and a refused one leaves
+//! in the harness voice — a sweep the lint cannot read is not a
+//! tessellation that got better. One of those refusals is CROSS-column, because one
+//! column cannot state it: `worst_dev` spells "the sweep did not
+//! resample" and "a sample came back `NaN`" identically, and
+//! `dev_samples` is what separates them ([`Deviation`]). Rules 3, 4
+//! and 5 say the same thing one level up: a comparison that stopped
+//! HAPPENING — or never started — is not growth of any size.
 //!
-//! * `worst_dev` spells "the sweep did not resample" and "a sample
-//!   came back `NaN`" identically, and `dev_samples` is what
-//!   separates them ([`Deviation`]).
-//! * an EMPTY sizing tail spells "this face is not on the sized lane"
-//!   and nothing else, so on a chart that owes the block
-//!   ([`SIZED_CHART_TAGS`]) it is a lane fact the row cannot support
-//!   — the producer's own refusal (`tess_meter::FaceRow::csv_row`)
-//!   read from the consumer's side, and the filled tail under an
-//!   unsized chart with it.
-//!
-//! Rules 3, 4
-//! and 5 say the same thing one level up:
-//! a comparison that stopped HAPPENING — or never started — is not
-//! growth of any size.
+//! **A SCHEMA move is not a measurement at all**, and is refused
+//! before any column is read as one. Three constants pin the shape of
+//! the file: [`EXPECTED_HEADER`] the column order, [`CHART_TAGS`] the
+//! vocabulary of the one column the gate JOINS on, and
+//! [`SIZED_CHART_TAGS`] the pairing between that column and the sizing
+//! block — an EMPTY sizing tail spells "this face is not on the sized
+//! lane" and nothing else, so on a chart that owes the block it is a
+//! lane fact the row cannot support, and a filled tail under a chart
+//! nothing sizes hangs the lane's columns on a face that never took
+//! it. That pairing is the producer's own refusal
+//! (`tess_meter::FaceRow::csv_row`) read from the consumer's side, and
+//! it is what makes "the block is present" a function of `chart` on
+//! every parsed row — which is why [`IDENTITY_COLUMNS`] carries no
+//! block-presence entry. All three leave in the harness voice, on the
+//! row that carries the move: a producer whose schema moved under this
+//! crate must never arrive as a reading, and never as a re-key on
+//! every scene that carries it.
 //!
 //! # Reading a firing gate
 //!
@@ -273,9 +280,14 @@ pub struct Row {
     /// `Surface::Nurbs`, so an `approx` row carries this block too and
     /// "the block is present" is not "the chart is `nurbs`". Which
     /// charts it IS is [`SIZED_CHART_TAGS`], and [`parse`] refuses
-    /// either half of the pair without the other — so on every row
-    /// that reaches here this is `Some` exactly when `chart` is one of
-    /// those tags.
+    /// either half of the pair without the other — so on every PARSED
+    /// row this is `Some` exactly when `chart` is one of those tags.
+    /// The type is not itself the guarantee, and says so for the same
+    /// reason the producer's `tess_meter::FaceRow` does: these fields
+    /// are `pub` and `identity_readings`/`compare` take `&[Row]`, so a
+    /// hand-built `Row` can hold the pair `parse` refuses. Every rule
+    /// in this crate is written to be read on rows that came through
+    /// [`parse`].
     pub nurbs: Option<Nurbs>,
 }
 
@@ -618,14 +630,18 @@ pub const EXPECTED_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,
 /// `chart` is a column the gate JOINS on: a renamed tag must fail as
 /// harness breakage rather than re-key every scene that carries it.
 ///
-/// **Weaker than [`EXPECTED_HEADER`]'s pin, and the difference is
-/// worth knowing.** That constant is checked against the meter's own
-/// source from the other cargo root; this roster is checked only by
-/// this crate's test, so it catches a tag the meter renames — the row
-/// then reads as drift, which is the point — but a tag the meter ADDS
-/// arrives here as harness breakage on every row carrying it, and
-/// nothing on the meter's side says so. Closing that is `tess-meter`'s
-/// ground, not this crate's.
+/// **Deliberately WIDER than today's producer, and pinned from the
+/// other side rather than by equality.** `parse` refuses any row whose
+/// `chart` is not here, and what it parses includes committed
+/// baselines cut from older trees, so a tag the meter retires has to
+/// stay in this roster for as long as a baseline row carries it. The
+/// direction that is owed therefore runs the other way — a tag the
+/// meter ADDS would arrive here as harness breakage on every row
+/// carrying it — and it is closed from the meter's side, where the
+/// enum lives: `tess-meter`'s
+/// `the_lints_roster_admits_every_tag_this_crate_emits` reads this
+/// declaration out of this file and asserts it admits every tag
+/// `Chart::tag` emits, with its own falsification guard.
 pub const CHART_TAGS: [&str; 7] = [
     "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx",
 ];
@@ -651,6 +667,20 @@ pub const CHART_TAGS: [&str; 7] = [
 /// because an unwritten tag simply never arrives. This roster cannot
 /// be widened the same way — every extra member weakens the pairing
 /// on rows that DO arrive.
+///
+/// Pinned from the meter's side in both directions, for the reason
+/// [`CHART_TAGS`] is pinned from there in one:
+/// `tess-meter`'s
+/// `the_lints_sized_roster_answers_sized_lane_for_every_tag_this_crate_emits`
+/// reads this declaration out of this file and asserts membership here
+/// equals `Chart::sized_lane` on every tag that crate emits. That is
+/// the only guard on the split that reads the enum; this crate's own
+/// tests can only check that the literal is what its rows expect.
+///
+/// **`approx` has no corpus witness.** No row of any committed blob of
+/// `docs/tess-budget-data/tess-budget-baseline.csv` carries that tag,
+/// so the member is exercised by this crate's fixtures and by the
+/// meter-side pin, and by nothing the gate actually parses.
 pub const SIZED_CHART_TAGS: [&str; 2] = ["nurbs", "approx"];
 
 /// The provenance line `scripts/tess_budget_sweep.sh` writes above
@@ -1242,7 +1272,7 @@ fn identity(r: &Row) -> [Reading<'_>; IDENTITY_COLUMNS.len()] {
 ///
 /// `tests/baseline_census.rs` is that anyone. It exists so the census
 /// groups on THIS definition rather than on a transcription of it: a
-/// ninth entry in [`IDENTITY_COLUMNS`] changes this array's length and
+/// eighth entry in [`IDENTITY_COLUMNS`] changes this array's length and
 /// the census's grouping with it, which a second copy of the list
 /// could not do.
 ///
@@ -2227,10 +2257,13 @@ mod tests {
         );
         let e = parse(&text).unwrap_err();
         assert_eq!(e.line, 3, "the row that carries it");
-        assert!(
-            e.text.contains("\"nurbs\"") && e.text.contains("empty"),
-            "the message names the tag and what is missing: {}",
-            e.text
+        // Whole, not `contains`: the tag alone is named by the roster
+        // refusal too, so a containment on it would read as satisfied
+        // by a check that is not this one.
+        assert_eq!(
+            e.text,
+            "chart \"nurbs\" is the Hessian-sized lane's and the sizing columns are \
+             empty: that tail reads as a face OFF the sized lane (sweep drift?)"
         );
     }
 
@@ -2244,10 +2277,10 @@ mod tests {
         let text = with_field(&csv(100, 2.5e1), 2, "cylinder");
         let e = parse(&text).unwrap_err();
         assert_eq!(e.line, 3, "the row that carries it");
-        assert!(
-            e.text.contains("\"cylinder\"") && e.text.contains("carries the sizing columns"),
-            "the message names the tag and what it carries: {}",
-            e.text
+        assert_eq!(
+            e.text,
+            "chart \"cylinder\" is not the Hessian-sized lane's and the row carries the \
+             sizing columns anyway (sweep drift?)"
         );
         // …and the tag itself is fine on a row that owes no block, so
         // the refusal above is about the PAIRING and not about
@@ -2520,14 +2553,36 @@ mod tests {
     /// arrive here as a re-key on every scene that carries it.
     #[test]
     fn an_unknown_chart_tag_is_harness_breakage_not_a_re_key() {
-        let e = parse(&with_field(&csv(100, 2.5e1), 2, "hessian")).unwrap_err();
-        assert_eq!(e.line, 3);
-        assert!(e.text.contains("chart"), "{}", e.text);
-        assert!(e.text.contains("hessian"), "{}", e.text);
+        // The message is compared WHOLE, and on BOTH row shapes. An
+        // unknown tag is on neither side of `SIZED_CHART_TAGS`, so the
+        // lane pairing below has an opinion about the sized shape of
+        // this row too — and its refusal names the same column and the
+        // same tag. Under a `contains` on those two words the roster
+        // check could therefore leave with this row still red, in the
+        // pairing's voice, saying nothing about a roster the gate
+        // joins on.
+        const REFUSED: &str = "chart: \"hessian\" is not one of \
+                               plane, cylinder, cone, sphere, torus, nurbs, approx \
+                               (sweep drift?)";
+        for (text, line) in [
+            (with_field(&csv(100, 2.5e1), 2, "hessian"), 3),
+            (
+                format!("{EXPECTED_HEADER}\n{}", unsized_row(0, "hessian", 4)),
+                2,
+            ),
+        ] {
+            let e = parse(&text).unwrap_err();
+            assert_eq!(e.line, line);
+            assert_eq!(e.text, REFUSED);
+        }
         // …and the roster itself, written out rather than iterated:
         // reading `CHART_TAGS` to check `CHART_TAGS` would let a tag be
         // dropped from it in silence, and a dropped tag turns every
-        // scene carrying that chart into harness breakage.
+        // scene carrying that chart into harness breakage. That every
+        // member is ADMITTED as a tag is
+        // `every_chart_tag_owes_the_sizing_block_or_refuses_it`, which
+        // reads both row shapes for each and is where the roster's
+        // members are exercised.
         assert_eq!(
             CHART_TAGS,
             [
@@ -2535,25 +2590,28 @@ mod tests {
             ],
             "the tags `tess_meter::Chart::tag` emits"
         );
-        // Every member is ADMITTED as a tag — read on BOTH row shapes,
-        // because one of the two is refused for the lane pairing
-        // instead (`every_chart_tag_owes_the_sizing_block_or_refuses_it`)
-        // and that refusal is not this one. What is checked here is
-        // only that no roster member ever leaves as an unknown tag.
-        for tag in CHART_TAGS {
-            for text in [
-                with_field(&csv(100, 2.5e1), 2, tag),
-                format!("{EXPECTED_HEADER}\n{}", unsized_row(0, tag, 4)),
-            ] {
-                if let Err(e) = parse(&text) {
-                    assert!(
-                        !e.text.contains("is not one of"),
-                        "{tag} is a tag the sweep writes: {}",
-                        e.text
-                    );
-                }
-            }
-        }
+    }
+
+    /// The roster check runs AHEAD of the lane pairing, and the order
+    /// is the readable one: a tag the crate does not know cannot be
+    /// judged against `SIZED_CHART_TAGS` at all, so reporting it as a
+    /// pairing failure would answer a question the row has not earned.
+    /// Pinned because nothing else holds it — both checks refuse, so
+    /// swapping them keeps every other row in this file green.
+    #[test]
+    fn an_unknown_tag_is_refused_for_being_unknown_before_the_pairing() {
+        // Unknown tag AND the sized shape the pairing refuses: the
+        // roster speaks.
+        let e = parse(&with_field(&csv(100, 2.5e1), 2, "hessian")).unwrap_err();
+        assert!(e.text.contains("is not one of"), "{}", e.text);
+        // The pairing in turn runs ahead of `face`, which is the first
+        // counted column read after it. A row that is both a schema
+        // move and an unreadable count is harness breakage either way;
+        // the pairing names the schema, which is the fault that
+        // explains the other.
+        let text = with_field(&with_field(&csv(100, 2.5e1), 2, "plane"), 1, "x");
+        let e = parse(&text).unwrap_err();
+        assert!(e.text.contains("carries the sizing columns"), "{}", e.text);
     }
 
     #[test]

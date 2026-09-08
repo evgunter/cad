@@ -23,14 +23,26 @@ edges, `nu`, `nv`.
 `docs/TESS-BUDGET.md` enumerates that list twice and both copies still
 carry the eighth:
 
-- `:103-106` — *"the identity columns its per-face join checks itself
-  against — chart, trim box, the whole-patch divisions, and whether the
-  row carries a sizing block at all"*, in the paragraph that makes
-  `--sizing-only` sound.
-- `:391-393` — *"`tess-lint` checks at each ordinal that both sides
+- `:120-123` at `origin/main` after unit 2 merged — *"the identity
+  columns its per-face join checks itself against — chart, trim box,
+  the whole-patch divisions, and whether the row carries a sizing block
+  at all"*, in the paragraph that makes `--sizing-only` sound.
+- `:543-546` — *"`tess-lint` checks at each ordinal that both sides
   describe one face (chart, trim box, whole-patch divisions, and
   whether the row carries the sizing block at all)"*, under **A
   re-keyed face is read before it is re-cut**.
+
+Both were re-checked against `origin/main` on 2026-09-08 (unit 2 landed
+in between and moved the line numbers; neither sentence changed).
+
+**A third copy was found and is CLOSED in this unit's own PR**, not
+deferred: `local-scripts/ci-local.sh`'s hosted-mirror comment on
+`tesslint_gate` said the gate JOINS on *"`chart`, whether the row
+carries the sizing block at all, and `u0`-`v1` / `nu` / `nv`"*. That
+file is held by nobody and is what a reader reproducing CI locally
+reads. The class is therefore three copies, two of which remain here.
+The tracker prose that restated the same list — `work/meter/C15.md`
+and `work/meter/D201.md`, both open — was corrected in the same PR.
 
 Neither is merely stale in its list: the second sentence describes what
 the gate WOULD announce, and a reader expecting a re-key naming *"the
