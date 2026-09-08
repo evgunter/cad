@@ -1356,6 +1356,36 @@ jobs:
       # are prose or `local-scripts/`.
       - name: run-job gate selftest (the one required check's seven paths)
         run: python3 scripts/check-run-jobs.py --selftest
+      # THE OPT-LEVEL CALIBRATOR'S OWN TESTS, and the row exists because until
+      # it was written the script's `--selftest` was invoked by NOTHING: the
+      # three real modes run in nightly.yml and the guard over them ran
+      # nowhere, so its greenness was a statement about nothing. What it drives
+      # is the population no real run produces on demand — shard summing, a
+      # cancelled shard, a renamed step, the docs-tier skip, the schema-1/2/3
+      # readers, the cadence triggers, the argmin over three arms, the one-arm
+      # refusal, the environment block's host-identity degradation — and the
+      # `record` mode those feed APPENDS TO AN APPEND-ONLY HISTORY under
+      # docs/perf-data/opt-level/, where a malformed entry cannot be
+      # overwritten out.
+      #
+      # SITED PER-PR AND NOT IN nightly.yml, deliberately, and this is the
+      # whole argument. A guard that runs only on a schedule is exercised at
+      # the next fire, to nobody, and a row that fails to run at all reports
+      # the same green as a row that ran and passed — which is the defect this
+      # row exists to close, not one to reproduce one level out. The selftest
+      # is a fixture battery over the script's own code paths: the only thing
+      # that can break it is a change to `scripts/opt-level-calibrate.py`, a
+      # tree change a PR gate sees now and a schedule sees hours later. The
+      # nightly runs main, and main is reached through this gate, so a
+      # second copy at 03:00 would re-prove a tree this row already proved.
+      #
+      # SITED IN THIS JOB and not in `mirror`, by `check-run-jobs.py`'s
+      # argument above: the script's inputs are `scripts/*.py`, which
+      # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
+      # set that can break it is exactly the change set this job runs on.
+      # No toolchain and no cargo — stdlib python against its own fixtures.
+      - name: opt-level calibrator selftest (the guard over an append-only history)
+        run: python3 scripts/opt-level-calibrate.py --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: it is what lets the wasm32 guard below run the interval
       # leg ONLY, and it is what made this lane a stand-in for the default
