@@ -338,9 +338,15 @@ fn growth_margin() -> f64 {
 /// the instrument's error is negligible against its consumer.
 ///
 /// **This is a ceiling on [`unfloored_worst_excess`] and on nothing
-/// else.** It is not a bound on the instrument's total error: the
-/// floored class is not covered by any closed form here, and its
-/// measured worst is nearly three times this. Saying "a tenth of the
+/// else.** It is not a bound on the instrument's total error. The
+/// floored class has a closed form of its own and it is not this one:
+/// [`floored_worst_excess`] reads 1.75540% at the shipped pair, three
+/// and a half times this ceiling. (The family's own floored members
+/// measure 0.14890% and 0.39930% there, under the ceiling rather than
+/// over it — which is a property of where this lattice happens to fall
+/// and not of the class, and is exactly why the ceilings here are the
+/// closed forms and not the family.) And the `ceil`'d objective the
+/// gate actually reads is covered by neither. Saying "a tenth of the
 /// margin" about the whole error would be the claim this row was sent
 /// back for.
 ///
@@ -352,34 +358,20 @@ fn unfloored_ceiling() -> f64 {
     growth_margin() / 10.0
 }
 
-/// What any member may leave on the CONTINUOUS objective, floored or
-/// not: the consumer's whole margin.
+/// The one-sided envelope `10^(decades/(samples − 1)) − 1` — the
+/// factor one whole sampling step in aspect ratio costs on the
+/// CONTINUOUS cost, which is what `tess_meter::SPLIT_SCAN_SAMPLES` is
+/// chosen against.
 ///
-/// **Read the objective in that sentence, because the consequence
-/// attaches to the other one.** Every claim in this row is stated on
-/// the continuous objective — the cost with `divisions`' two `ceil`s
-/// removed — and `span_opt_cells`, the column `tools/tess-lint`
-/// actually divides by, is the `ceil`'d one. On the continuous
-/// objective the worst member at the shipped pair is
-/// `floored ruled wall` at 0.399%, 8.0% of this margin. On the `ceil`'d
-/// objective the family worsts at 2.94% and
-/// `anisotropic, live cross term` scores 0.5249%, its scan-to-true
-/// ratio staying under **1.02320** along a single smooth geometry
-/// change (`mvv` scaled 1× to 100×, counts in the thousands, not a
-/// small-count corner). **That is a measurement, not a bound**: no
-/// closed form covers the `ceil`'d count, so the sentence *"the meter's
-/// own resolution can move a face across its consumer's threshold"* is
-/// held off by `SPLIT_SCAN_SAMPLES` being chosen against the one-sided
-/// envelope (`tess_meter::SPLIT_SCAN_DECADES`) and not by this ceiling,
-/// which does not claim to.
-///
-/// **What that ceiling is for**: the continuous excess is what the two
-/// constants govern smoothly, so it is what a guard on them can box.
-/// The `ceil` quantisation on top is what the sample count is chosen
-/// against at `SPLIT_SCAN_DECADES`, and bounding it is not this row's
-/// work.
-fn total_ceiling() -> f64 {
-    growth_margin()
+/// **It lives here because nothing else in the tree computes it.** The
+/// constant's entire licence is a comparison of this value against
+/// [`growth_margin`], written out longhand in
+/// `tess_meter::SPLIT_SCAN_DECADES`' docs; before this function that
+/// comparison was prose and a wrong figure in it could not go red.
+fn one_sided_envelope(decades: f64, samples: usize) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let spans = (samples - 1) as f64;
+    10.0f64.powf(decades / spans) - 1.0
 }
 
 /// [`divisions`] with its `ceil` deleted and nothing else changed — the
@@ -609,7 +601,9 @@ fn the_shipped_optimizer_is_the_shipped_scan() {
 /// `span_opt_cells`, which LOWERS the recoverable slack, and that gate
 /// fires only on growth.
 ///
-/// **Four claims, each with one failure mode.**
+/// **Four claims, each with one failure mode.** (Numbered 0-3; claim 3
+/// used to have a second half, and the paragraph after it says why that
+/// half is gone.)
 ///
 /// 0. **The lattice under test is the shipped one.** The count and the
 ///    ends of `shipped_split_scan_aspects` are the constants' own, so a
@@ -629,11 +623,24 @@ fn the_shipped_optimizer_is_the_shipped_scan() {
 ///    so the per-member comparison carries a float allowance rather than
 ///    a margin.
 /// 3. **Each [`Shape::Floored`] member stays inside
-///    [`floored_worst_excess`], and every member stays inside the
-///    consumer's whole margin on the continuous objective.** The kink
-///    derivation is what makes the first half a bound rather than a
-///    measurement; read [`total_ceiling`] for which objective the second
-///    half is about, because the gate reads the other one.
+///    [`floored_worst_excess`].** The kink derivation is what makes
+///    that a bound rather than a measurement.
+///
+/// **There is no fourth claim, and the one that used to sit here could
+/// not fail.** It asserted that every member also stays inside the
+/// consumer's WHOLE margin on the continuous objective, which claim 2
+/// already forces: [`unfloored_ceiling`] is a tenth of that margin, and
+/// the pair reaches it at 185 samples, where [`floored_worst_excess`]
+/// is still 3.79% — so no coarsening can carry a member past the whole
+/// margin without reddening claim 2 first, and `GROWTH_TOLERANCE`'s own
+/// box (`[1.04, 1.06)`) cannot move the margin far enough to change
+/// that. The statement is a CONSEQUENCE of the two ceilings, and an
+/// assertion that no input can red is a comment wearing an `assert!`.
+/// What it is a consequence about is the CONTINUOUS objective;
+/// `span_opt_cells`, the column `tools/tess-lint` divides by, is the
+/// `ceil`'d one, and nothing bounds the excess there —
+/// [`the_ceild_excess_can_exceed_the_one_sided_envelope`] is the
+/// witness.
 ///
 /// **Measured on this tree at the shipped pair** (continuous excess,
 /// unseeded — the seeded column `S160` published is a different
@@ -734,9 +741,12 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
         // by the [`Shape::Flat`] member: its cost is CONSTANT in `t`, so
         // the bracketing search and the scan evaluate the same real
         // number by different routes and either may land an ulp below
-        // the other. A relative slack five orders under the smallest
-        // real excess in this family cannot hide a resolution failure.
-        const REFERENCE_SLACK: f64 = 1e-12;
+        // the other. SIZED AGAINST THE MEASURED DUST: at zero the row
+        // reds by exactly one ulp, so the allowance is eight of them —
+        // wide enough that a re-association of either route stays
+        // green, and eleven orders under the smallest real excess in
+        // this family, which is the `ruled wall`'s 0.0225%.
+        const REFERENCE_SLACK: f64 = 8.0 * f64::EPSILON;
         assert!(
             optimum <= scan.cells * (1.0 + REFERENCE_SLACK),
             "the reference stopped being the better answer on the {name}: \
@@ -783,16 +793,6 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
             }
             Shape::Flat => {}
         }
-        assert!(
-            excess <= total_ceiling(),
-            "the {name} leaves {:.5}% on the CONTINUOUS objective, over the {:.5}% \
-             the slack gate's whole margin allows. The gate reads the `ceil`'d \
-             objective, where the instrument is already over that margin \
-             (SPLIT_SCAN_DECADES' docs); this row bounds the part the two constants \
-             govern smoothly, and that part has stopped being negligible",
-            100.0 * excess,
-            100.0 * total_ceiling()
-        );
     }
     seen.report();
     seen.require_each(
@@ -813,6 +813,107 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
         2,
         "both shapes of the objective have to be under test: the closed form covers \
          one of them and the ruled wall this scan exists for is in the other",
+    );
+}
+
+/// **The one-sided envelope is the shipped sample count's whole
+/// licence, and this is the only place it is computed.**
+/// `tess_meter::SPLIT_SCAN_SAMPLES = 379` exists because 379 is the
+/// smallest count whose envelope fits inside the consumer's margin;
+/// that sentence is written out in `SPLIT_SCAN_DECADES`' docs and
+/// nothing re-took either number, so a retune that no longer fits, or a
+/// figure mistyped in the prose, was invisible.
+#[test]
+fn the_shipped_sample_count_is_the_smallest_whose_envelope_fits() {
+    let here = one_sided_envelope(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES);
+    assert!(
+        here <= growth_margin(),
+        "the one-sided envelope at ({SPLIT_SCAN_DECADES}, {SPLIT_SCAN_SAMPLES}) is \
+         {:.4}%, over the {:.4}% the slack gate allows in whole — the sample count \
+         no longer buys the resolution its own docs license it by",
+        100.0 * here,
+        100.0 * growth_margin()
+    );
+    let coarser = one_sided_envelope(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES - 1);
+    assert!(
+        coarser > growth_margin(),
+        "one sample FEWER would also fit ({:.4}% against {:.4}%): \
+         SPLIT_SCAN_SAMPLES is documented as the smallest count that fits and is not",
+        100.0 * coarser,
+        100.0 * growth_margin()
+    );
+}
+
+/// **The envelope bounds the CONTINUOUS excess and nothing else**, and
+/// this row is the counterexample that keeps `SPLIT_SCAN_DECADES`' docs
+/// from saying otherwise. A `ceil`'d cell count is an integer: a scan
+/// that misses the best aspect ratio by a fraction of a division still
+/// pays a whole one, and the fewer divisions the answer has the larger
+/// that is in relative terms.
+///
+/// **The witness is exact and carries no reference lattice.** For
+/// `muu = 100, muv = 0, mvv = 0.1` over a `1 x 10` box at `δ_s = 1`,
+/// the aspect `t = 26` gives `h_u = 1/13` and `h_v = 2`, which is
+/// `Q = 100/169 + 0.4 = 0.99172 ≤ δ_s` — admissible — and costs
+/// `13 x 5 = 65` cells. The shipped lattice does not contain `t = 26`
+/// (it would need sample 222.43 of 379) and its nearest samples cost 78
+/// and 70, so the scan reports 70: **7.6923% over**, against an
+/// envelope of 4.9939% and the slack gate's whole 5% margin. Both sides
+/// are driven through `split_scan` over `divisions`, so neither is a
+/// re-spelling of the optimizer.
+///
+/// **Which way it reds.** A pair fine enough to find `t = 26`, or a
+/// `GROWTH_TOLERANCE` wide enough to cover 7.6923%, and either way the
+/// sentence this row licenses has to be rewritten.
+#[test]
+fn the_ceild_excess_can_exceed_the_one_sided_envelope() {
+    let bound = unseeded(100.0, 0.0, 0.1);
+    let (du, dv, delta_s) = (1.0, 10.0, 1.0);
+    let scan = split_scan(
+        bound,
+        du,
+        dv,
+        delta_s,
+        shipped_split_scan_aspects(),
+        None,
+        divisions,
+    );
+    // The admissible grid the lattice misses, priced by the same scan
+    // over a one-aspect lattice so that `Q(t)`, the step and the count
+    // are the optimizer's own on both sides.
+    let witness = split_scan(
+        bound,
+        du,
+        dv,
+        delta_s,
+        std::iter::once(26.0),
+        None,
+        divisions,
+    );
+    assert_eq!(
+        (scan.cells, witness.cells),
+        (70.0, 65.0),
+        "the exhibit moved: the scan reports {} cells against the witness's {}",
+        scan.cells,
+        witness.cells
+    );
+    let excess = scan.cells / witness.cells - 1.0;
+    let envelope = one_sided_envelope(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES);
+    assert!(
+        excess > envelope,
+        "the exhibit leaves {:.4}% on the `ceil`'d count, inside the {:.4}% one-sided \
+         envelope — the envelope would then be a bound on the quantity the gate reads, \
+         and SPLIT_SCAN_DECADES' docs say it is not",
+        100.0 * excess,
+        100.0 * envelope
+    );
+    assert!(
+        excess > growth_margin(),
+        "the exhibit leaves {:.4}% on the `ceil`'d count, inside the slack gate's whole \
+         {:.4}% margin — D206 is recorded as having left that reachable by the \
+         instrument alone, and this row is the exhibit for it",
+        100.0 * excess,
+        100.0 * growth_margin()
     );
 }
 

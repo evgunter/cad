@@ -45,13 +45,28 @@ fn scene(tris: usize, span_opt: f64) -> String {
 /// A row on a lane that sizes nothing. The empty tail is COUNTED from
 /// the header, never typed: a schema change must not turn a fixture
 /// into a short row that fails for the wrong reason.
+///
+/// **The HEAD is counted too**, which the tail alone did not make safe:
+/// a column inserted before `u0` moves the tail's start and the two
+/// moves cancel, so the row stayed the header's width in the count and
+/// lost a field in fact. The head is typed out — a fixture that built
+/// it from the header would be asserting the header against itself —
+/// so its width is checked against where the tail begins instead.
 fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
     let first = HEADER
         .split(',')
         .position(|c| c == "u0")
         .expect("the header names the first NURBS column");
+    let head = format!("s/b,{face},,{chart},2e-3,{tris}");
+    assert_eq!(
+        head.split(',').count(),
+        first,
+        "the fixture's head is {} fields and the header's is {first}: a head column \
+         was added and this row would go in short",
+        head.split(',').count()
+    );
     let blanks = ",".repeat(HEADER.split(',').count() - first);
-    format!("s/b,{face},,{chart},2e-3,{tris}{blanks}\n")
+    format!("{head}{blanks}\n")
 }
 
 /// The `name` token the sized fixture row carries — the twin of

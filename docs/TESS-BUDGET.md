@@ -154,7 +154,13 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
   `Body`s, and only the scenes that still hold the evaluation when they
   hand the body over can name their faces. Empty is the honest answer
   there, not a gap: nothing joins on this column yet, and the ordinal
-  is still the join key.
+  is still the join key. **Its coverage is disjoint from the case a
+  join would fix**: 286 of 1353 rows carry a name, none of them one of
+  the 64 SIZED rows, and none of them one of the 14 rows in the seven
+  same-shape pairs the per-face join cannot tell apart. The six
+  nameable scenes are the three heatsinks and the three die stops, and
+  none contributes a sized face — so the column is populated where the
+  ordinal was never ambiguous and empty where it is.
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
   gate's per-face recoverable-slack ratio, now carrying the split
@@ -556,8 +562,9 @@ none and says so rather than pretending.
 **A re-keyed face is read before it is re-cut, and for the same
 reason.** The per-face join is by ORDINAL. The CSV also carries a
 `name` column — the face's durable derivation-path name, on the scenes
-the sweep can reach an evaluation for — but no rule keys on it yet, so
-`tess-lint` checks at each ordinal that both sides
+the sweep can reach an evaluation for — but no rule keys on it yet,
+and it is empty on every row a re-key could be manufactured out of
+(above), so `tess-lint` checks at each ordinal that both sides
 describe one face (chart, trim box, whole-patch divisions, and whether
 the row carries the sizing block at all) and stops comparing a scene
 from the first ordinal where they do not. The finding names that

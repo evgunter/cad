@@ -43,9 +43,32 @@ for is live where the number is history.
 is written down beside the figure (its distribution, its count, its
 seed) so a re-take is a comparison, or the average goes and the worst
 case stays, which is the half that reproduced and the half the
-argument actually needs. The same question applies to the two suprema
-at `SPLIT_SCAN_DECADES` — unit 6 re-took one of those over its own
-draw and replaced it, which is the other half of the same problem
-arriving as churn.
+argument actually needs.
+
+## The same defect at `SPLIT_SCAN_DECADES`, and what unit 6's fix pass did
+
+Unit 6 filed this row and, in the same PR, **replaced one supremum over
+an unrecorded draw with another over its own unrecorded 400,000-draw
+search** (`floored_worst_excess`'s 2.0768%/2.0918% became 1.75256%).
+That is this row's complaint restated by the row's own author.
+
+The fix pass took the second branch there rather than the first,
+because it could: **the sampled figure was never the argument.**
+`floored_worst_excess` is a DERIVATION — a bisection on the placement
+inside a sweep over `r` — and the family member `floored,
+cross-term-free` sits at `r = 0.29808`, its analytic argmax, so the
+derivations suite already carries the class's worst ratio on every run.
+The random search only ever corroborated it. So the percentages from
+all three draws are gone from `tools/tess-meter/src/lib.rs`, the
+corroboration is stated as corroboration, and both claim sites point
+here.
+
+**That does not close this row**, and the reason is the figure this row
+is actually named for: `best_split_scan`'s +14.93% average is NOT
+corroboration of a derivation — it is the whole evidence for the guard
+below it, and there is no closed form to fall back on. The decision
+this row asks for is still owed there. What the fix pass established is
+that the tree has two kinds of sampled figure and only one of them can
+be answered by deleting it.
 
 Fence: `tools/tess-meter/*`, METER's.

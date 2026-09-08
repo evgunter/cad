@@ -939,9 +939,11 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// rather than quadratically in the distance to the nearest sample, and
 /// [`floored_worst_excess`] bounds that from the kink's two exact
 /// branch ratios. At the shipped pair they are 0.11876% and 1.75540%,
-/// and the second is a supremum rather than a sample: a random search
-/// over the class, 400,000 floored bounds drawn log-uniformly, found
-/// 1.75256% under it.
+/// and the second is a supremum rather than a sample — derived, not
+/// searched. A random search over drawn floored bounds found nothing
+/// above it, which is corroboration and not the argument; the draw is
+/// not recorded, so no figure from it is quoted here (see
+/// [`floored_worst_excess`]).
 ///
 /// # What these two constants do NOT hold, and what the sample count
 /// is chosen against
@@ -950,25 +952,53 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// constants govern smoothly. `tools/tess-lint` divides by
 /// `span_opt_cells`, which is the `ceil`'d one, and no closed form here
 /// bounds THAT. What the sample count answers to instead is the
-/// ONE-SIDED envelope `10^(decades/(samples − 1)) − 1`: one sampling
-/// step in aspect ratio, which is the largest factor a `ceil`'d count
-/// can inherit from where a bound happens to sit relative to the
-/// lattice. At `SPLIT_SCAN_DECADES = 8` it is **4.9939%** at 379
+/// ONE-SIDED envelope `10^(decades/(samples − 1)) − 1`: the factor one
+/// whole sampling step in aspect ratio costs on the CONTINUOUS cost,
+/// which is the resolution these two constants buy and the whole of
+/// what they buy. At `SPLIT_SCAN_DECADES = 8` it is **4.9939%** at 379
 /// samples and 5.0075% at 378, so 379 is the smallest count that puts
-/// the whole envelope inside `tess_lint::GROWTH_TOLERANCE − 1 = 5%` —
-/// the consumer's ENTIRE margin, which it documents as the allowance
-/// for an honest small mover. Below that count a face whose bound moves
-/// relative to the lattice under a pure geometry change could spend the
-/// gate's whole margin on the instrument, with no schedule change at
-/// all.
+/// that envelope inside `tess_lint::GROWTH_TOLERANCE − 1 = 5%` — the
+/// consumer's ENTIRE margin, which it documents as the allowance for an
+/// honest small mover. Below that count the continuous excess ALONE
+/// could spend the gate's whole margin on the instrument, with no
+/// schedule change at all.
 ///
-/// **The envelope is not attained, and the family is what measures the
-/// gap.** On the `ceil`'d count the derivations suite's eight bounds
-/// worst at 2.94% at the shipped pair, and the anisotropic member with
-/// a live cross term (`muu = 0.1, muv = 1, mvv = 50`) scores 0.5249%,
-/// its scan-to-true ratio staying under 1.02320 while `mvv` is scaled
-/// 1× to 100× at counts in the thousands — a single smooth geometry
-/// change, not a small-count corner.
+/// **THE ENVELOPE IS NOT A BOUND ON THE `ceil`'d EXCESS, AND NOTHING
+/// HERE IS.** It bounds the continuous cost of a missed aspect ratio;
+/// [`divisions`]' two `ceil`s sit on top of it, and a division is an
+/// integer — a scan that misses the optimal aspect by a fraction of a
+/// division still pays a WHOLE one, which is a larger relative move the
+/// fewer divisions the answer has. The derivations suite's
+/// `the_ceild_excess_can_exceed_the_one_sided_envelope` exhibits that
+/// in closed numbers: `muu = 100, muv = 0, mvv = 0.1` over a `1 × 10`
+/// box at `δ_s = 1` admits a 13 × 5 grid at `t = 26`, which the lattice
+/// does not contain, and the shipped scan reports **70** cells against
+/// that **65** — **7.6923%**, half again the envelope. Any sentence
+/// here calling the envelope the largest factor a `ceil`'d count can
+/// inherit from the lattice is false, and this is the counterexample.
+///
+/// **Where it goes furthest over is where the corpus lives.** Three
+/// independent searches over random bounds, each against a far finer
+/// lattice on the same range, agree on the shape: exceedances are a
+/// small percentage of draws, and they CONCENTRATE where the true cell
+/// count is small — tens of percent of excess under ten true cells,
+/// still tens of percent between ten and a hundred, and none found
+/// above `1e5`. None of those three draws is recorded, so no proportion
+/// from them is quoted here as a reading; what is not draw-dependent is
+/// the direction, and the exhibit above. The regime, though, is a
+/// reading of the committed baseline and re-derivable from it:
+/// `span_opt_cells` is a sum of per-analysis-cell optima, its median
+/// per-cell optimum is **44**, and **56 of the 64 sized faces average
+/// under 100** — squarely the band where the excess runs furthest past
+/// the envelope, not the band above it.
+///
+/// **So what the sample count bought is stated exactly.** It bounds the
+/// aspect scan's resolution, which is the continuous half; on the
+/// derivations suite's eight bounds it also takes the `ceil`'d worst
+/// from 5.88% at 321 samples to 2.94% at 379, which is a measurement
+/// over that family and not a bound over the class. The `ceil`
+/// quantisation on top is neither bounded here nor bounded anywhere,
+/// and `tools/tess-lint`'s margin is not protected from it.
 ///
 /// **The other lever is narrowing the range, and that question is
 /// open**: 3.7 decades would bring the same envelope to 2.2794% and
@@ -994,27 +1024,38 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// not even locally best on the cell count — 381 is better on this
 /// family and buys nothing bounded.
 ///
-/// **WHERE EACH FIGURE ABOVE COMES FROM, since they are three kinds of
-/// number and only one kind is re-taken.** The closed-form envelopes —
-/// the one-sided `10^(decades/(samples − 1)) − 1` and the two class
+/// **WHERE EACH FIGURE ABOVE COMES FROM, since they are four kinds of
+/// number and only two kinds are re-taken.** The closed-form envelopes
+/// — the one-sided `10^(decades/(samples − 1)) − 1` and the two class
 /// bounds — are DERIVED from `(decades, samples)` alone by
 /// [`unfloored_worst_excess`] and [`floored_worst_excess`], so the
-/// derivations suite re-takes them on every run of the row named below
-/// and a wrong one goes red. The `ceil`'d figures — the
-/// adjacent-sample-count row (379: 2.94%, 380: 4.11%, …), the
-/// anisotropic member's 0.5249% and the 1.02320 scan-to-true ratio —
-/// are MEASURED over the derivations suite's family against a lattice
-/// far finer than any scan under test; no closed form covers the
-/// `ceil`'d count, so nothing in this crate re-takes them. The floored
-/// class's 1.75256% is SAMPLED: a random search over drawn bounds, and
-/// re-taken by nothing — a supremum over a draw is not a property this
-/// crate exposes, and no assertion could hold one without pinning the
-/// draw that produced it. The last two kinds are left unguarded
-/// deliberately, because what they establish is a DIRECTION: the
-/// floored class exceeds the unfloored bound, and the `ceil`'d count
-/// sits inside the consumer's margin at the shipped pair without being
-/// bounded there by anything. A re-search returning 1.7% would change
-/// nothing here; one returning 3% would, and would itself be a finding.
+/// derivations suite re-takes them on every run of the rows named below
+/// and a wrong one goes red. The exceedance exhibit — 70 cells against
+/// 65 at `t = 26` — is EXACT and driven through this crate's own scan,
+/// so it is re-taken the same way. The `ceil`'d family figures — the
+/// adjacent-sample-count row (379: 2.94%, 380: 4.11%, …) and the 5.88%
+/// → 2.94% worst — are MEASURED over the derivations suite's eight
+/// bounds against a lattice far finer than any scan under test; no
+/// closed form covers the `ceil`'d count, so nothing in this crate
+/// re-takes them, and each is a reading of THAT family rather than a
+/// statement about the class. The band structure of the exceedances
+/// above is SAMPLED, over three draws none of which is recorded — which
+/// is why it is stated as a direction and carries no percentage. The
+/// last two kinds are left unguarded deliberately, and what they
+/// establish is a direction rather than a bound. `D206`'s residue
+/// `tess-meter-sampled-retune-figure-unreproducible` owns the question
+/// of what this crate does with a figure over an unrecorded draw.
+///
+/// **A fifth kind used to be quoted here and is gone: a scan-to-true
+/// ratio along a scaled member.** It reads as a ceiling over the range
+/// it names and is a SAMPLE of that range at whatever density was
+/// swept. Sweeping `anisotropic, live cross term` with `mvv` scaled 1×
+/// to 100×, shipped scan against a 40,001-point reference on the same
+/// range: 301 sample points reach 1.02956 and 4,001 reach 1.03241,
+/// both above the 1.02320 this paragraph used to carry as the ratio
+/// "staying under" along that change. Nothing says a denser sweep
+/// stops there. No figure of that kind is quoted here any more; the
+/// exceedance exhibit says the same thing exactly.
 ///
 /// **The guard on this pair runs on the merge that moves it.** What
 /// boxes these two is this crate's own derivations suite, and the only
@@ -1169,17 +1210,28 @@ pub fn unfloored_worst_excess(decades: f64, samples: usize) -> f64 {
 /// because the equalisation is transcendental. The linearised form,
 /// `10^(step·r(1−2r)/(1−r)) − 1`, has its maximum at
 /// `r = (2 − √2)/2 = 0.29289` and is worth knowing as the anchor: at
-/// the shipped pair it gives 1.995% where the exact value below gives
-/// **2.0918%**, the curvature of the two branches being the difference.
+/// the shipped pair it gives 1.68628% where the exact value below gives
+/// **1.75540%**, the curvature of the two branches being the
+/// difference. Both move with the pair — at 321 samples they read
+/// 1.99494% and 2.09180% — so neither is a constant of the class.
 ///
-/// **It is a supremum, not a sample.** Two independent random searches
-/// over the class — 400,000 bounds here, 4.6 M in review — found
-/// 2.0768% and 2.0918% against this 2.09180%, and the family member
-/// `floored, cross-term-free` sits at `r = 0.29808`, which is the
-/// analytic argmax. The `muv > 0` case only dilutes the ratio, exactly
-/// as in the unfloored derivation, and the mirrored `v`-floor case is
-/// the same expression with the extents exchanged; the sweeps cover
-/// both and found no exceedance.
+/// **It is a supremum, not a sample, and the derivation is what makes
+/// it one.** The family member `floored, cross-term-free` sits at
+/// `r = 0.29808`, which is this function's own argmax, so the
+/// derivations suite carries the class's worst RATIO rather than a
+/// sample of it. The `muv > 0` case only dilutes the ratio, exactly as
+/// in the unfloored derivation, and the mirrored `v`-floor case is the
+/// same expression with the extents exchanged.
+///
+/// **Random searches over the class have found no exceedance, and that
+/// is corroboration rather than evidence.** Each was over a draw the
+/// tree does not record — distribution, count and seed all unwritten —
+/// so a re-take cannot be compared with it and no figure from one is
+/// quoted here. `D206`'s residue
+/// `work/meter/tess-meter-sampled-retune-figure-unreproducible` owns
+/// what this crate should do about that; until it is answered, the
+/// argument above stands on the derivation and on the argmax member,
+/// both of which the suite re-takes.
 ///
 /// # Panics
 ///

@@ -1773,8 +1773,21 @@ mod tests {
     /// column [`IDENTITY_FIRST`] names, so a schema change cannot turn
     /// these fixtures into short rows that fail for the wrong reason.
     fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
+        // The HEAD is counted too, and the twin in
+        // `tests/cli_contract.rs` does the same: a column inserted
+        // before [`IDENTITY_FIRST`] moves the tail's start and the two
+        // moves cancel, so the row keeps the header's width in the
+        // count and loses a field in fact.
+        let head = format!("s/b,{face},,{chart},2e-3,{tris}");
+        assert_eq!(
+            head.split(',').count(),
+            IDENTITY_FIRST,
+            "the fixture's head is {} fields and the header's is {IDENTITY_FIRST}: a head \
+             column was added and this row would go in short",
+            head.split(',').count()
+        );
         let blanks = ",".repeat(EXPECTED_HEADER.split(',').count() - IDENTITY_FIRST);
-        format!("s/b,{face},,{chart},2e-3,{tris}{blanks}\n")
+        format!("{head}{blanks}\n")
     }
 
     /// A `name` token of the shape the tour writes: structural, flat,
@@ -1788,6 +1801,15 @@ mod tests {
         let rows = parse(&csv(100, 2.5e1)).unwrap();
         assert_eq!(rows.len(), 2);
         assert!(!rows[0].is_sized(), "a plane row carries no sizing");
+        // `name` is read by no rule, so the only thing that can catch
+        // [`parse`] reading it out of the wrong column is this: the
+        // header check pins where `name` SITS and says nothing about
+        // where its value lands.
+        assert_eq!(
+            (rows[0].name.as_str(), rows[1].name.as_str()),
+            ("", FIXTURE_NAME),
+            "the name column's token did not land in Row::name"
+        );
         let n = rows[1].nurbs.unwrap();
         assert!((n.grid_cells - 100.0).abs() < 1e-9);
         assert!((n.patch_cells - 200.0).abs() < 1e-9);

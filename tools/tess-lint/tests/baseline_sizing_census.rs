@@ -94,6 +94,18 @@
 //! count identical. A re-cut whose only movers are those two columns
 //! is that event and is never a schedule regression.
 //!
+//! **"Only movers" is a condition this census cannot check, and the
+//! re-cut that produced the figures above did not meet it.** Nine
+//! columns moved on it, not two: `muv`, `mvv`, `mu1`, `mv1`,
+//! `worst_cert`, `worst_dev` and `realized_aspect` moved on 8-16 rows
+//! each, four days of `crates/` drift folded in by the same cut. This
+//! file reads totals — triangles, the four cell columns and the two
+//! factors — so all seven are invisible to it, and so is any future
+//! set like them. `work/meter/tess-lint-ungated-columns-fold-silently`
+//! is the row for that, and until it lands the fourth category is a
+//! thing a reader has to verify by diffing the file, not a thing this
+//! census can certify.
+//!
 //! # The retired vocabulary, which is what actually mis-reads
 //!
 //! The block predates the columns it is read against, and two of its
