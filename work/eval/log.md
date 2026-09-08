@@ -463,3 +463,25 @@ with its ledger line); "verb vocabulary" says whose in EVAL's files;
 the README heading carries one parenthetical. Item closed. Five of
 the seven E units are merged; EVAL-6 is in review and EVAL-7 in
 implementation.
+
+## EVAL-6 reviews adjudicated; fix pass to the implementer (2026-09-08)
+
+Correctness: MERGEABLE-WITH-FIXES — every code claim held under the
+reviewer's own probes (rotation between the two patterns composes
+`M_o · T · M_i`; two layout mutations red the right rows; a 14,541-
+line base/head dump at zero diff), but the PR body's "never a wrong
+placement" for the `check_reference` finding was FALSE: with the
+mate read at a `Part(k)` over a nested value and `k == j`, `i ≠ 0`,
+the solve, the mate node and `product_named` all pass and the wrong
+copy is built; only `assemble`'s gate refuses. Reachable only since
+this unit. Adjudicated as a MAJOR the fix pass closes IN the PR by
+announced seam to MSOLVE (`mate/member.rs`: decompose `k` through
+the layout, or refuse the nested-`Part` shape typed), with the
+reviewer's four-case row and the transform-between-patterns row
+adopted; the MSOLVE item corrected to the measured behaviour.
+Style: a four-copy place-and-restamp class (one with an unchecked
+`as u32`), five spellings of one overflow refusal, the layout
+arithmetic in two homes, an unguarded provenance ordinal, and four
+stale "one body" sentences the symbol sweep was blind to (EVAL's
+fixed; TOPO's `source.rs`, DOCM's `node.rs` and CHROME's three
+reported). Fix pass sent with thirteen items.
