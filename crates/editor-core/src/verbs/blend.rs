@@ -40,6 +40,7 @@ use topo::{Body, EdgeKey};
 use verbs::VerbKind;
 use verbs::{ScalarParam, Verb, VerbRecord};
 
+use super::SlotJoin;
 use crate::names::{self, NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId};
 
@@ -56,7 +57,7 @@ pub(crate) type Emitter<T> = fn(
 /// **One blend verb's correspondence**, as data.
 ///
 /// Everything the generic lowering needs to turn a `Node` into a
-/// [`Verb`] and its result into a name table. Adding a field here is
+/// [`verbs::Verb`] and its result into a name table. Adding a field here is
 /// how a verb declares something the lowering must know; adding an
 /// arm to a match inside the lowering is not.
 ///
@@ -72,13 +73,13 @@ pub(crate) type Emitter<T> = fn(
 /// it by adding that variant.
 ///
 /// The constructor and the emitter are therefore FUNCTION POINTERS held
-/// per instance. Nothing in this module matches on a verb vocabulary
+/// per instance. Nothing in this module matches on the kernel's verb vocabulary
 /// any more, which is what makes it true that a future verb never has
 /// to open this file.
 pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// **Slot value + resolved selection → the kernel verb.** The one
     /// place a document's evaluated size and canonical edge keys become
-    /// a [`Verb`] payload, per instance.
+    /// a [`verbs::Verb`] payload, per instance.
     pub(crate) build: fn(Vec<EdgeKey>, T) -> Verb<T>,
     /// This verb's naming emitter — see the module docs on what this
     /// choice does and does not decide.
@@ -96,9 +97,9 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// a refusal's verb from being rendered twice or differently.
     pub(crate) selection_label: BlendKind,
     /// The size slot and the kernel parameter it is — the scalar-free
-    /// half of the correspondence, so the content key can read it
-    /// without a lane scalar in hand.
-    pub(crate) slots: BlendSlots,
+    /// half of the correspondence ([`SlotJoin`]), so the content key
+    /// can read it without a lane scalar in hand.
+    pub(crate) slots: SlotJoin,
     /// What a missing birth record is called when this verb's result
     /// arrives without one. A kernel bug either way; the sentence names
     /// the door that produced it.
@@ -112,40 +113,14 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     pub(crate) foreign_record: &'static str,
 }
 
-/// **The slot ↔ parameter join of one blend verb**, free of the lane
-/// scalar. The document side names a slot, the kernel side names a
-/// parameter, and the parameter → field flow
-/// (`verbs::VerbKind::param_flow`) is keyed on the latter — so the
-/// correspondence has to say which is which, or the flow cannot be
-/// looked up for the value the slot produced. This is the join that
-/// lets the lowering attach a slot's lowered expression identity to
-/// exactly the fields the verb declares its parameter reaches, and the
-/// content key feed the same slot's spelling, without either knowing
-/// which verb it is holding.
-///
-/// It is a join, not a restatement: `ScalarParam::verb` already says
-/// which verb a parameter belongs to (and the census below checks each
-/// correspondence names its own verb's), but no function of the verb
-/// alone can say which of the NODE's slots that parameter is — a slot
-/// is document vocabulary, and a verb that one day carries two scalars
-/// will need two of these.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct BlendSlots {
-    /// The slot whose evaluated scalar is the verb's size parameter:
-    /// the fillet's radius, the chamfer's setback.
-    pub(crate) size_slot: SlotId,
-    /// Which kernel scalar parameter that slot IS.
-    pub(crate) size_param: ScalarParam,
-}
-
 /// The fillet's join.
-pub(crate) const FILLET_SLOTS: BlendSlots = BlendSlots {
+pub(crate) const FILLET_SLOTS: SlotJoin = SlotJoin {
     size_slot: SlotId::Radius,
     size_param: ScalarParam::FilletRadius,
 };
 
 /// The chamfer's join.
-pub(crate) const CHAMFER_SLOTS: BlendSlots = BlendSlots {
+pub(crate) const CHAMFER_SLOTS: SlotJoin = SlotJoin {
     size_slot: SlotId::ChamferDistance,
     size_param: ScalarParam::ChamferDistance,
 };

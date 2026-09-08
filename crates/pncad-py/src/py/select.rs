@@ -140,6 +140,10 @@ pub(crate) enum SegTag {
     BandCross,
     BandCut,
     BandSlit,
+    // Shell
+    Inner,
+    Rim,
+    HoleRim,
     // Pattern
     Instance,
     // Instantiate part
@@ -188,6 +192,9 @@ impl SegTag {
             Self::BandCross => s::SegTag::BandCross,
             Self::BandCut => s::SegTag::BandCut,
             Self::BandSlit => s::SegTag::BandSlit,
+            Self::Inner => s::SegTag::Inner,
+            Self::Rim => s::SegTag::Rim,
+            Self::HoleRim => s::SegTag::HoleRim,
             Self::Instance => s::SegTag::Instance,
             Self::InPart => s::SegTag::InPart,
         }
@@ -210,6 +217,7 @@ pub(crate) enum OpGroup {
     Fillet,
     Pattern,
     InstantiatePart,
+    Shell,
 }
 
 impl OpGroup {
@@ -223,6 +231,7 @@ impl OpGroup {
             Self::Fillet => s::OpGroup::Fillet,
             Self::Pattern => s::OpGroup::Pattern,
             Self::InstantiatePart => s::OpGroup::InstantiatePart,
+            Self::Shell => s::OpGroup::Shell,
         }
     }
 }
@@ -266,6 +275,21 @@ pub(crate) enum SplitHalf {
     Below,
 }
 
+impl SplitHalf {
+    /// The kernel half this mirrors.
+    ///
+    /// ONE mapping, two callers: the side vocabulary a selector
+    /// pattern takes, and the projection `PartSelect.split_half`
+    /// authors. A second copy would be a second answer to "which half
+    /// is Above".
+    pub(crate) fn to_kernel(self) -> s::SplitHalf {
+        match self {
+            Self::Above => s::SplitHalf::Above,
+            Self::Below => s::SplitHalf::Below,
+        }
+    }
+}
+
 /// Which support of a rim blend.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
@@ -304,8 +328,7 @@ impl SideArg {
             Self::Meridian(MeridianEnd::End) => s::Side::Meridian(s::MeridianEnd::End),
             Self::Meridian(MeridianEnd::Seam) => s::Side::Meridian(s::MeridianEnd::Seam),
             Self::Meridian(MeridianEnd::Pi) => s::Side::Meridian(s::MeridianEnd::Pi),
-            Self::Split(SplitHalf::Above) => s::Side::Split(s::SplitHalf::Above),
-            Self::Split(SplitHalf::Below) => s::Side::Split(s::SplitHalf::Below),
+            Self::Split(half) => s::Side::Split(half.to_kernel()),
             Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
             Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }
@@ -857,6 +880,9 @@ mod growth_tripwire {
             s::SegTag::BandCross => SegTag::BandCross,
             s::SegTag::BandCut => SegTag::BandCut,
             s::SegTag::BandSlit => SegTag::BandSlit,
+            s::SegTag::Inner => SegTag::Inner,
+            s::SegTag::Rim => SegTag::Rim,
+            s::SegTag::HoleRim => SegTag::HoleRim,
             s::SegTag::Instance => SegTag::Instance,
             s::SegTag::InPart => SegTag::InPart,
         }
@@ -872,6 +898,7 @@ mod growth_tripwire {
             s::OpGroup::Fillet => OpGroup::Fillet,
             s::OpGroup::Pattern => OpGroup::Pattern,
             s::OpGroup::InstantiatePart => OpGroup::InstantiatePart,
+            s::OpGroup::Shell => OpGroup::Shell,
         }
     }
 

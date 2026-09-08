@@ -57,6 +57,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::authoring::polygon;
 use pncad::geom_core::{Affine3, Point2, Point3, Vec3};
 use pncad::prelude::{Open, Start, Via};
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
@@ -221,11 +222,11 @@ pub fn narration(tol: Tol) {
 /// INTEGRAL profile: unit weights, no arc anywhere.
 ///
 /// The same section as `common/mod.rs::quad`, by value; not the same
-/// code. The corpus builds it with `ProfileLoop::polygon`, this builds
-/// it through the PATHS lattice ([`crate::paths::path_polygon`]),
-/// which is the spelling this tour is here to show.
+/// code. This one goes through the façade's polygon door, which
+/// classifies every corner at authoring — the spelling this tour is
+/// here to show.
 fn quad(pts: [(f64, f64); 4], tol: Tol) -> Section {
-    vec![crate::paths::path_polygon(&pts, tol)]
+    vec![polygon(&pts, tol).expect("the quad section")]
 }
 
 /// **The placement a path sweep starts from**: the plane through the

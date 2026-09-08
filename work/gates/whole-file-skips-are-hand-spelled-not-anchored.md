@@ -2,9 +2,12 @@
 id: whole-file-skips-are-hand-spelled-not-anchored
 kind: issue
 title: the directory's other whole-file skips are hand-spelled EREs rather than gate_record_anchor
-status: open
+status: closed
 opened: 2026-09-06
 refs: [home-anchored-file-skip-is-unescaped]
+branch: gates/whole-file-skips
+pr: 2077
+closed: 2026-09-06
 ---
 
 ## Finding
@@ -118,3 +121,77 @@ green, and ratifies whatever lands at that path next — the second half
 of the same defect, and the half that has an actual live route (a
 rename is ordinary; a colon in a path is not). A conversion that pins
 the anchor and leaves the subject unchecked closes the smaller half.
+## Landed
+
+**Every whole-file skip in `scripts/gates/*.sh` goes through
+`gate_record_anchor`**, and the row's own grep is the receipt: it
+returns nothing.
+
+    grep -nE "gate_grep -v?E '\^crates[^']*\\.rs:'" scripts/gates/*.sh
+
+Eighteen homes over thirteen lines, converted per gate — four in
+`bit-identity-consumer.sh`, one in `bit-identity-punning.sh`, two in
+`evalscalar-allowlist.sh`, seven in `interval-square-allowlist.sh`,
+three in `no-ambient-env.sh`, one in `witness-not-ambient.sh` — and
+eight more in `register-equal-allowlist.sh`, which landed on main while
+this unit was open and arrived carrying the class in the one spelling
+the row's grep cannot see: the literal held in a variable
+(`CALLERS_RE`, `DEFINITIONS_RE`) rather than written at the
+`gate_grep`. 26 homes over seven gates.
+
+An alternation became the alternation of BUILT anchors, and the builder
+is `lib.sh`'s: `gate_record_anchor_any HOME...`, beside
+`gate_record_anchor`, joined through `gate_ere_alternation` — the one
+`|`-join in the file, which `gate_exact_skip_pattern_for` now reads as
+well. The homes are one array per gate; the exemption and the fixture
+read that array. The two single-home gates spell the anchor inline, as
+`signed-zero-one-home.sh` does.
+
+**One direction of that is proved and the other is convention**, and
+the arrays say so: planting only some of the homes and keeping the full
+filter is green. What reds is the other direction — a home the fixture
+plants and the filter stops covering — and the unproved direction is
+what `whole-file-skips-do-not-check-their-subject` exists to close.
+
+**Each converted gate's clean fixture plants every home it skips**, per
+`lib.sh`'s exact-skip contract, and each home carries the very use its
+gate forbids — so the skip is LIVE in every case and an over-narrow
+anchor reds the CLEAN fixture rather than waiting for the one case
+written to notice. Proved by mutation: an anchor built from `$home.x`
+fails all six gates at `the gate FAILED on a clean fixture`.
+
+**Each gate gets the fixture that holds the shape.** A breach planted at
+`<home>.rs:x.rs` for EVERY home the gate skips — the one reachable
+over-match for a `*.rs` scan, and the whole of the reachable set this
+row argued — must fire, and the homes must pass. Restoring the
+hand-spelled literal reds exactly that case in each gate and nothing
+else: with the case removed as well, every other case is green.
+
+**Live output is byte-identical**, stdout and stderr, on all six plus
+`gate-roster.sh`. The unit is construction, not a live hole: the
+literals all escaped their dots and all ended in `:`, so the only record
+any of them could over-drop is one whose FILE carries a colon inside it,
+and this tree has none.
+
+`gate-roster.sh:238`'s `esc=${outlier//./\.}` is `gate_ere_escape`,
+which is what the directory loop twenty lines above already uses; over
+`OUTLIER_GATES`'s one entry the two produce the same bytes.
+
+`witness-not-ambient.sh`'s two DIRECTORY prefixes and its
+`^crates/[^/]+/src/bin/` path class are unchanged: neither is a file
+skip, and neither has a `FILE:LINE:` shape to pin.
+
+**The shared fixture the conversion broke is fixed in `lib.sh`.**
+`gate_plant_home_every_source_excluded` wrote the two sources
+`gate_plant_clean_sources` writes and nothing else, so a gate whose
+clean fixture also plants its skipped homes still had production files
+and the refusal that case is about could not fire. It now CLEARS
+`crates/*/src` before writing the pair, which is right for every caller
+and needs no home list from it; the two local overrides this unit had
+carried are deleted.
+
+**The subject half of the finding is NOT closed** — none of the six
+checks that the file it exempts still exists — and it has its own row,
+`whole-file-skips-do-not-check-their-subject`, filed in this PR. That
+is the half with the live route: a rename is ordinary, a colon in a
+path is not.

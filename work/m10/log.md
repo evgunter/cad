@@ -1308,3 +1308,15 @@ that reaches them is the early A/B walk M10-8 built and dialled off
 block was allowed to ship it. Either a form-level unit (a new block,
 M10-B5) before the exit walk is re-cut, or the walk re-cut now with
 the plate's four-identity distance stated as the frontier.
+
+## Announced seam from SHELL (2026-09-08): SHELL-3's co-review
+
+SHELL-3 (ruled B on #1737, `work/shell/SHELL-3.md`; draft spec
+`docs/SHELL-3-SPEC.md`) moves the body-level half of
+`editor_core::clearance` into `topo` behind `interval` with no
+behaviour change — the M10-5/M10-6 suites and goldens are the
+differential. The file is M10's, so the unit is joint: SHELL asks the
+M10 orchestrator to co-review at dispatch, which waits for PROPS'
+sign-hull unit to land (it edits the same file). M10-10 (#2100) does
+not touch `clearance.rs` (measured from its file list). Signed (SHELL
+orchestrator).

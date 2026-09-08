@@ -892,3 +892,354 @@ subject paths proved by a distinctness guard before any case runs; the
 sweep's hit list completed (twelve files). Twelve mutations red.
 Follow-up stated for the exit walk: the all-subjects run skeleton is
 gate-agnostic and belongs in `lib.sh` beside `gate_selftest_case`.
+
+
+## PR 2077 reviewed (2026-09-08)
+
+Style review of `whole-file-skips-are-hand-spelled-not-anchored`:
+mergeable. The class grep (13 lines, 18 homes → none), the two-direction
+mutations on three gates, the seven-gate byte-identity, the roster
+escape's value identity and the `bounds-allowlist.sh` live hole all
+reproduced. One correction: "single source" holds mechanically only
+fixture→filter (an over-narrow anchor reds the clean fixture); a home
+dropped from the fixture but kept in the filter is green, which is the
+subject-half residue's job. Fix pass sent, and since `lib.sh` is free
+now it takes the two `lib.sh` items the PR had deferred: the
+every-source-excluded planter clears what the gate's clean fixture
+planted (the two local overrides deleted), and one
+`gate_record_anchor_any` replaces the four-copy alternation builder.
+Also: counts in OK lines derived from the arrays, the colon fixture
+over every home, `march.rs` read from the array, the roster comment
+trimmed, the residue row's "last one" given its grep, and a re-sweep
+over the two gates main gained since the branch.
+
+## Twelfth wave dispatched (2026-09-08)
+
+`gates/bounds-select-anchor`
+(`bounds-allowlist-select-cuts-at-the-first-colon` — the per-file
+select reads the FILE column the way the record prefix defines it
+rather than cutting at the first colon, with the fixture that a
+compound bound at `<entry>.rs:x.rs` fires while the entry stays exempt
+at its pin), from main, on the one gate no open PR touches. In fix
+pass: PR 2077 (with the `lib.sh` planter fix and the shared
+alternation builder folded in). Closing: PR 2069. Remaining after
+these: the subject-half residue
+(`whole-file-skips-do-not-check-their-subject`, on the six gates PR
+2077 holds) and `D212`, parked on `G4`.
+
+## Landed: PR 2077 (2026-09-08)
+
+`whole-file-skips-are-hand-spelled-not-anchored` closed (its conversion
+half; the subject half is its own row). Every whole-file skip in the
+directory builds its pattern with `gate_record_anchor` — twenty-six
+homes over seven gates, `register-equal-allowlist.sh` included after
+the re-sweep over the gates main gained (its two `_RE` variables were
+the class in the one spelling both greps miss, a literal assigned to a
+variable) — each gate declaring its homes once for the filter and the
+clean fixture, each clean fixture planting every home with the very
+use its gate forbids, each gate carrying the colon-path case over
+every home. `lib.sh` gained `gate_ere_alternation` and
+`gate_record_anchor_any` (refusing an empty list), and its
+every-source-excluded planter clears what the gate's clean fixture
+planted, so the two local overrides are gone and
+`panic-free-macro-bodies.sh` stays correct without one; the
+dot-only escape in `gate-roster.sh` reads `gate_ere_escape`. Per gate,
+the literal restored reds at the colon case only and an over-narrow
+anchor reds the clean fixture; live output byte-identical as a
+same-tree differential (one OK line now derives a count it used to
+spell). The single-source claim holds mechanically only
+fixture→filter; the other direction is
+`whole-file-skips-do-not-check-their-subject`'s job. Noted for the
+walk: `gated-suite-paths.sh` walks `.claude/worktrees/*` when lanes'
+worktrees sit inside the checkout, so it reds locally and not in CI.
+
+
+## Thirteenth wave dispatched (2026-09-08, started with the twelfth)
+
+`gates/skip-subject-check` (`whole-file-skips-do-not-check-their-subject`
+— the seven gates whose whole-file skips go through
+`gate_record_anchor_any` red when a skipped home is gone, through one
+`lib.sh` subject check beside the builder, with the home-gone case per
+gate), branched from PR 2077's closing head. In flight: PR 2077
+closing; `gates/bounds-select-anchor` building. After these two,
+`D212` alone, parked on `G4`.
+
+## Correction (2026-09-08)
+
+The twelfth and thirteenth waves were logged as dispatched before
+their lanes were actually started: the orchestrator wrote the entries
+and did not spawn the lanes. Both started after PR 2077's merge, from
+main, so the "branched from PR 2077's closing head" in the thirteenth
+wave's entry is superseded — it branches from main with 2077 on it.
+
+## PR 2157 opened (2026-09-08)
+
+`gates/bounds-select-anchor` reported: PR 2157
+(`bounds-allowlist-select-cuts-at-the-first-colon`). The scan's
+per-file exemption is the count check's predicate negated —
+`gate_record_anchor_any` over the allowlist — so exemption and pin are
+one builder over one list; the FILE column survives for the diagnosis
+only. A bound planted at `boxes.rs:x.rs` fires while `boxes.rs` stays
+at its pin; the `cut` select restored reds that case only; the filter
+deleted reds the clean fixture. Byte-identical live. Residue filed on
+this slate: two more readers split the FILE column at the first colon
+— `viewer-module-kinds.sh`'s dedupe key, and `lib.sh`'s record prefix
+used as a parser in `gate_test_only_mounts`, so a colon-carrying
+file's `#[cfg(test)] mod x;` is never registered and its subtree reads
+as production (`record-file-column-read-by-first-colon-split`).
+Reviewer dispatched.
+
+## PR 2157 reviewed (2026-09-08)
+
+Style review of `bounds-allowlist-select-cuts-at-the-first-colon`: fix
+pass needed. The hole and its closure, the one-predicate reading, all
+four mutations and the byte-identity reproduced; the edge
+`<entry>:12:x.rs` is exempt from the scan and caught by the pin (the
+property that holds is exempt ⇔ attributed, not "never an
+exemption"). Two findings: the gate's own awk reader strips the record
+prefix by the same first-colon regex and reads a colon-carrying path
+as code (a sole bound in `a:Bounds.rs` reds as compound — cry-wolf,
+zero population, this unit's class in this unit's file, sent to the
+lane with a fixture); and `gate_record_anchor_any`'s refusal on an
+empty list is not terminal at any of its six `$(…)` callers (a gate
+with no homes prints OK) — sent to the subject-check lane, which
+holds `lib.sh`, to mark `GATE_MATCHER_FAILED` the way the exact-skip
+refusal does. Style: three spellings of the `:LINE:` reading in one
+file, history in two comments, the diagnosis's short naming
+unregistered.
+
+## PR 2156 opened (2026-09-08)
+
+`gates/skip-subject-check` reported: PR 2156
+(`whole-file-skips-do-not-check-their-subject`). `gate_require_homes
+SUBJECT HOME...` in `lib.sh` beside the anchor builder: the seven
+gates whose whole-file skips read a home list now refuse when a home
+is gone, naming the path and what the skip would have exempted, with
+the home-gone case run per home from `lib.sh` (26 across the seven).
+The direction PR 2077's review left unproved — a home kept in the
+filter but dropped from the clean fixture — reds now and was green
+with the unit backed out. Also taken, from PR 2157's review: the anchor
+builder's empty-list refusal sets `GATE_MATCHER_FAILED`, so a gate with
+no homes reds instead of printing OK, with its own case. Seven gates
+byte-identical live. Residue filed on this slate:
+`witness-not-ambient.sh`'s three directory-prefix exclusions have no
+subject check (`directory-prefix-skips-have-no-subject-check`), the
+`src/bin/` class needing a ruling. Reviewer dispatched.
+## Landed: PR 2157 (2026-09-08)
+
+`bounds-allowlist-select-cuts-at-the-first-colon` closed. The scan's
+per-file exemption in `bounds-allowlist.sh` is the count check's own
+predicate negated (`gate_record_anchor_any` over the allowlist), so a
+record cannot be exempt from the scan while invisible to the pin
+beside it; the `cut -d: -f1` select is gone and the FILE column is
+read only for the diagnosis, naming a colon-carrying file whole. A
+compound bound at `boxes.rs:x.rs` fires while `boxes.rs` stays at its
+pin; restoring the `cut` select reds that case only; deleting the
+filter reds the clean fixture. Live output byte-identical (26 files,
+183 occurrences). Residue on this slate:
+`record-file-column-read-by-first-colon-split` (the viewer gate's
+dedupe key and `lib.sh`'s prefix-as-parser in the test-module
+resolver).
+Fix pass from the review: the gate's own awk reader, which stripped the
+record prefix by the same first-colon regex and read a colon-carrying
+path as code (a sole bound in `a:Bounds.rs` red as compound), now
+locates the text after `:LINE:` the way the path half does — planted
+in both directions; the three spellings of that reading are one
+constant; the one-predicate claim quantified over a non-empty list
+(the `<entry>:12:x.rs` shape is exempt from the scan and caught by the
+pin, naming the entry — KNOWN GAP 8); the residue row carries the
+class's grep with every hit dispositioned.
+
+
+## PR 2156 reviewed (2026-09-08)
+
+Style review of `whole-file-skips-do-not-check-their-subject`:
+mergeable. The ordering after the file set is load-bearing in both
+narrowing gates (moved earlier, the every-source-excluded case fires
+the wrong diagnosis), every mutation reproduced including the
+filter→fixture direction (green on the merge-base, red here), the
+empty-list marker reproduced on `no-ambient-env.sh`, seven gates
+byte-identical, self-test +17% for 33 extra runs. Fix pass sent: the
+home-gone failure line names the planter and not the home; two
+spellings of the missing-home diagnosis and two of the no-homes
+refusal; the substitution-discards-the-exit mechanism told five
+times; history in two comments; the check proves a file exists on
+disk and not that it is in the scan set; seven copies of one
+paragraph at the arrays; one SUBJECT string that points at the script.
+## Landed: PR 2156 (2026-09-08)
+
+`whole-file-skips-do-not-check-their-subject` closed. `lib.sh` has
+`gate_require_homes SUBJECT HOME...`, called by the seven gates whose
+whole-file skips read a home list, after their file set is decided:
+a skipped home that is gone is a red naming the path and what the skip
+would have exempted (the rule `gate_exact_skip_subject` already
+applies, D103's class), with the home-gone case run per home from
+`lib.sh`. The filter→fixture direction PR 2077 left as convention is
+mechanical now: a home kept in the filter but dropped from the clean
+fixture reds. From PR 2157's review, the anchor builder's empty-list
+refusal marks the matcher failed, so no gate can print OK over it.
+Seven gates byte-identical live. Residue on this slate:
+`directory-prefix-skips-have-no-subject-check`.
+Fix pass from the review: the home check proves membership in the scan
+set (`GATE_PRODUCTION_FILES` when the narrowing ran, else
+`GATE_SOURCE_FILES`), not only that a file exists on disk, with its own
+case; the missing-home and no-homes diagnoses each have one text; the
+substitution-swallows-the-exit argument has one home; the self-test's
+failure line names the gate, the planter and its argument; the seven
+array paragraphs are pointers; the planter argument convention stated.
+
+
+## Fourteenth wave dispatched (2026-09-08)
+
+The last two residue rows, both branched from PR 2156's closing head
+because both touch files it holds: `gates/record-column-parser`
+(`record-file-column-read-by-first-colon-split` — one `lib.sh` reading
+of a record's FILE and TEXT columns by the `:LINE:` the reader emitted,
+the viewer gate's dedupe key and the test-module resolver's parser
+converted, `bounds-allowlist.sh`'s local reading lifted) and
+`gates/dir-prefix-subject` (`directory-prefix-skips-have-no-subject-check`
+— the two named directory skips in `witness-not-ambient.sh` prove
+their subject; the `crates/*/src/bin/` convention-class skip is a
+ruling, routed to Ev in an `[ev]` PR, the row staying open on that
+half). Closing: PR 2156.
+
+## PR 2170 and [ev] PR 2171 opened (2026-09-08)
+
+`gates/dir-prefix-subject` reported: PR 2170
+(`directory-prefix-skips-have-no-subject-check`, the two named
+prefixes). The row's premise corrected: a directory prefix's subject
+is the file the directory is about — `crates/pncad/src/lib.rs` for
+the crate's curated door, `crates/pncad-py/src/py/mod.rs` for the
+module's FFI boundary — so `gate_require_homes` is called twice more
+and nothing new is built; a `[ -d ]` or membership check would be
+satisfied by the exempted file itself (D103's circle), and anchoring
+on the root reds the reviewer's scenario. One `lib.sh` fix in the
+home-check self-test: `gate_plant_home_unscanned` wrote `mod mod;` for
+a `mod.rs` home, so its case passed a gate it should red. Live
+byte-identical. The third prefix, `crates/*/src/bin/`, is cargo's
+convention and a ruling: `[ev]` PR 2171 puts the two options to Ev;
+the row stays open on that half, `blocked_on` 2171. Outside the
+fence, filed on META's slate: `work.py set` writes a scalar into a
+reflist field and `lint` crashes rather than diagnosing it. Reviewer
+dispatched.
+
+## PR 2174 opened (2026-09-08)
+
+`gates/record-column-parser` reported: PR 2174
+(`record-file-column-read-by-first-colon-split`). `lib.sh` states once
+where a record's FILE column ends (`GATE_RECORD_LINE_RE`), with a
+stdin filter pair and an awk function (`gate_record_split`) as the
+ways in, and the record prefix regex kept as an anchor and documented
+as not a parser. Converted: the viewer gate's union key, the
+test-module resolver's narrowing (its columns re-ordered so the
+colon-carrying field takes `read`'s remainder), two more `lib.sh`
+readers, `bounds-allowlist.sh`'s local reading lifted, and — beyond
+the row — seven hand-written `index()`/`substr()` pairs in six gates,
+one of which (`panic-free-macro-bodies.sh`'s fence) meant a panic
+token in a macro body in a colon-carrying file was seen by nothing.
+All 21 gates byte-identical live including exit status; five
+mutations each red on its colon fixture; one conversion
+(`bit-identity-debug-only.sh`) disclosed as fixture-less because its
+subject list is baked. Reviewer dispatched.
+
+## Stall (2026-09-08, ~06:00–06:10 UTC)
+
+Both style reviewers (PR 2170, PR 2174) were terminated by the
+session rate limit and resumed into their surviving worktrees once it
+reset.
+
+## PR 2170 reviewed (2026-09-08)
+
+Style review of `directory-prefix-skips-have-no-subject-check` (the
+two-directory half): mergeable. The root argument reproduced in both
+directions (root removed and a minting file rewritten under the
+prefix reds; the `py.rs` spelling reds safely), the `mod.rs` planter
+fix, six mutations, byte-identity. Fix pass sent: the composition
+fixture and the two prefix skips hand-spell the directories the held
+roots already name; no fixture reads a subject sentence (the two
+swapped is green — closed in `lib.sh`'s home-gone case for every
+caller); the "strictly stronger than a directory" argument holds only
+for the `mod.rs` spelling; the third prefix's site cites neither the
+row nor PR 2171; "no existing caller had a `mod.rs` home" was wrong
+in the letter (`evalscalar-allowlist.sh`'s eval/mod.rs, whose case
+passed for the wrong reason); the PR's D103 prose conflated the
+vacated-path route (fixed) with the live-directory route (the door
+exemption is crate-granular by its argument, stated rather than
+narrowed); PR 2171's body steered toward one option and omitted a
+third (anchor the class at cargo's declared bin targets).
+
+## PR 2174 reviewed (2026-09-08)
+
+Style review of `record-file-column-read-by-first-colon-split`:
+mergeable. The one constant with no first-colon reader left in the
+directory, the awk function on every probe under both awks (a record
+with no `:digits:` returns 0 and empties rather than inventing a
+FILE), the resolver byte-for-byte on the live tree and correct on the
+colon-declarer fixture, mutations A–E red where claimed, all 21 gates
+byte-identical with exit codes, the reader-death marker reachable.
+Fix pass sent: the awk function succeeds with an empty FILE when the
+constant's env prefix is forgotten (a two-part incantation copied at
+eleven sites) — made unreachable by a wrapper and a refusal; the
+bit-identity gate's fixture-less conversion gets its fixture through
+the env hook the viewer gate already uses for a baked array; a stale
+count in the row; a new justification contradicting the comment four
+lines below it; possessives mangled inside single-quoted awk
+comments at six sites; a third spelling of the reader-death refusal.
+## Landed: PR 2170 (2026-09-08)
+
+`directory-prefix-skips-have-no-subject-check`, the two-directory
+half: `witness-not-ambient.sh`'s named prefix skips prove their
+subject through `gate_require_homes` on the file each directory is
+about (`crates/pncad/src/lib.rs`, `crates/pncad-py/src/py/mod.rs`) —
+a root, not a directory or a resident, because a directory check is
+satisfied by the very file the skip exempts. Removing a root and
+writing a witness-minting file under the prefix is red now and was
+green. The clean fixture plants all three subjects minting the witness
+each exemption covers, so every skip is live in every fixture.
+`lib.sh`'s `gate_plant_home_unscanned` handles a `mod.rs` home (it
+declared `mod mod;`, which resolves onto its own declarer). The row
+stays open on the `crates/*/src/bin/` class, a ruling on `[ev]` PR
+2171.
+Fix pass from the review: the directory is held first and the root,
+the subject and the skip derive from it (deriving the prefix from the
+root would let a `py.rs` re-anchoring silently widen `src/py/` to
+`src/`, measured); `gate_selftest_homes --subject` lets a caller's
+home-gone case want the subject sentence, so a subject on the wrong
+home reds (opt-in; the six other callers to adopt it); the
+root-under-prefix condition stated; the third prefix's site cites the
+row and PR 2171; "no existing caller had a `mod.rs` home" corrected
+(`evalscalar-allowlist.sh`'s case now mounts for real); the D103
+prose separated into the vacated-path route (fixed here) and the
+live-directory route (the door exemption crate-granular by its
+argument, one live minting site under eleven files); PR 2171
+rewritten neutral with three shapes.
+
+## Landed: PR 2174 (2026-09-08)
+
+`record-file-column-read-by-first-colon-split` closed. A record is
+`FILE:LINE:TEXT` and FILE may carry a colon; `lib.sh` now says once
+where the FILE column ends (`GATE_RECORD_LINE_RE`, the `:LINE:` the
+reader emitted) and offers `gate_record_file` / `gate_record_text` and
+the awk `gate_record_split`, prepended through `ENVIRON`; the record
+prefix regex stays as an anchor and says it is not a parser. Every
+first-colon reading in the directory reads the columns that way now:
+the viewer gate's union key, the test-module resolver (a
+colon-carrying file's `#[cfg(test)] mod x;` is registered), two more
+`lib.sh` readers, `bounds-allowlist.sh`'s diagnosis column, and seven
+`index()`/`substr()` pairs in six gates the row's grep could not see —
+among them `panic-free-macro-bodies.sh`'s fence, under which a panic
+token in a macro body in a colon-carrying file was seen by nothing.
+All 21 gates byte-identical live; five mutations each red on the
+colon fixture at its site; `foo:12:bar.rs` registered once as the
+shape no reader of the record can resolve.
+Fix pass from the review: the awk snippet and its constant go in
+through one `gate_record_awk` wrapper at every site, and the split
+refuses an empty constant through the marker (planted in every gate's
+clean case); the bit-identity gate's colon fixture arrives through an
+env hook on its baked subject list, so no conversion is fixture-less;
+the reader-death refusal has one text (it was four spellings); a
+justification contradicting the comment below it corrected. Rider
+from PR 2170's review: the six gates that checked homes by path alone
+adopt `gate_selftest_homes --subject`, `register-equal-allowlist.sh`'s
+merged call split into one per subject, proved by swapping two
+subjects.
