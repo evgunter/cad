@@ -350,3 +350,15 @@ by construction (one extend per accepted edit) and no row orders two
 acts (S4); the apply-and-keep-the-doc shape stands at five
 non-mirror sites on the tree and ten tour helpers, each resting on
 "no mirror today" (S1 — the class, for whoever next adds a mirror).
+
+## EVAL-2 MERGED (2026-09-08, PR 2153, merge ba8bc0cb4)
+
+The semantic merge with `Node::Shell` landed as a merge commit: the
+shell's three role words (`Inner` 42, `Rim` 43, `HoleRim` 44) join
+`seg_content_tag` over the projected `SegTag::ALL` (44 entries);
+`feed_blend` became main's `feed_scalar_join` with its word declared
+as `tag::scalar_join::FLOW_EXPR`; the format version keeps its rule
+(a new node kind is additive, no bump); the seg census pins the newest
+words. Key dump at the new base with the two shell corpus documents
+added: 1071 rows, zero diff. Full matrix green. Both items closed;
+`D365` is EVAL's now (DOCM's `plan.md` still lists it — DOCM's file).
