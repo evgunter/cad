@@ -543,3 +543,15 @@ fixed in EVAL's files and `docs/MIRROR-DESIGN.md`. Dump re-taken at
 the new base: 14,542 lines, zero diff. Meta-read by the orchestrator
 of the decomposition. State-sync merged main (code moved: a run on
 the merged head before the merge).
+
+## EVAL-6 MERGED (2026-09-08, PR 2173, merge 414b95524)
+
+Green on the merged head. The placers are shape-preserving over the
+value; the nested layout is placement-major with one layout function
+shared by the evaluator, the emitter and the mate walk; the
+`check_reference` hole closed by decomposition; MSOLVE's two pins
+gather. Item closed; residue on EVAL's slate:
+`node-value-kind-answers-a-transform-by-node-kind`. CHROME's
+`denotes_body` read-through and MSOLVE's remaining index-space
+account are filed on their slates. EVAL-7's state-sync merged this
+in before its own run.
