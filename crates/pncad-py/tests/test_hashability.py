@@ -189,9 +189,7 @@ class TestNothingComparesWithoutHashing(unittest.TestCase):
 
     def setUp(self):
         self.classes = {
-            name: cls
-            for name, cls in vars(pncad).items()
-            if inspect.isclass(cls)
+            name: cls for name, cls in vars(pncad).items() if inspect.isclass(cls)
         }
 
     def test_every_unhashable_class_is_on_the_roster_with_a_reason(self):
