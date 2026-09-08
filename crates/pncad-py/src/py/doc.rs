@@ -448,6 +448,39 @@ impl Doc {
         }
     }
 
+    /// **What KIND of node `node` is** — one stable word per recipe
+    /// node, and the read half of the `Node::*` constructor family.
+    ///
+    /// The vocabulary is [`crate::node_kind::node_kind`]'s, drawn from
+    /// one exhaustive `match` over the kernel's `Node` with no
+    /// wildcard arm, so a node kind added there and given no Python
+    /// word does not compile. The words are listed on that function
+    /// and, for callers, in `pncad.pyi`.
+    ///
+    /// This is the NODE's kind, never its VALUE's: an extrude, a
+    /// transform and a placed union all evaluate to a value whose
+    /// `kind` is `"body"`, because that tag is the PAYLOAD's shape.
+    /// Telling the recipes apart is the question this door exists to
+    /// answer, and it answers it with no evaluation in hand at all.
+    ///
+    /// **An id this document does not hold REFUSES** — `EditError`
+    /// carrying `unknown_node`, the word the document layer already
+    /// speaks for that state. The sibling reads on this class
+    /// ([`Self::reference`], [`Self::interface`]) answer `None`
+    /// instead, and the difference is not an inconsistency: their
+    /// `None` is a real answer about a real node — it carries no
+    /// reference, it carries no interface — so there is a live third
+    /// state for the refusal to be distinguished from. Every live
+    /// node HAS a kind, so a `None` here could only ever mean "no
+    /// such node", and answering that as a value rather than a
+    /// refusal is the fail-quiet this repo forbids.
+    fn node_kind(&self, py: Python<'_>, node: &NodeId) -> PyResult<&'static str> {
+        self.inner
+            .node(node.0)
+            .map(crate::node_kind::node_kind)
+            .ok_or_else(|| edit_err(py, &d::EditError::UnknownNode { id: node.0 }))
+    }
+
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
     fn insert(&mut self, py: Python<'_>, node: &Node) -> PyResult<NodeId> {
@@ -1267,6 +1300,54 @@ impl Node {
                     literal(py, direction.0, d::Dimension::Scalar)?,
                     literal(py, direction.1, d::Dimension::Scalar)?,
                 ],
+            }),
+        })
+    }
+
+    /// **A sketch frame DERIVED from a face** — "sketch on this
+    /// face", as a node.
+    ///
+    /// `at` is the body-denoting node the face is read out of, and it
+    /// is a DAG input exactly as [`Node::datum_axis_in_plane`]'s
+    /// `plane` is: the frame moves when the face moves, so raising the
+    /// body carries every sketch built on this frame up with it.
+    /// `face` is one of the opaque texts `Evaluation.all_faces` /
+    /// `select` answered with, handed back unread — the face is
+    /// NAMED, never transcribed as nine numbers.
+    ///
+    /// `spin` turns sketch +x about the face's OUTWARD normal, from
+    /// the carrier's own u-reference, right-handed. It has no default:
+    /// which way a sketch faces on a face is an authoring decision,
+    /// and a door that quietly chose zero would put a convention where
+    /// the document should carry one. Pass `0 * rad` to take the
+    /// u-reference unturned.
+    ///
+    /// The outward normal is the face's orientation sense times the
+    /// carrier's chart axis — `Pose.sense` and `Pose.axis`, the same
+    /// two facts `Evaluation.face_frame` hands out — so a sketch on
+    /// the underside of a plate faces out of the plate.
+    ///
+    /// Refuses typed at `evaluate`, never here: `face_frame_resolve`
+    /// for a name that stopped denoting (the repair is
+    /// `DocEdit.update_reference`), `face_frame_kind` for an edge or
+    /// vertex name, `face_frame_not_planar` for a curved carrier — a
+    /// sketch frame wants a plane, and `Evaluation.face_carrier_kind`
+    /// is the door that answers which carrier it found — and
+    /// `face_frame_readback` for a body whose stored geometry cannot
+    /// be re-read.
+    #[staticmethod]
+    fn datum_face_frame(
+        py: Python<'_>,
+        at: &NodeId,
+        face: &str,
+        spin: &super::quantity::Angle,
+    ) -> PyResult<Self> {
+        let spin = literal(py, spin.0.radians(), d::Dimension::Angle)?;
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::FaceFrame {
+                at: at.0,
+                face: name_from_text(face)?,
+                spin,
             }),
         })
     }
