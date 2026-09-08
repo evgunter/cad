@@ -660,3 +660,41 @@ corpus noise floor. New residue on EVAL's slate:
 builds the f64 environment per profile-bearing node although the
 evaluation now holds one). Style and correctness lanes dispatched on
 `f6aa77504`.
+
+## EVAL-8 reviews adjudicated; fix pass dispatched (2026-09-08)
+
+Correctness: all five claims reproduced with the reviewer's own base
+build and dump (2262 rows, 261 moved, every one `Pinned`, zero
+`Guided`, zero value digests); no MAJOR. Style: two MAJORs, both
+upheld. (1) The door's doc argues the lift needs no re-check because
+`from_f64` preserves every predicate margin — false at `Interval`,
+where outward rounding makes a margin an enclosure and
+`sign_within` can escalate where f64 decided definitely. **Ruling:**
+the lift is right BY DESIGN, not by predicate agreement:
+`ProfileLift`'s own doc makes the pinned lift the build path where
+"structure must be selected once, identically for every lane" and
+the guided lift the one that re-verifies and refuses; the doc is
+restated on that basis, the PR body names the behaviour change (a
+profile marginal at `Interval` was refused by the pinned op's
+re-validation before and now carries f64's verdicts; `Guided` is
+where such a margin escalates), and the lane attempts one fixture
+that pins it. (2) A public generic `map` admits every map the doc
+then argues away; the door closes by type —
+`ValidatedProfile<f64>::lift_onto<U>(plane)` with `from_f64` inside,
+retiring `with_plane` (whose one caller discarded the plane `map`
+had just lifted) and the spec's `map` name; the spec's own premise
+("any injective map preserves the invariants") was false — a
+reflection is injective — and is recorded as such. Minor fixes:
+`arc_carrier` takes the chord frame instead of recomputing it; the
+value-identity row's plane column compared the lifted plane to
+itself; a stale "ahead of the lane validation" sentence at the memo
+hit; the eps-audit golden rule narrating three re-pins; the README
+V6 sentence; one hole-before-outer fixture and per-segment
+`blend_arcs`; the PR body owes the derivative-channel exclusion
+(`-0.0 → +0.0` on reversed loops, no reader of a zero's sign found)
+and the full historical-mention list. Orchestrator's edit:
+`work/issues/profile-embed-lift-has-two-homes-anchor-and-loft.md`
+narrowed — `loft::end_profile` both lifts AND re-validates an exact
+lift (this unit's class one crate over, **for BLEND/S-BOOL
+((S-BOOL orchestrator))**), and two test copies of the raw lift
+remain.
