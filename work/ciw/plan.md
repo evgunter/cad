@@ -70,15 +70,25 @@ the design, the measurements and the process failure behind it). What
 each unit landed and what carries it on `main` is the table in
 `log.md`'s 2026-09-06 entry; the item files are the record.
 
-One question survives that slate and is **on Ev**:
-`f3-recosting-on-a-public-repo`. Unit 8's recommendation was the merge
-queue, Ev's 2026-09-04 ruling took it, and it is unavailable — so the
-composition-defect class is left with one instrument (the full push job
-set plus a per-SHA concurrency design pass, 48 job-min/h) whose taking
-is a NEW ruling, because 2026-09-04 declined the push gate *in favour
-of* the queue. Two rows park on that answer:
+The one question that survived that slate is **answered**. Ev ruled on
+2026-09-07 that F3 stands and the `push: main` job set is not restored,
+because a detector nobody reads is not a control — an argument this
+program had already evidenced from the other end
+(`nightly-demotions-have-never-run`: three demoted rows ran unattended
+for two nights and their first reading was taken by an orchestrator
+going deliberately to the jobs API). `f3-recosting-on-a-public-repo`,
 `ci-draw-can-hide-a-compile-break-on-main` and
-`merge-order-semantic-break-reaches-main`.
+`merge-order-semantic-break-reaches-main` all close on it; the
+composition-defect class is **accepted with its cost on the record**
+rather than left open as work nobody is doing.
+
+What the ruling does not answer, because the options table never priced
+it, is what the two recorded instances actually cost: **attribution**,
+not detection. Both breaks were found quickly; what they cost was 42 red
+runs on 20 branches and two agents diagnosing one line in the same hour.
+That is `inherited-red-is-not-attributed-to-its-merge`, opened with its
+three unmeasured numbers named and deliberately not dispatched until
+they are taken.
 
 ## The second slate
 

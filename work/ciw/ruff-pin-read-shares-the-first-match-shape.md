@@ -2,11 +2,12 @@
 id: ruff-pin-read-shares-the-first-match-shape
 kind: issue
 title: check-python-lint.py reads ci.yml's ruff pin with the same first-match-at-any-indentation shape ci-pin.py replaced
-status: review
+status: closed
 opened: 2026-09-04
 refs: [nightly-pin-reading-idiom-four-copies]
 branch: ciw/pin-reconciler
 pr: 2070
+closed: 2026-09-07
 ---
 
 Found by the sweep for `nightly-pin-reading-idiom-four-copies`, which
@@ -115,3 +116,11 @@ JOB-LEVEL pin as the workflow's, the exact defect this line of work exists to
 kill — and each now has a fixture. `check-python-lint.py`'s pin cases run
 BEFORE `resolve_ruff`, because below it they were skipped on every box whose
 ruff is not the pinned one, which is every box this row is about.
+
+## Closed 2026-09-07
+
+PR 2070. `scripts/check-python-lint.py`'s own `PIN_RE` is deleted; it loads
+`scripts/ci-pin.py` and calls `read_pin`, so there is one anchored answer to
+what `ci.yml` pins and the second-match refusal reaches this caller too. The
+selftest fixtures did not have to move, and two cases were added for the
+shapes the first-match reader used to accept.
