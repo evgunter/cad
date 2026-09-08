@@ -4848,46 +4848,6 @@ BOTH arms equally: one 4-core cloud box beside one other lane, `-j2`;
 R1's target is the implementer's warm one, R2's is seeded from an
 older warm build — wall-clock asymmetry only.
 
-<<<<<<< HEAD
-## BLEND program rows (work/blend/; band 2900–2999; blocks named BLEND-B<n>)
-
-BLEND (FILLET's successor, opened 2026-09-06 from
-`docs/WORK-TRACKS-2026-09.md` addendum 2) inherits FILLET's full-dual
-posture. Its five E openers (units 1–5 of `work/blend/plan.md`) run
-outside the experiment — single style review, no row, no slot; only the
-H units record rows, under v6. Block BLEND-B1's draw and slot record live
-branch-side on `blend/b1-block` until the block concludes, per the
-block-draw redaction ruling; each ordinal claim at review dispatch goes
-to main on its own.
-
-Block BLEND-B1 pre-draw fields (2026-09-07, logged before the draw):
-slot 0 = BLEND-6 (`docs/BLEND-6-SPEC.md`,
-`ring-clearance-refuses-a-nested-trim-circle` +
-`hostless-rim-on-a-ringed-host-refuses`, one unit) — difficulty **M**,
-task-class **NUMERIC**; slot 1 = BLEND-7 (`docs/BLEND-7-SPEC.md`,
-`ladder-rim-phase-may-retire-a-new-split-key`) — **S / STRUCTURAL**;
-slot 2 = BLEND-8 (`docs/BLEND-8-SPEC.md`,
-`smooth-arm-siblings-disagree-on-the-in-band-case`) — **M / STRUCTURAL**.
-All three at their specs, written 2026-09-07 before this draw.
-
-Block BLEND-B1 draw (2026-09-07, after the pre-draw fields above; v3
-triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
-**13**, 13 mod 3 = 1 = fable's position ⇒ **fable at slot 1**.
-So: slot 0 BLEND-6 = OPUS, slot 1 BLEND-7 = FABLE, slot 2 BLEND-8 = OPUS.
-Recorded branch-side; this record reaches main when the block's last
-slot's reviews conclude.
-
-Block BLEND-B1 slot record (branch-side, appended as each slot concludes):
-Reorder (2026-09-08, before any slot-1 dispatch): slot 1 =
-`closed-chain-junctions-pair-with-a-rotated-link` (`docs/BLEND-7-SPEC.md`,
-to be written; pre-draw fields logged there before dispatch) — a
-pristine three-arc rim refuses `ChainNotG1`, found by unit 1's style
-review; the ladder unit (`ladder-rim-phase-may-retire-a-new-split-key`,
-now `docs/BLEND-8-SPEC.md`) moves to block BLEND-B2's first slot and the
-smooth-arm unit's spec is now `docs/BLEND-9-SPEC.md` (slot 2, unchanged).
-The draw is untouched — a slot's arm does not depend on which unit
-takes it.
-=======
 Census-door review ordinal fixed at dispatch (2026-09-08, PR #2131
 open — frozen head `11257506c`; unit
 `work/topo/no-public-census-or-genus-query`, Ev's ruling (A) on [ev]
@@ -4978,7 +4938,45 @@ touch) and the lane re-ran the same head by draft/undraft (the rerun
 API is 403 for this integration) to green — recorded here as the
 lane's action, judged at the row. Sample number assigned at merge in
 main's merge order.
->>>>>>> origin/main
+
+## BLEND program rows (work/blend/; band 2900–2999; blocks named BLEND-B<n>)
+
+BLEND (FILLET's successor, opened 2026-09-06 from
+`docs/WORK-TRACKS-2026-09.md` addendum 2) inherits FILLET's full-dual
+posture. Its five E openers (units 1–5 of `work/blend/plan.md`) run
+outside the experiment — single style review, no row, no slot; only the
+H units record rows, under v6. Block BLEND-B1's draw and slot record live
+branch-side on `blend/b1-block` until the block concludes, per the
+block-draw redaction ruling; each ordinal claim at review dispatch goes
+to main on its own.
+
+Block BLEND-B1 pre-draw fields (2026-09-07, logged before the draw):
+slot 0 = BLEND-6 (`docs/BLEND-6-SPEC.md`,
+`ring-clearance-refuses-a-nested-trim-circle` +
+`hostless-rim-on-a-ringed-host-refuses`, one unit) — difficulty **M**,
+task-class **NUMERIC**; slot 1 = BLEND-7 (`docs/BLEND-7-SPEC.md`,
+`ladder-rim-phase-may-retire-a-new-split-key`) — **S / STRUCTURAL**;
+slot 2 = BLEND-8 (`docs/BLEND-8-SPEC.md`,
+`smooth-arm-siblings-disagree-on-the-in-band-case`) — **M / STRUCTURAL**.
+All three at their specs, written 2026-09-07 before this draw.
+
+Block BLEND-B1 draw (2026-09-07, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**13**, 13 mod 3 = 1 = fable's position ⇒ **fable at slot 1**.
+So: slot 0 BLEND-6 = OPUS, slot 1 BLEND-7 = FABLE, slot 2 BLEND-8 = OPUS.
+Recorded branch-side; this record reaches main when the block's last
+slot's reviews conclude.
+
+Block BLEND-B1 slot record (branch-side, appended as each slot concludes):
+Reorder (2026-09-08, before any slot-1 dispatch): slot 1 =
+`closed-chain-junctions-pair-with-a-rotated-link` (`docs/BLEND-7-SPEC.md`,
+to be written; pre-draw fields logged there before dispatch) — a
+pristine three-arc rim refuses `ChainNotG1`, found by unit 1's style
+review; the ladder unit (`ladder-rim-phase-may-retire-a-new-split-key`,
+now `docs/BLEND-8-SPEC.md`) moves to block BLEND-B2's first slot and the
+smooth-arm unit's spec is now `docs/BLEND-9-SPEC.md` (slot 2, unchanged).
+The draw is untouched — a slot's arm does not depend on which unit
+takes it.
 slot 0 = BLEND-6 review dispatch (2026-09-08): ordinal 2900 claimed on main; R1/R2 byte 67 ⇒ R1 = FABLE, R2 = OPUS; briefs stored here before dispatch —
 7eefc812e4294283837c446557a2e39aa36a2acd0f56f4dc9b503e92c7d03f45  blend-6-review-brief-r1.md
 e083efb3926abb7a0f7afc1b3569f02d07d97bd82ab689cc39b871da93a99d82  blend-6-review-brief-r2.md
