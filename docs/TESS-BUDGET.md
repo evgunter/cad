@@ -252,25 +252,27 @@ cd tools/tess-lint && cargo run -- ../../docs/tess-budget-data/tess-budget-basel
 ```
 
 — faces, triangles, the Hessian-sized faces and their two shares, and
-the grid-cell totals (`grid_cells`, `patch_cells`, `span_opt_cells`)
-with the held and recoverable factors, every one of them folded through
-the same `SceneTotals` the gate uses.
+the four grid-cell totals, each on its own line under its own column
+name (`grid_cells`, `patch_cells`, `opt_cells`, `span_opt_cells`) with
+the held and recoverable factors printed as their formulas, every one
+of them folded through the same `SceneTotals` the gate uses.
 
 **The command and the test are not the same census, and it is worth
 knowing which covers what.** The executable home is
 `tools/tess-lint/tests/baseline_sizing_census.rs`, which reads the same
 committed file on each `cargo test` and fails naming what a re-cut
 moved. It asserts the sweep's triangles and NURBS triangles, all four
-cell sums — `opt_cells` included, which the command does NOT print —
-and the two factors. It does not assert the face counts or the two
-percentages the command prints: those are the neighbouring
-`baseline_census.rs`'s (rows, sized rows, the scenes holding them), and
-the percentages are quotients of that pair against this one. So the
-command is the reading, the two test files together are the guard, and
-neither is a subset of the other. A census has one home and every other
-site points at it; this document is one of the sites, and the block
-below is not a second copy of that census — it is a different
-measurement of a different tree.
+cell sums and the two factors — eight quantities, every one of which
+the command prints too. The command prints MORE: the face counts and
+the two percentages, whose corpus is the neighbouring
+`baseline_census.rs`'s (rows, sized rows, the scenes holding them)
+rather than this file's, and the constraint-activity line, which
+neither census asserts. So what separates them is not which quantities
+they cover but what each DOES with them — the command is a reading you
+ask for, the two test files together are a guard that runs unasked. A
+census has one home and every other site points at it; this document
+is one of the sites, and the block below is not a second copy of that
+census — it is a different measurement of a different tree.
 
 ## What the four numbers meant (pre-fix record)
 
@@ -385,11 +387,14 @@ shipped.
 
 **"The cheapest split" names two different columns in this tree and
 the qualifier is the whole of the difference**: `opt_cells` is the
-cheapest split under the WHOLE-PATCH bound, which is what the block
-means, while the report header's *at the cheapest split per cell* is
-`span_opt_cells` — per-cell sizing AND the cheapest split in each
-cell, the block's `with both` line. `tess_meter`'s field docs are the
-definitions of record for both.
+cheapest split under the WHOLE-PATCH bound, which is what the block's
+`at the cheapest split` line means, while `span_opt_cells` is per-cell
+sizing AND the cheapest split in each cell — the block's `with both`
+line. `tess_meter`'s field docs are the definitions of record for
+both. **Where to settle it on any given tree**: the command above
+prints the two under their own column names, on adjacent lines, so a
+phrase in an older document is resolved by reading the report rather
+than by trusting a transcription of one.
 
 Over the whole tour, at each scene's own δ:
 

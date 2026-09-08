@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-07
 closed: 2026-09-08
 branch: meter/9-report-header-columns
-refs: [tess-budget-doc-quotes-a-retired-report-header, report-constraint-activity-line-names-no-columns, tess-budget-doc-finding-block-stale]
+refs: [report-constraint-activity-line-names-no-columns, tess-budget-doc-finding-block-stale]
 pr: 2180
 ---
 
@@ -14,7 +14,10 @@ pr: 2180
 ## What
 
 `tools/tess-lint/src/main.rs:284-289` prints the sweep's three cell
-totals as prose phrases with no column name attached:
+totals as prose phrases with no column name attached (the block below
+is the report's text as it stood when this was filed — its `44446` is
+the pre-unit-6 `span_opt_cells`, 44,162 after that re-cut, and today's
+output is under `## Closed`):
 
 ```
 grid cells over all Hessian-sized faces: 46019 used (per-knot-span-cell,
@@ -133,12 +136,17 @@ printed as their formulas. `CELL_TOTALS` in `main.rs` carries the
 accessor beside the name, so the transposition the pin's middle claim
 watches for cannot be written as a positional-argument slip any more.
 
-**Residue, filed rather than fixed:**
+**`docs/TESS-BUDGET.md` fixed in the same PR**, its fence widened for
+it (orchestrator, 2026-09-08). Three clauses there described the
+report and this change dated all three: the list of what the command
+prints, *"`opt_cells` included, which the command does NOT print"*,
+and — the one nobody had noticed — *"neither is a subset of the
+other"*, which was true ONLY because of the unprinted column. Residue
+a lane creates is not residue to file. None of the three replacements
+carries a figure, so none of them can go stale at a re-cut.
 
-* `tess-budget-doc-quotes-a-retired-report-header` —
-  `docs/TESS-BUDGET.md` quotes the retired phrase and states that the
-  command does not print `opt_cells`. That document is another fence.
-* `report-constraint-activity-line-names-no-columns` — the same shape
-  one line below the block, over the four indicator columns. Swept
-  and left: no two of those columns share a phrase, so the cost is a
-  lookup rather than a wrong number.
+**Residue, found rather than created, and filed:**
+`report-constraint-activity-line-names-no-columns` — the same shape
+one line below the block, over the four indicator columns. Swept and
+left: no two of those columns share a phrase, so the cost is a lookup
+rather than a wrong number.
