@@ -108,6 +108,8 @@ mod path_property;
 mod r1_bool11_review_probes;
 #[path = "r2_bool11_review_probes.rs"]
 mod r2_bool11_review_probes;
+#[path = "raw_door_census.rs"]
+mod raw_door_census;
 #[path = "rejections.rs"]
 mod rejections;
 #[path = "review_m2_pr2.rs"]
