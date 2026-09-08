@@ -121,7 +121,7 @@ added to it to demonstrate that; that is a separate change.
 `work/issues/` were stale at `d02bb0e6b`, before this branch:
 `gate-selftest-cannot-observe-the-identity-a-gate-names.md:25` names
 `:611-625` and "twelve `gate_selftest_case` rows" where the rows were
-`:930-973` and there were twenty (23 now, `:1090-1143`), and
+`:930-973` and there were twenty (23 now, `:1102-1155`), and
 `gate-rust-reader-splits-an-array-type-at-its-semicolon.md:65` names
 `:139-153` where the sentence it quotes is the item reader's header,
 `:212-218` then and `:256-262` now. Reported in PR 2172's body as §6
