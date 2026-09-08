@@ -156,7 +156,10 @@ fn r2p1_the_shipped_gap_row_is_blind_to_the_turn() {
         .map(|(_, _, g)| (g - want).abs())
         .fold(0.0f64, f64::max);
     println!("[r2p1] max |gap − |d|·sin α| over all four rows = {spread:.3e}");
-    println!("[r2p1] the shipped row's tolerance                = {:.3e}", 1e-15);
+    println!(
+        "[r2p1] the shipped row's tolerance                = {:.3e}",
+        1e-15
+    );
     assert!(
         spread < 1e-15 / 10.0,
         "[r2p1] the four gaps sit {spread:.3e} from the closed form, so the shipped \
@@ -169,7 +172,11 @@ fn r2p1_the_shipped_gap_row_is_blind_to_the_turn() {
         .filter(|(w, _, _)| w.contains("mirror"))
         .map(|(_, _, g)| *g)
         .collect();
-    println!("[r2p1] mirror-nappe gaps: {:?}, difference {:.3e}", m, (m[0] - m[1]).abs());
+    println!(
+        "[r2p1] mirror-nappe gaps: {:?}, difference {:.3e}",
+        m,
+        (m[0] - m[1]).abs()
+    );
 }
 
 // ---------------------------------------------------------------
@@ -195,7 +202,10 @@ fn r2p2_the_apex_window_rows_inner_assertion_short_circuits() {
         let mut work = body.clone();
         match topo::replace_faces_offset(&mut work, &faces, -0.04, band(), tol) {
             Err(ReplaceFaceError::ApexWindow {
-                v_min, v_max, shift, ..
+                v_min,
+                v_max,
+                shift,
+                ..
             }) => {
                 println!(
                     "[r2p2] {what}: v_min={v_min} v_max={v_max} shift={shift} \
@@ -228,7 +238,11 @@ fn r2p2_the_apex_window_rows_inner_assertion_short_circuits() {
 fn r2p3_the_per_chart_cone_build_is_reachable_below_the_rim_tolerance() {
     let tol = Tol::witness();
     let alpha = ((R_WIDE - R_NARROW) / H).atan();
-    println!("[r2p3] eps = {:e}, eps/sin α = {:e}", tol.eps(), tol.eps() / alpha.sin());
+    println!(
+        "[r2p3] eps = {:e}, eps/sin α = {:e}",
+        tol.eps(),
+        tol.eps() / alpha.sin()
+    );
     let mut built: Vec<(String, f64)> = Vec::new();
     for (what, body) in [
         ("narrowing upward (mirror)", mirror_frustum()),
@@ -367,7 +381,11 @@ fn r2p5_the_rebaselined_row_asks_the_question_the_old_one_meant() {
         1.0 / half_angle.tan()
     );
     let nappe = topo::face_nappe(&body, face, band()).expect("the wall has a nappe");
-    assert_eq!(nappe, Nappe::Mirror, "[r2p5] the outer wall is below its apex");
+    assert_eq!(
+        nappe,
+        Nappe::Mirror,
+        "[r2p5] the outer wall is below its apex"
+    );
 
     let cot = 1.0 / half_angle.tan();
     for d in [-1.5, 1.5] {
@@ -376,11 +394,12 @@ fn r2p5_the_rebaselined_row_asks_the_question_the_old_one_meant() {
         let realized = (v_near + shift) * -1.0;
         let mut work = body.clone();
         let got = topo::replace_face_offset(&mut work, face, d, band(), tol);
-        println!(
-            "[r2p5] d={d:+}: shift={shift} v_near={v_near} realized={realized} -> {got:?}"
-        );
+        println!("[r2p5] d={d:+}: shift={shift} v_near={v_near} realized={realized} -> {got:?}");
         if d < 0.0 {
-            assert!(realized < 0.0, "[r2p5] d=−1.5's near end has crossed the apex");
+            assert!(
+                realized < 0.0,
+                "[r2p5] d=−1.5's near end has crossed the apex"
+            );
             assert!(
                 matches!(got, Err(ReplaceFaceError::ApexWindow { .. })),
                 "[r2p5] and the door must say so: {got:?}"
@@ -482,7 +501,10 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
         let v_solid = topo::mass_properties(&body, tol).expect("props").volume;
         let closed = frustum_volume(r0, r1, H);
         println!("[r2p7] {what}: solid {v_solid}, closed form {closed}");
-        assert!((v_solid - closed).abs() <= 1e-14, "[r2p7] {what}: the operand itself");
+        assert!(
+            (v_solid - closed).abs() <= 1e-14,
+            "[r2p7] {what}: the operand itself"
+        );
 
         let hollow = match topo::shell(&body, T, tol) {
             Ok(topo::Shelled { body: h, .. }) => h,
