@@ -150,8 +150,8 @@ impl MateFrame {
 ///
 /// `Opposed` is what kills every π-flip ambiguity: the senses are
 /// AUTHORED, never inferred.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::AxisSense` variant of the same name"
@@ -178,8 +178,8 @@ impl AxisSense {
 }
 
 /// Which side of a mate a diagnostic is about.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::MateSide` variant of the same name"
@@ -459,8 +459,8 @@ pub(crate) fn class_admission(
 // ---- The solve's read side ----
 
 /// What a mate did in the solve.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::MateRole` variant of the same name"
