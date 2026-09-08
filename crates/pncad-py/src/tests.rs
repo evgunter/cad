@@ -1912,6 +1912,86 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     );
 }
 
+/// **What one validator finding says, arm by arm** — including the
+/// arms no Python door can produce.
+///
+/// `ValidationError` has seventy-one arms and Python reaches them
+/// through four `Body` methods, so most of the enum is unreachable
+/// from an authoring script: `census_unsupported` and
+/// `census_lane_unsupported` want a carrier outside the certifiable
+/// inventory or a scalar with no certified chart-overlap lane, and
+/// the structural arms want a corrupt arena, which the public API
+/// cannot mint. Those are exactly the arms whose projection the
+/// Python suite cannot exercise, so they are constructed here and
+/// read directly — the no-interpreter row, where a value class is
+/// still a plain Rust struct.
+///
+/// `crates/pncad-py/tests/test_validate.py` is the other half: the
+/// two arms a real document DOES reach, off a real refusal.
+#[test]
+fn every_validation_finding_carries_every_word_its_arm_has() {
+    use crate::validation::{Finding, project};
+    use pncad::topo::{CensusContact, CensusSubject, EntityId, ValidationError};
+
+    // The arm whose subject is ONE entity: the recourse is that
+    // carrier's, so the kind of carrier is the word a caller acts on.
+    assert_eq!(
+        project(&ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Edge(Default::default())),
+        }),
+        Finding {
+            variant: "census_unsupported",
+            subject_kind: Some("entity"),
+            entity_kind: Some("edge"),
+            contact_kind: None,
+        }
+    );
+
+    // The arm whose subject is a candidate CONTACT: the recourse is
+    // the declaration protocol instead, and both sides are faces by
+    // construction — so there is no entity kind to name, and `None`
+    // says that rather than repeating "face" twice.
+    assert_eq!(
+        project(&ValidationError::CensusLaneUnsupported {
+            subject: CensusSubject::FacePair(FaceKey::default(), FaceKey::default()),
+        }),
+        Finding {
+            variant: "census_lane_unsupported",
+            subject_kind: Some("face_pair"),
+            entity_kind: None,
+            contact_kind: None,
+        }
+    );
+
+    // The coincidence arm, whose payload is the branch the issue this
+    // unit closes was raised about: declare-this versus
+    // you-cannot-declare-this, off one refusal.
+    assert_eq!(
+        project(&ValidationError::UndeclaredContact {
+            contact: CensusContact::EdgeFacePierce {
+                edge: Default::default(),
+                face: FaceKey::default(),
+            },
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        })
+        .contact_kind,
+        Some("edge_face_pierce")
+    );
+
+    // The one fieldless arm, and the shape of every arm that carries
+    // no census payload: the variant alone, three `None`s beside it,
+    // so `getattr` never raises on a finding a caller did not expect.
+    assert_eq!(
+        project(&ValidationError::NegativeVolume),
+        Finding {
+            variant: "negative_volume",
+            subject_kind: None,
+            entity_kind: None,
+            contact_kind: None,
+        }
+    );
+}
+
 // ---------------------------------------------------------------
 // The tag table's VALUES, pinned as a set.
 // ---------------------------------------------------------------
@@ -2060,6 +2140,25 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "census_contact_tag",
+        values: &[
+            "conformal_patch",
+            "edge_edge_cross",
+            "edge_edge_overlap",
+            "edge_face_overlap",
+            "edge_face_pierce",
+            "vertex_on_edge",
+            "vertex_on_face",
+            "vertex_vertex",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "census_subject_tag",
+        values: &["entity", "face_pair"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "check_evidence_tag",
         values: &[
             "connectedness",
@@ -2178,6 +2277,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "node_error_tag",
             "program_refusal_tag",
         ],
+    },
+    TagEntry {
+        function: "entity_id_tag",
+        values: &[
+            "edge",
+            "face",
+            "half_edge",
+            "loop",
+            "shell",
+            "solid",
+            "vertex",
+        ],
+        delegates: &[],
     },
     TagEntry {
         function: "eval_error_tag",
@@ -2926,6 +3038,83 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "update_error_tag",
         values: &["already_pinned", "no_such_reference"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "validation_error_tag",
+        values: &[
+            "approx_certification",
+            "approx_lane_unsupported",
+            "back_pointer_mismatch",
+            "band",
+            "census_escalated",
+            "census_lane_unsupported",
+            "census_undecidable",
+            "census_unsupported",
+            "component_euler_violation",
+            "contact_contradicted",
+            "curved_sense_inverted",
+            "dangling_description",
+            "dangling_geometry",
+            "dangling_topology",
+            "degenerate_torus",
+            "degenerate_torus_escalated",
+            "description_not_adjacent",
+            "edge_across_shells",
+            "edge_certification",
+            "edge_halves_identical",
+            "edge_not_antiparallel",
+            "edge_slot_backpointer_mismatch",
+            "emanating_start_mismatch",
+            "empty_loop_vertex_with_emanating",
+            "half_edge_multiply_claimed",
+            "half_edge_unclaimed",
+            "lamina_wedge",
+            "leaked_null_face_record",
+            "leaked_provenance",
+            "lone_vertex_with_incidence",
+            "loop_cycle_overrun",
+            "loop_role_inverted",
+            "missing_provenance",
+            "multiply_owned",
+            "negative_volume",
+            "next_prev_mismatch",
+            "nonpositive_torus_tube",
+            "null_edge_at_rest",
+            "null_face_at_rest",
+            "null_scaffold_shared",
+            "orbit_foreign_member",
+            "orphan_entity",
+            "orphan_geometry",
+            "outer_listed_as_ring",
+            "parent_loop_mismatch",
+            "pcurve",
+            "planar_boundary_escalated",
+            "planar_boundary_residual",
+            "planar_face_escalated",
+            "planar_face_residual",
+            "poisoned_surface_description",
+            "ring_contact_escalated",
+            "ring_meets_outer",
+            "scaffold_at_rest",
+            "scaffolding_empty_loop",
+            "scaffolding_strut_vertex",
+            "shell_disconnected",
+            "shell_without_faces",
+            "sliver_dihedral",
+            "solid_without_shells",
+            "split_vertex_orbit",
+            "stale_contact_declaration",
+            "stale_null_face_loop",
+            "tangent_not_intrinsic",
+            "transverse_not_intrinsic",
+            "uncertifiable_surface",
+            "undeclared_contact",
+            "undeclared_cusp",
+            "unreachable_half_edge",
+            "vertex_orbit_overrun",
+            "volume_uncomputable",
+        ],
         delegates: &[],
     },
     TagEntry {

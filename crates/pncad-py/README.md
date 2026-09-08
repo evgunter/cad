@@ -98,7 +98,12 @@ Three things to expect, all treated at length in the guide:
   the candidate declaration rides the exception as a typed `finding`
   (`Evaluation.find_flush_candidates` → `Node.declare`). Refusals are
   exceptions carrying attributes, never prose to parse — all of them
-  subclass `PncadError`.
+  subclass `PncadError`. A refusal's discriminant is one word on one
+  attribute, with a single stated exception: `Body.validate*` is the
+  one door that reports MANY failures in one raise, so `ValidationError`
+  carries `findings`, a sequence of `ValidationFinding`s, one per
+  failure. The door's own shape is the whole argument for it; nothing
+  else on the surface is shaped that way.
 
 ## Documentation
 

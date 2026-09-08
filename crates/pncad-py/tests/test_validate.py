@@ -59,7 +59,9 @@ from pncad import (
     DocEdit,
     Node,
     ValidationError,
+    ValidationFinding,
     assemble,
+    circle,
     evaluate,
     m,
     product,
@@ -78,6 +80,15 @@ def slab(doc, x, y, z):
         )
     )
     return doc.insert(Node.extrude(profile, z[1] - z[0]))
+
+
+def cylinder(doc, centre, radius, z0, height):
+    """A right circular cylinder — the curved carrier the census has an
+    opinion about that a box does not."""
+    profile = doc.insert(
+        Node.profile(circle(centre, radius), doc.sketch_frame(elevation=z0))
+    )
+    return doc.insert(Node.extrude(profile, height))
 
 
 def two_slabs_resting():
@@ -297,15 +308,149 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertIn("vertex", message)
         self.assertRegex(message, r"at \(-?\d")
 
-    def test_no_per_arm_tag_crosses_and_the_census_says_so(self):
-        """The census's `CensusContact: INTERIOR` row states that which
-        coincidence was found is not something Python can read. That is
-        a claim about this exception, so it is checked here: `door` and
-        `failure_count` are the whole structured payload."""
+    def test_the_per_arm_words_cross_and_the_census_says_so(self):
+        """Which coincidence the census found IS something Python can
+        read, and this is the row that says so.
+
+        It used to say the opposite. `CensusContact` and
+        `CensusSubject` were `INTERIOR` in the binding census and this
+        test asserted the absence — `kind` and `variant` were checked
+        NOT to exist, because `door` and `failure_count` were the whole
+        structured payload and which arm refused was prose. Turning
+        that around is what closing the question cost, so the pin is
+        rewritten rather than deleted: the scalar words a caller might
+        reach for are still absent (one raise carries N findings, so
+        neither could name one of them), and the sequence is where the
+        arms live.
+        """
         refusal = self.refusal()
         self.assertFalse(hasattr(refusal, "kind"))
         self.assertFalse(hasattr(refusal, "variant"))
         self.assertIsInstance(refusal, pncad.PncadError)
+        self.assertTrue(
+            all(f.variant == "undeclared_contact" for f in refusal.findings)
+        )
+        self.assertEqual(
+            {f.contact_kind for f in refusal.findings},
+            {"vertex_on_face", "edge_face_overlap"},
+        )
+
+    def test_the_findings_are_the_count(self):
+        """`failure_count` is the sequence's length, at every rung that
+        can refuse — the invariant that makes the count readable as an
+        index bound rather than as a second, independent number."""
+        refusal = self.refusal()
+        self.assertEqual(len(refusal.findings), refusal.failure_count)
+        self.assertTrue(
+            all(isinstance(f, ValidationFinding) for f in refusal.findings)
+        )
+
+    def test_each_finding_s_word_is_the_message_s_own(self):
+        """The words and the prose are one diagnosis, not two. Every
+        variant a finding names is a phrase the joined message spells
+        for itself — so a caller that branches on the word and a reader
+        who reads the sentence are told the same thing."""
+        refusal = self.refusal()
+        message = str(refusal)
+        for finding in refusal.findings:
+            with self.subTest(variant=finding.variant):
+                self.assertIn(finding.variant.replace("_", " "), message)
+            if finding.contact_kind is not None:
+                with self.subTest(contact=finding.contact_kind):
+                    self.assertIn(finding.contact_kind.split("_")[0], message)
+
+    def test_a_finding_is_a_frozen_value_that_compares_structurally(self):
+        """The value shape: two findings that say the same thing ARE
+        the same thing, so a caller can put them in a set and ask which
+        KINDS of failure a body has without deduplicating by hand."""
+        first, second = self.refusal(), self.refusal()
+        self.assertEqual(first.findings, second.findings)
+        self.assertEqual(first.findings[0], second.findings[0])
+        self.assertEqual(
+            len({(f.variant, f.contact_kind) for f in first.findings}), 2
+        )
+        # Frozen: a finding is restated by re-running the validator,
+        # never by editing one in place.
+        with self.assertRaises(AttributeError):
+            first.findings[0].variant = "something_else"
+
+    def test_every_finding_carries_every_attribute(self):
+        """No `getattr` trap. Four attributes on every finding, `None`
+        where the arm carries nothing to fill them — so a caller reads
+        `subject_kind` without first branching on `variant`."""
+        for finding in self.refusal().findings:
+            for attribute in ("variant", "subject_kind", "entity_kind", "contact_kind"):
+                with self.subTest(attribute=attribute):
+                    self.assertTrue(hasattr(finding, attribute))
+            self.assertIsInstance(finding.variant, str)
+            # This scene's arms carry a contact and no subject; the
+            # `entity`/`face_pair` half is pinned in Rust, below.
+            self.assertIsNone(finding.subject_kind)
+            self.assertIsNone(finding.entity_kind)
+
+    def test_two_distinct_arms_arrive_off_one_raise(self):
+        """The claim the sequence exists for: ONE raise, several arms,
+        each named.
+
+        A cylinder resting on a slab, gathered by `product`, is the
+        smallest scene that reaches two: the flat seat under the
+        cylinder is an undeclared contact, and the curved face within
+        reach of the slab's is a candidate the census can neither
+        examine nor definitely clear, refused as undecidable rather
+        than silently not looked at. Before this the two differed only
+        in prose.
+        """
+        doc = Doc()
+        seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 1 * m))
+        post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 1 * m, 0.5 * m)
+        doc.apply(DocEdit.set_roots([seat, post]))
+        gathered = product(doc, evaluate(doc))
+        with self.assertRaises(ValidationError) as caught:
+            gathered.validate_pseudomanifold()
+        refusal = caught.exception
+        self.assertEqual(len(refusal.findings), refusal.failure_count)
+        self.assertEqual(
+            {f.variant for f in refusal.findings},
+            {"undeclared_contact", "census_undecidable"},
+        )
+        # The payload rides only where the arm carries one.
+        for finding in refusal.findings:
+            with self.subTest(variant=finding.variant):
+                if finding.variant == "undeclared_contact":
+                    self.assertEqual(finding.contact_kind, "vertex_on_face")
+                else:
+                    self.assertIsNone(finding.contact_kind)
+
+    def test_the_arms_this_suite_cannot_reach_are_named(self):
+        """WHAT PYTHON CANNOT PRODUCE, said rather than left implied.
+
+        `ValidationError` has seventy-one arms and Python reaches them
+        through four `Body` methods. The structural and geometric arms
+        want a corrupt arena or an uncertifiable surface, and the
+        public API's every product is tier-1-valid, so no authoring
+        script can mint one. `census_unsupported` and
+        `census_lane_unsupported` — the two arms that carry the
+        `subject_kind` / `entity_kind` half of a finding — want a
+        carrier outside the certifiable inventory or a scalar with no
+        certified chart-overlap lane, and neither is reachable through
+        the doors this suite has: extruded boxes, cylinders and lofts
+        all certify.
+
+        So those two are pinned in Rust, where the refusal constructs
+        (`src/tests.rs::every_validation_finding_carries_every_word_
+        its_arm_has`), and this row is the statement that the gap is
+        the DOORS' and not the projection's. What Python reaches is
+        the census pair above.
+        """
+        doc = Doc()
+        seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 1 * m))
+        post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 1 * m, 0.5 * m)
+        doc.apply(DocEdit.set_roots([seat, post]))
+        with self.assertRaises(ValidationError) as caught:
+            product(doc, evaluate(doc)).validate_pseudomanifold()
+        reached = {f.variant for f in caught.exception.findings}
+        self.assertNotIn("census_unsupported", reached)
+        self.assertNotIn("census_lane_unsupported", reached)
 
 
 if __name__ == "__main__":
