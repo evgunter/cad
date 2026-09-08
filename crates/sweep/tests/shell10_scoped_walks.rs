@@ -75,10 +75,16 @@ fn the_subset_pass_mints_the_scopes_rows_and_no_others() {
 /// What this row can and cannot say: a whole-body pass re-derives those
 /// rows bit-identically on every fixture this workspace builds (SHELL-8
 /// and SHELL-9's differentials), so equal bits here do not by
-/// themselves prove the pass was scoped — that is `topo`'s
-/// `an_out_of_scope_faces_unmintable_chart_does_not_refuse_the_door`,
-/// which uses a chart a whole-body pass would refuse. This row pins the
-/// property a caller has: nothing outside the scope moved.
+/// themselves prove the pass was scoped. That takes an out-of-scope
+/// chart a whole-body pass would REFUSE — which is a fixture choice,
+/// not a limit of the seat: `topo`'s
+/// `an_out_of_scope_faces_unmintable_chart_does_not_refuse_the_door`
+/// and, from this crate, `shell10_r1_probes`'s
+/// `r1_e2e_direct_door_over_one_of_two_with_an_unmintable_neighbour`
+/// and `shell10_r2_probes`'s
+/// `r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable`
+/// all do it. This row pins the property a caller has instead: nothing
+/// outside the scope moved.
 #[test]
 fn the_axial_door_leaves_the_other_solids_rows_as_it_found_them() {
     let pair = beside(&vessel(1.0, 2.0), &vessel(1.0, 2.0), 10.0);
