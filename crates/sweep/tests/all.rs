@@ -572,3 +572,6 @@ mod shell7_dump;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
+
+#[path = "shell7_r2_probes.rs"]
+mod shell7_r2_probes;
