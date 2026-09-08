@@ -523,3 +523,23 @@ re-validates; `vdiff`'s doc says the populations are doubled) with
 the fix scheduled as unit 8; the pre-op row's misdescribed mechanism
 corrected and the real frame-open-no-decision row adopted; the m4
 golden rule's "once" corrected. Plan updated with units 8 and 9.
+
+## EVAL-6 fix pass green; state-sync pushed (2026-09-08, PR 2173)
+
+Fix pass `c9d4781fe`: the `check_reference` hole closed by
+DECOMPOSITION in `mate/member.rs` (MSOLVE's, by announced seam):
+each level of the copy chain is collected outermost-first, and a
+`Part`'s index is compared to its level's copy folded through every
+level below it down to the next `Part`, via the evaluator's own
+`names::flat_body_index`; a `Part` over `Transform(Pattern)` is now
+checked too. The reviewer's four-case row and the rotation-between-
+patterns row adopted verbatim. Style items all landed: one `place`
+site (the placed union's `as u32` now typed), one overflow home
+(`names::output_body`), one layout function shared by the evaluator,
+the emitter and the walk, `body_operand` through `placeable_operand`,
+`Placeable::map`, the ordinal rule stated once at `compose_placed`
+with a pairwise-distinct-stamps row, the stale "one body" sentences
+fixed in EVAL's files and `docs/MIRROR-DESIGN.md`. Dump re-taken at
+the new base: 14,542 lines, zero diff. Meta-read by the orchestrator
+of the decomposition. State-sync merged main (code moved: a run on
+the merged head before the merge).
