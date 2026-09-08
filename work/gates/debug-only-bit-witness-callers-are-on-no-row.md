@@ -2,8 +2,11 @@
 id: debug-only-bit-witness-callers-are-on-no-row
 kind: issue
 title: Two cfg(debug_assertions) callers of the bit-channel witnesses are in files with no row
-status: open
+status: closed
 opened: 2026-09-06
+branch: gates/bit-witness-callers
+pr: 2069
+closed: 2026-09-06
 ---
 
 
@@ -78,3 +81,58 @@ caller of these witnesses in another crate is not covered by it; a grep
 for the three spellings across `crates/` finds none today. It also read
 attribute text, so a witness reached through a re-export under another
 name is invisible to it.
+
+
+## Landed (2026-09-06)
+
+On `gates/bit-witness-callers`.
+
+**The two rows.** `scripts/gates/bit-identity-debug-only.sh` carries a
+row per caller file, each naming the witnesses its own file calls, with
+the pins taken by the gate's own matcher over its `--skip-cfg-test`
+code view (the pin set to a value the tree cannot carry, the count read
+out of the pin diagnosis — never `grep -c`):
+
+| file | spellings | pin |
+| --- | --- | --- |
+| `crates/topo/src/boolean/plane_eq.rs` | `plane_bits_witness` | 1 |
+| `crates/topo/src/merge_faces.rs` | `plane_bits_witness\|vec3_bits_witness` | 2 |
+
+Live tree: 94 → **97** uses scanned, green; 13 → 15 subjects, 35 → 38
+spellings.
+
+**Before and after, per attribute**, in a scratch root (`--root`) of the
+fifteen subject files with one attribute deleted at a time. Before this
+change the gate printed OK over each; after it, each reds by name with
+the "outside any `cfg(debug_assertions)` item" diagnosis:
+
+| attribute deleted | before | after |
+| --- | --- | --- |
+| `boolean/plane_eq.rs:173` | GREEN | RED, naming `plane_eq.rs` |
+| `merge_faces.rs:1006` | GREEN | RED, naming `merge_faces.rs` |
+
+**The sweep the row asked for.** `grep -rln 'plane_bits_witness\|vec3_bits_witness\|bits_witness'`
+over the whole repo hits twelve files. Three are the rowed `topo`
+sources; the other nine are prose, and the complete list is:
+`crates/editor-core/src/names/README.md`, `docs/MODEL-AB-LOG.md`,
+`scripts/gates/bit-identity-debug-only.sh` (its own header and rows),
+`work/STATUS.md`, `work/gates/log.md`, this row, and three sibling
+tracker files — `work/gates/bit-identity-debug-only-gate-ends-an-item-at-a-semicolon.md`,
+`work/gates/debug-only-assert-euler-postcondition-is-on-no-row.md`,
+`work/topo/bits-witness-slice-workaround-outlived-its-defect.md`. No
+Rust caller outside `crates/topo/src` exists today, so nothing else is
+rowed. What that pattern could not match is unchanged from the finding
+above: a witness reached through a re-export under another name.
+
+**The cost the row pointed at is paid.** The self-test's per-case loop
+planted every subject and ran the gate once PER SUBJECT, so a case cost
+a run per subject and the suite grew with the product of subjects and
+spellings. Each case now plants its shape in EVERY subject in one tree
+and runs the gate once, asserting per subject that a diagnosis line
+names it — so the set of (case, subject) outcomes asserted is unchanged.
+`--selftest` on this lane's box: **112 s** with the two rows added under
+the per-subject loop, **13.7 s** after the restructure (13-subject
+baseline on the same box: 110 s). One case stays per subject:
+`plant_subject_gone`, because `gate_require_file` ends the gate at the
+FIRST missing subject, so a tree with every subject removed would prove
+the presence check on one row and say nothing about the other fourteen.
