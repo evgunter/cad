@@ -22,16 +22,24 @@ those coincide: `tag::program::LANE` and `verb_tag(Verb::Cusp)` are
 both `41`, and `LOOP_START` and a profile's upstream count are both
 `1`.
 
-**Why no key moves today.** The stream is a hash of `u64` words, not a
-parse, so a collision needs two whole streams to agree, and they
-diverge one word later: after `Cusp` (which writes no payload) comes a
-verb tag or `LOOP_START`; after `LANE` comes `LOOP_START` then
-`LANE_SCALAR` (42) and bit patterns, where the resolved stream carries
-verb and target tags. The unreachable case is a lane scalar whose bit
-pattern equals a small tag word and keeps aligning for the rest of the
-stream. Not a defect a document can reach; a defect in the framework
-EVAL-2 declared, which is injectivity within each vocabulary read at
-one position — this position has two vocabularies read at it.
+**Why no key moves today.** The stream is a hash of `u64` words, not
+a parse, so a collision needs two whole streams to agree, and at this
+position they cannot even begin to: a `Cusp` cannot END a loop — its
+tip is `DirectedIncoming` (`crates/profile/src/path/program.rs`, the
+`Cusp` row), no closing verb accepts that tip, and an open end refuses
+at replay (`Transition { verb: None }`) — so the word after a `Cusp`
+is always the next step's verb tag (≥ 10) and never `LOOP_START` (1),
+`LANE` (41) or `CARRIER_RADIUS` (45). At the end of the stream the
+word after the last step is the upstream-key count — `1` for a
+profile, whose one input is its plane or frame — which no verb tag is
+(the verb vocabulary starts at 10), so the end of the stream cannot
+read as a `LoopStart` either; and the lane stream that `LANE` opens
+continues with `LOOP_START` then `LANE_SCALAR` (42) and bit patterns,
+where a resolved loop carries verb and target tags. So the two
+vocabularies read at one position never produce the same next word.
+The conclusion stands; it rests on the transition table's closing
+rule and on the profile's upstream count, not on an alignment
+argument.
 
 **What a fix needs.** Length-prefix the loop list and each loop's step
 list (the shape every other list in the key already has: selection,
