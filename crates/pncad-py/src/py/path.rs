@@ -963,23 +963,6 @@ point_state!(
                 .clone()
                 .arc_fillet_arc(si, r, s2, tol)))
         }
-
-        /// Continue the incoming ARC carrier to an authored on-carrier
-        /// point, minting a STRUCTURAL subdivision vertex. The junction
-        /// is a same-carrier identity, so no junction check runs and
-        /// nothing is declared tangent.
-        fn arc_continue(
-            &self,
-            py: Python<'_>,
-            target: (Length, Length),
-        ) -> PyResult<PathDirectedPoint> {
-            let tol = Tol::witness();
-            self.0
-                .clone()
-                .arc_continue(pt(target), tol)
-                .map(PathDirectedPoint)
-                .map_err(|err| path_err(py, &err))
-        }
     }
 );
 

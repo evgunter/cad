@@ -178,7 +178,6 @@ fn chain_steps() -> Vec<ProgramStep> {
     );
     steps.extend([
         ProgramStep::TangentArcTo(ProgramTarget::Start),
-        ProgramStep::ArcContinue(pt(3.0, 1.0)),
         ProgramStep::Fillet(len(0.2)),
     ]);
     // Every mode in the ARRIVAL (spec₂) position, then every mode in
@@ -445,7 +444,6 @@ fn every_arc_mode_is_a_document_program() {
             | profile::Step::LineTo(_)
             | profile::Step::ContinueTo(_)
             | profile::Step::TangentArcTo(_)
-            | profile::Step::ArcContinue(_)
             | profile::Step::Fillet { .. }
             | profile::Step::FarEndTo(_)
             | profile::Step::CloseTo

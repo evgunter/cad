@@ -105,8 +105,6 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::NonpositiveCircleRadius => "nonpositive_circle_radius",
         PathErrorKind::CircleSplitCount => "circle_split_count",
         PathErrorKind::ArcSplitCount => "arc_split_count",
-        PathErrorKind::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
-        PathErrorKind::ArcContinueOffCarrier => "arc_continue_off_carrier",
         PathErrorKind::ZeroDirection => "zero_direction",
         PathErrorKind::ArcViaCollinear => "arc_via_collinear",
         PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",

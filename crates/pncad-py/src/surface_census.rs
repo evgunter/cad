@@ -401,7 +401,6 @@ fn verb_spelling(verb: Verb) -> Spelling {
             "PathDirected.arc_to",
         ]),
         Verb::TangentArcTo => Bound(&["PathDirected.tangent_arc_to"]),
-        Verb::ArcContinue => Bound(&["PathDirectedPoint.arc_continue"]),
         Verb::Fillet => Bound(&["PathDirected.fillet", "PathDirectedPoint.fillet"]),
         Verb::FilletArc => Bound(&["PathDirected.fillet_arc", "PathDirectedPoint.fillet_arc"]),
         Verb::ArcFillet => Bound(&[

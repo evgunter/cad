@@ -1163,11 +1163,12 @@ square = doc.insert(
 )
 cube = doc.insert(Node.extrude(square, 1 * m))
 
-# A ball, revolved as two quarter arcs, sunk H into the top face.
+# A ball, revolved as one semicircle split at the equator (the split
+# is declared: its station is a tangent joint on the one carrier),
+# sunk H into the top face.
 half = (
     Open.at((0 * m, -R * m))
-    .arc_to(Bulge((R * m, 0 * m), math.tan(math.pi / 8)))
-    .arc_continue((0 * m, R * m))
+    .arc_to(Bulge((0 * m, R * m), 1.0), splits=2)
     .line_to(Start)
 )
 frame = doc.sketch_frame(

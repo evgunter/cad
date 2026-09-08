@@ -386,10 +386,6 @@ pub(crate) fn path_step_fields(
     // two different quantities one name.
     match step {
         PathStep::At(point) => point_fields(ui, length_unit, point),
-        PathStep::ArcContinue(point) => {
-            ui.label("through");
-            point_fields(ui, length_unit, point);
-        }
         PathStep::FarEndTo(point) => {
             ui.label("far end");
             point_fields(ui, length_unit, point);

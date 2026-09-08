@@ -184,10 +184,6 @@ pub enum PathStep {
     /// `tangent_arc_to(target)` — an arc leaving along the bound
     /// direction and ending at `target`.
     TangentArcTo(PathTarget),
-    /// `arc_continue(p)` — a structural vertex ON the incoming
-    /// carrier: the declared-subdivision verb, which splits an arc
-    /// without changing it.
-    ArcContinue([f64; 2]),
     /// `.fillet(r)` — round the corner with radius `r`, line in, line
     /// out.
     Fillet(f64),
@@ -455,7 +451,6 @@ fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionEr
             splits,
         },
         PathStep::TangentArcTo(target) => ProgramStep::TangentArcTo(program_target(target, n)?),
-        PathStep::ArcContinue(p) => ProgramStep::ArcContinue(n.point(p)?),
         PathStep::Fillet(r) => ProgramStep::Fillet(n.length(r)?),
         PathStep::FilletArc { radius, spec } => ProgramStep::FilletArc {
             radius: n.length(radius)?,

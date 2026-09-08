@@ -153,17 +153,6 @@ class TestTheLatticeWalks(unittest.TestCase):
             with self.subTest(mode=name):
                 self.assertEqual(loop.vertex_count, 2)
 
-    def test_arc_continue_mints_a_structural_subdivision_vertex(self):
-        # The same carrier, subdivided at the +y pole: a same-carrier
-        # identity, not a junction claim.
-        loop = (
-            Open.at((1 * m, 0 * m))
-            .arc_to(Center(ORIGIN, ArcSweep.Ccw, (0 * m, 1 * m)))
-            .arc_continue((-1 * m, 0 * m))
-            .line_to(Start)
-        )
-        self.assertEqual(loop.vertex_count, 3)
-
     def test_a_split_arc_leg_declares_its_stations(self):
         # The half-disc's equator as ONE leg that declares its split:
         # the semicircle about the origin in two arcs, the pole station
@@ -396,14 +385,6 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
             lambda: Open.at((1 * m, 0 * m)).arc_to(
                 Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=0
             ),
-        )
-
-    def test_arc_continue_needs_an_arc_carrier(self):
-        self.refuses(
-            "arc_continue_needs_arc_carrier",
-            lambda: Open.at(ORIGIN)
-            .line_to((1 * m, 0 * m))
-            .arc_continue((2 * m, 0 * m)),
         )
 
     def test_coordinates_are_typed_quantities(self):

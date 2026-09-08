@@ -164,7 +164,6 @@ vocabulary! {
         /// An arc leg leaving along the bound direction.
         TangentArcTo,
         /// A structural vertex on the incoming carrier.
-        ArcContinue,
         /// Round the corner: line in, line out.
         Fillet,
         /// Round it with an arc on the arrival side.
@@ -208,7 +207,6 @@ impl PathVerb {
             Self::LineTo => "line_to",
             Self::ArcTo => "arc_to",
             Self::TangentArcTo => "tangent_arc_to",
-            Self::ArcContinue => "arc_continue",
             Self::Fillet => "fillet",
             Self::FilletArc => "fillet_arc",
             Self::ArcFillet => "arc_fillet",
@@ -231,7 +229,6 @@ impl PathVerb {
             PathStep::LineTo(_) => Self::LineTo,
             PathStep::ArcTo { .. } => Self::ArcTo,
             PathStep::TangentArcTo(_) => Self::TangentArcTo,
-            PathStep::ArcContinue(_) => Self::ArcContinue,
             PathStep::Fillet(_) => Self::Fillet,
             PathStep::FilletArc { .. } => Self::FilletArc,
             PathStep::ArcFillet { .. } => Self::ArcFillet,
@@ -265,7 +262,6 @@ impl PathVerb {
             Self::LineTo => PathStep::LineTo(PathTarget::Point(point)),
             Self::ArcTo => PathStep::arc_to(arc),
             Self::TangentArcTo => PathStep::TangentArcTo(PathTarget::Point(point)),
-            Self::ArcContinue => PathStep::ArcContinue(point),
             Self::Fillet => PathStep::Fillet(0.001),
             Self::FilletArc => PathStep::FilletArc {
                 radius: 0.001,

@@ -1077,48 +1077,6 @@ transition_table! {
         }
     }
 
-    #[doc = " `arc_continue(target)` — the declared-subdivision step."]
-    verb ArcContinue(Point2<T>) bind (p) rows {
-        row {
-            /// **The declared-subdivision step** (LIB-SWITCH §5-1 fallback,
-            /// ruled 2026-08-08): continue the incoming ARC CARRIER to
-            /// `target`, minting a STRUCTURAL subdivision vertex — a vertex the
-            /// author placed on the carrier deliberately (the half-disc's
-            /// equator vertex, which revolve naming's pole elimination anchors
-            /// on), not a junction claim of any kind.
-            ///
-            /// Semantics, precisely: the leg runs on the SAME carrier circle as
-            /// the incoming leg, in the same travel sense, from the tip to
-            /// `target`. The junction at the tip is a same-carrier IDENTITY —
-            /// exactly the class [`circle`]'s two poles are — so NO §4 junction
-            /// check runs (there is no departure to classify: the carrier
-            /// continues) and NOTHING is declared tangent (there is no tangency
-            /// claim to verify; #101's same-carrier-is-identity rule applies at
-            /// validation unchanged). The bulge is DERIVED from the carrier and
-            /// the target — authored data is the target alone.
-            ///
-            /// Refusals: no incoming arc carrier
-            /// ([`PathError::ArcContinueNeedsArcCarrier`] — a straight leg has
-            /// nothing to subdivide); a target off the carrier
-            /// ([`PathError::ArcContinueOffCarrier`] — authored points never
-            /// re-project); a degenerate chord
-            /// ([`PathError::DegenerateArcChord`]).
-            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
-            fn arc_continue [(
-                mut self,
-                target: Point2<T>,
-                tol: Tol,
-            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.core.record(Step::ArcContinue(target));
-                self.arc_continue_kernel(target, tol)
-            }
-            arms {
-                DynTip::DirectedPoint(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.arc_continue(p, tol)?))),
-            }
-        }
-    }
-
     #[doc = " `.fillet(r)` — line incoming (the tangent ray), line arrival."]
     verb Fillet {
         #[doc = " The fillet radius."]

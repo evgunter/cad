@@ -78,7 +78,6 @@ fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
             | Step::LineTo(_)
             | Step::ContinueTo(_)
             | Step::TangentArcTo(_)
-            | Step::ArcContinue(_)
             | Step::Fillet { .. }
             | Step::FarEndTo(_)
             | Step::CloseTo
@@ -423,81 +422,6 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
     // n = 2 is legal — the smallest subdivision, circle's own count.
     let two = profile::circle_split(p2(0.0, 0.0), 1.0, 2, 0.0, Tol::witness()).unwrap();
     assert_eq!(pinned(two).vertices().len(), 2);
-}
-
-/// **`arc_continue`'s declared subdivision (LIB-SWITCH §5-1 fallback,
-/// the half-disc's equator vertex).** Two quarter arcs on ONE carrier:
-/// the first authored (`arc_to(Bulge { .. })` with bulge tan(π/8)), the
-/// second a structural subdivision — same carrier, derived bulge, no
-/// junction claim, nothing declared tangent. Replays bit-identically.
-#[test]
-fn arc_continue_subdivides_the_carrier_structurally() {
-    use profile::Bulge;
-    let q = std::f64::consts::FRAC_PI_8.tan();
-    let closed = Open
-        .at(p2(0.0, -0.5))
-        .arc_to(
-            Bulge {
-                p: p2(0.5, 0.0),
-                b: q,
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .arc_continue(p2(0.0, 0.5), Tol::witness())
-        .unwrap()
-        .line_to(Start, Tol::witness())
-        .unwrap();
-    assert_eq!(
-        verbs(&program_of(&closed)),
-        vec![Verb::At, Verb::ArcTo, Verb::ArcContinue, Verb::LineTo],
-        "the subdivision records as its own verb, storing only the authored target"
-    );
-    let lowered = pinned(closed);
-    assert_eq!(lowered.vertices().len(), 3);
-    // The derived bulge continues the SAME carrier: a quarter of the
-    // r = 0.5 circle about the origin, tan(π/8) up to the tangent-chord
-    // derivation's rounding.
-    let b = lowered.vertices()[1].bulge();
-    assert!(
-        (b - q).abs() < 1e-15,
-        "continuation bulge ≈ tan(π/8), got {b}"
-    );
-    assert!(
-        lowered.tangent_joints().is_empty(),
-        "a subdivision vertex claims nothing — same-carrier identity, not tangency"
-    );
-    validate_ok(&lowered);
-}
-
-/// `arc_continue` refusals: a straight incoming leg has nothing to
-/// subdivide; an off-carrier target is contradictory authored data.
-#[test]
-fn arc_continue_refuses_lines_and_off_carrier_targets() {
-    use profile::Bulge;
-    let after_line = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(1.0, 0.0), Tol::witness())
-        .unwrap();
-    match after_line.arc_continue(p2(2.0, 0.0), Tol::witness()) {
-        Err(PathError::ArcContinueNeedsArcCarrier) => {}
-        other => panic!("a straight leg must refuse arc_continue, got {other:?}"),
-    }
-    let q = std::f64::consts::FRAC_PI_8.tan();
-    let after_arc = Open
-        .at(p2(0.0, -0.5))
-        .arc_to(
-            Bulge {
-                p: p2(0.5, 0.0),
-                b: q,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-    match after_arc.arc_continue(p2(0.3, 0.5), Tol::witness()) {
-        Err(PathError::ArcContinueOffCarrier { .. }) => {}
-        other => panic!("an off-carrier target must refuse, got {other:?}"),
-    }
 }
 
 // ------------------------------------------------------------------

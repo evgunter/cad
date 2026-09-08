@@ -394,7 +394,6 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
             len: 0.005,
         }),
         PathStep::TangentArcTo(PathTarget::Start),
-        PathStep::ArcContinue([0.002, 0.002]),
         PathStep::Fillet(0.001),
         PathStep::FilletArc {
             radius: 0.001,
@@ -460,13 +459,12 @@ fn ordinal(step: &PathStep) -> usize {
         PathStep::LineTo(_) => 7,
         PathStep::ArcTo { .. } => 8,
         PathStep::TangentArcTo(_) => 9,
-        PathStep::ArcContinue(_) => 10,
-        PathStep::Fillet(_) => 11,
-        PathStep::FilletArc { .. } => 12,
-        PathStep::ArcFillet { .. } => 13,
-        PathStep::ArcFilletArc { .. } => 14,
-        PathStep::FarEndTo(_) => 15,
-        PathStep::CloseTo => 16,
+        PathStep::Fillet(_) => 10,
+        PathStep::FilletArc { .. } => 11,
+        PathStep::ArcFillet { .. } => 12,
+        PathStep::ArcFilletArc { .. } => 13,
+        PathStep::FarEndTo(_) => 14,
+        PathStep::CloseTo => 15,
     }
 }
 
