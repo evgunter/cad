@@ -124,6 +124,13 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 /// the same ids for the same nodes, and a gather over the wrong one
 /// would succeed, in full, about other geometry.
 ///
+/// **One gather per evaluation.** The document's product is a pure
+/// function of the (document, evaluation) pair `evaluation` captured
+/// at `evaluate` and the run's tolerance, so it is gathered on the
+/// first ask and shared with every other door that wants one
+/// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
+/// how a caller asks several questions for the price of one gather.
+///
 /// Raises `ProductError`, typed: a root that failed, was poisoned or
 /// is absent from this evaluation; a document whose roots denote no
 /// body (`no_body_roots`); the kernel's graft and validity refusals.
@@ -164,6 +171,13 @@ fn mispaired_product(py: Python<'_>, m: d::Mispaired) -> PyErr {
 /// named through the instantiate node that placed it, which is what
 /// makes "the third post's top cap" one name rather than a coordinate.
 /// They cross as opaque text, like every other name in this library.
+///
+/// **One gather per evaluation.** The document's product is a pure
+/// function of the (document, evaluation) pair `evaluation` captured
+/// at `evaluate` and the run's tolerance, so it is gathered on the
+/// first ask and shared with every other door that wants one
+/// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
+/// how a caller asks several questions for the price of one gather.
 ///
 /// Raises `ProductError`, typed — including `product_naming` when two
 /// roots' rows would name one aggregate entity.
@@ -663,6 +677,13 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
 /// `evaluation` must be an evaluation OF `doc`, and one that
 /// RESOLVED: an instantiate node with no resolver produced no body,
 /// so the gather refuses `root_failed` before the gate runs.
+///
+/// **One gather per evaluation.** The document's product is a pure
+/// function of the (document, evaluation) pair `evaluation` captured
+/// at `evaluate` and the run's tolerance, so it is gathered on the
+/// first ask and shared with every other door that wants one
+/// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
+/// how a caller asks several questions for the price of one gather.
 ///
 /// Raises `AssemblyError`, typed. Read `variant` before anything else
 /// — the two verdict arms are different facts:

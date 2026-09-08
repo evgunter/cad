@@ -530,6 +530,13 @@ pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
 /// comes back as its own `stale_expectation` finding. A stale
 /// acknowledgment must not read as "checked and fine".
 ///
+/// **One gather per evaluation.** The document's product is a pure
+/// function of the (document, evaluation) pair `evaluation` captured
+/// at `evaluate` and the run's tolerance, so it is gathered on the
+/// first ask and shared with every other door that wants one
+/// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
+/// how a caller asks several questions for the price of one gather.
+///
 /// Raises `ChecksError`, typed, when the checks could not RUN at all.
 /// A check that ran and disagreed is a finding in the report and never
 /// an exception.

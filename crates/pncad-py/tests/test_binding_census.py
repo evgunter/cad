@@ -1657,25 +1657,31 @@ NOT_BOUND = {
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
     "validated": INTERIOR,
-    # **The gathered-product doors, one family.** `Product` is the
-    # document's product with everything the gather knows about it,
-    # `product_recorded` is the gather that builds one, `Subject` is
-    # what the check registry runs over, and `run_checks_on` /
-    # `assemble_gathered` are the two doors that take a product a
-    # caller already holds. Python binds the WRAPPERS of both —
-    # `run_checks` and `assemble` — and each gathers for itself, so
-    # there is nothing here a Python caller cannot ASK: every question
-    # these five answer is answered by a door already bound, and
-    # `product` / `product_named` are the curated gathers for a caller
-    # who wants the body or the table.
+    # **The gathered-product doors, one family, and they are what the
+    # binding CALLS.** `Product` is the document's product with
+    # everything the gather knows about it, `product_recorded` is the
+    # gather that builds one, `Subject` is what the check registry runs
+    # over, and `run_checks_on` / `assemble_gathered` are the two doors
+    # that take a product a caller already holds.
     #
-    # What Python cannot do through them is ask both questions on ONE
-    # gather, which is a COST rather than an unsayable question — and
-    # it is a cost with a Rust-side reason: `assemble_gathered`
-    # CONSUMES the product, so sharing one is an ownership order, and
-    # an ownership order is exactly what does not cross this boundary.
-    # `resolve_loops` above is the same disposition for the same
-    # reason.
+    # A Python `Evaluation` is the immutable (document, evaluation)
+    # pair captured at `evaluate`, and a product is a pure function of
+    # that pair and the run's tolerance — so the evaluation gathers
+    # ONCE and memoizes, and every bound door that wants a product
+    # (`run_checks`, `assemble`, `product`, `product_named`) reads that
+    # one gather through exactly these five names
+    # (`crates/pncad-py/src/product_memo.rs`). They are `INTERIOR`
+    # because the memo removes the question a Python caller would have
+    # held a `Product` to ask: there is nothing to hand between doors,
+    # so there is nothing to name.
+    #
+    # That is what changed. The cost this entry used to record — both
+    # questions on one evaluation gathering twice — is gone, and so is
+    # the reason it stood: `assemble_gathered` CONSUMES its product, so
+    # the memo hands it a COPY and keeps the original, measured at
+    # about a fiftieth of the gather it saves at the heat sink's
+    # 160-fin point. An ownership order still does not cross this
+    # boundary; nothing has to cross it any more.
     "Product": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
@@ -1684,6 +1690,15 @@ NOT_BOUND = {
     # The gather's debug-only witness: how many products this thread
     # has gathered, for a consumer asserting it gathers once per
     # operation. Not a question about a document at all.
+    #
+    # The binding is now such a consumer — one gather per evaluation,
+    # whatever a caller asks — and it asserts it on this counter, from
+    # RUST: `crate::tests::product_memo_rows` drives the very functions
+    # the four doors call, on the default build path where every
+    # code-tier run executes them. Binding a read for the python suite
+    # instead would put a profile-dependent number on the public
+    # surface (the counter leaves with the `debug-assertions` stanza at
+    # publish), for a question no user of the library has.
     #
     # `cfg(debug_assertions)` gates the counter, the increment and this
     # reader alike — which is NOT the same as "absent from a release
