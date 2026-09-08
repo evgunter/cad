@@ -396,7 +396,10 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         band(),
     )
     .unwrap_err();
-    assert!(matches!(flat, BlendError::TangentialEdge { .. }), "{flat:?}");
+    assert!(
+        matches!(flat, BlendError::TangentialEdge { .. }),
+        "{flat:?}"
+    );
     assert!(
         format!("{flat}").contains(sweep::blend::FILLET3_TANGENTIAL_RECOURSE),
         "{flat}"
