@@ -2548,6 +2548,13 @@ fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut 
 /// Evaluates one node against the results so far: poison propagation,
 /// slot evaluation with (node, slot) context, content key, memo
 /// lookup, and the op wiring.
+// Every argument is a WHOLE-EVALUATION fact one node reads: the
+// document, its two environments (the lane's and the nominal one the
+// key and the profile pre-pass read), the node, what the schedule has
+// already produced, the prior, the op's ambient seams and the
+// tolerance. Bundling them would name a struct after "the arguments of
+// this function", which says less than they do apart.
+#[allow(clippy::too_many_arguments)]
 fn eval_node<T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::ParamEnv<T>,
