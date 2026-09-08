@@ -38,11 +38,12 @@ rows; the band is claimed for bookkeeping.
 E, first:
 
 1. `affine-lift-has-a-second-home-in-anchor-embed-affine` + `D368` —
-   one lane in `eval/anchor.rs`: `embed_affine` and the `wire.rs:1132`
-   site retire into `SketchPlane::map` / `Affine3::map`; the hand-lifted
-   `Vec3` at `:238` becomes `Vec3::map`; whether the fallible direction
-   wants a kernel `try_map` is put to PROPS by note, and `map_affine`
-   stays local until it is answered.
+   one lane in `eval/anchor.rs`: `embed_affine` and its two callers
+   retire into `SketchPlane::map`; the hand-lifted `Vec3` the row cites
+   is the walk inside `map_affine`, whose `from_f64` instance WAS
+   `embed_affine`, so `D368` closes by construction; whether the
+   fallible direction wants a kernel `try_map` is put to PROPS by note,
+   and `map_affine` stays local, parked on that answer.
 2. `node-tag-space-census-blind-to-tags-outside-sentinels` — the tag
    space declared once as a closed enum with `ALL`, the sites reading
    from it, the sentinels retired.

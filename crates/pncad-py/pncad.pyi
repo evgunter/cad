@@ -67,8 +67,7 @@ a value with no exact spelling in the unit asked for falls back to
 metres or radians, so read the suffix off the text.
 
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: sweep and tube, and chamfer's shell
-sibling, which has no recipe node at all. The pattern node LEFT that
+`docs/guide/north-star-audit.md`: sweep. The pattern node LEFT that
 list at LIB-B-PART, with the consumer that gives its plural value a
 downstream door: `Node.pattern` says the unfused family and
 `Node.part` projects one body back out of it, where `placed_union`
@@ -1291,6 +1290,21 @@ class Node:
         """
 
     @staticmethod
+    def shell(target: NodeId, thickness: Length, open: list[str]) -> Node:
+        """Hollow `target` to a wall of `thickness`, opening the faces in
+        `open` into rims.
+
+        `open` is face names as TEXT, IN THE ORDER GIVEN: a chart's
+        rim is its FIRST designated face, so name first the face that
+        should carry the rim's identity. A repeat keeps its first
+        occurrence; an EMPTY list is the SEALED hollow, which is legal.
+        Every face on a chart is named together (a full revolve's cap
+        is two half-faces). An unresolvable name, a name that is not a
+        face, a non-positive or unaffordable wall, or a curved
+        designated face refuses typed at `evaluate`.
+        """
+
+    @staticmethod
     def datum_axis(
         origin: tuple[Length, Length, Length],
         direction: tuple[float, float, float],
@@ -1739,7 +1753,7 @@ class Doc:
 
         The vocabulary, in full: `datum`, `profile`, `extrude`,
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
-        `chamfer`, `split`, `boolean_union`, `boolean_intersect`,
+        `chamfer`, `shell`, `split`, `boolean_union`, `boolean_intersect`,
         `boolean_subtract`, `union`, `transform`, `pattern`, `part`,
         `placed_union`, `declare`, `instantiate_part`, `mate`,
         `measure`, `assertion`. A Boolean answers a word per
@@ -2064,11 +2078,21 @@ class SegTag:
     BandCross: Final[SegTag]
     BandCut: Final[SegTag]
     BandSlit: Final[SegTag]
+    Inner: Final[SegTag]
+    Rim: Final[SegTag]
+    HoleRim: Final[SegTag]
     Instance: Final[SegTag]
     InPart: Final[SegTag]
 
 class OpGroup:
-    """The op group a role segment belongs to (`SegPat.group`)."""
+    """The op group a role segment belongs to (`SegPat.group`).
+
+    `Shell` groups the hollowing verb's cavity twins and rims (`Inner`,
+    `Rim`, `HoleRim`). A shell's OUTER walls are carried through and
+    speak as `FromTarget`, which groups under `Fillet` — the tag names
+    the shape (an entity carried through one op), and which op carried
+    it is the minting node's business.
+    """
 
     Shared: Final[OpGroup]
     Extrude: Final[OpGroup]
@@ -2078,6 +2102,7 @@ class OpGroup:
     Fillet: Final[OpGroup]
     Pattern: Final[OpGroup]
     InstantiatePart: Final[OpGroup]
+    Shell: Final[OpGroup]
 
 class CapEnd:
     """Which end of the sweep vector a cap face closes (`SegPat.side`)."""

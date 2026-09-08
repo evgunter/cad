@@ -2,9 +2,10 @@
 id: node-tag-space-census-blind-to-tags-outside-sentinels
 kind: issue
 title: The content-key tag-space injectivity census reads only between the NODE-TAG-SPACE sentinels, so tags 41–45 written outside them are invisible to it — and node tag 5 already coexists with payload tag 5
-status: open
+status: spec
 opened: 2026-09-05
 refs: [1910, 1593]
+branch: eval/2-tag-vocabularies
 ---
 
 

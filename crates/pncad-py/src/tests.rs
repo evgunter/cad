@@ -988,6 +988,34 @@ fn persist_error_tags_are_stable() {
     assert_eq!(persist_error_tag(&unreadable), "unreadable");
 }
 
+/// The shell node's refusal tags, exercised by CONSTRUCTION for every
+/// arm buildable without geometry: the op family at its f64 witness,
+/// the mis-kinded open name, the lane refusal. `shell_open_resolve`
+/// carries a `ResolveError`, whose constructors are the document
+/// layer's own, so its spelling is driven through a real document in
+/// `tests/test_shell.py` rather than minted here.
+#[test]
+fn shell_refusal_tags_are_stable() {
+    use crate::tags::node_error_tag;
+    use pncad::document::{NodeErrorKind, RecipeNodeId};
+    use pncad::prelude::StableName;
+    use pncad::select::{EntityKind, RoleSeg};
+    use pncad::topo::ShellError;
+    let op = NodeErrorKind::Shell(Box::new(ShellError::Thickness { thickness: -0.5 }));
+    assert_eq!(node_error_tag(&op), "shell");
+    let kind = NodeErrorKind::ShellOpenKind {
+        name: Box::new(StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId(0),
+            path: vec![RoleSeg::OutputBody],
+        }),
+        found: EntityKind::Edge,
+    };
+    assert_eq!(node_error_tag(&kind), "shell_open_kind");
+    let lane = NodeErrorKind::ShellLaneUnsupported { lane: "Dual" };
+    assert_eq!(node_error_tag(&lane), "shell_lane_unsupported");
+}
+
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is
 /// the one `pncad.pyi` names, and it is minted here rather than
 /// provoked: `getrandom::fill` has no injection seam (see
@@ -1556,6 +1584,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "repeated_designation",
             "set_members_on_non_list",
             "slot_dimension_mismatch",
             "structural_slot_needs_structural_edit",
@@ -1747,6 +1776,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "revolve",
             "seed",
             "seed_pinned_section",
+            "shell",
+            "shell_lane_unsupported",
+            "shell_open_kind",
+            "shell_open_resolve",
             "skin",
             "split",
             "tolerance_conflict",
@@ -2746,6 +2779,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "placed_union",
     "profile",
     "revolve",
+    "shell",
     "split",
     "sweep",
     "transform",

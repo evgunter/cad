@@ -1472,3 +1472,15 @@ face-2 red-first row is the bumpy patch at 1e-15 — and its face 4 is
 landed as `BoundNotFinite` carrying `last_finite`, per the review. The
 rule above; the unit's record is its `## Closed` and the MERGED entry
 in `work/props/log.md` (an E rider: no A/B row).
+
+## Per-merge deletion — LIB-G17's spec (2026-09-08)
+
+Recoverable at `git show 4a093c5cb4b9bd0a901111cdd89c230e9445a075:docs/LIB-G17-SPEC.md`
+(the frozen review head; the fix pass moved one decision the spec made —
+the f64 witness fold now lives on the lane, `crates/editor-core/src/lane.rs`,
+per the dual review's convergent finding, and the unit's record says so).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`, its
+MERGED entry in `work/lib/log.md`, and `work/lib/LIB-G17.md`'s Delivered
+and Fix pass sections.
+
+- `LIB-G17-SPEC.md` — LIB-G17, `Node::Shell`, the shell recipe door (#2150)

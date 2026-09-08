@@ -1124,8 +1124,9 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// not checkable here and defer to evaluation-time resolution.
 ///
 /// Checked sites: the name-carrying payload of an `InsertNode`
-/// ([`crate::node::Node::payload_names`] — Declare pairs, a fillet's
-/// selection, a mate's two heads) and `Rebind`'s target. Every other
+/// ([`crate::node::Node::payload_names`] — Declare pairs, a blend's
+/// selection, a shell's open list, a derived frame's face, a measure's
+/// references, a mate's two heads) and `Rebind`'s target. Every other
 /// edit validates exactly as [`crate::edit::apply`] — including the
 /// four appearance edits, which DO carry a name: theirs resolves at
 /// evaluation, into a typed [`crate::appearance::AppearanceLoss`].
@@ -1261,7 +1262,14 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCross(n)
             | RoleSeg::BandCut(n)
-            | RoleSeg::BandSlit(n) => visit(n, partners, f),
+            | RoleSeg::BandSlit(n)
+            // The shell vocabulary: each argument is the SOURCE entity
+            // the twin or rim was born for — derivation, not
+            // discrimination (a hole rim's index discriminates, and is
+            // not a name).
+            | RoleSeg::Inner(n)
+            | RoleSeg::Rim(n)
+            | RoleSeg::HoleRim { of: n, .. } => visit(n, partners, f),
             // ASM-2A: the DOCUMENT SEAM. An `InPart` argument is a name
             // in ANOTHER document's id space — its `RecipeNodeId`s name
             // that document's nodes, not this one's — so no local walk

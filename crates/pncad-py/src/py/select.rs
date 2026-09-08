@@ -140,6 +140,10 @@ pub(crate) enum SegTag {
     BandCross,
     BandCut,
     BandSlit,
+    // Shell
+    Inner,
+    Rim,
+    HoleRim,
     // Pattern
     Instance,
     // Instantiate part
@@ -188,6 +192,9 @@ impl SegTag {
             Self::BandCross => s::SegTag::BandCross,
             Self::BandCut => s::SegTag::BandCut,
             Self::BandSlit => s::SegTag::BandSlit,
+            Self::Inner => s::SegTag::Inner,
+            Self::Rim => s::SegTag::Rim,
+            Self::HoleRim => s::SegTag::HoleRim,
             Self::Instance => s::SegTag::Instance,
             Self::InPart => s::SegTag::InPart,
         }
@@ -210,6 +217,7 @@ pub(crate) enum OpGroup {
     Fillet,
     Pattern,
     InstantiatePart,
+    Shell,
 }
 
 impl OpGroup {
@@ -223,6 +231,7 @@ impl OpGroup {
             Self::Fillet => s::OpGroup::Fillet,
             Self::Pattern => s::OpGroup::Pattern,
             Self::InstantiatePart => s::OpGroup::InstantiatePart,
+            Self::Shell => s::OpGroup::Shell,
         }
     }
 }
@@ -871,6 +880,9 @@ mod growth_tripwire {
             s::SegTag::BandCross => SegTag::BandCross,
             s::SegTag::BandCut => SegTag::BandCut,
             s::SegTag::BandSlit => SegTag::BandSlit,
+            s::SegTag::Inner => SegTag::Inner,
+            s::SegTag::Rim => SegTag::Rim,
+            s::SegTag::HoleRim => SegTag::HoleRim,
             s::SegTag::Instance => SegTag::Instance,
             s::SegTag::InPart => SegTag::InPart,
         }
@@ -886,6 +898,7 @@ mod growth_tripwire {
             s::OpGroup::Fillet => OpGroup::Fillet,
             s::OpGroup::Pattern => OpGroup::Pattern,
             s::OpGroup::InstantiatePart => OpGroup::InstantiatePart,
+            s::OpGroup::Shell => OpGroup::Shell,
         }
     }
 
