@@ -485,3 +485,22 @@ arithmetic in two homes, an unguarded provenance ordinal, and four
 stale "one body" sentences the symbol sweep was blind to (EVAL's
 fixed; TOPO's `source.rs`, DOCM's `node.rs` and CHROME's three
 reported). Fix pass sent with thirteen items.
+
+## EVAL-7 implemented; two reviews dispatched (2026-09-08, PR 2176)
+
+Head `9e6f5d670`, full matrix green, no frame moved. The bracket
+opens as `eval_node`'s first statement; a pre-key refusal carries its
+escalations; the memo hit finishes and drops the fresh frame with a
+`debug_assert!` that it is a prefix of the reused log. Moved and
+tabled in the PR: the R2 pin (724/75 → 799/0), `asm2a`'s 724,
+`m10_6_certifying_keys.txt` (both fixtures, re-blessed), and
+`m4_pr6_eps_diff.rs`'s summary populations, which DOUBLED — the
+Profile node's log now holds the pre-pass validation AND the pinned
+lift's op re-validating the same `Profile<f64>` (`pre[6..] == op`).
+That doubling is honest under the ruling and is a design question in
+its own right (skip the re-validation, or not); filed by the lane as
+`profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift`.
+The accounting goldens did not move (masses, not hashes). Reported
+for DOCM: `PartCache::get`'s shield doc still lists the profile
+pre-passes among what it catches. Correctness and style reviews
+dispatched on the frozen head.
