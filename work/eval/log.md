@@ -403,3 +403,15 @@ on the item (two bare `use` imports in `viewer` and `pncad-py`, which
 the convention admits). Reported to LIB: `prose_census.rs` carries
 the "two `Verb` types" sentence four times, not two. Declined: the
 rename (S5) — S-BOOL's; the PR body recommends `StepVerb` to them.
+
+## EVAL-5 fix pass: the reader ledger (2026-09-08, `2ba5435c7`)
+
+The first fix-pass push went red on `test-utils::reader_census`: every
+site that reads Rust source as text is a line in
+`crates/test-utils/tests/reader_census.rs`'s ledger, and the new
+convention guard read source with its own directory walk. Fixed: the
+guard walks through the shared `test_utils::source::rust_sources` and
+reads through `code_only`, with its ledger line (`Shared`). **Lesson
+for briefs:** a test that reads `.rs` text owes a ledger line and uses
+the shared walker and lexer — the census's own doc says which
+dispositions are honest.
