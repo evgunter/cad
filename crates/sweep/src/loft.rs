@@ -451,7 +451,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         bases.push(hole_hes);
     }
 
-    // ---- Phases 3–4: raise struts and close the wall quads, per
+    // ---- Phases 3–4: sweep struts and close the wall quads, per
     // loop. Struts are SCAFFOLDING lines here (mev_line) and upgrade
     // to the seam class in phase 6, once their walls' keys exist. ----
     let mut side_faces: Vec<Vec<FaceKey>> = Vec::with_capacity(bloops.len());
