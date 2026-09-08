@@ -3270,6 +3270,43 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
+BOOL-10 (PR #2135) ordinal FIXED AT DISPATCH (2026-09-08):
+**ordinal 1108** (S-BOOL band 1100–1199). v6 dual: parity byte **24**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `3f8163dd8`
+(run 34177347640 verified at dispatch: head SHA matches, 37 checks,
+run conclusion success; not narrowed; no `CI-Config:` trailer, the
+spelling having been deleted 2026-09-04), R2 isolated from R1, briefs
+symmetric (HARD RULES written fresh for this unit), no relaxations
+granted. Implementer difficulty L (pre-logged at the spec, pre-draw);
+implementer arm FABLE (block BOOL-B3 slot 2, byte 125 — quoted from
+the private draw file before the arm was named; block exhausted). The
+PR is HELD for Ev's sign-off (the arc form's spelling and PATHS
+§2c/§3/§4 — design surface); merge follows the dual + sign-off. Sample
+number at merge; the row rides the unit branch as its last commit.
+Filed at dispatch from the unit's forward list:
+`work/bool/carriers-are-identical-reads-carrier-identity-at-the-lattice.md`,
+`work/bool/lift-comparator-misclasses-a-declared-joint-difference.md`,
+`work/lib/north-star-audit-verb-list-names-arc-continue.md`.
+
+BOOL-9 (PR #2134) ordinal FIXED AT DISPATCH (2026-09-08):
+**ordinal 1107** (S-BOOL band 1100–1199). v6 dual: parity byte **113**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `2fca2cd52`
+(run 34177376327 verified at dispatch: head SHA matches, 37 checks —
+34 success + 3 skipped; not narrowed — every test point and k-lint
+unification ran; no `CI-Config:` trailer, the spelling having been
+deleted 2026-09-04), R2 isolated from R1, briefs symmetric (HARD RULES
+written fresh for this unit), no relaxations granted. Implementer
+difficulty L (pre-logged at the spec, pre-draw); implementer arm OPUS
+(block BOOL-B3 slot 1, byte 125 — quoted from the private draw file
+before the arm was named). Sample number at merge; the row rides the
+unit branch as its last commit. Two findings the unit handed over are
+filed at dispatch: `work/mesh/mesh-materialized-form-is-writable.md`
+(`mesh::Mesh`'s all-public fields — the tessellate seam's sibling of
+the door this unit shuts) and
+`work/bool/raw-door-compile-proof-needs-a-gate.md` (the shut-build
+compile error is measured, not a row — a gate with a toolchain is a CI
+surface this unit did not touch).
+
 BOOL-12 (PR #1573) ordinal FIXED AT DISPATCH (2026-09-02):
 **ordinal 1106** (S-BOOL band 1100–1199). v6 dual: parity byte **173**,
 parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `50740f965`
@@ -4718,3 +4755,22 @@ R1's kernel target is the implementer's warm one and its demo target
 the implementer's warm demo target, R2's kernel target is seeded from
 an older warm build and its demo target is cold — wall-clock asymmetry
 only.
+
+LIB-G17 review ordinal fixed at dispatch (2026-09-08, PR #2150 open —
+frozen head `4a093c5c`): **ordinal 303** (LIB band; claimed through 302).
+Protocol v6 dual: draw = `/dev/urandom` byte **218**, parity 0 ⇒
+**R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `4a093c5c`, both briefs authored and
+STORED with sha256 before either dispatches (1146d9400c936634… r1 / 72665d601dc94b72… r2 —
+identical text modulo lane names, verified by diff), neither reviewer
+sees the other's report, v6 item 5 isolation in both briefs; the
+implementer's unit log entry is not written until the dual concludes.
+Pre-draw fields were logged at the spec (M-L / STRUCTURAL; implementer
+arm per block LIB-13 slot 1, branch-side on `lib/block-13`). Method
+note applying to BOTH arms equally: the pair runs on one 4-core cloud
+box behind the build-slot mutex, beside no other build. The
+implementer lane was interrupted twice before delivery (a session kill
+before any work on 09-06, and a usage-credit outage mid-unit on 09-06,
+resumed 09-08 from its own transcript); the arm and slot are unchanged
+and the row at merge annotates it per the resume precedent. Sample
+number assigned at merge in main's merge order.

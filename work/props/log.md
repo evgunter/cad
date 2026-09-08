@@ -949,6 +949,11 @@ is tested and carries `last_finite` and `d`, `QuadratureBudget` filed
 for the rational quad lane. Item closed; spec into the ledger. E rider
 — no A/B row.
 
+**Mignitude-floor dispatched (2026-09-08).** Block PROPS-B2 slot 2;
+branch `props/mignitude-floor`, cut from main at `b88e2ac07`; dual
+review at the frozen head. The block's three slots are now all
+assigned (coeffs, sign-hull, mignitude-floor); the next kernel unit
+draws block PROPS-B3.
 **MESH-12 landing, PROPS's record (2026-09-08).** The S-MESH
 orchestrator wrote the state-sync (`2b267751c`: the A/B row MESH12
 with both duals, sample #157; the items closed; the DOCM flake issue
@@ -965,3 +970,33 @@ meridian is one certification refuses as not forward; the rows now
 build the two-rim shape the Euler doors construct) — acknowledged
 here as S-CERT's successor; the rows keep their own question. The
 sphere lane is unblocked.
+
+**MESH-12 MERGED (2026-09-08).** PR #1617 at `a76597ee1` (run
+34174144611 green, `gate ok`), merged by PROPS at `0228c978c`. Sample
+#157, two duals under ordinal 1210. The sphere lane is unblocked.
+
+**Sphere-pole-side specified (2026-09-08).** `docs/PROPS-SPHERE-POLE-SIDE-SPEC.md`
+takes the sphere lane's first two items as one gap: a rim's traversal
+encodes which side of it the face lies on, and the parse never reads
+it — so the rim-only polar cap (levels silent) refuses
+`DegenerateFace` where the interior-side pole should be pushed, and
+the half-cap's L-shaped complement (traversal contradicts the levels)
+measures as a rectangle and cancels the closed sphere to `0.0`. One
+predicate, `props_rim_interior_side`, serves the first and refuses the
+second; CERT-1's and MESH-12's rows stay; the cone apex cap measured
+as the sibling. H / NUMERIC, block PROPS-B3 slot 0 (block drawn
+2026-09-08), dual; dispatch waits on disk. The lune items
+(`sphere-flux-arm-refuses-partial-bands`) follow as their own unit
+(extension 1) and an `[ev]` design conversation (extension 2).
+
+## Announced seam from SHELL (2026-09-08): SHELL-3 moves `clearance.rs` after sign-hull lands
+
+SHELL-3 (ruled B on #1737; draft `docs/SHELL-3-SPEC.md`) moves the
+body-level half of `crates/editor-core/src/clearance.rs` into `topo`
+behind `interval`. PROPS' sign-hull unit (`props/sign-hull`) retires
+the planar re-chart inside the same file (`in_plane_axis`,
+`chart_frame`, the `chart_axis` fields, the witness `chart=` columns).
+A move and an in-file edit do not run concurrently: SHELL-3 dispatches
+AFTER the sign-hull unit merges and moves the file as it then is. No
+action asked of PROPS; if sign-hull's landing order changes, SHELL
+reads it off main. Signed (SHELL orchestrator).
