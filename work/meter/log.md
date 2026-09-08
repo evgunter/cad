@@ -548,3 +548,59 @@ carries no row for the page. The criterion for such a row is Ev's
 ratification, not a program close: `scripts/gates/README.md`'s row
 landed in the commit recording Ev's ratification while `work/gates`
 was still open. No row is added here.
+
+## Unit 4 — the cut line's two halves, pinned (2026-09-08)
+
+`cut-prefix-three-unpinned-spellings` closed on `meter/cut-prefix-pin`.
+`tools/tess-lint/tests/cut_line_pin.rs` reads
+`scripts/tess_budget_cut.sh` as text and holds its three spellings of
+the prefix to `CUT_PREFIX`, each located separately so each reds
+alone.
+
+**The finding was the shape, and it had moved under the filing.**
+`split_cut` grew a shape check between the filing and the lane, so the
+open question became whether the two constraints are the SAME. They
+were not: this crate admitted uppercase hex, an over-long object name
+and arbitrary whitespace after the prefix — three spellings
+`tess_budget_cut.sh` cannot emit and its `CUT_RE` does not match. The
+asymmetry costs in one direction only, and it is the bad one: the
+script's already-stamped arm would not recognise such a line, so it
+re-stamps a file that already carries a cut. `split_cut` is tightened
+to the script's language and a truth table now runs both readings
+side by side, the script's own regex extracted from its text and run
+by `grep -E`. Cited to `tess_lint::Report`, whose test decides both
+that a check is owed and that its voice is the harness voice;
+`tools/README.md`'s `CC1`–`CC5` were cited at first and are not any
+more, since they are stated over cross-column admissions and hand the
+general test back to `Report` themselves. The separate finding about
+that page's scope stands and is with Ev on #2147.
+
+**The fix pass, same PR.** Two assertions that could not fail went:
+the containment `!(reads && !recognises)` read the table's own
+constants rather than the computed answers, and a coverage predicate
+over the const table was subsumed by the per-row asserts. The
+containment now runs on the computed pair and runs FIRST, so a real
+inversion reds with what it costs rather than with a table mismatch.
+The stem sweep was narrowed to EXECUTABLE spellings — a comment line
+is skipped, proved by a decoy fixture — because
+`scripts/tess_budget_cut.sh` is CIW's and an ordinary sentence there
+was reddening a suite in a cargo root outside the workspace, with a
+message naming neither the rule nor the fix; every failure the sweep
+can produce now carries both. The floor moved from `>= 4` over five
+mentions to `>= 4` over exactly four executable ones.
+
+**Residue, filed on CIW's slate** (the fixes are edits to
+`scripts/tess_budget_cut.sh`, so they go where the owner will see them
+rather than waiting on this program's pre-close sweep):
+`cut-regex-unanchored-admits-a-line-the-lint-refuses`, `CUT_RE`
+lacking an end anchor, pinned meanwhile as the one row of the truth
+table where the two halves disagree; and
+`cut-script-header-claims-no-cross-language-gate-exists`, the script
+header sentence this unit falsified. On METER's own slate,
+`baseline-census-partition-assert-cannot-fail` — the second and only
+other `tools/` instance of the cannot-fail assertion class.
+
+**Left, deliberately:** `cut-line-commit-names-no-baseline-change`.
+Same seam, different defect, and its substance is what the verdict
+PRINTS rather than what the parser admits. A doc-only rider would
+half-close it.

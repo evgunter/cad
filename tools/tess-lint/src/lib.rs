@@ -701,7 +701,7 @@ pub const CHART_TAGS: [&str; 7] = [
 /// meter-side pin, and by nothing the gate actually parses.
 pub const SIZED_CHART_TAGS: [&str; 2] = ["nurbs", "approx"];
 
-/// The provenance line `scripts/tess_budget_sweep.sh` writes above
+/// The provenance line `scripts/tess_budget_cut.sh` writes above
 /// [`EXPECTED_HEADER`]: `# tess-budget-cut: <commit> <date>`.
 ///
 /// It exists so that a scene the baseline does not cover can be told
@@ -709,6 +709,16 @@ pub const SIZED_CHART_TAGS: [&str; 2] = ["nurbs", "approx"];
 /// it both read as "absent", and the one that matters — a scene the
 /// corpus gained before this cut and nobody folded — is
 /// indistinguishable from the one that does not.
+///
+/// **This is the only spelling a pin holds.** That script writes the
+/// line, validates it with a regex of its own, and strips it before
+/// re-stamping; `tests/cut_line_pin.rs` reads the script as text and
+/// holds those three executable spellings to this constant, and holds
+/// what the reader admits to what that regex admits. It is not the
+/// only spelling in the tree — this file's own tests, `main.rs`'s
+/// header, the meter's `tests/rows.rs`, `scripts/tess_budget_sweep.sh`
+/// and `docs/TESS-BUDGET.md` each write the stem in prose or in a
+/// fixture, and nothing holds any of those to anything.
 pub const CUT_PREFIX: &str = "# tess-budget-cut:";
 
 /// The tree a sweep was taken from, as the sweep script recorded it.
@@ -742,6 +752,24 @@ impl std::fmt::Display for Cut {
 /// provenance format, and a silent `None` there is exactly the
 /// unreadable-measurement-as-absence shape the sizing columns already
 /// refuse one level down.
+///
+/// **What is admitted after the prefix**, which is the whole of what
+/// this reader promises: exactly one space, then an abbreviated git
+/// object name — LOWERCASE hex, 7 to 40 characters, optionally
+/// suffixed `-dirty` — then exactly one space, then a date opening
+/// with its calendar day. Each bound refuses a spelling
+/// `scripts/tess_budget_cut.sh` cannot emit, which is what keeps this
+/// reading inside the one that script recognises as a stamp. The
+/// containment matters in one direction: a line THIS crate reads as a
+/// cut but that script's `CUT_RE` does not slips past the script's
+/// already-stamped refusal into its backfill arm, which re-stamps the
+/// file from the commit that last wrote it — by then the commit that
+/// wrote the stamp, a whole commit newer than the rows. That is the
+/// inversion the refusal arm exists to prevent.
+///
+/// The two readings are held to each other over a truth table in
+/// `tests/cut_line_pin.rs`, with the script's own regex as the oracle
+/// for its half.
 fn split_cut(text: &str) -> Result<(Option<Cut>, usize), ParseError> {
     let Some(first) = text.lines().next() else {
         return Ok((None, 0));
@@ -749,22 +777,23 @@ fn split_cut(text: &str) -> Result<(Option<Cut>, usize), ParseError> {
     if !first.starts_with('#') {
         return Ok((None, 0));
     }
-    let rest = first.strip_prefix(CUT_PREFIX).ok_or_else(|| ParseError {
-        line: 1,
-        text: format!("comment line is not a `{CUT_PREFIX} <commit> <date>` record: {first}"),
-    })?;
-    let fields: Vec<&str> = rest.split_whitespace().collect();
+    let rest = first
+        .strip_prefix(CUT_PREFIX)
+        .and_then(|r| r.strip_prefix(' '))
+        .ok_or_else(|| ParseError {
+            line: 1,
+            text: format!("comment line is not a `{CUT_PREFIX} <commit> <date>` record: {first}"),
+        })?;
+    let fields: Vec<&str> = rest.split(' ').collect();
     let [commit, date] = fields[..] else {
         return Err(ParseError {
             line: 1,
             text: format!("expected `{CUT_PREFIX} <commit> <date>`, got: {first}"),
         });
     };
-    // Enough of a shape check that a placeholder cannot pass as a
-    // reading: a commit is hex (plus the dirty marker) and a date
-    // starts with its calendar day.
     let hex = commit.strip_suffix("-dirty").unwrap_or(commit);
-    let commit_ok = hex.len() >= 7 && hex.chars().all(|c| c.is_ascii_hexdigit());
+    let commit_ok =
+        (7..=40).contains(&hex.len()) && hex.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f'));
     let date_ok = date.len() >= 10
         && date.as_bytes()[..10].iter().enumerate().all(|(i, &b)| {
             if i == 4 || i == 7 {
@@ -1887,13 +1916,23 @@ mod tests {
     /// lint disagreeing about the format — harness breakage, never a
     /// silently absent cut, for the reason the sizing columns refuse
     /// an unreadable value one level down.
+    ///
+    /// **These lines appear again in `tests/cut_line_pin.rs`'s truth
+    /// table, and the two rows assert different things about them.**
+    /// Here: that the reader refuses them, in the harness voice, at
+    /// line 1 — a property of this crate alone. There: that
+    /// `scripts/tess_budget_cut.sh`'s own regex refuses them too, so
+    /// that the two languages agree about what a cut line is. Neither
+    /// answers the other's question, and neither would red if the
+    /// other were deleted.
     #[test]
     fn a_malformed_cut_line_is_harness_breakage_not_an_absent_cut() {
         for bad in [
-            "# tess-budget-cut: 1a2b3c4d5e6f",
-            "# tess-budget-cut: not-hex 2026-08-30",
-            "# tess-budget-cut: 1a2b3c 2026-08-30",
-            "# tess-budget-cut: 1a2b3c4d5e6f yesterday",
+            &format!("{CUT_PREFIX} 1a2b3c4d5e6f") as &str,
+            &format!("{CUT_PREFIX} not-hex 2026-08-30"),
+            &format!("{CUT_PREFIX} 1a2b3c 2026-08-30"),
+            &format!("{CUT_PREFIX} 1a2b3c4d5e6f yesterday"),
+            // Not the prefix at all, deliberately.
             "# swept at 1a2b3c4d5e6f 2026-08-30",
         ] {
             let text = format!("{bad}\n{}", csv(100, 2.5e1));

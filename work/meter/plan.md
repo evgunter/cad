@@ -117,9 +117,15 @@ budget data is a PROPS coordination, not a lane's call.
    `baseline_sizing_census.rs` folded into one `tests/baseline.rs`.
    Lands only after unit 2's and unit 0's PRs are both merged, since a
    fold touches both files or neither.
+11. `k-report-era-witnesses-have-no-guard` — the era
+   `threshold_provenance.rs` re-derives four shipped constants against
+   gets a row of its own, over the committed `m7-eps-*.csv.gz`. Needs
+   `tools/k-lint/*` free; disclosed by the CERT-1 roster fold and rowed
+   here so the era stops being the one load-bearing claim in
+   `docs/K-REPORT.md` that nothing computes with.
 
 ## Exit shape
 
-The eleven land (with `D201`'s answer either built or ratified as
+The twelve land (with `D201`'s answer either built or ratified as
 not-now), Track K's `tools/*` half is empty; the walk convention
 applies.

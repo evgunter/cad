@@ -883,8 +883,8 @@ fn name_boolean_edges<T: Decide>(
     //
     // This is NOT `Body::split_root`, deliberately: the result body's
     // records for grafted edges carry B-space keys verbatim (the graft
-    // copies provenance without forwarding — issue 1597), and this
-    // lane depends on that: B's table names ancestors that died in B
+    // copies provenance without forwarding), and this lane depends on
+    // that: B's table names ancestors that died in B
     // before the graft, and the verbatim key is the only way back to
     // them. B's operand body cannot be chased instead — it is not the
     // body that was grafted (a placed copy is). Forwarding `SplitEdge`
@@ -1092,8 +1092,7 @@ fn name_boolean_vertices<T: Decide>(
         // wins when both operands fused here — `operand_identity`
         // checks the graft destination first, and the kept key is
         // A's exactly because `zip_seam` keeps the outer cycle's
-        // vertex; review R9 — the PR 4 Vanished-diagnosis item covers
-        // the retired partner).
+        // vertex).
         let mut identity = operand_identity(v)?;
         if identity.is_none() {
             for &dead in fused.get(&v).into_iter().flatten() {

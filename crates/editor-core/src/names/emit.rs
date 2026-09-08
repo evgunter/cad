@@ -782,10 +782,10 @@ mod display_tests {
                 vec!["11"],
             ),
             (
-                // A refusal that still EXISTS: LIB-G14 retired the
-                // tied-upstream one this row used to sample (ties
-                // propagate now), and a sample payload that greps to
-                // nothing would outlive its own subject.
+                // A refusal that still EXISTS (ties propagate, so there
+                // is no tied-upstream refusal to sample): a sample
+                // payload that greps to nothing would outlive its own
+                // subject.
                 NamingError::Emission {
                     what: "section face classified On",
                 },
