@@ -610,3 +610,9 @@ mod shell9_rows;
 
 #[path = "shell9_r1_probes.rs"]
 mod shell9_r1_probes;
+
+#[path = "shell9_r2_probes.rs"]
+mod shell9_r2_probes;
+
+#[path = "shell9_r2_dump.rs"]
+mod shell9_r2_dump;
