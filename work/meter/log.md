@@ -1332,3 +1332,66 @@ the program ruled twice that a dated record's value is being what it
 said then — unit 9's quoted sample, unit 12's two wrong mutation
 passes kept on the record with the lesson named. This entry is the
 correction, which is the form that ruling implies.
+
+## The walk is ratified and INSTR is open (2026-09-08)
+
+Ev ruled on all six §8 questions and the walk merged at `7e4ca942c`
+(PR 2212); the successor merged at `02a4b4810` (PR 2220). On `main`
+now: `work/instr/` with twenty rows, `work/meter/` down to sixteen
+closed rows plus its three program files and one new open item,
+`.cert1-notes/pr-body.md` deleted, the S-TCOST row re-homed to
+`work/tcost/`.
+
+**Three of Ev's five rulings went against what the walk recommended,
+and one reversed a ruling the walk had already made.** He questioned
+`C15` → code-quality Track X — *"huh i thought track X had closed"* —
+and checking it found my claim false: `demos/tour` is in NO program's
+`paths`, and `docs/WORK-TRACKS-2026-09.md:517` gives SHELL those scenes
+*"by courtesy of Track X"*, courtesy not ownership. `C15` went to the
+successor instead, which opened at twenty rather than nineteen. The
+residue that correction did NOT fix — two open Track X rows and one
+parked, still waiting in a 112-file room for unowned ground — is filed
+at `work/meta/demos-tour-is-unowned-ground.md`.
+
+### Executing step 3 found a defect in the ratified step 4
+
+**The sweep as ratified would have red `main` six times.**
+`scripts/work.py:390-391` makes an unresolvable `refs` entry an ERROR,
+and six of the twenty rows now on `work/instr/` cite five METER rows
+that stay behind and die in the sweep. Nobody saw it until a lane went
+to execute the step before it — which is the argument for the four
+steps being ordered rather than batched.
+
+**The fix was found rather than designed, and that is the better
+move.** GATES hit this at its own sweep the same morning: commit
+`3a8dd05fe`, *"Sweep 7: refs to GATES' deleted ids cite their closing
+PRs"* — swap the dying id for the PR number that closed it, add one
+prose line pointing at the ledger sweep. `work/README.md:151` says
+ints in `refs` are PR or issue numbers and are not checked, and
+`work.py` guards with `isinstance(v, str)`, so it lints clean while
+keeping the provenance. METER's mapping: `D201`→2167,
+`cut-prefix-three-unpinned-spellings`→2151,
+`k-lint-predicate-roster-unpinned`→2115,
+`k-report-baseline-fold-cert1-roster`→2140,
+`tess-lint-twinned-csv-fixture`→2179.
+
+That same precedent settled a question the item had framed as a
+choice: GATES' sweep commit edited rows on `work/code-quality/`,
+`work/meta/` and `work/topo/` — three programs that were not GATES —
+so **METER's sweep makes the six substitutions in its own commit**,
+with no prior PR. Checked here.
+
+### Two things the lanes did that are the standard
+
+The successor lane, asked to verify my five-PR mapping, **refused to
+re-run my method** on the grounds that repeating it is not independent
+evidence, and derived the same five by a route sharing no failure mode
+(`git log -S 'status: closed'` to the commit that first wrote each
+closure, then the first merge on its ancestry path). It then named the
+blind spot both methods share.
+
+And §4's instruction to *"match `work/gates/program.md` exactly"* turned
+out **unexecutable** — GATES left the tracker at sweep 7 the same day,
+so that file is not on `main`. The lane read GATES' header at its
+ledgered SHA rather than assuming, which is the step I would have
+skipped.
