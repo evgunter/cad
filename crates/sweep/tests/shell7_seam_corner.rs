@@ -451,16 +451,23 @@ fn cavity_at_closed_form(
 }
 
 /// **A cap with a collinear vertex — the door takes it, `shell` stops
-/// at void insertion (measured, a STOP).** The top cap is one plane in
-/// four faces, its mid-radius ring a same-surface latitude circle on a
-/// PLANE, and the ring's vertices' only surface is that plane: the
-/// station-line arm, door-built. Through the direct door the cavity is
-/// tier-3 valid at `π(r−t)²(h−2t)` with the ring at its foot
-/// `(r/2, h − t)`. Through `shell` the same cavity is refused by the
-/// void-insertion door's graft re-certification (`ChartResidual`), a
-/// gap downstream of the corner and the carrier —
-/// `work/shell/void-insertion-refuses-a-cavity-with-a-same-surface-
-/// latitude-seam.md` — pinned here rather than widened around.
+/// at void insertion (measured, a STOP that is not this verb's).** The
+/// top cap is one plane in four faces, its mid-radius ring a
+/// same-surface latitude circle on a PLANE, and the ring's vertices'
+/// only surface is that plane: the station-line arm, door-built.
+/// Through the direct door the cavity is tier-3 valid at
+/// `π(r−t)²(h−2t)` with the ring at its foot `(r/2, h − t)`. Through
+/// `shell` the same cavity is refused by the void-insertion door's
+/// graft re-certification (`ChartResidual`), and the cause is
+/// `Body::revert`: it negates the plane's normal, which mirrors the
+/// plane's chart (`v_ref = normal × u_ref`), and leaves the ring's
+/// `Chart` images on that plane unmirrored, so the two half-circles —
+/// the only plane images with a non-zero `v` channel — no longer
+/// certify (`shell9_probe`, the drum rows). TOPO's
+/// `work/topo/revert-does-not-mirror-plane-chart-images.md`; the
+/// corner, the carrier and this verb's closing mint are all
+/// downstream of it, and the row stays refusing until that item
+/// lands.
 #[test]
 fn a_collinear_cap_vertex_drum_is_taken_by_the_door_and_stops_at_void_insertion() {
     let (r, h, t) = (1.0, 2.0, 0.05);
@@ -514,18 +521,20 @@ fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
     });
 }
 
-/// **A sphere authored as two cocircular arcs — the door takes it,
-/// `shell` stops at the assembly (measured, a STOP).** R1's fixture:
-/// one sphere in four faces with a same-surface LATITUDE seam at
-/// `v = π/4`, which the sphere's own seam arm could not take and the
-/// latitude posture does. Through the direct door the cavity is
-/// tier-3 valid at `4/3·π(r−t)³` with the seam vertices moved
-/// concentrically. Through `shell` the assembled thin solid fails tier
-/// 3 with a pcurve `LoopDiscontinuity` on a grafted half-edge — the
-/// same downstream gap as the collinear cap's, same item — pinned
-/// here rather than widened around.
+/// **A sphere authored as two cocircular arcs shells to its closed
+/// form.** R1's fixture: one sphere in four faces with a same-surface
+/// LATITUDE seam at `v = π/4`, which the sphere's own seam arm could
+/// not take and the latitude posture does. Through the direct door the
+/// cavity is tier-3 valid at `4/3·π(r−t)³` with the seam vertices
+/// moved concentrically; through `shell` the thin solid is tier-3
+/// valid at `4/3·π(r³ − (r−t)³)` with the same vertices at the same
+/// images, and tessellates. What sits between the two is the void
+/// door's `Transfers` posture: the reverted cavity's stored pcurve
+/// rows arrive on the twins with a one-period azimuth wrap mid-chain
+/// (`shell9_probe`, the sphere rows), and the verb's closing mint
+/// re-derives them before the validate.
 #[test]
-fn a_two_arc_sphere_is_taken_by_the_door_and_stops_at_the_assembly() {
+fn a_two_arc_sphere_shells_to_its_closed_form() {
     let (r, t) = (1.0, 0.05);
     let v = PI / 4.0;
     let (s, c) = v.sin_cos();
@@ -537,23 +546,23 @@ fn a_two_arc_sphere_is_taken_by_the_door_and_stops_at_the_assembly() {
         ]),
         Revolution::Full,
     );
-    let want = 4.0 / 3.0 * PI * (r - t).powi(3);
-    cavity_at_closed_form("two-arc sphere", &body, t, want, |(rho, hh)| {
+    let concentric = |(rho, hh): (f64, f64)| {
         (rho > 1e-6 && (hh - r * s).abs() <= 1e-9).then(|| {
             let n = rho.hypot(hh);
             (rho / n * (r - t), hh / n * (r - t))
         })
-    });
-    let e = topo::shell(&body, t, tol()).expect_err("measured: stops at the assembly");
-    let ShellError::NotValid { errors } = &e else {
-        panic!("expected the assembled body's tier 3, got {e}");
     };
+    let cavity = 4.0 / 3.0 * PI * (r - t).powi(3);
+    cavity_at_closed_form("two-arc sphere", &body, t, cavity, concentric);
+    let want = 4.0 / 3.0 * PI * (r.powi(3) - (r - t).powi(3));
+    let out = shells_with_one_surface_vertices("two-arc sphere", &body, t, want, concentric);
+    let props = topo::mass_properties(&out.body, tol()).expect("props");
     assert!(
-        errors
-            .iter()
-            .any(|f| format!("{f:?}").contains("LoopDiscontinuity")),
-        "the measured pcurve loop discontinuity, got {errors:?}"
+        (props.volume - want).abs() <= 1e-12,
+        "two-arc sphere: volume {} vs the closed form {want}",
+        props.volume
     );
+    mesh::tessellate(&out.body, 1e-3, tol()).expect("the thin sphere tessellates");
 }
 
 // ---------------------------------------------------------------------

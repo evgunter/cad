@@ -2185,8 +2185,9 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "the void-insertion door: reverts the cavity (rows keep their keys, going \
              stale in CONTENT like any surgery) and grafts through `boolean::combine`, \
-             which remaps the transplanted rows onto fresh keys; both producers' final \
-             mint passes re-derive every row of the merged body",
+             which remaps the transplanted rows onto fresh keys; every producer's final \
+             mint pass — the boolean's, the revolve's and `shell`'s — re-derives every \
+             row of the merged body",
             ),
             // ---- Neither: the primitives. Their stale rows are what
             // the tier-3 pcurve pass exists to catch. ----

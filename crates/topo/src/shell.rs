@@ -57,7 +57,7 @@
 //!    For `k` voids the result holds `k + 1` solids and `2(k + 1)`
 //!    shells, and every operand shell survives under its key. A
 //!    single-shell operand takes this step vacuously;
-//! 4. one validation.
+//! 4. one closing pcurve mint, then one validation (below).
 //!
 //! **Which way a void moves is not a special case.** `inward` reads a
 //! face's `sense` to move it into the material, and a void's faces are
@@ -140,6 +140,33 @@
 //! the verb's closing `validate_geometric` has never been the thing
 //! that catches a bad wall, and saying otherwise misattributes the
 //! net that is doing the work.
+//!
+//! # The closing mint
+//!
+//! **This verb is a PRODUCER, and it runs the producer's closing
+//! pcurve mint** ([`crate::pcurves::mint_pcurves`], once, on the
+//! assembled body, after the last surgery and before the closing
+//! `validate_geometric`). The void door's posture is `Transfers`
+//! (`crate::pcurves::staleness_posture::DECLARED`, the `insert_voids`
+//! row): the cavity is reverted — its rows keep their keys and go
+//! stale in CONTENT, a one-period azimuth wrap the forward walk parked
+//! at a loop's closure landing mid-chain once the loop runs backwards
+//! — and grafted with those rows copied verbatim onto the twins, and
+//! the contract on that row is that the producer's final mint pass
+//! re-derives every row of the merged body. The boolean and the
+//! revolve run that pass on the bodies they hand back; so does this
+//! verb. One pass at the end suffices: nothing between the void door
+//! and the validate reads a stored row — the partition re-parents
+//! shells; the rim surgery's lift doors are whole-body `Maintains`
+//! passes of their own, its Euler steps kill and split edges both of
+//! whose half-edges lie on the designated PLANAR chart (which stores
+//! nothing), and its re-descriptions swap a surface key with the
+//! carrier and window untouched — and the pass clears the map before
+//! re-deriving, so every row the result carries is minted against the
+//! result's own carriers, surfaces and loops. Its refusal
+//! is [`ShellError::Pcurve`] — a body every earlier gate accepted
+//! whose rows cannot be re-derived is a kernel finding, surfaced
+//! typed.
 //!
 //! # The record
 //!
@@ -279,6 +306,7 @@ use crate::entity::{
     VertexKey,
 };
 use crate::euler::EulerOpError;
+use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::{PropsQuadLane, ShellRole};
 use crate::replace_face::ReplaceFaceError;
 use crate::validate::{ValidationError, validate_geometric};
@@ -497,6 +525,17 @@ pub enum ShellError<T: Real> {
         /// The key that stopped resolving.
         key: EntityId,
     },
+    /// The closing pcurve mint refused on the assembled body (module
+    /// docs, "The closing mint"). Every gate before it accepted the
+    /// body — the offsets certified, the void door grafted, the rim
+    /// surgery closed — so a row that cannot be re-derived here is a
+    /// kernel finding about the pcurve pass or the carriers it reads,
+    /// surfaced typed rather than as the validator's report of a stale
+    /// row.
+    Pcurve {
+        /// The mint's typed refusal, verbatim.
+        source: PcurveMintError,
+    },
     /// The assembled result does not validate, so it is discarded.
     NotValid {
         /// The validator's report.
@@ -614,6 +653,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             Self::Corrupt { key } => write!(
                 f,
                 "shell: {key:?} stopped resolving mid-construction (kernel bug)"
+            ),
+            Self::Pcurve { source } => write!(
+                f,
+                "shell: the closing pcurve mint refused on the assembled thin solid, which \
+                 every earlier gate accepted (kernel finding): {source}"
             ),
             Self::NotValid { errors } => write!(
                 f,
@@ -874,7 +918,8 @@ pub struct ShellRetired {
 /// [`ShellError`] — [`ShellError::Band`] when the committed tolerance
 /// admits no ambiguity band, the thickness gate, the per-face offset
 /// refusals (which are the containment evidence's own decides), the
-/// void door's refusals, and a result that does not validate.
+/// void door's refusals, the closing pcurve mint's refusal, and a
+/// result that does not validate.
 /// **The scalar must be able to certify**, because this verb validates
 /// what it built: its last act is [`validate_geometric`], whose +V
 /// invariant is a certified claim. A scalar without certification
@@ -1630,6 +1675,16 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
             holes,
         });
     }
+
+    // ---- The closing mint (module docs, "The closing mint"). ----
+    //
+    // The void door TRANSFERS the pcurve map: the reverted cavity's
+    // rows arrive on the twins verbatim, and a row whose loop now runs
+    // the other way is stale in content while its key is live. This is
+    // the producer's half of that posture — one pass, on the assembled
+    // body, after the last write and before the validate, which then
+    // reads rows this body minted rather than rows it inherited.
+    mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
 
     // ---- One validation. ----
     validate_geometric(&out, tol).map_err(|errors| ShellError::NotValid { errors })?;

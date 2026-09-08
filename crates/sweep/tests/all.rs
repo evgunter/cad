@@ -598,3 +598,6 @@ mod shell7_r2_probes;
 
 #[path = "shell9_probe.rs"]
 mod shell9_probe;
+
+#[path = "shell9_rows.rs"]
+mod shell9_rows;
