@@ -136,7 +136,11 @@
 //!    so it reports the first pair whose boxes MAY meet, and a reader
 //!    who took the refusal's text for the cause would be reading the
 //!    wrong pair (the wall-7 lesson). The schedule is the banked
-//!    germ-chord lanes and #1057's two C5 arms.
+//!    germ-chord lanes and #1057's two C5 arms. **Both refusals now
+//!    arrive through the DOCUMENT**, under the same payload: each join
+//!    is a `Node::Boolean` that lowers to the same kernel `union` and
+//!    fails at `evaluate`, and what the note quotes is that node's own
+//!    carried refusal rather than a second measurement of it.
 //! 5. **A spout the shape of a spout is not authorable at all.** What
 //!    a potter draws is a swept curved section — a canal or a loft
 //!    along a bent spine. `sweep_body` cannot round the U-turn a real
@@ -145,25 +149,55 @@
 //!    the way a lathe would make one. Recorded as a register note
 //!    rather than worked around, because a hand-built stand-in would
 //!    be evidence about this file and not about the library.
+//! 6. **The lid's roll takes ONE kernel call and TWO document
+//!    requests, and the difference is the NAME emitter.**
+//!    `fillet_edges` rolls all three rims in one request. The same
+//!    three rims through `Node::Fillet` refuse `Naming(Duplicate)`,
+//!    and the duplicate says which: two of them — the flange's rim and
+//!    the dome's foot — are the two ends of ONE meridian segment (the
+//!    flange cone), so both bands slit that segment's seam meridian,
+//!    and `RoleSeg::BandSlit` names a slit by *the source edge whose
+//!    severed piece became it*. Two slits, one source name.
+//!
+//!    The scene therefore asks TWICE — the flange's rim, then the
+//!    dome's foot and the knob's top against the carried names — which
+//!    is what a user would have to do and is the same geometry by
+//!    every number in the note below (9/18/9, three ring-free tori at
+//!    the three closed-form spine stations, the same ΔV). Recorded
+//!    rather than worked around: the roll of any two adjacent latitude
+//!    rims on any solid of revolution has this shape, and what the
+//!    vocabulary is missing is a discriminator on `BandSlit` saying
+//!    WHICH band slit the edge — the way `BandTrim` already carries
+//!    its `RimSupport`.
 //!
 //! # What this scene deliberately does NOT do
 //!
 //! No kernel change, no route widened, no gate softened. Every one of
-//! the five findings above is a live probe or an executed table, and
+//! the six findings above is a live probe or an executed table, and
 //! each carries the sentence that retires it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
-use pncad::authoring::{p2, validated};
+use pncad::document::{
+    BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr,
+    LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
+};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
-use pncad::prelude::{Open, Start, fillet_edges, query};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
-use pncad::sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc};
-use pncad::topo::{Body, BooleanError, EdgeKey, FaceKey, Operand};
+use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::prelude::query;
+use pncad::prelude::{
+    EntityKind, NamePat, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegPat, SegTag, Selector,
+    StableName,
+};
+use pncad::profile::ArcSweep;
+use pncad::select::{
+    edge_frame, edge_name, face_carrier_kind, face_frame, select, vertex_position,
+};
+use pncad::topo::{Body, BooleanError, EdgeKey, Operand};
 
 use crate::{SceneBody, Stop, View};
 
@@ -310,22 +344,111 @@ const HANDLE_OVER: f64 = 0.5;
 const DELTA: f64 = 2e-4;
 
 // ---------------------------------------------------------------------
-// Construction
+// Construction — ONE recipe document, and the scene's bodies are its
+// values. Every station below is still the `const` it was; what the
+// document changes is the SEAT: a meridian is a `LoopProgram` over
+// `Expr::literal`, the mouth and the lid's rims are named by ROLE
+// rather than found by a numeric scan, and the two unions the scene
+// cannot compose are nodes that refuse at `evaluate`.
 // ---------------------------------------------------------------------
 
-/// One full revolve of `lp` about the sketch's own `+y` axis.
-fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
-    revolve(
-        &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
-        RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        tol,
-    )
-    .expect("the meridian fully revolves")
-    .body
+/// A length in the canonical metres this document is authored in.
+fn len(v: f64) -> Expr {
+    Expr::literal(v, Dimension::Length).expect("a finite length")
+}
+
+/// A dimensionless component — the spelling a direction takes.
+fn scl(v: f64) -> Expr {
+    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
+}
+
+/// An angle in radians, the unit this scene's turns are written in.
+fn ang(v: f64) -> Expr {
+    Expr::literal(v, Dimension::Angle).expect("a finite angle")
+}
+
+/// One authored point of a meridian, in the sketch's own coordinates.
+fn lpt(x: f64, y: f64) -> [Expr; 2] {
+    [len(x), len(y)]
+}
+
+/// A straight meridian step to `(x, y)`.
+fn line_to(x: f64, y: f64) -> ProgramStep {
+    ProgramStep::LineTo(ProgramTarget::Point(lpt(x, y)))
+}
+
+/// A meridian arc about `(cx, cy)` to `(x, y)`.
+fn arc_to(cx: f64, cy: f64, winding: ArcSweep, x: f64, y: f64) -> ProgramStep {
+    ProgramStep::ArcTo(ProgramArcData::Center {
+        c: lpt(cx, cy),
+        winding,
+        target: ProgramTarget::Point(lpt(x, y)),
+    })
+}
+
+/// The `[0, π)` face swept from meridian segment `seg` of `node`.
+fn band(node: RecipeNodeId, seg: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![RoleSeg::Band(ProfileEdgeRef {
+            loop_index: 0,
+            segment: seg,
+        })],
+    }
+}
+
+/// The `[π, 2π)` face swept from meridian segment `seg` of `node`.
+fn band_pi(node: RecipeNodeId, seg: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![RoleSeg::BandPi(ProfileEdgeRef {
+            loop_index: 0,
+            segment: seg,
+        })],
+    }
+}
+
+/// The closed latitude rim swept from meridian VERTEX `vertex` of
+/// `node` — the edge between the bands of segments `vertex − 1` and
+/// `vertex`.
+fn band_rim(node: RecipeNodeId, vertex: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Edge,
+        node,
+        path: vec![RoleSeg::BandRim(ProfileVertexRef {
+            loop_index: 0,
+            vertex,
+        })],
+    }
+}
+
+/// A name for an entity `node` carried through unchanged from its
+/// target — what a survivor of a blend is called one op later.
+fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
+    StableName {
+        kind: inner.kind,
+        node,
+        path: vec![RoleSeg::FromTarget(Box::new(inner))],
+    }
+}
+
+/// The meridian VERTEX itself, on the seam — the point a `band_rim`'s
+/// circle passes through, and what ties a rim's ROLE to the station
+/// and radius the scene authored it at.
+fn meridian_vertex(node: RecipeNodeId, vertex: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Vertex,
+        node,
+        path: vec![RoleSeg::MeridianVertex(
+            pncad::prelude::MeridianEnd::Seam,
+            ProfileVertexRef {
+                loop_index: 0,
+                vertex,
+            },
+        )],
+    }
 }
 
 /// **The vessel's meridian**: base disc, foot, belly, mouth disc —
@@ -344,26 +467,62 @@ fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
 /// cylinder at `(4/64, 1/64)` and the mouth at `(3/64, 8/64)`, so both
 /// junctions' residuals `|c − p|² − r²` are exactly `0.0` in f64 and
 /// the closed forms below compare against numbers no rounding entered.
-fn vessel_meridian(tol: Tol) -> ProfileLoop<f64> {
-    Open.at(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(R_FOOT, 0.0), tol)
-        .expect("the base disc")
-        .line_to(Point2::new(R_FOOT, Y_FOOT), tol)
-        .expect("the foot")
-        .arc_to(
-            Center {
-                c: Point2::new(0.0, Y_BELLY_C),
-                winding: ArcSweep::Ccw,
-                p: Point2::new(R_NECK, Y_MOUTH),
-            },
-            tol,
-        )
-        .expect("the belly rides a sphere centred on the axis")
-        .line_to(Point2::new(0.0, Y_MOUTH), tol)
-        .expect("the mouth disc")
-        .line_to(Start, tol)
-        .expect("the axis closes the meridian")
-        .into()
+///
+/// Station for station the corpus document `vessel`'s meridian
+/// (`crates/editor-core/tests/corpus/vessel.rs`), which is the
+/// document spelling of this shape.
+fn vessel_meridian() -> LoopProgram {
+    LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(0.0, 0.0)),
+        line_to(R_FOOT, 0.0),
+        line_to(R_FOOT, Y_FOOT),
+        arc_to(0.0, Y_BELLY_C, ArcSweep::Ccw, R_NECK, Y_MOUTH),
+        line_to(0.0, Y_MOUTH),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
+}
+
+/// The mouth disc's segment index in [`vessel_meridian`]'s program
+/// order — base disc, foot, belly, MOUTH, axis chord.
+const SEG_MOUTH: u32 = 3;
+
+/// The mouth disc's segment index READ OFF the program: a meridian's
+/// segments are its steps after the opening `At`, so the mouth disc is
+/// the step that runs to the axis at the mouth's own station — and it
+/// has to be the only one, or the index would be a choice rather than
+/// the program's answer.
+fn mouth_segment(program: &LoopProgram) -> u32 {
+    let LoopProgram::Chain(steps) = program else {
+        panic!("the meridian is a chain program");
+    };
+    let want = line_to(0.0, Y_MOUTH);
+    let hits: Vec<usize> = steps
+        .iter()
+        .skip(1)
+        .enumerate()
+        .filter(|(_, s)| **s == want)
+        .map(|(i, _)| i)
+        .collect();
+    match hits[..] {
+        [only] => u32::try_from(only).expect("a meridian has few segments"),
+        ref many => panic!("the mouth disc is ONE meridian step, got {many:?}"),
+    }
+}
+
+/// **The wall-1 meridian, re-planted one step out**: the SAME two
+/// junction stations and the SAME `5/64` radius, about the OTHER
+/// centre on their perpendicular bisector — `(7/64, 5/64)`, off the
+/// axis, so the revolve mints a TORUS. Both residuals are still
+/// exactly zero (3-4-5 twice again).
+fn torus_belly_meridian() -> LoopProgram {
+    LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(0.0, 0.0)),
+        line_to(R_FOOT, 0.0),
+        line_to(R_FOOT, Y_FOOT),
+        arc_to(7.0 / 64.0, 5.0 / 64.0, ArcSweep::Cw, R_NECK, Y_MOUTH),
+        line_to(0.0, Y_MOUTH),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
 }
 
 /// **The lid's meridian**: underside annulus, conical flange, dome,
@@ -380,88 +539,393 @@ fn vessel_meridian(tol: Tol) -> ProfileLoop<f64> {
 /// over `40/256 → 46/256`, and the dome's centre sits at `41/256` so
 /// its two junctions are still the sphere's own 5-12-13 points —
 /// `(12, 46)` is `(12, 5)` from the centre and `(5, 53)` is `(5, 12)`.
-fn lid_meridian(tol: Tol) -> ProfileLoop<f64> {
-    Open.at(Point2::new(R_VENT, LID_BASE))
-        .line_to(Point2::new(R_FLANGE, LID_BASE), tol)
-        .expect("the underside overhangs the mouth rim")
-        .line_to(Point2::new(R_NECK, Y_FLANGE), tol)
-        .expect("the conical flange rises to the dome's foot")
-        .arc_to(
-            Center {
-                c: Point2::new(0.0, DOME_C),
-                winding: ArcSweep::Ccw,
-                p: Point2::new(R_KNOB, Y_KNOB),
-            },
-            tol,
-        )
-        .expect("the dome rides a sphere centred on the axis")
-        .line_to(Point2::new(R_KNOB, Y_TOP), tol)
-        .expect("the knob's wall")
-        .line_to(Point2::new(R_VENT, Y_TOP), tol)
-        .expect("the knob's top")
-        .line_to(Start, tol)
-        .expect("the vent closes the meridian")
-        .into()
+fn lid_meridian() -> LoopProgram {
+    LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(R_VENT, LID_BASE)),
+        line_to(R_FLANGE, LID_BASE),
+        line_to(R_NECK, Y_FLANGE),
+        arc_to(0.0, DOME_C, ArcSweep::Ccw, R_KNOB, Y_KNOB),
+        line_to(R_KNOB, Y_TOP),
+        line_to(R_VENT, Y_TOP),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
 }
+
+/// The lid's three rolled rims, as the meridian VERTEX each stands at
+/// — the flange's rim, the dome's foot, the knob's top. A vertex `v`
+/// is the start of segment `v`, so these are the stations
+/// `(R_FLANGE, LID_BASE)`, `(R_NECK, Y_FLANGE)` and `(R_KNOB, Y_TOP)`.
+const LID_RIMS: [(u32, f64, f64, &str); 3] = [
+    (1, R_FLANGE, LID_BASE, "the flange's rim (cone x plane)"),
+    (2, R_NECK, Y_FLANGE, "the dome's foot (sphere x cone)"),
+    (4, R_KNOB, Y_TOP, "the knob's top (cylinder x plane)"),
+];
 
 /// **The spout's meridian**: an annular trapezoid — a cone frustum
 /// with a cone frustum bored out of it, one wall thick.
-fn spout_meridian(tol: Tol) -> ProfileLoop<f64> {
-    Open.at(Point2::new(SPOUT_R0 - SPOUT_WALL, 0.0))
-        .line_to(Point2::new(SPOUT_R0, 0.0), tol)
-        .expect("the root annulus")
-        .line_to(Point2::new(SPOUT_R1, SPOUT_LEN), tol)
-        .expect("the outer cone")
-        .line_to(Point2::new(SPOUT_R1 - SPOUT_WALL, SPOUT_LEN), tol)
-        .expect("the tip annulus")
-        .line_to(Start, tol)
-        .expect("the bore closes the meridian")
-        .into()
+fn spout_meridian() -> LoopProgram {
+    LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(SPOUT_R0 - SPOUT_WALL, 0.0)),
+        line_to(SPOUT_R0, 0.0),
+        line_to(SPOUT_R1, SPOUT_LEN),
+        line_to(SPOUT_R1 - SPOUT_WALL, SPOUT_LEN),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
 }
 
-/// The placement that takes the spout's own `+y` axis onto
-/// [`SPOUT_DIR`] and its root onto [`SPOUT_ROOT`]. The rotation is the
-/// 3-4-5 turn about `+z`, so every entry is exact.
-fn spout_placement() -> Affine3<f64> {
-    Affine3::from_parts(
-        Mat3::from_cols(
-            Vec3::new(SPOUT_DIR.y, -SPOUT_DIR.x, 0.0),
-            SPOUT_DIR,
-            Vec3::unit_z(),
-        ),
-        Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z),
+/// **The turn that takes the spout's own `+y` axis onto
+/// [`SPOUT_DIR`]**, as the document's placement vocabulary says it: a
+/// rotation about `+z` by `atan2(0.8, 0.6)`.
+///
+/// The 3-4-5 direction is not a binary-exact float and this angle is
+/// not one either — but the rotation it builds is exact all the same,
+/// and the scene asserts that rather than assuming it: `cos` and `sin`
+/// of this angle return `0.6` and `0.8` bit for bit, and Rodrigues
+/// about a coordinate axis consumes nothing else, so every entry of
+/// the matrix is one of `0.6`, `±0.8`, `0.0` and `1.0`.
+fn spout_turn() -> f64 {
+    (-SPOUT_DIR.x).atan2(SPOUT_DIR.y)
+}
+
+/// The scene's recipe: one document, and the node each body is read
+/// out of.
+struct Recipe {
+    doc: Doc<ProfileProgram>,
+    /// The pot's revolve — the OPERAND both hollows are taken of, and
+    /// the node whose bands name the mouth.
+    bellied: RecipeNodeId,
+    /// The sealed hollow: a wall and a cavity in ONE solid.
+    pot: RecipeNodeId,
+    /// The opened hollow — the body the montage draws.
+    cup: RecipeNodeId,
+    /// The lid before its rims roll.
+    plain_lid: RecipeNodeId,
+    /// The lid with its three rims rolled in ONE fillet request.
+    lid: RecipeNodeId,
+    /// The spout, placed.
+    spout: RecipeNodeId,
+    /// The handle.
+    handle: RecipeNodeId,
+    /// The two joins the operand gate has no arm for.
+    handle_union: RecipeNodeId,
+    spout_union: RecipeNodeId,
+}
+
+fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    *doc = applied.doc;
+    applied.record.minted.expect("insert mints an id")
+}
+
+/// One full revolve of `loop_` about the sketch frame's own `+v`,
+/// which this document places on world `+y`.
+fn revolved(
+    doc: &mut Doc<ProfileProgram>,
+    plane: RecipeNodeId,
+    axis: RecipeNodeId,
+    loop_: LoopProgram,
+    tol: Tol,
+) -> RecipeNodeId {
+    let profile = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![loop_],
+        }),
+        tol,
+    );
+    insert(
+        doc,
+        Node::Revolve {
+            profile,
+            axis,
+            angle: ang(TAU),
+        },
+        tol,
     )
 }
 
-/// Every planar face of `body` whose plane sits at station `y` — the
-/// CHART GROUP, not a face: a full revolve cuts each wall at two seam
-/// meridians, so the mouth is two half-discs sharing one plane, and
-/// `shell_open` lifts a chart as one (`ShellError::OpenFaceChartPartial`
-/// is what a half designation gets).
+/// **The sketch frame and the axis every meridian here turns about.**
 ///
-/// The kernel query seat materializes the candidates; the station is
-/// this scene's own read of the carrier — a numeric description the
-/// scene states in its authored coordinates.
-fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
-    query::all_faces(body)
-        .into_iter()
-        .filter(|&f| {
-            matches!(
-                body.get_face(f).and_then(|face| body.get_surface(face.surface)),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12
-            )
-        })
-        .collect()
+/// u = +X (the radius), v = +Y (the axis), so a meridian point
+/// `(x, y)` is the world point `(x, y, 0)` and the pot stands on +Y —
+/// the world placement every camera, cell and budget row of this scene
+/// was taken from. The axis is written in the frame's own 2-D
+/// coordinates, its own +v through the origin, so it cannot leave the
+/// plane the meridian is drawn on.
+fn frame_and_axis(doc: &mut Doc<ProfileProgram>, tol: Tol) -> (RecipeNodeId, RecipeNodeId) {
+    let plane = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+        tol,
+    );
+    let axis = insert(
+        doc,
+        Node::Datum(Datum::AxisInPlane {
+            plane,
+            origin: [len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(1.0)],
+        }),
+        tol,
+    );
+    (plane, axis)
 }
 
-/// The one closed latitude rim of `body` whose circle sits at station
-/// `y` with radius `r` — the selection said BY DESCRIPTION at the body
-/// seat: the kernel query seat materializes the candidates
-/// (`bud::rims_between` and `klein::corner_edges` say their kind
-/// halves through the seat's predicates), and the carrier match here
-/// is this scene's own read — a numeric description stated in the
-/// authored coordinates, which no kind predicate answers, with the
-/// circle kind subsumed by the same match.
+fn build_doc(tol: Tol) -> Recipe {
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot", tol);
+    let (plane, axis) = frame_and_axis(&mut doc, tol);
+
+    // ---- the vessel ----
+    let bellied = revolved(&mut doc, plane, axis, vessel_meridian(), tol);
+    // The mouth is the two half-faces of the meridian's mouth-disc
+    // segment, NAMED. A full revolve cuts each wall of an
+    // axis-touching profile at the two seam meridians, so the mouth
+    // disc is two half-discs on one plane; the kernel's rim surgery
+    // lifts a chart as a whole and the document names both halves,
+    // the `Band` half first — which is the half that carries the rim.
+    let mouth = vec![band(bellied, SEG_MOUTH), band_pi(bellied, SEG_MOUTH)];
+    let pot = insert(&mut doc, Node::shell(bellied, len(WALL), Vec::new()), tol);
+    let cup = insert(&mut doc, Node::shell(bellied, len(WALL), mouth), tol);
+
+    // ---- the lid ----
+    let plain_lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
+    // THREE rims, THREE DIFFERENT coaxial arms, ONE call. The radius
+    // is per REQUEST, not per edge, and each later rim's seam-piece
+    // identities are re-read against the partially-carved body, so the
+    // convenient spelling is the door's grain.
+    //
+    // Each rim is ONE name because the lid's profile is ANNULAR: it
+    // touches the axis nowhere, so the full revolve mints one whole
+    // wall per segment and one CLOSED latitude rim per vertex, where
+    // the pot's axis-touching profile mints half-walls and a `Band` /
+    // `BandPi` pair.
+    //
+    // GAP (the module docs' sixth finding): the KERNEL door rolls all
+    // three rims in one request and the document layer cannot NAME
+    // that output. The flange's rim and the dome's foot stand at the
+    // two ends of the flange cone, so both bands slit that segment's
+    // seam meridian, and `RoleSeg::BandSlit` carries only the source
+    // edge it severed — two slits, one name, `Naming(Duplicate)`. So
+    // the roll is TWO requests at one radius, which is what a user
+    // would have to write; the second names its rims as the first
+    // carried them through, since a survivor is `FromTarget` of the
+    // name it had.
+    let first = insert(
+        &mut doc,
+        Node::fillet(
+            plain_lid,
+            len(ROLL),
+            vec![band_rim(plain_lid, LID_RIMS[0].0)],
+        ),
+        tol,
+    );
+    let lid = insert(
+        &mut doc,
+        Node::fillet(
+            first,
+            len(ROLL),
+            vec![
+                carried(first, band_rim(plain_lid, LID_RIMS[1].0)),
+                carried(first, band_rim(plain_lid, LID_RIMS[2].0)),
+            ],
+        ),
+        tol,
+    );
+
+    // ---- the spout: built about its own axis, then placed ----
+    let spout_body = revolved(&mut doc, plane, axis, spout_meridian(), tol);
+    let spout = insert(
+        &mut doc,
+        Node::Transform {
+            input: spout_body,
+            translation: [len(SPOUT_ROOT.x), len(SPOUT_ROOT.y), len(SPOUT_ROOT.z)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(spout_turn()),
+        },
+        tol,
+    );
+
+    // ---- the handle ----
+    let spine = insert(
+        &mut doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(HANDLE_C.x), len(HANDLE_C.y), len(HANDLE_C.z)],
+            direction: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+        tol,
+    );
+    let handle = insert(
+        &mut doc,
+        Node::Tube {
+            spine,
+            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            major_radius: len(HANDLE_R),
+            window: TubeWindow::Arc {
+                t0: ang(-(FRAC_PI_2 + HANDLE_OVER)),
+                t1: ang(FRAC_PI_2 + HANDLE_OVER),
+            },
+            minor_radius: len(HANDLE_TUBE),
+        },
+        tol,
+    );
+
+    // ---- the two joins, as document requests ----
+    let union_node = |doc: &mut Doc<ProfileProgram>, b| {
+        insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: cup,
+                b,
+                declare: None,
+            },
+            tol,
+        )
+    };
+    let handle_union = union_node(&mut doc, handle);
+    let spout_union = union_node(&mut doc, spout);
+
+    Recipe {
+        doc,
+        bellied,
+        pot,
+        cup,
+        plain_lid,
+        lid,
+        spout,
+        handle,
+        handle_union,
+        spout_union,
+    }
+}
+
+/// **Wall 1's re-planted pot, hollowed** — a PROBE, in its own
+/// document.
+///
+/// It is the same two nodes the scene's own pot takes, over the same
+/// two junction stations and the same tube radius about the OTHER
+/// centre on their perpendicular bisector: what the wall pinned was a
+/// refusal, and what stands here is the hollow. It gets a document of
+/// its own for the reason the per-rim questions do — the gallery opens
+/// the scene's recipe, and a body the scene measures rather than
+/// models is not part of that recipe.
+fn wall_one_pot(tol: Tol) -> Body<f64> {
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-wall-1", tol);
+    let (plane, axis) = frame_and_axis(&mut doc, tol);
+    let belly = revolved(&mut doc, plane, axis, torus_belly_meridian(), tol);
+    let hollow = insert(&mut doc, Node::shell(belly, len(WALL), Vec::new()), tol);
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    body_at(&ev, hollow)
+}
+
+/// **This scene's recipe, as a document the GUI can open** — the same
+/// [`build_doc`] the stops walk, so the gallery cannot be a second
+/// authoring of the scene.
+///
+/// Three sinks are deleted, and the deletion is what makes the file
+/// draw the teapot rather than a pile: the SEALED hollow, which is the
+/// same operand and wall as the cup and would render inside it, and
+/// the two refusing unions, which produce no body at all and hold the
+/// cup, the spout and the handle down out of the root set while they
+/// stand. What is left is the four bodies the montage shows, as four
+/// roots.
+///
+/// They interpenetrate, and the file says so: the handle's roots are
+/// driven through the belly wall and the spout's root disc sits inside
+/// it, which is what makes the two unions real requests. A separation
+/// finding on this document is the scene's own subject arriving
+/// through the checks registry.
+pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
+    let r = build_doc(tol);
+    [r.handle_union, r.spout_union, r.pot]
+        .into_iter()
+        .fold(r.doc, |doc, id| {
+            apply(&doc, &DocEdit::DeleteNode { id }, tol)
+                .expect("each is a sink: deleting it drops a root and uncovers no body")
+                .doc
+        })
+}
+
+/// The body a node evaluated to.
+fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId) -> Body<f64> {
+    let value = ev
+        .value(id)
+        .unwrap_or_else(|| panic!("node {id:?} evaluated to a body, got {}", describe(ev, id)));
+    match &value.payload {
+        ValuePayload::Body(b) => (**b).clone(),
+        other => panic!("expected a body, got {other:?}"),
+    }
+}
+
+/// The faces of `node`'s output matching one role-segment pattern.
+fn faces_where(ev: &Evaluation<f64>, node: RecipeNodeId, seg: SegPat) -> Vec<StableName> {
+    select(
+        ev,
+        node,
+        &Selector::of(NamePat::of_kind(EntityKind::Face).seg(seg)),
+    )
+}
+
+/// **Every band face `node`'s lid carries** — the ones its own blend
+/// minted, and the ones an earlier blend minted and this one carried
+/// through. Two patterns because a survivor is `FromTarget` of the
+/// name it had: the roll below is TWO requests, so one of its three
+/// bands is a carried name and the other two are mints.
+fn band_faces(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
+    let faces = NamePat::of_kind(EntityKind::Face);
+    select(
+        ev,
+        node,
+        &Selector::any_of([
+            faces.clone().seg(SegPat::tag(SegTag::BandFace)),
+            faces.seg(
+                SegPat::tag(SegTag::FromTarget)
+                    .of([NamePat::any().seg(SegPat::tag(SegTag::BandFace))]),
+            ),
+        ]),
+    )
+}
+
+/// **A named rim's own circle, read back**: its centre station and its
+/// radius, in the authored coordinates.
+///
+/// The rim is a full-period circle about the axis, so its carrier
+/// frame's origin is the centre and the meridian VERTEX it passes
+/// through gives the radius. That pair is the DESCRIPTION a numeric
+/// scan would have matched on; asserting it of a name is what ties the
+/// role to the station without any scan being kept.
+fn rim_circle(ev: &Evaluation<f64>, node: RecipeNodeId, vertex: u32) -> (f64, f64) {
+    let centre = edge_frame(ev, node, &band_rim(node, vertex))
+        .expect("the rim's name denotes an edge with a certified carrier")
+        .origin;
+    assert!(
+        centre.x.abs() < 1e-12 && centre.z.abs() < 1e-12,
+        "a latitude rim's circle is centred ON the axis: got {centre:?}"
+    );
+    let p = vertex_position(ev, node, &meridian_vertex(node, vertex))
+        .expect("the meridian vertex's name denotes a vertex");
+    assert!(
+        (p.y - centre.y).abs() < 1e-12,
+        "the meridian vertex stands on its own rim's circle: {} vs {}",
+        p.y,
+        centre.y
+    );
+    (centre.y, p.x.hypot(p.z))
+}
+
+/// **The numeric rim scan this scene used to select by, kept for ONE
+/// commit** so the role names can be checked against the keys it found
+/// before it goes.
 fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
     let hits: Vec<EdgeKey> = query::all_edges(body)
         .into_iter()
@@ -482,19 +946,32 @@ fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
         1,
         "the description (station {y}, radius {r}) names exactly one rim"
     );
-    // The description names an ARC; the query seat says which rim it
-    // belongs to, and on this body that rim is the arc itself.
-    //
-    // These five lines are a STRUCTURAL copy of
-    // `sweep::test_support::one_edge_rim`, not a drifted one: the tour
-    // is a detached workspace that reaches the kernel through the
-    // `pncad` façade, and `test_support` is a test-vocabulary module
-    // the façade does not carry. Sharing it would put the kernel's test
-    // vocabulary on a demo's dependency path to save five lines. What
-    // is shared is the door under both.
     match query::rim_of(body, hits[0]).expect("the description names a whole rim")[..] {
         [only] => only,
         ref many => panic!("this rim is one closed edge, got {many:?}"),
+    }
+}
+
+/// A document node's answer, as one line for the panel's note — the
+/// refusal's own payload rather than a sentence about it (the wall-7
+/// lesson: a refusal's TEXT is not evidence of its cause; the payload
+/// and the raising site are).
+fn describe(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
+    match ev.node_error(node) {
+        None => "COMPOSED".to_string(),
+        Some(e) => format!("{:?}", e.kind),
+    }
+}
+
+/// The kernel refusal a node's evaluation carried, unaltered.
+fn boolean_refusal<'a>(ev: &'a Evaluation<f64>, node: RecipeNodeId) -> &'a BooleanError {
+    match ev
+        .node_error(node)
+        .map(|e| &e.kind)
+        .expect("the union node refused")
+    {
+        NodeErrorKind::Boolean(e) => e,
+        other => panic!("the union refused, but not at the boolean door: {other:?}"),
     }
 }
 
@@ -535,17 +1012,6 @@ fn frustum_lateral(r0: f64, r1: f64, h: f64) -> f64 {
 /// An annulus's area.
 fn annulus(ro: f64, ri: f64) -> f64 {
     PI * (ro * ro - ri * ri)
-}
-
-/// A door's answer, as one line for the panel's note — the refusal's
-/// own payload rather than a sentence about it (the wall-7 lesson: a
-/// refusal's TEXT is not evidence of its cause; the payload and the
-/// raising site are).
-fn describe<T, E: core::fmt::Debug>(outcome: &Result<T, E>) -> String {
-    match outcome {
-        Ok(_) => "COMPOSED".to_string(),
-        Err(e) => format!("{e:?}"),
-    }
 }
 
 /// The genus of `body` by the Euler–Poincaré identity
@@ -630,9 +1096,74 @@ fn pot_area(d: f64) -> f64 {
 // The scene
 // ---------------------------------------------------------------------
 
+/// **Each of the lid's three rims asked for ON ITS OWN**, in a
+/// document of its own, and the answer printed.
+///
+/// A one-call refusal names ONE edge, and on a body where three rims
+/// are new that is not enough to say which arm the door turned away —
+/// so the scene asks three questions whose answers are each about one
+/// rim. They are asked on a SEPARATE document because the scene's own
+/// recipe is what the gallery opens, and three extra half-rolled lids
+/// in it would be three bodies the scene does not model.
+fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-rims", tol);
+    let plane = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+        tol,
+    );
+    let axis = insert(
+        &mut doc,
+        Node::Datum(Datum::AxisInPlane {
+            plane,
+            origin: [len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(1.0)],
+        }),
+        tol,
+    );
+    let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
+    let asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
+        .iter()
+        .map(|&(v, _, _, what)| {
+            (
+                what,
+                insert(
+                    &mut doc,
+                    Node::fillet(lid, len(ROLL), vec![band_rim(lid, v)]),
+                    tol,
+                ),
+            )
+        })
+        .collect();
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    asked
+        .into_iter()
+        .map(|(what, node)| (what, describe(&ev, node)))
+        .collect()
+}
+
 pub fn stops(tol: Tol) -> Vec<Stop> {
+    let r = build_doc(tol);
+    let ev = evaluate::<f64>(
+        &r.doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+
     // ---- the vessel, before the wall ----
-    let bellied = revolved(vessel_meridian(tol), tol);
+    let bellied = body_at(&ev, r.bellied);
     assert_eq!(
         (
             bellied.vertices().count(),
@@ -644,6 +1175,31 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          each cut at the two seam meridians into a pair of half-walls — one arc where \
          the squared pot spent three segments on shoulder, belly, shoulder"
     );
+    // The mouth disc's segment index is read off the PROGRAM rather
+    // than transcribed: it is the segment whose meridian step lands on
+    // the mouth plane at the axis.
+    assert_eq!(
+        mouth_segment(&vessel_meridian()),
+        SEG_MOUTH,
+        "the mouth disc is segment {SEG_MOUTH} of the meridian in program order"
+    );
+    // THE MOUTH, BY NAME. Two half-discs on ONE plane — the two names
+    // the shell node was authored with, asserted to denote exactly
+    // that: two planar faces, both on the mouth's own station.
+    for name in [band(r.bellied, SEG_MOUTH), band_pi(r.bellied, SEG_MOUTH)] {
+        assert_eq!(
+            face_carrier_kind(&ev, r.bellied, &name).expect("the mouth half is named"),
+            SurfaceKind::Plane,
+            "a mouth half-disc's carrier is a plane"
+        );
+        let origin = face_frame(&ev, r.bellied, &name)
+            .expect("the mouth half is named")
+            .origin;
+        assert!(
+            (origin.y - Y_MOUTH).abs() < 1e-12,
+            "the mouth's halves stand on the mouth plane: got {origin:?}"
+        );
+    }
 
     // ---- the gates, MEASURED off the operand before the verb runs ----
     //
@@ -715,10 +1271,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "every cylinder's realized inner radius is positive; the tightest has {reach} m left"
     );
 
-    // ---- the sealed hollow: the body the scene SHIPS ----
-    let pot = pncad::topo::shell(&bellied, WALL, tol)
-        .unwrap_or_else(|e| panic!("the pot hollows, got {e}"))
-        .body;
+    // ---- the sealed hollow: the document's own value ----
+    let pot = body_at(&ev, r.pot);
     let (pv, pe, pf) = (
         pot.vertices().count(),
         pot.edges().count(),
@@ -789,14 +1343,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The SEALED census above is the sealed arm's own evidence and
     // stays: it is where the two-shell insertion, the decided Void
     // role and the capacity are read. What the montage draws is the
-    // OPENED pot, because a teapot has a mouth.
-    let mouth = plane_chart_at(&bellied, Y_MOUTH);
-    let cup = pncad::topo::shell_open(&bellied, WALL, &mouth, tol)
-        .unwrap_or_else(|e| panic!("the pot opens at its mouth, got {e}"))
-        .body;
+    // OPENED pot, because a teapot has a mouth. Both hollows are the
+    // SAME operand and the SAME wall through the same node kind; what
+    // separates them is the open list, which is empty for one and the
+    // mouth's two names for the other.
+    let cup = body_at(&ev, r.cup);
 
     // ---- the lid ----
-    let plain_lid = revolved(lid_meridian(tol), tol);
+    let plain_lid = body_at(&ev, r.plain_lid);
     assert_eq!(
         (
             plain_lid.vertices().count(),
@@ -808,6 +1362,35 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          latitude rims and six seam meridians — where the pot's axis-touching profile \
          mints half-walls and open arcs"
     );
+    // THE THREE RIMS, BY NAME — and the name checked against the
+    // DESCRIPTION a scan would have matched on, which is the station
+    // and the radius the meridian authored. That equality is what
+    // retires the scan: the role names the same circle, and it names
+    // it through a rebuild rather than through a coordinate.
+    for &(v, radius, station, what) in &LID_RIMS {
+        // THE CROSS-CHECK, kept for one commit: the role name and the
+        // numeric scan denote the SAME edge.
+        let scanned = rim_at(&plain_lid, station, radius);
+        assert_eq!(
+            *edge_name(&ev, r.plain_lid, 0, scanned).expect("the scanned rim is named"),
+            band_rim(r.plain_lid, v),
+            "{what}: the scan's edge and the role name are one edge"
+        );
+        let (y, rho) = rim_circle(&ev, r.plain_lid, v);
+        assert!(
+            (y - station).abs() < 1e-12 && (rho - radius).abs() < 1e-12,
+            "{what} is the rim named at meridian vertex {v}, and its circle is \
+             (station {station}, radius {radius}); got (station {y}, radius {rho})"
+        );
+    }
+    // Each rim asked for ON ITS OWN first, and the answer printed. A
+    // one-call refusal names ONE edge, and on a body where three rims
+    // are new that is not enough to say which arm the door turned away
+    // — so the scene asks three questions whose answers are each about
+    // one rim.
+    for (what, answer) in per_rim_answers(tol) {
+        println!("   {what}: {answer}");
+    }
     // THREE rims, THREE DIFFERENT coaxial arms, ONE call. The lid is
     // the tour's carrier of the curved-support fillet family now that
     // `bud` is off the sheet: the flange rim is cone × plane(⊥), the
@@ -816,56 +1399,28 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // the profile is ANNULAR — which is what the steam vent buys, and
     // the reason an axis-touching profile has no candidate at all.
     //
-    // One call rather than three, as `bud` establishes: the radius is
-    // per REQUEST, not per edge, and #935 re-reads each later rim's
-    // seam-piece identities against the partially-carved body, so the
-    // convenient spelling is the door's grain.
-    let rims = [
-        (
-            "the flange's rim (cone x plane)",
-            rim_at(&plain_lid, LID_BASE, R_FLANGE),
-        ),
-        (
-            "the dome's foot (sphere x cone)",
-            rim_at(&plain_lid, Y_FLANGE, R_NECK),
-        ),
-        (
-            "the knob's top (cylinder x plane)",
-            rim_at(&plain_lid, Y_TOP, R_KNOB),
-        ),
-    ];
-    // Each rim asked for ON ITS OWN first, and the answer printed. A
-    // one-call refusal names ONE edge, and on a body where three rims
-    // are new that is not enough to say which arm the door turned away
-    // — so the scene asks three questions whose answers are each about
-    // one rim.
-    for (what, e) in &rims {
-        println!(
-            "   {what}: {}",
-            describe(&fillet_edges(&plain_lid, &[*e], ROLL, tol))
-        );
-    }
-    let keys: Vec<EdgeKey> = rims.iter().map(|(_, e)| *e).collect();
-    let rolled = fillet_edges(&plain_lid, &keys, ROLL, tol)
-        .unwrap_or_else(|e| panic!("the lid's three coaxial rims roll, got {e:?}"));
+    // The radius is per REQUEST rather than per edge, as `bud`
+    // establishes, and #935 re-reads each later rim's seam-piece
+    // identities against the partially-carved body — which is what
+    // makes the two requests the naming gap forces (the module docs'
+    // sixth finding) the same body the one-request kernel door
+    // builds.
+    let rolled = body_at(&ev, r.lid);
     assert_eq!(
         (
-            rolled.body.vertices().count(),
-            rolled.body.edges().count(),
-            rolled.body.faces().count(),
+            rolled.vertices().count(),
+            rolled.edges().count(),
+            rolled.faces().count(),
         ),
         (9, 18, 9),
         "three annulus bands, each the same census delta: +1 vertex, +2 edges, +1 face"
     );
-    assert_eq!(rolled.band_faces.len(), 3, "three rims, three bands");
-    for f in &rolled.band_faces {
-        assert!(
-            matches!(
-                rolled
-                    .body
-                    .get_surface(rolled.body.get_face(*f).expect("a band face").surface),
-                Some(Surface::Torus { .. })
-            ),
+    let bands = band_faces(&ev, r.lid);
+    assert_eq!(bands.len(), 3, "three rims, three bands");
+    for name in &bands {
+        assert_eq!(
+            face_carrier_kind(&ev, r.lid, name).expect("the band face is named"),
+            SurfaceKind::Torus,
             "every coaxial band is a TORUS — that is what sharing an axis of revolution \
              buys: the rolling ball's centre is confined to the meridian half-plane"
         );
@@ -881,17 +1436,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // arm is free to mint them in any order.
     let band = |y: f64| -> (f64, f64) {
         let mut hit = None;
-        for f in &rolled.band_faces {
+        for (_, f) in rolled.faces() {
             let Some(Surface::Torus {
                 major_radius,
                 minor_radius,
                 center,
                 ..
-            }) = rolled
-                .body
-                .get_surface(rolled.body.get_face(*f).expect("a band face").surface)
+            }) = rolled.get_surface(f.surface)
             else {
-                panic!("every coaxial band is a torus");
+                continue;
             };
             assert!(
                 center.x.abs() < 1e-12 && center.z.abs() < 1e-12,
@@ -902,12 +1455,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 hit = Some((*major_radius, *minor_radius));
             }
             assert!(
-                rolled
-                    .body
-                    .get_face(*f)
-                    .expect("a band face")
-                    .rings
-                    .is_empty(),
+                f.rings.is_empty(),
                 "a curved band is ring-free: one cycle, two closed trim circles and a slit"
             );
         }
@@ -995,7 +1543,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "lid A = {} vs the closed form {a_lid}",
         sharp_lid_props.surface_area
     );
-    let lid_props = pncad::topo::mass_properties(&rolled.body, tol).expect("the rolled lid");
+    let lid_props = pncad::topo::mass_properties(&rolled, tol).expect("the rolled lid");
     let dv_lid = sharp_lid_props.volume - lid_props.volume;
     // Three convex rims now, so the bound is the three corner squares
     // swept round their own rims.
@@ -1007,9 +1555,34 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     // ---- the spout: built about its own axis, then placed ----
-    let spout =
-        pncad::topo::transform_rigid(&revolved(spout_meridian(tol), tol), &spout_placement(), tol)
-            .expect("the spout is placed by a rigid map");
+    //
+    // The document's placement vocabulary is AXIS-ANGLE, and the 3-4-5
+    // turn is not a binary-exact angle — so the map is asserted rather
+    // than assumed. `cos` and `sin` of `atan2(0.8, 0.6)` return `0.6`
+    // and `0.8` bit for bit, and Rodrigues about `+z` consumes only
+    // those two and the axis components, so every entry of the turn is
+    // exact and the placed body lands where the authored direction
+    // says, to the last bit.
+    let (sin_t, cos_t) = spout_turn().sin_cos();
+    assert_eq!(
+        (cos_t, sin_t),
+        (SPOUT_DIR.y, -SPOUT_DIR.x),
+        "the axis-angle turn's cosine and sine ARE the 3-4-5 direction's components"
+    );
+    let spout = body_at(&ev, r.spout);
+    // The root disc's centre: the spout's own origin, carried by the
+    // map. Measured against the exact placement the direction states,
+    // which is the residual the axis-angle spelling could have cost.
+    let placed_root = Vec3::new(
+        cos_t * 0.0 - sin_t * 0.0 + SPOUT_ROOT.x,
+        sin_t * 0.0 + cos_t * 0.0 + SPOUT_ROOT.y,
+        SPOUT_ROOT.z,
+    );
+    let root_residual = (placed_root - Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z)).norm();
+    assert_eq!(
+        root_residual, 0.0,
+        "the placed root disc's centre is the authored root, exactly"
+    );
     let v_spout = frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
         - frustum_volume(SPOUT_R0 - SPOUT_WALL, SPOUT_R1 - SPOUT_WALL, SPOUT_LEN);
     let a_spout = frustum_lateral(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
@@ -1033,20 +1606,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // ---- the handle ----
     let sweep = 2.0 * (FRAC_PI_2 + HANDLE_OVER);
-    let handle = tube_along_arc::<f64>(
-        HANDLE_C,
-        Vec3::unit_z(),
-        Vec3::unit_x(),
-        HANDLE_R,
-        TubeWindow::Arc {
-            t0: -(FRAC_PI_2 + HANDLE_OVER),
-            t1: FRAC_PI_2 + HANDLE_OVER,
-        },
-        HANDLE_TUBE,
-        tol,
-    )
-    .expect("the handle's arc tube builds")
-    .body;
+    let handle = body_at(&ev, r.handle);
     let v_handle = sweep * HANDLE_R * PI * HANDLE_TUBE * HANDLE_TUBE;
     let a_handle = sweep * HANDLE_R * 2.0 * PI * HANDLE_TUBE + 2.0 * PI * HANDLE_TUBE * HANDLE_TUBE;
     let handle_props = pncad::topo::mass_properties(&handle, tol).expect("the handle's props");
@@ -1085,37 +1645,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // half-plane, which is the sphere's circle centred `(0, h_c)` with
     // one more number, so the corner solve takes it and never asks the
     // table. The pot below is ATTEMPTED live, exactly as the wall was,
-    // and it hollows.
-    let torus_belly = revolved(
-        Open.at(Point2::new(0.0, 0.0))
-            .line_to(Point2::new(R_FOOT, 0.0), tol)
-            .expect("the base disc")
-            .line_to(Point2::new(R_FOOT, Y_FOOT), tol)
-            .expect("the foot")
-            // The SAME two junction stations and the SAME 5/64 radius,
-            // about the OTHER centre on their perpendicular bisector:
-            // `(7/64, 5/64)`, which is off the axis. Both residuals are
-            // still exactly zero (3-4-5 twice again) — the only thing
-            // that changed is that the revolve now mints a TORUS.
-            .arc_to(
-                Center {
-                    c: Point2::new(7.0 / 64.0, 5.0 / 64.0),
-                    winding: ArcSweep::Cw,
-                    p: Point2::new(R_NECK, Y_MOUTH),
-                },
-                tol,
-            )
-            .expect("a belly about a centre off the axis is a torus")
-            .line_to(Point2::new(0.0, Y_MOUTH), tol)
-            .expect("the mouth disc")
-            .line_to(Start, tol)
-            .expect("the axis closes the meridian")
-            .into(),
-        tol,
-    );
-    let torus_pot = pncad::topo::shell(&torus_belly, WALL, tol)
-        .expect("a pot bellied about a centre off the axis hollows through the axial door")
-        .body;
+    // and it hollows — through the SAME node the scene's own pot takes.
+    let torus_pot = wall_one_pot(tol);
     assert_eq!(
         pncad::topo::validate_geometric(&torus_pot, tol),
         Ok(()),
@@ -1140,12 +1671,6 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // measured here rather than cited, because the pot the montage
     // ships is now this body.
     assert_eq!(
-        mouth.len(),
-        2,
-        "the mouth is one PLANE worn by two half-disc faces — a full revolve's seam cut \
-         — and the rim lift moves a chart as one"
-    );
-    assert_eq!(
         pncad::topo::validate_geometric(&cup, tol),
         Ok(()),
         "tier 3 on the cup, which now also refuses a ring standing on its outer loop"
@@ -1158,10 +1683,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          cup is, and the cavity fused into the boundary"
     );
     assert_eq!(
-        plane_chart_at(&cup, Y_MOUTH).len(),
+        faces_where(&ev, r.cup, SegPat::tag(SegTag::Rim)).len(),
         1,
-        "the revolve's seam is retired before the glue, so the mouth plane is worn by \
-         one rim face and not by two half-annuli"
+        "the revolve's seam is retired before the glue, so the mouth's two designated \
+         halves come back as ONE rim face and not as two half-annuli"
     );
     let cup_props = pncad::topo::mass_properties(&cup, tol).expect("the cup's props");
     // The cup is the sealed wall LESS the disc of wall the mouth cap
@@ -1193,17 +1718,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // WALL 2 — the handle joined to the pot. A curved x curved pair at
     // the operand gate; the germ roster has no arm for it.
     //
-    // Each union is run ONCE and its refusal carried into the panel's
-    // note verbatim, so the payload the caption quotes and the payload
-    // the probe pinned cannot be two different measurements.
-    let handle_union = pncad::topo::union(&cup, &handle, tol);
-    let handle_refusal = describe(&handle_union);
+    // Each union is a NODE of the document and refuses at `evaluate`,
+    // with the kernel's payload carried unaltered into the panel's
+    // note — so the payload the caption quotes and the payload the
+    // probe pins cannot be two different measurements.
+    let handle_refusal = describe(&ev, r.handle_union);
     crate::walls::wall(
         "teapot",
         2,
         "join the handle to the vessel (union; both roots driven 11.2 mm past the \
          belly's inner wall — a real overlap, not a tangency)",
-        handle_union,
+        Err::<(), _>(boolean_refusal(&ev, r.handle_union)),
         |e| {
             matches!(
                 e,
@@ -1230,13 +1755,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // and box-conservative, so the faces it names are the first whose
     // boxes MAY meet — here the spout's outer cone against a PLANE of
     // the pot, not the belly wall the spout actually pierces.
-    let spout_union = pncad::topo::union(&cup, &spout, tol);
-    let spout_refusal = describe(&spout_union);
+    let spout_refusal = describe(&ev, r.spout_union);
     crate::walls::wall(
         "teapot",
         3,
         "join the spout to the vessel (union; the root disc wholly inside the belly)",
-        spout_union,
+        Err::<(), _>(boolean_refusal(&ev, r.spout_union)),
         |e| {
             matches!(
                 e,
@@ -1261,21 +1785,29 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                   spout and handle it will not join)"
             .to_string(),
         montage: true,
-        story: "shell's designated demo. The pot is ONE revolved profile hollowed by \
-                `shell` and OPENED at its mouth: a cavity the size of the tea, inside a \
+        story: "shell's designated demo, and ONE recipe document: every body below is a \
+                node's value. The pot is ONE revolved profile hollowed by \
+                `Node::Shell` and OPENED at its mouth: a cavity the size of the tea, inside a \
                 wall 7.8 mm thick, in one solid — drawn see-through, because a cavity \
                 cannot be read from an opaque render at any camera. The lid is a SECOND solid, rendered lifted: \
                 an exploded view, not a mate. The spout and the handle are two more, \
                 and their unions with the pot are attempted on every pass and REFUSE — \
                 so what the montage shows is four bodies sitting where a teapot's parts \
                 sit, not a teapot",
-        ops: "revolve(meridian, +y, Full) -> shell_open(pot, t = 7.8125 mm, the mouth's \
-              chart) for the vessel; revolve + fillet_edges(flange rim + dome foot + \
-              knob top, ONE call) for the lid; revolve + transform_rigid for the spout; tube_along_arc for the \
-              handle. Two walls pinned: both unions",
+        ops: "ONE recipe document: Profile -> Revolve -> Node::Shell(t = 7.8125 mm, the \
+              mouth's two half-discs BY NAME) for the vessel; Profile -> Revolve -> \
+              Node::Fillet twice (the flange rim, then the dome foot + the knob top, all \
+              by name) for the lid; Profile -> Revolve -> Node::Transform for the spout; \
+              Datum::Axis -> Node::Tube for the handle. Two walls pinned: both unions, \
+              as Node::Boolean(Union) nodes that refuse at evaluate",
         delta: DELTA,
         note: Some(format!(
-            "THE VESSEL, SEALED THEN OPENED. Sealed it is {pv} vertices, {pe} edges, \
+            "ONE RECIPE DOCUMENT, AND EVERY BODY HERE IS A NODE'S VALUE — the mouth and \
+             the lid's three rims are NAMED by their role in the sweep, not found by a \
+             numeric scan of the built body. THE VESSEL, SEALED THEN OPENED, is the \
+             same operand and the same wall through the same node kind twice, parted \
+             only by the open list: EMPTY for the sealed hollow, the mouth's two \
+             half-disc names for the cup. Sealed it is {pv} vertices, {pe} edges, \
              {pf} faces over TWO shells in one solid — the operand's 8/14/8 twice, \
              since the cavity is that same boundary offset inward and inserted whole \
              through the shared void door. Genus 0. V = {:.9} m³ of WALL against the \
@@ -1340,7 +1872,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              lives on this tour. 6/12/6 sharp — an ANNULAR profile mints one FULL wall \
              per segment where the pot's axis-touching profile mints half-walls — and \
              9/18/9 rolled, three annulus bands each carrying the same (+1, +2, +1). \
-             THREE closed latitude rims roll in ONE call, and their supports are three \
+             THREE closed latitude rims roll, in TWO requests where the kernel door \
+             takes one — the flange's rim, then the dome's foot and the knob's top — \
+             because the flange's rim and the dome's foot are the two ends of ONE \
+             meridian segment, both bands slit that segment's seam, and a `BandSlit` is \
+             named by the source edge it severed, so one request cannot NAME its own \
+             output (the module docs' sixth finding; the kernel geometry is the same \
+             either way and every number here says so). Their supports are three \
              DIFFERENT coaxial arms: the flange's rim is cone x plane(perp), the dome's \
              foot is SPHERE x CONE — the arm no plane-supported scene reaches — and the \
              knob's top is cylinder x plane. Every band is a ring-free TORUS, which is \
@@ -1352,18 +1890,30 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              inside the three corner squares' bound {pappus_cap:.9}. The steam vent is \
              what makes those rims CLOSED edges at all: bore the finial and the profile \
              is annular; leave it solid and each rim is two arcs over two half-discs, \
-             which the annulus band does not carve. NO MATE IS AUTHORED — the lid renders {LIFT} m above the mouth and \
+             which the annulus band does not carve — and it is also why each of these \
+             three rims is ONE name: an annular profile touches the axis nowhere, so \
+             the full revolve mints one whole wall per segment and one CLOSED rim per \
+             meridian vertex, where the pot's axis-touching profile mints the half-wall \
+             pair the mouth is named as. NO MATE IS AUTHORED — the lid renders {LIFT} m above the mouth and \
              the two bodies are strangers to the kernel; declared contact is M9's. THE \
              SPOUT AND THE HANDLE. Both build and both check against closed forms — the \
-             spout as a difference of cone frusta, asserted AFTER `transform_rigid` \
+             spout as a difference of cone frusta, asserted AFTER `Node::Transform` \
              placed it, so the map's isometry is part of the receipt; the handle by \
-             Pappus on its own disc. Neither JOINS. handle ∪ vessel: {handle_refusal}. \
+             Pappus on its own disc. The document says a placement in AXIS-ANGLE, and \
+             the 3-4-5 turn is not a binary-exact angle — but its cosine and sine come \
+             back as 0.6 and 0.8 BIT FOR BIT, and Rodrigues about +z consumes nothing \
+             else, so the placed root disc's centre sits on the authored root at a \
+             residual of exactly {root_residual}. Neither JOINS. handle ∪ vessel: {handle_refusal}. \
              spout ∪ vessel: {spout_refusal}. Both are the pair-scoped operand gate \
              naming a germ PAIR with no wired arm, and note what the second one names — \
              the spout's outer CONE against a PLANE of the pot, not the belly wall the \
              spout actually pierces: box overlap is a MAY, and the gate reports the \
              first pair whose boxes may meet. The schedule is the banked germ-chord \
-             lanes (DESIGN frontier (d)) and #1057's two C5 arms. A lofted or \
+             lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \
+             ARRIVE THROUGH THE DOCUMENT, under the same payload: each union is a \
+             `Node::Boolean` that lowers to the same kernel `union` and fails at \
+             `evaluate`, so what the caption quotes is the evaluation's own carried \
+             refusal. A lofted or \
              canal-swept spout — the shape a potter would draw — is not authorable at \
              all; the register carries that as a note and this scene does not hack \
              around it",
@@ -1391,10 +1941,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             // See-through for the hollow ring's reason, on this verb's
             // own shape: the subject is a CAVITY, and no camera reads
             // one from an opaque render.
-            SceneBody::plain("teapotvessel", [0.72, 0.70, 0.66], cup).transparent(45),
-            SceneBody::plain("teapotlid", [0.58, 0.64, 0.72], rolled.body),
-            SceneBody::plain("teapotspout", [0.72, 0.70, 0.66], spout),
-            SceneBody::plain("teapothandle", [0.58, 0.64, 0.72], handle),
+            SceneBody::plain("teapotvessel", [0.72, 0.70, 0.66], cup)
+                .transparent(45)
+                .named(&ev, r.cup),
+            SceneBody::plain("teapotlid", [0.58, 0.64, 0.72], rolled).named(&ev, r.lid),
+            SceneBody::plain("teapotspout", [0.72, 0.70, 0.66], spout).named(&ev, r.spout),
+            SceneBody::plain("teapothandle", [0.58, 0.64, 0.72], handle).named(&ev, r.handle),
         ],
     }]
 }

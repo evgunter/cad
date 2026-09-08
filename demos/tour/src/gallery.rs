@@ -13,7 +13,7 @@
 //! # Which scenes are here, and which are not
 //!
 //! The document-authored scenes are the ones that build a `Doc` and
-//! evaluate it: **checks, ring, diefillet, heatsink**, plus
+//! evaluate it: **checks, ring, diefillet, heatsink, teapot**, plus
 //! **assembly**, whose documents are a workspace of several files and
 //! are written by that scene's own store. The rest of the tour drives
 //! the kernel API directly and has no document to save; they join the
@@ -43,6 +43,7 @@ pub fn run(dir: Option<String>, tol: Tol) {
         ("ring", crate::ring::gallery_document(tol)),
         ("diefillet", crate::diefillet::gallery_document(tol)),
         ("heatsink", crate::heatsink::gallery_document(tol)),
+        ("teapot", crate::teapot::gallery_document(tol)),
     ] {
         write_one(&dir, name, &doc, tol);
         written += 1;
@@ -204,6 +205,13 @@ mod tests {
                 roots: 1,
                 separation: 0,
                 why: "one root, and nothing in the document interpenetrates: the fin                       group is a PlacedUnion and a Boolean folds it into the base, so                       the whole part is in the recipe (#1344)",
+            },
+            Shape {
+                name: "teapot",
+                doc: crate::teapot::gallery_document(tol),
+                roots: 4,
+                separation: 4,
+                why: "FOUR roots, because the teapot is four solids and the operand gate                       has no arm for either join. The check denies a BOX certificate                       rather than asserting an overlap, and all six pairs are here:                       handle/vessel and spout/vessel are the scene's own two walls,                       real interpenetrations that a boolean would have to take, and                       lid/vessel and lid/spout are the lifted lid, whose overhanging                       flange shares a box with both and is apart from neither by any                       rule this check has. No mate is authored, so nothing declares                       the gap the render shows",
             },
         ];
 
