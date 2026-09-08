@@ -2,11 +2,12 @@
 id: two-public-verb-types-verbs-and-profile
 kind: issue
 title: Two public types named Verb in one workspace (verbs::Verb, profile::Verb) — the collision is known at one site and reconciled nowhere
-status: review
+status: closed
 opened: 2026-09-05
 refs: [1910, 1547]
 branch: eval/5-two-verbs
 pr: 2168
+closed: 2026-09-08
 ---
 
 
