@@ -1,13 +1,73 @@
-//! **The face-identity census: its one home.**
+//! **The baseline censuses: their one home.**
+//!
+//! Two censuses over one committed artefact,
+//! `docs/tess-budget-data/tess-budget-baseline.csv`: the FACE-IDENTITY
+//! census — how many rows a rule-4 swap could wave through, and how
+//! much of the corpus is a scene where a re-key costs no comparison —
+//! and the SIZING census, what the tour's mesh and its sizing come to
+//! folded through the gate's own accumulator. Both are readings of a
+//! committed file that a re-baseline moves, and a number transcribed
+//! into prose is a number nothing can check, so both are counted here
+//! rather than written down. **A census has one executable home and
+//! every other site points at it**, because a pointer cannot go
+//! stale — the cure this tree's own CI comment states for the rule
+//! roster next door.
+//!
+//! **That rule is the standard here, not a description of the tree.**
+//! `lib.rs`'s module docs meet it, for the face-identity count they
+//! used to transcribe. `docs/TESS-BUDGET.md` does not: it still
+//! carries four of the sizing figures asserted below in present-tense
+//! prose, and neither census can edit it. The row is
+//! `work/meter/baseline-sizing-census-second-copy`, and it is not the
+//! only site — this file's own sizing section transcribes the same
+//! four, which that row covers too.
+//!
+//! **No figure is asserted twice, and the split is which function
+//! asserts what.** The corpus counts — rows, sized rows, the scenes
+//! holding them — are the face-identity census's; the sizing sums
+//! start where those leave off and restate none of them, and the two
+//! percentages the report prints are quotients of the one pair against
+//! the other.
+//!
+//! # The sweep's definition, beside its result
+//!
+//! Over `docs/tess-budget-data/tess-budget-baseline.csv`, read through
+//! [`parse`] — so these censuses count exactly what the gate parses,
+//! not what a separate reader thinks the columns mean:
+//!
+//! * a **row** is one parsed [`Row`]: one face of one scene;
+//! * a row is **sized** when it carries the Hessian-sized block
+//!   (`Row::nurbs` is `Some`) — every column from `u0` on is filled;
+//! * a row's **identity** is [`identity_readings`], which is
+//!   [`IDENTITY_COLUMNS`] as rule 4 compares it. It is the crate's own
+//!   definition and not a copy of it: an eighth entry in that list
+//!   lengthens the key here, so the census cannot go on grouping on
+//!   seven columns while the gate parses eight;
+//! * a **pair** is two rows OF ONE SCENE with equal identities. They
+//!   necessarily have different ordinals (`parse` refuses a repeated
+//!   `(scene, face)`), so each pair is a swap rule 4 would wave
+//!   through. Counted unordered: a group of `k` equal rows is
+//!   `k·(k−1)/2` pairs.
+//!
+//! The face-identity census is taken over the SIZED rows, because an
+//! unsized swap costs rule 2 nothing — that restriction is the
+//! load-bearing one, and the corpus-wide figure below is here to show
+//! how much work it does rather than because anything gates on it.
+//!
+//! The sizing census folds the parsed rows through [`SceneTotals`],
+//! the same accumulator the CLI's report header and the gate's
+//! per-scene table use, so it counts what the gate counts. Its cell
+//! sums are over the sized rows alone, because [`SceneTotals::add`]
+//! adds a cell count only where there is one.
+//!
+//! # The face-identity census
 //!
 //! `lib.rs`'s module docs say what rule 4's precondition cannot see —
 //! two faces of one scene agreeing on every [`IDENTITY_COLUMNS`] entry
 //! and swapping ordinals — and deliberately do not say how many there
-//! are. This file says how many, by counting them, because the count
-//! is a reading of a committed artefact that a re-baseline moves and a
-//! number transcribed into prose is a number nothing can check.
+//! are. This census says how many, by counting them.
 //!
-//! # The transcription sweep, and its hit list
+//! ## The transcription sweep, and its hit list
 //!
 //! The pattern swept for was that paragraph's own quantities — the
 //! literals `8 pairs` / `16 of` / `22,545` / `1327` / `five of the
@@ -40,36 +100,9 @@
 //! record of anything, which is the same one-home doctrine this
 //! paragraph is about, applied to the pointer rather than the count.
 //!
-//! The cure for the three live copies is the one this tree's own CI
-//! comment states for the rule roster next door: a pointer cannot go
-//! stale, so there is one home and everything else points at it.
+//! The cure for the three live copies is the one-home rule above.
 //!
-//! # The sweep's definition, beside its result
-//!
-//! Over `docs/tess-budget-data/tess-budget-baseline.csv`, read through
-//! [`parse`] — so this census counts exactly what the gate parses, not
-//! what a separate reader thinks the columns mean:
-//!
-//! * a **row** is one parsed [`Row`]: one face of one scene;
-//! * a row is **sized** when it carries the Hessian-sized block
-//!   (`Row::nurbs` is `Some`) — every column from `u0` on is filled;
-//! * a row's **identity** is [`identity_readings`], which is
-//!   [`IDENTITY_COLUMNS`] as rule 4 compares it. It is the crate's own
-//!   definition and not a copy of it: an eighth entry in that list
-//!   lengthens the key here, so the census cannot go on grouping on
-//!   seven columns while the gate parses eight;
-//! * a **pair** is two rows OF ONE SCENE with equal identities. They
-//!   necessarily have different ordinals (`parse` refuses a repeated
-//!   `(scene, face)`), so each pair is a swap rule 4 would wave
-//!   through. Counted unordered: a group of `k` equal rows is
-//!   `k·(k−1)/2` pairs.
-//!
-//! The census is taken over the SIZED rows, because an unsized swap
-//! costs rule 2 nothing — that restriction is the load-bearing one,
-//! and the corpus-wide figure below is here to show how much work it
-//! does rather than because anything gates on it.
-//!
-//! # What an undetected swap COSTS, and which half is a theorem
+//! ## What an undetected swap COSTS, and which half is a theorem
 //!
 //! The pairs counted above are what the gate cannot tell apart. What
 //! that is WORTH is a separate question, and its two halves are not
@@ -132,17 +165,121 @@
 //! claims below already carry. So it is left unwritten deliberately,
 //! not because it cannot be written.
 //!
-//! # When this test fails
+//! # The sizing census
 //!
-//! It is not a threshold and no baseline here is a target to preserve.
-//! A re-cut that moves these numbers means the corpus moved: read the
-//! new number, decide whether the new corpus is what you meant, and
-//! write it in. The failure exists so that the paragraph in `lib.rs`
-//! cannot go on describing a file it no longer describes.
+//! ## What it is for
+//!
+//! **A re-cut alarm, and the citation it guards is still live.**
+//! `docs/TESS-BUDGET.md` carries `grid_cells`, `patch_cells`,
+//! `opt_cells` and `span_opt_cells` — every one of them asserted
+//! below — in present-tense prose. So this census does the job a
+//! pointer cannot: go RED when a re-cut moves the tour's mesh or its
+//! sizing, so the move is read rather than folded in silently. **What
+//! it cannot do is finish the job.** A re-cut reds here and leaves
+//! those sentences standing, wrong, until somebody reads them; the
+//! alarm is the prompt to go and read them, not a guarantee they were
+//! read.
+//!
+//! It does not fire on everything a re-cut can move.
+//! `docs/TESS-BUDGET.md`'s "Re-cutting the baseline" says what the two
+//! censuses between them do and do not read; the short version is that
+//! the descriptive per-face columns are read by neither.
+//!
+//! ## Why the pre-fix block reads as stale when it is not
+//!
+//! Three readers in a row have compared `docs/TESS-BUDGET.md`'s
+//! pre-fix block against this census column by column and read the
+//! difference as drift. It is the fix landing, and the two halves
+//! separate cleanly:
+//!
+//! * the columns that describe a SHIPPED SCHEDULE moved by the factors
+//!   TESS-SPAN and TESS-SPLIT were built to move them — the tour's
+//!   grid went from a whole-patch AM-GM product to a per-knot-span
+//!   cell grid at the aspect-capped cell minimizer. That is 154,129 to
+//!   46,019, **3.35x**, on the grid the lane actually builds. The
+//!   whole-patch column moved 390,100 to 110,811, **3.52x**, and that
+//!   one is a different point selection rather than a smaller grid
+//!   (the document's decoder table says why);
+//! * the columns that are pure OPTIMA over the certified ellipse —
+//!   `opt_cells` and `span_opt_cells` — are schedule-independent, and
+//!   they sit within 2.2% and 0.7% of the pre-fix figures because the
+//!   sized faces are the same 64 faces. Both gaps are wider than they
+//!   were, by the amount the split scan's own resolution moved when
+//!   `tess_meter::SPLIT_SCAN_SAMPLES` was raised: a finer scan finds
+//!   cheaper splits, so an optimum column falls without a face moving.
+//!
+//! **What that separates is a change of SIZING RULE from everything
+//! else, and no more than that.** Corpus growth, certificate changes
+//! and the meter's own resolution all move the optima too, so two
+//! columns still within a few percent says the faces and their bounds
+//! are still the block's. It does not by itself
+//! say which sizing rule changed: a re-cut taken after a schedule
+//! change and the schedule change landing are one event. The dated
+//! record settles that — `docs/MODEL-AB-LOG.md`'s TESS-SPLIT row reads
+//! *"tour NURBS cells 163,182 -> 46,102"*, and 46,102 is what the
+//! committed file carried from that cut on.
+//!
+//! Everything the corpus has grown by since is analytic, so it adds
+//! rows and triangles and no cells. **Cells have moved anyway, once**:
+//! `grid_cells` read 46,102 from TESS-SPLIT's cut through six re-cuts
+//! until CERT-10's (`a4eb03ae`) moved four faces' certified bounds and
+//! 83 cells with them — `lily/lily_sepal_a` faces 3 and 7 and the two
+//! `twisted_duct_shadow_*` face 4s. Neither growth nor a schedule
+//! change; a certificate change, which is the third thing a re-cut
+//! can be.
+//!
+//! **The fourth thing moves the OPTIMA and nothing else, and it is not
+//! a reading about geometry at all**: the meter's own split scan. Its
+//! resolution sets how close `opt_cells` and `span_opt_cells` get to
+//! the cheapest grid the same certificates admit, so raising
+//! `tess_meter::SPLIT_SCAN_SAMPLES` lowers both columns over a corpus
+//! that did not move — 94,154 to 93,066 and 44,446 to 44,162 over the
+//! whole sweep, with `grid_cells`, `patch_cells` and every triangle
+//! count identical. A re-cut whose only movers are those two columns
+//! is that event and is never a schedule regression.
+//!
+//! **"Only movers" is a condition this census cannot check, and the
+//! re-cut that produced the figures above did not meet it.** Nine
+//! columns moved on it, not two: `muv`, `mvv`, `mu1`, `mv1`,
+//! `worst_cert`, `worst_dev` and `realized_aspect` moved on 8-16 rows
+//! each, four days of `crates/` drift folded in by the same cut. This
+//! census reads totals — triangles, the four cell columns and the two
+//! factors — so all seven are invisible to it, and so is any future
+//! set like them. `work/meter/tess-lint-ungated-columns-fold-silently`
+//! is the row for that, and until it lands the fourth category is a
+//! thing a reader has to verify by diffing the file, not a thing this
+//! census can certify.
+//!
+//! ## The retired vocabulary, which is what actually mis-reads
+//!
+//! The block predates the columns it is read against, and two of its
+//! phrases name something else now. **The decoder is one table, in
+//! `docs/TESS-BUDGET.md` under "The finding", beside the block it
+//! decodes; `tess_meter`'s field docs are the definitions of record
+//! for every column in it.** Neither is restated here.
+//!
+//! What is worth carrying at this site is the trap: **an unqualified
+//! "cheapest split" names `opt_cells` in one place and
+//! `span_opt_cells` in another**, and dropping the qualifier is the
+//! mis-read that put the block's `span_cells` line against
+//! `span_opt_cells`.
+//!
+//! # When these tests fail
+//!
+//! Neither census is a threshold and no baseline here is a target to
+//! preserve; the failure is the product. A re-cut that moves these
+//! numbers means the corpus, the schedule or a certified bound moved:
+//! read the new number, decide whether it is what you meant, and write
+//! it in. The failures exist so that no prose anywhere — `lib.rs`'s
+//! paragraph on what rule 4's precondition cannot see,
+//! `docs/TESS-BUDGET.md`'s account of the sweep — can go on describing
+//! a file it no longer describes.
 
 use std::collections::{BTreeSet, HashMap};
 
-use tess_lint::{IDENTITY_COLUMNS, Report, Row, compare, identity_readings, parse, totals};
+use tess_lint::{
+    IDENTITY_COLUMNS, Report, Row, SceneTotals, compare, identity_readings, parse, totals,
+};
 
 /// The committed baseline, by path relative to this crate's manifest.
 ///
@@ -450,6 +587,11 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
         .into_iter()
         .collect();
 
+    // 72 twice in this file, and NOT one figure asserted twice: this
+    // is every scene of the corpus, where the pair census's 72 is the
+    // scenes carrying an indistinguishable pair among ALL rows. They
+    // agree only because every scene currently carries one, and a
+    // re-cut can end that without either assertion being wrong.
     assert_eq!(scenes.len(), 72, "scenes in the committed baseline");
     assert_eq!(
         gating,
@@ -660,5 +802,74 @@ fn no_scene_carrying_a_sized_row_carries_a_name() {
         "these scenes now carry both a sized row and a name, so the coverage \
          D201 added has reached the rows C15 is about. Read whether the join can \
          now key on `name` for them and re-cut this census"
+    );
+}
+
+/// The whole sweep folded as the CLI folds it: one [`SceneTotals`]
+/// over every row.
+fn sweep(rows: &[Row]) -> SceneTotals {
+    let mut t = SceneTotals::default();
+    for r in rows {
+        t.add(r);
+    }
+    t
+}
+
+/// What the report header prints over the committed baseline, less
+/// the two face counts the face-identity census above already pins,
+/// plus `opt_cells`, which the header does not print.
+///
+/// **The two factors are undiscriminating against a change in the
+/// DATA, and it is said rather than hidden**: each is a quotient of
+/// sums asserted above it, so no perturbation of the baseline reaches
+/// a factor without moving a sum first, and the sum reds first. They
+/// are not inert — they are taken through [`SceneTotals`]'s own
+/// methods, so inverting either method reds its own assertion and no
+/// sum (executed, both directions). That is what they guard: the
+/// CLI's arithmetic for the two figures the report prints and prose
+/// would otherwise copy. They do not add coverage over the CSV.
+#[test]
+fn the_committed_baseline_sizes_this_much() {
+    let rows = parse(BASELINE).expect("the committed baseline parses");
+    let t = sweep(&rows);
+
+    // What the Hessian-sized lane carries. The corpus these are over —
+    // rows, sized rows, the scenes holding them — is pinned by
+    // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
+    // above and is deliberately not restated here; the report prints
+    // its two percentages from that pair against this one.
+    assert_eq!(t.triangles, 1_552_822, "triangles over the whole sweep");
+    assert_eq!(
+        t.nurbs_triangles, 164_710,
+        "triangles the Hessian-sized faces carry"
+    );
+
+    // The grid-cell totals, over the sized rows. `grid_cells` is what
+    // the lane built; `patch_cells` is the whole-patch bound as a
+    // counterfactual, at the SHIPPED point selection rather than the
+    // retired schedule's own (`NurbsColumns::nu` says so); the other
+    // two are the optima the same certificates still admit
+    // (whole-patch bound / per cell).
+    assert_eq!(t.grid_cells, 46_019.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 110_811.0, "the whole-patch counterfactual");
+    assert_eq!(
+        t.opt_cells, 93_066.0,
+        "cheapest split under the whole-patch bound"
+    );
+    assert_eq!(
+        t.span_opt_cells, 44_162.0,
+        "per-cell sizing at the cheapest split in each cell"
+    );
+
+    // The two factors the report header prints beside them.
+    let held = t.span_held().expect("the sweep has Hessian-sized faces");
+    let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
+    assert!(
+        (held - 2.408).abs() < 5e-4,
+        "the held span gain, patch_cells / grid_cells; got {held}"
+    );
+    assert!(
+        (recoverable - 1.0420).abs() < 5e-4,
+        "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }

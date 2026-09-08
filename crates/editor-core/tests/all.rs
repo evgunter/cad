@@ -352,6 +352,8 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "pinned_lift_validates_once.rs"]
+mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
