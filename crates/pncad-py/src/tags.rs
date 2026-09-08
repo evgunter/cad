@@ -260,6 +260,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // A mate's alignment is authored geometry, so the non-finite
         // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
+        EditError::MaintenanceRefused { .. } => "maintenance_refused",
+        EditError::MaintenanceUnrecorded { .. } => "maintenance_unrecorded",
     }
 }
 

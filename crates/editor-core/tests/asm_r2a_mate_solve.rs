@@ -244,8 +244,8 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, StubStore, RecipeNodeId)
 /// the shared axis. The maintenance rows want this shape because
 /// deleting the single mate is the split, and the document it splits
 /// FROM is one that solved.
-fn stacked_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
-    let (doc, ids, _) = assembly(label, 2);
+fn stacked_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, StubStore) {
+    let (doc, ids, store) = assembly(label, 2);
     let (doc, joint) = mint(
         doc,
         DocEdit::InsertNode {
@@ -260,7 +260,7 @@ fn stacked_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
             ),
         },
     );
-    (doc, ids, joint)
+    (doc, ids, joint, store)
 }
 
 #[test]
@@ -468,6 +468,7 @@ fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
             ),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the mate inserts");
     assert_eq!(clusters(&applied.doc).len(), 1, "one cluster now");
@@ -494,7 +495,12 @@ fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
 
 #[test]
 fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
-    let (doc, ids, joint) = stacked_pair("asm-r2a-row4b");
+    let (doc, ids, joint, store) = stacked_pair("asm-r2a-row4b");
+    // Deleting the mate SPLITS the cluster: the orphan's frame is
+    // minted from the solved pose, so the edit levers through the
+    // store's own reach.
+    let o = opts(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step(
         doc,
         DocEdit::SetPlacement {
@@ -503,8 +509,13 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
         },
     );
     let before = doc.clone();
-    let applied =
-        apply(&doc, &DocEdit::DeleteNode { id: joint }, Tol::witness()).expect("the mate deletes");
+    let applied = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: joint },
+        Tol::witness(),
+        &reach,
+    )
+    .expect("the mate deletes");
     assert_eq!(clusters(&applied.doc).len(), 2, "the cluster split");
     assert_eq!(
         applied.maintenance,
@@ -528,7 +539,9 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
 
 #[test]
 fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
-    let (doc, ids, _) = stacked_pair("asm-r2a-row4c");
+    let (doc, ids, _, store) = stacked_pair("asm-r2a-row4c");
+    let o = opts(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step(
         doc,
         DocEdit::SetPlacement {
@@ -537,8 +550,13 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
         },
     );
     let before = doc.clone();
-    let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }, Tol::witness())
-        .expect("the gauge deletes");
+    let applied = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: ids[0] },
+        Tol::witness(),
+        &reach,
+    )
+    .expect("the gauge deletes");
     assert_eq!(
         applied.maintenance,
         vec![ClusterMaintenance::GaugeRewrite {
@@ -597,8 +615,8 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
 
 /// Two clusters of two: `{i0,i1}` and `{i2,i3}`, each joined by one
 /// mate, each carrying a recorded frame on its gauge.
-fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>) {
-    let (doc, ids, _) = assembly("asm-r2a-clusters", 4);
+fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, StubStore) {
+    let (doc, ids, store) = assembly("asm-r2a-clusters", 4);
     let mut doc = doc;
     let mut mates = Vec::new();
     for (a, b) in [(0, 1), (2, 3)] {
@@ -633,7 +651,7 @@ fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>) {
             frame: Frame::translation([7.0, 0.0, 0.0]),
         },
     );
-    (doc, ids, mates)
+    (doc, ids, mates, store)
 }
 
 /// Row 4e — a cut of ONE WHOLE cluster hoists its frame onto the
@@ -643,13 +661,15 @@ fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>) {
 #[test]
 fn row4e_a_whole_cluster_cut_hoists_the_cluster_frame() {
     use std::collections::BTreeSet;
-    let (doc, ids, mates) = two_clusters();
+    let (doc, ids, mates, store) = two_clusters();
+    let o = opts(store);
     let cut = BTreeSet::from([ids[0], ids[1], mates[0]]);
     let out = editor_core::split(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4e"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect("a whole-cluster cut splits");
     assert!(
@@ -688,7 +708,8 @@ fn row4e_a_whole_cluster_cut_hoists_the_cluster_frame() {
 #[test]
 fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
     use std::collections::BTreeSet;
-    let (doc, ids, mates) = two_clusters();
+    let (doc, ids, mates, store) = two_clusters();
+    let o = opts(store);
     // One whole cluster PLUS one instance torn out of the other.
     let cut = BTreeSet::from([ids[0], ids[1], mates[0], ids[2]]);
     match editor_core::split(
@@ -696,6 +717,7 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4f"),
         Tol::witness(),
+        o.resolver.as_ref(),
     ) {
         Err(editor_core::SplitError::TornCluster {
             gauge,
@@ -714,6 +736,7 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4f2"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect_err("refuses")
     .to_string();
@@ -727,6 +750,7 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
         &other_way,
         editor_core::DocumentId::derive("asm-r2a-4f3"),
         Tol::witness(),
+        o.resolver.as_ref(),
     ) {
         Err(editor_core::SplitError::TornCluster {
             gauge,
@@ -1070,7 +1094,9 @@ fn row6a_mated_instances_share_an_a9_component() {
 
 #[test]
 fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
-    let (doc, ids, _) = assembly("asm-r2a-row6b", 2);
+    let (doc, ids, store) = assembly("asm-r2a-row6b", 2);
+    let o = opts(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     assert_eq!(doc.roots(), &ids[..], "both instances are roots");
     let (doc, mate_id) = mint(
         doc,
@@ -1091,7 +1117,24 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
         &[ids[0], ids[1], mate_id][..],
         "no tip transfer: the mate APPENDS as an ordinary non-body root"
     );
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate_id });
+    // A lone coaxial mate leaves the pair UNDER-determined, so the
+    // prior solve places the second instance nowhere — and deleting
+    // the mate is the recourse that refusal names, so the edit door
+    // takes it: the orphan keeps the cluster's frame (there is no
+    // solved pose to preserve) rather than the delete refusing.
+    let applied = doc
+        .apply(&DocEdit::DeleteNode { id: mate_id }, Tol::witness(), &reach)
+        .expect("deleting an under-determined mate is its recourse");
+    assert_eq!(
+        applied.maintenance,
+        vec![ClusterMaintenance::Split {
+            from: ids[0],
+            to: ids[1],
+            frame: None,
+        }],
+        "the orphan takes the cluster's (absent) frame"
+    );
+    let doc = applied.doc;
     assert_eq!(doc.roots(), &ids[..], "and leaves them as it found them");
 }
 
@@ -1258,6 +1301,7 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
                 to: in_part(ids[2], PART_BODY),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("a mate head is a rebind site");
     assert_eq!(
@@ -1319,6 +1363,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
                 to: in_part(ids[2], PART_BODY),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the declare pair alone makes this a rebind site");
     let Some(Node::Declare { pairs }) = applied.doc.node(declare_id) else {
@@ -1358,6 +1403,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
                 ),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("the head names no node");
     assert!(
@@ -1438,6 +1484,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
             },
             &ev,
             Tol::witness(),
+            &editor_core::RefusingReach
         )
         .is_ok(),
         "the instance-qualified heads resolve in the instance's own table"
@@ -1486,6 +1533,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         },
         &ev,
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap_err();
     assert_eq!(
@@ -1750,6 +1798,7 @@ fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
             ),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("a non-finite alignment never enters the document");
     assert!(

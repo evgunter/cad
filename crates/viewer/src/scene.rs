@@ -1011,7 +1011,16 @@ fn insert(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
-    let applied = apply(&doc, &DocEdit::InsertNode { node }, tol).map_err(SceneDocError::Edit)?;
+    // The scene's document has no instance and no mate, so no edit
+    // here can move a cluster's gauge: the refusing reach is never
+    // asked.
+    let applied = apply(
+        &doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .map_err(SceneDocError::Edit)?;
     let minted = applied.record.minted.ok_or(SceneDocError::NoNodeMinted)?;
     Ok((applied.doc, minted))
 }

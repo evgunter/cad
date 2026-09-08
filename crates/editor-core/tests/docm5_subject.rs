@@ -592,6 +592,7 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
             value: editor_core::DocParam::Count { value: 160 },
         },
         tol,
+        &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
     .doc;

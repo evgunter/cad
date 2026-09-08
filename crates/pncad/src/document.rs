@@ -27,7 +27,9 @@
 // The recipe and its edits. `Applied` is `apply`'s return (the new
 // document plus its `EditRecord`) — re-exported so a caller can STORE
 // one in a typed field rather than only destructure it.
-pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
+pub use editor_core::{
+    Applied, Doc, DocEdit, EditError, EditRecord, LoggedEdit, apply, apply_logged,
+};
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.
@@ -164,7 +166,7 @@ pub use editor_core::{
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    save,
+    load_with, save,
 };
 
 // Document identity and content pins.
@@ -222,9 +224,9 @@ pub use editor_core::{
 // solve places (`Member` is its answer).
 pub use editor_core::{
     Alignment, AxisSense, ClusterMaintenance, LeverRefusal, MateFault, MateFrame, MatePrimitive,
-    MateReach, MateRole, MateSide, Member, PartReach, SolvedPoses, Subgroup, UNDER_RECOURSE,
-    clusters, gauge_of, mate_reach, member_of, reading_edges, relative_freedom_components,
-    solve_document,
+    MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal, RefusingReach, SolvedPoses,
+    Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach, member_of, reading_edges,
+    relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through

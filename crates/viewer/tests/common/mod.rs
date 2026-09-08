@@ -38,7 +38,7 @@ use viewer::camera::Camera;
 /// it that resolves against the same directory.
 pub fn solve(session: &DocSession, doc: &Doc<ProfileProgram>, tol: Tol) -> SolvedPoses {
     let opts = session.eval_options();
-    let reach = mate_reach::<f64>(doc, &opts, tol);
+    let reach = mate_reach::<f64>(&opts, tol);
     solve_document(doc, &reach, tol)
 }
 use viewer::scene::{PLATE_EXTENT, PLATE_HOLE_RADIUS};
@@ -102,7 +102,8 @@ pub fn edited(
     edit: DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-    let applied = apply(doc, &edit, tol).expect("the fixture's edit applies");
+    let applied = apply(doc, &edit, tol, &pncad::document::RefusingReach)
+        .expect("the fixture's edit applies");
     (applied.doc, applied.record.minted)
 }
 

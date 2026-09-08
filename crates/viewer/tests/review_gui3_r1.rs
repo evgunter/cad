@@ -70,7 +70,7 @@ fn applied(
     edit: DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> Doc<ProfileProgram> {
-    apply(doc, &edit, tol)
+    apply(doc, &edit, tol, &pncad::document::RefusingReach)
         .expect("the fixture edit applies")
         .doc
 }
@@ -80,7 +80,13 @@ fn insert(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let out = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+    let out = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the insert applies");
     (out.doc, out.record.minted.expect("an insert mints an id"))
 }
 
@@ -547,7 +553,8 @@ fn r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable() {
             expr: len(0.013),
         },
     ];
-    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
+    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
+        .expect("the log replays");
     assert!(!history.can_redo(), "the cursor opens at the tip");
     assert!(history.can_undo());
     assert!(history.undo().is_some());

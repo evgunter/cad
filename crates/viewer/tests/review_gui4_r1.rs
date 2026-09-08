@@ -155,7 +155,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-rotated-bench"), tol);
     let insert = |doc: &mut ProfileDoc, node: Node<ProfileProgram>| {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the insert applies");
         *doc = applied.doc;
         applied.record.minted.expect("an insert mints an id")
     };
@@ -167,6 +173,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
             frame: rotated,
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the placement applies");
     doc = applied.doc;
@@ -178,6 +185,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
             frame: Frame::translation(asm::SHELF_AT),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the placement applies");
     doc = applied.doc;
@@ -932,6 +940,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
             node: Node::instantiate_part(bench.post),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the insert applies");
     doc = applied.doc;
@@ -953,6 +962,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
             },
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the pattern applies");
     doc = applied.doc;

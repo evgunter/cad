@@ -47,7 +47,9 @@ fn angle(v: f64) -> Expr {
     Expr::literal(v, Dimension::Angle).expect("finite")
 }
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness()).expect("edit applies").doc
+    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
+        .expect("edit applies")
+        .doc
 }
 fn stored_minor_bits(body: &Body<f64>) -> Vec<u64> {
     let mut bits: Vec<u64> = body

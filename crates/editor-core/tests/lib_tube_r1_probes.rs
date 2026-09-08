@@ -46,7 +46,9 @@ fn angle(v: f64) -> Expr {
 }
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness()).expect("edit applies").doc
+    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
+        .expect("edit applies")
+        .doc
 }
 
 fn axis_doc() -> (ProfileDoc, RecipeNodeId) {

@@ -368,7 +368,13 @@ fn resolution_status_tags_are_stable() {
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
 
     let insert = |doc: &ProfileDoc, node: Node<ProfileProgram>| {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the node inserts");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the node inserts");
         let id = applied.record.minted.expect("an inserted id");
         (applied.doc, id)
     };
@@ -422,9 +428,14 @@ fn resolution_status_tags_are_stable() {
 
     // FAILED: the minting node is gone from the document, so the name
     // is stranded and the repair is an explicit rebind.
-    let pruned = apply(&doc, &DocEdit::DeleteNode { id: extrude }, tol)
-        .expect("the leaf deletes")
-        .doc;
+    let pruned = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: extrude },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the leaf deletes")
+    .doc;
     let after = run(&pruned, &live);
     assert_eq!(
         resolution_status_tag(&resolve(
@@ -763,6 +774,7 @@ fn expression_evaluation_tags_are_stable() {
                 value: param,
             },
             tol,
+            &pncad::document::RefusingReach,
         )
         .expect("a parameter declaration applies")
         .doc
@@ -879,6 +891,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the frame inserts");
     let plane = framed.record.minted.expect("a frame id");
@@ -891,6 +904,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the profile inserts");
     let text = save(&applied.doc, &[], tol).expect("the document saves");
@@ -1532,6 +1546,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
+            "maintenance_refused",
+            "maintenance_unrecorded",
             "measure_malformed",
             "meta_non_finite",
             "meta_not_set",

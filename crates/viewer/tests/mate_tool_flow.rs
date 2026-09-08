@@ -742,7 +742,13 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     };
     let mut doc: Doc<ProfileProgram> = Doc::empty(DocumentId::derive(tag), tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>| {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the insert applies");
         *doc = applied.doc;
         applied.record.minted.expect("an insert mints an id")
     };
@@ -756,6 +762,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
                 frame: pncad::document::Frame::translation(at),
             },
             tol,
+            &pncad::document::RefusingReach,
         )
         .expect("the placement applies");
         doc = applied.doc;

@@ -31,7 +31,7 @@ use editor_core::{
     PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};
-use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
+use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -530,6 +530,7 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("a pattern spells its count once");
     assert!(
@@ -575,7 +576,10 @@ fn a_stranded_operand_is_still_a_dangling_head() {
         1,
     );
     let o = scene.opts();
-    let (doc, _) = step(scene.doc, DocEdit::DeleteNode { id: scene.placer });
+    // Deleting the placer strands the mate's operand and splits the
+    // cluster: the edit levers through the store's reach.
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = step_with(scene.doc, DocEdit::DeleteNode { id: scene.placer }, &reach);
     let f = solve(&doc, &o, Tol::witness())
         .fault(scene.mate)
         .cloned()
@@ -609,6 +613,7 @@ fn the_placement_axis_refuses_in_its_own_voice() {
                 frame,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )?
         .doc)
     };

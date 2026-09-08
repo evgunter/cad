@@ -76,7 +76,7 @@ pub mod solve;
 
 pub use coset::{Coset, Subgroup};
 pub use member::{Member, member_of};
-pub use reach::{MateReach, body_reach};
+pub use reach::{MateReach, ReachRefusal, RefusingReach, body_reach, part_reach};
 pub use solve::{
     ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
     relative_freedom_components, solve_document,
@@ -462,6 +462,23 @@ pub enum LeverRefusal {
         /// The node.
         node: RecipeNodeId,
     },
+}
+
+impl LeverRefusal {
+    /// A part's refusal ([`ReachRefusal`]), named against the instance
+    /// the solve was asking for and the part it stands on.
+    pub fn of(refusal: ReachRefusal, instance: RecipeNodeId, part: crate::ident::DocRef) -> Self {
+        match refusal {
+            ReachRefusal::PartUnresolved { fault } => Self::PartUnresolved { instance, fault },
+            ReachRefusal::FaceUnbounded { face, kind } => Self::FaceUnbounded {
+                instance,
+                part,
+                face,
+                kind,
+            },
+            ReachRefusal::NoExtent => Self::NoExtent { instance, part },
+        }
+    }
 }
 
 impl core::fmt::Display for LeverRefusal {

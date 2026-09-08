@@ -447,7 +447,7 @@ class TestBenchStand(BenchWorkspace):
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
         self.assertEqual(doc.last_maintenance, [])
         # `apply`: deleting a mate splits the cluster it coupled.
-        doc.apply(DocEdit.delete_node(mate_2))
+        doc.apply(DocEdit.delete_node(mate_2), resolver=self.ws)
         self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
         # `declare` and `declare_all`, each from that split: a declared
         # flush contact moves no mate graph, so each door's own reading
@@ -456,7 +456,7 @@ class TestBenchStand(BenchWorkspace):
         self.assertEqual(len(findings), 1)
         doc.declare(findings[0])
         self.assertEqual(doc.last_maintenance, [])
-        doc.apply(DocEdit.delete_node(mate_1))
+        doc.apply(DocEdit.delete_node(mate_1), resolver=self.ws)
         self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
         doc.declare_all(findings)
         self.assertEqual(doc.last_maintenance, [])

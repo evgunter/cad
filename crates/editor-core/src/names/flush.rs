@@ -428,7 +428,16 @@ pub fn declare_all<P: Clone + crate::ProfilePayload>(
     tol: Tol,
 ) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
     let node = declare_node(findings)?;
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).map_err(DeclareError::Edit)?;
+    // A `Declare` node is neither an instance nor a mate, so inserting
+    // one moves no cluster's gauge: the maintenance never asks the
+    // reach, and the refusing one is the honest value here.
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &crate::mate::RefusingReach,
+    )
+    .map_err(DeclareError::Edit)?;
     let id = applied.record.minted.ok_or(DeclareError::NoMintedId)?;
     Ok((applied.doc, id))
 }

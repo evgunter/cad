@@ -46,7 +46,7 @@
 
 use core::f64::consts::PI;
 
-use pncad::document::{BooleanOp, BooleanValue, save};
+use pncad::document::{LoggedEdit, RefusingReach, BooleanOp, BooleanValue, save};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
     EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
@@ -193,7 +193,7 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
 }
@@ -502,7 +502,7 @@ pub fn corpus_text(tol: Tol) -> String {
     edits.push(DocEdit::DeleteNode { id: die.blank });
     let mut replay = empty.clone();
     for edit in &edits {
-        replay = apply(&replay, edit, tol)
+        replay = apply(&replay, edit, tol, &RefusingReach)
             .expect("the derived log replays")
             .doc;
     }
@@ -511,7 +511,7 @@ pub fn corpus_text(tol: Tol) -> String {
         gallery_document(tol),
         "the derived log must reproduce the document this scene publishes"
     );
-    save(&empty, &edits, tol).expect("the die document saves")
+    save(&empty, &LoggedEdit::bare_all(&edits), tol).expect("the die document saves")
 }
 
 /// This scene's recipe, as a document the GUI can open — **the
@@ -557,7 +557,7 @@ pub fn corpus_text(tol: Tol) -> String {
 /// is the pips, the blank and the two blends — not a chain length.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
-    apply(&die.doc, &DocEdit::DeleteNode { id: die.blank }, tol)
+    apply(&die.doc, &DocEdit::DeleteNode { id: die.blank }, tol, &RefusingReach)
         .expect("the blank is a sink: deleting it drops a root and uncovers nothing")
         .doc
 }

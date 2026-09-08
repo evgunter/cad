@@ -47,7 +47,7 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
 };
 use fixture::digest::digest;
 use fixture::{len, prism_edges};
@@ -106,7 +106,7 @@ fn both_blends() -> BothBlends {
 struct BothBlends {
     snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<DocEdit<ProfileProgram>>,
+    edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
     blends: [RecipeNodeId; 2],
 }
 

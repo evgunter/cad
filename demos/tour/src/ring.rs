@@ -103,6 +103,7 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
+use pncad::document::RefusingReach;
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, MM, Node,
@@ -191,7 +192,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     };
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };

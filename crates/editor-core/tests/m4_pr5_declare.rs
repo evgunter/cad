@@ -612,7 +612,11 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
         },
     );
     let doc = doc
-        .apply(&DocEdit::DeleteNode { id: c }, Tol::witness())
+        .apply(
+            &DocEdit::DeleteNode { id: c },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .unwrap()
         .doc;
     let ev = run(&doc);

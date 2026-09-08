@@ -530,7 +530,7 @@ impl MateTool {
         // The shipped constructive solve answers each instance's
         // CURRENT placement; for a completely-unconstrained instance
         // that is its recorded (or identity) frame verbatim.
-        let reach = mate_reach::<f64>(doc, opts, tol);
+        let reach = mate_reach::<f64>(opts, tol);
         let poses = solve_document(doc, &reach, tol);
         let frame_of = |side: MateSide,
                         member: &Member,

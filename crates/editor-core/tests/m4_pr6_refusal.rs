@@ -44,6 +44,7 @@ fn small() -> (ProfileDoc, String) {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("witness")
     .doc;
@@ -166,7 +167,11 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
         name: ParamName::new("bad"),
         value: DocParam::continuous(Dimension::Length, f64::NAN),
     };
-    match save(&doc, &[nan_edit], Tol::witness()) {
+    match save(
+        &doc,
+        &[editor_core::LoggedEdit::bare(nan_edit)],
+        Tol::witness(),
+    ) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { index: 0, inner },
         }) => assert!(
@@ -199,7 +204,11 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
         key: "k".into(),
         value: MetaValue::Map(m),
     };
-    match save(&doc, &[meta_edit], Tol::witness()) {
+    match save(
+        &doc,
+        &[editor_core::LoggedEdit::bare(meta_edit)],
+        Tol::witness(),
+    ) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { inner, .. },
         }) => assert!(matches!(*inner, NonFiniteSite::Metadata { .. })),
@@ -216,7 +225,9 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     let other_eps = ambient * 2.0;
     let text = save(
         &doc,
-        &[DocEdit::SetTolerance { eps: other_eps }],
+        &[editor_core::LoggedEdit::bare(DocEdit::SetTolerance {
+            eps: other_eps,
+        })],
         Tol::witness(),
     )
     .expect("save");
@@ -232,6 +243,7 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         &doc,
         &DocEdit::SetTolerance { eps: other_eps },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("SetTolerance applies as a pure doc edit")
     .doc;
@@ -254,14 +266,21 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     }
     // And SetTolerance itself validates its value.
     assert!(
-        apply(&doc, &DocEdit::SetTolerance { eps: -1.0 }, Tol::witness()).is_err(),
+        apply(
+            &doc,
+            &DocEdit::SetTolerance { eps: -1.0 },
+            Tol::witness(),
+            &editor_core::RefusingReach
+        )
+        .is_err(),
         "non-positive ε must refuse"
     );
     assert!(
         apply(
             &doc,
             &DocEdit::SetTolerance { eps: f64::NAN },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .is_err(),
         "NaN ε must refuse"
@@ -287,6 +306,7 @@ fn metadata_convention_doors_refuse_typed() {
             value: MetaValue::Map(m),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(no_v, Err(editor_core::EditError::MetaUnversioned { .. })),
@@ -301,6 +321,7 @@ fn metadata_convention_doors_refuse_typed() {
             value: MetaValue::Int(1),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(scalar, Err(editor_core::EditError::MetaUnversioned { .. })),
@@ -427,6 +448,7 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
             node: Node::Profile(unclosed),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused {
             refusal:
@@ -456,7 +478,7 @@ fn unreplayable_edit_log_refuses_at_save() {
         key: "k".into(),
         value: MetaValue::Map(m),
     };
-    match save(&doc, &[bad], Tol::witness()) {
+    match save(&doc, &[editor_core::LoggedEdit::bare(bad)], Tol::witness()) {
         Err(PersistError::EditReplay { index: 0, error }) => assert!(
             matches!(error, editor_core::EditError::MetaUnversioned { .. }),
             "expected the apply door's refusal, got {error:?}"
@@ -470,7 +492,11 @@ fn unreplayable_edit_log_refuses_at_save() {
         expr: len(1.0),
     };
     assert!(matches!(
-        save(&doc, &[orphan], Tol::witness()),
+        save(
+            &doc,
+            &[editor_core::LoggedEdit::bare(orphan)],
+            Tol::witness()
+        ),
         Err(PersistError::EditReplay { index: 0, .. })
     ));
 }

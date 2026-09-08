@@ -230,7 +230,9 @@ fn set_tolerance_round_trips_and_gates_replay() {
     let doc = thin_profile_doc();
     let text = save(
         &doc,
-        &[editor_core::DocEdit::SetTolerance { eps: 1e-4 }],
+        &[editor_core::LoggedEdit::bare(
+            editor_core::DocEdit::SetTolerance { eps: 1e-4 },
+        )],
         Tol::witness(),
     )
     .expect("save");

@@ -706,6 +706,7 @@ fn r1_e2e_consumer_drive_at_dual64() {
             expr: len(0.6875),
         },
         tol,
+        &editor_core::RefusingReach,
     )
     .expect("bump applies")
     .doc;

@@ -4109,6 +4109,7 @@ mod route_tests {
                     node: Node::declare_rest(Vec::new()),
                 },
                 Tol::witness(),
+                &crate::mate::RefusingReach,
             )
             .expect("an empty Declare inserts");
         let id = applied.record.minted.expect("the insert minted an id");

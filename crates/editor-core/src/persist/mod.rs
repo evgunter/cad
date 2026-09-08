@@ -113,8 +113,9 @@ mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
-use crate::edit::{Applied, DocEdit, EditError, EditRecord, apply};
+use crate::edit::{Applied, EditError, EditRecord, LoggedEdit, apply_logged};
 use crate::ident::DocumentId;
+use crate::mate::MateReach;
 use crate::program::{ProfileDoc, ProfileProgram};
 use geom_core::Tol;
 
@@ -127,8 +128,9 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 struct FileBody {
     /// The full document snapshot.
     snapshot: ProfileDoc,
-    /// The recorded edits since the snapshot, replayed on load.
-    edits: Vec<DocEdit<ProfileProgram>>,
+    /// The recorded edits since the snapshot, each with the
+    /// maintenance rows it performed, replayed on load.
+    edits: Vec<LoggedEdit<ProfileProgram>>,
 }
 
 /// A loaded document: the parsed snapshot, the parsed edit log, and
@@ -138,8 +140,9 @@ struct FileBody {
 pub struct Loaded {
     /// The snapshot as saved.
     pub snapshot: ProfileDoc,
-    /// The edit log as saved.
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    /// The edit log as saved — or, through [`load_with`], as
+    /// migrated: every entry carrying the rows it performed.
+    pub edits: Vec<LoggedEdit<ProfileProgram>>,
     /// The current document: snapshot with every edit replayed.
     pub doc: ProfileDoc,
     /// The replay's edit records (minted ids etc.), one per edit.
@@ -390,17 +393,19 @@ impl core::error::Error for PersistError {}
 /// fails.
 pub fn save(
     snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileProgram>],
+    edits: &[LoggedEdit<ProfileProgram>],
     tol: Tol,
 ) -> Result<String, PersistError> {
     check::validate_document(snapshot, edits, tol)?;
     // Save/load symmetry for the LOG: load replays the edits through
     // apply's doors, so a log that refuses there must refuse HERE —
     // never a file that saves clean and cannot load. (Pure and
-    // document-scale cheap; the replayed value is discarded.)
+    // document-scale cheap; the replayed value is discarded.) The
+    // replay is the logged one — recorded rows, no solve — so a log
+    // that would need a store to load refuses at save too.
     let mut replay = snapshot.clone();
-    for (index, edit) in edits.iter().enumerate() {
-        replay = apply(&replay, edit, tol)
+    for (index, entry) in edits.iter().enumerate() {
+        replay = apply_logged(&replay, entry, tol)
             .map_err(|error| PersistError::EditReplay { index, error })?
             .doc;
     }
@@ -418,7 +423,7 @@ pub fn save(
 #[derive(serde::Serialize)]
 struct SerBody<'a> {
     snapshot: &'a ProfileDoc,
-    edits: &'a [DocEdit<ProfileProgram>],
+    edits: &'a [LoggedEdit<ProfileProgram>],
 }
 
 /// Parses, validates, replays, and ε-reconciles a saved document. See
@@ -431,6 +436,31 @@ struct SerBody<'a> {
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
 pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
+    load_replaying(text, tol, None)
+}
+
+/// **The migration door**: [`load`] for a file whose log may predate
+/// the maintenance rows (bare entries that moved a gauge, which
+/// [`load`] refuses `EditReplay` carrying
+/// [`EditError::MaintenanceUnrecorded`]). Entries with rows replay
+/// from them; entries with none are applied through `reach` and their
+/// rows derived, so the returned [`Loaded::edits`] is the migrated
+/// log — re-save it with [`save`], after which [`load`] reads it with
+/// no store in hand.
+///
+/// # Errors
+///
+/// [`load`]'s, with the live door's own refusals
+/// ([`EditError::MaintenanceRefused`]) in place of `Unrecorded`.
+pub fn load_with(text: &str, tol: Tol, reach: &dyn MateReach) -> Result<Loaded, PersistError> {
+    load_replaying(text, tol, Some(reach))
+}
+
+fn load_replaying(
+    text: &str,
+    tol: Tol,
+    migrate: Option<&dyn MateReach>,
+) -> Result<Loaded, PersistError> {
     // The header carries the document's id (ASM-1 D-6); it is parsed
     // before the body so a malformed header refuses in header terms,
     // then verified against the snapshot below.
@@ -452,17 +482,32 @@ pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
     // replayed state, never trusted bytes.
     let mut doc = body.snapshot.clone();
     let mut records = Vec::with_capacity(body.edits.len());
-    for (index, edit) in body.edits.iter().enumerate() {
+    let mut edits = Vec::with_capacity(body.edits.len());
+    for (index, entry) in body.edits.into_iter().enumerate() {
+        let replayed = match migrate {
+            // Migration: a bare entry goes through the live door and
+            // comes back with the rows it performed.
+            Some(reach) if entry.maintenance.is_empty() => {
+                crate::edit::apply(&doc, &entry.edit, tol, reach)
+            }
+            _ => apply_logged(&doc, &entry, tol),
+        };
         let Applied {
-            doc: next, record, ..
-        } = apply(&doc, edit, tol).map_err(|error| PersistError::EditReplay { index, error })?;
+            doc: next,
+            record,
+            maintenance,
+        } = replayed.map_err(|error| PersistError::EditReplay { index, error })?;
         doc = next;
         records.push(record);
+        edits.push(LoggedEdit {
+            edit: entry.edit,
+            maintenance,
+        });
     }
     reconcile_epsilon(doc.epsilon())?;
     Ok(Loaded {
         snapshot: body.snapshot,
-        edits: body.edits,
+        edits,
         doc,
         records,
     })

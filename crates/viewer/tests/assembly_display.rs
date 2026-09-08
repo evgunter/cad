@@ -260,9 +260,13 @@ fn fused_geometry_refuses_both_display_ops_typed() {
         pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive("gui4-fused"), tol);
     let insert = |doc: &mut pncad::document::ProfileDoc,
                   node: pncad::document::Node<pncad::document::ProfileProgram>| {
-        let applied =
-            pncad::document::apply(doc, &pncad::document::DocEdit::InsertNode { node }, tol)
-                .expect("the insert applies");
+        let applied = pncad::document::apply(
+            doc,
+            &pncad::document::DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the insert applies");
         *doc = applied.doc;
         applied.record.minted.expect("an id")
     };

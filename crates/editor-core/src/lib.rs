@@ -112,7 +112,9 @@ pub use drive::{
     FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
-pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
+pub use edit::{
+    Applied, DocEdit, EditError, EditRecord, LoggedEdit, apply, apply_logged, cascade_delete_order,
+};
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeRefusal,
@@ -126,9 +128,9 @@ pub use expr::{
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, ClusterMaintenance, Coset, LeverRefusal,
-    MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, SolvedPoses,
-    Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of, member_of, reading_edges,
-    relative_freedom_components, solve_document,
+    MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, ReachRefusal,
+    RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of,
+    member_of, reading_edges, relative_freedom_components, solve_document,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
@@ -160,7 +162,7 @@ pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
-    load, save,
+    load, load_with, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::{AxisRefusal, Frame};

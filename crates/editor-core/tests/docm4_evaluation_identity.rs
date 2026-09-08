@@ -170,6 +170,7 @@ fn an_all_nodes_refusal_carries_its_document_too() {
             eps: Tol::witness().eps() * 2.0,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("SetTolerance applies as a pure doc edit")
     .doc;

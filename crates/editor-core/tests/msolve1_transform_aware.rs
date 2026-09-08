@@ -27,7 +27,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, content_pin, load, product, save,
 };
 use fixture::seat::{assert_seated, map_gap, seat_map};
-use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
+use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
@@ -952,6 +952,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
                 ),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a never-existed operand is a typo");
     assert!(
@@ -966,7 +967,9 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
 #[test]
 fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     let s = scene("msolve1-a8b", &[], &[LIFT]);
-    let (doc, _) = step(s.doc, DocEdit::DeleteNode { id: s.b_at });
+    // Deleting the operand splits the cluster: the store's reach.
+    let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
+    let (doc, _) = step_with(s.doc, DocEdit::DeleteNode { id: s.b_at }, &reach);
     let poses = solve(&doc, &s.opts, Tol::witness());
     let fault = poses.fault(s.mate).expect("the stranded mate refuses");
     // The head the fault names is where the WALK STOPPED — the
@@ -1162,6 +1165,7 @@ fn a8e_a_cut_that_would_sever_the_operand_refuses_at_the_precondition() {
         &cut,
         DocumentId::derive("msolve1-a8e-part"),
         Tol::witness(),
+        None,
     )
     .expect_err("the cut severs the mate's operand");
     assert!(
@@ -1221,6 +1225,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         &cut,
         DocumentId::derive("msolve1-a8f-part"),
         Tol::witness(),
+        None,
     )
     .expect("a cut of untouched local geometry is accepted");
     // The mate moved in the remainder's numbering; its operand moved
@@ -1282,6 +1287,7 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
         &cut,
         DocumentId::derive("msolve1-a8g-part"),
         Tol::witness(),
+        None,
     )
     .expect_err("a kept mate cannot keep an operand the cut took");
     assert!(
@@ -1311,6 +1317,7 @@ fn a8h_a_cut_mate_whose_operand_is_kept_refuses_with_the_same_variant() {
         &cut,
         DocumentId::derive("msolve1-a8h-part"),
         Tol::witness(),
+        None,
     )
     .expect_err("a cut mate cannot carry an operand the part does not have");
     assert!(

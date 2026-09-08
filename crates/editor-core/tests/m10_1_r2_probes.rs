@@ -57,6 +57,7 @@ fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
                 value: value.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the fixture parameters are valid")
         .doc;
@@ -570,6 +571,7 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
             value: annotated(fixture::DEPTH, Distribution::Normal { sigma: 0.001 }),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("annotating an existing parameter is a legal edit")
     .doc;
@@ -620,6 +622,7 @@ fn a_distribution_changes_no_content_key_at_interval() {
             value: annotated(fixture::DEPTH, Distribution::Normal { sigma: 0.001 }),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("legal edit")
     .doc;
@@ -679,6 +682,7 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
             value: DocParam::continuous(existing.dim(), 0.004),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the edit door accepts it — there is nothing to refuse")
     .doc;
@@ -719,6 +723,7 @@ fn the_value_door_carries_the_declaration_forward() {
             value: DocParamValue::Continuous(0.004),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a value edit on a declared parameter applies")
     .doc;
@@ -752,6 +757,7 @@ fn the_value_door_carries_the_declaration_forward() {
             value: DocParamValue::Count(7),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a count value edit applies")
     .doc;
@@ -765,6 +771,7 @@ fn the_value_door_carries_the_declaration_forward() {
                 value: DocParamValue::Continuous(1.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach
         ),
         Err(EditError::DocParamNotDeclared {
             name: p("never_declared")
@@ -779,6 +786,7 @@ fn the_value_door_carries_the_declaration_forward() {
                 value: DocParamValue::Count(2),
             },
             Tol::witness(),
+            &editor_core::RefusingReach
         ),
         Err(EditError::DocParamValueKindMismatch {
             name: p("hole_r"),
@@ -794,6 +802,7 @@ fn the_value_door_carries_the_declaration_forward() {
                 value: DocParamValue::Continuous(2.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach
         ),
         Err(EditError::DocParamValueKindMismatch { .. })
     ));
@@ -815,7 +824,12 @@ fn a_value_edit_round_trips_through_the_file() {
         name: p("bore"),
         value: DocParamValue::Continuous(0.011),
     }];
-    let text = save(&doc, &edits, Tol::witness()).expect("saves");
+    let text = save(
+        &doc,
+        &editor_core::LoggedEdit::bare_all(&edits),
+        Tol::witness(),
+    )
+    .expect("saves");
     let back = load(&text, Tol::witness()).expect("loads");
     match back.doc.params()[&p("bore")] {
         DocParam::Continuous {

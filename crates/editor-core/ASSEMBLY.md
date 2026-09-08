@@ -271,7 +271,13 @@ keyed by its gauge, a missing entry being the identity, so zero- and
 multi-anchor states are unrepresentable; `reconcile` re-keys records
 when an edit joins or splits clusters
 (`ClusterMaintenance::{Join, Split, GaugeRewrite}`, gauge-exact in
-bits). (3) The gauge is the cluster's earliest instance in document
+bits). When a gauge moves the maintenance solves the prior document
+with the mated parts' reach (`apply` takes it) to mint the new gauge's
+frame from its solved pose, and asks nothing otherwise; a solve that
+reaches no verdict refuses the edit typed
+(`EditError::MaintenanceRefused`). The rows ride the logged edit
+(`LoggedEdit`), and replay re-applies them without solving. (3) The
+gauge is the cluster's earliest instance in document
 order, a convention, not data; pattern-placed instances are
 gauge-ineligible. (4) `solve_document` takes the deterministic spanning
 tree rooted at the gauge: tree mates DETERMINE and must fold to

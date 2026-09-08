@@ -147,7 +147,7 @@ use pncad::analysis::{
     StackupRefusal, analyzed_box, assertion_at, drive, leaf_histogram, monte_carlo,
     render_sensitivity, stackup,
 };
-use pncad::document::{
+use pncad::document::{RefusingReach, 
     AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId, EvalOptions,
     Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc,
     ProfileProgram, RecipeNodeId, SitedRef, UnitSym, apply, evaluate,
@@ -175,7 +175,7 @@ fn param(n: &str) -> Expr {
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }

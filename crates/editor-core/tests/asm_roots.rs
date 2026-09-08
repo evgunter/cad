@@ -193,7 +193,7 @@ fn row1e_undo_restores_the_prior_root_list() {
         DocEdit::DeleteNode { id: b },
     ] {
         let after = before
-            .apply(&edit, Tol::witness())
+            .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
             .expect("the edit applies")
             .doc;
         assert_ne!(after.roots(), &prior_roots[..], "the edit moved the list");
@@ -221,6 +221,7 @@ fn row2a_ancestor_freedom_names_both() {
                 roots: vec![profile, extrude],
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("an ancestor pair must refuse");
     assert_eq!(
@@ -277,7 +278,11 @@ fn row2c_duplicate_entry_refuses() {
         0.0,
     );
     let err = doc
-        .apply(&DocEdit::SetRoots { roots: vec![a, a] }, Tol::witness())
+        .apply(
+            &DocEdit::SetRoots { roots: vec![a, a] },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .expect_err("a duplicate must refuse");
     assert_eq!(
         err,
@@ -286,8 +291,12 @@ fn row2c_duplicate_entry_refuses() {
     // And a dead entry refuses too.
     let ghost = RecipeNodeId(9_999);
     assert_eq!(
-        doc.apply(&DocEdit::SetRoots { roots: vec![ghost] }, Tol::witness())
-            .expect_err("a dead entry must refuse"),
+        doc.apply(
+            &DocEdit::SetRoots { roots: vec![ghost] },
+            Tol::witness(),
+            &editor_core::RefusingReach
+        )
+        .expect_err("a dead entry must refuse"),
         editor_core::EditError::Roots(RootFault::NotLive { root: ghost })
     );
 }
@@ -571,15 +580,22 @@ fn row6c_replay_rebuilds_the_root_list() {
     }
     for node in nodes {
         let edit = DocEdit::InsertNode { node };
-        doc = doc.apply(&edit, Tol::witness()).expect("insert").doc;
+        doc = doc
+            .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
+            .expect("insert")
+            .doc;
         log.push(edit);
     }
     let swap = DocEdit::SetRoots {
         roots: doc.roots().iter().rev().copied().collect(),
     };
-    doc = doc.apply(&swap, Tol::witness()).expect("set roots").doc;
+    doc = doc
+        .apply(&swap, Tol::witness(), &editor_core::RefusingReach)
+        .expect("set roots")
+        .doc;
     log.push(swap);
-    let replayed = Doc::replay(id, &log, Tol::witness()).expect("the log replays");
+    let replayed = Doc::replay(id, &editor_core::LoggedEdit::bare_all(&log), Tol::witness())
+        .expect("the log replays");
     assert_eq!(replayed.roots(), doc.roots());
     assert!(replayed.bit_eq(&doc));
 }

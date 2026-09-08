@@ -50,58 +50,87 @@ use geom_core::{Bounds, Decide, Point3};
 use topo::Body;
 use topo::entity::FaceKey;
 
-use super::LeverRefusal;
 use crate::eval::measure::reach_of;
 use crate::ident::DocRef;
-use crate::node::RecipeNodeId;
 
-/// **The reach of a mated instance's part**, asked by the solve at the
-/// site it forms a lever (`mate/solve.rs`'s per-pair fold).
+/// **The reach of a mated part**, asked by the solve at the site it
+/// forms a lever (`mate/solve.rs`'s per-pair fold).
 ///
 /// One method, one number: an upper bound on the distance from the
-/// instance's part-local origin to any point of its part's body, the
-/// `R` in the lever `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored
-/// lengths|`. The frames a mate authors are in the part's own
-/// coordinates, so `R + ‖origin‖` bounds the part's reach from the
-/// mate frame by the triangle inequality, and a pattern copy or a
-/// transform on the member's chain moves the part rigidly and changes
-/// no reach.
+/// part's own origin to any point of its body, the `R` in the lever
+/// `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored lengths|`.
+/// The frames a mate authors are in the part's own coordinates, so
+/// `R + ‖origin‖` bounds the part's reach from the mate frame by the
+/// triangle inequality, and a pattern copy or a transform on the
+/// member's chain moves the part rigidly and changes no reach.
+///
+/// Keyed by the PART (its reference), not by the instance: a reach is
+/// a fact about a document's body, so one value serves every instance
+/// of that part and every document the caller threads through it (the
+/// edit door applies a group of edits to a succession of documents
+/// against one reach). The solve reads the instance's reference off
+/// its own document and names the instance when it wraps a refusal
+/// ([`LeverRefusal`]).
 ///
 /// Answered lazily: a part no mate names is never asked for, and a
 /// part that is asked for is evaluated exactly once per evaluation
 /// (the evaluation's implementation reads its own part cache, which
 /// the instantiate node then hits).
 pub trait MateReach {
-    /// The reach `R` of `instance`'s part from its own origin.
+    /// The reach `R` of the part `part` names, from its own origin.
     ///
     /// # Errors
     ///
-    /// [`LeverRefusal`]: the node is not a live instantiate node, its
-    /// part does not resolve (carrying the resolver's own fault), or
-    /// its body has a face whose reach cannot be bounded.
-    fn reach(&self, instance: RecipeNodeId) -> Result<f64, LeverRefusal>;
+    /// [`ReachRefusal`]: the part does not resolve (carrying the
+    /// resolver's own fault), its body has a face whose reach cannot
+    /// be bounded, or its body has no faces.
+    fn reach(&self, part: &DocRef) -> Result<f64, ReachRefusal>;
 }
 
-/// **The reach of a door with no resolver in hand**: every part is
-/// [`crate::eval::PartFault::NoResolver`], typed, so a solve through
-/// it levers no mate and refuses each one in the resolver's own
-/// voice. What `eval::mate_reach` answers over options carrying no
-/// resolver, as a value for a door that has no options at all.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct NoResolver;
+/// Why a part's reach is not in hand ([`MateReach::reach`]). Named
+/// against the part alone; the solve adds the instance it was asking
+/// for ([`LeverRefusal::of`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReachRefusal {
+    /// The part does not resolve: the evaluation layer's own typed
+    /// cause, unaltered.
+    PartUnresolved {
+        /// The resolver's fault.
+        fault: crate::eval::PartFault,
+    },
+    /// The body has a face whose reach this module cannot bound
+    /// ([`body_reach`]'s per-kind table).
+    FaceUnbounded {
+        /// The face, in the part body's own arena.
+        face: FaceKey,
+        /// Its surface kind, by name.
+        kind: &'static str,
+    },
+    /// The body has no faces, so it has no extent to lever over.
+    NoExtent,
+}
 
-impl MateReach for NoResolver {
-    fn reach(&self, instance: RecipeNodeId) -> Result<f64, LeverRefusal> {
-        Err(LeverRefusal::PartUnresolved {
-            instance,
+/// **The refusing reach** — the reach of a door with no resolver in
+/// hand: every part is [`crate::eval::PartFault::NoResolver`], typed,
+/// so a solve through it levers no mate and refuses each one in the
+/// resolver's own voice, and an edit whose maintenance needs a solved
+/// frame refuses at the door. What `eval::mate_reach` answers over
+/// options carrying no resolver, as a value for a door that has no
+/// options at all — and the honest reach for an edit that cannot
+/// move a cluster's gauge, which never asks it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RefusingReach;
+
+impl MateReach for RefusingReach {
+    fn reach(&self, _part: &DocRef) -> Result<f64, ReachRefusal> {
+        Err(ReachRefusal::PartUnresolved {
             fault: crate::eval::PartFault::NoResolver,
         })
     }
 }
 
 /// Why a body's reach could not be bounded: the face and its surface
-/// kind. [`Unbounded::into_lever`] names the instance and the part
-/// once the caller knows them.
+/// kind. [`ReachRefusal::FaceUnbounded`] is this, on a part.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Unbounded {
     /// The face whose reach has no bound this module can state.
@@ -110,16 +139,24 @@ pub struct Unbounded {
     pub kind: &'static str,
 }
 
-impl Unbounded {
-    /// The lever refusal this is, on `instance`'s part `part`.
-    pub fn into_lever(self, instance: RecipeNodeId, part: DocRef) -> LeverRefusal {
-        LeverRefusal::FaceUnbounded {
-            instance,
-            part,
-            face: self.face,
-            kind: self.kind,
+impl From<Unbounded> for ReachRefusal {
+    fn from(u: Unbounded) -> Self {
+        ReachRefusal::FaceUnbounded {
+            face: u.face,
+            kind: u.kind,
         }
     }
+}
+
+/// **A part's reach as the solve reads it**: [`body_reach`] with a
+/// faceless body refused ([`ReachRefusal::NoExtent`]) — the one
+/// answer every [`MateReach`] over an evaluated body gives.
+///
+/// # Errors
+///
+/// [`ReachRefusal::FaceUnbounded`], [`ReachRefusal::NoExtent`].
+pub fn part_reach<T: Decide + Bounds>(body: &Body<T>) -> Result<f64, ReachRefusal> {
+    body_reach(body)?.ok_or(ReachRefusal::NoExtent)
 }
 
 /// **An upper bound on the distance from the body's own origin to any

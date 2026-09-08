@@ -566,6 +566,7 @@ fn row4_set_placement_moves_undoes_and_refuses() {
             frame: mirror,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(e @ EditError::ImproperPlacement { node, determinant }) => {
             assert_eq!(node, ids[0]);
@@ -589,6 +590,7 @@ fn row4_set_placement_moves_undoes_and_refuses() {
             frame: Frame::translation([1.0, 0.0, 0.0]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node, target),
         other => panic!("a non-instance target must refuse, got {other:?}"),

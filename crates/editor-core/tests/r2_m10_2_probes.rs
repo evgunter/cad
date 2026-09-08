@@ -40,7 +40,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness())
+    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -49,7 +49,7 @@ fn try_push(
     doc: &ProfileDoc,
     edit: &DocEdit<ProfileProgram>,
 ) -> Result<ProfileDoc, editor_core::EditError> {
-    apply(doc, edit, Tol::witness()).map(|a| a.doc)
+    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
 }
 
 fn no_params() -> editor_core::ParamEnv<f64> {

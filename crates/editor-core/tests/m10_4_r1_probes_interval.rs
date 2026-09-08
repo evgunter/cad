@@ -458,6 +458,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
             expr: len(0.75),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the edit applies: {e}"))
     .doc;

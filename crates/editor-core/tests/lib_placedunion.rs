@@ -124,6 +124,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("insert transform");
         let placed = tr.record.minted.expect("minted");
@@ -142,6 +143,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                         },
                     },
                     Tol::witness(),
+                    &editor_core::RefusingReach,
                 )
                 .expect("insert union");
                 let id = u.record.minted.expect("minted");
@@ -166,6 +168,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
             .expect("a stepped rule takes a count"),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("insert group");
     let group = grouped.record.minted.expect("minted");
@@ -437,7 +440,8 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         apply(
             &doc,
             &DocEdit::InsertNode { node: with_count },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         ),
         Err(EditError::PlacementRuleMismatch { .. })
     ));
@@ -453,6 +457,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
                 node: pattern_explicit
             },
             Tol::witness(),
+            &editor_core::RefusingReach
         ),
         Err(EditError::PlacementRuleMismatch { .. })
     ));
@@ -516,7 +521,12 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
         "the shared door names it — this is what eval backstops on"
     );
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: empty }, Tol::witness()),
+        apply(
+            &doc,
+            &DocEdit::InsertNode { node: empty },
+            Tol::witness(),
+            &editor_core::RefusingReach
+        ),
         Err(EditError::EmptyPlacementList { .. })
     ));
     // The stepped rule it mirrors refuses at eval the same way: an
@@ -535,6 +545,7 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
             .expect("a stepped rule takes a count"),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a zero count is legal to WRITE; it refuses at evaluation");
     let id = zero.record.minted.expect("minted");
@@ -559,6 +570,7 @@ fn the_wire_refuses_an_emptied_placement_list() {
             node: Node::placed_union_at(fin, vec![Frame::IDENTITY]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("one placement is legal");
     let text = editor_core::save(&one.doc, &[], Tol::witness()).expect("saves");
@@ -612,7 +624,8 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
         apply(
             &doc,
             &DocEdit::InsertNode { node: with(nan) },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         ),
         Err(EditError::NonFinitePlacement { .. })
     ));
@@ -625,7 +638,7 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
         Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: with(mirror) }, Tol::witness()),
+        apply(&doc, &DocEdit::InsertNode { node: with(mirror) }, Tol::witness(), &editor_core::RefusingReach),
         Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
     ));
 
@@ -643,7 +656,8 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
         apply(
             &doc,
             &DocEdit::InsertNode { node: with(turned) },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .is_ok()
     );
@@ -701,6 +715,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
             ),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("insert the group");
     let group = grouped.record.minted.expect("minted");
@@ -719,6 +734,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("insert transform");
         let placed = tr.record.minted.expect("minted");
@@ -737,6 +753,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                         },
                     },
                     Tol::witness(),
+                    &editor_core::RefusingReach,
                 )
                 .expect("insert union");
                 let id = u.record.minted.expect("minted");

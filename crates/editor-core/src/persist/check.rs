@@ -57,7 +57,7 @@
 use crate::appearance::AppearanceRecord;
 use crate::distribution::{DistributionFault, DistributionField};
 use crate::doc::{DocParam, ParamName};
-use crate::edit::DocEdit;
+use crate::edit::{DocEdit, LoggedEdit};
 use crate::expr::Dimension;
 use crate::meta::MetaVersionError;
 use crate::names::StableName;
@@ -135,7 +135,7 @@ impl core::fmt::Display for NonFiniteSite {
 /// refusal suite).
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileProgram>],
+    edits: &[LoggedEdit<ProfileProgram>],
     tol: Tol,
 ) -> Result<(), super::PersistError> {
     if let Some(site) = first_non_finite(snapshot, edits) {
@@ -201,7 +201,7 @@ fn first_display_unit_fault(
 /// value the writer is asked to round-trip.
 fn first_non_finite(
     snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileProgram>],
+    edits: &[LoggedEdit<ProfileProgram>],
 ) -> Option<NonFiniteSite> {
     if !snapshot.epsilon.is_finite() {
         return Some(NonFiniteSite::Epsilon);
@@ -227,8 +227,8 @@ fn first_non_finite(
             });
         }
     }
-    for (index, edit) in edits.iter().enumerate() {
-        if let Some(inner) = edit_non_finite(edit) {
+    for (index, entry) in edits.iter().enumerate() {
+        if let Some(inner) = edit_non_finite(&entry.edit) {
             return Some(NonFiniteSite::Edit {
                 index,
                 inner: Box::new(inner),

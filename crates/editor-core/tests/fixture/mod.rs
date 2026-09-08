@@ -38,9 +38,9 @@ pub mod seat;
 
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind,
-    EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileEdgeRef,
-    ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, SolvedPoses, StableName, assemble,
-    evaluate, mate_reach, solve_document,
+    EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MateReach, Node, ParamName, ProfileDoc,
+    ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach, RoleSeg,
+    SolvedPoses, StableName, assemble, evaluate, mate_reach, solve_document,
 };
 use geom_core::Tol;
 
@@ -59,7 +59,7 @@ pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 /// every mate on a part faults in the resolver's voice, which is the
 /// kernel's answer and not a fixture default.
 pub fn solve(doc: &ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
-    let reach = mate_reach::<f64>(doc, o, tol);
+    let reach = mate_reach::<f64>(o, tol);
     solve_document(doc, &reach, tol)
 }
 
@@ -131,8 +131,23 @@ pub fn scl(v: f64) -> Expr {
 }
 
 /// Applies an edit, returning the new doc and any minted id.
+///
+/// Through the REFUSING reach: an edit that moves a cluster's gauge
+/// on a mated document mints a frame from the parts' extent and
+/// refuses here — a row that deletes a mate or an instance of a mated
+/// document steps through [`step_with`] and the store's own reach.
 pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
-    let applied = doc.apply(&edit, Tol::witness()).unwrap();
+    step_with(doc, edit, &RefusingReach)
+}
+
+/// [`step`] through `reach` — the store's, for an edit whose
+/// maintenance mints a frame from a solve.
+pub fn step_with(
+    doc: ProfileDoc,
+    edit: DocEdit<ProfileProgram>,
+    reach: &dyn MateReach,
+) -> (ProfileDoc, Option<RecipeNodeId>) {
+    let applied = doc.apply(&edit, Tol::witness(), reach).unwrap();
     (applied.doc, applied.record.minted)
 }
 
@@ -293,7 +308,7 @@ pub struct Recorder {
     /// The document as edited so far.
     pub doc: ProfileDoc,
     /// The recorded log.
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
 }
 
 impl Default for Recorder {
@@ -314,10 +329,13 @@ impl Recorder {
     /// Applies an edit (the doors refusing is a loud test failure)
     /// and records it; returns any minted id.
     pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
-        let applied =
-            editor_core::apply(&self.doc, &edit, Tol::witness()).expect("recorded edit must apply");
+        let applied = editor_core::apply(&self.doc, &edit, Tol::witness(), &RefusingReach)
+            .expect("recorded edit must apply");
         self.doc = applied.doc;
-        self.edits.push(edit);
+        self.edits.push(LoggedEdit {
+            edit,
+            maintenance: applied.maintenance,
+        });
         applied.record.minted
     }
 
@@ -360,7 +378,7 @@ impl Recorder {
 pub struct Die {
     pub doc: ProfileDoc,
     /// The document's full edit log (snapshot = the empty document).
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
     /// The final Subtract (the die body).
     pub final_node: RecipeNodeId,
     /// The +z face's pip-master Extrude (the poisoning target: its

@@ -104,7 +104,7 @@ fn two_param_web() -> ProfileDoc {
     let base = corpus::measured_web::document();
     let mut doc = base.doc;
     let push = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| -> ProfileDoc {
-        editor_core::apply(doc, &edit, Tol::witness())
+        editor_core::apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
             .unwrap_or_else(|e| panic!("edit refused: {e}"))
             .doc
     };
@@ -206,6 +206,7 @@ fn with_count() -> ProfileDoc {
             value: DocParam::Count { value: 3 },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a count parameter")
     .doc;

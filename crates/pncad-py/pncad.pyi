@@ -1599,7 +1599,18 @@ class Doc:
         """This document's identity as 32 lowercase hex digits — the
         save file's `id:` header, and the workspace store's key.
         Identity survives every edit; it is not a content hash."""
-    def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
+    def apply(self, edit: DocEdit, *, resolver: Optional[Workspace] = None) -> Optional[NodeId]:
+        """Apply one edit, answering the minted node id if the edit
+        minted one.
+
+        `resolver` is the document seam an edit that moves a cluster's
+        gauge levers through: its cluster-record maintenance mints the
+        cluster's frame from a solve of the prior document, whose lever
+        is the mated parts' own extent. Every other edit never consults
+        it. Absent, such an edit raises `EditError` with variant
+        `maintenance_refused` rather than recording a frame nothing
+        decided; everything else is unaffected."""
+
     @property
     def last_maintenance(self) -> list[ClusterMaintenance]:
         """The cluster-record maintenance the LAST accepted edit
@@ -1642,7 +1653,7 @@ class Doc:
         for any other node. Empty for a directly-authored instance;
         non-empty only on one a `split` minted."""
 
-    def insert(self, node: Node) -> NodeId: ...
+    def insert(self, node: Node, *, resolver: Optional[Workspace] = None) -> NodeId: ...
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -3472,7 +3483,9 @@ class SplitOutcome:
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Cut node -> its id in the part document."""
 
-def split(doc: Doc, cut: list[NodeId], part_id: str) -> SplitOutcome:
+def split(
+    doc: Doc, cut: list[NodeId], part_id: str, *, resolver: Optional[Workspace] = None
+) -> SplitOutcome:
     """Cut a closed node set out into a NEW document, leaving one
     instance of it behind.
 

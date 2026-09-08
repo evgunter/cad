@@ -87,7 +87,11 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
         ],
     };
     let applied = doc
-        .apply(&DocEdit::InsertNode { node }, Tol::witness())
+        .apply(
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .expect("the Declare inserts");
     let id = applied.record.minted.expect("an id is minted");
     (applied.doc, id)

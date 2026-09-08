@@ -489,6 +489,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
                 expr,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
     };
     let turned = set(ang(-theta)).expect("an angle goes in").doc;
@@ -569,9 +570,14 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     // its node is live, and the table lacks it — N5's `Vanished`.
     let gone = fixture::fname(cube, fixture::wall(7));
     let rebind = |doc: &ProfileDoc, from: StableName, to: StableName| {
-        apply(doc, &DocEdit::Rebind { from, to }, Tol::witness())
-            .expect("a rebind between face names applies")
-            .doc
+        apply(
+            doc,
+            &DocEdit::Rebind { from, to },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("a rebind between face names applies")
+        .doc
     };
     let broken = rebind(&doc, top_cap(cube), gone.clone());
     let ev = eval(&broken);

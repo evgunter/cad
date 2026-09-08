@@ -20,7 +20,8 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, LeverRefusal,
     MateFault, MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult,
-    PartFault, ProfileDoc, RecipeNodeId, ResolveFault, SitedRef, content_pin, mate_reach,
+    PartFault, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SitedRef, content_pin,
+    mate_reach,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step};
@@ -138,13 +139,18 @@ fn coincidence(fa: MateFrame, fb: MateFrame, clocking: f64) -> Alignment {
     }
 }
 
-/// The reach of every instance in `ids`, through the public door.
+/// The reach of every instance in `ids`, through the public door:
+/// each instance's part, read off the document the way the solve
+/// reads it.
 fn reaches(doc: &ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
-    let reach = mate_reach::<f64>(doc, opts, Tol::witness());
+    let reach = mate_reach::<f64>(opts, Tol::witness());
     ids.iter()
         .map(|&id| {
+            let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(id) else {
+                panic!("node {} is not an instance", id.0);
+            };
             reach
-                .reach(id)
+                .reach(doc_ref)
                 .expect("the part resolves and its body is bounded")
         })
         .collect()
@@ -438,12 +444,20 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
     let refusal = editor_core::mate::body_reach(&body).expect_err("the placeholder has no bound");
     assert_eq!(refusal.face, made.face);
     assert_eq!(refusal.kind, "nurbs");
+    // The same answer through the door the solve reads.
+    assert_eq!(
+        editor_core::mate::part_reach(&body),
+        Err(ReachRefusal::FaceUnbounded {
+            face: made.face,
+            kind: "nurbs"
+        })
+    );
     let instance = RecipeNodeId(7);
     let part = editor_core::DocRef {
         id: DocumentId::derive("msolve6-a4-unbounded"),
         pin: content_pin(&box_part("msolve6-a4-unbounded", 0.5, 1.0), Tol::witness()).unwrap(),
     };
-    let lever = refusal.into_lever(instance, part);
+    let lever = LeverRefusal::of(ReachRefusal::from(refusal), instance, part);
     assert_eq!(
         lever,
         LeverRefusal::FaceUnbounded {
@@ -602,5 +616,376 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
             let key_large = second.value(mate).map(|v| v.content_key);
             assert_eq!(key_small, key_large, "no flip, no key move");
         }
+    }
+}
+
+// ---- The edit door (the spec's amendment): the reach, the log, replay ----
+
+/// A reach that counts its asks and answers the refusing reach's
+/// answer — the witness that an edit which moves no gauge never
+/// consults the store.
+struct Counting(core::cell::Cell<usize>);
+
+impl MateReach for Counting {
+    fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
+        self.0.set(self.0.get() + 1);
+        editor_core::RefusingReach.reach(part)
+    }
+}
+
+/// Two instances of a box seated by a frame coincidence (a clocked,
+/// determined pair), through the store: the mated document the edit
+/// rows work on, with its log as the file carries it.
+fn seated(
+    label: &str,
+) -> (
+    ProfileDoc,
+    [RecipeNodeId; 2],
+    RecipeNodeId,
+    EvalOptions,
+    Vec<editor_core::LoggedEdit<editor_core::ProfileProgram>>,
+) {
+    let (doc, ids, opts) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 0);
+    debug_assert!(ids.is_empty());
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let mut log = Vec::new();
+    let mut doc = doc;
+    let mut push = |doc: &mut ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>| {
+        let applied = doc
+            .apply(&edit, Tol::witness(), &reach)
+            .expect("the edit applies");
+        log.push(editor_core::LoggedEdit {
+            edit,
+            maintenance: applied.maintenance,
+        });
+        *doc = applied.doc;
+        applied.record.minted
+    };
+    let part_ref = {
+        // The store inside `opts` already holds the part; its reference
+        // is the pin of the same document.
+        let part = box_part(&format!("{label}-part"), 0.5, 1.0);
+        editor_core::DocRef {
+            id: part.id(),
+            pin: content_pin(&part, Tol::witness()).unwrap(),
+        }
+    };
+    let a = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: Node::instantiate_part(part_ref),
+        },
+    )
+    .unwrap();
+    let b = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: Node::instantiate_part(part_ref),
+        },
+    )
+    .unwrap();
+    let mate = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: clocked(
+                a,
+                b,
+                coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
+            ),
+        },
+    )
+    .unwrap();
+    (doc, [a, b], mate, opts, log)
+}
+
+/// **A mate-graph edit on a document whose part does not resolve
+/// refuses at the door**, carrying the solve's fault: deleting the
+/// mate moves the orphan's gauge, the maintenance solves the prior
+/// document for its pose, and the solve cannot lever a part it cannot
+/// reach — no verdict, so no frame is recorded.
+#[test]
+fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
+    let mut elsewhere = PartStore::new();
+    let lost_ref = elsewhere.insert(box_part("msolve6-a6-elsewhere", 0.5, 1.0), Tol::witness());
+    let (doc, ids, opts) = instances(
+        "msolve6-a6-unresolved",
+        box_part("msolve6-a6-part", 0.5, 1.0),
+        1,
+    );
+    let (doc, lost) = insert(doc, Node::instantiate_part(lost_ref));
+    let (doc, mate) = insert(
+        doc,
+        clocked(
+            ids[0],
+            lost,
+            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
+        ),
+    );
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let err = doc
+        .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
+        .expect_err("the orphan's frame cannot be minted");
+    let editor_core::EditError::MaintenanceRefused { gauge, fault } = &err else {
+        panic!("expected MaintenanceRefused, got {err:?}");
+    };
+    assert_eq!(*gauge, lost);
+    assert!(
+        matches!(
+            fault.as_deref(),
+            Some(MateFault::Unleverable {
+                refusal: LeverRefusal::PartUnresolved { instance, .. },
+                ..
+            }) if *instance == lost
+        ),
+        "the resolver's own voice: {fault:?}"
+    );
+    assert!(err.to_string().contains("could not place gauge"), "{err}");
+    // The same edit through no resolver at all: the same arm.
+    let err = doc
+        .apply(
+            &DocEdit::DeleteNode { id: mate },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err("no resolver, no frame");
+    assert!(
+        matches!(err, editor_core::EditError::MaintenanceRefused { .. }),
+        "{err:?}"
+    );
+}
+
+/// **An edit that moves no gauge never asks the reach**: on a mated
+/// document, a second mate (a Join — the survivor keeps its gauge), a
+/// placement, and an appearance-free parameter edit all succeed
+/// through a reach that would refuse if asked, and the counter says
+/// it never was. Deleting the mate — a Split — asks it.
+#[test]
+fn a6_a_gauge_preserving_edit_never_asks_the_reach() {
+    let (doc, [a, b], mate, _opts, _log) = seated("msolve6-a6-preserving");
+    let counting = Counting(core::cell::Cell::new(0));
+    let tol = Tol::witness();
+    // A Join: a mate to a third instance, whose singleton cluster is
+    // absorbed by the pair's, gauge unchanged.
+    let part_ref = match doc.node(a) {
+        Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
+        _ => panic!("an instance"),
+    };
+    let (doc, c) = insert(doc, Node::instantiate_part(part_ref));
+    let applied = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: clocked(
+                    b,
+                    c,
+                    coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
+                ),
+            },
+            tol,
+            &counting,
+        )
+        .expect("a join asks nothing");
+    assert!(
+        matches!(applied.maintenance[..], [editor_core::ClusterMaintenance::Join { survived, absorbed, .. }] if survived == a && absorbed == c),
+        "{:?}",
+        applied.maintenance
+    );
+    let doc = applied.doc;
+    let applied = doc
+        .apply(
+            &DocEdit::SetPlacement {
+                node: a,
+                frame: editor_core::Frame::translation([0.0, 0.0, 3.0]),
+            },
+            tol,
+            &counting,
+        )
+        .expect("a placement asks nothing");
+    assert!(applied.maintenance.is_empty());
+    let doc = applied.doc;
+    assert_eq!(
+        counting.0.get(),
+        0,
+        "no gauge moved, so the store was never consulted"
+    );
+    // Deleting the pair's mate splits the cluster and asks — and the
+    // refusing reach it wraps refuses, typed.
+    let err = doc
+        .apply(&DocEdit::DeleteNode { id: mate }, tol, &counting)
+        .expect_err("a split needs the parts");
+    assert!(
+        matches!(err, editor_core::EditError::MaintenanceRefused { .. }),
+        "{err:?}"
+    );
+    assert!(counting.0.get() >= 1, "the split asked the reach");
+}
+
+/// **A saved document with a split replays bit-identically from its
+/// recorded rows with no store**: the delete's `Split` row carries the
+/// minted frame; `load` re-applies it and never solves.
+#[test]
+fn a6_a_saved_split_replays_bit_identically_with_no_store() {
+    let (doc, [a, b], mate, opts, mut log) = seated("msolve6-a6-replay");
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let applied = doc
+        .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
+        .expect("the store's reach places the orphan");
+    let split = applied.maintenance.clone();
+    assert!(
+        matches!(split[..], [editor_core::ClusterMaintenance::Split { from, to, frame: Some(_) }] if from == a && to == b),
+        "the orphan's frame is minted from the solved pose: {split:?}"
+    );
+    log.push(editor_core::LoggedEdit {
+        edit: DocEdit::DeleteNode { id: mate },
+        maintenance: split,
+    });
+    let live = applied.doc;
+    assert!(live.placements().contains_key(&b), "the orphan has a row");
+    // The file: an empty snapshot and the whole log, rows included.
+    let empty = ProfileDoc::empty(live.id(), Tol::witness());
+    let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
+    assert!(
+        text.contains("\"maintenance\""),
+        "the split's rows are on the wire"
+    );
+    let loaded = editor_core::load(&text, Tol::witness()).expect("loads with no store");
+    assert_eq!(
+        loaded.doc.placements(),
+        live.placements(),
+        "the registry replays bit for bit"
+    );
+    assert!(loaded.doc.bit_eq(&live), "and so does the document");
+    let replayed = ProfileDoc::replay(live.id(), &log, Tol::witness()).expect("replays");
+    assert_eq!(replayed.placements(), live.placements());
+    // An entry that performed no maintenance is the bare edit on the
+    // wire: the common case costs nothing.
+    assert!(!text.contains("\"maintenance\": []"));
+}
+
+/// **An old-format log whose edit moved a gauge refuses typed at load,
+/// and migrates through the door that takes a reach.**
+#[test]
+fn a6_an_old_format_log_that_moved_a_gauge_refuses_at_load_and_migrates() {
+    let (doc, [_a, b], mate, opts, mut log) = seated("msolve6-a6-migrate");
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let applied = doc
+        .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
+        .expect("the delete applies");
+    let live = applied.doc;
+    log.push(editor_core::LoggedEdit {
+        edit: DocEdit::DeleteNode { id: mate },
+        maintenance: applied.maintenance,
+    });
+    let empty = ProfileDoc::empty(live.id(), Tol::witness());
+    let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
+    // The old format: every entry a bare edit. Built from the saved
+    // body by dropping each entry's rows — the shape a file from
+    // before the rows were recorded has.
+    let (header, body) = text.split_once('\n').expect("a header line");
+    let mut body: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let entries = body["edits"].as_array_mut().expect("an edit log");
+    let index = entries.len() - 1;
+    for entry in entries.iter_mut() {
+        if let Some(edit) = entry.get("edit").cloned() {
+            *entry = edit;
+        }
+    }
+    let old = format!(
+        "{header}\n{}\n",
+        serde_json::to_string_pretty(&body).expect("re-serializes")
+    );
+    assert!(!old.contains("\"maintenance\""));
+    let err = editor_core::load(&old, Tol::witness()).expect_err("a moved gauge with no rows");
+    assert!(
+        matches!(
+            &err,
+            editor_core::PersistError::EditReplay {
+                index: i,
+                error: editor_core::EditError::MaintenanceUnrecorded { gauge }
+            } if *i == index && *gauge == b
+        ),
+        "{err:?}"
+    );
+    assert!(err.to_string().contains("migrate"), "{err}");
+    // The migration door: the same file, the store's reach, the rows
+    // re-derived — and re-saved, it loads with no store.
+    let migrated = editor_core::load_with(&old, Tol::witness(), &reach).expect("migrates");
+    assert_eq!(migrated.doc.placements(), live.placements());
+    assert!(
+        !migrated.edits[index].maintenance.is_empty(),
+        "the rows are back"
+    );
+    let text2 =
+        editor_core::save(&migrated.snapshot, &migrated.edits, Tol::witness()).expect("re-saves");
+    assert_eq!(
+        text2, text,
+        "the migrated file is the file the live door would have written"
+    );
+    let again = editor_core::load(&text2, Tol::witness()).expect("loads with no store");
+    assert_eq!(again.doc.placements(), live.placements());
+}
+
+/// **C5, the checked-in corpus**: every `.pncad` in the repository
+/// loads with no store in hand and re-saves byte for byte — no logged
+/// edit of any of them moved a gauge, so none needed migrating.
+#[test]
+fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut found = Vec::new();
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if path.is_dir() {
+                if name == "target" || name.starts_with('.') || name == "node_modules" {
+                    continue;
+                }
+                walk(&path, out);
+            } else if name.ends_with(".pncad") {
+                out.push(path);
+            }
+        }
+    }
+    walk(&root, &mut found);
+    assert!(found.len() >= 4, "the corpus has documents: {found:?}");
+    let process = Tol::witness().eps();
+    let mut loaded_count = 0;
+    for path in &found {
+        let text = std::fs::read_to_string(path).expect("readable");
+        let loaded = match editor_core::load(&text, Tol::witness()) {
+            Ok(loaded) => loaded,
+            // D4's seam, before any replay: a document authored at
+            // another ε refuses at THIS process's ε, typed. That is the
+            // load door's own answer on the other ε rows and not this
+            // row's subject.
+            Err(editor_core::PersistError::ToleranceConflict {
+                document,
+                process: p,
+            }) => {
+                assert_ne!(
+                    document,
+                    p,
+                    "{}: the seam refuses only a real conflict",
+                    path.display()
+                );
+                assert_eq!(p, process);
+                continue;
+            }
+            Err(e) => panic!("{}: loads with no store: {e}", path.display()),
+        };
+        loaded_count += 1;
+        let again = editor_core::save(&loaded.snapshot, &loaded.edits, Tol::witness())
+            .unwrap_or_else(|e| panic!("{}: re-saves: {e}", path.display()));
+        assert_eq!(again, text, "{}: re-saves byte for byte", path.display());
+    }
+    if process == 1e-9 {
+        assert_eq!(
+            loaded_count,
+            found.len(),
+            "every checked-in document is authored at the default ε"
+        );
     }
 }

@@ -883,7 +883,7 @@ pub(crate) fn solve_document(
         resolver: resolver.map(super::store::Workspace::resolver),
         ..d::EvalOptions::default()
     };
-    let reach = d::mate_reach::<f64>(&doc.inner, &opts, tol);
+    let reach = d::mate_reach::<f64>(&opts, tol);
     SolvedPoses(d::solve_document(&doc.inner, &reach, tol))
 }
 

@@ -91,7 +91,7 @@ pub struct CorpusDoc {
     /// One-line description (printed in the latency table).
     pub about: &'static str,
     /// The recorded edit log (applied to the empty snapshot).
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
     /// The replayed current state (empty snapshot + `edits`).
     pub doc: ProfileDoc,
     /// The node carrying the document's headline solid, if it has one
@@ -125,9 +125,14 @@ impl CorpusDoc {
 
     /// The bumped document (the incremental-recompute probe's input).
     pub fn bumped(&self) -> ProfileDoc {
-        apply(&self.doc, &self.bump, Tol::witness())
-            .expect("corpus bump edit must apply")
-            .doc
+        apply(
+            &self.doc,
+            &self.bump,
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("corpus bump edit must apply")
+        .doc
     }
 }
 
@@ -565,7 +570,12 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
             );
         }
         let mut seen_e = BTreeSet::new();
-        for e in d.edits.iter().chain(std::iter::once(&d.bump)) {
+        for e in d
+            .edits
+            .iter()
+            .map(|e| &e.edit)
+            .chain(std::iter::once(&d.bump))
+        {
             seen_e.insert(edit_kind(e));
             if let DocEdit::InsertNode { node } = e {
                 note(node, &mut seen_n, &mut seen_s);

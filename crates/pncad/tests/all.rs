@@ -1071,6 +1071,7 @@ fn doors_insert(
         &doc,
         &pncad::document::DocEdit::InsertNode { node },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
     .expect("the edit is accepted");
     let minted = applied.record.minted.expect("an insert mints an id");
@@ -1461,6 +1462,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             value: DocParam::continuous(Dimension::Length, 0.25),
         },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
     .expect("the parameter edit applies")
     .doc;
@@ -1806,6 +1808,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
             value: DocParam::continuous(Dimension::Length, 0.75),
         },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
     .expect("the edit applies")
     .doc;
@@ -1886,12 +1889,21 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
-    let text = pncad::document::save(&origin, std::slice::from_ref(&edit), Tol::witness())
-        .expect("the logged document saves");
+    let text = pncad::document::save(
+        &origin,
+        &[pncad::document::LoggedEdit::bare(edit.clone())],
+        Tol::witness(),
+    )
+    .expect("the logged document saves");
     dir.write("logged.pncad", &text);
-    let replayed = pncad::document::apply(&origin, &edit, Tol::witness())
-        .expect("the edit applies")
-        .doc;
+    let replayed = pncad::document::apply(
+        &origin,
+        &edit,
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the edit applies")
+    .doc;
     let replayed_pin =
         pncad::document::content_pin(&replayed, Tol::witness()).expect("the pin computes");
     let snapshot_pin =
@@ -1970,6 +1982,7 @@ fn asm2a_assembly(
                     frame: pncad::document::Frame::translation([dx, 0.0, 0.0]),
                 },
                 Tol::witness(),
+                &pncad::document::RefusingReach,
             )
             .expect("the placement is accepted")
             .doc;
@@ -2251,7 +2264,7 @@ fn asm_r2a_child_mated_probe() {
         resolver: Some(std::sync::Arc::new(ws.clone())),
         ..pncad::document::EvalOptions::default()
     };
-    let reach = pncad::document::mate_reach::<f64>(&doc, &opts, Tol::witness());
+    let reach = pncad::document::mate_reach::<f64>(&opts, Tol::witness());
     let poses = pncad::document::solve_document(&doc, &reach, Tol::witness());
     let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
     let ev = asm2a_eval(&doc, &ws);
@@ -2344,17 +2357,20 @@ fn asm_r2b_child_crossing_probe() {
             node: Node::instantiate_part_with(doc_ref, record),
         },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
     .expect("the crossing-bearing instance inserts")
     .doc;
 
     // The whole cluster split out — accepted, and the remainder is
     // itself a crossing-bearing document.
+    let store: std::sync::Arc<dyn pncad::document::PartResolver> = std::sync::Arc::new(ws.clone());
     let split = pncad::document::split(
         &doc,
         &ids.iter().copied().collect(),
         pncad::document::DocumentId::derive("asm-r2b-probe-split"),
         Tol::witness(),
+        Some(&store),
     )
     .expect("a whole-cluster cut splits");
     let text =
@@ -2461,6 +2477,7 @@ fn asm2b_outer(
                     frame: pncad::document::Frame::translation([100.0, 0.0, 0.0]),
                 },
                 Tol::witness(),
+                &pncad::document::RefusingReach,
             )
             .expect("the placement is accepted")
             .doc;
@@ -2686,6 +2703,7 @@ fn asm4_split_and_inline_through_the_real_store() {
         &cut,
         d::DocumentId::derive("asm4-e2e-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     ws_mut
@@ -2705,8 +2723,13 @@ fn asm4_split_and_inline_through_the_real_store() {
         "volumes bit-equal through the store"
     );
 
-    let inlined =
-        d::inline(&out.remainder, out.instance, &ws2, Tol::witness()).expect("inlines back");
+    let inlined = d::inline(
+        &out.remainder,
+        out.instance,
+        &(std::sync::Arc::new(ws2.clone()) as std::sync::Arc<dyn pncad::document::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("inlines back");
     let ev3 = asm2a_eval(&inlined.doc, &ws2);
     let body3 = d::product(&inlined.doc, &ev3, Tol::witness()).expect("gathers");
     assert_eq!(
@@ -2751,6 +2774,7 @@ fn asm4_child_split_probe() {
         &cut,
         d::DocumentId::derive("asm4-probe-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     let text = format!(
@@ -2853,7 +2877,7 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
     assert_eq!(edits.len(), 2, "one edit per site, computed not supplied");
     let mut updated = doc.clone();
     for e in &edits {
-        updated = d::apply(&updated, e, Tol::witness())
+        updated = d::apply(&updated, e, Tol::witness(), &pncad::document::RefusingReach)
             .expect("the group applies")
             .doc;
     }
@@ -2945,7 +2969,9 @@ fn asm_upd_child_update_probe() {
         .expect("the elaboration holds");
     let mut updated = doc;
     for e in &edits {
-        updated = d::apply(&updated, e, Tol::witness()).expect("applies").doc;
+        updated = d::apply(&updated, e, Tol::witness(), &pncad::document::RefusingReach)
+            .expect("applies")
+            .doc;
     }
     let ev = asm2a_eval(&updated, &ws);
     let volume = pncad::topo::mass_properties(
@@ -4445,6 +4471,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
                 value,
             },
             Tol::witness(),
+            &pncad::document::RefusingReach,
         )
         .expect("the parameter declaration applies")
         .doc

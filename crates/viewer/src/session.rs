@@ -57,9 +57,10 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, Node,
-    ParamName, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
-    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    DocEdit, DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram,
+    Node, ParamName, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject,
+    apply, assemble_gathered, cascade_delete_order, mate_reach, parse_expr, product_recorded,
+    run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -1410,6 +1411,8 @@ impl DocSession {
     }
 
     fn preview_gesture(&mut self, value: f64) -> OpOutcome {
+        let opts = self.eval_options();
+        let tol = self.tol;
         let Some(gesture) = self.gesture.as_mut() else {
             return OpOutcome::refused(Refusal::NoGesture);
         };
@@ -1420,8 +1423,11 @@ impl DocSession {
         };
         // Applied to the gesture's BASE, so previews replace one
         // another instead of composing, and the history never sees any
-        // of them.
-        match apply(&gesture.base, &edit, self.tol) {
+        // of them. The reach is the session's own seam: a gesture that
+        // moved a gauge would mint a frame from the parts' extent, and
+        // with no directory to resolve against it refuses typed.
+        let reach = mate_reach::<f64>(&opts, tol);
+        match apply(&gesture.base, &edit, tol, &reach) {
             Ok(applied) => {
                 // **The display layer's identity, held rather than
                 // argued.** Every display predicate is a function of
@@ -1854,21 +1860,34 @@ impl DocSession {
         // its predecessor's output, so a group of one costs exactly
         // what a single commit always cost.
         assert!(!edits.is_empty(), "an action commits at least one edit");
+        // ONE reach for the whole action, over the session's own seam
+        // (the directory rule; `None` refuses typed): each edit's
+        // maintenance asks it only when a cluster's gauge moves, and
+        // what it decided rides the logged entry into the history.
+        let opts = self.eval_options();
+        let reach = mate_reach::<f64>(&opts, self.tol);
         let mut produced: Option<Doc<ProfileProgram>> = None;
+        let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::with_capacity(edits.len());
         for edit in &edits {
             let attempt = {
                 let base = produced.as_ref().unwrap_or_else(|| self.history.doc());
-                apply(base, edit, self.tol)
+                apply(base, edit, self.tol, &reach)
             };
             match attempt {
-                Ok(applied) => produced = Some(applied.doc),
+                Ok(applied) => {
+                    logged.push(LoggedEdit {
+                        edit: edit.clone(),
+                        maintenance: applied.maintenance,
+                    });
+                    produced = Some(applied.doc);
+                }
                 Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
             }
         }
         let Some(doc) = produced else {
             unreachable!("the loop applied at least one edit and kept its output")
         };
-        self.history.commit_group(edits.clone(), doc);
+        self.history.commit_group(logged, doc);
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {

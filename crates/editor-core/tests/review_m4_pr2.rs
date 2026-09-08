@@ -862,6 +862,7 @@ fn wire_doors_refuse_typed() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(

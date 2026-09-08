@@ -62,7 +62,13 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 }
 
 fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let a = apply(doc, &DocEdit::InsertNode { node }, Tol::witness()).expect("the fixture builds");
+    let a = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the fixture builds");
     let id = a.record.minted.expect("a minted id");
     (a.doc, id)
 }
@@ -194,6 +200,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
             attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(9, 8, 7)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the appearance edit applies")
     .doc;
@@ -335,6 +342,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
             expr: len(1.25),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the bump applies")
     .doc;
@@ -398,6 +406,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
             expr: len(1.25),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the bump applies")
     .doc;

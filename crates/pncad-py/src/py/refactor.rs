@@ -395,16 +395,25 @@ impl SplitOutcome {
 ///
 /// Raises `SplitError`, typed.
 #[pyfunction]
+#[pyo3(signature = (doc, cut, part_id, *, resolver=None))]
 pub(crate) fn split(
     py: Python<'_>,
     doc: &Doc,
     cut: Vec<NodeId>,
     part_id: &str,
+    resolver: Option<&super::store::Workspace>,
 ) -> PyResult<SplitOutcome> {
     let tol = Tol::witness();
     let part_id = document_id(part_id)?;
     let set: BTreeSet<d::RecipeNodeId> = cut.iter().map(|n| n.0).collect();
-    let out = d::split(&doc.inner, &set, part_id, tol).map_err(|err| split_err(py, &err))?;
+    // The cut's edits can move a cluster's gauge (an instance leaves
+    // the remainder for the part), so the split levers through the
+    // same seam `evaluate(doc, resolver=)` crosses — plus the part it
+    // is minting, which it holds itself; absent, an edit that needs a
+    // solved frame of another part refuses typed.
+    let store = resolver.map(super::store::Workspace::resolver);
+    let out = d::split(&doc.inner, &set, part_id, tol, store.as_ref())
+        .map_err(|err| split_err(py, &err))?;
     Ok(SplitOutcome {
         remainder: out.remainder,
         part: out.part,
@@ -626,8 +635,7 @@ pub(crate) fn inline(
 ) -> PyResult<InlineOutcome> {
     let tol = Tol::witness();
     let store = resolver.resolver();
-    let out = d::inline(&doc.inner, instance.0, store.as_ref(), tol)
-        .map_err(|err| inline_err(py, &err))?;
+    let out = d::inline(&doc.inner, instance.0, &store, tol).map_err(|err| inline_err(py, &err))?;
     Ok(InlineOutcome {
         doc: out.doc,
         edits: out.edits,

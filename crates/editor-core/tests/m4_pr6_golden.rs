@@ -55,7 +55,9 @@ const GOLDEN_PATH: &str = "tests/golden/golden.cad";
 fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let mut doc = ProfileDoc::empty_derived("m4_pr6_golden", Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<ProfileProgram>| {
-        apply(d, e, Tol::witness()).expect("golden edit").doc
+        apply(d, e, Tol::witness(), &editor_core::RefusingReach)
+            .expect("golden edit")
+            .doc
     };
     let lpt = |x: f64, y: f64| {
         [
@@ -425,7 +427,12 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
 #[test]
 fn golden_bytes_are_frozen() {
     let (doc, edits) = golden();
-    let text = save(&doc, &edits, Tol::witness()).expect("golden saves");
+    let text = save(
+        &doc,
+        &editor_core::LoggedEdit::bare_all(&edits),
+        Tol::witness(),
+    )
+    .expect("golden saves");
     if std::env::var("M4_PR6_BLESS_GOLDEN").is_ok() {
         std::fs::write(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN_PATH),
@@ -482,7 +489,9 @@ fn golden_document_evaluates_green_at_its_pinned_eps() {
     }
     let (mut doc, edits) = golden();
     for e in &edits {
-        doc = apply(&doc, e, Tol::witness()).expect("golden edit").doc;
+        doc = apply(&doc, e, Tol::witness(), &editor_core::RefusingReach)
+            .expect("golden edit")
+            .doc;
     }
     let ev = evaluate::<f64>(
         &doc,

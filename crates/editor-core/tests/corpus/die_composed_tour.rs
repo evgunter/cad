@@ -172,7 +172,7 @@ pub fn document() -> CorpusDoc {
     let edits = edits();
     let mut doc = ProfileDoc::empty_derived(DOC_LABEL, Tol::witness());
     for edit in &edits {
-        doc = editor_core::apply(&doc, edit, Tol::witness())
+        doc = editor_core::apply(&doc, edit, Tol::witness(), &editor_core::RefusingReach)
             .expect("the tour's edit log replays")
             .doc;
     }
@@ -192,7 +192,7 @@ pub fn document() -> CorpusDoc {
         about: "the demo tour's die: 21 pips fused by one n-ary union and cut in one \
                 grouped tool, then 12 box edges and 42 rim arcs blended behind \
                 member-keyed names",
-        edits,
+        edits: editor_core::LoggedEdit::bare_all(&edits),
         doc,
         result: Some(composed),
         // π-valued closed forms are not dyadic — module docs.

@@ -625,6 +625,7 @@ fn the_edit_door_refuses_a_union_declare_that_is_not_a_declare() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -692,6 +693,7 @@ fn a_declare_cannot_name_a_union_that_does_not_exist_yet() {
             )]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(refused, Err(EditError::DeclareNamesMissingNode { .. })),
@@ -1098,7 +1100,11 @@ fn a_declared_unions_document_loads_but_does_not_replay_in_order() {
     let mut refused = None;
     for id in doc.order() {
         let node = doc.node(*id).expect("a live node").clone();
-        match replay.apply(&DocEdit::InsertNode { node }, Tol::witness()) {
+        match replay.apply(
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        ) {
             Ok(applied) => replay = applied.doc,
             Err(e) => {
                 refused = Some(e);

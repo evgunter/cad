@@ -74,9 +74,10 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
-    InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, apply, assemble, content_pin, evaluate,
-    inline, load, mate_reach, mixed_pins, parse_expr, product_named, save, solve_document, split,
+    InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PartResolver,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply,
+    assemble, content_pin, evaluate, inline, load, mate_reach, mixed_pins, parse_expr,
+    product_named, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -163,15 +164,24 @@ fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
 }
 
 /// Inserts a node and returns its minted id.
+///
+/// Every edit the scenes author through here INSERTS — an instance, a
+/// mate, a pattern, a placement — and an insert never moves a
+/// cluster's gauge (a new mate JOINS clusters; the survivor keeps its
+/// gauge), so the maintenance never asks the reach and the refusing
+/// one is the honest value. The edits that do move a gauge — the
+/// split and the inline below — take the workspace's own reach.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
+        .expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
 
-/// Applies an edit that mints nothing.
+/// Applies an edit that mints nothing (a placement; see [`insert`]).
 fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
-    let applied = apply(doc, e, tol).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
+    let applied =
+        apply(doc, e, tol, &RefusingReach).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
     *doc = applied.doc;
 }
 
@@ -652,7 +662,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
     // the cluster's gauge, and what role each mate took (A11 rules
     // 3-4 — tree mates DETERMINE, the rest DECLARE).
     let opts = with_store(ws);
-    let reach = mate_reach::<f64>(&stand.doc, &opts, tol);
+    let reach = mate_reach::<f64>(&opts, tol);
     let poses = solve_document(&stand.doc, &reach, tol);
     let gauge = poses.gauge(stand.shelf_i).expect("the shelf is placed");
     assert_eq!(
@@ -870,7 +880,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         tol,
     );
     let opts = with_store(ws);
-    let reach = mate_reach::<f64>(&under.doc, &opts, tol);
+    let reach = mate_reach::<f64>(&opts, tol);
     let poses = solve_document(&under.doc, &reach, tol);
     let fault = poses
         .fault(under.mate_1)
@@ -911,7 +921,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         },
         tol,
     );
-    let reach = mate_reach::<f64>(&contra.doc, &opts, tol);
+    let reach = mate_reach::<f64>(&opts, tol);
     let poses = solve_document(&contra.doc, &reach, tol);
     let fault = poses
         .fault(clash)
@@ -1017,7 +1027,8 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     let (before, before_names) = product_of(layout, &before_ev, tol);
 
     let part_id = DocumentId::derive("pncad-demo-shelf-cell");
-    let out = split(layout, &BTreeSet::from([shelf_i]), part_id, tol)
+    let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
+    let out = split(layout, &BTreeSet::from([shelf_i]), part_id, tol, Some(&store))
         .expect("cutting one whole cluster out is legal");
     ws.create(&out.part, tol).expect("the new part is stored");
     ws.resave(&out.remainder, tol)
@@ -1096,7 +1107,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // arena-key identity, so the correspondence is the composition of
     // the two recorded maps — split's, then inline's — and every
     // pre-split name must resolve through it.
-    let back = inline(&out.remainder, out.instance, ws, tol).expect("the instance inlines back");
+    let back = inline(&out.remainder, out.instance, &store, tol).expect("the instance inlines back");
     let back_ev = run(&back.doc, &with_store(ws), tol);
     let (back_body, back_names) = product_of(&back.doc, &back_ev, tol);
     assert_eq!(
@@ -1175,11 +1186,12 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         .iter()
         .find(|&&id| matches!(layout.node(id), Some(Node::Pattern { .. })))
         .expect("the layout has a pattern");
-    match split(layout, &BTreeSet::from([post_i, pattern]), posts_id, tol) {
+    let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
+    match split(layout, &BTreeSet::from([post_i, pattern]), posts_id, tol, Some(&store)) {
         Ok(posts) => {
             ws.create(&posts.part, tol)
                 .expect("the posts cell is stored");
-            match inline(&posts.remainder, posts.instance, ws, tol) {
+            match inline(&posts.remainder, posts.instance, &store, tol) {
                 Ok(_) => println!(
                     "   second cut: the patterned-post cell splits out AND inlines back \
                      (the hoisted cluster frame is expressible in the part's own recipe)"

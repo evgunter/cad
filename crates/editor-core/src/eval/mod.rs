@@ -2091,36 +2091,25 @@ impl Default for EvalOptions {
 /// there is one implementation of "a part's extent" and it is the
 /// evaluation's.
 fn reach_over_cache<T: EvalScalar>(
-    doc: &Doc<ProfileProgram>,
     parts: &parts::PartCache<'_, T>,
-    instance: RecipeNodeId,
+    part: &crate::ident::DocRef,
     tol: Tol,
-) -> Result<f64, crate::mate::LeverRefusal> {
-    use crate::mate::LeverRefusal;
-    let Some(crate::node::Node::InstantiatePart { doc_ref, .. }) = doc.node(instance) else {
-        return Err(LeverRefusal::NotAnInstance { node: instance });
-    };
+) -> Result<f64, crate::mate::ReachRefusal> {
     let value = parts
-        .get(doc_ref, tol)
-        .map_err(|fault| LeverRefusal::PartUnresolved { instance, fault })?;
-    crate::mate::body_reach(&value.body)
-        .map_err(|unbounded| unbounded.into_lever(instance, *doc_ref))?
-        .ok_or(LeverRefusal::NoExtent {
-            instance,
-            part: *doc_ref,
-        })
+        .get(part, tol)
+        .map_err(|fault| crate::mate::ReachRefusal::PartUnresolved { fault })?;
+    crate::mate::part_reach(&value.body)
 }
 
 /// The running evaluation's reach: its own cache, borrowed.
 struct CacheReach<'r, 'a, T: EvalScalar> {
-    doc: &'r Doc<ProfileProgram>,
     parts: &'r parts::PartCache<'a, T>,
     tol: Tol,
 }
 
 impl<T: EvalScalar> crate::mate::MateReach for CacheReach<'_, '_, T> {
-    fn reach(&self, instance: RecipeNodeId) -> Result<f64, crate::mate::LeverRefusal> {
-        reach_over_cache(self.doc, self.parts, instance, self.tol)
+    fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
+        reach_over_cache(self.parts, part, self.tol)
     }
 }
 
@@ -2128,34 +2117,30 @@ impl<T: EvalScalar> crate::mate::MateReach for CacheReach<'_, '_, T> {
 /// [`mate_reach`] answers. Owns a part cache over `opts`' resolver,
 /// so a caller that solves a document and then evaluates it resolves
 /// each mated part once here and once there; the evaluation's own
-/// solve shares its run's cache instead.
+/// solve shares its run's cache instead. Bound to no document: the
+/// edit door threads one reach through a group of edits, each applied
+/// to its predecessor's output.
 pub struct PartReach<'a, T: EvalScalar> {
-    doc: &'a Doc<ProfileProgram>,
     parts: parts::PartCache<'a, T>,
     tol: Tol,
 }
 
 impl<T: EvalScalar> crate::mate::MateReach for PartReach<'_, T> {
-    fn reach(&self, instance: RecipeNodeId) -> Result<f64, crate::mate::LeverRefusal> {
-        reach_over_cache(self.doc, &self.parts, instance, self.tol)
+    fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
+        reach_over_cache(&self.parts, part, self.tol)
     }
 }
 
 /// **The public door to the evaluation's reach** for
-/// [`crate::mate::solve_document`]: each mated part's extent, resolved
-/// through `opts`' resolver the way an evaluation over `opts` would
-/// resolve it (same seam, same sweep strategy, same profile lift), at
-/// the top of the descent. A caller with no resolver gets a reach
-/// whose every answer is the typed no-resolver fault, so the solve
-/// refuses each mate in the resolver's own voice rather than levering
-/// over nothing.
-pub fn mate_reach<'a, T: EvalScalar>(
-    doc: &'a Doc<ProfileProgram>,
-    opts: &'a EvalOptions,
-    tol: Tol,
-) -> PartReach<'a, T> {
+/// [`crate::mate::solve_document`] and [`crate::edit::apply`]: each
+/// mated part's extent, resolved through `opts`' resolver the way an
+/// evaluation over `opts` would resolve it (same seam, same sweep
+/// strategy, same profile lift), at the top of the descent. A caller
+/// with no resolver gets a reach whose every answer is the typed
+/// no-resolver fault, so the solve refuses each mate in the
+/// resolver's own voice rather than levering over nothing.
+pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartReach<'a, T> {
     PartReach {
-        doc,
         parts: parts::PartCache::<T>::new(
             opts.resolver.as_ref(),
             &[],
@@ -2284,11 +2269,7 @@ where
     // part cache, lazily: a mated part is evaluated here, once, under
     // the cache's own shielding bracket, and its instantiate node
     // then hits the cache.
-    let reach = CacheReach {
-        doc,
-        parts: &parts,
-        tol,
-    };
+    let reach = CacheReach { parts: &parts, tol };
     let poses = crate::mate::solve_document(doc, &reach, tol);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,

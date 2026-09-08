@@ -120,7 +120,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> ProfileDoc {
-    editor_core::apply(doc, &edit, Tol::witness())
+    editor_core::apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
