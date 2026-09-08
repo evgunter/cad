@@ -2,10 +2,11 @@
 id: transform-refuses-a-patterns-instances-value
 kind: issue
 title: Node::Transform takes one body, so a transform over a pattern refuses WrongOperand although one rigid map of N instances is well-defined
-status: review
+status: closed
 opened: 2026-09-05
 branch: eval/6-placers-over-instances
 pr: 2173
+closed: 2026-09-08
 ---
 
 
