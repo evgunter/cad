@@ -2,10 +2,11 @@
 id: SHELL-6
 kind: unit
 title: the cone nappe has one home — face_nappe decides once, both offset doors and the displacement read it
-status: dispatched
+status: review
 opened: 2026-09-08
 branch: shell/6-nappe-home
 refs: [mint-offset-ignores-cone-mirror-nappe, shell-offset-three-followups, 1199, 1180]
+pr: 2178
 ---
 
 
