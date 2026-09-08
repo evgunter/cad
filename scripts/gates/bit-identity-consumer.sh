@@ -30,18 +30,9 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# THE NON-CONSUMER ROWS, as paths and held once: the filter's
-# exemption is built from this list, `gate_require_homes` proves every
-# entry is in the tree, and the clean fixture plants every entry — so a
-# row cannot be exempt in one and absent from the other.
-#
-# ONE LIST, BOTH DIRECTIONS PROVED. The fixture->filter direction reds
-# the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is the subject check, which reads this same
-# list against the tree before the scan — so a row named here that the
-# clean fixture does not plant reds the clean case, and a row whose file
-# leaves the tree reds the live run rather than exempting nothing in
-# silence.
+# THE NON-CONSUMER ROWS, as paths and held once: the filter's exemption,
+# `gate_require_homes`'s subject check and the clean fixture all read
+# this list, and what that buys is argued at that check.
 NON_CONSUMER_SUBJECT='the non-consumer rows, which reach the bit channel as scalar plumbing rather than as a coincidence comparison'
 NON_CONSUMER_HOMES=(
   crates/geom-core/src/bit_identity.rs

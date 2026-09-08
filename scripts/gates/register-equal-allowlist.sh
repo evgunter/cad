@@ -65,18 +65,10 @@ set -euo pipefail
 # re-export it (a definition is not a call site, and the gate would
 # otherwise fire on the trait's own default body and on every scalar's
 # impl). Held as paths rather than as a hand-written ERE: the filter's
-# exemption is built from these lists and the clean fixture plants every
-# entry of both, and `gate_require_homes` proves every entry of both is
-# in the tree.
-#
-# ONE LIST EACH, BOTH DIRECTIONS PROVED. The fixture->filter direction reds
-# the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is the subject check, which reads these same
-# lists against the tree before the scan — so a file named here that the
-# clean fixture does not plant reds the clean case, and one that leaves
-# the tree reds the live run rather than exempting nothing in silence.
-# The two lists are checked as two, because their diagnoses differ in
-# what the missing entry would have exempted.
+# exemption, `gate_require_homes`'s subject check and the clean fixture
+# all read these lists, and what that buys is argued at that check. The
+# two are checked as two, because their diagnoses differ in what the
+# missing entry would have exempted.
 CALLER_SUBJECT='the ratified constructor sites, the only files that may CALL Real::register_equal'
 DEFINITION_SUBJECT='the files that DEFINE or re-export Real::register_equal, where a mention is a definition and not a call'
 CALLER_HOMES=(

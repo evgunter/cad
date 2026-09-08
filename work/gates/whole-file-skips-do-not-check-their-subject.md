@@ -65,8 +65,9 @@ such a check pass in the self-test.
 
 **One check in `lib.sh`, seven callers.** `gate_require_homes SUBJECT
 HOME...` (beside `gate_record_anchor_any`, which is where every caller
-of the builder gets its list from) refuses with a diagnosis naming the
-missing path and what the skip anchored there would have exempted.
+of the builder gets its list from) proves each home is a file AND a file
+the gate's scan set contains, refusing with a diagnosis that names the
+path and what the skip anchored there would have exempted.
 SUBJECT is the caller's own words for the exemption, held beside the
 list as `NON_CONSUMER_SUBJECT`, `SEAM_SUBJECT`, `ALLOWLISTED_SUBJECT`,
 `CALLER_SUBJECT`/`DEFINITION_SUBJECT`, `HOME_SUBJECT` — the half a bare
@@ -138,3 +139,67 @@ carried pointed at this row as the residue; it now reads BOTH
 DIRECTIONS PROVED and names the check. (The `.#` run-together where PR
 2077 spliced that paragraph onto the list's own comment is gone with
 it.)
+
+## Fix pass (style review of PR 2156)
+
+Twelve items, one commit. What moved:
+
+* **The failure line names the case.** `gate_selftest_case` captured the
+  planter NAME, so seven runs of one parameterised planter reported the
+  same word seven times; it captures the planter AND its arguments now,
+  and names the gate — `SELFTEST FAILED: bit-identity-consumer PASSED on
+  a planted violation (gate_plant_home_gone crates/topo/src/source.rs)`.
+  Every parameterised planter in the file gains from it, not just this
+  unit's.
+* **One text per refusal, two guards each.** `gate_home_gone_refusal`
+  and `gate_no_homes_refusal` hold the two texts; the exact-text skip's
+  subject check, the whole-file skip's, the builder's empty-list guard
+  and the check's all call one of them. The "why a red and not an
+  abstention" paragraph lives at the first and is pointed at from the
+  three sites that used to re-argue or re-spell it.
+* **One home for the substitution argument.** §"A refusal a substitution
+  would swallow" states it once — the two routes that make such a
+  refusal bite, capture-in-a-statement and the marker — and the four
+  sites that told it again are one-line pointers.
+* **`gate_require_homes`'s header** is the invariant, the
+  why-not-in-the-builder sentence, the ordering rule and the scan-set
+  half; the provenance sentence and the paragraph defending a redundant
+  marker line are gone (the provenance is the PR body's).
+* **The seven array paragraphs and the two ordering comments** are one
+  line each, pointing at the check.
+* **`interval-square-allowlist.sh`'s SUBJECT** no longer says "the
+  header above": a diagnosis is read in a CI log, not beside the script.
+
+**The check proves membership in the scan set, not just `[ -f ]`.** The
+review's finding: a home that exists but is not scanned exempts nothing
+exactly as a missing one does, and three shapes reach it — a path
+outside `crates/*/src`, a home a `#[cfg(test)] mod` declaration mounts
+out of the production set, and a SYMLINK, which `[ -f ]` follows and
+`find -type f` does not. `gate_require_homes` now reads the set the gate
+just decided (`GATE_PRODUCTION_FILES` when the narrowing ran, else
+`GATE_SOURCE_FILES`), with its own diagnosis; the `[ -f ]` runs first
+only so a home that is simply gone gets the diagnosis about being gone.
+
+`gate_plant_home_unscanned` plants it — a `#[cfg(test)] mod NAME;` in
+the home's own directory's `mod.rs`, which the rustc rule in §"WHERE A
+TEST-ONLY MODULE LIVES" mounts as a sibling. The same fixture points
+both ways, so every gate carries a case from it:
+`gate_selftest_homes --narrowed` (the two gates that call
+`gate_production_sources`) asserts a RED naming the home; the other five
+assert a PASS, because they scan every source and the skip still covers
+it.
+
+**Mutation table, re-run after the refactor.**
+
+| mutation | result |
+| --- | --- |
+| `gate_require_homes` → `return 0` | all seven red at `gate_plant_home_gone`, each naming its own gate and home |
+| the loop reads only `${1}` | the five multi-home gates red; the two single-home gates unaffected, which is the shape that says the case is per home |
+| `if [ "$scanned" = false ]` → `if false` | both narrowing gates red at `gate_plant_home_unscanned` |
+| the marker dropped from `gate_no_homes_refusal` | `gate_empty_home_list_case` reds over `empty-homes OK: nothing matched` |
+| **filter→fixture**, re-run | both gates red "the gate FAILED on a clean fixture" through the shared refusal |
+
+Live output still byte-identical for all seven, stdout and stderr. All
+21 gates `--selftest` and live green; `scripts/work.py lint` ok. The
+whole `--selftest` sweep is ~87 s against ~90 s before the fix pass —
+the 26 added cases are inside run-to-run noise.

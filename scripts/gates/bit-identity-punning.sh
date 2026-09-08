@@ -15,17 +15,9 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# THE SANCTIONED SEAM'S PATH, held once: the filter's exemption is built
-# from it, `gate_require_homes` proves it is in the tree, and the clean
-# fixture plants it.
-#
-# ONE LIST, BOTH DIRECTIONS PROVED. The fixture->filter direction reds
-# the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is the subject check, which reads this same
-# name against the tree before the scan — so a home named here that the
-# clean fixture does not plant reds the clean case, and a home that
-# leaves the tree reds the live run rather than exempting nothing in
-# silence.
+# THE SANCTIONED SEAM'S PATH, held once: the filter's exemption,
+# `gate_require_homes`'s subject check and the clean fixture all read
+# this name, and what that buys is argued at that check.
 HOME_FILE=crates/geom-core/src/bit_identity.rs
 HOME_SUBJECT='the sanctioned bit-identity seam, the one place the punning plumbing may be reached'
 

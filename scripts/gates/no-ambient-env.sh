@@ -100,17 +100,9 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# THE RATIFIED READERS, as paths and held once: the filter's exemption is
-# built from this list, `gate_require_homes` proves every entry is in the
-# tree, and the clean fixture plants every entry of it.
-#
-# ONE LIST, BOTH DIRECTIONS PROVED. The fixture->filter direction reds
-# the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is the subject check, which reads this same
-# list against the tree before the scan — so a reader named here that
-# the clean fixture does not plant reds the clean case, and one that
-# leaves the tree reds the live run rather than exempting nothing in
-# silence.
+# THE RATIFIED READERS, as paths and held once: the filter's exemption,
+# `gate_require_homes`'s subject check and the clean fixture all read
+# this list, and what that buys is argued at that check.
 ALLOWLISTED_SUBJECT='the ratified environment readers, the only files that may read the environment at runtime'
 ALLOWLISTED_HOMES=(
   crates/geom-core/src/tolerance.rs

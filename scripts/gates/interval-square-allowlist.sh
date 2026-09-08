@@ -244,20 +244,12 @@ CENSUS_PAREN_FIRST_RE="(?<!\w)\(\s*($SQUARE_PATH)\s*\*\s*[^()]*\)\s*\*\s*\1(?![\
 CENSUS_NESTED_PAREN_RE="(?<!\w)\(\s*[^()]*\([^()]*\)[^()]*\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\1(?![\w.(\[])"
 CENSUS_THREE_FACTOR_RE="(?<![\w.])($SQUARE_PATH)(?:\s*\*\s*(?!\1(?![\w.]))[A-Za-z0-9_.]+)+\s*\*\s*\1(?![\w.(\[])"
 
-# THE ALLOWLISTED FILES, as paths and held once: the filter's exemption
-# is built from this list, `gate_require_homes` proves every entry is in
-# the tree, and the clean fixture plants every entry of it. The argument
-# for each is in this file's header, above.
-#
-# ONE LIST, BOTH DIRECTIONS PROVED. The fixture->filter direction reds
-# the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is the subject check, which reads this same
-# list against the tree before the scan — so a file named here that the
-# clean fixture does not plant reds the clean case, and one that leaves
-# the tree reds the live run rather than exempting nothing in silence.
-# That is the register's ABSENT line, read for the allowlist: an entry
-# whose file has left the scan is a disposition covering nothing.
-ALLOWLISTED_SUBJECT='the ratified x*x sites, the files where an adjacent square is argued in the header above rather than converted'
+# THE ALLOWLISTED FILES, as paths and held once: the filter's exemption,
+# `gate_require_homes`'s subject check and the clean fixture all read
+# this list, and what that buys is argued at that check — it is the
+# register's ABSENT line read for the allowlist. The argument for each
+# entry is in this file's header, above.
+ALLOWLISTED_SUBJECT='the ratified adjacent-square sites, the files whose x*x this gate ratifies instead of asking for powi(2)'
 ALLOWLISTED_HOMES=(
   crates/geom-core/src/real.rs
   crates/geom-core/src/ring_interval.rs
@@ -469,9 +461,8 @@ gate() {
   # and so are the two refusals it can end in: a declaration nothing can
   # place, and a tree whose every source is test-only.
   gate_production_sources
-  # THE SKIP'S SUBJECT, AFTER THE SCAN SET AND BEFORE THE SCAN. A tree
-  # with no production source at all has no allowlist to answer for
-  # either, and the guard above it names the larger failure.
+  # AFTER THE SCAN SET, BEFORE THE SCAN — `gate_require_homes` reads the
+  # set the line above decided, and its header says why there.
   gate_require_homes "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   # ONE READ, TWO MATCHERS. The census below asks a different question
   # of the SAME view, and re-reading the tree for it would let the two
@@ -854,7 +845,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
   gate_selftest_test_module_homes "$want" plant_square_at
-  gate_selftest_homes "${ALLOWLISTED_HOMES[@]}"
+  gate_selftest_homes --narrowed "${ALLOWLISTED_HOMES[@]}"
   # THE CENSUS, in both directions. `census` is the half whose subject
   # is what the matcher above CANNOT see, so every one of its cases has
   # to be invisible to that matcher: a fixture the live matcher reds is
