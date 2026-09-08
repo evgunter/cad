@@ -32,34 +32,71 @@ times on files the sweep PR does not own:
 | `k-lint-gate-described-as-diffing-the-committed-baselines` | `k-report-baseline-fold-cert1-roster` |
 | `tess-lint-recourse-quote-half-pinned` | `tess-lint-twinned-csv-fixture` |
 
-Six rows, five distinct dying ids.
+Six rows, five distinct dying ids. The form the sweep should use is below,
+and it is not a new decision: GATES answered exactly this at its own sweep
+on the same day.
 
-## This is the `parked` cost in a second shape
+## The form is settled — GATES did this at its own sweep today
 
 `work/README.md` already names the shape for `blocked_on`: *"one-file-one-item
-means the program closing a trigger cannot un-park another program's rows
-in the same PR, so a closing PR can red `main` for rows it does not
-own."* It is the same hazard on `refs`, and it bites harder here, because
-a whole directory of closed rows disappears at once rather than one
-trigger firing. The answer the page gives is the same one: fix the rows,
-not the check.
+means the program closing a trigger cannot un-park another program's rows in
+the same PR, so a closing PR can red `main` for rows it does not own."* This is
+the same hazard on `refs`, and it bites harder, because a whole directory of
+closed rows disappears at once rather than one trigger firing.
 
-## What the sweep does about it
+**It does not need a new answer. GATES hit it this morning and answered it:
+commit `3a8dd05fe`, *"Sweep 7: refs to GATES' deleted ids cite their closing
+PRs"*.** Its form, in two parts per citing row:
 
-The sweep PR is METER's and the rows are INSTR's, so it is a
-cross-program edit either way. Two shapes, and the choice is the sweep
-orchestrator's:
+1. **Replace the dying id in `refs:` with the number of the PR that closed it**,
+   in place, leaving the rest of the list alone. `work/README.md`: *"Ints are PR
+   or issue numbers and are not checked."* So `refs: [D109, D205, D261, D287]`
+   became `refs: [2038, D205, D261, D287]` on `work/code-quality/D208.md`.
+2. **One prose section at the citing row**, headed `## Refs at GATES' sweep
+   (2026-09-08)`, reading: *"GATES closed and its item files left the tracker
+   (`docs/DOC-LEDGER.md`, sweep 7); `D109` is now cited by its closing PR
+   2038."* A row substituting two ids carried both clauses in the one sentence
+   (`work/code-quality/D68.md`).
 
-- **prune the six entries in the sweep PR itself**, taking the merge
-  conflict if INSTR has a lane in one of those files — the conflict IS
-  the handoff surfacing, per the same page; or
-- **INSTR prunes them first**, in a PR that lands before the sweep, and
-  the sweep then deletes cleanly.
+The provenance survives, because the PR carries the work and the ledger SHA
+carries the deleted file; nothing is stripped; and `lint` is satisfied without
+being softened.
 
-Either way the information is not lost: a closed row's id is recoverable
-at the DOC-LEDGER SHA the sweep records, and the prose in each INSTR row
-already names its predecessor by title. Do not answer it by softening
-`lint`.
+**And it settles the ordering, which is therefore no longer a question.**
+`3a8dd05fe` edited rows on `work/code-quality/`, `work/meta/` and `work/topo/`
+— three programs that were not GATES — from GATES' own sweep. The rewrite is
+mechanical and carries no design content, so the only cost is a merge conflict
+if an INSTR lane holds one of those six files open, and that conflict is the
+handoff surfacing rather than a defect. **The sweep does the rewrite in its own
+commit.** It does not need INSTR to land a prior PR.
+
+## METER's mapping — each id and the PR that closed it
+
+| dying id | closing PR | citing row(s), now on `work/instr/` |
+|---|---|---|
+| `D201` | **2167** | `C15` |
+| `cut-prefix-three-unpinned-spellings` | **2151** | `cut-line-commit-names-no-baseline-change` |
+| `k-lint-predicate-roster-unpinned` | **2115** | `k-lint-csv-header-unpinned-against-five-producers`, `k-lint-eps-coupled-criterion-unwritten` |
+| `k-report-baseline-fold-cert1-roster` | **2140** | `k-lint-gate-described-as-diffing-the-committed-baselines` |
+| `tess-lint-twinned-csv-fixture` | **2179** | `tess-lint-recourse-quote-half-pinned` |
+
+**Derived twice, by methods that do not share a failure.** First: each closed
+row's `branch:` field matched against the merge subjects on `origin/main`
+(`git log origin/main --merges --pretty='%h|%s'`), which named
+`meter/split-scan-and-face-name` → 2167, `meter/cut-prefix-pin` → 2151,
+`meter/klint-roster-pin` → 2115, `meter/k-report-cert1-fold` → 2140,
+`meter/12-twinned-csv-fixture` → 2179. Second, and independent of the `branch:`
+field: the commit that first wrote `status: closed` into each file
+(`git log origin/main -S 'status: closed' --pickaxe-regex -- <file> | tail -1`),
+then the first `Merge pull request` on the ancestry path from that commit to
+`origin/main`. The two agree on all five. A third source agrees on one:
+`tess-lint-twinned-csv-fixture` carries `pr: 2179` in its own header.
+
+**What that derivation cannot reach**: a row closed with no PR at all (no
+`branch:`, or closed as a rider on another program's PR) would produce no hit
+rather than a wrong number — none of the five did — and a branch name reused by
+two PRs would be mis-attributed by the first method, which is why the second
+exists.
 
 ## Sweep and its blind spot
 
@@ -75,4 +112,12 @@ unaffected.
 **What that sweep cannot reach**: an id referenced from a branch not yet
 merged, and any citation of a METER row that is prose rather than a
 header field — a body sentence naming `D206` is not a `refs:` entry, lint
-does not check it, and it goes stale silently rather than loudly.
+does not check it, and it goes stale silently rather than loudly. The GATES
+form does not fix those either; it fixes exactly what lint can see.
+
+## Closing this row
+
+It closes when the sweep has made the six substitutions and `lint` is green
+on a tree with `work/meter/` gone. Nothing here is a design question any
+more, so it wants no `[ev]` PR: the precedent is merged and the mapping is
+derived twice.

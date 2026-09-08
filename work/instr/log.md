@@ -43,4 +43,11 @@ here**: six of the twenty carry `refs:` naming closed METER rows
 `refs:` id to resolve, so deleting `work/meter/` reds `main` for rows this
 program owns and METER's sweep PR cannot touch — the cross-program cost
 `work/README.md` already names for `parked` rows, in a second shape. It is
-filed as an issue on METER's slate so the sweep sees it before it fires.
+filed as an issue on METER's slate so the sweep sees it before it fires
+(`work/meter/sweep-deleting-work-meter-dangles-six-refs-on-instr-rows.md`),
+and the form is not a new decision: GATES answered the same hazard at its own
+sweep the same day (`3a8dd05fe`) by putting the closing PR's number in the
+`refs:` list, where lint does not check it, and saying so in a section at the
+citing row. The five ids map to PRs 2167, 2151, 2115, 2140 and 2179, derived
+twice; the row carries the mapping and the derivation. The sweep makes the
+substitutions in its own commit, as GATES' did across three programs' rows.
