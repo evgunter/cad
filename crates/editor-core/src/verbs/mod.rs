@@ -99,23 +99,18 @@ mod verb_name_convention {
     //! crate that reads both: no code line names both paths, and no
     //! file imports both, so a bare `Verb` in any file is one type.
 
-    fn sources(dir: &std::path::Path, out: &mut Vec<(String, String)>) {
-        for entry in std::fs::read_dir(dir).expect("a readable source directory") {
-            let path = entry.expect("a directory entry").path();
-            if path.is_dir() {
-                sources(&path, out);
-            } else if path.extension().is_some_and(|e| e == "rs") {
-                let text = std::fs::read_to_string(&path).expect("a readable source file");
-                out.push((path.display().to_string(), text));
-            }
-        }
-    }
-
     #[test]
     fn no_file_reads_both_verb_types_bare() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        let mut files = Vec::new();
-        sources(&root, &mut files);
+        // The shared walk and the shared reader: this row is in
+        // `test-utils`' source-reader ledger under those two names.
+        let files: Vec<(String, String)> = test_utils::source::rust_sources(&root)
+            .into_iter()
+            .map(|path| {
+                let text = std::fs::read_to_string(&path).expect("a readable source file");
+                (path.display().to_string(), text)
+            })
+            .collect();
         assert!(
             files.len() > 50,
             "the walk found only {} files",
