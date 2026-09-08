@@ -330,3 +330,24 @@ green — its style review is dispatched; unit K's fix pass had not
 started — the lane is resumed on the brief. Unit 4's PR conflicted
 with a moved main (`tests/all.rs` and two logs, resolved by union) and
 awaits its run.
+
+**Unit 5 reviewed (2026-09-08): MERGEABLE-AFTER-FIXES**, single style
+review on frozen `e7980b8b` of PR [#2155](https://github.com/evgunter/cad/pull/2155).
+**The MAJOR corrects the orchestrator's decision, adopted:** the
+spelling this unit normalised to (`crates/sweep/tests/<file>.rs::<row>`)
+is grep-resolvable but cargo-inert — `tests/all.rs` mounts each suite
+as a module, so the filter `cargo test` resolves is `<module>::<row>`,
+which twelve sites already carried and the unit's sweep could not see.
+Corrected: one spelling, the module one, at all forty-one sites; and
+the plan's "decide the cheap instrument" half is decided — the
+instrument is the reviewer's resolver ROW in the sweep suite (red on a
+rename or deletion of any cited row), not a gate, and nothing is filed
+for GATES. Two citations promised more than their rows assert (a
+boolean-door row cited for an extrude-door clause; a cap-survival
+claim argued in a row's doc and asserted nowhere), one old-name
+citation one file over, and the normalised sentences that grew into
+restatements of their rows — all taken. Fix pass on the resumed lane.
+Two orchestrator decisions corrected by reviewers in one day (units 3
+and 5): both were premises about what the tree does that the
+dispatcher did not measure — the reviewer-style lane's "the dispatch
+is a hypothesis" earning its keep.
