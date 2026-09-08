@@ -15,8 +15,8 @@ the two factors as their formulas. **It did not reach the gate's
 output, and the gate is where the same quotient appears under a third
 English name.**
 
-`tools/tess-lint/src/main.rs:233` `fn line(prefix, o) -> String`
-renders every observation, figures included:
+`tools/tess-lint/src/main.rs`'s `fn line(prefix, o) -> String`
+(`:237`) renders every observation, figures included:
 
 ```
 Kind::Slack { face, was, now } => format!(
@@ -25,12 +25,14 @@ Kind::Slack { face, was, now } => format!(
 )
 ```
 
-and is invoked as `println!("{}", line(" ", note))` (`:452`) and
-`println!("{}", line("  FINDING", f))` (`:465`) — **no figure in
-either format string.** `was` and `now` are `Row::recoverable()`
-(`lib.rs:1683`), which is `grid_cells / span_opt_cells`: the identical
-quotient the report now spells at `main.rs:361` and `:426`. Three
-names for one ratio, and the third is the one that reddens CI.
+and is invoked as `println!("{}", line(" ", note))` (`:456`) and
+`println!("{}", line("  FINDING", f))` (`:469`) — **no figure in
+either format string.** `was` and `now` come from `Row::recoverable()`,
+called in `compare` (`lib.rs:1716`), which is
+`grid_cells / span_opt_cells`: the identical quotient the report now
+spells in its cell-total block and its per-scene legend (`main.rs:366`
+and `:428`). Three names for one ratio, and the third is the one that
+reddens CI.
 
 ## Finding
 
@@ -43,8 +45,9 @@ the worst moment to owe them a lookup.
 
 **`recoverable` is one name over two aggregations**, and unit 9
 attached the formula to the sweep-level one only. So do `span_held`
-and `total_slack`: all three exist on both `Row` (`lib.rs:438`, `:444`,
-`:461`) and `SceneTotals` (`:1251`, `:1258`, `:1296`). `recoverable`
+and `total_slack`: all three exist on both `impl Row` (`lib.rs:438`,
+`:444`, `:461`) and `impl SceneTotals` (`:1285`, `:1292`, `:1330` —
+`recoverable` first there, `span_held` second). `recoverable`
 is today the only one of the three with BOTH aggregations reaching
 print — the per-face one through the gate's finding lines, the
 per-scene one through the report — so it is where a reader can meet
@@ -53,6 +56,13 @@ the two are told apart in output is the substance here, and it is not
 a wording pass.
 
 ## Next
+
+**Every citation above names a symbol, and the line number beside it
+is a hint.** They were re-taken from the branch tip at filing and
+`main.rs`/`lib.rs` have not moved since; but a line number into a file
+under edit is stale by however many lines the edit inserted above it,
+which is how the first version of this item got eight of eleven wrong.
+Search the symbol.
 
 A `tools/tess-lint/src/main.rs` lane. `CELL_TOTALS` and
 `tests/report_columns_pin.rs` are the shape to extend; note that

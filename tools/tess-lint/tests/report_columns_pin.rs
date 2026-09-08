@@ -337,8 +337,15 @@ fn each_printed_figure_is_that_columns_sum() {
 /// **The two words, not the two sentences.** Asserting the glosses
 /// verbatim would hand-twin `main.rs`'s prose into this file, which
 /// this crate has a standing row about; what is load-bearing is which
-/// column each qualifier lands on. So that is pinned and the wording
-/// stays free to change.
+/// column each qualifier lands on, so that is what is pinned.
+///
+/// **What that leaves free, exactly**: everything in a gloss except
+/// the two qualifier spellings. `contains` is case- and
+/// hyphen-sensitive, so lowercasing `WHOLE-PATCH` or writing it
+/// `whole patch` reds here on a wording-only edit — which is the
+/// point of shouting them in `main.rs`, since `patch_cells`' own
+/// gloss already carries a lowercase `whole-patch-sup` that must NOT
+/// match. To reword a qualifier, change it in both files together.
 #[test]
 fn each_twins_qualifier_is_printed_on_its_own_column() {
     let printed = printed_pairs(&report());
