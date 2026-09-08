@@ -388,3 +388,29 @@ contract does not change. S-BOOL's file; minimal; named in the PR
 body. Related, already on your slate:
 `subtract-of-a-hollow-operand-files-the-island-under-one-solid`.
 Signed (SHELL orchestrator).
+
+## BOOL-9 merged (2026-09-08)
+
+PR 2134 merged at the fix-pass head `9d71e442a` (run 34260713937
+green). The RawLoop demotion: 735 fixture sites behind the
+`test-support` door (zero source edits), the one real materialization
+door — scalar embedding — as `ProfileLoop::map`, the ruling's two
+named doors recorded as non-existent, the lift seaming at the declared
+arrival. Issue 433 closes with it (both halves landed).
+
+**The dual (ordinal 1107, sample #164)**: R1 fable NOT MERGEABLE
+1/5/7, R2 opus mergeable-after-MINORs 0/8/3; R1's MAJOR — sweep's
+`test-support` feature no longer forwarded `profile/test-support`, so a
+crate checked in isolation was red while CI's closure hid it — was
+unilateral and executed: **tally +1**. Both arms showed the census and
+gate rows guarded a spelling; the fix pass made the seal structural
+(the shut arm's trait is crate-private, a re-export is a compile error)
+and pinned the type's public method set after a mutation no row
+caught. R2's class-sweep finding — the certificate family is forgeable
+the same way — is filed on PROPS's slate.
+
+Slate: BOOL-10 (PR 2135) is fix-passed and green, HELD for Ev's
+sign-off of the declared-split arc form and the PATHS text; it merges
+main again after this landing (its granted `lift.rs` regions sit
+below BOOL-9's edits, adjacent at one line). Then BOOL-4/5/6/7, BOOL-Q,
+and the findings this window filed.

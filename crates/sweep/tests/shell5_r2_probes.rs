@@ -271,7 +271,7 @@ fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
 
     let e = topo::shell(&body, 0.05, tol).expect_err("the verb refuses");
     assert!(
-        matches!(e, topo::ShellError::OperandOuterShells { outer: 2 }),
+        matches!(e, topo::ShellError::OperandOuterShells { outer: 2, .. }),
         "expected OperandOuterShells {{ outer: 2 }}, got {e}"
     );
 }

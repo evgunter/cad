@@ -426,15 +426,11 @@ fn r1_the_construct_from_arrival_form_would_derive_a_tangent_departure_on_the_st
 // Q4 (style lane): a premise the unit invalidated one layer down.
 // ------------------------------------------------------------------
 
-/// **FORWARD OBSERVATION (R1 NOTE; lift.rs is out of fence).**
-/// `LiftRefusal::AllJointsDeclared` says an all-tangent loop has "no
-/// sharp joint to seam the chain at" and names the seam fillet as the
-/// only spelling. This unit made that premise false: the stadium
-/// authors through `tangent_arc_to(Start.arrives_tangent())` with all
-/// four joints declared, and the lift layer still refuses to lift the
-/// very loop the algebra just produced.
+/// **The all-declared loop the algebra authors lifts**, seamed at 0
+/// with the closing target carrying joint 0's declaration. (This row
+/// pinned the opposite until BOOL-9; the PR carries why.)
 #[test]
-fn r1_the_lift_layer_still_refuses_the_all_tangent_loop_the_algebra_now_authors() {
+fn r1_the_lift_layer_lifts_the_all_tangent_loop_the_algebra_authors() {
     let t = Tol::witness();
     let closed = Open
         .at(p2(0.0, 0.0))
@@ -451,14 +447,13 @@ fn r1_the_lift_layer_still_refuses_the_all_tangent_loop_the_algebra_now_authors(
         .tangent()
         .tangent_arc_to(Start.arrives_tangent(), t)
         .expect("the stadium closes");
-    let lifted = profile::lift(&closed.loop_, t);
-    println!("R1: lift(stadium) -> {lifted:?}");
+    let lifted = profile::lift(&closed.loop_, t).expect("the stadium lifts");
     assert!(
         matches!(
-            lifted,
-            Err(profile::LiftRefusal::AllJointsDeclared { joints: 4 })
+            lifted.last(),
+            Some(profile::Step::TangentArcTo(profile::Target::StartArriving))
         ),
-        "{lifted:?}"
+        "the seam's declaration rides the arrival: {lifted:?}"
     );
 }
 

@@ -174,6 +174,16 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/profile/tests/r2_bool9_review_probes.rs",
+        disposition: Shared, // the value-equal row's ceiling is asserted to
+                             // EXIST in lift_census.rs, code+literal view
+    },
+    Entry {
+        path: "crates/profile/tests/raw_door_census.rs",
+        disposition: Shared, // production-writer census + the raw door's own
+                             // gate, code+literal view
+    },
+    Entry {
         path: "crates/profile/tests/seal.rs",
         disposition: Shared, // serde-free seal, code view
     },
@@ -204,6 +214,11 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/sweep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/sweep/tests/review_blend5_r5_probes.rs",
+        disposition: Shared, // the doc citations and the rows they name,
+                             // prose and code views
     },
     Entry {
         path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",

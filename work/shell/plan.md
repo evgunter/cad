@@ -61,11 +61,17 @@ arm must agree with `ShellNaming`), `editor-core`'s recipe doors
    item 2) is NOT in it: three owners' files and a K-lint population
    — it stays on that item until announced on TOPO's and S-BOOL's
    boards.
-4b. **Next: SHELL-7, the one-surface corner** —
-   `axial-door-refuses-a-one-surface-seam-corner`: the axial door
-   moves a seam vertex along its one surface's own normal, so the
-   full-period torus shells (solid and hollow); spec
-   `docs/SHELL-7-SPEC.md`; block SHELL-B2 slot 1.
+4b. **SHELL-7** `axial-door-refuses-a-one-surface-seam-corner` —
+   LANDED (PR #2200, 2026-09-08): the one-surface corner and every
+   same-surface latitude seam; the full-period torus shells. Block
+   SHELL-B2 slot 1.
+4c. **SHELL-8** `shell-open-on-a-multi-solid-body` — LANDED (PR
+   #2207, 2026-09-08): the verb applied per solid on a multi-solid
+   body, designations on any solid; `insert_voids` (S-BOOL seam) and
+   `classify_shells_of` (PROPS seam). Block SHELL-B2 slot 2, the
+   block's last; SHELL-B2 concluded. Follow-ups filed:
+   `shell-doors-still-walk-the-whole-body` (lane) and
+   `shelled-result-does-not-name-the-wall-it-built` (orchestrator).
 5. RULED B (Ev, #1737, 2026-09-04): **SHELL-3** — the clearance
    engine's body-level half moves into `topo` behind `interval`
    (joint with M10; no behaviour change, the M10-5/6 suites are the

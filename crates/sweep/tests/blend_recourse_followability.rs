@@ -63,8 +63,8 @@ use sweep::blend::{
     FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::{
-    ROD_FILLET, closed_plane_sphere_rim, cube, dome, prism, rim_arcs_at, rod_creases,
-    rod_with_flat, spool, waisted,
+    ROD_FILLET, cube, dome, one_edge_rim_at, prism, rim_arcs_at, rod_creases, rod_with_flat, spool,
+    waisted,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
@@ -233,7 +233,7 @@ fn carries(err: &BlendError, recourse: &str, what: &str) {
 #[test]
 fn the_radius_recourse_reduces_to_a_radius_that_builds() {
     let body = dome(1.0, tol());
-    let rim = [closed_plane_sphere_rim(&body, 1.0)];
+    let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
     let err = refusal(&body, &rim, 2.0, "r = 2 on a unit sphere's rim", false);
     assert!(
         matches!(err, BlendError::RadiusHeadroom { .. }),
@@ -298,7 +298,7 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
     carries(&err, FILLET3_TANGENTIAL_RECOURSE, "tangential edge");
     builds(
         &body,
-        &[closed_plane_sphere_rim(&body, 1.0)],
+        &[one_edge_rim_at(&body, 1.0, 0.0)],
         0.1,
         "the definite-angle edge",
     );
@@ -458,7 +458,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
 
     let d = dome(1.0, tol());
-    let equator = closed_plane_sphere_rim(&d, 1.0);
+    let equator = one_edge_rim_at(&d, 1.0, 0.0);
 
     let boxy = cube(1.0, tol());
     builds(
@@ -558,7 +558,7 @@ fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
     let coaxial = dome(1.0, tol());
     builds(
         &coaxial,
-        &[closed_plane_sphere_rim(&coaxial, 1.0)],
+        &[one_edge_rim_at(&coaxial, 1.0, 0.0)],
         0.1,
         "a rim between two coaxial surfaces of revolution",
     );
@@ -587,7 +587,7 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
     let d = dome(1.0, tol());
     let err = refusal(
         &d,
-        &[closed_plane_sphere_rim(&d, 1.0)],
+        &[one_edge_rim_at(&d, 1.0, 0.0)],
         0.1,
         "chamfering a plane–sphere rim",
         true,
@@ -723,7 +723,7 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
 #[test]
 fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first() {
     let body = dome(1.0, tol());
-    let rim = [closed_plane_sphere_rim(&body, 1.0)];
+    let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
     let (mut built, mut clearance) = (0, 0);
     for r in [0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7] {
         match fillet_edges(&body, &rim, r, tol()).map_err(|e| e.error) {
@@ -803,7 +803,7 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
 /// builds.**
 ///
 /// The refusal is reached at a support face's non-circular RING:
-/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring_and_cannot_be_followed`
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`
 /// is the witness — a square pocket through a cube's top face, the
 /// twelve outer edges refused at every radius, because `ring_circle`
 /// reads circle rings only.

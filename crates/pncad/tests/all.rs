@@ -4363,20 +4363,25 @@ fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
 }
 
 /// The profile layer's interior: root exports the façade's curated
-/// `profile` module does not carry, by family. One family, one entry.
+/// `profile` module does not carry, by family. One family, one entry —
+/// **and the list is empty**, which is a stronger statement than the
+/// one entry it used to hold.
 ///
-/// - **The minting tier** (`RawLoop`): the one name whose absence is
-///   the module's entire reason for existing. It carries `new` and
-///   `polygon`; leaving the trait unnameable is what makes
-///   `ProfileLoop::polygon(…)` fail to resolve while `ProfileLoop`
-///   itself stays nameable. Carrying it here would undo the curation.
+/// It held `RawLoop`, the minting tier: a root export the façade
+/// deliberately declined to carry, so that `ProfileLoop::polygon(…)`
+/// failed to resolve through the façade while `ProfileLoop` itself
+/// stayed nameable. The trait is now gated behind that crate's
+/// `test-support` feature, exactly as its six `FILLET_*_RECOURSE`
+/// sentences are, so no consumer's build compiles it and there is
+/// nothing for the façade to decline. [`code_without_cfg_gated`] is
+/// what makes the scan agree, and this list emptying is what that
+/// demotion looks like from here: the name did not move from carried
+/// to uncarried, it left the layer's shipped root surface.
 ///
-/// The layer's six `FILLET_*_RECOURSE` sentences are NOT listed here,
-/// and the reason is worth keeping: they are exported behind that
-/// crate's `test-support` feature, so no consumer's build compiles
-/// them and there is nothing for the façade to carry.
-/// [`code_without_cfg_gated`] is what makes the scan agree.
-const PROFILE_NOT_CARRIED: [&str; 1] = ["RawLoop"];
+/// The list stays, and stays checked in both directions — a future
+/// interior root export is still a finding, and a stale entry still
+/// fails.
+const PROFILE_NOT_CARRIED: [&str; 0] = [];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**
