@@ -461,3 +461,27 @@ tally candidate — and the first of code class. Block TOPO-B1's record
 on `topo/b1-block` marks slot 1 concluded; slot 2 (FABLE) is banked for
 the census door. `S69`'s fix pass, resumed after the second usage-limit
 cut, is the only lane running. Twelve items open on the slate.
+
+## S69 merged; the census door dispatched (2026-09-08)
+
+PR 2014 merged at `242e8375` (green run 34170947394, full matrix).
+`S69` closed as a unit; five residues filed on this slate across the
+unit and its fix pass (`fused-two-shell-body-doc-predates-movefac`,
+`seqgen-proptest-row-logs-no-seed`,
+`movefac-row-skips-three-component-shells`,
+`orphaned-proptest-corpus-for-seqgen`,
+`shell-glue-relation-has-three-implementations`). The fix pass
+measured the reviewer's +40% down to ~7.4% on a deterministic walk
+and recovered ~40% of that with probes; the suggested shell-count gate
+was right for one row and fatal to the other, and the lane said so.
+Two discipline gates fired on the merge with main and both were the
+diff's own; the postcondition restructured to `movefac`'s
+`cfg(debug_assertions)` idiom with the mutant re-run identically red.
+
+`no-public-census-or-genus-query` dispatched on `topo/census-door`
+(block TOPO-B1 slot 2; dual at review): the ratified (A) shape, the
+door and rows in `readback.rs`, `topo`'s own sites converted,
+`topo/tests/*` and `sweep/tests/*` by the announced S-TCOST seam, the
+demo sources (in no program's `paths`) in the same PR under the
+demo-purpose rule. Difficulty pre-logged M, task class STRUCTURAL —
+again written knowing the slot's arm; disclosed.
