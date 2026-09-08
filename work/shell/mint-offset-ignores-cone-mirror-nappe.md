@@ -68,10 +68,29 @@ as the unswept sibling of a class that PR fixed at its own door.
 
 ## Closed by SHELL-6
 
-The nappe has one home, `topo::offset_nappe::face_nappe`: decided from
-the face's own corner stations, refusing a face that straddles its
-apex, and read by both offset doors, the per-chart door's apex-window
-gate and `ConeOffset::displacement` (whose `copysign` is gone — it
-takes the face's nappe). `replace_faces_offset` turns `d` before the
-mint; `offset_axial::nappe_signed` is deleted in favour of the shared
-home.
+The nappe has one home for the offset lane,
+`topo::offset_nappe::{face_nappe, group_nappe}`: decided from the
+face's own extreme corner stations, agreed across a chart's faces, and
+read by both offset doors, the per-chart door's apex-window gate and
+`ConeOffset::displacement` (whose `copysign` is gone — it takes the
+face's nappe). `replace_faces_offset` turns `d` before the mint;
+`offset_axial::nappe_signed` is deleted in favour of the shared home.
+
+**What was actually wrong, corrected against this record's own
+"latent" finding.** The refusal this issue measured — the caps'
+`ReanchorOffCarrier` — compares the moved rim's gap `|d|·sin α`
+against ε, so it stands only while `|d| > ε/sin α`. BELOW that the
+per-chart door builds, and on the merge base it built a body that GREW
+on an inward request (0.000894822126266624 → 0.0008948221627270332 on
+the sf2b frustum's mirror nappe). So the sign defect was LIVE at ε
+scale and latent only above it; "no wrong body ships from this today"
+was true of the fixtures both review arms of #1180 reached and not of
+the door. The reachability is now pinned in
+`sweep/tests/shell6_nappe_home.rs` as a threshold in ε, and a
+neighbour that could hold both moved rims — a coaxial sphere, cone or
+torus — refuses `NeighborPairUnroutable` first, because
+`intersect::route` has no cone×{sphere, cone, torus} row.
+
+The four readers OUTSIDE the offset lane are not this unit's and are
+filed as their own class:
+`work/issues/cone-nappe-is-decided-in-five-places.md`.

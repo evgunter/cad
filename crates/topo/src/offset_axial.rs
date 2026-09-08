@@ -353,8 +353,20 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
         // The nappe is a fact only the face has, decided at its one
         // home; the MOVE names a chart, so every face of it is decided
         // and the answers are agreed before one number is turned for
-        // all of them.
-        let d = crate::offset_nappe::group_nappe(body, &m.faces, band)?.turn(m.distance);
+        // all of them. Only a cone is asked: every other chart has one
+        // sheet whose own normal IS the mint's stored field, so the
+        // turn is the identity and a corner walk would answer a
+        // question the surface already settles.
+        let key = body
+            .get_face(*m.faces.first().ok_or(ReplaceFaceError::EmptyGroup)?)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .surface;
+        let d = match body.get_surface(key).ok_or(ReplaceFaceError::Corrupt)? {
+            Surface::Cone { .. } => {
+                crate::offset_nappe::group_nappe(body, &m.faces, band)?.turn(m.distance)
+            }
+            _ => m.distance,
+        };
         for &face in &m.faces {
             let data = body
                 .get_face(face)
@@ -959,6 +971,17 @@ fn solve_corner<T: Decide>(
                 // of the apex station. A cone FACE lives on one of them,
                 // and which one is read from this corner's own side of
                 // the apex rather than guessed.
+                //
+                // This is NOT the face's nappe read a second time, and
+                // the two cannot be unified. The nappe is the face's
+                // corners against the BASE cone's apex; this is one
+                // corner against the MOVED one, and the two differ by
+                // the slide `d/sin α` — which is the whole content of
+                // the apex-window question, here at corner granularity.
+                // A corner is also shared with its neighbouring faces,
+                // so it has no one face's nappe to inherit; and the
+                // same predicate answers the sphere's equator below,
+                // where there is no nappe at all.
                 let side = side_of(
                     h_old - h_apex,
                     vertex,

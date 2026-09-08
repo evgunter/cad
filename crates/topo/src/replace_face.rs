@@ -3,11 +3,17 @@
 //! re-described against the moved chart.
 //!
 //! The **offset** of a surface `S` at signed distance `d` is the normal
-//! pushforward `S_d(u, v) = S(u, v) + d·n(u, v)` along the stored chart
-//! normal (`geom_brep::offset_surface`'s definition, unchanged here).
-//! Positive `d` moves along that normal; the face's `sense` bit takes no
-//! part, because the offset is a statement about the SURFACE, not about
-//! which side of it carries material.
+//! pushforward `S_d(u, v) = S(u, v) + d·n(u, v)`
+//! (`geom_brep::offset_surface`'s definition). At THIS door `d` is
+//! along the chart normal AT THE FACES BEING MOVED, which is the stored
+//! normal for every kind but a cone below its apex, where the face's
+//! own normal is the stored field negated. The door turns `d` onto the
+//! mint's convention at its entrance, by the chart's nappe
+//! ([`crate::offset_nappe::group_nappe`]), and everything downstream —
+//! the mint, the parameter shift, the transport and the apex-window
+//! gate — reads that one turned number. The face's `sense` bit takes no
+//! part: the offset is a statement about the SURFACE, not about which
+//! side of it carries material.
 //!
 //! # What moves and what does not
 //!
@@ -67,7 +73,11 @@
 //! opening nappe's normal field, which is what makes the action a pure
 //! parameter shift; following the per-point normal would split the
 //! double cone. So a `v < 0` face's material moves `−d` along its own
-//! chart normal, and the door does not refuse the nappe.
+//! chart normal — which is why this door turns the caller's number
+//! before the mint sees it, from the chart's own decided nappe. What it
+//! REFUSES is a chart with no nappe to turn onto: a face whose corners
+//! reach its apex, or a chart whose faces do not all lie on one side of
+//! it ([`ReplaceFaceError::NappeStraddles`]).
 //!
 //! **The translating lanes accept a spline carrier**, not only a line:
 //! a translated control net is exact structure, so a `Curve3::Nurbs`
@@ -1091,8 +1101,19 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     // chart and a chart's faces need not share a nappe: one member's
     // sign standing for another's is exactly the thing being ruled out.
     //
+    // Only a cone is asked. Every other chart has ONE sheet, on which
+    // the face's own normal and the mint's stored field are the same
+    // direction, so the answer is `Opening` by construction and walking
+    // a plane's corners to be told so is work with no question behind
+    // it. `face_nappe` answers for those kinds too — the answer is
+    // total, so a caller that has no cone in hand still gets a turn to
+    // apply — but this door knows the surface already.
+    //
     // Below this line `d` is the mint's own convention, not the door's.
-    let nappe = crate::offset_nappe::group_nappe(body, faces, band)?;
+    let nappe = match old_surface {
+        Surface::Cone { .. } => crate::offset_nappe::group_nappe(body, faces, band)?,
+        _ => Nappe::Opening,
+    };
     let d = nappe.turn(d);
     let new_surface = mint_offset(face, &old_surface, d, band, tol)?;
 

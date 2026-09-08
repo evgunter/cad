@@ -57,10 +57,11 @@ pub use geom_brep::Nappe;
 ///
 /// A face carrying any other surface has one sheet, on which the mint's
 /// convention and the face-outward one already agree, and answers
-/// [`Nappe::Opening`] — whose turn is the identity. That keeps the
-/// answer total, so a door turns its `d` the same way for every kind
-/// and no caller re-matches on the surface to find out whether the
-/// question applies.
+/// [`Nappe::Opening`] — whose turn is the identity. The answer is TOTAL
+/// deliberately: a caller holding a face of unknown kind gets a turn it
+/// can apply, rather than an `Option` every call site would unwrap the
+/// same way. A door that already knows it holds a cone is free to ask
+/// only there, and both of them do.
 ///
 /// # Errors
 ///

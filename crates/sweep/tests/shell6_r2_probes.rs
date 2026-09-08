@@ -292,7 +292,9 @@ fn r2p5_the_rebaselined_row_asks_the_question_the_old_one_meant() {
     for d in [-1.5, 1.5] {
         let shift = nappe.turn(d) * cot;
         let v_near = vs.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        let realized = (v_near + shift) * -1.0;
+        // The gate's own `sense` on the mirror nappe, spelled as a
+        // negation rather than a product by −1.
+        let realized = -(v_near + shift);
         let mut work = body.clone();
         let got = topo::replace_face_offset(&mut work, face, d, band(), tol);
         println!("[r2p5] d={d:+}: shift={shift} v_near={v_near} realized={realized} -> {got:?}");
