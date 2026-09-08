@@ -2,11 +2,12 @@
 id: LIB-MECH2
 kind: unit
 title: the second mechanical bundle — statement-based LB13 guards and the node-kind read door
-status: review
+status: closed
 opened: 2026-09-06
 branch: lib/mech2
 pr: 2072
 refs: [lb13-guards-are-line-local, pncad-py-doc-has-no-node-kind-read-door]
+closed: 2026-09-08
 ---
 
 

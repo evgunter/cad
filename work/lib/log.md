@@ -2805,3 +2805,28 @@ document-door spelling of the same mouth. Sequencing deviation stated
 rather than hidden: the draw byte was read in the same tool call as
 the last spec read, minutes before the difficulty sentence was written
 down; the difficulty is the G16 precedent's and was not moved.
+
+**LIB-MECH2 MERGED (2026-09-08, #2072; mechanical under the 08-29
+ruling, no A/B row).** Two banked findings closed. (1) Both LB13
+boundary guards in `crates/pncad/tests/all.rs` read `pub use`
+STATEMENTS now — accumulated to the `;`, whitespace collapsed, the line
+reported being the one the statement opens on — and the RawLoop guard's
+minting patterns match a whitespace-squashed view of the whole file with
+offsets mapped back to true lines. Planted red both ways: a key added
+inside an existing multi-line brace list reds the new guard by name and
+PASSES the merge-base guard. Numbers re-derived at the merge base (75
+statements, 33 multi-line, 17 into `editor_core::`; the root's `pub mod`
+count is 33 and the doc now carries no number). The inherited commit
+from the killed lane had a defect of its own — a doc block edited in
+place on the wrong function — repaired. Three remaining line-local
+readers filed as `facade-guard-file-keeps-two-line-local-readers` (its
+id says two; ids are stable). (2) `Doc.node_kind(node) -> str` from one
+exhaustive match with no wildcard (proved by deleting an arm), the
+vocabulary pinned whole on `TAG_INVENTORY`'s discipline, snake_case and
+deliberately NOT the wire's variant identifiers; an unknown id refuses
+`unknown_node`. The die-tool Python row now asserts the group by kind,
+mirroring the Rust row, instead of leaning on the byte pin. One red
+owned and fixed: an intra-doc link to a `cfg(test)`-gated module. Local
+`nextest --workspace` 6378 passed before the first push — the MECH1
+lesson, applied. Orchestrator merged main after the report (436
+commits, clean) and landed on the re-run.
