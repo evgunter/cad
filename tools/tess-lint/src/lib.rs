@@ -183,6 +183,40 @@
 //! learn to route around. Rule 3 only looks like a counter-example: a
 //! vanished scene loses rule 1 with it.
 //!
+//! **Rule 5 is the counter-example that has to be answered**, because
+//! it exits FINDINGS while speaking in the harness register, and an
+//! ungated re-key has the same shape at a glance: a reference the
+//! baseline no longer supplies, whose recourse is a re-cut. The
+//! difference is what the gate CLAIMS — which is [`Report`]'s test,
+//! *can this cost a MEASUREMENT*, read at the claim instead of at the
+//! number, and not a second criterion beside it: **a finding is where
+//! the gate would otherwise assert something false**, and for rules 1
+//! to 4 the thing asserted IS a measurement, so the two readings pick
+//! out the same observations. Rule 5 is the one place they come
+//! apart, because its claim is coverage. An uncovered scene was swept
+//! and measured against nothing, so the gate's coverage of it is
+//! asserted and false, and stays false until someone folds it. A
+//! scene with no sized face gives rule 2 no claim there to be false,
+//! and rule 1's per-scene comparison does not read an ordinal —
+//! nothing this gate says about that scene is wrong while the note
+//! stands.
+//!
+//! Nor is the note a permanent silence, which is the other half of
+//! why it is safe where rule 5's would not be — though the guarantee
+//! is narrower than *it gets announced eventually*, and the narrowing
+//! is the part worth reading. The judgement reads BOTH sides, so a
+//! drift STILL PRESENT in the comparison is a FINDING the day either
+//! side of that scene carries a sized face: the announcement waits
+//! for the comparison it would cost and arrives WITH it, never after
+//! it. **What that leaves out, said plainly:** the drift has to
+//! survive until that day. A re-cut absorbs the permutation into the
+//! baseline, and from then on the newly sized scene has no re-key
+//! left to announce — so an ordinal permutation in a scene rule 2
+//! never reaches can be folded away with nobody having read it. The
+//! cure for that is a durable per-face name in the sweep's own
+//! column — a key that does not move — and not a louder voice for
+//! the cases where the ordinal has already moved.
+//!
 //! **A measurement that could not be read is none of the five, and
 //! must not be resolved into one.** Rules 1 and 2 fire on GROWTH
 //! only, so any in-band fallback for an unreadable value is the
@@ -334,6 +368,28 @@ impl Deviation {
 }
 
 impl Row {
+    /// Whether this face carries the Hessian-sized block — **the one
+    /// spelling of that question at row level**.
+    ///
+    /// Rule 4's identity reading, `compare`'s per-scene judgement, the
+    /// CLI's roster and the baseline census all ask through here
+    /// rather than each re-testing the field, so what "sized" means is
+    /// one edit rather than four. The three `Option` readings below
+    /// are `Some` exactly here — they are unconditional maps over the
+    /// same field — which is why that equivalence needs no guard
+    /// restating it.
+    ///
+    /// [`SceneTotals::recoverable`] asks this one level up and cannot
+    /// share the body: it reads summed cell counts, which are above
+    /// zero exactly when some row of the scene is sized only because
+    /// [`parse`] admits no cell count below one. That agreement rests
+    /// on the floor rather than on this function, so it is pinned over
+    /// the committed corpus by `tests/baseline_census.rs` rather than
+    /// merely written down.
+    pub fn is_sized(&self) -> bool {
+        self.nurbs.is_some()
+    }
+
     /// `patch_cells / grid_cells` — the held span gain, or `None` off
     /// the Hessian-sized lane.
     ///
@@ -1083,11 +1139,7 @@ fn identity(r: &Row) -> [Reading<'_>; IDENTITY_COLUMNS.len()] {
     let col = |f: fn(&Nurbs) -> f64| r.nurbs.map_or(Reading::Absent, |n| Reading::Number(f(&n)));
     [
         Reading::Tag(r.chart.as_str()),
-        Reading::Tag(if r.nurbs.is_some() {
-            "present"
-        } else {
-            "absent"
-        }),
+        Reading::Tag(if r.is_sized() { "present" } else { "absent" }),
         col(|n| n.u0),
         col(|n| n.u1),
         col(|n| n.v0),
@@ -1210,6 +1262,13 @@ pub struct Observation {
 /// observation can cost a MEASUREMENT — never by how alarming it
 /// looks. A gate that reds where it gates nothing is trained away, and
 /// this tree has already paid for that once.
+///
+/// That is the module docs' general form — *a finding is where the
+/// gate would otherwise assert something false* — in the shape the
+/// four measurement rules take it, not a rule of its own beside it.
+/// Rule 5 is where the two spellings come apart, because what it
+/// falsifies is the gate's COVERAGE claim rather than a budget, and
+/// the module docs carry that case.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Report {
     /// Movements that fail the gate.
@@ -1294,10 +1353,13 @@ pub fn compare(baseline: &[Row], fresh: &[Row]) -> Report {
         };
         // Whether rule 2 has anything to lose in this scene, which is
         // what puts a re-key on the findings side or the notes side.
+        // BOTH sides are read, so the note is not a silence that
+        // outlives its reason: while the same drift is still in the
+        // diff, it is a finding the day the scene is first sized.
         let gated = base_faces
             .values()
             .chain(fresh_faces.values())
-            .any(|r| r.recoverable().is_some());
+            .any(|r| r.is_sized());
         let ordinals: std::collections::BTreeSet<usize> = base_faces
             .keys()
             .chain(fresh_faces.keys())
@@ -1401,7 +1463,7 @@ mod tests {
     fn parses_both_chart_shapes() {
         let rows = parse(&csv(100, 2.5e1)).unwrap();
         assert_eq!(rows.len(), 2);
-        assert!(rows[0].nurbs.is_none(), "a plane row carries no sizing");
+        assert!(!rows[0].is_sized(), "a plane row carries no sizing");
         let n = rows[1].nurbs.unwrap();
         assert!((n.grid_cells - 100.0).abs() < 1e-9);
         assert!((n.patch_cells - 200.0).abs() < 1e-9);
@@ -2230,8 +2292,10 @@ mod tests {
 
     /// …and a NOTE where it cannot. Rule 1 still runs over this
     /// scene's total, so no comparison was lost; reddening here is how
-    /// a gate teaches people to route around it. 58 of the committed
-    /// baseline's 70 scenes are this shape.
+    /// a gate teaches people to route around it. How much of the
+    /// committed corpus is this shape is a reading of the baseline,
+    /// which a re-cut moves, so it is derived in
+    /// `tests/baseline_census.rs` rather than written here.
     #[test]
     fn a_re_key_in_a_scene_with_no_sized_face_is_a_note() {
         let base = parse(&format!(

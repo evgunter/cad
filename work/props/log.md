@@ -788,6 +788,28 @@ reading list now names both `docs/prompts/` files as orchestrator
 reading. The item records the ruling with `needs_ev` cleared; the
 unit is `docs/PROPS-SIGN-HULL-SPEC.md` (block PROPS-B2 slot 1, dual).
 
+**budget-faces in review (2026-09-06)** — PR
+[#2008](https://github.com/evgunter/cad/pull/2008), branch
+`props/budget-faces` (head as on the PR), item
+`budgetexhausted-conflates-three-terminations` at `status: review`
+per the spec's §Landing (NOT merged; the orchestrator lands after the
+style review). `OffsetFitError::BudgetExhausted` is four faces:
+`BudgetExhausted` (rounds out, finite; lever `OFFSET_FIT_BUDGET`),
+`SampleCapReached` (the cap stopped the next round; lever
+`OFFSET_FIT_SAMPLE_CAP`, `rounds` says how many ran), `RefinementStalled`
+(untouched — measured as the only unmarked termination: 71 loop exits
+across the geom-brep suite, 0 stall verdicts, 0 schedule-exhaustion
+stops, every cap stop from a marking that grew), `BoundNeverFinite`
+(no `achieved` field; the lever is the limb's floors, not a knob).
+D2 row 1 at the enum. Two measured deviations argued in the body: the
+spec's `d = 1e-7` face-2 instance reads `achieved: inf` and is face 4
+(the face-2 red row is the bumpy patch at 1e-15, the item's own
+`budget: 6` after five rounds); `rounds` counts refinement rounds as
+the certificate does. Sweep: one hit of the shape outside the fence,
+`WitnessOutcome::BudgetExhausted`'s two caps, filed as
+`work/issues/witness-budget-exhausted-two-caps-one-name.md`. Territory:
+`crates/geom-brep/tests/offset_fit.rs` (tcost) only.
+
 **Sign-hull unit dispatched (2026-09-06).** `docs/PROPS-SIGN-HULL-SPEC.md`
 on main (#2004): option 1 — `b1 = normalize(e_k × n)`, `k` the
 smallest-magnitude component with ties to the highest index, the choice
@@ -856,3 +878,63 @@ merge-forward lane pushed an EMPTY commit to carry it (R1 MINOR 4 /
 N3). Corrected by message to the sign-hull lane; no spec on main asks
 for it after the sign-hull spec's deletion at landing; no empty commit
 is ever pushed for it again.
+
+**Budget-faces style review adjudicated (2026-09-06).** PR #2008,
+frozen `a1abdea5f`, single review (E rider, outside the experiment):
+NOT-MERGEABLE-AS-IS, 3 MAJOR / 6 MINOR / 7 NOTE, rubric 4/3/2. The
+dispatch of the four faces held over 70 fits outside the module (the
+reviewer's probe: no cap stop at `rounds == budget`, no budget or cap
+face non-finite, zero stalls); what failed is what two faces PROMISE:
+face 1 says "still converging" but the budget exit precedes the stall
+guard, so a bound that stops improving on the last round is reported
+as a budget refusal; face 4 says "never finite" but `expiry` reads the
+last round only, and the loop deliberately continues after a finite
+bound is followed by `inf`. Third MAJOR: the sweep's pattern missed
+`*Budget` VARIANTS — `PropsError::QuadratureBudget` (six raise sites in
+`props/quad.rs`, three round budgets, told apart by a `rounds` payload
+convention: the same shape) and `SsiError::{StepBudget, FitSampleBudget}`.
+Rulings: the stall verdict runs before the budget exit; face 4 becomes
+`BoundNotFinite { .., last_finite: Option<f64> }` saying what is
+tested; `QuadratureBudget` is FILED for the rational quad lane (its
+budgets are `quad2-rational-max-rounds-dial-decision`'s subject), not
+fixed in the rider. Fix pass on the branch (the same lane resumed);
+the reviewer's two probe rows are adopted.
+
+**Outage and resumption (2026-09-07 23:50 UTC).** The orchestrator
+session and its three live lanes (sign-hull implementer, MESH-12 fix
+pass, budget-faces fix pass) were cut by a usage limit at 2026-09-06
+~08:10 UTC and resumed 39 hours later; each lane's worktree survived
+(sign-hull with ~300 uncommitted lines; MESH-12 with two fix-pass
+commits pushed and green, run 34021118980; budget-faces with its fix
+pass uncommitted) and each is resumed in place with its cwd re-pinned.
+
+**MESH-12 record corrected (2026-09-07).** The S-MESH orchestrator on
+#1617: the v6 dual under ordinal 1210 DID run on `0e053a727` before
+that session was cut on 2026-09-03 — R1 opus 0/4/7 and R2 fable 0/1/5,
+both 4/4/3, tally +0, one bilateral finding (the winding headroom
+levered at the sphere radius where certification levers at the
+carrier radius; the PROPS fix pass's `0e4a1b57a` lands the same shape)
+— with probe branches `mesh/12r1-probes` @ 6beab58a1 and
+`mesh/12r2-probes` @ e3d913b88. The takeover note's "never reviewed"
+was wrong; the row records both duals, PROPS's (on `3daab7d80`, the
+bilateral reversed-span MAJOR that the prior dual did not find — a v6
+data point) as the sample. S-MESH also pushed a landing merge of main
+(`267e2510f`) minutes after asking who lands; answered on the PR:
+PROPS lands per Ev's direction, S-MESH pushes nothing further.
+
+**Mignitude-floor specified (2026-09-08).** `docs/PROPS-MIGNITUDE-FLOOR-SPEC.md`:
+`‖E‖ ≥ |D|/(w̃·‖M̃‖)` read through the sign witness the composite
+already carries, the max of three sound lower bounds feeding both
+places `cell_bound` divides by `‖E‖`; the micron row red-first; every
+certificate tightens or holds and every digit-pinning row
+re-baselines with its digits (a bound that grows is a MAJOR — stop).
+H / NUMERIC, block PROPS-B2 slot 2, dual; dispatch waits on disk
+(two lanes building on a 6 GB margin) — after MESH-12 lands.
+**Budget-faces MERGED (2026-09-08).** PR #2008 at `887f5e39d` (run
+34172448162 green). The fix pass answered all three MAJORs: the stall
+verdict precedes the budget exit (a fixture found — bumpy patch at
+`d = 1e-6`, tol ≤ 1e-9, red `BudgetExhausted { achieved: 6.9e-7 }`
+→ green `RefinementStalled { rounds: 6 }`), `BoundNotFinite` says what
+is tested and carries `last_finite` and `d`, `QuadratureBudget` filed
+for the rational quad lane. Item closed; spec into the ledger. E rider
+— no A/B row.
