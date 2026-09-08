@@ -2,7 +2,8 @@
 id: record-file-column-read-by-first-colon-split
 kind: issue
 title: the class - every reader that takes a record's FILE column as everything before the first colon
-status: open
+status: review
+branch: gates/record-column-parser
 opened: 2026-09-08
 refs: [bounds-allowlist-select-cuts-at-the-first-colon]
 ---
@@ -98,3 +99,55 @@ made once for every gate that reads records, which is why it is not a
 rider on any single gate's unit. `bounds-allowlist.sh` now spells that
 reading locally (`BOUNDS_RECORD_LINE_RE`) and says so at the constant;
 whichever way this row goes, that constant is what it replaces.
+
+## Landed
+
+One reading, in `lib.sh`'s new §"THE RECORD'S COLUMNS":
+`GATE_RECORD_LINE_RE=':[0-9]+:'` is where the FILE column ends, and
+three ways in read it — `gate_record_file` and `gate_record_text` for a
+pipeline stage, and `GATE_RECORD_AWK`'s `gate_record_split(rec)`
+(GR_FILE / GR_LINE / GR_TEXT) prepended to any `awk` program, taking the
+constant through `ENVIRON` the way the cfg regex does.
+`GATE_RECORD_PREFIX_RE` stays, built from the same constant, and now
+says at its definition that it is an ANCHOR and not a parser.
+
+The row's open sites, converted: `viewer-module-kinds.sh`'s union dedupe
+key; `lib.sh`'s `gate_test_only_mounts` (the `-oE` narrowing, and the
+three columns now arriving as `LINE:NAME:FILE` so the one field that may
+carry a colon is the one `read` hands the remainder to),
+`gate_declaration_shape` and `gate_exact_skip_record_for`;
+`bounds-allowlist.sh`'s local `BOUNDS_RECORD_LINE_RE` /
+`gate_record_file_column`, which are now the shared helper.
+
+The class was bigger than the row's grep. That grep cannot see a column
+read done inside an `awk` body with a hand-written `index()`/`substr()`
+pair — the row says so — and there were six of them, each the same
+first-colon split: `panic-free-macro-bodies.sh` (its `macro_bodies`
+reader AND its `PANIC_RE` fence, which is why a panic token in a macro
+body in such a file was seen by nothing), `interval-square-allowlist.sh`
+(the binding hop and the census report), `loop-boundary-discards.sh`,
+`bit-identity-debug-only.sh`, `no-extra-real-bounds.sh` and
+`viewer-vocab-declared-once.sh`. All converted.
+
+The residual ambiguity — `foo:12:bar.rs`, a path spelling a `:LINE:` of
+its own — is registered once, in `lib.sh`'s new section, as the one
+shape no reader of a `FILE:LINE:TEXT` record can resolve; this reading
+takes the first `:digits:`. `bounds-allowlist.sh`'s KNOWN GAP 8 keeps
+what the shape costs THAT gate and points there for the rest.
+
+Fixtures, one per converted reader, each mutation-proved by restoring
+the first-colon reading at that site: the viewer gate counts two sites
+in `a:b.rs` as two (and reds on a third); the resolver excludes the
+subtree a declarer at `a:b.rs` mounts, in all three of its callers;
+`panic-free-macro-bodies.sh` fires on a macro body in `a:b.rs`;
+`loop-boundary-discards.sh` names that path whole in its UNREG line;
+`viewer-vocab-declared-once.sh` names it whole with its line;
+`interval-square-allowlist.sh` raises the binding-hop candidate in it;
+`no-extra-real-bounds.sh` stays quiet on a SOLE bound in a path whose
+tail the walk used to read as a predicate. `bit-identity-debug-only.sh`
+is converted with no fixture: its subjects are a baked row list a
+fixture tree cannot extend, so a colon-carrying path is unreachable
+there without an edit to that list.
+
+Every gate's live stdout and stderr is byte-identical to the merge
+base's, statuses included, and every `--selftest` passes.
