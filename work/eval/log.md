@@ -415,3 +415,13 @@ reads through `code_only`, with its ledger line (`Shared`). **Lesson
 for briefs:** a test that reads `.rs` text owes a ledger line and uses
 the shared walker and lexer — the census's own doc says which
 dispositions are honest.
+
+## EVAL-4 MERGED (2026-09-08, PR 2165, merge 33f0f4d20)
+
+Green on the merged head (main had moved with code under it, so it
+ran once more). `declare`/`declare_all` return the accepted edit
+whole; `pncad-py`'s declare doors go through the sugar; `refactor.rs`
+carries one `Recording` swap point and both outcomes carry the
+maintenance their edits performed. `D367` closed. The FIX seam
+(`refactor.rs`) was announced on the PR; LIB's and DOCM's follow-ups
+are filed on their slates (above).
