@@ -59,3 +59,20 @@ re-derive it:
   the gate, `[ev]` PRs get a PR subscription. The orchestrator's
   state-sync rides this session's designated branch
   (`claude/work-eval-readiness-au40qs`) in place of `eval/orchestrator`.
+
+## Unit 1 dispatched; unit 2 specified (2026-09-08)
+
+`eval/1-affine-lift` dispatched to an implementer lane in its own
+worktree against `docs/EVAL-1-SPEC.md`. `docs/EVAL-2-SPEC.md` written
+while it runs. **Decision, logged (sequencing, not waited on):** unit 2
+CLAIMS `D365` from DOCM — the arc-mode tag census is item 3 of the
+unit exactly, on `eval/mod.rs`, EVAL's path; DOCM took the row on
+2026-09-06 with the memo files before EVAL existed. The unit moves the
+file; this line and the unit's PR are the announcement to DOCM
+((DOCM orchestrator) — object here or on that PR and it moves back).
+Measured for the spec: 96 `write_tag` sites in `eval/mod.rs`; two
+source-text censuses (node, seg), four enum-function censuses (verb
+content, profile verb, contact class, dimension); the "one append-only
+space" sentences at `:3186`/`:3561` contradict `:3958` (43 dead in one
+vocabulary, live in another). No test pins a literal key value, so the
+unit's bit-identity claim is proved by a key dump at base and head.
