@@ -1049,3 +1049,41 @@ constant; the one-predicate claim quantified over a non-empty list
 (the `<entry>:12:x.rs` shape is exempt from the scan and caught by the
 pin, naming the entry — KNOWN GAP 8); the residue row carries the
 class's grep with every hit dispositioned.
+
+
+## PR 2156 reviewed (2026-09-08)
+
+Style review of `whole-file-skips-do-not-check-their-subject`:
+mergeable. The ordering after the file set is load-bearing in both
+narrowing gates (moved earlier, the every-source-excluded case fires
+the wrong diagnosis), every mutation reproduced including the
+filter→fixture direction (green on the merge-base, red here), the
+empty-list marker reproduced on `no-ambient-env.sh`, seven gates
+byte-identical, self-test +17% for 33 extra runs. Fix pass sent: the
+home-gone failure line names the planter and not the home; two
+spellings of the missing-home diagnosis and two of the no-homes
+refusal; the substitution-discards-the-exit mechanism told five
+times; history in two comments; the check proves a file exists on
+disk and not that it is in the scan set; seven copies of one
+paragraph at the arrays; one SUBJECT string that points at the script.
+## Landed: PR 2156 (2026-09-08)
+
+`whole-file-skips-do-not-check-their-subject` closed. `lib.sh` has
+`gate_require_homes SUBJECT HOME...`, called by the seven gates whose
+whole-file skips read a home list, after their file set is decided:
+a skipped home that is gone is a red naming the path and what the skip
+would have exempted (the rule `gate_exact_skip_subject` already
+applies, D103's class), with the home-gone case run per home from
+`lib.sh`. The filter→fixture direction PR 2077 left as convention is
+mechanical now: a home kept in the filter but dropped from the clean
+fixture reds. From PR 2157's review, the anchor builder's empty-list
+refusal marks the matcher failed, so no gate can print OK over it.
+Seven gates byte-identical live. Residue on this slate:
+`directory-prefix-skips-have-no-subject-check`.
+Fix pass from the review: the home check proves membership in the scan
+set (`GATE_PRODUCTION_FILES` when the narrowing ran, else
+`GATE_SOURCE_FILES`), not only that a file exists on disk, with its own
+case; the missing-home and no-homes diagnoses each have one text; the
+substitution-swallows-the-exit argument has one home; the self-test's
+failure line names the gate, the planter and its argument; the seven
+array paragraphs are pointers; the planter argument convention stated.

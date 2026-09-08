@@ -120,6 +120,8 @@ mod docm8_flat_merged;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "eval4_accept_funnel.rs"]
+mod eval4_accept_funnel;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
