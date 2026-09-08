@@ -1918,17 +1918,16 @@ fn wire_shell<T: Decide + crate::verbs::shell::ShellLane>(
     // keep the source they arrived with.
     stamp_minted(&mut body, id);
     // **Attach-at-mint for the lowered parameter-identity channel**
-    // (VERB-SEAT-DESIGN P2), through the shell's own attach door: the
-    // thickness slot's expression lowers to a token under THIS
-    // evaluation's scope, and the verb's DECLARED flow says which
-    // stored fields of which minted carriers it reached. The shell's
-    // row is declared EMPTY (its thickness becomes `r − t`, the
-    // identity of neither), so the door attaches nothing today — the
-    // declaration obeyed, never a case skipped; the day the flow names
-    // a field, this is where the token lands. The slot's absence is a
-    // lookup, not a case, and the attach's own refusals are surfaced
-    // typed if they ever fire.
-    if let Some(expr) = doc.node(id).and_then(|n| n.expr(verb.slots.size_slot)) {
+    // (VERB-SEAT-DESIGN P2), through the shell's own attach door,
+    // driven by the verb's DECLARED flow. The shell's row is declared
+    // EMPTY today (its thickness becomes `r − t`, the identity of
+    // neither), so there is nothing to lower and nothing to stamp:
+    // the lowering is skipped, not performed onto nothing. The day the
+    // seat's row names a field, the token is lowered here and
+    // `attach_shell` is the placeholder that row will have to fill.
+    if crate::param_source::flow_bearing(verb.slots.size_param)
+        && let Some(expr) = doc.node(id).and_then(|n| n.expr(verb.slots.size_slot))
+    {
         let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
         crate::param_source::attach_shell(
             &mut body,
@@ -1951,9 +1950,10 @@ fn wire_shell<T: Decide + crate::verbs::shell::ShellLane>(
 /// (the first designated face of a chart carries its rim), so
 /// re-sorting it would silently move a rim.
 ///
-/// A repeated designation cannot arrive here — the construction door
-/// deduplicates and the load door refuses a repeat as corrupt — and if
-/// one did, the kernel refuses it itself (`OpenFaceRepeated`).
+/// A repeated designation cannot arrive here: the construction door
+/// deduplicates, and the insert door and the load door both refuse a
+/// repeat through `Node::input_fault`. If one did, the kernel would
+/// refuse it itself (`OpenFaceRepeated`).
 fn resolve_open_faces(
     open: &[names::StableName],
     doc: &crate::doc::Doc<ProfileProgram>,

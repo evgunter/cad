@@ -1473,10 +1473,12 @@ impl Node {
     /// `open` is face names as TEXT, the strings `Evaluation.all_faces`
     /// or a selector answers with, CARRIED and never composed — and,
     /// unlike a blend's selection, IN THE ORDER GIVEN. The order is
-    /// meaning: a chart's rim is its FIRST designated face (the
-    /// chart's members merge onto it, and the rim's name is that
-    /// face's), so name first the face you want to carry the rim's
-    /// identity. A repeated name keeps its first occurrence. An EMPTY
+    /// meaning: the kernel's record keeps a chart's designated faces
+    /// in designation order, and the chart's rim is its FIRST
+    /// designated face (the chart's members merge onto it, and the
+    /// rim's name is that face's), so name first the face you want to
+    /// carry the rim's identity. A repeated name keeps its first
+    /// occurrence. An EMPTY
     /// list is the SEALED hollow — every face offset inward, a cavity
     /// and no rim — which is legal and not a refusal.
     ///

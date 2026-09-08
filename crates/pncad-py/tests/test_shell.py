@@ -135,7 +135,7 @@ class TestCup(unittest.TestCase):
         for name in rim + inner + outer:
             self.assertEqual(ev.resolve(name).status, "resolved")
 
-    def test_a_rebuild_keeps_the_names_and_moves_the_forms(self):
+    def test_the_same_recipe_at_bumped_values_answers_the_same_names(self):
         doc = Doc()
         _box, hollow = cup(doc)
         ev = evaluate(doc)

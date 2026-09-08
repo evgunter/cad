@@ -11,7 +11,7 @@
 //! |---|---|---|
 //! | `outer` (survivors keep operand keys) | outer wall face | [`RoleSeg::FromTarget`] |
 //! | `inner`, `inner_edges`, `inner_vertices` | cavity twin | [`RoleSeg::Inner`] |
-//! | `rims[i].rim` | the chart's annular rim face | [`RoleSeg::Rim`] of `sources[0]`'s name |
+//! | `rims[i].rim` | the chart's annular rim face | [`RoleSeg::Rim`] of `sources[0]`'s name — `RimNaming::sources` preserves designation order, which is what makes "the first designated face" a fact of the record |
 //! | `rims[i].ring_edges` / `ring_vertices` | the rim's ring | rows of `inner_edges` / `inner_vertices` verbatim, so `Inner` of the boundary edge — no second role |
 //! | `rims[i].holes[j].face` | a promoted hole annulus | [`RoleSeg::HoleRim`], `j` in pairing order |
 //! | `dead` | nothing | nothing — a designated face's own name VANISHES |

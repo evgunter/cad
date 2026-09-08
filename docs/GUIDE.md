@@ -1253,8 +1253,10 @@ body.validate()
 inner = L - 2 * T
 assert body.mass_properties().volume == L**3 - inner * inner * (L - T)
 
-# The cup's own vocabulary: one rim (named for the top it replaced),
-# five cavity twins, and the five outer faces carried through.
+# The cup's own vocabulary: one rim (named for the top it replaced)
+# and five cavity twins group as the SHELL's; the five outer faces are
+# carried through and speak as `FromTarget`, the blend's group, because
+# the tag names the shape and the minting node says which op.
 ev = evaluate(doc)
 assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))) == 1
 assert len(ev.select(cup, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))) == 6

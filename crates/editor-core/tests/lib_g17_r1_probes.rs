@@ -73,7 +73,7 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
 #[test]
 fn an_order_swap_changes_only_the_rim_name() {
     let a = vessel::document();
-    let b = vessel::document_with_mouth(|pot| {
+    let b = vessel::document_with_open(|pot| {
         [
             vessel::band_pi(pot, vessel::SEG_MOUTH),
             vessel::band(pot, vessel::SEG_MOUTH),

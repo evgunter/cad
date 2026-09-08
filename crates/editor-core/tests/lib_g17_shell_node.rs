@@ -129,11 +129,11 @@ fn the_cup_evaluates_green_and_is_exactly_its_closed_form() {
     assert_exact(body, d.pin.expect("the cup pins"), "cup");
 }
 
-/// **The interval row**: the same document, green at the certified
+/// **The interval row**: both documents, green at the certified
 /// scalar — the lane the registry would have run.
 #[cfg(feature = "interval")]
 #[test]
-fn the_cup_evaluates_green_at_the_interval_scalar() {
+fn both_documents_evaluate_green_at_the_interval_scalar() {
     let d = cup::document();
     let ev = eval::<geom_core::Interval>(&d.doc);
     let bad = failures(&ev);
@@ -370,7 +370,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
 #[test]
 fn the_designation_order_moves_the_rim_and_the_content_key() {
     let a = vessel::document();
-    let b = vessel::document_with_mouth(|pot| {
+    let b = vessel::document_with_open(|pot| {
         [
             vessel::band_pi(pot, vessel::SEG_MOUTH),
             vessel::band(pot, vessel::SEG_MOUTH),
@@ -492,7 +492,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // (d) a half-chart designation on the vessel: the kernel's
     // `OpenFaceChartPartial`, carried verbatim — the document layer
     // completes no chart on the author's behalf.
-    let v = vessel::document_with_mouth(|pot| {
+    let v = vessel::document_with_open(|pot| {
         [
             vessel::band(pot, vessel::SEG_MOUTH),
             vessel::band(pot, vessel::SEG_BELLY),

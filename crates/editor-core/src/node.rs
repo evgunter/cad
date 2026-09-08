@@ -2640,7 +2640,8 @@ impl<P> Node<P> {
     }
 
     /// The [`StableName`]s this payload REFERENCES — `Declare` pairs, a
-    /// fillet's selection, a mate's two heads. Document data, never DAG
+    /// blend's selection, a shell's open list, a derived frame's face, a
+    /// measure's references, a mate's two heads. Document data, never DAG
     /// edges ([`Node::inputs`] excludes them): the edit door checks at
     /// insertion that each one names a live node, and a later delete may
     /// strand it, which is NAMING-DESIGN N5's dangling-reference

@@ -471,16 +471,16 @@ pub(crate) fn attach_blend<T: Real>(
     Ok(())
 }
 
-/// The faces a role family's rows name in a shell birth record.
-///
-/// The shell's flow declares NO field today (its thickness becomes
-/// `r − t`, the identity of neither `r` nor `t` — `verbs::flow`'s
-/// `SHELL_FLOW` says why), so no family is asked of this record and
-/// every arm answers the empty list. Not a wildcard: each family is
-/// written out so that the day the flow names a field on a cavity
-/// carrier, the family it names is visited here and the record's own
-/// rows — the cavity twins in `inner`, the rims, the hole rims — are
-/// where its faces come from.
+/// The faces a role family's rows name in a shell birth record —
+/// **a placeholder, and it says so**: the shell's flow declares NO
+/// field today (its thickness becomes `r − t`, the identity of neither
+/// `r` nor `t` — `verbs::flow`'s `SHELL_FLOW` says why), so no family
+/// is asked of this record, every arm answers the empty list, and the
+/// record is not read. Not a wildcard: each family is written out so
+/// that the day the flow names a field on a cavity carrier, the family
+/// it names is visited here and this function has to be FILLED from
+/// the record's own rows (the cavity twins in `inner`, the rims, the
+/// hole rims) rather than left answering nothing.
 fn shell_family_faces(family: RoleFamily, _rec: &ShellNaming) -> Vec<FaceKey> {
     match family {
         // The blend families are the blend surgery's own rows; a shell
@@ -499,10 +499,12 @@ fn shell_family_faces(family: RoleFamily, _rec: &ShellNaming) -> Vec<FaceKey> {
 /// The flow is the kernel-side declaration and this door is its
 /// consumer for shell results: the document layer knows the
 /// expression, the verb knows where its parameter lands, and the two
-/// meet here. The shell's row is present and EMPTY (its thickness
-/// reaches no stored field), so this attaches nothing today — the
-/// declaration being obeyed rather than a case being skipped, and the
-/// door that a non-empty row will drive.
+/// meet here. **Today the door is a placeholder**: the shell's row is
+/// present and EMPTY, so the lowering does not reach this function at
+/// all (`flow_bearing` answers `false` and no token is lowered), and
+/// [`shell_family_faces`] answers the empty list for every family. A
+/// non-empty row is what would make both halves real, and both say so
+/// rather than attaching nothing silently.
 ///
 /// # Errors
 ///

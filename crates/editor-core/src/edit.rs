@@ -1547,7 +1547,9 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // them (N5), so this is the ONLY door that checks, for
             // every payload that carries a name (`Node::payload_names`
             // — Declare pairs, a BLEND's selection (fillet under M6-5,
-            // chamfer alongside it), a mate's two heads under A12).
+            // chamfer alongside it), a SHELL's ordered open list, a
+            // derived frame's face, a measure's references, a mate's
+            // two heads under A12).
             for name in node.payload_names() {
                 if !new.nodes.contains_key(&name.node) {
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
@@ -1752,15 +1754,17 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
             // One-shot rewrite of every EXACT reference (sites:
             // Declare pairs, blend selections — fillet and chamfer
-            // alike — appearance-store keys). Zero sites = nothing to
-            // repair, refused.
+            // alike — a shell's open list, appearance-store keys).
+            // Zero sites = nothing to repair, refused.
             // Every payload site, by the one list that says which
             // payloads carry a name (`Node::payload_names`' twin): the
             // rewrite reaches a mate's heads exactly as it reaches a
             // Declare pair, and a blend selection's GROWTH PATH (M6-5,
             // ruled #217) re-canonicalizes there — for a chamfer's
             // selection exactly as for a fillet's, since both are the
-            // same canonical set. A mate reference read AT ITS OWN
+            // same canonical set; a shell's ORDERED list re-canonicalizes
+            // to its own form, dropping a repeat and keeping the
+            // earlier position. A mate reference read AT ITS OWN
             // MINT stays read at its own mint; one read elsewhere
             // keeps its operand, which is an authored fact this edit
             // knows nothing about.

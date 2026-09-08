@@ -10,7 +10,7 @@
 //! into rims — resolved through the target's table exactly as a blend's
 //! selection is, with the kind check demanding a FACE. What is declared
 //! here is the correspondence proper: which slot is the verb's scalar
-//! parameter ([`ShellSlots`]), how resolved face keys and the evaluated
+//! parameter ([`SlotJoin`]), how resolved face keys and the evaluated
 //! thickness become the kernel verb (`build`), which arm of the closed
 //! record channel the result arrives in (`record`), and which emitter
 //! mints names from the birth record (`emitter`). The order of the
@@ -59,6 +59,7 @@ use std::sync::Arc;
 use topo::{Body, FaceKey, ReplaceFaceError, ShellError, ShellNaming};
 use verbs::{ScalarParam, Verb, VerbError, VerbOut, VerbRecord};
 
+use super::SlotJoin;
 use crate::lane::{BracketEnd, Lane};
 use crate::names::{self, NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId};
@@ -90,8 +91,9 @@ pub(crate) struct ShellVerb<T: geom_core::Real> {
     /// doors write it as they act, so a shell result always carries
     /// one and there is no "no records" sentence to invent.
     pub(crate) record: fn(VerbRecord<T>) -> Option<ShellNaming>,
-    /// The thickness slot and the kernel parameter it is.
-    pub(crate) slots: ShellSlots,
+    /// The thickness slot and the kernel parameter it is
+    /// ([`SlotJoin`]).
+    pub(crate) slots: SlotJoin,
     /// What a WRONG-FAMILY record is called when this verb's result
     /// arrives carrying another family's channel — a kernel bug
     /// surfaced typed, unreachable while the doors and the
@@ -100,23 +102,8 @@ pub(crate) struct ShellVerb<T: geom_core::Real> {
     pub(crate) foreign_record: &'static str,
 }
 
-/// **The slot ↔ parameter join of the shell**, free of the lane
-/// scalar: the document side names a slot, the kernel side names a
-/// parameter, and the parameter → field flow
-/// (`verbs::VerbKind::param_flow`) is keyed on the latter. The join is
-/// what lets the lowering attach the slot's lowered expression identity
-/// through the verb's declared flow, and the content key read the same
-/// slot, without either knowing which verb it holds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ShellSlots {
-    /// The slot whose evaluated scalar is the wall thickness.
-    pub(crate) size_slot: SlotId,
-    /// Which kernel scalar parameter that slot IS.
-    pub(crate) size_param: ScalarParam,
-}
-
 /// The shell's join.
-pub(crate) const SHELL_SLOTS: ShellSlots = ShellSlots {
+pub(crate) const SHELL_SLOTS: SlotJoin = SlotJoin {
     size_slot: SlotId::ShellThickness,
     size_param: ScalarParam::ShellThickness,
 };
@@ -472,6 +459,8 @@ fn fold_iso_row_error<T: Real>(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
     use super::*;
     use verbs::VerbKind;
 

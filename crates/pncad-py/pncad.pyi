@@ -67,10 +67,9 @@ a value with no exact spelling in the unit asked for falls back to
 metres or radians, so read the suffix off the text.
 
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: sweep and tube, the pattern node
+`docs/guide/north-star-audit.md`: sweep, and the pattern node
 (`placed_union` says a placed family whose value is one body; the
-plural-payload node stays unbound), and chamfer's shell sibling,
-which has no recipe node at all.
+plural-payload node stays unbound).
 """
 
 from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
@@ -2016,7 +2015,14 @@ class SegTag:
     InPart: Final[SegTag]
 
 class OpGroup:
-    """The op group a role segment belongs to (`SegPat.group`)."""
+    """The op group a role segment belongs to (`SegPat.group`).
+
+    `Shell` groups the hollowing verb's cavity twins and rims (`Inner`,
+    `Rim`, `HoleRim`). A shell's OUTER walls are carried through and
+    speak as `FromTarget`, which groups under `Fillet` — the tag names
+    the shape (an entity carried through one op), and which op carried
+    it is the minting node's business.
+    """
 
     Shared: Final[OpGroup]
     Extrude: Final[OpGroup]

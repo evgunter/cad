@@ -13,7 +13,11 @@
 //! are wrapped UNALTERED (no stringification) with (node, slot)
 //! context — including PR 1's banked `NonFiniteResult` obligation:
 //! every expression evaluated during node evaluation carries the node
-//! and slot it came from.
+//! and slot it came from. One kernel error is generic over the lane
+//! scalar, the shell's, and it crosses through a TOTAL fold to `f64`
+//! (`NodeErrorKind::Shell`): every arm and every number kept, each
+//! number at the bracket end the lane declares — never rendered, never
+//! dropped, and at `f64` the identity.
 
 mod anchor;
 pub mod measure;
@@ -2983,7 +2987,7 @@ where
     // writes into gets the bump.
     //
     // Key format v4 (SEAT-6): a blend node's flow-bearing size slot
-    // feeds its lowered EXPRESSION beside its value (`feed_blend`,
+    // feeds its lowered EXPRESSION beside its value (`feed_scalar_join`,
     // through `param_source::feed_content_key`). An existing node
     // writes into the channel, so by the rule above this is the bump,
     // not the exception: every key moves, and no pre-bump memo entry
@@ -3205,7 +3209,7 @@ where
             // expression. So a value-preserving re-spelling (`r` for
             // `0.125`) must move this key, or the sweep's memo would
             // serve a body whose token names an expression the document
-            // no longer holds. Exactly the blend's rule (`feed_blend`,
+            // no longer holds. Exactly the blend's rule (`feed_scalar_join`,
             // v4) at the node that HOLDS the expression rather than the
             // node that attaches it: the sweep's key folds this one in
             // as an upstream key already, so writing it here covers
@@ -3378,20 +3382,23 @@ where
         // feeds nothing — the rule is read off the declaration rather
         // than written per verb.
         Node::Fillet { selection, .. } => {
-            feed_blend(&mut h, node, selection, crate::verbs::blend::FILLET_SLOTS);
+            feed_scalar_join(&mut h, node, selection, crate::verbs::blend::FILLET_SLOTS);
         }
         Node::Chamfer { selection, .. } => {
-            feed_blend(&mut h, node, selection, crate::verbs::blend::CHAMFER_SLOTS);
+            feed_scalar_join(&mut h, node, selection, crate::verbs::blend::CHAMFER_SLOTS);
         }
         // The open list feeds IN ORDER, because the order is meaning:
         // the first designated face of a chart carries the rim, so two
         // shells naming the same faces in different orders mint
         // different names and must not serve each other from the memo.
-        // The thickness slot's expression feeds only if the verb's
-        // declared flow lands it in a stored field — read off the
-        // declaration, exactly as the blends' rule is.
+        // The order feeds across DISTINCT charts too, where it carries
+        // no rim — a harmless over-discrimination (two memo entries for
+        // one body), accepted over a feed that would have to know
+        // which faces share a chart. The thickness slot's expression
+        // feeds only if the verb's declared flow lands it in a stored
+        // field — read off the declaration, exactly as the blends'.
         Node::Shell { open, .. } => {
-            feed_shell(&mut h, node, open, crate::verbs::shell::SHELL_SLOTS);
+            feed_scalar_join(&mut h, node, open, crate::verbs::shell::SHELL_SLOTS);
         }
         // A measure's REFERENCES and its measured EXPRESSION are both
         // recipe payload rather than slots: two measures with the same
@@ -4017,39 +4024,23 @@ fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
 /// a name is an identity, and two names differing anywhere are two
 /// different recipe payloads. Names are float-free by construction
 /// (pure tags and integers), so nothing here is eps-dependent.
-/// A blend node's recipe payload beyond its slot values: the canonical
-/// selection, and — for a flow-bearing size parameter — the lowered
-/// spelling of its slot (`content_key`'s blend arms).
-fn feed_blend(
+/// **A one-scalar verb's name payload and its flow-bearing slot**, fed
+/// as the blends and the shell all feed them: the names in the order
+/// the payload holds them (canonical for a blend, designation order
+/// for a shell), then the slot's EXPRESSION when the verb's declared
+/// flow lands it in a stored field (`content_key`'s arms).
+fn feed_scalar_join(
     h: &mut KeyHasher,
     node: &crate::node::Node<ProfileProgram>,
-    selection: &[StableName],
-    slots: crate::verbs::blend::BlendSlots,
+    names: &[StableName],
+    join: crate::verbs::SlotJoin,
 ) {
-    h.write_u64(selection.len() as u64);
-    for n in selection {
+    h.write_u64(names.len() as u64);
+    for n in names {
         feed_stable_name(h, n);
     }
-    if crate::param_source::flow_bearing(slots.size_param)
-        && let Some(expr) = node.expr(slots.size_slot)
-    {
-        h.write_tag(43);
-        crate::param_source::feed_content_key(h, expr);
-    }
-}
-
-fn feed_shell(
-    h: &mut KeyHasher,
-    node: &crate::node::Node<ProfileProgram>,
-    open: &[StableName],
-    slots: crate::verbs::shell::ShellSlots,
-) {
-    h.write_u64(open.len() as u64);
-    for n in open {
-        feed_stable_name(h, n);
-    }
-    if crate::param_source::flow_bearing(slots.size_param)
-        && let Some(expr) = node.expr(slots.size_slot)
+    if crate::param_source::flow_bearing(join.size_param)
+        && let Some(expr) = node.expr(join.size_slot)
     {
         h.write_tag(43);
         crate::param_source::feed_content_key(h, expr);
@@ -4651,21 +4642,43 @@ mod verb_content_tag_tests {
                 tags.push((tag, n));
             }
         }
-        // A census that read nothing would pass vacuously. `RoleSeg`
-        // has 41 variants and every one writes a tag.
-        assert!(
-            tags.len() >= 41,
-            "the segment census found only {} tags — the sentinels or the scan have drifted from \
-             the match they are supposed to read",
+        // A census that read nothing would pass vacuously, and a floor
+        // written by hand rots: the count is READ off `RoleSeg`'s
+        // fieldless mirror (`SegTag`, one variant per role by
+        // construction), so a role added to the vocabulary raises the
+        // bar here the moment it is typed.
+        let mirror = include_str!("../names/select.rs");
+        let mirror = mirror
+            .split_once("pub enum SegTag {")
+            .expect("the mirror enum")
+            .1
+            .split_once("\n}")
+            .expect("the mirror enum closes")
+            .0;
+        let variants = test_utils::source::code_only(mirror)
+            .lines()
+            .filter(|l| {
+                let l = l.trim();
+                l.ends_with(',') && l[..l.len() - 1].chars().all(char::is_alphanumeric)
+            })
+            .count();
+        assert_eq!(
+            tags.len(),
+            variants,
+            "the segment census found {} tags for {variants} role variants — the sentinels or \
+             the scan have drifted from the match they are supposed to read",
             tags.len()
         );
-        // And the tag this unit added is in the region, which is what
-        // says the census is reading the match that grew.
-        assert!(
-            tags.iter().any(|(t, _)| *t == 41),
-            "`FromMember`'s tag 41 is not reachable from the segment match — the census is \
-             measuring the wrong region"
-        );
+        // And the newest tags are in the region, which is what says the
+        // census is reading the match that grew: the union's member
+        // key and the shell's hole rim.
+        for (tag, role) in [(41, "FromMember"), (44, "HoleRim")] {
+            assert!(
+                tags.iter().any(|(t, _)| *t == tag),
+                "`{role}`'s tag {tag} is not reachable from the segment match — the census is \
+                 measuring the wrong region"
+            );
+        }
         let mut seen: Vec<(u8, usize)> = Vec::new();
         for (tag, line) in tags {
             assert!(

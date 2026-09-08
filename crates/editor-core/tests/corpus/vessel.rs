@@ -121,10 +121,11 @@ pub fn band_pi(pot: RecipeNodeId, seg: u32) -> StableName {
     )
 }
 
-/// The vessel with its mouth named in the given order — `[a, b]` are
-/// the two halves of the mouth chart, and which comes first decides
-/// which face carries the rim. [`document`] names `Band` first.
-pub fn document_with_mouth(order: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDoc {
+/// The vessel with its `open` list AUTHORED by the caller — two names,
+/// whatever faces they are: the mouth's two halves in either order
+/// (which decides which half carries the rim), or a designation the
+/// kernel refuses. [`document`] names the mouth's `Band` half first.
+pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDoc {
     let mut r = Recorder::new();
 
     // u = +X (the radius), v = +Z (the axis): the meridian's own axis
@@ -140,8 +141,8 @@ pub fn document_with_mouth(order: fn(RecipeNodeId) -> [StableName; 2]) -> Corpus
         axis,
         angle: ang(std::f64::consts::TAU),
     });
-    let mouth = order(pot);
-    let vessel = r.insert(Node::shell(pot, len(WALL), mouth.to_vec()));
+    let open = open(pot);
+    let vessel = r.insert(Node::shell(pot, len(WALL), open.to_vec()));
 
     CorpusDoc {
         name: "vessel",
@@ -163,5 +164,5 @@ pub fn document_with_mouth(order: fn(RecipeNodeId) -> [StableName; 2]) -> Corpus
 
 /// The vessel's corpus document: the mouth's `Band` half named first.
 pub fn document() -> CorpusDoc {
-    document_with_mouth(|pot| [band(pot, SEG_MOUTH), band_pi(pot, SEG_MOUTH)])
+    document_with_open(|pot| [band(pot, SEG_MOUTH), band_pi(pot, SEG_MOUTH)])
 }

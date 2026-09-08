@@ -60,7 +60,7 @@ fn names_minus_rim(t: &editor_core::NameTable) -> Vec<StableName> {
 #[test]
 fn p1_order_swap_changes_only_the_rim_name() {
     let a = vessel::document();
-    let b = vessel::document_with_mouth(|pot| {
+    let b = vessel::document_with_open(|pot| {
         [
             vessel::band_pi(pot, vessel::SEG_MOUTH),
             vessel::band(pot, vessel::SEG_MOUTH),

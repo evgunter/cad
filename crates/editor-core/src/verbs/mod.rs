@@ -31,7 +31,9 @@ pub(crate) mod split;
 pub(crate) mod sweep;
 
 use geom_core::Real;
-use verbs::VerbRecord;
+use verbs::{ScalarParam, VerbRecord};
+
+use crate::node::SlotId;
 
 use crate::eval::NodeErrorKind;
 use crate::names::NamingError;
@@ -58,4 +60,32 @@ pub(crate) fn read_record<T: Real, R>(
     family(record).ok_or(NodeErrorKind::Naming(NamingError::Emission {
         what: foreign_record,
     }))
+}
+
+/// **The slot ↔ parameter join of a verb with one scalar**, free of
+/// the lane scalar. The document side names a slot, the kernel side
+/// names a parameter, and the parameter → field flow
+/// (`verbs::VerbKind::param_flow`) is keyed on the latter — so a
+/// correspondence has to say which is which, or the flow cannot be
+/// looked up for the value the slot produced. This is the join that
+/// lets a lowering attach a slot's lowered expression identity to
+/// exactly the fields the verb declares its parameter reaches, and the
+/// content key feed the same slot's spelling, without either knowing
+/// which verb it is holding.
+///
+/// It is a join, not a restatement: `ScalarParam::verb` already says
+/// which verb a parameter belongs to (and each correspondence's census
+/// checks it names its own verb's), but no function of the verb alone
+/// can say which of the NODE's slots that parameter is — a slot is
+/// document vocabulary, and a verb that one day carries two scalars
+/// will need two of these. One type for every one-scalar verb (the two
+/// blends, the shell), so the content key and the attach doors read
+/// one shape.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SlotJoin {
+    /// The slot whose evaluated scalar is the verb's parameter: the
+    /// fillet's radius, the chamfer's setback, the shell's wall.
+    pub(crate) size_slot: SlotId,
+    /// Which kernel scalar parameter that slot IS.
+    pub(crate) size_param: ScalarParam,
 }
