@@ -1202,6 +1202,7 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Rim { .. } => "rim",
         ShellError::Escalated { .. } => "escalated",
         ShellError::Corrupt { .. } => "corrupt",
+        ShellError::Pcurve { .. } => "pcurve",
         ShellError::NotValid { .. } => "not_valid",
     }
 }

@@ -3284,6 +3284,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "open_faces_exhaust_shell",
             "operand_outer_shells",
             "partition",
+            "pcurve",
             "rim",
             "roles",
             "thickness",
