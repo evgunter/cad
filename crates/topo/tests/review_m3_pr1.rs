@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point3;
+use topo::readback::euler_counts;
 use topo::{
     Body, EulerOpError, FaceSurface, MefSite, MevSite, NewVertexSide, ValidationError, validate,
     validate_closed, validate_geometric,
@@ -39,13 +40,13 @@ fn dump(body: &Body<f64>) -> String {
 /// is built on, which no arena census carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct EulerCensus {
-    vertices: usize,
-    edges: usize,
-    faces: usize,
-    loops: usize,
-    shells: usize,
-    solids: usize,
-    rings: usize,
+    vertices: i64,
+    edges: i64,
+    faces: i64,
+    loops: i64,
+    shells: i64,
+    solids: i64,
+    rings: i64,
 }
 
 /// One step's signed shift of an [`EulerCensus`]. Sites name only the nonzero
@@ -53,31 +54,32 @@ struct EulerCensus {
 /// drift out of step with the field list.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct EulerCensusDelta {
-    vertices: isize,
-    edges: isize,
-    faces: isize,
-    loops: isize,
-    shells: isize,
-    solids: isize,
-    rings: isize,
+    vertices: i64,
+    edges: i64,
+    faces: i64,
+    loops: i64,
+    shells: i64,
+    solids: i64,
+    rings: i64,
 }
 
 fn census(body: &Body<f64>) -> EulerCensus {
+    let counts = euler_counts(body);
     EulerCensus {
-        vertices: body.vertices().count(),
-        edges: body.edges().count(),
-        faces: body.faces().count(),
-        loops: body.loops().count(),
-        shells: body.shells().count(),
-        solids: body.solids().count(),
-        rings: body.faces().map(|(_, f)| f.rings.len()).sum(),
+        vertices: counts.v,
+        edges: counts.e,
+        faces: counts.f,
+        loops: body.loops().count() as i64,
+        shells: counts.s,
+        solids: body.solids().count() as i64,
+        rings: counts.r,
     }
 }
 
 impl EulerCensus {
     /// This census minus `before`, component by component.
     fn minus(self, before: Self) -> EulerCensusDelta {
-        let d = |after: usize, before: usize| after as isize - before as isize;
+        let d = |after: i64, before: i64| after - before;
         EulerCensusDelta {
             vertices: d(self.vertices, before.vertices),
             edges: d(self.edges, before.edges),
@@ -92,9 +94,9 @@ impl EulerCensus {
 
 /// Euler-Poincare characteristic v - e + f - r over the whole body
 /// (valid single-solid probe: chi = sum over shells of 2(1 - g)).
-fn chi(body: &Body<f64>) -> isize {
+fn chi(body: &Body<f64>) -> i64 {
     let c = census(body);
-    c.vertices as isize - c.edges as isize + c.faces as isize - c.rings as isize
+    c.vertices - c.edges + c.faces - c.rings
 }
 
 /// Plants a detached closed box component on `face` of a tier-2 body:

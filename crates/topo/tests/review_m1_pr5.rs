@@ -36,8 +36,10 @@
 
 use geom_core::Point3;
 use geom_core::Tol;
+use topo::readback::euler_counts;
 use topo::{
-    Body, EulerOpError, LoopBoundary, MefSite, MevSite, ValidationError, validate, validate_closed,
+    Body, EulerCounts, EulerOpError, LoopBoundary, MefSite, MevSite, ValidationError, validate,
+    validate_closed,
 };
 
 fn pt(x: f64, y: f64) -> Point3<f64> {
@@ -201,10 +203,7 @@ fn nested_detachment_detached_component_with_genus() {
     // kfmrh: mef made 1 face, kfmrh killed it... no: kfmrh kills f2 =
     // island face) => detached component: v4 e4 f3 r2 (kill.ring cycle
     // + demoted island outer), chi = 4-4+3-2 = 1 ?? -- derive in test:
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, face)| face.rings.len() as i64).sum();
+    let EulerCounts { v, e, f, r, .. } = euler_counts(&body);
     // Per-shell sum must be 2(c - sum g). c = 2. If the detached
     // component has genus 1, sum = 2(2-1) = 2; pillow contributes 2,
     // so detached contributes 0.
