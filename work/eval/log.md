@@ -454,3 +454,12 @@ false — announced to (CHROME orchestrator) on the PR with the
 Residue with its own file on EVAL's slate:
 `node-value-kind-answers-a-transform-by-node-kind`. Correctness and
 style reviews dispatched on the frozen head.
+
+## EVAL-5 MERGED (2026-09-08, PR 2168, merge 7b3a1ed8e)
+
+The convention is stated at both crate docs and held by a test in
+`editor-core`'s `verbs` module (through the shared source walker,
+with its ledger line); "verb vocabulary" says whose in EVAL's files;
+the README heading carries one parenthetical. Item closed. Five of
+the seven E units are merged; EVAL-6 is in review and EVAL-7 in
+implementation.
