@@ -20,9 +20,12 @@ claim about both censuses, which is what made a reviewer read it.
 `tools/tess-lint/tests/baseline_census.rs`'s opening states the
 doctrine: *"a number transcribed into prose is a number nothing can
 check"*, and the census exists so that no prose can go on describing a
-file it no longer describes. **Two sites in this repo transcribe
-numbers that census asserts, and one of them is the governing
-document.**
+file it no longer describes. **Three LIVE sites transcribe numbers
+that census asserts** — the governing document, this file's own
+header, and a doc comment in the crate the census governs. The sweep
+finds more, and the rest are dated tracker records, which the same
+doctrine exempts; they are listed under "Sweep" below rather than
+counted here.
 
 `the_committed_baseline_sizes_this_much` asserts the four cell sums at
 `tools/tess-lint/tests/baseline_census.rs:853-862` — `grid_cells`
@@ -50,6 +53,17 @@ section's prose, 190 lines after the doctrine sentence at `:9-10` that
 forbids it. They are load-bearing there — they carry the magnitude argument
 about why the pre-fix block reads as stale when it is not — so the fix
 is not simply to delete them.
+
+**The third site is live code doc, in the crate the census governs.**
+`tools/tess-lint/src/lib.rs:2682-2683`: *"Six of the 64 sized rows of
+the committed baseline sit exactly there."* `64` is asserted at
+`tools/tess-lint/tests/baseline_census.rs:437`. **"Six" is asserted
+nowhere at all** — it is a second reading of the committed baseline
+that no test re-derives, sitting in a doc comment above
+`the_cheapest_split_never_costs_more_than_the_schedule`, so a re-cut
+that changes how many sized rows sit at equality moves it and nothing
+fires. That is the weaker half of the same defect: the document's
+figures at least red a test somewhere, and this one reds nothing.
 
 ## What was fixed in unit 10, and what was not
 
@@ -79,3 +93,32 @@ not name a current absolute. The header's four are the harder half —
 the magnitude argument needs the numbers to be an argument at all, and
 the honest options are to derive them in the test or to mark them
 explicitly as a dated comparison rather than a current reading.
+
+## Sweep
+
+`grep -rn "46,019\|110,811\|93,066\|44,162\|1,552,822\|164,710"`
+over `*.md` and `*.rs` from the repo root — the six figures
+`the_committed_baseline_sizes_this_much` asserts. **What the pattern
+could not match**: a figure written without the thousands comma or
+with different digit grouping, a paraphrase that gives a ratio instead
+of an operand, and the two factors (2.408, 1.0420), which are short
+enough that a literal sweep for them is noise.
+
+Live, and in this row: `docs/TESS-BUDGET.md:332`, `:371`, `:377`,
+`:380`, `:389`; `tools/tess-lint/tests/baseline_census.rs:199`,
+`:200`, `:236`; `tools/tess-lint/src/lib.rs:2682-2683` (found by
+reading rather than by this pattern — it names `64`, a face count from
+the OTHER census, and its own figure "Six" is spelled as a word).
+
+Dated tracker records, NOT in this row and deliberately:
+`work/meter/tess-budget-doc-finding-block-stale.md` (`:23`, `:24`,
+`:95`, `:97`, `:139`-`:141`, `:147`-`:149`, `:179`),
+`work/meter/report-header-column-phrases-unqualified.md` (`:19`,
+`:103`, `:104`), `work/meter/log.md:49` and `:316`, and
+`work/meter/fold-the-two-baseline-census-files.md:111-112`. Each
+reports what its unit read on the day it read it, and
+`baseline_census.rs`'s own doctrine is explicit that a dated record
+may keep the FIGURES it reported — editing them would make the record
+say something the unit did not say. **Only their POINTERS have to
+follow**, which is what
+`work/meter/baseline-sizing-census-pointers-stale` is for.

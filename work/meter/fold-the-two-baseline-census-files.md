@@ -106,34 +106,43 @@ thing it describes.**
   the headings are the test names and folding does not touch them.
 - *No figure is asserted twice.* Checked mechanically over the merged
   file rather than argued from the split's shape: every numeric
-  literal inside an `assert*!` extracted per test function and
-  compared across functions. The two censuses' figures are disjoint —
-  1353 / 64 / 12 / 7 / 14 / 22,352 against 1,552,822 / 164,710 /
-  46,019 / 110,811 / 93,066 / 44,162 / 2.408 / 1.0420. **Two
-  non-figure literals appear in two functions each**, and neither is a
-  quantity: `4`, from the prose *"rule 4"* in one test's failure
-  message against the exponent of `5e-4` in another's tolerance; and
-  `72`, which is two different predicates that agree on this corpus —
-  *scenes carrying a corpus-wide indistinguishable pair* (`:468`) and
-  *scenes in the baseline* (`:595`) — both already in
-  `baseline_census.rs` before this fold, neither introduced by it, and
-  now dispositioned at the site rather than only here.
+  literal inside an `assert*!` extracted per test function — function
+  bounds by brace matching — and compared across functions.
 
-  **A third "collision" reported in the first pass was not one, and it
-  was mine.** `0` was said to appear as `[] as [&str; 0]` in two
-  functions; there is exactly ONE such empty in the merged file
-  (`:801`) and one in the pre-fold census, and a single occurrence
-  cannot collide with itself. The extraction split function bodies on
-  the next `///` doc line, which does not bound a function, so one
-  test's literals leaked into a neighbour's set. Re-run with brace
-  matching, the result above is what it gives. The method was sound
-  and the conclusion held; the detail inside it was manufactured by a
-  bug in the check, in the paragraph headed as verified — which is the
-  worst place for one.
+  **The tokenization is Rust's**, stated because the answer depends on
+  it: a token is a decimal literal not preceded by an identifier
+  character or a dot, consuming its exponent, so `5e-4` is ONE token,
+  `0.0` is one, and the `15` of `C15` is not a literal at all. Under
+  it **exactly one token is shared between two tests: `72`** — two
+  different predicates that agree on this corpus, *scenes carrying a
+  corpus-wide indistinguishable pair* (`:468`) and *scenes in the
+  baseline* (`:595`). Both were already in `baseline_census.rs` before
+  this fold, neither was introduced by it, and the coincidence is now
+  dispositioned at the site rather than only here. The two censuses'
+  asserted figures are disjoint: 1353 / 64 / 12 / 7 / 14 / 22,352
+  against 1,552,822 / 164,710 / 46,019 / 110,811 / 93,066 / 44,162 /
+  2.408 / 1.0420.
+
+  **This paragraph was wrong twice before it was right, and both
+  errors were in the checking rather than in the property.** The first
+  pass reported three collisions — `0`, `4` and `72`. `0` came from
+  splitting function bodies on the next `///` line, which does not
+  bound a function, so one test's literals leaked into a neighbour's
+  set; there is exactly one `[] as [&str; 0]` in the file (`:801`) and
+  a single occurrence cannot collide with itself. The second pass
+  fixed the bounds, retracted `0`, and kept `4` — which was the same
+  class of error one level down: a pattern that stopped at `5e-`
+  and read the exponent of `5e-4` as its own token, against the prose
+  *"rule 4"* inside another test's failure message. Neither was ever a
+  quantity, the property held throughout, and the lesson is the
+  tokenization: **a shared-literal list is a function of how you
+  tokenize, so the tokenization is part of the claim.**
 
 **Test count: 7 before (6 + 1 across two binaries), 7 after (one
 binary), each of the seven names read out of `cargo test`'s output on
-both sides; crate total 80 before and after.**
+both sides.** Crate total 80 at the branch point and 84 after merging
+`origin/main`; the +4 is unit 9's new `tests/report_columns_pin.rs`
+arriving with the merge and is nothing to do with this fold.
 
 **Two false claims in the folded prose were corrected rather than
 carried over**, after the style review found them. Both were inherited
