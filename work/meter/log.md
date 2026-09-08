@@ -179,3 +179,64 @@ has two meanings in `mesh::budget` and one in `Admissible::Certificate`,
 and the discriminant the kernel names is `0` on every row of the
 `--sizing-only` sweep CI gates on. Producer-side fix, outside `D203`'s
 fence.
+
+### Unit 3, fix pass (2026-09-08)
+
+**`CC4` was false and the style review broke it by construction.** It
+claimed the trim box's non-degeneracy was a property *"no row
+surviving the per-column table can violate"*. Reproduced: a row with
+`u0 = u1 = 0e0` beside `span_opt_cells = 2.5e1` parses, and the
+collapsed box reaches rule 4's `identity` as the face-identity reading
+`["nurbs", "0.0", "0.0", "0.0", "1.0", …]`. The true criterion was "no
+row THIS PRODUCER writes can violate" — producer-correctness, which is
+the one thing the instrument exists not to assume and which
+`tess-meter`'s own header says outright.
+
+The clause is not rewritten as a conditional exemption; it is
+**inverted**. `CC4` now says there is no fourth disposition: a
+producer-side entailment is not one, because the boundary cannot see
+the producer's code. `Extent` moves to `CC3` and is checked. That
+disposes of the cross-crate entailment nobody could invalidate, and of
+the exemption that was facing the wrong way.
+
+**The page moved to `tools/README.md`.** The cited precedent
+(`scripts/gates/README.md`) is a DIRECTORY page, the rule's subject is
+two instruments, and hosting a shared rule inside one of its two
+consumers is the drift shape. `tools/tess-lint/README.md` held nothing
+else and is deleted; eight citations across the two crates now name
+the new path. The `CC3` instance roster is deleted with it — each site
+cites the clause where it stands, and a census on a clause page rots.
+
+**Citations rot loudly now.** Each citing crate `include_str!`s the
+page (a moved page stops both crates compiling) and asserts that every
+clause id it cites is a heading there and that the page carries no
+clause it has not seen (a `CC6` reds both). Negation-checked in all
+three directions.
+
+**Two more instances by the unit's own criterion**, both checked at
+`parse` in the harness voice: `patch_cells = nu · nv`, stated in
+`tess_meter::columns` and in the header and printed by the report; and
+`opt_cells ≤ patch_cells`, since `best_split_scan` seeds its running
+minimum with the same whole-patch schedule. The blanket "optimality
+relations are the report's subject" that swept the second one out had
+been verified only for `grid_cells`/`span_opt_cells`; it does not
+generalise, and the distinction is now written into `CC5`. Both are
+exact on all 64 sized rows of the committed baseline, `opt_cells`
+equal on six of them.
+
+**Three claims corrected.** `CC1` no longer says the row type is the
+contract past the boundary — `tess_lint::Row` says the opposite at
+itself, and `k-lint` has no row type at all and exports `lint_sample`
+over raw scalars its own tests call with hand-written bands.
+`tess-meter`'s "diagnostics no rule reads" is retired: the consumers
+arrived. And `tess-lint-zero-certificate-two-meanings` rested on a
+false premise — the gate reads TWO CSVs through the same `parse`, and
+`dev_samples` is 2464–201096 on all 64 sized rows of the committed
+baseline, so the discriminant is live on that side.
+
+**The page is unratified and now says so.** Six code sites cite
+`CC1`–`CC5` as clause law and `docs/DESIGN.md`'s companion table
+carries no row for the page. The criterion for such a row is Ev's
+ratification, not a program close: `scripts/gates/README.md`'s row
+landed in the commit recording Ev's ratification while `work/gates`
+was still open. No row is added here.

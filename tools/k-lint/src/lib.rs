@@ -542,7 +542,7 @@ pub const ACCEPTED_OUTCOMES: [&str; 8] = [
 ///
 /// **Where a cross-column invariant goes, in which voice, and when it
 /// is owed at all is written once for both instruments** —
-/// `tools/tess-lint/README.md`, clauses `CC1`–`CC5`. This enum
+/// `tools/README.md`, clauses `CC1`–`CC5`. This enum
 /// carries two of its dispositions: the band relation is `CC3`,
 /// checked at the reading boundary because neither column is the
 /// other's condition, and [`Self::Margin`] is `CC2`, folded into this
@@ -787,7 +787,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         // The band property no per-column policy can state, because it
         // is a RELATION between two columns that each admit alone —
         // `CC3` of the rule the two instruments share
-        // (`tools/tess-lint/README.md`), checked at this crate's
+        // (`tools/README.md`), checked at this crate's
         // reading boundary, which is this function.
         if band_zero >= band_escalate {
             return Err(ParseError {
@@ -842,6 +842,45 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The page this crate's cross-column citations NAME, read here so
+    /// they cannot rot silently.
+    ///
+    /// Those citations are plain text — a path and a clause id in a
+    /// doc comment — and nothing else in either cargo root validates
+    /// either half. The `include_str!` makes the PATH load-bearing:
+    /// move or delete `tools/README.md` and this crate stops
+    /// compiling. [`every_clause_this_crate_cites_is_on_the_page`]
+    /// makes the CLAUSE IDS load-bearing, which is the half a path
+    /// cannot reach.
+    const RULE_PAGE: &str = include_str!("../../README.md");
+
+    /// Every clause id this crate cites is a heading on
+    /// [`RULE_PAGE`], and the page carries no clause this crate has
+    /// not seen.
+    ///
+    /// The second direction is the one worth having: a `CC6` written
+    /// on the page without a row here reds this test, so a clause
+    /// cannot arrive without the crates citing the range being told.
+    /// The list is written out rather than scraped from this file's
+    /// own text — a test that reads the thing it is checking asserts
+    /// nothing.
+    #[test]
+    fn every_clause_this_crate_cites_is_on_the_page() {
+        const CITED: [&str; 5] = ["CC1", "CC2", "CC3", "CC4", "CC5"];
+        for id in CITED {
+            assert_eq!(
+                RULE_PAGE.matches(&format!("\n## `{id}` ")).count(),
+                1,
+                "{id}: one clause heading on tools/README.md"
+            );
+        }
+        assert_eq!(
+            RULE_PAGE.matches("\n## `CC").count(),
+            CITED.len(),
+            "the page's clauses are exactly the ones this crate cites"
+        );
+    }
 
     #[test]
     fn clean_definite_and_zero_pass() {

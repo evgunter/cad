@@ -229,7 +229,8 @@
 //! not resample" and "a sample came back `NaN`" identically, and
 //! `dev_samples` is what separates them ([`Deviation`]) — and where
 //! such a check goes, in which voice, and when it is owed at all is
-//! this crate's README, `CC1`–`CC5`, which `k-lint` shares. Rules 3, 4
+//! `tools/README.md`, clauses `CC1`–`CC5`, which `k-lint` shares.
+//! Rules 3, 4
 //! and 5 say the same thing one level up: a comparison that stopped
 //! HAPPENING — or never started — is not growth of any size.
 //!
@@ -360,8 +361,8 @@ pub struct Nurbs {
 /// expressible and passes by construction.
 ///
 /// The pairing is a CROSS-COLUMN rule, which is why it lives in
-/// [`parse`] beside the per-column table rather than inside it — the
-/// README's `CC3`.
+/// [`parse`] beside the per-column table rather than inside it —
+/// `tools/README.md`'s `CC3`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Deviation {
     /// The sweep did not resample this face: `dev_samples` is zero and
@@ -476,9 +477,9 @@ impl Row {
 /// broken measurement and gets the refusal this table exists to give —
 /// but telling the two apart needs `dev_samples`, and a per-column
 /// table cannot read a second column. [`parse`] settles it beside this
-/// pass, which is the README's `CC3`; the trim box's non-degeneracy is
-/// the other disposition, `CC4`, and is settled by entailment rather
-/// than by a check ([`Self::Extent`]).
+/// pass, which is `tools/README.md`'s `CC3` — the disposition every
+/// cross-column property of this table gets, the trim box's
+/// non-degeneracy ([`Self::Extent`]) included.
 ///
 /// **A cell count is never absent, and the mechanism differs by
 /// column** — worth stating, because the floor is what the rest of
@@ -515,11 +516,17 @@ enum Admissible {
     /// has nonempty extents over counts floored at one).
     Aspect,
     /// A trim-box edge in parameter space: finite, and nothing more —
-    /// the box's own non-degeneracy is a cross-column property this
-    /// per-column table cannot state, and one no row surviving the
-    /// table can violate: it is entailed by `span_opt_cells`, above.
-    /// The README's `CC4` is why that entailment is stated rather
-    /// than checked a second time here.
+    /// the box's own non-degeneracy (`u0 < u1`, `v0 < v1`) is a
+    /// relation this per-column table cannot state, so [`parse`]
+    /// checks it beside this pass (`tools/README.md`'s `CC3`).
+    ///
+    /// **It is NOT left to `span_opt_cells`' floor, though that floor
+    /// does entail it for a row this repository's producer wrote.**
+    /// The entailment is a fact about `tess_meter`'s accumulator and
+    /// not about a row: `u0 = u1 = 0` beside a `span_opt_cells` of 25
+    /// satisfies every entry of this table, and the degenerate box
+    /// then reaches rule 4's [`identity`] as a face-identity reading.
+    /// `tools/README.md`'s `CC4` is that argument in full.
     Extent,
 }
 
@@ -609,7 +616,7 @@ const INDICATOR_FIRST: usize = 24;
 ///
 /// `cap_bands` and `snap_bands` also count SUBSETS of `bands`, which
 /// is a relation no entry of this table can state; [`parse`] checks
-/// the containment beside it (the README's `CC3`).
+/// the containment beside it (`tools/README.md`'s `CC3`).
 const INDICATOR_COLUMNS: [(&str, Admissible); 4] = [
     ("bands", Admissible::CellCount),
     ("cap_bands", Admissible::Count),
@@ -907,29 +914,89 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 worst_dev,
             ] = read;
             let [bands, cap_bands, snap_bands, realized_aspect] = ind;
+            // THE CROSS-COLUMN ADMISSIONS (`tools/README.md` `CC3`),
+            // in the order the blocks above were read. Each is a
+            // RELATION between columns that `Admissible` admits
+            // singly, so no entry of the table can own it, and each
+            // leaves in the harness voice because what it refuses is
+            // arithmetic that did not happen — never a reading.
+            //
+            // A row that drifted in two of them reports the first: a
+            // harness message names A reading that broke, not the
+            // only one.
+            //
+            // The trim box's own non-degeneracy. `Admissible::Extent`
+            // admits each edge as finite and nothing more; a
+            // degenerate box is no face, and left unrefused it
+            // reaches rule 4's `identity` as a face-identity reading
+            // — two collapsed faces then compare EQUAL and the gate
+            // claims a comparison it did not make.
+            for (lo, hi, axis) in [(u0, u1, "u"), (v0, v1, "v")] {
+                if lo >= hi {
+                    return Err(ParseError {
+                        line: n,
+                        text: format!(
+                            "{axis}0/{axis}1: a trim box spanning [{lo:e}, {hi:e}] in \
+                             {axis} is not a face (sweep drift?)"
+                        ),
+                    });
+                }
+            }
+            // The whole-patch counterfactual is the PRODUCT of the
+            // two counterfactual divisions, stated as such in
+            // `tess_meter::columns` and in the CSV's own header. All
+            // three columns are `Admissible::CellCount` alone. The
+            // product is exact on both sides — `nu` and `nv` round
+            // trip through the CSV and IEEE multiplication is
+            // deterministic — so equality is the test and not a
+            // tolerance. Left unrefused the report prints the sum of
+            // this column as the whole-patch counterfactual while
+            // rule 4 keys faces on the factors.
+            if patch_cells != nu * nv {
+                return Err(ParseError {
+                    line: n,
+                    text: format!(
+                        "patch_cells: {patch_cells} over a {nu} x {nv} counterfactual \
+                         grid, which is {} cells (sweep drift?)",
+                        nu * nv
+                    ),
+                });
+            }
+            // The cheapest whole-patch split is a MINIMUM seeded with
+            // the whole-patch schedule itself, so it can never come
+            // out worse than the schedule it is compared against.
+            // This is not the optimality relation the report is FOR:
+            // that one is `grid_cells` against `span_opt_cells`, an
+            // unconstrained per-cell optimum the committed baseline
+            // straddles in both directions.
+            if opt_cells > patch_cells {
+                return Err(ParseError {
+                    line: n,
+                    text: format!(
+                        "opt_cells: {opt_cells} cells at the cheapest split of a patch \
+                         the schedule itself does in {patch_cells} — the optimum is \
+                         seeded with that schedule (sweep drift?)"
+                    ),
+                });
+            }
             // The indicator counts are SUBSETS of `bands`: each counts
             // the bands one constraint bound, out of the bands the
-            // shipped schedule emitted. `Admissible::Count` and
-            // `Admissible::CellCount` each admit their column alone,
-            // so the containment is checked here (README `CC3`), and
-            // in the harness voice because a subset larger than its
-            // set is arithmetic that did not happen — never a reading.
-            // Left unrefused it reaches the report as one: the
-            // constraint-activity line prints these counts `of
-            // {bands}`.
+            // shipped schedule emitted. Left unrefused they reach the
+            // report as a reading: the constraint-activity line
+            // prints these counts `of {bands}`.
             for (name, v) in [("cap_bands", cap_bands), ("snap_bands", snap_bands)] {
                 if v > bands {
                     return Err(ParseError {
                         line: n,
                         text: format!(
-                            "{name}: {v:e} bands over a schedule that emitted {bands:e} — \
+                            "{name}: {v} bands over a schedule that emitted {bands} — \
                              the indicator counts a subset of the bands (sweep drift?)"
                         ),
                     });
                 }
             }
-            // THE CROSS-COLUMN RULE the per-column table cannot state
-            // (README `CC3`). `Admissible::OptionalDeviation` admits
+            // The two `NaN`s the per-column table cannot tell apart
+            // (`tools/README.md` `CC3`). `Admissible::OptionalDeviation` admits
             // `NaN` because one of its two meanings is a real state;
             // `dev_samples` is what says which meaning this row
             // carries, and the pair is checked here, once, where both
@@ -996,7 +1063,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
             });
         }
         // THE LANE PAIRING, a cross-column rule the per-column table
-        // cannot state (README `CC3`), and the consumer's mirror of
+        // cannot state (`tools/README.md` `CC3`), and the consumer's mirror of
         // `tess_meter::FaceRow::csv_row`'s 2x2:
         // the sizing block is owed by exactly the charts
         // `SIZED_CHART_TAGS` names, and the two cells that disagree
@@ -1585,6 +1652,45 @@ fn first_disagreement(base: &Row, fresh: &Row) -> Option<Rekey> {
 mod tests {
     use super::*;
 
+    /// The page this crate's cross-column citations NAME, read here so
+    /// they cannot rot silently.
+    ///
+    /// Those citations are plain text — a path and a clause id in a
+    /// doc comment — and nothing else in either cargo root validates
+    /// either half. The `include_str!` makes the PATH load-bearing:
+    /// move or delete `tools/README.md` and this crate stops
+    /// compiling. [`every_clause_this_crate_cites_is_on_the_page`]
+    /// makes the CLAUSE IDS load-bearing, which is the half a path
+    /// cannot reach.
+    const RULE_PAGE: &str = include_str!("../../README.md");
+
+    /// Every clause id this crate cites is a heading on
+    /// [`RULE_PAGE`], and the page carries no clause this crate has
+    /// not seen.
+    ///
+    /// The second direction is the one worth having: a `CC6` written
+    /// on the page without a row here reds this test, so a clause
+    /// cannot arrive without the crates citing the range being told.
+    /// The list is written out rather than scraped from this file's
+    /// own text — a test that reads the thing it is checking asserts
+    /// nothing.
+    #[test]
+    fn every_clause_this_crate_cites_is_on_the_page() {
+        const CITED: [&str; 5] = ["CC1", "CC2", "CC3", "CC4", "CC5"];
+        for id in CITED {
+            assert_eq!(
+                RULE_PAGE.matches(&format!("\n## `{id}` ")).count(),
+                1,
+                "{id}: one clause heading on tools/README.md"
+            );
+        }
+        assert_eq!(
+            RULE_PAGE.matches("\n## `CC").count(),
+            CITED.len(),
+            "the page's clauses are exactly the ones this crate cites"
+        );
+    }
+
     /// A two-face fixture: one plane (empty NURBS columns), one NURBS
     /// wall at ordinal 1.
     ///
@@ -1911,12 +2017,21 @@ mod tests {
         // `inf`/`NaN` separate a finite trim-box edge from no policy at
         // all; `0e0`/`-1e0` separate an edge, which is a signed
         // parameter value, from a count.
+        //
+        // The two HIGH edges refuse where the low ones admit, and
+        // that asymmetry is not this table's: the fixture's box is
+        // `[0, 1] x [0, 1]`, so moving a high edge to `0e0` or `-1e0`
+        // collapses or inverts it and `parse`'s non-degeneracy check
+        // takes it. The per-column policy is one policy across all
+        // four, which
+        // `a_degenerate_trim_box_is_harness_breakage` pins from the
+        // other side.
         const BAD: [&str; 5] = ["0e0", "-1e0", "inf", "NaN", "5e-1"];
         const ADMITTED: [(&str, [bool; 5]); IDENTITY_MEASURES.len()] = [
             ("u0", [true, true, false, false, true]),
-            ("u1", [true, true, false, false, true]),
+            ("u1", [false, false, false, false, true]),
             ("v0", [true, true, false, false, true]),
-            ("v1", [true, true, false, false, true]),
+            ("v1", [false, false, false, false, true]),
             ("nu", [false, false, false, false, false]),
             ("nv", [false, false, false, false, false]),
         ];
@@ -2297,9 +2412,8 @@ mod tests {
                 .expect_err("a subset cannot outnumber its set");
             assert_eq!(e.line, 3, "{name}: the row that carries it");
             assert!(
-                e.text.contains(&format!(
-                    "{name}: 3e0 bands over a schedule that emitted 2e0"
-                )),
+                e.text
+                    .contains(&format!("{name}: 3 bands over a schedule that emitted 2")),
                 "{}",
                 e.text
             );
@@ -2311,6 +2425,98 @@ mod tests {
                 "{name}: every band may be bound"
             );
         }
+    }
+
+    /// A trim box that is degenerate or inverted, which
+    /// `Admissible::Extent` structurally cannot refuse: it polices one
+    /// edge, and every value here is a finite parameter coordinate on
+    /// its own.
+    ///
+    /// **This is the row that made `tools/README.md`'s `CC4` say what
+    /// it says.** The non-degeneracy was once dispositioned as
+    /// entailed — `span_opt_cells` is floored at one and its
+    /// accumulator skips cells outside the box — and the entailment
+    /// holds for a row `tess_meter` wrote, not for a row. Here the box
+    /// collapses beside a `span_opt_cells` of 25, and without the
+    /// check it reaches [`identity`] as a face-identity reading, where
+    /// two collapsed faces compare EQUAL and rule 4 reports a
+    /// comparison the gate never made.
+    #[test]
+    fn a_degenerate_trim_box_is_harness_breakage() {
+        // The fixture's box is `[0, 1] x [0, 1]`, so moving a HIGH
+        // edge is what collapses or inverts it.
+        for (hi, axis) in [(IDENTITY_FIRST + 1, "u"), (IDENTITY_FIRST + 3, "v")] {
+            for (value, shape) in [("0e0", "collapsed"), ("-1e0", "inverted")] {
+                let e = parse(&with_field(&csv(100, 2.5e1), hi, value))
+                    .expect_err("a box with no area is not a face");
+                assert_eq!(e.line, 3, "{axis}: {shape} — the row that carries it");
+                assert!(
+                    e.text
+                        .contains(&format!("{axis}0/{axis}1: a trim box spanning")),
+                    "{axis}: {shape}: {}",
+                    e.text
+                );
+            }
+            // And the LOW edge moved to a value that keeps the box
+            // open still parses, so what is refused is the relation
+            // and not a per-column policy smuggled in beside it.
+            assert!(
+                parse(&with_field(&csv(100, 2.5e1), hi - 1, "5e-1")).is_ok(),
+                "{axis}: a narrower box is still a face"
+            );
+        }
+    }
+
+    /// `patch_cells` is the PRODUCT of the two counterfactual
+    /// divisions, which `Admissible::CellCount` cannot see across
+    /// three columns: every value used here is a cell count on its
+    /// own.
+    ///
+    /// Exact equality is the test. `nu` and `nv` round trip through
+    /// the CSV and IEEE multiplication is deterministic, so a
+    /// tolerance here would admit a product nothing computed.
+    #[test]
+    fn patch_cells_is_the_product_of_the_counterfactual_divisions() {
+        // The fixture: `nu` = 10, `nv` = 20, `patch_cells` = 200.
+        const PATCH: usize = SIZING_FIRST + 1;
+        for (col, value, moved) in [
+            (PATCH, "2.01e2", "patch_cells"),
+            (IDENTITY_FIRST + 4, "5e0", "nu"),
+            (IDENTITY_FIRST + 5, "1e1", "nv"),
+        ] {
+            let e = parse(&with_field(&csv(100, 2.5e1), col, value))
+                .expect_err("the product is not the one the row states");
+            assert_eq!(e.line, 3, "{moved}: the row that carries it");
+            assert!(e.text.starts_with("patch_cells: "), "{moved}: {}", e.text);
+        }
+        // Either factor may move as long as the product follows: what
+        // is pinned is the identity, not the fixture's numbers.
+        let halved = with_field(&csv(100, 2.5e1), IDENTITY_FIRST + 4, "5e0");
+        assert!(
+            parse(&with_field(&halved, PATCH, "1e2")).is_ok(),
+            "a 5 x 20 counterfactual costs 100 cells"
+        );
+    }
+
+    /// The cheapest whole-patch split never costs more than the
+    /// whole-patch schedule: `tess_meter::best_split_scan` seeds its
+    /// running minimum with that schedule.
+    ///
+    /// EQUALITY is a reading — the schedule already is the cheapest
+    /// split — so the refusal is the relation and not a strict
+    /// inequality beside it. Six of the 64 sized rows of the
+    /// committed baseline sit exactly there.
+    #[test]
+    fn the_cheapest_split_never_costs_more_than_the_schedule() {
+        const OPT: usize = SIZING_FIRST + 2;
+        let e = parse(&with_field(&csv(100, 2.5e1), OPT, "2.01e2"))
+            .expect_err("a minimum cannot exceed the value it was seeded with");
+        assert_eq!(e.line, 3);
+        assert!(e.text.starts_with("opt_cells: "), "{}", e.text);
+        assert!(
+            parse(&with_field(&csv(100, 2.5e1), OPT, "2e2")).is_ok(),
+            "a schedule that is already the cheapest split"
+        );
     }
 
     /// A sized-lane chart over an EMPTY sizing tail is refused at the
@@ -2420,18 +2626,30 @@ mod tests {
         // row moves `chart` and nothing else — it keeps the sizing
         // block the pairing owes it, which is what lets ONE column
         // move at a time here at all.
-        const MOVED: [(&str, usize, &str); IDENTITY_COLUMNS.len()] = [
-            ("chart", 2, "approx"),
-            ("u0", IDENTITY_FIRST, "5e-1"),
-            ("u1", IDENTITY_FIRST + 1, "9e-1"),
-            ("v0", IDENTITY_FIRST + 2, "5e-1"),
-            ("v1", IDENTITY_FIRST + 3, "9e-1"),
-            ("nu", IDENTITY_FIRST + 4, "9e0"),
-            ("nv", IDENTITY_FIRST + 5, "9e0"),
+        //
+        // `nu` and `nv` carry a companion: `parse` refuses a row whose
+        // `patch_cells` is not their product, so moving a division
+        // count alone makes an UNREADABLE row rather than a re-keyed
+        // one. The companion is not an identity column, so the
+        // identity reading still differs in exactly one place, which
+        // is what this test is about.
+        const MOVED: [(&str, usize, &str, Option<&str>); IDENTITY_COLUMNS.len()] = [
+            ("chart", 2, "approx", None),
+            ("u0", IDENTITY_FIRST, "5e-1", None),
+            ("u1", IDENTITY_FIRST + 1, "9e-1", None),
+            ("v0", IDENTITY_FIRST + 2, "5e-1", None),
+            ("v1", IDENTITY_FIRST + 3, "9e-1", None),
+            ("nu", IDENTITY_FIRST + 4, "9e0", Some("1.8e2")),
+            ("nv", IDENTITY_FIRST + 5, "9e0", Some("9e1")),
         ];
         let base = parse(&csv(100, 2.5e1)).unwrap();
-        for (name, col, value) in MOVED {
-            let fresh = parse(&with_field(&csv(100, 2.5e1), col, value)).unwrap();
+        for (name, col, value, patch) in MOVED {
+            let moved = with_field(&csv(100, 2.5e1), col, value);
+            let moved = match patch {
+                Some(p) => with_field(&moved, SIZING_FIRST + 1, p),
+                None => moved,
+            };
+            let fresh = parse(&moved).unwrap();
             let got = fired(&base, &fresh);
             let [
                 Kind::Rekeyed {
@@ -2446,7 +2664,8 @@ mod tests {
         }
         // …and one case pinned with both readings, so the message's
         // evidence is asserted somewhere and not just its shape.
-        let fresh = parse(&with_field(&csv(100, 2.5e1), IDENTITY_FIRST + 4, "9e0")).unwrap();
+        let moved = with_field(&csv(100, 2.5e1), IDENTITY_FIRST + 4, "9e0");
+        let fresh = parse(&with_field(&moved, SIZING_FIRST + 1, "1.8e2")).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![Kind::Rekeyed {
