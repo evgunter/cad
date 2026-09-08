@@ -25,12 +25,13 @@
 use std::process::{Command, Output};
 use tess_lint::{CUT_PREFIX, EXPECTED_HEADER};
 
-// The two-face CSV fixture, with one home: `scene`, `unsized_row` and
-// the `name` token this file builds rows from are the same text
-// `tess_lint`'s own test module includes, so a column cannot be
-// transcribed into one side and not the other. The file says what an
-// includer owes; the `use` above already owes it.
-include!("support/csv_fixture.rs");
+// The two-face CSV fixture, with one home: `scene` and `unsized_row`
+// are the same file `tess_lint`'s own test module mounts, so a column
+// cannot be transcribed into one side and not the other. A mounted
+// module and not an `include!`: the file's own header says why.
+#[path = "../src/tests/csv_fixture.rs"]
+mod csv_fixture;
+use crate::csv_fixture::{scene, unsized_row};
 
 fn csv(name: &str, text: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("tess-lint-cli-{}", std::process::id()));

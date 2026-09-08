@@ -1754,10 +1754,11 @@ mod tests {
 
     // The two-face CSV fixture, with one home: `scene`, `unsized_row`
     // and the `name` token this module builds rows from are the same
-    // text `tests/cli_contract.rs` includes, so a column cannot be
-    // transcribed into one side and not the other. The file says what
-    // an includer owes; `use super::*` above already owes it.
-    include!("../tests/support/csv_fixture.rs");
+    // file `tests/cli_contract.rs` mounts, so a column cannot be
+    // transcribed into one side and not the other. A mounted module
+    // and not an `include!`: the file's own header says why.
+    mod csv_fixture;
+    use self::csv_fixture::{FIXTURE_NAME, scene, unsized_row};
 
     #[test]
     fn parses_both_chart_shapes() {

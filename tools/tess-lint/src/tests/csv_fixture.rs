@@ -1,36 +1,47 @@
-// The two-face CSV fixture, with ONE definition. This crate's own
-// `#[cfg(test)]` module and `tests/cli_contract.rs` `include!` this
-// text: they are separate compilation units and an integration test
-// cannot see a `#[cfg(test)]` item, so the two cannot SHARE an item —
-// but they can include one, which is the difference between two
-// copies kept in step by a comment and a fixture with one home.
-//
-// Not a module and not a target: Cargo builds a test from `tests/*.rs`
-// and `tests/*/main.rs` only, so nothing here compiles on its own and
-// the text lands in whatever scope includes it. What an includer owes:
-//
-// * `EXPECTED_HEADER` in scope — `use super::*` inside the crate,
-//   `use tess_lint::EXPECTED_HEADER` outside it. Nothing else from the
-//   crate is used here, deliberately: the column indices are read out
-//   of the header, which both cargo roots can see, rather than out of
-//   `NAME` and `IDENTITY_FIRST`, which are private. The crate's own
-//   header test pins those constants against this same header, so
-//   reading the header costs no pin.
-// * hand formatting. `rustfmt` does not follow `include!` and builds
-//   no target from this directory, so `cargo fmt --check` is silent
-//   about this file in both roots.
-//
-// [`the_fixture_fills_the_head_block_the_header_declares`] is included
-// with the fixture rather than written beside one includer, so every
-// binary that builds a row also checks it. That is the point: `name`
-// is read by no rule and printed by no report, so the fixture's own
-// test is the only thing in either root that can see its token.
+//! The two-face CSV fixture, with ONE definition. This crate's own
+//! `#[cfg(test)]` module owns it as `tests::csv_fixture`, and
+//! `tests/cli_contract.rs` mounts the same file by path: the two are
+//! separate compilation units and an integration test cannot see a
+//! `#[cfg(test)]` item, so they cannot SHARE an item — but they can
+//! mount one, which is the difference between two copies kept in step
+//! by a comment and a fixture with one home.
+//!
+//! Two things a mounting site owes:
+//!
+//! * `EXPECTED_HEADER` nameable as `super::EXPECTED_HEADER` — `use
+//!   super::*` inside the crate, `use tess_lint::EXPECTED_HEADER`
+//!   outside it. Nothing else from the crate is used here,
+//!   deliberately: the column indices are read out of the header,
+//!   which both cargo roots can see, rather than out of `NAME` and
+//!   `IDENTITY_FIRST`, which are private. The crate's own header test
+//!   pins those constants against this same header, so reading the
+//!   header costs no pin.
+//! * a MOUNT and not an `include!`.
+//!   `crates/test-utils/tests/reader_census.rs` enumerates every site
+//!   that reads Rust source as text, and its rule is *names more `.rs`
+//!   files than it MOUNTS as modules*, where mounting is spelled
+//!   `#[path = "`. An `include!` of this file is a mount too, but not
+//!   one that rule can see, so it reds the census as an arrived reader
+//!   — and the ledger has no honest disposition for it, because this
+//!   file reads no source, it IS source. The module mount is the
+//!   spelling that says so, and it is why this file sits under `src/`
+//!   rather than under `tests/`: a `#[path]` on a module inside an
+//!   inline `mod tests` resolves against `src/tests/`, a directory
+//!   that has to exist for any relative path to open at all.
+//!
+//! [`the_fixture_fills_the_head_block_the_header_declares`] lives here
+//! rather than beside one mounting site, so every binary that builds a
+//! row also checks it. That is the point: `name` is read by no rule
+//! and printed by no report, so the fixture's own test is the only
+//! thing in either root that can see its token.
+
+use super::EXPECTED_HEADER;
 
 /// A `name` token of the shape the tour writes: structural, flat, and
 /// carrying no `,`. The sized row carries it and the unsized rows go
 /// unnamed, so both spellings of the column — a token and the honest
 /// absence — reach every reader of this fixture.
-const FIXTURE_NAME: &str = "{\"kind\":\"Face\";\"node\":3;\"path\":[\"OutputBody\"]}";
+pub(crate) const FIXTURE_NAME: &str = "{\"kind\":\"Face\";\"node\":3;\"path\":[\"OutputBody\"]}";
 
 /// A two-face scene: one plane (empty NURBS columns) at ordinal 0, one
 /// NURBS wall at ordinal 1.
@@ -39,7 +50,7 @@ const FIXTURE_NAME: &str = "{\"kind\":\"Face\";\"node\":3;\"path\":[\"OutputBody
 /// per-cell grid, which together move the two gate rules independently
 /// — and, at `span_opt = 0`, produce the unreadable denominator the
 /// CLI's harness-voice row needs.
-fn scene(tris: usize, span_opt: f64) -> String {
+pub(crate) fn scene(tris: usize, span_opt: f64) -> String {
     format!(
         "{EXPECTED_HEADER}\n{}\
          s/b,1,{FIXTURE_NAME},nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,\
@@ -58,7 +69,7 @@ fn scene(tris: usize, span_opt: f64) -> String {
 /// The head is typed out rather than built from the header — a fixture
 /// that built it from the header would be asserting the header against
 /// itself — so its width is checked against where the tail begins.
-fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
+pub(crate) fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
     let first = column("u0");
     let head = format!("s/b,{face},,{chart},2e-3,{tris}");
     assert_eq!(
