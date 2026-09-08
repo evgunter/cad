@@ -745,6 +745,39 @@ gate_record_anchor() {
   printf '^%s:[0-9]+:' "$(gate_ere_escape "$1")"
 }
 
+# THE ALTERNATION, which is the line every multi-part matcher in this
+# file used to end on for itself. Held here so a builder says WHICH
+# alternatives it is offering and nothing else, and so `|` is written
+# once: an alternation assembled by hand is where a stray `|` at either
+# end turns a filter into `grep -vE` over an empty alternative, which
+# matches every record.
+gate_ere_alternation() {
+  local IFS='|'
+  printf '%s' "$*"
+}
+
+# gate_record_anchor_any HOME... — one built anchor per home, alternated.
+# A gate that exempts several whole files reads this instead of joining
+# `gate_record_anchor` itself; what each part of an anchor rules out is
+# argued once, above, and not re-argued per caller.
+#
+# NO HOMES IS A REFUSAL, not an empty pattern: `gate_grep -vE ''` drops
+# EVERY record, so a gate whose home list came out empty would go green
+# over a scan it never filtered. Spelled as `gate_exact_skip`'s arity
+# refusal is — a caller's programming error, diagnosed and terminal.
+gate_record_anchor_any() {
+  [ $# -gt 0 ] || {
+    gate_error "$(gate_name): gate_record_anchor_any was given no home, and an empty alternation is not an empty skip — it matches every record, so the filter built from it would drop the whole scan and the gate would go green over nothing"
+    exit 1
+  }
+  local home
+  local -a alts=()
+  for home in "$@"; do
+    alts+=("$(gate_record_anchor "$home")")
+  done
+  gate_ere_alternation "${alts[@]}"
+}
+
 # gate_exact_skip [READER FLAGS] --subject S --repair R HOME TEXT... —
 # declare the gate's one anchored exact-text skip. READER FLAGS are
 # `gate_rust_code`'s, and they must be the ones the gate reads its scan
@@ -840,8 +873,7 @@ gate_exact_skip_pattern_for() {
     rec=$(gate_exact_skip_record_for "$view" "$t")
     alts+=("$anchor$(gate_ere_escape "$rec")\$")
   done
-  local IFS='|'
-  printf '%s' "${alts[*]}"
+  gate_ere_alternation "${alts[@]}"
 }
 
 gate_exact_skip_pattern() {
@@ -1569,7 +1601,17 @@ gate_plant_home_extends_an_exclusion() {
 # The one case that plants no breach: what it is about is the tree
 # having no production file left, so its argument is the root alone.
 gate_plant_home_every_source_excluded() {
+  # THE SOURCES ARE CLEARED FIRST, and that is what makes this case
+  # right for every caller rather than for the default fixture alone.
+  # `gate_plant_clean` belongs to the GATE, and a gate whose skip has
+  # homes plants them — the exact-skip contract above asks it to — so a
+  # planter that excluded only the two files `gate_plant_clean_sources`
+  # writes left those homes production, the tree still had a source to
+  # scan, and the refusal this case is about could not fire. Clearing
+  # rather than enumerating means no caller has to hand its home list
+  # over, and none has to override this planter to stay correct.
   mkdir -p "$1/crates/clean/src"
+  find "$1"/crates/*/src -type f -name '*.rs' -delete
   printf '#[cfg(test)]\nmod main;\n' > "$1/crates/clean/src/lib.rs"
   printf '#[cfg(test)]\nmod lib;\n' > "$1/crates/clean/src/main.rs"
 }
