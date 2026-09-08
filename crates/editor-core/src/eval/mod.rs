@@ -2704,7 +2704,7 @@ where
 ///
 /// - a group below — named consts and an `ALL`, one per grammar
 ///   position, censused together by `structural_tag_groups_are_injective`
-///   over [`GROUPS`];
+///   over `tag::GROUPS` (test-only, as the census is);
 /// - a function of a closed enum with an `ALL` — [`verb_content_tag`]
 ///   over `VerbKind::ALL`, [`verb_tag`] over `profile::Verb::ALL`,
 ///   [`arc_mode_tag`] over `ArcMode::ALL`, [`seg_content_tag`] over
@@ -4723,7 +4723,7 @@ mod tag_vocabulary_tests {
     use crate::names::SegTag;
 
     /// Within every structural group, no two names share a number,
-    /// and a retired number is not reused. Iterates [`tag::GROUPS`]:
+    /// and a retired number is not reused. Iterates `tag::GROUPS`:
     /// a duplicate typed into any group's `ALL` reds here, naming the
     /// group and both positions.
     #[test]
