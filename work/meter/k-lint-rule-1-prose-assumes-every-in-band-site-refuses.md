@@ -10,7 +10,13 @@ opened: 2026-09-08
 Found by unit 7's falsification review while folding PR 1220's roster
 change into the K baseline (`docs/K-REPORT.md`'s M11 addendum).
 
-**The claim.** `tools/k-lint/src/lib.rs:15` — *"a recorded
+**Line numbers below are at `c39a904e` (2026-09-08).** The first
+version of this file cited `curved.rs:1747` and `:1594-1751`, which
+were already stale when written — they named the branch's merge base
+while MESH-12 had moved the file on main. Re-cite against a named tip,
+not against "the current tree".
+
+**The claim.** `tools/k-lint/src/lib.rs:16` — *"a recorded
 `indeterminate` is a margin INSIDE the ambiguity band `(ε, Kε)`
 (maximal fragility; **the kernel refused typed**)"* — and
 `tools/k-lint/src/lib.rs:391` — *"a margin **the run could not decide
@@ -18,8 +24,9 @@ at all**"*. Both halves of rule 1's description assert the same thing:
 that a recorded in-band sample is a decision the run failed to make.
 
 **The counterexample, in shipped code.**
-`crates/geom-brep/src/props/curved.rs:1747`
-(`sphere_meridian_span_levels`) decides `props_meridian_pole` and then
+`crates/geom-brep/src/props/curved.rs:1799`
+(`sphere_meridian_span_levels`, `:1775-1803`) decides
+`props_meridian_pole` and then
 
 ```rust
 Ok(Sign::Positive | Sign::Zero) | Err(_) => levels.push(extreme),
@@ -49,5 +56,10 @@ behaviour changes either way — this is a legibility defect in the
 sentence a reader reaches for when the row goes red, which is exactly
 when a wrong sentence costs the most.
 
+**Measured, so the item is not speculative.** A sweep at `c39a904e`
+records 7 940 `props_meridian_pole` samples per ε row and **zero**
+in-band ones, so rule 1 is not firing on this name today. The defect is
+the sentence a reader reaches for on the day it does.
+
 Refs: `docs/K-REPORT.md` (M11 addendum, 2026-09-08),
-`crates/geom-brep/src/props/curved.rs:1594-1751`, PR 1220.
+`crates/geom-brep/src/props/curved.rs:1708-1803`, PR 1220.

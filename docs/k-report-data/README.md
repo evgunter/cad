@@ -16,15 +16,25 @@ reader who arrives by `grep` knows which era a row belongs to.
 | `m5-eps-*.csv.gz` | M5, curved corpus | 2026-08-03 | M5 addendum |
 | `m7-eps-*.csv.gz` | M7, current lint baseline | 2026-08-07 | M7 addendum (floor refresh) |
 
-**M7 is still the current one, and that is checked rather than
-assumed.** A fresh sweep at `ada6bba9` (2026-09-08) re-derives both
+**M7 was still the current era at `c39a904e` (2026-09-08), and that
+was checked rather than assumed.** A sweep at that tip re-derives both
 calibrated constants' witnesses — `volume_backstop` at 4.79652e-5 and
 `props_quad_converged` at 164.674·ε — **pointwise identical** to M7's
-at all three ε rows, and the zero side's ceiling
-(`pm_census_ee_span`, 5.32907e-15) is identical too. So no new era was
-cut, even though the roster has since grown from 233 names to 279:
-K-REPORT's M11 addendum is that reading, and rule 1 below is why a
-roster growth on its own is not a re-cut.
+at all three ε rows; the zero side's ceiling (`pm_census_ee_span`,
+5.32907e-15) is identical too, and nothing new landed in the gap
+between them. So no new era was cut, even though the roster had grown
+from 233 names to 281 and the corpus by 15%. K-REPORT's M11 addendum
+is that reading and carries the extraction.
+
+**This is a dated reading, not a standing guarantee.** Nothing re-takes
+it: `k-lint (gate)` re-lints a fresh sweep on every merge but never
+compares it to these files (rule 2), and no row asserts that M7's three
+witnesses are still what K-REPORT says they are. The guard that would
+belong beside `tools/k-lint/tests/threshold_provenance.rs` is filed
+with its values and its one-line extraction in
+`work/meter/k-report-era-witnesses-have-no-guard.md`. Until it lands,
+a reader arriving after 2026-09-08 should re-run the sweep rather than
+trust the paragraph above.
 
 ## The two rules that govern this directory
 
@@ -34,6 +44,23 @@ roster growth on its own is not a re-cut.
    re-cut — as a NEW file — when the *distribution* moves (a new floor,
    a filled gap, an ε-coupled family), never because a predicate was
    renamed.
+
+   **This clause is the one home for that decision.** Concretely, at
+   the current era, a re-cut is owed when any of these moves: the
+   definite-side floor witness (`volume_backstop`, 4.79652e-5,
+   excluding the ε-coupled family); the ε-coupled ratio's P0
+   (`props_quad_converged`, 164.674 at the binding 1e-9 row); or the
+   zero-side ceiling in the ambient band (`pm_census_ee_span`,
+   5.32907e-15) — including the case where it crosses `band_zero/100`,
+   which it sat 1.88× under at `c39a904e` and which is this
+   distribution's nearest live edge. A rule-1 flag anywhere in the
+   linted population is the same signal arriving through the gate
+   instead. **Not triggers, and not for the same reason**: a rename is
+   excluded outright, by the sentence above. A roster growth or a
+   corpus growth is *unlisted* — neither excluded nor admitted — so it
+   is decided by measuring the three witnesses, which is what the M11
+   addendum did. `tools/k-lint/src/lib.rs`'s doc restates this rule in
+   its own words; when the two disagree, this one is the rule.
 2. **Nothing reads these files as a gate.** CI's `k-lint` runs
    `scripts/k_probe_sweep.sh` into a scratch dir and lints *that*; the
    committed files supply the thresholds in `tools/k-lint/src/lib.rs`

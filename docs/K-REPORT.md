@@ -100,10 +100,25 @@ gathered across M2's full pipeline.
   > moving quantity: the next merge that adds a predicate name
   > falsifies the sample count, the name count and the ratio. It is not
   > registered, not asserted, and nothing will notice when it goes
-  > stale — the harness runs in no CI row (D17). Guarding it would mean
-  > committing a second baseline, which is the re-cut this unit
-  > deliberately did not do. Read these as *dated evidence that the
-  > committed files are stale*, never as current numbers.
+  > stale. Guarding it would mean committing a second baseline, which is
+  > the re-cut this unit deliberately did not do. Read these as *dated
+  > evidence that the committed files are stale*, never as current
+  > numbers.
+  >
+  > **The harness DOES run, and this label used to say it did not.** The
+  > sentence above read *"the harness runs in no CI row (D17)"* — true
+  > while D17 was open and false since it closed on 2026-08-20:
+  > `scripts/k_probe_sweep.sh` dumps `crates/sweep/tests/k_report.rs` on
+  > every code-tier run, in `k-lint (gate)`'s `dev-probe` leg, and the
+  > script's own header calls that "EXECUTED on every building merge"
+  > (`.github/workflows/ci.yml`'s k-lint job says the same). What the run
+  > buys is that the harness compiles and does not panic; what it does
+  > **not** buy is any comparison to the figures below, which is why they
+  > are still unguarded. **The two halves of a frozen label come apart**:
+  > a dated figure stays true forever, and a statement about what CI
+  > covers rots like any other. Freezing the first froze the second by
+  > accident. The M11 addendum re-takes this population at `c39a904e`
+  > (17 494 samples over 112 names).
 
   A fresh cut of the same ten shapes records **16 824 samples over 105
   predicate names** against the committed **13 282 over 63**. The
@@ -1259,7 +1274,9 @@ still the stale M4-era 1.5e-3 with ~102 advisory flags/run").
   (`sector_{arm,reflex,straight}`), so a fresh sweep now also DROPS six
   names where until then drift had only added them. The **233** below is
   still the correct count for this committed snapshot, which still
-  contains all six; a sweep at today's main carries **231**. Margins,
+  contains all six; a sweep cut immediately after #661 carried **231**
+  — a figure dated to that change, not a current count (see **A
+  standing class in this report** below). Margins,
   bands, outcomes and order are untouched — only the `predicate` column,
   and only for those six values. Full treatment: the census note
   (2026-08-19) at the end of this report.
@@ -1507,13 +1524,14 @@ margin under two names was examined.
 predicate names** (`docs/k-report-data/m7-eps-*.csv.gz`, verified 233 at
 all three ε rows) becomes **230** for any sweep cut after this change:
 six names out, three in, nothing else touched. Main has since also added
-`path_junction_turn` (recorded above), so a fresh sweep at this tip
-carries **231**. No other predicate's name, margin, band or outcome
+`path_junction_turn` (recorded above), so a sweep cut at the tip this
+paragraph was written at carried **231** — again a dated figure, not a
+current count. No other predicate's name, margin, band or outcome
 changes. The M7 addendum's own "233" is left as written — it describes
 the committed snapshot, which still says 233 because it still contains
 the six old names.
 
-**And SEAT-DV adds one: 232 at a sweep cut after it.**
+**And SEAT-DV adds one: 232 at a sweep cut immediately after it.**
 `datum_unit_norm` is the length decision inside `topo::query`'s
 `UnitVec3::new`, which is where a datum's normal or axis direction is
 now normalized. It does not REPLACE `eval_direction_norm`, which keeps
@@ -1566,13 +1584,28 @@ for the mate solve's re-derivation of both rule kinds from the
 recipe.
 
 **The chain of counts in this subsection stops here, at a predicted
-232, and is superseded by a MEASUREMENT.** A sweep at `ada6bba9`
-carries **279** names at all three ε rows (59 in, 13 out against M7's
-committed 233) — the M11 addendum below reports the roster and the
-command that produced it. Each delta recorded above is still an
+232, and is superseded by a MEASUREMENT.** A sweep at `c39a904e`
+(2026-09-08) carries **281** names at all three ε rows (61 in, 13 out
+against M7's committed 233) — the M11 addendum below reports the roster
+and the command that produced it. Each delta recorded above is still an
 accurate account of what its own change did; what none of them is any
 longer is the current count, and extending the arithmetic a fifth time
 would have been the wrong way to find that out.
+
+**A standing class in this report, not one paragraph's problem.** A
+census delta gets written as *"a fresh sweep at this tip carries N"*,
+and the sentence keeps saying "this tip" long after the tip has moved.
+Before this pass, four sites in this one document said 231, 231, 232
+and 279 at once, in three different subsections — each true of the head
+it was written at, none of them current, and none reached by the
+supersession paragraph above, which is scoped to its own subsection.
+They now read as dated figures. **Every count in this report is a dated
+figure**, including the ones phrased as though they were live: the
+figure belongs to the change whose effect it records, and the only
+current count is the most recent measurement, in the M11 addendum. A
+count phrased as *"today's main"* anywhere in this file is that
+defect's next instance, and the repair is to date it rather than to
+re-extrapolate it.
 
 **Effect on the emitted stream** (the SECTOR rename above — the SEAT-DV
 and SEAT-DN paragraphs between are later additions to this section, and
@@ -2066,7 +2099,7 @@ and zero on every straight-walled fixture, which is the same fact the
 inertness pin makes locally
 (`m10_9_pins_interval::m10_9_the_door_is_inert_on_straight_geometry`).
 
-## M11 addendum (2026-09-08): the CERT-1 roster fold — measured, and neither calibration witness moved
+## M11 addendum (2026-09-08): the CERT-1 roster fold — measured at `c39a904e`, and neither calibration witness moved
 
 Issue 1251 scheduled this: PR 1220 (S-CERT's CERT-1) added a recorded
 predicate name and re-shaped two others' margins, and nothing had
@@ -2076,29 +2109,41 @@ and because two of the movements are benign **by construction** — a
 reader who scores them as findings corrupts K attribution in the
 direction this report cares about most.
 
-### What was run
+### What was run, and at which tip
 
 ```sh
 scripts/k_probe_sweep.sh <outdir>      # no --gzip; nothing committed
 cd tools/k-lint && cargo run -- <outdir>/k-eps-{1e-6,1e-9,1e-12}.csv
 ```
 
-At `ada6bba9`, dev profile, `--features probe` (`probe,interval` for the
-E6 driver leg — the script's own `feats_for`). **The configuration is
-the `k-lint (gate)` job's own**: that job carries no `env:` block at
-all, so it runs cargo's default dev/test profile — it is the one lane
-deliberately excluded from the archive jobs' opt-level bump — and
-`rust-toolchain.toml` pins the compiler at 1.97.0 for both. So this is
-not a local substitute taken under a different configuration; it is the
-same configuration, and it cost 618 s wall.
+**At `c39a904e` — `origin/main` on 2026-09-08 — dev profile,
+`--features probe`** (`probe,interval` for the E6 driver leg; the
+script's own `feats_for`), 603 s wall end to end from a cold target
+directory, build included. This is the `k-lint (gate)` job's own
+configuration — that job carries no `env:` block, so it runs cargo's
+plain dev/test default, and `rust-toolchain.toml` pins the compiler for
+the job and for this run alike.
+
+**The tip matters and was got wrong once.** A first pass measured this
+at `ada6bba9`, the branch's merge base, and reported 279 names. Between
+that commit and `c39a904e`, MESH-12 rewrote
+`crates/geom-brep/src/props/curved.rs` (129 insertions, 74 deletions) —
+the file the `props_meridian_pole` population is emitted from. It added
+`require_meridian_span_within_period` (`:1632`), a door that decides a
+meridian arc's span **before any margin is formed** and can refuse it,
+and two recorded names with it. Every figure below is the re-take. What
+moved: the roster (279 → **281**), the per-row sample count (+7 940),
+and the M2-era instrument's own census. What did not move: the
+`props_meridian_pole` population, both calibration witnesses, the
+zero-side ceiling, and therefore the verdict.
 
 ### The gate verdict
 
 | ε | samples | rule 1 | rule 2 | rule 3 |
 | --- | --: | --: | --: | --: |
-| 1e-6 | 2 068 116 | 0 | 0 | 0 |
-| 1e-9 | 2 068 140 | 0 | 0 | 0 |
-| 1e-12 | 2 068 164 | 0 | 0 | 0 |
+| 1e-6 | 2 076 056 | 0 | 0 | 0 |
+| 1e-9 | 2 076 080 | 0 | 0 | 0 |
+| 1e-12 | 2 076 104 | 0 | 0 | 0 |
 
 Clean, and the committed `m7-eps-*.csv.gz` re-lint clean at the same
 tip (1 792 902 / 926 / 950 samples, 0 flags) — the M7 acceptance table
@@ -2115,37 +2160,49 @@ above still holds.
 | `positive` | 0 | — |
 | `indeterminate` / `invalid` | **0** | — |
 
-Two populations 15.8 decades apart with nothing between them. `zero` is
-the
-ordinary case rather than the exceptional one: a sphere face whose
+Two populations **14.8 decades** apart with nothing between them (the
+first pass wrote 15.8; 5.47723e-2 / 8.16278e-17 = 6.71e14). `zero` is
+the ordinary case rather than the exceptional one: a sphere face whose
 meridian arc *ends* at a pole reads the chord from the pole direction
 to the nearer span end as zero, and most of this corpus's sphere faces
 are half-caps. The 388 definite samples sit 1 370× above
-`BASELINE_FLOOR_MARGIN` (4.0e-5). Carried by eight shapes —
-`corpus/die_composed_tour` 7 272, `corpus/die_tool` 432, `demo/lily`
-72, `corpus/die_composed` 64, `corpus/die_pips` 32, `corpus/die_fillet`
-32, `demo/vase` 24, `demo/budrim` 12.
+`BASELINE_FLOOR_MARGIN` (4.0e-5).
+
+**Two per-shape breakdowns, because they are different populations and
+reading one for the other overstates the definite side by 19×.** All
+7 940 samples are carried by eight shapes — `corpus/die_composed_tour`
+7 272, `corpus/die_tool` 432, `demo/lily` 72, `corpus/die_composed` 64,
+`corpus/die_pips` 32, `corpus/die_fillet` 32, `demo/vase` 24,
+`demo/budrim` 12. The **388 definite** ones are carried by the same
+eight in a different order and a different shape:
+`corpus/die_composed_tour` 184, `demo/lily` 72, `corpus/die_tool` 48,
+`corpus/die_composed` 24, `demo/vase` 24, `corpus/die_fillet` 16,
+`demo/budrim` 12, `corpus/die_pips` 8.
 
 **The in-band population this name is allowed to have is EMPTY here,
 and that is a measurement, not an assumption.** It is stated as a
 number because the alternative — an absence read off a green — is what
-this report's own M10 addendum refuses to do.
+this report's own M10 addendum refuses to do. It is also empty at the
+tip the door was added at, which is the interesting half: the new span
+door refuses nothing in this corpus, so the population it filters is
+the same 7 940 either side of MESH-12.
 
 ### The reading that is the point of this addendum
 
 `props_meridian_pole` is decided at two doors with two dispositions.
 `require_one_chart_branch` REFUSES on a definite `Positive`.
-`sphere_meridian_span_levels` **FOLDS**: everything but a definite
-`Negative` — `Positive`, `Zero` and *the indeterminate band alike* —
-pushes the pole latitude into the face's extent. The decide still
-records, so an in-band sample here reaches this report through the
-funnel exactly like any other; what it does **not** mean is that a run
-could not decide something it had to. The fold is continuous across the
-decision (a latitude is quadratic at its extremum, so the two choices
-at a `Zero` differ by ~band²/2), and an in-band margin therefore
-carries no information a refusal could report — PR 1220's body is where
-that argument is made and `docs/predicate-dimension-audit.md`'s row is
-where it is kept.
+`sphere_meridian_span_levels` **FOLDS**
+(`crates/geom-brep/src/props/curved.rs:1799`): everything but a
+definite `Negative` — `Positive`, `Zero` and *the indeterminate band
+alike* — pushes the pole latitude into the face's extent. The decide
+still records, so an in-band sample here reaches this report through
+the funnel exactly like any other; what it does **not** mean is that a
+run could not decide something it had to. The fold is continuous across
+the decision (a latitude is quadratic at its extremum, so the two
+choices at a `Zero` differ by ~band²/2), and an in-band margin
+therefore carries no information a refusal could report — PR 1220's
+body is where that argument is made and
+`docs/predicate-dimension-audit.md`'s row is where it is kept.
 
 **So: an in-band sample on `props_meridian_pole` is not a landing.**
 The M7 addendum's caveat 1 gains a sibling, and the two together are
@@ -2168,12 +2225,17 @@ above, which is why it is written here rather than compiled.
 **The fold itself is pinned, so the reading does not rest on prose
 alone.** `geom-brep/tests/cert1_sphere_polar.rs`'s
 `a_split_vertex_a_hair_off_the_pole_still_certifies` drives a split
-vertex to three offsets from the pole — 1e-6 rad, 1e-7 rad, and one
-derived from the run's own band so the row means the same at every ε
-— and asserts the face still certifies its exact area. The middle
-offset puts the margin *in band* by construction, so the indeterminate
-arm is executed rather than argued. If a future edit made that arm
-escalate, that test goes red before this section goes stale.
+vertex to three offsets from the pole (`:136-137`). The **third** is
+the in-band row: `mid_band = 0.5 * (band.zero() + band.escalate()) / RS`,
+an offset derived from the run's own band, so the row means the same at
+every ε and executes the indeterminate arm by construction. The other
+two are ε literals that **bracket** the band rather than sit in it —
+1e-6 rad and 1e-7 rad, 10 nm and 1 nm of chord at R = 10 mm, against a
+default band of (1e-9, 1e-8) m — and the file's own doc comment says so
+in those words (`:127-130`). The first pass named "the middle offset"
+as the in-band one; it is the third, and the middle one is the row that
+lands on the *zero* side. If a future edit made the fold arm escalate,
+that third row goes red before this section goes stale.
 
 ### The re-shaped rim margins, measured
 
@@ -2219,6 +2281,19 @@ zero-side point is `pm_census_ee_span` at **5.32907e-15**, 1.88× under
 the threshold — and that value is **identical in the committed M7
 snapshot**, so the zero-side ceiling did not move at all.
 
+### The two names MESH-12 added, since they decide the same span
+
+`props_meridian_span_forward` and `props_meridian_span_winding` are the
+new door's pair (`curved.rs:1632-1658`), 3 970 samples each per row —
+exactly half the `props_meridian_pole` population each, since the door
+runs once per meridian arc and the pole helper forms two margins per
+arc. Their 7 940 is also exactly the row growth between the two tips,
+which is an identity of totals rather than a proof that no other name
+moved: the earlier sweep's per-name table was not kept. Both are
+**wholly `positive`** at all three ε rows, smallest \|m\| 7.85316e-2 m
+and 2.35619e-1 m: the corpus states no arc anywhere near either bound.
+They are recorded here for the roster, not as a finding.
+
 ### What did not move, stated as the reason no new era is cut
 
 Both constants' witnesses are **pointwise identical** between
@@ -2230,46 +2305,103 @@ Both constants' witnesses are **pointwise identical** between
 | `EPS_COUPLED_FLOOR_RATIO` = 1.5e2 | `props_quad_converged` | 839.524·ε | 164.674·ε | 335.953·ε |
 
 (The 8.9% headroom quoted at `EPS_COUPLED_FLOOR_RATIO` is 164.674 at
-the 1e-9 row, unchanged.) The definite side's other floor-adjacent
-names are unchanged too. The two sub-1e-16 definite margins
-(`canonical_order_x` 4.16334e-17, `split_join_order_u` 5.55112e-17) do
-move — `canonical_order_x` was 2.22045e-16 at M7 — and neither is a
-threshold's witness: both record `band_zero = 5e-324`, below
-`AMBIENT_BAND_MIN`, so rules 2, 3 and 4 do not reach them at all. That
-is the tie-break family `threshold_provenance.rs` covers separately,
-and it is why the definite-side floor is read off `volume_backstop`
-rather than off the smallest margin in the file.
+the 1e-9 row, unchanged.) **And the gap is not filled**: over the whole
+sweep, the only ambient-band definite margins below 1e-3 at any ε row
+are `volume_backstop`'s 56 (floor 4.79652e-5) and the ε-coupled
+`props_quad_converged`'s. Nothing new landed between the zero-side
+ceiling at 5.32907e-15 and the definite floor at 4.79652e-5.
 
-**Disposition of `docs/k-report-data/`: no new file.** Its rule 1 cuts
-a new era when the *distribution* moves — a new floor, a filled gap, an
-ε-coupled family — and none of the three did: both floors' witnesses
-are bit-identical, the zero-side ceiling is bit-identical, and the gap
-between the two sides is the same gap. The roster grew and the corpus
-grew, which rule 1 explicitly does not treat as a trigger. M7 therefore
-remains the era the shipped thresholds were cut from, which is what
-`tools/k-lint/tests/threshold_provenance.rs` re-derives them against on
-every `k-lint (gate)` run. **What would cut one**: any movement in
-either witness above, a rule-1 flag anywhere in the corpus or tour
-population, or the zero-side ceiling crossing `band_zero/100` at the
-1e-12 row — that last one currently has 1.88× of room and is the
-nearest thing this distribution has to a live edge.
+The two sub-1e-16 definite margins (`canonical_order_x` 4.16334e-17,
+`split_join_order_u` 5.55112e-17) do move — `canonical_order_x` was
+2.22045e-16 at M7 — and neither is a threshold's witness: both record
+`band_zero = 5e-324`, below `AMBIENT_BAND_MIN`, so rules 2, 3 and 4 do
+not reach them at all. That is the tie-break family
+`threshold_provenance.rs` covers separately, and it is why the
+definite-side floor is read off `volume_backstop` rather than off the
+smallest margin in the file.
+
+**Disposition of `docs/k-report-data/`: no new file.** Its rule 1 is the
+one home for this decision and this paragraph does not restate it — it
+cuts a new era when the *distribution* moves, naming a new floor, a
+filled gap and an ε-coupled family, and none of the three did: both
+floors' witnesses are bit-identical, the zero-side ceiling is
+bit-identical, and the gap between the two sides is the same gap. M7
+therefore remains the era the shipped thresholds were cut from, which
+is what `tools/k-lint/tests/threshold_provenance.rs` re-derives them
+against on every `k-lint (gate)` run.
+
+**What rule 1 does not say, said here rather than smuggled into it.**
+The roster grew (233 → 281) and the corpus grew 15% (1.79M → 2.08M
+samples per row), and rule 1 addresses neither: its one explicit
+non-trigger is *"never because a predicate was renamed"*, and a roster
+or corpus growth is **unlisted rather than excluded**. The reason it is
+not a trigger here is the measurement above and nothing else — the
+59-plus-2 new names arrived without moving either witness or the
+ceiling. Had one of them landed below `volume_backstop`, the same
+growth would have cut a new era.
 
 ### The census count, measured rather than extrapolated
 
-A sweep at this tip carries **279 distinct predicate names** at all
-three ε rows, against the committed M7 snapshot's 233: **59 in, 13
+A sweep at this tip carries **281 distinct predicate names** at all
+three ε rows, against the committed M7 snapshot's 233: **61 in, 13
 out**. The 13 are the six pooled sector spellings (#652), the two
 `carrier_on_{iso_curve,seam_surface}` names, the three `demo_flush_*`
-names and the two `revolve_axis_*_in_plane` names. `props_meridian_pole`
-is **one** of the 59 — the census note's running chain above stops at a
-predicted 232 and is superseded here by a count, not continued by more
-arithmetic. The M2-era instrument's own population
+names and the two `revolve_axis_*_in_plane` names.
+`props_meridian_pole` is **one** of the 61 and the two span names above
+are two more — the census note's running chain earlier in this report
+stops at a predicted 232 and is superseded here by a count, not
+continued by more arithmetic. The M2-era instrument's own population
 (`crates/sweep/tests/k_report.rs`, ten M2 acceptance shapes, ridden
-beside the linted CSV) reads 17 470 samples over 110 names at this tip,
-of which 24 are
-`props_meridian_pole`, all `zero`.
+beside the linted CSV) reads 17 494 samples over 112 names at this tip,
+of which 24 are `props_meridian_pole`, all `zero`.
+
+### These figures have no mechanical guard, and here is the one that should exist
+
+Everything in this section is a dated reading of a moving quantity
+(#651). Two of the readings are load-bearing in executable pins the
+text cites (`cert1_sphere_polar.rs` for the fold arm,
+`rim_dim_scale_twins.rs` for the chord and the two-population shape),
+and the gate verdict is re-taken on every `k-lint (gate)` run. **The
+era claim is not covered by either**, and it is the one claim here that
+something computes with: `tools/k-lint`'s four shipped constants are
+re-derived against `M7` on every gate run, so if M7 ever stopped being
+the right era the gate would go on re-deriving against the wrong one
+silently.
+
+That claim is guardable and cheaply. It rests on three `f64`s in the
+committed `.gz`, extractable in one `awk` pass, and
+`threshold_provenance.rs` already opens exactly these files through
+`gzip -dc`:
+
+| quantity | witness | value |
+| --- | --- | --: |
+| definite-side floor (excluding the ε-coupled family) | `volume_backstop` | 4.79652e-5 |
+| ε-coupled ratio, binding row (1e-9) | `props_quad_converged` | 164.674 |
+| zero-side ceiling in the ambient band | `pm_census_ee_span` | 5.32907e-15 |
+
+```sh
+gzip -dc docs/k-report-data/m7-eps-1e-9.csv.gz | awk -F, '
+  NR>1 { m = ($3+0 < 0 ? -($3+0) : $3+0); bz = $4+0 }
+  bz >= 1e-13 && $2 != "props_quad_converged" && ($6=="positive" || $6=="negative") \
+    { if (fl == "" || m < fl) { fl = m; fn = $2 } }
+  $2 == "props_quad_converged" { r = m/bz; if (qc == "" || r < qc) qc = r }
+  bz >= 1e-13 && $6 == "zero" { if (m > ce) { ce = m; cn = $2 } }
+  END { printf "%.6g (%s)  %.6g  %.6g (%s)\n", fl, fn, qc, ce, cn }'
+```
+
+(`$4+0` is not decoration: `mawk` compares the string `5e-324` as
+`>= 1e-13` unless it is coerced, which silently drops the tie-break
+family into the ambient population and returns 5.55112e-17 as the
+floor.)
+
+A row asserting those three against the era `threshold_provenance.rs`
+names would go red the moment the era claim went false, and it belongs
+beside that test rather than here. `tools/k-lint/*` is outside this
+unit's fence, so it is filed with the values and the extraction:
+`work/meter/k-report-era-witnesses-have-no-guard.md`. Until it lands,
+these figures are dated to `c39a904e` and nothing re-takes them.
 
 **Nothing above re-cuts a committed row and nothing above rewrites a
 dated figure.** The M2-era, M4, M5 and M7 numbers in this report
 describe the snapshots they name and still describe them correctly; the
-figures here describe `ada6bba9` and are dated as such.
+figures here describe `c39a904e` and are dated as such.
