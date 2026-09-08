@@ -2,10 +2,11 @@
 id: sweep-top-field-docs-make-the-spatial-claim-capend-shed
 kind: unit
 title: Extruded.top and Lofted.top doc comments make the spatial claim CapEnd shed under a signed distance
-status: review
+status: closed
 opened: 2026-09-04
 branch: blend/2-top-cap-doc
 pr: 2122
+closed: 2026-09-08
 ---
 
 
@@ -74,3 +75,16 @@ type is an alias or `impl Trait`. Three programs' ground for a one-sentence
 honesty problem the prose fixes outright, and the `CapEnd` seam the rename
 argument names is EVAL's emitter, not this field pair. The full per-file table
 is in PR 2122's body.
+
+## Closed (2026-09-08, PR 2122)
+
+Prose only: `Extruded.top`/`bottom` state the sweep's ends and defer
+the winding rule to the crate docs, which own it; the "raised" class
+(eleven sites across `extrude.rs`, `loft.rs`, `revolve/partial.rs`)
+reworded to sweep-relative verbs; `Lofted.top` was already
+end-relative. Pinned by the review's two rows on a tilted frame for
+both signs of `w·n` through both doors. The rename was declined on the
+measured count (74 read sites, three crates). Residues filed on this
+slate: `sweep-emits-no-contact-record-for-declared-cusps`,
+`extrude-cap-rim-argument-and-k-star-have-five-homes` (the latter
+closes on the K-ruling unit).
