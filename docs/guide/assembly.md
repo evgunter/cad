@@ -21,8 +21,9 @@ or out of a document.
 Everything below runs. The Python blocks are executed by
 `crates/pncad-py/tests/test_guide.py`; the doors' own suites are
 `crates/pncad-py/tests/test_workspace.py`,
-`test_assembly_eval.py` and `test_assembly_author.py`, and the same
-scene in Rust is `demos/tour/src/assembly.rs`.
+`test_assembly_eval.py` and `test_assembly_author.py` (which build
+one scene, `crates/pncad-py/tests/bench_scene.py`), and the same scene
+in Rust is `demos/tour/src/assembly.rs`.
 
 The scene is the tour's bench: two square posts, one shelf resting on
 them. Two part documents, and two assemblies built from those — a
