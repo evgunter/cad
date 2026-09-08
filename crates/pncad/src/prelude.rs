@@ -193,6 +193,80 @@ pub use ::profile::{
     CornerRefusal, CornerWindow, LineTarget, Open, PartialPath, PathError, PathNoCornerReason,
     Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
 };
+// **The profile refusals' own payload vocabulary**, carried beside
+// the refusals for the reason the blend four ride in group 3: a
+// curated list owes MATCHABILITY and not only nameability, and
+// `ProfileError`, `CornerReason` and `PathError` are on this list
+// while the types their arms carry were not.
+//
+// The reach is the SHORT one here, and that changes nothing. The
+// profile layer is curated name by name rather than re-exported
+// whole, so every name below has always been spellable as
+// `pncad::profile::…` and contract clause 1 was met. What was not met
+// is that a caller holding a prelude-carried refusal could not branch
+// on what its arms say without leaving the prelude, and a one-module
+// hop fails that exactly as a three-module one does.
+//
+// What each one decides:
+//
+// - `ContactKind` is `NonSimple`'s: a transversal crossing, an
+//   isolated endpoint touch, or a shared sub-locus of positive
+//   length. Three self-intersections with three repairs, and the arm
+//   is the only place the profile says which.
+// - `EscalationSite` is `Escalated`'s: which decision could not be
+//   made — one segment, a segment PAIR, a loop's orientation, or the
+//   fillet construction. The first three are facts about the authored
+//   geometry and the fourth is a fact about the requested radius, so
+//   the recourse forks on this discriminant before it reads the band.
+// - `SegmentRef` is the rung under that one, and under four arms
+//   besides: `DegenerateSegment` and `NearFullArc` carry one,
+//   `NonSimple` and `TangentialContact` two apiece. It is where in
+//   the INPUT profile a refusal points — a loop index and a segment
+//   index, in the input's own ordering — so a caller that cannot name
+//   it cannot hold the site it was handed.
+// - `FilletLeg` is which side of a corner a fillet did not fit,
+//   incoming or outgoing: `CornerReason` names it in two arms and
+//   `PathError` in a third, and it is the one thing a caller
+//   shortens.
+// - `FilletLegCarrier` is that side's carrier kind, and it decides
+//   the UNITS of the numbers beside it — a straight leg's setback and
+//   extent are linear distances, a circular leg's are arc lengths —
+//   with the carrier radius and the angular margin riding on the arc
+//   arm and on no other.
+// - `NoCornerReason` is `NoTangentCircle`'s, and it closes a PAIR
+//   this list carried one half of. `PathNoCornerReason` above is the
+//   lattice door's own no-corner refusal and has been curated all
+//   along; this is the fillet constructor's, one door over, with the
+//   same shape and different conditions. Carrying one of the two and
+//   not the other is the inconsistency, not the reach.
+//
+// **`Step` is NOT here, and that is measured — the `MappedCurve`
+// argument in group 4 read on a value rather than on a refusal.** It
+// is `ClosedLoop::program`'s element type: one recorded authoring
+// verb, of which a closing verb hands back a whole `Vec`. What
+// settles it is that the RECORDING half of this layer is uncarried
+// WHOLE. `replay` — the door that consumes a program — is not here,
+// and neither is the refusal it returns, the verb and tip vocabulary
+// its arms name, nor the structure record `ClosedLoop` carries in its
+// third field. Carrying the element type alone would make one field
+// nameable and leave every door that does anything with it a module
+// hop away, which is the blend rung's fourth name in reverse.
+//
+// `ProfileError::Structure`'s payload is that same fence seen from
+// the refusal side and stays out with it: a guided validation is what
+// produces one, the guided doors and the record they replay are the
+// recording half, and the unguided validation this list authors has
+// no record to disagree with.
+//
+// This flips if a door on this list ever takes or returns a recorded
+// program. The rung is then carried WHOLE — the step, the verb, the
+// arrival data its arms name and the replay refusal — because the
+// element type is the last thing a replay caller needs and not the
+// first. Stated so the next curation pass re-measures rather than
+// re-derives.
+pub use ::profile::{
+    ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
+};
 
 // --- 3. The four body operations ------------------------------
 pub use sweep::blend::{BlendError, Filleted, fillet_edges};
