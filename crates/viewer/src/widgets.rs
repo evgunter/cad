@@ -202,6 +202,21 @@ pub(crate) fn unit_vec3_row(
     });
 }
 
+/// The declared split count of an arc leg — a structural integer, not
+/// a quantity, so no unit and no drag speed in written units. The
+/// floor at 1 (the plain leg) is a GUI AFFORDANCE, not the rule: the
+/// rule — a declared count below 2 refuses `ArcSplitCount` — is the
+/// kernel's, and holds for a document that arrives carrying `0`; this
+/// widget simply cannot author that refusal, by design, so the drag
+/// never presents a value the kernel would refuse.
+pub(crate) fn split_field(ui: &mut egui::Ui, splits: &mut u32) {
+    ui.add(
+        egui::DragValue::new(splits)
+            .range(1..=u32::MAX)
+            .prefix("split "),
+    );
+}
+
 /// Two Length fields, one point of the sketch frame — each carrying
 /// the axis it is, because a row of a path form holds several points
 /// and a bare pair of numbers says which of them it belongs to only
@@ -374,10 +389,6 @@ pub(crate) fn path_step_fields(
     // two different quantities one name.
     match step {
         PathStep::At(point) => point_fields(ui, length_unit, point),
-        PathStep::ArcContinue(point) => {
-            ui.label("through");
-            point_fields(ui, length_unit, point);
-        }
         PathStep::FarEndTo(point) => {
             ui.label("far end");
             point_fields(ui, length_unit, point);
@@ -401,7 +412,10 @@ pub(crate) fn path_step_fields(
         PathStep::LineTo(target) | PathStep::TangentArcTo(target) => {
             target_fields(ui, length_unit, target);
         }
-        PathStep::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, spec),
+        PathStep::ArcTo { spec, splits } => {
+            arc_fields(ui, salt, "", length_unit, angle_unit, spec);
+            split_field(ui, splits);
+        }
         // The two mixed verbs read in the order their names do, so the
         // row is the step spelled left to right.
         PathStep::FilletArc { radius, spec } => {

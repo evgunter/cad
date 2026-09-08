@@ -57,6 +57,8 @@ mod common;
 mod arc_fillet;
 #[path = "blend7_review_probes.rs"]
 mod blend7_review_probes;
+#[path = "bool10_r1_probes.rs"]
+mod bool10_r1_probes;
 #[path = "bool11_probes.rs"]
 mod bool11_probes;
 #[path = "fillet_refusal_envelope.rs"]
@@ -157,3 +159,6 @@ fn every_suite_file_is_aggregated() {
 }
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
+
+#[path = "bool10r2_probes.rs"]
+mod bool10r2_probes;

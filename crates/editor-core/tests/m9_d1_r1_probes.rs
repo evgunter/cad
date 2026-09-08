@@ -98,7 +98,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
             ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.0))),
             ProgramStep::Tangent,
             ProgramStep::Line(len(1.0)),
-            ProgramStep::ArcTo(ProgramArcData::Bulge {
+            ProgramStep::arc_to(ProgramArcData::Bulge {
                 target: ProgramTarget::Start,
                 b: scl(1.0),
             }),
@@ -119,7 +119,7 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
         vec![
             ProgramStep::At(p2(0.0, 0.0)),
             ProgramStep::LineTo(ProgramTarget::Point(p2(1.0, 0.0))),
-            ProgramStep::ArcTo(ProgramArcData::Bulge {
+            ProgramStep::arc_to(ProgramArcData::Bulge {
                 target: ProgramTarget::Point(p2(0.0, 1.0)),
                 b: scl(b),
             }),
@@ -148,7 +148,7 @@ fn subdivided_axis_run(angle: f64) -> (ProfileDoc, RecipeNodeId) {
             ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.0))),
             ProgramStep::Tangent,
             ProgramStep::Line(len(1.0)),
-            ProgramStep::ArcTo(ProgramArcData::Bulge {
+            ProgramStep::arc_to(ProgramArcData::Bulge {
                 target: ProgramTarget::Start,
                 b: scl(1.0),
             }),

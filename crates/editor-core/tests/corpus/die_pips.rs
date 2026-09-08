@@ -187,7 +187,7 @@ pub fn half_disc_program() -> LoopProgram {
     };
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, -PIP_R)),
-        ProgramStep::ArcTo(ProgramArcData::Bulge {
+        ProgramStep::arc_to(ProgramArcData::Bulge {
             target: ProgramTarget::Point(lpt(0.0, PIP_R)),
             b: editor_core::Expr::literal(1.0, editor_core::Dimension::Scalar).unwrap(),
         }),

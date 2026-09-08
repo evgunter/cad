@@ -112,9 +112,8 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::NonpositiveFilletRadius => "nonpositive_fillet_radius",
         PathErrorKind::NonpositiveCircleRadius => "nonpositive_circle_radius",
         PathErrorKind::CircleSplitCount => "circle_split_count",
+        PathErrorKind::ArcSplitCount => "arc_split_count",
         PathErrorKind::PolygonTooFewVertices => "polygon_too_few_vertices",
-        PathErrorKind::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
-        PathErrorKind::ArcContinueOffCarrier => "arc_continue_off_carrier",
         PathErrorKind::ZeroDirection => "zero_direction",
         PathErrorKind::ArcViaCollinear => "arc_via_collinear",
         PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
@@ -163,7 +162,7 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
-        RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
+        RecordedProgramError::SplitCount(_) => "split_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
     }
 }

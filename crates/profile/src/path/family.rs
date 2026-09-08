@@ -133,12 +133,13 @@
 use geom_core::{Point2, Real, Sign, Tol};
 
 use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
+use super::program::recorded_split;
 use super::program::{ArcData, ClosedLoop, Step, Target};
-use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
+use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Split, Sweep, Via};
 use super::{
     ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
-    PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming, carriers_are_identical,
-    in_state, junction_check, leg_end_tip, linear_band,
+    PartialPath, PathError, PendingMeta, Plain, SplitLeg, Start, Tip, WithIncoming,
+    carriers_are_identical, in_state, junction_check, leg_end_tip, linear_band,
 };
 
 // ------------------------------------------------------------------
@@ -268,7 +269,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
             center: centre,
             radius,
         };
-        core.push_arc(anchor, bulge, carrier)?;
+        core.push_arc(anchor, bulge)?;
         let chord = (anchor - head).norm_squared().sqrt();
         leg_end_tip(anchor, dir, radius.min(chord), Some(carrier))
     } else {
@@ -779,6 +780,72 @@ pub trait TangentIncoming<T: ArcCarrierScalar> {
     fn to_wire(&self) -> ArcData<T>;
 }
 
+/// The endpoint-free sharp LEG from a DIRECTED tip — `arc_to(spec)`
+/// with `Sweep`/`ArcLen`, plain or with its declared split. A trait
+/// of its own rather than [`TangentIncoming`] because the two modes
+/// serve BOTH as this leg and as a fused verb's incoming spec, and
+/// only the leg admits a declared split: a fillet trims the arc it
+/// authors, and a trimmed arc has no declared stations. So
+/// `Split<Sweep<_>>` is a `TangentLeg` and NOT a `TangentIncoming` —
+/// a split on a fused incoming is a missing impl, unrepresentable
+/// ([`Split`]'s doctests pin both halves). SEALED like [`PointLeg`]:
+/// the implementor set is the two modes and their [`Split`].
+pub trait TangentLeg<T: ArcCarrierScalar>: super::sealed::Sealed {
+    #[doc(hidden)]
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>>;
+    #[doc(hidden)]
+    fn to_wire(&self) -> ArcData<T>;
+    /// The declared split count — `None` for the plain leg, `Some(n)`
+    /// verbatim for [`Split`] (a declared `1` or `0` reaches the
+    /// kernel's own refusal rather than passing as the plain leg).
+    #[doc(hidden)]
+    fn splits(&self) -> Option<usize>;
+}
+
+impl<T> super::sealed::Sealed for Sweep<T> {}
+impl<T> super::sealed::Sealed for ArcLen<T> {}
+
+impl<T: ArcCarrierScalar> TangentLeg<T> for Sweep<T> {
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
+        TangentIncoming::leg(self, dp, tol)
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        TangentIncoming::to_wire(self)
+    }
+    fn splits(&self) -> Option<usize> {
+        None
+    }
+}
+
+impl<T: ArcCarrierScalar> TangentLeg<T> for ArcLen<T> {
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
+        TangentIncoming::leg(self, dp, tol)
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        TangentIncoming::to_wire(self)
+    }
+    fn splits(&self) -> Option<usize> {
+        None
+    }
+}
+
+/// A split leg is admissible exactly where its spec is a LEG: the
+/// wrapper delegates the derivation and the wire record and adds its
+/// count. The [`Splittable`](verbs::Splittable) bound is what keeps
+/// nesting out: `Split` is not in that sealed set, so
+/// `Split<Split<_>>` implements no leg trait.
+impl<T: ArcCarrierScalar, S: TangentLeg<T> + verbs::Splittable> TangentLeg<T> for Split<S> {
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
+        self.spec.leg(dp, tol)
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        self.spec.to_wire()
+    }
+    fn splits(&self) -> Option<usize> {
+        Some(self.n)
+    }
+}
+
 impl<T: ArcCarrierScalar> TangentIncoming<T> for Sweep<T> {
     fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
         verbs::tangent_arc_leg(dp, self.r, self.side, self.angle, linear_band(tol)?)
@@ -1184,7 +1251,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
 
     /// The kernel behind the table's endpoint-free sharp-leg row
     /// (recording is the row's, not the kernel's).
-    pub(super) fn arc_to_kernel<S: TangentIncoming<T>>(
+    pub(super) fn arc_to_kernel<S: TangentLeg<T>>(
         mut self,
         spec: S,
         tol: Tol,
@@ -1195,8 +1262,16 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             center: leg.centre,
             radius: (at - leg.centre).norm_squared().sqrt(),
         };
-        self.core.push_arc(leg.end, leg.bulge, carrier)?;
-        let arm = carrier.radius.min(leg.chord);
+        // A declared split places its stations about the leg's own
+        // derived centre through its own signed sweep.
+        let split = spec
+            .splits()
+            .map(|n| SplitLeg::about(leg.centre, leg.sweep, n));
+        let (bulge, last_chord) = self
+            .core
+            .emit_split(at, leg.end, leg.bulge, leg.chord, &carrier, split)?;
+        self.core.push_arc(leg.end, bulge)?;
+        let arm = carrier.radius.min(last_chord);
         Ok(in_state(
             self.core,
             leg_end_tip(leg.end, leg.end_dir, arm, Some(carrier)),
@@ -1442,16 +1517,28 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
 /// (`Sweep`/`ArcLen`) has no impl here — from a bare point there is no
 /// departure tangent to sweep about, so that pair is unrepresentable
 /// rather than refused. It reaches `arc_to` from the Directed tip
-/// instead ([`TangentIncoming`]).
+/// instead ([`TangentLeg`]).
 /// SEALED, on the same rule as the lattice markers: the admissible
 /// (state, mode) pairs ARE the matrix, so a foreign impl would mint a
 /// row the doctrine does not have. The six mode types below are the
 /// whole implementor set.
-pub trait PointLeg<T: geom_core::Decide, F: Flavor>: super::sealed::Sealed {
+pub trait PointLeg<T: geom_core::Decide, F: Flavor>: super::sealed::Sealed + Sized {
     /// The state the leg leaves the chain in.
     type Out;
+    /// The leg, plain (`split: None`) or with its declared count — the
+    /// ONE body each mode has; [`Split`]'s single row below calls it
+    /// with `Some(n)`.
     #[doc(hidden)]
-    fn leg_from(path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out;
+    fn leg_from_split(
+        path: PartialPath<T, HasPos<F>, NoAng>,
+        spec: Self,
+        split: Option<usize>,
+        tol: Tol,
+    ) -> Self::Out;
+    #[doc(hidden)]
+    fn leg_from(path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
+        Self::leg_from_split(path, spec, None, tol)
+    }
 }
 
 impl<T, Tgt> super::sealed::Sealed for verbs::Bulge<T, Tgt> {}
@@ -1460,23 +1547,39 @@ impl<T: Real, Tgt> super::sealed::Sealed for Center<T, Tgt> {}
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
-        path.core.record(Step::ArcTo(ArcData::Bulge {
-            target: Target::Point(spec.p),
-            b: spec.b,
-        }));
-        path.arc_to_point(spec.p, spec.b, tol)
+    fn leg_from_split(
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
+        spec: Self,
+        split: Option<usize>,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core.record(Step::ArcTo {
+            spec: ArcData::Bulge {
+                target: Target::Point(spec.p),
+                b: spec.b,
+            },
+            splits: recorded_split(split),
+        });
+        path.arc_leg_to_point(spec.p, spec.b, split.map(SplitLeg::chord), tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
-        path.core.record(Step::ArcTo(ArcData::Bulge {
-            target: Target::Start,
-            b: spec.b,
-        }));
-        path.arc_to_start(spec.b, false, tol)
+    fn leg_from_split(
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
+        spec: Self,
+        split: Option<usize>,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core.record(Step::ArcTo {
+            spec: ArcData::Bulge {
+                target: Target::Start,
+                b: spec.b,
+            },
+            splits: recorded_split(split),
+        });
+        path.arc_leg_to_start(spec.b, false, split.map(SplitLeg::chord), tol)
     }
 }
 
@@ -1490,62 +1593,147 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
 /// them (issue 1579; PATHS-DESIGN §6 records it).
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::ArrivesTangent> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
-        path.core.record(Step::ArcTo(ArcData::Bulge {
-            target: Target::StartArriving,
-            b: spec.b,
-        }));
-        path.arc_to_start(spec.b, true, tol)
+    fn leg_from_split(
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
+        spec: Self,
+        split: Option<usize>,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core.record(Step::ArcTo {
+            spec: ArcData::Bulge {
+                target: Target::StartArriving,
+                b: spec.b,
+            },
+            splits: recorded_split(split),
+        });
+        path.arc_leg_to_start(spec.b, true, split.map(SplitLeg::chord), tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
-        path.core.record(Step::ArcTo(ArcData::Via {
-            q: spec.q,
-            target: Target::Point(spec.p),
-        }));
+    fn leg_from_split(
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
+        spec: Self,
+        split: Option<usize>,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core.record(Step::ArcTo {
+            spec: ArcData::Via {
+                q: spec.q,
+                target: Target::Point(spec.p),
+            },
+            splits: recorded_split(split),
+        });
         let bulge = path.arc_via_bulge(spec.q, spec.p, tol)?;
-        path.arc_to_point(spec.p, bulge, tol)
+        path.arc_leg_to_point(spec.p, bulge, split.map(SplitLeg::chord), tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
-        path.core.record(Step::ArcTo(ArcData::Via {
-            q: spec.q,
-            target: Target::Start,
-        }));
+    fn leg_from_split(
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
+        spec: Self,
+        split: Option<usize>,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core.record(Step::ArcTo {
+            spec: ArcData::Via {
+                q: spec.q,
+                target: Target::Start,
+            },
+            splits: recorded_split(split),
+        });
         let bulge = path.arc_via_bulge(spec.q, path.start_target()?, tol)?;
-        path.arc_to_start(bulge, false, tol)
+        path.arc_leg_to_start(bulge, false, split.map(SplitLeg::chord), tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
-        path.core.record(Step::ArcTo(ArcData::Center {
-            c: spec.c,
-            winding: spec.winding,
-            target: Target::Point(spec.p),
-        }));
+    fn leg_from_split(
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
+        spec: Self,
+        split: Option<usize>,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core.record(Step::ArcTo {
+            spec: ArcData::Center {
+                c: spec.c,
+                winding: spec.winding,
+                target: Target::Point(spec.p),
+            },
+            splits: recorded_split(split),
+        });
         let bulge = path.arc_center_bulge(spec.c, spec.p, spec.winding, tol)?;
-        path.arc_to_point(spec.p, bulge, tol)
+        // A split about the AUTHORED centre through the authored
+        // winding (`center_sweep`), never a bulge round trip.
+        let split = match split {
+            None => None,
+            Some(n) => {
+                let at = path.tip_pos()?.at;
+                let sweep = crate::sugar::center_sweep(at, spec.p, spec.c, spec.winding);
+                Some(SplitLeg::about(spec.c, sweep, n))
+            }
+        };
+        path.arc_leg_to_point(spec.p, bulge, split, tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
-        path.core.record(Step::ArcTo(ArcData::Center {
-            c: spec.c,
-            winding: spec.winding,
-            target: Target::Start,
-        }));
-        let bulge = path.arc_center_bulge(spec.c, path.start_target()?, spec.winding, tol)?;
-        path.arc_to_start(bulge, false, tol)
+    fn leg_from_split(
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
+        spec: Self,
+        split: Option<usize>,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core.record(Step::ArcTo {
+            spec: ArcData::Center {
+                c: spec.c,
+                winding: spec.winding,
+                target: Target::Start,
+            },
+            splits: recorded_split(split),
+        });
+        let end = path.start_target()?;
+        let bulge = path.arc_center_bulge(spec.c, end, spec.winding, tol)?;
+        let split = match split {
+            None => None,
+            Some(n) => {
+                let at = path.tip_pos()?.at;
+                let sweep = crate::sugar::center_sweep(at, end, spec.c, spec.winding);
+                Some(SplitLeg::about(spec.c, sweep, n))
+            }
+        };
+        path.arc_leg_to_start(bulge, false, split, tol)
+    }
+}
+
+// The declared split ([`Split`]): ONE row, delegating to the wrapped
+// mode's own body with the count — the wrapper is a leg exactly where
+// its spec is, and nowhere else (no fused-incoming or arrival row
+// exists for it). The `Splittable` bound is what keeps nesting out:
+// `Split` is not in that sealed set, so `Split<Split<_>>` is no leg.
+
+impl<S> super::sealed::Sealed for Split<S> {}
+
+impl<T: geom_core::Decide, F: Flavor, S: PointLeg<T, F> + verbs::Splittable> PointLeg<T, F>
+    for Split<S>
+{
+    type Out = S::Out;
+    fn leg_from_split(
+        path: PartialPath<T, HasPos<F>, NoAng>,
+        spec: Self,
+        split: Option<usize>,
+        tol: Tol,
+    ) -> Self::Out {
+        // A nested count is unbuildable (`Split` is not `Splittable`),
+        // so `split` is `None` here by construction: the declared
+        // count is the wrapper's own.
+        debug_assert!(split.is_none(), "a nested split cannot be built");
+        S::leg_from_split(path, spec.spec, Some(spec.n), tol)
     }
 }
 

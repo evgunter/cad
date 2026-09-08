@@ -773,29 +773,50 @@ macro_rules! point_state {
         /// The SHARP arc leg, one verb over the endpoint-full modes:
         /// `Bulge(p, b)` chord-relative, `Via(q, p)` through a point,
         /// `Center(c, winding, p)` about a centre. `p=Start` closes.
-        fn arc_to(&self, py: Python<'_>, spec: PointSpec) -> PyResult<Py<PyAny>> {
+        /// `splits=None` is the plain leg. A count GIVEN is a
+        /// declaration — the leg split into that many arcs on the one
+        /// carrier, its interior stations declared tangent joints — and
+        /// one rule holds on every authoring surface: a declared count
+        /// below 2, `splits=1` included, refuses `arc_split_count`
+        /// exactly as Rust's `.split(1)` does (a declaration of one
+        /// piece distinguishes nothing).
+        #[pyo3(signature = (spec, splits = None))]
+        fn arc_to(
+            &self,
+            py: Python<'_>,
+            spec: PointSpec,
+            splits: Option<usize>,
+        ) -> PyResult<Py<PyAny>> {
             let tol = Tol::witness();
             let path = self.0.clone();
+            macro_rules! leg {
+                ($spec:expr) => {
+                    match splits {
+                        None => path.arc_to($spec, tol),
+                        Some(n) => path.arc_to($spec.split(n), tol),
+                    }
+                };
+            }
             match spec {
                 PointSpec::Bulge(Bulge { p: Tgt::Point(t), b }) => {
-                    out_point(py, path.arc_to(pf::Bulge { p: t, b }, tol))
+                    out_point(py, leg!(pf::Bulge { p: t, b }))
                 }
                 PointSpec::Bulge(Bulge { p: Tgt::Start, b }) => {
-                    out_closed(py, path.arc_to(pf::Bulge { p: pf::Start, b }, tol))
+                    out_closed(py, leg!(pf::Bulge { p: pf::Start, b }))
                 }
                 PointSpec::Via(Via { q, p: Tgt::Point(t) }) => {
-                    out_point(py, path.arc_to(pf::Via { q, p: t }, tol))
+                    out_point(py, leg!(pf::Via { q, p: t }))
                 }
                 PointSpec::Via(Via { q, p: Tgt::Start }) => {
-                    out_closed(py, path.arc_to(pf::Via { q, p: pf::Start }, tol))
+                    out_closed(py, leg!(pf::Via { q, p: pf::Start }))
                 }
                 PointSpec::Center(Center { c, winding, p: Tgt::Point(t) }) => out_point(
                     py,
-                    path.arc_to(pf::Center { c, winding: winding.to_kernel(), p: t }, tol),
+                    leg!(pf::Center { c, winding: winding.to_kernel(), p: t }),
                 ),
                 PointSpec::Center(Center { c, winding, p: Tgt::Start }) => out_closed(
                     py,
-                    path.arc_to(pf::Center { c, winding: winding.to_kernel(), p: pf::Start }, tol),
+                    leg!(pf::Center { c, winding: winding.to_kernel(), p: pf::Start }),
                 ),
             }
         }
@@ -948,23 +969,6 @@ point_state!(
             leg_end_incoming!(py, spec, |si| arrival!(py, spec2, |s2| path
                 .clone()
                 .arc_fillet_arc(si, r, s2, tol)))
-        }
-
-        /// Continue the incoming ARC carrier to an authored on-carrier
-        /// point, minting a STRUCTURAL subdivision vertex. The junction
-        /// is a same-carrier identity, so no junction check runs and
-        /// nothing is declared tangent.
-        fn arc_continue(
-            &self,
-            py: Python<'_>,
-            target: (Length, Length),
-        ) -> PyResult<PathDirectedPoint> {
-            let tol = Tol::witness();
-            self.0
-                .clone()
-                .arc_continue(pt(target), tol)
-                .map(PathDirectedPoint)
-                .map_err(|err| path_err(py, &err))
         }
     }
 );
@@ -1214,17 +1218,34 @@ impl PathDirected {
 
     /// The SHARP arc leg from a bound direction: the endpoint-free
     /// modes, the arc analogs of `line(len)` — tangent-departing, the
-    /// endpoint DERIVED from radius, side and extent.
-    fn arc_to(&self, py: Python<'_>, spec: TangentSpec) -> PyResult<Py<PyAny>> {
+    /// endpoint DERIVED from radius, side and extent. `splits=None` is
+    /// the plain leg; a count given is DECLARED, and one below 2 —
+    /// `splits=1` included — refuses `arc_split_count`, the one rule
+    /// every authoring surface keeps.
+    #[pyo3(signature = (spec, splits = None))]
+    fn arc_to(
+        &self,
+        py: Python<'_>,
+        spec: TangentSpec,
+        splits: Option<usize>,
+    ) -> PyResult<Py<PyAny>> {
         let tol = Tol::witness();
+        macro_rules! leg {
+            ($path:expr, $s:expr) => {
+                match splits {
+                    None => $path.arc_to($s, tol),
+                    Some(n) => $path.arc_to($s.split(n), tol),
+                }
+            };
+        }
         match &self.0 {
             Directed::Plain(p) => {
                 let path = p.clone();
-                out_point(py, tangent_incoming!(spec, |s| path.arc_to(s, tol)))
+                out_point(py, tangent_incoming!(spec, |s| leg!(path, s)))
             }
             Directed::WithIncoming(p) => {
                 let path = p.clone();
-                out_point(py, tangent_incoming!(spec, |s| path.arc_to(s, tol)))
+                out_point(py, tangent_incoming!(spec, |s| leg!(path, s)))
             }
         }
     }

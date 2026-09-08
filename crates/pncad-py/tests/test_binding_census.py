@@ -409,6 +409,10 @@ BOUND_AS = {
     "UnitVec3": "Datum.direction",
     "UnitVec3Error": "EvaluationError.kind",
     "PI": "pi_rad",
+    # The declared-split arc leg: Rust wraps the spec (`spec.split(n)`);
+    # Python says the same thing as the `splits=` keyword on every
+    # `arc_to`, so the wrapper type has no class of its own to bind.
+    "Split": "PathPoint.arc_to",
     # `DistributionField` names WHICH offset of a distribution a fault
     # is about, and it crosses as that word on the fault rather than as
     # a class: a three-member closed set naming struct fields is what a

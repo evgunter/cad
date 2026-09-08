@@ -104,7 +104,7 @@ fn lid_meridian() -> LoopProgram {
         ProgramStep::At(lpt(R_VENT, LID_BASE)),
         line_to(R_FLANGE, LID_BASE),
         line_to(R_NECK, Y_FLANGE),
-        ProgramStep::ArcTo(ProgramArcData::Center {
+        ProgramStep::arc_to(ProgramArcData::Center {
             c: lpt(0.0, DOME_C),
             winding: ArcSweep::Ccw,
             target: ProgramTarget::Point(lpt(R_KNOB, Y_KNOB)),

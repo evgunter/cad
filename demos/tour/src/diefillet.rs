@@ -168,7 +168,7 @@ fn half_disc() -> LoopProgram {
     let p = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
         ProgramStep::At(p(0.0, -PIP_R)),
-        ProgramStep::ArcTo(ProgramArcData::Bulge {
+        ProgramStep::arc_to(ProgramArcData::Bulge {
             target: ProgramTarget::Point(p(0.0, PIP_R)),
             b: scl(1.0),
         }),

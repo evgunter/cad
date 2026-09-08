@@ -453,10 +453,13 @@ fn chain_form(
             program.push(if here.bulge == 0.0 {
                 Step::LineTo(target)
             } else {
-                Step::ArcTo(crate::path::program::ArcData::Bulge {
-                    target,
-                    b: here.bulge,
-                })
+                Step::ArcTo {
+                    spec: crate::path::program::ArcData::Bulge {
+                        target,
+                        b: here.bulge,
+                    },
+                    splits: 1,
+                }
             });
         }
     }
@@ -464,24 +467,30 @@ fn chain_form(
     repair_same_carrier(program, &origin, tol)
 }
 
-/// Turn `arc_to` into `arc_continue` wherever the DRIVER says the
-/// junction is a carrier continuation (§5-1's class, met by the
-/// binder's own refusal rather than by a re-derived predicate).
+/// Declare the zero-turn joint wherever the DRIVER says an arc leg
+/// arrives at one undeclared (§5-1's class, met by the binder's own
+/// refusal rather than by a re-derived predicate).
 ///
 /// A cocircular arc/arc junction has zero turn, so `arc_to` classifies
 /// it `JunctionTangent` — the UNDECLARED zero-turn junction, which is
-/// the one trigger left. (The tangent-arc and fillet doors used to
-/// spell the same fact `SameCarrierJunction`; that refusal is retired,
-/// Q1 sixth round, so this reads one kind rather than two.) The
-/// substitution is kept only if it makes PROGRESS (the next refusal, if
-/// any, is later in the program), so a genuine two-carrier tangency —
-/// which wants a declaration, not a subdivision — is never laundered
-/// into one.
+/// the one trigger left. The re-spelling is the lattice's own: the
+/// leg becomes `.tangent().tangent_arc_to(p)`, its joint DECLARED and
+/// its arc derived from the inherited tangent and the authored target
+/// — which mints the raw run's vertex and the same bulge bits, the
+/// tangent-chord derivation being the one the raw run's own carrier
+/// satisfies. Whether the derived arc reproduces the raw one is the
+/// census's comparison, as for every lift. The substitution is kept
+/// only if it makes PROGRESS (the next refusal, if any, is later in
+/// the program), so a wall this spelling does not move is left in the
+/// driver's own words rather than laundered.
 fn repair_same_carrier(
     mut program: Vec<Step<f64>>,
     origin: &[usize],
     tol: Tol,
 ) -> Result<Vec<Step<f64>>, LiftRefusal> {
+    // The declaration is two steps where the leg was one, so the
+    // source-segment map grows alongside the program.
+    let mut origin = origin.to_vec();
     // Each accepted substitution moves the refusal strictly later, so
     // the program's length bounds the number of passes.
     for _ in 0..=program.len() {
@@ -495,25 +504,35 @@ fn repair_same_carrier(
             return Ok(program);
         }
         match program.get(error.step) {
-            Some(Step::ArcTo(crate::path::program::ArcData::Bulge {
-                target: Target::Point(p),
+            Some(Step::ArcTo {
+                spec:
+                    crate::path::program::ArcData::Bulge {
+                        target: Target::Point(p),
+                        ..
+                    },
                 ..
-            })) => {
+            }) => {
                 let p = *p;
                 let saved = program.clone();
-                if let Some(slot) = program.get_mut(error.step) {
-                    *slot = Step::ArcContinue(p);
-                }
+                program[error.step] = Step::TangentArcTo(Target::Point(p));
+                program.insert(error.step, Step::Tangent);
+                let src = origin.get(error.step).copied().unwrap_or_default();
+                origin.insert(error.step, src);
                 match replay(&program, tol) {
                     Ok(_) => return Ok(program),
-                    Err(next) if next.step > error.step => {}
+                    // Progress means past BOTH steps of the declaration.
+                    Err(next) if next.step > error.step + 1 => {}
                     Err(_) => return Ok(saved),
                 }
             }
-            Some(Step::ArcTo(crate::path::program::ArcData::Bulge {
-                target: Target::Start,
+            Some(Step::ArcTo {
+                spec:
+                    crate::path::program::ArcData::Bulge {
+                        target: Target::Start,
+                        ..
+                    },
                 ..
-            })) => {
+            }) => {
                 return Err(LiftRefusal::SameCarrierClose {
                     joint: origin.get(error.step).copied().unwrap_or_default(),
                 });

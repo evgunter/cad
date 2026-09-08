@@ -82,6 +82,8 @@ mod blend5_r2_probes;
 mod blend5_rim_support;
 #[path = "blend5_rim_support_wire.rs"]
 mod blend5_rim_support_wire;
+#[path = "bool10_r1_wire_probes.rs"]
+mod bool10_r1_wire_probes;
 #[path = "bool12r2_ec_probe.rs"]
 mod bool12r2_ec_probe;
 #[path = "bool13_r1_probes.rs"]
@@ -484,3 +486,6 @@ mod kstats_bracket_rows;
 
 #[path = "m10_9_r1_probes_interval.rs"]
 mod m10_9_r1_probes_interval;
+
+#[path = "bool10r2_probes.rs"]
+mod bool10r2_probes;

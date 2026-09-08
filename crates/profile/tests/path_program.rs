@@ -29,8 +29,8 @@ use common::{coverage_corpus, pinned};
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{
-    ArcMode, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind,
-    Start, Step, Target, TipState, Verb, replay,
+    ArcMode, ArcSide, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError,
+    ReplayErrorKind, Start, Step, Sweep, Target, TipState, Verb, replay,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -59,7 +59,9 @@ fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
     let mut out = Vec::new();
     for step in program {
         match step {
-            Step::ArcTo(spec) | Step::FilletArc { spec, .. } | Step::ArcFillet { spec, .. } => {
+            Step::ArcTo { spec, .. }
+            | Step::FilletArc { spec, .. }
+            | Step::ArcFillet { spec, .. } => {
                 out.push(spec.mode());
             }
             Step::ArcFilletArc { spec, spec2, .. } => {
@@ -76,7 +78,6 @@ fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
             | Step::LineTo(_)
             | Step::ContinueTo(_)
             | Step::TangentArcTo(_)
-            | Step::ArcContinue(_)
             | Step::Fillet { .. }
             | Step::FarEndTo(_)
             | Step::CloseTo
@@ -423,81 +424,6 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
     assert_eq!(pinned(two).vertices().len(), 2);
 }
 
-/// **`arc_continue`'s declared subdivision (LIB-SWITCH §5-1 fallback,
-/// the half-disc's equator vertex).** Two quarter arcs on ONE carrier:
-/// the first authored (`arc_to(Bulge { .. })` with bulge tan(π/8)), the
-/// second a structural subdivision — same carrier, derived bulge, no
-/// junction claim, nothing declared tangent. Replays bit-identically.
-#[test]
-fn arc_continue_subdivides_the_carrier_structurally() {
-    use profile::Bulge;
-    let q = std::f64::consts::FRAC_PI_8.tan();
-    let closed = Open
-        .at(p2(0.0, -0.5))
-        .arc_to(
-            Bulge {
-                p: p2(0.5, 0.0),
-                b: q,
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .arc_continue(p2(0.0, 0.5), Tol::witness())
-        .unwrap()
-        .line_to(Start, Tol::witness())
-        .unwrap();
-    assert_eq!(
-        verbs(&program_of(&closed)),
-        vec![Verb::At, Verb::ArcTo, Verb::ArcContinue, Verb::LineTo],
-        "the subdivision records as its own verb, storing only the authored target"
-    );
-    let lowered = pinned(closed);
-    assert_eq!(lowered.vertices().len(), 3);
-    // The derived bulge continues the SAME carrier: a quarter of the
-    // r = 0.5 circle about the origin, tan(π/8) up to the tangent-chord
-    // derivation's rounding.
-    let b = lowered.vertices()[1].bulge();
-    assert!(
-        (b - q).abs() < 1e-15,
-        "continuation bulge ≈ tan(π/8), got {b}"
-    );
-    assert!(
-        lowered.tangent_joints().is_empty(),
-        "a subdivision vertex claims nothing — same-carrier identity, not tangency"
-    );
-    validate_ok(&lowered);
-}
-
-/// `arc_continue` refusals: a straight incoming leg has nothing to
-/// subdivide; an off-carrier target is contradictory authored data.
-#[test]
-fn arc_continue_refuses_lines_and_off_carrier_targets() {
-    use profile::Bulge;
-    let after_line = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(1.0, 0.0), Tol::witness())
-        .unwrap();
-    match after_line.arc_continue(p2(2.0, 0.0), Tol::witness()) {
-        Err(PathError::ArcContinueNeedsArcCarrier) => {}
-        other => panic!("a straight leg must refuse arc_continue, got {other:?}"),
-    }
-    let q = std::f64::consts::FRAC_PI_8.tan();
-    let after_arc = Open
-        .at(p2(0.0, -0.5))
-        .arc_to(
-            Bulge {
-                p: p2(0.5, 0.0),
-                b: q,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-    match after_arc.arc_continue(p2(0.3, 0.5), Tol::witness()) {
-        Err(PathError::ArcContinueOffCarrier { .. }) => {}
-        other => panic!("an off-carrier target must refuse, got {other:?}"),
-    }
-}
-
 // ------------------------------------------------------------------
 // The replay-coverage census (LIB-RTABLE)
 // ------------------------------------------------------------------
@@ -646,11 +572,14 @@ fn lattice_violations_refuse_as_the_transition_class() {
     assert_transition(
         &[
             Step::At(a),
-            Step::ArcTo(profile::ArcData::Sweep {
-                r: 1.0,
-                side: profile::ArcSide::Left,
-                angle: 0.5,
-            }),
+            Step::ArcTo {
+                spec: profile::ArcData::Sweep {
+                    r: 1.0,
+                    side: profile::ArcSide::Left,
+                    angle: 0.5,
+                },
+                splits: 1,
+            },
         ],
         1,
         TipState::PlainPoint,
@@ -818,4 +747,313 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
         }) => {}
         other => panic!("a negative fillet radius must refuse typed, got {other:?}"),
     }
+}
+
+// ------------------------------------------------------------------
+// The declared-split arc leg — `arc_to(spec.split(n))`
+// ------------------------------------------------------------------
+
+fn bits(v: f64) -> u64 {
+    v.to_bits()
+}
+
+/// **The half-disc's equator as ONE leg that declares its split.** The
+/// semicircle from the south pole to the north pole, split in two: the
+/// station is the axis point `(R, 0)` bit for bit, both pieces carry
+/// tan(π/8) exactly, and the joint at the station is a DECLARED
+/// TANGENT joint on the one carrier (Ev, in-chat, 2026-09-02: every
+/// zero-turn joint is a declared tangent joint). The program records
+/// the plain verb with its count; it replays bit-identically.
+#[test]
+fn split_arc_mints_declared_tangent_joints_on_one_carrier() {
+    use profile::Bulge;
+    let q = std::f64::consts::FRAC_PI_8.tan();
+    let closed = Open
+        .at(p2(0.0, -0.5))
+        .arc_to(
+            Bulge {
+                p: p2(0.0, 0.5),
+                b: 1.0,
+            }
+            .split(2),
+            Tol::witness(),
+        )
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    let program = program_of(&closed);
+    assert_eq!(verbs(&program), vec![Verb::At, Verb::ArcTo, Verb::LineTo]);
+    assert!(
+        matches!(program[1], Step::ArcTo { splits: 2, .. }),
+        "the split rides the leg's own step: {:?}",
+        program[1]
+    );
+    let lowered = pinned(closed);
+    assert_eq!(lowered.vertices().len(), 3);
+    let v1 = lowered.vertices()[1];
+    assert_eq!((bits(v1.pos().x), bits(v1.pos().y)), (bits(0.5), bits(0.0)));
+    assert_eq!(bits(lowered.vertices()[0].bulge()), bits(q));
+    assert_eq!(bits(v1.bulge()), bits(q));
+    assert_eq!(lowered.tangent_joints(), &[1]);
+    validate_ok(&lowered);
+}
+
+/// **The axis station is exact.** The same semicircle authored about
+/// its centre from `(1, 0)` to `(−1, 0)`: the middle station of an
+/// even split is `centre + R·m̂` (the placement contract), so the pole
+/// lands on `(0, 1)` bit for bit where a station computed by rotation
+/// would sit cos(π/2) ≈ 6e-17 off the axis — a vertex a revolve may
+/// read as off-axis.
+#[test]
+fn split_arc_places_the_axis_station_exactly() {
+    use profile::Center;
+    let q = std::f64::consts::FRAC_PI_8.tan();
+    let closed = Open
+        .at(p2(1.0, 0.0))
+        .arc_to(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(-1.0, 0.0),
+            }
+            .split(2),
+            Tol::witness(),
+        )
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    let lowered = pinned(closed);
+    let v1 = lowered.vertices()[1];
+    assert_eq!((bits(v1.pos().x), bits(v1.pos().y)), (bits(0.0), bits(1.0)));
+    assert_eq!(bits(lowered.vertices()[0].bulge()), bits(q));
+    assert_eq!(bits(v1.bulge()), bits(q));
+    assert_eq!(lowered.tangent_joints(), &[1]);
+    validate_ok(&lowered);
+}
+
+/// **The reversal identity.** Stations are computed from their NEARER
+/// endpoint, so the leg authored backwards (end→start, bulge negated)
+/// places the same stations bit for bit, for an odd count and for an
+/// even one (whose middle station is the closed form).
+#[test]
+fn split_arc_reverses_bit_identically() {
+    use profile::Bulge;
+    let (a, b, bulge) = (p2(0.3, 0.1), p2(1.7, 0.9), 0.37);
+    for n in [4usize, 5] {
+        let forward = pinned(
+            Open.at(a)
+                .arc_to(Bulge { p: b, b: bulge }.split(n), Tol::witness())
+                .unwrap()
+                .line_to(Start, Tol::witness())
+                .unwrap(),
+        );
+        let backward = pinned(
+            Open.at(b)
+                .arc_to(Bulge { p: a, b: -bulge }.split(n), Tol::witness())
+                .unwrap()
+                .line_to(Start, Tol::witness())
+                .unwrap(),
+        );
+        assert_eq!(forward.vertices().len(), n + 1);
+        for k in 1..n {
+            let f = forward.vertices()[k];
+            let r = backward.vertices()[n - k];
+            assert_eq!(
+                (bits(f.pos().x), bits(f.pos().y)),
+                (bits(r.pos().x), bits(r.pos().y)),
+                "n = {n}: station {k} vs reversed station {}",
+                n - k
+            );
+            assert_eq!(
+                bits(f.bulge()),
+                bits(-r.bulge()),
+                "n = {n}: piece bulge at {k}"
+            );
+        }
+        let joints: Vec<usize> = (1..n).collect();
+        assert_eq!(forward.tangent_joints(), &joints[..]);
+        assert_eq!(backward.tangent_joints(), &joints[..]);
+        validate_ok(&forward);
+    }
+}
+
+/// **D2 — a count below 2 refuses typed**, on the typed surface and at
+/// replay alike: one piece declares nothing the plain leg does not, and
+/// zero is no leg. At replay `splits: 1` IS the plain leg (the count is
+/// what every recorded arc leg carries).
+#[test]
+fn split_count_below_two_refuses_typed() {
+    use profile::{ArcData, Bulge};
+    for n in [0usize, 1] {
+        match Open.at(p2(0.0, -0.5)).arc_to(
+            Bulge {
+                p: p2(0.0, 0.5),
+                b: 1.0,
+            }
+            .split(n),
+            Tol::witness(),
+        ) {
+            Err(PathError::ArcSplitCount { n: got }) => assert_eq!(got, n),
+            other => panic!("split({n}) must refuse ArcSplitCount, got {other:?}"),
+        }
+    }
+    let leg = |splits: usize| {
+        [
+            Step::At(p2(0.0, -0.5)),
+            Step::ArcTo {
+                spec: ArcData::Bulge {
+                    target: Target::Point(p2(0.0, 0.5)),
+                    b: 1.0,
+                },
+                splits,
+            },
+            Step::LineTo(Target::Start),
+        ]
+    };
+    let plain = replay(&leg(1), Tol::witness()).expect("splits: 1 is the plain leg");
+    assert_eq!(plain.vertices().len(), 2);
+    assert!(plain.tangent_joints().is_empty());
+    match replay(&leg(0), Tol::witness()) {
+        Err(ReplayError {
+            step: 1,
+            kind: ReplayErrorKind::Path(PathError::ArcSplitCount { n: 0 }),
+        }) => {}
+        other => panic!("splits: 0 must refuse ArcSplitCount at step 1, got {other:?}"),
+    }
+}
+
+/// **The endpoint-free legs split too** (admissibility is the wrapped
+/// mode's): a `Sweep` split in three lands on the SAME end vertex the
+/// unsplit leg does, its stations sit on the carrier, every piece
+/// carries tan(θ/12), and both interior joints are declared.
+#[test]
+fn split_arc_on_a_directed_leg_lands_where_the_unsplit_leg_does() {
+    use profile::{ArcSide, Sweep};
+    use std::f64::consts::FRAC_PI_2;
+    let sweep = Sweep {
+        r: 0.5,
+        side: ArcSide::Left,
+        angle: FRAC_PI_2,
+    };
+    let unsplit = pinned(
+        Open.at(p2(0.0, 0.0))
+            .angle(0.0, Tol::witness())
+            .unwrap()
+            .arc_to(sweep, Tol::witness())
+            .unwrap()
+            .line_to(Start, Tol::witness())
+            .unwrap(),
+    );
+    let split = pinned(
+        Open.at(p2(0.0, 0.0))
+            .angle(0.0, Tol::witness())
+            .unwrap()
+            .arc_to(sweep.split(3), Tol::witness())
+            .unwrap()
+            .line_to(Start, Tol::witness())
+            .unwrap(),
+    );
+    assert_eq!(unsplit.vertices().len(), 2);
+    assert_eq!(split.vertices().len(), 4);
+    let (e, s) = (unsplit.vertices()[1], split.vertices()[3]);
+    assert_eq!(
+        (bits(e.pos().x), bits(e.pos().y)),
+        (bits(s.pos().x), bits(s.pos().y))
+    );
+    let piece = (FRAC_PI_2 / 12.0).tan();
+    for k in 0..3 {
+        let v = split.vertices()[k];
+        assert_eq!(bits(v.bulge()), bits(piece), "piece {k}");
+        let radial = (v.pos().x.powi(2) + (v.pos().y - 0.5).powi(2)).sqrt();
+        assert!(
+            (radial - 0.5).abs() < 1e-15,
+            "station {k} off the carrier by {radial}"
+        );
+    }
+    assert_eq!(split.tangent_joints(), &[1, 2]);
+    validate_ok(&split);
+}
+
+/// **A split closer**: the sharp arc seam with its interior stations
+/// declared; the seam's own junction is classified exactly as the
+/// unsplit closer's is.
+#[test]
+fn split_arc_closes_with_its_stations_declared() {
+    use profile::Bulge;
+    let closed = pinned(
+        Open.at(p2(0.0, 0.0))
+            .line_to(p2(1.0, 0.0), Tol::witness())
+            .unwrap()
+            .arc_to(Bulge { p: Start, b: 0.5 }.split(3), Tol::witness())
+            .unwrap(),
+    );
+    assert_eq!(closed.vertices().len(), 4);
+    assert_eq!(closed.tangent_joints(), &[2, 3]);
+    let piece = (4.0 * 0.5f64.atan() / 12.0).tan();
+    for k in 1..4 {
+        assert_eq!(bits(closed.vertices()[k].bulge()), bits(piece), "piece {k}");
+    }
+    validate_ok(&closed);
+}
+
+/// **The split's domain is the leg's own, |θ| < 2π** (PATHS §4's
+/// placement contract), and OUTSIDE it the plain leg and its split
+/// disagree. `Sweep` gates its angle positive and nothing else, so a
+/// full or over-full sweep reaches the leg: the plain leg FOLDS it — a
+/// zero-chord vertex at 2π, `tan(3π/4) = −1` (a CW semicircle) at 3π
+/// — which is the leg's pre-existing hole, filed on the bool slate and
+/// not this unit's to fix; the split places its stations by parameter
+/// through the AUTHORED sweep and so reads the angle as written: a
+/// full circle as two semicircles through `(0, 2)`, three half-turns
+/// as two major arcs through `(1, 1)`. This row pins both readings so
+/// the disagreement stays visible rather than being masked by a split.
+#[test]
+fn an_over_full_sweep_split_reads_the_authored_angle_while_the_plain_leg_folds_it() {
+    use core::f64::consts::{PI, TAU};
+    let leg = |angle: f64, n: Option<usize>| {
+        let spec = Sweep {
+            r: 1.0,
+            side: ArcSide::Left,
+            angle,
+        };
+        let dir = Open.at(p2(0.0, 0.0)).angle(0.0, Tol::witness()).unwrap();
+        let open = match n {
+            None => dir.arc_to(spec, Tol::witness()),
+            Some(n) => dir.arc_to(spec.split(n), Tol::witness()),
+        }
+        .expect("the leg builds; the hole is in what it emits");
+        // A detour with corners at every junction, so the LEG's own
+        // vertices are readable where a direct closer would refuse.
+        open.line_to(p2(3.0, 1.0), Tol::witness())
+            .unwrap()
+            .line_to(p2(0.0, -1.0), Tol::witness())
+            .unwrap()
+            .line_to(Start, Tol::witness())
+            .map(|c| c.loop_)
+    };
+    // 3π, plain: folded to a single CW semicircle.
+    let plain = leg(3.0 * PI, None).unwrap();
+    assert_eq!(plain.vertices()[0].bulge(), (3.0 * PI / 4.0).tan());
+    assert!(plain.tangent_joints().is_empty());
+    // 3π split in two: two major arcs of 3π/2 each through (1, 1).
+    let two = leg(3.0 * PI, Some(2)).unwrap();
+    let piece = (3.0 * PI / 8.0).tan();
+    assert_eq!(two.vertices()[0].bulge(), piece);
+    assert_eq!(two.vertices()[1].bulge(), piece);
+    let s = two.vertices()[1].pos();
+    assert!(
+        (s.x - 1.0).abs() < 1e-15 && (s.y - 1.0).abs() < 1e-15,
+        "{s:?}"
+    );
+    assert_eq!(two.tangent_joints(), &[1]);
+    // 2π split in two: a full circle as two semicircles, the middle
+    // station on the axis exactly (the even split's closed form).
+    let circle = leg(TAU, Some(2)).unwrap();
+    let s = circle.vertices()[1].pos();
+    assert_eq!(
+        (s.x.to_bits(), s.y.to_bits()),
+        (0.0f64.to_bits(), 2.0f64.to_bits())
+    );
+    assert_eq!(circle.vertices()[0].bulge(), (TAU / 8.0).tan());
+    assert_eq!(circle.tangent_joints(), &[1]);
 }

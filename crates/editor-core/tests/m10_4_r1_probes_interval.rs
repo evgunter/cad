@@ -224,7 +224,7 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
             param("w", Dimension::Length),
             len(1.0),
         ])),
-        ProgramStep::ArcTo(ProgramArcData::Via {
+        ProgramStep::arc_to(ProgramArcData::Via {
             q: [half_w, len(1.25)],
             target: ProgramTarget::Point([len(0.0), len(1.0)]),
         }),

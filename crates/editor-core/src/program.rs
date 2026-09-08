@@ -104,13 +104,19 @@ pub enum ProgramStep {
     /// continuation; `Start` targets close the loop.
     ContinueTo(ProgramTarget),
     /// `arc_to(spec)` — the sharp arc leg, every §2c mode in the one
-    /// unified spec record (derived quantities re-derived at replay).
-    ArcTo(ProgramArcData),
+    /// unified spec record (derived quantities re-derived at replay),
+    /// with the leg's DECLARED split count: 1 is the plain leg, `n ≥ 2`
+    /// is `arc_to(spec.split(n))`, whose `n − 1` interior stations are
+    /// declared tangent joints on the one carrier (structural, like
+    /// `circle_split`'s `n`).
+    ArcTo {
+        /// The arc spec.
+        spec: ProgramArcData,
+        /// The declared split count (structural; 1 = unsplit).
+        splits: u32,
+    },
     /// `tangent_arc_to(target)`.
     TangentArcTo(ProgramTarget),
-    /// `arc_continue(target)` — the declared-subdivision step
-    /// (LIB-SWITCH §5-1): a STRUCTURAL vertex on the incoming carrier.
-    ArcContinue([Expr; 2]),
     /// `.fillet(r)` — line incoming, line arrival.
     Fillet(Expr),
     /// **§2c** `fillet_arc(r, spec)` — line incoming, arc arrival.
@@ -141,6 +147,16 @@ pub enum ProgramStep {
     FarEndTo([Expr; 2]),
     /// `.to(Start)` — the seam-fillet close (structural).
     CloseTo,
+}
+
+impl ProgramStep {
+    /// The plain (unsplit) sharp arc leg — `arc_to(spec)` with a split
+    /// count of 1, which is what every arc leg records unless the
+    /// author declared a split.
+    #[must_use]
+    pub fn arc_to(spec: ProgramArcData) -> Self {
+        Self::ArcTo { spec, splits: 1 }
+    }
 }
 
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
@@ -518,8 +534,7 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
         P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_slots(t, out),
-        P::ArcContinue(_) => out.extend([A::TargetX, A::TargetY]),
-        P::ArcTo(spec) => spec_slots(spec, false, out),
+        P::ArcTo { spec, .. } => spec_slots(spec, false, out),
         P::Fillet(_) => out.push(A::Radius),
         P::FilletArc { spec, .. } => {
             out.push(A::Radius);
@@ -612,8 +627,6 @@ macro_rules! step_arg_access {
         match ($step, $arg) {
             (P::At(p), A::PointX) | (P::FarEndTo(p), A::PointX) => Some($($ref_kw)* p[0]),
             (P::At(p), A::PointY) | (P::FarEndTo(p), A::PointY) => Some($($ref_kw)* p[1]),
-            (P::ArcContinue(p), A::TargetX) => Some($($ref_kw)* p[0]),
-            (P::ArcContinue(p), A::TargetY) => Some($($ref_kw)* p[1]),
             (P::Angle(e), A::AngleVal) => Some(e),
             (P::Toward { dx, .. }, A::DirX) => Some(dx),
             (P::Toward { dy, .. }, A::DirY) => Some(dy),
@@ -625,7 +638,7 @@ macro_rules! step_arg_access {
             (P::LineTo(ProgramTarget::Point(p)), A::TargetY)
             | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetY)
             | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetY) => Some($($ref_kw)* p[1]),
-            (P::ArcTo(spec), a) => $spec_fn(spec, a, false),
+            (P::ArcTo { spec, .. }, a) => $spec_fn(spec, a, false),
             (P::Fillet(e), A::Radius)
             | (P::FilletArc { radius: e, .. }, A::Radius)
             | (P::ArcFillet { radius: e, .. }, A::Radius)
@@ -856,9 +869,11 @@ fn res_step<T: Decide>(
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
         ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
         ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i)?),
-        ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
+        ProgramStep::ArcTo { spec, splits } => Step::ArcTo {
+            spec: res_spec(spec, env, loop_, i, false)?,
+            splits: *splits as usize,
+        },
         ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
-        ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
         },
@@ -1250,8 +1265,16 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
         (P::LineTo(x), P::LineTo(y))
         | (P::ContinueTo(x), P::ContinueTo(y))
         | (P::TangentArcTo(x), P::TangentArcTo(y)) => target_bit_eq(x, y),
-        (P::ArcContinue(x), P::ArcContinue(y)) => pair_bit_eq(x, y),
-        (P::ArcTo(x), P::ArcTo(y)) => spec_bit_eq(x, y),
+        (
+            P::ArcTo {
+                spec: xs,
+                splits: xn,
+            },
+            P::ArcTo {
+                spec: ys,
+                splits: yn,
+            },
+        ) => xn == yn && spec_bit_eq(xs, ys),
         (
             P::FilletArc {
                 radius: ra,
@@ -1294,9 +1317,8 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
             | P::Line(_)
             | P::LineTo(_)
             | P::ContinueTo(_)
-            | P::ArcTo(_)
+            | P::ArcTo { .. }
             | P::TangentArcTo(_)
-            | P::ArcContinue(_)
             | P::Fillet(_)
             | P::FilletArc { .. }
             | P::ArcFillet { .. }
@@ -1390,16 +1412,18 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 /// this file at compile rather than reaching a typed refusal.
 ///
 /// Two of the three arms are unreachable through the authoring
-/// algebra — they exist because the door takes a `&[Step<f64>]`, which
-/// a caller can also hand-build.
+/// algebra and exist because the door takes a `&[Step<f64>]`, which a
+/// caller can also hand-build; the third is reachable from such a
+/// hand-built step alone.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RecordedProgramError {
     /// A literal argument the expression layer refused.
     Literal(DimensionError),
-    /// A subdivision count too large for the program's `u32` field.
-    /// Unreachable from `circle_split`, whose vertices would exhaust
-    /// memory first.
-    SubdivisionCount(usize),
+    /// A split count too large for the program's `u32` field —
+    /// `circle_split`'s `n` or an arc leg's `splits`. Unreachable from
+    /// `circle_split` and from `.split(n)`, whose vertices would exhaust
+    /// memory first; reachable from a hand-built `Step::ArcTo`.
+    SplitCount(usize),
     /// A complete-loop carrier step recorded inside a chain.
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
@@ -1416,8 +1440,8 @@ impl core::fmt::Display for RecordedProgramError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Literal(err) => write!(f, "a recorded literal was refused: {err}"),
-            Self::SubdivisionCount(n) => {
-                write!(f, "the subdivision count {n} does not fit a u32")
+            Self::SplitCount(n) => {
+                write!(f, "the split count {n} does not fit a u32")
             }
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
@@ -1547,7 +1571,7 @@ impl LoopProgram {
             return Ok(Self::CircleSplit {
                 centre: pt_lit(centre)?,
                 radius: len_lit(*radius)?,
-                n: u32::try_from(*n).map_err(|_| RecordedProgramError::SubdivisionCount(*n))?,
+                n: u32::try_from(*n).map_err(|_| RecordedProgramError::SplitCount(*n))?,
                 phase: ang_lit(*phase)?,
             });
         }
@@ -1567,9 +1591,12 @@ impl LoopProgram {
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
                 Step::ContinueTo(t) => ProgramStep::ContinueTo(target_lit(t)?),
-                Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
+                Step::ArcTo { spec, splits } => ProgramStep::ArcTo {
+                    spec: spec_lit(spec)?,
+                    splits: u32::try_from(*splits)
+                        .map_err(|_| RecordedProgramError::SplitCount(*splits))?,
+                },
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
-                Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),
                 Step::Fillet { radius } => ProgramStep::Fillet(len_lit(*radius)?),
                 Step::FilletArc { radius, spec } => ProgramStep::FilletArc {
                     radius: len_lit(*radius)?,

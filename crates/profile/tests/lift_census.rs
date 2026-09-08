@@ -25,7 +25,7 @@ use geom_core::Point2;
 use geom_core::Tol;
 use profile::RawLoop;
 use profile::lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
-use profile::{ProfileLoop, ProfileVertex, circle, circle_split};
+use profile::{ProfileLoop, ProfileVertex, Step, Verb, circle, circle_split, replay};
 
 /// The coarse bucket a census row falls in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,9 +84,21 @@ fn describe(outcome: &LiftOutcome) -> String {
 // Fixtures beyond `common`'s
 // ------------------------------------------------------------------
 
-/// The §5-1 half-disc: two same-carrier quarter arcs and the diameter
-/// back. Its arc run is exactly what `arc_continue` exists for.
+/// The §5-1 half-disc: two quarter arcs on one carrier and the diameter
+/// back, its joint DECLARED — every zero-turn joint is a declared
+/// tangent joint (Ev, in-chat, 2026-09-02), so this is the table the
+/// lattice materializes for it, and it lifts through the lattice's own
+/// spelling, `.tangent().tangent_arc_to(p)`, bit for bit.
 fn half_disc() -> ProfileLoop<f64> {
+    half_disc_undeclared().with_tangent_joints(vec![1])
+}
+
+/// The same half-disc as RAW data with its joint UNDECLARED — what a
+/// STEP import or a hand-built table carries. The driver refuses the
+/// run's zero-turn junction undeclared, and the lift's one re-spelling
+/// DECLARES it, so the replay differs from the source in exactly that
+/// joint (`an_undeclared_cocircular_run_lifts_as_the_declared_joint`).
+fn half_disc_undeclared() -> ProfileLoop<f64> {
     let b = quarter_bulge();
     chain(&[(1.0, 0.0, b), (0.0, 1.0, b), (-1.0, 0.0, 0.0)])
 }
@@ -142,6 +154,11 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
         ),
         ("circle_split_3", thirds(), Class::Bits),
         ("half_disc", half_disc(), Class::Bits),
+        (
+            "half_disc_undeclared",
+            half_disc_undeclared(),
+            Class::Mismatch,
+        ),
         ("bracket", bracket(), Class::Value),
         ("rounded_rect", rounded_rect(4.0, 3.0, 0.5), Class::Value),
         ("unequal_split", unequal_split(), Class::Refused),
@@ -183,7 +200,15 @@ fn the_census() {
     assert_eq!(tally[Class::Value as usize], 3, "value-equal lifts");
     assert_eq!(tally[Class::Refused as usize], 1, "structural walls");
     assert_eq!(tally[Class::Wall as usize], 1, "geometric walls");
-    assert_eq!(tally[Class::Mismatch as usize], 0, "defects");
+    // The one mismatch is the undeclared cocircular run, whose lift
+    // DECLARES the joint the source left undeclared: a joint-set
+    // difference the comparator scores as incomparable, pinned to
+    // exactly that in `an_undeclared_cocircular_run_lifts_as_the_declared_joint`.
+    assert_eq!(
+        tally[Class::Mismatch as usize],
+        1,
+        "declared-joint mismatches"
+    );
 }
 
 /// The F10 report the design demands: the tool must SAY which fidelity
@@ -329,9 +354,9 @@ fn structural_walls_are_named() {
     // The two walls this list no longer names are demonstrated in
     // `bool9_probes.rs` instead.
 
-    // A same-carrier arc run that reaches the seam: `arc_continue` has
-    // no closing form, so the §5-1 class survives here as a wall even
-    // though its mid-chain twin now lifts.
+    // A same-carrier arc run that reaches the seam: the declared joint
+    // the lift spells is a mid-chain one, so the §5-1 class survives
+    // here as a wall even though its mid-chain twin lifts.
     assert_eq!(
         refusal(&unequal_split()),
         Some(LiftRefusal::SameCarrierClose { joint: 2 })
@@ -360,8 +385,8 @@ fn geometric_walls_are_the_drivers_own() {
 }
 
 /// The §5-1 same-carrier class, both halves in one place: MID-CHAIN it
-/// lifts (through the declared-subdivision verb the PR-B ruling added),
-/// AT THE SEAM it still refuses.
+/// lifts (through the lattice's own declared-joint spelling,
+/// `.tangent().tangent_arc_to(p)`), AT THE SEAM it still refuses.
 #[test]
 fn the_same_carrier_class_splits_in_two() {
     assert_eq!(
@@ -372,4 +397,48 @@ fn the_same_carrier_class_splits_in_two() {
         classify(&lift_checked(&unequal_split(), Tol::witness())),
         Class::Refused
     );
+}
+
+/// **An UNDECLARED cocircular run lifts as the DECLARED joint.** The
+/// driver refuses the raw run's zero-turn junction (`JunctionTangent`)
+/// and the lift's re-spelling is the lattice's own — `.tangent()` then
+/// `tangent_arc_to(p)`, the tangent-chord derivation the raw carrier
+/// satisfies — which mints the raw run's vertex and bulge BITS: the
+/// vertex table replays bit for bit, and the one difference is the
+/// joint the ruling names (every zero-turn joint is a declared tangent
+/// joint). The comparator scores a joint-set difference as
+/// incomparable, so the census classes the row `Mismatch`; this row
+/// says precisely what that mismatch is and is not.
+#[test]
+fn an_undeclared_cocircular_run_lifts_as_the_declared_joint() {
+    let raw = half_disc_undeclared();
+    let LiftOutcome::Mismatch {
+        program, rotation, ..
+    } = lift_checked(&raw, Tol::witness())
+    else {
+        panic!("the undeclared run's lift is the joint-set mismatch");
+    };
+    let verbs: Vec<Verb> = program.iter().map(Step::verb).collect();
+    assert_eq!(
+        verbs,
+        vec![
+            Verb::At,
+            Verb::ArcTo,
+            Verb::Tangent,
+            Verb::TangentArcTo,
+            Verb::LineTo
+        ],
+        "the joint is declared, the arc derived from the inherited tangent"
+    );
+    let replayed = replay(&program, Tol::witness()).expect("the declared spelling replays");
+    let n = raw.vertices().len();
+    assert_eq!(replayed.vertices().len(), n);
+    for k in 0..n {
+        let w = raw.vertices()[(rotation + k) % n];
+        let g = replayed.vertices()[k];
+        assert_eq!(w.pos().x.to_bits(), g.pos().x.to_bits(), "vertex {k} x");
+        assert_eq!(w.pos().y.to_bits(), g.pos().y.to_bits(), "vertex {k} y");
+        assert_eq!(w.bulge().to_bits(), g.bulge().to_bits(), "vertex {k} bulge");
+    }
+    assert_eq!(replayed.tangent_joints(), &[(1 + n - rotation) % n]);
 }

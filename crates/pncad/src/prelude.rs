@@ -184,7 +184,7 @@ pub use ::profile::{
 pub use ::profile::{
     ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop, ContinueTarget, CornerReason,
     CornerRefusal, CornerWindow, LineTarget, Open, PartialPath, PathError, PathNoCornerReason,
-    Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    Radius, Split, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
 };
 
 // --- 3. The four body operations ------------------------------

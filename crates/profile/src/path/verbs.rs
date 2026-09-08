@@ -2,22 +2,60 @@
 //!
 //! Every value here holds NOTHING but binding bits and verb-authored
 //! arguments, and every function is PURE over its parameters. The
-//! enforcement is SIGNATURE PURITY, stated precisely: the state types
-//! carry no carrier field (`pending.carrier` is E0609 — no such
-//! field), so a verb that consults "what leg produced this point" has
-//! nothing in scope to read, and re-introducing carrier-awareness
-//! requires WIDENING A SIGNATURE here — the loud reviewable act such a
-//! change should be. (Rust module visibility alone is NOT the seal:
-//! as a child of `path`, this module could name `super::Core`; it is
-//! the parameter types that make the old wall unwritable.)
+//! enforcement is SIGNATURE PURITY, and it is ENFORCED, not a
+//! convention: no signature in this module admits a `Core`, a previous
+//! leg or an incoming carrier. The whole inventory is
+//! [`DirectedPoint`] `{ at, dir }` (the one incoming-state currency),
+//! the two `Pending*` values (a fillet verb's OWN authored incoming,
+//! carried forward as its output), and [`ArcResolver`], whose `Guide`
+//! is the discrete-choice ledger and carries no geometry. A verb over
+//! the bare state that reaches for "what leg produced this point" has
+//! nothing in scope to read, and the compiler says so. The doctest
+//! below pins [`DirectedPoint`]'s SHAPE — the incoming-state currency
+//! has no carrier field — and nothing wider: it is not a universal
+//! over every function in the crate (a chain-side kernel in `path.rs`
+//! reads the tip's incoming carrier, and its readers are named
+//! below). The statement that IS true is PATHS-DESIGN §4's: no
+//! signature in this sealed verb module admits a `Core`, a previous
+//! leg or an incoming carrier. (Rustdoc on this toolchain does not
+//! check the error code written after `compile_fail`; the failure to
+//! compile is what is enforced.)
+//!
+//! ```compile_fail,E0609
+//! use profile::path::DirectedPoint;
+//! // The directed point is position and tangent, and nothing else:
+//! // there is no carrier field to read, so a carrier-aware verb is
+//! // unwritable against it.
+//! fn reads_the_carrier(dp: DirectedPoint<f64>) -> f64 {
+//!     dp.carrier.radius
+//! }
+//! ```
+//!
+//! Re-introducing carrier-awareness therefore requires WIDENING A
+//! SIGNATURE here — the loud reviewable act such a change should be.
+//! (Rust module visibility alone is NOT the seal: as a child of
+//! `path`, this module could name `super::Core`; it is the parameter
+//! types that make the old wall unwritable.)
 //!
 //! The chain (`path.rs`) threads these values through the verb
 //! functions and applies their EMISSIONS (append-leg / insert-arc /
 //! extend-ray) to the accumulating loop on the far side of this module
-//! boundary; the §4 junction/identity checks read the chain's own
-//! intrinsic leg data and stay chain-side. The arc-carrier RESOLUTION
-//! machinery (`arc_fillet::resolve`, unchanged bit for bit) is the
-//! kernel's arc half: it is already pure over `FilletSide` values.
+//! boundary; the §4 junction checks read the chain's own intrinsic
+//! leg data and stay chain-side. **The ONE chain-side datum a kernel
+//! in `path.rs` / `family.rs` can still see is the tip's incoming
+//! carrier** (`Incoming.carrier`, the arriving arc's circle), and its
+//! readers are NAMED so that a new one is a diff on this list rather
+//! than a quiet return of the old wall: the straight-origin test of
+//! ray extension (`Core::resolve_fillet`'s Positive-fit arm and
+//! `family::merge_of`, both asking only whether the by-tangent origin
+//! was a straight leg), and `carriers_are_identical` under the
+//! `path_carrier_identity` key in `family::leg_end_arc_open` — the arc
+//! extension's vertex-move choice, a same-carrier question the
+//! 2026-09-02 ruling retires in principle and which stands recorded
+//! here until its own unit takes it. The chain keeps no other memory
+//! of an emitted arc. The arc-carrier RESOLUTION machinery
+//! (`arc_fillet::resolve`, unchanged bit for bit) is the kernel's arc
+//! half: it is already pure over `FilletSide` values.
 //!
 //! # The spec family (§2c rounds 5–9): `ArcData` as standalone types
 //!
@@ -330,6 +368,9 @@ pub struct TangentArcLeg<T: Real> {
     pub end_dir: Dir<T>,
     /// The chord length, meters (the junction-lever cap).
     pub chord: T,
+    /// The SIGNED sweep, radians (CCW positive) — the leg's own
+    /// authored extent, which a declared split divides by parameter.
+    pub sweep: T,
 }
 
 pub(crate) fn tangent_arc_leg<T: Decide>(
@@ -363,8 +404,111 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
         bulge,
         end_dir,
         chord,
+        sweep: signed,
     })
 }
+
+// ------------------------------------------------------------------
+// The declared split: a leg spec wrapped with its count.
+// ------------------------------------------------------------------
+
+/// A sharp arc LEG that declares its own split (PATHS-DESIGN §2c/§3,
+/// `arc_to(spec.split(n))`): the one leg `spec` authors, emitted as
+/// `n` arcs on the one carrier, its `n − 1` interior stations placed BY
+/// PARAMETER and each minted as a DECLARED TANGENT JOINT — the "one
+/// curve" fact is the leg's own step, emission-layer bookkeeping.
+///
+/// A wrapper rather than a field on the modes, because the count is
+/// orthogonal to the mode: every LEG mode splits the same way, and the
+/// modes that also serve as a fused verb's incoming or arrival spec
+/// have no split there (a fillet trims the arc it authors; a trimmed
+/// arc has no declared stations), so a field would be a tag every
+/// fused arm had to refuse. Admissibility is DELEGATED to the wrapped
+/// mode's own LEG row — `Split<S>` is a leg exactly where `S` is a
+/// leg, and is NOT a fused incoming anywhere — so a split on a pair
+/// the matrix does not admit is a missing impl, unrepresentable rather
+/// than refused. Both halves are pinned (rustdoc on this toolchain
+/// does not check the error code written after `compile_fail`; the
+/// failure to compile is what is enforced). The endpoint-full modes,
+/// which are a fused verb's POINT incoming:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Point2, Tol};
+/// use profile::{Bulge, Open};
+/// let spec = Bulge { p: Point2::new(1.0, 0.0), b: 0.5 }.split(2);
+/// // A fused verb's incoming arc is trimmed by its fillet: it admits
+/// // no declared stations, so the wrapper has no incoming row.
+/// let _ = Open.at(Point2::new(0.0, 0.0)).arc_fillet(spec, 0.1, Tol::witness());
+/// ```
+///
+/// The endpoint-free modes, which are a fused verb's TANGENT incoming
+/// from a directed tip — the same tip their split LEG departs from:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Point2, Tol};
+/// use profile::{ArcSide, Open, Sweep};
+/// let spec = Sweep { r: 1.0, side: ArcSide::Left, angle: 0.8 }.split(3);
+/// let dir = Open.at(Point2::new(0.0, 0.0)).angle(0.0, Tol::witness()).unwrap();
+/// // `dir.arc_to(spec, tol)` is the leg; the fused incoming has no row.
+/// let _ = dir.arc_fillet(spec, 0.1, Tol::witness());
+/// ```
+///
+/// The wrapper's ONLY constructor is `.split(n)` on the five leg modes
+/// ([`Splittable`]), so a split cannot be nested — `Split` is not in
+/// that sealed set and has no `.split` of its own:
+///
+/// ```compile_fail,E0599
+/// use profile::{ArcSide, Sweep};
+/// let _ = Sweep { r: 1.0, side: ArcSide::Left, angle: 0.8 }.split(4).split(2);
+/// ```
+///
+/// A split on a STRAIGHT leg is unrepresentable the same way: `.split`
+/// exists on the arc spec types alone, and `line(len)` takes a length.
+/// The count is a DECLARATION, so the one that distinguishes nothing
+/// refuses (`n < 2`, [`PathError::ArcSplitCount`] — the shape
+/// `circle_split` has) rather than passing as the plain leg.
+#[derive(Clone, Copy, Debug)]
+pub struct Split<S> {
+    /// The leg spec, exactly as the unsplit leg would author it.
+    pub(super) spec: S,
+    /// The declared number of arcs (`≥ 2`, refused at emission below).
+    pub(super) n: usize,
+}
+
+mod split_sealed {
+    pub trait Sealed {}
+}
+
+/// The leg specs that admit a declared split — the five sharp-leg
+/// modes and nothing else: not `Radius` (arrival-only), not a
+/// [`Split`] (so nesting is unbuildable). Sealed; it exists to bound
+/// the split leg's rows, and the `.split(n)` constructor it names is
+/// an inherent method on each mode, minted from one body below.
+pub trait Splittable: split_sealed::Sealed + Sized {}
+
+macro_rules! splittable {
+    // The one body. `Via` and `Center` carry the scalar bound their
+    // struct declarations carry; the `real` arm writes it once, here.
+    (@body [$($g:tt)*] $ty:ty) => {
+        impl<$($g)*> split_sealed::Sealed for $ty {}
+        impl<$($g)*> Splittable for $ty {}
+        impl<$($g)*> $ty {
+            /// Declare this leg split into `n` arcs (see [`Split`]).
+            #[must_use]
+            pub fn split(self, n: usize) -> Split<Self> {
+                Split { spec: self, n }
+            }
+        }
+    };
+    (plain $($ty:ident < $($g:ident),* >),* $(,)?) => {
+        $( splittable!(@body [$($g),*] $ty<$($g),*>); )*
+    };
+    (real $($ty:ident),* $(,)?) => {
+        $( splittable!(@body [T: Real, Tgt] $ty<T, Tgt>); )*
+    };
+}
+splittable!(plain Bulge<T, Tgt>, Sweep<T>, ArcLen<T>);
+splittable!(real Via, Center);
 
 /// Re-exported director construction so arrival builders normalize
 /// components through the ONE shared door.

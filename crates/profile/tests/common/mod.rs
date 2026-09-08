@@ -354,7 +354,7 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
 /// program is the table's own output.
 pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     use profile::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
-    use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
+    use std::f64::consts::{FRAC_PI_2, PI};
 
     // 1. The fused entry verb, the plain binders and the straight legs.
     let fused = Open
@@ -488,18 +488,19 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .line_to(Start, Tol::witness())
         .unwrap();
 
-    // 6. The declared-subdivision step on an arc carrier.
+    // 6. The declared split on an arc leg: the half-disc's equator as
+    //    ONE semicircular leg split in two, its station a declared
+    //    tangent joint on the one carrier.
     let subdivided = Open
         .at(p2(0.0, -0.5))
         .arc_to(
             Bulge {
-                p: p2(0.5, 0.0),
-                b: FRAC_PI_8.tan(),
-            },
+                p: p2(0.0, 0.5),
+                b: 1.0,
+            }
+            .split(2),
             Tol::witness(),
         )
-        .unwrap()
-        .arc_continue(p2(0.0, 0.5), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();

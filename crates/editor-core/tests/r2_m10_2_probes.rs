@@ -195,7 +195,7 @@ fn boxed(
 fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
     let half = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(-r)]),
-        ProgramStep::ArcTo(ProgramArcData::Bulge {
+        ProgramStep::arc_to(ProgramArcData::Bulge {
             target: ProgramTarget::Point([len(0.0), len(r)]),
             b: scl(1.0),
         }),

@@ -3496,8 +3496,8 @@ where
     // the compile breaks. It cannot default to "tag plus slots" and
     // hash identically to a node that differs in that payload — a memo
     // hit would then serve another node's geometry, which is not
-    // hypothetical (see S4: `Step::AtToward`'s content-key tag collided
-    // with `ArcContinue`'s and was caught by a reviewer, not a type).
+    // hypothetical (see S4: two steps once shared a content-key tag,
+    // and a reviewer caught it rather than a type).
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
@@ -3984,7 +3984,6 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::CloseTo => 24,
         V::Circle => 26,
         V::CircleSplit => 27,
-        V::ArcContinue => 28,
         V::FilletArc => 38,
         V::ArcFillet => 39,
         V::ArcFilletArc => 40,
@@ -3999,6 +3998,7 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
     (19, "ArcVia"),
     (20, "ArcCenter"),
     (25, "CloseToOn"),
+    (28, "ArcContinue"),
     (29, "AtToward"),
 ];
 
@@ -4128,7 +4128,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     }
     h.write_tag(verb_tag(step.verb()));
     match step {
-        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => {
+        Step::At(p) | Step::FarEndTo(p) => {
             f(h, p.x);
             f(h, p.y);
         }
@@ -4141,7 +4141,14 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
         Step::Turn(delta) => f(h, *delta),
         Step::Line(len) => f(h, *len),
         Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
-        Step::ArcTo(data) => spec(h, data),
+        Step::ArcTo { spec: data, splits } => {
+            spec(h, data);
+            // The declared split count: a structural int under its own
+            // tag (3), as `CircleSplit`'s `n` is fed — two legs that
+            // differ only in their split are different geometry.
+            h.write_tag(3);
+            h.write_u64(*splits as u64);
+        }
         Step::Fillet { radius } => f(h, *radius),
         Step::FilletArc { radius, spec: sp } => {
             f(h, *radius);
@@ -4243,7 +4250,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
         }
     }
     match step {
-        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => pt(h, p),
+        Step::At(p) | Step::FarEndTo(p) => pt(h, p),
         Step::Angle(v) | Step::Turn(v) | Step::Line(v) => f(h, v),
         Step::Toward { dx, dy } => {
             f(h, dx);
@@ -4251,7 +4258,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
         }
         Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
-        Step::ArcTo(s) => spec(h, s),
+        Step::ArcTo { spec: s, splits: _ } => spec(h, s),
         Step::Fillet { radius } => f(h, radius),
         Step::FilletArc { radius, spec: s } => {
             f(h, radius);
@@ -4893,8 +4900,8 @@ mod tag_vocabulary_tests {
     /// it would stay green while a new inline node claimed 17 or 24 —
     /// which is precisely the accident that moving two tags out of the
     /// match created the room for, and precisely the accident the S4
-    /// lesson (`Step::AtToward` colliding with `ArcContinue`, caught by
-    /// a reviewer rather than a type) says costs a memo hit serving
+    /// lesson (two steps sharing one content-key tag, caught by a
+    /// reviewer rather than a type) says costs a memo hit serving
     /// another node's geometry.
     ///
     /// **It is a source census, and that is the honest shape here.** The

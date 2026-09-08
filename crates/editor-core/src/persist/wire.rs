@@ -252,6 +252,16 @@ impl WireTarget {
 /// later; a format that has reached someone's disk (Band 4, once a
 /// document ships) cannot.
 ///
+/// The arc leg's `splits` is such a change, made deliberately and
+/// recorded here: the field is REQUIRED on read — a document in the
+/// pre-BOOL-10 `"ArcTo": {"Bulge": …}` shape, or one without the
+/// field, refuses `Unreadable` rather than defaulting to the plain
+/// leg (D365's append-only rule is about tags; an optional field
+/// would make a silent default the format's word). Of the 24
+/// checked-in documents, 19 carry an `ArcTo`: the 3 live ones were
+/// regenerated through their own generators, and the 16 BOOL-13
+/// goldens are asserted-unreadable history already and are unaffected.
+///
 /// It cannot go short of `ProgramStep`: [`WireStep::from_step`] and
 /// [`WireStep::into_step`] are exhaustive on `ProgramStep` and on
 /// `WireStep` respectively, so neither can gain a variant the other
@@ -286,12 +296,17 @@ enum WireStep {
     /// `continue_to(target)` — the declared point-target straight
     /// continuation.
     ContinueTo(WireTarget),
-    /// `arc_to(spec)` — the unified §2c arc-spec record.
-    ArcTo(WireArcData),
+    /// `arc_to(spec)` — the unified §2c arc-spec record, with the
+    /// leg's declared split count (1 = the plain leg; REQUIRED on read,
+    /// see the enum docs).
+    ArcTo {
+        /// The arc spec.
+        spec: WireArcData,
+        /// The declared split count (structural).
+        splits: u32,
+    },
     /// `tangent_arc_to(target)`.
     TangentArcTo(WireTarget),
-    /// `arc_continue(target)` — the declared-subdivision step.
-    ArcContinue([Expr; 2]),
     /// `.fillet(r)`.
     Fillet(Expr),
     /// `fillet_arc(r, spec)`.
@@ -470,9 +485,11 @@ impl WireStep {
             P::Line(e) => WireStep::Line(e.clone()),
             P::LineTo(t) => WireStep::LineTo(WireTarget::from_target(t)),
             P::ContinueTo(t) => WireStep::ContinueTo(WireTarget::from_target(t)),
-            P::ArcTo(spec) => WireStep::ArcTo(WireArcData::from_spec(spec)),
+            P::ArcTo { spec, splits } => WireStep::ArcTo {
+                spec: WireArcData::from_spec(spec),
+                splits: *splits,
+            },
             P::TangentArcTo(t) => WireStep::TangentArcTo(WireTarget::from_target(t)),
-            P::ArcContinue(p) => WireStep::ArcContinue(p.clone()),
             P::Fillet(e) => WireStep::Fillet(e.clone()),
             P::FilletArc { radius, spec } => WireStep::FilletArc {
                 radius: radius.clone(),
@@ -508,9 +525,11 @@ impl WireStep {
             WireStep::Line(e) => P::Line(e),
             WireStep::LineTo(t) => P::LineTo(t.into_target()),
             WireStep::ContinueTo(t) => P::ContinueTo(t.into_target()),
-            WireStep::ArcTo(spec) => P::ArcTo(spec.into_spec()),
+            WireStep::ArcTo { spec, splits } => P::ArcTo {
+                spec: spec.into_spec(),
+                splits,
+            },
             WireStep::TangentArcTo(t) => P::TangentArcTo(t.into_target()),
-            WireStep::ArcContinue(p) => P::ArcContinue(p),
             WireStep::Fillet(e) => P::Fillet(e),
             WireStep::FilletArc { radius, spec } => P::FilletArc {
                 radius,

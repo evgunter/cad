@@ -89,7 +89,7 @@ pub fn meridian() -> LoopProgram {
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(R_FOOT, 0.0))),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(R_FOOT, Y_FOOT))),
-        ProgramStep::ArcTo(ProgramArcData::Center {
+        ProgramStep::arc_to(ProgramArcData::Center {
             c: lpt(0.0, Y_BELLY_C),
             winding: profile::ArcSweep::Ccw,
             target: ProgramTarget::Point(lpt(R_NECK, Y_MOUTH)),

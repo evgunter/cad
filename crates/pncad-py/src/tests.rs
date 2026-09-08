@@ -2221,9 +2221,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "path_error_tag",
         values: &[
             "arc_center_not_equidistant",
-            "arc_continue_needs_arc_carrier",
-            "arc_continue_off_carrier",
             "arc_leg_on_open_fillet",
+            "arc_split_count",
             "arc_via_collinear",
             "band",
             "circle_split_count",
@@ -2327,7 +2326,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "recorded_program_error_tag",
-        values: &["carrier_in_chain", "subdivision_count"],
+        values: &["carrier_in_chain", "split_count"],
         delegates: &["expr_dimension_error_tag"],
     },
     TagEntry {

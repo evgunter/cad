@@ -70,7 +70,7 @@ fn semicircle(r: f64) -> LoopProgram {
     let p2 = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
         ProgramStep::At(p2(0.0, -r)),
-        ProgramStep::ArcTo(ProgramArcData::Bulge {
+        ProgramStep::arc_to(ProgramArcData::Bulge {
             target: ProgramTarget::Point(p2(0.0, r)),
             b: fixture::scl(1.0),
         }),

@@ -36,6 +36,7 @@ from pncad import (
     Open,
     Start,
     Radius,
+    Sweep,
     Via,
     circle,
     circle_split,
@@ -153,13 +154,13 @@ class TestTheLatticeWalks(unittest.TestCase):
             with self.subTest(mode=name):
                 self.assertEqual(loop.vertex_count, 2)
 
-    def test_arc_continue_mints_a_structural_subdivision_vertex(self):
-        # The same carrier, subdivided at the +y pole: a same-carrier
-        # identity, not a junction claim.
+    def test_a_split_arc_leg_declares_its_stations(self):
+        # The half-disc's equator as ONE leg that declares its split:
+        # the semicircle about the origin in two arcs, the pole station
+        # a declared tangent joint on the one carrier.
         loop = (
             Open.at((1 * m, 0 * m))
-            .arc_to(Center(ORIGIN, ArcSweep.Ccw, (0 * m, 1 * m)))
-            .arc_continue((-1 * m, 0 * m))
+            .arc_to(Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=2)
             .line_to(Start)
         )
         self.assertEqual(loop.vertex_count, 3)
@@ -377,12 +378,33 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
             .fillet(0 * m),
         )
 
-    def test_arc_continue_needs_an_arc_carrier(self):
+    def test_a_declared_split_below_two_arcs_refuses(self):
+        # `splits=None` is the plain leg; a count GIVEN is declared, and
+        # one below 2 refuses typed through the kernel's own `.split(n)`.
         self.refuses(
-            "arc_continue_needs_arc_carrier",
+            "arc_split_count",
+            lambda: Open.at((1 * m, 0 * m)).arc_to(
+                Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=0
+            ),
+        )
+
+    def test_an_explicit_split_of_one_refuses_like_rust(self):
+        # One rule on every authoring surface: an EXPLICIT `splits=1` is
+        # a declaration of one piece, which distinguishes nothing from
+        # the plain leg and refuses exactly as Rust's `.split(1)` does.
+        # The plain leg is spelled by leaving the keyword out.
+        self.refuses(
+            "arc_split_count",
+            lambda: Open.at((1 * m, 0 * m)).arc_to(
+                Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=1
+            ),
+        )
+        # The same rule on the tangent-departing surface.
+        self.refuses(
+            "arc_split_count",
             lambda: Open.at(ORIGIN)
-            .line_to((1 * m, 0 * m))
-            .arc_continue((2 * m, 0 * m)),
+            .angle(0 * deg)
+            .arc_to(Sweep(1 * m, ArcSide.Left, 1 * rad), splits=1),
         )
 
     def test_coordinates_are_typed_quantities(self):

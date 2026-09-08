@@ -144,16 +144,31 @@ pub fn bulge_from_center<T: Real>(
     center: Point2<T>,
     sweep: ArcSweep,
 ) -> T {
+    (center_sweep(a, b, center, sweep) / T::from_f64(4.0)).tan()
+}
+
+/// The signed included angle θ of the arc from `a` to `b` about
+/// `center` in the `sweep` direction — the angle [`bulge_from_center`]
+/// is tan(θ/4) of, with that function's window and evaluation order
+/// (D9). Its own door because a leg that places stations BY PARAMETER
+/// divides this angle directly: a bulge round trip (4·atan(tan(θ/4)))
+/// would put a semicircle's θ one ulp off π and its authored centre
+/// 1e-17 off itself.
+pub(crate) fn center_sweep<T: Real>(
+    a: Point2<T>,
+    b: Point2<T>,
+    center: Point2<T>,
+    sweep: ArcSweep,
+) -> T {
     let va = a - center;
     let vb = b - center;
     let phi_a = va.y.atan2(va.x);
     let phi_b = vb.y.atan2(vb.x);
     let ccw = (phi_b - phi_a).reduce_periodic(T::tau());
-    let theta = match sweep {
+    match sweep {
         ArcSweep::Ccw => ccw,
         ArcSweep::Cw => ccw - T::tau(),
-    };
-    (theta / T::from_f64(4.0)).tan()
+    }
 }
 
 /// The line×line fillet's computed trim geometry — the output of
