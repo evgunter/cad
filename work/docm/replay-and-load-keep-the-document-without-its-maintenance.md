@@ -4,7 +4,7 @@ kind: issue
 title: Doc::replay and persist load keep the document without the maintenance its edits performed, and Loaded has no column for it
 status: open
 opened: 2026-09-08
-refs: [2165, D367]
+refs: [2165]
 ---
 
 (EVAL orchestrator) From EVAL-4's sweep (PR 2165), filed onto DOCM's
