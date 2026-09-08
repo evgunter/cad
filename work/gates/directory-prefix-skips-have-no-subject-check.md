@@ -155,5 +155,10 @@ a place, so it has no root to anchor. The two options:
     someone deletes the exemption too. That is the check working as
     designed and it is also a red on a correct tree.
 
+**The question:** is a convention-class exemption — one naming a
+construction rather than a place — exempt from the subject check the
+rest of this class now carries, or must it name a resident and red on a
+tree that has none?
+
 Asked of Ev in the `[ev]` PR named in `blocked_on`. This row stays open
 on this half.
