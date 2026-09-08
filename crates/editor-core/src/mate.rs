@@ -695,11 +695,13 @@ pub enum MateFault {
     },
     /// **A `Node::Part` selects a copy the reference's NAME does not
     /// name.** The name is the authority on which copy a mate speaks
-    /// about; a `Part` standing directly above a pattern in the walk
-    /// says which copy the body below it is. A document where those
+    /// about; a `Part` standing above a pattern in the walk (with
+    /// nothing but transforms between) says which body of that
+    /// pattern's value the body below it is. A document where those
     /// disagree would be PLACED by the name and GATHERED by the
     /// `Part` — two different bodies for one declaration — so the
-    /// solve refuses rather than choosing, and reports both indices.
+    /// solve refuses rather than choosing, and reports both indices
+    /// in the `Part`'s index space.
     ///
     /// Raised per REFERENCE, where the solve reads each one, so it
     /// reaches a declaring mate as surely as a tree edge's.
@@ -710,7 +712,9 @@ pub enum MateFault {
         side: MateSide,
         /// The `Part` node whose index expression disagrees.
         part: RecipeNodeId,
-        /// The copy the reference's name names.
+        /// The copy the reference's name names, as the body index
+        /// the `Part` selects by: the copy index itself over a
+        /// pattern of one body, the flat `j·M + i` over a nested one.
         named: u32,
         /// What the `Part`'s index expression evaluates to at the
         /// document's parameter bindings.

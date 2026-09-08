@@ -110,8 +110,9 @@ enum Placer {
         /// The copy index the NAME says.
         i: u32,
         /// The `Node::Part` the walk reached this pattern through,
-        /// when one stands directly above it — the node whose own
-        /// index expression must agree with `i`.
+        /// when one stands above it with nothing but transforms
+        /// between — the node whose own index expression must agree
+        /// with the flat body the name says ([`check_reference`]).
         ///
         /// A `Part` carries no map and is no placer of its own; it is
         /// recorded HERE because the only thing it can disagree with
@@ -181,9 +182,12 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Result<Walk, R
             // a union, a split, a `Part` naming a split HALF — is a
             // different body, not this one placed.
             match doc.node(at) {
+                // A transform is shape-preserving over the value —
+                // body `k` in, body `k` out — so a `Part` above it
+                // still selects body `k` of whatever stands below,
+                // and is carried down to the pattern it checks against.
                 Some(Node::Transform { input, .. }) => {
                     chain.push(Placer::Transform(at));
-                    part = None;
                     at = *input;
                 }
                 Some(Node::Part {
@@ -312,11 +316,18 @@ pub(super) fn walk_of<P>(
 ///
 /// - the copy the name says must exist — its structural index against
 ///   the pattern's evaluated count;
-/// - a `Part` standing directly above a pattern says which copy the
-///   body below it IS, and the name says which copy the mate is
-///   about. A document where they disagree would be PLACED by the
-///   name and GATHERED by the `Part`, so the solve refuses rather
-///   than choosing.
+/// - a `Part` standing above a pattern (with nothing but transforms
+///   between) says which body of that pattern's VALUE the body below
+///   it is, and the name says which copy the mate is about. The two
+///   speak in different index spaces and are compared in the `Part`'s:
+///   a pattern's value is laid out placement-major, so copy `(j, i)`
+///   of a pattern over a pattern is flat body `j·M + i`
+///   ([`crate::names::flat_body_index`], the evaluator's own layout),
+///   and the name's copy chain below the `Part` folds through every
+///   pattern level down to the next `Part` (whose value is one body)
+///   into the flat index the `Part` must select. A document where
+///   they disagree would be PLACED by the name and GATHERED by the
+///   `Part`, so the solve refuses rather than choosing.
 ///
 /// **They live here, per reference, and not in the offset.** The
 /// offset is derived only for a pair the spanning tree takes as an
@@ -351,24 +362,34 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
     w: &Walk,
 ) -> Result<(), MateFault> {
     let env = doc.param_env::<f64>();
+    // One pattern level of the chain, outermost first: the copy the
+    // name says, its evaluated count, and the `Part` above it if any.
+    struct Level {
+        node: RecipeNodeId,
+        i: u32,
+        n: u32,
+        part: Option<RecipeNodeId>,
+    }
+    let refused = |node: RecipeNodeId, kind: NodeErrorKind| MateFault::PlacerRefused {
+        mate,
+        side,
+        placer: node,
+        error: NodeRefusal::from(kind),
+    };
+    let count_of = |node: RecipeNodeId, expr: &crate::expr::Expr, slot: SlotId| {
+        crate::expr::eval_count(expr, &env)
+            .map_err(|source| refused(node, NodeErrorKind::Expr { slot, source }))
+    };
+    // The copy exists: the name's index against the evaluated count.
+    let mut levels: Vec<Level> = Vec::new();
     for placer in &w.chain {
         let Placer::Pattern { node, i, part } = *placer else {
             continue;
         };
-        let refused = |kind: NodeErrorKind| MateFault::PlacerRefused {
-            mate,
-            side,
-            placer: node,
-            error: NodeRefusal::from(kind),
-        };
-        let count_of = |expr: &crate::expr::Expr, slot: SlotId| {
-            crate::expr::eval_count(expr, &env)
-                .map_err(|source| refused(NodeErrorKind::Expr { slot, source }))
-        };
         let Some(Node::Pattern { count, .. }) = doc.node(node) else {
-            return Err(refused(NodeErrorKind::MissingInput { input: node }));
+            return Err(refused(node, NodeErrorKind::MissingInput { input: node }));
         };
-        let n = count_of(count, SlotId::Count)?;
+        let n = count_of(node, count, SlotId::Count)?;
         if i64::from(i) >= n {
             return Err(MateFault::DanglingHead {
                 mate,
@@ -376,23 +397,56 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
                 head: node,
             });
         }
-        let Some(part) = part else {
+        // In range by the check above, so the count fits the table's
+        // row width iff the index does — refused as the evaluator
+        // refuses it, through the naming layer's one home.
+        let n = usize::try_from(n)
+            .ok()
+            .and_then(|n| crate::names::output_body(n).ok())
+            .ok_or_else(|| {
+                refused(
+                    node,
+                    NodeErrorKind::Naming(crate::names::NamingError::Emission {
+                        what: "a pattern's count exceeds the table's u32 row width",
+                    }),
+                )
+            })?;
+        levels.push(Level { node, i, n, part });
+    }
+    // The `Part` agrees: its index against the FLAT body the name's
+    // chain names in this level's value — this level's copy folded
+    // through every level below it down to the next `Part` (whose
+    // value is one body, so nothing below it widens this level's
+    // master), by the evaluator's own layout.
+    for (t, level) in levels.iter().enumerate() {
+        let Some(part) = level.part else {
             continue;
         };
+        let mut flat = level.i;
+        for below in &levels[t + 1..] {
+            if below.part.is_some() {
+                break;
+            }
+            flat = crate::names::flat_body_index(flat, below.n, below.i)
+                .map_err(|e| refused(below.node, NodeErrorKind::Naming(e)))?;
+        }
         let Some(Node::Part {
             select: PartSelect::Instance(index),
             ..
         }) = doc.node(part)
         else {
-            return Err(refused(NodeErrorKind::MissingInput { input: part }));
+            return Err(refused(
+                level.node,
+                NodeErrorKind::MissingInput { input: part },
+            ));
         };
-        let selected = count_of(index, SlotId::Instance)?;
-        if selected != i64::from(i) {
+        let selected = count_of(level.node, index, SlotId::Instance)?;
+        if selected != i64::from(flat) {
             return Err(MateFault::PartSelectsAnotherCopy {
                 mate,
                 side,
                 part,
-                named: i,
+                named: flat,
                 selected,
             });
         }
