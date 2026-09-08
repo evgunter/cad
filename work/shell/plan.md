@@ -72,11 +72,12 @@ arm must agree with `ShellNaming`), `editor-core`'s recipe doors
    block's last; SHELL-B2 concluded. Follow-ups filed:
    `shell-doors-still-walk-the-whole-body` (lane) and
    `shelled-result-does-not-name-the-wall-it-built` (orchestrator).
-4d. **Next: SHELL-9, the closing mint** — the sphere half of
-   `void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`:
-   `shell` runs the pcurve mint every producer owes after the void
-   door transfers rows; spec `docs/SHELL-9-SPEC.md`; block SHELL-B3
-   slot 0. The drum half is TOPO's
+4d. **SHELL-9** — LANDED (PR #2223, 2026-09-08): `shell` runs the
+   closing pcurve mint; the sphere half of
+   `void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`
+   closed. Block SHELL-B3 slot 0. Filed by the lane:
+   `shell-launders-a-stale-operand-row` (the class is kernel-wide —
+   TOPO's `producer-closing-mint-is-a-convention-with-thirteen-copies`). The drum half is TOPO's
    (`work/topo/revert-does-not-mirror-plane-chart-images`); the
    cone-hyperbola refusal is parked on
    `offset-lane-has-no-conic-carrier` (Ev's fork).

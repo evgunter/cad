@@ -638,3 +638,49 @@ the fix flips a closed-form row now and opens block SHELL-B3 on a
 clean covariate (pre-draw S / STRUCTURAL logged here, before the
 byte). Lane at `/home/user/shell-lanes/shell-9/`, private target and
 scratch beside.
+
+## SHELL-9 MERGED (2026-09-08, PR #2223 — ordinal 2306, sample #165)
+
+`shell` and `shell_open` run the closing pcurve mint once on the
+assembled body before the closing validate — the producer's half of
+the posture table's `insert_voids` `Transfers` contract, which the
+boolean and the revolve kept and the verb never did, so the reverted
+cavity's rows rode into the result as they were. The two-arc sphere
+shells to `4/3·π(r³−(r−t)³)`; the drum still refuses at the void
+door, naming TOPO's `revert` plane-mirror item as its cause; the
+refusal is `ShellError::Pcurve`, typed and — every committed fixture
+says — unreachable. Every body that shelled at the true merge base
+carries bit-identical rows, measured by the unit's instrument and
+by both reviewers' corpora. Both reviews APPROVE-WITH-FIXES.
+**Unilateral, R2, by execution (MAJOR — tally candidate with a
+dedup caveat):** the closing mint LAUNDERS a wrong-content operand
+row — a vessel with one face's row attached to another face's
+half-edge fails tier 3 on its own and shells to a tier-3-valid body
+— a class wider than the missing-row instance the PR disclosed (and
+R1 noted at NOTE, unscheduled). No operand gate was added: the
+convention is kernel-wide (thirteen producers spell the same closing
+mint, none gates its operand's rows), so whether a producer should is
+a posture-table decision — filed by the lane as
+`shell-launders-a-stale-operand-row` with R2's rows as pins, and by
+this orchestrator for TOPO as
+`producer-closing-mint-is-a-convention-with-thirteen-copies`.
+**Convergent:** the mint's position is not load-bearing (moved before
+the partition, both lanes' suites stay green — said at the site with
+what would pin it); the corpus instrument asserted nothing; two
+spellings of one row dump; the header's accumulation; the
+differential's base was the cut point, not the merge base (both
+reviewers re-took it, same result); `validate_pcurves` is not
+exported, so a consumer reads pcurve findings only out of tier 3's
+error list. Spec premises this unit falsified, mine: the closed form
+named the cavity's volume where the thin solid's was meant, and its
+digits were the measured value, not the f64 closed form. Seams
+announced at merge: TOPO (two doc lines in `pcurves.rs`), LIB
+(`editor-core`'s and `pncad-py`'s exhaustive folds gain the arm —
+the second appeared on main mid-pass and cost one red round).
+Process: the unit was preceded by a diagnosis lane (no arm, ~12 min)
+that split the item in two; the cut commit carries no orchestrator
+trailer (an omission). K rows: none. Rubric idiom/tests/docs: not
+scored by either reviewer.
+
+Block SHELL-B3 slot 0 concludes; slots 1 and 2 remain (record
+branch-side). SHELL-3 still waits on PROPS' sign-hull unit.
