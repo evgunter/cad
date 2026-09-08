@@ -63,3 +63,10 @@ sweeping `tools/` for the class after the reviewer named it on that
 unit's own instance. Not fixed there: `baseline_census.rs` is outside
 unit 4's diff and the deletion is its owner's judgement to make, the
 file having stated an argument for the assertion.
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.

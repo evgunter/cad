@@ -77,3 +77,10 @@ live in `crates/test-utils/src/source.rs` beside the lexer and the
 bracket walks; both existing cross-root pins call them there rather than
 carrying their own copies. A third pin is a path table and its
 assertions, not a fourth copy of the reader.
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.
