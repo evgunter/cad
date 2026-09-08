@@ -67,9 +67,11 @@ a value with no exact spelling in the unit asked for falls back to
 metres or radians, so read the suffix off the text.
 
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: sweep, and the pattern node
-(`placed_union` says a placed family whose value is one body; the
-plural-payload node stays unbound).
+`docs/guide/north-star-audit.md`: sweep. The pattern node LEFT that
+list at LIB-B-PART, with the consumer that gives its plural value a
+downstream door: `Node.pattern` says the unfused family and
+`Node.part` projects one body back out of it, where `placed_union`
+says the same family fused into one.
 """
 
 from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
@@ -1186,6 +1188,31 @@ class PatternKind:
         what a name's instance segment carries. An empty list raises
         EditError (`empty_placement_list`) at insert."""
 
+class PartSelect:
+    """Which body of a multi-body value a `Node.part` selects: the
+    named half of a split, or one instance of a pattern by index.
+
+    One class for the two because the node is one sentence — "this
+    body, out of those" — and the VALUE decides which arm is
+    well-typed. Any other pairing refuses at `evaluate`
+    (`wrong_operand`), never at construction.
+    """
+
+    @staticmethod
+    def split_half(half: SplitHalf) -> PartSelect:
+        """The named half of a `Node.split` value. A half the cut left
+        with no material refuses at `evaluate` (`empty_half`)."""
+
+    @staticmethod
+    def instance(index: int) -> PartSelect:
+        """The `index`-th instance of a `Node.pattern` value, from
+        zero. A plain `int` — the structural-slot exception
+        `Node.placed_union`'s `count` already rides — and the node's
+        `Instance` slot, which `DocEdit.bind_instance_param` binds to a
+        parameter. Outside `0 .. count`, including a negative, refuses
+        at `evaluate` (`instance_out_of_range`); nothing wraps or
+        clamps."""
+
 class Node:
     """A recipe node, before insertion."""
 
@@ -1372,6 +1399,36 @@ class Node:
         inserted id feeds `Node.boolean`'s `declare=`. Nothing here
         detects (the ruled no-fusion boundary), and an empty list
         raises EditError (`no_findings`)."""
+
+    @staticmethod
+    def pattern(input: NodeId, count: int, kind: PatternKind) -> Node:
+        """One prototype, `count` placements stepped by `kind`, N
+        BODIES OUT — the replicated family with nothing fused.
+
+        The value is PLURAL (`Value.kind == "instances"`,
+        `Value.bodies` the whole list), which is the difference from
+        `placed_union`: same rule vocabulary, same prototype, one body
+        out. A plural value is refused at every single-body operand
+        seat, so the node that reaches those doors with one copy is
+        `Node.part`.
+
+        `count` is a plain `int` and is the node's `Count` slot
+        (`DocEdit.bind_count_param`). Below one refuses at `evaluate`
+        (`non_positive_count`); an `explicit` rule refuses at
+        `Doc.insert` (`placement_rule_mismatch`), since it carries its
+        own placements."""
+
+    @staticmethod
+    def part(of: NodeId, select: PartSelect) -> Node:
+        """ONE body out of a multi-body value — a split's half or a
+        pattern's instance.
+
+        A projection, not an operation: the body is the half's or the
+        instance's own and the names pass through verbatim, so a
+        selector spelled against that half resolves here unchanged.
+        Refuses at `evaluate`: `wrong_operand` when the selector and
+        the value disagree in kind, `empty_half`,
+        `instance_out_of_range`."""
 
     @staticmethod
     def placed_union(input: NodeId, count: int, kind: PatternKind) -> Node:
@@ -1617,11 +1674,24 @@ class DocEdit:
         parameter `name`, so one `set_doc_param` re-counts the
         placements and recomputes exactly what is downstream.
 
-        Deliberately narrow: the slot is the count and the expression
-        is a parameter reference, so no expression algebra crosses and
-        the edit cannot be aimed at a continuous slot. The edit's own
-        refusals stay live — a node with no count slot, an unknown
-        parameter, a parameter of the wrong dimension."""
+        Deliberately narrow: the slot is named by the door and the
+        expression is a parameter reference, so no expression algebra
+        crosses and the edit cannot be aimed at a continuous slot. The
+        edit's own refusals stay live — a node with no count slot, an
+        unknown parameter, a parameter of the wrong dimension."""
+
+    @staticmethod
+    def bind_instance_param(node: NodeId, name: ParamName) -> DocEdit:
+        """Bind `node`'s STRUCTURAL instance slot to the document
+        parameter `name` — a `Node.part`'s index into a pattern as a
+        named, editable number.
+
+        `bind_count_param`'s sibling, and a separate door rather than a
+        `slot=` argument because an index is not a count: the kernel
+        keeps the two slots apart, and this pair is that distinction
+        crossing. Refuses on a node with no instance slot — every node
+        but a Part selecting an instance — and on an unknown or wrongly
+        dimensioned parameter."""
 
 class Doc:
     """A parametric document: the recipe, not the geometry."""
