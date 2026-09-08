@@ -487,19 +487,28 @@ mod split_sealed {
 pub trait Splittable: split_sealed::Sealed + Sized {}
 
 macro_rules! splittable {
-    ($($ty:ident < $($g:ident $(: $b:path)?),* >),* $(,)?) => {$(
-        impl<$($g $(: $b)?),*> split_sealed::Sealed for $ty<$($g),*> {}
-        impl<$($g $(: $b)?),*> Splittable for $ty<$($g),*> {}
-        impl<$($g $(: $b)?),*> $ty<$($g),*> {
+    // The one body. `Via` and `Center` carry the scalar bound their
+    // struct declarations carry; the `real` arm writes it once, here.
+    (@body [$($g:tt)*] $ty:ty) => {
+        impl<$($g)*> split_sealed::Sealed for $ty {}
+        impl<$($g)*> Splittable for $ty {}
+        impl<$($g)*> $ty {
             /// Declare this leg split into `n` arcs (see [`Split`]).
             #[must_use]
             pub fn split(self, n: usize) -> Split<Self> {
                 Split { spec: self, n }
             }
         }
-    )*};
+    };
+    (plain $($ty:ident < $($g:ident),* >),* $(,)?) => {
+        $( splittable!(@body [$($g),*] $ty<$($g),*>); )*
+    };
+    (real $($ty:ident),* $(,)?) => {
+        $( splittable!(@body [T: Real, Tgt] $ty<T, Tgt>); )*
+    };
 }
-splittable!(Bulge<T, Tgt>, Via<T: Real, Tgt>, Center<T: Real, Tgt>, Sweep<T>, ArcLen<T>);
+splittable!(plain Bulge<T, Tgt>, Sweep<T>, ArcLen<T>);
+splittable!(real Via, Center);
 
 /// Re-exported director construction so arrival builders normalize
 /// components through the ONE shared door.
