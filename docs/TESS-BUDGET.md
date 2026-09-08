@@ -146,6 +146,21 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
   built on it was 1.00 by arithmetic rather than by check, and neither
   of its two numbers counted a realised candidate. It is gone rather
   than re-derived — see "Why there is no realisation column", below.
+* `name` — the face's durable name, where the sweep could reach one:
+  `editor_core::StableName` (N1) rendered through its ratified
+  structural serialization with `,` swapped for `;` so the token is one
+  CSV field. It is EMPTY on every face whose scene was not built from
+  an evaluated document, which is most of the tour — the tour holds
+  `Body`s, and only the scenes that still hold the evaluation when they
+  hand the body over can name their faces. Empty is the honest answer
+  there, not a gap: nothing joins on this column yet, and the ordinal
+  is still the join key. **Its coverage is disjoint from the case a
+  join would fix**: 286 of 1353 rows carry a name, none of them one of
+  the 64 SIZED rows, and none of them one of the 14 rows in the seven
+  same-shape pairs the per-face join cannot tell apart. The six
+  nameable scenes are the three heatsinks and the three die stops, and
+  none contributes a sized face — so the column is populated where the
+  ordinal was never ambiguous and empty where it is.
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
   gate's per-face recoverable-slack ratio, now carrying the split
@@ -237,25 +252,33 @@ cd tools/tess-lint && cargo run -- ../../docs/tess-budget-data/tess-budget-basel
 ```
 
 — faces, triangles, the Hessian-sized faces and their two shares, and
-the grid-cell totals (`grid_cells`, `patch_cells`, `span_opt_cells`)
-with the held and recoverable factors, every one of them folded through
-the same `SceneTotals` the gate uses.
+the four grid-cell totals, each on its own line under its own column
+name (`grid_cells`, `patch_cells`, `opt_cells`, `span_opt_cells`) with
+the held and recoverable factors printed as their formulas, every one
+of them folded through the same `SceneTotals` the gate uses.
 
 **The command and the test are not the same census, and it is worth
 knowing which covers what.** The executable home is
 `tools/tess-lint/tests/baseline_sizing_census.rs`, which reads the same
 committed file on each `cargo test` and fails naming what a re-cut
 moved. It asserts the sweep's triangles and NURBS triangles, all four
-cell sums — `opt_cells` included, which the command does NOT print —
-and the two factors. It does not assert the face counts or the two
-percentages the command prints: those are the neighbouring
-`baseline_census.rs`'s (rows, sized rows, the scenes holding them), and
-the percentages are quotients of that pair against this one. So the
-command is the reading, the two test files together are the guard, and
-neither is a subset of the other. A census has one home and every other
-site points at it; this document is one of the sites, and the block
-below is not a second copy of that census — it is a different
-measurement of a different tree.
+cell sums and the two factors, every one of which the command prints
+too. The command prints MORE: the face counts, the two percentages,
+and the constraint-activity line, which neither census asserts.
+
+**The two percentages come from different files, and that is the part
+worth getting right.** `% of the mesh` is NURBS triangles against
+total triangles, and both are asserted in the sizing census itself —
+it is a quotient of two of the figures above. `% of faces` is sized
+faces against all faces, and neither operand is there; that pair is
+the neighbouring `baseline_census.rs`'s (rows, sized rows, the scenes
+holding them). So what separates the command from the tests is not
+which quantities they cover but what each DOES with them — the
+command is a reading you ask for, the two test files together are a
+guard that runs unasked. A census has one home and every other site
+points at it; this document is one of the sites, and the block below
+is not a second copy of that census — it is a different measurement
+of a different tree.
 
 ## What the four numbers meant (pre-fix record)
 
@@ -305,8 +328,10 @@ what this document exists to record.
 
 **The tell, and exactly what it proves.** The two columns that are pure
 OPTIMA over the certified ellipse — `opt_cells` and `span_opt_cells` —
-are schedule-INDEPENDENT, and they still read within 1% of the figures
-below (94,154 against 95,090; 44,446 against 44,457). The two that
+are schedule-INDEPENDENT, and they still read within 2.2% and 0.7% of
+the figures below (93,066 against 95,090; 44,162 against 44,457) —
+gaps that also carry the meter's OWN resolution, since a finer split
+scan lowers an optimum column without a face moving. The two that
 describe a shipped schedule moved by ~3.4x. What that separates is a
 change of SIZING RULE from everything else: a re-cut driven by corpus
 growth, or by a certificate change, moves the optima too — `a4eb03ae`
@@ -346,15 +371,18 @@ CERT-10's four: 390,100 →
 110,811 is **3.52x**, and it is the inner selection rule changing, not
 the shipped grid getting smaller. It reads as the same selection change
 measured against the optimum: `uniform_cells / opt_cells` was 4.10x
-then, `patch_cells / opt_cells` is 1.18x now.
+then, `patch_cells / opt_cells` is 1.19x now.
 
 The genuine shipped-grid move is the other row — 154,129 `sized per
 knot-span cell` against today's `grid_cells` 46,019, **3.35x** — and it
 decomposes exactly: per-cell sizing sat 3.47x above the per-cell optimum
-under the AM-GM split (154,129 / 44,457) and sits 1.035x above it today
-(46,019 / 44,446), and 3.47 / 1.035 = 3.35. That closing of the
-recoverable factor is TESS-SPLIT, on the schedule the lane actually
-ships.
+under the AM-GM split (154,129 / 44,457) and sits 1.042x above it today
+(46,019 / 44,162), and 3.47 / 1.042 = 3.33 against the 3.35 the two
+grids give directly. **The 0.7% residual is the two DENOMINATORS, not
+the schedule**: the two readings measure the per-cell optimum with
+different scans, and the decomposition is exact only where they agree.
+That closing of the recoverable factor is TESS-SPLIT, on the schedule
+the lane actually ships.
 
 **Both moves are ~3.4x, and the two are separate events measured on
 separate columns.** A single "3–8x" over the pair is the mis-pairing
@@ -365,11 +393,14 @@ shipped.
 
 **"The cheapest split" names two different columns in this tree and
 the qualifier is the whole of the difference**: `opt_cells` is the
-cheapest split under the WHOLE-PATCH bound, which is what the block
-means, while the report header's *at the cheapest split per cell* is
-`span_opt_cells` — per-cell sizing AND the cheapest split in each
-cell, the block's `with both` line. `tess_meter`'s field docs are the
-definitions of record for both.
+cheapest split under the WHOLE-PATCH bound, which is what the block's
+`at the cheapest split` line means, while `span_opt_cells` is per-cell
+sizing AND the cheapest split in each cell — the block's `with both`
+line. `tess_meter`'s field docs are the definitions of record for
+both. **Where to settle it on any given tree**: the command above
+prints the two under their own column names, on adjacent lines, so a
+phrase in an older document is resolved by reading the report rather
+than by trusting a transcription of one.
 
 Over the whole tour, at each scene's own δ:
 
@@ -540,8 +571,11 @@ never a typed value, and a sweep taken outside a git checkout records
 none and says so rather than pretending.
 
 **A re-keyed face is read before it is re-cut, and for the same
-reason.** The per-face join is by ORDINAL — the only per-face name the
-CSV carries — so `tess-lint` checks at each ordinal that both sides
+reason.** The per-face join is by ORDINAL. The CSV also carries a
+`name` column — the face's durable derivation-path name, on the scenes
+the sweep can reach an evaluation for — but no rule keys on it yet,
+and it is empty on every row a re-key could be manufactured out of
+(above), so `tess-lint` checks at each ordinal that both sides
 describe one face (chart, trim box, whole-patch divisions, and whether
 the row carries the sizing block at all) and stops comparing a scene
 from the first ordinal where they do not. The finding names that

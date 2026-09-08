@@ -4208,11 +4208,13 @@ jobs:
       # the tour's composed die by replaying committed BYTES, because
       # `demos/tour` is a detached workspace the kernel must not depend
       # on. Bytes go stale silently; this step is why these ones cannot.
-      # It regenerates through the tour's own door and diffs — the same
-      # closure `crates/pncad-py/tests/corpus/bench/` still lacks
-      # (issue #1186), available here only because this job already
-      # builds `demo-tour` in release and the diff costs one sub-second
-      # run of it.
+      # It regenerates through the tour's own door and diffs, available
+      # here only because this job already builds `demo-tour` in release
+      # and the diff costs one sub-second run of it. The bench scene the
+      # python suite evaluates needs no such closure: it is AUTHORED per
+      # run from `crates/pncad-py/tests/bench_scene.py`, and a source
+      # guard in `test_assembly_eval.py` holds that module to the tour's
+      # own constants, formulas and placement literals.
       #
       # IT IS A PER-RUN GATE AGAIN (2026-09-04). While the row was drawn
       # this note said the opposite and had to: a PR that changed the die

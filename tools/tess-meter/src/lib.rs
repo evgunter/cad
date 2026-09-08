@@ -417,12 +417,80 @@ impl Sizing {
     }
 }
 
+/// A durable per-face name, as the CSV carries it: an opaque token
+/// the gate joins on and never decodes.
+///
+/// **What this type guarantees is that the token can be a CSV field,
+/// and only that.** The inner text is private, so every value came
+/// through [`FaceName::new`] and carries no comma, no newline and no
+/// emptiness — the three ways a token would widen a row, split a row,
+/// or spell the absence an empty column already means. Unlike
+/// [`Sizing`], whose pairing is refused where the row is WRITTEN
+/// because its fields are `pub`, this one needs no second check: the
+/// only door is the constructor.
+///
+/// **It guarantees nothing about INJECTIVITY, and cannot.** Two faces
+/// answering to one token is a defect in whatever minted them, in
+/// another crate, and this crate has no way to see it — the same
+/// boundary `tools/README.md`'s `CC4` draws for the lint. What the
+/// producer owes is that distinct faces get distinct tokens; what this
+/// crate owes is that a token it accepts survives the file format.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FaceName(String);
+
+/// Why a would-be [`FaceName`] is not one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FaceNameError {
+    /// Empty: the spelling an ABSENT name already has, so a present
+    /// one may not wear it.
+    Empty,
+    /// Carries a `,` or a newline: the field separator and the row
+    /// separator, either of which would re-shape the row.
+    NotOneField,
+}
+
+impl FaceName {
+    /// A name from a producer's rendering of it.
+    ///
+    /// # Errors
+    ///
+    /// [`FaceNameError`], whose two arms are the whole invariant.
+    pub fn new(text: impl Into<String>) -> Result<Self, FaceNameError> {
+        let text = text.into();
+        if text.is_empty() {
+            return Err(FaceNameError::Empty);
+        }
+        if text.contains(',') || text.contains('\n') || text.contains('\r') {
+            return Err(FaceNameError::NotOneField);
+        }
+        Ok(Self(text))
+    }
+
+    /// The token.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The producer's per-face names for ONE body, by the key the mesh's
+/// patches carry.
+pub type FaceNames = HashMap<topo::FaceKey, FaceName>;
+
 /// One face's budget row.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct FaceRow {
     /// The face's ordinal in the body's face arena (D9 order — stable
     /// for a given body, and printable, which a slotmap key is not).
     pub face: usize,
+    /// The durable name of that face, where the producer had one.
+    ///
+    /// **`None` is a claim about the PRODUCER, not about the face.**
+    /// A tour scene built outside the document layer has no evaluation
+    /// to name its faces from, and the honest column there is empty;
+    /// every face of a body that DOES arrive with a name table gets a
+    /// name, because [`face_rows`] refuses a table that misses one.
+    pub name: Option<FaceName>,
     /// The chart its lane used.
     pub chart: Chart,
     /// The δ the mesh was requested at.
@@ -435,7 +503,20 @@ pub struct FaceRow {
 }
 
 /// The CSV header the sweep writes and `tools/tess-lint` reads.
-pub const CSV_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
+///
+/// **Where `name` sits is forced, not chosen for looks.** Everything
+/// after `triangles` is the NURBS lane's tail, and
+/// [`FaceRow::csv_row`]'s off-lane arm writes that whole tail as
+/// `nurbs_column_count()` empty fields — so a column placed there
+/// would be blank on every plane, cylinder, cone, sphere and torus row
+/// whatever the producer knew, and its emptiness would be the LANE's
+/// claim rather than the name's. A per-face name belongs to every row,
+/// so it belongs at or before `triangles`. Within that head block it
+/// goes beside `face`, because `(scene, face)` is the gate's join key
+/// and this is the durable half of it: the identity reads contiguously
+/// and ahead of everything measured, which is the order the rest of
+/// the header already keeps.
+pub const CSV_HEADER: &str = "scene,face,name,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
                               muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,\
                               opt_cells,span_opt_cells,worst_cert,worst_dev,\
                               dev_samples,bands,cap_bands,snap_bands,realized_aspect";
@@ -485,8 +566,9 @@ impl FaceRow {
             (true, Sizing::Measured(_)) | (false, Sizing::OffLane) => {}
         }
         let head = format!(
-            "{scene},{},{},{:e},{}",
+            "{scene},{},{},{},{:e},{}",
             self.face,
+            self.name.as_ref().map_or("", FaceName::as_str),
             self.chart.tag(),
             self.delta,
             self.triangles
@@ -553,6 +635,7 @@ pub fn face_rows(
     body: &Body<f64>,
     mesh: &Mesh,
     measures: &[FaceMeasure],
+    names: Option<&FaceNames>,
 ) -> Vec<FaceRow> {
     let by_face: HashMap<topo::FaceKey, &FaceMeasure> =
         measures.iter().map(|m| (m.face, m)).collect();
@@ -580,6 +663,7 @@ pub fn face_rows(
             let chart = Chart::of(surface);
             FaceRow {
                 face: ordinal,
+                name: name_of(ordinal, patch.face, names),
                 chart,
                 delta,
                 triangles: patch.triangles.len(),
@@ -587,6 +671,35 @@ pub fn face_rows(
             }
         })
         .collect()
+}
+
+/// One face's name, from whatever the producer handed over.
+///
+/// **The two absences are not the same, and only one of them is a
+/// row.** A caller with `None` has no name source at all — a tour
+/// scene built outside the document layer, which is the ruled-
+/// acceptable outcome for this column — and every row it writes is
+/// honestly unnamed. A caller that DID hand over a table has claimed
+/// the table is this body's, and the N4 table of a node covers every
+/// boundary entity of its output body; so a face missing from it is
+/// the wrong body's table, whose every other row would then be a name
+/// attached to the wrong face. That is the same breakage
+/// [`sizing_of`] refuses one field over, and it is refused here for
+/// the same reason: it cannot become a row.
+///
+/// # Panics
+///
+/// If `names` is `Some` and does not name `face`.
+fn name_of(ordinal: usize, face: topo::FaceKey, names: Option<&FaceNames>) -> Option<FaceName> {
+    let table = names?;
+    let name = table.get(&face).unwrap_or_else(|| {
+        panic!(
+            "face {ordinal} has no name in the table the caller handed over: a name table \
+             that misses a face of this body is another body's table, and its other rows \
+             name the wrong faces"
+        )
+    });
+    Some(name.clone())
 }
 
 /// One face's [`Sizing`], from the chart its row already carries and
@@ -643,10 +756,11 @@ pub fn csv(
     body: &Body<f64>,
     mesh: &Mesh,
     measures: &[FaceMeasure],
+    names: Option<&FaceNames>,
 ) -> String {
     let mut out = String::from(CSV_HEADER);
     out.push('\n');
-    for row in face_rows(delta, body, mesh, measures) {
+    for row in face_rows(delta, body, mesh, measures, names) {
         out.push_str(&row.csv_row(scene));
         out.push('\n');
     }
@@ -824,73 +938,134 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// binds the objective has a KINK instead, the excess grows linearly
 /// rather than quadratically in the distance to the nearest sample, and
 /// [`floored_worst_excess`] bounds that from the kink's two exact
-/// branch ratios. At the shipped pair they are 0.16573% and 2.09180%,
-/// and the second is a supremum rather than a sample: two independent
-/// random searches over the class, 400,000 bounds and 4.6 M, found
-/// 2.0768% and 2.0918% under it.
+/// branch ratios. At the shipped pair they are 0.11876% and 1.75540%,
+/// and the second is a supremum rather than a sample — derived, not
+/// searched. A random search over drawn floored bounds found nothing
+/// above it, which is corroboration and not the argument; the draw is
+/// not recorded, so no figure from it is quoted here (see
+/// [`floored_worst_excess`]).
 ///
-/// # What these two constants do NOT hold, and the lever that would
+/// # What these two constants do NOT hold, and what the sample count
+/// is chosen against
 ///
 /// **Both bounds are on the CONTINUOUS objective**, which is what these
 /// constants govern smoothly. `tools/tess-lint` divides by
-/// `span_opt_cells`, which is the `ceil`'d one, and there the
-/// instrument is already outside its consumer's margin: an anisotropic
-/// bound with a live cross term (`muu = 0.1, muv = 1, mvv = 50`) scores
-/// **5.8824%** against `GROWTH_TOLERANCE − 1 = 5%`, and a single smooth
-/// geometry change through it — `mvv` scaled 1× to 100×, counts in the
-/// thousands — runs the scan-to-true ratio from 1.00000 to 1.0588. So
-/// the meter's own resolution can move a face across the gate's
-/// threshold with no schedule change at all.
+/// `span_opt_cells`, which is the `ceil`'d one, and no closed form here
+/// bounds THAT. What the sample count answers to instead is the
+/// ONE-SIDED envelope `10^(decades/(samples − 1)) − 1`: the factor one
+/// whole sampling step in aspect ratio costs on the CONTINUOUS cost,
+/// which is the resolution these two constants buy and the whole of
+/// what they buy. At `SPLIT_SCAN_DECADES = 8` it is **4.9939%** at 379
+/// samples and 5.0075% at 378, so 379 is the smallest count that puts
+/// that envelope inside `tess_lint::GROWTH_TOLERANCE − 1 = 5%` — the
+/// consumer's ENTIRE margin, which it documents as the allowance for an
+/// honest small mover. Below that count the continuous excess ALONE
+/// could spend the gate's whole margin on the instrument, with no
+/// schedule change at all.
 ///
-/// **The lever, recorded so the next taker does not re-derive it**: the
-/// one-sided envelope `10^(decades/(samples − 1)) − 1` drops under 5%
-/// at `SPLIT_SCAN_SAMPLES ≥ 379` for `SPLIT_SCAN_DECADES = 8`. That
-/// costs no range and it is cheap. It is deliberately NOT taken here —
-/// raising the sample count moves every committed budget number and
-/// re-cuts `docs/tess-budget-data/`, which is its own unit rather than
-/// a guard's fix pass.
+/// **THE ENVELOPE IS NOT A BOUND ON THE `ceil`'d EXCESS, AND NOTHING
+/// HERE IS.** It bounds the continuous cost of a missed aspect ratio;
+/// [`divisions`]' two `ceil`s sit on top of it, and a division is an
+/// integer — a scan that misses the optimal aspect by a fraction of a
+/// division still pays a WHOLE one, which is a larger relative move the
+/// fewer divisions the answer has. The derivations suite's
+/// `the_ceild_excess_can_exceed_the_one_sided_envelope` exhibits that
+/// in closed numbers: `muu = 100, muv = 0, mvv = 0.1` over a `1 × 10`
+/// box at `δ_s = 1` admits a 13 × 5 grid at `t = 26`, which the lattice
+/// does not contain, and the shipped scan reports **70** cells against
+/// that **65** — **7.6923%**, half again the envelope. Any sentence
+/// here calling the envelope the largest factor a `ceil`'d count can
+/// inherit from the lattice is false, and this is the counterexample.
+///
+/// **How far over it goes is set by the DIVISION count, and the corpus's
+/// is small.** One missed division out of `n` costs `1/n`, so the
+/// SMALLEST excess a miss can cost is set by the coarsest axis of the
+/// answer, and nothing about how fine the aspect lattice is changes
+/// that quantum. `span_opt_cells` is a sum of per-ANALYSIS-CELL
+/// optima, and on the committed baseline the
+/// median per-cell optimum is **44.4 cells** — near seven divisions an
+/// axis if square — with **56 of the 64 sized faces averaging under
+/// 100** and eleven under 25. A whole division out of seven is 14%,
+/// three times the envelope, and that arithmetic is a reading of the
+/// baseline rather than a draw. It is also why the exhibit above is at
+/// 65 cells and not at 65,000.
+///
+/// **Random searches say the same thing and agree on nothing else.**
+/// Three independent ones, each drawing bounds against a far finer
+/// lattice on the same range, all found exceedances, all found both
+/// their frequency and their size falling as the answer's division
+/// counts rise, and all put the large excesses — tens of percent —
+/// below a hundred true cells against single digits above. They
+/// disagree about whether the highest band is clean: two found no
+/// exceedance above `1e5` true cells and the third did, at 6%. None of
+/// the three draws is recorded, which is exactly why they cannot be
+/// reconciled, and no proportion from any of them is quoted here as a
+/// reading.
+///
+/// **So what the sample count bought is stated exactly.** It bounds the
+/// aspect scan's resolution, which is the continuous half; on the
+/// derivations suite's eight bounds it also takes the `ceil`'d worst
+/// from 5.88% at 321 samples to 2.94% at 379, which is a measurement
+/// over that family and not a bound over the class. The `ceil`
+/// quantisation on top is neither bounded here nor bounded anywhere,
+/// and `tools/tess-lint`'s margin is not protected from it.
 ///
 /// **The other lever is narrowing the range, and that question is
-/// open**: 3.7 decades would bring the continuous excess to 2.70% and
+/// open**: 3.7 decades would bring the same envelope to 2.2794% and
 /// every claim in the derivations suite stays green, because no family
 /// member's optimum lives above `t = 1`. Nothing in this tree
 /// characterises what `muu/mvv` ratios real certified bounds produce,
 /// so narrowing to the family's spread would be fitting the constant to
 /// the test — the range question needs that characterisation first, and
-/// the resolution question has the cheaper answer above in the
-/// meantime.
+/// the sample count costs no range at all.
 ///
 /// **The cell count these columns report cannot carry a guard, and
 /// nobody should re-attempt one.** The two `ceil`s in [`divisions`]
 /// make it DISCONTINUOUS in the parameters a guard would be written
-/// against: the worst relative excess moves ~4 percentage points
-/// between ADJACENT sample counts (321: 5.88%, 322: 3.64%, 323: 5.24%,
-/// 324: 1.79%, 325: 3.94%) and does not converge — 2,000 samples is
-/// still 0.79%. A tolerance wide enough to survive the jumps catches
-/// nothing; one tight enough to catch a degradation is a lottery on
-/// which lattice the count lands. Two instruments were built against
-/// that quantity and both failed, `323` being the witness that killed
-/// the second. The `ceil` quantisation sits on TOP of the resolution
-/// these constants buy and is not theirs to control, which is why the
-/// shipped pair is not even locally best on the cell count.
+/// against: the worst relative excess over the family moves whole
+/// percentage points between ADJACENT sample counts (379: 2.94%,
+/// 380: 4.11%, 381: 1.95%, 382: 2.03%, 383: 3.19%) and does not
+/// converge — 2,000 samples is still 0.79%. A tolerance wide enough to
+/// survive the jumps catches nothing; one tight enough to catch a
+/// degradation is a lottery on which lattice the count lands. Two
+/// instruments were built against that quantity and both failed. The
+/// `ceil` quantisation sits on TOP of the resolution these constants
+/// buy and is not theirs to control, which is why the shipped pair is
+/// not even locally best on the cell count — 381 is better on this
+/// family and buys nothing bounded.
 ///
-/// **WHERE EACH FIGURE ABOVE COMES FROM, since they are three kinds of
-/// number and only one kind is re-taken.** The closed-form envelopes
-/// and the adjacent-sample-count row (321: 5.88%, 322: 3.64%, …) are
-/// DERIVED — [`unfloored_worst_excess`] and [`floored_worst_excess`]
-/// compute them from `(decades, samples)` alone, so the derivations
-/// suite re-takes them on every run of the row named below and a wrong
-/// one goes red. The two SUPREMA (2.0768% over 400,000 bounds, 2.0918%
-/// over 4.6 M) and the anisotropic member's 5.8824% are SAMPLED: taken
-/// once, off-CI, by random search over the floored class, and re-taken
-/// by nothing — a supremum over drawn bounds is not a property this
-/// crate exposes, and no assertion could hold one without pinning the
-/// draw that produced it. They are left unguarded deliberately, because
-/// what they establish is a DIRECTION: the floored class exceeds the
-/// unfloored bound, and the shipped pair sits outside its consumer's
-/// margin on the `ceil`'d count. That direction is what both levers
-/// below answer to. A re-search returning 2.3% would change nothing
-/// here; one returning 0.5% would, and would itself be a finding.
+/// **WHERE EACH FIGURE ABOVE COMES FROM, since they are four kinds of
+/// number and only two kinds are re-taken.** The closed-form envelopes
+/// — the one-sided `10^(decades/(samples − 1)) − 1` and the two class
+/// bounds — are DERIVED from `(decades, samples)` alone by
+/// [`unfloored_worst_excess`] and [`floored_worst_excess`], so the
+/// derivations suite re-takes them on every run of the rows named below
+/// and a wrong one goes red. The exceedance exhibit — 70 cells against
+/// 65 at `t = 26` — is EXACT and driven through this crate's own scan,
+/// so it is re-taken the same way. The `ceil`'d family figures — the
+/// adjacent-sample-count row (379: 2.94%, 380: 4.11%, …) and the 5.88%
+/// → 2.94% worst — are MEASURED over the derivations suite's eight
+/// bounds against a lattice far finer than any scan under test; no
+/// closed form covers the `ceil`'d count, so nothing in this crate
+/// re-takes them, and each is a reading of THAT family rather than a
+/// statement about the class. The band structure of the exceedances
+/// above is SAMPLED, over three draws none of which is recorded — which
+/// is why it is stated as a direction and carries no percentage. The
+/// last two kinds are left unguarded deliberately, and what they
+/// establish is a direction rather than a bound. `D206`'s residue
+/// `tess-meter-sampled-retune-figure-unreproducible` owns the question
+/// of what this crate does with a figure over an unrecorded draw.
+///
+/// **A fifth kind used to be quoted here and is gone: a scan-to-true
+/// ratio along a scaled member.** It reads as a ceiling over the range
+/// it names and is a SAMPLE of that range at whatever density was
+/// swept. Sweeping `anisotropic, live cross term` with `mvv` scaled 1×
+/// to 100×, shipped scan against a 40,001-point reference on the same
+/// range: 301 sample points reach 1.02956 and 4,001 reach 1.03241,
+/// both above the 1.02320 this paragraph used to carry as the ratio
+/// "staying under" along that change. Nothing says a denser sweep
+/// stops there. No figure of that kind is quoted here any more; the
+/// exceedance exhibit says the same thing exactly.
 ///
 /// **The guard on this pair runs on the merge that moves it.** What
 /// boxes these two is this crate's own derivations suite, and the only
@@ -915,7 +1090,7 @@ pub const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// as a pointer and not a second copy, because the two constants moving
 /// apart in their documentation is the first step to their moving apart
 /// in fact.
-pub const SPLIT_SCAN_SAMPLES: usize = 321;
+pub const SPLIT_SCAN_SAMPLES: usize = 379;
 
 /// The aspect ratios `t = h_v / h_u` a scan of `decades` either side of
 /// square visits at `samples` points, log-uniformly and in order.
@@ -934,8 +1109,8 @@ pub fn split_scan_aspects(decades: f64, samples: usize) -> impl Iterator<Item = 
     let spans = split_scan_spans(samples);
     // Spelled `decades·(2k/spans − 1)` rather than through the step, so
     // the lattice is bit-identical to the loop this was factored out
-    // of. The two groupings differ by up to tens of ulps at 95 of 321
-    // points, which is invisible to the continuous objective and is
+    // of. The two groupings differ by up to tens of ulps at 95 of the
+    // 379 points, which is invisible to the continuous objective and is
     // exactly the kind of thing a `ceil` turns into a whole division.
     (0..samples).map(move |k| {
         #[allow(clippy::cast_precision_loss)]
@@ -1045,17 +1220,28 @@ pub fn unfloored_worst_excess(decades: f64, samples: usize) -> f64 {
 /// because the equalisation is transcendental. The linearised form,
 /// `10^(step·r(1−2r)/(1−r)) − 1`, has its maximum at
 /// `r = (2 − √2)/2 = 0.29289` and is worth knowing as the anchor: at
-/// the shipped pair it gives 1.995% where the exact value below gives
-/// **2.0918%**, the curvature of the two branches being the difference.
+/// the shipped pair it gives 1.68628% where the exact value below gives
+/// **1.75540%**, the curvature of the two branches being the
+/// difference. Both move with the pair — at 321 samples they read
+/// 1.99494% and 2.09180% — so neither is a constant of the class.
 ///
-/// **It is a supremum, not a sample.** Two independent random searches
-/// over the class — 400,000 bounds here, 4.6 M in review — found
-/// 2.0768% and 2.0918% against this 2.09180%, and the family member
-/// `floored, cross-term-free` sits at `r = 0.29808`, which is the
-/// analytic argmax. The `muv > 0` case only dilutes the ratio, exactly
-/// as in the unfloored derivation, and the mirrored `v`-floor case is
-/// the same expression with the extents exchanged; the sweeps cover
-/// both and found no exceedance.
+/// **It is a supremum, not a sample, and the derivation is what makes
+/// it one.** The family member `floored, cross-term-free` sits at
+/// `r = 0.29808`, which is this function's own argmax, so the
+/// derivations suite carries the class's worst RATIO rather than a
+/// sample of it. The `muv > 0` case only dilutes the ratio, exactly as
+/// in the unfloored derivation, and the mirrored `v`-floor case is the
+/// same expression with the extents exchanged.
+///
+/// **Random searches over the class have found no exceedance, and that
+/// is corroboration rather than evidence.** Each was over a draw the
+/// tree does not record — distribution, count and seed all unwritten —
+/// so a re-take cannot be compared with it and no figure from one is
+/// quoted here. `D206`'s residue
+/// `work/meter/tess-meter-sampled-retune-figure-unreproducible` owns
+/// what this crate should do about that; until it is answered, the
+/// argument above stands on the derivation and on the argmax member,
+/// both of which the suite re-takes.
 ///
 /// # Panics
 ///

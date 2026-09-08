@@ -556,3 +556,31 @@ mod review_fillet_t_r2_probes;
 
 #[path = "review_blend5_r5_probes.rs"]
 mod review_blend5_r5_probes;
+
+#[path = "shell5_r1_dump.rs"]
+mod shell5_r1_dump;
+#[path = "shell5_r1_probes.rs"]
+mod shell5_r1_probes;
+#[path = "shell5_r2_probes.rs"]
+mod shell5_r2_probes;
+#[path = "shell6_nappe_home.rs"]
+mod shell6_nappe_home;
+#[path = "shell6_r1_probes.rs"]
+mod shell6_r1_probes;
+#[path = "shell6_r2_probes.rs"]
+mod shell6_r2_probes;
+
+#[path = "shell7_common.rs"]
+mod shell7_common;
+
+#[path = "shell7_dump.rs"]
+mod shell7_dump;
+
+#[path = "shell7_seam_corner.rs"]
+mod shell7_seam_corner;
+
+#[path = "shell7_r1_diff.rs"]
+mod shell7_r1_diff;
+
+#[path = "shell7_r2_probes.rs"]
+mod shell7_r2_probes;

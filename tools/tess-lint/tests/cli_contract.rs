@@ -23,36 +23,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::process::{Command, Output};
-use tess_lint::EXPECTED_HEADER as HEADER;
+use tess_lint::{CUT_PREFIX, EXPECTED_HEADER};
 
-/// A one-plane, one-NURBS scene. `tris` is the wall's triangle count
-/// and `span_opt` the cheapest per-cell grid, which together move the
-/// two gate rules independently — and, at `span_opt = 0`, produce the
-/// unreadable denominator this file's harness-voice row needs.
-///
-/// **The twin of `tess_lint`'s own test fixture**, deliberately: an
-/// integration test cannot see a `#[cfg(test)]` item, so the two
-/// cannot share one. Keep them in step.
-fn scene(tris: usize, span_opt: f64) -> String {
-    format!(
-        "{HEADER}\n{}\
-         s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,\
-         1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n",
-        unsized_row(0, "plane", 4)
-    )
-}
-
-/// A row on a lane that sizes nothing. The empty tail is COUNTED from
-/// the header, never typed: a schema change must not turn a fixture
-/// into a short row that fails for the wrong reason.
-fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
-    let first = HEADER
-        .split(',')
-        .position(|c| c == "u0")
-        .expect("the header names the first NURBS column");
-    let blanks = ",".repeat(HEADER.split(',').count() - first);
-    format!("s/b,{face},{chart},2e-3,{tris}{blanks}\n")
-}
+// The two-face CSV fixture, with one home: `scene` and `unsized_row`
+// are the same file `tess_lint`'s own test module mounts, so a column
+// cannot be transcribed into one side and not the other. A mounted
+// module and not an `include!`: the file's own header says why.
+#[path = "../src/tests/csv_fixture.rs"]
+mod csv_fixture;
+use crate::csv_fixture::{scene, unsized_row};
 
 fn csv(name: &str, text: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("tess-lint-cli-{}", std::process::id()));
@@ -126,7 +105,7 @@ fn a_re_key_that_costs_a_comparison_exits_two_and_names_the_column() {
     let fresh = csv(
         "rekey-fresh.csv",
         &format!(
-            "{HEADER}\n{}{}",
+            "{EXPECTED_HEADER}\n{}{}",
             unsized_row(0, "plane", 4),
             unsized_row(1, "cylinder", 100)
         ),
@@ -153,7 +132,8 @@ fn a_re_key_that_costs_a_comparison_exits_two_and_names_the_column() {
 /// where it gates nothing is one people learn to route around.
 #[test]
 fn a_re_key_that_costs_nothing_is_a_note_and_exits_zero() {
-    let plane_scene = |extra: &str| format!("{HEADER}\n{}{extra}", unsized_row(0, "plane", 4));
+    let plane_scene =
+        |extra: &str| format!("{EXPECTED_HEADER}\n{}{extra}", unsized_row(0, "plane", 4));
     let base = csv(
         "note-base.csv",
         &plane_scene(&unsized_row(1, "cylinder", 10)),
@@ -185,7 +165,7 @@ fn a_re_key_that_costs_nothing_is_a_note_and_exits_zero() {
 /// scene's budget was read — and the recourse must name the steps.
 #[test]
 fn an_uncovered_scene_exits_two_in_the_harness_voice() {
-    let base = csv("uncov-base.csv", HEADER);
+    let base = csv("uncov-base.csv", EXPECTED_HEADER);
     let fresh = csv("uncov-fresh.csv", &scene(100, 2.5e1));
     let out = run(&[
         fresh.to_str().unwrap(),
@@ -236,7 +216,7 @@ fn a_sweep_that_grows_one_scene_and_uncovers_another_prints_both_leads() {
             scene(400, 2.5e1),
             scene(50, 2.5e1)
                 .replace("s/b", "new/scene")
-                .replace(HEADER, "")
+                .replace(EXPECTED_HEADER, "")
         ),
     );
     let out = run(&[
@@ -274,7 +254,7 @@ fn the_gate_names_the_tree_the_baseline_was_cut_from() {
     let stamped = csv(
         "cut-base.csv",
         &format!(
-            "# tess-budget-cut: 1a2b3c4d5e6f 2026-08-30T12:00:00+00:00\n{}",
+            "{CUT_PREFIX} 1a2b3c4d5e6f 2026-08-30T12:00:00+00:00\n{}",
             scene(100, 2.5e1)
         ),
     );
@@ -303,7 +283,7 @@ fn the_gate_names_the_tree_the_baseline_was_cut_from() {
 fn a_malformed_cut_line_exits_one() {
     let bad = csv(
         "badcut.csv",
-        &format!("# tess-budget-cut: nonsense\n{}", scene(100, 2.5e1)),
+        &format!("{CUT_PREFIX} nonsense\n{}", scene(100, 2.5e1)),
     );
     let out = run(&[bad.to_str().unwrap()]);
     assert_eq!(out.status.code(), Some(1), "{}", out_of(&out));

@@ -4,7 +4,7 @@ kind: issue
 title: census.rs snapshot's arm-1 LoopBoundary discard is the one of three with no written justification
 status: open
 opened: 2026-09-06
-refs: [S49]
+refs: [2044]
 ---
 
 
@@ -22,3 +22,7 @@ typed refusal) is TOPO's, and closing it moves the register entry's
 disposition in `scripts/gates/loop-boundary-discards.sh` in the same
 PR. `census.rs` is CURVED's by glob and TOPO's by the #737 lineage;
 whichever takes it announces the other.
+
+## Refs at GATES' sweep (2026-09-08)
+
+GATES closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 7); `S49` is now cited by its closing PR 2044.

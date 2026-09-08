@@ -1087,6 +1087,21 @@ pub enum PathError<T: Real> {
         /// The refused subdivision count.
         n: usize,
     },
+    /// A polygon authored from fewer than three vertices: a closed
+    /// chain of straight legs needs three corners before it bounds
+    /// anything, and two or fewer name a segment, a point or nothing
+    /// at all. The recourse is to author the missing vertices. A
+    /// structural check, not a classified one: `given` is a count,
+    /// never a measured value.
+    ///
+    /// The count precondition belongs to a whole-table polygon door
+    /// (`pncad::authoring::polygon`), which spells the table through
+    /// this lattice; the lattice's own verbs take one vertex at a
+    /// time and have no count to gate.
+    PolygonTooFewVertices {
+        /// The number of vertices given.
+        given: usize,
+    },
     /// An [`arc_continue`](PartialPath::arc_continue) reached with no
     /// incoming ARC carrier: the declared-subdivision step splits the
     /// carrier the chain is already running on, so a straight incoming
@@ -1258,6 +1273,8 @@ pub enum PathErrorKind {
     DegenerateArcSpec,
     /// [`PathError::CircleSplitCount`].
     CircleSplitCount,
+    /// [`PathError::PolygonTooFewVertices`].
+    PolygonTooFewVertices,
     /// [`PathError::ArcContinueNeedsArcCarrier`].
     ArcContinueNeedsArcCarrier,
     /// [`PathError::ArcContinueOffCarrier`].
@@ -1309,6 +1326,7 @@ impl<T: Real> PathError<T> {
             Self::NonpositiveCircleRadius { .. } => PathErrorKind::NonpositiveCircleRadius,
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
+            Self::PolygonTooFewVertices { .. } => PathErrorKind::PolygonTooFewVertices,
             Self::ArcContinueNeedsArcCarrier => PathErrorKind::ArcContinueNeedsArcCarrier,
             Self::ArcContinueOffCarrier { .. } => PathErrorKind::ArcContinueOffCarrier,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
@@ -1548,6 +1566,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "circle_split needs at least 2 arcs (got n = {n}): a single vertex cannot \
                  carry a full turn (bulge diverges), so the smallest subdivision of a \
                  closed carrier is two arcs"
+            ),
+            Self::PolygonTooFewVertices { given } => write!(
+                f,
+                "a polygon needs at least 3 vertices (got {given}): a closed chain of \
+                 straight legs bounds nothing with fewer corners — author the missing \
+                 vertices"
             ),
             Self::ArcContinueNeedsArcCarrier => write!(
                 f,

@@ -304,3 +304,213 @@ build-slot mutex, no away channel; lanes are worktrees under
 `/home/user/shell-lanes/<lane>/` with private targets beside them,
 one heavy cargo job at a time, hosted CI the gate. No lane exists
 yet; nothing is dispatched by this entry.
+
+## SHELL-5 cut and dispatched (2026-09-08)
+
+The hollow operand, the plan's next unit: spec `docs/SHELL-5-SPEC.md`,
+branch `shell/5-hollow-operand`, block SHELL-B1 slot 2 (the arm is in
+the branch-side record). Pre-draw fields M / STRUCTURAL, logged after
+the block byte — disclosed on the item. The design decision the spec
+binds, made here: the moved clone goes through `insert_void` WHOLE
+(every clone shell is strictly inside the material, which is what the
+reach decides and the planar gate establish), and a new ownership
+re-partition op beside `movefac` moves each operand void and its
+dilated twin into a new solid, paired STRUCTURALLY off the graft map —
+no classification, no probe. Rejected: teaching `insert_void` to mint
+solids (S-BOOL's door, and its contract is "no new solid"), and a
+containment-classified distribution (a probe where the construction
+already knows the answer). Lane at `/home/user/shell-lanes/shell-5/`
+(a worktree of this checkout), private target and scratch beside it.
+
+## SHELL-5 MERGED (2026-09-08, PR #2159 — ordinal 2302, sample #159)
+
+The hollow operand thickens every boundary: one thin solid per operand
+shell, re-partitioned out of the void door's graft by the new
+`Body::move_shells_to_new_solid` (the TOPO seam announced at #2152),
+`OperandAlreadyHollow` retired, `thickened` and `RimNaming::side` on
+the record, and one `OffsetDoor` decision both the cavity and the lift
+now read. Both reviews APPROVE-WITH-FIXES. **Convergent** (R2 MAJOR,
+R1 MINOR, both by execution): the planar clearance gate read the
+OPERAND's footprints, and an inward offset extends past a concave edge
+by `t`, so two diagonally offset voids — or, pre-existing, a notched
+single-shell operand, reproduced by both on the merge base — built
+silently with crossing twins and a double-counted volume while the
+module docs called the gate sound. Fixed in the pass by growing both
+footprints by `t` before the separation decide (over-refuses
+convex-edge pairs, never under-refuses; no legitimate fixture or tour
+scene refuses), the sentence corrected, four reviewer rows flipped from
+pinning the silent build to asserting the refusal. **Unilateral, not a
+tally candidate (MINOR):** R2's cross-pairing mutant — each void paired
+with the NEXT void's twin — survived all 39 rows, because every
+acceptance observable (counts, per-solid roles, volume) is
+pairing-invariant; R2's record-reading row kills it and is adopted.
+Spec premises this unit falsified, mine: "no flux read decides which
+shell goes where" was unsatisfiable for WHICH shell is outer (a solid
+stores no outer designation; the pairing is structural as ruled — both
+reviewers adjudicated the lane's one `classify_shells` read acceptable);
+§1.4 named `movefac.rs` as unowned ground (TOPO's; corrected
+mid-flight). Also mine: the dispatch's item 8 guessed a listing-desync
+the op does check (R2 n6). Found by CI rather than by anyone's sweep:
+LIB-G17's emitter on main folds `ShellError` exhaustively and named
+the retired variant — a sweep is accurate at its merge base, and this
+one was five days old by the fix pass; the lane folded the three new
+variants (a LIB seam, named in the PR).
+
+**Class findings given homes:** tier 3 has no ring-inside-outer check
+(`work/topo/tier3-accepts-a-ring-outside-its-outer-loop`, R1's file,
+placed by this orchestrator) beside the earlier
+`tier-3-does-not-check-shell-roles-per-solid`; the axial door's
+one-surface seam corner (`axial-door-refuses-a-one-surface-seam-corner`,
+SHELL); `shell_open` on a multi-solid body
+(`shell-open-on-a-multi-solid-body`, SHELL — "hollow, hollow, open" is
+not three verbs today); the curved window on a hollow operand pinned
+by a self-retiring row that reds when SHELL-4 lands; STEP refusing
+every hollow body (`BREP_WITH_VOIDS`, EXCH's, pre-existing — the
+verb's ordinary output is unexportable, named here for EXCH's board);
+the lift's door ladder differed from the cavity's (R2 Q1, a class) —
+measured harmless on the oblique prisms and factored into one
+decision. Residue `shell-open-on-a-void-face-with-a-hole` closed on
+R1's pillar row. Rubric idiom/tests/docs: neither reviewer scored
+them; recorded as not scored.
+
+**Block SHELL-B1 concludes** with this merge (ordinals 2300–2302,
+samples #121, #122, #159); its branch-side record goes to main in this
+sync. The next kernel unit draws block SHELL-B2.
+
+
+## SHELL-6 cut (2026-09-08)
+
+The nappe home, the plan's next unit: spec `docs/SHELL-6-SPEC.md`,
+branch `shell/6-nappe-home`, block SHELL-B2 slot 0 — the block is
+drawn AFTER this entry and the item's pre-draw fields (S–M /
+STRUCTURAL-NUMERIC) are committed, so this row's covariate is clean.
+Decision bound by the spec: the nappe is decided ONCE per face from
+its corner stations (`nappe_signed`'s decide, moved) and every reader
+— both offset doors, the apex-window gate, `ConeOffset::displacement`
+— takes the decided value; `displacement` loses its per-point
+`copysign`. Rejected: leaving the mint nappe-blind with a second
+per-door turn (the shape 1199 found), and a per-point read (a third
+authority). The winding rename stays on its item. Lane at
+`/home/user/shell-lanes/shell-6/`, private target and scratch beside.
+
+## SHELL-6 MERGED (2026-09-08, PR #2178 — ordinal 2303, sample #160)
+
+The cone nappe has one home in the offset lane: `topo::offset_nappe`
+— `face_nappe` (the face's two extreme corner stations, enforcing the
+premise that every corner is on one nappe) and `group_nappe` (a
+chart's faces agreed, refusing `NappeStraddles` typed on either
+reading), read once per cone chart by both offset doors, the
+apex-window gate (one decide on the near end) and
+`ConeOffset::displacement` (its per-point `copysign` gone; the nappe
+passed in). `nappe_signed` is deleted, `mint_offset`'s caller turns
+`d` before the mint, and `d` at the per-chart door now means the same
+geometric thing on both nappes — which moved one baseline
+(`verbs_offd`'s apex-window crossing row asks for the inward `d` it
+always meant; both reviewers re-derived it: the kernel was wrong
+before, the row is right now). Both reviews APPROVE-WITH-FIXES.
+**What the reviews corrected in the record, by execution:** the
+per-chart cone offset is NOT unreachable — `ReanchorOffCarrier`
+meters `|d|·sin α` against ε, so below `ε / sin α` the door builds,
+and on the merge base it built a body that GREW on an inward request
+(R2, a merge-base control: 0.000894822126266624 →
+0.0008948221627270332). The defect this unit closes was live at ε
+scale, not latent behind a gate as issue record 1199 and both of
+#1180's review arms had it; above the threshold it was latent, and a
+neighbour that could hold both rims refuses `NeighborPairUnroutable`
+first (R1: `intersect::route` has no cone×{sphere, cone, torus} row).
+Spec §2.1 is landed at the ε-scale operand (R2's row adopted).
+**Unilateral, tally candidate (+1 pending the blinded coding):** R2's
+MAJOR — the dropped §2.1 was landable and its premise false — class
+test-gap, demonstrated by execution (R1 argued the same
+unreachability from the routing table and did not find the
+threshold); R2's second MAJOR (the live-defect record) traces to the
+same fact and dedups with it. **Convergent:** the `replace_face.rs`
+module header still stated the pre-unit contract; `offset_nappe.rs`
+claimed to be "the one place" the nappe is read tree-wide (four
+other predicates in three programs' files decide the same fact —
+filed as `work/issues/cone-nappe-is-decided-in-five-places`); the
+first-face-decides premise on both doors with the axial door writing
+per chart and no agreement gate (now `group_nappe`); a tautological
+assertion. Spec premises this unit falsified, mine: `ApexWindowStraddles`
+never existed; the `NappeError` shape (the doors' own error type is
+right); the sum of corner stations as the decide (a sum can say
+`Opening` for a face with corners on both nappes — R2's fixture; the
+extremes decide now). Two K rows moved and re-derived per the
+runbook (zero rows in every committed baseline). `offset_axial_side`
+adjudicated NOT redundant with `face_nappe` (it meters a corner
+against the MOVED apex; the reason is at the site). Friction recorded
+in the PR: the axial door's apex-reach refusal talks about a corner
+on the axis; `ReanchorOffCarrier` offers no route to the door that
+works. Rubric idiom/tests/docs: not scored by either reviewer.
+
+Block SHELL-B2 slot 0 concludes; slots 1 and 2 remain (record
+branch-side). Next on the plan: SHELL-3 at sign-hull's merge, and
+the follow-ups item 1 (the curved-rim narrowing, a PROPS seam) as
+the other candidate for slot 1.
+
+
+## SHELL-7 cut (2026-09-08)
+
+The one-surface corner, cut from SHELL-5's measured refusal: spec
+`docs/SHELL-7-SPEC.md`, branch `shell/7-seam-corner`, block SHELL-B2
+slot 1 (the arm is in the branch-side record; the pre-draw fields
+S–M / NUMERIC were logged after the block byte — disclosed on the
+item). Decision bound by the spec: a vertex all of whose faces lie on
+one surface of revolution moves as a point of that surface — the
+concentric move on a profile circle, the perpendicular foot on a
+profile line — through one `Profile` method both the carried-datum
+arm and the new arm call, with the azimuth carried as every seam's
+is; the torus latitude seam takes the standard latitude rule at the
+carrier mint. Rejected: a torus-only special case at the corner (the
+sphere seam and the carried datum already spell the general rule),
+and routing the seam through the two-surface machinery it is not.
+Sequencing: SHELL-3 still waits on PROPS' sign-hull unit (no PR yet,
+branch idle since 01:11 UTC); this unit touches `offset_axial.rs`
+only, so it runs now.
+
+## SHELL-7 MERGED (2026-09-08, PR #2200 — ordinal 2304, sample #161)
+
+The axial offset door takes a one-surface corner: a vertex all of
+whose faces lie on one surface of revolution moves as a point of that
+surface (`Profile::image_of` — the perpendicular foot on a moved line,
+the concentric point on a moved circle — one arithmetic the
+carried-datum arm and the new arm both call), with the azimuth carried
+as every seam's is; every same-surface LATITUDE seam (centre on the
+axis, plane normal to it) takes one posture through one predicate
+(`offset_axial_centre`, which folded two names for one fact), and the
+seam edges' declared rotation re-authors as a `RevolvedPoint` of the
+moved corner with the sketch-plane premise decided at the site. The
+full-period torus shells, solid and hollow (SHELL-5's measured row
+flipped to its closed form); the whole axial corpus is byte-identical
+at the true merge base, reproduced by both reviewers on corpora of
+their own. Both reviews APPROVE-WITH-FIXES, no MAJOR, no tally
+candidate. **Convergent:** the module header filed a fixture-backed
+arm under "unreached" and conflated "has a row" with "a door builds
+it"; the `(Line, ≥1 meridian)` refusal was reachable by hand and
+unpinned; the PR named the wrong merge base; the single-profile
+concurrence meter is a tautology (the edge layer is the meter; a
+vertex δ off its surface is snapped, bounded by δ); one quantity had
+two decide names. **Unilateral, both R1, by execution (MINOR, not
+tally):** the seam-posture class was wider than the torus — a
+collinear wall vertex makes a door-built one-surface CYLINDER vertex,
+and two cocircular arcs make a sphere with a latitude seam — every
+seam arm but the torus's certified one posture. The fix pass swept
+every seam arm (the table is in the PR) and found two shapes that
+stop PAST the seam door: a collinear-cap drum refuses at void
+insertion's graft re-certification and the two-arc sphere at the
+assembled body's tier 3, both cavities tier-3 valid through the direct
+door at their closed forms — pinned as rows, filed
+(`void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`),
+not widened. Spec premises this unit falsified, mine: "every corner
+is metered against every moved surface" (not for a one-surface
+corner); §2.1's differential instrument as named. Filed by the lane:
+`partial-cone-frustum-three-quarter-turn-refuses-edge-disagreement`
+(R1's pre-existing find, now pinned) and
+`offset-axial-predicates-missing-from-the-dimension-audit`; by this
+orchestrator, for TOPO: `split-edge-children-lack-pcurve-rows-on-curved-charts`
+(both reviewers, by execution). K rows: two names folded into one,
+one new (`offset_axial_reauthor_plane`), none in the committed
+baseline. Rubric idiom/tests/docs: not scored by either reviewer.
+
+Block SHELL-B2 slot 1 concludes; slot 2 remains (record branch-side).
+

@@ -35,7 +35,7 @@ is 6b's to fix: each is its own decision about a different seam, and
    and every FOCUS change over an index that is already current — the
    two paths that reach it with no new tessellation behind them.
 3. **The landing's gather, check registry and A5 certification**,
-   `DocSession::land` (`crates/viewer/src/session.rs:613-655`), run
+   `DocSession::land` (`crates/viewer/src/session.rs:894-988`), run
    from `pump` at the top of `sync_scene`. The advisory registry and
    `assemble_gathered` are kernel computations over the whole product;
    they are outside the evaluation seam by construction, because they
