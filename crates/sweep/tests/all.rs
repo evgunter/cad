@@ -595,3 +595,6 @@ mod shell7_r1_diff;
 
 #[path = "shell7_r2_probes.rs"]
 mod shell7_r2_probes;
+
+#[path = "shell9_probe.rs"]
+mod shell9_probe;
