@@ -2177,6 +2177,12 @@ pub(crate) mod staleness_posture {
             (
                 "insert_void",
                 Transfers,
+                "the void-insertion door — see `insert_voids`, which it calls with the one \
+             destination as a slice",
+            ),
+            (
+                "insert_voids",
+                Transfers,
                 "the void-insertion door: reverts the cavity (rows keep their keys, going \
              stale in CONTENT like any surgery) and grafts through `boolean::combine`, \
              which remaps the transplanted rows onto fresh keys; both producers' final \
