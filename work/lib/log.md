@@ -3762,3 +3762,40 @@ running as LIB-DOORS-2, `path` behind the kernel `PathError`
 discriminant. Merged main twice mid-unit incl. LIB-FINDINGS (two ty
 fixture conflicts, both hunks kept). No kernel crate touched; the lane
 ran the pinned ruff for real.
+
+**LB20 — wave 4 planned from a full slate survey (2026-09-08, after
+LIB-FINDINGS and LIB-DOORS-1 landed).** The ruled queue emptied twice
+today; a read-only survey of every open LIB item (33) sorted them by
+class and by the files a fix touches. MECHANICAL, grouped into lanes
+that do not collide (two builds live at a time): LIB-PROJ (the ten
+`MateFault` accessors exhaustive + the pick indices as attributes;
+owns `py/mate.rs`, `py/pick.rs`) DISPATCHED beside LIB-DOORS-2;
+LIB-CUR7 (`meta-unversioned-arm-has-no-inner-word` + the six profile
+discriminants; owns the façade lists and `tags.rs`) and LIB-DOORS-3
+(the n-ary union / `SetMembers` doors + the `VDegree` structural slot;
+owns `py/doc.rs`'s constructors) after DOORS-2 lands; LIB-SMALL (the
+split/inline maintenance getter, `Datum.in_plane`'s length pair, the
+guide's chamfer and tube steps, the audit's `arc_continue` line once
+BOOL-10 merges); LIB-HASH (the 23 comparable enums hash) ALONE in a
+gap. DESIGN, asked as four unrelated `[ev]` PRs per Ev's standing ask,
+each recommending (A): #2230 (does per-arm projection generalise past
+the two named types; the census alphabet declares same-spelled types),
+#2231 (the authoring seat: a probe body the product skips; builders
+for a revolve's role names), #2232 (what a curated door owes on its
+SUCCESS side: the import report, the gate's enclosure, the advisory
+lane), #2233 (dimensioned seats: written notation at node slots;
+equality/hash on a poisoned or signed-zero quantity). KERNEL-SIDE,
+RE-HOMED by territory with a `## Re-homed` note each: the blend-slit
+collision, the blend selection's load-only check and the persist
+path's stringification to DOCM; the mouth chart and the shell corpus
+hold to SHELL; the predicate-name pins to BOOL. STAYING in LIB by
+assignment or by expiry: the mate-frame door and the two recourse
+sentences (S-MATE's hand-off gives refusal prose to LIB), the
+witness-bifurcation arm (an expiry on M6), the façade guard's readers
+(Track E), `correspondence-structs-coincide` (a verb-seat hold with no
+owner). `path`'s door waits on the kernel `PathError` discriminant.
+Orchestrator note for the record: the per-arm maps are a standing
+tripwire — main's own kernel PRs tripped them three times today (a
+shell arm renamed, an extrude arm retired, a shell arm added), each
+fixed by one map row; and reviewer scratch must live in each lane's
+own directory (the item-5 lesson, `build-slot-banner-leaks…`).
