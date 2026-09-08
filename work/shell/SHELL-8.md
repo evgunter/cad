@@ -2,11 +2,12 @@
 id: SHELL-8
 kind: unit
 title: shell is per solid, on every solid — a multi-solid operand shells solid by solid, designations on any solid
-status: review
+status: closed
 opened: 2026-09-08
 branch: shell/8-multi-solid
 refs: [shell-open-on-a-multi-solid-body, SHELL-5, SHELL-7]
 pr: 2207
+closed: 2026-09-08
 ---
 
 

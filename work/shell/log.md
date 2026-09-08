@@ -533,3 +533,68 @@ extracting each solid into its own body (no such door exists and the
 clone-and-graft shape already carries N solids). The `insert_voids`
 sibling is an announced seam to S-BOOL. Sequencing: SHELL-3 still
 waits on PROPS' sign-hull unit (no PR; branch idle since 01:11 UTC).
+
+## SHELL-8 MERGED (2026-09-08, PR #2207 — ordinal 2305, sample #162)
+
+`shell` and `shell_open` apply to every solid of a multi-solid body:
+the three whole-body reads are per solid (roles through a new
+`props::classify_shells_of` shell-subset entry, the offset door
+choice, the simultaneous doors' coverage relaxed from the body to a
+`Scope` of the solids a move set touches), clearance skips
+cross-solid pairs (no material between two solids), one clone with
+each solid's charts through that solid's door, a partition per
+operand shell of every solid, and a designation on any solid with the
+lift's solid read on the result so a void designation finds its
+minted thin solid. `insert_voids` is the N-ary void door (`insert_void`
+its N = 1 case, literally the same call chain — S-BOOL's announced
+seam); `NotOneSolid` retired to `NoSolid`; `ChartSpansSolids` typed,
+and reachable. Both reviews found the same MAJOR by execution: the
+PR's byte-identity claim was false — at the true merge base the
+`shell8_dump` corpus differs by 6 pcurve-sign rows on the UNSCOPED
+solid, R1 attributing it by mutation to the lift's per-solid scope
+(at base the lift's move set covered every chart of the result, so
+its edge walk re-authored the other solid's edges) — so the spec's
+§3 STOP fired by the letter and the PR said none did. Adjudicated an
+improvement (the untouched solid is now untouched), re-taken on a
+private target, and pinned by a row that goes red under the mutant;
+the most likely cause of the first empty diff was the shared-target
+hazard serving the other tree's binary again, this time with no
+symbol to expose it. Convergent MAJOR ⇒ no tally candidate.
+**Unilateral, R1, by execution (MINOR):** the roles read ran once
+over the whole body when any solid was hollow — a spec §1.1
+deviation the PR did not disclose, and a plain neighbour's escalation
+would refuse a hollow solid's shelling; fixed per solid in the pass
+(verdicts 0 / 2 / 2). **Unilateral, R2, by execution (MINOR):**
+`ChartSpansSolids` is publicly reachable (a disconnecting `subtract`
+leaves both fragments under one solid sharing surface keys, and
+`move_shells_to_new_solid` re-homes one without re-minting) —
+overruling R1's reading that the arm was unreachable and should be
+`Corrupt`; the typed arm stays, R2's rows adopted, the producer side
+filed for TOPO (`a-chart-spans-solids-after-move-shells-to-new-solid`).
+Convergent MINORs: the `Scope` doc and the PR overstated "reads
+nothing outside" (construction is a whole-body walk; the moves are
+scoped) — corrected, and the remaining whole-body walks filed by the
+lane (`shell-doors-still-walk-the-whole-body`); a class of stale
+single-solid docs incl. the `Shelled::body` sentence spec §4 named;
+`OperandOuterShells` now names its solid. Both reviewers' e2e seats
+met the same two frictions — the record does not surface the wall it
+built, and nothing names "the inner wall of the second part" after
+two hollowings — filed by this orchestrator
+(`shelled-result-does-not-name-the-wall-it-built`). Spec premises
+this unit falsified, mine: "every producer mints a fresh surface per
+solid" (the spec's justification for treating a spanning chart as
+corruption); the differential's base as named. Process: the
+implementer's agent was killed by a container restart after its
+push (its PR body is its report) and resumed from its transcript for
+the fix pass; one hosted run died in the artifact store and was
+re-triggered by an empty commit because the lane's token cannot
+re-run jobs — recorded, not to be repeated (an orchestrator re-run is
+the right lever). Seams announced at merge: PROPS
+(`classify_shells_of` in `props.rs`, a pure refactor with
+`classify_shells` delegating), S-BOOL (`insert_voids`, announced at
+cut). K rows: none new in the committed baseline. Rubric
+idiom/tests/docs: not scored by either reviewer.
+
+Block SHELL-B2 concludes (record on main with this sync). The next
+SHELL kernel unit draws block SHELL-B3. SHELL-3 still waits on PROPS'
+sign-hull unit (branch idle since 01:11 UTC).
