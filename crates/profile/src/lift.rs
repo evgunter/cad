@@ -42,16 +42,22 @@
 //!
 //! # The seam
 //!
-//! A chain binds its entry with `.at(p)`, which declares nothing, and
-//! the two closers that DO declare the seam joint (`.to(Start)`,
-//! the arc-arrival close) retrim vertex 0. So a loop whose joint 0 is
-//! declared cannot be lifted at that seam. Since a loop is cyclic and
-//! the seam is authoring freedom, the lift ROTATES to the first
-//! undeclared joint and reports the rotation it used; the differential
-//! comparison is against the correspondingly rotated source, which is
-//! pure reindexing (no arithmetic, so bit-exactness is preserved). A
-//! loop with NO undeclared joint — a fully filleted outline — has no
-//! seam to author at and refuses [`LiftRefusal::AllJointsDeclared`].
+//! A chain binds its entry with `.at(p)`, which declares nothing. Since
+//! a loop is cyclic and the seam is authoring freedom, the lift ROTATES
+//! to the first undeclared joint and reports the rotation it used; the
+//! differential comparison is against the correspondingly rotated
+//! source, which is pure reindexing (no arithmetic, so bit-exactness is
+//! preserved).
+//!
+//! A loop with NO undeclared joint — a fully filleted outline, a
+//! stadium — is seamed the other way round: the entry still declares
+//! nothing, but the CLOSING TARGET does
+//! ([`Start::arrives_tangent`](crate::path::Start::arrives_tangent)),
+//! so the chain seams at 0 and joint 0's declaration rides the arrival.
+//! Every closing verb takes that target, including the continuation —
+//! which is why a declared joint whose leaving segment closes the loop
+//! straight is `continue_to` and not `.tangent().line(len)`: the
+//! continuation verb declares the joint it mints, and it closes.
 //!
 //! # Directors
 //!
@@ -109,23 +115,6 @@ pub enum LiftRefusal {
         /// How many vertices the loop has.
         vertices: usize,
     },
-    /// **Every** joint is declared tangent — a fully filleted outline.
-    /// There is no sharp joint to seam the chain at, and `.at(p)`
-    /// cannot declare. The spelling that would work is the seam fillet
-    /// (`.fillet(r).…to(Start)`), which retrims vertex 0 and so needs
-    /// the un-trimming this tool does not do.
-    AllJointsDeclared {
-        /// How many joints the loop has (all of them declared).
-        joints: usize,
-    },
-    /// A declared joint whose LEAVING segment is straight AND which
-    /// closes the loop. After `.tangent()` the only straight verb is
-    /// `.line(len)`, and `.line` never closes — it always lands on a
-    /// directed point.
-    DeclaredJointBeforeClosingLine {
-        /// The declared joint's vertex index in the SOURCE loop.
-        joint: usize,
-    },
     /// A same-carrier arc run reaches the SEAM. `arc_continue` has no
     /// closing form (it mints a structural subdivision vertex mid-chain
     /// only), and closing with `arc_to(Start)` on the incoming carrier
@@ -155,15 +144,6 @@ impl std::fmt::Display for LiftRefusal {
             Self::JointIndexOutOfRange { joint, vertices } => write!(
                 f,
                 "declared joint {joint} is out of range for a {vertices}-vertex loop"
-            ),
-            Self::AllJointsDeclared { joints } => write!(
-                f,
-                "all {joints} joints are declared tangent: no sharp seam to author the chain at"
-            ),
-            Self::DeclaredJointBeforeClosingLine { joint } => write!(
-                f,
-                "joint {joint} is declared and its leaving segment closes the loop straight; \
-                 .tangent().line(len) cannot close"
             ),
             Self::SameCarrierClose { joint } => write!(
                 f,
@@ -352,10 +332,14 @@ fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<(Vec<Step<f64>>, us
         return Ok(found);
     }
 
-    let rotation = match declared.iter().position(|d| !*d) {
-        Some(r) => r,
-        None => return Err(LiftRefusal::AllJointsDeclared { joints: n }),
-    };
+    // The seam is authoring freedom, so the lift rotates to a joint
+    // `.at(p)` can carry — an undeclared one — and reports the rotation
+    // it used. When every joint is declared there is no such rotation,
+    // and the seam is authored the other way round: `.at(p)` still
+    // declares nothing, but the CLOSER does
+    // (`Start.arrives_tangent()`), so the chain seams at 0 and the
+    // arrival carries joint 0's declaration.
+    let rotation = declared.iter().position(|d| !*d).unwrap_or(0);
     chain_form(loop_, &declared, rotation, tol).map(|program| (program, rotation))
 }
 
@@ -431,21 +415,34 @@ fn chain_form(
     for k in 0..n {
         let src = (rotation + k) % n;
         let here = at(k);
+        // The seam joint is the one the entry cannot declare, so the
+        // closing target carries its declaration instead.
         let target = if k + 1 == n {
-            Target::Start
+            if declared.get(rotation).copied().unwrap_or(false) {
+                Target::StartArriving
+            } else {
+                Target::Start
+            }
         } else {
             Target::Point(at(k + 1).pos)
         };
         if k > 0 && declared[src] {
-            origin.push(src);
-            program.push(Step::Tangent);
             if here.bulge == 0.0 {
-                if k + 1 == n {
-                    return Err(LiftRefusal::DeclaredJointBeforeClosingLine { joint: src });
-                }
+                // A straight leg off a declared joint IS the
+                // continuation verb, and the continuation verb declares
+                // the joint it mints — so no `.tangent()` precedes it,
+                // and unlike `.line(len)` it closes.
                 origin.push(src);
-                program.push(Step::Line(here.pos.distance(at(k + 1).pos)));
+                if k + 1 == n {
+                    program.push(Step::ContinueTo(target));
+                } else {
+                    program.push(Step::Tangent);
+                    origin.push(src);
+                    program.push(Step::Line(here.pos.distance(at(k + 1).pos)));
+                }
             } else {
+                origin.push(src);
+                program.push(Step::Tangent);
                 origin.push(src);
                 program.push(Step::TangentArcTo(target));
             }

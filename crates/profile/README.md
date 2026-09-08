@@ -110,7 +110,9 @@ DAG input; evaluation resolves the frame at f64 for structure selection
 vocabulary through the `RawLoop` trait (`new`, `polygon`,
 `with_tangent_joints`), omitted from the `pncad::profile` façade;
 `ProfileLoop`'s fields are private, so outside this crate a loop exists
-only through the lattice or that trait. `continue_to` is a lattice verb
+only through the lattice, the `embed` materialization door, or that
+trait — which is itself gated behind `test-support` and absent from
+every shipped build. `continue_to` is a lattice verb
 the document vocabulary does not spell yet
 (`RecordedProgramError::VerbNotInDocumentVocabulary`).
 
@@ -118,8 +120,9 @@ the document vocabulary does not spell yet
 mints a chain- or carrier-vocabulary program from a vertex+bulge loop
 with declared joints: declared junctions become `.tangent()`, every
 other junction a sharp `line_to`/`arc_to`, the seam rotated to the first
-undeclared joint (a fully declared loop refuses
-`LiftRefusal::AllJointsDeclared`); no director is ever emitted, so no
+undeclared joint — and when there is none, seamed at 0 with the closing
+target carrying joint 0's declaration (`Start.arrives_tangent()`); no
+director is ever emitted, so no
 `sin_cos` quantization enters a lifted program; fillets are not
 recovered (un-trimming a corner is inference, not a flag read).
 Structural walls are `LiftRefusal`; geometric walls are the driver's own

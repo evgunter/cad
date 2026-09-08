@@ -143,7 +143,7 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
         ("circle_split_3", thirds(), Class::Bits),
         ("half_disc", half_disc(), Class::Bits),
         ("bracket", bracket(), Class::Value),
-        ("rounded_rect", rounded_rect(4.0, 3.0, 0.5), Class::Refused),
+        ("rounded_rect", rounded_rect(4.0, 3.0, 0.5), Class::Value),
         ("unequal_split", unequal_split(), Class::Refused),
         ("collinear_run", collinear_run(), Class::Wall),
     ]
@@ -180,8 +180,8 @@ fn the_census() {
     // The tally of record. A vocabulary change that moves a loop
     // between buckets must move these numbers deliberately.
     assert_eq!(tally[Class::Bits as usize], 8, "bit-identical lifts");
-    assert_eq!(tally[Class::Value as usize], 2, "value-equal lifts");
-    assert_eq!(tally[Class::Refused as usize], 2, "structural walls");
+    assert_eq!(tally[Class::Value as usize], 3, "value-equal lifts");
+    assert_eq!(tally[Class::Refused as usize], 1, "structural walls");
     assert_eq!(tally[Class::Wall as usize], 1, "geometric walls");
     assert_eq!(tally[Class::Mismatch as usize], 0, "defects");
 }
@@ -300,25 +300,12 @@ fn structural_walls_are_named() {
         })
     );
 
-    // A fully filleted outline: no sharp joint to seam the chain at.
-    assert_eq!(
-        refusal(&rounded_rect(4.0, 3.0, 0.5)),
-        Some(LiftRefusal::AllJointsDeclared { joints: 8 })
-    );
-
-    // A declared joint whose leaving segment closes the loop straight:
-    // after `.tangent()` only `.line(len)` is available, and `.line`
-    // cannot close.
-    let mut closing_line = ProfileLoop::new(vec![
-        vert(0.0, 0.0, 0.3),
-        vert(1.0, 1.0, 0.0),
-        vert(0.0, 1.0, 0.0),
-    ]);
-    closing_line = closing_line.with_tangent_joints(vec![2]);
-    assert_eq!(
-        refusal(&closing_line),
-        Some(LiftRefusal::DeclaredJointBeforeClosingLine { joint: 2 })
-    );
+    // Two walls this list used to name are gone, and they are named
+    // here as demonstrations in `bool9_probes.rs` instead: a fully
+    // filleted outline (every joint declared) and a declared joint
+    // whose leaving segment closes the loop straight. Both were "the
+    // seam cannot be declared" wearing different clothes, and the seam
+    // can be declared now.
 
     // A same-carrier arc run that reaches the seam: `arc_continue` has
     // no closing form, so the §5-1 class survives here as a wall even
