@@ -578,3 +578,6 @@ mod shell7_r1_probes;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;
+
+#[path = "shell7_r2_probes.rs"]
+mod shell7_r2_probes;
