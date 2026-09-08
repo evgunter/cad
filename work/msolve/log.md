@@ -386,3 +386,15 @@ fork — the edit door's purity, or the maintenance's home, or a
 stamped extent beside the pin — so it goes to Ev as
 `reconcile-solves-with-no-resolver` on an `[ev]` PR, with the edit
 door taking a reach recommended. The lane holds on its branch.
+
+## The edit door ruled; MSOLVE-6 resumes (2026-09-08)
+
+Ev ruled (a) with the replay refinement on PR 2118, after three
+questions: how it relates to 2086 (the same B, one solve site
+further in), whether a stamped extent is a cache that drifts (it is
+derived from content-addressed data and checked at evaluation, but
+it is still a derived geometric fact in the recipe), and which is
+cleaner ignoring churn (the edit door taking the reach, with the log
+carrying the maintenance's frames so replay never solves — the
+orchestrator's honest answer reversed its own (h) lean). The spec
+gained its amendment section; the lane resumes on PR 2116.

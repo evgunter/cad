@@ -2,9 +2,9 @@
 id: reconcile-solves-with-no-resolver
 kind: issue
 title: The edit door's cluster-record maintenance solves the prior document with no resolver, and the lever now needs the parts
-status: open
+status: parked
 opened: 2026-09-07
-needs_ev: true
+blocked_on: [MSOLVE-6]
 ---
 
 
@@ -55,3 +55,13 @@ leaves the edit door for the doors that hold a resolver; (c) a
 verdict-free solve shape for the maintenance; (h) the part's extent
 is STAMPED beside its content pin when the reference is pinned, as
 recipe data the solve reads like the pin itself.
+
+## Ruled (2026-09-08, PR 2118)
+
+Ev: option (a) with the replay refinement — `apply` takes the reach
+and asks it only when a gauge moves; a refused maintenance solve
+refuses the edit typed; the log records the maintenance rows and
+replay re-applies them without solving, so `load`, `save` and
+undo/redo stay store-free; old logs whose edits moved a gauge refuse
+typed and migrate through a reach-taking door. The amendment is
+`docs/MSOLVE-6-SPEC.md`'s last section. Parked on MSOLVE-6.
