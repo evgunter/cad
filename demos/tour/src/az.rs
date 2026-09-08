@@ -43,7 +43,7 @@ use pncad::topo::Body;
 use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::validated;
+use pncad::authoring::{polygon, validated};
 use pncad::geom_core::Tol;
 
 /// Exact volume oracle: 880383/327680 (counter-hole A × Z), derived by
@@ -70,11 +70,11 @@ const A_OUTLINE: [(f64, f64); 8] = [
 /// prism is genus 1 before the boolean ever runs.
 const A_COUNTER: [(f64, f64); 3] = [(0.90625, 1.4375), (1.09375, 1.4375), (1.0, 2.0)];
 
-/// Letterform polygons, authored through the PATHS algebra (LIB-U2
-/// PR-2): same vertices, same loop — said as a chain of `line_to`s
-/// closing at `Start`.
+/// Letterform outlines: every corner of these polygons is
+/// definitely sharp, so the door's authoring-time classification
+/// passes and the `.expect` is demo-loud rather than load-bearing.
 fn lp<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> ProfileLoop<S> {
-    crate::paths::path_polygon(poly, tol)
+    polygon(poly, tol).expect("letterform outline")
 }
 
 /// The A prism: xy sketch at z = -1/16, extruded 2.125 along +z

@@ -303,7 +303,7 @@ GATE_CENSUS_REGISTER_FILE=
 # binding is the site, and a value used twice is still one place where
 # the square was split.
 two_statement_candidates() {
-  awk '
+  gate_record_awk '
     # A REMEMBERED NAME IS DATA AND IT IS SPLICED INTO A REGEX, so it is
     # escaped first. Both names come from the code, and the only
     # metacharacter their character classes admit is a DOT: the operand
@@ -318,9 +318,17 @@ two_statement_candidates() {
     # single-quoted.)
     function esc(s,   t) { t = s; gsub(/[.]/, "[.]", t); return t }
     {
-      i = index($0, ":"); file = substr($0, 1, i - 1); rest = substr($0, i + 1)
-      j = index(rest, ":"); line = substr(rest, 1, j - 1) + 0
-      txt = substr(rest, j + 1); sub(/^ /, "", txt)
+      # WHERE THE FILE COLUMN ENDS comes from `gate_record_split` in
+      # `lib.sh`, section THE COLUMNS OF A RECORD, and the binding
+      # memory is keyed on it (no apostrophe may appear in this program,
+      # which is itself single-quoted, so possessives are written
+      # around): read to the first colon, two files whose
+      # paths agree up to a colon shared one key and a binding in one
+      # completed a square in the other, while the line number the key
+      # left behind arrived inside the statement text as if it were code.
+      if (!gate_record_split($0)) next
+      file = GR_FILE; line = GR_LINE + 0
+      txt = GR_TEXT; sub(/^ /, "", txt)
       if (file != cf) { cf = file; nb = 0 }
       for (k = 1; k <= nb; k++) {
         if (done[k]) continue
@@ -383,7 +391,8 @@ census() {
   # when the tree holds at least one of them: a fixture tree holds none,
   # and a register is a claim about the tree it describes.
   files=$(printf '%s\n' "${GATE_PRODUCTION_FILES[@]}")
-  if ! report=$(printf '%s\n===\n%s\n===\n%s\n' "$entries" "$files" "$cands" | awk '
+  if ! report=$(printf '%s\n===\n%s\n===\n%s\n' "$entries" "$files" "$cands" |
+    gate_record_awk '
     /^===$/ { phase++; next }
     phase == 0 {
       if ($0 == "") next
@@ -399,9 +408,18 @@ census() {
     phase == 1 { if ($0 != "") have[$0] = 1; next }
     {
       if ($0 == "") next
+      # The shape name is a prefix this gate puts on; what follows it is
+      # a record, and where ITS file column ends comes from
+      # `gate_record_split` (lib.sh, section THE COLUMNS OF A RECORD; no
+      # apostrophe may appear in this program, which is itself
+      # single-quoted, so possessives are written around). Read to the
+      # first colon, a
+      # candidate in a colon-carrying path was attributed to a file that
+      # does not exist, so no register entry could ever name it and the
+      # UNREG arm reported a path nobody can look up.
       i = index($0, "|"); shape = substr($0, 1, i - 1); r = substr($0, i + 1)
-      i = index(r, ":"); file = substr(r, 1, i - 1); r = substr(r, i + 1)
-      i = index(r, ":"); line = substr(r, 1, i - 1); txt = substr(r, i + 1)
+      if (!gate_record_split(r)) next
+      file = GR_FILE; line = GR_LINE; txt = GR_TEXT
       sub(/^ /, "", txt)
       seen[shape]++
       hit = 0; best = -1
@@ -641,6 +659,20 @@ plant_undispositioned_two_statement() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+# THE SAME CANDIDATE IN A FILE WHOSE PATH CARRIES A COLON, which is
+# legal here and in git. Both census readers take the record's FILE
+# column, and read to the first colon both were wrong: the binding hop
+# keyed its memory on a truncated path and got the statement text with
+# the line number still on the front, so `let kx = k * x` did not read
+# as a binding at all and the candidate was never raised; the report
+# reader then attributed whatever survived to a file the tree does not
+# have. Blind, so this is a must-FIRE case.
+plant_undispositioned_two_statement_colon_path() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Real>(k: T, x: T) -> T { let kx = k * x; let y = kx * x; y }\n' \
+    > "$1/crates/planted/src/a:b.rs"
+}
+
 # THE REGISTER'S OWN TREE, written FROM the register — the only way a
 # gate with these reds can have a fixture that reaches them at all.
 # Every entry must find exactly the number of candidates it pins, so the
@@ -845,7 +877,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
   gate_selftest_test_module_homes "$want" plant_square_at
-  gate_selftest_homes --narrowed "${ALLOWLISTED_HOMES[@]}"
+  gate_selftest_homes --narrowed --subject "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   # THE CENSUS, in both directions. `census` is the half whose subject
   # is what the matcher above CANNOT see, so every one of its cases has
   # to be invisible to that matcher: a fixture the live matcher reds is
@@ -855,6 +887,7 @@ gate_selftest() {
   gate_selftest_case "$cwant" plant_undispositioned_nested_paren
   gate_selftest_case "$cwant" plant_undispositioned_three_factor
   gate_selftest_case "$cwant" plant_undispositioned_two_statement
+  gate_selftest_case "$cwant" plant_undispositioned_two_statement_colon_path
   # EVERY `want` BELOW IS A FRAGMENT OF THE OFFENDING LINE, never a word
   # from the umbrella diagnosis. `lib.sh` warns that `$want` alone can
   # be satisfied by text the gate prints for some other reason, and this
@@ -891,7 +924,7 @@ gate_selftest() {
   gate_selftest_passes "the tree the census register describes, every entry finding exactly the candidates it pins" plant_register_tree
   gate_selftest_passes "an adjacent triple in an allowlisted file, which branch 1 already reads and the census must not claim" plant_adjacent_triple_in_an_allowlisted_file
   gate_selftest_passes "a binding hop whose operand is a FIELD PATH, beside a name the unescaped dot in it would match" plant_field_path_binding_near_miss
-  printf '%s selftest OK: passes a clean fixture carrying every allowlisted file, and prose, string literals and near-miss products; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms — and at the colon-carrying path a home skip that ends at `:` exempts; re-derives the five spellings it CANNOT see and passes the register'"'"'s own tree while firing, on a fragment of the offending line rather than on the umbrella text, on an undispositioned candidate of each of the four shapes and — for a three-factor entry and a binding-hop one alike — on a second candidate under a one-site entry, an entry whose site is gone and an entry whose file has left the scan; holds BOTH halves of the (file, shape) key against a written register; refuses a --register with no argument and a malformed entry; keeps a field-path binding from matching a name its unescaped dot would, and an adjacent triple in an allowlisted file out of the census entirely; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every allowlisted file, and prose, string literals and near-miss products; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms — and at the colon-carrying path a home skip that ends at `:` exempts; re-derives the five spellings it CANNOT see and passes the register'"'"'s own tree while firing, on a fragment of the offending line rather than on the umbrella text, on an undispositioned candidate of each of the four shapes, on a binding-hop candidate in a path that CARRIES A COLON — which both census readers take the FILE column out of — and — for a three-factor entry and a binding-hop one alike — on a second candidate under a one-site entry, an entry whose site is gone and an entry whose file has left the scan; holds BOTH halves of the (file, shape) key against a written register; refuses a --register with no argument and a malformed entry; keeps a field-path binding from matching a name its unescaped dot would, and an adjacent triple in an allowlisted file out of the census entirely; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 # `--register FILE` is this gate's own flag, so it is taken out of argv
