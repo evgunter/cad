@@ -244,3 +244,27 @@ kernel's sentence and the consumer's citation are both conditionals
 (S1); the kernel's `naming.rs` "What consumes these rows" paragraph
 describes its consumer by unlinked path (S2, BLEND's); `wire.rs:1836`
 is a third consumer-cites-a-cannot-fire shape (S7).
+
+## EVAL-2 reviews adjudicated; fix pass to the implementer (2026-09-08)
+
+Correctness: MERGEABLE — the key dump reproduced independently over
+1074 rows (corpus at f64, bumped, `Dual64`; an assembly with mates;
+a resolving `Cusp` profile) at zero diff; every census went red under
+a duplicated number; the 41/41 residue is unreachable for a stronger
+reason than the item gave (a `Cusp` cannot end a loop — its tip is
+`DirectedIncoming` — so the word after it is a verb tag, never
+`LOOP_START`). Style: MERGEABLE. Converging MINORs: the contact-class
+tag has a twin in `topo::ContactClass::content_tag` (exhaustive)
+beside `eval`'s wildcard function; the hand-kept `ALL`/`GROUPS` and
+the `winding`/`side`/`target` closures are declared but uncensused
+(a swapped arm or a dropped const stays green). Fix pass sent to the
+implementer with eleven items: the twin collapses onto topo's
+function; projections become censused functions; a `tag_groups!`
+macro projects `ALL`/`GROUPS`; the v2…v6 archaeology becomes the
+bump invariant at `tag::format::VERSION`; the census rename
+completes; `presence`'s wrong sentence and the borrowed fault bit;
+`u64`-written tags; the residue item's argument. **Lesson (correctness
+NOTE-1):** two worktrees sharing one `CARGO_TARGET_DIR` resolve to one
+artifact hash and the second reads `Fresh` — a base-vs-head proof
+needs separate targets or a `touch`, and the printed package PATH is
+the confirmation, not the word `Compiling`.
