@@ -371,3 +371,15 @@ beside unit K's and unit 5's fix passes. The dual dispatches on the
 frozen head when the lane reports; the ordinal (2900, the band's first
 claim) goes to main then, relabelling S-BLEND's old roster entry in the
 same commit.
+
+**Unit 4's merge, three rounds (2026-09-08):** the first re-merge
+conflicted on `tests/all.rs` (SHELL's new suites beside the adopted
+probe) and two logs; its run died at the interval archive's
+FINALIZATION (an artifact-service 403 after a full upload — not the
+diff; the re-run API refuses this session, said once on the PR); the
+re-roll by merging the moved main then conflicted with unit 3
+(`blend_recourse_followability.rs` imports, and one surviving call of
+the helper unit 4 retired — converted to `one_edge_rim_at(_, 1.0, 0.0)`
+at the dome's equator, compile-checked; `work/eval/` deleted on main
+by EVAL's sweep, so the seam line announced there goes with it). Head
+`dcc8fb18` awaits its run.
