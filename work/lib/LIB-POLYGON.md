@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/polygon
 refs: [facade-polygon-door-demoted-without-replacement]
+pr: 2183
 ---
 
 
