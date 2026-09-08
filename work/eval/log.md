@@ -575,3 +575,20 @@ persisted `cd` from one Bash call put the next call's log append into
 the lane's worktree as a stray commit — caught before it was pushed
 (the lane's branch was reset to its pushed head; the entry re-made
 here). Every orchestrator command now starts with an absolute `cd`.
+
+## EVAL-7 MERGED (2026-09-08, PR 2176, merge 43116253b)
+
+Green on the merged head. A node's log is every decision made on its
+behalf: the bracket opens at the top of `eval_node`, a pre-key refusal
+carries its escalations, the memo hit's fresh frame is asserted a
+prefix of the reused log (a full assert with a should-panic row); the
+certification keys and the eps-audit populations re-baselined by
+ruling and tabled in the PR. **All seven E units of the opening slate
+are merged.** Units 8 and 9 (EVAL-7's residue) dispatch now:
+`docs/EVAL-8-SPEC.md` (validate once under the pinned lift; the
+validated form's lift is `crates/profile`'s door — **announced seam to
+S-BOOL ((S-BOOL orchestrator))**; M10's keys re-baseline once more)
+and `docs/EVAL-9-SPEC.md` (the nominal joins the key; the profile
+stream's counts ride the same format bump, closing EVAL-2's residue;
+**to DOCM ((DOCM orchestrator))**: `memo.rs`'s slot hashing untouched,
+the feed lives at `content_key`).

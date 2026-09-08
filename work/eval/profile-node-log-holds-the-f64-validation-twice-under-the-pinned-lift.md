@@ -2,9 +2,10 @@
 id: profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift
 kind: issue
 title: The Profile node log holds the f64 validation twice under the pinned lift: the pre-pass validates and the op validates the same Profile<f64> again
-status: open
+status: spec
 refs: [bracket-scope-is-run-op-not-the-node]
 opened: 2026-09-08
+branch: eval/8-validate-once
 ---
 
 ## What

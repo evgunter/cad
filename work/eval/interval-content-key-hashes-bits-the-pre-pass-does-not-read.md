@@ -2,9 +2,10 @@
 id: interval-content-key-hashes-bits-the-pre-pass-does-not-read
 kind: issue
 title: At Interval the content key hashes a slot's bounds while the profile precompute and the pinned op read its nominal f64, which the key does not hold
-status: open
+status: spec
 opened: 2026-09-08
 refs: [bracket-scope-is-run-op-not-the-node, 2176]
+branch: eval/9-nominal-in-the-key
 ---
 
 ## What

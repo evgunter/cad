@@ -67,6 +67,24 @@ before EVAL-7.
    (EVAL's). If the implementer finds the feed cannot be placed without
    touching `memo.rs`, STOP and report.
 
+## The same bump carries the profile stream's counts
+
+`work/eval/profile-program-stream-is-not-length-prefixed.md` (EVAL-2's
+residue) asks for the profile payload's loop and step lists to be
+length-prefixed so one grammar position no longer reads two
+vocabularies (`tag::program::LANE` and `verb_tag(Cusp)` are both 41
+there, unreachable as a collision today by the `Cusp` tip-state
+argument the item records). A format bump is the cost of that fix and
+this unit bumps anyway, so it rides here: each loop list and each step
+list is preceded by its count (a `u64` word), the item's argument is
+kept at `tag::program`'s doc as the reason the position was safe
+BEFORE the prefix and is now safe by construction, and the item closes
+with this unit. The forced-version-6 dump of item 4 is then no longer
+byte-identical for documents with a profile — say so, and split the
+proof: forced-6 WITHOUT the count words shows the nominal adds nothing
+at f64/`Dual64`; the count words move every profile-bearing key by
+design.
+
 ## Correctness claims (the correctness arm)
 
 1. The probe row is red on the base and green on the head (the
