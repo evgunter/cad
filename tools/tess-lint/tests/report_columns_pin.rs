@@ -200,9 +200,19 @@ const SUMS: [(&str, &str); 4] = [
 
 /// The report the CLI prints over [`fixture`], as stdout.
 fn report() -> String {
+    // A path per CALL, not per process. The tests in this binary run
+    // as parallel THREADS of one process, so a `{pid}` path is one
+    // path shared by all of them: `fs::write` truncates before it
+    // writes, and another thread's CLI can read the file in that
+    // window and fail to parse an empty sweep. Identical content is
+    // no defence — the hazard is the truncation, not disagreement.
+    // Observed as three of four tests failing on one run and none on
+    // the next.
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let nth = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!("tess-lint-report-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("fixture.csv");
+    let path = dir.join(format!("fixture-{nth}.csv"));
     std::fs::write(&path, fixture()).unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_tess-lint"))
         .arg(&path)
