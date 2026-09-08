@@ -707,3 +707,63 @@ The exit walk will have to rule on which of the twenty-nine are METER's
 to finish and which are re-homed — three already went to `work/ciw/`
 on unit 4, which is the pattern. Recording it now because the decision
 belongs in the walk and the number will be larger by then.
+
+## Unit 6 CLOSED and merged; unit 8 re-planned from a measured reading (2026-09-08)
+
+Merged at `c8136adf2` (PR 2167) with all 37 checks green. Before
+merging, the four things green CI cannot see were checked here: the two
+cannot-fail assertions really are gone from the tree (`total_ceiling`,
+`every_token_is_one_non_empty_csv_field` — no match anywhere under
+`tools/`), `tess-lint-growth-margin-unprotected-from-ceil-quantisation`
+is filed and open, `work.py lint` is clean, and the counterexample
+licensing the rewrite reproduces exactly: `muu = 100, muv = 0,
+mvv = 0.1` over a `1 × 10` box at `δ_s = 1` gives an admissible 13 × 5
+grid at `t = 26` (65 cells) that the lattice does not contain, against
+which the shipped 379-sample scan reports 70 — **7.6923%** over a
+4.9939% envelope. The rewritten licence does not merely drop the false
+sentence; it names it false and carries the exhibit, which is the form
+a corrected claim should take.
+
+### Unit 8 cannot be what the plan said, and the replacement is sharper
+
+The plan had `D201` → the join → `C15`, with `C15` discharged by
+reading the new column. It cannot be: `D201` landed the column and
+**0 of the 64 sized rows carry a name**, all 14 rows of the seven
+indistinguishable pairs among them. Re-derived here from the committed
+baseline — 7 pairs in `lily/lily_leaf_b`, `lily/lily_leaf_c`,
+`lofts/loft_prism`, `lofts/nonuniform_loft`, `s_duct/s_duct`, every
+name field empty.
+
+So the question became what an undetected swap actually COSTS, and the
+answer is worth the unit. Two readings of mine were wrong on the way to
+it and both were caught by reading the rules rather than the docs:
+
+- *"every gated column is bit-identical within each pair"* — I wrote
+  this before checking, and `worst_dev` differs within five of the
+  seven pairs, by 1.4652% on `lofts/loft_prism`. Had `worst_dev`
+  gated, the claim would have been backwards.
+- *"`worst_dev` gates, so a swap spends 29% of the total rule's
+  margin"* — also wrong. The module docs list `total = delta /
+  worst_dev` among the three ratios, but the gate emits five kinds
+  (`Vanished`, `Triangles`, `Uncovered`, `Slack`, `Rekeyed`) and none
+  reads `worst_dev`. The total ratio is REPORTED, not gated. A
+  ratio named beside two gated ones in a doc list is not thereby
+  gated, and the enum is what settles it.
+
+**The checked statement.** Rule 1 is per-SCENE triangle totals, so a
+swap WITHIN a scene cannot move it — that half is a theorem, not a
+reading. Rule 2 compares `recoverable()` = `grid_cells /
+span_opt_cells`, and both are bit-identical within all seven pairs on
+the committed baseline — that half IS a reading, and could stop being
+true at any re-cut. So today an undetected swap moves no finding and
+moves the reported `total` ratio by up to **1.4652%** and `worst_cert`
+in its last digits: **invisible in the gate, visible in the report.**
+
+That is unit 8: the reading gets an executable home in
+`baseline_census.rs` beside the pair census that already stands there,
+so that a re-cut which makes a swap GATE-visible fails and names what
+moved — and the name column's disjointness from the pairs gets pinned
+in the same place, so that a scene becoming document-built fires and
+says `C15` became dischargeable. `C15` stays OPEN: the defect is live,
+what closes it is corpus-side, and Ev's second clause on `D201` scopes
+that as not urgent rather than as done.

@@ -100,14 +100,27 @@ budget data is a PROPS coordination, not a lane's call.
 7. `k-report-baseline-fold-cert1-roster` — the next K-REPORT baseline
    re-derivation, folding `props_meridian_pole` and the re-shaped
    sphere rim margins; a runbook pass.
-8. `C15` — discharged by READING the column unit 6 lands. The row's
-   residue is the same-shape face pairs the CSV could not tell apart;
-   once a `StableName` is in the sweep the census re-derives and the
-   row closes on evidence rather than on argument. Nothing here is a
-   design question any more: `D201` was the fork, Ev ruled it arm A on
-   2026-09-07 (PR 2109), and the implementation moved up into unit 6
-   to share its re-cut. Unit 0 took the tripwire half that used to sit
-   under this step.
+8. `C15` — **NOT discharged by reading the column, and the re-plan is
+   the unit** (log, 2026-09-08). Unit 6 landed `D201`'s column and
+   **0 of the 64 sized rows carry a name**, the 14 rows of the seven
+   indistinguishable pairs among them: coverage and defect are
+   disjoint. What the unit owes instead is what an undetected swap
+   COSTS, given an executable home. The reading, taken here and
+   checked against the rules rather than the module docs: rule 1 is
+   per-SCENE triangle totals, so a within-scene swap cannot move it —
+   a theorem; rule 2 compares `recoverable()` = `grid_cells /
+   span_opt_cells` and both are bit-identical within all seven pairs
+   on the committed baseline — a READING, which is why it needs a
+   home; and `worst_dev` is reported, not gated (the gate emits
+   `Vanished`/`Triangles`/`Uncovered`/`Slack`/`Rekeyed` and none reads
+   it), so the swap moves the reported `total` ratio by up to 1.4652%
+   and no finding at all. Both halves go in `baseline_census.rs`
+   beside the pair census, so a re-cut making a swap GATE-visible
+   fails and names what moved, and a scene becoming document-built
+   fires and says `C15` became dischargeable. `C15` stays OPEN: the
+   defect is live, what closes it is corpus-side, and Ev's second
+   clause on `D201` scopes that as not urgent rather than as done.
+   Unit 0 took the tripwire half that used to sit under this step.
 9. `report-header-column-phrases-unqualified` — the report header
    prints the column name beside each cell figure (and prints
    `opt_cells`), decided together with `SceneTotals`' field docs. Needs
@@ -123,6 +136,11 @@ budget data is a PROPS coordination, not a lane's call.
    `tools/k-lint/*` free; disclosed by the CERT-1 roster fold and rowed
    here so the era stops being the one load-bearing claim in
    `docs/K-REPORT.md` that nothing computes with.
+
+12. `tess-lint-twinned-csv-fixture` — promoted to a unit by unit 6's
+   review: `FIXTURE_NAME` is a third hand-twinned literal, and
+   blanking the token while keeping the width reddened NOTHING on
+   either side. Needs `tools/tess-lint/*` free.
 
 ## Exit shape
 
