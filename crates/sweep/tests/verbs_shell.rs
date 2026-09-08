@@ -19,7 +19,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
 };
-use topo::{Body, FaceKey, LoopBoundary, ShellError, ShellKey, ShellRole, SolidKey};
+use topo::{Body, FaceKey, LoopBoundary, RimSide, ShellError, ShellKey, ShellRole, SolidKey};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -30,7 +30,7 @@ fn band() -> Band {
 }
 
 /// A `w x d x h` box at the origin.
-fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
+pub(crate) fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(p2(0.0, 0.0), 0.0),
         ProfileVertex::new(p2(w, 0.0), 0.0),
@@ -45,10 +45,39 @@ fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
         .body
 }
 
+/// An axis-aligned box `[x0,x1] × [y0,y1] × [z0,z1]`, extruded from a
+/// sketch plane at `z0` (R2's `brick`; shared with the review rows).
+pub(crate) fn brick(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(x0, y0), 0.0),
+        ProfileVertex::new(p2(x1, y0), 0.0),
+        ProfileVertex::new(p2(x1, y1), 0.0),
+        ProfileVertex::new(p2(x0, y1), 0.0),
+    ]);
+    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let profile = Profile::new(plane, vec![lp])
+        .validate(tol)
+        .expect("a rectangle is a valid profile");
+    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
+        .expect("a rectangle extrudes")
+        .body
+}
+
+/// `topo::subtract` with the result body pulled out.
+pub(crate) fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+    topo::subtract(a, b, Tol::witness())
+        .expect("the subtraction runs")
+        .body()
+        .expect("a body")
+        .body
+        .clone()
+}
+
 /// **The vessel**: a rectangular meridian revolved a full turn about
 /// the `y` axis — a solid cylinder of radius `r` and height `h`,
 /// bounded by one cylinder wall and two planar caps. The perf fixture.
-fn vessel(r: f64, h: f64) -> Body<f64> {
+pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(p2(0.0, 0.0), 0.0),
         ProfileVertex::new(p2(r, 0.0), 0.0),
@@ -73,7 +102,7 @@ fn vessel(r: f64, h: f64) -> Body<f64> {
 
 /// A tube: the annular meridian revolved a full turn — the curved
 /// two-shell shape the STEP gate is recorded on.
-fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
+pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(p2(ri, 0.0), 0.0),
         ProfileVertex::new(p2(ro, 0.0), 0.0),
@@ -97,7 +126,7 @@ fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
 }
 
 /// A right prism on a polygon.
-fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
+pub(crate) fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         pts.iter()
             .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
@@ -112,7 +141,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 }
 
 /// The planar face whose origin sits at height `y` (the caps).
-fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
+pub(crate) fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
     body.faces()
         .find(|(_, f)| {
             matches!(
@@ -315,13 +344,13 @@ fn opening_two_faces_gives_two_rims_and_one_shell() {
 // ---------------------------------------------------------------------
 
 /// `V(w, d, h)`.
-fn v(w: f64, d: f64, h: f64) -> f64 {
+pub(crate) fn v(w: f64, d: f64, h: f64) -> f64 {
     w * d * h
 }
 
 /// The `boxy(2, 3, 4)` box shelled at `0.25`: one solid, two shells,
 /// the hollow operand every row below starts from.
-fn hollow_box() -> Body<f64> {
+pub(crate) fn hollow_box() -> Body<f64> {
     topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, Tol::witness())
         .expect("the first shell is the sealed row's own green")
         .body
@@ -329,7 +358,7 @@ fn hollow_box() -> Body<f64> {
 
 /// The operand's (outer, void) shell keys, decided through the shell
 /// classifier on the operand itself.
-fn outer_and_void(body: &Body<f64>) -> (ShellKey, ShellKey) {
+pub(crate) fn outer_and_void(body: &Body<f64>) -> (ShellKey, ShellKey) {
     let roles = topo::classify_shells(body, Tol::witness()).expect("the operand classifies");
     let pick = |role: ShellRole| {
         let hits: Vec<ShellKey> = roles
@@ -346,7 +375,7 @@ fn outer_and_void(body: &Body<f64>) -> (ShellKey, ShellKey) {
 /// Per SOLID, the shell roles sorted — grouped by `Shell::solid`, not
 /// read as a flat multiset, because tier 3 does not check solid
 /// membership and the grouping is pinned here.
-fn roles_by_solid(body: &Body<f64>) -> Vec<(SolidKey, Vec<ShellRole>)> {
+pub(crate) fn roles_by_solid(body: &Body<f64>) -> Vec<(SolidKey, Vec<ShellRole>)> {
     let roles = topo::classify_shells(body, Tol::witness()).expect("the shells classify");
     body.solids()
         .map(|(solid, _)| {
@@ -509,36 +538,9 @@ fn the_clearance_gate_reads_across_shells() {
 /// `0.4` of material between them and at least `1.0` to every outer
 /// wall — built as two subtractions, the way a user would write it.
 /// Returns the body and the void gap.
-fn two_void_box() -> (Body<f64>, f64) {
-    let tol = Tol::witness();
-    let outer = boxy(6.0, 4.0, 4.0);
-    let void_at = |x0: f64| {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(x0, 1.0), 0.0),
-            ProfileVertex::new(p2(x0 + 1.2, 1.0), 0.0),
-            ProfileVertex::new(p2(x0 + 1.2, 3.0), 0.0),
-            ProfileVertex::new(p2(x0, 3.0), 0.0),
-        ]);
-        let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
-        let profile = Profile::new(plane, vec![lp])
-            .validate(tol)
-            .expect("a rectangle is a valid profile");
-        extrude(&profile, Extrusion::Distance(2.0), tol)
-            .expect("a rectangle extrudes")
-            .body
-    };
-    let one = topo::subtract(&outer, &void_at(1.0), tol)
-        .expect("the first void subtracts")
-        .body()
-        .expect("a body")
-        .body
-        .clone();
-    let two = topo::subtract(&one, &void_at(2.6), tol)
-        .expect("the second void subtracts from the hollow body")
-        .body()
-        .expect("a body")
-        .body
-        .clone();
+pub(crate) fn two_void_box() -> (Body<f64>, f64) {
+    let one = cut(&boxy(6.0, 4.0, 4.0), &brick(1.0, 2.2, 1.0, 3.0, 1.0, 3.0));
+    let two = cut(&one, &brick(2.6, 3.8, 1.0, 3.0, 1.0, 3.0));
     assert_eq!(two.solids().count(), 1, "one solid");
     assert_eq!(two.shells().count(), 3, "outer plus two voids");
     (two, 0.4)
@@ -730,8 +732,18 @@ fn opening_the_hollow_boxs_outer_top_cups_the_outer_wall_only() {
         props.volume
     );
     assert_eq!(opened.naming.rims.len(), 1);
+    assert_eq!(opened.naming.rims[0].side, RimSide::Outer);
     assert_eq!(opened.naming.rims[0].rim, top);
     assert_eq!(opened.naming.thickened, sealed.naming.thickened);
+    assert!(
+        opened.naming.dead.shells.is_empty()
+            || opened.naming.dead.shells.iter().all(|s| !opened
+                .naming
+                .thickened
+                .iter()
+                .any(|(_, k)| k == s)),
+        "an outer designation retires no operand shell: the cavity twin dies"
+    );
     assert_eq!(
         body.get_shell(void).expect("the void survives").faces,
         hollow.get_shell(void).expect("the operand void").faces,
@@ -787,6 +799,11 @@ fn opening_the_hollow_boxs_void_ceiling_cups_the_inner_wall_only() {
     let record = &opened.naming;
     assert_eq!(record.rims.len(), 1);
     let rim_row = &record.rims[0];
+    assert_eq!(
+        rim_row.side,
+        RimSide::Void,
+        "the record says which reading its rows take"
+    );
     assert_eq!(rim_row.sources, vec![ceiling]);
     assert!(
         body.get_face(ceiling).is_none(),
@@ -815,6 +832,25 @@ fn opening_the_hollow_boxs_void_ceiling_cups_the_inner_wall_only() {
     );
     assert_eq!(rim_row.ring_edges.len(), 4);
     assert_eq!(record.thickened, sealed.naming.thickened);
+    // `thickened` is historical: the void's row names the shell the
+    // surgery just fused away, and `dead.shells` is where that shows.
+    let void_row = record
+        .thickened
+        .iter()
+        .find(|(_, s)| *s == void)
+        .expect("the void's thickened row");
+    assert!(
+        record.dead.shells.contains(&void_row.1),
+        "the row names a retired shell"
+    );
+    assert!(
+        body.get_shell(void_row.1).is_none(),
+        "and the body no longer resolves it"
+    );
+    assert!(
+        body.get_solid(void_row.0).is_some(),
+        "while its solid column stays live"
+    );
 }
 
 /// **No crossing machinery** over the hollow composition: the verdict
@@ -1597,6 +1633,59 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
                 "{what}: the wall's closed form is {want}, got {}",
                 props.volume
             );
+        }
+    }
+}
+
+/// **The opened arm on the oblique planar prisms** — the lift's door
+/// on an ALL-PLANAR body. The cavity of these prisms goes through
+/// `offset_planes_together` (every plane moving, each corner solved
+/// against all of them); the lift moves ONE chart and goes through the
+/// per-chart door, which re-describes the moved plane's boundary
+/// against its UNTOUCHED neighbours — one plane against two fixed ones
+/// is exact at every corner, oblique or not, which is why the
+/// composed-door defect (#1081: a corner transported once per moving
+/// chart) cannot arise here. Measured: the three prisms open to their
+/// closed forms (the sealed wall plus the lid, the inset footprint's
+/// area times `t`). The axial branch of the lift exists for CURVED
+/// neighbours, where re-anchoring a rim is not a plane intersection.
+#[test]
+fn oblique_planar_prisms_open_at_their_cap() {
+    let tol = Tol::witness();
+    let t = 0.02;
+    let bevel = vec![(0.0, 0.0), (0.4, 0.0), (0.3, 0.3), (0.0, 0.3)];
+    let kite = vec![(0.0, 0.0), (0.2, -0.1), (0.4, 0.0), (0.2, 0.3)];
+    let triangle = vec![(0.0, 0.0), (0.3, 0.0), (0.15, 0.26)];
+    for (what, pts) in [
+        ("a box with ONE bevelled side (135 deg)", bevel),
+        ("a kite (no right angle anywhere)", kite),
+        ("a triangle (58/58/64)", triangle),
+    ] {
+        let body = prism(&pts, 0.25);
+        let cap = plane_face_at(&body, 0.25);
+        match topo::shell_open(&body, t, &[cap], tol) {
+            Ok(s) => {
+                let props = topo::mass_properties(&s.body, tol).expect("props");
+                // The sealed wall plus the lid: the footprint's inset
+                // polygon times `t`.
+                let want = shoelace(&pts) * 0.25 - shoelace(&inset(&pts, t)) * (0.25 - t);
+                println!(
+                    "[oblique-open] {what}: BUILDS tier3={:?} volume={} want={want}",
+                    topo::validate_geometric(&s.body, tol),
+                    props.volume
+                );
+                assert_eq!(
+                    topo::validate_geometric(&s.body, tol),
+                    Ok(()),
+                    "{what}: tier 3"
+                );
+                assert!(
+                    (props.volume - want).abs() <= 1e-12,
+                    "{what}: the cup's closed form is {want}, got {}",
+                    props.volume
+                );
+            }
+            Err(e) => panic!("{what}: an all-planar cap lifts through the per-chart door, got {e}"),
         }
     }
 }

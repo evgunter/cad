@@ -2,8 +2,9 @@
 id: shell-clearance-gate-reads-operand-footprints-not-offset-footprints
 kind: issue
 title: wall_clearance tests the OPERAND's footprints, but an inward offset grows past a concave edge by t: an S-bend column (pre-existing) and two diagonally offset voids (common after SHELL-5) shell silently with crossing twins
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-08
 ---
 
 
@@ -44,3 +45,17 @@ class. A gate that grows each footprint by `t` before the separation
 test (or reads the moved clone's footprints after the offset, which is
 SHELL-4's certificate one dimension down) closes it; the probe rows
 above are pinned to the current silent build and go red when it does.
+
+## Closed
+
+Closed in PR 2159's fix pass (2026-09-08). `footprints_may_overlap`
+(`crates/topo/src/shell.rs`) now grows each face's projected footprint
+box by `t` on every side before the separation decide — the footprint
+an inward offset has past a concave edge, and an over-read at a convex
+one (#571 direction). Rows: `shell5_r1_probes::r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate`
+and `r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it`
+(the S-bend at `t = 0.09` still builds, twins uncrossed — the growth is
+exactly `t`, not a box inflation), `shell5_r2_probes::r2_diagonal_voids_refuse_at_the_grown_footprint_gate`
+and `r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand`
+(which also pins the notched body's closed form at `t = 0.1`). Every
+existing shell fixture and the tour's shelled scenes still build.

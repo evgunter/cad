@@ -209,6 +209,12 @@ impl<T: Decide> Body<T> {
     /// faces stay in one shell and every shell's complex is untouched;
     /// both solids keep at least one shell (pass 9's floor).
     ///
+    /// **Ownership, not material coherence.** Nothing here reads which
+    /// shell is an outer boundary and which a cavity: moving a lone
+    /// void mints a solid with no outer shell, and tier 3 accepts it
+    /// (`shell5_r2_probes::r2_the_new_door_mints_a_solid_with_no_outer_shell`).
+    /// A caller owns the pairing it moves.
+    ///
     /// # Errors
     ///
     /// All checks precede any mutation (atomic).

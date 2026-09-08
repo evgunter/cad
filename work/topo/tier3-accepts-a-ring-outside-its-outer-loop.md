@@ -33,3 +33,4 @@ case typed (`"the designated face's hole does not sit inside the
 cavity counterpart's"`, measured on the same mutant). The fix is a
 nesting decide (the `encloses` shape) either in check 9 or as a second
 precondition of the glue, and the comment corrected either way.
+Placed by the SHELL orchestrator (2026-09-08).

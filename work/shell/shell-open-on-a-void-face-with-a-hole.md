@@ -2,8 +2,9 @@
 id: shell-open-on-a-void-face-with-a-hole
 kind: issue
 title: shell_open on a void face carrying a hole is unmeasured
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-08
 ---
 
 
@@ -24,3 +25,16 @@ the workspace has no void with a pillar through it. Until a row builds
 one — a holed box subtracted from a bigger box, then the void's holed
 ceiling designated — the path's correctness rests on tier 3's windings
 at the verb's closing `validate_geometric`, not on a closed form.
+
+## Closed
+
+Closed in PR 2159's fix pass (2026-09-08): both reviewers built the
+pillar-through-a-void fixture and opened its holed ceiling green with
+the closed form. The adopted row is
+`shell5_r1_probes::r1p6_open_a_void_ceiling_with_a_pillar_through_it`
+(a `4³` box minus a `2×2×2` box carrying a `0.4×0.4` pillar, `t = 0.1`:
+tier 3, volume `[4³ − 3.8³] + [(2.2³ − 0.2²·2.2) − (2²·2 − 0.4²·2)] −
+(2.2² − 0.2²)·0.1 = 11.528`, one rim and one hole rim both facing the
+gap, the designated face dead, the operand void fused away, and the
+body tessellates); R2's `6×6×4` build of the same fixture measured the
+same shape.

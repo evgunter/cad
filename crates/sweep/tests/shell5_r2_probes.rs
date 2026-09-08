@@ -9,56 +9,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tol, Vec2, Vec3};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, LoopBoundary, ShellKey, ShellRole};
+use sweep::{Revolution, RevolveAxis, revolve};
+use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
+
+use crate::verbs_shell::{boxy, brick, cut, two_void_box};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-/// A `w x d x h` box at the origin.
-fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(w, 0.0), 0.0),
-        ProfileVertex::new(p2(w, d), 0.0),
-        ProfileVertex::new(p2(0.0, d), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a rectangle extrudes")
-        .body
-}
-
-/// An axis-aligned box `[x0,x1] x [y0,y1] x [z0,z1]` as a body.
-fn brick(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(x0, y0), 0.0),
-        ProfileVertex::new(p2(x1, y0), 0.0),
-        ProfileVertex::new(p2(x1, y1), 0.0),
-        ProfileVertex::new(p2(x0, y1), 0.0),
-    ]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(tol)
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .expect("a rectangle extrudes")
-        .body
-}
-
-fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    topo::subtract(a, b, Tol::witness())
-        .expect("the subtraction runs")
-        .body()
-        .expect("a body")
-        .body
-        .clone()
 }
 
 fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
@@ -93,34 +52,19 @@ fn shell_box(body: &Body<f64>, shell: ShellKey) -> [(f64, f64); 3] {
     out
 }
 
-fn overlap(a: [(f64, f64); 3], b: [(f64, f64); 3]) -> f64 {
-    let mut vol = 1.0;
-    for i in 0..3 {
-        let lo = a[i].0.max(b[i].0);
-        let hi = a[i].1.min(b[i].1);
-        if hi <= lo {
-            return 0.0;
-        }
-        vol *= hi - lo;
-    }
-    vol
-}
-
 // ---------------------------------------------------------------------
 // Claim 3: `wall_clearance` is NOT sufficient on planar hollow operands
 // ---------------------------------------------------------------------
 
 /// **Two voids offset DIAGONALLY.** Facing walls are `g` apart with
-/// `g < 2t`, but the facing faces' projected footprints are disjoint on
-/// the operand, so `footprints_may_overlap` skips both pairs and the
-/// gate says nothing. The dilated twins nevertheless grow by `t` on
-/// EVERY side and interpenetrate. Measured: the verb builds, tier 3 is
-/// green, and two thin solids of the result claim the same material.
-///
-/// This row asserts the DEFECT. It goes red the day a clearance
-/// certificate reads the moved body (issue #1055 / SHELL-4).
+/// `g < 2t`, and the facing faces' projected footprints are disjoint
+/// on the OPERAND — but the dilated twins grow by `t` on every side
+/// and would interpenetrate, so the gate grows each footprint by `t`
+/// before the separation test and refuses the pair. (R2's row; written
+/// when the gate read the operand's footprints, built this, and
+/// counted the `0.2 × 0.1 × 2.6` crossing twice in the volume.)
 #[test]
-fn r2_diagonal_voids_slip_the_clearance_gate_and_cross() {
+fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     let tol = Tol::witness();
     let outer = boxy(6.0, 4.0, 4.0);
     // A: x 1.0..2.5, y 0.8..1.8   B: x 2.9..4.4, y 2.3..3.3, both z 1..3.
@@ -131,67 +75,36 @@ fn r2_diagonal_voids_slip_the_clearance_gate_and_cross() {
     let voids = void_shells(&body);
     assert_eq!(voids.len(), 2);
 
-    // The facing walls are 0.4 apart in x and 0.5 apart in y; 2t = 0.6
-    // exceeds both. The gate does not fire.
+    // The facing walls are 0.4 apart in x with footprints 0.5 apart in
+    // y; 2t = 0.6 exceeds both, so the grown footprints overlap and
+    // the gap is short.
     let t = 0.3;
-    let shelled = topo::shell(&body, t, tol).expect("MEASURED: the gate lets this through");
-    let out = &shelled.body;
-    assert_eq!(
-        topo::validate_geometric(out, tol),
-        Ok(()),
-        "tier 3 is green"
-    );
-    assert_eq!(out.solids().count(), 3);
-    assert_eq!(out.shells().count(), 6);
-
-    // The two dilated twins occupy a common box.
-    let twins: Vec<ShellKey> = shelled
-        .naming
-        .thickened
-        .iter()
-        .filter(|(_, s)| voids.contains(s))
-        .map(|(solid, _)| {
-            let shells = &out.get_solid(*solid).expect("a thin solid").shells;
-            shells[0]
-        })
-        .collect();
-    assert_eq!(twins.len(), 2, "one twin per void");
-    let (a, b) = (shell_box(out, twins[0]), shell_box(out, twins[1]));
-    let common = overlap(a, b);
+    let e = topo::shell(&body, t, tol).expect_err("the diagonal pair is read as facing");
+    let ShellError::WallClearance {
+        face, other, gap, ..
+    } = e
+    else {
+        panic!("expected the wall-clearance gate, got {e}");
+    };
     assert!(
-        common > 1e-9,
-        "MEASURED DEFECT: the twins are disjoint after all — a={a:?} b={b:?}"
+        (gap - 0.4).abs() < 1e-9,
+        "the facing walls are 0.4 apart, got {gap}"
     );
-    assert!(
-        (common - 0.2 * 0.1 * 2.6).abs() < 1e-9,
-        "the crossing region is 0.2 x 0.1 x 2.6, got {common}"
-    );
-
-    // The reported volume is the naive sum of three walls: the crossing
-    // region is counted twice.
-    let props = topo::mass_properties(out, tol).expect("props");
-    let naive = (6.0 * 4.0 * 4.0 - 5.4 * 3.4 * 3.4)
-        + (2.1 * 1.6 * 2.6 - 1.5 * 1.0 * 2.0)
-        + (2.1 * 1.6 * 2.6 - 1.5 * 1.0 * 2.0);
-    assert!(
-        (props.volume - naive).abs() < 1e-9,
-        "got {}, naive sum {naive}",
-        props.volume
-    );
-    assert!(
-        (props.volume - (naive - common)).abs() > 1e-3,
-        "the double count is real"
-    );
+    let shell_of = |f: topo::FaceKey| body.get_face(f).expect("an operand face").shell;
+    assert!(voids.contains(&shell_of(face)) && voids.contains(&shell_of(other)));
+    assert_ne!(shell_of(face), shell_of(other), "one face of each void");
 }
 
 /// **The same class WITHOUT a void.** Two notches cut in from opposite
 /// sides of one box, offset diagonally: a single-shell, non-convex
-/// operand. The concave faces grow inward exactly as a void's do, the
-/// footprint test skips the same two pairs, and the offset planes
-/// cross. Placed here so the finding above reads as a PRE-EXISTING gate
-/// defect this unit makes generic, not as one this unit introduced.
+/// operand. The concave faces grow inward exactly as a void's do, so
+/// the grown-footprint gate reads the same two pairs as facing and
+/// refuses. Placed here so the class reads as a PRE-EXISTING gate
+/// defect this unit made generic and then closed, not one it
+/// introduced. (R2's row; at the merge base this built and subtracted
+/// the `0.052` crossing twice.)
 #[test]
-fn r2_the_same_gate_hole_exists_on_a_single_shell_notched_operand() {
+fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     let tol = Tol::witness();
     let outer = boxy(6.0, 4.0, 4.0);
     let one = cut(&outer, &brick(1.0, 2.5, -1.0, 1.8, 1.0, 3.0));
@@ -200,24 +113,24 @@ fn r2_the_same_gate_hole_exists_on_a_single_shell_notched_operand() {
     assert_eq!(body.shells().count(), 1, "notches, not voids");
 
     let t = 0.3;
-    let shelled = topo::shell(&body, t, tol).expect("MEASURED: the gate lets this through too");
-    let out = &shelled.body;
-    assert_eq!(topo::validate_geometric(out, tol), Ok(()), "tier 3 green");
-    let props = topo::mass_properties(out, tol).expect("props");
-    // Erode every plane by t. The two concave end faces (y = 1.8 -> 2.1
-    // and y = 2.3 -> 2.0) and the two concave side faces (x = 2.5 ->
-    // 2.8 and x = 2.9 -> 2.6) cross over the box
-    // x 2.6..2.8, y 2.0..2.1, z 0.7..3.3 — volume 0.052 — which the
-    // eroded body subtracts TWICE.
+    let e = topo::shell(&body, t, tol).expect_err("the notches' concave faces are read as facing");
+    assert!(matches!(e, ShellError::WallClearance { .. }), "got {e}");
+    // Below the wall it builds: at t = 0.1 the notch walls (0.4 apart
+    // in x, footprints 0.5 apart in y) clear.
+    let s = topo::shell(&body, 0.1, tol).expect("clear of every wall");
+    assert_eq!(topo::validate_geometric(&s.body, tol), Ok(()));
+    let props = topo::mass_properties(&s.body, tol).expect("props");
+    // Erode every plane by t: the box to 5.8 × 3.8 × 3.8, each notch
+    // grown by t on its three material sides and running from the
+    // eroded outer face it opens on (notch 1: x 0.9..2.6, y 0.1..1.9;
+    // notch 2: x 2.8..4.5, y 2.2..3.9; both z 0.9..3.1).
     let operand = 96.0 - 1.5 * 1.8 * 2.0 - 1.5 * 1.7 * 2.0;
-    let eroded_naive = 5.4 * 3.4 * 3.4 - 2.1 * 1.8 * 2.6 - 2.1 * 1.7 * 2.6;
-    let crossing = 0.2 * 0.1 * 2.6;
+    let eroded = 5.8 * 3.8 * 3.8 - 1.7 * 1.8 * 2.2 - 1.7 * 1.7 * 2.2;
     assert!(
-        (props.volume - (operand - eroded_naive)).abs() < 1e-9,
-        "MEASURED DEFECT: got {}, naive {} (true set {})",
+        (props.volume - (operand - eroded)).abs() < 1e-9,
+        "got {}, want {}",
         props.volume,
-        operand - eroded_naive,
-        operand - eroded_naive - crossing
+        operand - eroded
     );
 }
 
@@ -258,8 +171,12 @@ fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
 /// and the two thin solids cross.
 ///
 /// This row asserts the DEFECT the module docs describe ("on a hollow
-/// operand the window is the whole moved clone"). It goes red when
-/// #1055 / SHELL-4's certificate lands.
+/// operand the window is the whole moved clone") and is SELF-RETIRING:
+/// it goes red the day SHELL-4's clearance certificate (#1055) refuses
+/// a curved thin wall, and is rewritten as that refusal then. R2's
+/// row; R1 measured the same class on a revolved vessel with a
+/// cylindrical cavity (`r = 0.9`, `t = 0.08`: twins at 0.92 and 0.98,
+/// crossed, tier 3 green).
 #[test]
 fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
     let tol = Tol::witness();
@@ -338,7 +255,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 /// classify to two `Outer` and one `Void` — the island inside B's
 /// cavity filed as a shell of A's solid. The verb refuses it typed,
 /// so the variant is reachable from the public doors and is not dead
-/// code.
+/// code. (R2's row; R1's `r1p5` measured the same body.)
 #[test]
 fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
     let tol = Tol::witness();
@@ -360,90 +277,6 @@ fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
 }
 
 // ---------------------------------------------------------------------
-// The end-to-end exercise: hollow, hollow again, open the inner wall
-// ---------------------------------------------------------------------
-
-/// A consumer's seat: hollow a part, hollow it again, then open the
-/// inner wall — and measure, mesh and export what comes back.
-#[test]
-fn r2_e2e_hollow_twice_then_open_the_inner_wall() {
-    let tol = Tol::witness();
-    let part = boxy(2.0, 3.0, 4.0);
-    let once = topo::shell(&part, 0.25, tol).expect("first hollow").body;
-    let twice = topo::shell(&once, 0.05, tol).expect("second hollow");
-    let body = &twice.body;
-    println!(
-        "sealed: {} solids, {} shells, volume {}",
-        body.solids().count(),
-        body.shells().count(),
-        topo::mass_properties(body, tol).expect("props").volume
-    );
-
-    // Designate the void's ceiling — the inner wall's top.
-    let voids = void_shells(&once);
-    assert_eq!(voids.len(), 1);
-    let ceiling = once
-        .get_shell(voids[0])
-        .expect("the void")
-        .faces
-        .iter()
-        .copied()
-        .find(|f| {
-            matches!(
-                once.get_surface(once.get_face(*f).expect("a face").surface),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.z - 3.75).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
-            )
-        })
-        .expect("the void ceiling at z = 3.75");
-    let opened = topo::shell_open(&once, 0.05, &[ceiling], tol).expect("the inner wall opens");
-    let out = &opened.body;
-    assert_eq!(topo::validate_geometric(out, tol), Ok(()), "tier 3");
-    println!(
-        "opened: {} solids, {} shells, volume {}, rims {}, thickened {:?}",
-        out.solids().count(),
-        out.shells().count(),
-        topo::mass_properties(out, tol).expect("props").volume,
-        opened.naming.rims.len(),
-        opened.naming.thickened.len()
-    );
-
-    // What can a consumer do with it?
-    // The record's `thickened` row for the void names a shell key the
-    // rim surgery has since KILLED (the void fuses into its twin). The
-    // field's docs do not say so, where `inner`'s do.
-    let dead_named: Vec<_> = opened
-        .naming
-        .thickened
-        .iter()
-        .filter(|(_, s)| opened.naming.dead.shells.contains(s))
-        .collect();
-    println!("thickened rows naming a DEAD shell: {dead_named:?}");
-    assert_eq!(dead_named.len(), 1, "the void row names a dead shell");
-
-    let meshed = mesh::tessellate(out, 0.05, tol);
-    println!(
-        "mesh: {:?}",
-        meshed
-            .as_ref()
-            .map(|m| m.patches.len())
-            .map_err(|e| format!("{e}"))
-    );
-    let step = step_export::step_string(
-        out,
-        &step_export::StepOptions {
-            product_name: "twice-hollowed part".into(),
-            ..Default::default()
-        },
-        tol,
-    );
-    println!(
-        "step: {:?}",
-        step.as_ref().map(|s| s.len()).map_err(|e| format!("{e}"))
-    );
-}
-
-// ---------------------------------------------------------------------
 // Claim 4: the grouping is pinned; is the PAIRING?
 // ---------------------------------------------------------------------
 
@@ -456,14 +289,13 @@ fn r2_e2e_hollow_twice_then_open_the_inner_wall() {
 ///
 /// This row reads the pairing itself, through the public record: every
 /// face of a thin solid's OTHER shell must be an `inner` twin whose
-/// SOURCE face belongs to that solid's own operand void.
+/// SOURCE face belongs to that solid's own operand void. MUTANT-KILLER
+/// (R2's row): pairing each void with the NEXT void's twin passes every
+/// other row in the tree and reds here.
 #[test]
 fn r2_each_thin_solid_pairs_its_own_voids_twin() {
     let tol = Tol::witness();
-    let outer = boxy(6.0, 4.0, 4.0);
-    let one = cut(&outer, &brick(1.0, 2.2, 1.0, 3.0, 1.0, 3.0));
-    let body = cut(&one, &brick(3.8, 5.0, 1.0, 3.0, 1.0, 3.0));
-    assert_eq!(body.shells().count(), 3, "outer plus two voids");
+    let (body, _) = two_void_box();
     let voids = void_shells(&body);
     assert_eq!(voids.len(), 2);
 
@@ -501,182 +333,6 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
             );
         }
     }
-}
-
-// ---------------------------------------------------------------------
-// Claim 6: the hole path on a VOID face (the residue file's case)
-// ---------------------------------------------------------------------
-
-/// **A void with a pillar through it**, so the void's ceiling is a
-/// holed face — the case `work/shell/shell-open-on-a-void-face-with-a-
-/// hole.md` records as unmeasured. Built by subtracting a holed slab.
-#[test]
-fn r2_open_a_holed_void_ceiling() {
-    let tol = Tol::witness();
-    let outer_lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, 1.0), 0.0),
-        ProfileVertex::new(p2(5.0, 1.0), 0.0),
-        ProfileVertex::new(p2(5.0, 5.0), 0.0),
-        ProfileVertex::new(p2(1.0, 5.0), 0.0),
-    ]);
-    let hole_lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.5, 2.5), 0.0),
-        ProfileVertex::new(p2(2.5, 3.5), 0.0),
-        ProfileVertex::new(p2(3.5, 3.5), 0.0),
-        ProfileVertex::new(p2(3.5, 2.5), 0.0),
-    ]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
-    let profile = Profile::new(plane, vec![outer_lp, hole_lp])
-        .validate(tol)
-        .expect("a holed rectangle is a valid profile");
-    let tool = extrude(&profile, Extrusion::Distance(2.0), tol)
-        .expect("the holed rectangle extrudes")
-        .body;
-    let body = cut(&boxy(6.0, 6.0, 4.0), &tool);
-    println!(
-        "holed-void operand: {} solids, {} shells",
-        body.solids().count(),
-        body.shells().count()
-    );
-    let voids = void_shells(&body);
-    println!("voids: {}", voids.len());
-    assert_eq!(voids.len(), 1, "one void, with a pillar through it");
-
-    // The void's ceiling at z = 3, holed by the pillar.
-    let ceiling = body
-        .get_shell(voids[0])
-        .expect("the void")
-        .faces
-        .iter()
-        .copied()
-        .find(|f| {
-            let d = body.get_face(*f).expect("a face");
-            !d.rings.is_empty()
-                && matches!(
-                    body.get_surface(d.surface),
-                    Some(geom::Surface::Plane { origin, normal, .. })
-                        if (origin.z - 3.0).abs() < 1e-9
-                            && normal.x.abs() < 1e-9
-                            && normal.y.abs() < 1e-9
-                )
-        })
-        .expect("a holed ceiling at z = 3");
-
-    match topo::shell_open(&body, 0.2, &[ceiling], tol) {
-        Ok(opened) => {
-            let out = &opened.body;
-            println!(
-                "MEASURED Ok: {} solids, {} shells, tier3 {:?}, volume {}, holes {}",
-                out.solids().count(),
-                out.shells().count(),
-                topo::validate_geometric(out, tol),
-                topo::mass_properties(out, tol).expect("props").volume,
-                opened.naming.rims.first().map_or(0, |r| r.holes.len())
-            );
-        }
-        Err(e) => println!("MEASURED refusal: {e}"),
-    }
-}
-
-// ---------------------------------------------------------------------
-// Claim 7: is the OLD (single-shell) domain byte-identical?
-// ---------------------------------------------------------------------
-
-/// **A body-level differential over a wider single-shell corpus.** The
-/// PR cites `verbs_shell::r2_probe_other_two_passes_dump`, which prints
-/// `validate_pseudomanifold` / `contact_marks` VERDICTS over six
-/// bodies — not the shelled bodies themselves. This row writes a
-/// bit-faithful dump of every shelled body over a corpus that reaches
-/// all three offset doors (all-planar, axial, per-chart) and both arms
-/// (sealed, opened), so the claim can actually be diffed.
-///
-/// Unarmed without `BITDUMP_DIR`, exactly as `bitdump.rs`'s rows.
-#[test]
-fn r2_bitdump_single_shell_shell_corpus() {
-    let Some(dir) = std::env::var("BITDUMP_DIR").ok().filter(|d| !d.is_empty()) else {
-        return;
-    };
-    let tol = Tol::witness();
-    let mut text = String::new();
-    let mut row = |name: &str, body: &Body<f64>, t: f64, open: &[usize]| {
-        use std::fmt::Write as _;
-        let faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
-        let picked: Vec<topo::FaceKey> = open.iter().map(|&i| faces[i]).collect();
-        let _ = writeln!(text, "== {name} t={t} open={open:?} ==");
-        match topo::shell_open(body, t, &picked, tol) {
-            Ok(s) => {
-                let _ = writeln!(text, "{}", crate::bitdump::dump(&s.body));
-                let _ = writeln!(
-                    text,
-                    "naming outer={} inner={} rims={} dead_faces={}",
-                    s.naming.outer.len(),
-                    s.naming.inner.len(),
-                    s.naming.rims.len(),
-                    s.naming.dead.faces.len()
-                );
-                let _ = writeln!(
-                    text,
-                    "props {:?}",
-                    topo::mass_properties(&s.body, tol).map(|p| p.volume)
-                );
-                let _ = writeln!(text, "tier3 {:?}", topo::validate_geometric(&s.body, tol));
-            }
-            Err(e) => {
-                let _ = writeln!(text, "REFUSED {e}");
-            }
-        }
-    };
-    // all-planar door, sealed and opened
-    row("boxy", &boxy(2.0, 3.0, 4.0), 0.25, &[]);
-    row("boxy_open0", &boxy(2.0, 3.0, 4.0), 0.25, &[0]);
-    row("boxy_open01", &boxy(2.0, 3.0, 4.0), 0.2, &[0, 1]);
-    row("brick_thin", &brick(0.0, 1.0, 0.0, 1.0, 0.0, 5.0), 0.1, &[]);
-    // an L prism — a concave outer shell, the per-chart corner class
-    let l = {
-        let pts = [
-            (0.0, 0.0),
-            (4.0, 0.0),
-            (4.0, 1.5),
-            (1.5, 1.5),
-            (1.5, 4.0),
-            (0.0, 4.0),
-        ];
-        let lp = ProfileLoop::new(
-            pts.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-                .collect(),
-        );
-        let profile = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol)
-            .expect("an L is a valid profile");
-        extrude(&profile, Extrusion::Distance(2.0), tol)
-            .expect("an L extrudes")
-            .body
-    };
-    row("l_prism", &l, 0.2, &[]);
-    row("l_prism_open0", &l, 0.2, &[0]);
-    // an oblique prism — the simultaneous planar door's own class
-    let oblique = {
-        let pts = [(0.0, 0.0), (3.0, 0.0), (2.0, 2.0), (0.4, 1.6)];
-        let lp = ProfileLoop::new(
-            pts.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-                .collect(),
-        );
-        let profile = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol)
-            .expect("valid");
-        extrude(&profile, Extrusion::Distance(2.0), tol)
-            .expect("extrudes")
-            .body
-    };
-    row("oblique", &oblique, 0.15, &[]);
-    // axial door
-    row("vessel", &can(1.0, 0.0, 2.0), 0.2, &[]);
-    row("vessel_open0", &can(1.0, 0.0, 2.0), 0.2, &[0]);
-    row("vessel_thin", &can(0.4, 0.0, 3.0), 0.05, &[]);
-    std::fs::create_dir_all(&dir).expect("the dump dir");
-    std::fs::write(format!("{dir}/shell5_r2_single_shell.txt"), &text).expect("write");
 }
 
 // ---------------------------------------------------------------------

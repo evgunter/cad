@@ -17,9 +17,10 @@ use geom_core::{Affine3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
-    Body, FaceKey, LoopBoundary, ShellError, ShellKey, ShellRole, SolidKey, VoidContainment,
-    VoidEvidence, insert_void,
+    Body, FaceKey, ShellError, ShellKey, ShellRole, VoidContainment, VoidEvidence, insert_void,
 };
+
+use crate::verbs_shell::{brick, prism, roles_by_solid, v};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -31,33 +32,7 @@ fn tol() -> Tol {
 
 /// A `w × d × h` box with its min corner at `(x0, y0, z0)`.
 fn boxy_at(x0: f64, y0: f64, z0: f64, w: f64, d: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(x0, y0), 0.0),
-        ProfileVertex::new(p2(x0 + w, y0), 0.0),
-        ProfileVertex::new(p2(x0 + w, y0 + d), 0.0),
-        ProfileVertex::new(p2(x0, y0 + d), 0.0),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(tol())
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), tol())
-        .expect("a rectangle extrudes")
-        .body
-}
-
-fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("a polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), tol())
-        .expect("a polygon extrudes")
-        .body
+    brick(x0, x0 + w, y0, y0 + d, z0, z0 + h)
 }
 
 /// A meridian polyline revolved a full turn about the sketch's `+y`
@@ -162,44 +137,6 @@ fn face_on(body: &Body<f64>, shell: ShellKey, n: (f64, f64, f64), c: f64) -> Fac
     hits[0]
 }
 
-/// Every boundary point of a face.
-fn face_points(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
-    let data = body.get_face(face).expect("the face");
-    let mut out = Vec::new();
-    for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("the loop").boundary else {
-            continue;
-        };
-        for he in body.loop_cycle(first).expect("the cycle") {
-            let v = body.get_half_edge(he).expect("he").start;
-            let p = body.get_vertex(v).expect("v").point;
-            out.push(*body.get_point(p).expect("point"));
-        }
-    }
-    out
-}
-
-fn extent(pts: &[Point3<f64>], axis: fn(&Point3<f64>) -> f64) -> (f64, f64) {
-    let lo = pts.iter().map(axis).fold(f64::INFINITY, f64::min);
-    let hi = pts.iter().map(axis).fold(f64::NEG_INFINITY, f64::max);
-    (lo, hi)
-}
-
-fn roles_by_solid(body: &Body<f64>) -> Vec<(SolidKey, Vec<ShellRole>)> {
-    let roles = topo::classify_shells(body, tol()).expect("the shells classify");
-    body.solids()
-        .map(|(solid, _)| {
-            let mut kinds: Vec<ShellRole> = roles
-                .iter()
-                .filter(|c| c.solid == solid)
-                .map(|c| c.role)
-                .collect();
-            kinds.sort_by_key(|r| format!("{r:?}"));
-            (solid, kinds)
-        })
-        .collect()
-}
-
 fn roles(body: &Body<f64>) -> (ShellKey, Vec<ShellKey>) {
     let rows = topo::classify_shells(body, tol()).expect("classifies");
     let outer: Vec<ShellKey> = rows
@@ -216,21 +153,21 @@ fn roles(body: &Body<f64>) -> (ShellKey, Vec<ShellKey>) {
     (outer[0], voids)
 }
 
-fn v(w: f64, d: f64, h: f64) -> f64 {
-    w * d * h
-}
-
 // ---------------------------------------------------------------------
 // Claim 3: the clearance gate reads the OPERAND's footprints, and a
 // void's dilated faces grow by `t` on every side.
 // ---------------------------------------------------------------------
 
 /// **Two voids offset diagonally.** Facing walls `g = 0.2` apart whose
-/// footprints are disjoint by `δ = 0.1` in `y`; at `t = 0.15` both are
-/// below `2t = 0.3`, so the dilated twins cross — but the gate tests
-/// the operand's footprints, which do not overlap, and never looks.
+/// operand footprints are disjoint by `δ = 0.1` in `y`; at `t = 0.15`
+/// both are below `2t = 0.3`, so the dilated twins would cross. The
+/// gate grows each footprint by `t` before the separation test — the
+/// footprint an offset has past a concave edge — so the pair is read
+/// as facing and refused. (R1's row; written when the gate read the
+/// operand's footprints and built this silently, crossing twins at
+/// x = 2.35 and x = 2.25.)
 #[test]
-fn r1p3_diagonal_voids_cross_silently() {
+fn r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     let outer = boxy_at(0.0, 0.0, 0.0, 6.0, 4.0, 4.0);
     let v1 = boxy_at(1.0, 1.0, 1.0, 1.2, 1.0, 2.0); // x [1, 2.2], y [1, 2]
     let v2 = boxy_at(2.4, 2.1, 1.0, 1.2, 1.0, 2.0); // x [2.4, 3.6], y [2.1, 3.1]
@@ -240,84 +177,45 @@ fn r1p3_diagonal_voids_cross_silently() {
     let (_, voids) = roles(&body);
     assert_eq!(voids.len(), 2);
     let t = 0.15;
-    // The two facing void walls: void 1's +x wall at x = 2.2 (its
-    // outward normal points OUT of the material, i.e. into the cavity:
-    // −x) and void 2's −x wall at x = 2.4 (outward +x).
-    let a = voids
-        .iter()
-        .find_map(|&s| {
-            body.get_shell(s).unwrap().faces.iter().copied().find(|&f| {
-                let (_, n) = plane_of(&body, f);
-                n.x < -0.5 && (plane_const(&body, f) + 2.2).abs() < 1e-9
-            })
-        })
-        .expect("void 1's +x wall");
-    let b = voids
-        .iter()
-        .find_map(|&s| {
-            body.get_shell(s).unwrap().faces.iter().copied().find(|&f| {
-                let (_, n) = plane_of(&body, f);
-                n.x > 0.5 && (plane_const(&body, f) - 2.4).abs() < 1e-9
-            })
-        })
-        .expect("void 2's −x wall");
-    let ya = extent(&face_points(&body, a), |p| p.y);
-    let yb = extent(&face_points(&body, b), |p| p.y);
-    println!("[measured] operand footprints in y: a {ya:?}, b {yb:?} (disjoint by 0.1)");
-
-    match topo::shell(&body, t, tol()) {
-        Err(e) => println!("[measured] diagonal voids at t={t}: refuses {e}"),
-        Ok(s) => {
-            let out = &s.body;
-            let tier3 = topo::validate_geometric(out, tol());
-            let props = topo::mass_properties(out, tol()).expect("props");
-            // The sum of the three walls as if they did not cross; the
-            // twins' overlap `0.1 × 0.2 × 2.3` is counted twice in it.
-            let naive =
-                (v(6.0, 4.0, 4.0) - v(5.7, 3.7, 3.7)) + 2.0 * (v(1.5, 1.3, 2.3) - v(1.2, 1.0, 2.0));
-            let ta = s.naming.inner_of(a).expect("twin of a");
-            let tb = s.naming.inner_of(b).expect("twin of b");
-            let (oa, _) = plane_of(out, ta);
-            let (ob, _) = plane_of(out, tb);
-            let tya = extent(&face_points(out, ta), |p| p.y);
-            let tyb = extent(&face_points(out, tb), |p| p.y);
-            println!(
-                "[measured] diagonal voids at t={t}: BUILDS; solids={} shells={} tier3={tier3:?} volume={} naive-sum={naive}",
-                out.solids().count(),
-                out.shells().count(),
-                props.volume
-            );
-            println!(
-                "[measured] twin of a at x={} (y {tya:?}); twin of b at x={} (y {tyb:?}) — crossed: {}",
-                oa.x,
-                ob.x,
-                oa.x > ob.x && tya.1 > tyb.0
-            );
-            // Pinned as measured: the twins cross (void 1's twin wall
-            // sits at x = 2.35, void 2's at 2.25, overlapping in y on
-            // [1.95, 2.15]) and nothing refuses. Goes red when a gate
-            // reads the OFFSET footprints (or SHELL-4's certificate
-            // lands); rewrite it as the refusal then.
-            assert!(oa.x > ob.x, "the dilated twins cross in x");
-            assert!(tya.1 > tyb.0 && tyb.1 > tya.0, "and overlap in y");
-            assert_eq!(tier3, Ok(()), "tier 3 does not see it");
-            assert!(
-                (props.volume - naive).abs() < 1e-9,
-                "the props sum the crossing walls"
-            );
-        }
-    }
+    let e = topo::shell(&body, t, tol()).expect_err("the diagonal pair is read as facing");
+    let ShellError::WallClearance {
+        face,
+        other,
+        gap,
+        needed,
+    } = e
+    else {
+        panic!("expected the wall-clearance gate, got {e}");
+    };
+    assert!(
+        (gap - 0.2).abs() < 1e-9,
+        "the facing walls are 0.2 apart, got {gap}"
+    );
+    assert!((needed - 0.3).abs() < 1e-12);
+    let shell_of = |f: FaceKey| body.get_face(f).expect("an operand face").shell;
+    assert!(voids.contains(&shell_of(face)) && voids.contains(&shell_of(other)));
+    assert_ne!(shell_of(face), shell_of(other), "one face of each void");
+    // Below the wall the same body builds: at t = 0.09 the walls need
+    // 0.18 < 0.2 and the grown footprints (disjoint by 0.1 − 0.18 < 0)
+    // overlap, but the gap decide passes.
+    let s = topo::shell(&body, 0.09, tol()).expect("clear of every wall");
+    assert_eq!(topo::validate_geometric(&s.body, tol()), Ok(()));
+    assert_eq!(s.body.solids().count(), 3);
 }
 
-/// **The same class on an OUTER shell, before this PR:** an S-bend
-/// prism whose two risers (x = 1 and x = 0.8) face each other across
-/// `0.2` with footprints disjoint by `0.1` in `y`, and whose two
-/// shelves (y = 0.3 and y = 0.2) face each other across `0.1` with
-/// footprints disjoint by `0.2` in `x`. At `t = 0.12` (`2t = 0.24`)
-/// every pair is below the wall and none is gated. Compiled and run at
-/// the merge base too (see the R1 report).
+/// **The same class on an OUTER shell, pre-existing:** an S-bend prism
+/// whose two risers (x = 1 and x = 0.8) face each other across `0.2`
+/// with footprints disjoint by `0.1` in `y`, and whose two shelves
+/// (y = 0.3 and y = 0.2) face each other across `0.1` with footprints
+/// disjoint by `0.2` in `x`. At `t = 0.12` (`2t = 0.24`) the risers'
+/// grown footprints overlap and the pair refuses; at `t = 0.09`
+/// (`2t = 0.18`) the risers clear their gap and the shelves' grown
+/// footprints (`0.2 − 0.18 = 0.02` apart) stay separated — and the
+/// body builds with its riser twins UNCROSSED, which is what the
+/// growth by exactly `t` buys over a coarser gate. (R1's row; at the
+/// merge base the `t = 0.12` body built with the twins crossed.)
 #[test]
-fn r1p3_outer_shell_s_bend_crosses_silently_pre_existing() {
+fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
     let s_bend = prism(
         &[
             (0.0, 0.0),
@@ -334,132 +232,35 @@ fn r1p3_outer_shell_s_bend_crosses_silently_pre_existing() {
     let (shell, _) = s_bend.shells().next().unwrap();
     let riser_r = face_on(&s_bend, shell, (1.0, 0.0, 0.0), 1.0); // x = 1, y ∈ [0, 0.2]
     let riser_l = face_on(&s_bend, shell, (-1.0, 0.0, 0.0), -0.8); // x = 0.8, y ∈ [0.3, 0.5]
-    for t in [0.09, 0.12] {
-        match topo::shell(&s_bend, t, tol()) {
-            Err(e) => println!("[measured] S-bend at t={t}: refuses {e}"),
-            Ok(s) => {
-                let out = &s.body;
-                let tier3 = topo::validate_geometric(out, tol());
-                let props = topo::mass_properties(out, tol()).expect("props");
-                let (o_r, _) = plane_of(out, s.naming.inner_of(riser_r).unwrap());
-                let (o_l, _) = plane_of(out, s.naming.inner_of(riser_l).unwrap());
-                println!(
-                    "[measured] S-bend at t={t}: BUILDS tier3={tier3:?} volume={} ; riser twins at x={} (from x=1) and x={} (from x=0.8) — crossed: {}",
-                    props.volume,
-                    o_r.x,
-                    o_l.x,
-                    o_r.x < o_l.x
-                );
-                if t > 0.1 {
-                    assert!(o_r.x < o_l.x, "the column's two offsets cross");
-                    assert_eq!(tier3, Ok(()), "tier 3 does not see it");
-                }
-            }
-        }
-    }
-}
 
-// ---------------------------------------------------------------------
-// Claim 2: the curved window on a hollow operand.
-// ---------------------------------------------------------------------
-
-/// **A hollow vessel whose CYLINDER wall is thinner than `2t`** while
-/// its planar walls are thick: `vessel(1, 2)` with a `r = 0.9`,
-/// `y ∈ [0.5, 1.5]` cylindrical cavity (wall 0.1 radially, 0.5
-/// axially) shelled at `t = 0.08`. The planar gate has nothing to say;
-/// the per-face reach decides are vacuous on a dilating cylinder.
-/// SELF-RETIRING: pins the current silent build; goes red the day
-/// SHELL-4's certificate refuses it.
-#[test]
-fn r1p2_thin_cylinder_wall_hollow_vessel_builds_silently() {
-    let vessel = revolved_at(&[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.0, 2.0)], 0.0, 0.0);
-    let cavity = revolved_at(&[(0.0, 0.5), (0.9, 0.5), (0.9, 1.5), (0.0, 1.5)], 0.0, 0.0);
-    let hollow = with_void(vessel, cavity);
-    assert_eq!(hollow.shells().count(), 2);
-    assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()));
-    let radius_of = |body: &Body<f64>, shell: ShellKey| -> f64 {
-        body.get_shell(shell)
-            .unwrap()
-            .faces
-            .iter()
-            .find_map(
-                |&f| match body.get_surface(body.get_face(f).unwrap().surface) {
-                    Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
-                    _ => None,
-                },
-            )
-            .expect("a cylinder wall")
+    let e = topo::shell(&s_bend, 0.12, tol()).expect_err("the risers' offsets would cross");
+    let ShellError::WallClearance {
+        face, other, gap, ..
+    } = e
+    else {
+        panic!("expected the wall-clearance gate, got {e}");
     };
-    let (outer, voids) = roles(&hollow);
-    println!(
-        "[measured] hollow vessel: outer r={} void r={}",
-        radius_of(&hollow, outer),
-        radius_of(&hollow, voids[0])
+    assert!(
+        (gap - 0.2).abs() < 1e-9,
+        "the risers are 0.2 apart, got {gap}"
     );
-    let t = 0.08;
-    match topo::shell(&hollow, t, tol()) {
-        Err(e) => println!("[measured] thin-cylinder hollow at t={t}: refuses {e}"),
-        Ok(s) => {
-            let out = &s.body;
-            let tier3 = topo::validate_geometric(out, tol());
-            let props = topo::mass_properties(out, tol()).expect("props");
-            let pi = core::f64::consts::PI;
-            let naive = pi * ((1.0 * 2.0 - 0.92 * 0.92 * 1.84) + (0.98 * 0.98 * 1.16 - 0.81 * 1.0));
-            let twins: Vec<(ShellKey, f64)> = out
-                .shells()
-                .filter(|(k, _)| *k != outer && *k != voids[0])
-                .map(|(k, _)| (k, radius_of(out, k)))
-                .collect();
-            println!(
-                "[measured] thin-cylinder hollow at t={t}: BUILDS solids={} shells={} tier3={tier3:?} volume={} naive-sum={naive} twin radii={twins:?}",
-                out.solids().count(),
-                out.shells().count(),
-                props.volume
-            );
-            // The eroded outer twin is the cavity of the operand's solid.
-            let r_out_twin = radius_of(
-                out,
-                out.get_solid(s.naming.thickened[0].0)
-                    .unwrap()
-                    .shells
-                    .iter()
-                    .copied()
-                    .find(|&k| k != outer)
-                    .unwrap(),
-            );
-            let r_void_twin = radius_of(
-                out,
-                s.naming
-                    .inner_of(face_of_cyl(&hollow, voids[0]))
-                    .map(|f| out.get_face(f).unwrap().shell)
-                    .unwrap(),
-            );
-            println!(
-                "[measured] eroded outer twin r={r_out_twin}, dilated void twin r={r_void_twin} — crossed: {}",
-                r_void_twin > r_out_twin
-            );
-            assert!((r_out_twin - 0.92).abs() < 1e-12);
-            assert!((r_void_twin - 0.98).abs() < 1e-12);
-            assert!(r_void_twin > r_out_twin, "the two cylinder twins cross");
-            assert_eq!(tier3, Ok(()), "tier 3 does not see it");
-        }
-    }
-}
+    let mut named = vec![face, other];
+    named.sort();
+    let mut risers = vec![riser_r, riser_l];
+    risers.sort();
+    assert_eq!(named, risers, "the refusal names the two risers");
 
-/// The cylinder face of a shell.
-fn face_of_cyl(body: &Body<f64>, shell: ShellKey) -> FaceKey {
-    body.get_shell(shell)
-        .unwrap()
-        .faces
-        .iter()
-        .copied()
-        .find(|&f| {
-            matches!(
-                body.get_surface(body.get_face(f).unwrap().surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .expect("a cylinder face")
+    let s = topo::shell(&s_bend, 0.09, tol()).expect("below the wall it builds");
+    let out = &s.body;
+    assert_eq!(topo::validate_geometric(out, tol()), Ok(()));
+    let (o_r, _) = plane_of(out, s.naming.inner_of(riser_r).unwrap());
+    let (o_l, _) = plane_of(out, s.naming.inner_of(riser_l).unwrap());
+    assert!(
+        o_r.x > o_l.x,
+        "the riser twins do not cross: {} from x = 1, {} from x = 0.8",
+        o_r.x,
+        o_l.x
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -517,42 +318,15 @@ fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
 }
 
 // ---------------------------------------------------------------------
-// Claim 5: is `OperandOuterShells` reachable?
-// ---------------------------------------------------------------------
-
-/// The PR's own §5 fixture — a hollow 2³ box subtracted from a 6³ box
-/// — is one solid with two `Outer` shells; the verb refuses it typed.
-#[test]
-fn r1p5_operand_outer_shells_is_reachable_through_the_boolean() {
-    let big = boxy_at(0.0, 0.0, 0.0, 6.0, 6.0, 6.0);
-    let small = topo::shell(&boxy_at(2.0, 2.0, 2.0, 2.0, 2.0, 2.0), 0.25, tol())
-        .expect("the small box shells")
-        .body;
-    let body = subtract(&big, &small);
-    let rows = topo::classify_shells(&body, tol()).expect("classifies");
-    println!(
-        "[measured] big − hollow small: solids={} shells={} roles={:?}",
-        body.solids().count(),
-        body.shells().count(),
-        rows.iter()
-            .map(|c| (c.shell, c.role, c.volume))
-            .collect::<Vec<_>>()
-    );
-    let e = topo::shell(&body, 0.1, tol()).expect_err("two outer shells refuse");
-    println!("[measured] shell of it: {e}");
-    assert!(
-        matches!(e, ShellError::OperandOuterShells { outer: 2 }),
-        "{e}"
-    );
-}
-
-// ---------------------------------------------------------------------
 // Claim 6: the opened arm on a void face WITH A HOLE (unmeasured).
 // ---------------------------------------------------------------------
 
 /// A holed box (a square pillar through it) subtracted from a bigger
 /// box: the cavity has a pillar through it and its ceiling carries a
-/// ring. Designate that ceiling.
+/// ring. Designate that ceiling — the hole path of the void-side glue,
+/// closed form and all (the row that closed
+/// `work/shell/shell-open-on-a-void-face-with-a-hole.md`; R1's row,
+/// R2 built the same fixture at 6×6×4 and measured the same shape).
 #[test]
 fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
     let outer_loop = ProfileLoop::new(vec![
@@ -675,6 +449,8 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
 // then opens the inner wall.
 // ---------------------------------------------------------------------
 
+/// R1's end-to-end row (R2 wrote the same exercise; its dead-shell
+/// finding lives in `verbs_shell`'s void-ceiling row now).
 #[test]
 fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let part = boxy_at(0.0, 0.0, 0.0, 2.0, 3.0, 4.0);
@@ -709,10 +485,12 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     );
 
     // 3a. open the inner wall ON THE RESULT: what a user would try first.
-    match topo::shell_open(&twice.body, 0.05, &[ceiling], tol()) {
-        Ok(_) => println!("[e2e] opening the twice-hollowed body: Ok (!)"),
-        Err(e) => println!("[e2e] opening the twice-hollowed body: refuses {e}"),
-    }
+    // Refused: the verb is single-solid, and a twice-hollowed body has
+    // two (`work/shell/shell-open-on-a-multi-solid-body.md`).
+    let e = topo::shell_open(&twice.body, 0.05, &[ceiling], tol())
+        .expect_err("a multi-solid body has no single solid to open");
+    println!("[e2e] opening the twice-hollowed body: refuses {e}");
+    assert!(matches!(e, ShellError::NotOneSolid { solids: 2 }), "{e}");
     // 3b. the way that works: fold the opening into the second shell.
     let opened =
         topo::shell_open(&first.body, 0.05, &[ceiling], tol()).expect("open the inner wall");
