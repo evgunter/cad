@@ -161,14 +161,14 @@
 //!
 //! The SHAPE of the hole, which the cut does not move: each pair is
 //! two walls of one body, and among the sized rows the identity list
-//! is mostly constant — `chart` is `nurbs` on every one of them, the
-//! trim box is the whole unit square on every one, and the sizing
-//! block is "present" on every one because that is what SIZED means,
-//! so **six of the eight entries discriminate nothing there and the
-//! live pair is `nu`/`nv` alone**. Six plus that pair is the whole
-//! list of eight. Corpus-wide `chart` and the sizing block do
-//! discriminate, and the reroute they catch is a named case — but a
-//! reader sizing up the hole should size up `(nu, nv)`. The same test
+//! is mostly constant — `chart` is `nurbs` on every one of them and
+//! the trim box is the whole unit square on every one, so **five of
+//! the seven entries discriminate nothing there and the live pair is
+//! `nu`/`nv` alone**. Five plus that pair is the whole list of seven.
+//! Corpus-wide `chart` does discriminate — it is the one entry that
+//! separates a sized row from an unsized one, since [`parse`] admits
+//! the sizing block only under the charts that owe it — but a reader
+//! sizing up the hole should size up `(nu, nv)`. The same test
 //! pins those statements, deriving the split column by column from
 //! [`identity_readings`] rather than spot-checking members of it.
 //! Closing it needs a face identity in a column of the sweep's own,
@@ -222,15 +222,35 @@
 //! only, so any in-band fallback for an unreadable value is the
 //! smallest movement expressible and passes by construction. The
 //! sizing columns are therefore admitted or refused where they are
-//! read (`Admissible`, private), per column, and a refused one leaves in the
-//! harness voice — a sweep the lint cannot read is not a tessellation
-//! that got better. One of those refusals is CROSS-column, because one
-//! column cannot state it: `worst_dev` spells "the sweep did not
-//! resample" and "a sample came back `NaN`" identically, and
-//! `dev_samples` is what separates them ([`Deviation`]). Rules 3, 4
-//! and 5 say the same thing one level up:
-//! a comparison that stopped HAPPENING — or never started — is not
-//! growth of any size.
+//! read (`Admissible`, private), per column, and a refused one leaves
+//! in the harness voice — a sweep the lint cannot read is not a
+//! tessellation that got better. Several of the sweep's guarantees
+//! are not of that shape at all — `worst_dev` spells "the sweep did
+//! not resample" and "a sample came back `NaN`" identically, and
+//! `dev_samples` is what separates them ([`Deviation`]) — and where
+//! such a check goes, in which voice, and when it is owed at all is
+//! `tools/README.md`, clauses `CC1`–`CC5`, which `k-lint` shares.
+//! Rules 3, 4
+//! and 5 say the same thing one level up: a comparison that stopped
+//! HAPPENING — or never started — is not growth of any size.
+//!
+//! **A SCHEMA move is not a measurement at all**, and is refused
+//! before any column is read as one. Three constants pin the shape of
+//! the file: [`EXPECTED_HEADER`] the column order, [`CHART_TAGS`] the
+//! vocabulary of the one column the gate JOINS on, and
+//! [`SIZED_CHART_TAGS`] the pairing between that column and the sizing
+//! block — an EMPTY sizing tail spells "this face is not on the sized
+//! lane" and nothing else, so on a chart that owes the block it is a
+//! lane fact the row cannot support, and a filled tail under a chart
+//! nothing sizes hangs the lane's columns on a face that never took
+//! it. That pairing is the producer's own refusal
+//! (`tess_meter::FaceRow::csv_row`) read from the consumer's side, and
+//! it is what makes "the block is present" a function of `chart` on
+//! every parsed row — which is why [`IDENTITY_COLUMNS`] carries no
+//! block-presence entry. All three leave in the harness voice, on the
+//! row that carries the move: a producer whose schema moved under this
+//! crate must never arrive as a reading, and never as a re-key on
+//! every scene that carries it.
 //!
 //! # Reading a firing gate
 //!
@@ -248,6 +268,16 @@ pub struct Row {
     pub scene: String,
     /// Face ordinal within its body.
     pub face: usize,
+    /// The producer's durable per-face name, or `""` where it had
+    /// none.
+    ///
+    /// **An opaque token, and empty is an honest answer.** The sweep
+    /// can only name a face whose body arrived from an evaluated
+    /// document, and most tour scenes are not built that way; the
+    /// column is empty on those rows and says nothing false. No rule
+    /// reads this yet — the ordinal is still the per-face join key —
+    /// so nothing here turns an absence into a finding.
+    pub name: String,
     /// Chart tag (`nurbs`, `plane`, …).
     pub chart: String,
     /// The δ the sweep tessellated at.
@@ -257,12 +287,20 @@ pub struct Row {
     /// The Hessian-sized lane's columns, `None` on a face that lane
     /// did not size.
     ///
-    /// Not the same question as `chart`, and the two move
-    /// independently: the kernel's lane split (`mesh::trimmed::Lane`)
-    /// puts `Surface::Approx` on the sized lane too, so an `approx`
-    /// row carries this block — while a `nurbs` face that reroutes
-    /// off the lane keeps its chart and loses it. `IDENTITY_COLUMNS`
-    /// reads both for that reason.
+    /// Not the same question as `chart`, but not free of it either:
+    /// the kernel's lane split (`mesh::trimmed::Lane`) puts
+    /// `Surface::Approx` on the sized lane alongside a described
+    /// `Surface::Nurbs`, so an `approx` row carries this block too and
+    /// "the block is present" is not "the chart is `nurbs`". Which
+    /// charts it IS is [`SIZED_CHART_TAGS`], and [`parse`] refuses
+    /// either half of the pair without the other — so on every PARSED
+    /// row this is `Some` exactly when `chart` is one of those tags.
+    /// The type is not itself the guarantee, and says so for the same
+    /// reason the producer's `tess_meter::FaceRow` does: these fields
+    /// are `pub` and `identity_readings`/`compare` take `&[Row]`, so a
+    /// hand-built `Row` can hold the pair `parse` refuses. Every rule
+    /// in this crate is written to be read on rows that came through
+    /// [`parse`].
     pub nurbs: Option<Nurbs>,
 }
 
@@ -333,7 +371,8 @@ pub struct Nurbs {
 /// expressible and passes by construction.
 ///
 /// The pairing is a CROSS-COLUMN rule, which is why it lives in
-/// [`parse`] beside the per-column table rather than inside it.
+/// [`parse`] beside the per-column table rather than inside it —
+/// `tools/README.md`'s `CC3`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Deviation {
     /// The sweep did not resample this face: `dev_samples` is zero and
@@ -448,8 +487,9 @@ impl Row {
 /// broken measurement and gets the refusal this table exists to give —
 /// but telling the two apart needs `dev_samples`, and a per-column
 /// table cannot read a second column. [`parse`] settles it beside this
-/// pass, the same way the trim box's non-degeneracy is settled outside
-/// [`Self::Extent`].
+/// pass, which is `tools/README.md`'s `CC3` — the disposition every
+/// cross-column property of this table gets, the trim box's
+/// non-degeneracy ([`Self::Extent`]) included.
 ///
 /// **A cell count is never absent, and the mechanism differs by
 /// column** — worth stating, because the floor is what the rest of
@@ -486,8 +526,17 @@ enum Admissible {
     /// has nonempty extents over counts floored at one).
     Aspect,
     /// A trim-box edge in parameter space: finite, and nothing more —
-    /// the box's own non-degeneracy is a cross-column property this
-    /// per-column table cannot state.
+    /// the box's own non-degeneracy (`u0 < u1`, `v0 < v1`) is a
+    /// relation this per-column table cannot state, so [`parse`]
+    /// checks it beside this pass (`tools/README.md`'s `CC3`).
+    ///
+    /// **It is NOT left to `span_opt_cells`' floor, though that floor
+    /// does entail it for a row this repository's producer wrote.**
+    /// The entailment is a fact about `tess_meter`'s accumulator and
+    /// not about a row: `u0 = u1 = 0` beside a `span_opt_cells` of 25
+    /// satisfies every entry of this table, and the degenerate box
+    /// then reaches rule 4's [`identity`] as a face-identity reading.
+    /// `tools/README.md`'s `CC4` is that argument in full.
     Extent,
 }
 
@@ -521,9 +570,30 @@ impl Admissible {
     }
 }
 
+/// The head block of [`EXPECTED_HEADER`] — the columns EVERY row
+/// fills — by position, because [`parse`] reads each of them by index
+/// and an inline literal at each read is the drift these constants
+/// exist to make loud. `scene` is column 0 and `face` column 1; these
+/// are the three that a column inserted into the head would move.
+///
+/// `name` is the durable per-face name the producer supplies where it
+/// has one, and the EMPTY string where it does not. It is read as an
+/// opaque token and never decoded: what a name MEANS lives in
+/// `editor_core`, two crates and a cargo root away, and a gate that
+/// parsed the token's structure would be asserting that crate's
+/// vocabulary from here. So it carries no [`Admissible`] entry — there
+/// is no in-band value to refuse — and no rule joins on it yet.
+const NAME: usize = 2;
+/// Where the chart tag sits — a gate INPUT ([`IDENTITY_COLUMNS`]).
+const CHART: usize = 3;
+/// Where the requested δ sits.
+const DELTA: usize = 4;
+/// Where the triangle count sits — the last column every row fills.
+const TRIANGLES: usize = 5;
+
 /// Where the identity block starts in [`EXPECTED_HEADER`] — the first
 /// column after `triangles`, which is the last one every row fills.
-const IDENTITY_FIRST: usize = 5;
+const IDENTITY_FIRST: usize = 6;
 
 /// The columns [`identity`] reads, policed exactly as the sizing block
 /// is and for the added reason that they are gate INPUTS now: rule 4
@@ -540,7 +610,7 @@ const IDENTITY_MEASURES: [(&str, Admissible); 6] = [
 ];
 
 /// Where the sizing block starts in [`EXPECTED_HEADER`].
-const SIZING_FIRST: usize = 17;
+const SIZING_FIRST: usize = 18;
 
 /// The sizing block — every column [`Nurbs`] is parsed from, in
 /// [`EXPECTED_HEADER`]'s order, with what each may say. One table
@@ -557,6 +627,37 @@ const SIZING_COLUMNS: [(&str, Admissible); 6] = [
     ("worst_dev", Admissible::OptionalDeviation),
 ];
 
+/// The sizing block's CELL-COUNT columns, in [`EXPECTED_HEADER`]'s
+/// order — the sweep totals a report over this file can sum.
+///
+/// Derived from `SIZING_COLUMNS` rather than spelled again, and
+/// derived from the ADMISSIBILITY rather than from the names: which
+/// columns are cell counts is a fact about what [`parse`] will admit
+/// in them, and a roster built on the `_cells` suffix instead would
+/// be a fact about spelling — wrong in both directions the moment a
+/// cell count is named otherwise or a non-total is named that way.
+///
+/// **The sizing block only, which is the whole of the choice here.**
+/// `bands` is `Admissible::CellCount` too, and `nu`/`nv` are as
+/// well; neither block is a grid the schedule built, and the type
+/// they share is an admissibility (finite, at least one), not a
+/// meaning. `cells` — the analysis cells the per-cell bound reported
+/// — sits before `SIZING_FIRST` and so is not in this table at all,
+/// which is why it needs no exemption.
+///
+/// Exists for `tests/report_columns_pin.rs`, which holds the CLI's
+/// cell-total block against it: an integration test cannot see a
+/// private const, and the alternative was a second roster in the test
+/// that could drift from this one in silence.
+#[must_use]
+pub fn cell_count_columns() -> Vec<&'static str> {
+    SIZING_COLUMNS
+        .iter()
+        .filter(|(_, kind)| matches!(kind, Admissible::CellCount))
+        .map(|(name, _)| *name)
+        .collect()
+}
+
 /// Where `dev_samples` sits in [`EXPECTED_HEADER`] — between the
 /// sizing block and the indicator block, and in neither.
 ///
@@ -566,14 +667,18 @@ const SIZING_COLUMNS: [(&str, Admissible); 6] = [
 /// spelled at all, and there is no in-band fallback to refuse. What it
 /// is FOR is [`Deviation`] — it is the only column that says which of
 /// `worst_dev`'s two `NaN`s a row carries.
-const DEV_SAMPLES: usize = 23;
+const DEV_SAMPLES: usize = 24;
 
 /// Where the constraint-activity indicator block starts in
 /// [`EXPECTED_HEADER`] (TESS-SPLIT D-3), after `dev_samples`.
-const INDICATOR_FIRST: usize = 24;
+const INDICATOR_FIRST: usize = 25;
 
 /// The indicator block, policed exactly as [`SIZING_COLUMNS`] is —
 /// NURBS-only, all present or all absent with the sizing block.
+///
+/// `cap_bands` and `snap_bands` also count SUBSETS of `bands`, which
+/// is a relation no entry of this table can state; [`parse`] checks
+/// the containment beside it (`tools/README.md`'s `CC3`).
 const INDICATOR_COLUMNS: [(&str, Admissible); 4] = [
     ("bands", Admissible::CellCount),
     ("cap_bands", Admissible::Count),
@@ -596,7 +701,7 @@ pub struct ParseError {
 /// purpose: the two halves are separate cargo roots by design, so
 /// there is no shared constant to import, and a drifting sweep must
 /// fail as harness breakage rather than parse into wrong columns.
-pub const EXPECTED_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
+pub const EXPECTED_HEADER: &str = "scene,face,name,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
                                    muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,\
                                    opt_cells,span_opt_cells,worst_cert,worst_dev,\
                                    dev_samples,bands,cap_bands,snap_bands,realized_aspect";
@@ -605,19 +710,60 @@ pub const EXPECTED_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,
 /// `chart` is a column the gate JOINS on: a renamed tag must fail as
 /// harness breakage rather than re-key every scene that carries it.
 ///
-/// **Weaker than [`EXPECTED_HEADER`]'s pin, and the difference is
-/// worth knowing.** That constant is checked against the meter's own
-/// source from the other cargo root; this roster is checked only by
-/// this crate's test, so it catches a tag the meter renames — the row
-/// then reads as drift, which is the point — but a tag the meter ADDS
-/// arrives here as harness breakage on every row carrying it, and
-/// nothing on the meter's side says so. Closing that is `tess-meter`'s
-/// ground, not this crate's.
+/// **Deliberately WIDER than today's producer, and pinned from the
+/// other side rather than by equality.** `parse` refuses any row whose
+/// `chart` is not here, and what it parses includes committed
+/// baselines cut from older trees, so a tag the meter retires has to
+/// stay in this roster for as long as a baseline row carries it. The
+/// direction that is owed therefore runs the other way — a tag the
+/// meter ADDS would arrive here as harness breakage on every row
+/// carrying it — and it is closed from the meter's side, where the
+/// enum lives: `tess-meter`'s
+/// `the_lints_roster_admits_every_tag_this_crate_emits` reads this
+/// declaration out of this file and asserts it admits every tag
+/// `Chart::tag` emits, with its own falsification guard.
 pub const CHART_TAGS: [&str; 7] = [
     "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx",
 ];
 
-/// The provenance line `scripts/tess_budget_sweep.sh` writes above
+/// The [`CHART_TAGS`] whose faces the Hessian-sized lane sizes, so
+/// whose rows OWE the sizing block — `tess_meter::Chart::sized_lane`
+/// restated, for the same reason [`CHART_TAGS`] restates
+/// `Chart::tag`: [`parse`] reads the pairing, so a lane split that
+/// moves must fail as harness breakage rather than arrive as a
+/// reading.
+///
+/// **A PROPER SUBSET of [`CHART_TAGS`], and both directions of that
+/// are load-bearing.** The members are why "the sizing block is
+/// present" is not "the chart is `nurbs`" — an `approx` face meshes
+/// on its fit and is sized like one. The non-members are what gives
+/// the refusal below its second arm: a `plane` row carrying the
+/// sizing columns is as much a schema move as a `nurbs` row without
+/// them.
+///
+/// It is NOT the wider tolerance [`CHART_TAGS`] extends: that roster
+/// is deliberately broader than today's producer so a tag the meter
+/// no longer writes still PARSES, and widening it costs nothing
+/// because an unwritten tag simply never arrives. This roster cannot
+/// be widened the same way — every extra member weakens the pairing
+/// on rows that DO arrive.
+///
+/// Pinned from the meter's side in both directions, for the reason
+/// [`CHART_TAGS`] is pinned from there in one:
+/// `tess-meter`'s
+/// `the_lints_sized_roster_answers_sized_lane_for_every_tag_this_crate_emits`
+/// reads this declaration out of this file and asserts membership here
+/// equals `Chart::sized_lane` on every tag that crate emits. That is
+/// the only guard on the split that reads the enum; this crate's own
+/// tests can only check that the literal is what its rows expect.
+///
+/// **`approx` has no corpus witness.** No row of any committed blob of
+/// `docs/tess-budget-data/tess-budget-baseline.csv` carries that tag,
+/// so the member is exercised by this crate's fixtures and by the
+/// meter-side pin, and by nothing the gate actually parses.
+pub const SIZED_CHART_TAGS: [&str; 2] = ["nurbs", "approx"];
+
+/// The provenance line `scripts/tess_budget_cut.sh` writes above
 /// [`EXPECTED_HEADER`]: `# tess-budget-cut: <commit> <date>`.
 ///
 /// It exists so that a scene the baseline does not cover can be told
@@ -625,6 +771,16 @@ pub const CHART_TAGS: [&str; 7] = [
 /// it both read as "absent", and the one that matters — a scene the
 /// corpus gained before this cut and nobody folded — is
 /// indistinguishable from the one that does not.
+///
+/// **This is the only spelling a pin holds.** That script writes the
+/// line, validates it with a regex of its own, and strips it before
+/// re-stamping; `tests/cut_line_pin.rs` reads the script as text and
+/// holds those three executable spellings to this constant, and holds
+/// what the reader admits to what that regex admits. It is not the
+/// only spelling in the tree — this file's own tests, `main.rs`'s
+/// header, the meter's `tests/rows.rs`, `scripts/tess_budget_sweep.sh`
+/// and `docs/TESS-BUDGET.md` each write the stem in prose or in a
+/// fixture, and nothing holds any of those to anything.
 pub const CUT_PREFIX: &str = "# tess-budget-cut:";
 
 /// The tree a sweep was taken from, as the sweep script recorded it.
@@ -658,6 +814,24 @@ impl std::fmt::Display for Cut {
 /// provenance format, and a silent `None` there is exactly the
 /// unreadable-measurement-as-absence shape the sizing columns already
 /// refuse one level down.
+///
+/// **What is admitted after the prefix**, which is the whole of what
+/// this reader promises: exactly one space, then an abbreviated git
+/// object name — LOWERCASE hex, 7 to 40 characters, optionally
+/// suffixed `-dirty` — then exactly one space, then a date opening
+/// with its calendar day. Each bound refuses a spelling
+/// `scripts/tess_budget_cut.sh` cannot emit, which is what keeps this
+/// reading inside the one that script recognises as a stamp. The
+/// containment matters in one direction: a line THIS crate reads as a
+/// cut but that script's `CUT_RE` does not slips past the script's
+/// already-stamped refusal into its backfill arm, which re-stamps the
+/// file from the commit that last wrote it — by then the commit that
+/// wrote the stamp, a whole commit newer than the rows. That is the
+/// inversion the refusal arm exists to prevent.
+///
+/// The two readings are held to each other over a truth table in
+/// `tests/cut_line_pin.rs`, with the script's own regex as the oracle
+/// for its half.
 fn split_cut(text: &str) -> Result<(Option<Cut>, usize), ParseError> {
     let Some(first) = text.lines().next() else {
         return Ok((None, 0));
@@ -665,22 +839,23 @@ fn split_cut(text: &str) -> Result<(Option<Cut>, usize), ParseError> {
     if !first.starts_with('#') {
         return Ok((None, 0));
     }
-    let rest = first.strip_prefix(CUT_PREFIX).ok_or_else(|| ParseError {
-        line: 1,
-        text: format!("comment line is not a `{CUT_PREFIX} <commit> <date>` record: {first}"),
-    })?;
-    let fields: Vec<&str> = rest.split_whitespace().collect();
+    let rest = first
+        .strip_prefix(CUT_PREFIX)
+        .and_then(|r| r.strip_prefix(' '))
+        .ok_or_else(|| ParseError {
+            line: 1,
+            text: format!("comment line is not a `{CUT_PREFIX} <commit> <date>` record: {first}"),
+        })?;
+    let fields: Vec<&str> = rest.split(' ').collect();
     let [commit, date] = fields[..] else {
         return Err(ParseError {
             line: 1,
             text: format!("expected `{CUT_PREFIX} <commit> <date>`, got: {first}"),
         });
     };
-    // Enough of a shape check that a placeholder cannot pass as a
-    // reading: a commit is hex (plus the dirty marker) and a date
-    // starts with its calendar day.
     let hex = commit.strip_suffix("-dirty").unwrap_or(commit);
-    let commit_ok = hex.len() >= 7 && hex.chars().all(|c| c.is_ascii_hexdigit());
+    let commit_ok =
+        (7..=40).contains(&hex.len()) && hex.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f'));
     let date_ok = date.len() >= 10
         && date.as_bytes()[..10].iter().enumerate().all(|(i, &b)| {
             if i == 4 || i == 7 {
@@ -719,8 +894,9 @@ pub fn cut(text: &str) -> Result<Option<Cut>, ParseError> {
 /// # Errors
 ///
 /// [`ParseError`] on a malformed [`CUT_PREFIX`] line, a
-/// missing/renamed header, a short row, or a field that does not
-/// parse — all harness breakage.
+/// missing/renamed header, a short row, a field that does not parse,
+/// or a row whose sizing block and `chart` disagree about the lane
+/// ([`SIZED_CHART_TAGS`]) — all harness breakage.
 pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
     let (_, skip) = split_cut(text)?;
     let mut lines = text.lines().enumerate().skip(skip);
@@ -829,11 +1005,93 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 worst_dev,
             ] = read;
             let [bands, cap_bands, snap_bands, realized_aspect] = ind;
-            // THE CROSS-COLUMN RULE the per-column table cannot state.
-            // `Admissible::OptionalDeviation` admits `NaN` because one
-            // of its two meanings is a real state; `dev_samples` is
-            // what says which meaning this row carries, and the pair
-            // is checked here, once, where both readings are in hand.
+            // THE CROSS-COLUMN ADMISSIONS (`tools/README.md` `CC3`),
+            // in the order the blocks above were read. Each is a
+            // RELATION between columns that `Admissible` admits
+            // singly, so no entry of the table can own it, and each
+            // leaves in the harness voice because what it refuses is
+            // arithmetic that did not happen — never a reading.
+            //
+            // A row that drifted in two of them reports the first: a
+            // harness message names A reading that broke, not the
+            // only one.
+            //
+            // The trim box's own non-degeneracy. `Admissible::Extent`
+            // admits each edge as finite and nothing more; a
+            // degenerate box is no face, and left unrefused it
+            // reaches rule 4's `identity` as a face-identity reading
+            // — two collapsed faces then compare EQUAL and the gate
+            // claims a comparison it did not make.
+            for (lo, hi, axis) in [(u0, u1, "u"), (v0, v1, "v")] {
+                if lo >= hi {
+                    return Err(ParseError {
+                        line: n,
+                        text: format!(
+                            "{axis}0/{axis}1: a trim box spanning [{lo:e}, {hi:e}] in \
+                             {axis} is not a face (sweep drift?)"
+                        ),
+                    });
+                }
+            }
+            // The whole-patch counterfactual is the PRODUCT of the
+            // two counterfactual divisions, stated as such in
+            // `tess_meter::columns` and in the CSV's own header. All
+            // three columns are `Admissible::CellCount` alone. The
+            // product is exact on both sides — `nu` and `nv` round
+            // trip through the CSV and IEEE multiplication is
+            // deterministic — so equality is the test and not a
+            // tolerance. Left unrefused the report prints the sum of
+            // this column as the whole-patch counterfactual while
+            // rule 4 keys faces on the factors.
+            if patch_cells != nu * nv {
+                return Err(ParseError {
+                    line: n,
+                    text: format!(
+                        "patch_cells: {patch_cells} over a {nu} x {nv} counterfactual \
+                         grid, which is {} cells (sweep drift?)",
+                        nu * nv
+                    ),
+                });
+            }
+            // The cheapest whole-patch split is a MINIMUM seeded with
+            // the whole-patch schedule itself, so it can never come
+            // out worse than the schedule it is compared against.
+            // This is not the optimality relation the report is FOR:
+            // that one is `grid_cells` against `span_opt_cells`, an
+            // unconstrained per-cell optimum the committed baseline
+            // straddles in both directions.
+            if opt_cells > patch_cells {
+                return Err(ParseError {
+                    line: n,
+                    text: format!(
+                        "opt_cells: {opt_cells} cells at the cheapest split of a patch \
+                         the schedule itself does in {patch_cells} — the optimum is \
+                         seeded with that schedule (sweep drift?)"
+                    ),
+                });
+            }
+            // The indicator counts are SUBSETS of `bands`: each counts
+            // the bands one constraint bound, out of the bands the
+            // shipped schedule emitted. Left unrefused they reach the
+            // report as a reading: the constraint-activity line
+            // prints these counts `of {bands}`.
+            for (name, v) in [("cap_bands", cap_bands), ("snap_bands", snap_bands)] {
+                if v > bands {
+                    return Err(ParseError {
+                        line: n,
+                        text: format!(
+                            "{name}: {v} bands over a schedule that emitted {bands} — \
+                             the indicator counts a subset of the bands (sweep drift?)"
+                        ),
+                    });
+                }
+            }
+            // The two `NaN`s the per-column table cannot tell apart
+            // (`tools/README.md` `CC3`). `Admissible::OptionalDeviation` admits
+            // `NaN` because one of its two meanings is a real state;
+            // `dev_samples` is what says which meaning this row
+            // carries, and the pair is checked here, once, where both
+            // readings are in hand.
             let dev_samples = idx(DEV_SAMPLES, "dev_samples")?;
             let deviation = match (dev_samples, worst_dev.is_nan()) {
                 (0, true) => Deviation::NotResampled,
@@ -879,7 +1137,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 realized_aspect,
             })
         };
-        if !CHART_TAGS.contains(&f[2]) {
+        if !CHART_TAGS.contains(&f[CHART]) {
             // `chart` is a gate INPUT (rule 4 joins on it), so an
             // unknown tag is sweep-format drift and leaves in the
             // harness voice — the same treatment, and the same reason,
@@ -890,10 +1148,54 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 line: n,
                 text: format!(
                     "chart: {:?} is not one of {} (sweep drift?)",
-                    f[2],
+                    f[CHART],
                     CHART_TAGS.join(", ")
                 ),
             });
+        }
+        // THE LANE PAIRING, a cross-column rule the per-column table
+        // cannot state (`tools/README.md` `CC3`), and the consumer's mirror of
+        // `tess_meter::FaceRow::csv_row`'s 2x2:
+        // the sizing block is owed by exactly the charts
+        // `SIZED_CHART_TAGS` names, and the two cells that disagree
+        // are refused HERE rather than read.
+        //
+        // Neither is a reading the file can carry honestly. An empty
+        // tail is the spelling of *"this face is not on the sized
+        // lane"* and nothing else, so on a sized-lane chart it says
+        // something false about the face and says it in the one shape
+        // every consumer of this CSV believes; a filled tail on a
+        // chart nothing sizes hangs the lane's columns on a face that
+        // never took it. Both are the producer's schema having moved
+        // under this crate, which is harness breakage — the same
+        // treatment, and the same reason, as an unknown tag above.
+        //
+        // What this buys the gate is that `Row::is_sized` is a
+        // function of `chart` on every parsed row, which is why
+        // `IDENTITY_COLUMNS` does not carry a block-presence entry.
+        let sized_lane = SIZED_CHART_TAGS.contains(&f[CHART]);
+        match (sized_lane, nurbs.is_some()) {
+            (true, false) => {
+                return Err(ParseError {
+                    line: n,
+                    text: format!(
+                        "chart {:?} is the Hessian-sized lane's and the sizing columns are \
+                         empty: that tail reads as a face OFF the sized lane (sweep drift?)",
+                        f[CHART]
+                    ),
+                });
+            }
+            (false, true) => {
+                return Err(ParseError {
+                    line: n,
+                    text: format!(
+                        "chart {:?} is not the Hessian-sized lane's and the row carries the \
+                         sizing columns anyway (sweep drift?)",
+                        f[CHART]
+                    ),
+                });
+            }
+            (true, true) | (false, false) => {}
         }
         let face = idx(1, "face")?;
         if !seen.insert((f[0], face)) {
@@ -908,9 +1210,10 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
         rows.push(Row {
             scene: f[0].to_string(),
             face,
-            chart: f[2].to_string(),
-            delta: admit(3, "delta", Admissible::Target)?,
-            triangles: idx(4, "triangles")?,
+            name: f[NAME].to_string(),
+            chart: f[CHART].to_string(),
+            delta: admit(DELTA, "delta", Admissible::Target)?,
+            triangles: idx(TRIANGLES, "triangles")?,
             nurbs,
         });
     }
@@ -919,6 +1222,14 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
 
 /// One scene's totals — the unit the gate compares, because a face
 /// ordinal is only meaningful within its body.
+///
+/// **Each cell field is named for the CSV column it sums, and carries
+/// no other name.** That is the join: a reader holding a report, a
+/// document or this struct is holding the same word, and every
+/// re-spelling of one of these quantities as a phrase — however true
+/// the phrase — costs a lookup in `tess_meter` to resolve. [`Nurbs`]
+/// carries the same names one level down and cites the definitions of
+/// record.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SceneTotals {
     /// Faces in the scene.
@@ -927,13 +1238,32 @@ pub struct SceneTotals {
     pub triangles: usize,
     /// Triangles on Hessian-sized faces only.
     pub nurbs_triangles: usize,
-    /// Grid cells the shipped (per-cell) sizing used, summed.
+    /// [`Nurbs::grid_cells`] summed — the grid the lane actually
+    /// built, sized per knot-span cell (TESS-SPAN).
     pub grid_cells: f64,
-    /// The whole-patch counterfactual's cells, summed.
+    /// [`Nurbs::patch_cells`] summed — the whole-patch-sup
+    /// counterfactual.
     pub patch_cells: f64,
-    /// Cheapest same-bound uniform grids, summed.
+    /// [`Nurbs::opt_cells`] summed — the cheapest UNIFORM grid the
+    /// whole-patch bound admits.
+    ///
+    /// **One uniform grid under the whole-patch bound, where
+    /// [`Self::span_opt_cells`] is sized and split PER CELL** — that
+    /// pair of qualifiers is the whole of the difference between the
+    /// two fields, and "the cheapest split" on its own is true of
+    /// both and identifies neither. No reading of either omits them.
+    ///
+    /// No rule divides by this sum — [`parse`] bounds the per-row
+    /// column against `patch_cells` and nothing downstream reads it —
+    /// so it is summed for one purpose: the CLI prints it BESIDE its
+    /// twin, two figures under two names being what makes the pair
+    /// tellable apart at a glance.
     pub opt_cells: f64,
-    /// Per-cell-sized grids at the cheapest split, summed.
+    /// [`Nurbs::span_opt_cells`] summed — the cheapest split PER
+    /// CELL, on top of per-cell sizing.
+    ///
+    /// [`Self::recoverable`]'s denominator, which is what the slack
+    /// rule compares.
     pub span_opt_cells: f64,
     /// Triangles on faces the sweep actually resampled.
     pub measured_triangles: usize,
@@ -1090,19 +1420,22 @@ pub const GROWTH_TOLERANCE: f64 = 1.05;
 /// the whole-patch counterfactual's divisions and reach the report
 /// only through `patch_cells`, which no rule gates on.
 ///
-/// "the sizing block" is whether the row carries the Hessian-sized
-/// columns at all — the reroute case, where a face keeps its surface
-/// description and leaves the sized lane.
-pub const IDENTITY_COLUMNS: [&str; 8] = [
-    "chart",
-    "the sizing block",
-    "u0",
-    "u1",
-    "v0",
-    "v1",
-    "nu",
-    "nv",
-];
+/// **Whether the row carries the sizing block at all is NOT one of
+/// them, and the reason is a property of [`parse`] rather than of the
+/// kernel.** That parse refuses either half of the lane pairing
+/// without the other ([`SIZED_CHART_TAGS`]), so on any two rows this
+/// list compares, a difference in block presence IS a difference in
+/// `chart` — and `chart` is entry zero, so a block-presence entry
+/// could never be the first disagreement rule 4 reports. It would
+/// discriminate nothing and announce nothing.
+///
+/// Dropping it does not drop the SCHEMA CHECK it used to be read for.
+/// A producer that starts writing the pairing this crate refuses is
+/// caught in [`parse`], in the harness voice, on the row that carries
+/// it — which is louder and earlier than a re-key finding, and is
+/// what this gate does with every other schema move (`CHART_TAGS`,
+/// [`EXPECTED_HEADER`]) rather than resolving it into a reading.
+pub const IDENTITY_COLUMNS: [&str; 7] = ["chart", "u0", "u1", "v0", "v1", "nu", "nv"];
 
 /// One column's reading, as the precondition compares it.
 ///
@@ -1136,10 +1469,13 @@ impl Reading<'_> {
 
 /// One row's reading of [`IDENTITY_COLUMNS`], index for index.
 fn identity(r: &Row) -> [Reading<'_>; IDENTITY_COLUMNS.len()] {
+    // `Reading::Absent` is the OFF-LANE reading, and it is honest here
+    // for the reason `IDENTITY_COLUMNS` gives: [`parse`] admits an
+    // empty tail only under a chart that owes no tail, so `None`
+    // reaching this closure is the lane and never an unread column.
     let col = |f: fn(&Nurbs) -> f64| r.nurbs.map_or(Reading::Absent, |n| Reading::Number(f(&n)));
     [
         Reading::Tag(r.chart.as_str()),
-        Reading::Tag(if r.is_sized() { "present" } else { "absent" }),
         col(|n| n.u0),
         col(|n| n.u1),
         col(|n| n.v0),
@@ -1156,7 +1492,7 @@ fn identity(r: &Row) -> [Reading<'_>; IDENTITY_COLUMNS.len()] {
 ///
 /// `tests/baseline_census.rs` is that anyone. It exists so the census
 /// groups on THIS definition rather than on a transcription of it: a
-/// ninth entry in [`IDENTITY_COLUMNS`] changes this array's length and
+/// eighth entry in [`IDENTITY_COLUMNS`] changes this array's length and
 /// the census's grouping with it, which a second copy of the list
 /// could not do.
 ///
@@ -1372,10 +1708,11 @@ pub fn compare(baseline: &[Row], fresh: &[Row]) -> Report {
                     None => {
                         // Every identity column agrees, so this ordinal
                         // is one face on both sides and rule 2 runs on
-                        // it. Agreement includes "the sizing block", so
-                        // the ratio is present on both sides or on
-                        // neither and a skip here is a face with no
-                        // slack to compare, never a comparison dropped.
+                        // it. Agreement includes `chart`, which fixes
+                        // the sizing block's presence (`parse`), so the
+                        // ratio is present on both sides or on neither
+                        // and a skip here is a face with no slack to
+                        // compare, never a comparison dropped.
                         if let (Some(was), Some(now)) = (b.recoverable(), f.recoverable())
                             && now > was * GROWTH_TOLERANCE
                         {
@@ -1434,36 +1771,70 @@ fn first_disagreement(base: &Row, fresh: &Row) -> Option<Rekey> {
 mod tests {
     use super::*;
 
-    /// A two-face fixture: one plane (empty NURBS columns), one NURBS
-    /// wall at ordinal 1.
+    /// The page this crate's cross-column citations NAME, read here so
+    /// they cannot rot silently.
     ///
-    /// Twinned in `tests/cli_contract.rs`, deliberately: an
-    /// integration test cannot see a `#[cfg(test)]` item, so the two
-    /// cannot share one. Keep them in step.
-    fn csv(tris: usize, span_opt: f64) -> String {
-        format!(
-            "{EXPECTED_HEADER}\n{}\
-             s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,\
-             1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n",
-            unsized_row(0, "plane", 4)
-        )
+    /// Those citations are plain text — a path and a clause id in a
+    /// doc comment — and nothing else in either cargo root validates
+    /// either half. The `include_str!` makes the PATH load-bearing:
+    /// move or delete `tools/README.md` and this crate stops
+    /// compiling. [`every_clause_this_crate_cites_is_on_the_page`]
+    /// makes the CLAUSE IDS load-bearing, which is the half a path
+    /// cannot reach.
+    const RULE_PAGE: &str = include_str!("../../README.md");
+
+    /// Every clause id this crate cites is a heading on
+    /// [`RULE_PAGE`], and the page carries no clause this crate has
+    /// not seen.
+    ///
+    /// The second direction is the one worth having: a `CC6` written
+    /// on the page without a row here reds this test, so a clause
+    /// cannot arrive without the crates citing the range being told.
+    /// The list is written out rather than scraped from this file's
+    /// own text — a test that reads the thing it is checking asserts
+    /// nothing.
+    #[test]
+    fn every_clause_this_crate_cites_is_on_the_page() {
+        const CITED: [&str; 5] = ["CC1", "CC2", "CC3", "CC4", "CC5"];
+        for id in CITED {
+            assert_eq!(
+                RULE_PAGE.matches(&format!("\n## `{id}` ")).count(),
+                1,
+                "{id}: one clause heading on tools/README.md"
+            );
+        }
+        assert_eq!(
+            RULE_PAGE.matches("\n## `CC").count(),
+            CITED.len(),
+            "the page's clauses are exactly the ones this crate cites"
+        );
     }
 
-    /// A row on a lane that sizes nothing, at a chosen ordinal and
-    /// chart — enough to move a scene's roster without moving a
-    /// triangle. The empty tail is COUNTED from the header, at the
-    /// column [`IDENTITY_FIRST`] names, so a schema change cannot turn
-    /// these fixtures into short rows that fail for the wrong reason.
-    fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
-        let blanks = ",".repeat(EXPECTED_HEADER.split(',').count() - IDENTITY_FIRST);
-        format!("s/b,{face},{chart},2e-3,{tris}{blanks}\n")
-    }
+    // The two-face CSV fixture, with one home: `scene`, `unsized_row`
+    // and the `name` token this module builds rows from are the same
+    // file `tests/cli_contract.rs` mounts, so a column cannot be
+    // transcribed into one side and not the other. A mounted module
+    // and not an `include!`: the file's own header says why.
+    mod csv_fixture;
+    use self::csv_fixture::{FIXTURE_NAME, scene, unsized_row};
 
     #[test]
     fn parses_both_chart_shapes() {
-        let rows = parse(&csv(100, 2.5e1)).unwrap();
+        let rows = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(rows.len(), 2);
         assert!(!rows[0].is_sized(), "a plane row carries no sizing");
+        // `name` is read by no rule, so what catches [`parse`] reading
+        // it out of the wrong column is this and nothing else: the
+        // header check pins where `name` SITS and says nothing about
+        // where its value lands. The fixture's own test is the other
+        // reader of the token and not a substitute for this one — it
+        // says the token was WRITTEN at the column the header names,
+        // without ever calling [`parse`]. This is the round trip.
+        assert_eq!(
+            (rows[0].name.as_str(), rows[1].name.as_str()),
+            ("", FIXTURE_NAME),
+            "the name column's token did not land in Row::name"
+        );
         let n = rows[1].nurbs.unwrap();
         assert!((n.grid_cells - 100.0).abs() < 1e-9);
         assert!((n.patch_cells - 200.0).abs() < 1e-9);
@@ -1475,7 +1846,7 @@ mod tests {
 
     #[test]
     fn a_renamed_column_is_harness_breakage_not_a_finding() {
-        let drifted = csv(100, 2.5e1).replacen("span_opt_cells", "span_best_cells", 1);
+        let drifted = scene(100, 2.5e1).replacen("span_opt_cells", "span_best_cells", 1);
         let e = parse(&drifted).unwrap_err();
         assert_eq!(e.line, 1);
         assert!(e.text.contains("unexpected header"), "{}", e.text);
@@ -1509,21 +1880,21 @@ mod tests {
 
     #[test]
     fn an_unmoved_sweep_is_clean() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(compare(&base, &base), Report::default());
     }
 
     #[test]
     fn growth_inside_the_tolerance_is_not_a_finding() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(104, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(104, 2.5e1)).unwrap();
         assert_eq!(compare(&base, &fresh), Report::default());
     }
 
     #[test]
     fn triangle_growth_fires() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(200, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(200, 2.5e1)).unwrap();
         // The plane's 4 triangles ride along in the scene total.
         assert_eq!(
             fired(&base, &fresh),
@@ -1538,8 +1909,8 @@ mod tests {
     /// got SMALLER while the sizing schedule got wastefuller.
     #[test]
     fn slack_growth_fires_even_as_the_mesh_shrinks() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(50, 1.0e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(50, 1.0e1)).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![Kind::Slack {
@@ -1552,7 +1923,7 @@ mod tests {
 
     #[test]
     fn a_vanished_scene_is_a_finding_not_an_improvement() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         let fresh = parse(EXPECTED_HEADER).unwrap();
         assert_eq!(
             fired(&base, &fresh),
@@ -1568,7 +1939,7 @@ mod tests {
     #[test]
     fn an_uncovered_scene_is_a_finding_not_a_note() {
         let base = parse(EXPECTED_HEADER).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![Kind::Uncovered { triangles: 104.0 }]
@@ -1582,8 +1953,8 @@ mod tests {
     /// be allowed to bury the first.
     #[test]
     fn an_uncovered_scene_does_not_shadow_a_vanished_one() {
-        let base = parse(&csv(100, 2.5e1).replace("s/b", "gone/gone")).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1).replace("s/b", "gone/gone")).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![
@@ -1599,7 +1970,7 @@ mod tests {
     fn a_sweep_records_the_tree_it_was_cut_from() {
         let text = format!(
             "{CUT_PREFIX} 1a2b3c4d5e6f 2026-08-30T12:00:00+00:00\n{}",
-            csv(100, 2.5e1)
+            scene(100, 2.5e1)
         );
         assert_eq!(
             cut(&text).unwrap(),
@@ -1609,37 +1980,47 @@ mod tests {
             })
         );
         // And the rows behind it parse exactly as they do without one.
-        assert_eq!(parse(&text).unwrap(), parse(&csv(100, 2.5e1)).unwrap());
+        assert_eq!(parse(&text).unwrap(), parse(&scene(100, 2.5e1)).unwrap());
     }
 
     #[test]
     fn a_dirty_cut_says_so_rather_than_reading_as_clean() {
         let text = format!(
             "{CUT_PREFIX} 1a2b3c4d-dirty 2026-08-30\n{}",
-            csv(100, 2.5e1)
+            scene(100, 2.5e1)
         );
         assert_eq!(cut(&text).unwrap().unwrap().commit, "1a2b3c4d-dirty");
     }
 
     #[test]
     fn a_sweep_without_a_cut_line_records_none() {
-        assert_eq!(cut(&csv(100, 2.5e1)).unwrap(), None);
+        assert_eq!(cut(&scene(100, 2.5e1)).unwrap(), None);
     }
 
     /// A provenance line the lint cannot read is the sweep and the
     /// lint disagreeing about the format — harness breakage, never a
     /// silently absent cut, for the reason the sizing columns refuse
     /// an unreadable value one level down.
+    ///
+    /// **These lines appear again in `tests/cut_line_pin.rs`'s truth
+    /// table, and the two rows assert different things about them.**
+    /// Here: that the reader refuses them, in the harness voice, at
+    /// line 1 — a property of this crate alone. There: that
+    /// `scripts/tess_budget_cut.sh`'s own regex refuses them too, so
+    /// that the two languages agree about what a cut line is. Neither
+    /// answers the other's question, and neither would red if the
+    /// other were deleted.
     #[test]
     fn a_malformed_cut_line_is_harness_breakage_not_an_absent_cut() {
         for bad in [
-            "# tess-budget-cut: 1a2b3c4d5e6f",
-            "# tess-budget-cut: not-hex 2026-08-30",
-            "# tess-budget-cut: 1a2b3c 2026-08-30",
-            "# tess-budget-cut: 1a2b3c4d5e6f yesterday",
+            &format!("{CUT_PREFIX} 1a2b3c4d5e6f") as &str,
+            &format!("{CUT_PREFIX} not-hex 2026-08-30"),
+            &format!("{CUT_PREFIX} 1a2b3c 2026-08-30"),
+            &format!("{CUT_PREFIX} 1a2b3c4d5e6f yesterday"),
+            // Not the prefix at all, deliberately.
             "# swept at 1a2b3c4d5e6f 2026-08-30",
         ] {
-            let text = format!("{bad}\n{}", csv(100, 2.5e1));
+            let text = format!("{bad}\n{}", scene(100, 2.5e1));
             let e = cut(&text).unwrap_err();
             assert_eq!(e.line, 1, "{bad}");
             assert!(parse(&text).is_err(), "parse admitted {bad}");
@@ -1659,14 +2040,21 @@ mod tests {
 
     /// Sizing columns are all-or-nothing: a half-filled row means the
     /// sweep and the lint disagree about the schema.
+    ///
+    /// The row is the fixture with ONE sizing column blanked, not a
+    /// row typed out: a typed row carries the header's width as a
+    /// literal, so a column added to the schema makes it a SHORT row
+    /// and it reds on the field count instead of on the half-filled
+    /// block — right test, wrong reason. Counting from the header is
+    /// what [`unsized_row`] does for the same reason.
     #[test]
     fn a_half_filled_sizing_row_is_harness_breakage() {
-        let bad = format!(
-            "{EXPECTED_HEADER}\n\
-             s/b,1,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,1e2,,5e1,2.5e1,\
-             1e-4,5e-5,99,2,1,0,3e0\n"
+        const BLANKED: usize = 1;
+        assert_eq!(
+            SIZING_COLUMNS[BLANKED].0, "patch_cells",
+            "the sizing block moved under this test"
         );
-        let e = parse(&bad).unwrap_err();
+        let e = parse(&with_column(BLANKED, "")).unwrap_err();
         assert!(e.text.contains("partially filled"), "{}", e.text);
     }
 
@@ -1687,14 +2075,14 @@ mod tests {
 
     /// [`with_field`] addressed within the sizing block.
     fn with_column(k: usize, value: &str) -> String {
-        with_field(&csv(100, 2.5e1), SIZING_FIRST + k, value)
+        with_field(&scene(100, 2.5e1), SIZING_FIRST + k, value)
     }
 
     /// The shape of the sweep CI actually gates on: `--sizing-only`
     /// resamples nothing, so `worst_dev` is `NaN` and `dev_samples` is
     /// zero.
     fn sizing_only(tris: usize, span_opt: f64) -> Vec<Row> {
-        let text = with_field(&csv(tris, span_opt), SIZING_FIRST + 5, "NaN");
+        let text = with_field(&scene(tris, span_opt), SIZING_FIRST + 5, "NaN");
         let text = with_field(&text, DEV_SAMPLES, "0");
         parse(&text).unwrap()
     }
@@ -1760,19 +2148,28 @@ mod tests {
         // `inf`/`NaN` separate a finite trim-box edge from no policy at
         // all; `0e0`/`-1e0` separate an edge, which is a signed
         // parameter value, from a count.
+        //
+        // The two HIGH edges refuse where the low ones admit, and
+        // that asymmetry is not this table's: the fixture's box is
+        // `[0, 1] x [0, 1]`, so moving a high edge to `0e0` or `-1e0`
+        // collapses or inverts it and `parse`'s non-degeneracy check
+        // takes it. The per-column policy is one policy across all
+        // four, which
+        // `a_degenerate_trim_box_is_harness_breakage` pins from the
+        // other side.
         const BAD: [&str; 5] = ["0e0", "-1e0", "inf", "NaN", "5e-1"];
         const ADMITTED: [(&str, [bool; 5]); IDENTITY_MEASURES.len()] = [
             ("u0", [true, true, false, false, true]),
-            ("u1", [true, true, false, false, true]),
+            ("u1", [false, false, false, false, true]),
             ("v0", [true, true, false, false, true]),
-            ("v1", [true, true, false, false, true]),
+            ("v1", [false, false, false, false, true]),
             ("nu", [false, false, false, false, false]),
             ("nv", [false, false, false, false, false]),
         ];
         for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
             assert_eq!(*name, IDENTITY_MEASURES[k].0, "column {k} of the table");
             for (b, bad) in BAD.iter().enumerate() {
-                let got = parse(&with_field(&csv(100, 2.5e1), IDENTITY_FIRST + k, bad)).is_ok();
+                let got = parse(&with_field(&scene(100, 2.5e1), IDENTITY_FIRST + k, bad)).is_ok();
                 assert_eq!(got, admitted[b], "{name} = {bad}: admitted = {got}");
             }
         }
@@ -1784,8 +2181,8 @@ mod tests {
     /// numbers for this reason; `{:?}` renders the two differently.
     #[test]
     fn a_signed_zero_extent_is_not_a_re_key() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&with_field(&csv(100, 2.5e1), IDENTITY_FIRST, "-0e0")).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&with_field(&scene(100, 2.5e1), IDENTITY_FIRST, "-0e0")).unwrap();
         assert_eq!(fresh[1].nurbs.unwrap().u0, 0.0, "and it parsed as an edge");
         assert!(
             fresh[1].nurbs.unwrap().u0.is_sign_negative(),
@@ -1802,6 +2199,24 @@ mod tests {
     #[test]
     fn the_policed_block_is_the_headers_sizing_block() {
         let cols: Vec<&str> = EXPECTED_HEADER.split(',').collect();
+        // The head block first — the columns every row fills, each
+        // read by index in `parse`. A column inserted among them
+        // slides `chart` (a gate input), `delta` and `triangles` under
+        // one another's policies while every row still has the right
+        // WIDTH, which is the one drift the header check cannot see.
+        for (col, name) in [
+            (NAME, "name"),
+            (CHART, "chart"),
+            (DELTA, "delta"),
+            (TRIANGLES, "triangles"),
+        ] {
+            assert_eq!(cols[col], name, "the head block moved at {name}");
+        }
+        assert_eq!(
+            (cols[0], cols[1]),
+            ("scene", "face"),
+            "the join key is the head's first two columns"
+        );
         // The identity block first, bracketed the same way: a column
         // inserted at its head would slide every identity reading
         // under the wrong policy AND re-key every scene at once.
@@ -1870,7 +2285,7 @@ mod tests {
         for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
             assert_eq!(*name, INDICATOR_COLUMNS[k].0, "column {k} of the table");
             for (b, bad) in BAD.iter().enumerate() {
-                let got = parse(&with_field(&csv(100, 2.5e1), INDICATOR_FIRST + k, bad)).is_ok();
+                let got = parse(&with_field(&scene(100, 2.5e1), INDICATOR_FIRST + k, bad)).is_ok();
                 assert_eq!(got, admitted[b], "{name} = {bad}: admitted = {got}");
             }
         }
@@ -1894,8 +2309,8 @@ mod tests {
     /// a face that improved.
     #[test]
     fn a_collapsed_denominator_fires_rather_than_passing() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(100, 1.0)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(100, 1.0)).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![Kind::Slack {
@@ -1965,11 +2380,11 @@ mod tests {
     #[test]
     fn a_broken_delta_is_harness_breakage() {
         for bad in ["0e0", "-2e-3", "NaN", "inf"] {
-            let e = parse(&with_field(&csv(100, 2.5e1), 3, bad)).unwrap_err();
+            let e = parse(&with_field(&scene(100, 2.5e1), DELTA, bad)).unwrap_err();
             assert!(e.text.contains("delta"), "{bad}: {}", e.text);
             assert!(e.text.contains("tessellation target"), "{bad}: {}", e.text);
         }
-        assert!(parse(&with_field(&csv(100, 2.5e1), 3, "2e-3")).is_ok());
+        assert!(parse(&with_field(&scene(100, 2.5e1), DELTA, "2e-3")).is_ok());
     }
 
     /// A resampled face that attained EXACTLY zero deviation spent
@@ -2003,7 +2418,7 @@ mod tests {
     #[test]
     fn the_two_nans_are_told_apart_by_dev_samples() {
         // Resampled 99 triangles, and the answer was NaN.
-        let drift = with_field(&csv(100, 2.5e1), SIZING_FIRST + 5, "NaN");
+        let drift = with_field(&scene(100, 2.5e1), SIZING_FIRST + 5, "NaN");
         let e = parse(&drift).unwrap_err();
         assert_eq!(e.line, 3);
         assert!(e.text.contains("worst_dev"), "{}", e.text);
@@ -2017,7 +2432,7 @@ mod tests {
         // And the third combination is the producer contradicting
         // itself: `mesh::trimmed` writes `worst_dev` only from inside
         // the sample loop, so a reading over zero samples is drift.
-        let e = parse(&with_field(&csv(100, 2.5e1), DEV_SAMPLES, "0")).unwrap_err();
+        let e = parse(&with_field(&scene(100, 2.5e1), DEV_SAMPLES, "0")).unwrap_err();
         assert!(e.text.contains("zero deviation samples"), "{}", e.text);
     }
 
@@ -2028,13 +2443,13 @@ mod tests {
     #[test]
     fn an_unreadable_sample_count_is_harness_breakage() {
         for bad in ["-1", "1e2", "9.5", "NaN"] {
-            let e = parse(&with_field(&csv(100, 2.5e1), DEV_SAMPLES, bad)).unwrap_err();
+            let e = parse(&with_field(&scene(100, 2.5e1), DEV_SAMPLES, bad)).unwrap_err();
             assert!(e.text.contains("dev_samples"), "{bad}: {}", e.text);
         }
         // Blank is the other failure and it is a DIFFERENT one: the
         // sizing block is all-present or all-absent, so an emptied
         // count is a half-filled row, refused one check earlier.
-        let e = parse(&with_field(&csv(100, 2.5e1), DEV_SAMPLES, "")).unwrap_err();
+        let e = parse(&with_field(&scene(100, 2.5e1), DEV_SAMPLES, "")).unwrap_err();
         assert!(e.text.contains("partially filled"), "{}", e.text);
     }
 
@@ -2043,8 +2458,8 @@ mod tests {
     /// clean, so the constant cannot be cut under 1.04.
     #[test]
     fn a_four_percent_scene_is_inside_the_tolerance() {
-        let base = parse(&csv(96, 2.5e1)).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(96, 2.5e1)).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(compare(&base, &fresh), Report::default());
     }
 
@@ -2054,8 +2469,8 @@ mod tests {
     /// the pair leaves a 2-point window to raise it into.
     #[test]
     fn a_six_percent_scene_is_a_finding() {
-        let base = parse(&csv(96, 2.5e1)).unwrap();
-        let fresh = parse(&csv(102, 2.5e1)).unwrap();
+        let base = parse(&scene(96, 2.5e1)).unwrap();
+        let fresh = parse(&scene(102, 2.5e1)).unwrap();
         assert!(
             matches!(fired(&base, &fresh)[..], [Kind::Triangles { .. }]),
             "{:?}",
@@ -2068,8 +2483,8 @@ mod tests {
     /// 26 → 25 is exactly 1.04 and stays clean.
     #[test]
     fn a_four_percent_slack_growth_is_inside_the_tolerance() {
-        let base = parse(&csv(100, 2.6e1)).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.6e1)).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert_eq!(compare(&base, &fresh), Report::default());
     }
 
@@ -2078,8 +2493,8 @@ mod tests {
     /// split in two: a second threshold with no box would red here.
     #[test]
     fn a_six_percent_slack_growth_is_a_finding() {
-        let base = parse(&csv(100, 2.65e1)).unwrap();
-        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.65e1)).unwrap();
+        let fresh = parse(&scene(100, 2.5e1)).unwrap();
         assert!(
             matches!(fired(&base, &fresh)[..], [Kind::Slack { .. }]),
             "{:?}",
@@ -2092,7 +2507,7 @@ mod tests {
     /// nothing, and the face the slack rule was watching is gone.
     #[test]
     fn a_face_missing_from_a_surviving_scene_is_a_finding() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         let fresh = parse(&format!(
             "{EXPECTED_HEADER}\n{}",
             unsized_row(0, "plane", 4)
@@ -2111,10 +2526,10 @@ mod tests {
     /// has.
     #[test]
     fn a_face_only_the_fresh_sweep_has_is_a_finding() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         let fresh = parse(&format!(
             "{}{}",
-            csv(100, 2.5e1),
+            scene(100, 2.5e1),
             unsized_row(2, "plane", 0)
         ))
         .unwrap();
@@ -2127,33 +2542,222 @@ mod tests {
         );
     }
 
-    /// A NURBS face that reroutes off the sized lane keeps its ordinal
-    /// and its triangle count, so nothing scene-granular moves — and
-    /// dropping it quietly is the coverage loss the module docs call a
-    /// finding rather than a footnote. The message must say the SIZING
-    /// BLOCK went, not that a schedule got wastefuller.
+    /// An indicator count larger than `bands`, which the per-column
+    /// admissions structurally cannot carry: `Admissible::Count` and
+    /// `Admissible::CellCount` each police their column alone and the
+    /// CONTAINMENT never was one of them, so a subset larger than its
+    /// set parsed and reached the report as a reading — the
+    /// constraint-activity line prints these counts `of {bands}`.
     #[test]
-    fn a_face_that_leaves_the_sized_lane_names_the_sizing_block() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        // Same chart, no sizing columns: `Chart::of` reads the
-        // surface and the block records the LANE, so these two move
-        // independently and the reroute is exactly that case.
-        let fresh = parse(&format!(
+    fn an_indicator_count_above_bands_is_harness_breakage() {
+        // `bands` is 2 on the fixture's sized row and both indicators
+        // are admissible at every value used here, which is the
+        // point: each is finite and non-negative on its own.
+        for (name, col) in [
+            ("cap_bands", INDICATOR_FIRST + 1),
+            ("snap_bands", INDICATOR_FIRST + 2),
+        ] {
+            let e = parse(&with_field(&scene(100, 2.5e1), col, "3e0"))
+                .expect_err("a subset cannot outnumber its set");
+            assert_eq!(e.line, 3, "{name}: the row that carries it");
+            assert!(
+                e.text
+                    .contains(&format!("{name}: 3 bands over a schedule that emitted 2")),
+                "{}",
+                e.text
+            );
+            // EQUALITY is a reading — every emitted band bound by the
+            // same constraint — so the refusal is the containment and
+            // not a strict inequality smuggled in beside it.
+            assert!(
+                parse(&with_field(&scene(100, 2.5e1), col, "2e0")).is_ok(),
+                "{name}: every band may be bound"
+            );
+        }
+    }
+
+    /// A trim box that is degenerate or inverted, which
+    /// `Admissible::Extent` structurally cannot refuse: it polices one
+    /// edge, and every value here is a finite parameter coordinate on
+    /// its own.
+    ///
+    /// **This is the row that made `tools/README.md`'s `CC4` say what
+    /// it says.** The non-degeneracy was once dispositioned as
+    /// entailed — `span_opt_cells` is floored at one and its
+    /// accumulator skips cells outside the box — and the entailment
+    /// holds for a row `tess_meter` wrote, not for a row. Here the box
+    /// collapses beside a `span_opt_cells` of 25, and without the
+    /// check it reaches [`identity`] as a face-identity reading, where
+    /// two collapsed faces compare EQUAL and rule 4 reports a
+    /// comparison the gate never made.
+    #[test]
+    fn a_degenerate_trim_box_is_harness_breakage() {
+        // The fixture's box is `[0, 1] x [0, 1]`, so moving a HIGH
+        // edge is what collapses or inverts it.
+        for (hi, axis) in [(IDENTITY_FIRST + 1, "u"), (IDENTITY_FIRST + 3, "v")] {
+            for (value, shape) in [("0e0", "collapsed"), ("-1e0", "inverted")] {
+                let e = parse(&with_field(&scene(100, 2.5e1), hi, value))
+                    .expect_err("a box with no area is not a face");
+                assert_eq!(e.line, 3, "{axis}: {shape} — the row that carries it");
+                assert!(
+                    e.text
+                        .contains(&format!("{axis}0/{axis}1: a trim box spanning")),
+                    "{axis}: {shape}: {}",
+                    e.text
+                );
+            }
+            // And the LOW edge moved to a value that keeps the box
+            // open still parses, so what is refused is the relation
+            // and not a per-column policy smuggled in beside it.
+            assert!(
+                parse(&with_field(&scene(100, 2.5e1), hi - 1, "5e-1")).is_ok(),
+                "{axis}: a narrower box is still a face"
+            );
+        }
+    }
+
+    /// `patch_cells` is the PRODUCT of the two counterfactual
+    /// divisions, which `Admissible::CellCount` cannot see across
+    /// three columns: every value used here is a cell count on its
+    /// own.
+    ///
+    /// Exact equality is the test. `nu` and `nv` round trip through
+    /// the CSV and IEEE multiplication is deterministic, so a
+    /// tolerance here would admit a product nothing computed.
+    #[test]
+    fn patch_cells_is_the_product_of_the_counterfactual_divisions() {
+        // The fixture: `nu` = 10, `nv` = 20, `patch_cells` = 200.
+        const PATCH: usize = SIZING_FIRST + 1;
+        for (col, value, moved) in [
+            (PATCH, "2.01e2", "patch_cells"),
+            (IDENTITY_FIRST + 4, "5e0", "nu"),
+            (IDENTITY_FIRST + 5, "1e1", "nv"),
+        ] {
+            let e = parse(&with_field(&scene(100, 2.5e1), col, value))
+                .expect_err("the product is not the one the row states");
+            assert_eq!(e.line, 3, "{moved}: the row that carries it");
+            assert!(e.text.starts_with("patch_cells: "), "{moved}: {}", e.text);
+        }
+        // Either factor may move as long as the product follows: what
+        // is pinned is the identity, not the fixture's numbers.
+        let halved = with_field(&scene(100, 2.5e1), IDENTITY_FIRST + 4, "5e0");
+        assert!(
+            parse(&with_field(&halved, PATCH, "1e2")).is_ok(),
+            "a 5 x 20 counterfactual costs 100 cells"
+        );
+    }
+
+    /// The cheapest whole-patch split never costs more than the
+    /// whole-patch schedule: `tess_meter::best_split_scan` seeds its
+    /// running minimum with that schedule.
+    ///
+    /// EQUALITY is a reading — the schedule already is the cheapest
+    /// split — so the refusal is the relation and not a strict
+    /// inequality beside it. Six of the 64 sized rows of the
+    /// committed baseline sit exactly there.
+    #[test]
+    fn the_cheapest_split_never_costs_more_than_the_schedule() {
+        const OPT: usize = SIZING_FIRST + 2;
+        let e = parse(&with_field(&scene(100, 2.5e1), OPT, "2.01e2"))
+            .expect_err("a minimum cannot exceed the value it was seeded with");
+        assert_eq!(e.line, 3);
+        assert!(e.text.starts_with("opt_cells: "), "{}", e.text);
+        assert!(
+            parse(&with_field(&scene(100, 2.5e1), OPT, "2e2")).is_ok(),
+            "a schedule that is already the cheapest split"
+        );
+    }
+
+    /// A sized-lane chart over an EMPTY sizing tail is refused at the
+    /// parse, not read: the tail is the spelling of "off the sized
+    /// lane", so reading it would drop the face out of the budget's
+    /// accounting while announcing a re-key instead.
+    #[test]
+    fn a_sized_chart_without_the_sizing_block_is_harness_breakage() {
+        let text = format!(
             "{EXPECTED_HEADER}\n{}{}",
             unsized_row(0, "plane", 4),
             unsized_row(1, "nurbs", 100)
-        ))
-        .unwrap();
+        );
+        let e = parse(&text).unwrap_err();
+        assert_eq!(e.line, 3, "the row that carries it");
+        // Whole, not `contains`: the tag alone is named by the roster
+        // refusal too, so a containment on it would read as satisfied
+        // by a check that is not this one.
         assert_eq!(
-            fired(&base, &fresh),
-            vec![Kind::Rekeyed {
-                face: 1,
-                how: Rekey::Column {
-                    name: "the sizing block",
-                    was: "present".into(),
-                    now: "absent".into()
-                }
-            }]
+            e.text,
+            "chart \"nurbs\" is the Hessian-sized lane's and the sizing columns are \
+             empty: that tail reads as a face OFF the sized lane (sweep drift?)"
+        );
+    }
+
+    /// The other cell of the same 2x2: the sizing columns under a
+    /// chart the meter sizes nothing about. `approx` is on the sized
+    /// lane, so the fixture's `cylinder` is a tag `CHART_TAGS` admits
+    /// and [`SIZED_CHART_TAGS`] does not — the pairing is refused, not
+    /// the tag.
+    #[test]
+    fn an_unsized_chart_carrying_the_sizing_block_is_harness_breakage() {
+        let text = with_field(&scene(100, 2.5e1), CHART, "cylinder");
+        let e = parse(&text).unwrap_err();
+        assert_eq!(e.line, 3, "the row that carries it");
+        assert_eq!(
+            e.text,
+            "chart \"cylinder\" is not the Hessian-sized lane's and the row carries the \
+             sizing columns anyway (sweep drift?)"
+        );
+        // …and the tag itself is fine on a row that owes no block, so
+        // the refusal above is about the PAIRING and not about
+        // `cylinder`.
+        let ok = format!("{EXPECTED_HEADER}\n{}", unsized_row(0, "cylinder", 4));
+        assert!(!parse(&ok).unwrap()[0].is_sized());
+    }
+
+    /// The pairing, over the whole roster and in both directions: for
+    /// every tag [`CHART_TAGS`] admits, exactly one of the two row
+    /// shapes parses, and which one is [`SIZED_CHART_TAGS`].
+    ///
+    /// This is what makes [`Row::is_sized`] a function of `chart` on
+    /// every parsed row, which is why [`IDENTITY_COLUMNS`] carries no
+    /// block-presence entry: a roster that gained or lost a member,
+    /// or a refusal arm that went, lands here.
+    #[test]
+    fn every_chart_tag_owes_the_sizing_block_or_refuses_it() {
+        for tag in CHART_TAGS {
+            let sized = SIZED_CHART_TAGS.contains(&tag);
+            let with = with_field(&scene(100, 2.5e1), CHART, tag);
+            let without = format!("{EXPECTED_HEADER}\n{}", unsized_row(0, tag, 4));
+            assert_eq!(
+                parse(&with).is_ok(),
+                sized,
+                "{tag}: a row WITH the sizing block, against SIZED_CHART_TAGS"
+            );
+            assert_eq!(
+                parse(&without).is_ok(),
+                !sized,
+                "{tag}: a row WITHOUT the sizing block, against SIZED_CHART_TAGS"
+            );
+            if let Ok(rows) = parse(&with) {
+                assert!(rows[1].is_sized(), "{tag}");
+            }
+            if let Ok(rows) = parse(&without) {
+                assert!(!rows[0].is_sized(), "{tag}");
+            }
+        }
+        // The roster itself, written out rather than iterated — the
+        // loop above reads `SIZED_CHART_TAGS` to decide what to
+        // expect, so a member gained or lost moves the expectation
+        // with it and passes in silence. Same guard, same reason, as
+        // the one on `CHART_TAGS`.
+        assert_eq!(
+            SIZED_CHART_TAGS,
+            ["nurbs", "approx"],
+            "the tags `tess_meter::Chart::sized_lane` answers true for"
+        );
+        assert!(
+            SIZED_CHART_TAGS.iter().all(|t| CHART_TAGS.contains(t))
+                && SIZED_CHART_TAGS.len() < CHART_TAGS.len(),
+            "the sized roster is a PROPER subset, so the loop tests both directions"
         );
     }
 
@@ -2167,21 +2771,34 @@ mod tests {
     /// eighth entry with no row here does not compile.
     #[test]
     fn every_identity_column_re_keys_on_its_own() {
-        // `approx` is a real tag on the SIZED lane, so the chart row
-        // moves chart and nothing else — a mutation that dropped
-        // `chart` from the list would pass without it.
-        const MOVED: [(&str, usize, &str); IDENTITY_COLUMNS.len() - 1] = [
-            ("chart", 2, "approx"),
-            ("u0", IDENTITY_FIRST, "5e-1"),
-            ("u1", IDENTITY_FIRST + 1, "9e-1"),
-            ("v0", IDENTITY_FIRST + 2, "5e-1"),
-            ("v1", IDENTITY_FIRST + 3, "9e-1"),
-            ("nu", IDENTITY_FIRST + 4, "9e0"),
-            ("nv", IDENTITY_FIRST + 5, "9e0"),
+        // `approx` is the other tag on the SIZED lane, so the chart
+        // row moves `chart` and nothing else — it keeps the sizing
+        // block the pairing owes it, which is what lets ONE column
+        // move at a time here at all.
+        //
+        // `nu` and `nv` carry a companion: `parse` refuses a row whose
+        // `patch_cells` is not their product, so moving a division
+        // count alone makes an UNREADABLE row rather than a re-keyed
+        // one. The companion is not an identity column, so the
+        // identity reading still differs in exactly one place, which
+        // is what this test is about.
+        const MOVED: [(&str, usize, &str, Option<&str>); IDENTITY_COLUMNS.len()] = [
+            ("chart", CHART, "approx", None),
+            ("u0", IDENTITY_FIRST, "5e-1", None),
+            ("u1", IDENTITY_FIRST + 1, "9e-1", None),
+            ("v0", IDENTITY_FIRST + 2, "5e-1", None),
+            ("v1", IDENTITY_FIRST + 3, "9e-1", None),
+            ("nu", IDENTITY_FIRST + 4, "9e0", Some("1.8e2")),
+            ("nv", IDENTITY_FIRST + 5, "9e0", Some("9e1")),
         ];
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        for (name, col, value) in MOVED {
-            let fresh = parse(&with_field(&csv(100, 2.5e1), col, value)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        for (name, col, value, patch) in MOVED {
+            let moved = with_field(&scene(100, 2.5e1), col, value);
+            let moved = match patch {
+                Some(p) => with_field(&moved, SIZING_FIRST + 1, p),
+                None => moved,
+            };
+            let fresh = parse(&moved).unwrap();
             let got = fired(&base, &fresh);
             let [
                 Kind::Rekeyed {
@@ -2196,7 +2813,8 @@ mod tests {
         }
         // …and one case pinned with both readings, so the message's
         // evidence is asserted somewhere and not just its shape.
-        let fresh = parse(&with_field(&csv(100, 2.5e1), IDENTITY_FIRST + 4, "9e0")).unwrap();
+        let moved = with_field(&scene(100, 2.5e1), IDENTITY_FIRST + 4, "9e0");
+        let fresh = parse(&with_field(&moved, SIZING_FIRST + 1, "1.8e2")).unwrap();
         assert_eq!(
             fired(&base, &fresh),
             vec![Kind::Rekeyed {
@@ -2216,8 +2834,8 @@ mod tests {
     /// would suppress the very comparison this gate exists to make.
     #[test]
     fn a_face_whose_measurements_moved_is_still_the_same_face() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&csv(100, 1.0e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let fresh = parse(&scene(100, 1.0e1)).unwrap();
         assert!(
             matches!(fired(&base, &fresh)[..], [Kind::Slack { .. }]),
             "{:?}",
@@ -2230,11 +2848,11 @@ mod tests {
     /// recourse is "re-cut", which commits the regression unnamed.
     #[test]
     fn a_re_key_does_not_mask_a_regression_below_it() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         // Face 1 regresses; face 2 is added above it.
         let fresh = parse(&format!(
             "{}{}",
-            csv(100, 1.0e1),
+            scene(100, 1.0e1),
             unsized_row(2, "plane", 0)
         ))
         .unwrap();
@@ -2261,8 +2879,8 @@ mod tests {
     /// ordinal carrying the wall's numbers.
     #[test]
     fn a_shifted_face_above_the_disagreement_is_not_compared() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let shifted = with_field(&csv(100, 1.0e1), 1, "2");
+        let base = parse(&scene(100, 2.5e1)).unwrap();
+        let shifted = with_field(&scene(100, 1.0e1), 1, "2");
         let fresh = parse(&format!("{}{}", shifted, unsized_row(1, "plane", 0))).unwrap();
         assert_eq!(
             fired(&base, &fresh),
@@ -2280,7 +2898,7 @@ mod tests {
     /// A re-key is a FINDING where it can cost a measurement…
     #[test]
     fn a_re_key_in_a_scene_with_a_sized_face_reds_the_row() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let base = parse(&scene(100, 2.5e1)).unwrap();
         let fresh = parse(&format!(
             "{EXPECTED_HEADER}\n{}",
             unsized_row(0, "plane", 4)
@@ -2334,7 +2952,7 @@ mod tests {
         ))
         .unwrap();
         // The same 14 triangles, so rule 1 cannot speak for it.
-        let fresh = parse(&csv(10, 2.5e1)).unwrap();
+        let fresh = parse(&scene(10, 2.5e1)).unwrap();
         assert_eq!(noted(&base, &fresh), vec![], "nothing was reported quietly");
         assert_eq!(
             fired(&base, &fresh),
@@ -2356,7 +2974,7 @@ mod tests {
     fn a_repeated_face_row_is_harness_breakage() {
         let e = parse(&format!(
             "{}{}",
-            csv(100, 2.5e1),
+            scene(100, 2.5e1),
             unsized_row(1, "plane", 7)
         ))
         .unwrap_err();
@@ -2372,14 +2990,36 @@ mod tests {
     /// arrive here as a re-key on every scene that carries it.
     #[test]
     fn an_unknown_chart_tag_is_harness_breakage_not_a_re_key() {
-        let e = parse(&with_field(&csv(100, 2.5e1), 2, "hessian")).unwrap_err();
-        assert_eq!(e.line, 3);
-        assert!(e.text.contains("chart"), "{}", e.text);
-        assert!(e.text.contains("hessian"), "{}", e.text);
+        // The message is compared WHOLE, and on BOTH row shapes. An
+        // unknown tag is on neither side of `SIZED_CHART_TAGS`, so the
+        // lane pairing below has an opinion about the sized shape of
+        // this row too — and its refusal names the same column and the
+        // same tag. Under a `contains` on those two words the roster
+        // check could therefore leave with this row still red, in the
+        // pairing's voice, saying nothing about a roster the gate
+        // joins on.
+        const REFUSED: &str = "chart: \"hessian\" is not one of \
+                               plane, cylinder, cone, sphere, torus, nurbs, approx \
+                               (sweep drift?)";
+        for (text, line) in [
+            (with_field(&scene(100, 2.5e1), CHART, "hessian"), 3),
+            (
+                format!("{EXPECTED_HEADER}\n{}", unsized_row(0, "hessian", 4)),
+                2,
+            ),
+        ] {
+            let e = parse(&text).unwrap_err();
+            assert_eq!(e.line, line);
+            assert_eq!(e.text, REFUSED);
+        }
         // …and the roster itself, written out rather than iterated:
         // reading `CHART_TAGS` to check `CHART_TAGS` would let a tag be
         // dropped from it in silence, and a dropped tag turns every
-        // scene carrying that chart into harness breakage.
+        // scene carrying that chart into harness breakage. That every
+        // member is ADMITTED as a tag is
+        // `every_chart_tag_owes_the_sizing_block_or_refuses_it`, which
+        // reads both row shapes for each and is where the roster's
+        // members are exercised.
         assert_eq!(
             CHART_TAGS,
             [
@@ -2387,12 +3027,28 @@ mod tests {
             ],
             "the tags `tess_meter::Chart::tag` emits"
         );
-        for tag in CHART_TAGS {
-            assert!(
-                parse(&with_field(&csv(100, 2.5e1), 2, tag)).is_ok(),
-                "{tag} is a tag the sweep writes"
-            );
-        }
+    }
+
+    /// The roster check runs AHEAD of the lane pairing, and the order
+    /// is the readable one: a tag the crate does not know cannot be
+    /// judged against `SIZED_CHART_TAGS` at all, so reporting it as a
+    /// pairing failure would answer a question the row has not earned.
+    /// Pinned because nothing else holds it — both checks refuse, so
+    /// swapping them keeps every other row in this file green.
+    #[test]
+    fn an_unknown_tag_is_refused_for_being_unknown_before_the_pairing() {
+        // Unknown tag AND the sized shape the pairing refuses: the
+        // roster speaks.
+        let e = parse(&with_field(&scene(100, 2.5e1), CHART, "hessian")).unwrap_err();
+        assert!(e.text.contains("is not one of"), "{}", e.text);
+        // The pairing in turn runs ahead of `face`, which is the first
+        // counted column read after it. A row that is both a schema
+        // move and an unreadable count is harness breakage either way;
+        // the pairing names the schema, which is the fault that
+        // explains the other.
+        let text = with_field(&with_field(&scene(100, 2.5e1), CHART, "plane"), 1, "x");
+        let e = parse(&text).unwrap_err();
+        assert!(e.text.contains("carries the sizing columns"), "{}", e.text);
     }
 
     #[test]

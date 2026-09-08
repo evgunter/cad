@@ -83,18 +83,35 @@ The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
 from, written by `scripts/tess_budget_cut.sh` (which
 `tess_budget_sweep.sh` calls, and which derives the commit rather than
 taking one); `tools/tess-lint` prints it beside every verdict and
-needs it to date an uncovered scene. Its row count is the file's own and grows
-with the tour — 1,075 at the TESS-SPLIT re-cut, and every re-cut since
-is an ordinary commit under "Re-cutting the baseline" below — so read
-the file, not this sentence, for the current count.
-It is NOT the cut this document's measurement was taken from and its
-numbers are not the ones quoted below: "The finding" reports 1,025
-faces and 390,100 grid cells against the shipped whole-patch schedule
-of the time, where the committed file's own `grid_cells` sum was
-46,102 at the TESS-SPLIT re-cut (the TESS-SPAN re-cut's was 163,182)
-and grows with the tour like the row count, and the total-slack
-figures come from that same pre-TESS-SPAN cut. Read the committed file as the gate's reference point and the
-figures below as the pre-fix record they are labelled as. CI runs the
+needs it to date an uncovered scene. Its row count is the file's own
+and grows with the tour, and every re-cut is an ordinary commit under
+"Re-cutting the baseline" below, so **no count over this file is
+written into this document as a CURRENT reading** — what it says today
+is one command and one test, both cited under "The census today".
+
+**Two passages do carry counts over this file, and both are FROZEN**,
+labelled at their own sites: the pre-fix block under "The finding",
+which reads a tree that no longer exists, and the M9-5 measurement
+under "Re-cutting the baseline", which is the size of one past event.
+Neither is re-taken and neither may be. The rule above is about live
+readings; a dated record that got re-taken would stop being the thing
+it records.
+
+**It is NOT the cut this document's measurement was taken from, and
+its numbers are not the ones quoted below.** "What the four numbers
+meant", "The finding" and the four numbered sections after it are all
+the pre-fix sweep, in that tree's column vocabulary — one contiguous
+run, with "The census today" immediately before it as the only live
+reading in the document. Taken
+before TESS-SPAN and TESS-SPLIT shipped, against the whole-patch
+schedule of the time, with the total-slack figures from that same cut.
+The tree it was swept from no longer exists and no committed artefact
+holds its numbers, so those figures are history and are not
+re-derivable from anything — which is exactly why they are still
+literals here while the live census is not. Read the committed file as
+the gate's reference point and the figures below as the pre-fix record
+they are labelled as; the block itself says which of its column names
+have since moved. CI runs the
 sweep `--sizing-only` and gates on REGRESSION against it; what the
 rules ARE is rostered in `tools/tess-lint`'s module docs and nowhere
 else, this document included.
@@ -129,6 +146,21 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
   built on it was 1.00 by arithmetic rather than by check, and neither
   of its two numbers counted a realised candidate. It is gone rather
   than re-derived — see "Why there is no realisation column", below.
+* `name` — the face's durable name, where the sweep could reach one:
+  `editor_core::StableName` (N1) rendered through its ratified
+  structural serialization with `,` swapped for `;` so the token is one
+  CSV field. It is EMPTY on every face whose scene was not built from
+  an evaluated document, which is most of the tour — the tour holds
+  `Body`s, and only the scenes that still hold the evaluation when they
+  hand the body over can name their faces. Empty is the honest answer
+  there, not a gap: nothing joins on this column yet, and the ordinal
+  is still the join key. **Its coverage is disjoint from the case a
+  join would fix**: 286 of 1353 rows carry a name, none of them one of
+  the 64 SIZED rows, and none of them one of the 14 rows in the seven
+  same-shape pairs the per-face join cannot tell apart. The six
+  nameable scenes are the three heatsinks and the three die stops, and
+  none contributes a sized face — so the column is populated where the
+  ordinal was never ambiguous and empty where it is.
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
   gate's per-face recoverable-slack ratio, now carrying the split
@@ -210,7 +242,51 @@ total`. **The gate's rules are rostered in one place —
 second copy.** A roster restated here is a roster that drifts: read it
 there, where the rules and the code that runs them cannot disagree.
 
+## The census today
+
+What the committed baseline says NOW is not written here, in either
+direction. One command prints it:
+
+```sh
+cd tools/tess-lint && cargo run -- ../../docs/tess-budget-data/tess-budget-baseline.csv
+```
+
+— faces, triangles, the Hessian-sized faces and their two shares, and
+the four grid-cell totals, each on its own line under its own column
+name (`grid_cells`, `patch_cells`, `opt_cells`, `span_opt_cells`) with
+the held and recoverable factors printed as their formulas, every one
+of them folded through the same `SceneTotals` the gate uses.
+
+**The command and the test are not the same census, and it is worth
+knowing which covers what.** The executable home is
+`tools/tess-lint/tests/baseline_sizing_census.rs`, which reads the same
+committed file on each `cargo test` and fails naming what a re-cut
+moved. It asserts the sweep's triangles and NURBS triangles, all four
+cell sums and the two factors, every one of which the command prints
+too. The command prints MORE: the face counts, the two percentages,
+and the constraint-activity line, which neither census asserts.
+
+**The two percentages come from different files, and that is the part
+worth getting right.** `% of the mesh` is NURBS triangles against
+total triangles, and both are asserted in the sizing census itself —
+it is a quotient of two of the figures above. `% of faces` is sized
+faces against all faces, and neither operand is there; that pair is
+the neighbouring `baseline_census.rs`'s (rows, sized rows, the scenes
+holding them). So what separates the command from the tests is not
+which quantities they cover but what each DOES with them — the
+command is a reading you ask for, the two test files together are a
+guard that runs unasked. A census has one home and every other site
+points at it; this document is one of the sites, and the block below
+is not a second copy of that census — it is a different measurement
+of a different tree.
+
 ## What the four numbers meant (pre-fix record)
+
+**Pre-fix vocabulary.** `uniform_cells` and `span_cells` are the #547
+tree's column names, not this tree's — the first is today's
+`patch_cells` under a different point selection and the second was
+removed. The table under "The finding", below, is the decoder; read it
+first if these names are why you are here.
 
 All four are ratios of GRID CELL COUNTS over the same trim box with the
 same `ceil` discipline, so they compare directly.
@@ -241,7 +317,90 @@ achieved by weakening a certificate.
   sup (so it under-reports deviation and over-reports slack) and the
   `deviation ~ h²` scaling is a first-order extrapolation.
 
-## The finding
+## The finding (the pre-fix sweep, #547)
+
+**Neither this block nor "What the four numbers meant" above it is a
+reading of the committed baseline, and neither may be re-derived from
+one.** Both are the #547 measurement, taken before TESS-SPAN and
+TESS-SPLIT shipped and in the vocabulary of that tree; the difference
+between them and the census above is those two fixes landing, which is
+what this document exists to record.
+
+**The tell, and exactly what it proves.** The two columns that are pure
+OPTIMA over the certified ellipse — `opt_cells` and `span_opt_cells` —
+are schedule-INDEPENDENT, and they still read within 2.2% and 0.7% of
+the figures below (93,066 against 95,090; 44,162 against 44,457) —
+gaps that also carry the meter's OWN resolution, since a finer split
+scan lowers an optimum column without a face moving. The two that
+describe a shipped schedule moved by ~3.4x. What that separates is a
+change of SIZING RULE from everything else: a re-cut driven by corpus
+growth, or by a certificate change, moves the optima too — `a4eb03ae`
+(CERT-10) moved four faces' bounds and shifted both the optima and the
+built grid — while a schedule change moves only the columns a schedule
+defines. So two columns at 1% is evidence that the 64 faces and their
+certificates are still the ones this block was taken over, and that
+whatever moved was a sizing rule. **It is not by itself evidence that
+the sizing rule was TESS-SPAN and TESS-SPLIT rather than an unrecorded
+drift**, because a re-cut taken after a schedule change looks the same
+either way — it is the same event. What settles that is the dated
+record: `docs/MODEL-AB-LOG.md`'s TESS-SPLIT row says *"tour NURBS cells
+163,182 → 46,102"* at the merge, and `46,102` is what the committed file
+read from that cut onwards.
+
+**Two of the block's column names have since moved, and that is what
+mis-reads it.** The block predates the columns it gets read against.
+`tess_meter`'s field docs are the definitions of record for every
+column named here:
+
+| the block's phrase | the column then | the column now |
+|---|---|---|
+| `grid cells used` | `uniform_cells` — the shipped whole-patch-sup grid, at the AM-GM point | `patch_cells`, a counterfactual — the same whole-patch bound at TODAY'S point selection. **Not a rename** (below). `grid_cells` now names the shipped PER-CELL grid |
+| `at the cheapest split` | `opt_cells` | `opt_cells`, unchanged |
+| `sized per knot-span cell` | `span_cells` | REMOVED — it was identically `grid_cells` ("The columns after TESS-SPAN") |
+| `with both` | `span_opt_cells` | `span_opt_cells`, unchanged |
+
+**`uniform_cells` → `patch_cells` is a SUBSTITUTION, not a rename, and
+the substitution is the whole of that column's move.** `patch_cells` is
+`nu · nv`, and `nu`/`nv` are computed through the SHIPPED point
+selection (`FaceMeasure::patch_steps` — since TESS-SPLIT the
+aspect-capped cell minimizer) applied to the whole-patch bound, so the
+column keeps meaning *"what per-cell sizing saves"* as the selection
+moves. `uniform_cells` was the same bound at the AM-GM decoupled point.
+Same 64 faces, same trim boxes, and the same whole-patch bounds bar
+CERT-10's four: 390,100 →
+110,811 is **3.52x**, and it is the inner selection rule changing, not
+the shipped grid getting smaller. It reads as the same selection change
+measured against the optimum: `uniform_cells / opt_cells` was 4.10x
+then, `patch_cells / opt_cells` is 1.19x now.
+
+The genuine shipped-grid move is the other row — 154,129 `sized per
+knot-span cell` against today's `grid_cells` 46,019, **3.35x** — and it
+decomposes exactly: per-cell sizing sat 3.47x above the per-cell optimum
+under the AM-GM split (154,129 / 44,457) and sits 1.042x above it today
+(46,019 / 44,162), and 3.47 / 1.042 = 3.33 against the 3.35 the two
+grids give directly. **The 0.7% residual is the two DENOMINATORS, not
+the schedule**: the two readings measure the per-cell optimum with
+different scans, and the decomposition is exact only where they agree.
+That closing of the recoverable factor is TESS-SPLIT, on the schedule
+the lane actually ships.
+
+**Both moves are ~3.4x, and the two are separate events measured on
+separate columns.** A single "3–8x" over the pair is the mis-pairing
+this section exists to refute: the 8.5x is 390,100 / 46,019, the
+pre-fix whole-patch numerator over today's per-cell denominator, which
+is two column definitions apart and describes no schedule that ever
+shipped.
+
+**"The cheapest split" names two different columns in this tree and
+the qualifier is the whole of the difference**: `opt_cells` is the
+cheapest split under the WHOLE-PATCH bound, which is what the block's
+`at the cheapest split` line means, while `span_opt_cells` is per-cell
+sizing AND the cheapest split in each cell — the block's `with both`
+line. `tess_meter`'s field docs are the definitions of record for
+both. **Where to settle it on any given tree**: the command above
+prints the two under their own column names, on adjacent lines, so a
+phrase in an older document is resolved by reading the report rather
+than by trusting a transcription of one.
 
 Over the whole tour, at each scene's own δ:
 
@@ -270,7 +429,7 @@ Over the whole tour, at each scene's own δ:
 **Yes, measurably — and the dominant cause is not the one #320
 guessed.**
 
-### 1. The u/v split, not the leaf, is the biggest single factor (~4x, everywhere)
+### 1. (pre-fix) The u/v split, not the leaf, is the biggest single factor (~4x, everywhere)
 
 `split` is ~4x on essentially every NURBS wall in the tour, including
 the swept blades `leaf_b` and `leaf_c` that #320 held up as the
@@ -286,7 +445,7 @@ and spends everything on `v`. The AM-GM decoupling instead charges the
 cross term `muv` to BOTH directions, and so divides a ruled surface
 70–78 ways across the direction it is straight in.
 
-### 2. The whole-patch sup is real, and secondary (~3.8x on the leaf)
+### 2. (pre-fix) The whole-patch sup is real, and secondary (~3.8x on the leaf)
 
 `span` is 3.8x on `leaf_a` and 3.2x on the sepals, against 0.9–1.0x on
 the swept blades — exactly the shape #320 predicted, on exactly the
@@ -296,7 +455,7 @@ uniform wall it costs nothing (and can cost a few percent, since a
 per-cell grid pays a `ceil` per cell — `leaf_b`'s 0.9x is that, and it
 is reported rather than clipped to 1).
 
-### 3. Together: the leaf's 261,780 triangles project to ~15,400
+### 3. (pre-fix) Together: the leaf's 261,780 triangles project to ~15,400
 
 `both` is 17.0x on `leaf_a` — 130,177 grid cells against 7,659, all of
 them certified by the same per-triangle bound. Its swept siblings sit
@@ -304,7 +463,7 @@ at ~900 triangles, so this does not close the gap #320 opens with;
 `leaf_a` is a genuinely larger and more curved surface than
 `leaf_b`/`leaf_c`, and the residue after sizing is real geometry.
 
-### 4. Beyond sizing, ~1.5x more sits in the certificate itself
+### 4. (pre-fix) Beyond sizing, ~1.5x more sits in the certificate itself
 
 Per leaf wall, the deviation side decomposes as
 `δ/worst_cert · worst_cert/worst_dev`: budget slack 11.3–13.7x,
@@ -355,6 +514,31 @@ and say WHY in the commit. A `vanished` finding is never re-baselined
 without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
 
+**A re-cut that moves what the censuses assert fails them, and that is
+the alarm working — but they do not assert everything a re-cut moves.**
+`tools/tess-lint/tests/baseline_census.rs` (the face-identity census)
+and `tools/tess-lint/tests/baseline_sizing_census.rs` (the sizing
+census) each read the committed file and name what moved. Between them
+they pin the row and sized-row counts, the scenes carrying a sized face,
+the indistinguishable-pair structure, the chart and trim box of every
+sized row, the sweep's triangles and NURBS triangles, the four cell sums
+and the two factors. **What neither reads is every other column**:
+`cells`, `bands`, `cap_bands`, `snap_bands`, `realized_aspect`,
+`worst_cert`, `worst_dev`, `dev_samples`, and the per-face
+`nu`/`nv`/`muu`/`muv`/`mvv`/`mu1`/`mv1` values (`nu`/`nv` are read only
+for whether they separate rows, never for what they are). A re-sweep
+that moves those alone passes both tests silently — `79420738f` records
+exactly such a move, four `nonuniform_loft` rows shifting in their last
+ulps, and it was caught by a human reading the diff, not by a test.
+Neither number is a target to preserve: read the new one, decide whether
+the new corpus is what you meant, and write it in with the re-cut. They
+exist so that no prose can go on describing a file it no longer
+describes, over the figures prose actually quotes. A `cargo test`
+failure is cheap; a number nothing can check is what put three
+successive readers on the block above, each re-deriving the same
+disagreement and none of them able to see that it was the fix rather
+than the drift.
+
 **An `uncovered` scene FAILS the gate, and the PR that grows the
 corpus is the PR that folds it.** (One rule, described here for its
 RECOURSE, as the two paragraphs above describe theirs. The roster of
@@ -387,8 +571,11 @@ never a typed value, and a sweep taken outside a git checkout records
 none and says so rather than pretending.
 
 **A re-keyed face is read before it is re-cut, and for the same
-reason.** The per-face join is by ORDINAL — the only per-face name the
-CSV carries — so `tess-lint` checks at each ordinal that both sides
+reason.** The per-face join is by ORDINAL. The CSV also carries a
+`name` column — the face's durable derivation-path name, on the scenes
+the sweep can reach an evaluation for — but no rule keys on it yet,
+and it is empty on every row a re-key could be manufactured out of
+(above), so `tess-lint` checks at each ordinal that both sides
 describe one face (chart, trim box, whole-patch divisions, and whether
 the row carries the sizing block at all) and stops comparing a scene
 from the first ordinal where they do not. The finding names that
@@ -414,7 +601,20 @@ window, the fold enshrines the regression as the new reference.
 *Coverage restored* is not *coverage verified*, and only an audit
 closes the gap.
 
-Measured instance (M9-5, PR #1037): the baseline cut at 31f052d2
+Measured instance (M9-5, PR #1037). **These five counts are the SIZE OF
+ONE PAST EVENT, not a reading of the committed file — frozen, re-taken
+by nothing, and deliberately so.** They are the corpus as VERBS-TESSFOLD
+found it (`48559d61`); re-derived over today's file they come to 134,
+because `benchlayout/benchlayout` (30 rows) was re-modelled and re-swept
+as `bench/benchlayout` (18) by the montage-v3 tranche-2 renames at
+`6d957702`. That is the scene moving, not this paragraph drifting, and
+the current answer to "what is uncovered" is what rule 5 prints on any
+sweep whose baseline has fallen behind. `tools/tess-lint`'s module docs
+carry the same 146 under rule 5, with the same freeze and for the same
+reason; they are a twin by intent, not a second census, because neither
+is a reading anything re-takes.
+
+The baseline cut at 31f052d2
 predated five scenes already on the tour — `diechamfer` 68,
 `benchlayout` 30, `diechamferblank` 26, `bench` 18, `hollowring` 4 =
 **146 face rows** — swept, measured, printed and compared against

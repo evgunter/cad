@@ -950,7 +950,7 @@ measured by `fnmatch` over every `work/*/program.md`.
 |---|---|---|---|---|
 | **BLEND** (`blend/`) | `crates/sweep/src/*` less `loft.rs`; the profile fillet door by announced seam with S-BOOL | 13 issues + 2 rows (1 closed as a record) | H core, 5 E openers, 1 `[ev]` | 2900–2999 |
 | **EVAL** (`eval/`) | `editor-core/src/eval/{mod,wire,anchor,schedule,slots}.rs`, `verbs/*`, `names/*` less `role.rs`, `crates/verbs/*`, `topo/src/{query,flush}.rs` | 6 issues (1 deferred) + 4 V rows | E, 2 `[ev]` shared with DOCM | 3000–3099 |
-| **GATES** (`gates/`) | `scripts/gates/*` whole | 10 K rows + 4 unlettered | E throughout, no ruling | 3100–3199 |
+| **GATES** (`gates/`) | `scripts/gates/*` whole | 10 K rows + 4 unlettered | E throughout, no ruling | 3100–3199 (closed 2026-09-08, `docs/DOC-LEDGER.md` sweep 7) |
 | **METER** (`meter/`) | `tools/*`, `docs/{K-REPORT,TESS-BUDGET}.md` and their data | 8 K rows + 3 unlettered | E, one design question first | 3200–3299 |
 
 BLEND is FILLET's successor and inherits its posture and its seam on

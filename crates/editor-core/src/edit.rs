@@ -345,6 +345,19 @@ pub enum EditError {
         /// The input it reaches twice.
         input: RecipeNodeId,
     },
+    /// The node this edit writes names one face twice in its ORDERED
+    /// designation ([`crate::node::InputFault::RepeatedDesignation`]):
+    /// a hand-built `Node::Shell` that bypassed the construction door,
+    /// which drops a repeat keeping the first occurrence. Refused
+    /// rather than repaired, at this door as at the load door.
+    RepeatedDesignation {
+        /// The node whose designation repeats.
+        node: RecipeNodeId,
+        /// The position of the entry's first occurrence.
+        first: u32,
+        /// The position at which it is named again.
+        again: u32,
+    },
     /// `SetMembers` aimed at a node that has no list input
     /// ([`Node::list_input`]) — a boolean's operands are named slots,
     /// and replacing "the list" of a node that has none is not a
@@ -895,6 +908,15 @@ impl core::fmt::Display for EditError {
                 "the node this edit writes would be invalid: {}",
                 crate::node::InputFault::TooFew { found: *found }
             ),
+            Self::RepeatedDesignation { first, again, .. } => write!(
+                f,
+                "the node this edit writes would be invalid: {}. Build it through `Node::shell`, \
+                 which keeps the first occurrence.",
+                crate::node::InputFault::RepeatedDesignation {
+                    first: *first,
+                    again: *again,
+                }
+            ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
                 "node {} is still an input to node {} — delete node {} first, \
@@ -1383,6 +1405,13 @@ fn check_node_inputs<P: crate::ProfilePayload>(
         Some(crate::node::InputFault::TooFew { found }) => {
             Err(EditError::TooFewMembers { node: id, found })
         }
+        Some(crate::node::InputFault::RepeatedDesignation { first, again }) => {
+            Err(EditError::RepeatedDesignation {
+                node: id,
+                first,
+                again,
+            })
+        }
     }
 }
 
@@ -1518,7 +1547,9 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // them (N5), so this is the ONLY door that checks, for
             // every payload that carries a name (`Node::payload_names`
             // — Declare pairs, a BLEND's selection (fillet under M6-5,
-            // chamfer alongside it), a mate's two heads under A12).
+            // chamfer alongside it), a SHELL's ordered open list, a
+            // derived frame's face, a measure's references, a mate's
+            // two heads under A12).
             for name in node.payload_names() {
                 if !new.nodes.contains_key(&name.node) {
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
@@ -1723,15 +1754,17 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
             // One-shot rewrite of every EXACT reference (sites:
             // Declare pairs, blend selections — fillet and chamfer
-            // alike — appearance-store keys). Zero sites = nothing to
-            // repair, refused.
+            // alike — a shell's open list, appearance-store keys).
+            // Zero sites = nothing to repair, refused.
             // Every payload site, by the one list that says which
             // payloads carry a name (`Node::payload_names`' twin): the
             // rewrite reaches a mate's heads exactly as it reaches a
             // Declare pair, and a blend selection's GROWTH PATH (M6-5,
             // ruled #217) re-canonicalizes there — for a chamfer's
             // selection exactly as for a fillet's, since both are the
-            // same canonical set. A mate reference read AT ITS OWN
+            // same canonical set; a shell's ORDERED list re-canonicalizes
+            // to its own form, dropping a repeat and keeping the
+            // earlier position. A mate reference read AT ITS OWN
             // MINT stays read at its own mint; one read elsewhere
             // keeps its operand, which is an authored fact this edit
             // knows nothing about.

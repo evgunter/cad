@@ -21,7 +21,7 @@ the crate.** Filed first against the value gesture; the free-move half
 is the same defect in the same enum and is stated below.
 
 `SessionOp::CancelGesture` exists, `DocSession::perform` handles it
-(`crates/viewer/src/session.rs:667-681`), and **nothing in the chrome
+(`crates/viewer/src/session.rs:1026-1040`), and **nothing in the chrome
 ever emits it.** The whole crate pushes it from zero sites: the two
 `CommitGesture` pushes are `crates/viewer/src/pane/properties.rs:100`
 and `:557`, both from `drag_stopped()` on the widget that pushed the
@@ -55,10 +55,10 @@ names a remedy that does not exist.
 ## Why it matters
 
 The stranded state is not quiet. `perform` fences on it once
-(`session.rs:642`), so from then on `Undo`, `Redo`, `Open`,
+(`session.rs:1002`), so from then on `Undo`, `Redo`, `Open`,
 `NewDocument`, `DeleteNode`, every `Add*` and every other slot edit
 refuse `Refusal::GestureInFlight` — and the scratch document
-(`DocSession::doc`, `session.rs:322`) keeps a preview on screen that
+(`DocSession::doc`, `session.rs:563`) keeps a preview on screen that
 the history does not have. Nothing in the chrome offers a way back, and
 no key does either: there is no Escape binding for it in `input.rs`.
 

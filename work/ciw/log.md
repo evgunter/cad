@@ -1306,3 +1306,158 @@ disclosed-only: `session-start-hook-restates-ci-pins`,
 `seal-oracle-toolchain-read-first-match`,
 `pinned-version-named-in-present-tense-prose`,
 `python-suite-axis-skips-only-two-members`.
+
+## 2026-09-07 — F3 ruled: no post-merge run, and three rows close on it
+
+Ev, in chat: *"i'd be somewhat inclined to skip the post-merge run, just
+because i don't think anyone would actually check it"*, confirmed as the
+ruling. **F3 stands and the push job set is not restored.**
+
+This closes what the 2026-09-04 ruling left dangling. That one declined
+the push gate *in favour of* the merge queue; the queue turned out to be
+unavailable to a user-owned repository, so the decline had to be re-taken
+on its own terms, and it has been. The reason is a reader rather than a
+cost — minutes are free, and the objection is that a detector nobody
+reads is not a control.
+
+**The program had already produced the evidence for Ev's argument while
+the question was open**, which is worth recording because it is the
+strongest thing said on either side: `nightly-demotions-have-never-run`
+exists because three rows demoted to the nightly ran unattended for two
+nights and nobody looked. Their first reading was taken on 2026-09-06 by
+this orchestrator, going deliberately to the jobs API because an item
+told it to. A red push run would land in exactly that place.
+
+**Where the options table was arguing the wrong benefit, and this is the
+part that survives the ruling.** It prices *detection*. Both 2026-09-04
+instances were detected, quickly, by lanes tripping over a red `main` —
+F3's stated compensating control working as written. What they cost was
+**attribution**: 42 red runs on 20 branches, four innocent branches, and
+two agents diagnosing the same one-line break in the same hour, each
+paying the diagnosis independently because it is invisible from inside a
+single PR. A push run's value was never that someone would watch it; it
+was that the red would be attached to the merge that caused it.
+
+Opened as `inherited-red-is-not-attributed-to-its-merge`: not a gate,
+nothing on a green run, no watcher — it lands where a person is already
+looking, which is why it survives the ruling rather than being closed by
+it. It automates a convention that already exists by hand (Ev,
+2026-08-31: an inherited red does not block the merge but must be
+annotated with its issue, and the causing lane owes the fix), and it is
+opened with three unmeasured numbers named — the cost of reproducing on
+`main`'s tree, how much of the value the cheap "it is on the tip too"
+version buys, and whether the class fires often enough to be worth
+having. **Not dispatched until those are taken**; two samples in one day
+is not a rate.
+
+Closing three rows on one ruling tripped `work.py lint`'s fired-trigger
+error, exactly as designed — two rows parked on a trigger that had just
+closed. All three are this program's, so they close in the same PR,
+which is the case the rule's accepted cost (Ev, 2026-09-04) is about.
+
+## 2026-09-07 — unit 3 dispatched: a demotion verified at the demotion
+
+`nightly-demotions-have-never-run` and `opt-level-selftest-runs-nowhere`
+on `ciw/demotion-verified`. One class from two directions: a row that has
+never been shown to execute, and a guard that has never been shown to
+fire.
+
+**Pre-dispatch checks, because the slate was written a day ago.**
+
+- Both rows still open, and `scripts/gates/gate-roster.sh` still does not
+  reach `scripts/opt-level-calibrate.py`.
+- **PR 2077 (`gates/whole-file-skips`) is live on `gate-roster.sh`.**
+  That changes the unit's shape: the systemic fix — widening the roster's
+  scope so the "a guard that has never been shown to fire is not a
+  guard" rule reaches the file it is about — is GATES' file AND is under
+  an open PR, so it is not this unit's to take. The instance fix is
+  entirely CIW's ground: nothing anywhere invokes `--selftest`, and the
+  workflows are ours. The brief says take the instance, announce the
+  systemic half to GATES, and do not touch their file.
+- **Two more nightlies since the 2026-09-06 reading**, both `success`:
+  run 16 (2026-09-06) and run 17 (2026-09-07). Run 16 concluded in
+  **10 minutes** against run 17's 27, which is the shape of the `has main
+  moved` gate skipping the body — on a day `main` certainly moved. That
+  is not what this item was filed about and it may be nothing, but a
+  scheduled workflow that skips a night is the same family as a demoted
+  row nobody reads, so the brief asks for it to be read rather than
+  assumed.
+
+**Style review only.** Neither half moves logic; the deliverable is a
+convention plus one invocation, and the risk is in what a parity claim
+would over-reach into rather than in a subtle bug.
+
+## 2026-09-07 — unit 3 delivered (PR 2124)
+
+Both items to `review`. The unit is one class from two directions and it
+lands as three things.
+
+**One invocation.** `scripts/opt-level-calibrate.py --selftest` runs in
+`ci.yml`'s `discipline`, mirrored in `ci-local.sh`. Sited **per-PR, not in
+the nightly** — the item offered two nightly sites and neither survives the
+unit's own sentence, that a guard sited only in a scheduled workflow is
+exercised only on a schedule. Sited in `discipline` rather than `mirror`
+because the script's inputs are `scripts/*.py`, which is not a docs-tier
+class, so the change set that can break it is the change set that job runs
+on. The path's `MIRROR_EXEMPT` entry expired and is deleted.
+
+**One claim, and one refused.** The parity claim the item hoped for — a row
+no schedule has ever fired — asks about run HISTORY and would need the
+Actions API, so it is not built: a check that needs the network fails on a
+fork, offline and in the local half, and an honest sentence beats a claim
+that only works hosted. The tree question next to it IS built:
+`check-ci-mirror-parity.py` CLAIM 12 refuses a `--selftest` mode outside
+`scripts/gates/` that nothing invokes. Proven red by mutation on the real
+tree, four selftest cases. `gate-roster.sh` untouched; the widening of ITS
+scope is announced to GATES in the PR body with its citations.
+
+**One convention.** `implementer-discipline.md` §2: a demotion is verified at
+the demotion, and the same rule one level in for selftests. Announced to META
+— CIW's standing clause is about §2's run-facts and this is a convention.
+
+**The 10-minute nightly was not the gate skipping.** Read at the job list:
+runs 16 and 17 both have 13 jobs and both ran the body. The whole 17-minute
+delta is `opt-level calibration`'s weekly-or-on-drift cadence — on 09-06 the
+measured arms skipped (job: 23 s), on 09-07 they ran 25 minutes. All three
+demoted rows executed and passed at STEP level on 09-06 too. No item; the
+finding is recorded in `nightly-demotions-have-never-run`'s disposition so the
+next reader does not re-derive it.
+
+**Residue filed**: `criterion-selftest-nightly-only` —
+`scripts/criterion-emit.py --selftest` is invoked only from `nightly.yml`,
+the same class one step milder, and its comment cites the calibrator as the
+precedent for that siting.
+
+## 2026-09-08 — unit 3 fix pass
+
+Both reviews landed two MAJORs, both in the new claim and both reproduced on
+the real tree; the rest of the unit held.
+
+**The claim counted `local-scripts/` as a caller**, and every hosted job
+prunes that tree — so a selftest running in NO CI passed, and the battery
+pinned that shape as an `_ok_case`. **And it matched one physical line**, so a
+`for` loop or a continuation in one `run:` block red two scripts with a false
+message. Second unit running on this program to ship its own defect one level
+in and pin it with a selftest; the rule taken from it is that a case pinning
+the boundary a unit is about gets checked against the failure the unit exists
+to prevent, not against the behaviour just written.
+
+**Shape taken: folded into claim 4** rather than kept as claim 12 or dropped.
+Fixing MAJOR-1 removes the caller population that made it a separate claim —
+callers are workflow files, which claims 1 and 9 already read — so what is
+left is claim 4's population, claim 4's `SCRIPT_RE`, claim 4's closure, and one
+extra question. It is now claim 4's second arm, in claim 4's loop. That also
+ends the contradiction with claim 11, which had landed the day before arguing
+that a population must be git's index and not a filesystem walk: there is no
+walk any more.
+
+**Battery**: `.py`, `.sh` and `demos/` declarers (the first version could not
+see the file class of the live defect), a caller commented out in place, a
+local-only caller, a mode named in another script — and four accepted shapes,
+including the loop and the continuation and a `scripts/gates/` member whose
+uninvoked selftest is the roster's finding, not ours. Six mutations of the
+checker itself, all killed.
+
+`nightly.yml`'s criterion comment said this calibrator "sets the precedent
+that those are not PR-gate rows" — false after this unit. Rewritten in place
+to point at `criterion-selftest-nightly-only`.

@@ -1,0 +1,77 @@
+---
+id: node-slot-literals-erase-the-authored-notation
+kind: issue
+title: node-slot literals record the canonical row, whatever unit the caller wrote
+status: open
+opened: 2026-09-08
+---
+
+
+Found by LIB-B-NOTATION's sweep, banked rather than taken: the family
+it closes is parameter-scoped, and this is the same erasure one
+vocabulary over.
+
+## What happens
+
+Every Python door that takes a `Length` or an `Angle` into a NODE SLOT
+builds its stored expression through
+`crates/pncad-py/src/py/doc.rs:80`'s helper, which calls
+`Expr::literal(value, dim)` — the constructor that stamps
+`UnitSym::canonical_for(dim)` (`crates/editor-core/src/expr.rs:616`).
+So `Node.extrude(profile, 25 * mm)` stores a literal whose display unit
+is `m`, and the recipe reads back `0.025 m` rather than `25 mm`. The
+sibling constructor `Expr::literal_with_unit` (`:632`) — and
+`Expr::written_length` / `written_angle` (`:672`/`:687`) above it — is
+what records the notation, and no binding calls it.
+
+The kernel's own words for the cost are on `Expr::written_length`: it
+is "the door library and GUI authoring should reach for", and
+`crates/pncad/src/prelude.rs:149` says it is "how a library recipe
+records `300 mm` rather than `0.3` for a reader to interpret".
+`Doc.parse_expr("25 mm")` DOES record it, so a Python caller who
+authors through text already gets the notation and one who authors
+through the typed doors does not — the two spellings of one authoring
+disagree.
+
+## The hit list
+
+`grep -n "literal(py" crates/pncad-py/src/py/*.rs` — 52 call sites in
+18 doors:
+
+- `crates/pncad-py/src/py/doc.rs` (48 sites, 15 doors): `Node.polygon`
+  `:1022`, `extrude` `:1097`, `revolve` `:1113`, `tube` `:1166`,
+  `hollow_tube` `:1213`, `sketch_frame` `:1279`, `datum_axis` `:1318`,
+  `datum_axis_in_plane` `:1355`, `datum_face_frame` `:1408`,
+  `datum_plane` `:1432`, `fillet` `:1484`, `chamfer` `:1523`, `shell`
+  `:1565`, `transform` `:1611`, and `TubeWindow.arc` `:2553`.
+- `crates/pncad-py/src/py/place.rs` (3 sites): `PatternKind.linear`
+  `:282`, `PatternKind.circular` `:297`.
+- `crates/pncad-py/src/py/select.rs` (1 site): `GeomPred.datum_distance`
+  `:667`.
+
+**What that pattern cannot match.** It finds the sites that build a
+literal through the shared helper and nothing else. A door that
+constructed an `Expr` some other way, or one that takes a bare `float`
+into a dimensioned slot without going through `literal`, would not
+appear — and 20 of the 52 hits are `Dimension::Scalar` and 3 are
+`Dimension::Count`, which have no notation to lose, so the affected
+count is smaller than the site count.
+
+## Why it was not fixed at LIB-B-NOTATION
+
+Fixing it needs a `WrittenLength`/`WrittenAngle` seat at each door,
+because a Python `Length` cannot carry the unit (see that unit's
+derived scope: `quantity::written` gives authored quantities no
+arithmetic, and `Length` is the arithmetic type). That is a signature
+change on fifteen node constructors and two selector vocabularies —
+a surface decision about the whole authoring lattice, not a mechanical
+census row. The census could not report it either: every one of these
+doors is a member behind `Node`, `PatternKind`, `TubeWindow` or
+`GeomPred`, names rule 1 accounts whole.
+
+## What closing it would have to decide
+
+Whether the written seat is a second argument, an overload of the
+existing one, or a `Node.written_*` sibling family; and whether the
+kernel's canonical fallback stays reachable at each door for a caller
+who genuinely has no notation to record.

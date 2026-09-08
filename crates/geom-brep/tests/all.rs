@@ -56,6 +56,8 @@ mod shared;
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
+#[path = "budget_faces.rs"]
+mod budget_faces;
 #[path = "cert1_r1_probes.rs"]
 mod cert1_r1_probes;
 #[path = "cert1_sphere_polar.rs"]
@@ -226,6 +228,8 @@ mod mesh11r1_probes;
 mod mesh11r2_base_probes;
 #[path = "mesh11r2_probes.rs"]
 mod mesh11r2_probes;
+#[path = "mesh12_saturated_span.rs"]
+mod mesh12_saturated_span;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
 #[path = "tcost_k1_budget_exit.rs"]

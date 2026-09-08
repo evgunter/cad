@@ -883,6 +883,10 @@ at the parent of the commit that removed it):
 - `SEAT-4-SPEC.md` — SEAT-4 — the Verb substrate, carried by the blend pair (unit spec)
 - `SHELL-1-SPEC.md` — SHELL-1 — the `ShellNaming` birth channel: `shell`/`shell_open` return `Shelled<T>` (unit spec)
 - `SHELL-2-SPEC.md` — SHELL-2 — `transform_rigid` maps an `Approx` face through the scalar's re-certification lane (unit spec)
+- `SHELL-5-SPEC.md` — SHELL-5 — shell of a hollow body thickens every boundary: one thin solid per operand shell (unit spec)
+- `SHELL-6-SPEC.md` — SHELL-6 — the cone nappe has one home: `face_nappe` decides once, both offset doors and the displacement read it (unit spec)
+- `SHELL-7-SPEC.md` — SHELL-7 — the axial offset door takes a one-surface corner: the full-period torus shells (unit spec)
+- `SHELL-8-SPEC.md` — SHELL-8 — shell is per solid, on every solid: the doors scoped, void insertion N-ary, the lift per designated solid (unit spec)
 - `TCOST-1-SPEC.md` — TCOST-1 — the per-file test gate (spec)
 - `VERBS-GERMARMS-SPEC.md` — VERBS-GERMARMS — the curved pierce ring lane + the cyl×cyl germ arm (two PRs)
 - `VERBS-SHELLFIX-SPEC.md` — VERBS-SHELLFIX — the two teapot-found shell defects (two PRs)
@@ -1296,6 +1300,52 @@ its A/B row is MODEL-AB-LOG SEAT9.
 
 - `SEAT-9-SPEC.md` — SEAT-9, the shell arm on `Verb` and ε travelling only as `Tol` down the offset-fit chain (#1995)
 
+## Sweep 7 — 2026-09-08: GATES leaves the tracker
+
+Sweep SHA: `5ce54b35bf355241de5fa5e3bb0cfeb264bf52af` — `main`'s tip immediately before the deletion,
+so every path below is recoverable at
+`git show 5ce54b35bf355241de5fa5e3bb0cfeb264bf52af:work/gates/<FILE>` and
+`git show 5ce54b35bf355241de5fa5e3bb0cfeb264bf52af:docs/GATES-EXIT-WALK.md`.
+
+GATES — the CI gate scripts, code-quality Track K's `scripts/gates/*`
+half — opened 2026-09-06 in the tracker-wide cut and closed 2026-09-08
+on Ev's ratification of `docs/GATES-EXIT-WALK.md` (PR #2185, "lgtm!").
+Per the sweep-5 rule the program's directory leaves whole:
+`program.md`, `plan.md`, `log.md`, and every closed item file
+(26 of them: `D102`, `D103`, `D109`, `D211`, `S13`, `S49`, `anchored-exact-text-skip-has-three-homes`, `bit-identity-debug-only-gate-ends-an-item-at-a-semicolon`, `bounds-allowlist-select-cuts-at-the-first-colon`, `bounds-tripwire-blind-to-named-alias`, `clippy-panic-gate-blind-in-macros`, `debug-only-assert-euler-postcondition-is-on-no-row`, `debug-only-bit-witness-callers-are-on-no-row`, `debug-only-counters-have-no-gate`, `debug-only-helpers-outside-the-subject-list`, `debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`, `gate-mod-path-resolved-textually`, `home-anchored-file-skip-is-unescaped`, `record-file-column-read-by-first-colon-split`, `test-module-resolution-has-three-homes`, `trait-generic-sole-bracket`, `unanchored-definition-skip`, `viewer-module-kinds-six-unreached-guards`, `whole-file-skips-are-hand-spelled-not-anchored`, `whole-file-skips-do-not-check-their-subject`, `window-view-emits-a-record-for-a-comment-only-line`). Twenty-six
+rows landed over twenty-five PRs (2029–2069, 2077, 2156, 2157, 2170,
+2174), each under one style review with a planted breach and a fix
+pass; one `[ev]` ruling ratified (PR 2067, the gates stay greps); one
+`[ev]` ruling open at the sweep (PR 2171, below). Infra-only: no A/B
+rows; the band 3100–3199 was claimed for bookkeeping and stays
+allocated.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `gates` | GATES — the CI gate scripts | 2026-09-08 | this row and the exit-walk row below; design at `scripts/gates/README.md` (the directory's page, listed in `docs/DESIGN.md`'s companion table) and in `scripts/gates/lib.sh`'s own headers |
+
+### Residue re-homed before the deletion
+
+Moved by `git mv` with ids kept (ownership is the directory):
+
+| item | to |
+| --- | --- |
+| `D212` | `work/code-quality/` — rides `G4`, Track V's, which lives there |
+| `directory-prefix-skips-have-no-subject-check` | `work/code-quality/` — open on its `crates/*/src/bin/` half, `blocked_on` `[ev]` PR 2171; the two-directory half closed with PR 2170 |
+
+Filed on other slates during the program and already there:
+`work-set-accepts-a-scalar-for-a-list-field` (META),
+`doc-gate-error-sites-outside-the-gate-population` (CIW),
+`bound-list-readers-have-three-homes` (code-quality). Nothing went to
+`work/issues/`. Track K's `scripts/gates/*` fence returns to
+code-quality with the two rows.
+
+### The exit walk's row
+
+| walk | program closed | ratified on | done-state now |
+| --- | --- | --- | --- |
+| `GATES-EXIT-WALK.md` | 2026-09-08 | PR #2185, in a PR comment | this row; the residue table above; `scripts/gates/README.md` |
+
 ## Sweep 7 — 2026-09-06: FILLET leaves the tracker
 
 Sweep SHA: `efe21acb8f599dd146fbaadc0251dc3981ebbf9a` — `main`'s tip immediately before the deletion,
@@ -1461,3 +1511,95 @@ merge stay order-shaped — filed). The rule above; the unit's record is
 its row in `MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
 
 - `DOCM-8-SPEC.md` — DOCM-8, a merged face's name is a flat constituent set; a member-space declaration resolves through the fold's merges (#2073)
+
+## Per-merge deletion — PROPS budget-faces' spec (2026-09-08)
+
+Recoverable at `git show 887f5e39d3b868cc748da50c8d81d02df74601dd:docs/PROPS-BUDGET-FACES-SPEC.md`
+(the unit head, before the state-sync commit that deleted it). Its
+face-2 instance (`d = 1e-7` on the quarter cylinder as a finite cap
+stop) did not survive measurement — that instance is face 4, and the
+face-2 red-first row is the bumpy patch at 1e-15 — and its face 4 is
+landed as `BoundNotFinite` carrying `last_finite`, per the review. The
+rule above; the unit's record is its `## Closed` and the MERGED entry
+in `work/props/log.md` (an E rider: no A/B row).
+
+## Per-merge deletion — LIB-G17's spec (2026-09-08)
+
+Recoverable at `git show 4a093c5cb4b9bd0a901111cdd89c230e9445a075:docs/LIB-G17-SPEC.md`
+(the frozen review head; the fix pass moved one decision the spec made —
+the f64 witness fold now lives on the lane, `crates/editor-core/src/lane.rs`,
+per the dual review's convergent finding, and the unit's record says so).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`, its
+MERGED entry in `work/lib/log.md`, and `work/lib/LIB-G17.md`'s Delivered
+and Fix pass sections.
+
+- `LIB-G17-SPEC.md` — LIB-G17, `Node::Shell`, the shell recipe door (#2150)
+
+## Sweep 9 — 2026-09-08: EVAL leaves the tracker
+
+Sweep SHA: `9c515cb150e8f396c6f197c2354650e8e676e11d` — the ratification
+commit immediately before the deletion (on the closing PR's branch,
+reachable from `main` through that PR's merge commit), so every path
+below is recoverable at
+`git show 9c515cb150e8f396c6f197c2354650e8e676e11d:work/eval/<FILE>`,
+`git show 9c515cb150e8f396c6f197c2354650e8e676e11d:docs/EVAL-EXIT-WALK.md`
+and `git show 9c515cb150e8f396c6f197c2354650e8e676e11d:docs/EVAL-<N>-SPEC.md`
+for the seven specs listed below.
+
+EVAL — the evaluation seat (`crates/editor-core/src/eval/*`, the verb
+seat, the names emitters, `topo::query`/`flush`), the ground SEAT held
+and Track V never staffed — opened 2026-09-06 in the tracker-wide cut
+and closed 2026-09-08 on Ev's ratification of `docs/EVAL-EXIT-WALK.md`
+(PR #2201, "lgtm!", merged `8d34121c7`). Per the sweep-5 rule the
+program's directory leaves whole: `program.md`, `plan.md`, `log.md` and
+every item file, every one `status: closed` except the five re-homed
+below. Eleven E units under the CIW/CHROME posture (one style review
+each, a correctness arm on units 2, 6, 7, 8, 9), no A/B rows (band
+3000–3099 claimed and unused), two `[ev]` rulings (PRs 2137, 2138).
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `eval` | EVAL — the evaluation seat: wiring, the verb seat and the names emitters | 2026-09-08 | this row and the exit-walk row below; the units' PRs (2139, 2153, 2160, 2165, 2168, 2173, 2176, 2186, 2190, 2194, 2195); design at `docs/DESIGN.md` Band 1 (the content key's inputs, amended by PR 2201), `crates/profile/README.md` (V6, the validated lift), `crates/verbs/README.md` (the `Verb` convention) and the tag declarations at `eval/mod.rs`'s `mod tag` (format 7) |
+
+What the walk records: eleven units MET (three with recorded honesty),
+the two rulings answered (placers are shape-preserving over
+`Instances`; a node's log is every decision made on its behalf), the
+deferred row carried; ten honesty rows, among them the session
+rate-limit interruption, three red pushes from skipped pre-push
+checks, three spec premises the lanes refuted, and the ground
+reverting to no owner at close (Ev's ratification took the walk's
+recommendation).
+
+### Residue re-homed before the deletion
+
+Moved by `git mv` with ids kept (ownership is the directory):
+
+| item | to |
+| --- | --- |
+| `D360` | `work/topo/` — a standing sweep rule over `topo`'s refusal enums |
+| `map-affine-retires-into-affine3-try-map` (parked) | `work/props/` — beside the PROPS door it is parked on |
+| `two-verb-seats-do-not-compose` (deferred), `frame-f64-placement-is-re-evaluated-per-profile`, `wire-expected-phrases-spell-family-words-as-literals` | `work/issues/` — the evaluation seat has no live program after EVAL; with `profile-embed-lift-has-two-homes-anchor-and-loft` and `placement-lifts-its-affine-by-hand-beside-affine3-map` already there, the successor's opening slate |
+
+### The exit walk's row
+
+| walk | program closed | ratified on | done-state now |
+| --- | --- | --- | --- |
+| `EVAL-EXIT-WALK.md` | 2026-09-08 | PR #2201, "lgtm!" | this row; the residue table above; the amended DESIGN Band 1 sentence |
+
+### Per-unit specs, unit merged
+
+Seven specs were not deleted at their units' merges and leave at this
+sweep, recoverable at the sweep SHA; the other four left per-merge
+and are ledgered here at the head that last carried each:
+
+- `EVAL-1-SPEC.md` — EVAL-1, the affine lift's one home (#2139)
+- `EVAL-2-SPEC.md` — EVAL-2, the tag vocabularies declared once (#2153)
+- `EVAL-3-SPEC.md` — EVAL-3, `emit_blend` cites the kernel's arguments (#2160)
+- `EVAL-4-SPEC.md` — EVAL-4, `D367`'s accept funnel (#2165)
+- `EVAL-5-SPEC.md` — EVAL-5, the two `Verb` types' convention (#2168)
+- `EVAL-6-SPEC.md` — EVAL-6, the placers over `Instances` (#2173; the spec rode `[ev]` PR 2137)
+- `EVAL-7-SPEC.md` — EVAL-7, the node bracket (#2176; the spec rode `[ev]` PR 2138)
+- `EVAL-8-SPEC.md` — EVAL-8, validate once under the pinned lift (#2186); recoverable at `git show d285b8301cc13f31ea60193f72e7de5a07a8bcf3:docs/EVAL-8-SPEC.md`
+- `EVAL-9-SPEC.md` — EVAL-9, the slot nominal joins the content key, format 7 (#2190); recoverable at `git show 2011634817c3417feb72e0285ad4475856edbb24:docs/EVAL-9-SPEC.md`
+- `EVAL-10-SPEC.md` — EVAL-10, one nominal environment (#2194); recoverable at `git show cf1ad66e0570ffeef1db6f1aa747341a21f77b1f:docs/EVAL-10-SPEC.md`
+- `EVAL-11-SPEC.md` — EVAL-11, `node_value_kind` through the placer chain (#2195); recoverable at `git show 0e59a45d374dfa56300925e1ce8b9e08738829ca:docs/EVAL-11-SPEC.md`

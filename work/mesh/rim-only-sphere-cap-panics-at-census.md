@@ -2,8 +2,7 @@
 id: rim-only-sphere-cap-panics-at-census
 kind: issue
 title: "mesh: tessellate panics at the issue-897 census on a rim-only sphere cap the shape door admits (even at f = 0)"
-status: parked
-blocked_on: [MESH-12]
+status: open
 opened: 2026-09-03
 github: 1615
 refs: [897, 1571, rim-continuation-witness-fixture-needed]

@@ -186,7 +186,7 @@ REGISTER=(
   "crates/topo/src/euler_ring.rs|mekr_empty_target||1|unaudited"
   "crates/topo/src/merge_faces.rs|loop_winding||1|unaudited"
   "crates/topo/src/movefac.rs|movefac||1|unaudited"
-  "crates/topo/src/offset_axial.rs|nappe_signed||1|unaudited"
+  "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
   "crates/topo/src/pcurves.rs|validate_pcurves||2|unaudited"
   "crates/topo/src/pcurves.rs|walk_loop||1|unaudited"
@@ -195,6 +195,14 @@ REGISTER=(
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"
   "crates/topo/src/seqgen.rs|mef_chords_candidates||1|unaudited"
+  # The generator's copy of the per-shell glue walk. Its arm is
+  # movefac's arm above, deliberately: the row enumerates the sites
+  # that operator will partition, so it must partition them the same
+  # way. Left `unaudited` because the arm it mirrors is — inheriting a
+  # disposition that does not exist would be the register's own
+  # failure mode — and because the duplication is the open question,
+  # filed as work/topo/shell-glue-relation-has-three-implementations.md.
+  "crates/topo/src/seqgen.rs|shell_components||1|unaudited"
   "crates/topo/src/shell.rs|duplicate_in_loop||1|unaudited"
   "crates/topo/src/shell.rs|face_boundary_points||1|unaudited"
   "crates/topo/src/shell.rs|face_neighbours||1|unaudited"
@@ -271,7 +279,7 @@ gate() {
   fi
   export LBD_ANCHOR="$ANCHOR_RE" LBD_LET="$LET_RE" LBD_ARM="$ARM_RE"
   if ! report=$(printf '%s\n' "$entries" "===" "$lineview" "===" "$winview" \
-    | awk '
+    | gate_record_awk '
       BEGIN {
         ANCHOR = ENVIRON["LBD_ANCHOR"]
         LETRE = ENVIRON["LBD_LET"]
@@ -289,11 +297,17 @@ gate() {
         next
       }
       {
-        i = index($0, ":")
-        file = substr($0, 1, i - 1); rest = substr($0, i + 1)
-        j = index(rest, ":")
-        line = substr(rest, 1, j - 1) + 0
-        txt = substr(rest, j + 1)
+        # WHERE THE FILE COLUMN ENDS comes from `gate_record_split`
+        # (lib.sh, section THE COLUMNS OF A RECORD; no apostrophe may
+        # appear in this program, which is itself single-quoted, so
+        # possessives are written around). This reader keys a discard on
+        # `file ":" line` and its enclosing-fn state on `file` alone, so
+        # a FILE column read to the first colon gave two files one key:
+        # a discard in one was attributed to a register entry naming the
+        # other, and the brace depth of one decided the enclosing fn of
+        # the next.
+        if (!gate_record_split($0)) next
+        file = GR_FILE; line = GR_LINE + 0; txt = GR_TEXT
       }
       # THE ENCLOSING fn, not the nearest preceding one. A `fn` declared
       # and closed inside another body — a local helper, a method in a
@@ -494,6 +508,18 @@ plant_unregistered_arm() {
   gate_plant_site "$1/crates/planted/src/lib.rs" arrived_unregistered_arm arm-named-underscore
 }
 
+# THE SAME DISCARD IN A FILE WHOSE PATH CARRIES A COLON, which is legal
+# here and in git. The case is asserted on the PATH the UNREG line
+# carries, not on the umbrella diagnosis: the reader keys every discard
+# on its FILE column, and read to the first colon it named
+# `crates/planted/src/a` — a path no register entry can name and no
+# reader can open — while giving that key to every other file whose path
+# begins the same way.
+plant_unregistered_colon_path() {
+  mkdir -p "$1/crates/planted/src"
+  gate_plant_site "$1/crates/planted/src/a:b.rs" arrived_in_a_colon_path oneline
+}
+
 # A helper `fn` declared and closed inside the body that holds the
 # discard: the nearest PRECEDING `fn` is the helper, the enclosing one
 # is the outer body, and the diagnosis has to name the outer body.
@@ -613,6 +639,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_unregistered_let
   gate_selftest_case "$want" plant_unregistered_arm
   gate_selftest_case "|outer_holder|let LoopBoundary::Cycle" plant_nested_helper_fn
+  gate_selftest_case "UNREG|crates/planted/src/a:b.rs|" plant_unregistered_colon_path
   gate_selftest_case "$want" plant_registered_site_gone
   # A second discard under a one-site entry, and a second under an entry
   # a FRAGMENT narrows — the two shapes a key without a count absorbs.
@@ -624,7 +651,7 @@ gate_selftest() {
   gate_selftest_passes "a let-else and a match arm discarding some OTHER enum" plant_other_enum_discard
   gate_selftest_passes "a LoopBoundary value BOUND and used, not discarded" plant_bound_and_used
   gate_selftest_passes "the spelling in prose, in a doc comment, in a string literal and inside matches!" plant_prose_and_predicate
-  printf '%s selftest OK: passes a tree whose every discard is registered at its pinned count, across all ten spellings the matchers accept and with every site under a comment-only line, which the shared reader must not make a record of; fires on an unregistered let-else, an unregistered match arm, a register entry whose site is gone, a malformed entry, and a second discard absorbed by a plain key or by a fragment; names the ENCLOSING fn rather than a closed helper; stays quiet on another enum, on a bound-and-used value and on prose; and stays RED, with a diagnosis, when the reader itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a tree whose every discard is registered at its pinned count, across all ten spellings the matchers accept and with every site under a comment-only line, which the shared reader must not make a record of; fires on an unregistered let-else, an unregistered match arm, an unregistered discard in a file whose PATH carries a colon — named whole in the line that reports it — a register entry whose site is gone, a malformed entry, and a second discard absorbed by a plain key or by a fragment; names the ENCLOSING fn rather than a closed helper; stays quiet on another enum, on a bound-and-used value and on prose; and stays RED, with a diagnosis, when the reader itself cannot run\n' "$(gate_name)"
 }
 
 # `--register` is this gate's own flag, so it is taken out of argv

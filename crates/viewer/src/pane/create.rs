@@ -724,7 +724,7 @@ impl ViewerBehavior<'_> {
                         // candidate verb, which is cheap but not free,
                         // and a closed combo has nobody to show it to.
                         let mut chain = self.drafts.profile_path.clone();
-                        for option in PathVerb::ALL {
+                        for (option, label) in PathVerb::ALL {
                             chain[index] = option.fresh();
                             let refusal = sketch::admits_at(&chain, index, notation, tol).err();
                             // `add_enabled` on the widget itself, not
@@ -735,7 +735,7 @@ impl ViewerBehavior<'_> {
                             // response shows nothing.
                             let row = ui.add_enabled(
                                 refusal.is_none(),
-                                egui::Button::selectable(option == verb, option.label()),
+                                egui::Button::selectable(option == verb, label),
                             );
                             match refusal {
                                 Some((state, _refused)) => {
@@ -745,7 +745,7 @@ impl ViewerBehavior<'_> {
                                     // reader is looking at.
                                     row.on_disabled_hover_text(format!(
                                         "{} is not well-typed here — the tip is {}",
-                                        option.label(),
+                                        label,
                                         sketch::tip_state_words(state),
                                     ));
                                 }
