@@ -34,6 +34,10 @@ pub mod node_kind;
 // tests it.
 pub mod product_memo;
 pub mod tags;
+// One validator finding as Python reads it: the words `tags` mints,
+// assembled into the sequence the validate doors raise. Python-
+// independent, so the default build tests it.
+pub mod validation;
 
 #[cfg(feature = "python")]
 mod py;

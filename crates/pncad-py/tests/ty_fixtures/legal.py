@@ -120,6 +120,8 @@ from pncad import (
     split,
     subject_body,
     update_references,
+    ValidationError,
+    ValidationFinding,
 )
 
 outline = (
@@ -684,3 +686,21 @@ try:
 except EditError as edit_refusal:
     which_edit: str = edit_refusal.variant
     which_edit_arm: str | None = edit_refusal.inner_variant
+
+# The one refusal on this surface whose discriminant is a SEQUENCE.
+# `findings` is a list, its length is `failure_count`, and each entry's
+# `variant` is a plain `str` while its three payload words are optional
+# — the shape a caller reads without narrowing on `variant` first.
+try:
+    gathered.validate_pseudomanifold()
+except ValidationError as validation_refusal:
+    which_rung: str = validation_refusal.door
+    how_many: int = validation_refusal.failure_count
+    every_finding: list[ValidationFinding] = validation_refusal.findings
+    first_finding: ValidationFinding = every_finding[0]
+    which_arm_failed: str = first_finding.variant
+    about: str | None = first_finding.subject_kind
+    carrier: str | None = first_finding.entity_kind
+    coincidence: str | None = first_finding.contact_kind
+    if coincidence is not None:
+        declarable: str = coincidence

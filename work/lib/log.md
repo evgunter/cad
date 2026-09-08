@@ -3669,6 +3669,51 @@ exhaustive match caught it — the alarm's first live firing). Not
 taken, per the brief: the payload half and the `findings` sequence,
 next. No kernel crate touched; the lane ran the pinned ruff for real.
 
+**LIB-FINDINGS MERGED (2026-09-08, #2225; mechanical under the 08-29
+ruling, no A/B row). Ev's ruling (A) on
+`census-findings-cross-without-a-per-arm-tag` shipped: `ValidationError`
+keeps `door` and `failure_count` and gains `findings`, a list of frozen
+`ValidationFinding`s — one per failure, `len(findings) ==
+failure_count`, in the kernel's own report order — the single exception
+to "`variant` is a scalar", argued by the door's own shape (the one door
+that reports MANY refusals in one raise) at the three places a reader
+meets it (the class docstring, `pncad.pyi`, the README's taxonomy
+paragraph) so it does not become a second convention.** Each finding
+carries `variant` (the arm, from `validation_error_tag`, exhaustive
+over all 71 `ValidationError` arms, no wildcard), `contact_kind`
+(`UndeclaredContact`'s `CensusContact`, 8 arms) and `subject_kind` +
+`entity_kind` (the two census-unsupported arms' `CensusSubject`: 2
+arms, and the `EntityId` kind beside it, 7 — CUR6's own shape at the
+façade, the ruling's "plus the entity kind or the pair"), every
+attribute present on every finding, `None` where the arm carries none;
+no arena key crosses (a `Body` is an opaque handle), so WHICH face or
+vertex stays in the kernel's prose on the joined message, which is
+byte-identical; the door still raises once. Python-independent
+`validation.rs` assembles the words (its two payload EXTRACTORS carry
+a `_` arm under the kernel enum's own extract licence — a question,
+not a classification; the classifying map is the exhaustive one).
+Rows: the old absence pin REWRITTEN into its positive form (the two
+scalar words still absent — one raise carries N findings — and the
+sequence is where the arms live); `len == failure_count`; each word a
+phrase the message spells; structural `==`/hash and frozenness; every
+attribute present; two distinct arms off ONE raise (a cylinder resting
+on a slab: `undeclared_contact` with `vertex_on_face` beside
+`census_undecidable`); the arms Python cannot produce NAMED with the
+reason (the structural/geometric arms want a corrupt arena; the two
+subject-carrying arms want an uncertifiable carrier, and every public
+product certifies) and pinned in Rust where the refusal constructs;
+ty fixtures both ways. Census: `CensusContact` and `CensusSubject` left
+`INTERIOR` for `BOUND_AS` together, as their own rows' falsifier
+predicted; `EntityId`, `ContactFinding`, `RingContact`,
+`StaleDeclaration` re-argued where they named the old measurement;
+the prelude's group-5 note corrected (comment only, no façade name
+moved). Residue filed:
+`two-validation-payload-discriminants-still-uncrossed`
+(`StaleDeclaration`, `RingContact` — the ruling named two types and
+these are not them). Not taken: the six doors' payload attributes
+(LIB-DOORS-1 ran beside this unit). No kernel crate touched; the lane
+ran the pinned ruff for real.
+
 ## Announced seam from SHELL (2026-09-08): `ShellError::Pcurve` arm in editor-core's fold
 
 SHELL-9 (PR #2223) adds `ShellError::Pcurve { source: PcurveMintError }`

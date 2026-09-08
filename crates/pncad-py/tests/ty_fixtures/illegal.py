@@ -26,6 +26,8 @@ from pncad import (
     EditError,
     EntityKind,
     EvaluationError,
+    ValidationError,
+    ValidationFinding,
     Frame,
     GeomPred,
     NamePat,
@@ -595,3 +597,29 @@ try:
     doc.apply(DocEdit.delete_node(solid))
 except EditError as _refused:
     _edit_arm: str = _refused.inner_variant  # ty: error
+
+# The validator's findings are a SEQUENCE, not a scalar word. Reading
+# one as a `str` is the mistake the exception's shape exists to make
+# impossible to hold quietly: one raise carries N failures, so there is
+# no single word for it to be.
+try:
+    product(doc, evaluate(doc)).validate_pseudomanifold()
+except ValidationError as _validation:
+    _one_word: str = _validation.findings  # ty: error
+
+# A finding's payload words are OPTIONAL: an arm that carries no census
+# subject has `None` there, so reading one as a `str` is the narrowing
+# the caller has not done — the `inner_kind` rule at the validator.
+try:
+    product(doc, evaluate(doc)).validate_pseudomanifold()
+except ValidationError as _refusal_again:
+    _subject: str = _refusal_again.findings[0].subject_kind  # ty: error
+
+# And a finding is a frozen VALUE: it is restated by re-running the
+# validator, never by editing one in place — the `MeasurePrimitive`
+# rule at the refusal side of the surface.
+try:
+    product(doc, evaluate(doc)).validate_pseudomanifold()
+except ValidationError as _frozen:
+    _finding: ValidationFinding = _frozen.findings[0]
+    _finding.variant = "something_else"  # ty: error
