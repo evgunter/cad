@@ -307,7 +307,7 @@ pub use topo::{
 // `DeclaredContact` — the payload of `ValidationError::
 // ContactContradicted` — has been curated (through `crate::select`)
 // all along, so the surface already carried ONE payload of this
-// refusal and left its siblings a module hop away. These three are
+// refusal and left its siblings a module hop away. These four are
 // that inconsistency closed, not a new policy:
 //
 // - `CensusContact` is `UndeclaredContact`'s: which coincidence the
@@ -320,6 +320,21 @@ pub use topo::{
 //   lost its witness, so which record to withdraw.
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
 //   vertex-on-edge, or edge-along-edge.
+// - `CensusSubject` is what `CensusUnsupported` and
+//   `CensusLaneUnsupported` are ABOUT, and it is the sharpest of the
+//   four because both of its payload types are already on this list.
+//   `Entity(EntityId)` and `FacePair(FaceKey, FaceKey)` are not two
+//   spellings of one site: an entity subject is one carrier outside
+//   the certifiable inventory, and the recourse is that carrier's —
+//   simplify it, or certify it through a supported lane. A face PAIR
+//   is a candidate CONTACT, and its recourse is the declaration
+//   protocol: declare the coincidence, or separate the two faces.
+//   The pair is also unordered as a subject (its `PartialEq` says so
+//   rather than deriving the arena's order), which is a fact a caller
+//   resolving a refusal against its own records has to have. So the
+//   discriminant is the whole of what these two arms say, and until
+//   it was carried it was the ONLY thing between a caller and a
+//   subject whose parts this list already spelled.
 //
 // THE RUNG BELOW IS CARRIED TOO, and where it stops is one further
 // down. `CensusContact::ConformalPatch` carries a
@@ -328,8 +343,10 @@ pub use topo::{
 // `GeomRef`, which ride in group 4 with the keys they sum over. What
 // this list still stops at is the rung under THOSE — a
 // `ContactFinding` is a `DeclaredContact` plus a `ContactVerdict`,
-// both already here, and the sums' remaining key kinds are bound out
-// of an arm and never branched on. The rule is unchanged and only
+// both already here, a `CensusSubject` is an `EntityId` or two
+// `FaceKey`s, all three already here, and the sums' remaining key
+// kinds are bound out of an arm and never branched on. The rule is
+// unchanged and only
 // the reach moved: a caller binds a payload and branches on the
 // DISCRIMINANT, and every discriminant these refusals name is
 // spellable from this list.
@@ -339,8 +356,8 @@ pub use topo::{
 // a `door` and a `failure_count` and no per-arm tag at all, so there
 // is nothing here to split or pin.
 pub use topo::{
-    CensusContact, RingContact, StaleDeclaration, ValidationError, validate, validate_closed,
-    validate_geometric, validate_pseudomanifold,
+    CensusContact, CensusSubject, RingContact, StaleDeclaration, ValidationError, validate,
+    validate_closed, validate_geometric, validate_pseudomanifold,
 };
 
 // --- 6. Mass properties ---------------------------------------

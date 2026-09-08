@@ -1573,6 +1573,23 @@ NOT_BOUND = {
     # .md`), so inventing a second vocabulary at the boundary would
     # fork a diagnosis the kernel already words.
     "CensusContact": INTERIOR,
+    # What the two census-unsupported arms are ABOUT — one entity, or
+    # the candidate face pair. `INTERIOR` by the carrier rule and by
+    # the measurement the `CensusContact` entry above records, which
+    # is this type's carrier too: `ValidationError` crosses through
+    # the validate doors as joined `Display` prose with a `door` and a
+    # `failure_count` and no per-arm tag, so an arm's subject reaches
+    # Python only inside that text, through the kernel's own
+    # rendering. `pncad-py` names neither `CensusSubject` nor either
+    # of its payload types anywhere.
+    #
+    # The Rust carriage this row records is a real closure even so,
+    # and the asymmetry is the point of writing the measurement down:
+    # a Rust caller matches the arm and reads the subject whole, while
+    # a Python caller reads the sentence. What would flip this entry
+    # is the same door that would flip `CensusContact`'s — a validate
+    # projection with per-arm tags — and both would move together.
+    "CensusSubject": INTERIOR,
     # The instantiation seam's declaration bookkeeping. `Relation` and
     # `Route` are the two halves of what a carried finding says, and
     # Python reads both without holding either type:

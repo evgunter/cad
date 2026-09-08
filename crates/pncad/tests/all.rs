@@ -370,6 +370,39 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
     }
 }
 
+/// `ValidationError::CensusUnsupported`'s and
+/// `CensusLaneUnsupported`'s payload — what the refusing arm was
+/// examining, and therefore whose recourse applies.
+///
+/// The two arms are two different repairs, which is the CUR3 test.
+/// An `Entity` subject is one carrier outside the certifiable
+/// inventory: simplify that carrier, or certify it through a
+/// supported lane. A `FacePair` is a candidate CONTACT, so the
+/// recourse is the declaration protocol — declare the coincidence, or
+/// separate the two faces. Both payload types are on the prelude, so
+/// the answer is read out whole rather than bound and re-rendered.
+///
+/// The pair is UNORDERED as a subject, which a caller resolving a
+/// refusal against its own records depends on. That half is NOT
+/// pinned here and the reason is the same stop every key row on this
+/// list hits: distinguishing `(a, b)` from `(b, a)` needs two
+/// distinct `FaceKey`s, and nothing on the curated lists mints one —
+/// `topo`'s own suites own that pin. What this signature pins is the
+/// discriminant, which is what a curated list owes.
+fn census_subject_is_matchable(subject: CensusSubject) -> (&'static str, Option<EntityId>) {
+    match subject {
+        CensusSubject::Entity(what) => {
+            named::<EntityId>(what);
+            ("entity", Some(what))
+        }
+        CensusSubject::FacePair(a, b) => {
+            named::<FaceKey>(a);
+            named::<FaceKey>(b);
+            ("face_pair", None)
+        }
+    }
+}
+
 /// `ValidationError::StaleContactDeclaration`'s and `RingMeetsOuter`'s
 /// payloads — which record to withdraw, and how the ring meets the
 /// loop it should not be touching.
@@ -484,6 +517,22 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     // by SIGNATURE rather than by value: nothing on this list can
     // build one, which is the rung below stopping.
     named::<fn(&Indeterminate) -> (Band, Option<&'static str>)>(escalation_is_readable);
+
+    // What a census refusal is ABOUT, and the two recourses it
+    // separates. Both payload types are prelude names, so the entity
+    // arm's subject comes back whole rather than as a rendered
+    // string.
+    assert_eq!(
+        census_subject_is_matchable(CensusSubject::Entity(EntityId::Face(FaceKey::default()))),
+        ("entity", Some(EntityId::Face(FaceKey::default())))
+    );
+    assert_eq!(
+        census_subject_is_matchable(CensusSubject::FacePair(
+            FaceKey::default(),
+            FaceKey::default()
+        )),
+        ("face_pair", None)
+    );
 
     assert_eq!(
         stale_declaration_and_ring_contact_are_matchable(
