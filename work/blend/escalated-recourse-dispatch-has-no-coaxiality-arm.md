@@ -49,7 +49,10 @@ Moved from `work/issues/` to `work/blend/` in the tracker-wide cut of 2026-09-06
 ## Landed
 
 `crates/sweep/tests/m5_pr12_refusals.rs`'s `trio_support_coaxiality`
-is the row: it reaches the in-band arm through `run_battery` on a
-cylinder whose cap plane parts from the rim circle's axis by `5ε` at
-the rim's lever arm, and `assert_same_recourse` pins the definite
-`SpineUnsupported` and the escalation to one sentence.
+is the row: it reaches the in-band arm through `run_battery` on the
+whole raised rim of a two-arc cylinder whose cap plane parts from the
+rim circle's axis by `5ε` at the rim's lever arm, and
+`assert_same_recourse` pins the definite `SpineUnsupported` and the
+escalation to one sentence. The three legs read build / escalate /
+refuse on one body, so the exact leg is a PASS and not a downstream
+refusal on some other predicate.

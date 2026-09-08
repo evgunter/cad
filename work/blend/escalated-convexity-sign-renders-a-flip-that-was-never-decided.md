@@ -2,8 +2,10 @@
 id: escalated-convexity-sign-renders-a-flip-that-was-never-decided
 kind: issue
 title: blend: an in-band fillet3_convexity_sign escalation renders the chain-flip recourse
-status: open
+status: closed
 opened: 2026-09-07
+closed: 2026-09-08
+pr: 2123
 ---
 
 ## Finding
@@ -41,10 +43,13 @@ with what escalated.
 
 The trio family records the hole rather than closing it:
 `trio_convexity_sign`
-(`crates/sweep/tests/m5_pr12_refusals.rs:417`) is the one trio row
-that does NOT call `assert_same_recourse` — it stops at
+(`crates/sweep/tests/m5_pr12_refusals.rs:417`) does NOT call
+`assert_same_recourse` — it stops at
 `assert!(matches!(escalated, BlendError::Escalated { .. }))`, so no
-row goes red for the mismatch.
+row goes red for the mismatch. It is not the only untied row:
+`trio_corner_independence` (`:479`) also stops at its escalation's
+predicate name, though its pair agrees, so the family's guarantee is
+weaker than "every trio ties" wherever it is read that way.
 
 Found while adding the `fillet3_support_coaxiality` arm to the same
 match (unit 1's sweep over every predicate the battery decides), and
@@ -62,3 +67,27 @@ rather than merely observed. `ConvexitySignFlip` keeps
 true of. Decide first whether a chain-level flip should carry a
 predicate name in its escalation payload at all — if it should, the
 match needs a second key, not a second arm.
+
+## Closed
+
+Fixed on PR 2123 (BLEND unit 1's fix pass), as the fix shape above
+states and no wider. `Some("fillet3_convexity_sign")` routes to
+`FILLET3_TANGENTIAL_RECOURSE` at
+`crates/sweep/src/blend/mod.rs`'s `match source.predicate`;
+`BlendError::ConvexitySignFlip` keeps `FILLET3_CONVEXITY_RECOURSE`,
+which is the refusal that sentence is true of. The routing is a D4
+pair rule applied at one site — the in-band arm takes the sentence its
+own definite refusal carries — and not a design statement about the
+arms, so it needed no ratification.
+
+`trio_convexity_sign` and `trio_corner_independence` both end in
+`assert_same_recourse` now, and so does every other `trio_*` row, so
+the pair is pinned rather than observed.
+`review_blend1_r1_probes::r1_in_band_convexity_sign_renders_the_tangential_sentence`
+pins the rendered sentence and the absence of the flip one.
+
+The question the fix shape reserves — whether a chain-level flip
+should carry a predicate name in its escalation payload at all — did
+not arise: `ConvexitySignFlip` is constructed directly
+(`crates/sweep/src/blend/battery.rs:1489`) and never through `esc`, so
+the match needs no second key.
