@@ -572,6 +572,8 @@ mod shell7_common;
 
 #[path = "shell7_dump.rs"]
 mod shell7_dump;
+#[path = "shell8_dump.rs"]
+mod shell8_dump;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
