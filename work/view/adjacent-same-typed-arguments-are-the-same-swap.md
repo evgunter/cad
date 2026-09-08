@@ -24,8 +24,8 @@ survives further.
     pub fn transform_node(input: RecipeNodeId, translation: [Expr; 3],
                           rotation_axis: [Expr; 3], rotation_angle: Expr)
 
-    crates/viewer/src/session.rs:1622   fn add_transform(… same four …)
-    crates/viewer/src/session.rs:1633   combine::transform_node(input, translation,
+    crates/viewer/src/session.rs:1696   fn add_transform(… same four …)
+    crates/viewer/src/session.rs:1707   combine::transform_node(input, translation,
                                                                rotation_axis, rotation_angle)
 
 A translation vector and a rotation axis have nothing in common but
@@ -38,13 +38,13 @@ argument. The relay means one transposition at either hop is enough.
 **The others**, with their swap consequence, because the class has a
 gradient and a fix pass should not treat it as flat:
 
-- `session.rs:1582` `add_boolean(op, a: RecipeNodeId, b: RecipeNodeId)`
+- `session.rs:1656` `add_boolean(op, a: RecipeNodeId, b: RecipeNodeId)`
   — both seats are kind-gated to `Body`, so nothing catches a swap and
   `Subtract` is not commutative.
-- `session.rs:1608` `add_split(target: RecipeNodeId, tool: RecipeNodeId)`
+- `session.rs:1682` `add_split(target: RecipeNodeId, tool: RecipeNodeId)`
   — swappable, but caught: the gate wants `Body` then `Plane`. Worth
   recording as the shape that is already defended, not as a hit.
-- `session.rs:1564` `add_revolve(profile, axis)`, `display.rs:325`
+- `session.rs:1638` `add_revolve(profile, axis)`, `display.rs:325`
   `derives_from(doc, node, source)`, `session/refuse.rs:323`
   `self_instance(open: DocumentId, id: DocumentId)`.
 - `frame.rs:1708` `prefs_path_in(config_home: Option<&OsStr>,

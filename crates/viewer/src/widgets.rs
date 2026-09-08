@@ -297,8 +297,8 @@ pub(crate) fn arc_fields(
         .selected_text(mode.label())
         .width(88.0)
         .show_ui(ui, |ui| {
-            for option in ArcMode::ALL {
-                ui.selectable_value(&mut mode, option, option.label());
+            for (option, label) in ArcMode::ALL {
+                ui.selectable_value(&mut mode, option, label);
             }
         });
     if mode != before {
