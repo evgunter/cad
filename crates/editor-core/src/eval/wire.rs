@@ -1306,7 +1306,10 @@ fn anchored(
 // `wire_blend`'s is; the 7th is the evaluation environment, read for
 // the descent chain the attached tokens' scope is.
 #[allow(clippy::too_many_arguments)]
-fn wire_swept<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane, A>(
+fn wire_swept<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+    A,
+>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,
     id: RecipeNodeId,
@@ -1362,7 +1365,9 @@ fn wire_swept<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane, A>(
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
 /// read, and the generic lowering from there.
-fn wire_extrude<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+fn wire_extrude<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -1410,7 +1415,9 @@ fn written_against(
 // chain the attached tokens' scope is; the 7th is the document, read
 // for the frame rule and the operand profile's own expressions.
 #[allow(clippy::too_many_arguments)]
-fn wire_revolve<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+fn wire_revolve<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
@@ -1692,7 +1699,7 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
 /// undeclared-coincidence menu lift needs the operands'
 /// naming context, so [`refusal_menu`] intercepts it and delegates
 /// everything else here.
-fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
+fn verb_refused<T: crate::verbs::shell::ShellLane>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend { verb, error }
@@ -1702,16 +1709,13 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
         verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Split(error) => NodeErrorKind::Split(error),
         verbs::VerbError::Arity { verb, given } => NodeErrorKind::VerbArity { verb, given },
-        // **The shell's refusal crosses at its `f64` witness.** The
-        // kernel's error is generic over the lane scalar and this enum
-        // is scalar-free, so the carriage is a TOTAL fold — every arm,
-        // every nested payload, every number — rather than a rendering
-        // or a drop. This is the one arm of the door that needs a
-        // bracket, and it reads one only to REPORT: nothing here
-        // decides on it.
-        verbs::VerbError::Shell(error) => {
-            NodeErrorKind::Shell(Box::new(crate::verbs::shell::fold_shell_error(*error)))
-        }
+        // **The shell's refusal crosses at the lane's `f64` witness.**
+        // The kernel's error is generic over the lane scalar and this
+        // enum is scalar-free, so the carriage is a TOTAL fold — every
+        // arm, every nested payload, every number — declared by the
+        // lane beside its rights (`ShellLane::witness`), never a
+        // rendering or a drop.
+        verbs::VerbError::Shell(error) => NodeErrorKind::Shell(Box::new(T::witness(*error))),
     }
 }
 
@@ -1781,7 +1785,9 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
 // duplication rather than adding a duty; the 9th is the evaluation
 // environment, read for the descent chain the token's scope is.
 #[allow(clippy::too_many_arguments)]
-fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+fn wire_blend<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -1879,7 +1885,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 // The 9 arguments are the blend lowering's: the correspondence, the
 // node and its operand, the payload, and the evaluation environment.
 #[allow(clippy::too_many_arguments)]
-fn wire_shell<T: Decide + geom_core::Bounds + crate::verbs::shell::ShellLane>(
+fn wire_shell<T: Decide + crate::verbs::shell::ShellLane>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -1899,7 +1905,9 @@ fn wire_shell<T: Decide + geom_core::Bounds + crate::verbs::shell::ShellLane>(
     // the value the correspondence just built (VERB-SEAT-DESIGN V1).
     let flow = built.param_flow();
     let out = T::run_shell(&built, &body, tol)
-        .ok_or(NodeErrorKind::ShellLaneUnsupported { lane: T::LANE })?
+        .ok_or(NodeErrorKind::ShellLaneUnsupported {
+            lane: <T as crate::lane::Lane>::NAME,
+        })?
         .map_err(verb_refused)?;
     let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
@@ -2326,7 +2334,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
                     ValuePayload::MeasureUnavailable {
                         reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
                             verb: prim.verb(),
-                            scalar: T::LANE,
+                            scalar: <T as crate::lane::Lane>::NAME,
                             door: "clearance::min_separation",
                         },
                         dim: expr.dim(),
@@ -2472,7 +2480,9 @@ fn wire_assertion<T: Decide>(
 /// error unaltered, through [`verb_refused`]. The D7 pinch lane lives
 /// inside the kernel door and is reached through the verb door
 /// unchanged; nothing here re-derives the plane or its orientation.
-fn wire_split<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+fn wire_split<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -2644,7 +2654,9 @@ fn wire_part<T: Decide>(
 // The correspondence (`crate::verbs::boolean`) supplies what varies
 // per pair verb: the verb constructor and the naming emitter.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
-fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+fn wire_boolean<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     op: BooleanOp,
@@ -2758,7 +2770,9 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 // The allow is `wire_boolean`'s, for its reason: one parameter per
 // named input, and the declare edge is one of them.
 #[allow(clippy::too_many_arguments)]
-fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+fn wire_union<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -3386,7 +3400,7 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// union's own `declare` input. The names it carries are the ones this
 /// refusal carries — member-space rows of this node — and the step the
 /// pair is fed at is derived from them ([`route_declarations`]).
-fn union_refusal<T: geom_core::Bounds>(
+fn union_refusal<T: crate::verbs::shell::ShellLane>(
     id: RecipeNodeId,
     a_table: &crate::names::NameTable,
     b_table: &crate::names::NameTable,
@@ -3443,7 +3457,7 @@ const UNION_REFUSAL_FOREIGN: &str =
 /// ids: the n-ary union folds the same verb over an ACCUMULATION that
 /// is no node's result, and the menu reads nothing else about an
 /// operand.
-fn refusal_menu<T: geom_core::Bounds>(
+fn refusal_menu<T: crate::verbs::shell::ShellLane>(
     a_table: &crate::names::NameTable,
     b_table: &crate::names::NameTable,
     err: verbs::VerbError<T>,

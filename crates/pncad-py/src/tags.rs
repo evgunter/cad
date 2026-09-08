@@ -201,6 +201,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // and this match is exhaustive, so the crate's compile is what
         // requires these rows and nothing else here changes.
         EditError::DuplicateInput { .. } => "duplicate_input",
+        EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",

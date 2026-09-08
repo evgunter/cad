@@ -130,61 +130,6 @@ const ROSTER: &[Site] = &[
              frame that did not come out finite, and nothing downstream reads them",
         ),
     },
-    // The shell refusal's fold: the kernel's `ShellError<T>` is generic
-    // and the document layer's `NodeErrorKind` is scalar-free, so every
-    // lane number in a refused shell crosses as its bracket's infimum
-    // — read once, to REPORT, into an f64 payload that nothing
-    // downstream decides on. One door per nested enum, and the three
-    // verb-dispatch refusal translators that carry the fold's bound.
-    Site {
-        path: "crates/editor-core/src/verbs/shell.rs",
-        subject: "fold_shell_error",
-        why: Payload(
-            "the total fold of `ShellError<T>` to `ShellError<f64>`: each scalar field \
-             becomes its `lo()` and lands in a document refusal that is displayed and \
-             tagged, never compared",
-        ),
-    },
-    Site {
-        path: "crates/editor-core/src/verbs/shell.rs",
-        subject: "fold_replace_face_error",
-        why: Payload("the same fold one enum down, over the face-replacement door's refusal"),
-    },
-    Site {
-        path: "crates/editor-core/src/verbs/shell.rs",
-        subject: "fold_offset_error",
-        why: Payload("the same fold over the analytic offset mint's refusal"),
-    },
-    Site {
-        path: "crates/editor-core/src/verbs/shell.rs",
-        subject: "fold_iso_row_error",
-        why: Payload("the same fold over the boundary-row extraction's refusal"),
-    },
-    Site {
-        path: "crates/editor-core/src/eval/wire.rs",
-        subject: "verb_refused",
-        why: Payload(
-            "the verb dispatch's one refusal translation carries `Bounds` for its shell \
-             arm alone, which hands the refusal to `fold_shell_error`; every other arm \
-             moves a scalar-free error by value",
-        ),
-    },
-    Site {
-        path: "crates/editor-core/src/eval/wire.rs",
-        subject: "refusal_menu",
-        why: Payload(
-            "the boolean's refusal intercept delegates everything but the menu lift to \
-             `verb_refused`, so it carries that door's bound and reads no bracket itself",
-        ),
-    },
-    Site {
-        path: "crates/editor-core/src/eval/wire.rs",
-        subject: "union_refusal",
-        why: Payload(
-            "the n-ary union's refusal wrapper over `refusal_menu`: the same carried bound, \
-             no bracket read of its own",
-        ),
-    },
     Site {
         path: "crates/geom-brep/src/ssi.rs",
         subject: "impl<T: geom_core::Bounds> TubeScale<T>",

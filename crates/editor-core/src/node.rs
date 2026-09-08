@@ -1064,6 +1064,19 @@ pub enum InputFault {
         /// How many entries it has.
         found: usize,
     },
+    /// An ORDERED designation names one entity twice. A shell's `open`
+    /// list is the payload that has one: its order is meaning (the
+    /// first designated face of a chart carries the rim), so its
+    /// canonical form is "no repeats" rather than "sorted", and the
+    /// construction door drops a repeat keeping the first occurrence —
+    /// a repeat that reaches a door came from a hand-built variant or
+    /// a corrupt file, and is refused rather than repaired.
+    RepeatedDesignation {
+        /// The position of the entry's first occurrence.
+        first: u32,
+        /// The position at which it is named again.
+        again: u32,
+    },
 }
 
 // The ONE prose vocabulary for this fault, forwarded by every door
@@ -1079,6 +1092,12 @@ impl core::fmt::Display for InputFault {
             Self::TooFew { found } => write!(
                 f,
                 "a list input takes two or more entries, and this has {found}"
+            ),
+            Self::RepeatedDesignation { first, again } => write!(
+                f,
+                "the open-face designation names one face twice (entries {first} and {again}) — \
+                 an ordered designation names each face once, the first occurrence carrying the \
+                 rim"
             ),
         }
     }
@@ -1488,16 +1507,17 @@ pub enum Node<P> {
     /// # `open` is ORDERED, not canonical
     ///
     /// This is the one place the blend selection's canonical form does
-    /// not transfer, and the reason is the kernel's own record: a
-    /// designated chart's rim IS its first designated face
-    /// (`RimNaming::rim` is `sources[0]`), so a caller that wants a
+    /// not transfer, and the reason is the kernel's own record:
+    /// `RimNaming::sources` PRESERVES designation order, and a chart's
+    /// rim is its first designated face, so a caller that wants a
     /// particular face to carry the rim's identity names it first.
     /// Sorting would silently change which face the rim inherits.
     /// [`Node::shell`], the one construction door, therefore keeps the
     /// order it is given and DEDUPLICATES keeping the first occurrence;
-    /// a repeated name on the wire is a corrupt file, refused at load
-    /// (`SnapshotError::ShellOpenRepeated`) exactly as a non-canonical
-    /// blend selection is, never quietly repaired.
+    /// a repeated name that reaches a door — a hand-built variant at
+    /// the insert door, a corrupt file at the load door — is refused
+    /// ([`InputFault::RepeatedDesignation`], asked of
+    /// [`Node::input_fault`] by both), never quietly repaired.
     ///
     /// # Empty `open` is the sealed hollow
     ///
@@ -2253,10 +2273,24 @@ impl<P> Node<P> {
             return Some(InputFault::TooFew { found: list.len() });
         }
         let mut seen: std::collections::BTreeSet<RecipeNodeId> = std::collections::BTreeSet::new();
-        self.inputs()
-            .into_iter()
-            .find(|input| !seen.insert(*input))
-            .map(|input| InputFault::Duplicate { input })
+        if let Some(input) = self.inputs().into_iter().find(|input| !seen.insert(*input)) {
+            return Some(InputFault::Duplicate { input });
+        }
+        // The one ORDERED name payload carries the one rule the
+        // canonical (sorted) payloads state by their order: no entry
+        // twice. Asked here, once, so the insert door, the load door
+        // and the evaluation backstop refuse alike.
+        if let Node::Shell { open, .. } = self {
+            for (again, name) in open.iter().enumerate() {
+                if let Some(first) = open[..again].iter().position(|n| n == name) {
+                    return Some(InputFault::RepeatedDesignation {
+                        first: first as u32,
+                        again: again as u32,
+                    });
+                }
+            }
+        }
+        None
     }
 
     /// Writes a whole new list into [`Node::list_input`]'s slot,

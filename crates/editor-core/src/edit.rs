@@ -345,6 +345,19 @@ pub enum EditError {
         /// The input it reaches twice.
         input: RecipeNodeId,
     },
+    /// The node this edit writes names one face twice in its ORDERED
+    /// designation ([`crate::node::InputFault::RepeatedDesignation`]):
+    /// a hand-built `Node::Shell` that bypassed the construction door,
+    /// which drops a repeat keeping the first occurrence. Refused
+    /// rather than repaired, at this door as at the load door.
+    RepeatedDesignation {
+        /// The node whose designation repeats.
+        node: RecipeNodeId,
+        /// The position of the entry's first occurrence.
+        first: u32,
+        /// The position at which it is named again.
+        again: u32,
+    },
     /// `SetMembers` aimed at a node that has no list input
     /// ([`Node::list_input`]) — a boolean's operands are named slots,
     /// and replacing "the list" of a node that has none is not a
@@ -895,6 +908,15 @@ impl core::fmt::Display for EditError {
                 "the node this edit writes would be invalid: {}",
                 crate::node::InputFault::TooFew { found: *found }
             ),
+            Self::RepeatedDesignation { first, again, .. } => write!(
+                f,
+                "the node this edit writes would be invalid: {}. Build it through `Node::shell`, \
+                 which keeps the first occurrence.",
+                crate::node::InputFault::RepeatedDesignation {
+                    first: *first,
+                    again: *again,
+                }
+            ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
                 "node {} is still an input to node {} — delete node {} first, \
@@ -1382,6 +1404,13 @@ fn check_node_inputs<P: crate::ProfilePayload>(
         }
         Some(crate::node::InputFault::TooFew { found }) => {
             Err(EditError::TooFewMembers { node: id, found })
+        }
+        Some(crate::node::InputFault::RepeatedDesignation { first, again }) => {
+            Err(EditError::RepeatedDesignation {
+                node: id,
+                first,
+                again,
+            })
         }
     }
 }

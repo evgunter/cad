@@ -1584,6 +1584,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "repeated_designation",
             "set_members_on_non_list",
             "slot_dimension_mismatch",
             "structural_slot_needs_structural_edit",

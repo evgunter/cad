@@ -1,5 +1,5 @@
-//! R2 review probes for LIB-G17 (`Node::Shell`). Not part of the unit;
-//! each row attacks one claim of PR 2150 and records what happened.
+//! **The R2 review's rows for the shell door**, adopted into the suite:
+//! each attacks one claim of the door and asserts what it found.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -8,8 +8,8 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, DocEdit, EntityKind, Entry, EvalOptions, LoopProgram, Node, NodeErrorKind,
-    NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotId,
-    StableName, apply, evaluate, load, save,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotId, StableName, apply,
+    evaluate,
 };
 use geom_core::Tol;
 use topo::ShellError;
@@ -133,60 +133,57 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     na.sort();
     nb.sort();
     assert_eq!(na, nb, "two charts, two rims, the same names either way");
-    eprintln!(
-        "P1b keys differ: {}",
-        ea.value(sa).unwrap().content_key != eb.value(sb).unwrap().content_key
+    // The key discriminates on order even across distinct charts: a
+    // harmless over-discrimination (two memo entries for one body),
+    // stated at `feed_shell` and pinned here as the fact it is.
+    assert_ne!(
+        ea.value(sa).unwrap().content_key,
+        eb.value(sb).unwrap().content_key,
+        "the key reads the order even where the order carries no rim"
     );
+    // Two opposite faces opened: a square tube, one shell, ten faces
+    // (four outer walls, two rims, four cavity walls), and the exact
+    // volume `L²H − (L−2t)²H`.
     let body = body_of(&ea, sa);
-    eprintln!(
-        "P1b tube-cup: faces {}, shells {}, V {:?}",
-        body.faces().count(),
-        body.shells().count(),
-        topo::mass_properties(body, Tol::witness()).unwrap().volume
+    assert_eq!(body.faces().count(), 10);
+    assert_eq!(body.shells().count(), 1);
+    let inner = cup::L - 2.0 * cup::T;
+    assert_eq!(
+        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        cup::L * cup::L * cup::H - inner * inner * cup::H
     );
 }
 
 /// P2 — the variant is public: a raw `Node::Shell { open: [x, x] }`
-/// inserted through `DocEdit::InsertNode` bypasses `Node::shell`. Does
-/// the edit door accept it, what does evaluation say, and does the file
-/// it saves then refuse to load?
+/// inserted through `DocEdit::InsertNode` bypasses `Node::shell`. The
+/// insert door refuses it TYPED, through the same `Node::input_fault`
+/// the load door asks (`lib_g17_shell_node::a_repeated_open_entry_is_refused_at_load`
+/// is that half), so no document holding a repeat can exist to save.
 #[test]
-fn p2_raw_variant_with_a_repeat_bypasses_the_construction_door() {
+fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
     let d = cup::document();
     let blank = blank_of(&d.doc);
     let raw = Node::Shell {
         target: blank,
         thickness: fixture::len(cup::T),
-        open: vec![cup::top(blank), cup::top(blank)],
+        open: vec![cup::top(blank), cup::bottom(blank), cup::top(blank)],
     };
-    let out = apply(&d.doc, &DocEdit::InsertNode { node: raw }, Tol::witness());
-    let (doc, id) = match out {
-        Ok(o) => (o.doc.clone(), o.record.minted.expect("minted")),
-        Err(e) => panic!("P2: the edit door REFUSED the raw repeat: {e:?}"),
-    };
-    let e = refusal(&doc, id);
-    eprintln!("P2 evaluation of the raw repeat: {e}");
-    assert!(
-        matches!(&e, NodeErrorKind::Shell(inner) if matches!(**inner, ShellError::OpenFaceRepeated { .. })),
-        "{e:?}"
-    );
-    // Measured: `save` itself refuses (validate_snapshot runs on save),
-    // so the in-memory document the edit door accepted cannot be
-    // persisted at all.
-    match save(&doc, &[], Tol::witness()) {
-        Err(PersistError::Snapshot(editor_core::SnapshotError::ShellOpenRepeated { .. })) => {
-            eprintln!("P2: the edit door accepted a document that SAVE refuses");
-        }
-        Ok(text) => match load(&text, Tol::witness()) {
-            Err(PersistError::Snapshot(editor_core::SnapshotError::ShellOpenRepeated {
-                ..
-            })) => {
-                eprintln!("P2: saved, and the load door refuses");
-            }
-            other => panic!("P2: expected the load refusal, got {other:?}"),
-        },
-        Err(other) => panic!("P2: unexpected save refusal {other:?}"),
+    match apply(&d.doc, &DocEdit::InsertNode { node: raw }, Tol::witness()) {
+        Err(editor_core::EditError::RepeatedDesignation {
+            first: 0, again: 2, ..
+        }) => {}
+        other => panic!("P2: the edit door must refuse the raw repeat typed, got {other:?}"),
     }
+    // And the construction door, handed the same list, keeps the first
+    // occurrence — the repair the refusal's text names.
+    let Node::Shell { open, .. }: Node<ProfileProgram> = Node::shell(
+        blank,
+        fixture::len(cup::T),
+        vec![cup::top(blank), cup::bottom(blank), cup::top(blank)],
+    ) else {
+        panic!("the door builds a shell")
+    };
+    assert_eq!(open, vec![cup::top(blank), cup::bottom(blank)]);
 }
 
 /// P3 — `Rebind` onto an already-designated face: the list shrinks and
@@ -257,61 +254,114 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
         .unwrap()
         .doc;
         let e = refusal(&bumped, shell);
-        eprintln!("P4 t={t}: {e}");
         match &e {
             NodeErrorKind::Shell(inner) => match **inner {
+                // The two facing walls are `L` apart and the two
+                // offsets need `2t`: at `t = L/2` the gate refuses
+                // because the margin is not certifiably positive, not
+                // because it is negative.
                 ShellError::WallClearance { gap, needed, .. } => {
-                    eprintln!("P4 t={t}: gap={gap:?} needed={needed:?}");
+                    assert_eq!(gap, cup::L, "the facing walls are the blank's side apart");
+                    assert_eq!(needed, 2.0 * t, "two offsets need twice the wall");
                 }
-                ref other => eprintln!("P4 t={t}: other kernel refusal {other:?}"),
+                ref other => panic!("P4 t={t}: expected the clearance gate, got {other:?}"),
             },
             other => panic!("P4: not the shell's refusal: {other:?}"),
         }
     }
 }
 
-/// P5 — the Interval lane: the fold takes `lo()`. Compare the folded
-/// document refusal against the kernel's own Display at the lane.
+/// P5 — **the Interval lane's witness, through the document**: the
+/// wall is a parameter widened into a genuine bracket (`lo() ≠ hi()`)
+/// by a parameter box, and the folded refusal reports the end each
+/// field declares — the needed clearance at its SUPREMUM, the refused
+/// thickness at its INFIMUM. A fold reading one end everywhere reds
+/// on one of the two.
 #[cfg(feature = "interval")]
 #[test]
-fn p5_the_fold_at_interval_reports_lo_and_the_text_moves() {
-    use geom_core::{Interval, Real};
-    let d = cup::document();
-    let shell = d.result.unwrap();
-    let blank = blank_of(&d.doc);
-    for t in [0.625, -0.125] {
-        let bumped = apply(
+fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
+    use editor_core::analysis::{BoxAxis, ParamBox};
+    use editor_core::{Dimension, DocParam, Expr, ParamName, UnitSym};
+    use geom_core::Interval;
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    let width = 1.0 / 64.0;
+    let shelled_at = |nominal: f64| -> (ProfileDoc, RecipeNodeId) {
+        let d = cup::document();
+        let blank = blank_of(&d.doc);
+        let doc = apply(
             &d.doc,
-            &DocEdit::SetParam {
-                node: shell,
-                slot: SlotId::ShellThickness,
-                expr: fixture::len(t),
+            &DocEdit::SetDocParam {
+                name: ParamName::new("t"),
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: nominal,
+                    display_unit: UnitSym::canonical_for(Dimension::Length),
+                    distribution: None,
+                },
             },
             Tol::witness(),
         )
-        .unwrap()
+        .expect("the parameter declares")
         .doc;
-        let ev = eval::<Interval>(&bumped);
-        let folded = match ev.nodes.get(&shell) {
-            Some(NodeResult::Failed(e)) => e.kind.to_string(),
-            other => panic!("{other:?}"),
-        };
-        // The kernel's own text at the lane.
-        let body = body_of(&ev, blank);
-        let top = match ev.value(blank).unwrap().name_table.lookup(&cup::top(blank)) {
-            Some(Entry::Unique(r)) => match r.key {
-                editor_core::EntityKey::Face(k) => k,
-                _ => panic!(),
+        fixture::insert(
+            doc,
+            Node::shell(
+                blank,
+                Expr::param(ParamName::new("t"), Dimension::Length),
+                vec![cup::top(blank)],
+            ),
+        )
+    };
+    let widened = || EvalOptions {
+        param_box: Some(Arc::new(ParamBox::from_axes(BTreeMap::from([(
+            ParamName::new("t"),
+            BoxAxis::Varying {
+                lo: -width,
+                hi: width,
             },
-            other => panic!("{other:?}"),
-        };
-        let kernel = topo::shell_open(body, Interval::from_f64(t), &[top], Tol::witness())
-            .err()
-            .map(|e| e.to_string())
-            .unwrap();
-        eprintln!("P5 t={t}\n  folded: {folded}\n  kernel: {kernel}");
-        let f64_text = refusal(&bumped, shell).to_string();
-        eprintln!("  f64:    {f64_text}");
+        )])))),
+        ..EvalOptions::default()
+    };
+    let refused = |doc: &ProfileDoc, node: RecipeNodeId| -> ShellError<f64> {
+        let mut ev =
+            evaluate::<Interval>(doc, None, &CancelToken::new(), &widened(), Tol::witness());
+        match ev.nodes.remove(&node) {
+            Some(NodeResult::Failed(e)) => match e.kind {
+                NodeErrorKind::Shell(inner) => *inner,
+                other => panic!("expected the shell's refusal, got {other:?}"),
+            },
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+    };
+
+    // A wall too thick for the box: the clearance the offsets NEED is
+    // `2t`, a bracket `[2(t−w), 2(t+w)]`, reported at its supremum.
+    let (doc, node) = shelled_at(0.625);
+    match refused(&doc, node) {
+        ShellError::WallClearance { gap, needed, .. } => {
+            assert_eq!(gap, cup::L, "the facing walls' gap is exact");
+            assert_eq!(
+                needed,
+                2.0 * (0.625 + width),
+                "the needed wall reports its supremum"
+            );
+        }
+        other => panic!("expected the clearance gate, got {other:?}"),
+    }
+    // A wall below zero: the refused thickness is a bracket
+    // `[t−w, t+w]`, reported at its infimum.
+    let (doc, node) = shelled_at(-0.125);
+    match refused(&doc, node) {
+        ShellError::Thickness { thickness } => {
+            assert_eq!(
+                thickness,
+                -0.125 - width,
+                "the thickness reports its infimum"
+            );
+        }
+        other => panic!("expected the thickness gate, got {other:?}"),
     }
 }
 
@@ -387,10 +437,11 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     ));
     let ev = eval::<f64>(&r.doc);
     let bad = failures(&ev);
-    if !bad.is_empty() {
-        eprintln!("P7: refused:\n{}", bad.join("\n"));
-        return;
-    }
+    assert!(
+        bad.is_empty(),
+        "P7: the holed slab must hollow:\n{}",
+        bad.join("\n")
+    );
     let t = &ev.value(shell).unwrap().name_table;
     let hole_rims: Vec<_> = t
         .iter()
@@ -398,12 +449,23 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
         .map(|(n, _)| n.clone())
         .collect();
     let body = body_of(&ev, shell);
-    eprintln!(
-        "P7: faces {}, hole rims {:?}, valid {:?} closed {:?}",
-        body.faces().count(),
-        hole_rims,
-        topo::validate(body),
-        topo::validate_closed(body)
-    );
+    assert_eq!(topo::validate(body), Ok(()));
+    assert_eq!(topo::validate_closed(body), Ok(()));
+    // Outer: bottom, four walls, four hole walls (9); the rim annulus
+    // and the hole's rim annulus (2); cavity: floor, four walls, four
+    // hole walls (9).
+    assert_eq!(body.faces().count(), 20, "9 outer + 2 rims + 9 cavity");
     assert_eq!(hole_rims.len(), 1, "one hole, one hole rim");
+    assert_eq!(
+        hole_rims[0],
+        shelled(
+            shell,
+            EntityKind::Face,
+            RoleSeg::HoleRim {
+                of: Box::new(cup::top(blank)),
+                hole: 0,
+            },
+        ),
+        "the hole rim is named for the designated face and its hole's pairing index"
+    );
 }

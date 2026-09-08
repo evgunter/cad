@@ -1,4 +1,5 @@
-//! Reviewer probes (R1) for LIB-G17. Not part of the unit.
+//! **The R1 review's rows for the shell door**, adopted into the suite:
+//! each attacks one claim of the door and asserts what it found.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -6,8 +7,8 @@ use crate::fixture;
 
 use corpus::{body_of, cup, eval, failures, vessel};
 use editor_core::{
-    DocEdit, EntityKind, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg,
-    SlotId, StableName, apply, evaluate,
+    DocEdit, EntityKind, Node, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName,
+    apply, evaluate,
 };
 use geom_core::Tol;
 
@@ -22,7 +23,7 @@ fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
 /// CLAIM: a `Rebind` onto an already-designated face shrinks the list
 /// keeping the EARLIER position. Unexercised by the unit's suite.
 #[test]
-fn probe_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
+fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
     let d = cup::document();
     let blank = blank_of(&d.doc);
     let top = cup::top(blank);
@@ -70,7 +71,7 @@ fn probe_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
 /// DISPATCHER: is the rim identity really ONLY the first name's?
 /// Swap the order and compare everything else observable.
 #[test]
-fn probe_order_swap_changes_only_the_rim_name() {
+fn an_order_swap_changes_only_the_rim_name() {
     let a = vessel::document();
     let b = vessel::document_with_mouth(|pot| {
         [
@@ -107,59 +108,38 @@ fn probe_order_swap_changes_only_the_rim_name() {
         .collect();
     let only_a: Vec<_> = names_a.difference(&names_b).collect();
     let only_b: Vec<_> = names_b.difference(&names_a).collect();
-    println!("ONLY IN A ({}): {only_a:#?}", only_a.len());
-    println!("ONLY IN B ({}): {only_b:#?}", only_b.len());
     assert_eq!(only_a.len(), 1, "exactly one name differs");
     assert_eq!(only_b.len(), 1, "exactly one name differs");
-}
-
-/// DISPATCHER: the fold takes `Bounds::lo()` at non-f64 lanes. What
-/// number does a user read at the Interval lane?
-#[cfg(feature = "interval")]
-#[test]
-fn probe_interval_lane_refusal_numbers() {
-    // A wall thicker than half the box: the facing offsets collide.
-    for t in [0.6_f64, 0.5, 0.45] {
-        let d = cup::document();
-        let blank = blank_of(&d.doc);
-        let (doc, n) = fixture::insert(
-            d.doc.clone(),
-            Node::shell(blank, fixture::len(t), vec![cup::top(blank)]),
-        );
-        let f = refusal_text::<f64>(&doc, n);
-        let i = refusal_text::<geom_core::Interval>(&doc, n);
-        println!("t={t}\n  f64      = {f:?}\n  interval = {i:?}");
-    }
-}
-
-#[cfg(feature = "interval")]
-fn refusal_text<T: editor_core::eval::EvalScalar>(doc: &ProfileDoc, node: RecipeNodeId) -> String {
-    let mut ev = evaluate::<T>(
-        doc,
-        None,
-        &editor_core::CancelToken::new(),
-        &editor_core::EvalOptions::default(),
-        Tol::witness(),
+    // And the one name that differs is the rim, named for the FIRST
+    // designated half under either order.
+    let pot = a.doc.node(sa).map(|n| n.inputs()[0]).unwrap();
+    let rim = |shell, half: StableName| StableName {
+        kind: EntityKind::Face,
+        node: shell,
+        path: vec![RoleSeg::Rim(Box::new(half))],
+    };
+    assert_eq!(
+        only_a,
+        vec![&format!(
+            "{:?}",
+            rim(sa, vessel::band(pot, vessel::SEG_MOUTH))
+        )]
     );
-    match ev.nodes.remove(&node) {
-        Some(NodeResult::Failed(e)) => format!("{:?} :: {}", tag(&e.kind), e.kind),
-        other => format!("NOT REFUSED: {other:?}"),
-    }
+    assert_eq!(
+        only_b,
+        vec![&format!(
+            "{:?}",
+            rim(sb, vessel::band_pi(pot, vessel::SEG_MOUTH))
+        )]
+    );
 }
 
-#[cfg(feature = "interval")]
-fn tag(k: &NodeErrorKind) -> &'static str {
-    match k {
-        NodeErrorKind::Shell(_) => "Shell",
-        NodeErrorKind::ShellLaneUnsupported { .. } => "LaneUnsupported",
-        _ => "other",
-    }
-}
-
-/// ATTACK the rebuild row: bump the wall to a thickness that changes
-/// the topology class (a very thick wall).
+/// A bump of the wall across the topology's edge: at `t < L/2` the
+/// hollow builds and is exactly its closed form; at `t ≥ L/2` the two
+/// facing offsets cross and the kernel's clearance gate refuses,
+/// typed, with the gap and the need it metered.
 #[test]
-fn probe_a_thick_wall_bump() {
+fn a_thick_wall_bump_builds_below_half_the_side_and_refuses_at_it() {
     for t in [0.4_f64, 0.5, 0.6] {
         let d = cup::document();
         let shell = d.result.unwrap();
@@ -177,27 +157,35 @@ fn probe_a_thick_wall_bump() {
         let ev = eval::<f64>(&bumped);
         match ev.nodes.get(&shell) {
             Some(NodeResult::Ok(_)) => {
+                assert!(t < cup::L / 2.0, "t={t} must not build");
                 let b = body_of(&ev, shell);
                 let m = topo::mass_properties(b, Tol::witness()).unwrap();
                 let want = cup::closed_forms(cup::L, cup::H, t);
-                println!(
-                    "t={t}: OK faces={} shells={} V={} want={} (match={})",
-                    b.faces().count(),
-                    b.shells().count(),
-                    m.volume,
-                    want.volume,
-                    m.volume == want.volume
-                );
+                assert_eq!(b.faces().count(), 11);
+                assert_eq!(b.shells().count(), 1);
+                assert_eq!(m.volume, want.volume, "t={t}");
             }
-            Some(NodeResult::Failed(e)) => println!("t={t}: REFUSED {}", e.kind),
-            other => println!("t={t}: {other:?}"),
+            Some(NodeResult::Failed(e)) => {
+                assert!(t >= cup::L / 2.0, "t={t} must build, got {}", e.kind);
+                match &e.kind {
+                    editor_core::NodeErrorKind::Shell(inner) => match **inner {
+                        topo::ShellError::WallClearance { gap, needed, .. } => {
+                            assert_eq!(gap, cup::L);
+                            assert_eq!(needed, 2.0 * t);
+                        }
+                        ref other => panic!("t={t}: expected the clearance gate, got {other:?}"),
+                    },
+                    other => panic!("t={t}: not the shell's refusal: {other:?}"),
+                }
+            }
+            other => panic!("t={t}: {other:?}"),
         }
     }
 }
 
 /// ATTACK the rebuild row: change WHICH face is designated.
 #[test]
-fn probe_designating_a_side_wall_instead_of_the_top() {
+fn designating_a_side_wall_opens_the_cup_on_its_side() {
     let d = cup::document();
     let blank = blank_of(&d.doc);
     let (doc, n) = fixture::insert(
@@ -216,10 +204,22 @@ fn probe_designating_a_side_wall_instead_of_the_top() {
             let rims: Vec<_> = table
                 .iter()
                 .filter(|(nm, _)| matches!(nm.path.first(), Some(RoleSeg::Rim(_))))
-                .map(|(nm, _)| format!("{nm:?}"))
+                .map(|(nm, _)| nm.clone())
                 .collect();
-            println!("side-wall open: faces={} rims={rims:#?}", b.faces().count());
-            assert_eq!(rims.len(), 1);
+            // The cup on its side: the same eleven faces, the rim named
+            // for the wall it replaced.
+            assert_eq!(b.faces().count(), 11);
+            assert_eq!(
+                rims,
+                vec![StableName {
+                    kind: EntityKind::Face,
+                    node: n,
+                    path: vec![RoleSeg::Rim(Box::new(fixture::fname(
+                        blank,
+                        fixture::wall(0)
+                    )))],
+                }]
+            );
         }
         other => panic!("side wall designation refused: {other:?}"),
     }
@@ -228,7 +228,7 @@ fn probe_designating_a_side_wall_instead_of_the_top() {
 /// COVARIANCE: move the target's upstream so the target's own names
 /// move, and see whether the shell's names move WITH them.
 #[test]
-fn probe_covariance_when_the_targets_names_move() {
+fn the_rim_follows_a_rebound_designation() {
     // Rebind inside the cup: rename nothing, but re-point the shell's
     // designation from the End cap to the Start cap and check the rim
     // name follows.
@@ -267,7 +267,7 @@ fn probe_covariance_when_the_targets_names_move() {
 /// the key must move on the SLOT VALUE alone — otherwise a wall edit
 /// would serve the old body out of the memo.
 #[test]
-fn probe_a_thickness_only_edit_moves_the_content_key_and_the_memo() {
+fn a_thickness_only_edit_moves_the_content_key_and_the_memo() {
     let d = cup::document();
     let shell = d.result.unwrap();
     let bumped = apply(

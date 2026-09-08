@@ -579,20 +579,19 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
 }
 
 /// **The load door refuses a repeated `open` entry** as a corrupt file,
-/// never quietly deduplicating it.
+/// never quietly deduplicating it — through the one definition the
+/// insert door asks too (`Node::input_fault`), so the two doors refuse
+/// alike (`lib_g17_r2_probes::p2_*` is the insert door's half).
 #[test]
 fn a_repeated_open_entry_is_refused_at_load() {
     let d = cup::document();
-    let blank = blank_of(&d.doc);
     let text = save(&d.doc, &[], Tol::witness()).expect("the cup saves");
-    // The wire form of `open` is the name's own serde encoding, inside
-    // an `"open"` list; the one entry names the end cap.
+    // The wire form of `open` is the name's own serde encoding inside
+    // an `"open"` list; the one entry names the blank's END cap, and
+    // the pin reads that spelling rather than assuming it.
     let open = text
         .find("\"open\"")
         .expect("the open list reaches the wire");
-    let cap = text[open..].find("\"End\"").expect("the end cap is named");
-    let _ = (blank, cap);
-    // Doubling the list's one entry: `[x]` → `[x, x]`.
     let start = open + text[open..].find('[').expect("a list");
     let mut depth = 0usize;
     let mut end = start;
@@ -610,9 +609,17 @@ fn a_repeated_open_entry_is_refused_at_load() {
         }
     }
     let entry = text[start + 1..end].trim().to_owned();
+    assert!(
+        entry.contains("\"Cap\": \"End\""),
+        "the one designated face is the extrude's end cap: {entry}"
+    );
+    // Doubling the list's one entry: `[x]` → `[x, x]`.
     let corrupt = format!("{}[{entry}, {entry}]{}", &text[..start], &text[end + 1..]);
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(editor_core::SnapshotError::ShellOpenRepeated { .. })) => {}
+        Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
+            fault: editor_core::InputFault::RepeatedDesignation { first: 0, again: 1 },
+            ..
+        })) => {}
         other => panic!("a repeated designation must refuse typed, got {other:?}"),
     }
     // The uncorrupted text round-trips, so the refusal above is the
