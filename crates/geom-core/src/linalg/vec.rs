@@ -427,7 +427,6 @@ impl<T: Real> Vec3<T> {
     /// spelling the choice as `copysign` on the difference would be a
     /// total order at `f64` and a hull at every point tie.
     ///
-
     /// **Evaluation order (fixed, D9).** Exactly as written:
     ///
     /// ```text
