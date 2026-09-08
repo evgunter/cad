@@ -540,6 +540,190 @@ fn picking_refusal_tags_are_stable() {
     assert_eq!(mesh_pick_error_tag(&corrupt), "position_out_of_range");
 }
 
+/// **Every `NodePickError` arm's index numbers, constructed and
+/// read.**
+///
+/// `crate::pick_payload::index_payload` is what the exception's
+/// `patch`, `triangle` and `index` attributes are read off, and this
+/// pin says which arm carries them and what they are.
+///
+/// It is here rather than in `tests/test_picking.py` because the arm
+/// that carries them cannot be provoked from Python at all: a
+/// tessellated mesh whose triangles index outside their own position
+/// buffer is a kernel-side invariant break, unauthorable through any
+/// door and unconstructible through the façade's Python surface. The
+/// payload IS constructible here, which is the whole reason the
+/// flattening sits outside `crate::py`. The Python rows own the other
+/// half — that the three attributes exist and read `None` on the arms
+/// a caller can reach.
+#[test]
+fn every_pick_arm_projects_the_index_numbers_it_carries() {
+    use crate::pick_payload::index_payload;
+    use pncad::document::RecipeNodeId;
+    use pncad::mesh::TessellateError;
+    use pncad::select::{HitTestError as H, MeshPickError as M, NodePickError as N};
+
+    let node = RecipeNodeId(0);
+    // The one arm that carries them, at numbers no two of which are
+    // equal: a slot swapped for another shows up as a moved number
+    // rather than as three zeroes agreeing.
+    let corrupt = N::Index(M::PositionOutOfRange {
+        patch: 3,
+        triangle: 11,
+        index: 47,
+    });
+    let numbers = index_payload(&corrupt);
+    assert_eq!(numbers.present(), ["patch", "triangle", "index"]);
+    assert_eq!(numbers.patch, Some(3));
+    assert_eq!(numbers.triangle, Some(11));
+    assert_eq!(numbers.index, Some(47));
+
+    // Every other arm answers all three by name, not by wildcard.
+    for other in [
+        N::Standing(H::NodeNotEvaluated { node }),
+        N::NotABody { node },
+        N::NoSuchBody { node, body: 1 },
+        N::Tessellate(TessellateError::InvalidChordalTolerance { value: 0.0 }),
+    ] {
+        let numbers = index_payload(&other);
+        assert_eq!(numbers, crate::pick_payload::IndexPayload::NONE);
+        assert!(numbers.present().is_empty());
+    }
+}
+
+/// **Every constructible `MateFault` arm's payload, built and read.**
+///
+/// The arm table, executable. `crate::mate_payload::mate_payload` is
+/// the projection `MateFault`'s seventeen Python attributes are read
+/// off, and this pin says what each arm puts on the wire: the exact
+/// set it CARRIES, in publication order, with the rest `None`.
+///
+/// **Nine of the thirteen arms are built here.** The other four —
+/// `Frame`, `Band`, `Indeterminate` and `Unleverable` — each hold a
+/// nested refusal whose TYPE the `pncad` façade does not re-export
+/// (`FrameError`, `BandField`, `MarginDiag`, `LeverRefusal`), so this
+/// crate cannot name a value to put in them. That costs the table its
+/// totality and nothing else: those four are exactly the arms whose
+/// payload is the nested refusal, which the projection does not
+/// flatten, and totality of the PROJECTION is a different guarantee
+/// and a stronger one — `mate_payload`'s match is exhaustive with no
+/// wildcard, so an arm that reached Python unprojected would not
+/// compile.
+#[test]
+fn every_mate_fault_arm_projects_the_payload_it_carries() {
+    use crate::mate_payload::mate_payload;
+    use pncad::document::{
+        DocumentId, MateFault as F, MateSide, NodeErrorKind, NodeRefusal, RecipeNodeId, Subgroup,
+    };
+
+    let id = RecipeNodeId;
+    let carries = |fault: &F, want: &[&str]| {
+        assert_eq!(
+            mate_payload(fault).present(),
+            want,
+            "the payload `{}` puts on the wire has moved",
+            crate::tags::mate_fault_tag(fault)
+        );
+    };
+
+    // The two documents a mispaired read named are the arm's whole
+    // payload and neither crosses: the subject is not a mate, and a
+    // document id is not one of this value's attributes.
+    carries(
+        &F::PosesOfAnotherDocument {
+            expected: DocumentId::derive("a"),
+            found: DocumentId::derive("b"),
+        },
+        &[],
+    );
+    carries(&F::ClassNotAdmitted { mate: id(1) }, &["mate"]);
+    carries(
+        &F::TableLacks {
+            mate: id(1),
+            what: "clocking on a planar rest",
+        },
+        &["mate", "what"],
+    );
+    carries(
+        &F::Contradictory {
+            held: id(1),
+            added: id(2),
+            predicate: "mate_member_empty",
+            clash: 0.25,
+            lever: None,
+        },
+        &["held", "added", "predicate", "clash"],
+    );
+    carries(
+        &F::Under {
+            mate: id(1),
+            parent: id(2),
+            child: id(3),
+            residual: Subgroup::Planar {
+                normal: pncad::authoring::v3(0.0, 0.0, 1.0),
+            },
+        },
+        &["mate", "parent", "child", "residual"],
+    );
+    carries(
+        &F::DanglingHead {
+            mate: id(1),
+            side: MateSide::B,
+            head: id(2),
+        },
+        &["mate", "side", "head"],
+    );
+    carries(
+        &F::PlacerRefused {
+            mate: id(1),
+            side: MateSide::A,
+            placer: id(2),
+            error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
+        },
+        &["mate", "side", "placer", "error"],
+    );
+    carries(
+        &F::PartSelectsAnotherCopy {
+            mate: id(1),
+            side: MateSide::B,
+            part: id(2),
+            named: 3,
+            selected: -1,
+        },
+        &["mate", "side", "part", "named", "selected"],
+    );
+    carries(
+        &F::SelfMate {
+            mate: id(1),
+            instance: id(2),
+        },
+        &["mate", "instance"],
+    );
+
+    // The node roles answer with the ids they were given, not with
+    // the first id repeated: the roles are what a caller acts on.
+    let under = F::Under {
+        mate: id(4),
+        parent: id(9),
+        child: id(16),
+        residual: Subgroup::Trivial,
+    };
+    let payload = mate_payload(&under);
+    assert_eq!(payload.mate, Some(id(4)));
+    assert_eq!(payload.parent, Some(id(9)));
+    assert_eq!(payload.child, Some(id(16)));
+
+    // The placer arm's `error` is the evaluation layer's own tag,
+    // unaltered — the vocabulary `EvaluationError.kind` speaks.
+    let placer = F::PlacerRefused {
+        mate: id(1),
+        side: MateSide::A,
+        placer: id(2),
+        error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
+    };
+    assert_eq!(mate_payload(&placer).error, Some("non_finite_direction"));
+}
+
 /// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
 /// says so against the doors that already speak it.
 ///
@@ -1275,6 +1459,141 @@ fn persist_error_tags_are_stable() {
     )
     .expect_err("a body this build cannot read refuses");
     assert_eq!(persist_error_tag(&unreadable), "unreadable");
+}
+
+/// The persistence door's four NESTED arms, by construction: each
+/// wraps a refusal of another layer, and the word that rides out on
+/// `inner_variant` is the inner refusal's own.
+///
+/// Constructed rather than driven through `load`, and the reason is
+/// per arm:
+///
+/// * `profile_program` — a `ProgramFault` is a profile-program
+///   structure fault. A file carrying one is reachable, but building
+///   the tampered bytes means hand-assembling a lattice-violating
+///   step order, which pins the WIRE shape rather than the tag.
+/// * `distribution` — the same fault the edit door refuses, so a
+///   parsed file that reaches it has to smuggle a distribution the
+///   authoring doors cannot mint.
+/// * `snapshot` — reachable from Python (`tests/test_document.py`
+///   drives one), pinned here for the arms a tamper cannot select.
+/// * `edit_replay` — needs a save file whose LOG replays into a
+///   refusal, and the save door verifies the log symmetrically, so
+///   the file has to be assembled by hand.
+///
+/// What each pins is the tag the exhaustive map mints, which is what
+/// `inner_variant` carries; the projection itself is one positional
+/// tuple over the same arms, so an arm reaching Python unprojected is
+/// a compile error, not a missing test.
+#[test]
+fn the_persist_doors_nested_arms_carry_their_own_word() {
+    use crate::tags::{
+        distribution_fault_tag, edit_error_tag, program_fault_tag, snapshot_error_tag,
+    };
+    use pncad::document::{
+        DistributionFault, DistributionField, EditError, PersistError, ProgramFault, RecipeNodeId,
+        SnapshotError,
+    };
+
+    let program = ProgramFault::Lattice {
+        loop_: 0,
+        step: 1,
+        state: pncad::profile::TipState::Entry,
+        verb: None,
+    };
+    assert_eq!(program_fault_tag(&program), "lattice");
+
+    let distribution = DistributionFault::NonFinite {
+        field: DistributionField::Sigma,
+    };
+    assert_eq!(distribution_fault_tag(&distribution), "non_finite");
+
+    let snapshot = SnapshotError::OrderMismatch;
+    assert_eq!(snapshot_error_tag(&snapshot), "order_mismatch");
+
+    let replayed = EditError::UnknownNode {
+        id: RecipeNodeId(7),
+    };
+    let carrier = PersistError::EditReplay {
+        index: 3,
+        error: replayed.clone(),
+    };
+    assert_eq!(persist_error_tag(&carrier), "edit_replay");
+    assert_eq!(edit_error_tag(&replayed), "unknown_node");
+}
+
+/// The frame door's `band` arm, by construction: it is the one arm no
+/// Python door can reach.
+///
+/// Every `Frame` constructor derives its band from the process
+/// tolerance witness, whose invariant is ε finite and strictly
+/// positive with K > 1, so `Band::linear` cannot fail there and no
+/// argument a Python caller can pass changes that. The three
+/// `BandError` arms are therefore pinned here, with the payload each
+/// carries: which threshold (`field`), the rejected number (`value`),
+/// and the attempted pair a band could not be formed from.
+#[test]
+fn the_frame_doors_band_arm_is_construction_only() {
+    use crate::tags::{band_error_tag, band_field_tag, frame_error_tag};
+    use pncad::geom_core::{BandError, BandField, FrameError};
+
+    let invalid = FrameError::Band(BandError::InvalidValue {
+        field: BandField::Escalate,
+        value: f64::INFINITY,
+    });
+    assert_eq!(frame_error_tag(&invalid), "band");
+    let FrameError::Band(inner) = invalid else {
+        panic!("the arm just built is the band arm")
+    };
+    assert_eq!(band_error_tag(&inner), "invalid_value");
+    assert_eq!(band_field_tag(&BandField::Escalate), "escalate");
+    assert_eq!(band_field_tag(&BandField::Zero), "zero");
+
+    assert_eq!(
+        band_error_tag(&BandError::InvalidLeverArm { value: 0.0 }),
+        "invalid_lever_arm"
+    );
+    assert_eq!(
+        band_error_tag(&BandError::Empty {
+            zero: 1.0,
+            escalate: 1.0,
+        }),
+        "empty"
+    );
+}
+
+/// The STL writers' four arms, by construction: none is reachable
+/// from Python.
+///
+/// `Mesh.to_stl_ascii` and `Mesh.to_stl_binary` write into a `Vec<u8>`
+/// and tessellate their own mesh, so `io` has no failing sink,
+/// `degenerate_triangle` and `index_out_of_range` need a mesh that
+/// broke its own contract, and `too_many_triangles` needs more than
+/// `u32::MAX` facets. The two OPTION refusals are the reachable half
+/// and are driven through the real doors in `tests/test_mesh.py`.
+#[test]
+fn the_stl_writers_arms_are_construction_only() {
+    use crate::tags::stl_error_tag;
+    use pncad::stl::StlError;
+
+    assert_eq!(
+        stl_error_tag(&StlError::DegenerateTriangle {
+            triangle: [0, 1, 2]
+        }),
+        "degenerate_triangle"
+    );
+    assert_eq!(
+        stl_error_tag(&StlError::IndexOutOfRange { index: 9 }),
+        "index_out_of_range"
+    );
+    assert_eq!(
+        stl_error_tag(&StlError::TooManyTriangles { count: 1 << 33 }),
+        "too_many_triangles"
+    );
+    assert_eq!(
+        stl_error_tag(&StlError::Io(std::io::Error::other("sink"))),
+        "io"
+    );
 }
 
 /// The shell node's refusal tags, exercised by CONSTRUCTION for every
@@ -2458,6 +2777,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "band_field_tag",
+        values: &["escalate", "zero"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "binary_header_error_tag",
         values: &["binary_header_sniffs_ascii", "binary_header_too_long"],
         delegates: &[],
@@ -3146,6 +3470,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "program_fault_tag",
+        values: &["lattice", "slot_dimension"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "program_refusal_tag",
         values: &["geometry", "resolve", "transition", "validate"],
         delegates: &[],
@@ -3353,6 +3682,30 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "v_z",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "snapshot_error_tag",
+        values: &[
+            "assertion_bound",
+            "blend_selection_not_canonical",
+            "count_continuous",
+            "dangling_input",
+            "declare_input",
+            "epsilon_invalid",
+            "forward_input",
+            "id_beyond_counter",
+            "input_list",
+            "mate_alignment",
+            "measure_refs",
+            "metadata_unversioned",
+            "order_mismatch",
+            "placement_frame",
+            "placement_not_gauge",
+            "placement_rule",
+            "placement_site",
+            "witness_site",
+        ],
+        delegates: &["root_fault_tag"],
     },
     TagEntry {
         function: "solid_name_error_tag",

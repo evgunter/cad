@@ -392,9 +392,48 @@ class EvalError(PncadError):
     count: Optional[int]
 
 class PersistError(PncadError):
-    """A save or load the persistence doors refused."""
+    """A save or load the persistence doors refused.
+
+    `variant` is the refusing arm's tag — `non_finite`,
+    `profile_program`, `distribution`, `display_unit`, `serialize`,
+    `header_id`, `id_mismatch`, `parse`, `unreadable`, `snapshot`,
+    `edit_replay`, `tolerance_conflict` or `tolerance_invalid`.
+
+    Four arms wrap a refusal of their own, and its word rides beside
+    the carrier's on `inner_variant`: a profile-program fault, a
+    distribution fault, a snapshot invariant, or the `EditError` a
+    replayed edit raised. The nested refusal's own payload is the
+    inner door's surface and stays in the message.
+
+    Two names are shared by arms that carry one concept under
+    different spellings: `detail` is the underlying reporter's own
+    words (the serializer's, the JSON reader's, the deserializer's),
+    and `document` is the document's recorded epsilon, whether the arm
+    reports it beside the process's or alone.
+
+    `site` is where a non-finite float sits, as the kernel's own prose
+    — the descriptor nests an edit's index around the site inside that
+    edit, so it crosses as one sentence rather than a field per rung.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
 
     variant: str
+    inner_variant: Optional[str]
+    site: Optional[str]
+    node: Optional[NodeId]
+    name: Optional[str]
+    unit: Optional[str]
+    declared: Optional[str]
+    detail: Optional[str]
+    found: Optional[str]
+    header: Optional[str]
+    snapshot: Optional[str]
+    line: Optional[int]
+    column: Optional[int]
+    index: Optional[int]
+    process: Optional[float]
+    document: Optional[float]
 
 class ExportError(PncadError):
     """The document-layer export door refused.
@@ -439,9 +478,26 @@ class StlError(PncadError):
     `solid_name_unrepresentable`, `binary_header_too_long` or
     `binary_header_sniffs_ascii` from the two validated option values
     — which are keyword arguments here, so they refuse the same call
-    and share this class and its tag namespace."""
+    and share this class and its tag namespace.
+
+    The arm's payload rides beside it: `triangle` (the offending
+    facet's three position indices), `index` (a position index out of
+    range), `count` (a triangle count binary STL cannot number),
+    `character` (the character the `solid <name>` grammar does not
+    admit), `len` (the header's byte length), and `detail` — the
+    underlying reporter's own words, whether that reporter is the
+    output sink or the UTF-8 decoder.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
 
     variant: str
+    triangle: Optional[tuple[int, int, int]]
+    index: Optional[int]
+    count: Optional[int]
+    character: Optional[str]
+    len: Optional[int]
+    detail: Optional[str]
 
 class StepImportError(PncadError):
     """A STEP text the importer refused, or one that parsed to a
@@ -704,10 +760,14 @@ class NodePickError(PncadError):
     door whose invariant broke — the pick INDEX's, not the
     tessellator's and not the evaluation's — and `index_variant`
     carries the payload's own discriminant beside it,
-    `position_out_of_range` today. The offending patch, triangle and
-    position index are in the message: they describe a mesh that
-    violates its own invariant, which is a bug report rather than
-    something to branch on.
+    `position_out_of_range` today. Its three numbers come with it:
+    `patch` and `triangle` are the offending triangle's position in
+    the mesh value, and `index` the position it referenced outside the
+    buffer. They describe a mesh that violates its own invariant — a
+    bug report rather than something to branch on — and they are
+    attributes rather than prose because that is what a bug report is
+    assembled from. The payload's type is not raisable and so has no
+    door of its own to carry them.
 
     Every field is present on every arm, `None` where that arm does not
     carry it."""
@@ -718,6 +778,9 @@ class NodePickError(PncadError):
     kind: Optional[EntityKind]
     body: Optional[int]
     index_variant: Optional[str]
+    patch: Optional[int]
+    triangle: Optional[int]
+    index: Optional[int]
 
 class ChecksError(PncadError):
     """The advisory-check registry could not RUN.
@@ -755,9 +818,41 @@ class FrameError(PncadError):
 
     `variant` is `degenerate_aim`, `degenerate_tangent`,
     `degenerate_roll_reference`, `degenerate_reference_ladder`,
-    `degenerate_mirror_normal`, or `band`."""
+    `degenerate_mirror_normal`, or `band`. WHICH input was degenerate
+    is that word and nothing else: the tag is minted per input, so
+    there is no second attribute spelling the same fact.
+
+    A degenerate refusal carries the classifier's payload when the
+    margin landed in the ambiguity band, and carries none of it when
+    the margin was a definite zero: `margin` is the in-band value,
+    `margin_low` / `margin_high` the enclosure's bounds where the
+    classifier saw an enclosure rather than a value, `zero` and
+    `escalate` the band it was classified against, and `predicate`
+    the decision's name where the kernel attached one. A poisoned
+    margin carries the band and no number. This is diagnostic data:
+    the escalation contract is that no sound branch exists here, so
+    the recourse is the message's own three levers — declare the
+    coincidence, move the geometry, or lower the tolerance.
+
+    `band` wraps a band-construction refusal, whose word rides on
+    `inner_variant` (`invalid_value`, `invalid_lever_arm`, `empty`)
+    with `field` (`zero` or `escalate`) and `value` beside it; a band
+    that could not be formed reports its attempted thresholds on the
+    same `zero` / `escalate` pair.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
 
     variant: str
+    inner_variant: Optional[str]
+    margin: Optional[float]
+    margin_low: Optional[float]
+    margin_high: Optional[float]
+    zero: Optional[float]
+    escalate: Optional[float]
+    predicate: Optional[str]
+    field: Optional[str]
+    value: Optional[float]
 
 class IdentityError(PncadError):
     """A document identity could not be minted. Identity is never
