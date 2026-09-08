@@ -1437,3 +1437,246 @@ fn severed_operand_scene(
     }
     (doc, mate, cut, xf)
 }
+
+// ---- A11: a transform BETWEEN two patterns ----
+
+/// **A11.** A transform between the two patterns: the walk's chain is
+/// `[outer(j), T, inner(i)]` and the evaluator's body is
+/// `M_o(j) ∘ T ∘ M_i(i)` — asserted on the product with a ROTATION,
+/// so the other order is a different map and the row can tell them
+/// apart.
+#[test]
+fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
+    let mut store = StubStore::default();
+    let base_ref = store.insert(
+        slab("msolve1-a11-base", BASE_WIDTH, BASE_HEIGHT),
+        Tol::witness(),
+    );
+    let top_ref = store.insert(block("msolve1-a11-top", TOP_HEIGHT), Tol::witness());
+    let opts = EvalOptions {
+        resolver: Some(Arc::new(store)),
+        ..EvalOptions::default()
+    };
+    let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a11"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
+    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let rule = |dir: [f64; 3], s: f64| PatternKind::Linear {
+        direction: dir.map(scl),
+        spacing: len(s),
+    };
+    let (doc, inner) = insert(
+        doc,
+        Node::Pattern {
+            input: top,
+            count: Expr::count(3),
+            kind: rule([1.0, 0.0, 0.0], 5.0),
+        },
+    );
+    let spin = std::f64::consts::FRAC_PI_2;
+    let (doc, t) = insert(doc, xform(inner, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], spin));
+    let (doc, outer) = insert(
+        doc,
+        Node::Pattern {
+            input: t,
+            count: Expr::count(2),
+            kind: rule([0.0, 1.0, 0.0], 20.0),
+        },
+    );
+    let a = in_part(base, CapEnd::End);
+    let nested = in_copy(outer, 1, in_copy(inner, 1, in_part(top, CapEnd::Start)));
+    let (doc, mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: seat(
+                SitedRef::at_mint(a.clone()),
+                SitedRef::new(outer, nested.clone()),
+            ),
+        },
+    );
+    let mate = mate.unwrap();
+    let poses = solve_document(&doc, Tol::witness());
+    assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
+    let ev = run(&doc, &opts);
+    assert!(ev.value(outer).is_some(), "{:?}", ev.node_error(outer));
+    assert_seated(&doc, &ev, &a, &nested, &control_seat("msolve1-a11"), "A11");
+    assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
+    let table = &ev.value(outer).unwrap().name_table;
+    let Some(editor_core::Entry::Unique(row)) = table.lookup(&nested) else {
+        panic!("{:?}", table.lookup(&nested))
+    };
+    assert_eq!(row.body, 3 + 1, "copy (1, 1) is flat body j·M + i");
+    let placement = poses.placement(&doc, top).unwrap().affine::<f64>();
+    let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a11-alone"), Tol::witness());
+    let (alone, top_alone) = insert(alone, Node::instantiate_part(top_ref));
+    let local = product_face_frame(
+        &alone,
+        &run(&alone, &opts),
+        &in_part(top_alone, CapEnd::Start),
+    );
+    let m_o = Affine3::translation(geom_core::Vec3::new(0.0, 20.0, 0.0));
+    let t_map = Affine3::rotation_about_axis(
+        geom_core::Point3::origin(),
+        geom_core::Vec3::new(0.0, 0.0, 1.0),
+        spin,
+    );
+    let m_i = Affine3::translation(geom_core::Vec3::new(5.0, 0.0, 0.0));
+    let expected = m_o * t_map * m_i * placement * local;
+    let found = product_face_frame(&doc, &ev, &nested);
+    let gap = map_gap(&found, &expected);
+    assert!(gap <= 1e-12, "outer ∘ T ∘ inner: gap {gap}");
+    let wrong = m_i * t_map * m_o * placement * local;
+    assert!(
+        map_gap(&found, &wrong) > 1.0,
+        "the two orders are distinguishable here"
+    );
+}
+
+// ---- A12: a Part over a nested pattern, and the mate read AT it ----
+
+/// What a `Part(k)` row expects: the mate seats (the `Part`'s `k` IS the
+/// flat body the name's chain says), or the solve refuses
+/// `PartSelectsAnotherCopy` naming the flat index the name says.
+#[derive(Clone, Copy)]
+enum PartCase {
+    Seats,
+    Refuses { named: u32 },
+}
+
+/// The nested document of A10 with a `Part(k)` over the outer pattern
+/// — through a transform when `via_transform` — and the mate read AT
+/// that part, naming copy `(j, i)`.
+fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCase) {
+    let label = format!("msolve1-a12-{k}-{j}-{i}-{via_transform}");
+    let mut store = StubStore::default();
+    let base_ref = store.insert(
+        slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
+        Tol::witness(),
+    );
+    let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
+    let opts = EvalOptions {
+        resolver: Some(Arc::new(store)),
+        ..EvalOptions::default()
+    };
+    let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
+    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let rule = |dir: [f64; 3]| PatternKind::Linear {
+        direction: dir.map(scl),
+        spacing: len(5.0),
+    };
+    let (doc, inner) = insert(
+        doc,
+        Node::Pattern {
+            input: top,
+            count: Expr::count(3),
+            kind: rule([1.0, 0.0, 0.0]),
+        },
+    );
+    let (doc, outer) = insert(
+        doc,
+        Node::Pattern {
+            input: inner,
+            count: Expr::count(2),
+            kind: rule([0.0, 1.0, 0.0]),
+        },
+    );
+    let (doc, of) = if via_transform {
+        insert(doc, xform(outer, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0))
+    } else {
+        (doc, outer)
+    };
+    let (doc, part) = insert(
+        doc,
+        Node::Part {
+            of,
+            select: editor_core::PartSelect::Instance(Expr::count(k)),
+        },
+    );
+    let a = in_part(base, CapEnd::End);
+    let nested = in_copy(outer, j, in_copy(inner, i, in_part(top, CapEnd::Start)));
+    let (doc, mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: seat(
+                SitedRef::at_mint(a.clone()),
+                SitedRef::new(part, nested.clone()),
+            ),
+        },
+    );
+    let mate = mate.unwrap();
+    let poses = solve_document(&doc, Tol::witness());
+    let ev = run(&doc, &opts);
+    let what = format!("Part({k}) naming ({j}, {i}), via transform: {via_transform}");
+    match expect {
+        PartCase::Seats => {
+            assert!(
+                poses.fault(mate).is_none(),
+                "{what}: {:?}",
+                poses.fault(mate)
+            );
+            assert_eq!(poses.role(mate), Some(MateRole::Determining), "{what}");
+            assert!(
+                ev.node_error(mate).is_none(),
+                "{what}: {:?}",
+                ev.node_error(mate)
+            );
+            assert!(
+                ev.value(part).is_some(),
+                "{what}: {:?}",
+                ev.node_error(part)
+            );
+            assert_seated(&doc, &ev, &a, &nested, &control_seat(&label), &what);
+            assert!(
+                gate(&doc, &ev).is_ok(),
+                "{what}: {:?}",
+                gate(&doc, &ev).err()
+            );
+        }
+        PartCase::Refuses { named } => {
+            let fault = poses.fault(mate).cloned();
+            assert!(
+                matches!(
+                    fault,
+                    Some(MateFault::PartSelectsAnotherCopy {
+                        part: p,
+                        named: n,
+                        selected,
+                        ..
+                    }) if p == part && n == named && selected == k
+                ),
+                "{what}: expected PartSelectsAnotherCopy(named {named}, selected {k}), got {fault:?}"
+            );
+            assert!(
+                ev.node_error(mate).is_some(),
+                "{what}: the mate node fails typed at the evaluation"
+            );
+        }
+    }
+}
+
+/// **A12.** A `Part(k)` over a nested pattern selects FLAT body `k`,
+/// and a mate read at it names a copy `(j, i)` whose flat index is
+/// `j·3 + i`: the solve compares the two in the `Part`'s own index
+/// space, so `k == j` with `i ≠ 0` is a disagreement (the `Part`
+/// gathers copy `(0, k)`, five units from the copy the name places),
+/// not an agreement — and the same through a transform above the
+/// outer pattern, which preserves the value's indices.
+#[test]
+fn a12_a_part_over_a_nested_pattern_agrees_in_the_flat_index() {
+    for (k, j, i, via) in [
+        (4, 1, 1, false),
+        (1, 0, 1, false),
+        (4, 1, 1, true),
+        (0, 0, 0, true),
+    ] {
+        part_over_nested(k, j, i, via, PartCase::Seats);
+    }
+    for (k, j, i, via, named) in [
+        (1, 1, 1, false, 4),
+        (0, 0, 1, false, 1),
+        (4, 0, 1, false, 1),
+        (1, 1, 1, true, 4),
+    ] {
+        part_over_nested(k, j, i, via, PartCase::Refuses { named });
+    }
+}

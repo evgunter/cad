@@ -440,3 +440,161 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
         ev.node_error(boolean)
     );
 }
+
+// ---- the lanes the hosted matrix does not draw: Dual64 ----
+
+fn run_dual(doc: &ProfileDoc) -> editor_core::Evaluation<geom_core::Dual64> {
+    editor_core::evaluate::<geom_core::Dual64>(
+        doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &opts(),
+        Tol::witness(),
+    )
+}
+
+/// Claim 1 at `Dual64`.
+#[test]
+fn a_transform_of_a_pattern_is_the_transform_of_each_instance_at_dual64() {
+    let (doc, cube) = cube_doc("eval6-c1-dual");
+    let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
+    let (doc, whole) = insert(doc, skew(pattern));
+    let mut doc = doc;
+    let mut each = Vec::new();
+    for i in 0..M {
+        let (next, selected) = insert(doc, part(pattern, i));
+        let (next, moved) = insert(next, skew(selected));
+        doc = next;
+        each.push(moved);
+    }
+    let ev = run_dual(&doc);
+    let placed = instances_of(&ev, whole);
+    assert_eq!(placed.len() as i64, M);
+    for (i, moved) in each.iter().enumerate() {
+        assert_eq!(bits(&placed[i]), bits(&body_of(&ev, *moved)), "body {i}");
+    }
+}
+
+/// Claim 3's per-body identity at `Dual64`.
+#[test]
+fn a_nested_pattern_lays_out_placement_major_at_dual64() {
+    let (doc, _cube, inner, outer) = nested_doc("eval6-c3-dual");
+    let mut doc = doc;
+    let mut per_instance = Vec::new();
+    for i in 0..M {
+        let (next, selected) = insert(doc, part(inner, i));
+        let (next, over_one) = insert(next, linear(selected, [0.0, 1.0, 0.0], 2.0, N));
+        doc = next;
+        per_instance.push(over_one);
+    }
+    let ev = run_dual(&doc);
+    let nested = instances_of(&ev, outer);
+    assert_eq!(nested.len() as i64, N * M);
+    for (i, over_one) in per_instance.iter().enumerate() {
+        let alone = instances_of(&ev, *over_one);
+        for j in 0..N as usize {
+            assert_eq!(
+                bits(&nested[j * M as usize + i]),
+                bits(&alone[j]),
+                "body {j}·{M} + {i}"
+            );
+        }
+    }
+}
+
+// ---- the order, and the stamps ----
+
+/// Under a ROTATION, `Transform(Pattern)` and `Pattern(Transform)` are
+/// different placements body for body past body 0, and the map is
+/// applied to EVERY body of the value — none is passed through unmoved.
+#[test]
+fn a_transform_of_a_pattern_is_not_a_pattern_of_a_transform_under_rotation() {
+    let (doc, cube) = cube_doc("eval6-order");
+    let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
+    let (doc, t_of_p) = insert(doc, skew(pattern));
+    let (doc, moved) = insert(doc, skew(cube));
+    let (doc, p_of_t) = insert(doc, linear(moved, [1.0, 0.0, 0.0], 2.0, M));
+    let ev = run(&doc, &opts());
+    let a = instances_of(&ev, t_of_p);
+    let b = instances_of(&ev, p_of_t);
+    let p = instances_of(&ev, pattern);
+    assert_eq!(a.len(), b.len());
+    assert_eq!(
+        bits(&a[0]),
+        bits(&b[0]),
+        "body 0 is the skewed cube either way"
+    );
+    for i in 1..a.len() {
+        assert_ne!(
+            bits(&a[i]),
+            bits(&b[i]),
+            "body {i}: the rotation separates the orders"
+        );
+    }
+    for i in 0..a.len() {
+        assert_ne!(
+            bits(&a[i]),
+            bits(&p[i]),
+            "body {i} of the transform is MOVED"
+        );
+    }
+}
+
+/// The outermost placement stamp of a body's first surface: the placing
+/// node and ordinal, or `None` for a description minted rather than
+/// placed.
+fn outer_stamp(b: &Body<f64>) -> Option<(u64, u32)> {
+    let (key, _) = b.surfaces().next().expect("a cube has surfaces");
+    match &b
+        .surface_source(key)
+        .expect("a placed description is sourced")
+        .expr
+    {
+        topo::SourceExpr::Placed { node, instance, .. } => Some((*node, *instance)),
+        topo::SourceExpr::Minted { .. } => None,
+    }
+}
+
+/// **The stamps are pairwise distinct across a value's bodies** —
+/// `compose_placed`'s ordinal rule, pinned on the two values that
+/// would collide under a constant ordinal: a nested pattern (placement
+/// 0 carries the inner's own stamps; every placed body wears the
+/// outer node at its flat index) and a transform of a pattern (body
+/// `i` wears the transform at `i`). A stamp shared by two bodies of
+/// one node would read as one source over two geometries at a
+/// boolean's identity rung.
+#[test]
+fn placement_stamps_are_pairwise_distinct_across_a_values_bodies() {
+    let (doc, _cube, inner, outer) = nested_doc("eval6-stamps");
+    let (doc, moved) = insert(doc, skew(inner));
+    let ev = run(&doc, &opts());
+    for (what, node, bodies) in [
+        ("the nested pattern", outer, instances_of(&ev, outer)),
+        (
+            "the transform of the pattern",
+            moved,
+            instances_of(&ev, moved),
+        ),
+    ] {
+        let stamps: Vec<Option<(u64, u32)>> = bodies.iter().map(|b| outer_stamp(b)).collect();
+        for (x, sx) in stamps.iter().enumerate() {
+            for (y, sy) in stamps.iter().enumerate().skip(x + 1) {
+                assert_ne!(sx, sy, "{what}: bodies {x} and {y} share a stamp {sx:?}");
+            }
+        }
+        // And every body this node PLACED wears this node at its own
+        // flat index; the ones it passed through verbatim do not wear
+        // it at all.
+        for (k, stamp) in stamps.iter().enumerate() {
+            match stamp {
+                Some((by, ordinal)) if *by == node.0 => {
+                    assert_eq!(*ordinal as usize, k, "{what}: body {k}'s ordinal")
+                }
+                _ => assert!(
+                    node == outer && k < M as usize,
+                    "{what}: body {k} is unstamped by its node yet is not a verbatim placement 0"
+                ),
+            }
+        }
+    }
+}

@@ -2147,9 +2147,9 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             // (`Body → Body`, `Instances → Instances`), so it ADMITS
             // a pattern and yields instances — several bodies, which
             // the seat is right to refuse. The seat's answer here is
-            // not the transform door's to confirm; a consumer that
-            // takes one body is (the split below refuses a pattern
-            // the way this seat does).
+            // not the transform door's to confirm — a consumer that
+            // takes one body would be, and this row's probe is not
+            // one.
             assert!(!admitted, "the seat refuses a pattern");
             assert!(
                 !refused_as_operand,

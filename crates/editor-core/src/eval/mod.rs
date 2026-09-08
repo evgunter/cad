@@ -325,7 +325,11 @@ pub enum ValuePayload<T: Decide> {
     /// through the driver, then the profile crate's validation door)
     /// plus its program-anchor naming map ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
-    /// A single body: Extrude, Revolve, Transform.
+    /// A single body: every one-body op (extrude, revolve, the tubes,
+    /// loft, sweep, blends, shell, union, placed union, instantiate,
+    /// `Part`) and a `Transform` of one body — a transform's value has
+    /// its input's shape, so a transform of instances is
+    /// [`Self::Instances`].
     Body(Arc<Body<T>>),
     /// A boolean's result: a body with its contact records, or the
     /// typed empty success (F8; D3).
@@ -348,11 +352,13 @@ pub enum ValuePayload<T: Decide> {
     /// placements, both as `Instances`, because a rigid map of N
     /// bodies is N rigid maps and needs no guess. `Part` takes one
     /// instance out of it by index, and the product gather takes
-    /// every instance in order. Every other body consumer — a boolean
-    /// or union member, a split's target, a blend's, a shell's, a
-    /// placed union's prototype — takes ONE body and refuses this
-    /// value typed (`WrongOperand`): a boolean of N bodies is N
-    /// booleans or one union of them, and the recipe does not guess
+    /// every instance in order. Every other consumer of a body
+    /// operand — the set is `wire::body_operand`'s callers: a datum's
+    /// face frame, a blend's and a shell's body, a split's target, a
+    /// boolean's and a union's members, a placed union's prototype —
+    /// takes ONE body and refuses this value typed (`WrongOperand`):
+    /// a boolean of N bodies is N booleans or one union of them, a
+    /// blend of N bodies is N blends, and the recipe does not guess
     /// which (D3), so the asymmetry between the placers and the rest
     /// is the decision, not an omission.
     Instances(Vec<Arc<Body<T>>>),

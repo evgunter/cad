@@ -138,6 +138,39 @@ pub(crate) fn empty() -> Arc<NameTable> {
     Arc::new(NameTable::new())
 }
 
+/// **An output-body index, as the table carries it.** [`EntityRef::body`]
+/// is a `u32`, so a body count past that has no row to land in — the
+/// one bound every multi-body value shares, which is why an index past
+/// it is this layer's refusal wherever it is met (the evaluator's
+/// placers and `Node::Part`, the emitters, the mate walk's `Part`
+/// agreement) and not a number silently narrowed.
+pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
+    u32::try_from(index).map_err(|_| NamingError::Emission {
+        what: "an output-body index exceeds the table's u32 row width",
+    })
+}
+
+/// **The placement-major layout**, the one home of its arithmetic:
+/// placement `placement` of a master's body `body`, the master holding
+/// `per` bodies, is output body `placement·per + body`. `wire_pattern`
+/// builds that body there, [`name_pattern`] keys its rows by it, and
+/// the mate walk reads a `Part`'s index through it. A `body` at or past
+/// `per` is a row the master does not have; a product past `u32` is
+/// [`output_body`]'s refusal.
+pub(crate) fn flat_body_index(placement: u32, per: u32, body: u32) -> Result<u32, NamingError> {
+    if body >= per {
+        return Err(NamingError::Emission {
+            what: "a pattern master's table names a body the master does not have",
+        });
+    }
+    placement
+        .checked_mul(per)
+        .and_then(|b| b.checked_add(body))
+        .ok_or(NamingError::Emission {
+            what: "an output-body index exceeds the table's u32 row width",
+        })
+}
+
 /// Wraps a pattern master's table per structural placement index
 /// (A8/N1 `Instance(j)`): placement `j` holds the master's keys
 /// verbatim (`transform_rigid` key-stability).
@@ -161,8 +194,8 @@ pub(crate) fn empty() -> Arc<NameTable> {
 /// therefore `Instance(j)` over the inner `Instance(i)` over the
 /// master's name — the chain the mate walk consumes outermost first —
 /// and no row of the master is re-keyed past `per`: one at a body the
-/// master does not have is the input's emission bug, refused typed.
-/// Totality is checked against every output body.
+/// master does not have is the input's emission bug, refused typed
+/// ([`flat_body_index`]). Totality is checked against every output body.
 pub(crate) fn name_pattern<T: geom_core::Real>(
     node: RecipeNodeId,
     master: &NameTable,
@@ -170,29 +203,13 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
     per: usize,
     instances: &[Arc<Body<T>>],
 ) -> Result<Arc<NameTable>, NamingError> {
-    let past_range = || NamingError::Emission {
-        what: "a pattern master's table names a body the master does not have",
-    };
-    let per_u32 = u32::try_from(per).map_err(|_| NamingError::Emission {
-        what: "a pattern master's body count exceeds u32",
-    })?;
+    let per = output_body(per)?;
     let mut t = NameTable::new();
     for j in 0..n {
-        let ju = u32::try_from(j).map_err(|_| NamingError::Emission {
-            what: "pattern instance index exceeds u32",
-        })?;
+        let ju = output_body(usize::try_from(j).unwrap_or(usize::MAX))?;
         // Output body of the master's body `i` under placement `j`.
         let at = |e: &EntityRef| -> Result<EntityRef, NamingError> {
-            if e.body >= per_u32 {
-                return Err(past_range());
-            }
-            let body = ju
-                .checked_mul(per_u32)
-                .and_then(|b| b.checked_add(e.body))
-                .ok_or(NamingError::Emission {
-                    what: "a pattern's output-body count exceeds u32",
-                })?;
-            Ok(ent(body, e.key))
+            Ok(ent(flat_body_index(ju, per, e.body)?, e.key))
         };
         for (name, entry) in master.iter() {
             let wrapped = StableName {
@@ -213,7 +230,7 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
         }
     }
     for (i, body) in instances.iter().enumerate() {
-        check_total(&t, body, u32::try_from(i).unwrap_or(u32::MAX))?;
+        check_total(&t, body, output_body(i)?)?;
     }
     Ok(Arc::new(t))
 }
@@ -247,9 +264,7 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
         ent(0, EntityKey::Body),
     )?;
     for (i, keys) in bridges.iter().enumerate() {
-        let iu = u32::try_from(i).map_err(|_| NamingError::Emission {
-            what: "placed-union instance index exceeds u32",
-        })?;
+        let iu = output_body(i)?;
         let mapped = |key: EntityKey| -> Option<EntityKey> {
             match key {
                 EntityKey::Body => None,
@@ -267,16 +282,18 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                     of: Box::new(name.clone()),
                 }],
             };
-            // The prototype's table is a single-output-body table
-            // (`body_operand` refuses multi-body inputs upstream), so a
-            // row at any other index is a bug — surfaced, not dropped.
+            // The prototype is ONE body — a placed union fuses what
+            // `body_operand` admits, and a value of several bodies is
+            // `Pattern`'s to place, never this node's to fuse — so its
+            // table is a single-output-body table, and a row at any
+            // other index is a bug: surfaced, not dropped.
             let rows: Vec<EntityRef> = match entry {
                 super::table::Entry::Unique(e) => vec![*e],
                 super::table::Entry::Tied(es) => es.clone(),
             };
             if rows.iter().any(|e| e.body != 0) {
                 return Err(NamingError::Emission {
-                    what: "placed union of a multi-OUTPUT-BODY prototype — deferred (typed); multi-SOLID prototypes are admitted",
+                    what: "a placed union's prototype table names a body the prototype does not have",
                 });
             }
             let moved: Vec<EntityRef> = rows
