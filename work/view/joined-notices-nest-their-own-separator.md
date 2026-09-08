@@ -43,7 +43,7 @@ One hazard worth recording separately, because it is mechanical and
 present today: **`DisplayFault::NonRigidFrame`'s `Display` contains a
 `"; "` of its own** (`display.rs:180`). Any reading of the joined line
 that counts separators — including the assertion at
-`crates/viewer/src/frame.rs:1122` — is wrong the moment that arm
+`crates/viewer/src/frame.rs:1141` — is wrong the moment that arm
 reaches the line. #1886's fix pass was asked to stop that assertion
 lying; the ambiguity it is a symptom of is this file.
 

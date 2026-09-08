@@ -23,3 +23,13 @@ its review) `msolve4_mate_memo.rs`. MSOLVE-4's fix pass hoists one into
 ten siblings keep their copies until a migration lands. A copy that
 drifts (a pin check dropped, a different failure text) is a suite
 testing a different resolver than its neighbours believe.
+
+## Same class, second instance (MSOLVE-2's style review, 2026-09-06)
+
+`in_copy(pattern, i, master)` has seven private copies across the
+mate suites (`fix_pattern_mate_crossing`, `mate1_member_vocab`,
+`mate1_r1_probes`, `mate1r2_probes`, `msolve1_transform_aware`,
+`rev_fix_xsplit_unreachable`, `msolve2_member_chain`), and `run`,
+`gate`, `xform` travel with it. MSOLVE-2's fix pass hoists one set
+into `tests/fixture/` beside the seat oracle for its own two suites;
+the rest migrate with the resolver stub.

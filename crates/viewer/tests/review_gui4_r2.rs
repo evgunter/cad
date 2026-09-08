@@ -268,7 +268,9 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
             [0.0, 0.0, 1.0],
             std::f64::consts::FRAC_PI_2,
             [0.12, 0.0, 0.0],
-        ),
+            common::band(),
+        )
+        .expect("a literal axis has a definite direction"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.perform(SessionOp::CommitFreeMove);

@@ -2,8 +2,10 @@
 id: tess-lint-face-ordinal-join
 kind: issue
 title: tess-lint's budget gate joins on the face ORDINAL, so a face reorder either compares the wrong faces or drops them silently
-status: open
+status: closed
 opened: 2026-08-20
+closed: 2026-09-07
+branch: meter/join-gated-voice
 github: 746
 refs: [738, C15, D201]
 ---
@@ -41,3 +43,172 @@ Code quality: `tools/` is Track K's territory, and the issue is already carried 
 ## Claimed by METER (2026-09-06)
 
 Moved from `work/code-quality/` to `work/meter/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Unlettered, on K's fence: `tess-lint`'s join key.
+
+## Orchestrator note (2026-09-07): both named branches are already closed
+
+**This item's body is #746's text of 2026-08-20 and predates its own
+fix.** `tools/tess-lint/src/lib.rs` now carries `Kind::Rekeyed { face,
+how }` with `Rekey::Absent { in_baseline }` and `Rekey::Column { name,
+was, now }`, and `compare`'s per-face walk runs rule 2 only under a
+rule-4 precondition over `IDENTITY_COLUMNS`: an ordinal whose columns
+disagree is announced with the column and both readings, a one-sided
+ordinal is announced as `Absent`, and the walk STOPS there rather than
+comparing shifted pairs. That is branch 1 and branch 2 of this item.
+`C15` and `D201` both already state the mis-join is closed; only this
+file still reads as though it were open.
+
+**What is NOT settled, and is this unit's actual question.** The
+observation is routed by `compare`'s `gated` flag — whether any row in
+the scene, either side, has `recoverable().is_some()`. A scene with no
+Hessian-sized face has `gated == false`, so its re-key goes to
+`out.notes` rather than `out.findings`. That is precisely #738's
+`diefillet/diefillet`, the live instance this item was written around:
+its 16 permuted ordinals are today reported in the quietest voice the
+lint has, and the item's "it does not fire only because `diefillet` has
+no NURBS faces" is still true in a weaker form — it does not FIND,
+though it does now SPEAK. Whether a deterministic ordinal permutation
+between main and the committed baseline is a note or a finding is a
+judgement nobody has recorded, and it is what the unit should decide.
+
+**Confidence:** sure that both branches are covered and that the
+`gated` split routes ungated re-keys to notes (read at `compare`);
+unsure whether `diefillet`'s permutation still reproduces against
+today's baseline — the unit re-runs #738's sweep rather than inheriting
+its result, which is four baseline re-cuts old.
+
+## Closed (2026-09-07)
+
+**The body above is #746's text of 2026-08-20 and describes a tree that
+no longer exists.** Both branches it names are closed, and the one
+question the closure left open — which voice an ordinal permutation
+speaks in — is decided here.
+
+### 1. Both branches, verified by mutation rather than by reading
+
+`compare` runs rule 2 only under a rule-4 precondition
+(`first_disagreement` over `IDENTITY_COLUMNS`), announces a disagreeing
+ordinal as `Kind::Rekeyed` with `Rekey::Column { name, was, now }`,
+announces a one-sided ordinal as `Rekey::Absent { in_baseline }`, and
+STOPS the walk at the first disagreement rather than comparing shifted
+pairs. Four mutations of `tools/tess-lint/src/lib.rs`, each run against
+the suite:
+
+* `first_disagreement` returns `None` always (branch 1 restored) — **5
+  red**, including `a_shifted_face_above_the_disagreement_is_not_compared`
+  and `every_identity_column_re_keys_on_its_own`.
+* the one-sided arms `continue` instead of announcing (branch 2, the
+  silent drop) — **6 red**, including
+  `a_face_missing_from_a_surviving_scene_is_a_finding`.
+* `if gated` forced true — **2 red**
+  (`a_re_key_in_a_scene_with_no_sized_face_is_a_note`, and the CLI's
+  `a_re_key_that_costs_nothing_is_a_note_and_exits_zero`).
+* `if gated` forced false — **9 red**.
+
+Counted with `--no-fail-fast`, which is load-bearing: every one of the
+four mutations reds tests in the lib suite AND in
+`tests/cli_contract.rs`, and a plain `cargo test` stops after the first
+failing binary, so it undercounts each row by exactly the cli-contract
+red it never reaches.
+
+The routing is therefore pinned in both directions, not only in the one
+the current answer takes.
+
+### 2. #738's instance does not reproduce
+
+Re-run rather than inherited: a fresh `scripts/tess_budget_sweep.sh
+--sizing-only` on a tree identical to `origin/main` (`a742c3425`) plus
+one tracker file, compared against
+`docs/tess-budget-data/tess-budget-baseline.csv` (cut
+`aba2625f8f84 2026-09-04`). **1353 rows on both sides, 72 scenes on both
+sides, and every `(scene, face)` ordinal agrees on all eight identity
+columns** — `diefillet/diefillet` included, where the baseline's face 0
+is a plane, as the sweep's is. `tess-lint` reports 0 findings and 0
+notes. The permutation #738 measured was absorbed by a later re-cut of
+the baseline; the ordinal key that let it happen is unchanged, which is
+`D201`'s subject and `C15`'s.
+
+**Only half of "0 findings and 0 notes" is re-measured, and that is a
+consequence of the decision rather than an oversight.** The findings
+half is a scheduled register: `.github/workflows/ci.yml`'s
+*tessellation-budget lint (gate — a grown budget fails this row)* step
+runs the CLI over a fresh sweep on the `release-budget` row, and its
+exit code fails the job. Notes exit 0 and print to stdout, so nothing
+reads them — which is exactly what routing an ungated re-key to the
+quiet voice means. A note that appeared tomorrow would be visible only
+to a reader of that step's log, and closing that is `D201`/`C15`'s
+durable key, not a louder voice here.
+
+### 3. The decision: a note, and the reason is now at the site
+
+An ordinal permutation between main and the committed baseline, in a
+scene where neither side carries a Hessian-sized face, stays a
+**note**. Rule 5 is the counter-example that had to be answered — it
+exits FINDINGS in the harness register, and an ungated re-key looks
+like the same shape — and the answer is that an uncovered scene makes
+the gate's coverage claim FALSE until someone folds it, while a scene
+with no sized face gives rule 2 no claim to be false and rule 1's
+per-scene comparison never reads an ordinal. The note is also not a
+silence that outlives its reason, within a limit the site now states:
+`gated` reads BOTH sides, so a drift STILL PRESENT in the comparison is
+a finding the day the scene is first sized
+(`a_scene_that_gains_its_first_sized_face_reds_rather_than_notes`) —
+while a re-cut that absorbs the permutation first leaves that day
+nothing to announce, which is the hole `D201`/`C15` close.
+
+Written into `lib.rs`'s module docs and at `compare`'s `gated` binding,
+so the next reader inherits the argument rather than re-litigating it.
+What the decision accepts is stated there too: a permutation in a scene
+rule 2 never reaches can be folded into a re-cut with nobody reading
+it, and the cure for that is a durable per-face name — **`D201` and
+`C15`**, both live on this program's slate, not a louder voice here.
+
+### 4. One correction carried in the same PR
+
+`a_re_key_in_a_scene_with_no_sized_face_is_a_note`'s doc transcribed
+"58 of the committed baseline's 70 scenes"; the baseline holds 72
+scenes, 12 of them carrying a sized face and 60 not. The figure moved
+to its executable home, `tools/tess-lint/tests/baseline_census.rs`, and
+the test's doc points there. What that file ASSERTS is the 72 and the
+twelve gating scenes by NAME; the 60 is `72 − 12` by construction and
+is stated in the test's doc rather than asserted, because an assertion
+no perturbation can reach pins nothing. It also pins the scene-level
+reading of "carries a sized face" (`SceneTotals::recoverable`, which
+reads summed cell counts) against the row-level one — an agreement that
+holds only by `parse`'s floor of one cell and was written down nowhere
+enforced.
+
+## Adjudicated (2026-09-07)
+
+The `## Orchestrator note` above is kept as the dispatch record and is
+**superseded on two points by the lane that answered it**, both of which
+were re-verified independently before this line was written:
+
+- Its "nobody has recorded whether that is right" was **imprecise**,
+  and it named the real gap. The note-vs-finding rule itself was
+  already stated on main at `tools/tess-lint/src/lib.rs:177` — *"a
+  re-key is a finding where it can cost a measurement, judged per
+  SCENE"* — with the principle on `Report` and the ungated case spelled
+  out in `main.rs`'s recourse item 4, so the decision was not
+  unrecorded. What was missing is what the same dispatch paragraph goes
+  on to concede it wanted: the answer to the strongest objection
+  against the rule (rule 5's harness-register precedent) and the note's
+  conversion property. The unit added those, so the change is an
+  EXTENSION of a recorded decision; the dispatch reads as though it
+  were a first statement of an unrecorded one, and that is the
+  overstatement, not a wrong reading of the tree.
+- Its "unsure whether `diefillet`'s permutation still reproduces" is
+  **answered: it does not.** The lane ran the sweep rather than
+  reasoning about it — 1353 rows over 72 scenes, every `(scene, face)`
+  ordinal agreeing on all eight identity columns, `tess-lint` against
+  the committed baseline reporting 0 findings and 0 notes at exit 0.
+  The permutation was absorbed by a later re-cut, which is the outcome
+  the item's own body predicted ("re-cutting hides today's instance and
+  leaves the key"). **What it does not establish** is this line's own
+  earlier claim, that the decision was "made on the merits and not
+  under the pressure of a live red": `diefillet/diefillet` carries no
+  sized row in the committed baseline — all 26 of its rows have an
+  empty sizing block — so `gated` is false there however the sweep
+  reads, and a reproducing permutation would have been a NOTE at exit
+  0, never a red. There was no live red available to apply pressure in
+  either direction. The re-run settles the dispatch's factual question
+  and says nothing about the decision's motive.

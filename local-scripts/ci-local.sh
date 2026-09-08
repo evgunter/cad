@@ -41,6 +41,17 @@
 # needs a C toolchain: the `interval` feature's backend is the in-repo,
 # pure-Rust `interval-transcendentals`.
 #
+# THE VERSIONS ABOVE ARE LITERALS AND THEY ARE CHECKED. ci.yml's
+# workflow-level `env:` block is the single source of truth for every pin;
+# these lines restate one because a developer whose box has no cargo-nextest
+# needs a command to paste, not a substitution to evaluate. What keeps them
+# honest is check-ci-mirror-parity.py's pin-literal claim, which reds when a
+# version named under local-scripts/ is one ci.yml no longer pins. So bumping
+# NEXTEST_VERSION reds this file until these lines follow it — which is the
+# point, and is what a developer told to install a retired version used to get
+# instead. The `0.98.4+` beside it is an admesh FLOOR, not a pin, and is
+# declared as one in that check's PIN_FREE table.
+#
 # THE HOSTED FIGURES QUOTED THROUGHOUT THIS FILE ARE UNGUARDED READINGS —
 # billed minutes, job durations, merge frequencies, cache sizes. They are
 # quoted to explain why a row is sited or filtered the way it is, and this
@@ -259,6 +270,7 @@ fi
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / viewer module kinds (vocabulary/driver boundary)
+# HOSTED MIRROR: mirror / viewer vocabularies are declared once (no hand-written ALL)
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
@@ -275,6 +287,8 @@ tier_blind_rows() {
   scripts/gates/probe-suite-census.sh --citations || rc=1
   scripts/gates/viewer-module-kinds.sh --selftest || rc=1
   scripts/gates/viewer-module-kinds.sh || rc=1
+  scripts/gates/viewer-vocab-declared-once.sh --selftest || rc=1
+  scripts/gates/viewer-vocab-declared-once.sh || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
@@ -420,6 +434,17 @@ discipline() {
   # never execute on a real run, so nothing but this drives them.
   # HOSTED MIRROR: discipline / run-job gate selftest (the one required check's seven paths)
   python3 scripts/check-run-jobs.py --selftest || rc=1
+  # The opt-level calibration lane's own guard. The LANE has no local half and
+  # is not supposed to: its free arm is read from this repository's hosted run
+  # history and its measured arms are numbers about the 2-vCPU runner class,
+  # which is the entire question — a developer box's ratio is the measurement
+  # that lane exists to distrust. What belongs in both halves, by exactly the
+  # base-test-listing argument above, is the SELFTEST: it drives the readers,
+  # the cadence and the argmin against fixtures, no hosted run produces those
+  # paths on demand, and the `record` mode they guard appends to a history
+  # under docs/perf-data/opt-level/ that cannot be edited afterwards.
+  # HOSTED MIRROR: discipline / opt-level calibrator selftest (the guard over an append-only history)
+  python3 scripts/opt-level-calibrate.py --selftest || rc=1
   return $rc
 }
 
@@ -572,12 +597,13 @@ topo_release() {
 # ci-local's exclusive hold that acquisition is a no-op
 # (BUILD_SLOT_HELD).
 #
-# UNCONDITIONAL HERE, SEED-GATED HOSTED (2026-09-03), and it is the same
-# asymmetry the viewer toolkit rows below carry, for the same reason. The
-# hosted job runs only when the change filter's SEEDS intersect
-# {pncad-py, pncad, editor-core} — it is billed by the minute on every PR
-# and the wheel is a second compile of the kernel under the `python`
-# feature. This half is billed in one developer's wall clock, on a run
+# UNCONDITIONAL HERE, SEED-GATED HOSTED, and it is the same asymmetry the
+# viewer toolkit rows below carry, for the same reason. The hosted job
+# runs only when the change filter's SEEDS intersect the members a BUILD
+# OF THE WHEEL compiles — `pncad-py`'s non-dev dependency closure, so all
+# but `viewer` (above the wheel) and `test-utils` (a dev edge no wheel
+# build follows). This half is billed in one
+# developer's wall clock, on a run
 # they chose to make, and it is already the lane that runs every point of
 # every dimension: skipping work here would buy nothing
 # and would leave the local gate proving strictly less than the hosted
@@ -1059,8 +1085,10 @@ budget_meter() {
 # surface evaluations) would be paid for nothing. What it does read is
 # narrower than "the sizing columns" — `triangles` per scene and
 # `grid_cells / span_opt_cells` per face are what it COMPARES, and
-# `chart`, whether the row carries the sizing block at all, and
-# `u0`-`v1` / `nu` / `nv` are what it JOINS on. Re-cutting the baseline
+# `chart` and `u0`-`v1` / `nu` / `nv` are what it JOINS on — seven
+# columns, block presence not among them: `parse` refuses a row whose
+# sizing block and chart disagree, so "carries the block" is a function
+# of `chart` and joins on nothing of its own. Re-cutting the baseline
 # drops the flag.
 tesslint_gate() {
   scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only || return 1

@@ -30,6 +30,10 @@ pub enum ShapeOutcome {
     Theorem,
     /// A symbolic `Zero` through a clause-3 fold.
     SignGated,
+    /// A `Zero` through a REGISTERED IDENTITY — an axiom a constructor
+    /// stated about what it built (`Sym::register_equal`), not a
+    /// theorem the tier proved.
+    Registered,
     /// The numeric channel certified a definite non-zero sign; the
     /// form was never built.
     Definite(Sign),
@@ -53,6 +57,11 @@ pub struct DecisionShape {
     /// numeric without a definite sign — `None` otherwise, and `None`
     /// outside a session.
     pub form: Option<String>,
+    /// The certified enclosure the numeric channel classified
+    /// (`Interval` lane only; `None` at every other scalar). This is
+    /// what makes a blocked decision READABLE as a distance from the
+    /// band rather than as a name — see [`crate::Decide::enclosure_probe`].
+    pub enclosure: Option<(f64, f64)>,
 }
 
 thread_local! {
@@ -93,6 +102,7 @@ pub(super) fn record(
     numeric: &Result<Sign, Indeterminate>,
     symbolic: Option<Discharge>,
     form: Option<String>,
+    enclosure: Option<(f64, f64)>,
 ) {
     if !active() {
         return;
@@ -100,6 +110,7 @@ pub(super) fn record(
     let outcome = match (symbolic, numeric) {
         (Some(Discharge::Theorem), _) => ShapeOutcome::Theorem,
         (Some(Discharge::SignGated), _) => ShapeOutcome::SignGated,
+        (Some(Discharge::Registered), _) => ShapeOutcome::Registered,
         (None, Ok(Sign::Zero)) => ShapeOutcome::NumericZero,
         (None, Ok(s)) => ShapeOutcome::Definite(*s),
         (None, Err(e)) if matches!(e.margin, MarginDiag::Invalid) => ShapeOutcome::Invalid,
@@ -110,6 +121,7 @@ pub(super) fn record(
             predicate: crate::k_stats::current_predicate(),
             outcome,
             form,
+            enclosure,
         });
     });
 }
@@ -127,6 +139,22 @@ pub(super) fn render_node(id: SymId) -> Option<String> {
         let f = plain_form(sess, id);
         Some(render_form(sess, &f, 0))
     })
+}
+
+/// **The rendered plain normal form of any node**, for evidence that
+/// has to quote TWO forms side by side — a registrant's expression
+/// against its intended consumer's, when a registered identity does not
+/// reach the consumer because the two are not the same node
+/// (`Sym::register_equal`'s same-object clause). `None` outside a
+/// session, or with the tier off.
+///
+/// The public half of [`render_node`], which the `Decide` impl uses for
+/// the residual that BLOCKED; this one names its node, because the
+/// interesting pair is usually two nodes no decide site ever asked
+/// about together.
+#[must_use]
+pub fn render_of(node: SymId) -> Option<String> {
+    render_node(node)
 }
 
 /// Nested atoms render to this depth, then `…`.

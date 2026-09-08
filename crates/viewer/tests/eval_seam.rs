@@ -23,9 +23,10 @@ use std::sync::Arc;
 use pncad::document::{CancelToken, EvalOptions, EvalOutcome, ProfileProgram, SlotId, evaluate};
 use pncad::geom_core::Tol;
 use viewer::evalseam::{
-    EvalDone, EvalRequest, EvalService, Generation, IndexDone, IndexRequest, IndexService,
-    InlineEvaluator, InlineIndexer,
+    EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineEvaluator,
+    InlineIndexer,
 };
+use viewer::generation::Generation;
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Landing, Outstanding, SessionOp};
