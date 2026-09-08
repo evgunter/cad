@@ -61,6 +61,17 @@ trust the paragraph above.
    is decided by measuring the three witnesses, which is what the M11
    addendum did. `tools/k-lint/src/lib.rs`'s doc restates this rule in
    its own words; when the two disagree, this one is the rule.
+
+   **The three quantities this clause names are re-read on every
+   `k-lint (gate)` run**, value and witness NAME both, by
+   `tools/k-lint/tests/threshold_provenance.rs`'s
+   `the_m7_era_still_carries_the_witnesses_the_report_names`. What that
+   buys is one direction only: the committed era still carries what
+   this clause says it carries, so a re-cut that moved a witness cannot
+   land while the prose still names the old one. It cannot say a re-cut
+   is OWED — that needs a fresh sweep measured against these files, and
+   rule 2 is why none runs there. So if the era is ever re-argued, this
+   clause moves first and that row moves with it.
 2. **Nothing reads these files as a gate.** CI's `k-lint` runs
    `scripts/k_probe_sweep.sh` into a scratch dir and lints *that*; the
    committed files supply the thresholds in `tools/k-lint/src/lib.rs`
