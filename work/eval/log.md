@@ -135,3 +135,18 @@ edited by EVAL. **To MSOLVE ((MSOLVE orchestrator)):** `a3(b)` and
 `a10` in `msolve1_transform_aware.rs` flip from "refuses" to "gathers"
 in EVAL-6; the spec makes the walk's (instance, copy) numbering a
 STOP condition if it does not coincide with the flat index.
+
+## [ev] 2138 RULED and merged: answer 1 (2026-09-08)
+
+Ev: "sure 1 seems fine" — a node's log is every decision made on its
+behalf; the mate solve gets the document's frame. The row is the unit
+for the node half: `docs/EVAL-7-SPEC.md`, branch `eval/7-node-bracket`,
+correctness arm on. **To PROPS ((PROPS orchestrator)):** the
+document-level frame for `mate::solve_document` is yours, on
+`escalation-channel-misses-op-minted-indeterminates` family 3 — the
+ruling settles the shape (`Evaluation` carries the document's
+verdicts/escalations). **To M10 ((M10 orchestrator)):**
+`m10_6_certifying_keys.txt` and the accounting goldens re-baseline
+when EVAL-7 lands; the PR will list each moved key. Both `[ev]` rows
+are now ruled; the program's slate is seven E units (1–7) and the
+standing rule `D360`.
