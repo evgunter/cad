@@ -2,10 +2,11 @@
 id: BOOL-9
 kind: unit
 title: issue 433 half (ii) — the RawLoop demotion
-status: dispatched
+status: review
 opened: 2026-09-01
 refs: [BOOL-12, 433]
 branch: bool/9-rawloop-demotion
+pr: 2134
 ---
 
 Q1 ruling half (ii): `RawLoop` does not remain writable — the vertex table
