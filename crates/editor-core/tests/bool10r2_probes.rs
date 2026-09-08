@@ -68,7 +68,11 @@ fn vertex_count(ev: &Evaluation<f64>, id: RecipeNodeId) -> usize {
     else {
         panic!("a profile payload");
     };
-    p.validated.loops().iter().map(|lp| lp.vertices().len()).sum()
+    p.validated
+        .loops()
+        .iter()
+        .map(|lp| lp.vertices().len())
+        .sum()
 }
 
 /// **The split count is in the content key.** Evaluating the split

@@ -141,15 +141,7 @@ fn center_split_reverses_bit_identically_in_both_windings() {
         let leg = |from: Point2<f64>, to: Point2<f64>, winding: ArcSweep| {
             pinned(
                 Open.at(from)
-                    .arc_to(
-                        Center {
-                            c,
-                            winding,
-                            p: to,
-                        }
-                        .split(n),
-                        Tol::witness(),
-                    )
+                    .arc_to(Center { c, winding, p: to }.split(n), Tol::witness())
                     .unwrap()
                     .line_to(Start, Tol::witness())
                     .unwrap(),
@@ -240,10 +232,7 @@ fn arc_len_split_lands_on_the_unsplit_end() {
         len: 1.1,
     };
     let leg = |n: Option<usize>| {
-        let p = Open
-            .at(p2(0.1, 0.2))
-            .angle(0.3, Tol::witness())
-            .unwrap();
+        let p = Open.at(p2(0.1, 0.2)).angle(0.3, Tol::witness()).unwrap();
         let p = match n {
             None => p.arc_to(spec, Tol::witness()).unwrap(),
             Some(n) => p.arc_to(spec.split(n), Tol::witness()).unwrap(),
@@ -264,7 +253,10 @@ fn arc_len_split_lands_on_the_unsplit_end() {
         let (sx, cx) = 0.3f64.sin_cos();
         let centre = p2(0.1 + sx * 0.7, 0.2 - cx * 0.7);
         let off = worst_radial(&split, centre, 0.7);
-        assert!(off < 8.0 * f64::EPSILON, "n={n}: off the carrier by {off:e}");
+        assert!(
+            off < 8.0 * f64::EPSILON,
+            "n={n}: off the carrier by {off:e}"
+        );
         let joints: Vec<usize> = (1..n).collect();
         assert_eq!(split.tangent_joints(), &joints[..]);
     }
