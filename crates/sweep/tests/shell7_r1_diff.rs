@@ -153,10 +153,9 @@ fn shell7_r1_diff_corpus() {
             Revolution::Full,
         ),
         0.2,
-    ) {
-        if let Some(again) = shelled("vessel twice", &hollow, 0.05) {
-            shelled("vessel thrice", &again, 0.01);
-        }
+    ) && let Some(again) = shelled("vessel twice", &hollow, 0.05)
+    {
+        shelled("vessel thrice", &again, 0.01);
     }
     let (c, a, u) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x());
     let arc = TubeWindow::Arc {
