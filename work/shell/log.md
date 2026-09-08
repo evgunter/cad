@@ -684,3 +684,25 @@ scored by either reviewer.
 
 Block SHELL-B3 slot 0 concludes; slots 1 and 2 remain (record
 branch-side). SHELL-3 still waits on PROPS' sign-hull unit.
+
+## SHELL-10 cut (2026-09-08)
+
+The doors' remaining whole-body walks, SHELL-8's disclosed item made
+concrete by SHELL-9's cost count (N + k + 1 whole-body mints on an
+opened N-solid body): spec `docs/SHELL-10-SPEC.md`, branch
+`shell/10-scoped-walks`, block SHELL-B3 slot 1 (the arm is in the
+branch-side record; the pre-draw fields S–M / STRUCTURAL are logged
+after the block byte — disclosed on the item, as every non-first
+slot's are). Decision bound by the spec: each simultaneous door reads
+exactly its scope — the partition built from the named solids'
+shells, the pcurve pass over the scope's faces through an additive
+`mint_pcurves_of` (TOPO seam), the closure check over the scope's
+shells through an additive `validate_closed_of` or the per-shell
+machinery that exists (never a second validator), with SHELL-9's
+cache-row instrument and SHELL-8's body dumps as the two
+differentials. Rejected: leaving the closure check whole-body as "a
+read" — a read that refuses is a write to the caller. Alternative not
+taken: idling until PROPS' sign-hull lands (branch idle since 01:11
+UTC, no PR) — the block has two slots open and this is the last
+in-fence kernel item with its evidence already built. Lane at
+`/home/user/shell-lanes/shell-10/`, private target and scratch beside.

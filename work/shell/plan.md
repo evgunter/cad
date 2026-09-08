@@ -77,7 +77,11 @@ arm must agree with `ShellNaming`), `editor-core`'s recipe doors
    `void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`
    closed. Block SHELL-B3 slot 0. Filed by the lane:
    `shell-launders-a-stale-operand-row` (the class is kernel-wide —
-   TOPO's `producer-closing-mint-is-a-convention-with-thirteen-copies`). The drum half is TOPO's
+   TOPO's `producer-closing-mint-is-a-convention-with-thirteen-copies`).
+4e. **Next: SHELL-10, the doors walk only their scope** —
+   `shell-doors-still-walk-the-whole-body`: the partition, the pcurve
+   pass and the closure check narrowed to the solids a move set
+   names; spec `docs/SHELL-10-SPEC.md`; block SHELL-B3 slot 1. The drum half is TOPO's
    (`work/topo/revert-does-not-mirror-plane-chart-images`); the
    cone-hyperbola refusal is parked on
    `offset-lane-has-no-conic-carrier` (Ev's fork).
