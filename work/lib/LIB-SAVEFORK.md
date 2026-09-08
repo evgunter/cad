@@ -1,11 +1,12 @@
 ---
 id: LIB-SAVEFORK
 kind: unit
-title: 'a save is two acts: save-at-path refuses a duplicate id; fork mints a fresh one'
+title: a save is two acts: save-at-path refuses a duplicate id; fork mints a fresh one
 status: review
 branch: lib/savefork
 refs: [save-a-copy-duplicate-id-bricks-store]
 opened: 2026-09-08
+pr: 2184
 ---
 
 Builds Ev's ruling (A) at PR 2016, recorded at ASSEMBLY.md A4: a save
