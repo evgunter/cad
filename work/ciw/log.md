@@ -1386,3 +1386,44 @@ fire.
 **Style review only.** Neither half moves logic; the deliverable is a
 convention plus one invocation, and the risk is in what a parity claim
 would over-reach into rather than in a subtle bug.
+
+## 2026-09-07 — unit 3 delivered (PR 2124)
+
+Both items to `review`. The unit is one class from two directions and it
+lands as three things.
+
+**One invocation.** `scripts/opt-level-calibrate.py --selftest` runs in
+`ci.yml`'s `discipline`, mirrored in `ci-local.sh`. Sited **per-PR, not in
+the nightly** — the item offered two nightly sites and neither survives the
+unit's own sentence, that a guard sited only in a scheduled workflow is
+exercised only on a schedule. Sited in `discipline` rather than `mirror`
+because the script's inputs are `scripts/*.py`, which is not a docs-tier
+class, so the change set that can break it is the change set that job runs
+on. The path's `MIRROR_EXEMPT` entry expired and is deleted.
+
+**One claim, and one refused.** The parity claim the item hoped for — a row
+no schedule has ever fired — asks about run HISTORY and would need the
+Actions API, so it is not built: a check that needs the network fails on a
+fork, offline and in the local half, and an honest sentence beats a claim
+that only works hosted. The tree question next to it IS built:
+`check-ci-mirror-parity.py` CLAIM 12 refuses a `--selftest` mode outside
+`scripts/gates/` that nothing invokes. Proven red by mutation on the real
+tree, four selftest cases. `gate-roster.sh` untouched; the widening of ITS
+scope is announced to GATES in the PR body with its citations.
+
+**One convention.** `implementer-discipline.md` §2: a demotion is verified at
+the demotion, and the same rule one level in for selftests. Announced to META
+— CIW's standing clause is about §2's run-facts and this is a convention.
+
+**The 10-minute nightly was not the gate skipping.** Read at the job list:
+runs 16 and 17 both have 13 jobs and both ran the body. The whole 17-minute
+delta is `opt-level calibration`'s weekly-or-on-drift cadence — on 09-06 the
+measured arms skipped (job: 23 s), on 09-07 they ran 25 minutes. All three
+demoted rows executed and passed at STEP level on 09-06 too. No item; the
+finding is recorded in `nightly-demotions-have-never-run`'s disposition so the
+next reader does not re-derive it.
+
+**Residue filed**: `criterion-selftest-nightly-only` —
+`scripts/criterion-emit.py --selftest` is invoked only from `nightly.yml`,
+the same class one step milder, and its comment cites the calibrator as the
+precedent for that siting.

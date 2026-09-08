@@ -2,9 +2,10 @@
 id: opt-level-selftest-runs-nowhere
 kind: issue
 title: opt-level-calibrate.py --selftest is invoked by nothing in the tree - a guard that has never been shown to fire
-status: dispatched
+status: review
 opened: 2026-09-04
 branch: ciw/demotion-verified
+pr: 2124
 ---
 
 
@@ -74,3 +75,33 @@ protects, matching the criterion lane's spelling). Whoever takes it
 should also decide whether `gate-roster.sh`'s outlier list is the right
 home for the general rule, so the next script in this position is caught
 by a check rather than by a lane that happened to look.
+
+## Disposition (PR 2124)
+
+`scripts/opt-level-calibrate.py --selftest` runs in `.github/workflows/ci.yml`'s
+`discipline` job, mirrored in `local-scripts/ci-local.sh`. **Per-PR, not
+nightly**, on the argument this item's sibling is about: a guard sited only in
+a scheduled workflow is exercised only on a schedule. The item's two candidate
+sites were both in `nightly.yml`; neither survives that, and the
+"closest to the append it protects" half does not survive the detail that the
+nightly runs `main`, which is reached only through the gate that now carries
+the selftest. Sited in `discipline` rather than `mirror` by
+`check-run-jobs.py`'s own argument: the script's inputs are `scripts/*.py`,
+which is not a docs-tier file class, so the change set that can break the
+selftest is exactly the change set `discipline` runs on.
+
+The path's `MIRROR_EXEMPT` entry is deleted — both halves name it now, so the
+confession expired; its hosted-only reason is re-stated at the local row,
+where it is about the LANE rather than the path.
+
+**The general rule got a check, and it is not in `gate-roster.sh`.** That file
+is GATES' and PR 2077 was open on it. `scripts/check-ci-mirror-parity.py` gains
+CLAIM 12: a script under `scripts/` or `demos/` outside `scripts/gates/` that
+implements a `--selftest` mode nothing invokes. `scripts/gates/` stays the
+roster's ground and is excluded. Proven red by mutation on the real tree, and
+pinned by four selftest cases including a mention-is-not-a-caller case.
+
+Residue, filed: `work/ciw/criterion-selftest-nightly-only` —
+`scripts/criterion-emit.py --selftest` is invoked only from `nightly.yml:1835`,
+the same class one step milder, and its comment cites THIS script as the
+precedent for that siting.
