@@ -176,12 +176,19 @@
 //! it calls a reading. A parse guard bounds what a column may SAY; it
 //! cannot know whether the producer measured it.
 //!
-//! **The counterfactual columns are not an exception to this**, though
-//! the argument for one is real: `nu`, `nv`, `patch_cells` and
-//! `opt_cells` are diagnostics no rule reads, so a fabricated value
-//! there decides nothing today. It would decide something the moment a
-//! rule read them, and a fallback whose safety is a property of the
-//! consumer roster is a fallback waiting for a consumer.
+//! **The counterfactual columns are not an exception to this, and the
+//! argument that they were has since expired.** `nu`, `nv`,
+//! `patch_cells` and `opt_cells` were written as diagnostics no rule
+//! read, so a fabricated value there decided nothing — a safety that
+//! was a property of the CONSUMER ROSTER and not of the column, which
+//! is a fallback waiting for a consumer. The consumers arrived:
+//! `tess-lint`'s `IDENTITY_MEASURES` makes `nu` and `nv` gate inputs
+//! (its rule 4 keys a face on them), its report prints the
+//! `patch_cells` total as the whole-patch counterfactual, and its
+//! `parse` now refuses a row whose columns disagree about either of
+//! the two identities [`columns`] writes. Nothing here changed when
+//! they did, which is the whole reason the fallbacks were refused
+//! before there was a consumer to point at.
 //!
 //! # What is measured for which chart
 //!
@@ -649,6 +656,18 @@ pub fn csv(
 /// The NURBS columns of one face's measurements: the counterfactual
 /// schedules and the cheapest splits, derived from the certified
 /// bounds the lane read.
+///
+/// **Two of these columns are RELATIONS the consumer refuses a row
+/// for breaking**, and they are stated here because here is where
+/// they are made: `patch_cells` is exactly `nu · nv`, and `opt_cells`
+/// can never exceed it, since [`best_split_scan`] seeds its running
+/// minimum with the same whole-patch schedule `nu` and `nv` count.
+/// `tools/tess-lint`'s `parse` checks both at its reading boundary
+/// (`tools/README.md`'s `CC3`), in the harness voice — it may not
+/// assume this function computed them, which is the same posture the
+/// module header takes toward every column. Changing either identity
+/// here reds that gate, and this note is the only warning a reader in
+/// this cargo root gets.
 fn columns(m: &FaceMeasure) -> NurbsColumns {
     let (du, dv) = (m.u.1 - m.u.0, m.v.1 - m.v.0);
     // The retired whole-patch schedule, re-derived as the

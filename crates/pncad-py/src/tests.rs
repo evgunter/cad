@@ -2719,3 +2719,154 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
         complaints.join("\n  ")
     );
 }
+
+/// **The committed roster of `Doc.node_kind`'s vocabulary.**
+///
+/// Sorted, and every word [`crate::node_kind::node_kind`] can answer.
+/// The test below re-derives the set from that module's own literals
+/// at test time and compares, so an added, renamed or deleted kind
+/// reds by name.
+const NODE_KIND_ROSTER: &[&str] = &[
+    "assertion",
+    "boolean_intersect",
+    "boolean_subtract",
+    "boolean_union",
+    "chamfer",
+    "datum",
+    "declare",
+    "extrude",
+    "fillet",
+    "hollow_tube",
+    "instantiate_part",
+    "loft",
+    "mate",
+    "measure",
+    "part",
+    "pattern",
+    "placed_union",
+    "profile",
+    "revolve",
+    "split",
+    "sweep",
+    "transform",
+    "tube",
+    "union",
+];
+
+/// **The node-kind words are a public Python contract**, pinned whole.
+///
+/// The `match` in `src/node_kind.rs` is exhaustive with no wildcard
+/// arm, so a NEW kernel variant stops this crate compiling: the
+/// EXISTENCE half of the contract is the compiler's and wants nothing
+/// from a test. The VALUES have no such guard. They are bare string
+/// literals, and renaming one — `"placed_union"` to `"group"` —
+/// compiles clean and breaks every Python caller branching on the
+/// string. That is the argument
+/// [`the_whole_tag_table_matches_its_committed_inventory`] makes about
+/// `src/tags.rs`, and this row is the same mechanism at the same
+/// altitude: read the source, compare against a roster committed here,
+/// where a reviewer sees it move in the same diff as the value.
+///
+/// **The reader is one loop because the FILE is disciplined.** Every
+/// string literal in `src/node_kind.rs` is a kind word — the module
+/// holds one function and nothing else that could carry a literal — so
+/// "every literal in the literal view" is the whole extraction. A
+/// helper added there that needed a literal of its own would red here,
+/// which is the right outcome: it would also be a second thing in a
+/// file whose one job is this vocabulary.
+///
+/// **And it reads the STUB too.** A word the Rust side speaks but
+/// `pncad.pyi` never lists is a word no Python caller can discover, so
+/// every roster entry must appear in backticks inside `node_kind`'s
+/// own docstring — scoped to that docstring, because several of these
+/// words are also method names elsewhere in the file and a whole-file
+/// search would pass on those for the wrong reason.
+///
+/// **What it does NOT prove**, exactly as the tag inventory's does
+/// not: this pins the vocabulary, not the MAPPING. Swap two arms'
+/// literals and the set is unchanged. The mapping is executed by the
+/// Python suite, which drives real documents through the door
+/// (`tests/test_document.py`, `tests/test_placed_union.py`).
+#[test]
+fn the_node_kind_vocabulary_matches_its_committed_roster() {
+    // `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed
+    // on another runner has no such directory.
+    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("node_kind.rs");
+    let source = std::fs::read_to_string(&path).expect("this crate's own src/node_kind.rs");
+
+    // The literal view of the shared lexer, so a word written in a doc
+    // comment is prose and only a real literal is a word.
+    let literals = test_utils::source::keeping(&source, &[test_utils::source::Region::Literal]);
+    let mut found: Vec<String> = Vec::new();
+    let mut rest: &str = &literals;
+    while let Some(open) = rest.find('"') {
+        rest = &rest[open + 1..];
+        let close = rest
+            .find('"')
+            .expect("the lexer's literal view closes every quote it opens");
+        found.push(rest[..close].to_owned());
+        rest = &rest[close + 1..];
+    }
+    found.sort();
+
+    // The floor: a reader that came back with nothing must red rather
+    // than agree with an empty roster.
+    assert!(
+        found.len() >= 20,
+        "the reader found only {} literals in src/node_kind.rs — it is \
+         matching almost nothing, so this guard was about to pass \
+         vacuously",
+        found.len()
+    );
+
+    let want: Vec<String> = NODE_KIND_ROSTER.iter().map(|w| (*w).to_owned()).collect();
+    assert!(
+        want.windows(2).all(|p| p[0] < p[1]),
+        "NODE_KIND_ROSTER must be sorted and free of duplicates"
+    );
+    let added: Vec<&str> = found
+        .iter()
+        .filter(|w| !want.contains(w))
+        .map(String::as_str)
+        .collect();
+    let gone: Vec<&str> = want
+        .iter()
+        .filter(|w| !found.contains(w))
+        .map(String::as_str)
+        .collect();
+    assert!(
+        added.is_empty() && gone.is_empty(),
+        "src/node_kind.rs has moved away from NODE_KIND_ROSTER: word(s) \
+         ADDED {added:?}, word(s) GONE {gone:?} (a RENAME shows as one of \
+         each).\n\nTHESE WORDS ARE A PUBLIC PYTHON CONTRACT: a Python caller \
+         branches on `Doc.node_kind`, so a renamed word is a breaking change \
+         and a new one is new public surface. If the move is deliberate, \
+         update NODE_KIND_ROSTER in this same commit and check `pncad.pyi` \
+         and `tests/*.py` for callers of every word that moved."
+    );
+
+    // The stub side: every word listed where a Python caller reads it.
+    let stub = std::fs::read_to_string(
+        test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("pncad.pyi"),
+    )
+    .expect("this crate's own pncad.pyi");
+    let from = stub
+        .find("def node_kind(")
+        .expect("pncad.pyi declares Doc.node_kind");
+    let docstring = &stub[from..];
+    let docstring = &docstring[..docstring.find("\n    def ").unwrap_or(docstring.len())];
+    let unlisted: Vec<&str> = NODE_KIND_ROSTER
+        .iter()
+        .copied()
+        .filter(|w| !docstring.contains(&format!("`{w}`")))
+        .collect();
+    assert!(
+        unlisted.is_empty(),
+        "`Doc.node_kind`'s docstring in pncad.pyi does not list {} of its \
+         own words: {unlisted:?} — a word a caller cannot discover is a word \
+         that is not really bound",
+        unlisted.len()
+    );
+}
