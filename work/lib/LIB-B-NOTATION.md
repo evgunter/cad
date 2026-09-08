@@ -185,3 +185,62 @@ blind spots above. Both decay guards stay green in both directions.
 
 ## Outcome
 
+The family closed, and it took SIX doors where the charter named two
+names — the two it named are exactly the two the roster held, and
+everything else was surface neither roster could see:
+
+- `WrittenLength` / `WrittenAngle`, spelled identically, with
+  `in_unit` and `canonical_in` as the two constructors, the erasure
+  door (`length` / `angle`), the canonical number and the notation.
+  No arithmetic, mirroring the Rust types and for their reason.
+- `DocParam.written_length(w)` / `DocParam.written_angle(w)`.
+- `DocParam.unit -> str | None` — the notation as its SYMBOL, which
+  is the sentence `UnitSym`'s `different-shape` row had been
+  promising; `None` only for a `Count`, `""` for the dimensionless
+  row.
+- `Doc.params -> dict[ParamName, DocParam]` — NOT in the charter, and
+  required by it. Python had no read door for a document parameter at
+  all, so a document could remember `mm` and no caller could ask;
+  binding the authoring half alone would have shipped a memory
+  observable only by saving to text and parsing the JSON by hand.
+- `LengthUnit.__eq__` / `__hash__` and `AngleUnit.__eq__` / `__hash__`
+  — also not in the charter, also required by it. The unit classes
+  carried no comparison, so `mm == mm` held only by identity and a
+  unit READ BACK off a value compared unequal to the constant it was
+  written in. A read door for a notation is unusable without them.
+
+The measurement, before and after, on the same authoring: the saved
+row for `width` read `"display_unit": "m"` and now reads `"mm"`.
+`DocParam.length` is untouched and still records the canonical row —
+a caller with a number and no notation says so rather than having one
+guessed, which `test_the_erasing_door_still_erases` pins.
+
+`crates/pncad-py/tests/test_notation.py` is the positive form: 30
+tests over the saved BYTES wherever the claim is about what a document
+records, the two-halves equality and its `-0.0` fold, the value door
+leaving the notation alone against the create-or-replace door
+restating it, the text door already carrying it, and the
+mis-dimensioned row refusing at LOAD in two different ways
+(`display_unit` at the walk, `unreadable` at the token). Five rows in
+each ty fixture, where the unrepresentable pairing is the static half
+of the claim the runtime has no refusal for.
+
+Census delta, exactly as predicted: both entries leave `NOT_BOUND`
+entirely under rule 1, the `B-NOTATION` charter leaves `FAMILIES`, and
+the closure paragraph records the three blind spots — a METHOD behind
+a curated type, a missing DUNDER invisible to both rosters, and the
+52 node-slot literal sites.
+
+One finding banked rather than taken:
+`work/lib/node-slot-literals-erase-the-authored-notation.md` — every
+Python door that takes a `Length` into a node SLOT records the
+canonical row, 52 sites in 18 doors, which needs a written seat at
+each and is a decision about the whole authoring lattice rather than a
+census row.
+
+Deviations from the brief, both argued above rather than taken:
+`Expr::written_length` / `written_angle` are not bound (the text door
+already reaches them, and `py/expr.rs` already rules the individual
+builders out), and `DocParamValue` gets no written door (the notation
+rides with the declaration, which is the value door's entire
+contract).
