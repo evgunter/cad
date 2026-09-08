@@ -627,6 +627,37 @@ const SIZING_COLUMNS: [(&str, Admissible); 6] = [
     ("worst_dev", Admissible::OptionalDeviation),
 ];
 
+/// The sizing block's CELL-COUNT columns, in [`EXPECTED_HEADER`]'s
+/// order — the sweep totals a report over this file can sum.
+///
+/// Derived from `SIZING_COLUMNS` rather than spelled again, and
+/// derived from the ADMISSIBILITY rather than from the names: which
+/// columns are cell counts is a fact about what [`parse`] will admit
+/// in them, and a roster built on the `_cells` suffix instead would
+/// be a fact about spelling — wrong in both directions the moment a
+/// cell count is named otherwise or a non-total is named that way.
+///
+/// **The sizing block only, which is the whole of the choice here.**
+/// `bands` is `Admissible::CellCount` too, and `nu`/`nv` are as
+/// well; neither block is a grid the schedule built, and the type
+/// they share is an admissibility (finite, at least one), not a
+/// meaning. `cells` — the analysis cells the per-cell bound reported
+/// — sits before `SIZING_FIRST` and so is not in this table at all,
+/// which is why it needs no exemption.
+///
+/// Exists for `tests/report_columns_pin.rs`, which holds the CLI's
+/// cell-total block against it: an integration test cannot see a
+/// private const, and the alternative was a second roster in the test
+/// that could drift from this one in silence.
+#[must_use]
+pub fn cell_count_columns() -> Vec<&'static str> {
+    SIZING_COLUMNS
+        .iter()
+        .filter(|(_, kind)| matches!(kind, Admissible::CellCount))
+        .map(|(name, _)| *name)
+        .collect()
+}
+
 /// Where `dev_samples` sits in [`EXPECTED_HEADER`] — between the
 /// sizing block and the indicator block, and in neither.
 ///
@@ -1191,6 +1222,14 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
 
 /// One scene's totals — the unit the gate compares, because a face
 /// ordinal is only meaningful within its body.
+///
+/// **Each cell field is named for the CSV column it sums, and carries
+/// no other name.** That is the join: a reader holding a report, a
+/// document or this struct is holding the same word, and every
+/// re-spelling of one of these quantities as a phrase — however true
+/// the phrase — costs a lookup in `tess_meter` to resolve. [`Nurbs`]
+/// carries the same names one level down and cites the definitions of
+/// record.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SceneTotals {
     /// Faces in the scene.
@@ -1199,13 +1238,32 @@ pub struct SceneTotals {
     pub triangles: usize,
     /// Triangles on Hessian-sized faces only.
     pub nurbs_triangles: usize,
-    /// Grid cells the shipped (per-cell) sizing used, summed.
+    /// [`Nurbs::grid_cells`] summed — the grid the lane actually
+    /// built, sized per knot-span cell (TESS-SPAN).
     pub grid_cells: f64,
-    /// The whole-patch counterfactual's cells, summed.
+    /// [`Nurbs::patch_cells`] summed — the whole-patch-sup
+    /// counterfactual.
     pub patch_cells: f64,
-    /// Cheapest same-bound uniform grids, summed.
+    /// [`Nurbs::opt_cells`] summed — the cheapest UNIFORM grid the
+    /// whole-patch bound admits.
+    ///
+    /// **One uniform grid under the whole-patch bound, where
+    /// [`Self::span_opt_cells`] is sized and split PER CELL** — that
+    /// pair of qualifiers is the whole of the difference between the
+    /// two fields, and "the cheapest split" on its own is true of
+    /// both and identifies neither. No reading of either omits them.
+    ///
+    /// No rule divides by this sum — [`parse`] bounds the per-row
+    /// column against `patch_cells` and nothing downstream reads it —
+    /// so it is summed for one purpose: the CLI prints it BESIDE its
+    /// twin, two figures under two names being what makes the pair
+    /// tellable apart at a glance.
     pub opt_cells: f64,
-    /// Per-cell-sized grids at the cheapest split, summed.
+    /// [`Nurbs::span_opt_cells`] summed — the cheapest split PER
+    /// CELL, on top of per-cell sizing.
+    ///
+    /// [`Self::recoverable`]'s denominator, which is what the slack
+    /// rule compares.
     pub span_opt_cells: f64,
     /// Triangles on faces the sweep actually resampled.
     pub measured_triangles: usize,
