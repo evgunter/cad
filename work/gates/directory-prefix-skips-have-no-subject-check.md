@@ -81,22 +81,44 @@ is ABOUT, not the directory itself.
 Both are handed to `gate_require_homes` unchanged, one call per subject,
 each with its own subject sentence. The helper already answers exactly
 the question a prefix needs answered — the path is a file, and a file
-this scan actually READS — and proving the root is strictly stronger
-than proving the directory: a root that is in the scan set is a scanned
-resident under the prefix, so membership comes with it.
+this scan actually READS.
+
+**Anchoring is stronger than the directory test only while the root
+lies UNDER the prefix it licenses**, and that condition is not free.
+Under it a root in the scan set is also a scanned resident of the
+prefix, so membership comes with it. `py/mod.rs` satisfies it; rustc's
+other spelling of the same module, `py.rs`, does not — it sits in
+`src/`, one level above the module it names. So the gate holds the
+DIRECTORY once and builds the root from it (`FFI_HOME=$FFI_DIR/mod.rs`),
+which makes the condition structural. Written the other way round — the
+prefix derived from the root — a re-anchoring at `py.rs` would widen
+the exemption from `src/py/` to `src/` in silence; measured, and it is
+why the pair is written directory-first. A reorganisation to `py.rs`
+moves the prefix too, and the pair is re-argued rather than retyped.
 
 **Why not `[ -d ]`, and why not "some scanned file lives under the
 prefix".** Both are satisfied by the exempted file ITSELF. That is the
-live route the reviewer of PR 2156 demonstrated: remove
+VACATED-PATH route the reviewer of PR 2156 demonstrated: remove
 `crates/pncad/src`, write `crates/pncad/src/new.rs` minting
 `Tol::witness()`, and under either directory-shaped check the new file
 restores the very directory whose existence is supposed to license it —
-the prefix ratifies the file and is then ratified by it. D103's circle
-with a check drawn around it is not a check on D103. Anchored at the
-root, that scenario reds, and it is planted as its own fixture
-(`plant_door_renamed_away_then_rewritten`) rather than left to the
-home-gone case, because it is the COMPOSITION of the two halves that is
-the route.
+the exemption conjures the resident that licenses it. Anchored at the
+root, that scenario reds. It is planted as a fixture
+(`plant_door_renamed_away_then_rewritten`) as a record of the review's
+scenario; the refusal is terminal before the scan, so it reds for the
+same reason the home-gone case does and what it adds is the minting
+file the directory test would have been satisfied by.
+
+**This closes the vacated-path route only.** The other D103 route — a
+directory-granular exemption whose argument is not directory-wide — is
+untouched, and the door prefix is where it would bite: measured,
+`^crates/pncad/src/` covers eleven scanned files and exempts one live
+minting site (`crates/pncad/src/tolerance.rs:92`). It is NOT narrowed
+here, because the exemption is crate-granular by its own argument — the
+façade crate is where a user's tolerance becomes a witness, so any file
+in it can be the place that happens. The pyo3 prefix's reachability
+argument really is directory-wide. Both are said at the site: this check
+says the place is still there, not that the place is the right size.
 
 **Where the check lives: nowhere new.** Re-running the row's sweep at
 this branch's base (`gate_grep -vE '^…'` over `scripts/gates/*.sh`)
@@ -114,8 +136,15 @@ NAME;` into the home's own directory's `mod.rs`. For a home that IS a
 its own declarer — the resolver drops such a declaration as naming no
 other file, so the home stayed in the scan and the case passed a gate it
 was written to red. A `mod.rs` home is its DIRECTORY'S module, so the
-declaration that mounts it names the directory from one level up. No
-existing caller had a `mod.rs` home, so nothing else moves.
+declaration that mounts it names the directory from one level up.
+
+**One existing caller has a `mod.rs` home**: `evalscalar-allowlist.sh:42`
+(`crates/editor-core/src/eval/mod.rs`), in a gate that does NOT narrow,
+so its case is `gate_selftest_passes` and it passed before for the wrong
+reason — the home was overwritten and stayed in the scan, so nothing was
+mounted. It now mounts for real (`gate_test_only_mounts` resolves the
+planted declarer to `crates/editor-core/src/eval/`) and the gate passes
+because it scans every source, which is what the case says.
 
 **The clean fixture now plants all three subjects, each minting the
 witness its exemption covers**, so every skip is live in every fixture:
@@ -129,8 +158,10 @@ back out either prefix skip and the clean case reds.
 | ditto, with that case also removed | red: `gate_plant_home_gone crates/pncad/src/lib.rs` PASSED |
 | `gate_require_homes "$FFI_SUBJECT" "$FFI_HOME"` removed | red: `gate_plant_home_gone crates/pncad-py/src/py/mod.rs` PASSED |
 | `lib.sh`'s `mod.rs` branch removed | red: `gate_plant_home_unscanned crates/pncad-py/src/py/mod.rs` PASSED |
-| `gate_grep -vE '^crates/pncad/src/'` removed | red: the gate FAILED on a clean fixture |
-| `gate_grep -vE '^crates/pncad-py/src/py/'` removed | red: the gate FAILED on a clean fixture |
+| the `$door_prefix` skip removed from the filter | red: the gate FAILED on a clean fixture |
+| the `$ffi_prefix` skip removed from the filter | red: the gate FAILED on a clean fixture |
+| `DOOR_SUBJECT` and `FFI_SUBJECT` swapped at their `gate_require_homes` call sites | red: fired on `gate_plant_home_gone crates/pncad/src/lib.rs` with an unexpected message |
+| `DOOR_DIR` and `FFI_DIR` swapped | red live and in the self-test: `crates/pncad-py/src/py/lib.rs` is not a file |
 
 Live output is byte-identical to the merge base, stdout and stderr
 (`cmp`): `witness-not-ambient OK: no kernel library code mints a
@@ -138,24 +169,52 @@ tolerance witness (406 source files scanned)`.
 
 ## What is still open: the third exemption
 
-`^crates/[^/]+/src/bin/` is deliberately NOT in the list, and whether it
-should be is a ruling, not a lane's call. It names a cargo CONVENTION —
-anything under `src/bin/` is a bin target by construction — rather than
-a place, so it has no root to anchor. The two options:
+`^crates/[^/]+/src/bin/` is not in the list, and whether it should be is
+a ruling, not a lane's call. It names a cargo CONVENTION — anything
+under `src/bin/` is a bin target by construction — so unlike the two
+named prefixes it does not name one place with one root. Three shapes
+the check could take, one cost each:
 
-  * **Keep it unchecked as a convention-class exemption**, with the
-    reasoning stated at the site (this is what landed). Cost: one
-    exemption in this directory stands without a subject check, so the
-    class the row opened is closed for named places and open for
-    convention classes — a distinction a future reader has to be told
-    about, and the argument for it lives in a comment rather than in a
-    check.
-  * **Require at least one `src/bin/` resident across the workspace.**
-    Cost: a correct tree with no bin target anywhere reds. Today
-    `crates/viewer/src/bin` is the only one in the repo, so retiring
-    that one binary — an ordinary change — turns the gate red until
-    someone deletes the exemption too. That is the check working as
-    designed and it is also a red on a correct tree.
+  * **No check; the reasoning stated at the site.** Cost: one exemption
+    in this directory stands with nothing behind it, and the class this
+    row opened closes for named places while staying open for convention
+    classes — a distinction a future reader is told about in a comment
+    rather than shown by a check.
+  * **At least one `src/bin/` resident across the workspace.** Cost: a
+    correct tree with no bin target anywhere reds. `crates/viewer/src/bin`
+    is the repo's only one, so retiring that binary — an ordinary change
+    — reds the gate until the exemption is deleted too.
+  * **Cargo's own evidence: the `[[bin]]` targets and `src/bin/*.rs`
+    files the workspace declares, or the hitting file's own crate root.**
+    Cost: the gate grows a manifest reader (or a per-hit root lookup) and
+    a second source of truth to keep in step with the scan, where the
+    other two are one line each.
 
 Asked of Ev in the `[ev]` PR named in `blocked_on`. This row stays open
 on this half.
+
+## The fix pass
+
+The style review of PR 2170 asked for eight further changes; all are in.
+The two that changed behaviour rather than prose:
+
+  * **The prefix skips are BUILT from the held directories** rather than
+    spelled a second time as raw EREs (`gate_licensed_prefix`, over
+    `DOOR_DIR` / `FFI_DIR`), so the filter, the subject sentence, the
+    root and the fixtures all read one spelling of each directory.
+    Swapping the two directories now reds live and in the self-test,
+    where before the swap was caught only by a fixture's want string.
+  * **`gate_selftest_homes` takes `--subject`**, and the home-gone case
+    then requires the diagnosis to carry that sentence as well as the
+    path (`gate_selftest_case --also`). Swapping the two subjects at
+    their `gate_require_homes` call sites was green before this and reds
+    now. The flag is optional, so the six other callers are unchanged
+    and can adopt it; nothing outside this gate's fence was edited.
+
+Also stated rather than checked, at the sites: for a crate-root home the
+out-of-scan case exercises the resolver's basename rule and not a shape
+a tree could take, since no crate root can be mounted test-only at all
+(what it proves there is that the gate reds whenever a home leaves the
+scan, which for a crate root is reachable by a symlink or a narrowing);
+and the unchecked third prefix's site now points at this row and at the
+`[ev]` PR.

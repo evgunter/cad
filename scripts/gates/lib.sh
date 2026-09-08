@@ -1545,12 +1545,20 @@ win.rs:4: }" ]; then
   rm -rf "$tmp"
 }
 
-# gate_selftest_case WANT PLANTER [ARGS...] — one positive case: the
-# clean fixture plus whatever PLANTER writes must FAIL, with a
-# gate_error diagnosis containing WANT. The gate body is unparameterised
-# apart from its root, so every case exercises the real matcher, the
-# scan-target guard, and the diagnostic path.
+# gate_selftest_case [--also WANT]... WANT PLANTER [ARGS...] — one
+# positive case: the clean fixture plus whatever PLANTER writes must
+# FAIL, with a gate_error diagnosis containing WANT. The gate body is
+# unparameterised apart from its root, so every case exercises the real
+# matcher, the scan-target guard, and the diagnostic path.
+#
+# `--also` IS FOR A DIAGNOSIS THAT CARRIES TWO INDEPENDENT FACTS in
+# places a single substring cannot span — the missing home and the
+# subject it exempted, say. Each is required of the same output, so a
+# message that names the right path with the wrong reason fails here
+# instead of reading as a pass.
 gate_selftest_case() {
+  local -a also=()
+  while [ "${1:-}" = --also ]; do also+=("$2"); shift 2; done
   local want=$1; shift
   # THE PLANTER AND ITS ARGUMENTS, captured before the planter runs. The
   # planter NAME alone names the wrong thing at a distance the moment a
@@ -1571,11 +1579,14 @@ gate_selftest_case() {
   fi
   rm -rf "$tmp"
   gate_selftest_assert_diagnosed "$case_name" "$out"
-  case "$out" in
-    *"$want"*) ;;
-    *) printf 'SELFTEST FAILED: %s fired on (%s) with an unexpected message — wanted a diagnosis carrying `%s`:\n%s\n' "$(gate_name)" "$case_name" "$want" "$out" >&2
-       exit 1 ;;
-  esac
+  local w
+  for w in "$want" ${also[@]+"${also[@]}"}; do
+    case "$out" in
+      *"$w"*) ;;
+      *) printf 'SELFTEST FAILED: %s fired on (%s) with an unexpected message — wanted a diagnosis carrying `%s`:\n%s\n' "$(gate_name)" "$case_name" "$w" "$out" >&2
+         exit 1 ;;
+    esac
+  done
 }
 
 # gate_selftest_passes WHAT PLANTER [ARGS...] — gate_selftest_case's
@@ -2102,11 +2113,9 @@ gate_plant_home_gone() {
 #
 # A `mod.rs` HOME IS ITS DIRECTORY'S MODULE, so the declaration that
 # mounts it names the DIRECTORY and sits ONE LEVEL UP: `mod py;` beside
-# `py/`, not `mod mod;` inside it. Written out because the sibling rule
-# applied literally to such a home overwrites the home with a
-# declaration that resolves onto ITSELF — which the resolver drops as
-# naming no other file, leaving the home in the scan and the case
-# passing a gate it was written to red.
+# `py/`, not `mod mod;` inside it. A declaration resolving onto its own
+# declarer names no other file, so the sibling rule applied literally to
+# such a home mounts nothing at all.
 gate_plant_home_unscanned() {
   local home=$1 tmp=$2
   local base=${home##*/} dir=${home%/*}
@@ -2117,12 +2126,21 @@ gate_plant_home_unscanned() {
   printf '#[cfg(test)]\nmod %s;\n' "${base%.rs}" > "$tmp/$dir/mod.rs"
 }
 
-# gate_selftest_homes [--narrowed] HOME... — the check's cases, for one
-# gate, over the SAME list the gate hands its filter and its clean
-# fixture. Each case wants the missing path BY NAME, so a diagnosis that
-# named some other home — or named none — fails here rather than reading
-# as a pass. `--narrowed` says the gate calls `gate_production_sources`,
-# which decides which way the out-of-scan case points.
+# gate_selftest_homes [--narrowed] [--subject S] HOME... — the check's
+# cases, for one gate, over the SAME list the gate hands its filter and
+# its clean fixture. Each case wants the missing path BY NAME, so a
+# diagnosis that named some other home — or named none — fails here
+# rather than reading as a pass. `--narrowed` says the gate calls
+# `gate_production_sources`, which decides which way the out-of-scan
+# case points.
+#
+# `--subject` BINDS THE HOMES THAT FOLLOW IT to the sentence the gate
+# hands `gate_require_homes`, and it is the half a path alone cannot
+# check: the refusal prints the subject, so without this a gate that
+# attaches one home's subject to another's skip reads as a pass, and
+# with it that swap reds here. Repeat the flag to open a new group; the
+# homes before any flag are checked by path alone, which is what a
+# caller that has not adopted it gets.
 #
 # ONE RUN PER HOME, rather than one run with the whole list removed: the
 # refusal is terminal at the FIRST home it rejects, so a case that
@@ -2132,10 +2150,15 @@ gate_plant_home_unscanned() {
 gate_selftest_homes() {
   local narrowed=false
   if [ "${1:-}" = --narrowed ]; then narrowed=true; shift; fi
-  local home
+  local home count=0
+  local -a also=()
   gate_empty_home_list_case
-  for home in "$@"; do
-    gate_selftest_case "$home is not a file under" gate_plant_home_gone "$home"
+  while [ $# -gt 0 ]; do
+    if [ "$1" = --subject ]; then also=(--also "$2"); shift 2; continue; fi
+    home=$1; shift
+    count=$((count + 1))
+    gate_selftest_case ${also[@]+"${also[@]}"} "$home is not a file under" \
+      gate_plant_home_gone "$home"
     if [ "$narrowed" = true ]; then
       gate_selftest_case "$home is in this tree but is not one of the" \
         gate_plant_home_unscanned "$home"
@@ -2144,8 +2167,8 @@ gate_selftest_homes() {
         gate_plant_home_unscanned "$home"
     fi
   done
-  printf '%s selftest OK (the whole-file skip'"'"'s subject): each of the %d home(s) it exempts is a red naming that path when it leaves the tree, and %s; the clean fixture plants the same list, so a home named in the filter that the fixture does not plant reds the clean case; and `lib.sh`'"'"'s empty-list refusal is terminal through the marker rather than a diagnosis a substitution swallows\n' \
-    "$(gate_name)" "$#" \
+  printf '%s selftest OK (the whole-file skip'"'"'s subject): each of the %d home(s) it exempts is a red naming that path — and, where the caller declared one, the subject it exempted — when it leaves the tree, and %s; the clean fixture plants the same list, so a home named in the filter that the fixture does not plant reds the clean case; and `lib.sh`'"'"'s empty-list refusal is terminal through the marker rather than a diagnosis a substitution swallows\n' \
+    "$(gate_name)" "$count" \
     "$([ "$narrowed" = true ] \
       && printf 'a red when a cfg(test) mount takes it out of the production set, which is a home this gate no longer reads' \
       || printf 'still exempt when a cfg(test) mount would take it out of a NARROWED set, since this gate scans every source')"
