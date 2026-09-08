@@ -4014,6 +4014,31 @@ both lanes on one 4-core cloud box at `-j2` (a method note applying to
 both arms equally). The implementer's unit log entry is not written
 until the dual concludes.
 
+## SHELL-8 review ordinal fixed at dispatch (2026-09-08)
+
+SHELL-8 (`shell-open-on-a-multi-solid-body`, PR #2207 open — frozen
+head `3952a331`): **ordinal 2305** (SHELL band; after 2304). Pre-draw
+fields at the item (`work/shell/SHELL-8.md`): difficulty **M**,
+task-class **STRUCTURAL**, logged after block SHELL-B2's byte was drawn
+(disclosed there; the covariate is contaminated for this row);
+implementer arm per block SHELL-B2 slot 2 (record branch-side on the
+SHELL orchestrator branch). Protocol v6 dual: draw = `/dev/urandom`
+byte **10**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded
+before either review runs: CONCURRENT same-head on frozen `3952a331`,
+both briefs authored and STORED with sha256 before either dispatches
+(sha256 d63b2c42904f… r1 / 530b850e8af3… r2 — identical text modulo
+lane names and lane paths, verified by diff), neither reviewer sees the
+other's report, v6 item 5 isolation in both briefs, PRIVATE
+`CARGO_TARGET_DIR` per reviewer (both EMPTY — cold and symmetric),
+both lanes on one 4-core cloud box at `-j2` (a method note applying to
+both arms equally). Disclosed: the implementer lane died in a container
+restart AFTER opening its PR and pushing its last commit; its PR body is
+its report and the run on the frozen head is its verification of
+record — nothing of the unit was lost, and the fix pass will resume the
+lane from its transcript or run as a fresh finisher (recorded at
+merge). The implementer's unit log entry is not written until the dual
+concludes.
+
 ## VERBS-C5ARMS PR-2 review ordinal fixed at dispatch (2026-09-05)
 
 VERBS-C5ARMS PR-2 (`work/curved/VERBS-C5ARMS.md`, PR #1864 open —
