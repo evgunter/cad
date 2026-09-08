@@ -1548,7 +1548,15 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
     (
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
-        "station",
+        "station_max",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+         this renders a brace in an interval build and prose in a default one",
+    ),
+    (
+        "crates/topo/src/replace_face.rs",
+        "ReplaceFaceError",
+        "station_min",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
          this renders a brace in an interval build and prose in a default one",

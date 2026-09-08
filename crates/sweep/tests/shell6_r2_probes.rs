@@ -1,15 +1,26 @@
 //! R2 review probes for SHELL-6 (PR #2178). Lane-private. Print-first;
 //! assert where the answer is already known.
 //!
-//! These rows exist to FALSIFY, not to pass: several of them assert
-//! that a shipped row's assertion is weaker than its prose claims.
+//! These rows exist to FALSIFY, not to pass: each asserts that a
+//! shipped row's assertion was weaker than its prose claimed. The rows
+//! they indict have since been rewritten, so what they carry now is the
+//! MEASUREMENT that justified the rewrite — delete one and the next
+//! reader has only the new row's word for why it is shaped that way.
+//!
+//! **Four rows moved into the acceptance suite** at the fix pass, with
+//! their fixtures and their authorship: `r2p3` (the `|d|` sweep) is
+//! `shell6_nappe_home::the_per_chart_doors_reach_is_a_threshold_in_the_
+//! rim_tolerance`, `r2p4` is that suite's `a_face_whose_corners_reach_
+//! its_apex_refuses_at_both_doors`, `r2p6` is `the_displacement_moves_
+//! the_face_along_its_own_outward_normal`, and `r2p8` is
+//! `both_doors_mint_the_turned_offset_on_both_nappes`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use core::f64::consts::PI;
 
 use geom::Surface;
-use geom_brep::{ConeOffset, Nappe};
+use geom_brep::Nappe;
 use geom_core::{Band, Point2, Point3, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -228,119 +239,9 @@ fn r2p2_the_apex_window_rows_inner_assertion_short_circuits() {
 // P3. Is the per-chart door's cone build genuinely unreachable?
 // ---------------------------------------------------------------
 
-/// **Adversarial: sweep `d` down until the caps stop refusing.** The PR
-/// reports §2.1 unreachable because a cone's offset moves its rim off
-/// every unmoved neighbour by `d·sin α`. That gap is compared against
-/// the run's ε, so the claim is really "unreachable for `|d| ≫ ε/sin α`".
-/// This row sweeps `|d|` down through that scale on both nappes and
-/// reports what the door actually does.
-#[test]
-fn r2p3_the_per_chart_cone_build_is_reachable_below_the_rim_tolerance() {
-    let tol = Tol::witness();
-    let alpha = ((R_WIDE - R_NARROW) / H).atan();
-    println!(
-        "[r2p3] eps = {:e}, eps/sin α = {:e}",
-        tol.eps(),
-        tol.eps() / alpha.sin()
-    );
-    let mut built: Vec<(String, f64)> = Vec::new();
-    for (what, body) in [
-        ("narrowing upward (mirror)", mirror_frustum()),
-        ("widening upward (opening)", opening_frustum()),
-    ] {
-        let faces = cone_faces(&body);
-        for mag in [1e-3, 1e-6, 1e-9, 1e-11, 1e-12, 1e-13, 1e-15] {
-            for signed in [-mag, mag] {
-                let mut work = body.clone();
-                let got = topo::replace_faces_offset(&mut work, &faces, signed, band(), tol);
-                let label = match &got {
-                    Ok(()) => {
-                        built.push((what.to_string(), signed));
-                        "BUILT".to_string()
-                    }
-                    Err(ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => {
-                        format!("ReanchorOffCarrier gap={gap:e}")
-                    }
-                    Err(e) => format!("{e}"),
-                };
-                println!("[r2p3] {what} d={signed:+e}: {label}");
-            }
-        }
-    }
-    println!("[r2p3] builds: {built:?}");
-}
-
 // ---------------------------------------------------------------
 // P4. Claim 3: the apex-window gate's equivalence to what it replaced.
 // ---------------------------------------------------------------
-
-/// **A face whose corner-station SUM is positive while some corners are
-/// negative.** Re-anchor the wall's cone so its apex sits at `H/4`: the
-/// four corners give stations `−H/4, −H/4, +3H/4, +3H/4`, summing
-/// POSITIVE, so `face_nappe` answers `Opening` while the face's own
-/// window straddles the apex. The gate must still refuse, and on the
-/// window's variant, not the nappe's.
-#[test]
-fn r2p4_sum_positive_with_negative_corners_still_refuses_on_the_window() {
-    let tol = Tol::witness();
-    let mut body = mirror_frustum();
-    let group = cone_faces(&body);
-    let face = group[0];
-    let Surface::Cone {
-        axis,
-        half_angle,
-        u_ref,
-        ..
-    } = cone_of(&body, face)
-    else {
-        panic!("a frustum's wall is a cone");
-    };
-    let new_apex = Point3::new(0.0, H / 4.0, 0.0);
-    let reanchored = Surface::Cone {
-        apex: new_apex,
-        axis,
-        half_angle,
-        u_ref,
-    };
-    let key = body
-        .set_face_surface(face, topo::FaceSurface::New(reanchored))
-        .expect("the wall takes a re-anchored cone");
-    for &other in &group[1..] {
-        body.set_face_surface(other, topo::FaceSurface::Shared(key))
-            .expect("the wall's other band shares it");
-    }
-    let stations: Vec<f64> = corners(&body, face)
-        .iter()
-        .map(|p| (*p - new_apex).dot(axis))
-        .collect();
-    let sum: f64 = stations.iter().sum();
-    println!("[r2p4] corner stations {stations:?} sum {sum}");
-    assert!(sum > 0.0, "[r2p4] the fixture's SUM must be positive");
-    assert!(
-        stations.iter().any(|s| *s < 0.0),
-        "[r2p4] and some corners must be on the other nappe"
-    );
-    let nappe = topo::face_nappe(&body, face, band()).expect("the sum decides");
-    println!("[r2p4] face_nappe says {nappe:?}");
-    assert_eq!(nappe, Nappe::Opening);
-
-    let mut work = body.clone();
-    let got = topo::replace_faces_offset(&mut work, &group, -T, band(), tol);
-    println!("[r2p4] per-chart door: {got:?}");
-    assert!(
-        matches!(got, Err(ReplaceFaceError::ApexWindow { .. })),
-        "[r2p4] a face whose window straddles its apex must refuse on the WINDOW's \
-         variant, whatever its corner sum says: got {got:?}"
-    );
-
-    // The axial door has no window gate at all: it takes the sum's
-    // answer and mints. Report what it does with a straddling face
-    // whose sum is definite.
-    let mut work = body.clone();
-    let moves = chart_moves(&work, -T);
-    let got = topo::offset_charts_together(&mut work, &moves, band(), tol);
-    println!("[r2p4] axial door on the same straddling face: {got:?}");
-}
 
 // ---------------------------------------------------------------
 // P5. Claim 4: re-derive the re-baselined row's arithmetic.
@@ -418,56 +319,6 @@ fn r2p5_the_rebaselined_row_asks_the_question_the_old_one_meant() {
 // P6. Claim 1: which face's nappe reaches `displacement`.
 // ---------------------------------------------------------------
 
-/// **The corner shared with an unmoved neighbour still gets the CONE's
-/// nappe.** `transport_curve` is handed the group's nappe and the turned
-/// `d`; the point it displaces lies on the cone. This row checks the
-/// composed value against the direction a consumer would name — the
-/// face's OWN outward chart normal — on both nappes, which is the
-/// property the door's `d` is documented to have.
-#[test]
-fn r2p6_the_displacement_moves_the_face_along_its_own_outward_normal() {
-    for (what, body, want) in [
-        ("narrowing upward", mirror_frustum(), Nappe::Mirror),
-        ("widening upward", opening_frustum(), Nappe::Opening),
-    ] {
-        let face = cone_faces(&body)[0];
-        let Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } = cone_of(&body, face)
-        else {
-            panic!("a frustum's wall is a cone");
-        };
-        let nappe = topo::face_nappe(&body, face, band()).expect("nappe");
-        assert_eq!(nappe, want);
-        let (sin_a, cos_a) = half_angle.sin_cos();
-        // The door's own composition: turn `d`, then displace.
-        let d_face = T;
-        let action = ConeOffset::new(apex, axis, half_angle, nappe.turn(d_face));
-        for p in corners(&body, face) {
-            let radial_geom = (p - apex).reject_from(axis).normalize();
-            // The face's OWN outward chart normal at `p`, written
-            // without naming `Nappe`: the geometric radial times cos α,
-            // less the axial term signed by the point's own side of the
-            // apex. On the opening nappe that is `n₊`; on the mirror one
-            // it is `−n₊`, which is the whole content of the turn.
-            let h = (p - apex).dot(axis);
-            let s = if h < 0.0 { -1.0 } else { 1.0 };
-            let n_face = radial_geom * cos_a - axis * (sin_a * s);
-            let got = action.displacement(nappe, p);
-            let want_delta = n_face * d_face;
-            println!("[r2p6] {what} at {p:?}: got {got:?} want {want_delta:?}");
-            assert!(
-                (got - want_delta).norm() <= 1e-16,
-                "[r2p6] {what}: the displacement must be `d` along the FACE's own \
-                 outward chart normal at {p:?}: {got:?} vs {want_delta:?}"
-            );
-        }
-    }
-}
-
 // ---------------------------------------------------------------
 // P7. The end-to-end exercise, from a consumer's seat.
 // ---------------------------------------------------------------
@@ -543,106 +394,3 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
 // ---------------------------------------------------------------
 // P8. Spec §2.1, at the operand where it IS reachable.
 // ---------------------------------------------------------------
-
-/// **The two doors agree on the minted cone — landed, not deferred.**
-/// The PR reports §2.1 unreachable because a cone's offset moves its rim
-/// off every unmoved neighbour by `d·sin α` and the caps refuse first.
-/// That gap is compared against ε, so the refusal only holds while
-/// `|d|·sin α > ε`. Below it the per-chart door BUILDS (r2p3), and §2.1's
-/// question can be asked of the surface it actually stored: is it
-/// bit-for-bit `offset_surface(cone, face_nappe(..).turn(d))`, the same
-/// expression the axial door computes?
-///
-/// `d = 1e-9` is ε itself here, and the turn's own signature — the apex
-/// slide `−axis·(d / sin α)` — is `4.1e-9` m, four times ε, so a door
-/// that took the wrong nappe here would land a visibly different cone.
-#[test]
-fn r2p8_the_two_doors_agree_on_the_minted_cone_where_the_per_chart_door_builds() {
-    let tol = Tol::witness();
-    let d = 1e-9;
-    for (what, body) in [
-        ("narrowing upward (mirror)", mirror_frustum()),
-        ("widening upward (opening)", opening_frustum()),
-    ] {
-        let faces = cone_faces(&body);
-        let face = faces[0];
-        let old = cone_of(&body, face);
-        let nappe = topo::face_nappe(&body, face, band()).expect("the wall has a nappe");
-        let want = geom_brep::offset_surface(&old, nappe.turn(-d), band()).expect("the mint");
-
-        // The PER-CHART door, on the operand where it builds.
-        let mut work = body.clone();
-        topo::replace_faces_offset(&mut work, &faces, -d, band(), tol)
-            .unwrap_or_else(|e| panic!("[r2p8] {what}: the per-chart door refused {e}"));
-        let got = cone_of(&work, cone_faces(&work)[0]);
-
-        let (
-            Surface::Cone {
-                apex: a,
-                half_angle: ha,
-                axis: xa,
-                ..
-            },
-            Surface::Cone {
-                apex: b,
-                half_angle: hb,
-                axis: xb,
-                ..
-            },
-        ) = (&got, &want)
-        else {
-            panic!("a cone's offset is a cone");
-        };
-        let slide = (*a - *b).norm();
-        println!(
-            "[r2p8] {what}: per-chart apex {a:?} vs the shared expression {b:?} (|Δ| {slide:e})"
-        );
-        assert_eq!(
-            (a.x.to_bits(), a.y.to_bits(), a.z.to_bits()),
-            (b.x.to_bits(), b.y.to_bits(), b.z.to_bits()),
-            "[r2p8] {what}: the PER-CHART door's minted apex must be the home's turn, bitwise"
-        );
-        assert_eq!(
-            ha.to_bits(),
-            hb.to_bits(),
-            "[r2p8] {what}: half-angle carried"
-        );
-        assert_eq!(
-            (xa.x.to_bits(), xa.y.to_bits(), xa.z.to_bits()),
-            (xb.x.to_bits(), xb.y.to_bits(), xb.z.to_bits()),
-            "[r2p8] {what}: axis carried"
-        );
-
-        // The body it built is a real body, and the cavity went the way
-        // an inward request asks for.
-        assert_eq!(
-            topo::validate_geometric(&work, tol),
-            Ok(()),
-            "[r2p8] {what}: the per-chart door's own output must validate"
-        );
-        let v0 = topo::mass_properties(&body, tol).expect("props").volume;
-        let v1 = topo::mass_properties(&work, tol).expect("props").volume;
-        println!("[r2p8] {what}: volume {v0} -> {v1} (Δ {:e})", v1 - v0);
-        assert!(
-            v1 < v0,
-            "[r2p8] {what}: pulling the wall chart inward must shrink the solid ({v1} vs {v0})"
-        );
-
-        // And the turn is load-bearing at this operand: the wrong nappe
-        // would move the apex by twice the slide, well outside ε.
-        let wrong = geom_brep::offset_surface(&old, nappe.turn(d), band()).expect("the mint");
-        let Surface::Cone { apex: w, .. } = wrong else {
-            panic!("a cone's offset is a cone");
-        };
-        let separation = (*a - w).norm();
-        println!(
-            "[r2p8] {what}: the wrong nappe would land {separation:e} m away (eps {:e})",
-            tol.eps()
-        );
-        assert!(
-            separation > tol.eps(),
-            "[r2p8] {what}: the turn must be observable at this operand ({separation:e} vs {:e})",
-            tol.eps()
-        );
-    }
-}

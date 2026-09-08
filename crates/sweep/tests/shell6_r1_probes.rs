@@ -1,15 +1,21 @@
 //! R1 review probes for SHELL-6 (PR #2178). Print-first, assert where
 //! the answer is already known. Lane-private.
 //!
-//! Rows: the consumer's-seat end-to-end (both frustums through
-//! `topo::shell`, then the per-chart door on the same faces); the three
-//! apex-window cases the brief names (a chart straddling the apex, a
-//! chart carrying faces on BOTH nappes, a face whose corner SUM is
-//! positive while some corners are negative); and an adversarial
-//! reachability attack on the per-chart door — a cone whose two rims
-//! stand on spheres chosen so that the transported rims land exactly on
-//! their carriers, which is the one neighbour a single-chart cone offset
-//! does not push its rim off.
+//! Rows kept here: the consumer's-seat end-to-end (both frustums
+//! through `topo::shell`, then the per-chart door on the same faces),
+//! and an adversarial reachability attack on the per-chart door — a
+//! cone whose two rims stand on spheres chosen so that the transported
+//! rims land exactly on their carriers, which is the one neighbour a
+//! single-chart cone offset does not push its rim off.
+//!
+//! **Two rows moved into the acceptance suite** at the fix pass, with
+//! their fixtures and their authorship: `r1_sum_positive_with_negative_
+//! corners` is `shell6_nappe_home::a_face_whose_corners_reach_its_apex_
+//! refuses_at_both_doors`'s second operand, and `r1_a_chart_on_both_
+//! nappes` is `a_chart_whose_faces_disagree_refuses_at_both_doors` —
+//! which is why they are not duplicated here. Both now refuse where
+//! they used to reach the window gate: the premise is enforced at the
+//! home.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
@@ -259,110 +265,6 @@ fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Surfac
             .expect("share");
     }
     surface
-}
-
-/// **A face whose corner SUM is positive while some corners are
-/// negative.** The narrowing frustum's wall re-anchored to a cone whose
-/// apex sits a quarter of the way up: per band two corners at station
-/// `−H/4` and two at `+3H/4`, sum `+H` — the home says `Opening` — while
-/// the window's low end is below the apex. Both doors, and the variant.
-#[test]
-fn r1_sum_positive_with_negative_corners() {
-    let mut body = frustum(R_WIDE, R_NARROW);
-    let group = cone_faces(&body);
-    reanchor_cone(&mut body, &group, H / 4.0);
-    let apex = Point3::new(0.0, H / 4.0, 0.0);
-    for &f in &group {
-        let st: Vec<f64> = corners(&body, f).iter().map(|p| p.y - apex.y).collect();
-        let sum: f64 = st.iter().sum();
-        let nappe = topo::face_nappe(&body, f, band());
-        println!("[r1] stations {st:?} sum {sum} -> {nappe:?}");
-        assert!(st.iter().any(|s| *s < 0.0) && sum > 0.0);
-        assert_eq!(nappe.unwrap(), Nappe::Opening);
-    }
-    for d in [-T, T] {
-        let mut work = body.clone();
-        let got = topo::replace_faces_offset(&mut work, &group, d, band(), Tol::witness());
-        println!(
-            "[r1] per-chart d={d}: {}",
-            got.as_ref().err().map(name).unwrap_or("BUILT".into())
-        );
-        assert!(
-            matches!(got, Err(ReplaceFaceError::ApexWindow { .. })),
-            "{got:?}"
-        );
-        let mut work = body.clone();
-        let moves = chart_moves(&work, d);
-        let got = topo::offset_charts_together(&mut work, &moves, band(), Tol::witness());
-        println!(
-            "[r1] axial d={d}: {}",
-            got.as_ref().err().map(name).unwrap_or("BUILT".into())
-        );
-    }
-}
-
-/// **A chart carrying faces on BOTH nappes** (a double cone stored as
-/// one surface). A bi-cone (widening then narrowing, equal half-angles)
-/// has two cone charts; re-anchoring all four bands to one cone whose
-/// apex is the kink makes the lower bands `Mirror` and the upper ones
-/// `Opening`. The per-chart door in both group orders, and the axial
-/// door, which has no group-level gate of its own.
-#[test]
-fn r1_a_chart_on_both_nappes() {
-    let mut body = revolved(ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(R_NARROW, 0.0), 0.0),
-        ProfileVertex::new(p2(R_WIDE, H), 0.0),
-        ProfileVertex::new(p2(R_NARROW, 2.0 * H), 0.0),
-        ProfileVertex::new(p2(0.0, 2.0 * H), 0.0),
-    ]));
-    let group = cone_faces(&body);
-    assert_eq!(group.len(), 4, "two cone charts, two bands each");
-    reanchor_cone(&mut body, &group, H);
-    let mut lower = Vec::new();
-    let mut upper = Vec::new();
-    for &f in &group {
-        match topo::face_nappe(&body, f, band()).unwrap() {
-            Nappe::Mirror => lower.push(f),
-            Nappe::Opening => upper.push(f),
-        }
-    }
-    assert_eq!((lower.len(), upper.len()), (2, 2));
-    for (order, faces) in [
-        ("mirror first", [lower.clone(), upper.clone()].concat()),
-        ("opening first", [upper.clone(), lower.clone()].concat()),
-    ] {
-        for d in [-T, T] {
-            let mut work = body.clone();
-            let got = topo::replace_faces_offset(&mut work, &faces, d, band(), Tol::witness());
-            println!(
-                "[r1] both nappes, {order}, per-chart d={d}: {}",
-                got.as_ref().err().map(name).unwrap_or("BUILT".into())
-            );
-            assert!(
-                matches!(got, Err(ReplaceFaceError::ApexWindow { .. })),
-                "{got:?}"
-            );
-        }
-    }
-    for d in [-T, T] {
-        let mut work = body.clone();
-        let moves = chart_moves(&work, d);
-        let got = topo::offset_charts_together(&mut work, &moves, band(), Tol::witness());
-        match &got {
-            Ok(()) => {
-                let cones: Vec<_> = cone_faces(&work)
-                    .iter()
-                    .map(|&f| cone_of(&work, f))
-                    .collect();
-                println!(
-                    "[r1] both nappes, axial d={d}: BUILT; cone surfaces {cones:?}; tier3 {:?}",
-                    topo::validate_geometric(&work, Tol::witness())
-                );
-            }
-            Err(e) => println!("[r1] both nappes, axial d={d}: {}: {e}", name(e)),
-        }
-    }
 }
 
 /// A cone from `(r0, z0)` to `(r1, z1)` whose two rims stand on spheres

@@ -337,6 +337,24 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
     let frame = axial_frame(body)?;
     let mut charts: Vec<(FaceKey, MovedChart<T>)> = Vec::new();
     for m in moves {
+        // **The cone's mirror nappe is a CONSUMER obligation, and this
+        // is where this door discharges it.**
+        // [`geom_brep::ConeOffset`]'s action is the pushforward along
+        // the continuous extension of the OPENING nappe's normal field
+        // — `n₊` does not flip across the apex — so a mirror-nappe
+        // face's material moves `−d` along its OWN chart normal. A
+        // `ChartMove`'s distance is along the FACE's outward direction,
+        // so below the apex the two conventions are opposite and the
+        // caller's number is turned over before it reaches the mint.
+        // Measured on the cone frustum: unturned, the cavity comes back
+        // LARGER than its operand (0.001058 against 0.000895) — a
+        // shrink that grew.
+        //
+        // The nappe is a fact only the face has, decided at its one
+        // home; the MOVE names a chart, so every face of it is decided
+        // and the answers are agreed before one number is turned for
+        // all of them.
+        let d = crate::offset_nappe::group_nappe(body, &m.faces, band)?.turn(m.distance);
         for &face in &m.faces {
             let data = body
                 .get_face(face)
@@ -345,21 +363,6 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                 .get_surface(data.surface)
                 .ok_or(ReplaceFaceError::Corrupt)?
                 .clone();
-            // **The cone's mirror nappe is a CONSUMER obligation, and
-            // this is where this door discharges it.**
-            // [`geom_brep::ConeOffset`]'s action is the pushforward
-            // along the continuous extension of the OPENING nappe's
-            // normal field — `n₊` does not flip across the apex — so a
-            // mirror-nappe face's material moves `−d` along its OWN
-            // chart normal. A `ChartMove`'s distance is along the
-            // FACE's outward direction, so below the apex the two
-            // conventions are opposite and the caller's number is
-            // turned over before it reaches the mint. Measured on the
-            // cone frustum: unturned, the cavity comes back LARGER than
-            // its operand (0.001058 against 0.000895) — a shrink that
-            // grew. The nappe is a fact only the face has, decided at
-            // its one home for every door that needs it.
-            let d = crate::offset_nappe::face_nappe(body, face, band)?.turn(m.distance);
             let new = geom_brep::offset_surface(&old, d, band)
                 .map_err(|error| ReplaceFaceError::Offset { face, error })?;
             let constraint = classify(face, &old, &new, &frame, band)?;

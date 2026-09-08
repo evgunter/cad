@@ -216,16 +216,21 @@ pub enum ReplaceFaceError<T: Real> {
         shift: T,
     },
     /// **The nappe predicate** (`offset_nappe`, at
-    /// [`crate::offset_nappe::face_nappe`]). The cone face's corner
-    /// stations sum to zero: it stands at its own apex, so it is on
-    /// neither nappe and the offset has no sign for it. Refused rather
-    /// than guessed, at both offset doors.
+    /// [`crate::offset_nappe`]). Either this cone face's own corners do
+    /// not all stand strictly on one side of its apex, or the faces of
+    /// one chart do not agree on a nappe — in both readings there is no
+    /// single side for the offset's sign to be turned onto. Refused
+    /// rather than guessed, at both offset doors.
     NappeStraddles {
-        /// The face with no nappe.
+        /// The face with no nappe, or the first group member that
+        /// disagreed.
         face: FaceKey,
-        /// The summed corner station the predicate metered, echoed as
-        /// data.
-        station: T,
+        /// That face's least corner station, echoed as data.
+        station_min: T,
+        /// Its greatest.
+        station_max: T,
+        /// Which of the two readings it is.
+        what: &'static str,
     },
     /// The face carries a cone but has no boundary carrier to read a
     /// `v`-window off. Refusing is the only honest answer: inventing a
@@ -536,10 +541,16 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                  — the minted cone's nappe attribution flips inside the window, so it is not \
                  this face's offset"
             ),
-            Self::NappeStraddles { face, station } => write!(
+            Self::NappeStraddles {
+                face,
+                station_min,
+                station_max,
+                what,
+            } => write!(
                 f,
-                "the offset: {face:?}'s corner stations sum to {station:?} m, so the cone face \
-                 stands at its own apex and is on neither nappe — the offset has no sign for it"
+                "the offset: {face:?} is {what} — its corner stations run [{station_min:?}, \
+                 {station_max:?}] m about its apex, and an offset distance has no side to be \
+                 turned onto"
             ),
             Self::ApexWindowUnknown { face } => write!(
                 f,
@@ -1075,14 +1086,13 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     // the number has to be turned over before it reaches the mint. The
     // nappe is decided at its one home, from the face's own corners.
     //
-    // The group's FIRST face decides for the chart, and the apex-window
-    // gate below re-reads that answer against the whole group's window:
-    // a group whose faces do not share a nappe has a window reaching
-    // past the apex and refuses there, so no chart is ever minted with
-    // one member's sign standing for another's.
+    // EVERY face of the group is decided and the answers are agreed
+    // ([`crate::offset_nappe::group_nappe`]), because the door moves a
+    // chart and a chart's faces need not share a nappe: one member's
+    // sign standing for another's is exactly the thing being ruled out.
     //
     // Below this line `d` is the mint's own convention, not the door's.
-    let nappe = crate::offset_nappe::face_nappe(body, face, band)?;
+    let nappe = crate::offset_nappe::group_nappe(body, faces, band)?;
     let d = nappe.turn(d);
     let new_surface = mint_offset(face, &old_surface, d, band, tol)?;
 

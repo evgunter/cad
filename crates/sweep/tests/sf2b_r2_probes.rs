@@ -140,26 +140,26 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
                     "{what}: the wall's closed form is {want}, got {v}"
                 );
             }
-            Err(e) => println!("[r2] {what}: REFUSED {e}"),
+            Err(e) => panic!("[r2] {what}: both nappes hollow through `shell`; got {e}"),
         }
     }
 }
 
-/// **The per-chart door on both cone nappes, asserted.** Both doors
-/// read one nappe now (`topo::face_nappe`), so the question this row
-/// asked — which way the single-chart verb actually went — has one
-/// answer to pin: it goes NOWHERE on this fixture. The cone's offset
-/// moves its rim off every unmoved neighbour by the action's own axial
-/// component `d·sin α`, so the caps refuse first, on both nappes and
-/// both signs. That is #1199's measurement, re-taken after the turn:
-/// the sign the mint sees is the face's now, and the gate that stood in
-/// front of it still stands.
+/// **The per-chart door on both cone nappes at the wall thickness.**
+/// Both doors read one nappe now (`topo::group_nappe`), so the question
+/// this row asked — which way the single-chart verb actually went — has
+/// one answer to pin AT THIS `|d|`: nowhere. The cone's offset moves
+/// its rim off every unmoved neighbour by the action's own axial
+/// component `|d|·sin α`, and at `|d| = t` that is four million times ε,
+/// so the caps refuse first on both nappes and both signs.
 ///
-/// The refusal's gap is `d·sin α` = 0.001894809570596… m for `|d| = t`
-/// here, the same on both nappes because the two frustums are mirror
-/// images. The mirror-nappe rows swap between the two signs (the turn),
-/// the opening-nappe rows do not — the whole differential, in one
-/// number.
+/// **The gap this asserts is blind to the turn** (R2's `r2p1` measures
+/// exactly how blind: the two signs' gaps differ in the last bits, far
+/// under any tolerance a row could state), so nothing here is evidence
+/// about the nappe. It is evidence about the GATE — #1199's
+/// measurement, re-taken — and the turn is pinned where it is
+/// observable, in `shell6_nappe_home`: below `ε/sin α` this same door
+/// builds, and the cone it stores is the turned mint bit for bit.
 #[test]
 fn r2_per_chart_door_on_a_mirror_nappe_cone() {
     let tol = Tol::witness();
@@ -182,9 +182,15 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
                     println!("[r2] per-chart {what} d={signed}: REFUSED off-carrier by {gap}");
                     assert!(
                         (gap - T * alpha.sin()).abs() <= 1e-15,
-                        "{what} d={signed}: the gap is the action's axial component d·sin α \
+                        "{what} d={signed}: the gap is the action's axial component |d|·sin α \
                          ({gap} vs {})",
                         T * alpha.sin()
+                    );
+                    assert!(
+                        gap > band().zero(),
+                        "{what} d={signed}: and it is the ε comparison that refuses, so the \
+                         gap must stand above the band's zero ({gap} vs {})",
+                        band().zero()
                     );
                 }
                 Err(e) => panic!("[r2] per-chart {what} d={signed}: REFUSED {e}"),
