@@ -96,9 +96,9 @@ fn describe_cones(what: &str, body: &Body<f64>) {
 /// **BOTH cone nappes, through `shell`.** `sf2b_axial.rs` pins ONE
 /// orientation (a frustum NARROWING upward, whose wall sits below its
 /// apex). This row adds the mirror: a frustum WIDENING upward, whose
-/// wall sits above its apex. If `nappe_signed`'s sign were resolved the
-/// other way round, exactly one of these two would be wrong and the
-/// shipped acceptance row would not notice.
+/// wall sits above its apex. If the nappe turn were resolved the other
+/// way round, exactly one of these two would be wrong and the shipped
+/// acceptance row would not notice.
 #[test]
 fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
     let tol = Tol::witness();
@@ -145,35 +145,49 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
     }
 }
 
-/// **The unfixed sibling: the per-chart door on a mirror-nappe cone.**
-/// `offset_axial` resolves the nappe at its own door; `replace_face`'s
-/// `mint_offset` does not, and `shell`'s `inward()` derives the sign
-/// from the face's SENSE. This row asks the public single-chart verb to
-/// pull the cone chart INWARD and reports which way it actually went.
+/// **The per-chart door on both cone nappes, asserted.** Both doors
+/// read one nappe now (`topo::face_nappe`), so the question this row
+/// asked — which way the single-chart verb actually went — has one
+/// answer to pin: it goes NOWHERE on this fixture. The cone's offset
+/// moves its rim off every unmoved neighbour by the action's own axial
+/// component `d·sin α`, so the caps refuse first, on both nappes and
+/// both signs. That is #1199's measurement, re-taken after the turn:
+/// the sign the mint sees is the face's now, and the gate that stood in
+/// front of it still stands.
+///
+/// The refusal's gap is `d·sin α` = 0.001894809570596… m for `|d| = t`
+/// here, the same on both nappes because the two frustums are mirror
+/// images. The mirror-nappe rows swap between the two signs (the turn),
+/// the opening-nappe rows do not — the whole differential, in one
+/// number.
 #[test]
 fn r2_per_chart_door_on_a_mirror_nappe_cone() {
     let tol = Tol::witness();
     let h = 8.0 / 64.0;
+    let alpha = (2.0f64 / 64.0 / h).atan();
     for (what, r0, r1) in [
         ("narrowing upward", 4.0 / 64.0, 2.0 / 64.0),
         ("widening upward", 2.0 / 64.0, 4.0 / 64.0),
     ] {
         let body = frustum(r0, r1, h);
         let faces = cone_faces(&body);
-        let v0 = topo::mass_properties(&body, tol).expect("props").volume;
         for signed in [-T, T] {
             let mut work = body.clone();
             match topo::replace_faces_offset(&mut work, &faces, signed, band(), tol) {
-                Ok(()) => {
-                    let v = topo::mass_properties(&work, tol).expect("props").volume;
-                    let valid = topo::validate_geometric(&work, tol);
-                    println!(
-                        "[r2] per-chart {what} d={signed}: volume {v0} -> {v} ({}), tier3 {:?}",
-                        if v > v0 { "GREW" } else { "shrank" },
-                        valid.is_ok()
+                Ok(()) => panic!(
+                    "[r2] per-chart {what} d={signed}: BUILT — the caps' gate stopped standing \
+                     in front of the cone chart, which is the measurement this row carries"
+                ),
+                Err(topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => {
+                    println!("[r2] per-chart {what} d={signed}: REFUSED off-carrier by {gap}");
+                    assert!(
+                        (gap - T * alpha.sin()).abs() <= 1e-15,
+                        "{what} d={signed}: the gap is the action's axial component d·sin α \
+                         ({gap} vs {})",
+                        T * alpha.sin()
                     );
                 }
-                Err(e) => println!("[r2] per-chart {what} d={signed}: REFUSED {e}"),
+                Err(e) => panic!("[r2] per-chart {what} d={signed}: REFUSED {e}"),
             }
         }
     }

@@ -105,8 +105,12 @@
 //! `−(sup(v-window) + d·cot α)` on the OTHER nappe, which is not an
 //! extra case but the same statement: revolve aims every cone's chart
 //! axis at `+a₃`, so a downward-opening cone sweeps `v < 0` and its
-//! window's near end is its supremum. A window that already reaches the
-//! apex has no single nappe to offset and refuses on the same variant.
+//! window's near end is its supremum. WHICH nappe that is comes from
+//! [`crate::offset_nappe::face_nappe`], the one home the door itself
+//! reads to turn `d`; the window says only whether that nappe's near
+//! end has cleared the apex, and one that has not — because it
+//! straddles, touches, or carries a face of the other nappe — refuses
+//! on the same variant.
 //!
 //! # Discipline
 //!
@@ -970,6 +974,11 @@ struct EdgePlan<T: Real> {
 /// Replaces `face`'s surface with its certified offset at signed
 /// distance `d` and re-describes the face's boundary against the moved
 /// chart (module docs).
+///
+/// `d` is along the chart's normal AT THIS FACE. On a cone's mirror
+/// nappe that is the negation of the stored `v > 0` field the mint
+/// moves along, and the door turns it (`crate::offset_nappe`) before
+/// anything is minted.
 ///
 /// The fit target is the run's ε_precision and reaches the fit door as
 /// the [`Tol`] witness (`geom_brep::approx_offset_surface`); it is

@@ -2,10 +2,11 @@
 id: mint-offset-ignores-cone-mirror-nappe
 kind: issue
 title: replace_face::mint_offset does not discharge ConeOffset's mirror-nappe consumer obligation
-status: open
+status: closed
 opened: 2026-08-29
 github: 1199
 refs: [1180, SHELL-6]
+closed: 2026-09-08
 ---
 
 ## From GitHub issue 1199
@@ -64,3 +65,13 @@ as the unswept sibling of a class that PR fixed at its own door.
 ## Home
 
 `crates/topo/src/replace_face.rs` and `crates/geom-brep/src/offset*.rs` are both in VERBS' `paths:` territory, and the offset/shell arm is its Wave 3 ground.
+
+## Closed by SHELL-6
+
+The nappe has one home, `topo::offset_nappe::face_nappe`: decided from
+the face's own corner stations, refusing a face that straddles its
+apex, and read by both offset doors, the per-chart door's apex-window
+gate and `ConeOffset::displacement` (whose `copysign` is gone — it
+takes the face's nappe). `replace_faces_offset` turns `d` before the
+mint; `offset_axial::nappe_signed` is deleted in favour of the shared
+home.
