@@ -228,20 +228,23 @@ fn readback_refusal_tags_are_stable() {
 /// true, so the assertions below are written to fail if a wrapper tag
 /// is ever introduced.
 ///
-/// Two arms have no façade constructor and so no line here — the
+/// ONE arm has no façade constructor and so no line here — the
 /// `select_refusal_tags_are_stable` caveat, for a different reason.
 /// `HitTestError::Unnamed`'s payload is an `EntityRef`, an arena key
 /// beside a body index, and the façade deliberately does not name that
-/// type; `NodePickError::Index`'s payload is `MeshPickError`, which
-/// CUR3 recorded DECIDED absent. Both tags are covered by the matches
-/// themselves, which are exhaustive and would stop compiling if an arm
-/// moved.
+/// type; its tag is covered by the match itself, which is exhaustive
+/// and would stop compiling if the arm moved.
+///
+/// The index arm HAS one, and the pin below is what that buys: the
+/// payload rides on the curated surface beside the refusal that
+/// carries it, so this crate names it, constructs it, and pins both
+/// words — the carrier's `mesh_index` and the payload's own.
 #[test]
 fn picking_refusal_tags_are_stable() {
-    use crate::tags::{hit_test_error_tag, node_pick_error_tag};
+    use crate::tags::{hit_test_error_tag, mesh_pick_error_tag, node_pick_error_tag};
     use pncad::document::RecipeNodeId;
     use pncad::mesh::TessellateError;
-    use pncad::select::{HitTestError as H, NodePickError as N};
+    use pncad::select::{HitTestError as H, MeshPickError as M, NodePickError as N};
 
     let node = RecipeNodeId(0);
     assert_eq!(
@@ -289,6 +292,18 @@ fn picking_refusal_tags_are_stable() {
         })),
         "invalid_chordal_tolerance"
     );
+
+    // The index arm does NOT forward: `mesh_index` names the door
+    // whose invariant broke, and the payload's own word is pinned
+    // beside it rather than in place of it. Both are Python-visible —
+    // `variant` and `index_variant` — so both are contract.
+    let corrupt = M::PositionOutOfRange {
+        patch: 0,
+        triangle: 0,
+        index: 0,
+    };
+    assert_eq!(node_pick_error_tag(&N::Index(corrupt)), "mesh_index");
+    assert_eq!(mesh_pick_error_tag(&corrupt), "position_out_of_range");
 }
 
 /// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
@@ -1717,6 +1732,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_table_lacks",
             "mate_under",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "mesh_pick_error_tag",
+        values: &["position_out_of_range"],
         delegates: &[],
     },
     TagEntry {

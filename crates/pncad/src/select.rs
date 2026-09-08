@@ -96,14 +96,28 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 // reason.
 //
 // **The raw-assembly lane is NOT carried, and its absence is
-// structural.** `MeshPick` and `MeshPickError` stay interior, so a
-// façade consumer cannot build one — and `PickTarget`'s `pick` field
-// is a `&MeshPick`, so the target whose contract warns of a
-// confidently wrong name (issue #1098) has no constructor here. The
-// type is carried only because `pick_face`'s signature names it.
-// `NodePick` is therefore not merely the door to prefer: through this
-// façade it is the only one.
-pub use editor_core::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
+// structural.** `MeshPick` stays interior, so a façade consumer
+// cannot build one — and `PickTarget`'s `pick` field is a
+// `&MeshPick`, so the target whose contract warns of a confidently
+// wrong name has no constructor here. The type is carried only
+// because `pick_face`'s signature names it. `NodePick` is therefore
+// not merely the door to prefer: through this façade it is the only
+// one.
+//
+// **`MeshPickError` is carried and its index is not, and the two
+// facts do not pull against each other.** The absence above is about
+// CONSTRUCTION: an index a consumer cannot build is a target a
+// consumer cannot mis-pair. A refusal is not constructed — it arrives
+// as `NodePickError::Index`'s payload, out of a door that is carried
+// — and what a curated list owes about a refusal it names is that the
+// refusal is MATCHABLE through it. Every other arm of `NodePickError`
+// is: `Standing` carries a curated `HitTestError`, `Tessellate` a
+// prelude-curated `TessellateError`, the two the door owns carry a
+// `RecipeNodeId` and a `u32`. Carrying the payload alone leaves the
+// index unbuildable and closes that one exception.
+pub use editor_core::{
+    HitTestError, MeshPickError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face,
+};
 
 // **The resolution verdict a stored name gets at the next
 // evaluation** — the machinery the ratified resolution-failure

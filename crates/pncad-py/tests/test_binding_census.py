@@ -479,6 +479,24 @@ BOUND_AS = {
     # crosses holding `NodePick`s.
     "PickTarget": "NodePick",
     "pick_face": "Evaluation.pick_face",
+    # `MeshPickError` is `NodePickError::Index`'s payload, and it
+    # crosses by the same rule and at a different spelling from
+    # `DanglingRef`'s. `ReadbackError`'s arm had no word of its own, so
+    # its payload's two arms BECAME the carrier's two tags. This
+    # carrier's arm does: `mesh_index` says which door's invariant
+    # broke, and a caller branching on the standing ladder needs it to
+    # stay put. So the payload's discriminant arrives BESIDE the
+    # carrier's rather than in place of it, at `index_variant`, `None`
+    # on every other arm.
+    #
+    # One value today (`position_out_of_range`), and the attribute
+    # exists for what the type does NOT have yet: the match that mints
+    # it is exhaustive, so a second indexing invariant stops the
+    # bindings compiling instead of joining the first under one word.
+    # Python has no class for the payload and needs none — the three
+    # numbers the arm carries describe a mesh that violates its own
+    # invariant, which is a bug report and not something to branch on.
+    "MeshPickError": "NodePickError.index_variant",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
     # accounted by rule 1; these two are the family's shape entries,
@@ -1019,13 +1037,14 @@ FAMILIES = {
 #: so the Python signature takes `NodePick`s and the
 #: confidently-wrong-name lane (#1098) has no spelling here at all.
 #: The second was not foreseen: `NodePickError::Index` CARRIES a
-#: `MeshPickError`, so a refusal whose payload type is unnameable
-#: crosses as one tag plus prose, where every other arm of that enum
-#: is matchable. That is not a relitigation of CUR3 and this unit did
-#: not treat it as one — it is banked as
-#: `work/lib/mesh-pick-error-is-unmatchable-under-node-pick-error.md`,
-#: the `DanglingRef` shape one rung along: a payload whose carrier
-#: projects arms, that has no arms of its own to project.
+#: `MeshPickError`, so a refusal whose payload type was unnameable
+#: crossed as one tag plus prose, where every other arm of that enum
+#: is matchable. That was not a relitigation of CUR3 and the closing
+#: did not treat it as one — the construction argument is about a
+#: `MeshPick`, and a refusal is received rather than built. The
+#: payload alone is curated now and its discriminant crosses at
+#: `NodePickError.index_variant` (`BOUND_AS`, above), which is where
+#: the reasoning for the split spelling lives.
 #: **B-RESOLVE is CLOSED and no longer a `gap` id here**
 #: (LIB-B-RESOLVE). It held three names — `resolve`, `Resolution` and
 #: `RunCtx` — and the question a consumer that STORES names must ask

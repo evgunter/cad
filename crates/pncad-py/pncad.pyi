@@ -508,10 +508,16 @@ class NodePickError(PncadError):
     prose. A forwarded arm does not bring the inner refusal's extra
     ATTRIBUTES: a tessellation refusal's `value`, `bound`, `requested`
     and `note` stay on `TessellateError`, where `Body.tessellate`
-    raises them. `mesh_index` is the arm with nothing to forward — its
-    payload type is deliberately absent from the façade, so it crosses
-    as one tag plus the kernel's own prose, which states the offending
-    patch, triangle and index.
+    raises them.
+
+    `mesh_index` neither forwards nor withholds. The word names the
+    door whose invariant broke — the pick INDEX's, not the
+    tessellator's and not the evaluation's — and `index_variant`
+    carries the payload's own discriminant beside it,
+    `position_out_of_range` today. The offending patch, triangle and
+    position index are in the message: they describe a mesh that
+    violates its own invariant, which is a bug report rather than
+    something to branch on.
 
     Every field is present on every arm, `None` where that arm does not
     carry it."""
@@ -521,6 +527,7 @@ class NodePickError(PncadError):
     through: Optional[NodeId]
     kind: Optional[EntityKind]
     body: Optional[int]
+    index_variant: Optional[str]
 
 class ChecksError(PncadError):
     """The advisory-check registry could not RUN.

@@ -466,6 +466,46 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     );
 }
 
+/// The picking refusal's own payload, matched through `crate::select`
+/// — the list that carries it.
+///
+/// The import is the pin: `MeshPickError` is a `crate::select` name
+/// and not a prelude one, so the claim is that the SELECT list carries
+/// it, and dropping it from that list stops this file compiling even
+/// though `pncad::editor_core` does not exist to reach it another way.
+///
+/// The match is exhaustive for the reason every tag map in this tree
+/// is: an indexing invariant added kernel-side has to break a build
+/// rather than quietly join the one already here under a single word.
+#[test]
+fn the_pick_index_refusal_is_matchable_through_the_select_list() {
+    use pncad::select::MeshPickError;
+
+    let site = |e: MeshPickError| match e {
+        // The one arm, and its three numbers are the whole of what a
+        // report about a corrupt mesh can act on: no arena key, by the
+        // type's own contract.
+        MeshPickError::PositionOutOfRange {
+            patch,
+            triangle,
+            index,
+        } => {
+            named::<usize>(patch);
+            named::<usize>(triangle);
+            named::<u32>(index);
+            (patch, triangle, index)
+        }
+    };
+    assert_eq!(
+        site(MeshPickError::PositionOutOfRange {
+            patch: 2,
+            triangle: 7,
+            index: 41,
+        }),
+        (2, 7, 41)
+    );
+}
+
 // ---------------------------------------------------------------
 // Runtime rows. The compile-level pins above are the real content;
 // these keep the functions live (an unused private fn is a warning,
@@ -3203,14 +3243,23 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   direct `editor-core` edge — hands layer 3 the arena keys the
 ///   façade's curation exists to seal.
 ///
-///   **`MeshPick` and `MeshPickError` stay, and that is what closes
-///   #1098's lane at the façade.** They are the raw index a
-///   hand-assembled `PickTarget` needs, and `PickTarget::pick` is a
-///   `&MeshPick` — so with the index unnameable here, the target whose
-///   contract warns of a confidently wrong name has no constructor a
-///   façade consumer can reach, and `NodePick` is not merely the
-///   preferred door but the only one. `PickTarget` is carried because
-///   `pick_face`'s signature names it, not because it can be built.
+///   **`MeshPick` stays, and that is what closes the raw-target lane
+///   at the façade.** It is the raw index a hand-assembled
+///   `PickTarget` needs, and `PickTarget::pick` is a `&MeshPick` — so
+///   with the index unnameable here, the target whose contract warns
+///   of a confidently wrong name has no constructor a façade consumer
+///   can reach, and `NodePick` is not merely the preferred door but
+///   the only one. `PickTarget` is carried because `pick_face`'s
+///   signature names it, not because it can be built.
+///
+///   **`MeshPickError` left this list, and the construction argument
+///   above is untouched by that.** An index is BUILT and a refusal is
+///   RECEIVED, so nothing about carrying the payload gives a consumer
+///   a `MeshPick`. What it gives is the thing a curated list owes
+///   about a refusal it names: `NodePickError::Index` was the one arm
+///   of five whose payload could not be matched, while its siblings
+///   carry a curated `HitTestError`, a prelude-curated
+///   `TessellateError`, a `RecipeNodeId` and a `u32`.
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `param_env_over`, `SeedScalar`,
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
@@ -3243,7 +3292,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 94] = [
+const NOT_CARRIED: [&str; 93] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3274,7 +3323,6 @@ const NOT_CARRIED: [&str; 94] = [
     "Lane",
     "MeshPatchKey",
     "MeshPick",
-    "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",

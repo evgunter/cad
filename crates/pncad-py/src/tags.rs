@@ -64,7 +64,8 @@ use pncad::prelude::BlendKind;
 use pncad::profile::{CornerReason, CornerWindow, NoCornerReason, PathError, PathErrorKind};
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError, Resolution,
+    DanglingRef, HitTestError, InterrogateError, MeshPickError, NodePickError, ReadbackError,
+    Resolution,
 };
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
@@ -1007,16 +1008,13 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 /// is that fact whether it is reached through `Body.tessellate` or
 /// through a pick index.
 ///
-/// The `Index` arm is the one that cannot forward. Its payload is
-/// `MeshPickError`, which CUR3 recorded DECIDED absent from the façade
-/// (`crates/pncad/tests/all.rs`'s `NOT_CARRIED`, argued in
-/// `crates/pncad/src/select.rs`): the type is not nameable here, so
-/// its arms cannot be matched and there is no per-arm tag to forward.
-/// The whole arm therefore crosses as ONE tag plus the kernel's own
-/// prose, which states the offending patch, triangle and index. That
-/// is a knowingly unprojected payload — `work/lib/mesh-pick-error-is-
-/// unmatchable-under-node-pick-error.md` records it — and not a lane
-/// this crate can close without a façade decision.
+/// The `Index` arm does NOT forward, and that is a decision rather
+/// than the absence one. `mesh_index` names which door's invariant
+/// broke — the pick INDEX's, not the tessellator's and not the
+/// evaluation's — and a caller branching on the standing ladder needs
+/// that word to stay put. What the payload says underneath it is a
+/// second question, answered beside the tag by
+/// [`mesh_pick_error_tag`] rather than in place of it.
 pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
     match err {
         NodePickError::Standing(err) => hit_test_error_tag(err),
@@ -1024,6 +1022,25 @@ pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
         NodePickError::NoSuchBody { .. } => "no_such_body",
         NodePickError::Tessellate(err) => tessellate_error_tag(err),
         NodePickError::Index(_) => "mesh_index",
+    }
+}
+
+/// The stable tag for the pick INDEX's own refusal — what
+/// `NodePickError::Index` carries.
+///
+/// One arm today, and the map exists for the reason the header states
+/// rather than for the branch it currently offers: the match is
+/// exhaustive, so a second indexing invariant added kernel-side stops
+/// this crate compiling instead of silently joining the first under
+/// `mesh_index`. The carrier's word says WHICH door refused; this one
+/// says which of that door's invariants broke.
+///
+/// The numbers the arm carries — patch, triangle and the out-of-range
+/// position index — stay in the kernel's own `Display`, which is
+/// where they already were.
+pub fn mesh_pick_error_tag(err: &MeshPickError) -> &'static str {
+    match err {
+        MeshPickError::PositionOutOfRange { .. } => "position_out_of_range",
     }
 }
 
