@@ -151,7 +151,11 @@ fn r1_line_beside_one_meridian_refuses_where_its_circle_twin_is_carried() {
         })
         .map(|(e, _)| e)
         .collect();
-    assert_eq!(hits.len(), 1, "one wall/cap generator at azimuth 0: {hits:?}");
+    assert_eq!(
+        hits.len(),
+        1,
+        "one wall/cap generator at azimuth 0: {hits:?}"
+    );
     let split = split_mid(&mut body, hits[0]);
     topo::mint_pcurves(&mut body, tol()).expect("pcurves");
     assert_eq!(distinct_surfaces_at(&body, split), 2, "wall + cap");
@@ -219,7 +223,11 @@ fn r1_a_collinear_wall_vertex_is_a_door_built_one_surface_vertex() {
         ]),
         Revolution::Full,
     );
-    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()), "operand tier 3");
+    assert_eq!(
+        topo::validate_geometric(&body, tol()),
+        Ok(()),
+        "operand tier 3"
+    );
     let mids: Vec<VertexKey> = body
         .vertices()
         .filter(|(v, _)| (point(&body, *v).y - h / 2.0).abs() < 1e-12)
@@ -239,10 +247,16 @@ fn r1_a_collinear_wall_vertex_is_a_door_built_one_surface_vertex() {
             let props = topo::mass_properties(&s.body, tol()).expect("props");
             println!("[r1] collinear drum: shells, vol={}", props.volume);
         }
-        Err(e) => println!("[r1] collinear drum: shell Err {e} / corner={:?} edge={:?}",
-            corner_refusal(&e), edge_refusal(&e)),
+        Err(e) => println!(
+            "[r1] collinear drum: shell Err {e} / corner={:?} edge={:?}",
+            corner_refusal(&e),
+            edge_refusal(&e)
+        ),
     }
-    assert!(one_surface, "the door built a vertex whose only surface is a cylinder");
+    assert!(
+        one_surface,
+        "the door built a vertex whose only surface is a cylinder"
+    );
 }
 
 /// The PR's sweep says the sphere's seam is always a great circle. A
@@ -262,24 +276,41 @@ fn r1_a_cocircular_profile_vertex_makes_a_sphere_latitude_seam() {
         ]),
         Revolution::Full,
     );
-    println!("[r1] two-arc sphere: tier3={:?} faces={} edges={} verts={}",
-        topo::validate_geometric(&body, tol()), body.faces().count(), body.edges().count(), body.vertices().count());
+    println!(
+        "[r1] two-arc sphere: tier3={:?} faces={} edges={} verts={}",
+        topo::validate_geometric(&body, tol()),
+        body.faces().count(),
+        body.edges().count(),
+        body.vertices().count()
+    );
     let mut spheres: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
     spheres.sort();
     spheres.dedup();
-    println!("[r1] two-arc sphere: distinct surface keys={}", spheres.len());
+    println!(
+        "[r1] two-arc sphere: distinct surface keys={}",
+        spheres.len()
+    );
     for (e, _) in body.edges() {
         let (cv, _) = carrier(&body, e);
-        println!("[r1] two-arc sphere: edge {e:?} same_surface={} carrier={cv:?}", same_surface(&body, e));
+        println!(
+            "[r1] two-arc sphere: edge {e:?} same_surface={} carrier={cv:?}",
+            same_surface(&body, e)
+        );
     }
     match topo::shell(&body, 0.05, tol()) {
         Ok(s) => {
             let props = topo::mass_properties(&s.body, tol()).expect("props");
             let want = 4.0 / 3.0 * PI * (r.powi(3) - (r - 0.05f64).powi(3));
-            println!("[r1] two-arc sphere: shells vol={} want={want}", props.volume);
+            println!(
+                "[r1] two-arc sphere: shells vol={} want={want}",
+                props.volume
+            );
         }
-        Err(e) => println!("[r1] two-arc sphere: shell Err {e} / corner={:?} edge={:?}",
-            corner_refusal(&e), edge_refusal(&e)),
+        Err(e) => println!(
+            "[r1] two-arc sphere: shell Err {e} / corner={:?} edge={:?}",
+            corner_refusal(&e),
+            edge_refusal(&e)
+        ),
     }
 }
 
@@ -296,11 +327,17 @@ fn r1_partial_two_arc_torus_off_plane_corner() {
         RawLoop::new(vec![ProfileVertex::new(a, 1.0), ProfileVertex::new(b, 1.0)]),
         Revolution::Partial(FRAC_PI_2),
     );
-    println!("[r1] partial two-arc torus: tier3={:?}", topo::validate_geometric(&body, tol()));
+    println!(
+        "[r1] partial two-arc torus: tier3={:?}",
+        topo::validate_geometric(&body, tol())
+    );
     match topo::shell(&body, 0.05, tol()) {
         Ok(_) => println!("[r1] partial two-arc torus: shells"),
-        Err(e) => println!("[r1] partial two-arc torus: shell Err {e} / corner={:?} edge={:?}",
-            corner_refusal(&e), edge_refusal(&e)),
+        Err(e) => println!(
+            "[r1] partial two-arc torus: shell Err {e} / corner={:?} edge={:?}",
+            corner_refusal(&e),
+            edge_refusal(&e)
+        ),
     }
 }
 
@@ -321,7 +358,9 @@ fn r1_split_edge_children_lack_pcurves() {
         .edges()
         .find(|(e, _)| match carrier(&body, *e).0 {
             Curve3::Line { origin, dir } => {
-                origin.x > 0.0 && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15 && same_surface(&body, *e)
+                origin.x > 0.0
+                    && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
+                    && same_surface(&body, *e)
             }
             _ => false,
         })
@@ -331,7 +370,10 @@ fn r1_split_edge_children_lack_pcurves() {
     split_mid(&mut body, seam);
     let verdict = topo::validate_geometric(&body, tol());
     println!("[r1] split drum before mint: {verdict:?}");
-    assert!(verdict.is_err(), "measured: the split operand is tier-3 invalid");
+    assert!(
+        verdict.is_err(),
+        "measured: the split operand is tier-3 invalid"
+    );
     let e = topo::shell(&body, 0.05, tol()).expect_err("shell refuses the unminted operand");
     println!("[r1] split drum shell: {e}");
     topo::mint_pcurves(&mut body, tol()).expect("mint");
@@ -345,21 +387,37 @@ fn r1_split_edge_children_lack_pcurves() {
 fn r1_end_to_end_consumer_seat() {
     let (big_r, r, w, t) = (2.0, 0.5, 0.125, 0.05);
     let (c, a, u) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x());
-    let solid = tube_along_arc::<f64>(c, a, u, big_r, TubeWindow::Full, r, tol()).expect("solid").body;
-    let hollow = tube_along_arc_hollow::<f64>(c, a, u, big_r, TubeWindow::Full, r, w, tol()).expect("hollow").body;
+    let solid = tube_along_arc::<f64>(c, a, u, big_r, TubeWindow::Full, r, tol())
+        .expect("solid")
+        .body;
+    let hollow = tube_along_arc_hollow::<f64>(c, a, u, big_r, TubeWindow::Full, r, w, tol())
+        .expect("hollow")
+        .body;
     let pi2r = 2.0 * PI * PI * big_r;
     let ring = |a: f64, b: f64| a * a - b * b;
 
     let s1 = topo::shell(&solid, t, tol()).expect("solid shells");
-    let roles: Vec<_> = topo::classify_shells(&s1.body, tol()).expect("classify").into_iter().map(|c| (c.solid, c.role)).collect();
-    println!("[e2e] solid shelled: solids={} shells={} roles={roles:?}", s1.body.solids().count(), s1.body.shells().count());
+    let roles: Vec<_> = topo::classify_shells(&s1.body, tol())
+        .expect("classify")
+        .into_iter()
+        .map(|c| (c.solid, c.role))
+        .collect();
+    println!(
+        "[e2e] solid shelled: solids={} shells={} roles={roles:?}",
+        s1.body.solids().count(),
+        s1.body.shells().count()
+    );
     let p1 = topo::mass_properties(&s1.body, tol()).expect("props");
     assert!((p1.volume - pi2r * ring(r, r - t)).abs() <= 1e-9 + p1.volume_pad);
 
     let s2 = topo::shell(&hollow, t, tol()).expect("hollow shells");
     let p2v = topo::mass_properties(&s2.body, tol()).expect("props");
     let want2 = pi2r * (ring(r, r - t) + ring(r - w + t, r - w));
-    println!("[e2e] hollow shelled: solids={} vol={} want={want2}", s2.body.solids().count(), p2v.volume);
+    println!(
+        "[e2e] hollow shelled: solids={} vol={} want={want2}",
+        s2.body.solids().count(),
+        p2v.volume
+    );
     assert!((p2v.volume - want2).abs() <= 1e-9 + p2v.volume_pad);
 
     // SHELL-5's semantics again: shell the twice-hollow result (2 solids).
@@ -367,20 +425,39 @@ fn r1_end_to_end_consumer_seat() {
     match topo::shell(&s2.body, t2, tol()) {
         Ok(s3) => {
             let p3 = topo::mass_properties(&s3.body, tol()).expect("props");
-            let want3 = pi2r * (ring(r, r - t2) + ring(r - t + t2, r - t) + ring(r - w + t, r - w + t - t2) + ring(r - w + t2, r - w));
-            println!("[e2e] hollow shelled again: solids={} shells={} vol={} want={want3}", s3.body.solids().count(), s3.body.shells().count(), p3.volume);
+            let want3 = pi2r
+                * (ring(r, r - t2)
+                    + ring(r - t + t2, r - t)
+                    + ring(r - w + t, r - w + t - t2)
+                    + ring(r - w + t2, r - w));
+            println!(
+                "[e2e] hollow shelled again: solids={} shells={} vol={} want={want3}",
+                s3.body.solids().count(),
+                s3.body.shells().count(),
+                p3.volume
+            );
         }
         Err(e) => println!("[e2e] hollow shelled again: Err {e}"),
     }
     // Tessellate the two thin tori.
     match mesh::tessellate(&s2.body, 0.01, tol()) {
-        Ok(m) => println!("[e2e] tessellate: positions={} patches={} check={:?}", m.positions.len(), m.patches.len(), mesh::validate::check_mesh(&m)),
+        Ok(m) => println!(
+            "[e2e] tessellate: positions={} patches={} check={:?}",
+            m.positions.len(),
+            m.patches.len(),
+            mesh::validate::check_mesh(&m)
+        ),
         Err(e) => println!("[e2e] tessellate: Err {e:?}"),
     }
     // shell_open on a torus: designate one of the two torus faces.
     let face = solid.faces().next().map(|(k, _)| k).expect("a face");
     match topo::shell_open(&solid, t, &[face], tol()) {
-        Ok(o) => println!("[e2e] shell_open on a torus face: Ok solids={} shells={} rims={}", o.body.solids().count(), o.body.shells().count(), o.naming.rims.len()),
+        Ok(o) => println!(
+            "[e2e] shell_open on a torus face: Ok solids={} shells={} rims={}",
+            o.body.solids().count(),
+            o.body.shells().count(),
+            o.naming.rims.len()
+        ),
         Err(e) => println!("[e2e] shell_open on a torus face: Err {e}"),
     }
     let _ = ShellRole::Outer;
