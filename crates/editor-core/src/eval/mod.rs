@@ -34,7 +34,7 @@ pub(crate) use wire::{
     need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
 };
 
-pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
+pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 
 use std::collections::BTreeMap;
@@ -2634,8 +2634,9 @@ where
     // The profile F64 PRECOMPUTE (replay + f64 validation + the naming
     // anchor): C6 structure selection — the successor of the stored
     // f64 bits — made on this node's behalf, so its decisions are the
-    // first entries of the node's log, ahead of the lane validation
-    // the op runs.
+    // first entries of the node's log: the whole of it under the
+    // pinned lift, and ahead of the op's own replay and validation
+    // under the guided lift.
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
             // The frame the profile is drawn on, at f64 and from the
