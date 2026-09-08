@@ -2210,6 +2210,11 @@ pub(crate) mod staleness_posture {
                 "re-parents faces between shells; no half-edge key changes meaning",
             ),
             (
+                "move_shells_to_new_solid",
+                Neither,
+                "re-parents shells between solids; no half-edge key changes meaning",
+            ),
+            (
                 "split_edge",
                 Neither,
                 "replaces one edge's geometry with two children — the one primitive that \
