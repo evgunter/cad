@@ -704,10 +704,14 @@ class NodePickError(PncadError):
     door whose invariant broke — the pick INDEX's, not the
     tessellator's and not the evaluation's — and `index_variant`
     carries the payload's own discriminant beside it,
-    `position_out_of_range` today. The offending patch, triangle and
-    position index are in the message: they describe a mesh that
-    violates its own invariant, which is a bug report rather than
-    something to branch on.
+    `position_out_of_range` today. Its three numbers come with it:
+    `patch` and `triangle` are the offending triangle's position in
+    the mesh value, and `index` the position it referenced outside the
+    buffer. They describe a mesh that violates its own invariant — a
+    bug report rather than something to branch on — and they are
+    attributes rather than prose because that is what a bug report is
+    assembled from. The payload's type is not raisable and so has no
+    door of its own to carry them.
 
     Every field is present on every arm, `None` where that arm does not
     carry it."""
@@ -718,6 +722,9 @@ class NodePickError(PncadError):
     kind: Optional[EntityKind]
     body: Optional[int]
     index_variant: Optional[str]
+    patch: Optional[int]
+    triangle: Optional[int]
+    index: Optional[int]
 
 class ChecksError(PncadError):
     """The advisory-check registry could not RUN.

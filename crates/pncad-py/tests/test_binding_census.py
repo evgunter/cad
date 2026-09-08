@@ -501,9 +501,13 @@ BOUND_AS = {
     # exists for what the type does NOT have yet: the match that mints
     # it is exhaustive, so a second indexing invariant stops the
     # bindings compiling instead of joining the first under one word.
-    # Python has no class for the payload and needs none — the three
-    # numbers the arm carries describe a mesh that violates its own
-    # invariant, which is a bug report and not something to branch on.
+    # Python has no class for the payload and needs none, but its
+    # three numbers cross beside the discriminant — `patch`,
+    # `triangle` and `index` on the same exception, `None` on every
+    # other arm. They describe a mesh that violates its own invariant,
+    # which is a bug report and not something to branch on; a bug
+    # report is assembled from numbers, and the payload's type is not
+    # raisable, so this door is the only crossing they get.
     "MeshPickError": "NodePickError.index_variant",
     # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
     # analytic kind's stage-1 estimator declined on a face that could
@@ -1175,7 +1179,10 @@ FAMILIES: dict[str, str] = {
 #: `MeshPick`, and a refusal is received rather than built. The
 #: payload alone is curated now and its discriminant crosses at
 #: `NodePickError.index_variant` (`BOUND_AS`, above), which is where
-#: the reasoning for the split spelling lives.
+#: the reasoning for the split spelling lives. Its three numbers
+#: crossed later, as `patch`, `triangle` and `index` on the same
+#: exception: the closing left them in the prose, and the standing
+#: rule is that an arm's payload is attributes.
 #: **B-RESOLVE is CLOSED and no longer a `gap` id here**
 #: (LIB-B-RESOLVE). It held three names — `resolve`, `Resolution` and
 #: `RunCtx` — and the question a consumer that STORES names must ask
