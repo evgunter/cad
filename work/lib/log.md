@@ -3559,7 +3559,7 @@ the log tail alone and landed on run 34225477952's green without
 another chase.
 
 **LIB-TEAPOT MERGED (2026-09-08, #2206; full protocol — block LIB-13
-slot 2, v6 dual at ordinal 304, sample #161). The tour's teapot is
+slot 2, v6 dual at ordinal 304, sample #163). The tour's teapot is
 ONE recipe document and the numeric scans are gone.** The pot's
 revolve is hollowed twice by `Node::Shell` over one operand and wall,
 parted only by the open list (empty for the sealed body whose census,

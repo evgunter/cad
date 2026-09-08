@@ -26,6 +26,7 @@ use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::fillet_edges;
+use sweep::test_support::arcs_at;
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve, tube_along_arc,
     tube_along_arc_hollow,
@@ -527,19 +528,12 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     let mut body = tube();
     let wall = cylinder_face_at(&body, 0.8);
     let wall_key = body.get_face(wall).unwrap().surface;
-    let rim = body
-        .edges()
-        .find(|(k, e)| {
-            let Some(c) = body.get_curve_geom(e.curve).and_then(CurveGeom::certified) else {
-                return false;
-            };
-            let geom::Curve3::Circle { center, radius, .. } = c.carrier() else {
-                return false;
-            };
-            ((*radius - 0.8).abs() < 1e-9 && (center.y - 0.6).abs() < 1e-9)
-                && edge_touches_face(&body, *k, wall)
-        })
-        .map(|(k, _)| k)
+    // The wall's top rim: the fixture selector names the arc by the
+    // radius and station the tube is authored at, and the face-touch
+    // predicate says which side of the annulus this row means.
+    let rim = *arcs_at(&body, 0.8, 0.6)
+        .iter()
+        .find(|k| edge_touches_face(&body, **k, wall))
         .expect("the outer wall's top rim");
     let curve = body
         .get_edge(rim)
