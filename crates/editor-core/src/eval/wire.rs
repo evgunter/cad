@@ -619,8 +619,8 @@ fn body_operand<T: Decide>(
         Ok(Placeable::Body(b)) => Ok(b),
         Ok(Placeable::Instances(_)) => Err(NodeErrorKind::WrongOperand {
             input,
-            expected: "body",
-            found: "instances",
+            expected: super::family::BODY,
+            found: super::family::INSTANCES,
         }),
         Err(NodeErrorKind::WrongOperand { input, found, .. }) => Err(NodeErrorKind::WrongOperand {
             input,
