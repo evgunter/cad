@@ -113,11 +113,18 @@ budget data is a PROPS coordination, not a lane's call.
    on the committed baseline — a READING, which is why it needs a
    home; and `worst_dev` is reported, not gated (the gate emits
    `Vanished`/`Triangles`/`Uncovered`/`Slack`/`Rekeyed` and none reads
-   it), so the swap moves the reported `total` ratio by up to 1.4652%
-   and no finding at all. Both halves go in `baseline_census.rs`
-   beside the pair census, so a re-cut making a swap GATE-visible
-   fails and names what moved, and a scene becoming document-built
-   fires and says `C15` became dischargeable. `C15` stays OPEN: the
+   it), so the swap moves no finding at all. **The report-side half of
+   this row was FALSE and is corrected** (log, 2026-09-08): a swap
+   moves nothing the report PRINTS either — verified by swapping each
+   pair in the committed CSV and diffing `tess-lint --top 100`, all
+   seven identical. `main.rs` prints `SceneTotals::total_slack`
+   (triangle-weighted), not `Row::total_slack`'s `delta / worst_dev`,
+   and `worst_cert` is printed by nothing. What an undetected swap
+   costs is a wrong-face attribution in a column nothing reads. The
+   gate-invisibility goes in `baseline_census.rs` beside the pair
+   census, so a re-cut making a swap GATE-visible fails and names what
+   moved, and a scene becoming document-built fires and says `C15`
+   became dischargeable. `C15` stays OPEN: the
    defect is live, what closes it is corpus-side, and Ev's second
    clause on `D201` scopes that as not urgent rather than as done.
    Unit 0 took the tripwire half that used to sit under this step.

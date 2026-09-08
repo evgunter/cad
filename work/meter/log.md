@@ -818,3 +818,57 @@ is re-parked detached on `origin/main`.
 
 Both are worth carrying: **concurrent lanes need one worktree each, and
 `main` in an ephemeral container is not necessarily `origin/main`.**
+
+## Unit 8's style review returned a MAJOR against the orchestrator (2026-09-08)
+
+The tests survived — the reviewer could not break them, and confirmed
+both assertions independently reachable exactly as the lane argued,
+every assertion able to fail, and the vacuity guard closing its hole.
+What did not survive is the sentence I wrote into the brief.
+
+**"Invisible in the gate, visible in the report" is false in its
+second half.** I conflated two functions with one name:
+`Row::total_slack` (`tools/tess-lint/src/lib.rs:461`) IS
+`delta / worst_dev` and the report never prints it — it is only an
+addend inside `SceneTotals::add`; what `main.rs:354` prints is
+`SceneTotals::total_slack` (`:1272`), `measured_triangles /
+extrapolated_triangles`. That function's own doc at `:1266-1270`
+names and REJECTS the identification I made. `worst_cert` is printed
+by nothing at all.
+
+Verified here rather than relayed, and the verification is the lesson.
+Swapping each pair's `face` field by minimal textual edit and diffing
+`tess-lint --top 100`: **all seven identical.** My first run said the
+opposite — because I had rebuilt the CSV through `csv.writer`, which
+changes the report on its own with no swap at all. The control caught
+it: a no-op round-trip already differed. A second confound was the
+report echoing its input path in line 1. Only with a byte-identical
+control passing and that line excluded does the measurement mean
+anything.
+
+**Three errors in one family, and this is the largest.** I checked
+which COLUMNS differ within a pair and never checked what the report
+PRINTS. Reading the enum told me `worst_dev` does not gate; I stopped
+there and assumed the complement — that it therefore reaches the
+report — instead of grepping `main.rs`, which takes one command and
+returns zero. *Establishing that a thing is not in set A is not
+evidence that it is in set B.*
+
+**The corrected claim**, which is smaller and better founded: a swap
+exchanges two whole rows, so every aggregate the report folds sees the
+same multiset. What an undetected swap costs is a **wrong-face
+attribution in a column nothing reads** — not a moved number anywhere.
+The 1.4652% is real but it is the gap between the two ROWS'
+`delta / worst_dev`; a swap does not change either value, only which
+ordinal carries it.
+
+That makes `C15`'s live blast radius smaller than this program has
+said all along, and it strengthens rather than weakens the case for
+the census guard: gate-invisibility is now established by EXECUTION
+over the committed corpus, and the guard is what fires when it stops
+being true.
+
+The reviewer also ruled the question I put to it (S2): dropping the
+two numbers from the row was right, leaving the PREDICATE unguarded is
+the over-correction — a reading of a committed artefact sitting as
+prose is the shape the row itself forbids. Sent back with the MAJOR.
