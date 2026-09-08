@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/doors-3
 refs: [n-ary-union-and-set-members-have-no-python-door, structural-slots-without-a-binding-door]
+pr: 2238
 ---
 
 
