@@ -1042,12 +1042,35 @@ the same reason the second shape exists. A converted vocabulary is not
 a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
 the nine are quiet without an entry. What the gate reads is this
 section rather than a list of its own: the ROWS below are the
-allowlist, and the KINDS they may claim are the **bolded bullets**
-above. Both are read only WITHIN this section, so the roster cannot
-drift onto another page's heading and go on being read; and the gate
-carries the NUMBER of bullets as its own constant, so a fourth kind is
-an amendment argued here AND an edit to that file, not a new word in a
-table cell.
+allowlist, and the KINDS they may claim are the bullets of the
+three-kinds list above — the list the sentence *"Three kinds of list
+stay hand-written"* announces, and no other. That sentence is matched
+only where it OPENS a paragraph, so quoting it in prose, as this one
+just did, is a mention and not a second announcement. Both halves are
+read only WITHIN this section, so the roster cannot drift onto another
+page's heading and go on being read.
+
+The kinds are read only under that sentence, and that scope is
+load-bearing in the other direction too: **the prose in this section
+may carry bulleted lists like any other prose, with one exception.** A
+bulleted list that is the NEXT thing after the ratified list, separated
+from it by nothing but blank lines, is not a second list at all:
+CommonMark makes the two ONE loose list, every renderer draws them as
+one, and the gate reads its items as ratified kinds and reds. The rule
+that yields the exception is the renderer's rather than the gate's, and
+it is the rule for finding the population too — anything that closes
+the ratified list first, a paragraph or a heading or a table, makes the
+next bulleted list a separate one, and a bolded bullet anywhere else in
+this section is not a ratified kind. Indentation does not separate two
+lists either: a marker up to three spaces in is an item of the SAME
+list to a renderer and to the gate, and at four spaces it is the
+bullet's own nested content, or the paragraph's, or a code block.
+
+The gate pins the announcing sentence and carries the NUMBER of bullets
+as its own constant, and it refuses those two to disagree — so a fourth
+kind is an amendment argued here, rewording that sentence's number word
+and adding a bullet, AND an edit to that file moving both of its copies
+of the count, not a new word in a table cell.
 
 The roster retires itself in both directions — a list added without a
 row reds, and a row whose list has been converted reds too, because an
@@ -1089,7 +1112,8 @@ is what covers it.
 **This table is the roster**, not a summary of one. `Module` is the
 module the `const` is declared in, `List` is how it is written there
 (an associated constant carries its type, `Theme::ALL`), and `Kind` is
-the bolded bullet above that ratifies it, word for word.
+the bullet of the three-kinds list above that ratifies it, word for
+word.
 
 The type in `List` is for a reader, not for the gate: what the gate
 keys on is the module and the constant's own name, because an
