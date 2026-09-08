@@ -133,6 +133,7 @@ should be visible on its own.
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
 | `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass — **merged** |
 | `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass — **merged** |
+| `view/gate-bullets` (the vocab gate's kind scan, anchored) | — | dispatched 2026-09-08 |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
