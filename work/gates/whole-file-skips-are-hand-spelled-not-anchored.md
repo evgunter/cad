@@ -2,11 +2,12 @@
 id: whole-file-skips-are-hand-spelled-not-anchored
 kind: issue
 title: the directory's other whole-file skips are hand-spelled EREs rather than gate_record_anchor
-status: review
+status: closed
 opened: 2026-09-06
 refs: [home-anchored-file-skip-is-unescaped]
 branch: gates/whole-file-skips
 pr: 2077
+closed: 2026-09-06
 ---
 
 ## Finding
