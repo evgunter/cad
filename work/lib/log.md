@@ -2961,6 +2961,21 @@ the orchestrator: a lane that has not pushed in thirty minutes is
 suspect regardless of the notification channel; the hourly check-in
 now reads the lock holders and process table, not just the branches.
 
+**LIB-G17 MERGED (2026-09-08, #2150 — ordinal 303, sample #158, row in
+MODEL-AB-LOG; block LIB-13 slot 1 consumed). RECIPE-DOORS is COMPLETE:
+chamfer, tube and shell all have their recipe doors.** `Node::Shell`
+through the verb seat, named from `ShellNaming` under three additive
+roles, spelled in Python, proved on an opened box with exact closed
+forms and on the teapot's own mouth. Three decisions the spec made
+survived the dual: `open` ordered (both reviewers executed the
+order-only-moves-the-rim claim and it held to the bit), the refusal
+folded to f64 (reshaped onto the lane by the dual's convergent
+finding), the three roles. The teapot's conversion, the two-half
+mouth designation and the registry hold-out are on the slate as
+their own files. Standing after the merge: Wave 1 mechanical
+(B-FACE-FRAME, MECH2) landed; B-PART in CI; CUR5 and the four ruled
+units (SAVEFORK, POLYGON, CORPUS, PRODUCT) queued on the box's disk;
+LIB-13 has three OPUS slots open for the next full-protocol units.
 **LIB-G17 DUAL ADJUDICATED (2026-09-08, PR 2150, ordinal 303, frozen
 `4a093c5c`; R1 opus, R2 fable per byte 218).** R1 APPROVE-WITH-FIXES
 0/6/8 (+9 style), rubric 4/4/3; R2 APPROVE-WITH-FIXES 0/5/6 (+style),

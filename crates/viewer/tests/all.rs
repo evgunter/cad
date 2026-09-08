@@ -71,6 +71,8 @@ mod combine_ops;
 mod creation_ops;
 #[path = "datum_draw.rs"]
 mod datum_draw;
+#[path = "debug_dumps.rs"]
+mod debug_dumps;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
