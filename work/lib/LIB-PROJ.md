@@ -2,11 +2,12 @@
 id: LIB-PROJ
 kind: unit
 title: two projection repairs: the mate accessors exhaustive, the pick indices as attributes
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/proj
 refs: [mate-fault-accessors-wildcard-into-silence, mesh-index-numbers-cross-as-prose-under-a-projecting-door]
 pr: 2236
+closed: 2026-09-08
 ---
 
 Two one-file projection repairs under the ratified rule (A) on

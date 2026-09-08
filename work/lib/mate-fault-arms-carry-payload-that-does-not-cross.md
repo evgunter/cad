@@ -71,3 +71,16 @@ ride any mate unit. `Frame`'s waits for LIB-DOORS-2's `frame_err`.
 The other four each need a curation decision on the payload type
 first, which is the `next-payload-rung-under-the-cur3-cur4-carriages`
 question and not this file's.
+
+## Orchestrator note (2026-09-08, LIB)
+
+LIB-DOORS-2 landed the same day (`#2228`), so the `Frame` row's wait
+is over: `frame_err`'s vocabulary is settled — `variant` per input,
+`inner_variant`/`field`/`value` for the band arm, and the
+classifier's `margin`/`margin_low`/`margin_high`/`zero`/`escalate`/
+`predicate` — and a mate unit crossing `MateFault::Frame`'s payload
+should speak it. `Band`'s and `Indeterminate`'s type questions
+(`BandField`, `MarginDiag`) are the re-measure filed as
+`margin-diag-non-curation-was-measured-on-a-count-that-moved`;
+`Unleverable`'s `LeverRefusal` and `Contradictory`'s `lever` remain
+this file's.

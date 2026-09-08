@@ -3850,3 +3850,52 @@ discriminant) and `step_import` (argued at its site). No kernel crate
 touched beyond the prelude's prose. A deleted arm fails to compile
 (three `E0004`s, one per door; run, reverted). Merged main twice
 mid-unit; the lane ran the pinned ruff for real.
+
+**LIB-PROJ MERGED (2026-09-08, #2236; mechanical under the 08-29
+ruling, no A/B row). Two one-file projection repairs under Ev's
+ruling (A): the `MateFault` accessors are exhaustive, and
+`NodePickError` projects the index arm's three numbers.** The
+seventeen mate accessors now read off ONE record,
+`crates/pncad-py/src/mate_payload.rs` (the `edit_payload.rs` shape —
+`MateFaultPayload`, `presence()` without `..`, `NONE`, one exhaustive
+match over thirteen arms, sited outside `py/` so the drift alarm
+rings on the no-Python row): the lane's stated choice, since
+seventeen per-accessor matches would name thirteen arms seventeen
+times and charge a new kernel arm seventeen edits. `Unleverable`
+answers `mate` and nothing else — its `LeverRefusal` is a nested
+refusal of a type the façade does not re-export, filed rather than
+guessed. The lane swept its own file past the charter, with the
+reason: `MatePrimitive::offset`, `Subgroup`'s three and
+`ClusterMaintenance`'s seven became exhaustive IN PLACE (few arms
+over few accessors — a record there adds a layer without removing a
+match); `py/mate.rs` has no `_ =>` at all. Measured: a `MateFault`
+arm added kernel-side fails `cargo check -p pncad-py` with no
+features at the record's match, where before only the tag map fired
+and the seventeen accessors compiled unchanged. `NodePickError`
+gains `patch`/`triangle`/`index` from `pick_payload.rs::index_payload`
+(exhaustive over both `NodePickError` and the `MeshPickError` inside
+it); `node_pick_err` is the class's one raise site, so the three are
+on every instance by construction. **The brief's claim the lane
+could not make**: "the three pick numbers reachable from Python" —
+the arm reports a mesh violating its own invariant, unauthorable and
+unconstructible from Python, exactly as the item said; pinned in
+Rust at three distinct numbers (`3`/`11`/`47`, so a swapped slot
+shows as a moved value), with Python owning the present-and-`None`
+half. Orchestrator note: that claim was the brief's error, not the
+lane's, and the lane's refusal to assert it is the discipline working.
+Census: `MeshPickError`'s `BOUND_AS` mapping unchanged, prose moved.
+Two residue items filed: `mate-fault-arms-carry-payload-that-does-not-cross`
+(six kernel fields over six arms no attribute crosses — two
+`DocumentId`s, `Contradictory.lever`, and the four nested refusals
+whose types the façade does not re-export, which is why the Rust arm
+table pins nine of thirteen; the projection is still total, the
+executable table is not, and the two guarantees differ — the `Frame`
+row's wait ended when DOORS-2 landed, noted on the file) and
+`payload-accessor-wildcards-remain-in-checks-and-assembly` (the
+sweep's hit list: `py/checks.rs`'s five `CheckEvidence` accessors and
+`py/assembly.rs`'s two `RefusedRef` accessors are live siblings of
+the shape; `validation.rs`'s extract licence argued at its site;
+`py/doc.rs`'s `Node` extract not this class; blind spot stated for a
+named catch-all). Both closed items carry `## Closed`. No kernel
+crate touched; the lane ran the pinned ruff for real; ~1h15m,
+~221k tokens.
