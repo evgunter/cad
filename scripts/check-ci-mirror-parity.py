@@ -813,7 +813,7 @@ def invocations(lines: list[str]) -> set[str]:
 
 
 def _shell_text(lines: list[str]) -> str:
-    """One `run:` block as ONE unit of matching, with trailing comments gone.
+    r"""One `run:` block as ONE unit of matching, with trailing comments gone.
 
     TWO DECISIONS, BOTH OF THEM ABOUT WHICH WAY TO BE WRONG.
 
