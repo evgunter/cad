@@ -2,12 +2,13 @@
 id: directory-prefix-skips-have-no-subject-check
 kind: issue
 title: the directory-prefix exemptions have no subject check, and the helper the file skips got cannot give them one
-status: review
+status: closed
 opened: 2026-09-08
 refs: [2156]
-branch: gates/dir-prefix-subject
-pr: 2170
-blocked_on: [2171]
+branch: gates/bin-skip-by-file
+pr: 2213
+blocked_on: []
+closed: 2026-09-08
 ---
 
 ## Finding
@@ -230,3 +231,58 @@ is open is the `crates/*/src/bin/` convention-class skip, a ruling on
 ## Refs at GATES' sweep (2026-09-08)
 
 GATES closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 7); `whole-file-skips-do-not-check-their-subject` is now cited by its closing PR 2156.
+
+## Closed (2026-09-08)
+
+**Ev's ruling, PR #2171:**
+
+> i'd somewhat be inclined to switch it to allowlist just that one file
+> but put a comment to go back to the glob version if we end up having
+> many such entrypoints
+
+So the third exemption is neither of the two checks this row proposed
+and neither of the three shapes it put on the table: the glob stops
+being a convention class at all. `^crates/[^/]+/src/bin/` becomes an
+anchored whole-file skip at `crates/viewer/src/bin/viewer.rs`, the one
+bin target that mints the witness today (`:29` and `:62`, the native and
+web `main` paths — measured with the glob neutralised, the gate reds on
+exactly those two lines and nothing else), and it is then an ordinary
+member of the list this row's first half built: `BIN_HOME` with a
+subject sentence, `gate_require_homes "$BIN_SUBJECT" "$BIN_HOME"` after
+the scan set is decided, the skip through `gate_record_anchor`, the home
+planted in the clean fixture minting the witness, and its home-gone and
+out-of-scan cases through `gate_selftest_homes --subject`. All four
+subjects are now checked; the class this row opened is closed with no
+exemption in this gate left over.
+
+**What the ruling costs, stated at the fixture.** `plant_in_bin` — a
+`main` under some OTHER crate's `src/bin/` minting the witness — flips
+from must-PASS to must-FIRE. A second bin target that starts a run has
+to be argued into the allowlist by name, and the comment Ev asked for is
+at `BIN_HOME`: if entry points under `src/bin/` multiply, go back to the
+glob, and take back what the glob costs (a convention-class skip names
+no place, so there is no subject to check and a retired `src/bin/` tree
+leaves the exemption standing over the path).
+
+**Also landed.** The header sentence saying the third exemption "is
+checked by nothing … asked of Ev in PR #2171" is deleted — it is checked
+now. The fired diagnosis no longer offers `a main under src/bin` as a
+place to move code to; it names the one allowlisted bin target.
+
+**Fence.** `scripts/gates/witness-not-ambient.sh` only. No `lib.sh`
+change was needed: `gate_require_homes`, `gate_record_anchor` and
+`gate_selftest_homes --subject` already take a whole-file home, and the
+one fixture that grew an argument
+(`plant_colon_after_the_home_that_is_not_a_line_number`, now one per
+anchored home) is this gate's own. Live output is byte-identical to the
+merge base, stdout and stderr (`cmp`).
+
+**Mutation table.**
+
+| mutation | result |
+| --- | --- |
+| the skip restored to the glob `^crates/[^/]+/src/bin/` | red: `plant_colon_after_the_home_that_is_not_a_line_number crates/viewer/src/bin/viewer.rs` PASSED; with that case also removed, `plant_in_bin` PASSED |
+| `gate_require_homes "$BIN_SUBJECT" "$BIN_HOME"` removed | red: `gate_plant_home_gone crates/viewer/src/bin/viewer.rs` PASSED |
+| the anchor unescaped and stripped of its line-number tail (`"^$BIN_HOME"`) | red: `plant_colon_after_the_home_that_is_not_a_line_number crates/viewer/src/bin/viewer.rs` PASSED |
+| the bin skip removed from the filter | red: the gate FAILED on a clean fixture, and live on `crates/viewer/src/bin/viewer.rs:29` and `:62` — the measurement above |
+| `BIN_SUBJECT` replaced by `HOME_SUBJECT` at the call site | red: fired on `gate_plant_home_gone crates/viewer/src/bin/viewer.rs` with an unexpected message |

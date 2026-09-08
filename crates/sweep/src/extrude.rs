@@ -946,7 +946,7 @@ fn sweep_loop<T: Decide>(
                         // the scaffolding the mint left (D3's
                         // transience fence), so spelling that sentence
                         // means saying which chart.
-                        // `survives_dihedral_band_sweep_at_the_strut_arm`
+                        // `review_m2_pr4::survives_dihedral_band_sweep_at_the_strut_arm`
                         // is the row, on two DISTINCT planes, so the
                         // same-key lane above never sees it.
                         //
@@ -962,7 +962,7 @@ fn sweep_loop<T: Decide>(
                         // walls exactly, so either chart is a
                         // legitimate home and neither is a better
                         // statement about the locus.
-                        // `survives_dihedral_band_sweep_at_the_strut_arm`
+                        // `review_m2_pr4::survives_dihedral_band_sweep_at_the_strut_arm`
                         // demonstrates it rather than trusting this
                         // paragraph: it re-describes the same strut in
                         // the OTHER wall's chart and watches that

@@ -74,3 +74,10 @@ that reaches the budget exit exists in the wild set at all.
 Raised by the style review of `meter/klint-roster-pin` (STYLE-5,
 `likely`) and disposed by that PR's fix pass, which added the converse
 check and the excuse rather than the roster line.
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.

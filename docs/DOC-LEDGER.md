@@ -1603,3 +1603,24 @@ and are ledgered here at the head that last carried each:
 - `EVAL-9-SPEC.md` — EVAL-9, the slot nominal joins the content key, format 7 (#2190); recoverable at `git show 2011634817c3417feb72e0285ad4475856edbb24:docs/EVAL-9-SPEC.md`
 - `EVAL-10-SPEC.md` — EVAL-10, one nominal environment (#2194); recoverable at `git show cf1ad66e0570ffeef1db6f1aa747341a21f77b1f:docs/EVAL-10-SPEC.md`
 - `EVAL-11-SPEC.md` — EVAL-11, `node_value_kind` through the placer chain (#2195); recoverable at `git show 0e59a45d374dfa56300925e1ce8b9e08738829ca:docs/EVAL-11-SPEC.md`
+
+## Per-merge deletion — LIB-TEAPOT's spec (2026-09-08)
+
+Recoverable at `git show 21e6d1e284f61fd5ea303a56e41b9a19d8360364:docs/LIB-TEAPOT-SPEC.md`
+(the frozen review head). Three of its sentences did not survive the
+unit and the record says which: §4's SIX rim names are THREE (the lid's
+annular profile takes the emitter's lamina branch) and its ONE
+`Node::Fillet` is TWO (the one-request output cannot be named —
+`RoleSeg::BandSlit` keyed on the source edge alone, filed); §8's third
+clause is CONTRADICTED by a baseline re-cut the gate never asked for
+(the file moved with no geometry moved; disclosed, the reverse re-cut
+scheduled by a live probe); §9 admitted one reason for a moved render
+cell and the uv sheet's `teapotlid` cells moved for another (face
+order), recorded as the §9 finding it is. §5's admissible re-baseline
+never fired: the axis-angle placement lands the spout at the authored
+root to 0.0, measured off the placed body at the fix pass. The rule
+above; the unit's record is its row in `MODEL-AB-LOG.md`, its MERGED
+entry in `work/lib/log.md`, and `work/lib/LIB-TEAPOT.md`'s Delivered
+section.
+
+- `LIB-TEAPOT-SPEC.md` — LIB-TEAPOT, the tour's teapot through the document (#2206)
