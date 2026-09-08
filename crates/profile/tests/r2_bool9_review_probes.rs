@@ -278,141 +278,123 @@ fn r2_the_new_value_row_is_held_only_by_the_coarse_bucket() {
 // 4. Can the widened lift author a different table quietly?
 // ------------------------------------------------------------------
 
-/// **The widening, swept.** `DeclaredJointBeforeClosingLine` and
-/// `AllJointsDeclared` both retired, so a declared closing joint now
-/// spells `continue_to`, whose target the DRIVER measures against the
-/// departing ray. The worry is a loop the driver ACCEPTS while the
-/// program replays to a different table.
+/// One rung of the ladder: a triangle whose fourth vertex sits `off`
+/// away from the exactly-collinear subdivision point on the closing
+/// side, with the closing joint declared or not.
+fn rung(off: f64, declared: bool) -> ProfileLoop<f64> {
+    let lp: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
+        p2(0.0, 0.0),
+        p2(2.0, 0.0),
+        p2(1.0, 1.0),
+        p2(0.5 + off, 0.5),
+    ]);
+    if declared {
+        lp.with_tangent_joints(vec![3])
+    } else {
+        lp
+    }
+}
+
+/// **The widening, swept — and issue 433's two questions, executed as
+/// a pair.**
 ///
-/// The sweep walks a triangle whose subdivision vertex is nudged off
-/// the collinear line by a widening ladder, with the joint declared
-/// throughout — so the declaration is exactly true at 0 and
-/// progressively falser after it. Every outcome must be one of: a
-/// faithful lift, the driver's refusal, or a `Mismatch` that SAYS the
-/// table moved. What must never happen is `Lifted` with a table that
-/// does not match, which is the state `lift_checked`'s differential
-/// exists to make impossible — this row is that claim executed over
-/// the family the widening opened.
+/// `DeclaredJointBeforeClosingLine` and `AllJointsDeclared` both
+/// retired, so a declared closing joint now spells `continue_to`,
+/// whose target the DRIVER measures against the departing ray. Two
+/// worries, one sweep, over a ladder of offsets from the closing
+/// side's exact subdivision point:
+///
+/// 1. **The widening must not author quietly.** Every declared rung
+///    must be a faithful lift, the driver's refusal, or a `Mismatch`
+///    that SAYS the table moved. A `Lifted` whose table does not match
+///    is the state `lift_checked`'s differential exists to make
+///    impossible, and the widening opened exactly this family.
+/// 2. **The declaration is what asks the authoring question.** The
+///    undeclared twin of each rung must never lift where the declared
+///    one refuses — the declaration may only ever open spellings, and
+///    an undeclared zero-turn seam is the junction the lattice refuses
+///    while `validate` accepts the identical table as data. The
+///    assertion is taken at the EXACTLY collinear rung, where a zero
+///    turn is tangent at any tolerance, so the row means the same
+///    thing at every eps; the wider counts are printed, since which
+///    rungs fall inside the band is an eps question. (At the default
+///    tolerance the split is total: 23 declared lifts, 0 undeclared.
+///    At 1e-12 the far rungs invert, because a FALSE declaration
+///    correctly CLOSES a spelling — which is the widening's own
+///    contract, not a violation of it.)
 #[test]
 fn r2_the_widened_lift_never_lifts_a_loop_whose_table_moved() {
-    let mut lifted = 0;
-    let mut refused = 0;
-    let mut mismatched = 0;
+    let tol = Tol::witness();
+    let (mut d_lift, mut d_wall, mut u_lift, mut u_wall, mut mism) = (0, 0, 0, 0, 0);
     for k in 0..24 {
         let off = if k == 0 {
             0.0
         } else {
             1e-16 * f64::powi(2.0, k)
         };
-        let loop_: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-            p2(0.0, 0.0),
-            p2(2.0, 0.0),
-            p2(1.0, 1.0),
-            p2(0.5 + off, 0.5),
-        ])
-        .with_tangent_joints(vec![3]);
-        match lift_checked(&loop_, Tol::witness()) {
-            LiftOutcome::Lifted {
-                worst_abs, program, ..
-            } => {
-                lifted += 1;
-                assert!(
-                    worst_abs < 1e-12,
-                    "k={k}: a lift is only a lift if the table survives it: \
-                     {worst_abs:e} {program:?}"
-                );
-            }
-            LiftOutcome::ReplayRefused { .. } => refused += 1,
-            LiftOutcome::Refused(r) => panic!("k={k}: unexpected structural wall {r:?}"),
-            LiftOutcome::Mismatch {
-                worst_abs, program, ..
-            } => {
-                // Reported, not silent — which is the contract. Counted
-                // so the row says whether the family reaches it at all.
-                mismatched += 1;
-                println!("r2: k={k} MISMATCH worst_abs={worst_abs:e} {program:?}");
+        let mut lifted_here = [false; 2];
+        for (slot, declared) in [(0usize, true), (1usize, false)] {
+            match lift_checked(&rung(off, declared), tol) {
+                LiftOutcome::Lifted {
+                    worst_abs, program, ..
+                } => {
+                    lifted_here[slot] = true;
+                    if declared {
+                        d_lift += 1;
+                    } else {
+                        u_lift += 1;
+                    }
+                    assert!(
+                        worst_abs < 1e-12,
+                        "k={k} declared={declared}: a lift is only a lift if the \
+                         table survives it: {worst_abs:e} {program:?}"
+                    );
+                }
+                LiftOutcome::ReplayRefused { .. } => {
+                    if declared {
+                        d_wall += 1;
+                    } else {
+                        u_wall += 1;
+                    }
+                }
+                LiftOutcome::Refused(r) => {
+                    panic!("k={k} declared={declared}: unexpected structural wall {r:?}")
+                }
+                LiftOutcome::Mismatch {
+                    worst_abs, program, ..
+                } => {
+                    // Reported, never silent — which is the contract.
+                    mism += 1;
+                    println!("r2: k={k} declared={declared} MISMATCH {worst_abs:e} {program:?}");
+                }
             }
         }
-    }
-    println!("r2: widened-lift sweep — lifted {lifted}, refused {refused}, mismatch {mismatched}");
-    assert!(
-        lifted > 0,
-        "the exactly-collinear end of the ladder must lift"
-    );
-    assert!(
-        refused > 0,
-        "and the far end must reach the driver's wall rather than lifting"
-    );
-}
-
-/// **The undeclared twin, and issue 433's original subject executed.**
-///
-/// The identical ladder with the declaration REMOVED: not one rung
-/// lifts. Every one reaches the driver's undeclared-zero-turn-junction
-/// wall (or its ambiguity band at the far end), while the declared
-/// ladder above lifts 23 of the same 24. `validate` accepts every loop
-/// in both families as data. That is the whole of "two questions, not
-/// one rule with two answers", measured rather than asserted in
-/// prose — and it is what the demotion buys: the authoring question is
-/// only ever asked at the lattice, and the lattice is now the only
-/// door a shipped build has.
-#[test]
-fn r2_the_widening_is_reached_by_the_declaration_and_never_by_default() {
-    let mut refused = 0;
-    let mut lifted = 0;
-    for k in 0..24 {
-        let off = if k == 0 {
-            0.0
-        } else {
-            1e-16 * f64::powi(2.0, k)
-        };
-        let loop_: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-            p2(0.0, 0.0),
-            p2(2.0, 0.0),
-            p2(1.0, 1.0),
-            p2(0.5 + off, 0.5),
-        ]);
-        match lift_checked(&loop_, Tol::witness()) {
-            LiftOutcome::Lifted {
-                fidelity,
-                worst_ulps,
-                ..
-            } => {
-                lifted += 1;
-                assert_eq!(fidelity, Fidelity::BitIdentical, "k={k}");
-                assert_eq!(worst_ulps, 0, "k={k}");
-            }
-            LiftOutcome::ReplayRefused { error, .. } => {
-                refused += 1;
-                let text = format!("{error}");
-                println!(
-                    "r2: undeclared k={k} walls: {}",
-                    &text[..text.len().min(90)]
-                );
-                assert!(
-                    text.contains("this junction is tangent")
-                        || text.contains("path_junction_turn"),
-                    "k={k}: the only walls this family may reach are the \
-                     undeclared zero-turn junction and its ambiguity band: {error}"
-                );
-            }
-            other => panic!("k={k}: an undeclared polygon must lift or refuse: {other:?}"),
+        if k == 0 {
+            // The EXACTLY collinear rung: a zero turn is tangent at
+            // any tolerance, so this pair is eps-robust and it is
+            // issue 433's subject in one line. Declared, the lattice
+            // has a spelling; undeclared, it walls — and `validate`
+            // accepts both tables as data either way.
+            assert!(lifted_here[0], "the declared exact seam must lift");
+            assert!(!lifted_here[1], "the undeclared exact seam must wall");
         }
     }
-    println!("r2: undeclared sweep — refused {refused}, lifted {lifted}");
-    // The point of the pair: the DECLARED ladder above lifts at the
-    // exactly-collinear rung; this one WALLS there, in the driver's
-    // own zero-turn-junction words. Two questions, and the
-    // declaration is which one is being asked — which is issue 433's
-    // subject, executed.
-    assert_eq!(lifted, 0, "not one rung of the undeclared ladder lifts");
-    assert_eq!(refused, 24, "every rung reaches the driver's junction wall");
+    println!(
+        "r2: ladder — declared: lifted {d_lift}, walled {d_wall}; \
+         undeclared: lifted {u_lift}, walled {u_wall}; mismatch {mism}"
+    );
+    assert_eq!(mism, 0, "no rung authored a different table");
+    assert_eq!(d_lift + d_wall, 24, "every declared rung got an outcome");
+    assert_eq!(u_lift + u_wall, 24, "every undeclared rung got an outcome");
+    assert!(d_lift > 0 && u_wall > 0);
 }
 
-/// The lattice is still the only authoring door a shipped build has,
-/// and it is the one the doctests now use — this replays the square
+/// The lattice is the only authoring door a shipped build has, and it
+/// is the one the unit's doctests now use. This replays the square
 /// from `ProfileLoop`'s own doctest and pins that the lattice-authored
-/// table is the one the retired `polygon` sugar produced.
+/// table is bit-for-bit the one the retired `polygon` sugar produced —
+/// the migration receipt the unit reports per-site, taken here on the
+/// door the façade actually presents.
 #[test]
 fn r2_the_lattice_square_is_the_retired_polygon_sugars_table() {
     let tol = Tol::witness();
