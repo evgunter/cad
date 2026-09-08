@@ -448,3 +448,22 @@ branch-side). Next on the plan: SHELL-3 at sign-hull's merge, and
 the follow-ups item 1 (the curved-rim narrowing, a PROPS seam) as
 the other candidate for slot 1.
 
+
+## SHELL-7 cut (2026-09-08)
+
+The one-surface corner, cut from SHELL-5's measured refusal: spec
+`docs/SHELL-7-SPEC.md`, branch `shell/7-seam-corner`, block SHELL-B2
+slot 1 (the arm is in the branch-side record; the pre-draw fields
+S–M / NUMERIC were logged after the block byte — disclosed on the
+item). Decision bound by the spec: a vertex all of whose faces lie on
+one surface of revolution moves as a point of that surface — the
+concentric move on a profile circle, the perpendicular foot on a
+profile line — through one `Profile` method both the carried-datum
+arm and the new arm call, with the azimuth carried as every seam's
+is; the torus latitude seam takes the standard latitude rule at the
+carrier mint. Rejected: a torus-only special case at the corner (the
+sphere seam and the carried datum already spell the general rule),
+and routing the seam through the two-surface machinery it is not.
+Sequencing: SHELL-3 still waits on PROPS' sign-hull unit (no PR yet,
+branch idle since 01:11 UTC); this unit touches `offset_axial.rs`
+only, so it runs now.

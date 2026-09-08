@@ -4,6 +4,7 @@ kind: issue
 title: the axial offset door refuses a one-surface seam corner: the full-period torus, solid and hollow alike
 status: open
 opened: 2026-09-08
+refs: [SHELL-7, SHELL-5]
 ---
 
 

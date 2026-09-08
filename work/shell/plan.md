@@ -54,13 +54,18 @@ arm must agree with `ShellNaming`), `editor-core`'s recipe doors
    (PR #2159, 2026-09-08): one thin solid per operand shell, the
    planar clearance gate grown by `t`, `RimNaming::side`. Block
    SHELL-B1 concluded.
-4. **Next: SHELL-6, the nappe home** — `mint-offset-ignores-cone-mirror-nappe`:
-   one `face_nappe` decide both offset doors, the apex-window gate
-   and `ConeOffset::displacement` read; spec `docs/SHELL-6-SPEC.md`.
-   Opens block SHELL-B2. The winding-predicate rename
-   (`shell-offset-three-followups` item 2) is NOT in it: three
-   owners' files and a K-lint population — it stays on that item
-   until announced on TOPO's and S-BOOL's boards.
+4. **SHELL-6** `mint-offset-ignores-cone-mirror-nappe` — LANDED
+   (PR #2178, 2026-09-08): `face_nappe`/`group_nappe`, one home in the
+   offset lane; the live ε-scale sign defect closed. Block SHELL-B2
+   slot 0. The winding-predicate rename (`shell-offset-three-followups`
+   item 2) is NOT in it: three owners' files and a K-lint population
+   — it stays on that item until announced on TOPO's and S-BOOL's
+   boards.
+4b. **Next: SHELL-7, the one-surface corner** —
+   `axial-door-refuses-a-one-surface-seam-corner`: the axial door
+   moves a seam vertex along its one surface's own normal, so the
+   full-period torus shells (solid and hollow); spec
+   `docs/SHELL-7-SPEC.md`; block SHELL-B2 slot 1.
 5. RULED B (Ev, #1737, 2026-09-04): **SHELL-3** — the clearance
    engine's body-level half moves into `topo` behind `interval`
    (joint with M10; no behaviour change, the M10-5/6 suites are the
