@@ -120,3 +120,26 @@ for a product that is not OF the evaluation given (the
 `EvaluationOfAnotherDocument` shape), a test pinning the gather count
 through `product::gathers_on_this_thread`, `pncad.pyi`, census re-cut of
 the six `behind-a-door` entries, stub test. Dispatchable as a LIB unit.
+
+## Ruled, REVISED (Ev, in chat, 2026-09-06): **(5) — memoize the gathered product on the Python `Evaluation`**
+
+Ev asked whether an option with the good qualities of both (1) and (4)
+exists; this is it, and it supersedes the (4) ruling above. A Python
+`Evaluation` is the immutable (document, evaluation) pair captured at
+`evaluate`; the product is a pure function of that pair and the
+tolerance. So `run_checks(doc, ev)` and `assemble(doc, ev)` keep their
+signatures, the first call gathers and stores the product on the
+evaluation object keyed by tolerance, and the second reuses it. No new
+Python surface (better than (1)), nothing can go stale (the memo lives
+on an object that cannot change), every present and future consumer
+benefits (as (4)). `assemble_gathered` consumes its product, so the memo
+hands it a clone when the clone is cheap (the unit measures at the heat
+sink's 160-fin point against the ~250 ms gather) and otherwise hands the
+memo over, so a later call re-gathers — never worse than today. Given
+up: a caller cannot hold or inspect a `Product` by name, which nothing
+asked for. The census's six `behind-a-door` entries get the true
+reason: the explicit product doors are what the memo calls. If the
+clone is expensive, the kernel-side alternative — `assemble_gathered`
+borrowing rather than consuming — is DOCM's door and a hand-off, not
+this unit's change. The gather-count pin through
+`product::gathers_on_this_thread` is the acceptance row.

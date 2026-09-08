@@ -21,7 +21,7 @@ differently:
   free-move placement it discarded — AND, since #1886,
   `dropped_hides`, every hide the document stopped admitting, each
   with the `DisplayFault` that explains it. `DocSession` returns that
-  report from `step` and `commit_action` (`session.rs:1213,1590`) and
+  report from `step` and `commit_action` (`session.rs:1471,1843`) and
   the chrome renders it.
 - `clear` (`crates/viewer/src/display.rs:849-862`) destructures and
   does `hidden.clear()`, `moves.clear()`, `*free_move = None`
