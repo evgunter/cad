@@ -932,7 +932,7 @@ fn describe(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
 }
 
 /// The kernel refusal a node's evaluation carried, unaltered.
-fn boolean_refusal<'a>(ev: &'a Evaluation<f64>, node: RecipeNodeId) -> &'a BooleanError {
+fn boolean_refusal(ev: &Evaluation<f64>, node: RecipeNodeId) -> &BooleanError {
     match ev
         .node_error(node)
         .map(|e| &e.kind)
