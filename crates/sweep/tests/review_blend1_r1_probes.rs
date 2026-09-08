@@ -258,17 +258,22 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
     );
 }
 
-/// **The WHOLE three-arc rim, as a closed chain — and what it
-/// records.** Every arc of the raised rim is requested. The pristine
-/// three-arc extrusion refuses `ChainNotG1` at a junction with a
-/// 120° reading (margin 0.75 at arm 0.866): `walk_chains` lists a
+/// **A CHARACTERIZATION row: it pins a defect, and goes red when the
+/// defect is fixed.** The whole raised rim of a THREE-arc cylinder is
+/// refused `ChainNotG1` at a junction with a 120° reading (margin
+/// 0.75 at arm 0.866), while the same rim built from TWO semicircles
+/// carves. Nothing about the body differs: `walk_chains` lists a
 /// closed chain's junctions as `[closing vertex, j01, j12]` against
 /// links `[0, 1, 2]`, so the junction check pairs each vertex with
-/// one link that does not touch it and reads that link's far-end
-/// tangent. A two-arc rim is immune (both links touch both
-/// vertices), which is the only closed-rim shape the suites build.
-/// The re-keyed body reads the same, plus the coaxiality legs, which
-/// come before the junction check.
+/// one link that does not touch it and reads that link's FAR-end
+/// tangent. A two-arc rim is immune because both links touch both
+/// vertices — which is why every closed-rim suite in the tree happens
+/// to build one and the defect has gone unseen.
+///
+/// The item is `work/blend/closed-chain-junctions-pair-with-a-rotated-link`.
+/// When it lands this row's `ChainNotG1` assertions fail, and that is
+/// the intended signal: delete the row, or turn it into the row that
+/// pins the fix.
 #[test]
 fn r1_a_three_arc_rim_refuses_chain_g1_at_a_junction_where_a_two_arc_rim_builds() {
     // `topo::query::rim_of` refuses the re-keyed body (`NotOneRim`:
@@ -285,13 +290,7 @@ fn r1_a_three_arc_rim_refuses_chain_g1_at_a_junction_where_a_two_arc_rim_builds(
             })
             .collect()
     };
-    let whole = |body: &Body<f64>, rim: EdgeKey| -> Result<(), BlendError> {
-        eprintln!(
-            "rim_of on the re-keyed body: {:?}",
-            topo::query::rim_of(body, rim)
-        );
-        let arcs = raised_arcs(body);
-        assert_eq!(arcs.len(), 3, "three arcs of the raised rim");
+    let whole = |body: &Body<f64>, arcs: Vec<EdgeKey>| -> Result<(), BlendError> {
         run_battery(
             &BlendRequest {
                 body,
@@ -302,73 +301,64 @@ fn r1_a_three_arc_rim_refuses_chain_g1_at_a_junction_where_a_two_arc_rim_builds(
         )
         .map(|_| ())
     };
-    // Control: a TWO-semicircle cylinder's raised rim, both arcs.
-    let two = {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.5, 0.0), 1.0),
-            ProfileVertex::new(p2(-0.5, 0.0), 1.0),
-        ]);
-        let profile = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol())
-            .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), tol())
-            .unwrap()
-            .body
-    };
+    // Control: a TWO-semicircle cylinder's raised rim, both arcs. It
+    // passes the battery and carves through the public door.
+    let two = two_arc_cylinder();
     let arcs2 = raised_arcs(&two);
-    eprintln!(
-        "two-arc rim: {} arcs, battery = {:?}",
-        arcs2.len(),
-        run_battery(
-            &BlendRequest {
-                body: &two,
-                edges: arcs2.clone(),
-                size: 0.05
-            },
-            band()
-        )
-        .map(|_| ())
+    assert_eq!(arcs2.len(), 2);
+    whole(&two, arcs2.clone()).expect("the two-arc rim resolves");
+    assert!(
+        sweep::blend::fillet_edges(&two, &arcs2, 0.05, tol()).is_ok(),
+        "the two-arc rim carves"
     );
-    eprintln!(
-        "two-arc fillet_edges: {:?}",
-        sweep::blend::fillet_edges(&two, &arcs2, 0.05, tol())
-            .as_ref()
-            .err()
-    );
-    // Control: the PRISTINE three-arc extrusion's raised rim, all three arcs.
+    // The defect: the PRISTINE three-arc extrusion, whole rim.
     let pristine = cylinder();
-    let rim0 = raised_arcs(&pristine)[0];
-    eprintln!("pristine whole rim: {:?}", whole(&pristine, rim0));
-    eprintln!(
-        "pristine fillet_edges: {:?}",
-        sweep::blend::fillet_edges(&pristine, &raised_arcs(&pristine), 0.05, tol())
-            .as_ref()
-            .err()
+    let arcs3 = raised_arcs(&pristine);
+    assert_eq!(arcs3.len(), 3);
+    let chain_g1_at_a_junction = |r: &Result<(), BlendError>| match r {
+        Err(BlendError::ChainNotG1 { margin, arm, .. }) => {
+            // 120° between the two carriers' tangents, folded against
+            // the smaller link's extent: sin(120°) · 0.866 = 0.75.
+            assert!(
+                margin.value().is_some_and(|v| (v - 0.75).abs() < 1e-12),
+                "{margin:?}"
+            );
+            let geom_core::MarginDiag::Value(a) = arm else {
+                panic!("an f64 arm")
+            };
+            assert!((a - 3f64.sqrt() / 2.0).abs() < 1e-12, "{arm:?}");
+        }
+        other => panic!("the three-arc rim refuses at a junction, got {other:?}"),
+    };
+    chain_g1_at_a_junction(&whole(&pristine, arcs3.clone()));
+    assert!(
+        matches!(
+            sweep::blend::fillet_edges(&pristine, &arcs3, 0.05, tol()),
+            Err(sweep::blend::BlendRefusal {
+                error: BlendError::ChainNotG1 { .. },
+                ..
+            })
+        ),
+        "the public door carries the same refusal"
     );
-    let (body, rim, _, _, _) = tilted_cap(0.0);
-    eprintln!("re-keyed whole rim at 0: {:?}", whole(&body, rim));
-    let (body, rim, _, _, _) = tilted_cap(in_band());
-    eprintln!("re-keyed whole rim at 5eps: {:?}", whole(&body, rim));
-    let (body, rim, _, _, _) = tilted_cap(1e-3);
-    eprintln!("re-keyed whole rim at 1e-3: {:?}", whole(&body, rim));
+    // The unit's re-keyed body reads the same at departure 0 — the
+    // junction check runs after the coaxiality legs, so the tilt does
+    // not reach this.
     let (body, _, _, _, _) = tilted_cap(0.0);
-    let arcs = raised_arcs(&body);
-    let carved = sweep::blend::fillet_edges(&body, &arcs, 0.05, tol());
-    eprintln!(
-        "fillet_edges on the re-keyed body at 0: {:?}",
-        carved.as_ref().err()
-    );
+    chain_g1_at_a_junction(&whole(&body, raised_arcs(&body)));
 }
 
-/// **The in-band convexity-sign escalation renders the chain-flip
-/// sentence** — the residue the unit filed, pinned as a fact about
-/// the tree so the fix goes red here when it lands. A 5ε wedge at a
-/// 1 m arm escalates `fillet3_convexity_sign`; its `Display` names
-/// "split the chain at the convexity flip", although no flip was
-/// decided, and does NOT name the tangential-edge sentence that its
-/// own decided-Zero neighbour renders.
+/// **The in-band convexity-sign escalation renders the TANGENTIAL
+/// sentence, not the chain-flip one.** A 5ε wedge at a 1 m arm
+/// escalates `fillet3_convexity_sign` at the link's own lever; that
+/// is the same site and the same user situation as the wedge decided
+/// `Zero`, whose refusal is `TangentialEdge`, so the two arms carry
+/// one recourse (D4 ¶1 addendum). "Split the chain at the convexity
+/// flip" belongs to `ConvexitySignFlip` — a chain whose links all
+/// resolved definitely and disagree — and is advice about a flip no
+/// escalation here decided; this row pins its absence.
 #[test]
-fn r1_in_band_convexity_sign_renders_the_flip_sentence_today() {
+fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
     let body = cylinder();
     let e = body.edges().next().unwrap().0;
     let tau = Vec3::new(0.0, 0.0, 1.0);
@@ -388,12 +378,28 @@ fn r1_in_band_convexity_sign_renders_the_flip_sentence_today() {
         "{escalated:?}"
     );
     assert!(
-        text.contains(sweep::blend::FILLET3_CONVEXITY_RECOURSE),
-        "today's routing: {text}"
+        text.contains(sweep::blend::FILLET3_TANGENTIAL_RECOURSE),
+        "the decided-Zero sibling's sentence: {text}"
     );
     assert!(
-        !text.contains(sweep::blend::FILLET3_TANGENTIAL_RECOURSE),
-        "the decided-Zero sibling's sentence is absent: {text}"
+        !text.contains(sweep::blend::FILLET3_CONVEXITY_RECOURSE),
+        "no flip was decided, so the flip sentence is absent: {text}"
+    );
+    // The definite neighbour, rendered from the same site: a wedge
+    // decided Zero. Both arms, one sentence.
+    let flat = convexity_at(
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        tau,
+        1.0,
+        e,
+        band(),
+    )
+    .unwrap_err();
+    assert!(matches!(flat, BlendError::TangentialEdge { .. }), "{flat:?}");
+    assert!(
+        format!("{flat}").contains(sweep::blend::FILLET3_TANGENTIAL_RECOURSE),
+        "{flat}"
     );
 }
 
