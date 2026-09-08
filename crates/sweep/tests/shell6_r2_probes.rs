@@ -539,3 +539,110 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
         println!("[r2p7] {what}: per-chart door on the same faces -> {got:?}");
     }
 }
+
+// ---------------------------------------------------------------
+// P8. Spec §2.1, at the operand where it IS reachable.
+// ---------------------------------------------------------------
+
+/// **The two doors agree on the minted cone — landed, not deferred.**
+/// The PR reports §2.1 unreachable because a cone's offset moves its rim
+/// off every unmoved neighbour by `d·sin α` and the caps refuse first.
+/// That gap is compared against ε, so the refusal only holds while
+/// `|d|·sin α > ε`. Below it the per-chart door BUILDS (r2p3), and §2.1's
+/// question can be asked of the surface it actually stored: is it
+/// bit-for-bit `offset_surface(cone, face_nappe(..).turn(d))`, the same
+/// expression the axial door computes?
+///
+/// `d = 1e-9` is ε itself here, and the turn's own signature — the apex
+/// slide `−axis·(d / sin α)` — is `4.1e-9` m, four times ε, so a door
+/// that took the wrong nappe here would land a visibly different cone.
+#[test]
+fn r2p8_the_two_doors_agree_on_the_minted_cone_where_the_per_chart_door_builds() {
+    let tol = Tol::witness();
+    let d = 1e-9;
+    for (what, body) in [
+        ("narrowing upward (mirror)", mirror_frustum()),
+        ("widening upward (opening)", opening_frustum()),
+    ] {
+        let faces = cone_faces(&body);
+        let face = faces[0];
+        let old = cone_of(&body, face);
+        let nappe = topo::face_nappe(&body, face, band()).expect("the wall has a nappe");
+        let want = geom_brep::offset_surface(&old, nappe.turn(-d), band()).expect("the mint");
+
+        // The PER-CHART door, on the operand where it builds.
+        let mut work = body.clone();
+        topo::replace_faces_offset(&mut work, &faces, -d, band(), tol)
+            .unwrap_or_else(|e| panic!("[r2p8] {what}: the per-chart door refused {e}"));
+        let got = cone_of(&work, cone_faces(&work)[0]);
+
+        let (
+            Surface::Cone {
+                apex: a,
+                half_angle: ha,
+                axis: xa,
+                ..
+            },
+            Surface::Cone {
+                apex: b,
+                half_angle: hb,
+                axis: xb,
+                ..
+            },
+        ) = (&got, &want)
+        else {
+            panic!("a cone's offset is a cone");
+        };
+        let slide = (*a - *b).norm();
+        println!(
+            "[r2p8] {what}: per-chart apex {a:?} vs the shared expression {b:?} (|Δ| {slide:e})"
+        );
+        assert_eq!(
+            (a.x.to_bits(), a.y.to_bits(), a.z.to_bits()),
+            (b.x.to_bits(), b.y.to_bits(), b.z.to_bits()),
+            "[r2p8] {what}: the PER-CHART door's minted apex must be the home's turn, bitwise"
+        );
+        assert_eq!(
+            ha.to_bits(),
+            hb.to_bits(),
+            "[r2p8] {what}: half-angle carried"
+        );
+        assert_eq!(
+            (xa.x.to_bits(), xa.y.to_bits(), xa.z.to_bits()),
+            (xb.x.to_bits(), xb.y.to_bits(), xb.z.to_bits()),
+            "[r2p8] {what}: axis carried"
+        );
+
+        // The body it built is a real body, and the cavity went the way
+        // an inward request asks for.
+        assert_eq!(
+            topo::validate_geometric(&work, tol),
+            Ok(()),
+            "[r2p8] {what}: the per-chart door's own output must validate"
+        );
+        let v0 = topo::mass_properties(&body, tol).expect("props").volume;
+        let v1 = topo::mass_properties(&work, tol).expect("props").volume;
+        println!("[r2p8] {what}: volume {v0} -> {v1} (Δ {:e})", v1 - v0);
+        assert!(
+            v1 < v0,
+            "[r2p8] {what}: pulling the wall chart inward must shrink the solid ({v1} vs {v0})"
+        );
+
+        // And the turn is load-bearing at this operand: the wrong nappe
+        // would move the apex by twice the slide, well outside ε.
+        let wrong = geom_brep::offset_surface(&old, nappe.turn(d), band()).expect("the mint");
+        let Surface::Cone { apex: w, .. } = wrong else {
+            panic!("a cone's offset is a cone");
+        };
+        let separation = (*a - w).norm();
+        println!(
+            "[r2p8] {what}: the wrong nappe would land {separation:e} m away (eps {:e})",
+            tol.eps()
+        );
+        assert!(
+            separation > tol.eps(),
+            "[r2p8] {what}: the turn must be observable at this operand ({separation:e} vs {:e})",
+            tol.eps()
+        );
+    }
+}
