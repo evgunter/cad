@@ -321,18 +321,29 @@ the table.
   distance is along the FACE's outward direction, so a face below its
   apex needs the caller's number turned over before the mint sees it;
   unturned, the frustum's cavity came back LARGER than its operand
-  (0.001058 against 0.000895). The axial door turns it (`nappe_signed`,
-  from the face's own corners, decided). **The rim LIFT** in
+  (0.001058 against 0.000895). **The rim LIFT** in
   `shell_open` transported a rim rather than solving it — invisible on
   a cylinder, 6.2 mm wrong on a sphere — and now takes the same
   simultaneous door with every other chart at distance zero.
 
-  **The sibling consumer has NOT been swept and is filed rather than
-  fixed** (#1181): `replace_face::mint_offset` still hands the caller's
-  raw `d` to a cone. No wrong body ships from it today — both review
-  arms proved the caps refuse first on every reachable fixture — so it
-  is a latent hazard behind a gate, not a live defect, and the issue
-  carries both arms' evidence.
+  **The nappe has ONE home for the offset lane**,
+  `topo::{face_nappe, group_nappe}`: the face's two extreme corner
+  stations are decided (a SUM answers `Opening` for a face with corners
+  on both nappes), the answer is agreed across the chart's faces, and
+  both offset doors, the per-chart door's apex-window gate and
+  `ConeOffset::displacement` turn by it. A face whose corners reach its
+  apex, and a chart whose faces do not share a nappe, refuse
+  `NappeStraddles` rather than being minted with one member's sign.
+
+  **What that fixed was live, not latent.** The per-chart door's
+  neighbouring caps refuse when the moved rim's gap `|d|·sin α` exceeds
+  ε — so below `ε/sin α` the door builds, and unturned it built a
+  frustum whose cavity GREW on an inward request. Above that threshold
+  the same door refuses at the caps, and a neighbour that could hold
+  both moved rims refuses one gate earlier at `NeighborPairUnroutable`,
+  `intersect::route` having no cone×{sphere, cone, torus} row. The
+  latent half of #1199 was the part above the threshold; the part below
+  it was shipping.
 
   The #1048 corpus is byte-identical across both changes, measured with
   the dump harness rather than asserted — including the two CURVED

@@ -411,6 +411,81 @@ fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
     );
 }
 
+/// **A TRANSFORM of a pattern** — the family the placers carry through
+/// unchanged. A transform is shape-preserving over its input's value,
+/// so a transform of a pattern evaluates to `Instances`, and the
+/// recipe-side word has to read through the transform to the pattern
+/// below it to say the same: `"instances"` on both roads, never the
+/// one-body word a reader holding only the transform node would give.
+#[test]
+fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
+    let (scene, _) = build("msolve3-circular-transform-of-pattern", |doc, legs| {
+        let (doc, array) = insert(
+            doc,
+            Node::Pattern {
+                input: legs,
+                count: Expr::count(2),
+                kind: PatternKind::Linear {
+                    direction: [scl(1.0), scl(0.0), scl(0.0)],
+                    spacing: len(2.0),
+                },
+            },
+        );
+        let (doc, moved) = insert(doc, xform(array, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+        let (doc, pattern) = insert(
+            doc,
+            Node::Pattern {
+                input: legs,
+                count: Expr::count(4),
+                kind: PatternKind::Circular {
+                    axis: moved,
+                    step: ang(0.5),
+                },
+            },
+        );
+        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        (doc, pattern, name, Vec::new())
+    });
+    let f = scene.fault();
+    let (placer, kind) = carried(&f);
+    assert_eq!(placer, scene.placer, "the pattern's wiring refuses: {f:?}");
+    assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
+    assert!(
+        kind.contains("WrongOperand") && kind.contains("\"instances\""),
+        "{kind}"
+    );
+}
+
+/// The read-through's other end: a transform of a transform of a
+/// BODY is a body on both roads, through two placers.
+#[test]
+fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_operand() {
+    let (scene, _) = build("msolve3-circular-transform-twice", |doc, legs| {
+        let (doc, moved) = insert(doc, xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+        let (doc, again) = insert(doc, xform(moved, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+        let (doc, pattern) = insert(
+            doc,
+            Node::Pattern {
+                input: legs,
+                count: Expr::count(4),
+                kind: PatternKind::Circular {
+                    axis: again,
+                    step: ang(0.5),
+                },
+            },
+        );
+        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        (doc, pattern, name, Vec::new())
+    });
+    let f = scene.fault();
+    let (_, kind) = carried(&f);
+    assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
+    assert!(
+        kind.contains("WrongOperand") && kind.contains("\"body\""),
+        "{kind}"
+    );
+}
+
 /// **A slot of the axis DATUM is reported at the datum.** The pattern
 /// has no `Direction(X)` slot, so naming the pattern here would blame
 /// a node for a slot it does not carry: the refusal names the node
