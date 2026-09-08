@@ -2,11 +2,12 @@
 id: LIB-SMALL
 kind: unit
 title: three small closes: refactoring maintenance crosses, Datum.in_plane dimensioned, chamfer and tube guide steps
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/small
 refs: [python-split-and-inline-outcomes-drop-the-maintenance, datum-in-plane-reads-back-a-length-pair-bare, guide-has-no-chamfer-or-tube-step]
 pr: 2240
+closed: 2026-09-08
 ---
 
 
