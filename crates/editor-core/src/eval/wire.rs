@@ -883,8 +883,8 @@ pub(crate) fn frame_plane_lane<T: Decide>(
 /// scalar is the `f64` lane — every component through
 /// [`super::SectionScalar::pinned_f64`] — and `None` on any analysis
 /// scalar. No component is inspected: the answer is the type's. The
-/// walk itself is [`anchor::map_affine`], the same walk
-/// [`anchor::embed_affine`] runs the other way.
+/// walk is [`anchor::map_affine`], the fallible direction of the walk
+/// whose infallible direction is `Affine3::map`.
 pub(crate) fn pinned_plane<T: super::SectionScalar>(
     plane: &profile::SketchPlane<T>,
 ) -> Option<profile::SketchPlane<f64>> {
@@ -1235,9 +1235,7 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         super::ProfileLift::Pinned => {
             let mut embedded = anchor::embed_profile::<T>(&pre.profile_f64);
             embedded.plane = match &pre.placement_f64 {
-                Some(placement) => {
-                    profile::SketchPlane::new(anchor::embed_affine::<T>(&placement.placement))
-                }
+                Some(placement) => placement.map(T::from_f64),
                 None => frame_plane_lane(results, program.plane)?,
             };
             embedded.validate(tol).map_err(NodeErrorKind::Profile)?
