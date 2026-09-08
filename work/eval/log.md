@@ -171,3 +171,28 @@ EVAL-3's doc-build claim is restated as "no NEW broken links in the
 touched files"; and the permission classifier refuses a Bash command
 carrying the bare token `eval`, so lanes hand-write tracker files in
 `work.py new`'s format when `--program eval` is needed.
+
+## EVAL-1 review delivered; fix pass on PR 2139 (2026-09-08)
+
+Style review: MERGEABLE, no MAJOR; claims 1–5 held (the reviewer
+re-derived the twelve-component identity from the kernel's `map`
+chain and ran the digest rows). Fix pass, by the orchestrator in the
+lane's worktree: the reviewer's `map_affine` probe adopted as a test
+(S10); `embed_profile`'s vertex point through `Point2::map` (the
+dispatch correction — D368's shape nine lines below the fixed site,
+which the spec had filed under D385's heading); `map_affine`'s doc no
+longer schedules a future (S5); the `try_map` note moved from
+`work/issues/` to `work/props/` (README: file onto the owner's slate)
+with S3 (readout walks want `Affine3::components()`), S6
+(`SketchPlane::try_map`) and S7 (`SketchPlane::map`'s "a caller
+chooses" rule with no home) folded in; S1/S4/S8 filed as
+`work/issues/profile-embed-lift-has-two-homes-anchor-and-loft.md`
+(owner undecided — profile's door, EVAL's and BLEND's consumers); S2
+filed onto TCOST's slate as
+`m10-p-lift-interval-plane-is-sketch-plane-map-by-hand`. The parked
+row's body now says EVAL retires `map_affine` in its own PR once the
+door exists. **Lesson for briefs:** the first fix-pass push went red
+on `discipline (evaluation-code)` — `no-extra-real-bounds` reads
+`#[cfg(test)]` modules too, and the probe's helper said `T: Real +
+Copy`. `scripts/gates/*.sh` run in seconds and are the pre-push
+check every lane brief names from now on.
