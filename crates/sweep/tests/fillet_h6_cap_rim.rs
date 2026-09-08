@@ -489,7 +489,9 @@ fn at_k(k: &str, arm_factor: &str) -> String {
 /// measurement that pins both sides of it.**
 ///
 /// The arm's bound is `sin θ ≥ K/√(K² + 1)` against a `Smooth` ceiling
-/// of `1/K`; they close at `K⁴ = K² + 1`, `K ≈ 1.272`. So:
+/// of `1/K`; they close at `K⁴ = K² + 1` — the crossover
+/// `K* = √φ ≈ 1.272`, named here because this row is where the two
+/// sides of it are measured. So:
 ///
 /// - at the shipped **K = 10** the cap-rim `Smooth` arm is unreachable,
 ///   and this same body — the worst admitted tilt on the shortest
