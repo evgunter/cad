@@ -185,15 +185,16 @@ use pncad::document::{
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
 };
-use pncad::geom::Surface;
+use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::prelude::query;
 use pncad::prelude::{
     EntityKind, NamePat, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegPat, SegTag, Selector,
     StableName,
 };
 use pncad::profile::ArcSweep;
-use pncad::select::{edge_frame, face_carrier_kind, face_frame, select, vertex_position};
+use pncad::select::{edge_name, face_carrier_kind, face_frame, select, vertex_position};
 use pncad::topo::{Body, BooleanError, Operand};
 
 use crate::{SceneBody, Stop, View};
@@ -479,6 +480,12 @@ fn vessel_meridian() -> LoopProgram {
     ])
 }
 
+/// The spout meridian's own segment indices, in program order: the
+/// root annulus, the outer cone, the TIP annulus, the bore.
+const SEG_SPOUT_ROOT: u32 = 0;
+/// The tip annulus's segment — the face the placement's rotation moves.
+const SEG_SPOUT_TIP: u32 = 2;
+
 /// The mouth disc's segment index in [`vessel_meridian`]'s program
 /// order — base disc, foot, belly, MOUTH, axis chord.
 const SEG_MOUTH: u32 = 3;
@@ -599,6 +606,9 @@ struct Recipe {
     plain_lid: RecipeNodeId,
     /// The lid with its three rims rolled in ONE fillet request.
     lid: RecipeNodeId,
+    /// The spout about its OWN axis — the node whose bands name the
+    /// root annulus the placement is measured on.
+    spout_body: RecipeNodeId,
     /// The spout, placed.
     spout: RecipeNodeId,
     /// The handle.
@@ -793,6 +803,7 @@ fn build_doc(tol: Tol) -> Recipe {
         cup,
         plain_lid,
         lid,
+        spout_body,
         spout,
         handle,
         handle_union,
@@ -893,31 +904,64 @@ fn band_faces(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
     )
 }
 
-/// **A named rim's own circle, read back**: its centre station and its
-/// radius, in the authored coordinates.
+/// **A named rim's own circle, read back OFF THE EDGE THE NAME
+/// DENOTES**: its centre station and its radius.
 ///
-/// The rim is a full-period circle about the axis, so its carrier
-/// frame's origin is the centre and the meridian VERTEX it passes
-/// through gives the radius. That pair is the DESCRIPTION a numeric
-/// scan would have matched on; asserting it of a name is what ties the
-/// role to the station without any scan being kept.
-fn rim_circle(ev: &Evaluation<f64>, node: RecipeNodeId, vertex: u32) -> (f64, f64) {
-    let centre = edge_frame(ev, node, &band_rim(node, vertex))
-        .expect("the rim's name denotes an edge with a certified carrier")
-        .origin;
-    assert!(
-        centre.x.abs() < 1e-12 && centre.z.abs() < 1e-12,
-        "a latitude rim's circle is centred ON the axis: got {centre:?}"
-    );
+/// The direction matters and is the whole strength of the row. A
+/// numeric scan matched a DESCRIPTION — station and radius — and
+/// answered a key; this goes the other way, from the name to the one
+/// edge that carries it (`edge_name` over the body's edges is the
+/// only door the façade has for that direction), and then reads the
+/// circle off THAT edge's own certified carrier. So a name that
+/// resolved to a different rim standing at the same station cannot
+/// answer the right radius: the radius is the edge's, not a
+/// neighbouring vertex's.
+///
+/// Three things are asserted and each is a way the tie could be
+/// false: the name denotes EXACTLY ONE edge, that edge's circle is
+/// centred on the axis, and the meridian VERTEX of the same profile
+/// vertex lies ON that circle — which is what makes the rim and the
+/// vertex two names for one place rather than two independent reads
+/// that happen to agree.
+fn rim_circle(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    body: &Body<f64>,
+    vertex: u32,
+) -> (f64, f64) {
+    let want = band_rim(node, vertex);
+    let carried: Vec<(f64, f64)> = query::all_edges(body)
+        .into_iter()
+        .filter(|&k| edge_name(ev, node, 0, k).ok() == Some(&want))
+        .map(|k| {
+            let c = body
+                .get_edge(k)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+                .expect("a rim carries a certified curve");
+            match *c.carrier() {
+                Curve3::Circle { center, radius, .. } => {
+                    assert!(
+                        center.x.abs() < 1e-12 && center.z.abs() < 1e-12,
+                        "a latitude rim's circle is centred ON the axis: got {center:?}"
+                    );
+                    (center.y, radius)
+                }
+                ref other => panic!("a latitude rim's carrier is a circle, got {other:?}"),
+            }
+        })
+        .collect();
+    let [(station, radius)] = carried[..] else {
+        panic!("the rim's name denotes exactly one edge, got {carried:?}");
+    };
     let p = vertex_position(ev, node, &meridian_vertex(node, vertex))
         .expect("the meridian vertex's name denotes a vertex");
     assert!(
-        (p.y - centre.y).abs() < 1e-12,
-        "the meridian vertex stands on its own rim's circle: {} vs {}",
-        p.y,
-        centre.y
+        (p.y - station).abs() < 1e-12 && (p.x.hypot(p.z) - radius).abs() < 1e-12,
+        "the meridian vertex {p:?} does not stand on the circle its own rim carries \
+         (station {station}, radius {radius})"
     );
-    (centre.y, p.x.hypot(p.z))
+    (station, radius)
 }
 
 /// A document node's answer, as one line for the panel's note — the
@@ -931,15 +975,19 @@ fn describe(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
     }
 }
 
-/// The kernel refusal a node's evaluation carried, unaltered.
-fn boolean_refusal(ev: &Evaluation<f64>, node: RecipeNodeId) -> &BooleanError {
-    match ev
-        .node_error(node)
-        .map(|e| &e.kind)
-        .expect("the union node refused")
-    {
-        NodeErrorKind::Boolean(e) => e,
-        other => panic!("the union refused, but not at the boolean door: {other:?}"),
+/// **A join's outcome, as a `Result` the wall probe can read both
+/// arms of.** `Ok(())` for a union that COMPOSED, the kernel's own
+/// refusal unaltered for one that did not.
+///
+/// Both arms are reachable, which is the point: a probe whose success
+/// arm cannot be reached is a probe that can never tell the scene its
+/// wall is gone, and this scene's two walls are exactly the frontier
+/// whose retirement has to be noticed.
+fn join_outcome(ev: &Evaluation<f64>, node: RecipeNodeId) -> Result<(), &BooleanError> {
+    match ev.node_error(node).map(|e| &e.kind) {
+        None => Ok(()),
+        Some(NodeErrorKind::Boolean(e)) => Err(e),
+        Some(other) => panic!("the union refused, but not at the boolean door: {other:?}"),
     }
 }
 
@@ -1094,7 +1142,7 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
         tol,
     );
     let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
-    let asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
+    let mut asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
         .iter()
         .map(|&(v, _, _, what)| {
             (
@@ -1107,12 +1155,41 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
             )
         })
         .collect();
+    // And the fourth question, which is the sixth finding ATTEMPTED
+    // rather than described: all three rims in ONE request.
+    let together = insert(
+        &mut doc,
+        Node::fillet(
+            lid,
+            len(ROLL),
+            LID_RIMS.iter().map(|&(v, ..)| band_rim(lid, v)).collect(),
+        ),
+        tol,
+    );
+    asked.push(("all three in ONE request", together));
     let ev = evaluate::<f64>(
         &doc,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
         tol,
+    );
+    // The refusal is PINNED, not merely printed: it is the shape the
+    // scene's two-request grain exists for, and the day the naming
+    // vocabulary grows the discriminator this asks for, this row goes
+    // red and says what to do about it.
+    let refusal = describe(&ev, together);
+    assert!(
+        refusal.starts_with("Naming(Duplicate")
+            && refusal.contains("BandSlit")
+            && refusal.contains("Meridian(Seam, ProfileEdgeRef { loop_index: 0, segment: 1 })"),
+        "the one-request roll of all three rims refuses because the flange's rim and the \
+         dome's foot slit ONE seam meridian and a `BandSlit` carries only the edge it \
+         severed. It answered {refusal} instead. If it COMPOSED, the vocabulary grew the \
+         discriminator: put the three rims back in one `Node::fillet`, delete this \
+         probe and the sixth finding, and re-cut the tess-budget baseline BACK — the \
+         lid's three `teapotlid` rows permute their triangle counts with the request \
+         count. `tests/teapot_document.rs` is the table behind this one refusal"
     );
     asked
         .into_iter()
@@ -1154,13 +1231,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // THE MOUTH, BY NAME. Two half-discs on ONE plane — the two names
     // the shell node was authored with, asserted to denote exactly
     // that: two planar faces, both on the mouth's own station.
-    for name in [band(r.bellied, SEG_MOUTH), band_pi(r.bellied, SEG_MOUTH)] {
+    let mouth = [band(r.bellied, SEG_MOUTH), band_pi(r.bellied, SEG_MOUTH)];
+    for name in &mouth {
         assert_eq!(
-            face_carrier_kind(&ev, r.bellied, &name).expect("the mouth half is named"),
+            face_carrier_kind(&ev, r.bellied, name).expect("the mouth half is named"),
             SurfaceKind::Plane,
             "a mouth half-disc's carrier is a plane"
         );
-        let origin = face_frame(&ev, r.bellied, &name)
+        let origin = face_frame(&ev, r.bellied, name)
             .expect("the mouth half is named")
             .origin;
         assert!(
@@ -1168,6 +1246,32 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             "the mouth's halves stand on the mouth plane: got {origin:?}"
         );
     }
+    // The CHART is those two faces and nothing else — the pin the
+    // numeric plane scan used to carry as `mouth.len() == 2`, said in
+    // both directions: the two names denote two DISTINCT faces, and
+    // the operand has exactly two planar faces on the mouth's station,
+    // so a designation of both is a designation of the whole chart
+    // (which is what `shell_open` requires and what
+    // `OpenFaceChartPartial` refuses).
+    let named_mouth = bellied
+        .faces()
+        .filter(|&(k, _)| {
+            pncad::select::face_name(&ev, r.bellied, 0, k).is_ok_and(|n| mouth.contains(n))
+        })
+        .count();
+    let on_mouth_plane = bellied
+        .faces()
+        .filter(|(_, f)| {
+            matches!(bellied.get_surface(f.surface),
+                Some(Surface::Plane { origin, .. }) if (origin.y - Y_MOUTH).abs() < 1e-12)
+        })
+        .count();
+    assert_eq!(
+        (named_mouth, on_mouth_plane),
+        (2, 2),
+        "the mouth is one PLANE worn by two half-disc faces — a full revolve's seam cut \
+         — and the two names the shell node carries are exactly those two"
+    );
 
     // ---- the gates, MEASURED off the operand before the verb runs ----
     //
@@ -1336,7 +1440,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // retires the scan: the role names the same circle, and it names
     // it through a rebuild rather than through a coordinate.
     for &(v, radius, station, what) in &LID_RIMS {
-        let (y, rho) = rim_circle(&ev, r.plain_lid, v);
+        let (y, rho) = rim_circle(&ev, r.plain_lid, &plain_lid, v);
         assert!(
             (y - station).abs() < 1e-12 && (rho - radius).abs() < 1e-12,
             "{what} is the rim named at meridian vertex {v}, and its circle is \
@@ -1394,7 +1498,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     //
     // Bands are selected by their spine station, never by index: the
     // arm is free to mint them in any order.
-    let band = |y: f64| -> (f64, f64) {
+    let lid_band = |y: f64| -> (f64, f64) {
         let mut hit = None;
         for (_, f) in rolled.faces() {
             let Some(Surface::Torus {
@@ -1425,7 +1529,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // (1) cylinder x plane, at the knob's top. On a cylinder of radius
     // R_KNOB the centre rides at R_KNOB - r; on a plane normal to the
     // axis it rides r below it. Two lines, one crossing.
-    let (knob_major, knob_minor) = band(Y_TOP - ROLL);
+    let (knob_major, knob_minor) = lid_band(Y_TOP - ROLL);
     assert!(
         (knob_minor - ROLL).abs() < 1e-12 && (knob_major - (R_KNOB - ROLL)).abs() < 1e-12,
         "the knob band is the torus (R_KNOB - roll, roll) = ({}, {ROLL}); got \
@@ -1444,7 +1548,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // (2) cone x plane(perp), at the flange's rim. The underside's own
     // offset is y = LID_BASE + roll; walk the cone's offset line to
     // that height and read the radius off it.
-    let (flange_major, flange_minor) = band(LID_BASE + ROLL);
+    let (flange_major, flange_minor) = lid_band(LID_BASE + ROLL);
     let flange_want = R_FLANGE - ROLL * (1.0 + sin_a) / cos_a;
     assert!(
         (flange_minor - ROLL).abs() < 1e-12 && (flange_major - flange_want).abs() < 1e-12,
@@ -1469,7 +1573,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     let u = -b + disc.sqrt();
     let (foot_r, foot_y) = (off0.0 + u * dir.0, off0.1 + u * dir.1);
-    let (foot_major, foot_minor) = band(foot_y);
+    let (foot_major, foot_minor) = lid_band(foot_y);
     assert!(
         (foot_minor - ROLL).abs() < 1e-12 && (foot_major - foot_r).abs() < 1e-12,
         "the dome-foot band is the torus ({foot_r}, {ROLL}) — the cone's offset line \
@@ -1516,33 +1620,101 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // ---- the spout: built about its own axis, then placed ----
     //
-    // The document's placement vocabulary is AXIS-ANGLE, and the 3-4-5
-    // turn is not a binary-exact angle — so the map is asserted rather
-    // than assumed. `cos` and `sin` of `atan2(0.8, 0.6)` return `0.6`
-    // and `0.8` bit for bit, and Rodrigues about `+z` consumes only
-    // those two and the axis components, so every entry of the turn is
-    // exact and the placed body lands where the authored direction
-    // says, to the last bit.
+    // The document's placement vocabulary is AXIS-ANGLE and the 3-4-5
+    // turn is not a binary-exact angle, so what the residual costs is
+    // MEASURED — off the placed BODY, never re-derived from the same
+    // trigonometry the placement used. The subject is the root
+    // annulus: the band of the spout meridian's own segment 0, named
+    // at the revolve that minted it and read at the TRANSFORM, since a
+    // transform contributes no role segment and reading a carried name
+    // there is reading the placed face.
+    //
+    // TWO subjects, the root annulus and the tip one, and the guard
+    // below is why there are two and why neither is the spout's own
+    // origin: a point on the rotation's fixed axis maps to `R·0 + t`
+    // for any angle whatsoever, so a residual read there measures the
+    // translation and would be 0 with the turn deleted. These two
+    // stand off that axis and one of them stands a whole spout-length
+    // up it, so both residuals are about the turn.
+    let tip_unplaced = face_frame(&ev, r.spout_body, &band(r.spout_body, SEG_SPOUT_TIP))
+        .expect("the tip annulus, before the placement");
+    let unplaced = face_frame(&ev, r.spout_body, &band(r.spout_body, SEG_SPOUT_ROOT))
+        .expect("the root annulus, before the placement");
+    let tip_placed = face_frame(&ev, r.spout, &band(r.spout_body, SEG_SPOUT_TIP))
+        .expect("the tip annulus, after it");
+    let placed = face_frame(&ev, r.spout, &band(r.spout_body, SEG_SPOUT_ROOT))
+        .expect("the root annulus, after it");
+    // The EXACT image of that face's own frame under the placement the
+    // authored direction states — the 3-4-5 turn written as the matrix
+    // whose columns are the direction's own components, which is what
+    // this scene used to hand `transform_rigid` and is independent of
+    // the angle the document stores.
+    let turn = |p: Vec3<f64>| {
+        Vec3::new(SPOUT_DIR.y, -SPOUT_DIR.x, 0.0) * p.x + SPOUT_DIR * p.y + Vec3::unit_z() * p.z
+    };
+    let root_exact = turn(Vec3::new(
+        unplaced.origin.x,
+        unplaced.origin.y,
+        unplaced.origin.z,
+    )) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
+    let root_residual =
+        (Vec3::new(placed.origin.x, placed.origin.y, placed.origin.z) - root_exact).norm();
+    let tip_exact = turn(Vec3::new(
+        tip_unplaced.origin.x,
+        tip_unplaced.origin.y,
+        tip_unplaced.origin.z,
+    )) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
+    let tip_residual = (Vec3::new(
+        tip_placed.origin.x,
+        tip_placed.origin.y,
+        tip_placed.origin.z,
+    ) - tip_exact)
+        .norm();
+    assert!(
+        tip_residual <= 1e-15,
+        "the placed tip annulus stands at {:?}; the direction's own matrix puts it at \
+         {tip_exact:?} ({tip_residual:e} m away)",
+        tip_placed.origin
+    );
+    // Both subjects stand OFF the rotation's fixed set (the +z axis
+    // through the world origin), so both residuals are about the turn
+    // and neither is the `R·0 + t = t` identity a point on that axis
+    // would give for any angle at all.
+    for (what, o) in [("root", unplaced.origin), ("tip", tip_unplaced.origin)] {
+        assert!(
+            o.x.hypot(o.y) > 1e-3,
+            "the {what} annulus stands at {o:?}, on the rotation's own fixed axis — a \
+             residual read there measures the translation and not the turn"
+        );
+    }
+    // A BOUND rather than a bit, and the bound is the argument: the
+    // angle's cosine and sine are a libm's answer, so an equality here
+    // would gate this scene on one platform's last ulp (the reason
+    // this workspace routes `erf` through the `libm` crate). What is
+    // observed goes in the note; what is ASSERTED is that the placed
+    // face stands where the direction says to within a ulp of the
+    // spout's own scale.
+    assert!(
+        root_residual <= 1e-15,
+        "the placed root annulus stands at {:?}; the direction's own matrix puts it at \
+         {root_exact:?} ({root_residual:e} m away)",
+        placed.origin
+    );
+    // And it FACES the way the direction says: the placed chart's axis
+    // is the image of the unplaced one, which for this annulus is the
+    // sketch's own +v carried onto SPOUT_DIR.
+    let axis_cross = placed.axis.cross(SPOUT_DIR).norm();
+    let axis_dot = placed.axis.dot(SPOUT_DIR).abs();
+    assert!(
+        axis_cross <= 1e-15 && (axis_dot - 1.0).abs() <= 1e-15,
+        "the placed root annulus's normal is {:?}, which is not SPOUT_DIR ({SPOUT_DIR:?}): \
+         cross {axis_cross:e}, |dot| {axis_dot}",
+        placed.axis
+    );
+    // The observed turn, REPORTED — the note quotes it and nothing
+    // gates on it.
     let (sin_t, cos_t) = spout_turn().sin_cos();
-    assert_eq!(
-        (cos_t, sin_t),
-        (SPOUT_DIR.y, -SPOUT_DIR.x),
-        "the axis-angle turn's cosine and sine ARE the 3-4-5 direction's components"
-    );
     let spout = body_at(&ev, r.spout);
-    // The root disc's centre: the spout's own origin, carried by the
-    // map. Measured against the exact placement the direction states,
-    // which is the residual the axis-angle spelling could have cost.
-    let placed_root = Vec3::new(
-        cos_t * 0.0 - sin_t * 0.0 + SPOUT_ROOT.x,
-        sin_t * 0.0 + cos_t * 0.0 + SPOUT_ROOT.y,
-        SPOUT_ROOT.z,
-    );
-    let root_residual = (placed_root - Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z)).norm();
-    assert_eq!(
-        root_residual, 0.0,
-        "the placed root disc's centre is the authored root, exactly"
-    );
     let v_spout = frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
         - frustum_volume(SPOUT_R0 - SPOUT_WALL, SPOUT_R1 - SPOUT_WALL, SPOUT_LEN);
     let a_spout = frustum_lateral(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
@@ -1688,7 +1860,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         2,
         "join the handle to the vessel (union; both roots driven 11.2 mm past the \
          belly's inner wall — a real overlap, not a tangency)",
-        Err::<(), _>(boolean_refusal(&ev, r.handle_union)),
+        join_outcome(&ev, r.handle_union),
         |e| {
             matches!(
                 e,
@@ -1720,7 +1892,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "teapot",
         3,
         "join the spout to the vessel (union; the root disc wholly inside the belly)",
-        Err::<(), _>(boolean_refusal(&ev, r.spout_union)),
+        join_outcome(&ev, r.spout_union),
         |e| {
             matches!(
                 e,
@@ -1859,11 +2031,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              SPOUT AND THE HANDLE. Both build and both check against closed forms — the \
              spout as a difference of cone frusta, asserted AFTER `Node::Transform` \
              placed it, so the map's isometry is part of the receipt; the handle by \
-             Pappus on its own disc. The document says a placement in AXIS-ANGLE, and \
-             the 3-4-5 turn is not a binary-exact angle — but its cosine and sine come \
-             back as 0.6 and 0.8 BIT FOR BIT, and Rodrigues about +z consumes nothing \
-             else, so the placed root disc's centre sits on the authored root at a \
-             residual of exactly {root_residual}. Neither JOINS. handle ∪ vessel: {handle_refusal}. \
+             Pappus on its own disc. The document says a placement in AXIS-ANGLE and the \
+             3-4-5 turn is not a binary-exact angle, so what that costs is MEASURED off \
+             the PLACED BODY: the root annulus — the spout meridian's own segment-0 \
+             band, named at the revolve and read at the transform — stands \
+             {root_residual:e} m from where the direction's own matrix puts it and its \
+             chart faces SPOUT_DIR to a cross of {axis_cross:e}, and the TIP annulus \
+             one spout-length up stands {tip_residual:e} m from its own exact image. \
+             Both subjects sit OFF the turn's fixed axis, which is what keeps either \
+             residual a measurement of the ROTATION rather than of the translation. On THIS platform the \
+             angle's cosine and sine come back as {cos_t} and {sin_t}, which are the \
+             direction's components bit for bit; that is reported and not asserted, \
+             because a bitwise pin here would gate the scene on one libm's last ulp. Neither JOINS. handle ∪ vessel: {handle_refusal}. \
              spout ∪ vessel: {spout_refusal}. Both are the pair-scoped operand gate \
              naming a germ PAIR with no wired arm, and note what the second one names — \
              the spout's outer CONE against a PLANE of the pot, not the belly wall the \
