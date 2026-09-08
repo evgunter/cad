@@ -91,3 +91,15 @@ edits `refactor.rs`'s `rem_apply` closure and `SplitOutcome`, per the
 keep_out's announced-seam clause. Unit 5 (the two `Verb` types) rides
 no unit 1–4 — none opens `crates/verbs`' or `profile`'s public
 surface — so it gets its own small PR after unit 2.
+
+## [ev] 2137 open: the placers over `Instances` (2026-09-08)
+
+`work/eval/transform-refuses-a-patterns-instances-value.md` carries
+the question (`needs_ev`), PR 2137 is the vehicle, announced on
+DOCM's board there. Three answers; recommended: the placers are
+shape-preserving over the value (`Body → Body`, `Instances →
+Instances`), no payload or schema change, one `denotes_body` arm for
+CHROME. Subscribed to the PR from this session. Widened from the
+item's `Transform` to both placers because MSOLVE-2's walk already
+admits nested patterns and `a10_a_nested_pattern_head_is_a_member`
+pins `Pattern` refusing the same way.
