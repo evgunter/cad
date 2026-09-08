@@ -2805,3 +2805,50 @@ document-door spelling of the same mouth. Sequencing deviation stated
 rather than hidden: the draw byte was read in the same tool call as
 the last spec read, minutes before the difficulty sentence was written
 down; the difficulty is the G16 precedent's and was not moved.
+
+**B-FACE-FRAME MERGED (2026-09-08, #2074; mechanical under the 08-29
+ruling, no A/B row). Census family B-FACE-FRAME CLOSED — sketch on a
+face, from Python.** `Node.datum_face_frame(at, face, spin)` (the
+`datum_*` prefix convention, spin a typed `Angle` with no default),
+`Evaluation.face_carrier_kind` (the fifth read-back door and the first
+that is not a frame; `SurfaceKind` crosses OUT for the first time, and
+the crossing retires the tripwire's dead twin), `Pose.sense`. 26 tests,
+every number an oracle against the read door's pose. The unit's real
+yield is a census blind spot measured at the closure: a three-door
+charter had a one-row roster because `Pose.sense` is a FIELD of a
+rule-1-accounted type and `Datum` matches name-for-name across two
+different types (the authoring enum and the read-side value), so a
+whole authoring arm hid behind the census's own rule. Banked with
+files: `datum-crosses-name-for-name-as-two-types`,
+`pncad-py-comparable-enums-do-not-hash` (23 of 23). Fixed in passing:
+`run-python-tests.sh` read a hardcoded `$root/target`, so every lane
+that set `CARGO_TARGET_DIR` as the discipline requires saw it exit 1 on
+a successful build. Outside the fence, reported: `local-scripts/
+bt-testbin.sh` and `bt-symbols.sh` carry the same defect. Relaunched
+lane (the 07:29 kill); the dead tree's derived scope was read and
+corrected, not applied. Orchestrator merged main into the branch after
+the report (415 commits, clean) and landed on the re-run.
+**LIB-MECH2 MERGED (2026-09-08, #2072; mechanical under the 08-29
+ruling, no A/B row).** Two banked findings closed. (1) Both LB13
+boundary guards in `crates/pncad/tests/all.rs` read `pub use`
+STATEMENTS now — accumulated to the `;`, whitespace collapsed, the line
+reported being the one the statement opens on — and the RawLoop guard's
+minting patterns match a whitespace-squashed view of the whole file with
+offsets mapped back to true lines. Planted red both ways: a key added
+inside an existing multi-line brace list reds the new guard by name and
+PASSES the merge-base guard. Numbers re-derived at the merge base (75
+statements, 33 multi-line, 17 into `editor_core::`; the root's `pub mod`
+count is 33 and the doc now carries no number). The inherited commit
+from the killed lane had a defect of its own — a doc block edited in
+place on the wrong function — repaired. Three remaining line-local
+readers filed as `facade-guard-file-keeps-two-line-local-readers` (its
+id says two; ids are stable). (2) `Doc.node_kind(node) -> str` from one
+exhaustive match with no wildcard (proved by deleting an arm), the
+vocabulary pinned whole on `TAG_INVENTORY`'s discipline, snake_case and
+deliberately NOT the wire's variant identifiers; an unknown id refuses
+`unknown_node`. The die-tool Python row now asserts the group by kind,
+mirroring the Rust row, instead of leaning on the byte pin. One red
+owned and fixed: an intra-doc link to a `cfg(test)`-gated module. Local
+`nextest --workspace` 6378 passed before the first push — the MECH1
+lesson, applied. Orchestrator merged main after the report (436
+commits, clean) and landed on the re-run.

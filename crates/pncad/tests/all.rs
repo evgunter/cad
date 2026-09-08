@@ -773,6 +773,68 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
     );
 }
 
+/// The 1-based line the byte offset `at` falls on in `code`.
+fn line_of(code: &str, at: usize) -> usize {
+    code[..at].matches('\n').count() + 1
+}
+
+/// Every `pub use` STATEMENT in already-comment-stripped `code`: the
+/// line the statement opens on, and its text from `pub use` through
+/// its terminating `;` with every run of whitespace collapsed to one
+/// space.
+///
+/// **Statements, not lines, is the whole point.** The façade's
+/// dominant idiom is the multi-line brace list — `pub use
+/// editor_core::{` on one line and the names on the next — so a name
+/// matched against a LINE is invisible whenever it is added inside an
+/// existing list, which is the cheapest spelling of the regressions
+/// the guards below forbid. The accumulation is [`pub_use_names`]'s,
+/// which has always read statements.
+///
+/// A `pub use` whose `;` never arrives is dropped rather than guessed
+/// at, and a `pub use` inside a string literal is read as one: this
+/// errs toward false ALARM, the safe direction for a guard.
+fn pub_use_statements(code: &str) -> Vec<(usize, String)> {
+    let mut out = Vec::new();
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("pub use") {
+        let at = from + off;
+        let Some(end) = code[at..].find(';') else {
+            break;
+        };
+        let text = code[at..=at + end]
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        out.push((line_of(code, at), text));
+        from = at + end + 1;
+    }
+    out
+}
+
+/// `code` with every whitespace character removed, and the byte offset
+/// in `code` each surviving byte came from — so a match in the
+/// squashed view is still reportable at the line it starts on.
+///
+/// A pattern matched here is whitespace-insensitive across LINE BREAKS
+/// as well as spaces, which is what makes `ProfileLoop::new(`,
+/// `ProfileLoop :: new (` and a call whose `::new(` wrapped to the
+/// next line one pattern.
+fn squashed_with_offsets(code: &str) -> (String, Vec<usize>) {
+    let mut text = String::with_capacity(code.len());
+    let mut offsets = Vec::with_capacity(code.len());
+    for (at, c) in code.char_indices() {
+        if c.is_whitespace() {
+            continue;
+        }
+        text.push(c);
+        for _ in 0..c.len_utf8() {
+            offsets.push(at);
+        }
+    }
+    (text, offsets)
+}
+
 // ---------------------------------------------------------------
 // LB13: the document layer's boundary, guarded.
 // ---------------------------------------------------------------
@@ -809,6 +871,14 @@ const FACADE_SOURCES: [(&str, &str); 11] = [
 ///    nameable again, and nothing else in the tree would notice.
 /// 2. Any `pub use` in `pncad`'s own source that names `EntityRef`,
 ///    `EntityKey`, or `Entry` — the LIB-U5 seal, kept sealed.
+///
+/// **It reads `pub use` STATEMENTS, not lines** — the accumulation is
+/// [`pub_use_statements`]. The façade's dominant idiom is the
+/// multi-line brace list, so the cheapest spelling of regression 2 is
+/// a key added inside an existing list, where the name lands on a
+/// continuation line and never shares a line with the `pub use`. That
+/// name is inside the statement this guard matches; the line it
+/// reports is the one the statement opens on.
 ///
 /// **The two limits, and why they are acceptable** — stated so the
 /// next reader neither over-trusts this scan nor re-derives the
@@ -847,37 +917,31 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in FACADE_SOURCES {
         let code = code_without_comments(src);
-        for (n, line) in code.lines().enumerate() {
-            let t = line.trim();
-            if t.contains(&module_reexport) {
+        for (n, stmt) in pub_use_statements(&code) {
+            if stmt.contains(&module_reexport) {
                 violations.push(format!(
-                    "{name}:{}: the whole-crate `editor_core` re-export is back — \
-                     it makes arena keys nameable again (LB13)",
-                    n + 1
+                    "{name}:{n}: the whole-crate `editor_core` re-export is back — \
+                     it makes arena keys nameable again (LB13)"
                 ));
-            }
-            if !t.contains("pub use") {
-                continue;
             }
             for k in keys {
                 // Word-boundary check: `EntityKind` must not trip on
                 // the `EntityKey` needle.
                 let mut from = 0usize;
-                while let Some(off) = t[from..].find(k) {
+                while let Some(off) = stmt[from..].find(k) {
                     let at = from + off;
                     from = at + k.len();
-                    let after_ok = !t[from..]
+                    let after_ok = !stmt[from..]
                         .chars()
                         .next()
                         .is_some_and(|c| c.is_alphanumeric() || c == '_');
-                    let before_ok = !t[..at]
+                    let before_ok = !stmt[..at]
                         .chars()
                         .next_back()
                         .is_some_and(|c| c.is_alphanumeric() || c == '_');
                     if before_ok && after_ok {
                         violations.push(format!(
-                            "{name}:{}: `pub use` names the arena key `{k}` (LIB-U5 seal)",
-                            n + 1
+                            "{name}:{n}: `pub use` names the arena key `{k}` (LIB-U5 seal)"
                         ));
                     }
                 }
@@ -896,8 +960,10 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// ruling on #413 (LIB-RETTAIL), enforced rather than asserted in a
 /// report.
 ///
-/// Same mechanism as the LB13 guard above, permanent for the same
-/// reasons and carrying the same two limits: an `as`-aliased
+/// Same statement-based mechanism as the LB13 guard above — and
+/// statement-based for the same reason, a multi-line brace list being
+/// where a name is cheapest to add — permanent for the same reasons
+/// and carrying the same two limits: an `as`-aliased
 /// re-export, and a name reachable as a public field, associated type
 /// or return type of an allowed type. Neither has a live instance,
 /// and neither is reachable by an ordinary edit the way the
@@ -912,7 +978,10 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// 2. Any `pub use` in `pncad`'s own source that names `RawLoop`.
 /// 3. Any construction call — `ProfileLoop::new` / `ProfileLoop::polygon`
 ///    — written in façade source (comments excluded), which would mean
-///    the façade itself still authors through the retired tier.
+///    the façade itself still authors through the retired tier. This
+///    one is matched on the source with ALL whitespace removed, so a
+///    call broken across lines is the same pattern as a call written
+///    on one.
 /// 4. Any `ProfileLoop`/`ProfileVertex` STRUCT LITERAL in façade
 ///    source. This row's declared blind spot until the seal landed:
 ///    the fields were public, so a literal type-checked wherever the
@@ -943,32 +1012,33 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in FACADE_SOURCES {
         let code = code_without_comments(src);
-        for (n, line) in code.lines().enumerate() {
-            let t = line.trim();
-            if t.contains(&module_reexport) {
+        for (n, stmt) in pub_use_statements(&code) {
+            if stmt.contains(&module_reexport) {
                 violations.push(format!(
-                    "{name}:{}: the whole-crate `profile` re-export is back — it makes \
-                     the RawLoop minting doors nameable again (#413)",
-                    n + 1
+                    "{name}:{n}: the whole-crate `profile` re-export is back — it makes \
+                     the RawLoop minting doors nameable again (#413)"
                 ));
             }
-            if t.contains("pub use") && t.contains("RawLoop") {
+            if stmt.contains("RawLoop") {
                 violations.push(format!(
-                    "{name}:{}: `pub use` names the raw minting trait `RawLoop` (#413)",
-                    n + 1
+                    "{name}:{n}: `pub use` names the raw minting trait `RawLoop` (#413)"
                 ));
             }
-            // Matched against the line with ALL whitespace removed, so
-            // `ProfileLoop{`, `ProfileLoop  {` and `ProfileLoop::new (`
-            // are one pattern to this guard.
-            let squashed: String = t.chars().filter(|c| !c.is_whitespace()).collect();
-            for m in &minting {
-                if squashed.contains(m.as_str()) {
-                    violations.push(format!(
-                        "{name}:{}: the façade authors through `{m}` — the retired raw tier",
-                        n + 1
-                    ));
-                }
+        }
+        // Matched against the source with ALL whitespace removed, so
+        // `ProfileLoop{`, `ProfileLoop  {`, `ProfileLoop::new (` and a
+        // call whose `::new(` wrapped to the next line are one pattern
+        // to this guard.
+        let (squashed, offsets) = squashed_with_offsets(&code);
+        for m in &minting {
+            let mut from = 0usize;
+            while let Some(off) = squashed[from..].find(m.as_str()) {
+                let at = from + off;
+                from = at + m.len();
+                violations.push(format!(
+                    "{name}:{}: the façade authors through `{m}` — the retired raw tier",
+                    line_of(&code, offsets[at])
+                ));
             }
         }
     }
@@ -977,6 +1047,44 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
         "raw loop construction must not be presented surface — found {} violation(s):\n  {}",
         violations.len(),
         violations.join("\n  ")
+    );
+}
+
+/// **The two readers the guards above are built on, on the shape they
+/// exist for**: a `pub use` whose names are on continuation lines, and
+/// a construction call broken across them. Both are matched here, and
+/// both report the line their statement OPENS on.
+#[test]
+fn the_boundary_readers_read_across_line_breaks() {
+    // Assembled at runtime for the same reason the guards' needles
+    // are: this file is scanned by the U1 guard, and a contiguous
+    // kernel path here would be its own first match.
+    let layer = ["editor", "core"].join("_");
+    let list = format!("// prose about it\npub use {layer}::{{\n    Doc,\n    EntityRef,\n}};\n");
+    let code = code_without_comments(&list);
+    let stmts = pub_use_statements(&code);
+    assert_eq!(
+        stmts.len(),
+        1,
+        "one statement, whatever its line count: {stmts:?}"
+    );
+    assert_eq!(stmts[0].0, 2, "reported at the line the statement opens on");
+    assert!(
+        stmts[0].1.contains("EntityRef"),
+        "a name on a continuation line is inside the statement: {}",
+        stmts[0].1
+    );
+
+    let wrapped = "fn f() {\n    let _ = ProfileLoop\n        ::polygon(v);\n}\n";
+    let (squashed, offsets) = squashed_with_offsets(wrapped);
+    let needle = ["ProfileLoop::", "polygon("].concat();
+    let at = squashed
+        .find(&needle)
+        .expect("a call broken across lines is one pattern in the squashed view");
+    assert_eq!(
+        line_of(wrapped, offsets[at]),
+        2,
+        "reported at the line the call opens on"
     );
 }
 
@@ -3452,22 +3560,6 @@ fn assert_layer_root_exports_are_carried_or_listed(
 // claim that there are only two.
 // ---------------------------------------------------------------
 
-/// Every `pub` item a crate root DECLARES rather than re-exports:
-/// `pub struct`/`enum`/`fn`/`trait`/`type`/`const`/`static`/`union`,
-/// plus the `pub mod` declarations, written at column 0.
-///
-/// Column 0 is the whole scope rule — an item inside a `mod` block in
-/// the same file is indented, and is not a root export.
-///
-/// [`module_pub_use_names`] alone misses all of these. For the
-/// document layer that costs nothing today, which is why its guard
-/// records it as a blind spot rather than closing it: that root is a
-/// module tree, its declarations are the crate's twenty-six interior
-/// modules, and the façade curates ACROSS them rather than carrying
-/// them. The profile layer's root is the opposite shape — a presented
-/// surface that declares five of the types the façade carries and one
-/// it deliberately does not — so for that layer the same omission
-/// would be a hole, and this closes it.
 /// The source with every `#[cfg(…)]`-gated item removed, attribute and
 /// all.
 ///
@@ -3513,6 +3605,23 @@ fn code_without_cfg_gated(src: &str) -> String {
     out
 }
 
+/// Every `pub` item a crate root DECLARES rather than re-exports:
+/// `pub struct`/`enum`/`fn`/`trait`/`type`/`const`/`static`/`union`,
+/// plus the `pub mod` declarations, written at column 0.
+///
+/// Column 0 is the whole scope rule — an item inside a `mod` block in
+/// the same file is indented, and is not a root export.
+///
+/// [`module_pub_use_names`] alone misses all of these. For the
+/// document layer that costs nothing today, which is why its guard
+/// records it as a blind spot rather than closing it: that root is a
+/// module tree, its declarations are its interior modules — every one
+/// of them, whatever the count is on any given day — and the façade
+/// curates ACROSS them rather than carrying them. The profile layer's
+/// root is the opposite shape — a presented surface that declares
+/// five of the types the façade carries and one it deliberately does
+/// not — so for that layer the same omission would be a hole, and
+/// this closes it.
 fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
     let code = code_without_comments(src);
     let mut names = std::collections::BTreeSet::new();
@@ -3743,7 +3852,9 @@ fn every_facade_layer_is_whole_re_exported_or_per_name_guarded() {
 /// This watches the failure mode that actually happened: the roster
 /// moving under a sentence about it. Adding or removing a seam fails
 /// here, and so does a second seam chaining a follow-up kernel call
-/// onto its constructor.
+/// onto its constructor. The chain is matched as `.validate(` and not
+/// as `).validate(`, because the receiver and the call it chains onto
+/// need not share a line: a chain rustfmt wrapped is the same hit.
 ///
 /// **Not guarded, stated:** "a single kernel constructor call" is
 /// about a body's SHAPE, and counting calls in source text is the
@@ -3770,7 +3881,7 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
         if line.starts_with('}') {
             current = None;
         } else if let Some(name) = current
-            && line.contains(").validate(")
+            && line.contains(".validate(")
         {
             chaining.push(name);
         }

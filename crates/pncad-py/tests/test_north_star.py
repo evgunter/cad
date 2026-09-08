@@ -2853,11 +2853,18 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
     YES."""
 
     def test_the_bound_vocabulary_is_exactly_this(self):
+        # `datum_face_frame` JOINED this list at LIB-B-FACE-FRAME,
+        # which closed the census family that chartered it: a sketch
+        # frame DERIVED from a named face is authorable from Python.
+        # No audit row moves with it — the audit asks a SCENE question
+        # and no tour stop sketches on a face — so the door's positive
+        # form is `tests/test_face_frame.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "boolean", "chamfer", "datum_axis",
-                "datum_axis_in_plane", "datum_plane", "declare",
+                "datum_axis_in_plane", "datum_face_frame",
+                "datum_plane", "declare",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
                 "loft", "mate", "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",

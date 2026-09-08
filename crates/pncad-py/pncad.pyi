@@ -1301,6 +1301,27 @@ class Node:
         normal: tuple[float, float, float],
     ) -> Node: ...
     @staticmethod
+    def datum_face_frame(at: NodeId, face: str, spin: Angle) -> Node:
+        """A sketch frame DERIVED from a face — "sketch on this face".
+
+        `at` is the body-denoting node the face is read out of, and a
+        DAG input: raise the body and every sketch on this frame rides
+        up with it. `face` is one of the opaque texts
+        `Evaluation.all_faces` or `select` answered with, handed back
+        unread — the face is NAMED, not transcribed as nine numbers.
+
+        `spin` turns sketch +x about the face's OUTWARD normal
+        (`Pose.sense` times `Pose.axis`) from the carrier's own
+        u-reference, right-handed. There is no default: pass
+        `0 * rad` to take the u-reference unturned.
+
+        Refuses typed at `evaluate`, never here — `face_frame_resolve`
+        for a name that stopped denoting, `face_frame_kind` for an
+        edge or vertex name, `face_frame_not_planar` for a curved
+        carrier, `face_frame_readback` for unreadable geometry.
+        """
+
+    @staticmethod
     def fillet(target: NodeId, radius: Length, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
@@ -1656,6 +1677,30 @@ class Doc:
         """The interface record an instantiate node carries, or `None`
         for any other node. Empty for a directly-authored instance;
         non-empty only on one a `split` minted."""
+
+    def node_kind(self, node: NodeId) -> str:
+        """What KIND of node `node` is: one stable word per recipe
+        node, and the read half of the `Node.*` constructor family.
+
+        The vocabulary, in full: `datum`, `profile`, `extrude`,
+        `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
+        `chamfer`, `split`, `boolean_union`, `boolean_intersect`,
+        `boolean_subtract`, `union`, `transform`, `pattern`, `part`,
+        `placed_union`, `declare`, `instantiate_part`, `mate`,
+        `measure`, `assertion`. A Boolean answers a word per
+        OPERATION, because union, intersect and subtract are three
+        kernel operations sharing one payload shape; the unprefixed
+        `union` is the different node, the n-ary one that folds a
+        member list.
+
+        This is the NODE's kind, never its VALUE's: an extrude, a
+        transform and a placed union all evaluate to a value whose
+        `kind` is `"body"`, because that is the PAYLOAD's shape.
+        Telling the recipes apart is what this door is for, and it
+        answers with no evaluation in hand at all.
+
+        A node this document does not hold raises EditError
+        (`unknown_node`) rather than answering a word or `None`."""
 
     def insert(self, node: Node) -> NodeId: ...
     def sketch_frame(
@@ -2384,8 +2429,9 @@ class Pose:
     cylinder's axis point, a circle's centre), dimensioned; it need
     not lie inside the trimmed face. `axis` is the carrier's principal
     direction, dimensionless, and it is the CHART's direction — NOT
-    corrected by the face's orientation sense, which is a separate
-    fact about the face.
+    corrected by the face's orientation sense, which rides beside it
+    as `sense`. The outward normal is `sense * axis`, formed by the
+    reader.
 
     `u_ref` is the in-frame reference direction where the carrier's
     convention fixes one and `None` where it fixes none: a line has no
@@ -2404,6 +2450,17 @@ class Pose:
     def u_ref(self) -> Optional[tuple[float, float, float]]: ...
     @property
     def v_ref(self) -> Optional[tuple[float, float, float]]: ...
+    @property
+    def sense(self) -> bool:
+        """The face's orientation sense: `True` when the outward
+        normal is `+axis`, `False` when it is `-axis`.
+
+        The second fact `axis` deliberately does not fold in — the
+        outward normal is `sense * axis`, formed by the reader, a sign
+        SELECTED from a stored bool rather than computed, so no
+        tolerance enters. An edge has no orientation sense, so
+        `edge_frame` answers `True` and the field says nothing about
+        the edge."""
 
 class Denotation:
     """What a name denotes, without the entities it denotes — what
@@ -2717,6 +2774,21 @@ class Evaluation:
     ) -> tuple[Length, Length, Length]:
         """Where the named vertex sits — its stored position,
         dimensioned. Raises `ReadbackError` as `face_frame` does."""
+
+    def face_carrier_kind(self, node: NodeId, name: str) -> SurfaceKind:
+        """What KIND of surface carries the named face — the stored
+        carrier tag, copied out.
+
+        A tag READ, not a predicate: `SurfaceKind.Plane` comes back
+        because the body records a plane there, and "is this face
+        planar" is a comparison the caller makes against the answer.
+        No tolerance enters. It is the door `face_frame` cannot be — a
+        NURBS carrier has no canonical frame and refuses there, and
+        its kind is still readable here — and it is how a caller
+        checks a face before building a `Node.datum_face_frame` on it.
+
+        Raises `ReadbackError` as `face_frame` does, with
+        `wrong_kind` for an edge or vertex name."""
 
     def denotation(self, node: NodeId, name: str) -> Denotation:
         """How this name resolves — uniquely, or as a tie. The

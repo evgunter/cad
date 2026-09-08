@@ -526,6 +526,8 @@ mod r2_rim_corpus_probes;
 #[path = "fillet_h6_cap_rim.rs"]
 mod fillet_h6_cap_rim;
 
+#[path = "review_blend_e2_r1_probes.rs"]
+mod review_blend_e2_r1_probes;
 #[path = "review_fillet_h6_r1_probes.rs"]
 mod review_fillet_h6_r1_probes;
 
@@ -537,6 +539,8 @@ mod fillet_h7_transverse_cap;
 #[path = "fillet_h7_transverse_cap_interval.rs"]
 mod fillet_h7_transverse_cap_interval;
 
+#[path = "review_blend1_r1_probes.rs"]
+mod review_blend1_r1_probes;
 #[path = "review_fillet_h7_r1_probes.rs"]
 mod review_fillet_h7_r1_probes;
 #[path = "review_fillet_split_r2_probes.rs"]

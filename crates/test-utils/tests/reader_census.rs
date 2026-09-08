@@ -158,7 +158,8 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/pncad-py/src/tests.rs",
-        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to read
+        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to
+                             // read; the kind words in src/node_kind.rs: literal view alone
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
