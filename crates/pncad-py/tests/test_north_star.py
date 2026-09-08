@@ -2872,14 +2872,25 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # three that moves an audit row's prose: it was absent because
         # a plural payload fed nothing, and `part` is what it feeds.
         # The positive form is `tests/test_part_select.py`.
+        #
+        # `measure` and `assertion` JOINED it at LIB-B-MEASURES, which
+        # closed B-MEASURES. They are the last two of the kernel's
+        # twenty-five recipe node kinds to become constructible from
+        # Python, and no audit row moves with them: both are arms of
+        # the top-level `Node`, which the binding census accounts WHOLE
+        # under its rule 1, so neither roster could ever have said they
+        # were missing. `Doc.node_kind` has answered `"measure"` and
+        # `"assertion"` since it was written, for nodes no Python
+        # caller could author. The positive form is
+        # `tests/test_measures.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
-                "boolean", "chamfer", "datum_axis",
+                "assertion", "boolean", "chamfer", "datum_axis",
                 "datum_axis_in_plane", "datum_face_frame",
                 "datum_plane", "declare",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
-                "loft", "mate", "part", "pattern",
+                "loft", "mate", "measure", "part", "pattern",
                 "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
                 "split", "transform", "tube",
@@ -3013,7 +3024,17 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # about which doors accept an `Expr`, not about whether the
         # word exists. The arc verbs take quantities, so a parametric
         # radius is still unsayable and the read side cannot make it
-        # sayable: an expression goes in through no door at all.
+        # sayable.
+        #
+        # "An expression goes in through no door at all" was the
+        # sentence here, and LIB-B-MEASURES made it false without
+        # touching this row's claim: `MeasureExpr.value` and
+        # `Node.assertion`'s bound both take an `Expr` INTO a document,
+        # because the measurement sublanguage's leaves and an
+        # assertion's bound are the two slots whose dimension an
+        # ADDRESS cannot fix. What this row is about is the profile
+        # authoring lattice, where the two doors below still refuse —
+        # the residue is narrower than it was, and it is still there.
         #
         # Executed at the verb the row names, and at the parameter
         # door beside it, because those are the two the row's sentence

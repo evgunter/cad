@@ -7,6 +7,9 @@ the guide's own executed blocks.
 """
 
 from pncad import (
+    MeasurePrimitive,
+    MeasureExpr,
+    AssertionDir,
     Advisory,
     AnalysisPolicy,
     AnalyzedBox,
@@ -640,3 +643,25 @@ declared: DocParam = DocParam.written_length(thickness)
 spun: DocParam = DocParam.written_angle(turned)
 symbol: str | None = declared.unit
 table: dict[ParamName, DocParam] = doc.params
+
+# Authoring a measurement. The verb vocabulary is a value class, the
+# expression is checked as it is built, and the node takes the
+# reference list its primitives index — each entry a node and a name,
+# the pair `Node.mate` already takes each of its two sides as.
+reach: MeasurePrimitive = MeasurePrimitive.distance(0, 1)
+which_verb: str = reach.verb
+which_pair: tuple[int, int] = reach.refs
+span: MeasureExpr = MeasureExpr.primitive(reach)
+pad: MeasureExpr = MeasureExpr.value(doc.parse_expr("bore_r"))
+web: MeasureExpr = MeasureExpr.sub(span, MeasureExpr.add(pad, pad))
+measured_kind: str = web.dimension
+leaves: list[MeasurePrimitive] = web.primitives
+sink: NodeId = doc.insert(
+    Node.measure(web, [(upright, cap_name), (upright, cap_name)])
+)
+# The bound is an EXPRESSION, because its dimension is the measure's
+# and a slot address cannot fix it.
+requirement: NodeId = doc.insert(
+    Node.assertion(sink, AssertionDir.AtLeast, doc.parse_expr("0.5 mm"))
+)
+which_way: str = AssertionDir.AtMost.symbol

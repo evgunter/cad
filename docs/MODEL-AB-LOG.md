@@ -3990,6 +3990,26 @@ equally). The implementer's unit log entry is not written until the
 dual concludes. Disclosed: the PR body carries no harness footer (the
 lane left it off).
 
+## SHELL-7 review ordinal fixed at dispatch (2026-09-08)
+
+SHELL-7 (`axial-door-refuses-a-one-surface-seam-corner`, PR #2200 open —
+frozen head `4adb70dd`): **ordinal 2304** (SHELL band; after 2303).
+Pre-draw fields at the item (`work/shell/SHELL-7.md`): difficulty
+**S–M**, task-class **NUMERIC**, logged after block SHELL-B2's byte was
+drawn (disclosed there; the covariate is contaminated for this row);
+implementer arm per block SHELL-B2 slot 1 (record branch-side on the
+SHELL orchestrator branch). Protocol v6 dual: draw = `/dev/urandom`
+byte **135**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded
+before either review runs: CONCURRENT same-head on frozen `4adb70dd`,
+both briefs authored and STORED with sha256 before either dispatches
+(sha256 f4b572a985cc… r1 / dc2f923bbdae… r2 — identical text modulo
+lane names and lane paths, verified by diff), neither reviewer sees the
+other's report, v6 item 5 isolation in both briefs, PRIVATE
+`CARGO_TARGET_DIR` per reviewer (both EMPTY — cold and symmetric),
+both lanes on one 4-core cloud box at `-j2` (a method note applying to
+both arms equally). The implementer's unit log entry is not written
+until the dual concludes.
+
 ## VERBS-C5ARMS PR-2 review ordinal fixed at dispatch (2026-09-05)
 
 VERBS-C5ARMS PR-2 (`work/curved/VERBS-C5ARMS.md`, PR #1864 open —
@@ -4834,3 +4854,24 @@ and the row at merge annotates it per the resume precedent. Sample
 number assigned at merge in main's merge order.
 
 | G17 | 2026-09-08 | LIB-G17 (PR #2150; spec docs/LIB-G17-SPEC.md, the RECIPE-DOORS D5 elaboration; the unit LIB-G17): `Node::Shell { target, thickness, open }` with `open` ORDERED (the kernel's `RimNaming::sources` keeps designation order and the first face carries the rim; dedup keeping first; a repeat refused at both doors through `Node::input_fault`), `SlotId::ShellThickness`, content tag 35; the lowering through the verb seat (`verbs/shell.rs` correspondence, `ShellLane` per-scalar door — `Dual` refuses typed `ShellLaneUnsupported` since a dual does not certify, DL3); the refusal carriage `NodeErrorKind::Shell(Box<ShellError<f64>>)` by a total wildcard-free fold declared on the lane (`lane.rs`: `Lane::end`, `BracketEnd` per field); `names/emit_shell.rs` with three additive roles `Inner`/`Rim`/`HoleRim` under `OpGroup::Shell`; `Node.shell` in Python with four tags; corpus `cup.rs` (exact dyadic closed forms as `MassPin`s) and `vessel.rs` (the teapot's mouth, both halves named) beside the registry; `lib_g17_shell_node.rs` incl. the rebuild row; the GUIDE's shell step | M-L / STRUCTURAL (pre-draw at the spec) | FABLE (block LIB-13 slot 1 — the block's draw stays branch-side on `lib/block-13`; **contamination flag for the consuming rows**: with a v4 block of four and one fable, a slot-1 FABLE on main names slots 2–4 by arithmetic, the LIB-12 shape) | **DUAL (ordinal 303, sample #158; v6 byte 218 parity 0: R1 OPUS, R2 FABLE, concurrent same-head on frozen 4a093c5c)**: R1 APPROVE-WITH-FIXES 0/6/8 + 9 style, rubric 4/4/3; R2 APPROVE-WITH-FIXES 0/5/6 + style, rubric 4/3/3. CONVERGENT headline (bilateral): the f64 witness fold took `lo()` on every field with one field's argument and no row distinguished the bracket ends (R1's `lo→hi` mutant green suite-wide), and the `T: Bounds` widening on three scalar-free refusal doors (gate 15→16, seven roster rows outside LIB's fence) was the one disclosed deviation with no schedule whose alternative was not weighed. Unique R2: the public variant with a repeated `open` passes the insert door and `save` refuses (the blends' identical asymmetry filed); the order row's `sort_unstable` mutant green; `HoleRim` shipped with no row. Unique R1: four untested claims in docstrings; four stale payload-name enumerations; the "wrapped UNALTERED" header; the 41-variant census floor; `attach_shell` overstated. Zero unilateral MAJORs. **PAIR FLAGGED (v6 item 5)**: R1 disclosed an accidental glimpse of R2's command line via a process listing (mutant literals, one probe name; after its own findings were written); recorded, excluded from the tally per 3(e) conservatively — zero candidates either way | 0 silent of substance (three deviations disclosed; the reviewers found five prose sites the node made false and one census floor, all repaired) | 4 | 4 | 3 | substantial, ADJUDICATED: the fold moved onto the lane with per-field bracket ends and two non-degenerate-bracket pins; the repeat check onto `input_fault` (both doors); the order row proves both orders; one `SlotJoin` and one feed replace the copied pair, one `Lane` trait holds the lane names; `attach_shell` made honest; every falsified prose site fixed; both reviewers' probes adopted as assertions (R2's P7 is the only `HoleRim` row); three issues filed (`blend-selection-canonical-check-load-only`, `correspondence-structs-coincide`, `guide-has-no-chamfer-or-tube-step`) beside the unit's three | MERGED #2150 at d60f4998 (full matrix green: twelve `test`, five `k-lint (gate, …)`, python suite, interval rows); `bounds-allowlist.sh` at 15; `Shell` on the corpus registry's `FRONTIER_UNCOVERED` (the Dual64 row) | impl ~575k to delivery + fix pass ~168k (the lane's report arrived after the merge: ~743k cumulative) / R1 ~302k / R2 ~263k | impl ~74 min after the 09-08 resume + fix pass ~70 min (two dead starts on 09-06: a session kill before any work, a usage-credit outage mid-unit — arm and slot unchanged) / R1 ~30 min / R2 ~29 min |
+
+## LIB-TEAPOT dispatch — block LIB-13 slot 2 (2026-09-08, LIB orchestrator)
+
+**LIB-TEAPOT dispatch (2026-09-08).** Block LIB-13 **slot 2**, arm per
+the branch-side draw (the claim recorded on `lib/block-13` beside the
+draw; merges to main when the block concludes). Pre-draw fields,
+restated unchanged from the spec's §12 (`docs/LIB-TEAPOT-SPEC.md`, to
+main 2026-09-08 via #2197; deleted at merge and recorded in the doc
+ledger): difficulty **M**, task class **STRUCTURAL** — a scene
+conversion over ratified doors (one document, four lowerings the
+kernel already runs, a naming read of the emitter for the rims, a
+render-lane and tess-budget verification, a Python row; no new numeric
+decision, no kernel edit). Written KNOWING the slot's arm — the block
+was drawn 2026-09-06 and a slot-1 FABLE on main names slots 2–4 by
+arithmetic (the contamination flag on G17's row) — disclosed at the
+spec and here. Dual review under v6 at the frozen head; the ordinal is
+claimed at review dispatch from the LIB band (300–399; claimed through
+303). Lane: a fresh clone on `lib/teapot` from main at the B-MEASURES
+merge (`b4a0d3d04`), one 4-core cloud box behind the build-slot mutex,
+no other build live at dispatch (B-MEASURES and BENCH-PATTERN landed
+minutes before, both mechanical, no A/B rows).

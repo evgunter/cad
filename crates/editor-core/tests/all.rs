@@ -120,6 +120,8 @@ mod docm8_flat_merged;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "eval10_section_reads_the_nominal.rs"]
+mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
 mod eval4_accept_funnel;
 #[path = "eval6_placers_over_instances.rs"]
