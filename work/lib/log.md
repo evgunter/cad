@@ -2976,3 +2976,40 @@ their own files. Standing after the merge: Wave 1 mechanical
 (B-FACE-FRAME, MECH2) landed; B-PART in CI; CUR5 and the four ruled
 units (SAVEFORK, POLYGON, CORPUS, PRODUCT) queued on the box's disk;
 LIB-13 has three OPUS slots open for the next full-protocol units.
+**LIB-G17 DUAL ADJUDICATED (2026-09-08, PR 2150, ordinal 303, frozen
+`4a093c5c`; R1 opus, R2 fable per byte 218).** R1 APPROVE-WITH-FIXES
+0/6/8 (+9 style), rubric 4/4/3; R2 APPROVE-WITH-FIXES 0/5/6 (+style),
+rubric 4/3/3. **Convergent, and the headline is bilateral**: the fold
+of `ShellError<T>` to its f64 witness takes `lo()` on every field with
+one argument (the thickness gate's) covering one field, and NO row
+distinguishes the bracket ends — R1's `lo→hi` mutant went green
+against the whole suite; and the `T: Bounds` widening on the three
+scalar-free refusal doors (with the `bounds-allowlist.sh` 15→16 bump
+and seven `Payload` roster rows outside LIB's fence) was the one
+disclosed deviation with no schedule, whose alternative — the witness
+declared per lane on `ShellLane` — neither the spec nor the PR weighed.
+**Ruled**: the fold moves onto `ShellLane` with a per-field argument at
+each impl and a non-degenerate-bracket pin; the gate count and the
+roster rows revert. Also ruled: the repeat-`open` check moves to
+`Node::input_fault` so the insert door and the load door refuse alike
+(R2's probe: the public variant passes insert and `save` refuses — the
+blends' identical asymmetry filed as its own issue); the order row
+asserts both orders' rims (R2's `sort_unstable` mutant stayed green
+against the row named for the claim); the `(slot, param)` join and
+`feed_*` are shared rather than copied, the lane-name ladder written
+once, and the whole-correspondence generic filed for the third
+instance; `attach_shell`'s comment made true; every prose site the PR
+falsified fixed (four payload-name enumerations, the "wrapped
+UNALTERED" header, the 41-variant census floor, the verbs crate's
+"no shell node" premises, the audit cell rewritten, the naming README's
+N4 table). Adopted rows: R1's order-swap set-difference, rebind, thick
+wall, thickness-only key/memo; R2's P1/P2/P3/P4/P6 and **P7, the only
+row anywhere for `HoleRim`**. Zero unilateral MAJORs, so the v6 tally
+does not move. **Pair FLAGGED (v6 item 5)**: R1 disclosed an accidental
+glimpse of R2's command line through a process listing — three mutant
+literals and one probe name, all after R1's own findings were written;
+disclosed in full, nothing used. Item 3(e) applied conservatively: the
+pair is recorded and excluded from the tally (which it could not have
+moved). Both reviewers' isolation otherwise clean. Method lesson for
+the next dual on a shared box: `pgrep`/`ps` over the box is a glimpse
+channel; the brief should say "never list processes you do not own."
