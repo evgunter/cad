@@ -2,11 +2,12 @@
 id: LIB-FINDINGS
 kind: unit
 title: a validation refusal carries its findings as a sequence
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/findings
 refs: [census-findings-cross-without-a-per-arm-tag, two-validation-payload-discriminants-still-uncrossed]
 pr: 2225
+closed: 2026-09-08
 ---
 
 The unit under Ev's ruling (A) on
