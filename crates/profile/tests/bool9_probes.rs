@@ -98,6 +98,15 @@ fn the_materialization_door_does_not_re_adjudicate_the_table() {
 /// nothing, so the lift used to have no seam for this loop at all; the
 /// closing TARGET declares joint 0 instead, and the arrival is where
 /// the declaration rides.
+/// **`BitIdentical` here is SEAM-SELECTED, and that is the honest
+/// reading of it** (R1 n4). This loop is bit-identical at seams 0 and
+/// 1, where the lift's derived `line(len)` legs re-run the very
+/// computation that authored the vertices; rotate the same loop to seam
+/// 2 or 3 and the leg is derived off an arc arrival instead and lands
+/// `ValueEqual` — F10's class, not a defect and not a regression.
+/// `bool9r1_probes::r1_the_all_declared_loop_lifts_at_every_seam` walks
+/// all four and prints each. So this row's `BitIdentical` is a claim
+/// about THIS SEAM of this loop, never about the widening.
 #[test]
 fn the_all_tangent_stadium_lifts_at_the_declared_seam() {
     let loop_ = stadium();
