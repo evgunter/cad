@@ -277,3 +277,51 @@ question. Relayed to unit 5's fix pass, where hoisting the helpers into
 
 Unit 1 (`D213` + `D214`) dispatched on the freed `lib.rs`, briefed that
 both item files' citations are stale against unit 0's merge.
+
+## Unit 2 CLOSED and merged; the fix pass overturned its own reviewer (2026-09-08)
+
+PR 2114 merged at `1c67277e9`, green on the full code tier.
+`tess-budget-doc-finding-block-stale` is closed, and the closure is
+**not the one the item, the orchestrator, or the style review
+proposed** — which makes this the clearest thing that happened on this
+program so far.
+
+**The 146 was never stale.** The style review's S1 found
+`docs/TESS-BUDGET.md` asserting that no count over the committed file
+is written into the document and then writing five, with `benchlayout`
+at 30 against a committed 18, supported by the claim that it "has been
+18 in every committed version of the CSV". **That support is false**,
+and the fix pass proved it by walking every committed blob rather than
+today's: at `48559d61` (VERBS-TESSFOLD) `benchlayout/benchlayout`
+carried 30 rows and the five summed to exactly 146. The scene was
+re-modelled and re-swept as `bench/benchlayout` at 18 rows in the
+montage-v3 tranche-2 renames (`6d957702`, 2026-09-01), taking the sum
+to 134. So the passage is a **frozen record that is exact for the
+corpus it describes**, now labelled as one, with the document's
+universal narrowed to "as a CURRENT reading". Re-verified here against
+all three commits before the reversal was accepted.
+
+That is three levels of correction on one item: the orchestrator was
+wrong about the block being stale, the style review corrected that and
+was itself wrong about `benchlayout`, and the fix pass corrected the
+review by going to the artefact instead of to today's copy of it. The
+common cure each time was the same — **read the history of the
+artefact, not its current state.**
+
+Two other findings settled rather than patched. The mis-pairing
+multiplier is **two figures, 3.52x and 3.35x**, not a "3–8x" range: the
+8.5x is the pre-fix whole-patch numerator over today's per-cell
+denominator, two column definitions apart, describing no schedule that
+ever shipped. And the 83-cell gap between `MODEL-AB-LOG`'s 46,102 and
+the file's 46,019 was **neither party's slip**: it moved at `a4eb03ae`
+(CERT-10 fix pass) when four faces' certified bounds changed, so a
+CERTIFICATE change is now named as the third thing a re-cut can be,
+beside corpus growth and a schedule change.
+
+Residue rowed rather than disclosed: plan unit 9
+(`report-header-column-phrases-unqualified`) and unit 10
+(`fold-the-two-baseline-census-files`, gated on both census-touching
+PRs landing).
+
+Unit 1's PR is 2125, style review dispatched; unit 5's fix pass is
+still running.
