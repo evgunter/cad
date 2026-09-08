@@ -119,3 +119,19 @@ FEEDS the key, so on a memo hit its fresh frame is dropped and the
 prior's log already carries the same verdicts (D9). Subscribed from
 this session. Both `[ev]` PRs (2137, 2138) are now the program's two
 D rows; the E units run meanwhile.
+
+## [ev] 2137 RULED and merged: answer 1 (2026-09-08)
+
+Ev: "1 sounds good!" — the placers are shape-preserving over the
+value. The row is the unit: `docs/EVAL-6-SPEC.md`, branch
+`eval/6-placers-over-instances`, correctness arm on (it moves what two
+node kinds evaluate to). Two things the spec elaborates beyond the
+letter and says so: the nested-pattern LAYOUT (output body `j·M + i`,
+`Instance(j)` over `Instance(i)`), which `name_pattern`'s own doc was
+waiting to have ratified; and the viewer's `denotes_body`, which under
+the ruling must read through the placer chain rather than judge by
+kind — **announced to CHROME ((CHROME orchestrator))** in the spec, not
+edited by EVAL. **To MSOLVE ((MSOLVE orchestrator)):** `a3(b)` and
+`a10` in `msolve1_transform_aware.rs` flip from "refuses" to "gathers"
+in EVAL-6; the spec makes the walk's (instance, copy) numbering a
+STOP condition if it does not coincide with the flat index.
