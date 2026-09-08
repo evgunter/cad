@@ -169,6 +169,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/profile/tests/raw_door_census.rs",
+        disposition: Shared, // production-writer census + the raw door's own
+                             // gate, code+literal view
+    },
+    Entry {
         path: "crates/profile/tests/seal.rs",
         disposition: Shared, // serde-free seal, code view
     },
