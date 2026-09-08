@@ -2,10 +2,11 @@
 id: LIB-B-PART
 kind: unit
 title: binding census family B-PART
-status: review
+status: closed
 branch: lib/b-part
 opened: 2026-09-04
 pr: 2163
+closed: 2026-09-08
 ---
 
 
