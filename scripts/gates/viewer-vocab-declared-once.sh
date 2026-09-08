@@ -282,9 +282,14 @@ function flush(  i, ch, d, eq, init, n) {
   printf "%s|%s|%s|%s|%s\n", file, line, kw, name, init
 }
 {
-  rec = $0
-  p = index(rec, ":"); f = substr(rec, 1, p - 1); rest = substr(rec, p + 1)
-  p = index(rest, ":"); l = substr(rest, 1, p - 1); t = substr(rest, p + 1)
+  # WHERE THE FILE COLUMN ENDS is gate_record_split, prepended to this
+  # program by its caller (lib.sh, section THE RECORD S COLUMNS). An
+  # item is accumulated ACROSS records and closed when the file changes,
+  # so a FILE column read to the first colon spliced two files whose
+  # paths agree up to a colon into one item — and put the line number at
+  # the front of the text, where the declaration anchor reads it.
+  if (!gate_record_split($0)) next
+  f = GR_FILE; l = GR_LINE; t = GR_TEXT
   if (acc == 0) {
     if (t !~ OPEN) next
     acc = 1; file = f; line = l; item = ""
@@ -398,7 +403,8 @@ viewer_sources() {
 
 const_items() {
   local status=0
-  gate_rust_code "$@" | awk "$ITEM_AWK" || status=$?
+  gate_rust_code "$@" |
+    GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk "$GATE_RECORD_AWK$ITEM_AWK" || status=$?
   if [ "$status" -ne 0 ]; then
     reader_failed "const-item reader over $SRC" "$status"
   fi
@@ -709,6 +715,23 @@ impl NewChoice {
 RS
 }
 
+# THE SAME LIST IN A FILE WHOSE PATH CARRIES A COLON, which is legal
+# here and in git. The item reader accumulates ACROSS records and keys
+# the accumulation on the FILE column, so read to the first colon this
+# file shared a key with every sibling whose path begins the same way
+# (one unclosed item then swallowed the next file) and the declaration
+# line arrived with the line number in front of it, where the anchored
+# `const` pattern reads it. The case is asserted on the PATH the
+# diagnosis carries, which is what says the column was read whole.
+plant_named_all_colon_path() {
+  cat > "$1/crates/viewer/src/a:b.rs" <<'RS'
+pub enum ColonChoice { A, B, C }
+impl ColonChoice {
+    pub const ALL: [Self; 3] = [Self::A, Self::B, Self::C];
+}
+RS
+}
+
 plant_unnamed_one_line() {
   printf 'const KINDS: [Kind; 2] = [Kind::A, Kind::B];\n' \
     > "$1/crates/viewer/src/kinds.rs"
@@ -936,6 +959,8 @@ gate_selftest() {
   # — a harness that cannot express "and the subject it named was X" —
   # is `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names`.
   gate_selftest_case 'declares a hand-written `const ALL`' plant_named_all
+  gate_selftest_case 'crates/viewer/src/a:b.rs:3 declares a hand-written `const ALL`' \
+    plant_named_all_colon_path
   gate_selftest_case 'declares `const KINDS`, a hand-written array' \
     plant_unnamed_one_line
   gate_selftest_case 'declares `const KIND_LABELS`, a hand-written array' \
@@ -1011,7 +1036,7 @@ exec "$GATE_REAL_TOOL" "$@"' plant_named_all
     pass_tests_are_not_scanned
   gate_selftest_passes "a ratified list beside a scalar const on one line" \
     pass_two_consts_on_one_line
-  printf '%s selftest OK: passes a clean fixture and nine near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong, and on a reader that could not run — outright, mid-scan, and after consuming its input\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and nine near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a list in a file whose PATH carries a colon — named whole, at its own line, in the diagnosis — on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong, and on a reader that could not run — outright, mid-scan, and after consuming its input\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
