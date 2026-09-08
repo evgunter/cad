@@ -57,9 +57,11 @@ bottom half of it.
 which saves the document-authored scenes as `.pncad` files the viewer
 opens; and `checks.rs`, the advisory-check registry run as narration.
 The tour reaches the kernel through `pncad` and **nothing else**,
-which is the façade's acceptance evidence — with one stated exception
-in its `Cargo.toml`: a direct `profile` edge for the raw-loop door
-`lily.rs`'s section loops need and the lattice has no verb for.
+which is the façade's acceptance evidence: its `Cargo.toml` names one
+kernel edge, `pncad` itself. Its polygons are said through the
+façade's `authoring::polygon` door, which lowers a coordinate table to
+the PATHS lattice and so classifies every corner at authoring; raw
+`ProfileLoop` construction is off the presented surface entirely.
 
 | scene(s) | module | demonstrates | pins |
 |---|---|---|---|
@@ -80,7 +82,6 @@ in its `Cargo.toml`: a direct `profile` edge for the raw-loop door
 | `heatsink5/7/9` | `heatsink.rs` | The recipe layer via `pncad::document`: one document, structural-param edits, downstream-only recompute, stable `Instance(i)` names | **Named gap F4**: a Boolean node cannot consume a Pattern node's `Instances` payload, so the union step honestly lives outside the document |
 | `bench` | `assembly.rs` | The assembly stop: two part documents in a `Workspace`, instances of them in two assembly documents — a mated stand whose placements are SOLVED from its mates, and a flat-pack layout that patterns a part — through `assemble`, `split`/`inline` and `update_to_store`. `docs/guide/assembly.md` is the prose | The stand's posts are seated FLUSH with the shelf's ends and the A5 gate certifies; the layout is disjoint and passes outright. Live library findings are commented at the site that meets each: #944 (no mate frame from a selected face), #945 (mates and patterns do not compose), #946, #947 |
 | — | `booleans.rs` | The detect/declare doors: `topo::flush::find_flush_candidates` reporting findings, `declare_all` turning them into the `BooleanDeclarations` `union_with`/`intersect_with` take | Detection reports, it never classifies: the findings pass through the scene's hands as values and the op verifies every declaration it is handed |
-| — | `paths.rs` | The shared `path_polygon` helper — the tour's polygons said through the PATHS algebra | Since LIB-RETTAIL it is the ONLY way the tour says a polygon: raw `ProfileLoop` construction is off the presented surface, and the one place the tour still needs the raw door — `lily.rs`'s section loops — is a named exception in its `Cargo.toml` |
 | — | `probe.rs` | The K-telemetry sweep (`cargo run -- k-probe out.csv`) | One process per ε row |
 
 One deliberate exception worth knowing: the `bracket` scene is retired

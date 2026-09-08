@@ -3170,3 +3170,41 @@ is the separately filed job
 (`bench-flat-pack-star-is-now-a-pattern-job`), not this unit's. Orchestrator
 note: main gained only LIB-PRODUCT between the green run on `dfb5e776`
 and the merge, no file overlapping this diff, so it landed on that run.
+
+**LIB-POLYGON MERGED (2026-09-08, #2183; mechanical under the 08-29
+ruling, no A/B row). The lattice-backed façade polygon door — Ev's
+ruling (A), PR 2017.** `pncad::authoring::polygon(&[(f64, f64)], tol)
+-> Result<ProfileLoop<T>, PathError<T>>` (`T: Decide`, the bound the
+lattice's junction decisions need), curated into the prelude, spelled
+exactly as the tour's helper spelled it — `Open.at(p0)`, a `line_to`
+per vertex, `line_to(Start)` as the seam — so a within-band-tangent or
+cusped corner refuses AT AUTHORING and the emitted loop is the raw
+vertex table (bulge 0, no declared joints; pinned position-for-
+position and against the hand-spelled chain, since `RawLoop` is off
+the façade and `ProfileLoop` has no `PartialEq` — the brief's `==`
+against the raw constructor was unwritable at that seat, disclosed).
+Two ruled cross-fence touches, both the only edits in their trees:
+`crates/profile` gains ONE arm, `PathError::PolygonTooFewVertices {
+given }` with its `PathErrorKind` mirror, `kind()` row and `Display`
+recourse, crossing as `polygon_too_few_vertices` with its
+`TAG_INVENTORY` row and a construction pin through the door; and
+`demos/tour/src/paths.rs` is deleted with its eleven call sites moved
+onto the door (the ruling's thirteen counted references, not
+invocations — the true count is recorded on the item), no scene
+changed, all three render lanes green with no re-baseline. The
+authoring-seam roster guard in `all.rs` names `polygon` beside
+`validated` as the two fallible seams. Census: `polygon` is a curated
+name now and rule 1 does not account it (`pncad.pyi` spells it only as
+`Node.polygon`), so `BOUND_AS` maps it there with the reason; no roster
+row moved. `docs/guide/examples.md` lost the helper's row and a false
+sentence beside it (the tour's `Cargo.toml` names no kernel crate but
+`pncad`). Not taken, on the lane's argument and the orchestrator's
+agreement: `docs/PATHS-DESIGN.md` §3's refusal register enumerates the
+lattice VERBS' refusals and no verb produces this arm — PATHS's page,
+not LIB's, if that register is ever meant to list every `PathError`
+arm. Filed: `tag-inventory-prose-counts-are-stale` (the tag-table doc
+comment narrates 37 functions / 361 literals against a measured
+42 / 402; the unit corrected only the count its own change moves).
+Orchestrator note: main gained the gate scripts and TESS-BUDGET
+between the green run on `c45c6785` and the merge, no file overlapping
+this diff, so it landed on that run.
