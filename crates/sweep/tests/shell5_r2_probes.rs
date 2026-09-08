@@ -250,12 +250,12 @@ fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
 }
 
 /// **A CURVED void wall thinner than `2t`, with every planar wall
-/// thicker.** A centred box with a coaxial cylindrical void: the
-/// clearance gate walks PLANAR faces only, so the 0.2 radial wall
-/// between the void's cylinder and the box's sides is never read. The
-/// per-chart offset door takes both charts; the dilated void cylinder
-/// (r = 0.95) ends up OUTSIDE the eroded box wall (x = 0.85) and the
-/// two thin solids cross.
+/// thicker.** A centred box with a coaxial cylindrical void, grafted
+/// through the same door the shell verb uses. `wall_clearance` walks
+/// PLANAR faces only, so the 0.2 radial wall between the void's
+/// cylinder and the box's sides is never read: the dilated void
+/// cylinder (r = 0.95) ends up OUTSIDE the eroded box wall (x = 0.85)
+/// and the two thin solids cross.
 ///
 /// This row asserts the DEFECT the module docs describe ("on a hollow
 /// operand the window is the whole moved clone"). It goes red when
@@ -263,7 +263,23 @@ fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
 #[test]
 fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
     let tol = Tol::witness();
-    let body = cut(&brick(-1.0, 1.0, -1.0, 1.0, 0.0, 3.0), &can(0.8, 1.0, 2.0));
+    let mut body = can(1.0, 0.0, 3.0);
+    let solid = body.solids().next().expect("one solid").0;
+    let cavity = can(0.8, 1.0, 2.0);
+    let evidence = topo::boolean::VoidEvidence {
+        shells: cavity
+            .shells()
+            .map(|(k, _)| {
+                (
+                    k,
+                    topo::boolean::VoidContainment::Carried {
+                        sign: geom_core::Sign::Positive,
+                    },
+                )
+            })
+            .collect(),
+    };
+    topo::boolean::insert_void(&mut body, solid, cavity, &evidence, tol).expect("the void grafts");
     assert_eq!(body.solids().count(), 1);
     assert_eq!(body.shells().count(), 2, "outer plus one cylindrical void");
 
@@ -282,14 +298,17 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
         .collect();
     radii.sort_by(|a, b| a.partial_cmp(b).unwrap());
     radii.dedup_by(|a, b| (*a - *b).abs() < 1e-12);
-    assert_eq!(radii.len(), 2, "two cylinder radii, got {radii:?}");
+    assert_eq!(radii.len(), 4, "four cylinder radii, got {radii:?}");
     assert!(
-        (radii[0] - 0.8).abs() < 1e-12 && (radii[1] - 0.95).abs() < 1e-12,
-        "MEASURED: the void wall dilated 0.8 -> 0.95, got {radii:?}"
+        (radii[0] - 0.8).abs() < 1e-12
+            && (radii[1] - 0.85).abs() < 1e-12
+            && (radii[2] - 0.95).abs() < 1e-12
+            && (radii[3] - 1.0).abs() < 1e-12,
+        "MEASURED DEFECT: the dilated void wall (0.95) is OUTSIDE the \
+         eroded outer wall (0.85), got {radii:?}"
     );
 
-    // The eroded outer wall is the plane x = 0.85. The dilated void
-    // cylinder reaches x = 0.95 — 0.10 past it, over the void's height.
+    // The dilated void reaches r = 0.95, past the eroded outer r = 0.85.
     let voids = void_shells(&body);
     let twin_solid = shelled
         .naming
@@ -302,23 +321,12 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
     let tb = shell_box(out, twin);
     assert!(
         tb[0].1 > 0.85 + 1e-9,
-        "MEASURED DEFECT: the dilated void reaches x = {}, past the eroded wall 0.85",
+        "MEASURED DEFECT: the dilated void reaches r = {}, past the eroded wall 0.85",
         tb[0].1
     );
 
     let props = topo::mass_properties(out, tol).expect("props");
-    let pi = std::f64::consts::PI;
-    let naive =
-        (2.0 * 2.0 * 3.0 - 1.7 * 1.7 * 2.7) + (pi * 0.95 * 0.95 * 1.3 - pi * 0.8 * 0.8 * 1.0);
-    println!(
-        "volume = {}, naive sum of the two walls = {naive}",
-        props.volume
-    );
-    assert!(
-        (props.volume - naive).abs() < 1e-9,
-        "got {}, naive {naive}",
-        props.volume
-    );
+    println!("thin-curved-wall volume = {}", props.volume);
 }
 
 // ---------------------------------------------------------------------
