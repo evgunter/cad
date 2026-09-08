@@ -21,8 +21,8 @@
 //! on this paragraph:
 //!
 //! * `lib.rs`'s module docs — FIXED, they now point here.
-//! * `work/code-quality/C15.md` — FIXED, points here.
-//! * `work/code-quality/D201.md` — FIXED, points here.
+//! * `work/meter/C15.md` — FIXED, points here.
+//! * `work/meter/D201.md` — FIXED, points here.
 //! * `work/code-quality/logs/SMELL-KPW-LOG.md` — **NOT FIXED, and
 //!   deliberately.** It is a dated unit record in `logs/`, and a log
 //!   entry is what the unit reported on the day it reported it. Its
@@ -30,6 +30,15 @@
 //!   now would make the record say something the unit did not say,
 //!   which is a worse defect than the stale number. Frozen, not
 //!   propagated: nothing cites the log for a current count.
+//!
+//! **The FIGURES in that list are frozen; the PATHS are not.** The
+//! first two rows were re-homed from `work/code-quality/` to
+//! `work/meter/` in the tracker-wide cut of 2026-09-06 and the
+//! pointers here followed them. A dated record may keep the numbers
+//! it reported on the day it reported them — that is what makes it a
+//! record — but a pointer that no longer resolves has stopped being a
+//! record of anything, which is the same one-home doctrine this
+//! paragraph is about, applied to the pointer rather than the count.
 //!
 //! The cure for the three live copies is the one this tree's own CI
 //! comment states for the rule roster next door: a pointer cannot go
@@ -66,31 +75,46 @@
 //! that is WORTH is a separate question, and its two halves are not
 //! the same kind of claim:
 //!
-//! * **Rule 1 cannot move it — a theorem about the rule's shape.** It
-//!   compares per-SCENE triangle totals, and a swap within one scene
-//!   permutes the summands of one sum. No reading of any corpus can
-//!   make that false, so nothing below asserts it.
+//! * **Rule 1 cannot move it — a theorem, on a premise worth
+//!   naming.** It compares per-SCENE triangle totals, and a swap
+//!   within one scene permutes the summands of one sum. Permutation
+//!   -invariance of a sum is FALSE for `f64`, so the theorem rests
+//!   entirely on `SceneTotals::triangles` being `usize`: an integer
+//!   sum is exactly invariant, a floating one is not. Its neighbour
+//!   in the same struct, `extrapolated_triangles`, is `f64` and does
+//!   move in its last bit under this very permutation. Nothing below
+//!   asserts rule 1 — an assertion on it could not fail — so the
+//!   premise has to be carried by this sentence.
 //! * **Rule 2 does not move — a READING of this baseline.** It
 //!   compares [`Row::recoverable`], and within every pair the
-//!   committed corpus carries today the two members' `grid_cells /
-//!   span_opt_cells` are bit-identical. That is a fact about a
-//!   committed artefact, and a re-cut can end it, so it is asserted
-//!   here rather than written down.
+//!   committed corpus carries the two members' quotients are the same
+//!   `f64`. The QUOTIENT is what agrees and what is asserted; the two
+//!   cell counts behind it are printed in the failure message to
+//!   locate a drift, not asserted, because a corpus where they
+//!   differed and the quotient did not would still be a swap rule 2
+//!   cannot see. That is a fact about a committed artefact, and a
+//!   re-cut can end it, so it is asserted here rather than written
+//!   down.
 //!
 //! `an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline`
 //! puts the consequence the way the gate puts it — the swap is handed
 //! to [`compare`] and the [`Report`] must come back empty — and then
 //! the equality that is the margin behind it.
 //!
-//! **The reported side is deliberately NOT pinned.** A swap does move
-//! what the report prints: `total` = `delta / worst_dev`, and
-//! `worst_cert` in its last digits. Neither is gated —
-//! [`tess_lint::Kind`] has five variants and not one of them reads
-//! `worst_dev` — so an assertion on that movement would be a
-//! threshold on an ungated column, and it would fire on a re-cut that
-//! made a pair's two members AGREE, which is not a defect. The
-//! asymmetry is the finding; the magnitude is a reading, and
-//! `work/meter/C15.md` carries the method that re-derives it.
+//! **The report does not move either, and there is no reported-side
+//! figure to threshold.** A swap exchanges two whole rows of one
+//! scene, so every aggregate the report folds sees the same multiset;
+//! the printed report is byte-identical for every pair. `worst_dev`
+//! does reach a reader, through `SceneTotals::total_slack` — which is
+//! `measured_triangles / extrapolated_triangles`, triangle-weighted,
+//! and NOT the per-row `delta / worst_dev` that shares its name — and
+//! `worst_cert` reaches none at all. What an undetected swap actually
+//! costs is a wrong-face ATTRIBUTION in columns nothing compares, not
+//! a moved number anywhere; `work/meter/C15.md` carries the method
+//! that shows it. Nothing is asserted about that here because there
+//! is no quantity to assert, and the one report line that does read a
+//! face ordinal lives in `main.rs`, which a test of this library
+//! cannot run without twinning its selection by hand.
 //!
 //! # When this test fails
 //!
@@ -455,6 +479,11 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
 /// Rule 1 is not asserted anywhere here: it compares per-SCENE
 /// triangle totals and a swap permutes the summands of one sum, so no
 /// corpus can make it fire and an assertion on it could not fail.
+/// The premise that buys that — `SceneTotals::triangles` is `usize`,
+/// and an integer sum is exactly permutation-invariant where an
+/// `f64` one is not — is stated in this file's module docs, because
+/// declining to assert a claim puts the whole weight on the argument
+/// for it.
 #[test]
 fn an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
@@ -525,4 +554,51 @@ fn no_indistinguishable_pair_is_separated_by_the_name_column() {
             a.scene, a.face, b.face, a.name, b.name
         );
     }
+}
+
+/// Why reading the `name` column discharges nothing today: the rows it
+/// covers and the rows the defect lives in do not intersect.
+///
+/// Only a scene whose body arrived from an evaluated document can hand
+/// `tess_meter::face_rows` a name table; on this corpus no scene
+/// carrying a sized row is one of them. That is a READING of a
+/// committed artefact, so it belongs here and not in prose — the same
+/// reason every other quantity in this file does.
+///
+/// **Weaker in its trigger than the pair claim above, deliberately,
+/// and its failure set strictly contains that one — which is said
+/// rather than hidden.** This reds the moment ANY sized scene becomes
+/// document-built, which is the first moment `D201`'s column reaches
+/// the ground the defect lives on; the pair claim reds only when a
+/// name actually separates two rows nothing else separates, which is
+/// the moment `C15` becomes dischargeable. A sized scene carrying no
+/// pair can red this one alone, so it is not a restatement; a pair
+/// gaining separating names reds both, and both messages are wanted
+/// because they ask for different work.
+#[test]
+fn no_scene_carrying_a_sized_row_carries_a_name() {
+    let rows = parse(BASELINE).expect("the committed baseline parses");
+    let sized_scenes: BTreeSet<&str> = rows
+        .iter()
+        .filter(|r| r.is_sized())
+        .map(|r| r.scene.as_str())
+        .collect();
+    let named_scenes: BTreeSet<&str> = rows
+        .iter()
+        .filter(|r| !r.name.is_empty())
+        .map(|r| r.scene.as_str())
+        .collect();
+    assert!(
+        !sized_scenes.is_empty() && !named_scenes.is_empty(),
+        "both sides of the disjointness must be non-empty for it to say anything"
+    );
+
+    let both: Vec<&str> = sized_scenes.intersection(&named_scenes).copied().collect();
+    assert_eq!(
+        both,
+        [] as [&str; 0],
+        "these scenes now carry both a sized row and a name, so the coverage \
+         D201 added has reached the rows C15 is about. Read whether the join can \
+         now key on `name` for them and re-cut this census"
+    );
 }
