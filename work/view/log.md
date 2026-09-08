@@ -6512,3 +6512,50 @@ heading of any level — 131 lines of prose — so the real constraint is
 `work/issues/code-quality-item-quotes-a-viewer-doc-string-that-was-
 rewritten` (§6, quotation rot on another program's slate). Both filed
 by the orchestrator, neither taken here.
+
+## 2026-09-08 — the vocab gate's kind scan is anchored to a paragraph, and the item's own numbers were wrong (#2172)
+
+**The region, re-derived.** `readme_kinds` stopped at the next heading
+of ANY level, and `#### The lists that stay hand-written` is one, so the
+scan region was never the `###` section. Running the reader's own awk
+over `crates/viewer/README.md` at `d02bb0e6b` gives `:931-1079` — **149
+lines** — with the three bullets at `:1023`, `:1026`, `:1031`, all
+inside the enumeration paragraph `:1020-1033`. The residue entry above
+says "131 lines of prose" and the item said `:907-1037`; at the tree the
+item was written against the region was `:908-1021`, 114 lines, and
+`:1037` is inside the table's trailing prose — neither the end of the
+scan region nor the end of the section (`:1044`). Both endpoints and the
+count were wrong, and the item's `title:` carried the figure. **An
+orchestrator's filed number is a claim like any other**, and the lane
+that takes the item is where it gets checked; this one was told to check
+it and it did not survive.
+
+**The fix is an anchor on the announcing sentence**, which is what the
+item proposed. Two things it did not: the anchor matches a PREFIX of the
+line rather than the whole line, because a paragraph's wrap point is an
+artifact of the fill column while the four constants this gate already
+pins are headings and a table header, whole lines by construction; and
+the anchor carries the count word, so the README's prose number and
+`KIND_COUNT` now hold each other. Before this the section could say
+"Four kinds of list stay hand-written" over three bullets and nothing
+read the sentence at all.
+
+**A pass case is the receipt, and it has to fail unfixed.** The case
+this owed — a bolded bullet in the section's PROSE, expecting GREEN —
+was run against the whole-section scan restored into the file, and
+failed with the misdiagnosis the item described: *"ratifies 3 kinds …
+and this pass read 4: "A bolded bullet""*. Two more cases and three
+negative controls turn the suite red on demand. **A self-test case that
+passes before and after proves nothing**, and the way to know which one
+you wrote is to put the old code back and run it.
+
+**Two citations into this gate were stale before the branch touched
+it.** `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-
+names.md:25` names `:611-625` and "twelve `gate_selftest_case` rows";
+at `d02bb0e6b` those rows were `:930-973` and there were twenty. `work/
+issues/gate-rust-reader-splits-an-array-type-at-its-semicolon.md:65`
+names `:139-153` for a sentence that lives in the item reader's header,
+`:212-218`. Both were reported in the PR body rather than repointed from
+a unit branch, per §6. **A file that grows fast falsifies its own
+citations quietly**: neither was wrong when written, and nothing reads a
+line range to check it.
