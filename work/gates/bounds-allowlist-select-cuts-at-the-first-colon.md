@@ -88,8 +88,21 @@ and the `-vxF` set membership are gone; the scan drops a record when
 `gate_record_anchor_any` over `gate_allowlist_paths` claims it, which is
 `gate_record_anchor "$path"` — the pattern `gate_allowlist_counts`
 already attributes a record to an entry with. One builder, one reading
-of the FILE column, so no record can be exempt from the scan while
-being invisible to the pin beside it.
+of the FILE column: GIVEN A NON-EMPTY LIST a record is exempt from the
+scan if and only if it is attributed to some entry's pin. The quantifier
+is not decoration — an empty list builds `gate_grep -vE ''`, which drops
+every record; `gate_record_anchor_any` refuses no homes for exactly that
+reason, but the refusal prints from a command substitution and is NOT
+terminal at the caller, so a gate whose list came out empty would print
+OK. `lib.sh` is where that refusal becomes terminal (asked of the lane
+holding it, with `GATE_MATCHER_FAILED` as the marker); what holds the
+quantifier here is that the list is a literal array in this file.
+
+What the equivalence still does not buy is the entry NAMING the file it
+exempted: `…/boxes.rs:12:x.rs` satisfies the `boxes.rs` anchor, so it is
+exempt from the scan AND counted into that entry's pin — the pin moves
+and reds, naming `boxes.rs` rather than the file that gained the bound.
+Measured, and registered as KNOWN GAP 8.
 
 The row's second candidate (parse the column through
 `GATE_RECORD_PREFIX_RE`) was not taken. It fixes the drop — that RE is
@@ -130,8 +143,37 @@ load-bearing.
 **Live output is byte-identical** to the merge base, `cmp` on stdout
 and on stderr: 26 ratified files, 183 occurrences, 440 source files.
 
-**Residue, filed**: `record-file-column-read-by-first-colon-split` —
-two more readers of the FILE column split at the first colon
-(`viewer-module-kinds.sh:469`'s dedupe key, and
-`GATE_RECORD_PREFIX_RE`'s use as a PARSER at `lib.sh:1195`/`:1150`),
-neither of them a skip and neither reachable by this row's grep.
+**Residue, filed**: `record-file-column-read-by-first-colon-split`,
+widened to the CLASS with its own grep — every reader in the directory
+that answers "which file is this record from" by splitting at the first
+colon, `viewer-module-kinds.sh:469`'s dedupe key and the four
+`GATE_RECORD_PREFIX_RE` PARSER uses in `lib.sh` (`:844`, `:1041`,
+`:1150`, `:1195-1196`) among them.
+
+## Fix pass (style review)
+
+**The gate's own reader was a third parser of the same column**, in this
+file: `sub(PFX, "", line)` stripped the prefix with
+`GATE_RECORD_PREFIX_RE`, which matches nowhere in a record from a
+colon-carrying path, so the path stayed in the text the bound walk
+reads. `crates/topo/src/boolean/a:Bounds.rs` holding one SOLE bracket
+bound red as a compound one (`a` keyed with `Bounds` and `rs` beside
+it) — pre-existing, cry-wolf, population zero. The split is now the
+first `:LINE:` on both sides, and the THREE spellings of that reading in
+this file are one constant, `BOUNDS_RECORD_LINE_RE`, read by the
+diagnosis column and by both halves of the reader's split; the constant
+says that `lib.sh`'s parser use of `GATE_RECORD_PREFIX_RE` is the
+residue row's repair site.
+
+Planted in both directions on one path: `plant_colon_path_sole_bound`
+must PASS (the whole guard for the cry-wolf) and
+`plant_colon_path_compound_bound` must FIRE, named whole. Restoring the
+old strip reds exactly the first, and with that case removed the
+selftest is green again.
+
+**KNOWN GAP 8** registers what the column reading still cannot do: a
+path carrying a `:LINE:` SHAPE of its own is ambiguous at any reader,
+this one takes the shorter split, and the two costs are a diagnosis
+naming the entry rather than the file and a tail of the path reaching
+the walk as code. Both need a path that spells a line number between
+two colons; population zero.
