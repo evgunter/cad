@@ -1629,6 +1629,16 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    # What an edge's locus IS, read back off a certified carrier.
+    # Python holds an opaque `Body` handle and no door on it answers a
+    # description, so nothing here is a thing Python can read.
+    #
+    # `MappedCurve` — the `Scaffold` arm's payload — is not a curated
+    # name and so not an entry here; the argument for stopping at that
+    # rung is written where this type is carried, in `prelude.rs`
+    # group 4, and it is an argument about the ARM rather than about
+    # the crossing: the scaffolding door is fenced to construction and
+    # tier 3 refuses it at rest.
     "EdgeDescription": INTERIOR,
     "Extruded": INTERIOR,
     "Extrusion": INTERIOR,

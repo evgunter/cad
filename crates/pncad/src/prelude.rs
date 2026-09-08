@@ -294,6 +294,46 @@ pub use geom_brep::SurfaceKind;
 // layer's (body index, key) pair and its name-table entry, which are
 // body-lineage-scoped against the evaluation that minted them and
 // which `pncad`'s own guard forbids naming.
+//
+// **`MappedCurve` is NOT here, and that is measured — the third
+// entry of the `BandField` / `MarginDiag` family and the first whose
+// reason is the ARM rather than the payload.** It is
+// `EdgeDescription::Scaffold`'s payload: the sketch pushforward a D3
+// scaffolding description carries. Three measurements settle it.
+//
+// The arm is fenced to CONSTRUCTION and refused at rest. `Scaffold`
+// is the transient door — a pushforward standing in for an edge whose
+// surfaces do not exist yet — and tier 3 refuses one on any edge that
+// has two adjacent faces (`ValidationError::ScaffoldAtRest`). This
+// list carries the validation ladder in group 5, so the bodies a
+// prelude consumer holds are the ones the ladder passed, and the arm
+// names a state they do not occupy.
+//
+// Nothing here can state one either. The authoring form is
+// `EdgeDescriptionSpec`, which no curated list names, so a façade
+// caller can neither be handed a scaffold at rest nor write one. In
+// the kernel the discriminant has consumers and every one of them is
+// a re-MINT rather than a read — `transform`, the axial offset and
+// `replace_face` each match the three arms to rebuild the same arm
+// under a map — which is the construction half of the CUR3 rule, on
+// the side of the boundary that owns the scaffolding.
+//
+// And the rung is uncarried WHOLE, not at one arm.
+// `EdgeDescription::Chart` carries a `ChartCurve`, whose `pcurve`
+// field is a four-arm `Pcurve` — a real discriminant a reader of an
+// at-rest conventional edge would branch on — and neither is curated.
+// Carrying `MappedCurve` alone would make this refusal's read-back
+// matchable at the fenced arm and not at the one every at-rest
+// conventional edge actually has, which is the inconsistency the
+// `Convexity` carriage in group 3 closed, in reverse.
+//
+// This flips if a door ever hands a caller the description of a
+// TRANSIENT edge — the Euler scaffolding surface, which this façade
+// does not expose. When it does, the rung is carried WHOLE
+// (`ChartCurve`, `Pcurve` and `MappedCurve` together), because the
+// fenced arm is the last one a reader needs and not the first.
+// Stated so the next curation pass re-measures rather than
+// re-deriving.
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
