@@ -1,148 +1,149 @@
-# BLEND-8 — the must-carry rule's in-band policy has one home (spec)
+# BLEND-7 — the ladder rim phase retires only a source key (spec)
 
-**Program:** BLEND (`work/blend/plan.md`, unit 8). **Item:**
-`work/blend/smooth-arm-siblings-disagree-on-the-in-band-case.md`.
+**Program:** BLEND (`work/blend/plan.md`, unit 7). **Item:**
+`work/blend/ladder-rim-phase-may-retire-a-new-split-key.md`.
 **Track:** kernel change — the standard v6 unit (binding spec, drawn implementer
 arm, cross-model dual review, union fix pass, record-at-merge; §Review).
-**Pre-draw fields, logged before the draw:** difficulty **M**, task-class
+**Pre-draw fields, logged before the draw:** difficulty **S**, task-class
 **STRUCTURAL**.
 
-- **M** — one wrapper and two callers, but the wrapper changes what one verb
-  does on in-band geometry and touches a file no program's `paths` reach
-  (announced to PROPS at dispatch, `work/props/log.md`); the rows that make
-  the change visible have to construct near-osculating joins on purpose.
-- **STRUCTURAL** — the policy is already ratified; the unit gives it one
-  spelling. The one numeric question (how many stations) is answered by an
-  argument stated in this spec, not by a measurement the lane makes.
+- **S** — the fix is the `split_rim` guard shape already in the same crate
+  (`blend/open/ruled.rs:298`–`:340`), applied at one site. What the unit is
+  paid for is Phase 1: whether a public door reaches the orientation at all,
+  measured across every ladder fixture in the tree, so the row that pins the
+  fix is a real body and not a story.
+- **STRUCTURAL** — no numeric decision; a key-provenance rule and a census.
 
-## The decision, taken by the orchestrator (2026-09-07, logged)
+## The claim
 
-`geom_brep::tangent_second_order` (`crates/geom-brep/src/dihedral.rs:252`) is
-the must-carry rule's one metered spelling and its doc states the contract:
-**Positive → jet-determinate, the intrinsic `TangentIntersection`; Zero or
-Negative → under-determined, the conventional description BY THIS PREDICATE;
-Err → in-band, escalated TYPED at the caller (D4 ¶3).** The two callers keep
-their own policy and disagree:
+**`Retired` names source keys, and the ladder rim phase can violate that.**
+In `crates/sweep/src/blend/surgery.rs::rim_phase`, step (2) (~`:2515`) splits
+each rim vertex's meridian `m` and names the piece still touching the rim
+vertex the UPPER remnant; step (6) (~`:2746`) retires that upper piece with
+`rec.dead.edges.push(mr)`. `Body::split_edge` (`crates/topo/src/split.rs:145`)
+keeps the parent key on one of the two pieces by a rule that depends on the
+edge's stored direction, so when the parent key stays with the LOWER piece the
+upper one is `created.new_edge` — a FRESH key — and the phase pushes a fresh key
+as a retirement. The totality walk's direction (b) ("every retirement names a
+SOURCE key", `test_support::assert_naming_totality`) reads it as a violation,
+and `editor_core::names::emit_blend` (`:242`–`:254`) builds a retired-set entry
+no row can match. Every shipped row runs the other way round — every
+revolve-minted meridian's `he_plus` starts at the rim vertex — so the branch is
+UNMEASURED, not known-dead.
 
-- `crates/sweep/src/extrude.rs` (~`:954`, the strut arm) follows the contract:
-  in-band escalates `ExtrudeError::SliverJoin`; it reads ONE point (the
-  midpoint) and applies no lane gate.
-- `crates/sweep/src/revolve/upgrade.rs::jet_determinate` (~`:180`) folds `Err`
-  into `false` and KEEPS the conventional description — a silent in-band
-  build; it gates on `tangent_certificate_lane` and reads the certification
-  schedule's interior stations (`CERT_SAMPLES`).
+The ruled band's `split_rim` already handles the same shape: it reads the
+survivor's provenance off `meridian_remnants`, records the survivor as a
+fragment of the ORIGINAL source, and retires the source key ONLY when the
+dying piece IS the source (`if near == source { rec.dead.edges.push(source) }`).
+That is the fix shape here, and the unit's claim is that the ladder phase then
+records the same facts whichever way the meridian runs.
 
-**The rule's policy is the predicate's documented one** — in-band escalates
-typed. Revolve's fold is code that drifted from a contract meant to hold
-(`docs/prompts/reviewer-style-lane.md` Q4's second case), and D4 ¶3 says an
-in-band verdict is never silently either side. This is a behaviour change for
-revolve: a join whose second-order margin lands in `(ε, K·ε)` refuses
-`RevolveError::SliverJoin` where it built with a conventional description
-before. That is the fail-loud answer and it is not a design fork: DUAL/D4 and
-the predicate's own doc already say it.
+**Ratified and not re-litigated:** `BlendNaming`'s vocabulary
+(`blend/naming.rs`: `meridian_splits`, `meridian_remnants`, `dead`, what a
+retirement IS); the document layer's reading of it (`emit_blend.rs`'s module
+docs); the ladder walk's steps (1)–(6) otherwise.
 
-**The stations are the certification schedule's** — revolve's choice. The
-constructor stores what tier 3 will demand, and tier 3 re-asks the question
-at `CERT_SAMPLES` stations, so reading the same stations is what keeps "the
-demanded set and the stored set one set" (the doc's own argument for one
-home). The symmetry arguments (κ_rel constant along a ruling; constant along a
-latitude circle of a coaxial pair) are true and are exactly the kind of
-argument-not-spelling the item names; the wrapper may state them as the reason
-the extra samples never disagree, it may not use them to read fewer. The
-K-stream cost for a smooth strut rises from one sample to `CERT_SAMPLES − 2`;
-the PR states the count and, if the k-lint gate fires on the distribution,
-re-derives per the K-REPORT runbook (discipline §3) — never by reading fewer.
+## Phase 1 — find the orientation, or show no public door reaches it
 
-**The lane gate is part of the rule.** `tangent_certificate_lane`
-(`crates/geom-brep/src/tangent.rs:164`) says whether the certificate can
-certify this carrier over this pair at all; a pair outside the lane cannot
-store `TangentIntersection` whatever the jet says, so the wrapper gates first
-and answers "conventional" for an out-of-lane pair without metering — the
-extrude strut inherits the gate (today it has only the argument that its
-pairs are in the lane; the gate makes it a check).
+Two questions, both answered by measurement and reported as a table in the PR
+body before any code changes.
 
-## The change
+1. **The census.** For every ladder fixture the tree carves today — the die
+   pips (`m5_pr12_die.rs`, `slab ∖ ball`), the `slab ∪ ball` boss
+   (`fillet_h4_concave_rim.rs`), the dome (`test_support::dome`), the
+   `sphere_zone` rim pair, the repaired boss's dome rim (unit 6's fixture;
+   use it at the merge base as a body even if its carve refuses there),
+   `hemisphere_on_flat_base`, `bowl`, `domed_cavity` — record, at each rim
+   vertex, whether the meridian's `he_plus` STARTS at the rim vertex or ends
+   there, and which piece `split_edge` keeps the parent key on. Read the
+   rule off `split.rs`, not off the outcome. A fixture where `he_plus` ends
+   at the rim vertex is the witness and Phase 2 uses it.
+2. **If the census finds none**, try the doors that could mint one, in this
+   order, and record each: (a) the boolean with the ball placed so the pole
+   points the other way (a pip cut from BELOW a slab's underside; a boss
+   grown downward) — the boolean re-mints the sphere's seam meridian and its
+   direction is the sphere's own; (b) `revolved_about_y` of the pole-touching
+   profile authored in the OTHER traversal order, and a partial revolution
+   with a negative sweep — the lowering's meridian direction is the
+   profile's; (c) `sphere_zone` with its bore on the other side. Stop at the
+   first witness. If none of (a)–(c) produces the orientation, say what
+   fixes the direction at each door (cite the line) — that is the finding,
+   and the orchestrator decides whether the branch is unreachable by
+   construction (then the fix lands with a `debug_assert!` stating the
+   invariant and NO fixture is faked through a private path).
 
-1. **One wrapper beside `tangent_second_order` in `dihedral.rs`** — the
-   must-carry rule over an EDGE, not a point: takes the two surfaces, the
-   carrier and its window, the extent and the band; gates on the lane;
-   reads the schedule's interior stations through `sample_param`; returns a
-   three-way typed answer (jet-determinate / under-determined /
-   in-band-with-the-first-escalation) with the first station's `SecondOrder`
-   beside it, since both callers need the numbers again. Name it for what
-   it decides; doc states the contract above and the two symmetry facts as
-   why the stations agree, and cites this as the one home the
-   `folded_lever_arm` doc calls aspirational.
-2. **Both callers call it and nothing else** decides a smooth join's
-   description: extrude's strut arm maps in-band to `SliverJoin` as today;
-   revolve's `upgrade_intersection` maps in-band to `RevolveError::SliverJoin`
-   through the `sliver` closure it already takes, and `jet_determinate` goes.
-3. **Rows**, in `crates/sweep/tests/blend8_must_carry.rs` (aggregated;
-   `test_support` fixtures): a revolve with a line–arc profile join whose
-   relative curvature is chosen so the sagitta margin `|κ_rel|·arm²/2` lands
-   in the band — derive the arc radius from the band in the row's doc — and
-   assert `SliverJoin` typed; the same join with the margin definite on
-   each side (Positive → `TangentIntersection` stored; Zero → conventional
-   stored) as the trio; the extrude twin of the trio on a strut; an
-   out-of-lane pair on both verbs storing the conventional description with
-   no K sample emitted (count the samples through the `Probe` scalar or the
-   k-stats bracket). Every existing revolve and extrude fixture's stored
-   descriptions unchanged (below).
-4. **The mutant**, in the PR body: fold in-band to conventional in the
-   wrapper and show exactly the two in-band rows red.
-5. **The doc trail**: `folded_lever_arm`'s doc (`dihedral.rs` ~`:200`) still
-   names issue 1439's siblings — restate the present count (the tier-3
-   validator's and the boolean rebuild's remain; say so and no more);
-   `extrude.rs`'s module doc sentence on the must-carry (`:35`) and
-   `upgrade.rs`'s (`:87`) point at the wrapper; `docs/FILLET-H6-SPEC.md` is
-   gone (ledger) so nothing to fix there.
+Put the census and the door table in the PR body. **This is the unit's first
+deliverable.**
+
+## Phase 2 — the change
+
+1. **Step (2)** records provenance the way `split_rim` does: the survivor
+   (lower piece) is a fragment of the source; if the meridian `m` was itself
+   already a fragment (a second carve on the same cap — the ruled band's
+   case; say whether the ladder can meet it and pin the answer), the source
+   is read off the existing `meridian_remnants` row and that row retired.
+2. **Step (6)** retires the source key only when the dying upper piece IS the
+   source; a minted piece that dies gets no retirement row. Keep the
+   `remnants` tuple carrying the source alongside so step (6) can tell.
+3. **One spelling.** If the guard is now written twice (`split_rim` and here),
+   hoist it into one helper in `surgery.rs` (or a shared module) that both
+   phases call, with the `split_rim` doc paragraph moving to it. Two copies
+   of a provenance rule is the drift the style lane exists to catch; say in
+   the PR which way you went and why.
+4. **Rows**, in `crates/sweep/tests/blend7_ladder_split_key.rs` (aggregated
+   via `tests/all.rs`; fixtures from `test_support`): the witness carves
+   tier-3 valid at its closed-form volume, and `assert_naming_totality`
+   passes on it in all three directions; a row driving the naming through
+   the document layer (`editor_core` — the `emit_blend` acceptance, the
+   pattern of `blend_seam_split_rim.rs`'s birth/death row) so a fresh key in
+   `dead.edges` would be caught where it bites; the existing rows' dumps
+   unchanged (below).
+5. **The mutant**, in the PR body: put the old `rec.dead.edges.push(mr)`
+   back and show the witness row red on direction (b) and the document row
+   red, and every existing ladder row still green — that is the item's
+   "unmeasured" made measured.
 
 ## Constraints, binding
 
-- **Every stored description in the tree is unchanged**: dump every edge's
-  description kind for every revolve and extrude fixture in the sweep suites
-  at the merge base and the head (a small `#[ignore]`d dumper in the new
-  suite, or `bitdump.rs` if it carries descriptions) and diff. A moved
-  description is a finding — either the fixture was in-band and now refuses
-  (then the row says so and the change is the unit's point) or the wrapper
-  is wrong.
-- **No new predicate name; `tangent_second_order` stays the one metered
-  spelling.** The wrapper composes it; it does not re-meter.
-- **`dihedral.rs` gains the wrapper and nothing else changes there**; the
-  file is PROPS-adjacent and the seam is announced.
-- **Comments state the invariant**; the drift is the PR body's story.
+- **Every existing carve is bit-identical to the merge base** (`bitdump.rs`
+  differential, both SHAs in the PR). The birth record for every existing
+  fixture is unchanged too: dump `BlendNaming` (or its totality summary) at
+  base and head for the census fixtures and diff.
+- **No change to `split_edge`'s key rule** — `topo` is TOPO's; the phase
+  adapts to the rule, it does not move it.
+- **No orientation is decided from a sampled quantity**; provenance is read
+  off keys and records only.
 
 ## Acceptance
 
-- The description differential clean on every fixture, both SHAs stated, or
-  each moved description explained as an in-band join now refusing.
-- The trio rows on both verbs, the out-of-lane rows, the mutant table.
-- The K-stream count per smooth strut before and after, stated; k-lint
-  green or re-derived per the runbook with the reason.
+- The census table and (if needed) the door table, from the merge base.
+- A witness body through a public door, its carve row and its document-layer
+  row green; or the measured finding that none exists and the orchestrator's
+  re-scope recorded in this spec.
+- The mutant table: the witness rows red, every existing row green.
+- The bit-dump and birth-record differentials clean, with the two SHAs.
 - Hosted CI green (full matrix).
 
 ## Out of scope
 
-The two remaining hand-rolled siblings (`topo::validate`'s and
-`topo::boolean::ops`'s — issue 1439's work, other programs' ground); any
-change to `tangent_certificate_lane`'s admitted set; `classify_dihedral`.
+The annulus phase (`rim_phase_annulus` — its seam splits have their own
+provenance rows; if the census shows the same shape there, file it as an
+issue on BLEND's slate with the reading, do not fix it here); the ruled band's
+`split_rim` beyond hoisting; anything in `emit_blend.rs` (EVAL's).
 
 ## Review
 
 v6 dual on the frozen head; claims to falsify (verbatim to both reviewers,
 with `docs/prompts/reviewer-style-lane.md` by path):
 
-- **C1** No stored description in any existing revolve or extrude fixture
-  moved (re-run the differential).
-- **C2** An in-band smooth join refuses typed on BOTH verbs, and a definite
-  one on either side stores what the contract says (construct your own
-  near-osculating join from the band; the row's radius derivation is the
-  implementer's, not the oracle).
-- **C3** The wrapper reads exactly the certification schedule's interior
-  stations and nothing decides a smooth join's description outside it (grep
-  `tangent_second_order` callers; the count of K samples per strut matches
-  the PR's claim).
-- **C4** The lane gate is applied before any metering on both verbs, and an
-  out-of-lane pair emits no sample.
-- **C5** The symmetry claims in the wrapper's doc are true for every pair the
-  lane admits (find a pair in the lane where κ_rel varies along the carrier).
+- **C1** Every ladder carve at the merge base is bit-identical at the head,
+  and its birth record is identical too (re-run both differentials).
+- **C2** The witness body reaches the orientation through a public door and
+  the head carves it with every retirement naming a source key (re-derive
+  from `split.rs` which piece keeps the key; do not trust the census).
+- **C3** The mutant (the old push restored) reds the witness rows and nothing
+  else.
+- **C4** The provenance rule has one spelling in `sweep::blend`, or the PR
+  says why two are kept (grep for a third: the annulus phase's seam splits).
+- **C5** The census is complete over the tree's ladder fixtures (find one it
+  missed).
