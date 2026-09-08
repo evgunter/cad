@@ -2333,9 +2333,8 @@ where
         },
     };
     // The NOMINAL environment, built beside the lane one and carried
-    // with it: the document's own f64 parameter values, under no box
-    // and no seed. Why the key reads it, and what each lane's feed
-    // means, is stated once at `tag::slot`.
+    // with it as `wire::LaneEnv::nominal` — what it is and who reads
+    // it is stated there; why the key owes it, at `tag::slot`.
     let nominal_env = doc.param_env::<f64>();
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
@@ -2701,12 +2700,15 @@ where
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
             // The frame the profile is drawn on, at f64 and from the
-            // DOCUMENT — `wire::profile_plane_f64` carries why that is
-            // the right scalar and the right source.
-            let placement = match wire::profile_plane_f64(doc, program.plane, tol) {
-                Ok(placement) => placement,
-                Err(kind) => return fail(bracket, kind),
-            };
+            // DOCUMENT — the evaluation's nominal environment
+            // (`wire::LaneEnv::nominal`); `wire::profile_plane_f64`
+            // carries why that is the right scalar and the right
+            // source.
+            let placement =
+                match wire::profile_plane_f64(doc, program.plane, op_env.lane.nominal, tol) {
+                    Ok(placement) => placement,
+                    Err(kind) => return fail(bracket, kind),
+                };
             match wire::prepare_profile(placement, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(bracket, kind),
@@ -3010,22 +3012,18 @@ mod tag {
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
         /// after that slot's bits at the evaluation scalar, and it
-        /// carries the slot's expression evaluated in the document's
-        /// f64 parameter environment: no box, no seed
-        /// ([`crate::doc::Doc::param_env`] at f64).
+        /// carries the slot's expression evaluated at the evaluation's
+        /// nominal environment — [`super::wire::LaneEnv::nominal`],
+        /// whose doc says what that environment is.
         ///
-        /// **Why the key owes it.** Evaluation has TWO f64-pinned
-        /// readers of the document's nominals, and both decide what a
-        /// lane value IS. [`super::wire::profile_plane_f64`] reads a
-        /// FRAME node's nine slots there — one reader, reached from
-        /// two sites, the profile node's pre-pass and a loft or
-        /// sweep's section — and its answer is what the pinned lift
-        /// embeds whole into the lane profile's placement. The other
-        /// is the profile program's own resolution, which the key
-        /// already holds as a stream. So a key that fixed only the
-        /// lane bits would leave the first reader's input unfixed,
-        /// and the memo would serve a profile placed on another
-        /// nominal's plane.
+        /// **Why the key owes it.** The nominal's readers are listed
+        /// at [`super::wire::LaneEnv::nominal`], and each decides what
+        /// a lane value IS: the frame read is what the pinned lift
+        /// embeds whole into the lane profile's placement, and the
+        /// program resolutions are what the key already holds as a
+        /// stream. A key that fixed only the lane bits would leave the
+        /// frame read's input unfixed, and the memo would serve a
+        /// profile placed on another nominal's plane.
         ///
         /// **What the word means per lane.** At f64 under no box, or
         /// under a box whose axes are all zero-width and zero-offset,
