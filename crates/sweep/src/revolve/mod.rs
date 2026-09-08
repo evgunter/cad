@@ -298,7 +298,7 @@ impl From<ReadbackError> for WedgeCapsError {
 ///
 /// ```
 /// use geom_core::{Point2, Tol, Vec2};
-/// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+/// use profile::{Profile, SketchPlane};
 /// use sweep::{Revolution, RevolveAxis, revolve, revolved_caps};
 ///
 /// let tol = Tol::witness();
