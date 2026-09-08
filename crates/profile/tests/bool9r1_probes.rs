@@ -196,21 +196,24 @@ fn r1_embed_is_both_former_walks_at_interval() {
     assert_eq!(table(&door), table(&loft), "door vs loft.rs's walk");
     assert_eq!(table(&door), table(&anchor), "door vs anchor.rs's walk");
     // And the coordinates are point intervals of the stored bits.
+    //
+    // ADOPTION FIX: as delivered this used a `#[cfg(feature =
+    // "interval")]` free `fn table_scalar`, which
+    // `scripts/check-interval-cfg-additive.py` refuses in `tests/` — an
+    // interval cfg there must gate a WHOLE ITEM of an allowed kind
+    // (`impl`/`mod`/`use`/`type`/`#[test]`), and a bare `fn` is not one.
+    // A local closure needs no gate of its own and says the same thing.
+    let table_scalar = |x: &dyn std::fmt::Debug| format!("{x:?}");
     for (d, s) in door.vertices().iter().zip(src.vertices()) {
         assert_eq!(
-            table_scalar(d.pos().x),
+            table_scalar(&d.pos().x),
             format!("{:?}", Interval::from_f64(s.pos().x))
         );
         assert_eq!(
-            table_scalar(d.bulge()),
+            table_scalar(&d.bulge()),
             format!("{:?}", Interval::from_f64(s.bulge()))
         );
     }
-}
-
-#[cfg(feature = "interval")]
-fn table_scalar<T: std::fmt::Debug>(x: T) -> String {
-    format!("{x:?}")
 }
 
 // ------------------------------------------------------------------
