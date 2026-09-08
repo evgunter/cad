@@ -953,11 +953,17 @@ fn p12_wide_slab_with_hole_is_sound() {
         cv += mid(e.a().y) / ring.edges.len() as f64;
     }
     let m = b.metred((Interval::one(), Interval::one()));
-    let lifted = MetredRect::new(cu + TAU - 0.05, cu + TAU + 0.05, cv - 0.05, cv + 0.05);
+    // Lift by one period TOWARDS the middle of the slab. Which way that
+    // is depends on the carrier's stored `u_ref`, which is a chart
+    // convention and not a fact about the part; a fixed sign would make
+    // this row a statement about the frame rather than about a plane
+    // having no period at all.
+    let lift = if cu > 0.0 { -TAU } else { TAU };
+    let lifted = MetredRect::new(cu + lift - 0.05, cu + lift + 0.05, cv - 0.05, cv + 0.05);
     let sf = surface_f64(&s);
-    let p = sf.eval(cu + TAU, cv);
+    let p = sf.eval(cu + lift, cv);
     eprintln!(
-        "hole centre ({cu:.3},{cv:.3}); lifted cell centre maps to {:?}",
+        "hole centre ({cu:.3},{cv:.3}); lifted by {lift:+.3} in u, cell centre maps to {:?}",
         (p.x, p.y, p.z)
     );
     assert!(
