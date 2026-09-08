@@ -71,16 +71,23 @@ fn face_nappe_reads_the_frustums_own_wall() {
 /// `ReanchorOffCarrier` compares the rim's displacement `|d|·sin α`
 /// against ε, so it builds only BELOW `ε/sin α`; the axial door meters
 /// the request itself (`offset_axial_request`) and escalates on a `d`
-/// that small. So the per-chart door is read at `d = 1e-9` and the
-/// axial one at the wall thickness.
+/// that small. So the per-chart door is read at half that threshold —
+/// stated in the RUN's own ε, because a fixed number is a different
+/// question at each of the three eps rows — and the axial one at the
+/// wall thickness.
 ///
-/// At `d = 1e-9` the apex slide `d/sin α` is `4.1e-9` m, four times ε,
-/// so a door that took the wrong nappe would land a visibly different
-/// cone — the last assertion of each pass measures that separation
-/// rather than assuming it.
+/// The turn stays observable there: the two nappes' apexes stand
+/// `2d/sin α = ε/sin²α ≈ 17ε` apart, so a door that took the wrong one
+/// would land a visibly different cone. The last assertion of each pass
+/// measures that separation rather than assuming it.
 #[test]
 fn both_doors_mint_the_turned_offset_on_both_nappes() {
     let tol = Tol::witness();
+    let alpha = ((R_WIDE - R_NARROW) / H).atan();
+    // Half the rim gate's own threshold: the moved rim's gap is then
+    // `ε/2`, inside the band's zero, so the caps hold and the door
+    // builds — at every eps row rather than at one.
+    let small = 0.5 * tol.eps() / alpha.sin();
     for (what, body) in [
         ("narrowing upward (mirror)", mirror_frustum()),
         ("widening upward (opening)", opening_frustum()),
@@ -89,7 +96,7 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
         let old = cone_of(&body, faces[0]);
         let nappe = topo::group_nappe(&body, &faces, band()).expect("the chart has a nappe");
         let v0 = topo::mass_properties(&body, tol).expect("props").volume;
-        for (door, d) in [("per-chart", 1e-9), ("axial", T)] {
+        for (door, d) in [("per-chart", small), ("axial", T)] {
             let want = geom_brep::offset_surface(&old, nappe.turn(-d), band()).expect("the mint");
             let Surface::Cone {
                 apex: b,
@@ -173,7 +180,10 @@ fn the_per_chart_doors_reach_is_a_threshold_in_the_rim_tolerance() {
         ("widening upward (opening)", opening_frustum()),
     ] {
         let faces = cone_faces(&body);
-        for mag in [1e-3, 1e-6, 1e-9, 1e-12] {
+        // Stated in the threshold's own units, so the row asks the same
+        // question at every eps row: one magnitude whose gap lands
+        // under the band's zero, one whose gap clears its escalate end.
+        for mag in [0.5 * threshold, 1e3 * threshold] {
             for signed in [-mag, mag] {
                 let mut work = body.clone();
                 let got = topo::replace_faces_offset(&mut work, &faces, signed, band(), tol);
