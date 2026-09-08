@@ -2,10 +2,11 @@
 id: escalated-recourse-dispatch-has-no-coaxiality-arm
 kind: unit
 title: blend: an in-band fillet3_support_coaxiality escalation renders no recourse
-status: review
+status: closed
 opened: 2026-09-05
 branch: blend/1-coaxiality-arm
 pr: 2123
+closed: 2026-09-08
 ---
 
 ## Finding
@@ -56,3 +57,15 @@ rim circle's axis by `5ε` at the rim's lever arm, and
 escalation to one sentence. The three legs read build / escalate /
 refuse on one body, so the exact leg is a PASS and not a downstream
 refusal on some other predicate.
+
+## Closed (2026-09-08, PR 2123)
+
+The arm landed with its trio row red-first; the fix pass took the
+review's union: the convexity-sign in-band routing fixed at the same
+site (the D4 pair rule applied, its residue item closed here), every
+`trio_*` row tied by `assert_same_recourse`, the hand-kept recourse
+list replaced by `ALL_RECOURSES`, the two-arc whole-rim fixture giving
+build / escalate / refuse on one body, eight reviewer rows adopted.
+The review's MAJOR outside this fence is unit 7
+(`closed-chain-junctions-pair-with-a-rotated-link`), with its witness
+kept here as a characterization row.
