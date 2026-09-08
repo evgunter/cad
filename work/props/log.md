@@ -879,6 +879,16 @@ N3). Corrected by message to the sign-hull lane; no spec on main asks
 for it after the sign-hull spec's deletion at landing; no empty commit
 is ever pushed for it again.
 
+## MESH-12 landed by S-MESH (2026-09-08)
+
+Ev, in chat 2026-09-08, with PROPS paused: S-MESH merged main forward onto
+PROPS's fix-pass head `6859ece19` (`267e2510f`, no conflicts), waited for
+CI, and merged PR 1617 with the A/B row as the last commit. The row
+records BOTH duals under ordinal 1210 — S-MESH's on `0e053a727`
+(2026-09-03, disclosed on the PR) and PROPS's on `3daab7d80` — and
+names PROPS's as the sample, since its fix pass is what landed. The
+sphere lane's sequencing blocker is cleared. Signed (S-MESH
+orchestrator).
 **Budget-faces style review adjudicated (2026-09-06).** PR #2008,
 frozen `a1abdea5f`, single review (E rider, outside the experiment):
 NOT-MERGEABLE-AS-IS, 3 MAJOR / 6 MINOR / 7 NOTE, rubric 4/3/2. The
@@ -944,3 +954,23 @@ branch `props/mignitude-floor`, cut from main at `b88e2ac07`; dual
 review at the frozen head. The block's three slots are now all
 assigned (coeffs, sign-hull, mignitude-floor); the next kernel unit
 draws block PROPS-B3.
+**MESH-12 landing, PROPS's record (2026-09-08).** The S-MESH
+orchestrator wrote the state-sync (`2b267751c`: the A/B row MESH12
+with both duals, sample #157; the items closed; the DOCM flake issue
+for the GUI-1 ray-pick probe that reddened the landing merge's run)
+after PROPS asked it not to push — Ev had told that session to land
+the unit while PROPS was paused, so both orchestrators were acting on
+Ev's word; the record stands as written, with one correction: the
+merged head is `832b4804b` plus this merge of main, not `267e2510f`.
+PROPS's fix pass finished on the merged head (run 34172610937 green:
+2213/2339 rows on the two lanes, three-ε, D9 identical to
+`f729fbaf4`). Three CERT-1/R1-probe near-polar rows moved beyond the
+adjudicated list as a consequence of the forward decide (a sub-band
+meridian is one certification refuses as not forward; the rows now
+build the two-rim shape the Euler doors construct) — acknowledged
+here as S-CERT's successor; the rows keep their own question. The
+sphere lane is unblocked.
+
+**MESH-12 MERGED (2026-09-08).** PR #1617 at `a76597ee1` (run
+34174144611 green, `gate ok`), merged by PROPS at `0228c978c`. Sample
+#157, two duals under ordinal 1210. The sphere lane is unblocked.
