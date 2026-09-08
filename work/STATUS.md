@@ -802,6 +802,7 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | `gate-selftest-cannot-observe-the-identity-a-gate-names` | 2026-09-07 | gate_selftest_case matches one substring of a gate's output, so a gate whose product is a file:line and an identifier can ship a wrong identifier with every case green |
 | `gate-wiring-fence-is-undrawn-for-the-parity-entry` | 2026-09-07 | a new gate's wiring is one announced line in CIW's files by written convention, but nothing extends that to the TIER_BLIND parity entry it cannot land without |
 | `code-quality-item-quotes-a-viewer-doc-string-that-was-rewritten` | 2026-09-08 | work/code-quality's PathVerb item quotes a viewer doc comment verbatim that PR 2143 rewrote, so the quoted string is no longer in the tree |
+| `cone-nappe-is-decided-in-five-places` | 2026-09-08 | which nappe of a cone a face or point lies on is decided by five predicates in four files — one fact, five spellings, none reconciled |
 | `placement-lifts-its-affine-by-hand-beside-affine3-map` | 2026-09-08 | Placement::linear and Placement::affine lift twelve components by hand from [[f64;3];3] + [f64;3] into Mat3<T>/Affine3<T>, one construction away from self.affine::<f64>().map(T::from_f64) |
 | `profile-embed-lift-has-two-homes-anchor-and-loft` | 2026-09-08 | Profile<f64> -> Profile<T> is written twice, editor-core's anchor::embed_profile and sweep's loft::end_profile, and the home is a lift on the profile types |
 
