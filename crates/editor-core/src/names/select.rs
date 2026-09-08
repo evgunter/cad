@@ -89,19 +89,37 @@ pub enum OpGroup {
     InstantiatePart,
 }
 
-/// Which [`RoleSeg`] variant a segment is: the fieldless mirror of
-/// the role enum.
-///
-/// The mirror is hand-written and its [`SegTag::of`] match is
-/// EXHAUSTIVE with no wildcard arm, so adding a `RoleSeg` variant
-/// fails to compile here rather than silently falling through to "no
-/// tag" — fail-loud, at the site that must grow.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[allow(
-    missing_docs,
-    reason = "each variant mirrors the documented `RoleSeg` variant of the same name"
-)]
-pub enum SegTag {
+macro_rules! seg_tags {
+    ($($name:ident),* $(,)?) => {
+        /// Which [`RoleSeg`] variant a segment is: the fieldless mirror of
+        /// the role enum.
+        ///
+        /// The mirror is hand-written and its [`SegTag::of`] match is
+        /// EXHAUSTIVE with no wildcard arm, so adding a `RoleSeg` variant
+        /// fails to compile here rather than silently falling through to "no
+        /// tag" — fail-loud, at the site that must grow. The mirror is
+        /// declared through one macro so that [`SegTag::ALL`] is projected
+        /// from the same list as the variants and cannot fall behind one.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[allow(
+            missing_docs,
+            reason = "each variant mirrors the documented `RoleSeg` variant of the same name"
+        )]
+        pub enum SegTag {
+            $($name),*
+        }
+
+        impl SegTag {
+            /// Every tag, in declaration order — the row set a census
+            /// over the segment vocabulary iterates (the content key's
+            /// `seg_content_tags_are_injective`), enumerated from the
+            /// same declaration as the variants.
+            pub const ALL: &'static [SegTag] = &[$(SegTag::$name),*];
+        }
+    };
+}
+
+seg_tags! {
     // Shared
     OutputBody,
     // Extrude

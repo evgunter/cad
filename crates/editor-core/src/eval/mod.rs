@@ -48,7 +48,7 @@ use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::ident::Mispaired;
-use crate::names::{NameTable, NamingError};
+use crate::names::{NameTable, NamingError, SegTag};
 use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
@@ -2681,6 +2681,194 @@ where
     }
 }
 
+/// **The content key's structural tags, declared by vocabulary.**
+///
+/// A content key is a stream of `u64` words, and the memo serves an
+/// entry to a node exactly when the two streams agree. A tag separates
+/// alternatives only at the grammar position where it is read, so what
+/// keeps a memo from serving another node's geometry is injectivity
+/// WITHIN each vocabulary read at one position — never one number
+/// space for the whole key. Node tag `5` (an extrude) and target tag
+/// `5` (a point) are different words of different vocabularies; `43`
+/// is retired in the target vocabulary and live in the blend payload's.
+///
+/// **The rule, stated once:** within a vocabulary an existing number
+/// never changes meaning and a retired number is never reused; across
+/// vocabularies numbers are unrelated. Keys are process-internal and
+/// never persisted, so a number costs a memo invalidation and no
+/// schema — the rule guards against a collision inside one run, never
+/// a stored value.
+///
+/// Every vocabulary has one of three declared shapes, each with a
+/// census that iterates its whole row set:
+///
+/// - a group below — named consts and an `ALL`, one per grammar
+///   position, censused together by `structural_tag_groups_are_injective`
+///   over [`GROUPS`];
+/// - a function of a closed enum with an `ALL` — [`verb_content_tag`]
+///   over `VerbKind::ALL`, [`verb_tag`] over `profile::Verb::ALL`,
+///   [`arc_mode_tag`] over `ArcMode::ALL`, [`seg_content_tag`] over
+///   `SegTag::ALL` — each with its own injectivity row;
+/// - the node-kind match in [`content_key`], a function of `Node` with
+///   no payload-free mirror to iterate, censused by source text between
+///   its `NODE-KIND-VOCABULARY` sentinels
+///   (`node_tag_space_is_injective`), and covering that match alone.
+///
+/// A fourth shape is not declared here and is stated so it is not read
+/// as a gap: an inline exhaustive `match` over an enum that carries no
+/// `ALL` — a mate's role and fault bit, an alignment's primitive and
+/// sense, a name's entity kind, a side verdict, a qualifier, a tube's
+/// window, an assertion's direction, a measure primitive, a contact
+/// class ([`contact_class_tag`]), a dimension ([`dimension_tag`]), and
+/// the `u64`-written cap end, meridian end, split half and rim support
+/// inside a role segment. Each is total by exhaustiveness and distinct
+/// by inspection of its two-to-four arms; none can be censused without
+/// an `ALL` on an enum outside this file's ground.
+mod tag {
+    /// The first word of every content key: the key format version,
+    /// bumped whenever the hashed input set changes so no memo entry
+    /// from a pre-bump process is reused by a post-bump one.
+    pub(crate) mod format {
+        pub(crate) const VERSION: u8 = 6;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[VERSION];
+    }
+
+    /// The first word of every naming key: the naming-key domain,
+    /// which keeps a naming key's stream apart from a content key's.
+    pub(crate) mod naming {
+        pub(crate) const DOMAIN: u8 = 3;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[DOMAIN];
+    }
+
+    /// The word that precedes an optional datum — a solved placement,
+    /// a witness, an alignment length, a clocking angle, a mate's
+    /// fault — so that "absent" keys distinctly from every present
+    /// value and from "never recorded".
+    pub(crate) mod presence {
+        pub(crate) const ABSENT: u8 = 0;
+        pub(crate) const PRESENT: u8 = 1;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[ABSENT, PRESENT];
+    }
+
+    /// The words that structure a profile node's program payload, read
+    /// where a loop or a stream may end: the resolved stream is
+    /// `NONE`, or per loop `LOOP_START` then the loop's steps; the lane
+    /// stream, when the lift's second pass ran, is `LANE` then per loop
+    /// `LOOP_START` and the loop's scalars, each under `LANE_SCALAR`;
+    /// then, per carrier loop whose radius is flow-bearing,
+    /// `CARRIER_RADIUS` and the radius expression.
+    ///
+    /// The loop and step lists are not length-prefixed, so at a
+    /// resolved loop boundary the reader also admits the verb
+    /// vocabulary ([`super::verb_tag`]) — where `LANE` and the `Cusp`
+    /// verb are both `41`. That coincidence does not move a key today:
+    /// a `Cusp` writes no payload, so the two readings diverge at the
+    /// next word (a verb tag against `LOOP_START`), and beyond it the
+    /// lane stream's words are `LANE_SCALAR` and bit patterns where the
+    /// resolved stream's are verb and target tags. It is recorded as
+    /// EVAL's residue `profile-program-stream-is-not-length-prefixed`,
+    /// and the number does not change here.
+    pub(crate) mod program {
+        pub(crate) const NONE: u8 = 0;
+        pub(crate) const LOOP_START: u8 = 1;
+        pub(crate) const LANE: u8 = 41;
+        pub(crate) const LANE_SCALAR: u8 = 42;
+        pub(crate) const CARRIER_RADIUS: u8 = 45;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[NONE, LOOP_START, LANE, LANE_SCALAR, CARRIER_RADIUS];
+    }
+
+    /// The word that precedes one payload token inside a resolved
+    /// step: a continuous argument's f64 bits under `FLOAT`, a
+    /// structural count under `COUNT` — (tag, payload) throughout, so
+    /// structure can never alias float data.
+    pub(crate) mod step {
+        pub(crate) const FLOAT: u8 = 2;
+        pub(crate) const COUNT: u8 = 3;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[FLOAT, COUNT];
+    }
+
+    /// A step's target, where a verb carries one: the entry vertex, an
+    /// authored point (followed by its coordinates), or the entry
+    /// vertex with the seam's tangent joint declared. `43` held a
+    /// retired second declaration and stays dead in this vocabulary.
+    pub(crate) mod target {
+        pub(crate) const START: u8 = 4;
+        pub(crate) const POINT: u8 = 5;
+        pub(crate) const START_ARRIVING: u8 = 44;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[START, POINT, START_ARRIVING];
+        #[cfg(test)]
+        pub(crate) const RETIRED: &[u8] = &[43];
+    }
+
+    /// An arc's winding, where an arc mode carries one. `ArcSweep` is
+    /// `profile`'s and carries no `ALL`, so its two tags are declared
+    /// here rather than as a function of the enum.
+    pub(crate) mod winding {
+        pub(crate) const CCW: u8 = 6;
+        pub(crate) const CW: u8 = 7;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[CCW, CW];
+    }
+
+    /// An arc's side, where an arc mode carries one. `ArcSide` is
+    /// `profile`'s and carries no `ALL`, so its two tags are declared
+    /// here rather than as a function of the enum.
+    pub(crate) mod side {
+        pub(crate) const LEFT: u8 = 36;
+        pub(crate) const RIGHT: u8 = 37;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[LEFT, RIGHT];
+    }
+
+    /// What may follow a blend's canonical selection: the lowered
+    /// expression of its flow-bearing size slot, or nothing.
+    pub(crate) mod blend {
+        pub(crate) const FLOW_EXPR: u8 = 43;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[FLOW_EXPR];
+    }
+
+    /// A measured expression's node kind, one word per AST node.
+    pub(crate) mod measure_expr {
+        pub(crate) const PRIMITIVE: u8 = 1;
+        pub(crate) const VALUE: u8 = 2;
+        pub(crate) const NEG: u8 = 3;
+        pub(crate) const ADD: u8 = 4;
+        pub(crate) const SUB: u8 = 5;
+        pub(crate) const MUL: u8 = 6;
+        pub(crate) const DIV: u8 = 7;
+        pub(crate) const MIN: u8 = 8;
+        pub(crate) const MAX: u8 = 9;
+        #[cfg(test)]
+        pub(crate) const ALL: &[u8] = &[PRIMITIVE, VALUE, NEG, ADD, SUB, MUL, DIV, MIN, MAX];
+    }
+
+    /// Every group above, by name, for the census — the `ALL`s exist for
+    /// it and are test-only, as the census is. A group declared
+    /// and not listed here is not censused, and a const declared and
+    /// left out of its group's `ALL` is not either — the list is the
+    /// declaration the census reads.
+    #[cfg(test)]
+    pub(crate) const GROUPS: &[(&str, &[u8])] = &[
+        ("format", format::ALL),
+        ("naming", naming::ALL),
+        ("presence", presence::ALL),
+        ("program", program::ALL),
+        ("step", step::ALL),
+        ("target", target::ALL),
+        ("winding", winding::ALL),
+        ("side", side::ALL),
+        ("blend", blend::ALL),
+        ("measure_expr", measure_expr::ALL),
+    ];
+}
+
 /// **The content-key tag of a MIGRATED verb** — the memoization
 /// commitment, held where memoization lives, matching on the kernel's
 /// own name for the verb.
@@ -2696,7 +2884,7 @@ where
 /// kernel-only verb has no tag — and the honest shape for that is a
 /// declared `None` rather than a missing arm, which is what lets the
 /// tag censuses stay exhaustive over the vocabulary while measuring
-/// only the rows that are really in the tag space.
+/// only the rows that are really in the node-kind vocabulary.
 ///
 /// **The numbers are the ones that were already here** and they do not
 /// move: they are the tags [`content_key`]'s match wrote inline before
@@ -2704,7 +2892,7 @@ where
 /// _numbers` pins each of them. Keys are process-internal and never
 /// persist, so a tag costs a memo invalidation and no schema — but an
 /// EXISTING tag must never be reused for a new meaning, which is the
-/// rule this whole tag space runs on.
+/// rule every vocabulary in the key runs on ([`tag`]).
 ///
 /// It takes the payload-free [`verbs::VerbKind`] rather than a
 /// `&Verb<T>` because a content key is computed BEFORE the node's
@@ -2713,7 +2901,7 @@ where
 /// the verb's name — which is exactly what the tag is a function of.
 /// The boolean's NAME carries its op (`VerbKind::Boolean(op)`): union,
 /// intersect and subtract are three operations sharing one payload
-/// shape, and this tag space has kept them apart since v1, so the
+/// shape, and the node-kind vocabulary has kept them apart since v1, so the
 /// three rows below are three names — not payload leaking into the
 /// tag, and not a new structural word in the key (the op feeds nothing
 /// elsewhere, exactly as before).
@@ -2749,7 +2937,8 @@ fn verb_content_tag(kind: verbs::VerbKind) -> Option<u8> {
 /// mistake rather than a value: a kernel-only verb given a node arm
 /// must be loud here rather than keyed under a fallback number,
 /// because a silently wrong content tag is how a memo serves another
-/// node's geometry (the tag-29 lesson this whole space runs on).
+/// node's geometry (the tag-29 lesson every vocabulary in the key runs
+/// on).
 // The narrow `expect`: the alternative is a fallback tag, which is the
 // one failure this space cannot survive.
 #[allow(clippy::expect_used)]
@@ -2815,7 +3004,7 @@ impl SolveAnswer {
     fn feed_placement(self, h: &mut KeyHasher) {
         match self.placement {
             Some(frame) => {
-                h.write_tag(1);
+                h.write_tag(tag::presence::PRESENT);
                 for x in frame
                     .columns
                     .iter()
@@ -2825,7 +3014,7 @@ impl SolveAnswer {
                     h.write_f64_bits(*x);
                 }
             }
-            None => h.write_tag(0),
+            None => h.write_tag(tag::presence::ABSENT),
         }
     }
 
@@ -2839,7 +3028,11 @@ impl SolveAnswer {
             Some(MateRole::Declaring) => 2,
             Some(MateRole::Refused) => 3,
         });
-        h.write_tag(u8::from(self.faulted));
+        h.write_tag(if self.faulted {
+            tag::presence::PRESENT
+        } else {
+            tag::presence::ABSENT
+        });
     }
 }
 
@@ -2943,16 +3136,20 @@ where
     // existing node kind writes into the channel, so by the rule above
     // this is the bump: every key moves, and no pre-bump memo entry is
     // reused.
-    h.write_tag(6);
+    h.write_tag(tag::format::VERSION);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
-    // NODE-TAG-SPACE BEGIN — the sentinel `node_tag_space_is_injective`
-    // reads. Every number between here and the END sentinel is a tag in
-    // ONE space, whether it is written inline or comes back from
-    // `verb_content_tag`; do not move a tag out of these lines without
-    // teaching that test where it went.
-    let tag = match node {
+    // NODE-KIND-VOCABULARY BEGIN — the sentinels
+    // `node_tag_space_is_injective` reads. Every number between here and
+    // the END sentinel is a word of the node-kind vocabulary, whether it
+    // is written inline or comes back from `verb_content_tag`, and that
+    // census covers this match and nothing else: every other vocabulary
+    // in the key is declared in `tag` or as an enum function with its
+    // own census (`tag`'s doc), so a tag written outside these lines is
+    // a different vocabulary, not a gap. Do not move a node-kind tag out
+    // of these lines without teaching that test where it went.
+    let kind = match node {
         Node::Datum(Datum::Plane { .. }) => 1,
         Node::Datum(Datum::Axis { .. }) => 2,
         Node::Datum(Datum::Point { .. }) => 3,
@@ -2976,14 +3173,14 @@ where
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
             PatternKind::Circular { .. } => 13,
-            // Verified next-free at LIB-PLACEDUNION (the tag-29
+            // A fresh word of the node-kind vocabulary (the tag-29
             // lesson: an EXISTING tag never gains a new meaning).
             PatternKind::Explicit(_) => 19,
         },
         Node::Declare { .. } => 14,
-        // M5 PR 10: new tags append — the key's tag space is
-        // process-internal (never persisted), so growth is free, but
-        // an EXISTING tag must never be reused for a new meaning.
+        // New node kinds take fresh words — keys are process-internal
+        // (never persisted), so growth is free, but an EXISTING tag
+        // must never be reused for a new meaning.
         Node::Loft { .. } => 15,
         Node::Sweep { .. } => 16,
         // M5 PR 12. The number is not written here: a migrated verb's
@@ -3000,20 +3197,16 @@ where
             PatternKind::Circular { .. } => 21,
             PatternKind::Explicit(_) => 22,
         },
-        // ASM-R2a. Tags APPEND — an existing one must never be reused
-        // for a new meaning (M5 PR 10's rule), so the mate takes the
-        // next free number rather than the one its unit first wrote.
+        // A fresh word — an existing one must never be reused for a
+        // new meaning.
         Node::Mate { .. } => 23,
         // LIB-G16. Appended, never a reused tag: a chamfer and a
         // fillet of the same size on the same edges are different
         // geometry, so they must not share a key. Same home as the
         // fillet's, for the same reason.
         Node::Chamfer { .. } => document_verb_tag(verbs::VerbKind::Chamfer),
-        // M10-2. Tags APPEND — an existing one must never be reused
-        // for a new meaning. Both of these claimed 24 on their own
-        // branches; LIB-G16 merged first, so they take the next free
-        // numbers rather than the ones this unit first wrote. Keys are
-        // process-internal, so the renumber costs nothing on disk.
+        // Fresh words — an existing one must never be reused for a
+        // new meaning, and 24 is the chamfer's.
         Node::Measure { .. } => 25,
         Node::Assertion { .. } => 26,
         // The sketch frame. Tags APPEND — the frame does NOT share the
@@ -3066,8 +3259,8 @@ where
             PartSelect::Instance(_) => 34,
         },
     };
-    // NODE-TAG-SPACE END
-    h.write_tag(tag);
+    // NODE-KIND-VOCABULARY END
+    h.write_tag(kind);
     // Structural payloads beyond the tag — everything a node carries
     // that its SLOTS do not express, and that two nodes of one tag can
     // differ in. The match is EXHAUSTIVE on purpose: a future variant
@@ -3098,30 +3291,31 @@ where
             // the day a frame's own key changes shape.
             // Present by eval_node's stage order (profiles resolve
             // before keying); written defensively — no panic paths in
-            // this crate — and the write_tag(0) marker keeps an
-            // (impossible) absent-program key distinct from any real
-            // program's key rather than aliasing an empty one.
+            // this crate — and the `NONE` marker keeps an (impossible)
+            // absent-program key distinct from any real program's key
+            // rather than aliasing an empty one. The words are the
+            // profile-payload vocabulary's (`tag::program`).
             match resolved_program {
                 Some(resolved) => {
                     for steps in resolved {
-                        h.write_tag(1); // LoopStart
+                        h.write_tag(tag::program::LOOP_START);
                         for step in steps {
                             feed_step(&mut h, step);
                         }
                     }
                 }
-                None => h.write_tag(0),
+                None => h.write_tag(tag::program::NONE),
             }
             // The f64 stream above IS the structure identity and stays
             // in the key unconditionally, lane-independent as ever.
             // What follows is the lane's own geometry, and only when
-            // the second pass computed any: tag 41 opens it, so a
-            // pinned evaluation's key is the v3 tag away from what it
-            // has always been and cannot alias a lifted one's.
+            // the second pass computed any: `LANE` opens it, so a
+            // pinned evaluation's key is that one word away from what
+            // it has always been and cannot alias a lifted one's.
             if let Some(lane) = lane_program {
-                h.write_tag(41);
+                h.write_tag(tag::program::LANE);
                 for steps in lane {
-                    h.write_tag(1); // LoopStart
+                    h.write_tag(tag::program::LOOP_START);
                     for step in steps {
                         feed_lane_step(&mut h, step);
                     }
@@ -3153,7 +3347,7 @@ where
             // widens here is memo hit rate and nothing else.
             //
             // 1. The predicate is GLOBAL. `operand_flow_bearing` asks
-            //    the whole vocabulary, not this document, so tag 45 is
+            //    the whole vocabulary, not this document, so the word is
             //    written for every profile with a carrier loop in every
             //    document — one that no sweep ever consumes included.
             // 2. Keys FOLD upstream keys, so a carrier radius
@@ -3182,11 +3376,9 @@ where
             )) {
                 for lp in &program.loops {
                     if let Some(expr) = lp.carrier_radius() {
-                        // 45: the next free number in this key's tag
-                        // space (44 is the tangent arrival's, 43 the
-                        // blend's flow-bearing slot). Append-only —
-                        // an existing tag never gains a meaning.
-                        h.write_tag(45);
+                        // Opened by its word in the profile-payload
+                        // vocabulary (`tag::program`).
+                        h.write_tag(tag::program::CARRIER_RADIUS);
                         crate::param_source::feed_content_key(&mut h, expr);
                     }
                     // A CHAIN loop answers `None` above and writes
@@ -3454,9 +3646,9 @@ where
     // cases — a datum's absence is content too (recording, then
     // clearing, a witness must not alias the never-recorded key).
     match witness {
-        None => h.write_tag(0),
+        None => h.write_tag(tag::presence::ABSENT),
         Some(w) => {
-            h.write_tag(1);
+            h.write_tag(tag::presence::PRESENT);
             h.write_u64(u64::from(w.schema));
             h.write_bytes(&w.bytes);
         }
@@ -3470,7 +3662,7 @@ where
 /// exactly what the content key omits by design (D8).
 fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> NamingKey {
     let mut h = KeyHasher::new();
-    h.write_tag(3); // naming-key domain, format v1
+    h.write_tag(tag::naming::DOMAIN);
     h.write_key(content);
     h.write_u64(upstream.len() as u64);
     for (id, nk) in upstream {
@@ -3505,12 +3697,12 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::Turn => 15,
         V::Line => 16,
         V::LineTo => 17,
-        // 42 rather than 18: the low numbers were assigned in table
-        // order when this map was written, the space is APPEND-ONLY
-        // (retired numbers stay dead, above), and 41 — `Cusp`, the
-        // previous append — was the high-water mark. Renumbering to
-        // close the gap would re-key every program that uses the verbs
-        // in between, which is the one thing this map must never do.
+        // 42 rather than 18: within this vocabulary a number is never
+        // reassigned (retired numbers stay dead, above), so a verb the
+        // table gained after its first numbering takes a fresh number
+        // past every one in use — `Cusp`'s 41 was the previous one —
+        // rather than the gap, which would re-key every program using
+        // the verbs in between.
         V::ContinueTo => 42,
         V::ArcTo => 18,
         V::TangentArcTo => 21,
@@ -3537,6 +3729,25 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
     (29, "AtToward"),
 ];
 
+/// The content-key tag of an arc mode — the ONE place a mode's key
+/// identity is chosen, keyed on [`profile::ArcMode`] rather than on an
+/// [`profile::ArcData`] arm so the choice is a total function of the
+/// mode set's own declaration and `arc_mode_tags_are_injective` can
+/// check it over [`profile::ArcMode::ALL`]. No two modes may share a
+/// tag: two arcs of one radius under different modes are different
+/// geometry, and a shared word would alias their programs' digests.
+fn arc_mode_tag(mode: profile::ArcMode) -> u8 {
+    use profile::ArcMode as M;
+    match mode {
+        M::Radius => 30,
+        M::Bulge => 31,
+        M::Via => 32,
+        M::Center => 33,
+        M::Sweep => 34,
+        M::ArcLen => 35,
+    }
+}
+
 /// Feeds one RESOLVED program step into the content key (LIB-SWITCH
 /// §4e): verb tag, structural tags (target kind, winding, the
 /// `circle_split` count), and each continuous arg's resolved-f64 bits
@@ -3552,20 +3763,15 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
 fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     use profile::{ArcData, ArcSide, ArcSweep, Step, Target};
     fn f(h: &mut KeyHasher, v: f64) {
-        h.write_tag(2);
+        h.write_tag(tag::step::FLOAT);
         h.write_u64(v.to_bits());
     }
     fn target(h: &mut KeyHasher, t: &Target<f64>) {
         match t {
-            Target::Start => h.write_tag(4),
-            // Appended, not squeezed in beside 4/5: the tag space is
-            // append-only and 42 was the high-water mark. 44 was the
-            // TANGENT arrival's number and the one surviving declaration
-            // keeps it; 43 held the retired STRAIGHT member and stays
-            // DEAD, never reused (D365).
-            Target::StartArriving => h.write_tag(44),
+            Target::Start => h.write_tag(tag::target::START),
+            Target::StartArriving => h.write_tag(tag::target::START_ARRIVING),
             Target::Point(p) => {
-                h.write_tag(5);
+                h.write_tag(tag::target::POINT);
                 f(h, p.x);
                 f(h, p.y);
             }
@@ -3573,33 +3779,30 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     }
     fn winding(h: &mut KeyHasher, w: ArcSweep) {
         h.write_tag(match w {
-            ArcSweep::Ccw => 6,
-            ArcSweep::Cw => 7,
+            ArcSweep::Ccw => tag::winding::CCW,
+            ArcSweep::Cw => tag::winding::CW,
         });
     }
-    // The arc-spec and structural tags. They share one number space
-    // with the verb tags `verb_tag` allocates, and the same
-    // append-only rule: 30–40 were appended by the §2c re-spell.
     fn side(h: &mut KeyHasher, s: ArcSide) {
         h.write_tag(match s {
-            ArcSide::Left => 36,
-            ArcSide::Right => 37,
+            ArcSide::Left => tag::side::LEFT,
+            ArcSide::Right => tag::side::RIGHT,
         });
     }
+    // The mode's word comes from `arc_mode_tag`; the match below feeds
+    // payloads only, in the mode's field order.
     fn spec(h: &mut KeyHasher, s: &ArcData<f64>) {
+        h.write_tag(arc_mode_tag(s.mode()));
         match s {
             ArcData::Radius { r, side: sd } => {
-                h.write_tag(30);
                 f(h, *r);
                 side(h, *sd);
             }
             ArcData::Bulge { target: t, b } => {
-                h.write_tag(31);
                 target(h, t);
                 f(h, *b);
             }
             ArcData::Via { q, target: t } => {
-                h.write_tag(32);
                 f(h, q.x);
                 f(h, q.y);
                 target(h, t);
@@ -3609,20 +3812,17 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
                 winding: w,
                 target: t,
             } => {
-                h.write_tag(33);
                 f(h, c.x);
                 f(h, c.y);
                 winding(h, *w);
                 target(h, t);
             }
             ArcData::Sweep { r, side: sd, angle } => {
-                h.write_tag(34);
                 f(h, *r);
                 side(h, *sd);
                 f(h, *angle);
             }
             ArcData::ArcLen { r, side: sd, len } => {
-                h.write_tag(35);
                 f(h, *r);
                 side(h, *sd);
                 f(h, *len);
@@ -3677,10 +3877,9 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             f(h, centre.x);
             f(h, centre.y);
             f(h, *radius);
-            // Structural int under its own tag (3) — the (tag,
-            // payload) discipline holds for every token, review
-            // NOTE-3.
-            h.write_tag(3);
+            // A structural count under its own word — the (tag,
+            // payload) discipline holds for every token.
+            h.write_tag(tag::step::COUNT);
             h.write_u64(*n as u64);
             f(h, *phase);
         }
@@ -3705,7 +3904,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
 fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
     use profile::{ArcData, Step, Target};
     fn f<T: ContentBits>(h: &mut KeyHasher, v: &T) {
-        h.write_tag(42);
+        h.write_tag(tag::program::LANE_SCALAR);
         v.feed(h);
     }
     fn pt<T: ContentBits>(h: &mut KeyHasher, p: &geom_core::Point2<T>) {
@@ -3816,10 +4015,10 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
     for length in a.primitive.authored_lengths() {
         match length {
             Some(l) => {
-                h.write_tag(1);
+                h.write_tag(tag::presence::PRESENT);
                 h.write_f64_bits(l);
             }
-            None => h.write_tag(0),
+            None => h.write_tag(tag::presence::ABSENT),
         }
     }
     h.write_tag(match a.sense {
@@ -3828,10 +4027,10 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
     });
     match a.clocking {
         Some(theta) => {
-            h.write_tag(1);
+            h.write_tag(tag::presence::PRESENT);
             h.write_f64_bits(theta);
         }
-        None => h.write_tag(0),
+        None => h.write_tag(tag::presence::ABSENT),
     }
     for frame in [&a.a, &a.b] {
         for x in frame
@@ -3865,9 +4064,9 @@ fn contact_class_tag(class: topo::ContactClass) -> u8 {
 }
 
 /// Feeds a measured expression: one tag per AST node, then each
-/// node's own payload. The tag space is closed and the match is
-/// EXHAUSTIVE, so a new arithmetic arm cannot default to hashing like
-/// an existing one — the S4 lesson (a step verb's key tag collided
+/// node's own payload. The vocabulary is `tag::measure_expr` and the
+/// match is EXHAUSTIVE, so a new arithmetic arm cannot default to
+/// hashing like an existing one — the S4 lesson (a step verb's key tag collided
 /// with another's and served the wrong geometry from the memo).
 fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
     use crate::measure::{MeasureKind as K, MeasurePrimitive as P};
@@ -3878,7 +4077,7 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
     };
     match expr.kind() {
         K::Primitive(p) => {
-            h.write_tag(1);
+            h.write_tag(tag::measure_expr::PRIMITIVE);
             h.write_tag(match p {
                 P::Distance { .. } => 1,
                 P::Angle { .. } => 2,
@@ -3893,7 +4092,7 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
             }
         }
         K::Value(e) => {
-            h.write_tag(2);
+            h.write_tag(tag::measure_expr::VALUE);
             // The value leaf's literal BITS and parameter names — the
             // same two facts `Expr::bit_eq` compares, so two leaves
             // that are bit-equal hash equal and no others do.
@@ -3912,15 +4111,15 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
             }
         }
         K::Neg(a) => {
-            h.write_tag(3);
+            h.write_tag(tag::measure_expr::NEG);
             feed_measure_expr(h, a);
         }
-        K::Add(a, b) => binary(h, 4, a, b),
-        K::Sub(a, b) => binary(h, 5, a, b),
-        K::Mul(a, b) => binary(h, 6, a, b),
-        K::Div(a, b) => binary(h, 7, a, b),
-        K::Min(a, b) => binary(h, 8, a, b),
-        K::Max(a, b) => binary(h, 9, a, b),
+        K::Add(a, b) => binary(h, tag::measure_expr::ADD, a, b),
+        K::Sub(a, b) => binary(h, tag::measure_expr::SUB, a, b),
+        K::Mul(a, b) => binary(h, tag::measure_expr::MUL, a, b),
+        K::Div(a, b) => binary(h, tag::measure_expr::DIV, a, b),
+        K::Min(a, b) => binary(h, tag::measure_expr::MIN, a, b),
+        K::Max(a, b) => binary(h, tag::measure_expr::MAX, a, b),
     }
 }
 
@@ -3955,7 +4154,7 @@ fn feed_blend(
     if crate::param_source::flow_bearing(slots.size_param)
         && let Some(expr) = node.expr(slots.size_slot)
     {
-        h.write_tag(43);
+        h.write_tag(tag::blend::FLOW_EXPR);
         crate::param_source::feed_content_key(h, expr);
     }
 }
@@ -3986,8 +4185,62 @@ fn split_half_tag(half: crate::names::SplitHalf) -> u64 {
     }
 }
 
-/// Feeds one role segment (closed enum — every variant tagged; the
-/// tags are part of the key format version).
+/// The content-key tag of a role segment — the ONE place a segment's
+/// key identity is chosen, keyed on the payload-free [`SegTag`] so the
+/// choice is a total function of the role vocabulary's own mirror and
+/// `seg_content_tags_are_injective` can check it over [`SegTag::ALL`].
+/// No two segments may share a tag: two role segments hashing alike
+/// make two different names hash alike, and a content key that collides
+/// serves one node's cached geometry for another's.
+fn seg_content_tag(tag: SegTag) -> u8 {
+    use SegTag as S;
+    match tag {
+        S::OutputBody => 1,
+        S::Cap => 2,
+        S::Lateral => 3,
+        S::RimEdge => 4,
+        S::LateralEdge => 5,
+        S::CapVertex => 6,
+        S::Band => 7,
+        S::BandRim => 8,
+        S::BandRimPi => 9,
+        S::BandPi => 10,
+        S::Meridian => 11,
+        S::MeridianVertex => 12,
+        S::RevolveCap => 13,
+        S::Pole => 14,
+        S::AxisEdge => 15,
+        S::FromA => 16,
+        S::FromB => 17,
+        S::Seam => 18,
+        S::Merged => 19,
+        S::Fragment => 20,
+        S::SplitBody => 21,
+        S::SectionFace => 22,
+        S::SectionEdge => 23,
+        S::SplitFragment => 24,
+        S::CrossingVertex => 25,
+        S::OnToolVertex => 27,
+        S::InPart => 40,
+        S::Instance => 26,
+        S::FromTarget => 28,
+        S::BlendFace => 29,
+        S::CornerFace => 30,
+        S::TrimEdge => 31,
+        S::FootVertex => 32,
+        S::CornerArc => 33,
+        S::BandFace => 34,
+        S::BandTrim => 35,
+        S::BandFoot => 36,
+        S::BandCross => 37,
+        S::BandCut => 38,
+        S::BandSlit => 39,
+        S::FromMember => 41,
+    }
+}
+
+/// Feeds one role segment: its word from [`seg_content_tag`], then the
+/// payload its variant carries.
 fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
     use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict};
     let cap = |c: CapEnd| match c {
@@ -4013,228 +4266,186 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         h.write_u64(u64::from(v.loop_index));
         h.write_u64(u64::from(v.vertex));
     };
-    let qual = |h: &mut KeyHasher, q: &Qualifier| match q {
-        Qualifier::SideOf(vec) => {
-            h.write_tag(1);
-            h.write_u64(vec.len() as u64);
-            for (name, v) in vec {
-                feed_stable_name(h, name);
-                h.write_tag(match v {
-                    SideVerdict::Positive => 1,
-                    SideVerdict::Negative => 2,
-                    SideVerdict::Mixed => 3,
-                    SideVerdict::On => 4,
-                });
+    let qual = |h: &mut KeyHasher, q: &Qualifier| {
+        h.write_tag(match q {
+            Qualifier::SideOf(..) => 1,
+            Qualifier::OrderAlong { .. } => 2,
+        });
+        match q {
+            Qualifier::SideOf(vec) => {
+                h.write_u64(vec.len() as u64);
+                for (name, v) in vec {
+                    feed_stable_name(h, name);
+                    h.write_tag(match v {
+                        SideVerdict::Positive => 1,
+                        SideVerdict::Negative => 2,
+                        SideVerdict::Mixed => 3,
+                        SideVerdict::On => 4,
+                    });
+                }
+            }
+            Qualifier::OrderAlong { rank, of } => {
+                h.write_u64(u64::from(*rank));
+                h.write_u64(u64::from(*of));
             }
         }
-        Qualifier::OrderAlong { rank, of } => {
-            h.write_tag(2);
-            h.write_u64(u64::from(*rank));
-            h.write_u64(u64::from(*of));
-        }
     };
-    // SEG-TAG-SPACE BEGIN — the sentinel `seg_tag_space_is_injective`
-    // reads. Every segment tag lives INSIDE this match, written as a
-    // literal `write_tag(<number>)`; a tag written outside it is
-    // invisible to the census, so do not write one there. The nested
-    // closures above (qualifier, verdict, cap, meridian) have tag
-    // spaces of their OWN and are deliberately outside.
+    // The segment's word first, from `seg_content_tag`; the match
+    // below feeds payloads only. The closures above (qualifier,
+    // verdict, cap end, meridian end, split half, rim support) are
+    // vocabularies of their own, each read under a segment word.
+    h.write_tag(seg_content_tag(SegTag::of(seg)));
     match seg {
-        RoleSeg::OutputBody => h.write_tag(1),
+        RoleSeg::OutputBody => {}
         RoleSeg::Cap(c) => {
-            h.write_tag(2);
             h.write_u64(cap(*c));
         }
         RoleSeg::Lateral(e) => {
-            h.write_tag(3);
             pe(h, *e);
         }
         RoleSeg::RimEdge(c, e) => {
-            h.write_tag(4);
             h.write_u64(cap(*c));
             pe(h, *e);
         }
         RoleSeg::LateralEdge(v) => {
-            h.write_tag(5);
             pv(h, *v);
         }
         RoleSeg::CapVertex(c, v) => {
-            h.write_tag(6);
             h.write_u64(cap(*c));
             pv(h, *v);
         }
         RoleSeg::Band(e) => {
-            h.write_tag(7);
             pe(h, *e);
         }
         RoleSeg::BandRim(v) => {
-            h.write_tag(8);
             pv(h, *v);
         }
         RoleSeg::BandRimPi(v) => {
-            h.write_tag(9);
             pv(h, *v);
         }
         RoleSeg::BandPi(e) => {
-            h.write_tag(10);
             pe(h, *e);
         }
         RoleSeg::Meridian(m, e) => {
-            h.write_tag(11);
             h.write_u64(mer(*m));
             pe(h, *e);
         }
         RoleSeg::MeridianVertex(m, v) => {
-            h.write_tag(12);
             h.write_u64(mer(*m));
             pv(h, *v);
         }
         RoleSeg::RevolveCap(m) => {
-            h.write_tag(13);
             h.write_u64(mer(*m));
         }
         RoleSeg::Pole(v) => {
-            h.write_tag(14);
             pv(h, *v);
         }
         RoleSeg::AxisEdge(e) => {
-            h.write_tag(15);
             pe(h, *e);
         }
         RoleSeg::FromA(inner) => {
-            h.write_tag(16);
             feed_stable_name(h, inner);
         }
         RoleSeg::FromB(inner) => {
-            h.write_tag(17);
             feed_stable_name(h, inner);
         }
         RoleSeg::Seam { a, b } => {
-            h.write_tag(18);
             feed_stable_name(h, a);
             feed_stable_name(h, b);
         }
         RoleSeg::Merged(names) => {
-            h.write_tag(19);
             h.write_u64(names.len() as u64);
             for n in names {
                 feed_stable_name(h, n);
             }
         }
         RoleSeg::Fragment(q) => {
-            h.write_tag(20);
             qual(h, q);
         }
         RoleSeg::SplitBody(s) => {
-            h.write_tag(21);
             h.write_u64(half(*s));
         }
         RoleSeg::SectionFace { side, section } => {
-            h.write_tag(22);
             h.write_u64(half(*side));
             h.write_u64(u64::from(*section));
         }
         RoleSeg::SectionEdge { side, face } => {
-            h.write_tag(23);
             h.write_u64(half(*side));
             feed_stable_name(h, face);
         }
         RoleSeg::SplitFragment { side, parent } => {
-            h.write_tag(24);
             h.write_u64(half(*side));
             feed_stable_name(h, parent);
         }
         RoleSeg::CrossingVertex { side, edge } => {
-            h.write_tag(25);
             h.write_u64(half(*side));
             feed_stable_name(h, edge);
         }
         RoleSeg::OnToolVertex { side, of } => {
-            h.write_tag(27);
             h.write_u64(half(*side));
             feed_stable_name(h, of);
         }
         RoleSeg::InPart { of } => {
-            h.write_tag(40);
             feed_stable_name(h, of);
         }
         RoleSeg::Instance { i, of } => {
-            h.write_tag(26);
             h.write_u64(u64::from(*i));
             feed_stable_name(h, of);
         }
-        // The fillet vocabulary (M6-5). Tags continue the one shared
-        // sequence; they are part of the key format version.
         RoleSeg::FromTarget(n) => {
-            h.write_tag(28);
             feed_stable_name(h, n);
         }
         RoleSeg::BlendFace(n) => {
-            h.write_tag(29);
             feed_stable_name(h, n);
         }
         RoleSeg::CornerFace(n) => {
-            h.write_tag(30);
             feed_stable_name(h, n);
         }
         RoleSeg::TrimEdge { edge, support } => {
-            h.write_tag(31);
             feed_stable_name(h, edge);
             feed_stable_name(h, support);
         }
         RoleSeg::FootVertex { vertex, support } => {
-            h.write_tag(32);
             feed_stable_name(h, vertex);
             feed_stable_name(h, support);
         }
         RoleSeg::CornerArc { vertex, edge } => {
-            h.write_tag(33);
             feed_stable_name(h, vertex);
             feed_stable_name(h, edge);
         }
         RoleSeg::BandFace(names) => {
-            h.write_tag(34);
             h.write_u64(names.len() as u64);
             for n in names {
                 feed_stable_name(h, n);
             }
         }
         RoleSeg::BandTrim { edge, support } => {
-            h.write_tag(35);
             feed_stable_name(h, edge);
             h.write_u64(rim(*support));
         }
         RoleSeg::BandFoot(n) => {
-            h.write_tag(36);
             feed_stable_name(h, n);
         }
         RoleSeg::BandCross(n) => {
-            h.write_tag(37);
             feed_stable_name(h, n);
         }
         RoleSeg::BandCut(n) => {
-            h.write_tag(38);
             feed_stable_name(h, n);
         }
         RoleSeg::BandSlit(n) => {
-            h.write_tag(39);
             feed_stable_name(h, n);
         }
-        // The n-ary union's member key. It does not share `FromA`'s
-        // 16: that would key a member's face and a pair operand's face
-        // identically.
-        // BOTH halves feed: two members of one union can be
+        // The n-ary union's member key. BOTH halves feed: two members
+        // of one union can be
         // placements of ONE prototype and then carry the same inner
         // name, so a key without the member edge would give their
-        // entities one key — the memo hazard this tag space exists to
-        // prevent.
+        // entities one key — the memo hazard the segment vocabulary
+        // exists to prevent.
         RoleSeg::FromMember { member, of } => {
-            h.write_tag(41);
             h.write_u64(member.0);
             feed_stable_name(h, of);
         }
     }
-    // SEG-TAG-SPACE END
 }
 
 #[cfg(test)]
@@ -4242,12 +4453,10 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
 mod verb_tag_tests {
     use super::{RETIRED_VERB_TAGS, verb_tag};
 
-    /// **The seam-arrival target tag is reachable and distinct.** Tag
-    /// 44 is appended past 42, the previous high-water mark, rather
-    /// than squeezed in beside `Start` (4) and `Point` (5), because the
-    /// space is append-only and renumbering re-keys every program using
-    /// the tags in between (D365). 43 held the retired second arrival
-    /// member and stays dead.
+    /// **The seam-arrival target tag is reachable and distinct.**
+    /// `START_ARRIVING` is the third word of the target vocabulary
+    /// (`tag::target`), beside `START` and `POINT`; `43`, the retired
+    /// second declaration, stays dead there.
     ///
     /// This EXECUTES it. Both hashers are otherwise reached only by
     /// evaluating a document node that carries the new target, which
@@ -4365,7 +4574,7 @@ mod verb_content_tag_tests {
         let mut seen: Vec<(verbs::VerbKind, u8)> = Vec::new();
         let mut kernel_only: Vec<verbs::VerbKind> = Vec::new();
         for kind in verbs::VerbKind::ALL {
-            // A kernel-only verb is not in the tag space and is counted
+            // A kernel-only verb is not in the vocabulary and is counted
             // rather than skipped: the two buckets together must be the
             // whole vocabulary, so a verb that fell out of both — the
             // failure a plain `continue` would hide — reds on the sum.
@@ -4387,9 +4596,9 @@ mod verb_content_tag_tests {
         );
     }
 
-    /// **The COMBINED node-tag space is injective** — the migrated
-    /// verbs' tags and every tag still written inline, checked as the
-    /// one space they actually are.
+    /// **The node-kind vocabulary is injective** — the migrated verbs'
+    /// tags and every tag still written inline in `content_key`'s node
+    /// match, checked as the one vocabulary they are.
     ///
     /// The row above is not this row. It says no two VERBS collide, and
     /// it would stay green while a new inline node claimed 17 or 24 —
@@ -4415,17 +4624,22 @@ mod verb_content_tag_tests {
     /// `None`), never by a list here — so a verb that later gains a
     /// node arm is measured the moment its declaration gains a number.
     ///
-    /// What it cannot see, stated: a tag written OUTSIDE the sentinels
-    /// (the sentinel comment says not to), and a tag whose arm computes
-    /// rather than names a number. Neither exists today.
+    /// **What it covers, exactly: the node-kind match and nothing
+    /// else.** Every other vocabulary in the key — the structural
+    /// groups in `tag`, the verb, arc-mode and segment functions — is
+    /// declared elsewhere and censused by its own row (`tag`'s doc
+    /// lists them), so a tag written outside the sentinels is a
+    /// different vocabulary read at a different position, never a gap
+    /// in this one. What it cannot see, stated: a node-kind tag whose
+    /// arm computes rather than names a number. None exists.
     #[test]
     fn node_tag_space_is_injective() {
         const SOURCE: &str = include_str!("mod.rs");
         let region = SOURCE
-            .split_once("NODE-TAG-SPACE BEGIN")
+            .split_once("NODE-KIND-VOCABULARY BEGIN")
             .expect("the tag match carries its opening sentinel")
             .1
-            .split_once("NODE-TAG-SPACE END")
+            .split_once("NODE-KIND-VOCABULARY END")
             .expect("the tag match carries its closing sentinel")
             .0;
         // Comments inside the region discuss tag numbers in prose ("the
@@ -4495,84 +4709,76 @@ mod verb_content_tag_tests {
             seen.push((tag, who));
         }
     }
+}
 
-    /// **The SEGMENT tag space is injective too** — the same property
-    /// [`node_tag_space_is_injective`] holds for node tags, held for
-    /// [`feed_role_seg`]'s.
-    ///
-    /// It matters for the same reason and is a memo hazard of the same
-    /// class: two role segments sharing a tag make two different names
-    /// hash alike, and a content key that collides serves one node's
-    /// cached geometry for another's. `RoleSeg` is the enum this unit
-    /// grew (`FromMember`, tag 41) and it is the widest enum in the
-    /// crate, so the space had the most room to collide in and the
-    /// least to catch it with.
-    ///
-    /// A SOURCE census, for the reason the node one is: the tags live
-    /// in a match over `&RoleSeg`, and enumerating them by calling the
-    /// function would mean constructing one of every variant. The
-    /// sentinels bracket the match, every literal `write_tag(<number>)`
-    /// inside them is one segment tag, and nothing is hand-listed — a
-    /// tag added inside the sentinels is measured the moment it is
-    /// typed.
-    ///
-    /// What it cannot see, stated: a tag written outside the sentinels
-    /// (the sentinel comment says not to), and a tag whose arm computes
-    /// rather than names a number. Neither exists today. The nested
-    /// closures' tag spaces (qualifier, verdict, cap end, meridian end,
-    /// split half, rim support) are deliberately outside the region:
-    /// each is its own small space, keyed under a segment tag that this
-    /// census does hold unique.
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod tag_vocabulary_tests {
+    //! Every declared vocabulary is injective, each over its own row
+    //! set — the rows `tag`'s doc names for the groups, the arc modes
+    //! and the role segments (the verb vocabularies have theirs above,
+    //! the node-kind match its source census).
+
+    use super::{arc_mode_tag, seg_content_tag, tag};
+    use crate::names::SegTag;
+
+    /// Within every structural group, no two names share a number,
+    /// and a retired number is not reused. Iterates [`tag::GROUPS`]:
+    /// a duplicate typed into any group's `ALL` reds here, naming the
+    /// group and both positions.
     #[test]
-    fn seg_tag_space_is_injective() {
-        const SOURCE: &str = include_str!("mod.rs");
-        let region = SOURCE
-            .split_once("SEG-TAG-SPACE BEGIN")
-            .expect("the segment match carries its opening sentinel")
-            .1
-            .split_once("SEG-TAG-SPACE END")
-            .expect("the segment match carries its closing sentinel")
-            .0;
-        // The same shared Rust reader the node census uses, so a tag
-        // number discussed in a comment or a string is not read as one.
-        let code_only = test_utils::source::code_and_literals(region);
-        let mut tags: Vec<(u8, usize)> = Vec::new();
-        for (n, code) in code_only.lines().enumerate() {
-            let Some(rest) = code.split_once("write_tag(") else {
-                continue;
-            };
-            let token: String = rest.1.chars().take_while(char::is_ascii_digit).collect();
-            if let Ok(tag) = token.parse::<u8>() {
-                tags.push((tag, n));
+    fn structural_tag_groups_are_injective() {
+        for (group, all) in tag::GROUPS {
+            assert!(!all.is_empty(), "group `{group}` declares no tag");
+            for (i, a) in all.iter().enumerate() {
+                if let Some(j) = all[..i].iter().position(|b| b == a) {
+                    panic!("group `{group}` claims tag {a} twice: at positions {j} and {i}");
+                }
             }
         }
-        // A census that read nothing would pass vacuously. `RoleSeg`
-        // has 41 variants and every one writes a tag.
-        assert!(
-            tags.len() >= 41,
-            "the segment census found only {} tags — the sentinels or the scan have drifted from \
-             the match they are supposed to read",
-            tags.len()
-        );
-        // And the tag this unit added is in the region, which is what
-        // says the census is reading the match that grew.
-        assert!(
-            tags.iter().any(|(t, _)| *t == 41),
-            "`FromMember`'s tag 41 is not reachable from the segment match — the census is \
-             measuring the wrong region"
-        );
-        let mut seen: Vec<(u8, usize)> = Vec::new();
-        for (tag, line) in tags {
+        for retired in tag::target::RETIRED {
             assert!(
-                !seen.iter().any(|(t, _)| *t == tag),
-                "segment tag {tag} is claimed twice: at region line {line} and at region line {}",
-                seen.iter()
-                    .find(|(t, _)| *t == tag)
-                    .map(|(_, l)| *l)
-                    .unwrap_or_default()
+                !tag::target::ALL.contains(retired),
+                "target tag {retired} is retired and must stay dead"
             );
-            seen.push((tag, line));
         }
+    }
+
+    /// No two arc modes share a tag, computed over
+    /// [`profile::ArcMode::ALL`] so a mode the set gains is measured the
+    /// moment `arc_mode_tag` grows an arm for it.
+    #[test]
+    fn arc_mode_tags_are_injective() {
+        let mut seen: Vec<(profile::ArcMode, u8)> = Vec::new();
+        for mode in profile::ArcMode::ALL {
+            let tag = arc_mode_tag(*mode);
+            if let Some((other, _)) = seen.iter().find(|(_, t)| *t == tag) {
+                panic!("{mode:?} and {other:?} share content-key tag {tag}");
+            }
+            seen.push((*mode, tag));
+        }
+        assert_eq!(seen.len(), profile::ArcMode::ALL.len());
+    }
+
+    /// No two role segments share a tag, computed over
+    /// [`SegTag::ALL`]. It matters as a memo hazard of the widest
+    /// class: `RoleSeg` is the widest enum in the crate, two segments
+    /// sharing a tag make two different names hash alike, and a content
+    /// key that collides serves one node's cached geometry for
+    /// another's. The nested vocabularies a segment carries (qualifier,
+    /// verdict, cap end, meridian end, split half, rim support) are
+    /// each read under a segment word this row holds unique.
+    #[test]
+    fn seg_content_tags_are_injective() {
+        let mut seen: Vec<(SegTag, u8)> = Vec::new();
+        for seg in SegTag::ALL {
+            let tag = seg_content_tag(*seg);
+            if let Some((other, _)) = seen.iter().find(|(_, t)| *t == tag) {
+                panic!("{seg:?} and {other:?} share content-key tag {tag}");
+            }
+            seen.push((*seg, tag));
+        }
+        assert_eq!(seen.len(), SegTag::ALL.len());
     }
 }
 
