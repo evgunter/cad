@@ -2852,3 +2852,111 @@ owned and fixed: an intra-doc link to a `cfg(test)`-gated module. Local
 `nextest --workspace` 6378 passed before the first push — the MECH1
 lesson, applied. Orchestrator merged main after the report (436
 commits, clean) and landed on the re-run.
+**LB17 — the CUR5 carriage, decided (2026-09-06).** One rule settles
+all five rows, and it is the one the CUR3/CUR4 pair already wrote at
+the census's `BlendError` entry: **a payload's category follows what
+its carrier does at the crossing.** Applied:
+- `MeshPickError` under `NodePickError` (carrier projects tags): CARRY
+  `MeshPickError` alone into `crates/pncad/src/select.rs`, `MeshPick`
+  stays interior, `mesh_pick_error_tag` with `position_out_of_range`.
+  CUR3's construction argument is untouched.
+- `ResolveError` / `ResolutionFailure` / `ResolveIndeterminate` under
+  `Resolution` (carrier projects `resolution_status_tag`): CARRY the
+  three beside `Resolution`, WITHOUT `Diagnosis`, `Tombstone`,
+  `TieWitness`, `RecipeEditRef`, `Resolved` (the key-bearing and
+  telemetry half the stanza is really about); `resolve_error_tag`,
+  `resolve_indeterminate_tag`, and `variant` on `Resolution`'s arms.
+  The stanza's own argument — "a door carried for a consumer that does
+  not exist" — no longer holds: the consumer is Python, which holds a
+  string and nothing else. A strictly smaller carriage than GUI-2's.
+- `Indeterminate` (thirteen prelude carriers): CARRY on the prelude
+  (contract clause 1 is met already at `pncad::geom_core::Indeterminate`;
+  the curated-list half is what is owed). `MarginDiag`: MEASURE first —
+  carry iff some curated refusal's Python projection exposes its
+  discriminant or the unit adds one; else INTERIOR with the reason
+  written at the entry, the `BandField` precedent.
+- `LoopKey`: CARRY beside `VertexKey`/`EdgeKey`/`FaceKey` in the
+  prelude's group 4 (the same `topo` re-export); record blind spot (e)
+  — macro-minted types are invisible to a declaration-level index —
+  where CUR3's (a)–(d) are recorded.
+- `EntityId` / `GeomRef` / `ContactFinding`: CARRY through the groups
+  their siblings already sit in (`topo` root beside the keys; the
+  contact vocabulary's missing quarter through `crate::select`). The
+  LB13 guard names `EntityRef`/`EntityKey`/`Entry` — editor-core's
+  document-layer keys — and the unit READS the guard before touching
+  anything: if `EntityId` is a document-layer key rather than `topo`
+  vocabulary, that row STOPS and reports.
+Mechanical under the 08-29 ruling (the CUR/CUR2/CUR3/CUR4 precedent).
+**Held until Wave 1 lands**: CUR5 edits the census, `tags.rs`,
+`pncad.pyi` and `all.rs`, the exact files B-FACE-FRAME and MECH2 are
+in, and a fourth build target on this box is past the disk budget.
+
+**RULED — save-a-copy is two acts (Ev, PR 2016, 2026-09-06: "A sounds
+good!").** Recorded on the item and as one sentence at ASSEMBLY-DESIGN
+A4 (`crates/editor-core/ASSEMBLY.md`). The library half — the save-door
+refusal when the directory already holds the id under another filename,
+and the fork act minting a fresh id — is a LIB unit, mechanical under
+the 08-29 ruling (the shape is fully specified by the ruling and the
+store's own `DuplicateId`); the viewer `SessionOp` spelling is a rider
+handed to the GUI programs after it lands. Queued behind Wave 1 for the
+box, not for any decision.
+
+**RULED — the façade polygon door gets built (Ev, PR 2017, 2026-09-06:
+"A is good here too!").** A LIB unit, mechanical under the 08-29 ruling:
+the fallible lattice-backed `pncad::authoring::polygon`, one `PathError`
+arm for the sub-three-vertex case (with its Python tag and inventory
+row), the tour's `path_polygon` helper deleted and its thirteen call
+sites moved onto the door (`demos/tour` is a render-lane touch; frames
+should not move since the spelling is the same lattice — a moved frame
+is a finding, not a re-baseline). Queued behind Wave 1 for the box.
+
+**RULED — a Python `Product` is a plain value the doors clone (Ev, PR
+2020, 2026-09-06: "plain value doors clone sounds good"), with the
+combined door as the measured fallback.** Tradeoffs stated on the
+thread. A LIB unit, mechanical under the 08-29 ruling, whose first act
+is the clone-cost measurement. Queued behind Wave 1 for the box.
+
+**Correction owed on the bench-corpus question (PR 2019).** Ev asked
+why the corpus bytes are committed, and the honest answer exposed a
+stale premise in my own `[ev]` PR: the corpus exists because Python
+could not author assembly nodes at LIB-G18a, and G18B closed that the
+same day — `test_assembly_author.py` already authors the whole scene
+from nothing into a temp store. The header of `test_assembly_eval.py`
+still says "Python cannot AUTHOR an instantiate node", a false live
+claim. Recommendation revised on the thread to (E): delete the
+committed bytes and build the eval test's store from the authored
+scene, which closes the hole rather than narrowing it. Lesson for the
+orchestrator: an `[ev]` question is a claim about the tree and owes
+the same re-measurement as any other before it is asked.
+
+**RULED — the bench corpus's committed bytes go (Ev, PR 2019,
+2026-09-06: "E is great!").** A LIB unit, mechanical under the 08-29
+ruling: `test_assembly_eval.py` builds its store from the Python-authored
+scene, the four `.pncad` files and the MANIFEST are deleted, the false
+header claim with them. All four `[ev]` questions of the day are now
+ruled; the four units they produce (SAVEFORK, POLYGON, CORPUS, PRODUCT)
+queue behind Wave 1 for the box, each brief-as-spec off its item's
+"Ruled" section.
+
+**RULING REVISED — a Python `Product` is a memo on `Evaluation`, not a
+value (Ev, in chat, 2026-09-06: "sounds great!").** Ev asked on PR 2020
+whether an option with the good qualities of both the combined door and
+the clone-value door exists; it does: the gathered product memoized on
+the immutable Python `Evaluation`, keyed by tolerance — no new surface,
+no staleness, every consumer served. Recorded on the item as (5); the
+LIB-PRODUCT unit runs on it with the clone measurement kept.
+
+**Incident — three lanes killed by a session interruption (2026-09-06,
+~07:29Z).** B-FACE-FRAME, MECH2 and G17 all died within a minute of
+each other; found at the 08:16 check-in (no processes, a stale
+`slot-1.holder`, no reports). The harness refused to resume them and Ev
+authorised a relaunch (in chat, 09:20). Fresh lanes from main on the
+same briefs, the dead trees moved aside as UNTRUSTED reference
+material (a derived-scope patch and an uncommitted diff for
+B-FACE-FRAME, an uncommitted diff for MECH2); MECH2's one pushed
+commit is inherited by its fresh lane. G17 had not built anything, so
+its A/B row will carry no interruption annotation — the arm and slot
+are unchanged and the lane started from nothing both times. Lesson for
+the orchestrator: a lane that has not pushed in thirty minutes is
+suspect regardless of the notification channel; the hourly check-in
+now reads the lock holders and process table, not just the branches.

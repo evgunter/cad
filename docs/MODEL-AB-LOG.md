@@ -3270,6 +3270,24 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
+BOOL-10 (PR #2135) ordinal FIXED AT DISPATCH (2026-09-08):
+**ordinal 1108** (S-BOOL band 1100–1199). v6 dual: parity byte **24**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `3f8163dd8`
+(run 34177347640 verified at dispatch: head SHA matches, 37 checks,
+run conclusion success; not narrowed; no `CI-Config:` trailer, the
+spelling having been deleted 2026-09-04), R2 isolated from R1, briefs
+symmetric (HARD RULES written fresh for this unit), no relaxations
+granted. Implementer difficulty L (pre-logged at the spec, pre-draw);
+implementer arm FABLE (block BOOL-B3 slot 2, byte 125 — quoted from
+the private draw file before the arm was named; block exhausted). The
+PR is HELD for Ev's sign-off (the arc form's spelling and PATHS
+§2c/§3/§4 — design surface); merge follows the dual + sign-off. Sample
+number at merge; the row rides the unit branch as its last commit.
+Filed at dispatch from the unit's forward list:
+`work/bool/carriers-are-identical-reads-carrier-identity-at-the-lattice.md`,
+`work/bool/lift-comparator-misclasses-a-declared-joint-difference.md`,
+`work/lib/north-star-audit-verb-list-names-arc-continue.md`.
+
 BOOL-9 (PR #2134) ordinal FIXED AT DISPATCH (2026-09-08):
 **ordinal 1107** (S-BOOL band 1100–1199). v6 dual: parity byte **113**,
 parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `2fca2cd52`
