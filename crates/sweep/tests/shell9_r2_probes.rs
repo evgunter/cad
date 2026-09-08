@@ -101,7 +101,10 @@ fn consume(label: &str, body: &Body<f64>, want_volume: f64, want_shells: usize) 
     );
     let shells: Vec<_> = body.shells().map(|(k, _)| k).collect();
     let roles = topo::classify_shells_of(body, &shells, tol()).expect("classify");
-    let outers = roles.iter().filter(|r| r.role == topo::ShellRole::Outer).count();
+    let outers = roles
+        .iter()
+        .filter(|r| r.role == topo::ShellRole::Outer)
+        .count();
     println!(
         "[r2] {label}: {} shells, {} outer, {} solids, {} pcurve rows",
         shells.len(),
@@ -130,14 +133,23 @@ fn r2_e2e_sphere_zone_vase_hollowed_then_opened() {
     let (r, h, t) = (1.0, 1.5, 0.1);
     let v = sphere_zone_vase(r, h);
     let sealed = topo::shell(&v, t, tol()).expect("shells");
-    let sealed_vol = topo::mass_properties(&sealed.body, tol()).expect("props").volume;
+    let sealed_vol = topo::mass_properties(&sealed.body, tol())
+        .expect("props")
+        .volume;
     consume("sphere-zone vase sealed", &sealed.body, sealed_vol, 2);
     let caps = cap_at_y(&v, h);
     assert!(!caps.is_empty(), "a top cap");
     println!("[r2] vase top cap faces: {}", caps.len());
     let opened = topo::shell_open(&v, t, &caps, tol()).expect("opens");
-    let opened_vol = topo::mass_properties(&opened.body, tol()).expect("props").volume;
-    consume("sphere-zone vase opened", &opened.body, opened_vol, opened.body.shells().count());
+    let opened_vol = topo::mass_properties(&opened.body, tol())
+        .expect("props")
+        .volume;
+    consume(
+        "sphere-zone vase opened",
+        &opened.body,
+        opened_vol,
+        opened.body.shells().count(),
+    );
     assert!(
         opened_vol < sealed_vol,
         "opening removes the lid's material: {opened_vol} vs {sealed_vol}"
@@ -152,15 +164,29 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
     let v = vessel(1.0, 2.0);
     let pair = beside(&b, &v, 6.0);
     let sealed = topo::shell(&pair, 0.2, tol()).expect("shells the pair");
-    let sealed_vol = topo::mass_properties(&sealed.body, tol()).expect("props").volume;
-    consume("box beside vessel sealed", &sealed.body, sealed_vol, sealed.body.shells().count());
+    let sealed_vol = topo::mass_properties(&sealed.body, tol())
+        .expect("props")
+        .volume;
+    consume(
+        "box beside vessel sealed",
+        &sealed.body,
+        sealed_vol,
+        sealed.body.shells().count(),
+    );
     // The vessel's own top cap, in the pair: the cap plane at y = 2 on
     // the placed copy.
     let caps = cap_at_y(&pair, 2.0);
     println!("[r2] caps at y=2: {}", caps.len());
     let opened = topo::shell_open(&pair, 0.2, &caps, tol()).expect("opens the pair");
-    let opened_vol = topo::mass_properties(&opened.body, tol()).expect("props").volume;
-    consume("box beside vessel opened", &opened.body, opened_vol, opened.body.shells().count());
+    let opened_vol = topo::mass_properties(&opened.body, tol())
+        .expect("props")
+        .volume;
+    consume(
+        "box beside vessel opened",
+        &opened.body,
+        opened_vol,
+        opened.body.shells().count(),
+    );
 }
 
 /// **Claim 3 — the drum's refusal reason, by execution.** The reverted
@@ -225,7 +251,10 @@ fn r2_the_closing_mint_launders_an_invalid_operand() {
                 .pcurves()
                 .map(|(he, c)| format!("{he:?} {:?} {:?}", c.params(), c.pcurve()))
                 .collect();
-            assert_eq!(rows, good_rows, "bit-identical to the sound operand's result");
+            assert_eq!(
+                rows, good_rows,
+                "bit-identical to the sound operand's result"
+            );
         }
         Err(e) => println!("[r2] shell refused the maimed operand: {e}"),
     }
@@ -265,10 +294,21 @@ fn r2_multi_solid_pays_one_mint() {
     println!(
         "[r2] pair rows {} vs box {} + vessel {}",
         one.body.pcurves().count(),
-        topo::shell(&b, 0.2, tol()).expect("box").body.pcurves().count(),
-        topo::shell(&v, 0.2, tol()).expect("vessel").body.pcurves().count(),
+        topo::shell(&b, 0.2, tol())
+            .expect("box")
+            .body
+            .pcurves()
+            .count(),
+        topo::shell(&v, 0.2, tol())
+            .expect("vessel")
+            .body
+            .pcurves()
+            .count(),
     );
     let _ = Vec3::new(0.0, 0.0, 0.0);
     let _ = Tol::witness();
-    let _ = polyline(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], Revolution::Full);
+    let _ = polyline(
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        Revolution::Full,
+    );
 }
