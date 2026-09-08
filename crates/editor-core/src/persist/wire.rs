@@ -257,7 +257,7 @@ impl WireTarget {
 /// pre-BOOL-10 `"ArcTo": {"Bulge": …}` shape, or one without the
 /// field, refuses `Unreadable` rather than defaulting to the plain
 /// leg (D365's append-only rule is about tags; an optional field
-/// would make a silent default the format's word). Of the 28
+/// would make a silent default the format's word). Of the 24
 /// checked-in documents, 19 carry an `ArcTo`: the 3 live ones were
 /// regenerated through their own generators, and the 16 BOOL-13
 /// goldens are asserted-unreadable history already and are unaffected.
