@@ -270,7 +270,7 @@ id: instr
 kind: program
 title: INSTR — the instrument crates and the documents they feed
 status: open
-opened: <the ratification date>
+opened: <the date the successor PR lands>
 area: infra
 prefix: instr/
 tag: (INSTR orchestrator)
