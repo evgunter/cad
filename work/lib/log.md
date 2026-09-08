@@ -3055,3 +3055,283 @@ and the shell tracker) between the green run on `7239cf48` and the
 merge; no file overlaps this diff and nothing it touches reads shell
 geometry, so it landed on that run rather than chasing main a third
 time.
+
+**LIB-B-PART MERGED (2026-09-08, #2163; mechanical under the 08-29
+ruling, no A/B row). Census family B-PART CLOSED — one body out of a
+multi-body value, from Python.** `PartSelect.split_half` /
+`PartSelect.instance` (a frozen constructor pair, `PatternKind`'s
+shape, so the one roster row leaves under rule 1 rather than moving to
+`BOUND_AS`), `Node.part(of, select)`, `DocEdit.bind_instance_param`
+(`SlotId::Instance`'s own door beside the count's — a door per slot
+rather than a `slot=` argument, keeping the slot vocabulary off the
+crossing), and `Node.pattern`, which the charter never named. 20
+tests, every number an oracle against the split's or the pattern's own
+value; both chartered refusals (`empty_half`, `instance_out_of_range`)
+reached from Python for the first time; a half is not an instance at
+the type level (ty fixtures both ways). **LB18 — `Node.pattern` is
+bound outside the charter, and the orchestrator accepts it as a
+faithful consequence of DM3 rather than a widening.** The sweep found,
+before any code moved, that `PartSelect::Instance` selects out of a
+`ValuePayload::Instances` and exactly one node emits one
+(`Node::Pattern`), deliberately unbound under G8's reason that a
+plural payload fed no downstream door. `Node::Part` IS that door, so
+binding the projection without its only source would have shipped an
+unreachable half and an unconstructible refusal tag — which the census
+could not have reported, both names being arms behind `Node`. G8's
+conclusion is untouched: no audit row flips, no tour scene changes,
+`PlacedUnion` still authors the heat sink and a boolean still refuses a
+plural payload (`test_a_plural_payload_cannot_feed_a_boolean` now
+executes all three states). What moved is the rationale, recorded in
+the item file, the census closure paragraph and the G8/G18 cells; row
+43's star is now a JOB (`bench-flat-pack-star-is-now-a-pattern-job`)
+rather than a gap. Also banked: `structural-slots-without-a-binding-door`
+(`VDegree`, `Stations`). The census lesson lands a third time: an
+enum VARIANT behind a rule-1 name is as invisible as a field. Lane
+merged main twice (G17, then EVAL-2) under instruction, resolving the
+`pncad.pyi` absent-doors paragraph and the north-star rosters keeping
+both sides; landed on the re-run. Orchestrator note: main gained EVAL-5
+(`editor-core` verbs and eval), the tess tools and tour files, and a
+tracker regrouping between the green run on `4b33617e` and the merge;
+no file overlaps this diff, so it landed on that run rather than
+chasing main a fourth time.
+
+**LIB-PRODUCT MERGED (2026-09-08, #2181; mechanical under the 08-29
+ruling, no A/B row). The gathered product memoized on the Python
+`Evaluation` — Ev's option (5), the memo keyed by tolerance.** Measured
+first, as the brief required: at the heat sink's 160-fin point (161
+solids / 991 faces) a whole-`Product` clone is ~7.5 ms against a
+~372 ms gather — 2%, an order of magnitude inside the "under a tenth"
+line — so the memo keeps the product and hands `assemble_gathered` a
+COPY; the take was not needed, no DOCM hand-off, no kernel file
+touched. Shape: `crates/pncad-py/src/product_memo.rs`, Python-
+independent so the default build tests it; a `OnceLock` on
+`py::value::Evaluation` (the `NodePick` mesh-handle precedent, no new
+locking discipline) holding the product and the tolerance it was
+gathered at; a refusing gather is not memoized; four doors joined
+(`run_checks`, `assemble`, `product`, `product_named`), signatures
+unchanged, no new Python surface. Two decisions worth the record: the
+memo gathers from the document the evaluation CAPTURED, not the `doc`
+argument (a `Doc` is mutable and its id survives edits — the one
+behaviour change, disclosed: an old evaluation asked about an edited
+document now answers about the pair it is of, not a hybrid), and the
+DI3 pairing is asked BEFORE the memo is consulted at every door, each
+wrapping `Mispaired` in its own refusal under the unchanged tag, pinned
+from Python in the order that would catch a check sited behind the
+memo. Gather count is not a Python observable, so the brief's fallback
+shipped: eight Rust pins on the default build path reading
+`gathers_on_this_thread` as a difference (1 in either order, 1 across
+all four doors, 0 after the consuming gate, 0 for a subject-free
+config, 2 for two refusing asks, 2 for a different tolerance through
+the keyed seam, and the mispaired refusal), plus nine Python rows for
+everything a caller can see. One small deviation from the brief's
+"one entry (the last)": the slot holds the FIRST tolerance's product
+and answers a different tolerance by gathering without replacing — 
+unreachable while a process commits one tolerance (`Tol` is the
+witness), and answered rather than assumed away. Census: the six
+`behind-a-door` entries carry the true reason (the memo calls them);
+`gathers_on_this_thread` stays `INTERIOR` with the argument that a
+debug-only counter is not a public door. Findings outside the fence,
+reported not filed: `Subject`'s derivation in `editor-core`'s
+`run_checks` has to be re-spelled by any caller holding a product, and
+`Subject::not_needed` is private (DOCM's). Lane was cut off by an API
+session limit mid-unit and resumed in place once it reset.
+**LIB-CORPUS MERGED (2026-09-08, #2182; mechanical under the 08-29
+ruling, no A/B row). The bench corpus is authored, not committed —
+Ev's ruling (E), PR 2019.** `crates/pncad-py/tests/corpus/bench/` (four
+`.pncad` documents and the `MANIFEST`) deleted, and with it the whole
+staleness surface; `crates/pncad-py/tests/bench_scene.py` is the ONE
+Python definition of the tour's bench (six constants, three derived
+seats, two part shapes, the flat-pack layout, the mated stand), which
+`test_assembly_author.py` authors from as before and
+`test_assembly_eval.py` now writes into a temp `Workspace` and resolves
+back out through a `DocRef` on every call, so the load path is
+exercised over documents nothing keeps on disk. The header's false
+claim that Python could not author an instantiate node is gone with
+the bytes. The tour guard stays and widens: `TestTheSceneIsTheToursOwn`
+reads `demos/tour/src/assembly.rs`'s source and compares the six base
+constants by value, the three seats BY FORMULA (parsed and computed, so
+a changed derivation reds though the bases did not move), the flat-
+pack's placement literals and the stand's gauge offset and mate seats,
+each arm mutation-proven red (ten mutations of the tour, ten reds); what it cannot see (structure, the two
+deliberate Python/tour differences — literal prisms for parametric
+ones, `placed_union` for `Node::Pattern` — anything outside the
+constant block and the two authoring fns, and a rename or reformat,
+which reds as a false alarm) is stated in the test's header rather than
+banked. Every oracle the eval test carried is still asserted; the
+placement row was re-cut as a family outline plus one cap frame per
+placement, and three rows that moved the shelf's pin through a
+parameter edit now re-author the part under the same label, since the
+Python-authored parts hold no parameters. `demo-tour asm-corpus` and
+`assembly::corpus` RETIRED (its only consumer was the deleted corpus;
+`gallery` remains the door that saves documents), the render lanes
+reporting no moved frame. `ci.yml`'s die-corpus note re-pointed. Now
+that `Node.pattern` is bound (B-PART), authoring the posts as a pattern
+is the separately filed job
+(`bench-flat-pack-star-is-now-a-pattern-job`), not this unit's. Orchestrator
+note: main gained only LIB-PRODUCT between the green run on `dfb5e776`
+and the merge, no file overlapping this diff, so it landed on that run.
+
+**LIB-POLYGON MERGED (2026-09-08, #2183; mechanical under the 08-29
+ruling, no A/B row). The lattice-backed façade polygon door — Ev's
+ruling (A), PR 2017.** `pncad::authoring::polygon(&[(f64, f64)], tol)
+-> Result<ProfileLoop<T>, PathError<T>>` (`T: Decide`, the bound the
+lattice's junction decisions need), curated into the prelude, spelled
+exactly as the tour's helper spelled it — `Open.at(p0)`, a `line_to`
+per vertex, `line_to(Start)` as the seam — so a within-band-tangent or
+cusped corner refuses AT AUTHORING and the emitted loop is the raw
+vertex table (bulge 0, no declared joints; pinned position-for-
+position and against the hand-spelled chain, since `RawLoop` is off
+the façade and `ProfileLoop` has no `PartialEq` — the brief's `==`
+against the raw constructor was unwritable at that seat, disclosed).
+Two ruled cross-fence touches, both the only edits in their trees:
+`crates/profile` gains ONE arm, `PathError::PolygonTooFewVertices {
+given }` with its `PathErrorKind` mirror, `kind()` row and `Display`
+recourse, crossing as `polygon_too_few_vertices` with its
+`TAG_INVENTORY` row and a construction pin through the door; and
+`demos/tour/src/paths.rs` is deleted with its eleven call sites moved
+onto the door (the ruling's thirteen counted references, not
+invocations — the true count is recorded on the item), no scene
+changed, all three render lanes green with no re-baseline. The
+authoring-seam roster guard in `all.rs` names `polygon` beside
+`validated` as the two fallible seams. Census: `polygon` is a curated
+name now and rule 1 does not account it (`pncad.pyi` spells it only as
+`Node.polygon`), so `BOUND_AS` maps it there with the reason; no roster
+row moved. `docs/guide/examples.md` lost the helper's row and a false
+sentence beside it (the tour's `Cargo.toml` names no kernel crate but
+`pncad`). Not taken, on the lane's argument and the orchestrator's
+agreement: `docs/PATHS-DESIGN.md` §3's refusal register enumerates the
+lattice VERBS' refusals and no verb produces this arm — PATHS's page,
+not LIB's, if that register is ever meant to list every `PathError`
+arm. Filed: `tag-inventory-prose-counts-are-stale` (the tag-table doc
+comment narrates 37 functions / 361 literals against a measured
+42 / 402; the unit corrected only the count its own change moves).
+Orchestrator note: main gained the gate scripts and TESS-BUDGET
+between the green run on `c45c6785` and the merge, no file overlapping
+this diff, so it landed on that run.
+
+**LIB-SAVEFORK MERGED (2026-09-08, #2184; mechanical under the 08-29
+ruling, no A/B row). A save is two acts — Ev's ruling (A), PR 2016,
+recorded at ASSEMBLY.md A4.** Two doors on `Workspace`
+(`crates/pncad/src/workspace.rs`), bound on Python's `Workspace` under
+the same names: `save_at(doc, target, tol)` keeps the identity and
+reads the scan BEFORE any write — the id claimed at a different path
+refuses typed, claimed at `target` it is a resave, unclaimed it is a
+create at the caller's name (which `create` cannot spell, forcing
+`{id}.pncad`); `save_as_new_document(doc, tol) -> (DocumentId,
+PathBuf)` mints a fresh random id and writes `{newid}.pncad` through
+`create`'s validator, the original untouched so every inbound `DocRef`
+pinning the old id still resolves to it. The arm decision, argued
+both ways and settled on a NEW arm: `WorkspaceError::
+SaveWouldDuplicateId { id, existing, requested }` rather than
+`DuplicateId` reused, because the recourse differs (the scan's
+duplicate is two files that exist, fixed by deleting one; the save
+door's is a write that has not happened, fixed by choosing an act);
+a second new arm `SaveTargetNotInStore { path }` refuses a target that
+is not a `*.pncad` file directly in the store root, since a different
+root is a different store. Both matched exhaustively at
+`resolve_fault`, `workspace_err` and the tag map; Python tags
+`save_would_duplicate_id` / `save_target_not_in_store` with inventory
+rows and construction pins, the two paths riding `first`/`second` so
+handling reads any duplicate-id refusal without branching on the door.
+The pin question answered: the fork's content pin EQUALS the
+original's, because `canonical_bytes` removes the `id` key (A4's own
+sentence), and the two save files differ in the `id:` header and the
+snapshot's id — pinned in both languages, with the fork shown to
+differ from the original in identity and nothing else. Five facts
+pinned on each side (refuses before the file exists and the store
+still opens; resave in place; create at a chosen name; the fork's
+identity, resolution and coexistence; equal pins). **One announced
+fence crossing**: `crates/editor-core/src/doc.rs` gains
+`Doc::under_identity(self, id) -> Self` — the fork constructor, one
+field, no minting, DOCM's file — because `Doc::id` is crate-private,
+no `DocEdit` moves it, and the alternative was a serde round-trip in
+the façade; the CHROME `member_of` shape, disclosed in the PR and the
+unit file, and DOCM may re-home it. Hand-off filed on VIEW
+(`work/view/session-save-is-two-acts.md`): `SessionOp::Save` writes
+around the store through `docio::save_path`, the tree's only
+production write that does, so the ruled refusal cannot fire from the
+viewer until that routes through `save_at`, and a second op spells the
+fork. Guide and audit sentences that said "`create` and `resave` are
+the two write doors" corrected. The lane installed the pinned ruff and
+ran `check-python-lint.py` for real. Orchestrator note: main gained one
+SHELL commit (`shell/ab-claims-2303`) between the green run on `1ec85d61`
+and the merge, overlapping nothing in this diff, so it landed on that
+run.
+
+**THE RULED QUEUE IS EMPTY (2026-09-08, LIB orchestrator).** LB14's four
+lanes have all landed: wave 1 mechanical (B-FACE-FRAME, MECH2), LIB-G17
+on the full protocol, LIB-CUR5, and the four `[ev]` forks ruled and
+built (SAVEFORK, POLYGON, CORPUS, PRODUCT), plus B-PART. Nine LIB
+merges in one day, every one on a green head with the state-sync
+commit last. Two method notes worth keeping: a green head whose only
+drift from main is non-overlapping files lands without another chase,
+with the drift named in the entry (four of today's merges did — the
+alternative was a ~20-minute CI cycle per tracker commit on a main
+that moved every twenty minutes); and a lane's target and clone are
+reclaimed only AFTER the merge call succeeds (CORPUS's clone was
+removed a step early and had to be re-cloned to resolve a tail-of-log
+conflict — kept both entries in landing order).
+
+- **LB19 — wave 3 is the three chartered census families, then the
+  curation residue.** Mechanical under the 08-29 ruling, the B-PART
+  shape (derived scope stated before code; the census's field- and
+  variant-level blind spots measured at each closure): B-NOTATION and
+  B-DISTRIBUTIONS staggered (they share the census, the stub, the tag
+  files and the parameter doors), B-MEASURES after B-DISTRIBUTIONS as
+  its own file sequences it. B-DISTRIBUTIONS establishes the
+  `interval` gate on the analysis read doors FIRST and binds only what
+  the default build compiles, reporting the rest as the measured
+  limit. Then a LIB-CUR6 over `payload-rung-re-sweep-finds-five-more-
+  uncurated-discriminants` (the CUR3 test — is it a discriminant a
+  caller branches on — applied to each of the five, `ImportContact`
+  judged as a reach defect instead), and the bench pattern job
+  (`bench-flat-pack-star-is-now-a-pattern-job`, a Python row that
+  MEASURES whether a plural payload answers the mates and the A5 gate
+  the same way). The next full-protocol candidate is the teapot
+  conversion (`teapot-scene-through-node-shell`: render lane, tess-
+  budget rows, three audit rows flip on a Python row) — it needs a spec
+  and LIB-13 slot 2 (OPUS by the block's arithmetic) before dispatch.
+  LB15's two DOCM hand-offs and the tag-projection issues
+  (`lib-per-arm-error-tags`, `pncad-py-seven-doors-lack-field-projection`,
+  `census-findings-cross-without-a-per-arm-tag`) stay queued behind
+  them: the last three are one design question about per-arm
+  projection and go to Ev as one `[ev]` PR when the wave clears.
+
+**LIB-B-NOTATION MERGED (2026-09-08, #2189; mechanical under the 08-29
+ruling, no A/B row). Census family B-NOTATION CLOSED — a parameter
+authored in millimetres remembers the millimetres.** Measured first,
+with the bytes: at the merge base `DocParam.length(25 * mm)` saved
+`"display_unit": "m"`, the canonical row, because a Python `Length`
+wraps the arithmetic type and erases at the multiply — and it cannot
+be taught the unit, since `quantity::written` deliberately defines no
+arithmetic on an authored value (no notation for the sum of a
+millimetre and an inch). So the notation crosses as the SECOND type,
+the pair the census's two rows always named: `WrittenLength` /
+`WrittenAngle` bound at their own spelling (`in_unit` multiplies and
+remembers, `canonical_in` records a notation for a value already
+computed, `length`/`angle`/`meters`/`radians`/`unit`, equality on both
+halves, no arithmetic), `DocParam.written_length` / `written_angle`
+(total — a mis-dimensioned written value is UNREPRESENTABLE at the
+type, so the row is a ty fixture, and the persist walk's `display_unit`
+refusal is pinned as the one reachable from Python), and
+`DocParam.unit` answering the symbol (`""` for the dimensionless row,
+`None` for a Count). Both roster rows leave under rule 1; the charter
+leaves `FAMILIES`. The unit's real yield is the third census lesson:
+this was the first family whose roster was honest about its own
+entries, and closing it still required two doors the roster could not
+see — `Doc.params`, a METHOD of a rule-1 type (Python had NO door
+answering a parameter back, so the memory would have been observable
+only by parsing saved JSON), and `LengthUnit.__eq__`/`__hash__` (with
+`AngleUnit`'s), a MISSING DUNDER invisible to both rosters because
+`test_stubs.py` checks only stub-declared operators (`mm == mm` held by
+identity alone). Not taken, argued: `Expr::written_length` needs no
+door because `Doc.parse_expr("25 mm")` already records the notation and
+`Expr.text` reads it back; `DocParamValue` gets no written door because
+the notation rides with the declaration (pinned both ways). 30 rows
+reading the saved bytes wherever the claim is about what a document
+records. Filed: `node-slot-literals-erase-the-authored-notation` (52
+node-slot literal sites in 18 doors record the canonical row — the same
+erasure one vocabulary over, and the typed doors disagree with the text
+door about one authoring). The lane ran the pinned ruff for real.
+Orchestrator merged main (SAVEFORK, overlapping `pncad.pyi` and the
+legal fixture — additive hunks, clean merge) and landed on the re-run.

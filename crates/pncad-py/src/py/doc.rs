@@ -560,6 +560,26 @@ impl Doc {
         self.inner.order().iter().copied().map(NodeId).collect()
     }
 
+    /// **The document's named parameters**, by name (`Doc::params`).
+    ///
+    /// The read side of `DocEdit.set_doc_param`, and the only door
+    /// that answers a whole parameter back: `Doc.eval` answers a
+    /// parameter reference's NUMBER, with the dimension and the
+    /// authored notation both erased, so a consumer showing a
+    /// parameter — or checking that one it wrote is still written the
+    /// way it wrote it — had nowhere to look.
+    ///
+    /// A snapshot, not a view: the map is built here and mutating it
+    /// changes no document.
+    #[getter]
+    fn params<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for (name, param) in self.inner.params() {
+            out.set_item(ParamName(name.clone()), DocParam(param.clone()))?;
+        }
+        Ok(out)
+    }
+
     /// The document's tolerance.
     #[getter]
     fn epsilon(&self) -> f64 {
@@ -738,6 +758,59 @@ const fn _binds_every_kernel_operation(kernel: d::BooleanOp) -> BooleanOp {
         d::BooleanOp::Union => BooleanOp::Union,
         d::BooleanOp::Intersect => BooleanOp::Intersect,
         d::BooleanOp::Subtract => BooleanOp::Subtract,
+    }
+}
+
+/// **Which body of a multi-body value a `Node.part` selects**: the
+/// named half of a split, or one instance of a pattern by index.
+///
+/// One class for the two because the node is one sentence — "this
+/// body, out of those" — and the VALUE decides which arm is
+/// well-typed: a half against a split, an index against a pattern's
+/// instances. Any other pairing refuses typed at `evaluate`
+/// (`wrong_operand`), never here, because which value a node id
+/// carries is not known until the document runs.
+///
+/// The shape is `PatternKind`'s: a frozen value class of static
+/// constructors, one per kernel arm, spelled in snake case.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PartSelect(pub(crate) d::PartSelect);
+
+#[pymethods]
+impl PartSelect {
+    /// The named half of a `Node.split` value.
+    ///
+    /// `Above` is the material on the tool plane's normal side and
+    /// `Below` the other — the same two words `SegPat.side` takes, and
+    /// the same output-body order `Value.split`'s tuple is in. A half
+    /// the cut left with no material refuses at `evaluate`
+    /// (`empty_half`), which is a statement about the geometry rather
+    /// than about the selection.
+    #[staticmethod]
+    fn split_half(half: super::select::SplitHalf) -> Self {
+        Self(d::PartSelect::SplitHalf(half.to_kernel()))
+    }
+
+    /// The `index`-th instance of a `Node.pattern` value, counting
+    /// from zero.
+    ///
+    /// `index` crosses as a plain `int`, the structural-slot exception
+    /// to the typed-quantity rule that `Node.placed_union`'s `count`
+    /// and `Node.loft`'s `v_degree` already ride: a Count is an
+    /// integer in the kernel's own expression language, not a
+    /// measurement. It is the node's `Instance` STRUCTURAL slot, so
+    /// `DocEdit.bind_instance_param` can replace this literal with a
+    /// document parameter afterwards.
+    ///
+    /// The admitted indices are `0 .. count`. A negative index and one
+    /// past the end refuse the same way at `evaluate`
+    /// (`instance_out_of_range`, carrying the index and the count):
+    /// neither is wrapped nor clamped, because either would hand back
+    /// a body the author did not name.
+    #[staticmethod]
+    fn instance(index: i64) -> Self {
+        Self(d::PartSelect::Instance(d::Expr::count(index)))
     }
 }
 
@@ -1608,6 +1681,80 @@ impl Node {
         Ok(Self { inner: node })
     }
 
+    /// **The pattern**: one prototype, `count` placements stepped by
+    /// `kind`, N BODIES OUT — the replicated family with nothing
+    /// fused.
+    ///
+    /// The value is PLURAL (`Value.kind == "instances"`,
+    /// `Value.bodies` the whole list), and that is the difference from
+    /// `Node.placed_union`, which is the same rule vocabulary over the
+    /// same prototype fused into ONE body. A plural value is refused
+    /// at every single-body operand seat — a boolean, a transform, a
+    /// fillet — so the node a pattern's instance reaches those doors
+    /// through is `Node.part`, which projects one body back out of the
+    /// list. Reach for `placed_union` when the family IS the shape,
+    /// and for `pattern` + `part` when one copy of it is.
+    ///
+    /// `count` crosses as a plain `int`, the structural-slot exception
+    /// `placed_union` already rides, and it is the node's `Count` slot
+    /// — `DocEdit.bind_count_param` is what makes it a named,
+    /// editable number. A count below one refuses at `evaluate`
+    /// (`non_positive_count`).
+    ///
+    /// An `explicit` rule refuses typed at `Doc.insert`
+    /// (`EditError`, `placement_rule_mismatch`): it carries its own
+    /// placements, so pairing it with a count is two answers to one
+    /// question. A pattern has no `placed_union_at` twin — a listed
+    /// family whose members stay separate has no user yet, and the
+    /// door that would say it can be added when one appears.
+    ///
+    /// Per-instance naming is the `Instance(i)` qualifier, ONE segment
+    /// deep whatever the count, so a selector spelled against the
+    /// prototype resolves against every copy.
+    #[staticmethod]
+    fn pattern(input: &NodeId, count: i64, kind: &super::place::PatternKind) -> Self {
+        Self {
+            inner: d::Node::Pattern {
+                input: input.0,
+                count: d::Expr::count(count),
+                kind: kind.0.clone(),
+            },
+        }
+    }
+
+    /// **The projection**: ONE body out of a multi-body value — "the
+    /// upper half of that split", "instance 3 of that pattern".
+    ///
+    /// A projection, not an operation. The selected body is the half's
+    /// or the instance's OWN, and the node's name table is the input's
+    /// restricted to that body with every name verbatim, so a selector
+    /// already spelled against that half or that instance resolves
+    /// here unchanged and a `Value.mass_properties` read matches the
+    /// side read straight off `Value.split` / `Value.bodies`.
+    ///
+    /// `of` is the split or pattern node whose value is read, and
+    /// `select` says which body (`PartSelect.split_half` /
+    /// `PartSelect.instance`). This is a NODE rather than a selector
+    /// argument on every consumer: one meaning, one node, and every
+    /// downstream door keeps the operand shape it has.
+    ///
+    /// Refuses typed at `evaluate`, never here — which body a node id
+    /// carries is not known until the document runs: `wrong_operand`
+    /// when the selector and the value disagree in kind (a half asked
+    /// of a pattern, an index asked of a split, either asked of a
+    /// plain body), `empty_half` when the cut left that side with no
+    /// material, and `instance_out_of_range` for an index outside
+    /// `0 .. count`.
+    #[staticmethod]
+    fn part(of: &NodeId, select: &PartSelect) -> Self {
+        Self {
+            inner: d::Node::Part {
+                of: of.0,
+                select: select.0.clone(),
+            },
+        }
+    }
+
     /// **The group boolean** over a PARAMETRIC rule: one prototype,
     /// `count` placements stepped by `kind`, ONE body out — the union
     /// of the prototype at each placement.
@@ -1848,6 +1995,27 @@ impl DocParam {
         ))
     }
 
+    /// A continuous Length parameter that REMEMBERS the notation it
+    /// was authored in — `25 mm` stays `mm` in the document and in
+    /// the file, where `length` records the canonical metre row.
+    ///
+    /// Total: a `WrittenLength` holds a length unit, so there is no
+    /// dimension for the notation to disagree with and no refusal
+    /// here. The mismatch the save/load validator watches for
+    /// (`PersistError` `display_unit`) is unreachable through this
+    /// door, which is the reason to author through it.
+    #[staticmethod]
+    fn written_length(value: &super::quantity::WrittenLength) -> Self {
+        Self(d::DocParam::written_length(value.0))
+    }
+
+    /// A continuous Angle parameter that remembers its notation —
+    /// [`Self::written_length`]'s mirror, total for its reason.
+    #[staticmethod]
+    fn written_angle(value: &super::quantity::WrittenAngle) -> Self {
+        Self(d::DocParam::written_angle(value.0))
+    }
+
     /// A continuous dimensionless parameter.
     #[staticmethod]
     fn scalar(value: f64) -> Self {
@@ -1858,6 +2026,24 @@ impl DocParam {
     #[staticmethod]
     fn count(value: i64) -> Self {
         Self(d::DocParam::Count { value })
+    }
+
+    /// The notation this parameter was authored in, as the unit's own
+    /// SYMBOL — `"mm"`, `"deg"`, `"m"`.
+    ///
+    /// A symbol rather than a unit object because the display unit a
+    /// parameter carries is a one-byte code into the table
+    /// (`UnitSym`), and a notation reaches Python as its symbol; a
+    /// `Scalar` parameter names the dimensionless row, whose symbol is
+    /// empty and reads as the absence it is. `None` is the different
+    /// answer: a `Count` carries no notation at all, because a count
+    /// is an integer and has none to carry.
+    #[getter]
+    fn unit(&self) -> Option<&'static str> {
+        match &self.0 {
+            d::DocParam::Continuous { display_unit, .. } => Some(display_unit.def().symbol()),
+            d::DocParam::Count { .. } => None,
+        }
     }
 
     /// Rust's `PartialEq`, mirrored — which is IEEE comparison of the
@@ -2022,10 +2208,10 @@ impl DocParamValue {
 /// A single edit to a document — the ONE API surface shared by the
 /// GUI, the bindings, macro recording and headless tests.
 ///
-/// Five edits are exposed today: `insert_node`, `delete_node`,
-/// `set_tolerance`, `set_doc_param` and
-/// `bind_count_param`, the structural-slot edit narrowed to the Count
-/// slot and a parameter reference. The remaining variants (continuous
+/// The exposed edits are `insert_node`, `delete_node`,
+/// `set_tolerance`, `set_doc_param`, and `bind_count_param` /
+/// `bind_instance_param`, the structural-slot edit narrowed to one
+/// named slot and a parameter reference. The remaining variants (continuous
 /// slot edits, re-witnessing, appearance, rebinds, expression paths)
 /// are mechanical additions once the surface they need is curated —
 /// each waits on an expression vocabulary, which is the reason the
@@ -2120,20 +2306,55 @@ impl DocEdit {
     ///
     /// The underlying edit replaces a slot's EXPRESSION, and its two
     /// remaining degrees of freedom are the slot and the expression
-    /// tree. Both stay closed here: the slot is `Count` — the only
-    /// structural slot there is — and the expression is a parameter
+    /// tree. Both stay closed here: the slot is named by the door
+    /// rather than passed to it, and the expression is a parameter
     /// reference at `Count` dimension, so no expression algebra
     /// crosses and there is no way to aim this edit at a continuous
     /// slot (the refusal the general door would need). What DOES stay
     /// live is every refusal the edit itself carries: a node with no
     /// count slot, an unknown parameter, a parameter of the wrong
     /// dimension — each arrives as its own typed `EditError`.
+    ///
+    /// A door per slot, not a `slot=` argument: the structural slots
+    /// are the Count-dimensioned ones and there is more than one of
+    /// them (`Instance` is the other with a door —
+    /// [`DocEdit::bind_instance_param`]), so a shared door would cross
+    /// the slot vocabulary as an enum, which is exactly what the
+    /// bindings decline to do.
     #[staticmethod]
     fn bind_count_param(node: &NodeId, name: &ParamName) -> Self {
         Self {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::Count,
+                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+            },
+        }
+    }
+
+    /// Bind `node`'s STRUCTURAL instance slot to the document
+    /// parameter `name` — the edit that makes a `Node.part`'s index
+    /// into a pattern a named, editable number.
+    ///
+    /// `bind_count_param`'s sibling, and the same narrow shape for the
+    /// same reason: which body a projection selects is STRUCTURE, not
+    /// a continuous quantity, so the index is Count-dimensioned and
+    /// edited only through a structural edit. Its own door rather than
+    /// a reuse of the count one because a panel that spelled an index
+    /// "count" would be lying about it — the kernel keeps
+    /// `SlotId::Instance` separate from `SlotId::Count` for that
+    /// reason, and this pair of doors is that distinction crossing.
+    ///
+    /// Refuses typed on a node with no instance slot — every node but
+    /// a `Node.part` selecting an instance, a Part selecting a split
+    /// half included — and on an unknown or wrongly dimensioned
+    /// parameter.
+    #[staticmethod]
+    fn bind_instance_param(node: &NodeId, name: &ParamName) -> Self {
+        Self {
+            inner: d::DocEdit::SetStructuralParam {
+                node: node.0,
+                slot: d::SlotId::Instance,
                 expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
             },
         }
@@ -2373,6 +2594,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;
     m.add_class::<BooleanOp>()?;
+    m.add_class::<PartSelect>()?;
     m.add_class::<TubeWindow>()?;
     m.add_class::<Loaded>()?;
     m.add_function(wrap_pyfunction!(load, m)?)?;

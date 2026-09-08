@@ -39,6 +39,7 @@ from pncad import (
     Node,
     Open,
     ParamName,
+    PartSelect,
     PatternKind,
     PlaneRelation,
     Radius,
@@ -959,7 +960,8 @@ class TestTheSketchPlaneVocabulary(unittest.TestCase):
 
 def loop_of(points):
     """A closed polygonal loop through `points`, in metres — the
-    PATHS spelling of `demos/tour/src/paths.rs::path_polygon`."""
+    Python spelling of the Rust façade's `authoring::polygon` door,
+    said one leg at a time because the lattice is what Python binds."""
     chain = Open.at((points[0][0] * m, points[0][1] * m))
     for x, y in points[1:]:
         chain = chain.line_to((x * m, y * m))
@@ -2859,6 +2861,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # No audit row moves with it — the audit asks a SCENE question
         # and no tour stop sketches on a face — so the door's positive
         # form is `tests/test_face_frame.py`.
+        #
+        # `part` and `pattern` JOINED it at LIB-B-PART, which closed
+        # B-PART, and `bind_instance_param` with them — the Part's
+        # index is a STRUCTURAL slot of its own, so it gets a door of
+        # its own beside the count's. `pattern` is the one of the
+        # three that moves an audit row's prose: it was absent because
+        # a plural payload fed nothing, and `part` is what it feeds.
+        # The positive form is `tests/test_part_select.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
@@ -2866,7 +2876,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "datum_axis_in_plane", "datum_face_frame",
                 "datum_plane", "declare",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
-                "loft", "mate", "placed_union", "placed_union_at",
+                "loft", "mate", "part", "pattern",
+                "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
                 "split", "transform", "tube",
             ],
@@ -2874,7 +2885,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
-                "bind_count_param", "delete_node", "insert_node",
+                "bind_count_param", "bind_instance_param", "delete_node",
+                "insert_node",
                 "set_doc_param", "set_doc_param_value", "set_placement",
                 "set_roots", "set_tolerance", "update_reference",
             ],
@@ -3027,9 +3039,19 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `sweep` STAYS: `wire_sweep` refuses unconditionally
         # (SWEEP_FRONTIER, the path-composition lane banked past M6).
         # `tube` LEFT this list at LIB-TUBE — see the paragraph two
-        # below. `pattern` stays for the measured reason below — and note what is NOT in this list:
-        # `placed_union`/`placed_union_at` left it when LIB-PYPU bound
-        # the group boolean, whose value is an ordinary body.
+        # below. `pattern` LEFT it at LIB-B-PART, and note what is
+        # also NOT in this list: `placed_union`/`placed_union_at` left
+        # it when LIB-PYPU bound the group boolean, whose value is an
+        # ordinary body.
+        #
+        # What let `pattern` go was its CONSUMER. The reason it was
+        # here — a plural `instances` payload that no downstream door
+        # takes — was true of the whole surface until `Node.part`
+        # bound, and a Part projects one body back out of a plural
+        # value, which every single-body seat then consumes. So the
+        # measurement below stands unchanged (a boolean still refuses
+        # a plural payload) and the absence it used to justify does
+        # not.
         #
         # `chamfer` LEFT this list at LIB-G16: `Node::Chamfer` is a
         # recipe node now (schema v16), so `Node.chamfer` binds it —
@@ -3059,7 +3081,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # name below it is what a caller would look for and must not
         # find.
         for node_kind in [
-            "sweep", "pattern",
+            "sweep",
             "shell_open",
         ]:
             with self.subTest(node=node_kind):
@@ -3232,21 +3254,23 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(loop.vertex_count, 4)
 
     def test_a_plural_payload_cannot_feed_a_boolean(self):
-        """Why `Node.pattern` stays unbound, measured rather than
-        assumed — and what was built INSTEAD.
+        """The operand rule, measured rather than assumed — and the
+        two nodes that live on either side of it.
 
         A boolean's operand door refuses a plural payload: a split's
-        two halves refuse below, and a `Pattern` node's `Instances`
-        would refuse for the same reason. Binding the pattern node
-        therefore still flips no row, so `Node.pattern` stays absent.
+        two halves refuse below, and a `Node.pattern`'s `instances`
+        refuse for the same reason. That was the argument for leaving
+        `Node.pattern` unbound, and it stopped being one when
+        `Node.part` bound (LIB-B-PART): a Part PROJECTS one body out
+        of a plural value, so the pattern's family reaches every
+        single-body seat one copy at a time.
 
-        What closes the replication half of G8 is a node whose value
-        is SINGULAR: `PlacedUnion` fuses its placements and answers an
-        ordinary `body`, which every downstream door consumes with no
-        new arms. The contrast is the assertion below — same document,
-        one payload a boolean cannot take and one it can."""
-        self.assertFalse(hasattr(Node, "pattern"))
-
+        What closes the replication half of G8 is still the node whose
+        value is SINGULAR: `PlacedUnion` fuses its placements and
+        answers an ordinary `body`, which every downstream door
+        consumes with no new arms. The three assertions below are that
+        whole shape — the group a boolean takes, the pattern it
+        refuses, and the Part of that pattern it takes."""
         doc = Doc()
         grouped = doc.insert(
             Node.placed_union_at(
@@ -3267,6 +3291,29 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(fused)
         self.assertEqual(caught.exception.kind, "wrong_operand")
+
+        # The pattern refuses at the same seat for the same reason...
+        family = doc.insert(
+            Node.pattern(box, 3, PatternKind.linear((1.0, 0.0, 0.0), 4 * m))
+        )
+        self.assertEqual(evaluate(doc).value(family).kind, "instances")
+        plural = doc.insert(Node.boolean(BooleanOp.Union, family, other))
+        with self.assertRaises(EvaluationError) as plural_caught:
+            evaluate(doc).value(plural)
+        self.assertEqual(plural_caught.exception.kind, "wrong_operand")
+
+        # ...and a Part of it does not: one instance, one body, one
+        # ordinary operand. The middle copy stands at x in [4, 5], and
+        # the box it fuses with runs INTO it — a real union, and one
+        # with no flush wall to declare.
+        copy = doc.insert(Node.part(family, PartSelect.instance(1)))
+        self.assertEqual(evaluate(doc).value(copy).kind, "body")
+        joined = doc.insert(
+            Node.boolean(
+                BooleanOp.Union, copy, slab(doc, (4.5, 5.5), (0.25, 0.75), (0.25, 0.75))
+            )
+        )
+        self.assertTrue(evaluate(doc).succeeded(joined))
 
     def test_the_plane_argument_is_a_sketch_plane_not_a_name(self):
         """G3 is closed, but the door takes the VALUE, not a string:

@@ -105,6 +105,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::NonpositiveFilletRadius => "nonpositive_fillet_radius",
         PathErrorKind::NonpositiveCircleRadius => "nonpositive_circle_radius",
         PathErrorKind::CircleSplitCount => "circle_split_count",
+        PathErrorKind::PolygonTooFewVertices => "polygon_too_few_vertices",
         PathErrorKind::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
         PathErrorKind::ArcContinueOffCarrier => "arc_continue_off_carrier",
         PathErrorKind::ZeroDirection => "zero_direction",
@@ -566,6 +567,8 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
         WorkspaceError::Pin { .. } => "pin",
         WorkspaceError::PinMismatch { .. } => "pin_mismatch",
         WorkspaceError::Save { .. } => "save",
+        WorkspaceError::SaveWouldDuplicateId { .. } => "save_would_duplicate_id",
+        WorkspaceError::SaveTargetNotInStore { .. } => "save_target_not_in_store",
         WorkspaceError::RandomnessUnavailable { .. } => "randomness_unavailable",
         WorkspaceError::Update { .. } => "update",
     }

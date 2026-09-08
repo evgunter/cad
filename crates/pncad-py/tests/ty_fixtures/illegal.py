@@ -15,6 +15,7 @@ from pncad import (
     CurveKind,
     Doc,
     DocEdit,
+    DocParam,
     DocRef,
     EntityKind,
     Frame,
@@ -25,11 +26,14 @@ from pncad import (
     NodePick,
     Ray,
     Open,
+    ParamName,
+    PartSelect,
     PatternKind,
     SegPat,
     SegTag,
     Selector,
     SketchPlane,
+    SplitHalf,
     Start,
     SurfaceKind,
     TubeWindow,
@@ -51,6 +55,8 @@ from pncad import (
     evaluate,
     m,
     mm,
+    WrittenAngle,
+    WrittenLength,
     product,
     solve_document,
     split,
@@ -210,6 +216,29 @@ Node.placed_union(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  #
 
 # The narrowed count edit takes a ParamName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
+
+# LIB-B-PART. A HALF IS NOT AN INSTANCE, and this is the pair of lines
+# that says so: the two arms of one selector take different types, and
+# neither accepts the other's, so the confusion the kernel refuses at
+# evaluation is refused here at authoring.
+PartSelect.instance(SplitHalf.Above)  # ty: error
+PartSelect.split_half(0)  # ty: error
+
+# The selector is a VALUE with its own type: a bare half is not one,
+# any more than a `Frame` is a `PatternKind`.
+Node.part(solid, SplitHalf.Below)  # ty: error
+
+# An index is an integer — the structural-slot exception — never a
+# dimensioned quantity, and the pattern's count is the same rule.
+PartSelect.instance(2 * m)  # ty: error
+Node.pattern(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  # ty: error
+
+# The instance edit is `bind_count_param`'s sibling, not its keyword
+# argument: the slot is named by the door, so there is no `slot=` to
+# pass. (`name` is whatever a caller has in hand; the keyword is the
+# error, and the second argument is deliberately not.)
+name: ParamName = ParamName("which")
+DocEdit.bind_count_param(solid, name, slot="instance")  # ty: error
 
 # A reference is (identity, pin) in that order and neither is the
 # other's type: an id is the canonical hex TEXT, a pin is a value.
@@ -469,3 +498,20 @@ verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: err
 # inserted node, and the word that comes back is not the node.
 doc.node_kind(Node.extrude(solid, 1 * m))  # ty: error
 which: Node = doc.node_kind(solid)  # ty: error
+
+# THE MIS-DIMENSIONED WRITTEN VALUE IS UNREPRESENTABLE, not refused.
+# A `WrittenLength` holds a LENGTH unit, so "a length written in
+# degrees" is not a value the type can hold and no door has to refuse
+# one — the illegal state is excluded one layer out, at the table.
+WrittenLength.in_unit(25.0, deg)  # ty: error
+WrittenAngle.in_unit(90.0, mm)  # ty: error
+DocParam.written_length(WrittenAngle.in_unit(90.0, deg))  # ty: error
+
+# The authored pair has NO arithmetic: there is no answer to what
+# notation the sum of a millimetre and an inch is written in. Compute
+# on the `Length` inside instead.
+WrittenLength.in_unit(25.0, mm) + WrittenLength.in_unit(1.0, mm)  # ty: error
+
+# `canonical_in` takes the QUANTITY, not bare canonical metres — the
+# crossing rule this whole boundary follows.
+WrittenLength.canonical_in(0.025, mm)  # ty: error

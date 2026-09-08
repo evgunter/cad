@@ -67,9 +67,11 @@ a value with no exact spelling in the unit asked for falls back to
 metres or radians, so read the suffix off the text.
 
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: sweep, and the pattern node
-(`placed_union` says a placed family whose value is one body; the
-plural-payload node stays unbound).
+`docs/guide/north-star-audit.md`: sweep. The pattern node LEFT that
+list at LIB-B-PART, with the consumer that gives its plural value a
+downstream door: `Node.pattern` says the unfused family and
+`Node.part` projects one body back out of it, where `placed_union`
+says the same family fused into one.
 """
 
 from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
@@ -576,7 +578,8 @@ class IdentityError(PncadError):
 
     `variant` is the workspace refusal's own tag:
     `randomness_unavailable`, `io`, `duplicate_id`, `header`,
-    `unknown_id`, `load`, `pin`, `pin_mismatch`, `save` or `update`.
+    `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
+    `save_would_duplicate_id`, `save_target_not_in_store` or `update`.
     Only `randomness_unavailable` is reachable through this door today
     — minting an identity has one failure mode, the OS entropy source
     refusing — but the tag names the refusal that actually occurred, so
@@ -591,6 +594,7 @@ class WorkspaceError(PncadError):
 
     `variant` is the refusing arm's stable tag: `io`, `duplicate_id`,
     `header`, `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
+    `save_would_duplicate_id`, `save_target_not_in_store`,
     `randomness_unavailable` or `update`.
 
     The arm's payload rides as attributes, every one present on every
@@ -598,8 +602,16 @@ class WorkspaceError(PncadError):
     handling reads `err.wanted` without first branching on
     `variant`. `path` is the file or directory the door touched;
     `id` the document identity at issue; `first`/`second` the two
-    files of a `duplicate_id`; `wanted`/`found` the two pins of a
-    `pin_mismatch`.
+    files of a `duplicate_id` — and of a `save_would_duplicate_id`,
+    which is the same pair, the file that already claims the id and
+    the file the refused save would have written; `wanted`/`found` the
+    two pins of a `pin_mismatch`.
+
+    `save_would_duplicate_id` is the SAVE door's refusal and
+    `duplicate_id` the SCAN's, because the recourse differs: a scan's
+    duplicate is two files that already exist and is fixed by deleting
+    one, while a save's is a write that has not happened and is fixed
+    by choosing an act — resave in place, or `save_as_new_document`.
 
     `pin_mismatch` is the arm the store exists to make loud: a
     `DocRef` names a VERSION, so a document edited since it was
@@ -676,6 +688,8 @@ class LengthUnit:
     def factor(self) -> float: ...
     def __mul__(self, value: float) -> Length: ...
     def __rmul__(self, value: float) -> Length: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class AngleUnit:
     @property
@@ -684,6 +698,69 @@ class AngleUnit:
     def factor(self) -> float: ...
     def __mul__(self, value: float) -> Angle: ...
     def __rmul__(self, value: float) -> Angle: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class WrittenLength:
+    """A length as it was AUTHORED: canonical metres plus the notation
+    it was written in.
+
+    `Length` erases — `25 * mm` is metres and the `mm` is gone at the
+    multiply — which is what the kernel below wants and what makes its
+    arithmetic closed. This is the record of what was TYPED, so a
+    document reads back the way it was written; `DocParam.written_length`
+    is the door it opens.
+
+    No arithmetic, deliberately: there is no answer to what notation
+    the sum of a millimetre and an inch is written in. Compute on the
+    `Length` inside and author the result with `canonical_in`.
+
+    Equality compares BOTH halves, so the same magnitude authored in
+    two units is two authorings."""
+
+    @staticmethod
+    def in_unit(value: float, unit: LengthUnit) -> WrittenLength:
+        """`value` written in `unit` — `25 * mm` that remembers the
+        `mm`. The multiply happens here."""
+
+    @staticmethod
+    def canonical_in(value: Length, unit: LengthUnit) -> WrittenLength:
+        """An ALREADY-canonical length that records `unit` as its
+        notation — the door for a value arrived at by computing."""
+    @property
+    def length(self) -> Length:
+        """The canonical value: the erasure door."""
+    @property
+    def meters(self) -> float: ...
+    @property
+    def unit(self) -> LengthUnit:
+        """The notation this was authored in."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class WrittenAngle:
+    """An angle as it was AUTHORED — `WrittenLength`'s mirror,
+    canonical radians plus its notation. Everything that class says
+    holds here."""
+
+    @staticmethod
+    def in_unit(value: float, unit: AngleUnit) -> WrittenAngle:
+        """`value` written in `unit` — `90 * deg` that remembers the
+        `deg`."""
+
+    @staticmethod
+    def canonical_in(value: Angle, unit: AngleUnit) -> WrittenAngle:
+        """An already-canonical angle that records `unit`."""
+    @property
+    def angle(self) -> Angle:
+        """The canonical value: the erasure door."""
+    @property
+    def radians(self) -> float: ...
+    @property
+    def unit(self) -> AngleUnit:
+        """The notation this was authored in."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 mm: Final[LengthUnit]
 cm: Final[LengthUnit]
@@ -1186,6 +1263,31 @@ class PatternKind:
         what a name's instance segment carries. An empty list raises
         EditError (`empty_placement_list`) at insert."""
 
+class PartSelect:
+    """Which body of a multi-body value a `Node.part` selects: the
+    named half of a split, or one instance of a pattern by index.
+
+    One class for the two because the node is one sentence — "this
+    body, out of those" — and the VALUE decides which arm is
+    well-typed. Any other pairing refuses at `evaluate`
+    (`wrong_operand`), never at construction.
+    """
+
+    @staticmethod
+    def split_half(half: SplitHalf) -> PartSelect:
+        """The named half of a `Node.split` value. A half the cut left
+        with no material refuses at `evaluate` (`empty_half`)."""
+
+    @staticmethod
+    def instance(index: int) -> PartSelect:
+        """The `index`-th instance of a `Node.pattern` value, from
+        zero. A plain `int` — the structural-slot exception
+        `Node.placed_union`'s `count` already rides — and the node's
+        `Instance` slot, which `DocEdit.bind_instance_param` binds to a
+        parameter. Outside `0 .. count`, including a negative, refuses
+        at `evaluate` (`instance_out_of_range`); nothing wraps or
+        clamps."""
+
 class Node:
     """A recipe node, before insertion."""
 
@@ -1374,6 +1476,36 @@ class Node:
         raises EditError (`no_findings`)."""
 
     @staticmethod
+    def pattern(input: NodeId, count: int, kind: PatternKind) -> Node:
+        """One prototype, `count` placements stepped by `kind`, N
+        BODIES OUT — the replicated family with nothing fused.
+
+        The value is PLURAL (`Value.kind == "instances"`,
+        `Value.bodies` the whole list), which is the difference from
+        `placed_union`: same rule vocabulary, same prototype, one body
+        out. A plural value is refused at every single-body operand
+        seat, so the node that reaches those doors with one copy is
+        `Node.part`.
+
+        `count` is a plain `int` and is the node's `Count` slot
+        (`DocEdit.bind_count_param`). Below one refuses at `evaluate`
+        (`non_positive_count`); an `explicit` rule refuses at
+        `Doc.insert` (`placement_rule_mismatch`), since it carries its
+        own placements."""
+
+    @staticmethod
+    def part(of: NodeId, select: PartSelect) -> Node:
+        """ONE body out of a multi-body value — a split's half or a
+        pattern's instance.
+
+        A projection, not an operation: the body is the half's or the
+        instance's own and the names pass through verbatim, so a
+        selector spelled against that half resolves here unchanged.
+        Refuses at `evaluate`: `wrong_operand` when the selector and
+        the value disagree in kind, `empty_half`,
+        `instance_out_of_range`."""
+
+    @staticmethod
     def placed_union(input: NodeId, count: int, kind: PatternKind) -> Node:
         """The group boolean over a PARAMETRIC rule: one prototype,
         `count` placements stepped by `kind`, ONE body out.
@@ -1519,9 +1651,25 @@ class DocParam:
     @staticmethod
     def angle(value: Angle) -> DocParam: ...
     @staticmethod
+    def written_length(value: WrittenLength) -> DocParam:
+        """A Length parameter that REMEMBERS its notation — `25 mm`
+        stays `mm` in the document and in the file, where `length`
+        records the canonical metre row."""
+
+    @staticmethod
+    def written_angle(value: WrittenAngle) -> DocParam:
+        """An Angle parameter that remembers its notation."""
+
+    @staticmethod
     def scalar(value: float) -> DocParam: ...
     @staticmethod
     def count(value: int) -> DocParam: ...
+    @property
+    def unit(self) -> Optional[str]:
+        """The notation this was authored in, as the unit's own symbol
+        — `"mm"`, `"deg"`, `"m"`. A Scalar names the dimensionless row,
+        whose symbol is empty; a Count answers None, having no notation
+        to carry."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -1617,11 +1765,24 @@ class DocEdit:
         parameter `name`, so one `set_doc_param` re-counts the
         placements and recomputes exactly what is downstream.
 
-        Deliberately narrow: the slot is the count and the expression
-        is a parameter reference, so no expression algebra crosses and
-        the edit cannot be aimed at a continuous slot. The edit's own
-        refusals stay live — a node with no count slot, an unknown
-        parameter, a parameter of the wrong dimension."""
+        Deliberately narrow: the slot is named by the door and the
+        expression is a parameter reference, so no expression algebra
+        crosses and the edit cannot be aimed at a continuous slot. The
+        edit's own refusals stay live — a node with no count slot, an
+        unknown parameter, a parameter of the wrong dimension."""
+
+    @staticmethod
+    def bind_instance_param(node: NodeId, name: ParamName) -> DocEdit:
+        """Bind `node`'s STRUCTURAL instance slot to the document
+        parameter `name` — a `Node.part`'s index into a pattern as a
+        named, editable number.
+
+        `bind_count_param`'s sibling, and a separate door rather than a
+        `slot=` argument because an index is not a count: the kernel
+        keeps the two slots apart, and this pair is that distinction
+        crossing. Refuses on a node with no instance slot — every node
+        but a Part selecting an instance — and on an unknown or wrongly
+        dimensioned parameter."""
 
 class Doc:
     """A parametric document: the recipe, not the geometry."""
@@ -1734,6 +1895,14 @@ class Doc:
     @property
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
+    @property
+    def params(self) -> dict[ParamName, DocParam]:
+        """The document's named parameters, by name.
+
+        The read side of `DocEdit.set_doc_param`, and the only door
+        that answers a whole parameter back: `Doc.eval` answers a
+        parameter reference's number with the dimension and the
+        authored notation both erased. A snapshot, not a view."""
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...
@@ -1857,8 +2026,10 @@ class Workspace:
     """A directory of `*.pncad` save files, scanned into an
     identity -> path map.
 
-    The write side is deliberately minimal — `create` and `resave`,
-    and no general mutation API."""
+    The write side is deliberately minimal: `create` and `resave` for
+    the refactorings, `save_at` and `save_as_new_document` for the two
+    acts a save is (ASSEMBLY-DESIGN A4), and no general mutation
+    API."""
 
     def __init__(self, path: str) -> None:
         """Scan `path`, reading each `*.pncad` file's `id:` header
@@ -1906,6 +2077,56 @@ class Workspace:
         content is not, so references by id stay valid and references
         by PIN go stale — which is the point. Raises WorkspaceError,
         typed."""
+
+    def save_at(self, doc: Doc, target: str) -> str:
+        """Save `doc` at `target`, a save file of this store, and
+        answer its path — the ordinary "save at path", the FIRST of
+        the two acts a save is (ASSEMBLY-DESIGN A4).
+
+        THE IDENTITY IS KEPT. A save says which VERSION of a part is
+        on disk, never which part it is, so saving a copy beside the
+        original refuses (`save_would_duplicate_id`, with `first` the
+        file that already claims the id and `second` the file this
+        save would have written) and nothing is written. Without that
+        refusal the directory would hold two files claiming one
+        identity, and every later scan of it would refuse for every
+        document in it. To write the content as a SECOND part, use
+        `save_as_new_document`.
+
+        Otherwise the scan says which act this is: at the id's own
+        scanned path it is a resave; for an unclaimed id it is a
+        create at the caller's name, which `create` cannot spell
+        because it forces `{id}.pncad`.
+
+        `target` names a file in THIS store: a bare file name, or a
+        path whose parent is `root`, with the `.pncad` extension.
+        Anything else refuses (`save_target_not_in_store`) — a
+        different root is a different store, and copying a document
+        between stores is not this door.
+
+        Raises WorkspaceError, typed."""
+
+    def save_as_new_document(self, doc: Doc) -> tuple[str, str]:
+        """Save `doc` AS A NEW DOCUMENT — the same content under a
+        fresh random identity, at `{newid}.pncad` — and answer
+        `(new id, path)`. The SECOND of the two acts a save is
+        (ASSEMBLY-DESIGN A4): an explicit fork.
+
+        THE ORIGINAL IS UNTOUCHED, so every inbound `DocRef` pinning
+        the old id still resolves to it. That is what a fork means,
+        and it is why this act is spelled apart from `save_at` rather
+        than being what a save at a second path silently does.
+
+        The fork's CONTENT PIN equals the original's: the pin's
+        preimage is `canonical_bytes`, the document's serde form with
+        the `id` key removed, so the same content under a fresh
+        identity is detectably the same version. The two save FILES
+        differ, in the `id:` header line and the snapshot's own id.
+
+        `doc` is not modified: its identity is the caller's value and
+        the fresh one is answered here.
+
+        Raises WorkspaceError, typed."""
 
     def update_to_store(self, doc: Doc, id: str) -> list[DocEdit]:
         """The edits that move every reference to `id` onto the
@@ -2720,7 +2941,16 @@ class CancelToken:
         differ exactly when a run finished before the flag was set."""
 
 class Evaluation:
-    """The per-node result DAG."""
+    """The per-node result DAG.
+
+    An evaluation is the (document, evaluation) PAIR captured at
+    `evaluate`, and it is immutable. The document's product is a pure
+    function of that pair, so it is gathered ONCE per evaluation and
+    shared by every door that wants one — `run_checks`, `assemble`,
+    `product`, `product_named`. Asking several questions of one
+    evaluation costs one gather; asking them of a fresh `evaluate`
+    each time costs one apiece.
+    """
 
     def value(self, node: NodeId) -> Value: ...
     def succeeded(self, node: NodeId) -> bool: ...

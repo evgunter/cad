@@ -21,8 +21,9 @@ or out of a document.
 Everything below runs. The Python blocks are executed by
 `crates/pncad-py/tests/test_guide.py`; the doors' own suites are
 `crates/pncad-py/tests/test_workspace.py`,
-`test_assembly_eval.py` and `test_assembly_author.py`, and the same
-scene in Rust is `demos/tour/src/assembly.rs`.
+`test_assembly_eval.py` and `test_assembly_author.py` (which build
+one scene, `crates/pncad-py/tests/bench_scene.py`), and the same scene
+in Rust is `demos/tour/src/assembly.rs`.
 
 The scene is the tour's bench: two square posts, one shelf resting on
 them. Two part documents, and two assemblies built from those — a
@@ -47,8 +48,12 @@ recorded edit.
 
 A **`Workspace`** is where the documents live: a directory of
 `*.pncad` files, scanned by each file's `id:` header line and never
-its body. Its write side is deliberately two doors — `create` and
-`resave` — and there is no general mutation API.
+its body. Its write side is deliberately small — `create` and
+`resave` for the refactorings, and `save_at` and
+`save_as_new_document` for the two acts a save is — and there is no
+general mutation API. A save at a path KEEPS the document's identity
+and refuses typed rather than letting a copy claim it a second time;
+saving it as a NEW document mints a fresh id, an explicit fork.
 
 ```python
 import tempfile

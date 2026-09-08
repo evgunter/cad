@@ -648,6 +648,15 @@ BOUND_AS = {
     "intersect_with": "Node.boolean",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
+    # The façade's lattice-backed loop door and the document layer's
+    # node constructor answer the same question — a closed outline from
+    # a coordinate table — one rung apart, which is the mapping rule's
+    # ordinary case (`extrude` -> `Node.extrude`). Python has no
+    # loops-in-hand seat to spell the Rust door at: `Node.polygon`
+    # names a frame and mints a node, and the refusals it can raise are
+    # the same PATHS refusals, tagged (`polygon_too_few_vertices`,
+    # `junction_tangent`).
+    "polygon": "Node.polygon",
     "revolve": "Node.revolve",
     "save": "Doc.save",
     "select": "Evaluation.select",
@@ -726,15 +735,6 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES = {
-    "B-NOTATION": (
-        "authored notation, the D6 boundary's other half; closing it "
-        "binds `WrittenLength` / `WrittenAngle` onto the `DocParam` and "
-        "expression constructors, so a Python caller who writes "
-        "`25 * mm` gets a parameter that REMEMBERS the millimetres — "
-        "today the unit erases at the `Length` door and the document "
-        "records the canonical row, which is what Rust authoring "
-        "stopped doing at schema v20"
-    ),
     "B-DISTRIBUTIONS": (
         "parameter uncertainty and the analysis lane (ERROR-DESIGN "
         "E1/E2); closing it binds `Distribution`'s four forms onto a "
@@ -774,15 +774,6 @@ FAMILIES = {
         "caller cannot yet do is WRITE one — the same asymmetry "
         "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
         "edge, because no existing write door silently drops a measure"
-    ),
-    "B-PART": (
-        "the projection node's Python surface (DOCM-2, "
-        "DOCM-REFERENCES-DESIGN DM3); closing it binds `Node.part` (a "
-        "`PartSelect` constructor pair: a split's half by `SplitHalf`, "
-        "a pattern's instance by a Count expression) and the "
-        "`SlotId.Instance` structural slot it carries. Today Python can "
-        "evaluate and read a document that carries a Part — its value "
-        "is a plain body — and cannot author one"
     ),
 }
 
@@ -1139,6 +1130,87 @@ FAMILIES = {
 #: origin is the pose's, its normal is `sense * axis`, its +x is
 #: `u_ref` turned by the spin about that normal, and the face whose
 #: kind reads `Torus` is the face the frame refuses.
+#: **B-PART is CLOSED and no longer a `gap` id here**
+#: (LIB-B-PART), and it is B-FACE-FRAME's lesson arriving twice more,
+#: once at each level this file cannot see into. It cited ONE name —
+#: `PartSelect`, which is now spelled identically in `pncad.pyi` and
+#: so leaves this roster entirely under rule 1 — and its charter named
+#: THREE things.
+#:
+#: `Node.part` is an ARM of a curated enum. `Node` is curated and the
+#: stub declares a top-level `Node`, so rule 1 accounts it WHOLE, and
+#: which of its two dozen arms Python spells as a constructor is
+#: invisible here. That is the same blind spot as `Pose.sense` one
+#: level over: a FIELD there, a VARIANT here, and the census compares
+#: NAMES, whose insides are nobody's roster.
+#:
+#: `SlotId.Instance` is a field of a `different-shape` row, and the
+#: shape argument is what hid it: "`SlotId` is what
+#: `DocEdit.bind_count_param` names implicitly" is true and remains
+#: true, and it means a slot with NO door is unreportable. `Instance`
+#: had none — `bind_count_param` hardcodes `SlotId::Count`, and its
+#: own prose claimed that was "the only structural slot there is",
+#: which four Count-dimensioned slots contradict. Closing the family
+#: added `DocEdit.bind_instance_param` beside it, one door per slot,
+#: keeping the shape decision rather than crossing the enum.
+#:
+#: The third thing is not a name at all, and is the measurement worth
+#: keeping here: closing this family REQUIRED binding a door the
+#: charter never mentioned. `PartSelect.instance` selects out of a
+#: plural `Instances` payload, exactly one node emits one
+#: (`Node::Pattern`), and that node was deliberately unbound because
+#: no downstream door consumed its value. `Node.part` IS that door, so
+#: binding the selector without the source would have shipped an
+#: unreachable half and an unconstructible refusal tag. Nothing in
+#: this file could have reported that: both names are arms behind
+#: `Node`. What found it was reading the kernel for the family's
+#: INPUTS, and that is a step this census cannot prompt.
+#:
+#: What closing it bound: `Node.part(of, select)`,
+#: `PartSelect.split_half` / `PartSelect.instance`, `Node.pattern`,
+#: and `DocEdit.bind_instance_param`. The positive form is
+#: `tests/test_part_select.py`.
+#: **B-NOTATION is CLOSED and no longer a `gap` id here**
+#: (LIB-B-NOTATION), and it is the first family whose roster was
+#: HONEST about its own entries: it cited two names, `WrittenLength`
+#: and `WrittenAngle`, the family needed exactly those two bound, and
+#: both now leave the roster under rule 1. What it could not see was
+#: everything ELSE closing them required, which is B-FACE-FRAME's
+#: lesson arriving on a family that had no accounting error at all.
+#:
+#: The measurement first, because the charter's claim was executed
+#: rather than repeated: `DocParam.length(25 * mm)` saved
+#: `"display_unit": "m"`. The `mm` erases at the `Length` door,
+#: because a Python `Length` wraps `quantity::Length` and is canonical
+#: metres and nothing else — and it CANNOT be taught the unit, since
+#: it carries the arithmetic `quantity::written` refuses to define a
+#: notation for. So the notation crosses as the second type, which is
+#: what these two entries always named.
+#:
+#: `Doc.params` is a METHOD of a curated type. `Doc` is curated and
+#: the stub declares a top-level `Doc`, so rule 1 accounts it WHOLE —
+#: and Python had NO door that answered a document parameter back, not
+#: the map and not one by name. `Doc.eval` answers a parameter
+#: reference's number with the dimension and the notation both erased,
+#: so a document could remember `mm` and no caller could ask. Binding
+#: the authoring half alone would have shipped a memory nothing could
+#: read except by saving to text and parsing the JSON by hand.
+#:
+#: `LengthUnit.__eq__` is a MISSING DUNDER, one level further in than
+#: a method and invisible to BOTH rosters here: `test_stubs.py` checks
+#: stub-declared operators against the compiled class, so an operator
+#: neither side declares is unreportable. The unit classes carried no
+#: comparison at all, so `mm == mm` was true only by identity, and a
+#: unit read back off a value compared unequal to the constant it was
+#: written in. A read door for a notation is unusable without it.
+#:
+#: What closing it bound: `WrittenLength` / `WrittenAngle`,
+#: `DocParam.written_length` / `written_angle`, `DocParam.unit`,
+#: `Doc.params`, and equality and hashing on `LengthUnit` /
+#: `AngleUnit`. `Expr::written_length` needed nothing:
+#: `Doc.parse_expr("25 mm")` already reaches `literal_with_unit` and
+#: `Expr.text` reads the notation back. The positive form is
+#: `tests/test_notation.py`.
 #: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
 #: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
 #: `EvalError` — and closing it moved NINE, because the three could
@@ -1657,25 +1729,31 @@ NOT_BOUND = {
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
     "validated": INTERIOR,
-    # **The gathered-product doors, one family.** `Product` is the
-    # document's product with everything the gather knows about it,
-    # `product_recorded` is the gather that builds one, `Subject` is
-    # what the check registry runs over, and `run_checks_on` /
-    # `assemble_gathered` are the two doors that take a product a
-    # caller already holds. Python binds the WRAPPERS of both —
-    # `run_checks` and `assemble` — and each gathers for itself, so
-    # there is nothing here a Python caller cannot ASK: every question
-    # these five answer is answered by a door already bound, and
-    # `product` / `product_named` are the curated gathers for a caller
-    # who wants the body or the table.
+    # **The gathered-product doors, one family, and they are what the
+    # binding CALLS.** `Product` is the document's product with
+    # everything the gather knows about it, `product_recorded` is the
+    # gather that builds one, `Subject` is what the check registry runs
+    # over, and `run_checks_on` / `assemble_gathered` are the two doors
+    # that take a product a caller already holds.
     #
-    # What Python cannot do through them is ask both questions on ONE
-    # gather, which is a COST rather than an unsayable question — and
-    # it is a cost with a Rust-side reason: `assemble_gathered`
-    # CONSUMES the product, so sharing one is an ownership order, and
-    # an ownership order is exactly what does not cross this boundary.
-    # `resolve_loops` above is the same disposition for the same
-    # reason.
+    # A Python `Evaluation` is the immutable (document, evaluation)
+    # pair captured at `evaluate`, and a product is a pure function of
+    # that pair and the run's tolerance — so the evaluation gathers
+    # ONCE and memoizes, and every bound door that wants a product
+    # (`run_checks`, `assemble`, `product`, `product_named`) reads that
+    # one gather through exactly these five names
+    # (`crates/pncad-py/src/product_memo.rs`). They are `INTERIOR`
+    # because the memo removes the question a Python caller would have
+    # held a `Product` to ask: there is nothing to hand between doors,
+    # so there is nothing to name.
+    #
+    # That is what changed. The cost this entry used to record — both
+    # questions on one evaluation gathering twice — is gone, and so is
+    # the reason it stood: `assemble_gathered` CONSUMES its product, so
+    # the memo hands it a COPY and keeps the original, measured at
+    # about a fiftieth of the gather it saves at the heat sink's
+    # 160-fin point. An ownership order still does not cross this
+    # boundary; nothing has to cross it any more.
     "Product": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
@@ -1684,6 +1762,15 @@ NOT_BOUND = {
     # The gather's debug-only witness: how many products this thread
     # has gathered, for a consumer asserting it gathers once per
     # operation. Not a question about a document at all.
+    #
+    # The binding is now such a consumer — one gather per evaluation,
+    # whatever a caller asks — and it asserts it on this counter, from
+    # RUST: `crate::tests::product_memo_rows` drives the very functions
+    # the four doors call, on the default build path where every
+    # code-tier run executes them. Binding a read for the python suite
+    # instead would put a profile-dependent number on the public
+    # surface (the counter leaves with the `debug-assertions` stanza at
+    # publish), for a question no user of the library has.
     #
     # `cfg(debug_assertions)` gates the counter, the increment and this
     # reader alike — which is NOT the same as "absent from a release
@@ -1728,12 +1815,22 @@ NOT_BOUND = {
     # paragraph in this constant's docstring says why, because that
     # gap between a three-door charter and a one-row roster is the
     # measurement worth keeping.
-    # --- gap: the projection node's selector (census-owned) --
-    # The Rust node is DOCM-2's; its Python twin, `Node.part`, is
-    # LIB's and the family charters it.
-    "PartSelect": f"{GAP}: B-PART the projection node's surface",
-    "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
-    "WrittenLength": f"{GAP}: B-NOTATION authored notation",
+    # B-PART IS GONE FROM THIS ROSTER, closed at LIB-B-PART, and the
+    # id left `FAMILIES` with it. It cited exactly ONE name here —
+    # `PartSelect` — which now leaves the roster ENTIRELY rather than
+    # moving to `BOUND_AS`: `pncad.pyi` declares a top-level
+    # `PartSelect` with the same two arms, so rule 1 accounts it, the
+    # way it accounts the sibling selector vocabulary `PatternKind`.
+    # The closure paragraph in this constant's docstring says what the
+    # family's other two charter names were, and why neither was ever
+    # a row.
+    # B-NOTATION IS GONE FROM THIS ROSTER, closed at LIB-B-NOTATION,
+    # and the id left `FAMILIES` with it. It cited TWO names here —
+    # `WrittenLength` and `WrittenAngle` — and both leave the roster
+    # ENTIRELY rather than moving to `BOUND_AS`: `pncad.pyi` declares
+    # both at the same spelling, so rule 1 accounts them. The closure
+    # paragraph in this constant's docstring records what a roster
+    # honest about its own two entries still could not see.
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six

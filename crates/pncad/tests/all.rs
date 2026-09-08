@@ -718,6 +718,97 @@ fn the_f64_seam_is_exact() {
     assert_eq!((q.x, q.y), (7.25, -0.0));
 }
 
+/// The lattice-backed polygon door: what it accepts, what it refuses,
+/// and that what it emits is the raw vertex table.
+///
+/// The refusals are the point of the door. A coordinate table minted
+/// straight into a loop carries no junction, so a corner that is
+/// tangent (or cusped) within the band is discovered a tier later, at
+/// `validate`. Here it is discovered at the corner.
+#[test]
+fn the_polygon_door_authors_through_the_lattice() {
+    let tol = Tol::witness();
+
+    let square: ProfileLoop<f64> =
+        polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)], tol).expect("a square authors");
+    assert_eq!(square.vertices().len(), 4);
+
+    let triangle: ProfileLoop<f64> =
+        polygon(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], tol).expect("a triangle authors");
+    assert_eq!(triangle.vertices().len(), 3);
+
+    // Three corners is the floor, and the arm says which count it
+    // refused — every sub-three table takes the same door.
+    for table in [&[(0.0, 0.0), (1.0, 0.0)][..], &[(0.0, 0.0)][..], &[][..]] {
+        let given = table.len();
+        match polygon::<f64>(table, tol) {
+            Err(PathError::PolygonTooFewVertices { given: n }) => assert_eq!(n, given),
+            other => panic!("{given} vertices must refuse as PolygonTooFewVertices: {other:?}"),
+        }
+    }
+
+    // Three collinear points: the corner at (1, 0) departs along its
+    // own incoming tangent, which the lattice classifies AT THE
+    // CORNER. A raw vertex table would have accepted this and left it
+    // for validate.
+    match polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)], tol) {
+        Err(PathError::JunctionTangent { .. }) => {}
+        other => panic!("a collinear corner must refuse as JunctionTangent: {other:?}"),
+    }
+}
+
+/// **The identity claim**: the door changes how a polygon is SAID, not
+/// what it is. The emitted loop is the raw vertex table — every
+/// authored point in order, every bulge zero, no declared joints.
+///
+/// The claim is pinned against the table rather than against a call to
+/// the raw minting door, because that door is unreachable from here by
+/// construction: `RawLoop` is off the façade's presented surface
+/// (`no_raw_loop_minting_door_is_nameable_through_the_facade`) and this
+/// file may name no crate but `pncad` (the guard at the bottom). What
+/// is asserted is what `RawLoop::polygon` mints for the same points —
+/// its whole contract — read back through the façade's own readers.
+#[test]
+fn the_polygon_door_emits_the_raw_vertex_table() {
+    let tol = Tol::witness();
+    let table = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.5, 4.0), (0.0, 3.0)];
+    let loop_: ProfileLoop<f64> = polygon(&table, tol).expect("the outline authors");
+
+    let want: Vec<ProfileVertex<f64>> = table
+        .iter()
+        .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+        .collect();
+    let got = loop_.vertices();
+    assert_eq!(got.len(), want.len(), "one vertex per authored point");
+    for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+        assert_eq!((g.pos().x, g.pos().y), (w.pos().x, w.pos().y), "vertex {i}");
+        assert_eq!(g.bulge(), w.bulge(), "vertex {i} bulge");
+    }
+    assert!(
+        loop_.tangent_joints().is_empty(),
+        "a polygon declares no tangent joint"
+    );
+
+    // And the same loop the hand-spelled chain emits: the door IS that
+    // chain, not a second lowering of the same table.
+    let chain: ProfileLoop<f64> = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), tol)
+        .and_then(|t| t.line_to(p2(2.0, 3.0), tol))
+        .and_then(|t| t.line_to(p2(0.5, 4.0), tol))
+        .and_then(|t| t.line_to(p2(0.0, 3.0), tol))
+        .and_then(|t| t.line_to(Start, tol))
+        .expect("the hand-spelled chain authors")
+        .into();
+    let hand = chain.vertices();
+    assert_eq!(hand.len(), got.len());
+    for (i, (g, h)) in got.iter().zip(hand).enumerate() {
+        assert_eq!((g.pos().x, g.pos().y), (h.pos().x, h.pos().y), "vertex {i}");
+        assert_eq!(g.bulge(), h.bulge(), "vertex {i} bulge");
+    }
+    assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
+}
+
 /// The validation ladder as the corpus actually walks it.
 ///
 /// Tiers 1 and 2 run on every body. Tier 3 and tier 3′ are
@@ -2231,6 +2322,206 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
         }
         other => panic!("the raw snapshot's pin must refuse PinMismatch, got {other:?}"),
     }
+}
+
+// ---- A4: a save is two acts (the save door and the fork) ----
+
+/// The store directory's `*.pncad` file names, sorted — what a
+/// refusal must leave untouched.
+fn ws_listing(dir: &WsDir) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(&dir.0)
+        .expect("the scratch dir reads")
+        .map(|entry| {
+            entry
+                .expect("the entry reads")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// A4's FIRST act: saving a document at a path keeps its identity, so
+/// "save a copy beside the original" refuses typed at the save door.
+/// Nothing is written — and the store still opens, which is the whole
+/// point: a second file claiming the id would make every later scan
+/// refuse for every document in the directory.
+#[test]
+fn workspace_save_at_refuses_a_second_file_for_one_identity() {
+    let dir = WsDir::new("save-dup");
+    let (doc, text) = ws_doc("ws-save-dup");
+    let original = dir.write("a.pncad", &text);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+
+    match ws.save_at(&doc, "b.pncad", Tol::witness()) {
+        Err(pncad::workspace::WorkspaceError::SaveWouldDuplicateId {
+            id,
+            existing,
+            requested,
+        }) => {
+            assert_eq!(id, doc.id());
+            assert_eq!(existing, original);
+            assert_eq!(requested, dir.0.join("b.pncad"));
+        }
+        other => {
+            panic!("a save beside the original must refuse SaveWouldDuplicateId, got {other:?}")
+        }
+    }
+
+    // BEFORE the file exists: the directory is what it was.
+    assert_eq!(ws_listing(&dir), vec!["a.pncad".to_string()]);
+    assert_eq!(ws.documents().len(), 1);
+    // And a later open still scans clean — the store is not bricked.
+    let reopened = pncad::workspace::Workspace::open(&dir.0).expect("the store still opens");
+    assert_eq!(reopened.documents().get(&doc.id()), Some(&original));
+}
+
+/// A save at the id's OWN scanned path is a resave: the file keeps its
+/// name, the identity does not move and the content does.
+#[test]
+fn workspace_save_at_the_scanned_path_is_a_resave() {
+    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    let dir = WsDir::new("save-resave");
+    let (doc, text) = ws_doc("ws-save-resave");
+    let original = dir.write("part.pncad", &text);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let before = pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes");
+
+    let edited = pncad::document::apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("depth"),
+            value: DocParam::continuous(Dimension::Length, 0.9),
+        },
+        Tol::witness(),
+    )
+    .expect("the edit applies")
+    .doc;
+    assert_eq!(edited.id(), doc.id(), "an edit never moves the identity");
+
+    let written = ws
+        .save_at(&edited, "part.pncad", Tol::witness())
+        .expect("a save at the scanned path is a resave");
+    assert_eq!(written, original);
+    assert_eq!(ws_listing(&dir), vec!["part.pncad".to_string()]);
+    assert_eq!(ws.documents().len(), 1);
+
+    let after = ws
+        .current_pin(doc.id(), Tol::witness())
+        .expect("the store pins its current content");
+    assert_ne!(after, before, "the content moved, so the pin did");
+    assert_eq!(
+        after,
+        pncad::document::content_pin(&edited, Tol::witness()).expect("the pin computes")
+    );
+}
+
+/// An UNCLAIMED id saved at a chosen file name is a create at that
+/// name — the door the refactorings' `create` cannot spell, since it
+/// forces `{id}.pncad`. A target that is not a save file of THIS store
+/// refuses instead, before anything is written.
+#[test]
+fn workspace_save_at_creates_an_unclaimed_id_under_the_chosen_name() {
+    let dir = WsDir::new("save-create");
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("an empty store scans clean");
+    let (doc, _) = ws_doc("ws-save-create");
+
+    let path = ws
+        .save_at(&doc, "chosen-name.pncad", Tol::witness())
+        .expect("an unclaimed id creates at the caller's name");
+    assert_eq!(path, dir.0.join("chosen-name.pncad"));
+    assert_eq!(ws.documents().get(&doc.id()), Some(&path));
+    // A fresh scan agrees, at the caller's name and not `{id}.pncad`.
+    let scanned = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    assert_eq!(scanned.documents(), ws.documents());
+
+    // The root written out is the same target as the bare name.
+    assert_eq!(
+        ws.save_at(&doc, dir.0.join("chosen-name.pncad"), Tol::witness())
+            .expect("the same file, spelled with its directory"),
+        path
+    );
+
+    // A target that is not a `*.pncad` file directly in this root is
+    // refused: a different root is a different store.
+    for target in [
+        std::path::PathBuf::from("notes.txt"),
+        std::path::PathBuf::from("sub/chosen-name.pncad"),
+        dir.0.join("sub").join("chosen-name.pncad"),
+    ] {
+        match ws.save_at(&doc, &target, Tol::witness()) {
+            Err(pncad::workspace::WorkspaceError::SaveTargetNotInStore { path }) => {
+                assert_eq!(path, target);
+            }
+            other => panic!(
+                "`{}` is not a store save target, got {other:?}",
+                target.display()
+            ),
+        }
+    }
+    assert_eq!(ws_listing(&dir), vec!["chosen-name.pncad".to_string()]);
+}
+
+/// A4's SECOND act: saving AS A NEW DOCUMENT mints a fresh id — an
+/// explicit fork. The original is untouched and every inbound `DocRef`
+/// pinning the old id still resolves to it; the new id resolves to the
+/// fork; both files coexist in one scan. The fork's CONTENT PIN equals
+/// the original's, because the pin's preimage excludes the id.
+#[test]
+fn workspace_save_as_new_document_mints_a_fresh_identity() {
+    let dir = WsDir::new("fork");
+    let (doc, text) = ws_doc("ws-fork");
+    let original = dir.write("original.pncad", &text);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let pin = pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes");
+    let inbound = pncad::document::DocRef { id: doc.id(), pin };
+
+    let (new_id, new_path) = ws
+        .save_as_new_document(&doc, Tol::witness())
+        .expect("the fork writes");
+    assert_ne!(new_id, doc.id(), "a fork is a new part");
+    assert_eq!(new_path, dir.0.join(format!("{new_id}.pncad")));
+
+    // The original is untouched, so the inbound reference still names
+    // it — which is what a fork MEANS.
+    assert_eq!(ws.documents().get(&doc.id()), Some(&original));
+    assert!(
+        ws.resolve(&inbound, Tol::witness())
+            .expect("the old reference still resolves")
+            .bit_eq(&doc)
+    );
+
+    // The new id resolves to the fork, under the SAME pin: identity is
+    // not content (the canonical bytes are the serde form with `id`
+    // removed), so the fork is detectably the same version.
+    assert_eq!(
+        ws.current_pin(new_id, Tol::witness())
+            .expect("the fork pins"),
+        pin,
+        "the fork's content pin is the original's"
+    );
+    let forked = ws
+        .resolve(&pncad::document::DocRef { id: new_id, pin }, Tol::witness())
+        .expect("the new id resolves to the fork");
+    assert_eq!(forked.id(), new_id);
+    assert!(
+        !forked.bit_eq(&doc) && forked.under_identity(doc.id()).bit_eq(&doc),
+        "the fork differs from the original in its identity and nothing else"
+    );
+    // The two save FILES differ, in the `id:` header and the
+    // snapshot's own id.
+    assert_ne!(
+        std::fs::read_to_string(&original).expect("the original reads"),
+        std::fs::read_to_string(&new_path).expect("the fork reads")
+    );
+
+    // Both files coexist in one scan, and the store grew by one.
+    assert_eq!(ws.documents().len(), 2);
+    let scanned = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    assert_eq!(scanned.documents(), ws.documents());
+    assert_eq!(ws_listing(&dir).len(), 2);
 }
 
 // ---- ASM-2A: instantiate-part, end to end through a real workspace ----
@@ -4064,24 +4355,27 @@ fn every_facade_layer_is_whole_re_exported_or_per_name_guarded() {
 /// **The crate doc's claim about the authoring seams, guarded.**
 ///
 /// The claim is that every [`pncad::authoring`] seam is a single
-/// kernel constructor call except `validated`, which is the two-call
-/// form. Its predecessor was a COUNT ("six of the seven"), and the
-/// count went stale the moment the `polygon` door was removed —
-/// nothing was watching, so the sentence outlived the surface it
-/// described by two units.
+/// kernel constructor call except two — `validated`, the
+/// `Profile::new` + `Profile::validate` pair, and `polygon`, the
+/// PATHS-lattice chain a coordinate table lowers to.
 ///
-/// This watches the failure mode that actually happened: the roster
-/// moving under a sentence about it. Adding or removing a seam fails
-/// here, and so does a second seam chaining a follow-up kernel call
-/// onto its constructor. The chain is matched as `.validate(` and not
-/// as `).validate(`, because the receiver and the call it chains onto
-/// need not share a line: a chain rustfmt wrapped is the same hit.
+/// The failure mode this watches is the roster moving under a
+/// sentence about it: a prose COUNT is checked only when someone
+/// happens to look, so the roster is asserted by name here instead.
+/// Adding or removing a seam fails here, and so does a second seam
+/// chaining a `Profile::validate` onto its constructor. That chain is
+/// matched as `.validate(` and not as `).validate(`, because the
+/// receiver and the call it chains onto need not share a line: a
+/// chain rustfmt wrapped is the same hit.
 ///
 /// **Not guarded, stated:** "a single kernel constructor call" is
 /// about a body's SHAPE, and counting calls in source text is the
 /// kind of scan that reports its own parser rather than the code. The
-/// roster plus the chain check is what a text scan can honestly
-/// assert; the rest is the per-function rustdoc and its doctests.
+/// chain check reads ONE shape, `validated`'s; `polygon`'s multi-call
+/// shape is a lattice chain this scan does not look for, and what
+/// holds it to its documented behaviour is its own doctest and the
+/// door tests above. The roster plus the chain check is what a text
+/// scan can honestly assert; the rest is the per-function rustdoc.
 #[test]
 fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
     let code = code_without_comments(include_str!("../src/authoring.rs"));
@@ -4110,16 +4404,16 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
     seams.sort_unstable();
     assert_eq!(
         seams,
-        ["p2", "p3", "real", "v2", "v3", "validated"],
+        ["p2", "p3", "polygon", "real", "v2", "v3", "validated"],
         "the authoring seam roster moved — re-read the crate doc's \
          sentence about it before changing this list"
     );
     assert_eq!(
         chaining,
         ["validated"],
-        "`validated` is documented as the ONE two-call seam; another \
-         seam now chains a follow-up kernel call, so the crate doc's \
-         claim needs re-wording"
+        "`validated` is documented as the seam that chains \
+         `Profile::validate` onto its constructor; another seam now \
+         does too, so the crate doc's claim needs re-wording"
     );
 }
 

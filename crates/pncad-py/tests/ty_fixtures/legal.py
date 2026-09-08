@@ -10,6 +10,7 @@ from pncad import (
     Advisory,
     Alignment,
     Angle,
+    AngleUnit,
     ArcSweep,
     Assembly,
     AxisSense,
@@ -30,6 +31,7 @@ from pncad import (
     ClassAdmission,
     ClusterMaintenance,
     Datum,
+    DocParam,
     Denotation,
     HitTestError,
     Expr,
@@ -46,6 +48,7 @@ from pncad import (
     Frame,
     GeomPred,
     Length,
+    LengthUnit,
     Body,
     Mesh,
     MateFault,
@@ -61,6 +64,7 @@ from pncad import (
     Resolution,
     PinMultiplicity,
     ParamName,
+    PartSelect,
     PatternKind,
     SolvedPoses,
     SplitOutcome,
@@ -73,6 +77,7 @@ from pncad import (
     Selector,
     Severity,
     SketchPlane,
+    SplitHalf,
     Start,
     SurfaceKind,
     Workspace,
@@ -92,6 +97,8 @@ from pncad import (
     m,
     mixed_pins,
     mm,
+    WrittenAngle,
+    WrittenLength,
     pi_rad,
     product,
     product_named,
@@ -365,6 +372,21 @@ fin_group: NodeId = doc.insert(Node.placed_union(plate, 5, stepped))
 listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
 count_bound: DocEdit = DocEdit.bind_count_param(fin_group, ParamName("fins"))
 
+# LIB-B-PART: the same rule vocabulary over an UNFUSED family, and the
+# projection that takes one body back out of it. The selector is one
+# type with two constructors, and each takes what its arm holds — a
+# `SplitHalf` for the half, a plain `int` for the index (the
+# structural-slot exception `placed_union`'s count already rides).
+family: NodeId = doc.insert(Node.pattern(plate, 5, stepped))
+by_index: PartSelect = PartSelect.instance(2)
+one_copy: NodeId = doc.insert(Node.part(family, by_index))
+cut: NodeId = doc.insert(Node.split(plate, spin_axis))
+by_half: PartSelect = PartSelect.split_half(SplitHalf.Above)
+upper_half: NodeId = doc.insert(Node.part(cut, by_half))
+# The index is a STRUCTURAL slot of its own, so it has a door of its
+# own beside the count's.
+index_bound: DocEdit = DocEdit.bind_instance_param(one_copy, ParamName("which"))
+
 # LIB-G15: the workspace store. Identity crosses as the canonical hex
 # text, the pin as a value, and a reference as the pair of them.
 pin: ContentPin = content_pin(doc)
@@ -382,6 +404,8 @@ store_root: str = store.root
 listing: dict[str, str] = store.documents()
 written: str = store.create(doc)
 rewritten: str = store.resave(doc)
+saved_at: str = store.save_at(doc, "part.pncad")
+forked: tuple[str, str] = store.save_as_new_document(doc)
 resolved: Doc = store.resolve(reference)
 current: ContentPin = store.current_pin(doc.id)
 held: int = len(store)
@@ -571,3 +595,19 @@ gathered.validate_pseudomanifold()
 # NODE's kind and not its value's, so it is answerable with no
 # evaluation in hand at all.
 which_kind: str = doc.node_kind(upright)
+
+# Authored notation: the value and the unit it was WRITTEN in, kept
+# together. `in_unit` multiplies (`25 * mm` that remembers the `mm`);
+# `canonical_in` takes a quantity whose arithmetic has already
+# happened and says which notation to record it in. The unit reads
+# back as the typed unit, and the parameter as its symbol.
+thickness: WrittenLength = WrittenLength.in_unit(25.0, mm)
+computed: WrittenLength = WrittenLength.canonical_in((20 * mm) + (5 * mm), mm)
+plain: Length = thickness.length
+notation: LengthUnit = thickness.unit
+turned: WrittenAngle = WrittenAngle.in_unit(90.0, deg)
+turn_notation: AngleUnit = turned.unit
+declared: DocParam = DocParam.written_length(thickness)
+spun: DocParam = DocParam.written_angle(turned)
+symbol: str | None = declared.unit
+table: dict[ParamName, DocParam] = doc.params

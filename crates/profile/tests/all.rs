@@ -136,6 +136,8 @@ mod sketch_plane;
 mod validate_ok;
 #[path = "validate_ok_probe.rs"]
 mod validate_ok_probe;
+#[path = "validated_map.rs"]
+mod validated_map;
 
 /// The aggregation and ONE HOME checks, whose one home — the walk, the
 /// three checks and the argument for each — is `test_utils::source::aggregation_violations`.

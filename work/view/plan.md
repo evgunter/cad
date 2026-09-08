@@ -129,8 +129,11 @@ should be visible on its own.
 | `view/marks` (the second split, and the rename) | #2083 | style + fix pass |
 | `view/homes` (`cursor_projection` to `camera`; `Generation::get` deleted) | #2089 | style + fix pass |
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
-| `view/censuses` (the remaining seven, in four hats) | #2103 | style — **in flight** |
-| `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** — in flight |
+| `view/censuses` (seven censuses in four hats, and an eighth) | #2103 | style + fix pass |
+| `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
+| `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass — **merged** |
+| `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass — **merged** |
+| `view/gate-bullets` (the vocab gate's kind scan, anchored) | #2172 | open |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -215,6 +218,109 @@ lane's miscount of the VIEW citations was propagated into a check-in
 before the fix pass established the real figure. A count is a claim
 like any other: it carries its enumeration rule, and it is re-derived
 rather than copied forward.
+
+**Green CI on an old head is not a merge criterion.** #2106 had
+`gate ok` green at `77505a340` and the merge was still refused: `main`
+had moved and #2103 had rewritten a neighbouring section of
+`crates/viewer/README.md`, the file that gate parses its allowlist
+from. Resolve by merging the base IN — never rebase, never
+force-push — re-run the receipts on the MERGED tree, and keep BOTH
+halves of an append-only file in merge order. `work/view/log.md`
+conflicted on both of the day's merges and will conflict on every day
+two units land.
+
+**Escalate to a correctness lane when the failure mode is a confident
+wrong answer, not when the diff is large.** #2106 was the wave's one
+non-style review, and the trigger was that a gate which silently never
+fires is indistinguishable from a gate that passes. It found the gate
+printing `OK` and exiting 0 over two planted breaches whenever its
+roster table was empty — a docs-tier edit away, and the #1953 class
+again. A style lane reads what the code says; only an adversarial one
+asks what it does when a reader dies.
+
+**Namespace what you write in the shared scratchpad.** #2143's reviewer
+generated `base.rs`, `head.rs`, `base.txt` and `head.txt` for its own
+word proof and overwrote four files of those exact names that another
+lane had left there. Nothing was lost that mattered, and the collision
+is silent by construction — a lane cannot tell whether a scratchpad
+file is its own. Dispatches carry a per-lane prefix now.
+
+**Asserted-somewhere is not asserted-here, and only a MUTATION tells
+them apart.** #2148 shipped a test file whose stated job was to hold
+seven renderings to their spellings. Its reviewer did not read the file
+and agree — it changed one rendering and ran the suite, which stayed
+green. Six were held; the seventh was asserted nowhere, because the row
+covering it pinned the field's absent arm. The counterpart to #2103's
+*rendered-and-unasserted is not unrendered*: there the compiler
+answered, here only a perturbation could, and in both cases reading the
+code would have confirmed the wrong thing.
+
+**An item's own menu of options is a claim like any other.** Both of
+2026-09-08's forks went to Ev with the tree re-read rather than the
+item summarised, and in both the re-derivation moved the question
+before he ruled: `finish-marker` offered three candidates and the tree
+held a cheaper fourth already in use one impl away; `bare-vocabularies`
+framed all-four-or-none and the readers gave two. An item is written at
+a moment and reasons from the tree of that moment; costing its options
+against the tree of today is what a fork costs, and skipping it is how
+a ruling gets made on a question nobody still has.
+
+**A count fixed in ONE place contradicts itself, which is worse than
+one uniformly stale.** #2148 re-derived `1,779` to `1,780` at
+`four-debug-walks-are-spelled-and-placed-two-ways.md:42`, wrote the
+rule that produces it beside it, and left the file's own `title:` and
+line 68 at 1,779 — so the file is now wrong by a rule it states. That
+is #2103's retitle defect re-minted five days later by a different
+lane. A citation fix is class-wide over the file or it makes the file
+worse: a uniformly stale number is at least consistent, and a reader
+who spots one instance distrusts all of them; a half-fixed one invites
+belief in whichever copy they read first.
+
+**Re-derive means find the SUBJECT, and a delta is not a subject.**
+The same PR re-pointed `crates/viewer/README.md:787-797` to `804-814`
+— `787+17` — where the true shift was +22 and the subject sits at
+`809-819`; the words the citing row quotes are at `816`, outside the
+range it now names. `citation-repoint-shifted-a-number-the-lane-knew-
+was-wrong` closed that exact defect at #2083, two days earlier. Two
+re-mints of two-day-old closures in one PR is the measure of how weakly
+a closed row holds: **a closed item is a record, not a guard**, and the
+only instrument that has caught either class is a reviewer re-deriving
+the citation by hand.
+
+**The rule a unit states is the first rule to check the unit against.**
+#2143 wrote *a universal in prose owes the sweep rule that produces its
+population* into `crates/viewer/README.md` and then stated a population
+its own rule does not produce: the sweep says every loop over a
+vocabulary's `ALL` under `src/` read for what it asks each entry for,
+and says **two** ask for the word — there are **seven**, and all seven
+do. "Two" was the count of newly converted vocabularies, a restriction
+no longer expressible once `PathVerb` and `ArcMode` joined the labelled
+five. It was also a regression: the rewrite deleted the one paragraph
+that had accounted for the other five. A reviewer who runs the stated
+rule catches this in one command; a reviewer who reads the sentence
+does not.
+
+**A base worktree needs its OWN target dir, not the lane's.** The rule
+above says export `CARGO_TARGET_DIR` everywhere; #2148's lane did, and
+exported the SAME one in the throwaway base worktree it made to measure
+against — so the base build clobbered the lane's own test binaries. It
+caught this from a backtrace naming the base path, cleaned and
+re-measured, but the near-miss is the point: two trees sharing a target
+dir is the failure the private target dir exists to prevent, and a base
+worktree is a second tree. Dispatches say *its own target dir* now.
+
+**Operational, the box's `awk` is now gawk.** #2106's fix pass
+`apt-get install`ed gawk to test a regex on two implementations, and
+Debian alternatives moved `/usr/bin/awk` from mawk to gawk. **Left in
+place deliberately**: `scripts/gates/loop-boundary-discards.sh:222-234`
+records that a backslashed metacharacter made *"the gate's own clean
+fixture fail there and pass here"* — mawk shrugged where the hosted
+runner's awk warned and died — so a lane testing a gate under mawk is
+testing an awk CI does not run. A shared-box change other lanes did not
+ask for, hence this line. The repo convention stands whichever awk is
+installed: a metacharacter is a one-member bracket expression (`[(]`,
+`[|]`), never a backslash, because a backslash must survive both bash's
+escape pass and awk's `-v` processing and does not.
 
 **Operational, lane isolation**: `CARGO_TARGET_DIR` must be exported in
 EVERY command that can reach cargo, including one that only invokes a
@@ -306,6 +412,40 @@ been failing at; it is now the wave's largest single output.
   instance of `stale-file-citations-after-the-split`'s expensive half:
   the CLAIM going stale rather than the number. Read `scripts/work.py
   status --program view` before believing any list in this file.
+
+### The two 09-07 forks, and what re-deriving them changed
+
+Both went to Ev in chat with the tree re-read rather than the item
+summarised, and in both cases **the re-derivation moved the question**
+before he ruled. That is the argument for costing a fork against the
+tree instead of against its own file.
+
+**`finish-marker-cannot-say-summarised`** listed three candidate
+spellings and called none obviously right. The tree held a fourth,
+cheaper than all three: `LandedRun` already summarises `checks` through
+`&format_args!(…)`, which reads as a summary, while every other
+summarised field uses `is_some()`, which renders `false` and reads as a
+`bool` field. So the fix is to follow the precedent already in the file
+and leave `std`'s markers alone — the marker answers *are all fields
+shown*, and the question a reader needs is *is this value the whole
+field*, which belongs at the FIELD. **Ev: "sounds good"**, 2026-09-07.
+
+**`bare-vocabularies-declare-their-words-a-second-time`** framed a
+dichotomy: either the labelled arm absorbs all four bare vocabularies
+and the README's two-shape rule is DELETED, or it does not. Tracing
+every reader gives neither. `PathVerb` (`pane/create.rs:727`) and
+`ArcMode` (`widgets.rs:300`) have a PRODUCTION loop that iterates `ALL`
+and asks each option for its word; `ToolKind` and `Seat` have no
+word-reading iteration anywhere — their `ALL` is read only by
+`crates/viewer/tests/combine_ops.rs`, which maps kinds to bools and
+never asks for a word. **So it is two of four, and the rule is
+corrected rather than deleted**: the current test asks *is there a
+single-value reader?*, which sends `PathVerb`/`ArcMode` to the bare arm
+despite a loop wanting their words. The test that sorts this tree is
+*does anything iterate the table FOR ITS WORDS?* — a rule about whether
+the words are table data rather than about how many readers exist, and
+falsifiable by grep where the old one was not. **Ev: "sure"**,
+2026-09-07.
 
 ### The three design forks, going to Ev as one PR
 

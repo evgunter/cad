@@ -2,9 +2,11 @@
 id: transform-refuses-a-patterns-instances-value
 kind: issue
 title: Node::Transform takes one body, so a transform over a pattern refuses WrongOperand although one rigid map of N instances is well-defined
-status: spec
+status: closed
 opened: 2026-09-05
 branch: eval/6-placers-over-instances
+pr: 2173
+closed: 2026-09-08
 ---
 
 
@@ -112,3 +114,17 @@ unit that executes it: `docs/EVAL-6-SPEC.md`, branch
 `eval/6-placers-over-instances`, with a correctness arm. The viewer's
 seat gate (`denotes_body`) is CHROME's and is announced to them in the
 spec; MSOLVE's two pins flip from "refuses" to "gathers".
+
+## Closed
+
+Built per `docs/EVAL-6-SPEC.md`: `placeable_operand` beside
+`body_operand`; `wire_transform` and `wire_pattern` over `Instances`
+(placement-major layout `j·M + i`, `Instance(j)` over the inner name,
+`name_pattern`'s multi-output-body refusal gone and its doc stating
+the layout); `Node::Part` over a nested value indexes the flat list;
+`ValuePayload::Instances` names its consumers and refusers. The
+MSOLVE pins `a3(b)` and `a10` assert the document gathers, `a10` with
+the walk's (j, i) resolving to flat body `j·M + i` and the copy's pose
+read off the solve. The viewer's `denotes_body` read-through is
+announced to CHROME in the PR, not edited. Residue filed:
+`node-value-kind-answers-a-transform-by-node-kind`.
