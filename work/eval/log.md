@@ -425,3 +425,14 @@ carries one `Recording` swap point and both outcomes carry the
 maintenance their edits performed. `D367` closed. The FIX seam
 (`refactor.rs`) was announced on the PR; LIB's and DOCM's follow-ups
 are filed on their slates (above).
+
+## EVAL-7 dispatched (2026-09-08)
+
+The build of ruling 2138 (`docs/EVAL-7-SPEC.md`, on main): the node's
+bracket opens at the top of `eval_node`. Correctness arm on; the
+re-baselines (certification keys, accounting goldens, the R2 pin) are
+the point, and the PR names each. Dispatched beside EVAL-6 (a
+sequencing choice: the two touch different functions of `eval/mod.rs`
+and `wire.rs`, and a slot was free); whichever merges second merges
+main first. **To PROPS ((PROPS orchestrator)) and M10 ((M10
+orchestrator)):** announced above at the ruling.
