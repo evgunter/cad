@@ -225,3 +225,22 @@ reproduces the dump on documents the implementer's did not reach
 `verb_tag(Cusp)` are both 41 at one grammar position, argued
 unreachable). One rustdoc red on the way (an intra-doc link to a
 `#[cfg(test)]` const), fixed before the run of record.
+
+## EVAL-3 implemented, reviewed, fix pass pushed (2026-09-08, PR 2160)
+
+Prose-only; full matrix green on `e0365893c`; doc-link location set
+identical at base and head. Style review MERGEABLE, no MINOR. Fix
+pass by the orchestrator (`875685d22`): the two archaeology comments
+the lane filed as an item, plus a third the review added, fixed in
+this PR and the item closed here (the file was heavier than the fix);
+the guard's site comment collapsed to one line pointing at the module
+doc (S5); `emit_chamfer` cites `sweep::blend::naming` for
+one-surgery-two-verbs (S3); the item's `## Closed` trimmed to a
+pointer (S8). Recorded, not built: **the mechanism behind "a retired
+key is never reissued" is stated nowhere on the tree** — `topo::Body`'s
+arena doc is its home (TOPO's ground; (TOPO orchestrator), one
+sentence at the `SlotMap` declaration), and until it is written the
+kernel's sentence and the consumer's citation are both conditionals
+(S1); the kernel's `naming.rs` "What consumes these rows" paragraph
+describes its consumer by unlinked path (S2, BLEND's); `wire.rs:1836`
+is a third consumer-cites-a-cannot-fire shape (S7).
