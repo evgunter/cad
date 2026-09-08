@@ -5983,6 +5983,70 @@ declaration marking that set, which is the `Derived` question one layer
 up rather than the destructuring one.
 `viewerapp-document-derived-state-has-no-boundary` carries it.
 
+## 2026-09-07, orchestrator: #2103 merged, and what its two rounds cost
+
+**#2103 is on main** (`574223e5d`), twentieth unit. Full code tier
+green before the merge: 37 jobs, `gate ok` success, 12 `test (…)`,
+5 `k-lint (gate, …)`. `#[test]` in `crates/viewer` 535 at the merge
+base and 535 at head.
+
+The unit went out as a style review because the class was settled by
+#2093 and the conversions looked mechanical. That was right about the
+CODE and wrong about what a review of it would find. **The review found
+no broken code and four broken sentences**, and both rounds since have
+been about prose:
+
+- every compiler claim survived independent re-derivation — seven
+  conversions byte-identical, `[f64; 8]` equality run against NaN,
+  `±0.0` and `±INFINITY`, the `Folded` observer set reproduced at
+  exactly seven by driving the compiler to a fixpoint, twelve rendering
+  sites by delete-and-compile;
+- two UNIVERSALS in `crates/viewer/README.md` were false. *"Every place
+  in this crate that lists a value's fields by hand destructures the
+  value instead"* missed `BlendTool::clear` — two fields named by hand,
+  in a file the PR edited, 355 lines below a census it had already
+  converted. *"Every other one is over an enum and is exhaustive by its
+  `match` already"* conflated two axes: a `match` is exhaustive over
+  VARIANTS, and `Display for CameraOp` drops `bounds` behind a `..`
+  that carried no argument at all.
+
+**The eighth census and the two `..` arms are the substance of the
+second round.** `BlendTool::clear` converts; `camera.rs:357` and
+`matetool.rs:353` do NOT — rendering either would change what the
+chrome says, and the PR's whole claim is that no rendering moved, so
+what they get is the argument for the drop rather than the field. That
+is the orchestrator's call and it is the §3 line: a behaviour change
+smuggled through a mechanical one is still a behaviour change, even
+when the mechanical one is right.
+
+**The citation sweep is the number worth carrying.** Re-deriving every
+`<file>.rs:<line>` in `work/view/`'s open items into the five files
+this PR changed corrected **25 citations across 12 items — and 20 of
+the 25 were already wrong at this PR's own merge base**, two of them by
+~80 lines. So `stale-file-citations-after-the-split` is not a residue
+of one split; it is the tracker's steady state between sweeps, and a
+sweep that only runs when a PR moves code will always find more than
+that PR moved. Three could not be repaired and are now three named
+classes on that row: a citation whose SUBJECT is gone rather than moved
+(repointing it fabricates), one into a file outside the sweeping PR's
+diff (so a diff-scoped sweep cannot converge), and a pasted TOOL
+TRANSCRIPT that is not a citation at all — which constrains any
+mechanical repointer, since one built for this row will match
+transcripts and one that edits them is worse than none.
+
+**The retitle was re-minted by the commit that made it.** The fix pass
+retitled the row from "three" to "seven", converted an eighth census,
+wrote the eighth row into the README table and the eighth section into
+the body — and left the title at seven. Corrected to eight before the
+merge. The rule it argues for is the one already on the plan: a title
+is read against its own BODY, not against the brief that cited it.
+
+**Residue, all filed rather than disclosed**:
+`viewerapp-document-derived-state-has-no-boundary` (new — the reset arm
+draws from the fields derived from the outgoing document and nothing at
+the declaration marks that set, which destructuring cannot reach), and
+the three citation classes above.
+
 ## 2026-09-07 — the const-ALL rule stops being prose
 
 `a-new-hand-written-all-table-meets-no-gate` closed on `view/all-gate`.
@@ -6084,6 +6148,71 @@ shipped green over three garbage diagnoses. Four cases now match a
 fragment containing the subject, and
 `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names` is
 the durable half — a harness affordance, not this gate's to build.
+
+## 2026-09-07, orchestrator: #2106 merged, and what a correctness lane bought
+
+**#2106 is on main** (`24be3075d`), twenty-first unit, 37 jobs — 34
+success, 3 correctly skipped, zero failures. The unit closes
+`a-new-hand-written-all-table-meets-no-gate`, the schedule #2046 owed
+under §Q6.
+
+**This is the wave's one unit that was NOT style-only, and the posture
+was right.** The trigger for escalating it was not size or risk in the
+usual sense: it was that **a gate which silently never fires is
+indistinguishable from a gate that passes**, so the failure mode is a
+confident wrong answer by construction. The correctness lane found
+three MAJORs. One of them made the gate print `OK` and exit **0** over
+two planted breaches whenever the roster table was empty — a docs-tier
+edit away, and the #1953 class exactly, one program-generation after
+this program last re-minted it.
+
+**The fix pass then improved on its own review**, which is the part
+worth keeping:
+
+- it derived a **reader-population rule** — *a reader is any command
+  reading the gate's subject whose exit status the shell DISCARDS, i.e.
+  every STAGE of every pipeline inside a process substitution*. Stages
+  rather than pipelines is precisely what the old universal got wrong,
+  and the rule found a **second** unguarded reader the review had
+  missed;
+- it got the guard SHAPE right for a reason neither the review nor this
+  orchestrator had: a brace group, not `|| reader_failed` on the
+  pipeline, because `pipefail` reports the rightmost non-zero stage —
+  so guarding the pipeline would diagnose an upstream death as the
+  classifier and re-mint the bug inside its own fix;
+- it ran **negative controls**: the self-test must FAIL when the gate
+  is broken, verified three ways. That answers the review's MINOR-8,
+  which was itself found by accident when a broken name extraction left
+  a twelve-case self-test green over three garbage diagnoses.
+
+**Verified here rather than taken on report**: the killer case rebuilt
+by hand — roster emptied, breach planted — gives **exit 1 with five
+errors**; the gate green on the real tree; 21 gates and every self-test
+`FAIL=0` on the MERGED tree; `gate-roster` 22 registered;
+`check-ci-mirror-parity OK`.
+
+**Two rulings this unit needed.** The territory fork went four paths
+wide and is settled in
+`work/issues/gate-wiring-fence-is-undrawn-for-the-parity-entry.md`: the
+`TIER_BLIND` entry in `scripts/check-ci-mirror-parity.py` is ruled the
+same "one announced line" class as CIW's workflow files, because it is
+FORCED — a TIER-blind gate in the `mirror` job with no such row reds
+parity itself, so the entry cannot be split into a follow-up by its
+owning program. And the lane's §6 report, which it had recorded as
+"None": `gate_rust_code --statements` splits a Rust array type at the
+`;` inside it, filed as
+`gate-rust-reader-splits-an-array-type-at-its-semicolon` with the
+property its eventual fix must inherit — the shared reader does not
+track `<>` either.
+
+**The merge itself is a rule.** `gate ok` was green at `77505a340` and
+the merge was still refused: `main` had moved and #2103 had rewritten a
+neighbouring section of `crates/viewer/README.md`, the file this gate
+parses its allowlist from. Resolved by merging `main` IN — never
+rebasing, never force-pushing — with `work/view/log.md`'s two halves
+both kept in merge order, which is what an append-only file needs when
+two units land on one day. Green CI on an old head is not a merge
+criterion; it is a criterion about the head it ran on.
 
 ## The summarised field says so itself, and the marker is left alone (2026-09-08)
 
@@ -6332,3 +6461,168 @@ both stated before this fix pass. No line at or above `:182` moves.
 `MATE_PRIMITIVES` is therefore at `forms.rs:482`, not `:487` as that
 entry and `hand-maintained-mirrors-of-a-kernel-enum-are-unforced` say;
 the item is re-pointed, and this line corrects the record here.
+
+## 2026-09-08, orchestrator: #2148 and #2143 merged, and the shape of the day
+
+**Both on main** — `f982823b0` (#2148, the summarised-field rendering)
+and `65929a454` (#2143, the two vocabularies and the corrected rule).
+Twenty-three units. Both green on the full code tier, 37 jobs each,
+verified from the job list rather than a summary. Both were **Ev's
+rulings, taken in chat**, and in both cases the ruling was **not** one
+of the options the item itself framed — which is the finding worth
+carrying out of the day.
+
+**Re-deriving a fork against the tree moved the question, twice.**
+`finish-marker-cannot-say-summarised` offered three candidate spellings
+and called none obviously right; the tree held a fourth, because
+`LandedRun` already summarised through `&format_args!(…)` while every
+other summarised field used `is_some()` and rendered `false`. The
+answer was to follow the precedent already in the file.
+`bare-vocabularies-declare-their-words-a-second-time` framed a
+dichotomy — the labelled arm absorbs all four bare vocabularies, or
+none — and tracing every reader gave **two**, with the rule CORRECTED
+rather than deleted. **An item's own menu of options is a claim like
+any other, and re-deriving it against the tree is what a fork costs.**
+
+**Two closures under a week old were re-minted inside one PR**, both
+found by a reviewer re-deriving citations by hand — never by a gate,
+never by a lane's receipt. A count was re-derived at one site and left
+in its file's `title:` and body (#2103's defect), and a citation was
+re-pointed by applying a DELTA rather than re-finding the subject —
+`787+17` where the hunk was `+22`, so the words the row quotes ended up
+outside the range it named (`citation-repoint-shifted-a-number-the-
+lane-knew-was-wrong`, closed at #2083 two days earlier). **A closed
+item is a record, not a guard.** The orchestrator did it too, passing
+`README:936-937` forward from a review report when the line was
+`:940-941`; #2143's lane caught that and said so.
+
+**Mutation testing earned its place.** #2148's reviewer did not read
+the new test file and conclude it held the seven renderings — it
+changed `resolver`'s elision to `<Resolver>` and ran the suite, which
+stayed **green**. Six of seven were held; the seventh was only claimed.
+The fix pass then reached that arm through a `Save` into a tempdir, and
+the same mutation now fails by name. *Asserted-somewhere is not
+asserted-here, and only a mutation tells them apart* — the counterpart
+to #2103's *rendered-and-unasserted is not unrendered*.
+
+**Residue**: `vocab-gate-counts-bullets-across-a-whole-prose-section`
+(the #2106 gate reads every `- **` between its heading and the next
+heading of any level — 131 lines of prose — so the real constraint is
+"no bulleted list in this section" and the error misdiagnoses it), and
+`work/issues/code-quality-item-quotes-a-viewer-doc-string-that-was-
+rewritten` (§6, quotation rot on another program's slate). Both filed
+by the orchestrator, neither taken here.
+
+## 2026-09-08 — the vocab gate's kind scan is anchored to a paragraph, and the item's own numbers were wrong (#2172)
+
+**The region, re-derived.** `readme_kinds` stopped at the next heading
+of ANY level, and `#### The lists that stay hand-written` is one, so the
+scan region was never the `###` section. Running the reader's own awk
+over `crates/viewer/README.md` at `d02bb0e6b` gives `:931-1079` — **149
+lines** — with the three bullets at `:1023`, `:1026`, `:1031`, all
+inside the enumeration paragraph `:1020-1033`. The residue entry above
+says "131 lines of prose" and the item said `:907-1037`; at the tree the
+item was written against the region was `:908-1021`, 114 lines, and
+`:1037` is inside the table's trailing prose — neither the end of the
+scan region nor the end of the section (`:1044`). Both endpoints and the
+count were wrong, and the item's `title:` carried the figure. **An
+orchestrator's filed number is a claim like any other**, and the lane
+that takes the item is where it gets checked; this one was told to check
+it and it did not survive.
+
+**The fix is an anchor on the announcing sentence**, which is what the
+item proposed. Two things it did not: the anchor matches a PREFIX of the
+line rather than the whole line, because a paragraph's wrap point is an
+artifact of the fill column while the four constants this gate already
+pins are headings and a table header, whole lines by construction; and
+the anchor carries the count word, so the README's prose number and
+`KIND_COUNT` now hold each other. Before this the section could say
+"Four kinds of list stay hand-written" over three bullets and nothing
+read the sentence at all.
+
+**A pass case is the receipt, and it has to fail unfixed.** The case
+this owed — a bolded bullet in the section's PROSE, expecting GREEN —
+was run against the whole-section scan restored into the file, and
+failed with the misdiagnosis the item described: *"ratifies 3 kinds …
+and this pass read 4: "A bolded bullet""*. Two more cases and three
+negative controls turn the suite red on demand. **A self-test case that
+passes before and after proves nothing**, and the way to know which one
+you wrote is to put the old code back and run it.
+
+**Two citations into this gate were stale before the branch touched
+it.** `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-
+names.md:25` names `:611-625` and "twelve `gate_selftest_case` rows";
+at `d02bb0e6b` those rows were `:930-973` and there were twenty. `work/
+issues/gate-rust-reader-splits-an-array-type-at-its-semicolon.md:65`
+names `:139-153` for a sentence that lives in the item reader's header,
+`:212-218`. Both were reported in the PR body rather than repointed from
+a unit branch, per §6. **A file that grows fast falsifies its own
+citations quietly**: neither was wrong when written, and nothing reads a
+line range to check it.
+
+## 2026-09-08 — a correction: the count hold was reachable around, and the kind reader read column 0 only (#2172, fix pass)
+
+**The entry above is falsified in one sentence and it is corrected
+here, not rewritten.** It says *"the anchor carries the count word, so
+the README's prose number and `KIND_COUNT` now hold each other."* They
+did not. The anchor holds the README against the GATE — amend the
+section to four kinds and no line starts "Three kinds of list stay
+hand-written", so the anchor reds. It did not hold the gate against
+ITSELF, and the red named the way around as a co-equal repair: *"restore
+the sentence, or change `KIND_ANCHOR` in $0 in the same diff"*. Take
+that second repair alone — `KIND_ANCHOR='Four kinds of list stay
+hand-written'`, `KIND_COUNT` left at 3 — and a section announcing Four
+across three bullets was GREEN, with `3 kinds read from "Four kinds of
+list stay hand-written"` printed on the OK line, a self-contradiction
+nothing reads. **A hold whose own diagnosis names the edit that
+defeats it is not a hold**, and the cost was one extra edit.
+
+**Both copies are kept; the third edge is what was missing.**
+`KIND_COUNT` is what makes an amendment cost an edit to the gate, so
+deriving the number from the anchor and deleting the constant would
+close the divergence by giving up the reason it exists.
+`anchor_states_count` checks the anchor's first word against
+`KIND_COUNT` before the README is opened, and the two anchor
+diagnoses now say the number word moves with `KIND_COUNT`. The
+count-mismatch red now names WHICH SIDE each number came from — it
+asserted *"$README's section ratifies $KIND_COUNT kinds"* using the
+GATE's number, telling an author the README ratifies four when the
+README ratified three, whose plausible wrong repair is to add a fourth
+bullet. The self-contradicting OK line is unreachable rather than
+diagnosed: a green line nobody reads is not a guard.
+
+**The kind reader read a bullet at column 0 only, and CommonMark does
+not.** A list marker sits at up to three spaces of indent and may
+interrupt a paragraph, so `  - **A fourth kind** …` on the line after
+the announcing sentence renders to every human reader as the first item
+of the announced list — and state 1 swallowed it as the sentence's own
+wrap, state 2 as a continuation. Three kinds read, `OK`, exit 0: **the
+wrong-and-quiet shape this gate exists to prevent, in the gate.** Fixed
+as a class at all three sites that assumed column 0 (state 1's escape,
+state 2's bullet, the `sed` that extracts the name), with the other
+side of the boundary encoded exactly rather than approximated: at four
+spaces the marker is a lazy continuation of the paragraph, a nested
+item of the bullet above, or an indented code block, and a leading tab
+advances to column four. Every rendering was checked against
+`markdown-it-py` in CommonMark mode.
+
+**Five fixtures and four direct rows, each run against the shape it
+covers.** A case that passes before and after proves nothing, so each
+was run against the unfixed spelling: reverting state 1's escape, state
+2's bullet or the `sed` each makes a planted indented kind pass;
+dropping the "the anchor must OPEN a paragraph" rule makes a QUOTATION
+of the sentence red as a second announcement; widening the boundary to
+`[[:space:]]*` reds on all three four-space near misses. The constant
+pair is not expressible as a fixture — a fixture plants a tree and the
+pair lives in the script, and a test hook that let one vary it would be
+a way to set the count from outside — so it is four direct calls on the
+predicate the guard is one `case` over.
+
+**The README's universal owed its exception.** *"The prose in this
+section may carry bulleted lists like any other prose"* is false for
+one position: a list separated from the ratified list by nothing but
+blank lines is ONE loose list in CommonMark, so its items are read as
+ratified kinds and red. The sentence now carries the exception and the
+rule that produces it. **A universal in prose owes the sweep rule that
+produces its population** — the same obligation §5 puts on a scope
+sentence in a PR.

@@ -2790,7 +2790,16 @@ class CancelToken:
         differ exactly when a run finished before the flag was set."""
 
 class Evaluation:
-    """The per-node result DAG."""
+    """The per-node result DAG.
+
+    An evaluation is the (document, evaluation) PAIR captured at
+    `evaluate`, and it is immutable. The document's product is a pure
+    function of that pair, so it is gathered ONCE per evaluation and
+    shared by every door that wants one — `run_checks`, `assemble`,
+    `product`, `product_named`. Asking several questions of one
+    evaluation costs one gather; asking them of a fresh `evaluate`
+    each time costs one apiece.
+    """
 
     def value(self, node: NodeId) -> Value: ...
     def succeeded(self, node: NodeId) -> bool: ...
