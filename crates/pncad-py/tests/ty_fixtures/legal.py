@@ -72,6 +72,7 @@ from pncad import (
     Node,
     NodeId,
     NodePick,
+    NodePickError,
     PickHit,
     Pose,
     Resolution,
@@ -553,6 +554,18 @@ which_body: int = index.body
 # slot it concerns.
 per_patch: list[str | HitTestError] = index.patch_names(seamed)
 per_edge: list[str | HitTestError] = index.boundary_names(seamed)
+# The pick refusal's payload, every attribute present and each typed.
+# `patch`, `triangle` and `index` are the index arm's three numbers —
+# `None` on every other arm, which is a value the stub types and not a
+# missing attribute.
+try:
+    NodePick.build(seamed, upright, 99, 1 * mm)
+except NodePickError as pick_refusal:
+    which_pick_arm: str = pick_refusal.variant
+    which_index_arm: str | None = pick_refusal.index_variant
+    bad_patch: int | None = pick_refusal.patch
+    bad_triangle: int | None = pick_refusal.triangle
+    bad_position: int | None = pick_refusal.index
 
 # Name resolution across re-evaluation. The verdict is a VALUE — a
 # name that no longer denotes is an answer, not a raise — so every
