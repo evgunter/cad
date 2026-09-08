@@ -166,12 +166,22 @@ typed its own 29-column sized row — sharing no literal with the fixture
 and living inside one file, which is exactly the pair of blind spots
 the sweep disclosed. It now blanks one sizing column of the fixture
 through `with_column`, and names the column it blanks. Measured both
-ways: append a column to `EXPECTED_HEADER` and update the ONE fixture
-literal, and the folded tree reds exactly one test —
+ways: append a column to `EXPECTED_HEADER`, update the ONE fixture
+literal, and the folded tree reds **one test in the lib binary** —
 `the_policed_block_is_the_headers_sizing_block`, the schema pin, which
-is the right reason. The same drill before the fold also red
+is the right reason. Before the fold the same drill also red
 `a_half_filled_sizing_row_is_harness_breakage` with `29 fields,
 expected 30`: right test, wrong reason.
+
+**Crate-wide that drill reds five, and the other four are correct.**
+`cargo test --no-fail-fast` after the fold: the one lib red above, plus
+three in `baseline_census.rs` and one in `baseline_sizing_census.rs`,
+each reading the committed baseline — whose header is the old one, so a
+schema change is exactly what they exist to report. `cli_contract` and
+`cut_line_pin` stay green. The lib-binary figure is quoted above
+because it is the one the fold moves; it is scoped and not a
+crate-wide count, and `cargo test` fail-fasts at the lib binary, so a
+drill run without `--no-fail-fast` never sees the other four.
 
 The two other hand-typed rows in the module (`a_short_row_is_harness_breakage`
 and `a_cut_line_shifts_the_reported_line_numbers`) stay typed: both are
