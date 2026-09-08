@@ -141,7 +141,10 @@ fn face_on(body: &Body<f64>, shell: ShellKey, n: (f64, f64, f64), c: f64) -> Fac
         .iter()
         .copied()
         .filter(|&f| {
-            matches!(body.get_surface(body.get_face(f).unwrap().surface), Some(geom::Surface::Plane { .. }))
+            matches!(
+                body.get_surface(body.get_face(f).unwrap().surface),
+                Some(geom::Surface::Plane { .. })
+            )
         })
         .filter(|&f| {
             let (_, nn) = plane_of(body, f);
@@ -151,7 +154,11 @@ fn face_on(body: &Body<f64>, shell: ShellKey, n: (f64, f64, f64), c: f64) -> Fac
                 && (plane_const(body, f) - c).abs() < 1e-9
         })
         .collect();
-    assert_eq!(hits.len(), 1, "one face with outward {n:?} at {c}: {hits:?}");
+    assert_eq!(
+        hits.len(),
+        1,
+        "one face with outward {n:?} at {c}: {hits:?}"
+    );
     hits[0]
 }
 
@@ -266,8 +273,8 @@ fn r1p3_diagonal_voids_cross_silently() {
             let props = topo::mass_properties(out, tol()).expect("props");
             // The sum of the three walls as if they did not cross; the
             // twins' overlap `0.1 × 0.2 × 2.3` is counted twice in it.
-            let naive = (v(6.0, 4.0, 4.0) - v(5.7, 3.7, 3.7))
-                + 2.0 * (v(1.5, 1.3, 2.3) - v(1.2, 1.0, 2.0));
+            let naive =
+                (v(6.0, 4.0, 4.0) - v(5.7, 3.7, 3.7)) + 2.0 * (v(1.5, 1.3, 2.3) - v(1.2, 1.0, 2.0));
             let ta = s.naming.inner_of(a).expect("twin of a");
             let tb = s.naming.inner_of(b).expect("twin of b");
             let (oa, _) = plane_of(out, ta);
@@ -294,7 +301,10 @@ fn r1p3_diagonal_voids_cross_silently() {
             assert!(oa.x > ob.x, "the dilated twins cross in x");
             assert!(tya.1 > tyb.0 && tyb.1 > tya.0, "and overlap in y");
             assert_eq!(tier3, Ok(()), "tier 3 does not see it");
-            assert!((props.volume - naive).abs() < 1e-9, "the props sum the crossing walls");
+            assert!(
+                (props.volume - naive).abs() < 1e-9,
+                "the props sum the crossing walls"
+            );
         }
     }
 }
@@ -372,10 +382,12 @@ fn r1p2_thin_cylinder_wall_hollow_vessel_builds_silently() {
             .unwrap()
             .faces
             .iter()
-            .find_map(|&f| match body.get_surface(body.get_face(f).unwrap().surface) {
-                Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
-                _ => None,
-            })
+            .find_map(
+                |&f| match body.get_surface(body.get_face(f).unwrap().surface) {
+                    Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
+                    _ => None,
+                },
+            )
             .expect("a cylinder wall")
     };
     let (outer, voids) = roles(&hollow);
@@ -415,8 +427,17 @@ fn r1p2_thin_cylinder_wall_hollow_vessel_builds_silently() {
                     .find(|&k| k != outer)
                     .unwrap(),
             );
-            let r_void_twin = radius_of(out, s.naming.inner_of(face_of_cyl(&hollow, voids[0])).map(|f| out.get_face(f).unwrap().shell).unwrap());
-            println!("[measured] eroded outer twin r={r_out_twin}, dilated void twin r={r_void_twin} — crossed: {}", r_void_twin > r_out_twin);
+            let r_void_twin = radius_of(
+                out,
+                s.naming
+                    .inner_of(face_of_cyl(&hollow, voids[0]))
+                    .map(|f| out.get_face(f).unwrap().shell)
+                    .unwrap(),
+            );
+            println!(
+                "[measured] eroded outer twin r={r_out_twin}, dilated void twin r={r_void_twin} — crossed: {}",
+                r_void_twin > r_out_twin
+            );
             assert!((r_out_twin - 0.92).abs() < 1e-12);
             assert!((r_void_twin - 0.98).abs() < 1e-12);
             assert!(r_void_twin > r_out_twin, "the two cylinder twins cross");
@@ -513,11 +534,16 @@ fn r1p5_operand_outer_shells_is_reachable_through_the_boolean() {
         "[measured] big − hollow small: solids={} shells={} roles={:?}",
         body.solids().count(),
         body.shells().count(),
-        rows.iter().map(|c| (c.shell, c.role, c.volume)).collect::<Vec<_>>()
+        rows.iter()
+            .map(|c| (c.shell, c.role, c.volume))
+            .collect::<Vec<_>>()
     );
     let e = topo::shell(&body, 0.1, tol()).expect_err("two outer shells refuse");
     println!("[measured] shell of it: {e}");
-    assert!(matches!(e, ShellError::OperandOuterShells { outer: 2 }), "{e}");
+    assert!(
+        matches!(e, ShellError::OperandOuterShells { outer: 2 }),
+        "{e}"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -612,11 +638,18 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
                 println!("[measured] rim {:?} outward normal {n:?}", r.rim);
                 for h in &r.holes {
                     let (_, n) = plane_of(out, h.face);
-                    println!("[measured] hole rim {:?} outward normal {n:?} rings={}", h.face, out.get_face(h.face).unwrap().rings.len());
+                    println!(
+                        "[measured] hole rim {:?} outward normal {n:?} rings={}",
+                        h.face,
+                        out.get_face(h.face).unwrap().rings.len()
+                    );
                 }
             }
             let mesh = mesh::tessellate(out, 0.01, tol());
-            println!("[measured] tessellates: {:?}", mesh.as_ref().map(|m| m.patches.len()));
+            println!(
+                "[measured] tessellates: {:?}",
+                mesh.as_ref().map(|m| m.patches.len())
+            );
         }
     }
 }
@@ -634,16 +667,30 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
 
     // 1. hollow it.
     let first = topo::shell(&part, 0.25, tol()).expect("hollow");
-    println!("[e2e] hollow: solids={} shells={} thickened={:?}", first.body.solids().count(), first.body.shells().count(), first.naming.thickened);
+    println!(
+        "[e2e] hollow: solids={} shells={} thickened={:?}",
+        first.body.solids().count(),
+        first.body.shells().count(),
+        first.naming.thickened
+    );
     // The inner wall's ceiling is the top's cavity twin — the record
     // is the only way to name it without probing geometry.
     let ceiling = first.naming.inner_of(top).expect("the top's twin");
 
     // 2. hollow it again.
     let twice = topo::shell(&first.body, 0.05, tol()).expect("hollow twice");
-    println!("[e2e] hollow twice: solids={} shells={} thickened={:?} roles={:?}", twice.body.solids().count(), twice.body.shells().count(), twice.naming.thickened, roles_by_solid(&twice.body));
+    println!(
+        "[e2e] hollow twice: solids={} shells={} thickened={:?} roles={:?}",
+        twice.body.solids().count(),
+        twice.body.shells().count(),
+        twice.naming.thickened,
+        roles_by_solid(&twice.body)
+    );
     let props = topo::mass_properties(&twice.body, tol()).expect("props");
-    println!("[e2e] hollow twice volume={} area={}", props.volume, props.surface_area);
+    println!(
+        "[e2e] hollow twice volume={} area={}",
+        props.volume, props.surface_area
+    );
 
     // 3a. open the inner wall ON THE RESULT: what a user would try first.
     match topo::shell_open(&twice.body, 0.05, &[ceiling], tol()) {
@@ -651,30 +698,80 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         Err(e) => println!("[e2e] opening the twice-hollowed body: refuses {e}"),
     }
     // 3b. the way that works: fold the opening into the second shell.
-    let opened = topo::shell_open(&first.body, 0.05, &[ceiling], tol()).expect("open the inner wall");
+    let opened =
+        topo::shell_open(&first.body, 0.05, &[ceiling], tol()).expect("open the inner wall");
     let out = &opened.body;
-    println!("[e2e] opened inner wall: solids={} shells={} tier3={:?} roles={:?}", out.solids().count(), out.shells().count(), topo::validate_geometric(out, tol()), roles_by_solid(out));
+    println!(
+        "[e2e] opened inner wall: solids={} shells={} tier3={:?} roles={:?}",
+        out.solids().count(),
+        out.shells().count(),
+        topo::validate_geometric(out, tol()),
+        roles_by_solid(out)
+    );
     let props = topo::mass_properties(out, tol()).expect("props");
-    let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5)) - 1.6 * 2.6 * 0.05;
-    println!("[e2e] opened volume={} want={want} rim={:?} ring_edges={}", props.volume, opened.naming.rims[0].rim, opened.naming.rims[0].ring_edges.len());
+    let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5))
+        - 1.6 * 2.6 * 0.05;
+    println!(
+        "[e2e] opened volume={} want={want} rim={:?} ring_edges={}",
+        props.volume,
+        opened.naming.rims[0].rim,
+        opened.naming.rims[0].ring_edges.len()
+    );
     assert!((props.volume - want).abs() < 1e-12);
 
     // 4. mesh it.
     match mesh::tessellate(out, 0.01, tol()) {
-        Ok(m) => println!("[e2e] mesh: positions={} patches={} triangles={}", m.positions.len(), m.patches.len(), m.patches.iter().map(|p| p.triangles.len()).sum::<usize>()),
+        Ok(m) => println!(
+            "[e2e] mesh: positions={} patches={} triangles={}",
+            m.positions.len(),
+            m.patches.len(),
+            m.patches.iter().map(|p| p.triangles.len()).sum::<usize>()
+        ),
         Err(e) => println!("[e2e] mesh refuses: {e}"),
     }
     // 5. export it (STEP is the only exporter in the workspace).
-    match step_export::step_string(out, &step_export::StepOptions { product_name: "opened inner wall".into(), ..Default::default() }, tol()) {
-        Ok(s) => println!("[e2e] STEP: {} bytes, MANIFOLD_SOLID_BREP × {}", s.len(), s.matches("MANIFOLD_SOLID_BREP").count()),
+    match step_export::step_string(
+        out,
+        &step_export::StepOptions {
+            product_name: "opened inner wall".into(),
+            ..Default::default()
+        },
+        tol(),
+    ) {
+        Ok(s) => println!(
+            "[e2e] STEP: {} bytes, MANIFOLD_SOLID_BREP × {}",
+            s.len(),
+            s.matches("MANIFOLD_SOLID_BREP").count()
+        ),
         Err(e) => println!("[e2e] STEP refuses: {e}"),
     }
-    match step_export::step_string(&first.body, &step_export::StepOptions { product_name: "hollow once".into(), ..Default::default() }, tol()) {
-        Ok(s) => println!("[e2e] STEP (hollow once, pre-existing shape): {} bytes", s.len()),
+    match step_export::step_string(
+        &first.body,
+        &step_export::StepOptions {
+            product_name: "hollow once".into(),
+            ..Default::default()
+        },
+        tol(),
+    ) {
+        Ok(s) => println!(
+            "[e2e] STEP (hollow once, pre-existing shape): {} bytes",
+            s.len()
+        ),
         Err(e) => println!("[e2e] STEP (hollow once, pre-existing shape) refuses: {e}"),
     }
-    match step_export::step_string(&twice.body, &step_export::StepOptions { product_name: "hollow twice".into(), ..Default::default() }, tol()) {
-        Ok(s) => println!("[e2e] STEP (sealed, 2 solids): {} bytes, MANIFOLD_SOLID_BREP × {}", s.len(), s.matches("MANIFOLD_SOLID_BREP").count()),
+    match step_export::step_string(
+        &twice.body,
+        &step_export::StepOptions {
+            product_name: "hollow twice".into(),
+            ..Default::default()
+        },
+        tol(),
+    ) {
+        Ok(s) => println!(
+            "[e2e] STEP (sealed, 2 solids): {} bytes, MANIFOLD_SOLID_BREP × {}",
+            s.len(),
+            s.matches("MANIFOLD_SOLID_BREP").count()
+        ),
         Err(e) => println!("[e2e] STEP (sealed, 2 solids) refuses: {e}"),
     }
 }

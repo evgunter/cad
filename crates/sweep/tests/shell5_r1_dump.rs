@@ -83,7 +83,10 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
                 b.vertices().count()
             );
             for (k, sh) in b.shells() {
-                println!("[dump] {label}: shell {k:?} solid={:?} faces={:?}", sh.solid, sh.faces);
+                println!(
+                    "[dump] {label}: shell {k:?} solid={:?} faces={:?}",
+                    sh.solid, sh.faces
+                );
             }
             for (k, f) in b.faces() {
                 println!(
@@ -95,10 +98,16 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
                 );
             }
             for (k, e) in b.edges() {
-                println!("[dump] {label}: edge {k:?} curve={:?}", b.get_curve_geom(e.curve));
+                println!(
+                    "[dump] {label}: edge {k:?} curve={:?}",
+                    b.get_curve_geom(e.curve)
+                );
             }
             for (k, v) in b.vertices() {
-                println!("[dump] {label}: vertex {k:?} point={:?}", b.get_point(v.point));
+                println!(
+                    "[dump] {label}: vertex {k:?} point={:?}",
+                    b.get_point(v.point)
+                );
             }
             let n = &s.naming;
             println!(
@@ -106,7 +115,10 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
                 n.outer, n.inner, n.inner_edges, n.inner_vertices, n.rims, n.dead
             );
             match topo::mass_properties(b, Tol::witness()) {
-                Ok(p) => println!("[dump] {label}: volume={:?} area={:?}", p.volume, p.surface_area),
+                Ok(p) => println!(
+                    "[dump] {label}: volume={:?} area={:?}",
+                    p.volume, p.surface_area
+                ),
                 Err(e) => println!("[dump] {label}: props Err {e:?}"),
             }
             println!(
@@ -123,7 +135,14 @@ fn r1_dump_single_shell_corpus() {
     let tol = Tol::witness();
     let boxy = prism(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)], 4.0);
     let ell = prism(
-        &[(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (1.0, 1.0), (1.0, 3.0), (0.0, 3.0)],
+        &[
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 3.0),
+            (0.0, 3.0),
+        ],
         2.0,
     );
     let vessel = revolved(&[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.0, 2.0)]);
@@ -144,13 +163,28 @@ fn r1_dump_single_shell_corpus() {
     let bottom = planes_where(&boxy, (0.0, 0.0, -1.0), 0.0);
     let mut both = top.clone();
     both.extend(bottom);
-    dump("box opened top+bottom", &topo::shell_open(&boxy, 0.25, &both, tol));
+    dump(
+        "box opened top+bottom",
+        &topo::shell_open(&boxy, 0.25, &both, tol),
+    );
     let ell_top = planes_where(&ell, (0.0, 0.0, 1.0), 2.0);
-    dump("ell opened top", &topo::shell_open(&ell, 0.2, &ell_top, tol));
+    dump(
+        "ell opened top",
+        &topo::shell_open(&ell, 0.2, &ell_top, tol),
+    );
     let vessel_top = planes_where(&vessel, (0.0, 1.0, 0.0), 2.0);
-    dump("vessel opened top", &topo::shell_open(&vessel, 0.2, &vessel_top, tol));
+    dump(
+        "vessel opened top",
+        &topo::shell_open(&vessel, 0.2, &vessel_top, tol),
+    );
     let pot_top = planes_where(&pot, (0.0, 1.0, 0.0), 2.0);
-    dump("pot opened top", &topo::shell_open(&pot, 0.15, &pot_top, tol));
+    dump(
+        "pot opened top",
+        &topo::shell_open(&pot, 0.15, &pot_top, tol),
+    );
     let tube_top = planes_where(&tube, (0.0, 1.0, 0.0), 2.0);
-    dump("tube opened top", &topo::shell_open(&tube, 0.1, &tube_top, tol));
+    dump(
+        "tube opened top",
+        &topo::shell_open(&tube, 0.1, &tube_top, tol),
+    );
 }
