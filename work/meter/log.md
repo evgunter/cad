@@ -917,3 +917,40 @@ lane that wrote it.
 Worth carrying to the exit walk: this is a candidate for the standing
 discipline docs rather than a METER row, since nothing about it is
 specific to the instruments.
+
+## The third fake green, and it was in the verification harness (2026-09-08)
+
+Unit 9's fix pass caught one in itself and reported it unprompted. Its
+verification chain was
+
+    cargo test … | grep -E "^test result|FAILED" && …
+
+and `grep` exits 0 on a MATCH — so a run containing `FAILED` satisfies
+the chain and the `&&` fires. **Three failing tests passed straight
+through into a commit.** The failures were real: four tests shared one
+`{pid}` fixture path, `fs::write` truncates before writing, and a
+reader could take the file inside that window.
+
+That is three fake greens in this program, and they have nothing in
+common except their shape:
+
+1. Unit 5 — a mutation script that failed its own assertion BEFORE
+   writing the file, so the suite ran on an unmutated tree.
+2. Unit 11 — a mutation that landed on a doc comment 110 lines above
+   the executing literal.
+3. Unit 9 — a verification chain that cannot fail.
+
+**Every one produced a green that meant nothing, and in all three the
+green was believed until someone asked what would have made it red.**
+The cure is the same each time and it is not more care: it is to break
+the thing on purpose first and watch it go red, then fix it and watch
+it go green. A green you have not earned by first producing a red is a
+measurement of your harness, not of the tree.
+
+Also settled here: unit 9's reviewer filed the fixture-path race at
+`unsure`, saying it could not reproduce it in 40 consecutive runs. The
+lane reproduced it at **1 in 25** on the shared path and **0 in 25**
+with a path per call. A finding a reviewer cannot reproduce is still
+worth filing — this one was live, and dropping it for want of a
+reproduction would have shipped an intermittent pin, which reds for a
+reason that is not the reason it exists.
