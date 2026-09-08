@@ -484,7 +484,12 @@ const_hits() {
 #   0  looking for the anchor; the anchor line starts the paragraph.
 #   1  inside the anchor paragraph — its own sentence may wrap over as
 #      many lines as the fill column gives it, and none of them is a
-#      bullet. It ends at the blank line that ends any paragraph.
+#      bullet. It ends at the blank line that ends any paragraph, or at
+#      a bullet: a list may interrupt a paragraph with no blank line
+#      between them, every renderer draws that as a list, and a reader
+#      that required the blank would red on a spelling markdown allows.
+#      The bullet is not consumed by the transition — the rule sets the
+#      state without a `next`, so state 2's own rules see the same line.
 #   2  at the list the paragraph announced: a blank line, an indented
 #      continuation line and a `- ` bullet keep it open; ANY other line
 #      closes it, and the bullets of the section's later prose are
@@ -498,6 +503,7 @@ readme_kinds() {
     insec && /^#/ { insec = 0; st = 0; next }
     insec && index($0, anchor) == 1 { print "@"; st = 1; next }
     st == 1 && /^[[:space:]]*$/ { st = 2; next }
+    st == 1 && /^- / { st = 2 }
     st == 1 { next }
     st == 2 && /^- \*\*/ { print; next }
     st == 2 && /^[[:space:]]*$/ { next }
@@ -1082,6 +1088,12 @@ pass_a_bolded_bullet_after_the_list() {
     "$1/crates/viewer/README.md"
 }
 
+# A LIST MAY INTERRUPT A PARAGRAPH. Markdown draws this as a list and so
+# must the reader, or a legal spelling of the ratification is a red.
+pass_no_blank_line_before_the_list() {
+  sed -i '/^rather than an exception:$/{n;/^$/d}' "$1/crates/viewer/README.md"
+}
+
 gate_selftest() {
   gate_selftest_clean
   # THE SCAN-TARGET GUARDS, each shown to fire. A gate that reports
@@ -1185,10 +1197,12 @@ exec "$GATE_REAL_TOOL" "$@"' plant_named_all
     pass_a_bolded_bullet_before_the_anchor
   gate_selftest_passes "a bolded bullet in the section's prose below the list" \
     pass_a_bolded_bullet_after_the_list
+  gate_selftest_passes "the kind list written with no blank line above it" \
+    pass_no_blank_line_before_the_list
   # THE COUNT IS THE `gate_selftest_passes` ROWS ABOVE, one per near
   # miss, so a reader can produce the population rather than trust the
   # number: `grep -c '^  gate_selftest_passes ' $0`.
-  printf '%s selftest OK: passes a clean fixture and eleven near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong — its heading, its table, its kind bullets and the paragraph that announces them — and on a reader that could not run: outright, mid-scan, and after consuming its input\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and twelve near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong — its heading, its table, its kind bullets and the paragraph that announces them — and on a reader that could not run: outright, mid-scan, and after consuming its input\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
