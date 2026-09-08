@@ -2,10 +2,11 @@
 id: LIB-B-FACE-FRAME
 kind: unit
 title: binding census family B-FACE-FRAME
-status: review
+status: closed
 branch: lib/b-face-frame
 opened: 2026-09-04
 pr: 2074
+closed: 2026-09-08
 ---
 
 
