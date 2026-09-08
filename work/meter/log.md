@@ -1203,3 +1203,45 @@ rules on #2147.
 **Opening a program is not the orchestrator's call alone.** The walk
 should propose the successor — charter, `paths`, fence, opening slate —
 and go to Ev, the way `D201` and the `CC1`–`CC5` ratification did.
+
+## Ev asked what the CC scope question costs each way (2026-09-08)
+
+He asked for concrete consequences rather than more argument, and the
+delay helped: two lanes have used the page since, and one of them is
+the case that decides it.
+
+**The tension is textual and sits inside `CC5` itself.** Its first
+paragraph is reading-general — every clause exits in the harness
+voice, each lint spells that constant privately in its own `main.rs`,
+*"the voice is one thing and the constant is two, for the same reason
+nothing else crosses these cargo roots."* Its second paragraph scopes
+the page: *"What this page owes is what falls out of it for a
+cross-column reading."* One clause, two scopes.
+
+**The live instance is `tools/k-lint/src/main.rs:44`** — `EXIT_FINDINGS`,
+an exit-code convention with no column in it, citing `CC5` across
+roots for the voice rule. Its neighbour at `:51` (`EXIT_HARNESS`,
+*"Every cross-column admission `lint_csv` refuses leaves here"*) is
+column-scoped and correct under either reading. So the two readings
+are not equally supported by the tree as it stands: one site already
+depends on the broad one.
+
+What each costs, as sent: narrow makes `:44` a mis-citation and leaves
+the next non-column check in `k-lint` or `tess-meter` with no route —
+it cannot reach `tess_lint::Report` across the root, so it writes a
+second page, which is the failure the page exists to prevent. Unit 4's
+`cut_line_pin.rs` survives narrow only because it is in the same crate
+as `Report`. Broad makes `:44` correct and costs one editing pass to
+label `CC2`/`CC3`/`CC4` as per-column, since those three genuinely do
+not generalise.
+
+**Recommended broad, on the asymmetry rather than the elegance:** the
+narrow reading's cost is paid by a future lane, is invisible until
+someone writes the second page, and is the exact failure mode the page
+was written against; the broad reading's cost is paid now, by me, and
+is bounded. Flagged that if he takes narrow, `CC5`'s voice paragraph
+should be split out in the same PR rather than left to be found later.
+
+Fifth comment from me on that PR, and the restraint I had set myself
+("four is enough") was against volunteering more, not against
+answering a direct question from Ev.
