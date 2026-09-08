@@ -621,3 +621,23 @@ transcripts once the limit reset, the EVAL-8 one with the split as
 its first job. Lesson for every brief: the interval-additivity
 script joins the gate list a lane runs before pushing — it is a CI
 gate the local `scripts/gates/*.sh` sweep does not cover.
+
+## EVAL-8 to review (2026-09-08, PR 2186, head `6e1cb1250`)
+
+Full matrix green on the head (the first head's one red — the
+interval-additivity gate — fixed by splitting the pinned-log row's
+interval leg into its own gated row). The lane's deviations, to be
+adjudicated with the reviews: (1) the lift RE-DERIVES arc carriers at
+the target scalar through a factored `seg::arc_carrier` rather than
+mapping the f64 carrier's bits — mapped bits are a point interval at
+`Interval` where validation mints an enclosure, measured on the
+rounded-rectangle fixture, so the spec's "every stored scalar maps"
+premise was wrong for derived data; (2) `m10_6_certifying_keys.txt`
+does not move because its rows evaluate under `Guided`; (3) claim 2
+is shown by cross-scalar equality plus the `Guided` log's prefix rather
+than a pre-pass re-run outside the evaluator. One open question the
+lane flags: a `Dual64` derivative channel is `+0.0` from the lift and
+`-0.0` from a re-validation of a reversed loop (equal, zero, read by
+no predicate). Style and correctness lanes dispatched on `6e1cb1250`;
+the correctness lane is asked whether any consumer reads a zero
+derivative's sign.
