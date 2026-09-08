@@ -650,6 +650,22 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
                 "[measured] tessellates: {:?}",
                 mesh.as_ref().map(|m| m.patches.len())
             );
+            // Pinned (the residue file's missing row): tier 3, the closed
+            // form, one rim and one hole rim both facing UP into the gap,
+            // the designated face dead, the operand void fused away.
+            assert_eq!(tier3, Ok(()));
+            let volume = props.expect("props").volume;
+            assert!((volume - want).abs() <= 1e-12, "got {volume}, want {want}");
+            let r = &s.naming.rims[0];
+            assert_eq!(r.holes.len(), 1);
+            assert!(plane_of(out, r.rim).1.z > 0.5, "the rim faces the gap");
+            assert!(
+                plane_of(out, r.holes[0].face).1.z > 0.5,
+                "the hole rim faces the gap"
+            );
+            assert!(out.get_face(ceiling).is_none());
+            assert_eq!(s.naming.dead.shells, vec![voids[0]]);
+            assert!(mesh.is_ok());
         }
     }
 }
