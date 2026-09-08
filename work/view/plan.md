@@ -133,7 +133,7 @@ should be visible on its own.
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
 | `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass — **merged** |
 | `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass — **merged** |
-| `view/gate-bullets` (the vocab gate's kind scan, anchored) | #2172 | style — **in flight** |
+| `view/gate-bullets` (the vocab gate's kind scan, anchored) | #2172 | style + fix pass |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -244,6 +244,29 @@ word proof and overwrote four files of those exact names that another
 lane had left there. Nothing was lost that mattered, and the collision
 is silent by construction — a lane cannot tell whether a scratchpad
 file is its own. Dispatches carry a per-lane prefix now.
+
+**A hold is not a hold until the diagnosis's own repair is tried.**
+#2172 argued that putting the count word inside `KIND_ANCHOR` bought a
+hold the gate lacked: the section could previously say "Four kinds…"
+over three bullets unread. Its reviewer took the resulting red's OWN
+second suggested repair — change `KIND_ANCHOR` to match — and got
+**green, exit 0**, with the `OK` line printing `3 kinds read from
+"Four kinds of list stay hand-written"`. The hold cost one extra edit
+and the error message named that edit. **A guard whose diagnosis offers
+a way around it is a speed bump**, and the only way to find that out is
+to follow the repair the tool prints, not to read the code that prints
+it.
+
+**A `^`-anchored pattern over markdown is a claim about column zero
+that markdown does not make.** The same PR's new reader escaped its
+paragraph state on `/^- /` and swallowed anything indented as a
+continuation. CommonMark lets a list marker sit at one to three spaces
+and interrupt a paragraph, so `  - **A fourth kind**` renders to every
+human as a ratified kind and the gate read three and printed OK — the
+gate's own thesis inverted, in the gate written to prevent it. Four
+spaces is a code block, so the boundary is exact and worth encoding
+rather than approximating; and the reviewer settled the rendering with
+a CommonMark parser rather than by reasoning about it.
 
 **A §6 report filed against a tree a lane is still changing owes a
 re-derivation after that lane lands.** `gate-selftest-cannot-observe-
