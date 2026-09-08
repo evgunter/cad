@@ -153,9 +153,22 @@ pub use editor_core::{
 // at all, so nothing here names a key-bearing payload as a TYPE.
 //
 // What is carried is the verdict a consumer that stores names must
-// read on every re-evaluation, and nothing beyond it: the payload
-// vocabulary a richer diagnosis UI would want (`Diagnosis`,
-// `Tombstone`, `TieWitness`, `RecipeEditRef`, `resolve_with_prior`)
-// stays interior until something consumes it, because a door carried
-// for a consumer that does not exist is a claim nobody is checking.
-pub use editor_core::{Resolution, RunCtx, resolve};
+// read on every re-evaluation, plus the three types its arms are —
+// `ResolutionFailure`, its `ResolveError`, and `ResolveIndeterminate`
+// — so that a consumer can branch on WHICH failure it got and not
+// only on THAT it failed. `vanished`, `ambiguous` and `node_gone` ask
+// for three different repairs, and `target_failed` /
+// `target_poisoned` / `target_not_evaluated` name three different
+// nodes to look at; without the types those six facts arrive as two
+// words and a sentence.
+//
+// The richer-diagnosis vocabulary underneath them stays interior:
+// `Diagnosis`, `Tombstone`, `TieWitness`, `RecipeEditRef` and
+// `resolve_with_prior` are the telemetry and key-bearing half, and
+// `Resolved` is the arm that holds an `EntityRef` outright. A caller
+// BINDS those and branches on the discriminant the arm gives it,
+// which is what a curated list owes; nothing here names one as a
+// type.
+pub use editor_core::{
+    Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, RunCtx, resolve,
+};

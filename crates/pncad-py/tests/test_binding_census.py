@@ -523,6 +523,29 @@ BOUND_AS = {
     # as the `Evaluation`.
     "RunCtx": "Evaluation",
     "resolve": "Evaluation.resolve",
+    # The verdict's three PAYLOADS, curated so the arms cross. The
+    # carrier-projection rule places them: `Resolution` projects a
+    # discriminant (`resolution_status_tag`), so its payloads project
+    # theirs — the `DanglingRef` reading, on a carrier that is a VALUE
+    # rather than a refusal.
+    #
+    # The two enums are one attribute between them, and the merge is
+    # deliberate rather than a shortcut: `Resolution.variant` is
+    # WHICH arm, and which vocabulary it is drawn from is already said
+    # by `status`. `vanished` / `ambiguous` / `node_gone` under a
+    # failure, `target_failed` / `target_poisoned` /
+    # `target_not_evaluated` under an indeterminate, `None` when
+    # resolved. Two attributes would have made a caller read `status`
+    # first to know which one to look at, which is exactly the shape
+    # this file's every-attribute-always-present rule exists to avoid.
+    "ResolveError": "Resolution.variant",
+    "ResolveIndeterminate": "Resolution.variant",
+    # `ResolutionFailure` is the struct that pairs one of those arms
+    # with the repair candidates, and `offers` is what it ADDS — the
+    # error half is `variant` plus `detail` above. So it crosses at the
+    # attribute that is its own contribution, on the reading that a
+    # mapping points at the door rather than asserting a shape.
+    "ResolutionFailure": "Resolution.offers",
     # The expression surface, which hangs off the DOCUMENT for the
     # read-back doors' reason one layer over: all three free
     # functions take a per-document table — `parse_expr` the declared
@@ -1053,24 +1076,16 @@ FAMILIES = {
 #: three-state verdict for any name `select`, `all_faces` or a
 #: `PickHit` handed back on an earlier run.
 #:
-#: What the closing measured is a LIMIT, and it is the family's own
-#: version of a shape this roster has now recorded three times. The
-#: verdict's three arms cross — they are matchable, because
-#: `Resolution` is itself curated — but their PAYLOAD types are not:
-#: `ResolveError`, `ResolutionFailure` and `ResolveIndeterminate` are
-#: decided absent from the façade (`crates/pncad/tests/all.rs`'s
-#: `NOT_CARRIED`, "Naming interior"), which states the disposition
-#: exactly — the verdict left that family and its ladder did not,
-#: because "`Resolution`'s arms answer it ... through pattern matching
-#: and `Display`, without naming a payload type". So a Python caller
-#: learns THAT a name failed and can read the kernel's prose about it,
-#: but gets no `vanished` / `ambiguous` / `node_gone` discriminant to
-#: branch on, where every arm of the carrier itself is a branch. This
-#: unit did not relitigate that; it is banked as
-#: `work/lib/resolution-failure-arms-are-unmatchable-under-resolution.md`,
-#: beside `DanglingRef`'s and `MeshPickError`'s — the third instance,
-#: and the first where the carrier is a VALUE rather than a refusal,
-#: which is what makes it worth recording separately.
+#: What the closing measured was a LIMIT, and it was the family's own
+#: version of a shape this roster recorded three times: the verdict's
+#: three arms crossed and their PAYLOAD types did not, so a Python
+#: caller learned THAT a name failed and read prose about which. The
+#: closing did not relitigate it and the curation since has: the three
+#: payload types are carried, and `Resolution.variant` is the
+#: discriminant beside `status` (`BOUND_AS`, above). What stays absent
+#: is the ladder's telemetry underneath them — the diagnosis, the
+#: tombstone and the tie witness — which no consumer on either side of
+#: the boundary reads.
 #:
 #: Two things the binding gained that the charter did not name.
 #: `RunCtx` is a PAIR in Rust and Python's `Evaluation` became that

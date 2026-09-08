@@ -506,6 +506,59 @@ fn the_pick_index_refusal_is_matchable_through_the_select_list() {
     );
 }
 
+/// The resolution verdict's three payloads, matched through
+/// `crate::select` — the list that carries them.
+///
+/// The two enums are matched arm by arm and exhaustively, which is
+/// the whole claim: a consumer branches on WHICH failure it got, and
+/// the six words below are six different repairs. `ResolutionFailure`
+/// is the struct that pairs one of them with the offers, and it is
+/// read by field for the same reason.
+///
+/// **What is bound and not named is the point of the stop.** The
+/// diagnosis, the tombstone, the tie witness and the recipe-edit
+/// reference are all reached here as `_` — a caller holds them and
+/// cannot spell them, which is exactly what the curated list decided.
+#[test]
+fn the_resolution_payloads_are_matchable_through_the_select_list() {
+    use pncad::select::{ResolutionFailure, ResolveError, ResolveIndeterminate};
+
+    // The repair each failure asks for, which is why the three stay
+    // three: rebind, refine among the candidates, or rebind onto a
+    // node that still exists.
+    fn repair(failure: &ResolutionFailure) -> (&'static str, usize) {
+        let word = match &failure.error {
+            ResolveError::Vanished { name, .. } => {
+                named::<&StableName>(name);
+                "vanished"
+            }
+            ResolveError::Ambiguous { candidates, .. } => {
+                named::<&Vec<StableName>>(candidates);
+                "ambiguous"
+            }
+            ResolveError::NodeGone { .. } => "node_gone",
+        };
+        (word, failure.offers.len())
+    }
+    named::<fn(&ResolutionFailure) -> (&'static str, usize)>(repair);
+
+    // ...and which node to look at, on the state where the NAME is
+    // fine and the run is not.
+    fn upstream(cause: ResolveIndeterminate) -> (&'static str, RecipeNodeId) {
+        match cause {
+            ResolveIndeterminate::TargetFailed { node } => ("target_failed", node),
+            ResolveIndeterminate::TargetPoisoned { through } => ("target_poisoned", through),
+            ResolveIndeterminate::TargetNotEvaluated { node } => ("target_not_evaluated", node),
+        }
+    }
+    assert_eq!(
+        upstream(ResolveIndeterminate::TargetPoisoned {
+            through: RecipeNodeId(4)
+        }),
+        ("target_poisoned", RecipeNodeId(4))
+    );
+}
+
 // ---------------------------------------------------------------
 // Runtime rows. The compile-level pins above are the real content;
 // these keep the functions live (an unused private fn is a warning,
@@ -3158,23 +3211,39 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
 ///   briefly as the payloads of a resolution failure and then put them
-///   back: the panel renders the failure through its `Display`, so
-///   nothing consumed the payload types, and a door carried for a
-///   consumer that does not exist is a claim nobody is checking.
+///   back, on the reading that the panel renders the failure through
+///   its `Display`, so nothing consumed the payload types.
+///
+///   **That reading held for one consumer and there are two.** A Rust
+///   panel rendering `Display` has the payload one field away whenever
+///   it wants it; a Python caller holds a string and has nothing else.
+///   So the three types the arms ARE left this family — they are
+///   listed with the naming interior below, which is where the
+///   carriage is argued — and what stays here is what neither
+///   consumer reads: the diagnosis, the tombstone, the tie witness
+///   and the edit reference, bound out of an arm and branched on
+///   through the arm's own discriminant.
 /// - **Naming interior** (`Qualifier`, `Coset`, `Resolved`,
-///   `ResolveError`, `ResolutionFailure`, `ResolveIndeterminate`,
-///   `resolve_with_prior`): the shapes the name algebra and the
-///   resolution ladder work in, below the verdict that is the curated
-///   face.
+///   `resolve_with_prior`): the shapes the name algebra works in, and
+///   the one resolution payload that holds an `EntityRef` outright.
 ///
 ///   **The resolution VERDICT left this family at GUI-2** — exactly
 ///   three names: `resolve`, `RunCtx`, `Resolution`. It is not
 ///   plumbing behind a door; it IS the door for the question a
-///   consumer that stores names must ask on every re-evaluation, and
-///   `Resolution`'s arms answer it (`Resolved(_)` / `Failed(f)` /
-///   `Indeterminate(c)`) through pattern matching and `Display`,
-///   without naming a payload type. The ladder's own vocabulary stays
-///   here until something consumes it.
+///   consumer that stores names must ask on every re-evaluation.
+///
+///   **Its three ARMS have left too** (`ResolutionFailure`,
+///   `ResolveError`, `ResolveIndeterminate`), and the argument is the
+///   same one a rung down. The verdict answers THAT a stored name did
+///   not resolve; which of six things happened to it is a different
+///   question, and the six ask for different repairs — a rebind, a
+///   refinement among tied candidates, a look upstream at a named
+///   node. A consumer that could name only the verdict read those out
+///   of `Display` prose, which is not an interface. `Resolved` stays:
+///   its field is an `EntityRef`, so carrying it would name a key
+///   type, and what a caller wants from a resolved verdict is the
+///   node, the body index and the kind, all of them values it reaches
+///   by field access already.
 /// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
 ///   service's own machinery behind `evaluate`.
@@ -3292,7 +3361,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 93] = [
+const NOT_CARRIED: [&str; 90] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3341,9 +3410,6 @@ const NOT_CARRIED: [&str; 93] = [
     "ProgramRefusal",
     "Qualifier",
     "RecipeEditRef",
-    "ResolutionFailure",
-    "ResolveError",
-    "ResolveIndeterminate",
     "Resolved",
     "Rgba8",
     "RunStatus",

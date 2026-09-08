@@ -65,7 +65,7 @@ use pncad::profile::{CornerReason, CornerWindow, NoCornerReason, PathError, Path
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
     DanglingRef, HitTestError, InterrogateError, MeshPickError, NodePickError, ReadbackError,
-    Resolution,
+    Resolution, ResolveError, ResolveIndeterminate,
 };
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
@@ -1068,19 +1068,64 @@ pub fn mesh_pick_error_tag(err: &MeshPickError) -> &'static str {
 /// bindings — capitalizes instead; that divergence predates this and
 /// is not repaired here, because a shipped tag value is an interface.
 ///
-/// **What this tag does NOT reach is the failure's own arm.**
-/// `ResolveError`, `ResolutionFailure` and `ResolveIndeterminate` are
-/// DECIDED absent from the façade (`crates/pncad/tests/all.rs`'s
-/// `NOT_CARRIED`, "Naming interior"), so there is no `vanished` /
-/// `ambiguous` / `node_gone` tag to forward and none is invented
-/// here: what crosses beside this word is the kernel's own `Display`.
-/// Banked as `work/lib/resolution-failure-arms-are-unmatchable-under-
-/// resolution.md`, the `MeshPickError` shape one family along.
+/// **What this tag does not reach is the failure's own arm**, and
+/// that is a split rather than a gap: [`resolve_error_tag`] and
+/// [`resolve_indeterminate_tag`] answer it, and the Python side
+/// carries both words — the state on `status`, the arm on `variant`.
+/// Keeping them apart is what keeps `status` a three-word vocabulary
+/// a caller can exhaust.
 pub fn resolution_status_tag(verdict: &Resolution) -> &'static str {
     match verdict {
         Resolution::Resolved(_) => "resolved",
         Resolution::Failed(_) => "failed",
         Resolution::Indeterminate(_) => "indeterminate",
+    }
+}
+
+/// The stable tag for WHICH failure a stored name met — the arm
+/// underneath a `failed` verdict.
+///
+/// The three words are three REPAIRS, which is the reason the kernel
+/// keeps the arms three and the reason they cross. `vanished`: the
+/// minting node still evaluates and no table derives the name any
+/// more, so the repair is a rebind onto whatever replaced it.
+/// `ambiguous`: the name is tie-marked and the kernel will not pick
+/// among equally-admissible candidates, so the repair is a refinement
+/// — and it is the one arm where a caller has something to CHOOSE.
+/// `node_gone`: the minting node left the document, so there is
+/// nothing to refine and the rebind is onto a different feature.
+///
+/// The arms' own names, snake-cased, because the kernel's vocabulary
+/// is the one a bug report and a UI should share.
+///
+/// What does NOT cross beside these is the diagnosis, the tombstone
+/// and the tie witness: they are the editor's re-evaluation
+/// telemetry, they are not carried through the façade, and the
+/// candidate NAMES a caller would refine among already cross as
+/// `offers`.
+pub fn resolve_error_tag(err: &ResolveError) -> &'static str {
+    match err {
+        ResolveError::Vanished { .. } => "vanished",
+        ResolveError::Ambiguous { .. } => "ambiguous",
+        ResolveError::NodeGone { .. } => "node_gone",
+    }
+}
+
+/// The stable tag for WHY a stored name is unanswerable this run —
+/// the arm underneath an `indeterminate` verdict.
+///
+/// The name is fine in all three and the RUN is not, so no repair
+/// here is a rebind; what the three words say is which node to look
+/// at. `target_failed`: the minting node failed on its own account.
+/// `target_poisoned`: it was poisoned by an upstream failure, so the
+/// repair is further up than the node that mints the name.
+/// `target_not_evaluated`: a canceled run never reached it, and
+/// re-evaluating is the whole of the recourse.
+pub fn resolve_indeterminate_tag(cause: &ResolveIndeterminate) -> &'static str {
+    match cause {
+        ResolveIndeterminate::TargetFailed { .. } => "target_failed",
+        ResolveIndeterminate::TargetPoisoned { .. } => "target_poisoned",
+        ResolveIndeterminate::TargetNotEvaluated { .. } => "target_not_evaluated",
     }
 }
 

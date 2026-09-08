@@ -349,13 +349,16 @@ fn the_evaluation_door_speaks_the_standing_ladder() {
 /// and pinned by CONSTRUCTING them, because nothing else can.
 ///
 /// Every other pin in this file builds its subject by naming a variant
-/// and filling its fields. That is unavailable here: `Resolved`,
-/// `ResolutionFailure` and `ResolveIndeterminate` are decided absent
-/// from the façade (`crates/pncad/tests/all.rs`'s `NOT_CARRIED`), so a
-/// `Resolution` cannot be assembled at all through `pncad` — it can
-/// only be OBTAINED, by resolving a real name against a real run. So
-/// this test builds a document, and the three states are three things
-/// that happen to it.
+/// and filling its fields. That is unavailable here: `Resolved` is
+/// decided absent from the façade (`crates/pncad/tests/all.rs`'s
+/// `NOT_CARRIED`, and its field is an arena key), and the two failure
+/// arms that can be spelled cannot be FILLED — `Vanished` needs a
+/// `Diagnosis`, `Ambiguous` a `TieWitness`, `NodeGone` a
+/// `RecipeEditRef`, all three of them interior. So a `Resolution`
+/// cannot be assembled through `pncad` at all; it can only be
+/// OBTAINED, by resolving a real name against a real run. This test
+/// builds a document, and the three states are three things that
+/// happen to it.
 ///
 /// That is a stronger pin than the literal one it replaces, and worth
 /// naming as such: it asserts that each state is REACHABLE by the
@@ -363,19 +366,45 @@ fn the_evaluation_door_speaks_the_standing_ladder() {
 /// string. It runs on the default no-Python path, so hosted CI checks
 /// the words a Python caller branches on without an interpreter.
 ///
-/// The `ambiguous` and `vanished` failures are not separately reached
-/// and do not need to be: they are the same `failed` word by the same
-/// arm of the same match, and what distinguishes them does not cross
-/// (this function's own doc comment says why).
+/// **The per-arm words are pinned wherever this fixture reaches the
+/// arm**, which is two of six: `node_gone` on the deleted node and
+/// `target_not_evaluated` on the canceled run. `ResolveIndeterminate`
+/// is constructible — its arms carry a `RecipeNodeId` and nothing
+/// else — so the other two of ITS three are pinned as literals below.
+/// `vanished` needs two runs of two documents, which
+/// `tests/test_resolve.py` already builds, so it is pinned there
+/// rather than duplicated here. `ambiguous` is reached by no test on
+/// either side of the boundary: an N2 tie needs a tie-marked table
+/// and no door on this surface authors one. Its word cannot silently
+/// move even so — the match is exhaustive and the inventory pins
+/// every literal — but nothing here asserts that a real tie arrives
+/// under it, and that is the honest statement of this pin's reach.
 #[test]
 fn resolution_status_tags_are_stable() {
-    use crate::tags::resolution_status_tag;
+    use crate::tags::{resolution_status_tag, resolve_error_tag, resolve_indeterminate_tag};
     use pncad::document::{
         CancelToken, Datum, DocEdit, EvalOptions, Expr, LoopProgram, Node, ProfileDoc,
         ProfileProgram, apply, evaluate,
     };
     use pncad::prelude::Dimension;
-    use pncad::select::{RunCtx, all_faces, resolve};
+    use pncad::select::{Resolution, ResolveIndeterminate, RunCtx, all_faces, resolve};
+
+    // The indeterminate arms carry a node id and nothing else, so all
+    // three are spellable here; the failure arms are not (this
+    // function's own doc comment says why).
+    let node = pncad::document::RecipeNodeId(0);
+    assert_eq!(
+        resolve_indeterminate_tag(&ResolveIndeterminate::TargetFailed { node }),
+        "target_failed"
+    );
+    assert_eq!(
+        resolve_indeterminate_tag(&ResolveIndeterminate::TargetPoisoned { through: node }),
+        "target_poisoned"
+    );
+    assert_eq!(
+        resolve_indeterminate_tag(&ResolveIndeterminate::TargetNotEvaluated { node }),
+        "target_not_evaluated"
+    );
 
     let tol = Tol::witness();
     let doc: ProfileDoc = crate::identity::derived("resolution-status-probe", tol);
@@ -441,16 +470,23 @@ fn resolution_status_tags_are_stable() {
         .expect("the leaf deletes")
         .doc;
     let after = run(&pruned, &live);
-    assert_eq!(
-        resolution_status_tag(&resolve(
-            RunCtx {
-                doc: &pruned,
-                eval: &after
-            },
-            &stored
-        )),
-        "failed"
+    let verdict = resolve(
+        RunCtx {
+            doc: &pruned,
+            eval: &after,
+        },
+        &stored,
     );
+    assert_eq!(resolution_status_tag(&verdict), "failed");
+    // ...and WHICH failure, which is the word a repair branches on: a
+    // node that left the document is rebound onto a different
+    // feature, where a tie would have been refined among `offers`.
+    match &verdict {
+        Resolution::Failed(failure) => {
+            assert_eq!(resolve_error_tag(&failure.error), "node_gone");
+        }
+        other => panic!("a deleted minting node must fail: {other:?}"),
+    }
 
     // INDETERMINATE: the node is still there and the RUN did not reach
     // it — a canceled run's suffix, which is the one arm of this state
@@ -460,16 +496,20 @@ fn resolution_status_tags_are_stable() {
     let canceled = CancelToken::new();
     canceled.cancel();
     let partial = run(&doc, &canceled);
-    assert_eq!(
-        resolution_status_tag(&resolve(
-            RunCtx {
-                doc: &doc,
-                eval: &partial
-            },
-            &stored
-        )),
-        "indeterminate"
+    let verdict = resolve(
+        RunCtx {
+            doc: &doc,
+            eval: &partial,
+        },
+        &stored,
     );
+    assert_eq!(resolution_status_tag(&verdict), "indeterminate");
+    match &verdict {
+        Resolution::Indeterminate(cause) => {
+            assert_eq!(resolve_indeterminate_tag(cause), "target_not_evaluated");
+        }
+        other => panic!("a canceled run's suffix must be indeterminate: {other:?}"),
+    }
 }
 
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
@@ -1974,8 +2014,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "resolve_error_tag",
+        values: &["ambiguous", "node_gone", "vanished"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "resolve_fault_tag",
         values: &["part_epsilon_seam", "part_pin_mismatch", "part_unresolved"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "resolve_indeterminate_tag",
+        values: &["target_failed", "target_not_evaluated", "target_poisoned"],
         delegates: &[],
     },
     TagEntry {

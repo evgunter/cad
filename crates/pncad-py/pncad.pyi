@@ -2515,14 +2515,23 @@ class Resolution:
     repairing the wrong end of the document, which is why it is not
     a `failed`.
 
-    `detail` is the kernel's own prose about the arm. There is no
-    per-arm tag: the failure vocabulary (`ResolveError`,
-    `ResolutionFailure`, `ResolveIndeterminate`) is decided absent
-    from the Rust façade, so `status` plus prose is the whole of what
-    crosses."""
+    `variant` is WHICH arm, under the two states that have one:
+    `vanished`, `ambiguous` or `node_gone` on a failure;
+    `target_failed`, `target_poisoned` or `target_not_evaluated` on an
+    indeterminate; `None` when resolved. It is a second vocabulary
+    rather than a finer `status` because the two answer different
+    questions — `status` is what a caller must HANDLE, `variant` is
+    what a caller offering a REPAIR reads. A tie is refined among
+    `offers`; a stranded name is rebound onto a different feature; an
+    indeterminate one is left alone until the node it names evaluates.
+
+    `detail` is the kernel's own prose beside them, and it is prose:
+    branch on `variant`, read `detail` to a human."""
 
     @property
     def status(self) -> str: ...
+    @property
+    def variant(self) -> Optional[str]: ...
     @property
     def node(self) -> Optional[NodeId]: ...
     @property
