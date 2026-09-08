@@ -4034,6 +4034,32 @@ both lanes on one 4-core cloud box at `-j2` (a method note applying to
 both arms equally). The implementer's unit log entry is not written
 until the dual concludes.
 
+## SHELL-10 review ordinal fixed at dispatch (2026-09-08)
+
+SHELL-10 (`shell-doors-still-walk-the-whole-body`, PR #2229 open —
+frozen head `e3d21e45`): **ordinal 2307** (SHELL band; after 2306).
+Pre-draw fields at the item (`work/shell/SHELL-10.md`): difficulty
+**S–M**, task-class **STRUCTURAL**, logged after block SHELL-B3's byte
+was drawn (disclosed there; the covariate is contaminated for this
+row as for every non-first slot); implementer arm per block SHELL-B3
+slot 1 (record branch-side on the SHELL orchestrator branch). Protocol
+v6 dual: draw = `/dev/urandom` byte **14**, parity 0 ⇒ **R1 = OPUS,
+R2 = FABLE**. Method, recorded before either review runs: CONCURRENT
+same-head on frozen `e3d21e45`, both briefs authored and STORED with
+sha256 before either dispatches (sha256 ae945ebbfddf… r1 / 4a241a121e2d… r2 —
+identical text modulo lane names and lane paths, verified by diff),
+neither reviewer sees the other's report, v6 item 5 isolation in both
+briefs (branches, scratch and the process table), PRIVATE
+`CARGO_TARGET_DIR` per reviewer (both EMPTY — cold and symmetric),
+both lanes on one 4-core cloud box at `-j2` (a method note applying to
+both arms equally). Disclosed: the unit's §3 STOP fired (tier 1 cannot
+be restricted to a shell subset; the closure check stays whole-body,
+filed by the lane) and a second finding surfaced (the attach layer's
+postcondition validates whole-body and panics under this workspace's
+release profile) — both in the PR body, both to be adjudicated by the
+dual. The implementer's unit log entry is not written until the dual
+concludes.
+
 ## SHELL-9 review ordinal fixed at dispatch (2026-09-08)
 
 SHELL-9 (`void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`,
