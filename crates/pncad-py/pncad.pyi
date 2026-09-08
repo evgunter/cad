@@ -91,18 +91,47 @@ class PncadError(Exception):
     """Base class for every refusal this module raises."""
 
 class EditError(PncadError):
-    """The document layer refused an edit."""
+    """The document layer refused an edit.
+
+    `variant` is which edit refused; `inner_variant` is the arm of the
+    refusal that edit carries, `None` where it carries none. See
+    EvaluationError for why the second word is a second attribute.
+    """
 
     variant: str
+    inner_variant: Optional[str]
 
 class EvaluationError(PncadError):
     """A node produced no value, or produced the wrong kind.
 
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
-    `node_failed`, or `poisoned`. `kind` (the `NodeErrorKind`'s
-    stable tag), `through` (the nearest failed ancestor) and
-    `finding` (the refusal-menu payload) are always present, `None`
-    where the reason has none (attributes never go missing).
+    `node_failed`, or `poisoned`. `kind` (which door refused),
+    `inner_kind` (the arm of the kernel refusal that door holds),
+    `through` (the nearest failed ancestor) and `finding` (the
+    refusal-menu payload) are always present, `None` where the reason
+    has none (attributes never go missing).
+
+    TWO WORDS BECAUSE THERE ARE TWO ENUMS, and each is projected where
+    it lives. `kind` is the carrier's discriminant — `revolve`,
+    `tube`, `shell`, `boolean` — fixed by the node's kind before any
+    payload is read, which is what a caller branching on the op ladder
+    holds. `inner_kind` is the kernel refusal's OWN arm, which exists
+    only once the carrier has said which refusal it holds:
+    `wall_exceeds_radius` under `tube`, `sliver_rim` under `revolve`,
+    `open_faces_disconnect` under `shell`. Neither is a coarser
+    spelling of the other, which is why the second is an attribute
+    rather than a longer first word: folding them into one vocabulary
+    would move every `kind` value already shipped and leave a caller
+    splitting words by prefix to get back the question it started
+    with.
+
+    `inner_kind` is `None` on an arm whose refusal has no arms of its
+    own — a payload of numbers, ids or nothing at all — and on the
+    three arms whose `kind` is ALREADY the payload's word (a mate
+    fault, a part fault, a placement-rule fault read their
+    discriminant straight through). A payload FIELD that is a value
+    rather than a fault — which split half, which entity kind — is a
+    different question and is not this attribute's.
 
     `finding` is the boolean's refusal MENU: when
     `kind == "undeclared_contact"`, it carries the candidate
@@ -115,14 +144,81 @@ class EvaluationError(PncadError):
     reason: str
     node: NodeId
     kind: Optional[str]
+    inner_kind: Optional[str]
     through: Optional[NodeId]
     finding: Optional[FlushFinding]
 
+class ValidationFinding:
+    """ONE failure a validator found, as words a caller branches on.
+
+    The value class behind `ValidationError.findings`, and THE SINGLE
+    PLACE ON THIS SURFACE WHERE A REFUSAL'S DISCRIMINANT CROSSES IN A
+    SEQUENCE rather than as a scalar attribute. That is argued by the
+    door's own shape and by nothing else: `Body.validate*` is the one
+    door that reports MANY refusals at once — `failure_count` has said
+    so since it was bound — so one `variant` string could only name one
+    of them. Everywhere else a refusal reports a single fault and its
+    word is a plain attribute. Read this as the exception it is, not as
+    a second convention.
+
+    A frozen value with no constructor: findings come off a refusal.
+    Two that say the same thing compare equal and hash equal.
+
+    `variant` is which validator arm refused (`undeclared_contact`,
+    `census_undecidable`, `negative_volume`, …). The other three are
+    that arm's payload and are `None` on an arm that carries none, so
+    reading one never raises `AttributeError`:
+
+    - `subject_kind` — what a census refusal is ABOUT: `"entity"` (one
+      carrier outside the certifiable inventory) or `"face_pair"` (a
+      candidate contact). Two different repairs: simplify or certify
+      the carrier, versus declare the coincidence or separate the two
+      faces.
+    - `entity_kind` — that entity's kind (`"face"`, `"edge"`,
+      `"vertex"`, `"loop"`, `"half_edge"`, `"shell"`, `"solid"`);
+      `None` for a `"face_pair"`, whose two sides are faces.
+    - `contact_kind` — which coincidence the tier-3′ census found
+      (`"vertex_on_face"`, `"edge_edge_cross"`, `"edge_face_pierce"`,
+      …). The branch that matters: an `edge_face_pierce` is
+      interpenetration and cannot be declared, while an
+      `edge_edge_overlap` can be.
+
+    No arena key crosses. A `Body` is an opaque handle, so WHICH face
+    or vertex a finding names stays in the kernel's own prose on the
+    exception's message; these words are what a caller acts on.
+    """
+
+    @property
+    def variant(self) -> str: ...
+    @property
+    def subject_kind(self) -> Optional[str]: ...
+    @property
+    def entity_kind(self) -> Optional[str]: ...
+    @property
+    def contact_kind(self) -> Optional[str]: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
 class ValidationError(PncadError):
-    """A body failed a validator, or mass properties could not be taken."""
+    """A body failed a validator, or mass properties could not be taken.
+
+    `door` names the rung that spoke (`validate`, `validate_closed`,
+    `validate_geometric`, `validate_pseudomanifold`), `failure_count`
+    is how many failures it found, and `findings` is one
+    `ValidationFinding` per failure, in the kernel's own deterministic
+    report order — so `len(findings) == failure_count` always. The
+    message is unchanged: every finding's own prose sentence, with its
+    recourse, joined.
+
+    ONE raise per call, whatever the count. That is why `findings` is a
+    sequence where every other refusal on this surface projects its
+    discriminant as a scalar word; `ValidationFinding` argues the
+    exception at the class it lives on.
+    """
 
     door: str
     failure_count: int
+    findings: list[ValidationFinding]
 
 class DimensionError(PncadError):
     """An operator applied to two QUANTITIES whose dimensions do not

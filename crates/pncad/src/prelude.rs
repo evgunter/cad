@@ -160,9 +160,11 @@ pub use quantity::{
 // them back, `ProfileError` payloads point into them, and `validated`
 // takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
 // the ladder passes around. What left is the raw MINTING tier:
-// `ProfileLoop::new`/`polygon` now live on `profile::RawLoop`, which is
-// kernel vocabulary and is re-exported by neither this prelude nor
-// `crate::profile`. Loops are authored through the lattice below.
+// `ProfileLoop::new`/`polygon` live on `profile::RawLoop`, which is a
+// FIXTURE door behind that crate's `test-support` feature — absent from
+// every shipped build, so there is nothing here to decline. Loops are
+// authored through the lattice below, and a table that already exists
+// crosses scalars through `ProfileLoop::map`.
 pub use ::profile::{
     ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
     SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
@@ -416,10 +418,16 @@ pub use topo::{
 // DISCRIMINANT, and every discriminant these refusals name is
 // spellable from this list.
 //
-// As with the blend vocabulary above, no Python tag moves: the
-// validate doors cross their failures as joined `Display` prose with
-// a `door` and a `failure_count` and no per-arm tag at all, so there
-// is nothing here to split or pin.
+// Two of the four now cross to Python as well, and this list is what
+// made that spellable. `ValidationError.findings` carries one word per
+// failure — the arm, plus `CensusContact` as `contact_kind` and
+// `CensusSubject` as `subject_kind` with the entity's kind beside it —
+// so the asymmetry these entries were written under, a Rust caller
+// matching the arm while a Python caller read the sentence, is closed
+// for the two payloads a caller acts on. `StaleDeclaration` and
+// `RingContact` are still Rust-side only. The sequence is the one on
+// this surface: `validate*` is the one door that reports many refusals
+// at once, and `failure_count` says so.
 pub use topo::{
     CensusContact, CensusSubject, RingContact, StaleDeclaration, ValidationError, validate,
     validate_closed, validate_geometric, validate_pseudomanifold,

@@ -37,19 +37,32 @@ use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{
-    NODE_NOT_EVALUATED, export_error_tag, node_error_tag, promoted_kind_tag, step_import_error_tag,
+    NODE_NOT_EVALUATED, export_error_tag, node_error_tag, node_inner_kind_tag, promoted_kind_tag,
+    step_import_error_tag,
 };
+use crate::validation;
 use pncad::document as d;
 use pncad::tolerance::Tol;
 use pncad::topo;
 
+/// The refusing ARM's word, as the exception carries it: the kernel
+/// refusal's own discriminant beside the carrier's, `None` where the
+/// refusal has no arms.
+fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
+    match node_inner_kind_tag(kind) {
+        Some(tag) => PyString::new(py, tag).unbind().into_any(),
+        None => py.None().into_any(),
+    }
+}
+
 /// Raise `EvaluationError` with a stable `reason` tag.
 ///
-/// `kind`, `through` and `finding` are ALWAYS present on the
-/// exception — `None` where the reason has no failing kind, no
-/// poisoning ancestor, or no refusal-menu payload — so stub-guided
-/// code can read them without an `AttributeError` trap — a stub that
-/// over-promises is worse than one that says `None`.
+/// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
+/// the exception — `None` where the reason has no failing kind, no
+/// arm under that kind, no poisoning ancestor, or no refusal-menu
+/// payload — so stub-guided code can read them without an
+/// `AttributeError` trap — a stub that over-promises is worse than one
+/// that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -65,6 +78,7 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
             ("reason", PyString::new(py, reason).unbind().into_any()),
             ("node", node),
             ("kind", py.None().into_any()),
+            ("inner_kind", py.None().into_any()),
             ("through", py.None().into_any()),
             ("finding", py.None().into_any()),
         ],
@@ -74,6 +88,11 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
 /// Raise `EvaluationError` for a node that ITSELF failed: the payload
 /// is the `NodeErrorKind`'s stable tag plus the node id; the message
 /// is the kernel error's own `Display` prose — never a `Debug` dump.
+///
+/// `kind` is the CARRIER's word — which door refused — and `inner_kind`
+/// is the arm of the kernel refusal that door holds, `None` where that
+/// refusal has no arms. Two enums, two discriminants, each projected
+/// where it lives.
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -109,6 +128,7 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
                     .unbind()
                     .into_any(),
             ),
+            ("inner_kind", inner_kind(py, &error.kind)),
             ("through", py.None().into_any()),
             ("finding", finding),
         ],
@@ -141,10 +161,12 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
                     .unbind()
                     .into_any(),
             ));
+            fields.push(("inner_kind", inner_kind(py, &error.kind)));
             format!("never ran — poisoned by failed ancestor: {error}")
         }
         None => {
             fields.push(("kind", py.None().into_any()));
+            fields.push(("inner_kind", py.None().into_any()));
             format!("never ran — poisoned through node {}", through.0.0)
         }
     };
@@ -308,7 +330,8 @@ impl Body {
     /// their seams; the SAME solids gathered by `product`, which
     /// declares nothing, arrive without and this gate reports the
     /// seam it finds. Raises `ValidationError` listing the failures,
-    /// with `door` and `failure_count` as on the other three rungs.
+    /// with `door`, `failure_count` and `findings` as on the other
+    /// three rungs.
     fn validate_pseudomanifold(&self, py: Python<'_>) -> PyResult<()> {
         let tol = Tol::witness();
         self.run_validator(
@@ -323,13 +346,17 @@ impl Body {
     /// Shared shape for the validator doors, which all return
     /// `Result<(), Vec<ValidationError>>`.
     ///
-    /// `ValidationError` has no curated tag mapping, so the exception
-    /// carries the failure COUNT as structured data and the findings
-    /// themselves as the human message — each through the enum's own
-    /// `Display`, one prose sentence with recourse per finding, joined
-    /// because a `Vec` has no rendering of its own. Per-variant tags
-    /// are the same mechanical work `crate::tags` does for edits,
-    /// deferred with the rest of the read-back surface.
+    /// The exception carries `door`, the failure COUNT, and one
+    /// [`ValidationFinding`] per failure, in the kernel's own
+    /// deterministic report order. The human message is unchanged: each
+    /// finding through the enum's own `Display`, one prose sentence with
+    /// recourse, joined because a `Vec` has no rendering of its own —
+    /// so the words are a branch a caller can take and the sentence is
+    /// still the diagnosis they read.
+    ///
+    /// ONE raise per call, whatever the count. `failure_count` is what
+    /// says the door found several, and splitting the raise would
+    /// report one of N failures where the join reports all of them.
     ///
     /// It raises through [`typed_err`] like every other door: the
     /// kernel words each tier-3′ census finding through `Display`, so
@@ -344,6 +371,11 @@ impl Body {
             return Ok(());
         };
         let count = failures.len().into_pyobject(py)?.unbind().into_any();
+        let findings: Vec<ValidationFinding> = failures
+            .iter()
+            .map(|failure| ValidationFinding(validation::project(failure)))
+            .collect();
+        let findings = findings.into_pyobject(py)?.unbind().into_any();
         Err(typed_err(
             py,
             ErrorClass::Validation,
@@ -359,8 +391,108 @@ impl Body {
             &[
                 ("door", PyString::new(py, door).unbind().into_any()),
                 ("failure_count", count),
+                ("findings", findings),
             ],
         ))
+    }
+}
+
+/// **ONE failure a validator found**, as words a caller branches on.
+///
+/// The value class behind `ValidationError.findings`, and **the single
+/// place on this surface where a refusal's discriminant crosses in a
+/// SEQUENCE rather than as a scalar attribute**. That is argued by this
+/// door's own shape and by nothing else: `validate*` is the one door
+/// that reports MANY refusals at once — `failure_count` has said so
+/// since it was bound — so one `variant` string could only name one of
+/// them. Everywhere else a refusal reports a single fault and its word
+/// is a plain attribute; read this as the exception it is, not as a
+/// second convention.
+///
+/// Frozen, constructed only by the binding, and compared by value: two
+/// findings that say the same thing are `==`.
+///
+/// `variant` is which `ValidationError` arm refused. The other three
+/// are its payload, `None` on an arm that carries none, so `getattr`
+/// never raises and a caller never has to branch on `variant` first:
+///
+/// * `subject_kind` — what a census refusal is ABOUT: `"entity"` (one
+///   carrier outside the certifiable inventory) or `"face_pair"` (a
+///   candidate contact). The two are two different repairs.
+/// * `entity_kind` — that entity's kind (`"face"`, `"edge"`,
+///   `"vertex"`, …); `None` for a pair, whose sides are faces.
+/// * `contact_kind` — which coincidence the tier-3′ census found
+///   (`"vertex_on_face"`, `"edge_edge_cross"`, …). The branch that
+///   matters: an `"edge_face_pierce"` is interpenetration and cannot
+///   be declared, while an `"edge_edge_overlap"` can be.
+///
+/// **No arena key crosses**, here as everywhere: a `Body` is an opaque
+/// handle, so WHICH face or vertex a finding names stays in the
+/// kernel's own prose on the message, and these words are what a
+/// caller acts on.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct ValidationFinding(validation::Finding);
+
+#[pymethods]
+impl ValidationFinding {
+    /// Which `ValidationError` arm refused.
+    #[getter]
+    fn variant(&self) -> &'static str {
+        self.0.variant
+    }
+
+    /// What a census refusal is about: `"entity"` or `"face_pair"`.
+    #[getter]
+    fn subject_kind(&self) -> Option<&'static str> {
+        self.0.subject_kind
+    }
+
+    /// The entity kind of an `"entity"` subject.
+    #[getter]
+    fn entity_kind(&self) -> Option<&'static str> {
+        self.0.entity_kind
+    }
+
+    /// Which coincidence the census found.
+    #[getter]
+    fn contact_kind(&self) -> Option<&'static str> {
+        self.0.contact_kind
+    }
+
+    fn __repr__(&self) -> String {
+        // Python's own spelling of an absent word, not Rust's: a repr
+        // a reader can paste back is the whole point of one.
+        fn word(value: Option<&str>) -> String {
+            value.map_or_else(|| "None".to_owned(), |word| format!("'{word}'"))
+        }
+        format!(
+            "ValidationFinding(variant='{}', subject_kind={}, \
+             entity_kind={}, contact_kind={})",
+            self.0.variant,
+            word(self.0.subject_kind),
+            word(self.0.entity_kind),
+            word(self.0.contact_kind)
+        )
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`]: the four words ARE the value,
+    /// so hashing them hashes exactly what equality compares.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::hash::DefaultHasher::new();
+        (
+            self.0.variant,
+            self.0.subject_kind,
+            self.0.entity_kind,
+            self.0.contact_kind,
+        )
+            .hash(&mut hasher);
+        hasher.finish()
     }
 }
 
@@ -1619,6 +1751,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Value>()?;
     m.add_class::<Body>()?;
     m.add_class::<MassProperties>()?;
+    m.add_class::<ValidationFinding>()?;
     m.add_class::<Datum>()?;
     m.add_class::<Measurement>()?;
     m.add_class::<Verdict>()?;

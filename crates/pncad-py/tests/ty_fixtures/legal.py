@@ -46,11 +46,13 @@ from pncad import (
     TubeWindow,
     Doc,
     DocEdit,
+    EditError,
     DocRef,
     InlineOutcome,
     InterfaceRecord,
     EntityKind,
     Evaluation,
+    EvaluationError,
     FlushFinding,
     FlushRung,
     Frame,
@@ -118,6 +120,8 @@ from pncad import (
     split,
     subject_body,
     update_references,
+    ValidationError,
+    ValidationFinding,
 )
 
 outline = (
@@ -665,3 +669,38 @@ requirement: NodeId = doc.insert(
     Node.assertion(sink, AssertionDir.AtLeast, doc.parse_expr("0.5 mm"))
 )
 which_way: str = AssertionDir.AtMost.symbol
+
+# The two words a refusal carries, typed. Both are OPTIONAL strings and
+# the stub says so: `kind` is which door refused, `inner_kind` the arm
+# of the refusal that door holds, and a caller that has not narrowed
+# either is holding `str | None`.
+try:
+    evaluate(doc).value(upright)
+except EvaluationError as node_refusal:
+    which_door: str | None = node_refusal.kind
+    which_arm: str | None = node_refusal.inner_kind
+    if which_arm is not None:
+        narrowed: str = which_arm
+try:
+    doc.apply(DocEdit.delete_node(upright))
+except EditError as edit_refusal:
+    which_edit: str = edit_refusal.variant
+    which_edit_arm: str | None = edit_refusal.inner_variant
+
+# The one refusal on this surface whose discriminant is a SEQUENCE.
+# `findings` is a list, its length is `failure_count`, and each entry's
+# `variant` is a plain `str` while its three payload words are optional
+# — the shape a caller reads without narrowing on `variant` first.
+try:
+    gathered.validate_pseudomanifold()
+except ValidationError as validation_refusal:
+    which_rung: str = validation_refusal.door
+    how_many: int = validation_refusal.failure_count
+    every_finding: list[ValidationFinding] = validation_refusal.findings
+    first_finding: ValidationFinding = every_finding[0]
+    which_arm_failed: str = first_finding.variant
+    about: str | None = first_finding.subject_kind
+    carrier: str | None = first_finding.entity_kind
+    coincidence: str | None = first_finding.contact_kind
+    if coincidence is not None:
+        declarable: str = coincidence

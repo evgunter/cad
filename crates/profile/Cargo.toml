@@ -9,16 +9,23 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# Makes the fillet recourse SENTENCES — the prose one Display arm
-# appends — nameable from this crate's `tests/` binaries. A `tests/`
-# file is a SEPARATE crate, so it can name neither a `#[cfg(test)]`
-# item nor a `pub(crate)` one; a suite that asserted a caller reads
-# these sentences would otherwise have to restate them, and a restated
-# sentence agrees with itself rather than with the code (S52, and the
-# same argument as sweep's `test-support`). Off by default and enabled
-# only through the self-dev-dependency below, so it is on exactly for
-# this crate's own tests and off for every normal build — which is why
-# these six names are NOT part of the surface pncad's facade
+# Makes two things nameable from a `tests/` binary, which is a SEPARATE
+# crate and can name neither a `#[cfg(test)]` item nor a `pub(crate)`
+# one:
+#
+#   1. `RawLoop`, the vertex-table FIXTURE door. Under this feature the
+#      trait is declared `pub`; under its negation it is declared
+#      `pub(crate)`, so a shipped build has no route to it and no
+#      re-export of it compiles. Its own docs carry the argument.
+#   2. the fillet recourse SENTENCES — the prose one `Display` arm
+#      appends. A suite asserting that a caller reads them would
+#      otherwise restate them, and a restated sentence agrees with
+#      itself rather than with the code (S52).
+#
+# Off by default and enabled only through the self-dev-dependency below
+# and the dev-dependency edges of the crates whose fixtures need the
+# door, so it is on for tests and off for every normal build — which is
+# why none of these names is part of the surface pncad's facade
 # completeness guard watches.
 test-support = []
 # Forwards geom-core's certified interval scalar so validation runs at

@@ -3557,3 +3557,159 @@ this head's last merge (`bench_scene.py`, the assembly tests, the
 audit page, tracker files), none overlapping the diff; merged in for
 the log tail alone and landed on run 34225477952's green without
 another chase.
+
+**LIB-TEAPOT MERGED (2026-09-08, #2206; full protocol — block LIB-13
+slot 2, v6 dual at ordinal 304, sample #163). The tour's teapot is
+ONE recipe document and the numeric scans are gone.** The pot's
+revolve is hollowed twice by `Node::Shell` over one operand and wall,
+parted only by the open list (empty for the sealed body whose census,
+capacity and Void class §3's pins read; the mouth's `Band`/`BandPi`
+half-discs BY NAME for the cup, which comes back as ONE rim face); the
+lid's revolve rolls through `Node::Fillet` on its `BandRim` names —
+THREE names, not the spec's six, because an annular profile takes the
+emitter's lamina branch (one closed rim per meridian vertex, no
+`BandRimPi`) — and in TWO requests where `fillet_edges` takes one,
+because the one-request output cannot be NAMED: the flange's rim and
+the dome's foot both slit the flange cone's seam meridian and
+`RoleSeg::BandSlit` is keyed on the source edge alone, so the emitter
+refuses `Naming(Duplicate)` before any geometry is doubted (§8's first
+stop clause, fired one step over from where it was written; filed as
+`blend-slit-name-collides-when-two-rims-share-a-meridian` — editor-
+core's code, on LIB's slate by the spec's routing, RE-HOMED below —
+with the true shape after the dual: two rims whose bands slit the SAME
+seam meridian, adjacency necessary not sufficient); the spout's
+revolve is placed by `Node::Transform` in axis-angle, whose cos/sin of
+`atan2(0.8, 0.6)` come back as the 3-4-5 components and whose placed
+root annulus sits on the authored root at exactly 0.0 — MEASURED off
+the body only at the fix pass, the delivered assertion having been an
+arithmetic identity (the dispatcher's seeded question, found by both
+reviewers); the handle is `Datum::Axis` + `Node::Tube`; the two joins
+the operand gate has no arm for are `Node::Boolean` nodes that refuse
+at `evaluate` under the kernel's `CurvedPairUnsupported` (same face,
+operand and kinds as the kernel-direct union; wall 3's `other_face`
+KEY moved 1v1→2v1 with the arena numbering, disclosed at the fix).
+`plane_chart_at` and `rim_at` deleted — the role names were asserted
+equal to the scan's keys in the branch before the scan went, and what
+ships reads each rim's circle back THROUGH its name. `gallery_document`
+exposes the recipe (four roots; three sinks deleted, which is the
+document layer saying a recipe cannot hold a narration body — filed).
+Tess budget: the gate clean against BOTH the pre-PR and the re-cut
+baseline; the baseline re-cut anyway because 27 teapot rows gained the
+durable face `name` and three `teapotlid` rows permuted their
+triangle counts with the two-request roll's face order — a file that
+moved with no geometry moved, §8's third clause contradicted and said
+so, the reverse re-cut scheduled by the live probe that goes red the
+day `BandSlit` gains its discriminator. Render lanes: wild and FreeCAD
+"matches this render"; uv NEUTRAL on the lid's re-slotted cells — the
+one moved cell, a §9 finding by the spec's letter, cause disclosed.
+Audit: rows 27 and 44 → YES on `TestTeapot` and `TestTorusvessel`
+(the torus-walled vessel's sealed hollow against its own closed form
+at two thicknesses — a row the spec did not ask for and the page's
+discipline required), row 45 stays NO on `Body::merge_coplanar_faces`,
+G17 `stops` 3→1, headline 39 of 45 (36 + 3 YES\*, 6 blocked). Dual:
+CONVERGED (A-W-F 1/6/7 / A-W-F 1/6/7, rubric 4/3/3 both), severity
+labels swapped on both headlines, zero unilateral MAJORs, no tally
+candidate, pair flagged under item 5 (the build-slot banner leak,
+filed). Fix pass IMPLEMENTER-INHERITED: all seventeen items taken, none declined, six commits: the spout's placement MEASURED off the placed body — root and tip annuli named at the revolve and read at the transform against the exact image under the direction's own matrix, ≤1e-15, axis cross 0e0, both subjects guarded off the turn's fixed axis, the bitwise libm pin retired for the `erf` precedent and the observed cos/sin REPORTED (the Python row pins the same; deleting `Node.transform` now fails at 0.0078125 vs −0.1266); the Python lid row pins each selected rim's station before the roll and the three band spine stations after it (the vertex-3 mutant red at 0.21198 vs 0.21875), `RIMS` as `(vertex, radius, station)`, `SEG_MOUTH` read off the built revolve; `rim_circle` from the NAME to the one edge that carries it and the circle off that edge's own carrier (R2's same-station mutant unreachable); finding 6 ATTEMPTED live in `per_rim_answers` with the `Naming(Duplicate)` pinned and the reverse re-cut scheduled in the assertion; `demos/tour/tests/teapot_document.rs` with the rim-pair table ({1,2} and the triple refuse; five pairs incl. adjacent {2,3},{3,4} build 8/16/8) and the two-requests-equal-one-request row (census, the three bands' stored `(station, major, minor)` bit for bit, mass to 1e-14, face ORDER asserted to differ); the mouth-chart pin restored both ways; `join_outcome` with a reachable `Ok` arm; the germ-pair sentence matched whole; R1's mouth mutants as a Python row with V/A EXACTLY equal across the two orders; the issue corrected to the shared-meridian invariant with the vertex→segment table (0→5, 1→1, 2→1, 3→2, 4→3, 5→5); wall 3's key disclosed at four sites; stale prose at six sites; the gallery `why` truthful and `concat!`-built; the re-cut disclosed as UNFORCED (lint clean against both baselines, §8's clause contradicted and said so); the uv cell a §9 finding with f005's loop-start change named; the lid STL measurement recorded; two duplications disclosed and FILED (`no-facade-door-mints-a-revolves-role-names`, `a-recipe-cannot-hold-a-narration-body-without-it-becoming-a-root`, gap-commented at `gallery_document`); the note renders the germ pair not `Debug` and drops 11,261→9,764 chars. nextest 6662/6662, Python 698 OK, pinned ruff, tess-lint 0 findings and 0 rows moved by the fix pass; the finalize 403 hit one intermediate head once and never recurred. Orchestrator
+notes: the implementer lane was killed by a container restart mid-unit
+with the branch unpushed (the clone survived; resumed; "push early" now
+means before the first build); the reviewers' scratch must live in
+their own lane directories, not the shared root (`memories/` lesson
+candidate, not written — Ev's call). Spec deleted at merge, ledger
+row written. RE-HOMING: `blend-slit-name-collides-…` and
+`recipe-cannot-hold-a-narration-body` are editor-core findings filed
+on LIB's slate; they stay here as LIB-owned CROSS-FENCE items until
+the owning program claims them (STATUS shows them under lib).
+
+**LIB-ARMS MERGED (2026-09-08, #2217; mechanical under the 08-29
+ruling, no A/B row). The first unit under the per-arm rule Ev licensed
+on `[ev]` PR 2196: every refusal whose carrier already projects a word
+gains its inner arm as a second attribute.** `EvaluationError` gains
+`inner_kind` and `EditError` gains `inner_variant` — the kernel
+refusal's own arm as a snake_case word, `None` where the refusal has
+no arms — and `kind`/`variant` are untouched, so a caller branching on
+the op ladder sees no change (the ruling's own argument for the shape,
+measured: the diff deletes no match arm and no literal, and no
+`kind ==`/`variant ==` fixture moved). Ev's recorded reservation is
+answered at the door — the `EvaluationError` docstring, `pncad.pyi`
+and `docs/guide/fail-loud.md` (an executed block: `("revolve",
+"degenerate_angle")` / `("revolve", "vertex_crosses_axis")`) — as two
+enums' discriminants projected where each lives, not one division
+stored twice. The survey: 68 `NodeErrorKind` arms, 29 project an
+inner enum through twenty new exhaustive maps (profile, replay,
+structure-refusal, extrude, revolve, tube, split-op, blend, boolean,
+transform, skin, loft, band, naming, param-attach, shell,
+program-refusal, param-box, seed; 206 literals), 39 answer `None` in
+four stated groups (three already project the payload's word under
+the carrier's name; eight carry a VALUE enum, the payload half's
+question; five carry a struct with no matchable discriminant, one of
+them `WitnessBifurcation` — filed
+`witness-bifurcation-arm-has-no-inner-word`, an expiry not an
+omission; 23 carry no enum). `EditError`: 58 arms, five project.
+Nested enums one level only. The compile-time alarm fires both ways,
+RUN not asserted (a planted `RevolveError::ProbeArm` and a deleted
+map row both red `revolve_error_tag` with E0004). Six inner words
+reached from real documents, the `None` case pinned at both carriers,
+the poisoned path carries the root cause's pair; `EditError` reaches
+one of its five inner arms and the other four have pinned reasons
+(the doors pre-check). Disclosed deviation: the FAÇADE moved —
+`NamingError`, `ProgramRefusal`, `SeedError` out of `NOT_CARRIED` and
+`ParamBoxError` out of the `interval` block (`NOT_CARRIED` 90→87), by
+the façade's own payload rule, argued in `crates/pncad/tests/all.rs`;
+`BifurcationKind` deliberately stayed. Eleven census rows to
+`BOUND_AS` at the two carriers' second words with the measurement
+stated; four types that cross the same way are not rows because none
+is a leaf of the three curated lists. Also closed:
+`tag-inventory-prose-counts-are-stale` (option 1 — aggregates and
+rosters deleted, a roster found already false; the two floors reset
+to 60/500 under a table at 71/623). The tag-table reader learned
+`Option<&'static str>`, `Some(..)` and bare `None`. Mid-unit main
+moved under it (SHELL-8 renamed a shell arm and added one; the
+exhaustive match caught it — the alarm's first live firing). Not
+taken, per the brief: the payload half and the `findings` sequence,
+next. No kernel crate touched; the lane ran the pinned ruff for real.
+
+**LIB-FINDINGS MERGED (2026-09-08, #2225; mechanical under the 08-29
+ruling, no A/B row). Ev's ruling (A) on
+`census-findings-cross-without-a-per-arm-tag` shipped: `ValidationError`
+keeps `door` and `failure_count` and gains `findings`, a list of frozen
+`ValidationFinding`s — one per failure, `len(findings) ==
+failure_count`, in the kernel's own report order — the single exception
+to "`variant` is a scalar", argued by the door's own shape (the one door
+that reports MANY refusals in one raise) at the three places a reader
+meets it (the class docstring, `pncad.pyi`, the README's taxonomy
+paragraph) so it does not become a second convention.** Each finding
+carries `variant` (the arm, from `validation_error_tag`, exhaustive
+over all 71 `ValidationError` arms, no wildcard), `contact_kind`
+(`UndeclaredContact`'s `CensusContact`, 8 arms) and `subject_kind` +
+`entity_kind` (the two census-unsupported arms' `CensusSubject`: 2
+arms, and the `EntityId` kind beside it, 7 — CUR6's own shape at the
+façade, the ruling's "plus the entity kind or the pair"), every
+attribute present on every finding, `None` where the arm carries none;
+no arena key crosses (a `Body` is an opaque handle), so WHICH face or
+vertex stays in the kernel's prose on the joined message, which is
+byte-identical; the door still raises once. Python-independent
+`validation.rs` assembles the words (its two payload EXTRACTORS carry
+a `_` arm under the kernel enum's own extract licence — a question,
+not a classification; the classifying map is the exhaustive one).
+Rows: the old absence pin REWRITTEN into its positive form (the two
+scalar words still absent — one raise carries N findings — and the
+sequence is where the arms live); `len == failure_count`; each word a
+phrase the message spells; structural `==`/hash and frozenness; every
+attribute present; two distinct arms off ONE raise (a cylinder resting
+on a slab: `undeclared_contact` with `vertex_on_face` beside
+`census_undecidable`); the arms Python cannot produce NAMED with the
+reason (the structural/geometric arms want a corrupt arena; the two
+subject-carrying arms want an uncertifiable carrier, and every public
+product certifies) and pinned in Rust where the refusal constructs;
+ty fixtures both ways. Census: `CensusContact` and `CensusSubject` left
+`INTERIOR` for `BOUND_AS` together, as their own rows' falsifier
+predicted; `EntityId`, `ContactFinding`, `RingContact`,
+`StaleDeclaration` re-argued where they named the old measurement;
+the prelude's group-5 note corrected (comment only, no façade name
+moved). Residue filed:
+`two-validation-payload-discriminants-still-uncrossed`
+(`StaleDeclaration`, `RingContact` — the ruling named two types and
+these are not them). Not taken: the six doors' payload attributes
+(LIB-DOORS-1 ran beside this unit). No kernel crate touched; the lane
+ran the pinned ruff for real.

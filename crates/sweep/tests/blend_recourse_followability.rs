@@ -804,7 +804,7 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
 /// builds.**
 ///
 /// The refusal is reached at a support face's non-circular RING:
-/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring_and_cannot_be_followed`
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`
 /// is the witness — a square pocket through a cube's top face, the
 /// twelve outer edges refused at every radius, because `ring_circle`
 /// reads circle rings only.

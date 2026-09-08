@@ -1820,6 +1820,12 @@ class TestCrosslapGlued(unittest.TestCase):
         with self.assertRaises(EvaluationError) as caught:
             ev.value(glued)
         self.assertEqual(caught.exception.kind, "naming")
+        # WHICH naming refusal, beside the carrier's word: the emitter
+        # could not mint a name, which is a different wall from a
+        # duplicate or a missing upstream table and wants a different
+        # fix. That the emission arm is the one standing here is what a
+        # reader of this residue needs.
+        self.assertEqual(caught.exception.inner_kind, "emission")
 
 
 class TestCrosslapExploded(unittest.TestCase):
@@ -2262,6 +2268,805 @@ class TestBudfillet(unittest.TestCase):
         )
         self.assertGreater(removed, 0.0)
         self.assertLess(removed, cap)
+
+
+def teapot_frame_and_axis(doc):
+    """u = +X (the radius), v = +Y (the axis) — the sketch frame the
+    teapot scene's world placement comes from — and the axis of
+    revolution in that frame's own coordinates."""
+    frame = doc.sketch_frame(plane=SketchPlane.xy())
+    return frame, y_axis(doc, frame)
+
+
+def fully_revolved(doc, frame, axis, meridian):
+    """One full turn of `meridian` about `axis`, drawn on `frame`."""
+    profile = doc.insert(Node.profile(meridian, plane=frame))
+    return doc.insert(Node.revolve(profile, axis, 2 * math.pi * rad))
+
+
+class TestTeapot(unittest.TestCase):
+    """Tour scene `teapot` (rows 27 and 44, demos/tour/src/teapot.rs):
+    `shell`'s designated demo, as ONE document — a revolved pot
+    hollowed by `Node.shell` and OPENED at its mouth, a revolved lid
+    whose three latitude rims roll through `Node.fillet`, a revolved
+    spout placed by `Node.transform`, a `Node.tube` handle, and the two
+    unions the operand gate has no arm for.
+
+    Every selection here is a NAME the evaluation answered: the mouth
+    is the pot's two `Band`/`BandPi` half-discs at the mouth-disc
+    segment, the rims are the lid's `BandRim` edges at the meridian
+    vertices they stand on, and nothing composes a name from text.
+    Segment and vertex are read off the CANONICAL ORDER `select`
+    answers in, which is the role path's own order.
+
+    The oracles are the scene's own closed forms, restated here from
+    the same dyadic constants — never a decimal copied out of a run.
+
+    Two things the Rust scene says that this row says differently, and
+    both are the binding's shape rather than a gap. The lid's roll is
+    TWO `Node.fillet` requests where `fillet_edges` takes one: the
+    flange's rim and the dome's foot stand at the two ends of one
+    meridian segment, so both bands slit that segment's seam and the
+    blend name emitter has one name for the two slits (the Rust
+    module's sixth finding). And the two unions arrive as
+    `EvaluationError` with `kind == "boolean"` carrying the kernel's
+    own DISPLAY prose — `pncad-py` never Debug-dumps a payload, so the
+    variant name `CurvedPairUnsupported` is not in the text and what
+    the row pins instead is the germ pair the gate named, which is the
+    same fact the Rust wall matches on.
+    """
+
+    # ---- the vessel (dyadic metres, exactly the scene's) ----
+    R_FOOT: ClassVar[float] = 4.0 / 64.0
+    R_BELLY: ClassVar[float] = 5.0 / 64.0
+    R_NECK: ClassVar[float] = 3.0 / 64.0
+    Y_FOOT: ClassVar[float] = 1.0 / 64.0
+    Y_BELLY_C: ClassVar[float] = 4.0 / 64.0
+    Y_MOUTH: ClassVar[float] = 8.0 / 64.0
+    WALL: ClassVar[float] = 1.0 / 128.0
+    SEG_MOUTH: ClassVar[int] = 3
+
+    # ---- the lid ----
+    LIFT: ClassVar[float] = 1.0 / 32.0
+    LID_BASE: ClassVar[float] = 8.0 / 64.0 + 1.0 / 32.0
+    R_FLANGE: ClassVar[float] = 14.0 / 256.0
+    Y_FLANGE: ClassVar[float] = 8.0 / 64.0 + 1.0 / 32.0 + 6.0 / 256.0
+    DOME_R: ClassVar[float] = 13.0 / 256.0
+    DOME_C: ClassVar[float] = 8.0 / 64.0 + 1.0 / 32.0 + 1.0 / 256.0
+    R_KNOB: ClassVar[float] = 5.0 / 256.0
+    Y_KNOB: ClassVar[float] = 8.0 / 64.0 + 1.0 / 32.0 + 13.0 / 256.0
+    Y_TOP: ClassVar[float] = 8.0 / 64.0 + 1.0 / 32.0 + 18.0 / 256.0
+    R_VENT: ClassVar[float] = 1.0 / 256.0
+    ROLL: ClassVar[float] = 2.0 / 256.0
+    #: Each rolled rim as `(meridian VERTEX, radius, station)` — a
+    #: vertex `v` starts segment `v`, so these are the flange's rim,
+    #: the dome's foot and the knob's top. All three are pinned below:
+    #: a row that only counted bands could not tell which rims rolled.
+    RIMS: ClassVar[tuple] = (
+        (1, 14.0 / 256.0, 8.0 / 64.0 + 1.0 / 32.0),
+        (2, 3.0 / 64.0, 8.0 / 64.0 + 1.0 / 32.0 + 6.0 / 256.0),
+        (4, 5.0 / 256.0, 8.0 / 64.0 + 1.0 / 32.0 + 18.0 / 256.0),
+    )
+
+    # ---- the spout and the handle ----
+    SPOUT_LEN: ClassVar[float] = 8.0 / 64.0
+    SPOUT_R0: ClassVar[float] = 6.0 / 256.0
+    SPOUT_R1: ClassVar[float] = 3.0 / 256.0
+    SPOUT_WALL: ClassVar[float] = 1.0 / 256.0
+    SPOUT_ROOT: ClassVar[tuple] = (-1.0 / 32.0, 3.0 / 64.0, 0.0)
+    SPOUT_DIR: ClassVar[tuple] = (-0.8, 0.6, 0.0)
+    HANDLE_R: ClassVar[float] = 6.0 / 256.0
+    HANDLE_TUBE: ClassVar[float] = 1.0 / 128.0
+    HANDLE_C: ClassVar[tuple] = (5.0 / 64.0, 4.0 / 64.0, 0.0)
+    HANDLE_OVER: ClassVar[float] = 0.5
+
+    # ---- the closed forms, from the constants above ----
+
+    def pot_junction(self, d):
+        """Where the foot cylinder meets the belly sphere at inward
+        offset `d`: the sphere shrinks concentrically and the cylinder
+        radially, so their meeting slides ALONG the meridian."""
+        rr, rf = self.R_BELLY - d, self.R_FOOT - d
+        return self.Y_BELLY_C - math.sqrt(rr * rr - rf * rf)
+
+    def belly_radius(self, y, d):
+        rr = self.R_BELLY - d
+        return math.sqrt(rr * rr - (y - self.Y_BELLY_C) ** 2)
+
+    def pot_volume(self, d):
+        """`π∫ρ²dy`: the foot's cylinder to the junction, then the
+        spherical zone from there to the mouth."""
+        rf, rr = self.R_FOOT - d, self.R_BELLY - d
+        y0, y1 = self.pot_junction(d), self.Y_MOUTH - d
+
+        def zone(y):
+            u = y - self.Y_BELLY_C
+            return rr * rr * u - u**3 / 3.0
+
+        return math.pi * rf * rf * (y0 - d) + math.pi * (zone(y1) - zone(y0))
+
+    def pot_area(self, d):
+        """The base cap, the foot's wall, the zone's lateral area
+        (`2πRh`, Archimedes) and the mouth cap."""
+        rf, rr = self.R_FOOT - d, self.R_BELLY - d
+        y0, y1 = self.pot_junction(d), self.Y_MOUTH - d
+        return (
+            math.pi * rf * rf
+            + 2 * math.pi * rf * (y0 - d)
+            + 2 * math.pi * rr * (y1 - y0)
+            + math.pi * self.belly_radius(y1, d) ** 2
+        )
+
+    @staticmethod
+    def sphere_zone(r, c, y0, y1):
+        """`(∫π x² dy, Archimedes' 2πr·Δy)` over a zone of the sphere
+        of radius `r` centred at station `c`."""
+        a, b = y0 - c, y1 - c
+        return (
+            math.pi * (r * r * (b - a) - (b**3 - a**3) / 3.0),
+            2 * math.pi * r * (y1 - y0),
+        )
+
+    @staticmethod
+    def frustum_volume(r0, r1, h):
+        return math.pi * h * (r0 * r0 + r0 * r1 + r1 * r1) / 3.0
+
+    @staticmethod
+    def frustum_lateral(r0, r1, h):
+        return math.pi * (r0 + r1) * math.hypot(r0 - r1, h)
+
+    @staticmethod
+    def annulus(ro, ri):
+        return math.pi * (ro * ro - ri * ri)
+
+    #: The spout meridian's tip annulus, in program order (root
+    #: annulus, outer cone, TIP annulus, bore) — the face the
+    #: placement's rotation MOVES.
+    SEG_SPOUT_TIP: ClassVar[int] = 2
+
+    def placed(self, p):
+        """`p` under the placement the authored DIRECTION states: the
+        3-4-5 turn about +z written as the matrix whose columns are
+        SPOUT_DIR's own components, then the translation. Independent
+        of the angle the document stores, which is the point."""
+        c0 = (self.SPOUT_DIR[1], -self.SPOUT_DIR[0], 0.0)
+        c1 = self.SPOUT_DIR
+        c2 = (0.0, 0.0, 1.0)
+        return tuple(
+            c0[i] * p[0] + c1[i] * p[1] + c2[i] * p[2] + self.SPOUT_ROOT[i]
+            for i in range(3)
+        )
+
+    def dome_foot_band_station(self):
+        """Where the dome-foot band's spine rides: the flange cone's
+        inward offset line meeting the dome sphere's offset circle —
+        a line and a circle, one quadratic, the root inside the
+        flange's span. The scene's own third closed form."""
+        alpha = math.atan((self.R_FLANGE - self.R_NECK) / (self.Y_FLANGE - self.LID_BASE))
+        sin_a, cos_a = math.sin(alpha), math.cos(alpha)
+        off0 = (self.R_FLANGE - self.ROLL * cos_a, self.LID_BASE - self.ROLL * sin_a)
+        direction = (-sin_a, cos_a)
+        rho = self.DOME_R - self.ROLL
+        px, py = off0[0], off0[1] - self.DOME_C
+        b = px * direction[0] + py * direction[1]
+        c = px * px + py * py - rho * rho
+        u = -b + math.sqrt(b * b - c)
+        return off0[1] + u * direction[1]
+
+    def close(self, got, want, what):
+        self.assertLess(abs((got - want) / want), 1e-12, f"{what}: {got} vs {want}")
+
+    # ---- the document ----
+
+    def vessel_meridian(self):
+        """Base disc, foot, belly, mouth disc — the shoulders and the
+        belly are ONE arc about a centre ON the axis, which makes the
+        wall a sphere zone."""
+        return (
+            Open.at((0 * m, 0 * m))
+            .line_to((self.R_FOOT * m, 0 * m))
+            .line_to((self.R_FOOT * m, self.Y_FOOT * m))
+            .arc_to(
+                Center(
+                    c=(0 * m, self.Y_BELLY_C * m),
+                    winding=ArcSweep.Ccw,
+                    p=(self.R_NECK * m, self.Y_MOUTH * m),
+                )
+            )
+            .line_to((0 * m, self.Y_MOUTH * m))
+            .line_to(Start)
+        )
+
+    def lid_meridian(self):
+        """Underside annulus, conical flange, dome, knob wall, knob top
+        annulus, vent bore — ANNULAR, which is what makes its latitude
+        rims closed edges."""
+        return (
+            Open.at((self.R_VENT * m, self.LID_BASE * m))
+            .line_to((self.R_FLANGE * m, self.LID_BASE * m))
+            .line_to((self.R_NECK * m, self.Y_FLANGE * m))
+            .arc_to(
+                Center(
+                    c=(0 * m, self.DOME_C * m),
+                    winding=ArcSweep.Ccw,
+                    p=(self.R_KNOB * m, self.Y_KNOB * m),
+                )
+            )
+            .line_to((self.R_KNOB * m, self.Y_TOP * m))
+            .line_to((self.R_VENT * m, self.Y_TOP * m))
+            .line_to(Start)
+        )
+
+    def spout_meridian(self):
+        """An annular trapezoid — a cone frustum with a cone frustum
+        bored out of it, one wall thick."""
+        return (
+            Open.at(((self.SPOUT_R0 - self.SPOUT_WALL) * m, 0 * m))
+            .line_to((self.SPOUT_R0 * m, 0 * m))
+            .line_to((self.SPOUT_R1 * m, self.SPOUT_LEN * m))
+            .line_to(((self.SPOUT_R1 - self.SPOUT_WALL) * m, self.SPOUT_LEN * m))
+            .line_to(Start)
+        )
+
+    def mouth_segment(self, ev, node, bands):
+        """The mouth disc's index among the revolve's `Band` faces,
+        READ OFF the body rather than transcribed: it is the one whose
+        carrier is a plane standing at the mouth's own station, and it
+        has to be the only one."""
+        hits = [
+            i
+            for i, name in enumerate(bands)
+            if ev.face_carrier_kind(node, name) == SurfaceKind.Plane
+            and abs(ev.face_frame(node, name).origin[1].meters - self.Y_MOUTH) < 1e-12
+        ]
+        self.assertEqual(len(hits), 1, "one band stands on the mouth plane")
+        return hits[0]
+
+    def seg_faces(self, ev, node, tag):
+        """The revolve's faces of one band role, in the canonical order
+        `select` answers in — which for a `Band` is its meridian
+        SEGMENT, so the mouth disc's half is at `SEG_MOUTH`."""
+        return ev.select(
+            node, Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(tag)))
+        )
+
+    def rim_edges(self, ev, node):
+        """The revolve's closed latitude rims, in the canonical order
+        `select` answers in — which is the meridian VERTEX each stands
+        at."""
+        return ev.select(
+            node,
+            Selector.of(NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.BandRim))),
+        )
+
+    def teapot(self, doc):
+        """The scene's four bodies and its two refused joins, as one
+        document. Returns the nodes the rows below read."""
+        frame, axis = teapot_frame_and_axis(doc)
+
+        # ---- the vessel: one revolve, two hollows ----
+        pot = fully_revolved(doc, frame, axis, self.vessel_meridian())
+        ev = evaluate(doc)
+        bands = self.seg_faces(ev, pot, SegTag.Band)
+        bands_pi = self.seg_faces(ev, pot, SegTag.BandPi)
+        self.assertEqual(len(bands), 4, "one band per meridian segment that sweeps")
+        self.assertEqual(len(bands_pi), 4, "and its [pi, 2pi) half")
+        # The mouth is the mouth-disc segment's TWO half-faces, the
+        # `Band` half first: the first designated face of a chart
+        # carries the rim's identity.
+        seg_mouth = self.mouth_segment(ev, pot, bands)
+        self.assertEqual(
+            seg_mouth,
+            self.SEG_MOUTH,
+            "the mouth disc is the meridian's fourth segment in program order",
+        )
+        mouth = [bands[seg_mouth], bands_pi[seg_mouth]]
+        sealed = doc.insert(Node.shell(pot, self.WALL * m, []))
+        cup = doc.insert(Node.shell(pot, self.WALL * m, mouth))
+
+        # ---- the lid: three rims, by name ----
+        sharp = fully_revolved(doc, frame, axis, self.lid_meridian())
+        ev = evaluate(doc)
+        rims = self.rim_edges(ev, sharp)
+        self.assertEqual(len(rims), 6, "an annular profile mints one rim per vertex")
+        # WHICH rims roll, pinned before they do: each selected name's
+        # own circle stands at the station its meridian vertex was
+        # authored at. A row that only counted bands afterwards could
+        # not tell one rim from another — rolling vertex 3 instead of
+        # 4 leaves the census, the torus count and the Pappus bound
+        # untouched, because vertex 3 stands at R_KNOB too.
+        for v, _radius, station in self.RIMS:
+            got = ev.edge_frame(sharp, rims[v]).origin
+            self.assertAlmostEqual(
+                got[1].meters, station, delta=1e-12, msg=f"rim at vertex {v}"
+            )
+        first = doc.insert(Node.fillet(sharp, self.ROLL * m, [rims[self.RIMS[0][0]]]))
+        ev = evaluate(doc)
+        carried = ev.select(
+            first,
+            Selector.of(
+                NamePat.of_kind(EntityKind.Edge).seg(
+                    SegPat.tag(SegTag.FromTarget).of(
+                        [NamePat.any().seg(SegPat.tag(SegTag.BandRim))]
+                    )
+                )
+            ),
+        )
+        rest = [carried[self.RIMS[1][0] - 1], carried[self.RIMS[2][0] - 1]]
+        lid = doc.insert(Node.fillet(first, self.ROLL * m, rest))
+
+        # ---- the spout: built about its own axis, then placed ----
+        # The document says a placement in AXIS-ANGLE; the 3-4-5 turn
+        # is the rotation about +z whose cosine and sine ARE the
+        # direction's own components.
+        turn = math.atan2(-self.SPOUT_DIR[0], self.SPOUT_DIR[1])
+        spout_body = fully_revolved(doc, frame, axis, self.spout_meridian())
+        spout = doc.insert(
+            Node.transform(
+                spout_body,
+                tuple(c * m for c in self.SPOUT_ROOT),
+                (0.0, 0.0, 1.0),
+                turn * rad,
+            )
+        )
+
+        # ---- the handle ----
+        spine = doc.insert(
+            Node.datum_axis(tuple(c * m for c in self.HANDLE_C), (0.0, 0.0, 1.0))
+        )
+        half = math.pi / 2 + self.HANDLE_OVER
+        handle = doc.insert(
+            Node.tube(
+                spine,
+                (1.0, 0.0, 0.0),
+                self.HANDLE_R * m,
+                TubeWindow.arc(-half * rad, half * rad),
+                self.HANDLE_TUBE * m,
+            )
+        )
+
+        # ---- the two joins the operand gate has no arm for ----
+        joins = [
+            doc.insert(Node.boolean(BooleanOp.Union, cup, handle)),
+            doc.insert(Node.boolean(BooleanOp.Union, cup, spout)),
+        ]
+        return sealed, cup, sharp, lid, spout_body, spout, handle, joins
+
+    # ---- the rows ----
+
+    def test_the_vessel_hollows_sealed_and_opens_at_its_named_mouth(self):
+        doc = Doc()
+        sealed, cup, *_ = self.teapot(doc)
+        ev = evaluate(doc)
+
+        # The sealed hollow: the wall between two closed-form
+        # boundaries, and the two boundaries' areas.
+        body = ev.value(sealed).body()
+        body.validate()
+        props = body.mass_properties()
+        v_out, v_cav = self.pot_volume(0.0), self.pot_volume(self.WALL)
+        self.close(props.volume, v_out - v_cav, "sealed pot V")
+        self.close(
+            props.surface_area, self.pot_area(0.0) + self.pot_area(self.WALL), "sealed pot A"
+        )
+        self.assertEqual(props.volume_pad, 0.0, "closed forms need no pad")
+        self.assertEqual(len(ev.all_faces(sealed)), 16, "the operand's 8 faces, twice")
+
+        # The cup: the sealed wall LESS the plug the rim lift opens,
+        # which over that slab is the belly SPHERE rather than a
+        # cylinder.
+        cup_body = ev.value(cup).body()
+        cup_body.validate()
+        rr = self.R_BELLY - self.WALL
+
+        def zone(y):
+            u = y - self.Y_BELLY_C
+            return rr * rr * u - u**3 / 3.0
+
+        plug = math.pi * (zone(self.Y_MOUTH) - zone(self.Y_MOUTH - self.WALL))
+        self.close(cup_body.mass_properties().volume, v_out - v_cav - plug, "cup V")
+        # ONE rim face: the revolve's seam is retired before the glue,
+        # so the mouth's two designated halves come back as one
+        # annulus and not as two half-annuli.
+        rim = ev.select(
+            cup, Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Rim)))
+        )
+        self.assertEqual(len(rim), 1, "one designated chart, one rim")
+        self.assertEqual(len(ev.all_faces(cup)), 13, "5 outer + the rim + 7 cavity")
+
+    def test_the_mouths_designation_is_a_CHART_and_its_ORDER_is_meaning(self):
+        """Both halves or neither, and which one is named FIRST decides
+        whose name the rim wears.
+
+        A full revolve cuts the mouth disc at the two seam meridians,
+        so the chart is two half-discs; the kernel's rim surgery lifts
+        a chart as a whole and refuses a partial designation. Naming
+        one half is therefore not "most of the mouth" — it is a
+        refusal. Naming both in the other order is not a different
+        shape — it is the same body with a different name on its rim,
+        which is what makes the order MEANING rather than style."""
+        doc = Doc()
+        frame, axis = teapot_frame_and_axis(doc)
+        pot = fully_revolved(doc, frame, axis, self.vessel_meridian())
+        ev = evaluate(doc)
+        bands = self.seg_faces(ev, pot, SegTag.Band)
+        bands_pi = self.seg_faces(ev, pot, SegTag.BandPi)
+        seg = self.mouth_segment(ev, pot, bands)
+        half, half_pi = bands[seg], bands_pi[seg]
+
+        # Half a chart is a refusal, from either side.
+        for one in (half, half_pi):
+            node = doc.insert(Node.shell(pot, self.WALL * m, [one]))
+            with self.assertRaises(EvaluationError) as caught:
+                evaluate(doc).value(node)
+            self.assertEqual(caught.exception.kind, "shell")
+            self.assertIn("chart", str(caught.exception))
+
+        # Both halves, in each order: two documents, one shape.
+        forward = doc.insert(Node.shell(pot, self.WALL * m, [half, half_pi]))
+        backward = doc.insert(Node.shell(pot, self.WALL * m, [half_pi, half]))
+        ev = evaluate(doc)
+        faces = NamePat.of_kind(EntityKind.Face)
+        rims = {}
+        for node in (forward, backward):
+            body = ev.value(node).body()
+            body.validate()
+            rim = ev.select(node, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))
+            self.assertEqual(len(rim), 1, "one designated chart, one rim")
+            origin = ev.face_frame(node, rim[0]).origin
+            self.assertAlmostEqual(origin[1].meters, self.Y_MOUTH, delta=1e-12)
+            self.assertAlmostEqual(origin[0].meters, 0.0, delta=1e-12)
+            rims[node] = rim[0]
+        # The rim wears the FIRST designated face's name, so the two
+        # orders mint two different names for one annulus.
+        self.assertIn(half, rims[forward])
+        self.assertIn(half_pi, rims[backward])
+        self.assertNotEqual(rims[forward], rims[backward])
+        # And the geometry does not know the difference: exactly equal,
+        # not merely close.
+        a = ev.value(forward).body().mass_properties()
+        b = ev.value(backward).body().mass_properties()
+        self.assertEqual((a.volume, a.surface_area), (b.volume, b.surface_area))
+
+    def test_the_lid_rolls_the_three_rims_it_names(self):
+        doc = Doc()
+        _sealed, _cup, sharp, lid, *_ = self.teapot(doc)
+        ev = evaluate(doc)
+
+        # The sharp lid against its closed forms: the dome by
+        # Archimedes, the rest by the stack, the vent bored through.
+        flange_h = self.Y_FLANGE - self.LID_BASE
+        v_dome, a_dome = self.sphere_zone(self.DOME_R, self.DOME_C, self.Y_FLANGE, self.Y_KNOB)
+        v_lid = (
+            v_dome
+            + self.frustum_volume(self.R_FLANGE, self.R_NECK, flange_h)
+            + math.pi * self.R_KNOB**2 * (self.Y_TOP - self.Y_KNOB)
+            - math.pi * self.R_VENT**2 * (self.Y_TOP - self.LID_BASE)
+        )
+        a_lid = (
+            a_dome
+            + self.frustum_lateral(self.R_FLANGE, self.R_NECK, flange_h)
+            + 2 * math.pi * self.R_KNOB * (self.Y_TOP - self.Y_KNOB)
+            + self.annulus(self.R_KNOB, self.R_VENT)
+            + self.annulus(self.R_FLANGE, self.R_VENT)
+            + 2 * math.pi * self.R_VENT * (self.Y_TOP - self.LID_BASE)
+        )
+        sharp_body = ev.value(sharp).body()
+        sharp_body.validate()
+        sharp_props = sharp_body.mass_properties()
+        self.close(sharp_props.volume, v_lid, "sharp lid V")
+        self.close(sharp_props.surface_area, a_lid, "sharp lid A")
+        self.assertEqual(len(ev.all_faces(sharp)), 6, "one full wall per segment")
+
+        rolled = ev.value(lid).body()
+        rolled.validate()
+        # Three annulus bands, each (+1 vertex, +2 edges, +1 face).
+        self.assertEqual(len(ev.all_vertices(lid)), 9)
+        self.assertEqual(len(ev.all_edges(lid)), 18)
+        self.assertEqual(len(ev.all_faces(lid)), 9)
+        # Every band is a TORUS — what sharing an axis of revolution
+        # buys — and there are exactly three.
+        tori = ev.select_where(
+            lid,
+            Selector.of(NamePat.of_kind(EntityKind.Face)),
+            [GeomPred.surface_kind(SurfaceKind.Torus)],
+        )
+        self.assertEqual(len(tori), 3, "three rims, three bands")
+        # And they are the three bands the SCENE's rims carve, said by
+        # their spine stations against the closed forms — the knob's
+        # ball rides one roll below its top, the flange's one roll
+        # above the underside, and the dome's foot where the cone's
+        # offset line cuts the sphere's offset circle. A band count
+        # alone cannot say WHICH rims rolled; these can.
+        self.assertEqual(
+            sorted(round(ev.face_frame(lid, n).origin[1].meters, 12) for n in tori),
+            sorted(
+                round(y, 12)
+                for y in (
+                    self.Y_TOP - self.ROLL,
+                    self.LID_BASE + self.ROLL,
+                    self.dome_foot_band_station(),
+                )
+            ),
+        )
+        # Each convex rim's roll REMOVES material, and less than the
+        # corner square swept round its own rim (Pappus).
+        removed = sharp_props.volume - rolled.mass_properties().volume
+        cap = sum(
+            2 * math.pi * r * self.ROLL**2
+            for r in (self.R_KNOB, self.R_FLANGE, self.R_NECK)
+        )
+        self.assertGreater(removed, 0.0)
+        self.assertLess(removed, cap)
+
+    def test_the_spout_is_placed_and_the_handle_is_a_tube(self):
+        doc = Doc()
+        _sealed, _cup, _sharp, _lid, spout_body, spout, handle, _joins = self.teapot(doc)
+        ev = evaluate(doc)
+
+        # WHERE the placement PUT it, measured off the placed body —
+        # not re-derived from the same trigonometry the placement used,
+        # and not read at a point the rotation fixes. The subject is
+        # the spout meridian's own tip annulus, named at the revolve
+        # that minted it and read at the TRANSFORM (a transform
+        # contributes no role segment, so a carried name read there is
+        # the placed face), against the exact image under the matrix
+        # whose columns are the authored direction's own components.
+        # Delete the `Node.transform` and this goes red on both counts.
+        bands = ev.select(
+            spout_body,
+            Selector.of(
+                NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Band))
+            ),
+        )
+        tip = bands[self.SEG_SPOUT_TIP]
+        before = ev.face_frame(spout_body, tip).origin
+        after = ev.face_frame(spout, tip)
+        exact = self.placed(tuple(c.meters for c in before))
+        for got, want, axis in zip(after.origin, exact, "xyz", strict=True):
+            self.assertAlmostEqual(
+                got.meters, want, delta=1e-15, msg=f"the placed tip annulus's {axis}"
+            )
+        # It stands OFF the turn's fixed axis, so that residual is
+        # about the ROTATION and not only about the translation.
+        self.assertGreater(math.hypot(before[0].meters, before[1].meters), 1e-3)
+        # And it FACES the way the direction says.
+        self.assertAlmostEqual(
+            abs(sum(a * b for a, b in zip(after.axis, self.SPOUT_DIR, strict=True))),
+            1.0,
+            delta=1e-15,
+            msg="the placed tip annulus's normal is SPOUT_DIR",
+        )
+        # The angle's cosine and sine are a libm's answer, so they are
+        # REPORTED and not asserted: on this platform they come back
+        # as the direction's own components, and a bitwise pin here
+        # would gate CI on one platform's last ulp.
+        turn = math.atan2(-self.SPOUT_DIR[0], self.SPOUT_DIR[1])
+        print(f"      spout turn: cos {math.cos(turn)!r}, sin {math.sin(turn)!r}")
+
+        v_spout = self.frustum_volume(
+            self.SPOUT_R0, self.SPOUT_R1, self.SPOUT_LEN
+        ) - self.frustum_volume(
+            self.SPOUT_R0 - self.SPOUT_WALL, self.SPOUT_R1 - self.SPOUT_WALL, self.SPOUT_LEN
+        )
+        a_spout = (
+            self.frustum_lateral(self.SPOUT_R0, self.SPOUT_R1, self.SPOUT_LEN)
+            + self.frustum_lateral(
+                self.SPOUT_R0 - self.SPOUT_WALL,
+                self.SPOUT_R1 - self.SPOUT_WALL,
+                self.SPOUT_LEN,
+            )
+            + self.annulus(self.SPOUT_R0, self.SPOUT_R0 - self.SPOUT_WALL)
+            + self.annulus(self.SPOUT_R1, self.SPOUT_R1 - self.SPOUT_WALL)
+        )
+        placed = ev.value(spout).body()
+        placed.validate()
+        props = placed.mass_properties()
+        self.close(props.volume, v_spout, "spout V")
+        self.close(props.surface_area, a_spout, "spout A")
+
+        # The handle by Pappus on its own disc.
+        sweep = 2 * (math.pi / 2 + self.HANDLE_OVER)
+        v_handle = sweep * self.HANDLE_R * math.pi * self.HANDLE_TUBE**2
+        a_handle = (
+            sweep * self.HANDLE_R * 2 * math.pi * self.HANDLE_TUBE
+            + 2 * math.pi * self.HANDLE_TUBE**2
+        )
+        tube = ev.value(handle).body()
+        tube.validate()
+        self.close(tube.mass_properties().volume, v_handle, "handle V")
+        self.close(tube.mass_properties().surface_area, a_handle, "handle A")
+
+    def test_both_joins_refuse_through_the_document(self):
+        doc = Doc()
+        *_rest, joins = self.teapot(doc)
+        ev = evaluate(doc)
+        # handle union vessel is torus x sphere; spout union vessel is
+        # cone x PLANE — and note what the second one names: not the
+        # belly wall the spout actually pierces. The gate is pair-scoped
+        # and box-conservative, so it reports the first pair whose boxes
+        # MAY meet (the scene's wall-7 lesson).
+        for node, pair in zip(
+            joins, [("torus", "sphere"), ("cone", "plane")], strict=True
+        ):
+            self.assertFalse(ev.succeeded(node))
+            with self.assertRaises(EvaluationError) as caught:
+                ev.value(node)
+            refusal = caught.exception
+            self.assertEqual(refusal.kind, "boolean")
+            text = str(refusal)
+            # The GERM-PAIR sentence, whole. `assertIn("(plane)")`
+            # would match any parenthesised word in ~800 characters of
+            # recourse prose; this is the clause that names the pair
+            # with no seam lane, and it names it in order.
+            self.assertIn(f"no seam lane for the ({pair[0]}, {pair[1]}) germ pair", text)
+            # And the pair-scoped sentence above it, which is where the
+            # wall-7 lesson lives: the face the gate NAMED is the first
+            # whose box may meet, not the wall the spout pierces.
+            self.assertRegex(
+                text,
+                rf"is a {pair[0]} and its box MAY INTERSECT face \S+ \({pair[1]}\)",
+            )
+
+
+class TestTorusvessel(unittest.TestCase):
+    """Tour scene `torusvessel` (row 44, demos/tour/src/torusvessel.rs):
+    the teapot's belly with its arc centre pushed OFF the axis, so the
+    wall is a TORUS — the shape `teapot`'s wall 1 used to pin as
+    unhollowable — hollowed by `Node.shell` with an EMPTY open list,
+    which is the sealed hollow.
+
+    It rides here with `TestTeapot` because it is that scene's own
+    frontier said as a part, and because both rows were waiting on the
+    same thing: the shell node, and a Python row that executes the
+    scene (`docs/guide/north-star-audit.md`'s discipline). The
+    document says it in the same five nodes the vessel corpus does —
+    frame, in-plane axis, profile, revolve, shell — with `arc_to` about
+    a centre the axis does not pass through.
+
+    The oracle is the scene's own closed form at two thicknesses: the
+    boundary moved inward by `t` is a foot cylinder, a torus band over
+    `u ∈ [-a', a']` and a neck, so the wall is one form evaluated
+    twice and differenced. Row 45 (`torusvesselcup`) stays NO on its
+    named secondary, `Body::merge_coplanar_faces`, which no document
+    node binds.
+    """
+
+    R_FOOT: ClassVar[float] = 5.0 / 64.0
+    R_BAND: ClassVar[float] = 9.0 / 64.0
+    R_NECK: ClassVar[float] = 7.0 / 64.0
+    Y_FOOT: ClassVar[float] = 4.0 / 64.0
+    Y_SHOULDER: ClassVar[float] = 12.0 / 64.0
+    Y_MOUTH: ClassVar[float] = 24.0 / 64.0
+    R_TUBE: ClassVar[float] = 5.0 / 64.0
+    A_HALF: ClassVar[float] = 4.0 / 64.0
+    H_TUBE: ClassVar[float] = 8.0 / 64.0
+    #: The BELLIED centre: 3/64 inside the junctions' radius, so the
+    #: arc bulges AWAY from the axis and the material is the tube's own
+    #: inside — the sense whose inward wall moves the minor radius IN.
+    R_BELLIED: ClassVar[float] = 6.0 / 64.0
+    WALL: ClassVar[float] = 1.0 / 128.0
+
+    def junction_rho(self, t):
+        """The shoulder x band corner in closed form: the moved
+        shoulder plane stands `a - t` from the tube's centre and the
+        moved profile circle has radius `r - t` about `(R, h_c)`."""
+        r, a = self.R_TUBE - t, self.A_HALF - t
+        return self.R_BELLIED + math.sqrt(r * r - a * a)
+
+    def boundary(self, t):
+        """`(volume, area)` of the solid the vessel's boundary bounds,
+        moved inward by `t`.
+
+        **This is `demos/tour/src/torusvessel.rs::boundary` restated at
+        `sense = +1`, not an independent derivation.** The scene's form
+        carries both senses of the band — bellied and waisted — and
+        this row authors only the bellied vessel, so the sign is fixed
+        and the `s` factors fall out. Restating rather than deriving is
+        the same choice every row in this file makes: the oracle is the
+        SCENE's, and what this row adds is that the Python document
+        answers it.
+
+        Every station moves along its own inward normal, so the three
+        runs keep their heights and only the radii move; the band's
+        volume is `pi∫rho^2 du` term by term and its area is Pappus on
+        the arc, `4 pi r' (R theta0 + a')`."""
+        big_r = self.R_BELLIED
+        r, a = self.R_TUBE - t, self.A_HALF - t
+        theta0 = math.asin(a / r)
+        foot, neck = self.R_FOOT - t, self.R_NECK - t
+        junction = self.junction_rho(t)
+
+        v_band = math.pi * (
+            2 * a * big_r * big_r
+            + 2 * big_r * (a * math.sqrt(r * r - a * a) + r * r * theta0)
+            + 2 * r * r * a
+            - 2 * a**3 / 3.0
+        )
+        volume = (
+            math.pi * foot * foot * self.Y_FOOT
+            + v_band
+            + math.pi * neck * neck * (self.Y_MOUTH - self.Y_SHOULDER)
+        )
+        a_band = 4 * math.pi * r * (big_r * theta0 + a)
+        area = (
+            math.pi * foot * foot
+            + 2 * math.pi * foot * self.Y_FOOT
+            + math.pi * (junction * junction - foot * foot)
+            + a_band
+            + math.pi * (junction * junction - neck * neck)
+            + 2 * math.pi * neck * (self.Y_MOUTH - self.Y_SHOULDER)
+            + math.pi * neck * neck
+        )
+        return volume, area
+
+    def vessel(self, doc):
+        """Base disc, foot, lower shoulder, ONE ARC about a centre off
+        the axis, upper shoulder, neck, mouth disc — then the sealed
+        hollow, which is `Node.shell` with nothing designated open."""
+        meridian = (
+            Open.at((0 * m, 0 * m))
+            .line_to((self.R_FOOT * m, 0 * m))
+            .line_to((self.R_FOOT * m, self.Y_FOOT * m))
+            .line_to((self.R_BAND * m, self.Y_FOOT * m))
+            .arc_to(
+                Center(
+                    c=(self.R_BELLIED * m, self.H_TUBE * m),
+                    winding=ArcSweep.Ccw,
+                    p=(self.R_BAND * m, self.Y_SHOULDER * m),
+                )
+            )
+            .line_to((self.R_NECK * m, self.Y_SHOULDER * m))
+            .line_to((self.R_NECK * m, self.Y_MOUTH * m))
+            .line_to((0 * m, self.Y_MOUTH * m))
+            .line_to(Start)
+        )
+        frame, axis = teapot_frame_and_axis(doc)
+        operand = fully_revolved(doc, frame, axis, meridian)
+        return operand, doc.insert(Node.shell(operand, self.WALL * m, []))
+
+    def test_a_torus_walled_vessel_hollows_through_the_document(self):
+        doc = Doc()
+        operand, sealed = self.vessel(doc)
+        ev = evaluate(doc)
+
+        v_out, a_out = self.boundary(0.0)
+        body = ev.value(operand).body()
+        body.validate()
+        props = body.mass_properties()
+        self.assertLess(abs((props.volume - v_out) / v_out), 1e-12)
+        self.assertLess(abs((props.surface_area - a_out) / a_out), 1e-12)
+        self.assertEqual(props.volume_pad, 0.0, "closed forms need no pad")
+        # The band IS a torus, which is the whole point of the row: the
+        # same two junction stations about the other centre on their
+        # perpendicular bisector.
+        self.assertEqual(
+            len(
+                ev.select_where(
+                    operand,
+                    Selector.of(NamePat.of_kind(EntityKind.Face)),
+                    [GeomPred.surface_kind(SurfaceKind.Torus)],
+                )
+            ),
+            2,
+            "one band, cut at the two seam meridians into a pair of half-walls",
+        )
+
+        v_cav, a_cav = self.boundary(self.WALL)
+        hollow = ev.value(sealed).body()
+        hollow.validate()
+        props_s = hollow.mass_properties()
+        self.assertLess(abs((props_s.volume - (v_out - v_cav)) / (v_out - v_cav)), 1e-12)
+        self.assertLess(
+            abs((props_s.surface_area - (a_out + a_cav)) / (a_out + a_cav)), 1e-12
+        )
+        # The operand's 14 faces twice: the cavity is that same
+        # boundary offset inward, inserted whole through the shared
+        # void door.
+        self.assertEqual(len(ev.all_faces(operand)), 14)
+        self.assertEqual(len(ev.all_faces(sealed)), 28)
+        self.assertEqual(len(ev.all_vertices(sealed)), 28)
+        self.assertEqual(len(ev.all_edges(sealed)), 52)
 
 
 class TestTwopeg(unittest.TestCase):
