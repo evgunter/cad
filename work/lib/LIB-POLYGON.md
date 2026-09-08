@@ -2,11 +2,12 @@
 id: LIB-POLYGON
 kind: unit
 title: the lattice-backed façade polygon door
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/polygon
 refs: [facade-polygon-door-demoted-without-replacement]
 pr: 2183
+closed: 2026-09-08
 ---
 
 
