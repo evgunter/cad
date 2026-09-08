@@ -539,6 +539,15 @@ pub const ACCEPTED_OUTCOMES: [&str; 8] = [
 /// predicates and `m < proximity_above_threshold(band_escalate)` for the
 /// rest — making the verdict incoherent rather than wrong in a stated
 /// direction. [`lint_csv`] checks it where the two admissions meet.
+///
+/// **Where a cross-column invariant goes, in which voice, and when it
+/// is owed at all is written once for both instruments** —
+/// `tools/tess-lint/README.md`, clauses `CC1`–`CC5`. This enum
+/// carries two of its dispositions: the band relation is `CC3`,
+/// checked at the reading boundary because neither column is the
+/// other's condition, and [`Self::Margin`] is `CC2`, folded into this
+/// table's own signature because `outcome` IS prior to the margin's
+/// policy and [`lint_csv`] has already validated it.
 #[derive(Clone, Copy, Debug)]
 enum Admissible {
     /// A classified margin: any FINITE value, of either sign — a margin
@@ -776,7 +785,10 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         let band_zero = admit(bz, 1)?;
         let band_escalate = admit(be, 2)?;
         // The band property no per-column policy can state, because it
-        // is a RELATION between two columns that each admit alone.
+        // is a RELATION between two columns that each admit alone —
+        // `CC3` of the rule the two instruments share
+        // (`tools/tess-lint/README.md`), checked at this crate's
+        // reading boundary, which is this function.
         if band_zero >= band_escalate {
             return Err(ParseError {
                 line: i + 1,

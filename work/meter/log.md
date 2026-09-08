@@ -139,3 +139,43 @@ here; `C15` and `D201` restated it too and are corrected. `D213`'s
 close is rewritten to lead with the argument that carries it — a
 property of `parse` and `first_disagreement`, no kernel content — with
 the mesh chain demoted to what it is actually for.
+
+## Unit 3 — `D203`, the cross-column rule (2026-09-08)
+
+The rule gets one home: `tools/tess-lint/README.md`, clauses
+`CC1`–`CC5`, cited by path from `k-lint`'s `Admissible` and from the
+band check in `lint_csv`, and by clause from four sites in
+`tess-lint`. First `tools/*/README.md` in the tree; the precedent is
+`scripts/gates/README.md` — a design page beside the code it governs,
+where the governed code is not one crate.
+
+**The unit was briefed with two instances and the sweep found seven.**
+The lane pairing unit 1 landed four commits earlier is a genuine third
+— checked against the merged source, not assumed: `parse`, harness
+voice, two columns `Admissible` polices singly, and a comment already
+calling itself *"the second cross-column rule"*. The others: the
+all-or-none sizing tail, `worst_dev` against `dev_samples`, `k-lint`'s
+`Margin` against `outcome` (which resolves a cross-column invariant by
+WIDENING the table's signature rather than checking beside it, and is
+the reason `CC2` exists as a separate clause), and `Extent`'s trim-box
+non-degeneracy, which is checked nowhere because `span_opt_cells`'
+geometric floor already refuses every violating row.
+
+`cap_bands` / `snap_bands` against `bands` was the one instance
+closable from the consumer's side and is now refused at `parse`. The
+report prints those counts `of {bands}`, so an unrefused one reached
+the reader as a reading. Mutation-checked in both directions: red with
+the guard removed, red with `>` widened to `>=`.
+
+`CC5` is the clause that did the most work in the sweep — an admission
+refuses what the producer could not have written, never what the
+instrument exists to measure. `grid_cells` against `span_opt_cells`
+has exactly the shape of an invariant and is the `split` ratio the
+report is for; the committed baseline carries rows on both sides of
+it.
+
+Filed: `tess-lint-zero-certificate-two-meanings` — `worst_cert = 0`
+has two meanings in `mesh::budget` and one in `Admissible::Certificate`,
+and the discriminant the kernel names is `0` on every row of the
+`--sizing-only` sweep CI gates on. Producer-side fix, outside `D203`'s
+fence.

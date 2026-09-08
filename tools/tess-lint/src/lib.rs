@@ -224,10 +224,12 @@
 //! sizing columns are therefore admitted or refused where they are
 //! read (`Admissible`, private), per column, and a refused one leaves
 //! in the harness voice — a sweep the lint cannot read is not a
-//! tessellation that got better. One of those refusals is CROSS-column, because one
-//! column cannot state it: `worst_dev` spells "the sweep did not
-//! resample" and "a sample came back `NaN`" identically, and
-//! `dev_samples` is what separates them ([`Deviation`]). Rules 3, 4
+//! tessellation that got better. Several of the sweep's guarantees
+//! are not of that shape at all — `worst_dev` spells "the sweep did
+//! not resample" and "a sample came back `NaN`" identically, and
+//! `dev_samples` is what separates them ([`Deviation`]) — and where
+//! such a check goes, in which voice, and when it is owed at all is
+//! this crate's README, `CC1`–`CC5`, which `k-lint` shares. Rules 3, 4
 //! and 5 say the same thing one level up: a comparison that stopped
 //! HAPPENING — or never started — is not growth of any size.
 //!
@@ -358,7 +360,8 @@ pub struct Nurbs {
 /// expressible and passes by construction.
 ///
 /// The pairing is a CROSS-COLUMN rule, which is why it lives in
-/// [`parse`] beside the per-column table rather than inside it.
+/// [`parse`] beside the per-column table rather than inside it — the
+/// README's `CC3`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Deviation {
     /// The sweep did not resample this face: `dev_samples` is zero and
@@ -473,8 +476,9 @@ impl Row {
 /// broken measurement and gets the refusal this table exists to give —
 /// but telling the two apart needs `dev_samples`, and a per-column
 /// table cannot read a second column. [`parse`] settles it beside this
-/// pass, the same way the trim box's non-degeneracy is settled outside
-/// [`Self::Extent`].
+/// pass, which is the README's `CC3`; the trim box's non-degeneracy is
+/// the other disposition, `CC4`, and is settled by entailment rather
+/// than by a check ([`Self::Extent`]).
 ///
 /// **A cell count is never absent, and the mechanism differs by
 /// column** — worth stating, because the floor is what the rest of
@@ -512,7 +516,10 @@ enum Admissible {
     Aspect,
     /// A trim-box edge in parameter space: finite, and nothing more —
     /// the box's own non-degeneracy is a cross-column property this
-    /// per-column table cannot state.
+    /// per-column table cannot state, and one no row surviving the
+    /// table can violate: it is entailed by `span_opt_cells`, above.
+    /// The README's `CC4` is why that entailment is stated rather
+    /// than checked a second time here.
     Extent,
 }
 
@@ -599,6 +606,10 @@ const INDICATOR_FIRST: usize = 24;
 
 /// The indicator block, policed exactly as [`SIZING_COLUMNS`] is —
 /// NURBS-only, all present or all absent with the sizing block.
+///
+/// `cap_bands` and `snap_bands` also count SUBSETS of `bands`, which
+/// is a relation no entry of this table can state; [`parse`] checks
+/// the containment beside it (the README's `CC3`).
 const INDICATOR_COLUMNS: [(&str, Admissible); 4] = [
     ("bands", Admissible::CellCount),
     ("cap_bands", Admissible::Count),
@@ -896,11 +907,33 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 worst_dev,
             ] = read;
             let [bands, cap_bands, snap_bands, realized_aspect] = ind;
-            // THE CROSS-COLUMN RULE the per-column table cannot state.
-            // `Admissible::OptionalDeviation` admits `NaN` because one
-            // of its two meanings is a real state; `dev_samples` is
-            // what says which meaning this row carries, and the pair
-            // is checked here, once, where both readings are in hand.
+            // The indicator counts are SUBSETS of `bands`: each counts
+            // the bands one constraint bound, out of the bands the
+            // shipped schedule emitted. `Admissible::Count` and
+            // `Admissible::CellCount` each admit their column alone,
+            // so the containment is checked here (README `CC3`), and
+            // in the harness voice because a subset larger than its
+            // set is arithmetic that did not happen — never a reading.
+            // Left unrefused it reaches the report as one: the
+            // constraint-activity line prints these counts `of
+            // {bands}`.
+            for (name, v) in [("cap_bands", cap_bands), ("snap_bands", snap_bands)] {
+                if v > bands {
+                    return Err(ParseError {
+                        line: n,
+                        text: format!(
+                            "{name}: {v:e} bands over a schedule that emitted {bands:e} — \
+                             the indicator counts a subset of the bands (sweep drift?)"
+                        ),
+                    });
+                }
+            }
+            // THE CROSS-COLUMN RULE the per-column table cannot state
+            // (README `CC3`). `Admissible::OptionalDeviation` admits
+            // `NaN` because one of its two meanings is a real state;
+            // `dev_samples` is what says which meaning this row
+            // carries, and the pair is checked here, once, where both
+            // readings are in hand.
             let dev_samples = idx(DEV_SAMPLES, "dev_samples")?;
             let deviation = match (dev_samples, worst_dev.is_nan()) {
                 (0, true) => Deviation::NotResampled,
@@ -962,8 +995,9 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 ),
             });
         }
-        // THE LANE PAIRING, the second cross-column rule and the
-        // consumer's mirror of `tess_meter::FaceRow::csv_row`'s 2x2:
+        // THE LANE PAIRING, a cross-column rule the per-column table
+        // cannot state (README `CC3`), and the consumer's mirror of
+        // `tess_meter::FaceRow::csv_row`'s 2x2:
         // the sizing block is owed by exactly the charts
         // `SIZED_CHART_TAGS` names, and the two cells that disagree
         // are refused HERE rather than read.
@@ -2242,6 +2276,41 @@ mod tests {
                 how: Rekey::Absent { in_baseline: false }
             }]
         );
+    }
+
+    /// An indicator count larger than `bands`, which the per-column
+    /// admissions structurally cannot carry: `Admissible::Count` and
+    /// `Admissible::CellCount` each police their column alone and the
+    /// CONTAINMENT never was one of them, so a subset larger than its
+    /// set parsed and reached the report as a reading — the
+    /// constraint-activity line prints these counts `of {bands}`.
+    #[test]
+    fn an_indicator_count_above_bands_is_harness_breakage() {
+        // `bands` is 2 on the fixture's sized row and both indicators
+        // are admissible at every value used here, which is the
+        // point: each is finite and non-negative on its own.
+        for (name, col) in [
+            ("cap_bands", INDICATOR_FIRST + 1),
+            ("snap_bands", INDICATOR_FIRST + 2),
+        ] {
+            let e = parse(&with_field(&csv(100, 2.5e1), col, "3e0"))
+                .expect_err("a subset cannot outnumber its set");
+            assert_eq!(e.line, 3, "{name}: the row that carries it");
+            assert!(
+                e.text.contains(&format!(
+                    "{name}: 3e0 bands over a schedule that emitted 2e0"
+                )),
+                "{}",
+                e.text
+            );
+            // EQUALITY is a reading — every emitted band bound by the
+            // same constraint — so the refusal is the containment and
+            // not a strict inequality smuggled in beside it.
+            assert!(
+                parse(&with_field(&csv(100, 2.5e1), col, "2e0")).is_ok(),
+                "{name}: every band may be bound"
+            );
+        }
     }
 
     /// A sized-lane chart over an EMPTY sizing tail is refused at the
