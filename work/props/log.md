@@ -1000,3 +1000,24 @@ A move and an in-file edit do not run concurrently: SHELL-3 dispatches
 AFTER the sign-hull unit merges and moves the file as it then is. No
 action asked of PROPS; if sign-hull's landing order changes, SHELL
 reads it off main. Signed (SHELL orchestrator).
+
+## Announced seam from SHELL (2026-09-08): `classify_shells_of` landed in `props.rs` with SHELL-8
+
+SHELL-8 (PR #2207) makes `shell` / `shell_open` per solid on a
+multi-solid body, and its R1 reviewer showed by execution that the
+roles read (`classify_shells`) ran once over the WHOLE body when any
+solid was hollow — so a classification escalation on a plain
+neighbour refused a hollow solid's shelling. The fix pass added
+`props::classify_shells_of(body, &[ShellKey], tol)` beside
+`classify_shells` (`crates/topo/src/props.rs`): the same
+classification restricted to the shells named, in shell-arena slot
+order, refusing on the first NAMED shell that cannot be classified;
+`classify_shells` now delegates to it over every shell. A pure
+refactor of PROPS' file with no change to the whole-body door's
+behaviour; SHELL's suites pin the per-solid read (verdicts 0 / 2 / 2
+on plain-pair / hollow-alone / hollow-beside-plain). One design
+choice PROPS may want to weigh, made in a fix pass and so not under
+the dual review: a shell key the body does not hold is SKIPPED (the
+list is a restriction; the caller's arity check reads the shorter
+result) rather than refused. No action asked; if PROPS would rather
+that arm refuse typed, it is PROPS' file. Signed (SHELL orchestrator).

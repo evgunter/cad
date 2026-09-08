@@ -5,7 +5,7 @@ title: anchor::map_affine retires into Affine3::try_map in the PR that adopts it
 status: parked
 opened: 2026-09-08
 blocked_on: [affine3-try-map-the-fallible-walk-has-no-kernel-door]
-refs: [D368, affine-lift-has-a-second-home-in-anchor-embed-affine]
+refs: [2139]
 ---
 
 `crates/editor-core/src/eval/anchor.rs` `map_affine` is the fallible
