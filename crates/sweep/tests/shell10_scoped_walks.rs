@@ -17,7 +17,7 @@ use topo::{Body, FaceKey, SolidKey};
 
 use crate::shell8_common::{band, beside, charts_of, deep_dump, faces_of, tol};
 use crate::shell9_rows::rows;
-use crate::verbs_shell::{boxy, vessel};
+use crate::verbs_shell::vessel;
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
 fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
@@ -67,14 +67,21 @@ fn the_subset_pass_mints_the_scopes_rows_and_no_others() {
     assert_eq!(scoped.pcurves().count(), whole.pcurves().count());
 }
 
-/// **Through the door.** The axial simultaneous door on a vessel beside
-/// a box re-derives the vessel's rows and leaves the box's — every row,
-/// and the whole deep reading SHELL-8 pinned — exactly as it found
-/// them. The whole-body pass produced the same bits by re-deriving
-/// them; this pins that it no longer derives them at all.
+/// **Through the door, on a body whose OUT-OF-SCOPE solid carries rows
+/// too.** The axial simultaneous door on a vessel beside a vessel: the
+/// other vessel's rows, and the whole deep reading SHELL-8 pinned, are
+/// exactly as they were found.
+///
+/// What this row can and cannot say: a whole-body pass re-derives those
+/// rows bit-identically on every fixture this workspace builds (SHELL-8
+/// and SHELL-9's differentials), so equal bits here do not by
+/// themselves prove the pass was scoped — that is `topo`'s
+/// `an_out_of_scope_faces_unmintable_chart_does_not_refuse_the_door`,
+/// which uses a chart a whole-body pass would refuse. This row pins the
+/// property a caller has: nothing outside the scope moved.
 #[test]
-fn the_axial_door_re_mints_its_scopes_rows_and_reads_no_others() {
-    let pair = beside(&vessel(1.0, 2.0), &boxy(2.0, 3.0, 4.0), 10.0);
+fn the_axial_door_leaves_the_other_solids_rows_as_it_found_them() {
+    let pair = beside(&vessel(1.0, 2.0), &vessel(1.0, 2.0), 10.0);
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let (ves, bx) = (solids[0], solids[1]);
     let mut before = pair.clone();
@@ -95,13 +102,14 @@ fn the_axial_door_re_mints_its_scopes_rows_and_reads_no_others() {
     topo::offset_charts_together(&mut after, &moves, band(), tol()).expect("the vessel offsets");
 
     println!(
-        "[10] axial door: rows before={} after={} box rows={}",
+        "[10] axial door: rows before={} after={} out-of-scope rows={}",
         all_before.len(),
         rows(&after).len(),
         box_rows.len()
     );
-    assert_eq!(rows_of(&after, bx), box_rows, "the box's rows, bit for bit");
-    assert_eq!(deep_dump(&after, bx), box_deep, "and the box itself");
+    assert!(!box_rows.is_empty(), "the out-of-scope solid carries rows");
+    assert_eq!(rows_of(&after, bx), box_rows, "its rows, bit for bit");
+    assert_eq!(deep_dump(&after, bx), box_deep, "and the solid itself");
     assert!(
         !rows_of(&after, ves).is_empty(),
         "the vessel's rows are there"
