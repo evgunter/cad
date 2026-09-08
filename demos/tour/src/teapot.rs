@@ -137,10 +137,21 @@
 //!    who took the refusal's text for the cause would be reading the
 //!    wrong pair (the wall-7 lesson). The schedule is the banked
 //!    germ-chord lanes and #1057's two C5 arms. **Both refusals now
-//!    arrive through the DOCUMENT**, under the same payload: each join
-//!    is a `Node::Boolean` that lowers to the same kernel `union` and
-//!    fails at `evaluate`, and what the note quotes is that node's own
-//!    carried refusal rather than a second measurement of it.
+//!    arrive through the DOCUMENT**: each join is a `Node::Boolean`
+//!    that lowers to the same kernel `union` and fails at `evaluate`,
+//!    and what the note quotes is that node's own carried refusal
+//!    rather than a second measurement of it.
+//!
+//!    What is the SAME across that change is the face, the operand and
+//!    the two kinds — not the payload's bits. An arena KEY moves when
+//!    the model is re-authored, and wall 3's did: the same physical
+//!    face, the mouth-rim annulus at `y = 1/8`, was `FaceKey(1v1)`
+//!    when the cup came from a plane scan and is `FaceKey(2v1)` now
+//!    that it comes from the document. Neither wall's probe ever
+//!    pinned a key — both match on `operand`, `kind` and `other_kind`,
+//!    which is the pair the gate is about — and that is why the change
+//!    is invisible to them and why the note renders the pair rather
+//!    than the struct.
 //! 5. **A spout the shape of a spout is not authorable at all.** What
 //!    a potter draws is a swept curved section — a canal or a loft
 //!    along a bent spine. `sweep_body` cannot round the U-turn a real
@@ -863,6 +874,18 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// stand. What is left is the four bodies the montage shows, as four
 /// roots.
 ///
+/// **GAP.** That deletion, and the two probe documents beside it
+/// ([`wall_one_pot`] and [`per_rim_answers`]), are one cost paid three
+/// ways: a recipe cannot hold a NARRATION or PROBE body without that
+/// body becoming a product root, because the root set IS the sink set
+/// and nothing in the vocabulary says "measured, not modelled". A
+/// scene that wants to measure a body beside the one it ships must
+/// either delete it from the copy the gallery opens — which is what
+/// this door does, and which means the file and the scene are two
+/// documents — or build it in a document of its own, which is what
+/// the two probes do and which costs them the scene's own frame and
+/// axis. Filed on LIB's slate.
+///
 /// They interpenetrate, and the file says so: the handle's roots are
 /// driven through the belly wall and the spout's root disc sits inside
 /// it, which is what makes the two unions real requests. A separation
@@ -987,6 +1010,32 @@ fn describe(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
     match ev.node_error(node) {
         None => "COMPOSED".to_string(),
         Some(e) => format!("{:?}", e.kind),
+    }
+}
+
+/// **A join's answer, as one line for the panel's note.**
+///
+/// The germ PAIR the gate named, rendered from the payload rather
+/// than dumped: `Debug` on a kernel refusal puts Rust field names and
+/// arena keys into prose a person reads, and the keys are not the
+/// evidence anyway — they are the operand's arena numbering, which
+/// moves when the model is re-authored (the module docs' finding 4).
+/// What IS the evidence is the pair, which is exactly what the
+/// wall-7 lesson is about, and it survives verbatim.
+fn describe_join(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
+    match join_outcome(ev, node) {
+        Ok(()) => "COMPOSED".to_owned(),
+        Err(BooleanError::CurvedPairUnsupported {
+            operand,
+            kind,
+            other_kind,
+            ..
+        }) => format!(
+            "CurvedPairUnsupported, operand {operand:?}: {} x {}",
+            kind.name(),
+            other_kind.name()
+        ),
+        Err(other) => format!("{other}"),
     }
 }
 
@@ -1138,24 +1187,7 @@ fn pot_area(d: f64) -> f64 {
 /// in it would be three bodies the scene does not model.
 fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-rims", tol);
-    let plane = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
-    let axis = insert(
-        &mut doc,
-        Node::Datum(Datum::AxisInPlane {
-            plane,
-            origin: [len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0)],
-        }),
-        tol,
-    );
+    let (plane, axis) = frame_and_axis(&mut doc, tol);
     let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
     let mut asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
         .iter()
@@ -1869,7 +1901,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // with the kernel's payload carried unaltered into the panel's
     // note — so the payload the caption quotes and the payload the
     // probe pins cannot be two different measurements.
-    let handle_refusal = describe(&ev, r.handle_union);
+    let handle_refusal = describe_join(&ev, r.handle_union);
     crate::walls::wall(
         "teapot",
         2,
@@ -1902,7 +1934,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // and box-conservative, so the faces it names are the first whose
     // boxes MAY meet — here the spout's outer cone against a PLANE of
     // the pot, not the belly wall the spout actually pierces.
-    let spout_refusal = describe(&ev, r.spout_union);
+    let spout_refusal = describe_join(&ev, r.spout_union);
     crate::walls::wall(
         "teapot",
         3,
@@ -2067,10 +2099,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              spout actually pierces: box overlap is a MAY, and the gate reports the \
              first pair whose boxes may meet. The schedule is the banked germ-chord \
              lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \
-             ARRIVE THROUGH THE DOCUMENT, under the same payload: each union is a \
-             `Node::Boolean` that lowers to the same kernel `union` and fails at \
-             `evaluate`, so what the caption quotes is the evaluation's own carried \
-             refusal. A lofted or \
+             ARRIVE THROUGH THE DOCUMENT: each union is a `Node::Boolean` that lowers \
+             to the same kernel `union` and fails at `evaluate`, so what is quoted here \
+             is the evaluation's own carried refusal. SAME FACE, operand and kinds as \
+             the kernel-direct scene raised — not the same payload bits: an arena key \
+             moves when a model is re-authored, and wall 3's did (the mouth-rim annulus \
+             at y = 1/8 was FaceKey(1v1) off the plane scan and is FaceKey(2v1) off the \
+             document), which is invisible to both probes because neither ever pinned a \
+             key. A lofted or \
              canal-swept spout — the shape a potter would draw — is not authorable at \
              all; the register carries that as a note and this scene does not hack \
              around it",

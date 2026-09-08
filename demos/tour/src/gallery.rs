@@ -211,7 +211,19 @@ mod tests {
                 doc: crate::teapot::gallery_document(tol),
                 roots: 4,
                 separation: 4,
-                why: "FOUR roots, because the teapot is four solids and the operand gate                       has no arm for either join. The check denies a BOX certificate                       rather than asserting an overlap, and all six pairs are here:                       handle/vessel and spout/vessel are the scene's own two walls,                       real interpenetrations that a boolean would have to take, and                       lid/vessel and lid/spout are the lifted lid, whose overhanging                       flange shares a box with both and is apart from neither by any                       rule this check has. No mate is authored, so nothing declares                       the gap the render shows",
+                why: concat!(
+                    "FOUR roots, because the teapot is four solids and the operand ",
+                    "gate has no arm for either join. FOUR findings over the six ",
+                    "pairs, and the check denies a BOX certificate rather than ",
+                    "asserting an overlap: handle/vessel and spout/vessel are the ",
+                    "scene's own two walls, real interpenetrations a boolean would ",
+                    "have to take; lid/vessel and lid/spout are the lifted lid, ",
+                    "whose overhanging flange shares a box with both and is apart ",
+                    "from neither by any rule this check has. The two pairs it says ",
+                    "nothing about — spout/handle and lid/handle — are the ones the ",
+                    "box rule PROVED apart. No mate is authored, so nothing declares ",
+                    "the gap the render shows",
+                ),
             },
         ];
 
