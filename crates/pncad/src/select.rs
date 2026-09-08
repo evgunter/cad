@@ -64,6 +64,24 @@ pub use editor_core::{
     declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_carrier_kind,
     face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
 };
+/// The kernel contact FINDING — "this face pair would verify as this
+/// class, on this evidence" — the fourth quarter of a vocabulary this
+/// list already carried three quarters of.
+///
+/// [`ContactClass`], [`ContactRefusal`] and [`ContactVerdict`] are
+/// above, lifted from `editor_core`; the finding itself is `topo`'s
+/// and was reachable only one module hop away. It is what
+/// `CensusContact::ConformalPatch` carries, so a caller matching a
+/// prelude-curated `ValidationError` down to that arm was binding a
+/// value whose type this list did not name — and it is what the flush
+/// detector's own vocabulary is built from, since a
+/// [`FlushFinding`] is a finding plus the pair it was found on.
+///
+/// Its two fields are already here, which is what makes the stop
+/// under it a stop rather than a deferral: a finding is a
+/// [`DeclaredContact`] plus the [`ContactVerdict`] that decided it,
+/// by composition, and both are carried above.
+pub use topo::ContactFinding;
 /// The frame type the geometry doors answer with, its refusal, and
 /// the refusal's own payload — re-exported from the kernel's
 /// read-back module so a façade user names one crate, not two.

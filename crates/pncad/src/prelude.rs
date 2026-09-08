@@ -270,11 +270,35 @@ pub use geom_brep::SurfaceKind;
 // `LoopKey` is minted by `slotmap::new_key_type!`: a scan of `pub
 // struct` declarations cannot see a macro's output, so no payload
 // sweep this façade has run could report it.
+//
+// **`EntityId` and `GeomRef` ride with the keys**, because they are
+// what the same module means by "any entity" and "any geometry": the
+// type-erased sums over those keys, which is the form a refusal
+// reports a site in. `ReadbackError::Dangling`'s payload is one or
+// the other, and `BlendError` names an `EntityId` DIRECTLY in three
+// arms — so a caller matching a prelude-carried refusal was binding
+// a value whose type sits in this very group and could not spell it.
+// The four key kinds neither sum reaches by a curated name
+// (`SolidKey`, `ShellKey`, `HalfEdgeKey`, and the three geometry
+// keys) are bound out of an arm and never branched on, and they are
+// one module hop away at `pncad::topo::…` — the rung this list stops
+// at, deliberately, for the reason CUR3 and CUR4 both stopped one
+// rung out: what a curated list owes is the DISCRIMINANT, and both
+// sums' discriminants are matchable now.
+//
+// **This is the `topo` seat's vocabulary and not the document
+// layer's**, which is the distinction the arena-key seal is actually
+// drawn on. `pncad::topo::query` answers keys from a `Body` and this
+// group carries the keys it answers with; what does not cross is
+// `editor-core`'s `EntityRef`/`EntityKey`/`Entry` — the document
+// layer's (body index, key) pair and its name-table entry, which are
+// body-lineage-scoped against the evaluation that minted them and
+// which `pncad`'s own guard forbids naming.
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, FaceKey, LoopKey, Operand,
-    PlaneRelation, Surface, TransformError, VertexKey, intersect, intersect_with, subtract,
-    subtract_with, transform_rigid, union, union_with,
+    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
+    GeomRef, LoopKey, Operand, PlaneRelation, Surface, TransformError, VertexKey, intersect,
+    intersect_with, subtract, subtract_with, transform_rigid, union, union_with,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -297,15 +321,18 @@ pub use topo::{
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
 //   vertex-on-edge, or edge-along-edge.
 //
-// ONE RUNG, AND THE STOP IS DELIBERATE.
-// `CensusContact::ConformalPatch` carries a `topo::ContactFinding`,
-// which is uncurated, and carrying THAT would open the same question
-// about its own fields. So this list stops where CUR3 stopped:
-// `DanglingRef`'s arms carry `EntityId` and `GeomRef`, both still
-// uncurated, and the arm is matchable anyway because a caller binds
-// the payload and branches on the DISCRIMINANT. Same here — the
-// contact rung's own next rung is a banked finding, not this unit's
-// scope.
+// THE RUNG BELOW IS CARRIED TOO, and where it stops is one further
+// down. `CensusContact::ConformalPatch` carries a
+// `topo::ContactFinding`, which rides in group 9 with the rest of the
+// contact vocabulary; `DanglingRef`'s arms carry `EntityId` and
+// `GeomRef`, which ride in group 4 with the keys they sum over. What
+// this list still stops at is the rung under THOSE — a
+// `ContactFinding` is a `DeclaredContact` plus a `ContactVerdict`,
+// both already here, and the sums' remaining key kinds are bound out
+// of an arm and never branched on. The rule is unchanged and only
+// the reach moved: a caller binds a payload and branches on the
+// DISCRIMINANT, and every discriminant these refusals name is
+// spellable from this list.
 //
 // As with the blend vocabulary above, no Python tag moves: the
 // validate doors cross their failures as joined `Display` prose with
@@ -373,15 +400,15 @@ pub use editor_core::StableName;
 // field IS, so without it the arm is matchable and its two lanes
 // are not.
 pub use crate::select::{
-    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
-    CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact, Denotation, EntityKind,
-    FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NameOrigin, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError,
-    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
-    Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, declare, declare_all, declare_node, denotation, edge_frame, edge_name,
-    face_carrier_kind, face_frame, face_name, find_flush_candidates, select, select_where,
-    vertex_position,
+    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal,
+    ContactVerdict, CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact,
+    Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
+    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef,
+    ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat,
+    SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies,
+    all_edges, all_faces, all_vertices, attribute, declare, declare_all, declare_node, denotation,
+    edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates, select,
+    select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

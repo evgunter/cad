@@ -1349,6 +1349,17 @@ NOT_BOUND = {
     # bullet and for their reason: a validation refusal names a ring
     # beside its face, and Python holds neither.
     "LoopKey": SHAPE,
+    # The two type-erased sums OVER those keys — "any entity" and "any
+    # geometry", the form a refusal reports a site in. Same family as
+    # the keys themselves and for exactly their reason: a Python
+    # caller holds opaque NAME text and never a key, so a sum over
+    # keys has nothing to project either. What the sums' arms say
+    # DOES reach Python, at the one door where it is the answer rather
+    # than the site: `ReadbackError.variant` is `dangling_entity` or
+    # `dangling_geometry`, which is which of the two came back empty,
+    # and `DanglingRef` is the `BOUND_AS` entry that records it.
+    "EntityId": SHAPE,
+    "GeomRef": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
@@ -1505,6 +1516,20 @@ NOT_BOUND = {
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
+    # The contact vocabulary's fourth quarter, curated beside the
+    # three that were already here. `INTERIOR` by the same carrier
+    # rule and the same measurement the CUR4 entries above record: a
+    # finding has exactly one route to Python and it is prose: it is
+    # `CensusContact::ConformalPatch`'s payload, and the validate
+    # doors cross their failures as joined `Display` text with a
+    # `door` and a `failure_count` and no per-arm tag at all.
+    # (`FlushFinding`, which Python DOES hold, is the detector's own
+    # type and not this one — a pair, a class and the evidence — so it
+    # settles nothing here either way.) `DeclaredContact` and
+    # `ContactVerdict` — this type's two fields — sit at `INTERIOR`
+    # beside it, which is the sibling test the `CensusContact` entry
+    # above names.
+    "ContactFinding": INTERIOR,
     "ContactRefusal": INTERIOR,
     "ContactVerdict": INTERIOR,
     "ContentBits": INTERIOR,

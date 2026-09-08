@@ -348,13 +348,25 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         CensusContact::EdgeEdgeCross { .. } => true,
         CensusContact::EdgeEdgeOverlap { .. } => true,
         CensusContact::EdgeFaceOverlap { .. } => true,
-        // ONE RUNG, AND THIS IS WHERE IT STOPS. The arm binds its
-        // `ContactFinding` without naming it, which is exactly why the
-        // rung below is a banked finding and not this unit's scope:
-        // the DISCRIMINANT is matchable, and that is what the curated
-        // list owes. CUR3 stopped in the same place — `DanglingRef`'s
-        // arms carry `EntityId` and `GeomRef`, both still uncurated.
-        CensusContact::ConformalPatch { .. } => false,
+        // The arm the stop was named at, and its payload has a name
+        // now: a caller that reaches a conformal patch asks what the
+        // finding CLAIMS and what verdict decided it, instead of
+        // binding a value it cannot spell. Still undeclarable — the
+        // arm reports a coincidence the census found, and this
+        // function answers whether a declaration would certify it —
+        // and the difference is that the answer is now readable.
+        CensusContact::ConformalPatch { finding } => {
+            named::<ContactFinding>(finding);
+            named::<DeclaredContact>(finding.pair);
+            let _bridgeable = match finding.verdict {
+                // A finding is only minted on definite evidence, so
+                // this is the arm that arrives; the other is the
+                // shape of the verdict type and not of this payload.
+                ContactVerdict::Definite => false,
+                ContactVerdict::Bridged => true,
+            };
+            false
+        }
     }
 }
 
@@ -458,6 +470,16 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         }
     ));
 
+    // The two entity sums, matched by bare prelude name — the rung
+    // `DanglingRef`'s arms and three `BlendError` arms sit on.
+    assert_eq!(
+        entity_and_geometry_sites_are_matchable(
+            EntityId::Loop(LoopKey::default()),
+            GeomRef::Surface(Default::default()),
+        ),
+        ("loop", "surface")
+    );
+
     // The escalation payload is reached by bare prelude name too, and
     // by SIGNATURE rather than by value: nothing on this list can
     // build one, which is the rung below stopping.
@@ -477,6 +499,49 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         ),
         ("patch", "edge")
     );
+}
+
+/// The two type-erased entity sums, matched through the prelude —
+/// what a dangling read-back reports its site as, and what three
+/// `BlendError` arms name directly.
+///
+/// Both are matched EXHAUSTIVELY, which is what a curated list owes
+/// about them: seven entity kinds and three geometry kinds, and a
+/// caller branches on which. Four of the seven keys and all three
+/// geometry keys are BOUND and never named here — they are the rung
+/// this list stops at, one module hop away at `pncad::topo::…`, and
+/// binding them without naming them is exactly what a consumer does.
+fn entity_and_geometry_sites_are_matchable(
+    site: EntityId,
+    geometry: GeomRef,
+) -> (&'static str, &'static str) {
+    let what = match site {
+        EntityId::Solid(_) => "solid",
+        EntityId::Shell(_) => "shell",
+        EntityId::Face(key) => {
+            named::<FaceKey>(key);
+            "face"
+        }
+        EntityId::Loop(key) => {
+            named::<LoopKey>(key);
+            "loop"
+        }
+        EntityId::HalfEdge(_) => "half_edge",
+        EntityId::Edge(key) => {
+            named::<EdgeKey>(key);
+            "edge"
+        }
+        EntityId::Vertex(key) => {
+            named::<VertexKey>(key);
+            "vertex"
+        }
+    };
+    let carrier = match geometry {
+        GeomRef::Point(_) => "point",
+        GeomRef::Curve(_) => "curve",
+        GeomRef::Surface(_) => "surface",
+    };
+    (what, carrier)
 }
 
 /// The escalation payload, read through the prelude alone.
