@@ -400,7 +400,7 @@ fn line_to(x: f64, y: f64) -> ProgramStep {
 
 /// A meridian arc about `(cx, cy)` to `(x, y)`.
 fn arc_to(cx: f64, cy: f64, winding: ArcSweep, x: f64, y: f64) -> ProgramStep {
-    ProgramStep::ArcTo(ProgramArcData::Center {
+    ProgramStep::arc_to(ProgramArcData::Center {
         c: lpt(cx, cy),
         winding,
         target: ProgramTarget::Point(lpt(x, y)),
