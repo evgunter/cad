@@ -2,11 +2,12 @@
 id: LIB-CUR7
 kind: unit
 title: the meta_unversioned arm's inner word, and six profile discriminants decided
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/cur7
 refs: [meta-unversioned-arm-has-no-inner-word, payload-rung-re-sweep-finds-six-uncurated-profile-discriminants]
 pr: 2237
+closed: 2026-09-08
 ---
 
 
