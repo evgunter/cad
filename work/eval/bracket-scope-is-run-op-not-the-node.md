@@ -3,6 +3,7 @@ id: bracket-scope-is-run-op-not-the-node
 kind: issue
 title: The verdict bracket's scope is run_op, not the node: the profile pre-pass and the mate solve decide before any bracket opens
 status: review
+pr: 2176
 opened: 2026-09-05
 refs: [1969]
 branch: eval/7-node-bracket
