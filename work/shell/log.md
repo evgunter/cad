@@ -753,3 +753,42 @@ Rubric idiom/tests/docs: not scored by either reviewer.
 
 Block SHELL-B3 slot 1 concludes; slot 2 remains (record branch-side).
 SHELL-3 still waits on PROPS' sign-hull unit.
+
+## Second session close (2026-09-08, ~23:40 UTC)
+
+Six units landed in this session — SHELL-5, 6, 7 (block SHELL-B1
+concluded, SHELL-B2 opened), SHELL-8 (SHELL-B2 concluded), SHELL-9
+and SHELL-10 (SHELL-B3 slots 0 and 1) — samples #159–#161, #162,
+#165, #166; tally candidates: one at SHELL-6 (R2's, the per-chart
+cone door) and one at SHELL-9 (R2's, the laundered operand row, with
+a dedup caveat). **Block SHELL-B3 stays open at slot 2** (the arm is
+in the branch-side record on the orchestrator branch); it fills with
+the next SHELL kernel unit. What that unit is: **SHELL-3** the moment
+PROPS' sign-hull unit merges (branch `props/sign-hull`, idle since
+01:11 UTC, no PR), then SHELL-4. Nothing else in the fence is a
+kernel unit ready to cut on its own evidence: the naming-record gap
+(`shelled-result-does-not-name-the-wall-it-built`) has several viable
+shapes and is Ev's to weigh in on before a spec; the conic carrier
+(`offset-lane-has-no-conic-carrier`) is a C5 R1 fork for Ev; the
+laundering posture (`shell-launders-a-stale-operand-row`) is TOPO's
+posture-table decision; the dimension-audit and no-approx rows are
+docs and test hygiene, not block slots; the followups' winding rename
+is three owners' and waits on its announcements. Placed for other
+programs this session: TOPO —
+`tier-3-does-not-check-shell-roles-per-solid`,
+`tier3-accepts-a-ring-outside-its-outer-loop`,
+`split-edge-children-lack-pcurve-rows-on-curved-charts`,
+`a-chart-spans-solids-after-move-shells-to-new-solid`,
+`revert-does-not-mirror-plane-chart-images`,
+`producer-closing-mint-is-a-convention-with-thirteen-copies`,
+`attach-postconditions-validate-the-whole-body-and-panic`; BOOL —
+`subtract-of-a-hollow-operand-files-the-island-under-one-solid`,
+`boolean-mod-doc-links-a-feature-gated-variant`; issues —
+`cone-nappe-is-decided-in-five-places`. Seams announced: S-BOOL
+(`insert_voids`), PROPS (`classify_shells_of`), TOPO (`pcurves.rs`
+doc lines, `mint_pcurves_of` and its registry rows), LIB
+(`ShellError` arms in both exhaustive folds). The orchestrator branch
+`claude/work-shell-readiness-y31rxk` equals main plus the SHELL-B3
+draw and slot lines; a successor starts from it, reads this entry,
+and cuts SHELL-3 into slot 2 when sign-hull lands (ask M10's
+orchestrator for the co-review at dispatch, per plan item 5).
