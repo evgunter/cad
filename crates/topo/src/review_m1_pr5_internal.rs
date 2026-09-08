@@ -304,6 +304,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("mint_pcurves", "pcurve caches only; no topology touched"),
     (
+        "mint_pcurves_of",
+        "pcurve caches of a face subset only; no topology touched",
+    ),
+    (
         "set_null_face_pair",
         "null-face annotation; tier 2 bans it at rest, tier 1 does not see it",
     ),

@@ -684,3 +684,72 @@ scored by either reviewer.
 
 Block SHELL-B3 slot 0 concludes; slots 1 and 2 remain (record
 branch-side). SHELL-3 still waits on PROPS' sign-hull unit.
+
+## SHELL-10 cut (2026-09-08)
+
+The doors' remaining whole-body walks, SHELL-8's disclosed item made
+concrete by SHELL-9's cost count (N + k + 1 whole-body mints on an
+opened N-solid body): spec `docs/SHELL-10-SPEC.md`, branch
+`shell/10-scoped-walks`, block SHELL-B3 slot 1 (the arm is in the
+branch-side record; the pre-draw fields S–M / STRUCTURAL are logged
+after the block byte — disclosed on the item, as every non-first
+slot's are). Decision bound by the spec: each simultaneous door reads
+exactly its scope — the partition built from the named solids'
+shells, the pcurve pass over the scope's faces through an additive
+`mint_pcurves_of` (TOPO seam), the closure check over the scope's
+shells through an additive `validate_closed_of` or the per-shell
+machinery that exists (never a second validator), with SHELL-9's
+cache-row instrument and SHELL-8's body dumps as the two
+differentials. Rejected: leaving the closure check whole-body as "a
+read" — a read that refuses is a write to the caller. Alternative not
+taken: idling until PROPS' sign-hull lands (branch idle since 01:11
+UTC, no PR) — the block has two slots open and this is the last
+in-fence kernel item with its evidence already built. Lane at
+`/home/user/shell-lanes/shell-10/`, private target and scratch beside.
+
+## SHELL-10 MERGED (2026-09-08, PR #2229 — ordinal 2307, sample #166)
+
+The two simultaneous offset doors read their scope: the partition is
+built from the named solids' shells, a moved face's solid is read in
+two hops, `re_scope` rebuilds when aimed at a solid it does not hold,
+and each door closes with `pcurves::mint_pcurves_of` over the scope's
+faces (an additive TOPO entry sharing `mint_faces` with the
+whole-body pass, which keeps the opening `clear()` that alone drops
+rows on dead keys). The closure check could NOT narrow: the spec's
+STOP fired — five of tier 1's thirteen passes count owners or
+refcounts arena-wide and no per-shell entry exists — and the lane
+filed it (`doors-still-read-the-whole-body-for-tier1`) and found,
+beside it, that the attach layer's setters run a whole-body tier-1
+`validate` as a postcondition on every write: 18 per scoped planar
+call, 16 axial, a PANIC under the release profile's
+`debug-assertions = true`, reachable through a public door on a
+malformed out-of-scope solid. Both reviewers reproduced the count and
+called it TOPO's own finding; placed by this orchestrator as
+`work/topo/attach-postconditions-validate-the-whole-body-and-panic`.
+Both differentials (SHELL-9's cache rows, SHELL-8's dumps) are empty
+at the true merge base, on the unit's corpora and on both reviewers'.
+Both reviews APPROVE-WITH-FIXES, no unilateral MAJOR in class code,
+no tally candidate. **Convergent, and what the unit had to say
+plainly:** the doors are still O(body) — the setter walks, three
+whole-arena decide iterations, the clone and tier 2 — so the direct
+door on one of N solids scales linearly with N on both trees and the
+narrowing is invisible in cost; the unit's cost table was inside the
+instrument's noise (1–7% spread, two rows slower on one lane's run)
+and is withdrawn to the one separable row, the §2.4 STOP declared
+undecidable by that instrument, and the reads account stated once in
+`Scope`'s doc (R1 rated the doors' false "one whole-body read left"
+sentence MAJOR — class doc). Also convergent: `mint_pcurves_of`
+cannot hold the `Maintains` posture for a caller that kills
+half-edges (two dead-key rows survive it, invisible to tier 3; the
+contract is now stated true and the guard's blind spot named);
+`re_scope`'s rebuild arm was unreachable and unpinned (kept, now
+pinned); the doors no longer launder an out-of-scope half-minted face
+(intended — two items' citations corrected). Spec premises this unit
+falsified, mine: that the closure check could be narrowed without a
+second validator; that a cost row could decide the STOP on this box.
+Seams announced at merge: TOPO (`mint_pcurves_of`, a `DECLARED` row,
+a `review_m1_pr5_internal::ALLOWED` row, the export). K rows: none.
+Rubric idiom/tests/docs: not scored by either reviewer.
+
+Block SHELL-B3 slot 1 concludes; slot 2 remains (record branch-side).
+SHELL-3 still waits on PROPS' sign-hull unit.
