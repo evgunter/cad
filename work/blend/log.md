@@ -306,3 +306,16 @@ open clause omits the transverse-cap termination — so both siblings
 are fixed in the pass and the filed instance closes on it. Fix pass
 implementer-inherited, both probe rows adopted inverted into the fixed
 contract.
+
+**Unit K landed (2026-09-08)** on PR [#2149](https://github.com/evgunter/cad/pull/2149),
+head `0bd51c22`, green on the full matrix; every bit-dump byte-identical
+at both trees. `ExtrudeError::SmoothCapRim` and its arm are gone; the
+smooth cap rim rests in its WALL's chart through `describe_at_rest`
+(containment by construction — the wall is swept from the rim's own
+carrier — and measured: the K = 1.1 re-exec row reads four wall-chart
+rims, zero cap-chart), and the at-rest gate refuses those four as
+`SliverDihedral`. The `K*` prose went with the arm (78 hits swept, the
+five-homes item closed on this PR); `Tolerance.k` carries its one
+sentence. Disclosed and not filed, per the ruling: no CI row sets a
+small K except the re-exec row. Style review dispatched on the frozen
+head.
