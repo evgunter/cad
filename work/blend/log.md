@@ -446,3 +446,42 @@ orchestrator decisions were corrected by reviewers (units 3 and 5) and
 both corrections are in the tree. Open on the slate: unit 6 in its
 dual; units 7 and 9 (block B1) and 8, 10–13 to dispatch; the
 residues the E units filed.
+
+**Unit 6's dual concluded (2026-09-08, ~19:00 UTC):** R1 (FABLE)
+MERGEABLE-AFTER-FIXES 0/3/2, rubric 4/3/3; R2 (OPUS) MERGEABLE
+0/6/3, rubric 4/3/4. Both ran concurrently on the frozen head with
+private targets, neither interrupted, zero cross-lane reads disclosed.
+No MAJOR on either side, so no unilateral MAJOR and NO tally candidate.
+The headline is BILATERAL and it corrects the unit's own claim: D5 is
+false in both halves. The screen and the exact backstop are not
+bit-identical (16 ulps on the ladder relation with the screen off —
+R1, by mutant; 5 and 10 ulps on the item's own rows 2 and 3 — R2, by
+reading the item's table), and the backstop IS reachable: not by the
+boolean pip the filed item named (R2 built it — the split-join
+refuses every off-axis pierce of a cylinder cap with
+`SectionLoopMixed` except at azimuth 0/π, where the screen is exact
+and answers first), but by an extrude with an off-axis circular inner
+loop (R1's bored cylinder: `fillet3_ring_clearance` reads `−0.01` at
+the front door for both relations, carving sides carve). The two
+probe suites disagree in their canaries and are adopted together with
+the canary re-scoped to the boolean route. Converged MINORs: the
+external half of the outer `max` had no witness (both by mutant; both
+supplied the pinning row — R1 a mixed-outer-cycle plate, R2 a
+non-coaxial ladder trim circle, which is also the CROSSING row the
+spec asked for and the unit silently replaced with a concentric
+nesting under a name that says "crossing"); the trio decides in
+predicate 2 and passes at the merge base; `CircleMargins` is
+predicate 2's screen restated (both Q1); the outer-walk doc block's
+stale sentences (both Q2); D4's widening unreachable, not merely
+unexercised (R2). Unique R1: the material side read off the body as
+a row; `narrowed`/`domed` re-spelling the boss profile. Unique R2:
+the `domed` duplicate as a silent spec deviation; the `:1501` premise
+invalidated; the `!crossings.is_empty()` silent branch; the `blend6_`
+prefix naming two generations' units (filed as a class,
+`unit-numbered-test-suite-prefixes-collide-across-program-generations`;
+the instance renamed by subject on this unit's fix pass). Fix pass
+dispatched to the implementer's lane on the union
+(`/home/user/blend-briefs/fix-6-brief.md`); delta re-verification by
+R1 on the fixed head, then state-sync and merge, then the A/B row
+with its sample number. Reviewer targets reclaimed for unit 7's lane;
+reviewer worktrees stay until merge.
