@@ -377,21 +377,22 @@ enum HostFoot {
 /// resolution, because [`resolve_rim`] alone knows WHERE the rim sits in
 /// its host's loop structure, which is the routing.
 ///
-/// # Two shapes this door does not serve, both measured
+/// # One shape this door does not serve, measured
 ///
-/// - **A CURVED single face carrying every arc CAN arise, and refuses.**
-///   It is reachable through `topo`'s public `kef` — kill one of a
-///   sphere wall's two seam meridians and the remaining face carries
-///   both rim arcs — and through no sweep or boolean door. It refuses at
-///   the half-band gate on BOTH routes, and never carves:
-///   `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`,
-///   rowed by
-///   `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both_routes`.
-/// - **A RINGED host refuses** even under [`Self::Struts`], on the
-///   hostless host gate's first arm:
-///   `work/fillet/hostless-rim-on-a-ringed-host-refuses.md`. That is the
-///   condition [`super::FILLET3_ASSEMBLY_RECOURSE`]'s closed clause
-///   states rather than promising past it.
+/// **A CURVED single face carrying every arc CAN arise, and refuses.**
+/// It is reachable through `topo`'s public `kef` — kill one of a sphere
+/// wall's two seam meridians and the remaining face carries both rim
+/// arcs — and through no sweep or boolean door. It refuses at the
+/// half-band gate on BOTH routes, and never carves:
+/// `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`,
+/// rowed by
+/// `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both_routes`.
+///
+/// A RINGED host is served under [`Self::Struts`]: the band's host trim
+/// becomes that face's new outer boundary, and each ring is admissible
+/// exactly when the trim CONTAINS it — metered in closed form by
+/// [`ring_clearance_pass`] under
+/// [`RimPlan::trim_replaces_host_boundary`], never routed on.
 #[derive(Clone, Copy)]
 enum HostSide {
     /// Several half-band faces of one surface, one arc each, dropping a
@@ -424,6 +425,29 @@ impl<T: Real> RimPlan<'_, T> {
             RimShape::Ladder { ring } => Some(ring),
             RimShape::Annulus(_) => None,
         }
+    }
+
+    /// **Does this rim's host TRIM become its host face's new OUTER
+    /// boundary?** True for the hostless annulus alone: ONE face carries
+    /// every arc in its own outer cycle, so the carve excises everything
+    /// between the trim circle and that cycle and the trim is what is
+    /// left. A ring of such a face is admissible exactly when the trim
+    /// CONTAINS it ([`CircleMargins::other_inside_trim`]); on every other
+    /// rim the excised strip lies outside the ring and the separation is
+    /// the question.
+    ///
+    /// [`HostSide`] is the per-rim mode and is not stored, so this reads
+    /// the per-crossing datum it resolves to: [`HostFoot::Strut`] is
+    /// minted at a crossing exactly when the host side is
+    /// [`HostSide::Struts`].
+    fn trim_replaces_host_boundary(&self) -> bool {
+        let RimShape::Annulus(a) = &self.shape else {
+            return false;
+        };
+        !a.crossings.is_empty()
+            && a.crossings
+                .iter()
+                .all(|c| matches!(c.host, HostFoot::Strut))
     }
 
     /// The host support of the chain's FIRST link — the one every
@@ -1010,11 +1034,12 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 ///   annulus twin of the ladder's half-cap one;
 /// - the HOST side per `host_side` ([`HostSide`]): the same half-band
 ///   discipline under [`HostSide::Seams`], or, under
-///   [`HostSide::Struts`], ONE ring-free face whose OUTER CYCLE is
-///   exactly the chain's arcs and nothing else — the analogue of the
-///   ladder's "a rim ring carries edges outside the requested chain",
-///   and what makes the strip carve well-defined when the trim chords
-///   run in that cycle;
+///   [`HostSide::Struts`], ONE face whose OUTER CYCLE is exactly the
+///   chain's arcs and nothing else — the analogue of the ladder's "a
+///   rim ring carries edges outside the requested chain", and what
+///   makes the strip carve well-defined when the trim chords run in
+///   that cycle. Rings of that face are not a routing question: they
+///   are metered against its host trim by [`ring_clearance_pass`];
 /// - each arc's two ends met by exactly one other arc, so the arcs walk
 ///   one cycle in the host side's own traversal;
 /// - at every such vertex, incidence is exactly the two arcs plus ONE
@@ -1168,15 +1193,16 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
             HostSide::Struts => {}
         }
     }
-    // **The HOSTLESS host gate: ONE ring-free face whose outer cycle is
-    // exactly the chain's arcs**, and the FRONTIER of this door. Both
-    // arms below refuse a body that satisfies "one face carries every
+    // **The HOSTLESS host gate: ONE face whose outer cycle is
+    // exactly the chain's arcs**, and the FRONTIER of this door. The
+    // arm below refuses a body that satisfies "one face carries every
     // arc" and is still not carvable, so
-    // [`super::FILLET3_ASSEMBLY_RECOURSE`]'s closed clause states both
-    // conditions — a ring-free host, the rim as its whole outer cycle —
-    // rather than promising the carve at a body that meets neither.
-    // Each arm's sentence is audited against that clause at its own
-    // site.
+    // [`super::FILLET3_ASSEMBLY_RECOURSE`]'s closed clause states that
+    // condition — the rim as its host's whole outer cycle — rather than
+    // promising the carve at a body that does not meet it. A RING of
+    // that host is not a routing question: it is metered in closed form
+    // by [`ring_clearance_pass`], under the relation
+    // [`RimPlan::trim_replaces_host_boundary`] names.
     if let HostSide::Struts = host_side {
         let Some(&host) = hosts.first() else {
             unreachable!(
@@ -1193,24 +1219,6 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
             hosts.iter().all(|&h| h == host),
             "hostless routing admits one host face for the whole rim"
         );
-        let fd = body
-            .get_face(host)
-            .ok_or_else(|| not_intact(EntityId::Face(host), "a rim's host support"))?;
-        // **Frontier arm 1 — a RINGED host.** The band's host trim is
-        // the face's new outer boundary, and nothing here says where a
-        // ring of that face then sits relative to it; the ring-clearance
-        // pass answers that for a LADDER rim and is scoped away from
-        // this one. Refused rather than carved:
-        // `work/fillet/hostless-rim-on-a-ringed-host-refuses.md`, whose
-        // instance is the boss's top outer rim. The recourse this hands
-        // out is true at the site because its clause asks for a
-        // RING-FREE host.
-        if !fd.rings.is_empty() {
-            return Err(unbuilt_chain(
-                link0.edge,
-                "a hostless-crossing rim's host face carries rings of its own",
-            ));
-        }
         let mut cycle: Vec<EdgeKey> = face_cycle(body, host)
             .ok_or_else(|| {
                 not_intact(
@@ -1226,7 +1234,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         let mut want = chain_edges.clone();
         want.sort_unstable();
         want.dedup();
-        // **Frontier arm 2 — an outer cycle wider than the request.**
+        // **The frontier arm — an outer cycle wider than the request.**
         // "Exactly" is what the ladder's ring gate asks of its ring and
         // for the same reason: a trim chord runs between consecutive
         // feet IN this cycle, so an edge of it the request did not name
@@ -1293,9 +1301,9 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         // the crossing exactly twice and has no third half-edge to give
         // — and what does reach it is a crossing with two MATE seams,
         // i.e. three mate faces meeting there. That is neither
-        // "each support face carries one arc" nor "one ring-free face
-        // carries every arc", so the sentence does not promise it and is
-        // true here.
+        // "each support face carries one arc" nor "one face carries
+        // every arc as its whole outer cycle", so the sentence does not
+        // promise it and is true here.
         let want_seams = match host_side {
             HostSide::Seams => 2,
             HostSide::Struts => 1,
@@ -1421,22 +1429,15 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   any mutation, with the sequential recourse (each call plans
 ///   against its own source, so sequence is always honest).
 ///
-///   **The shape IS authorable now, and this arm is still not what
-///   refuses it.** The old premise here — that a plane face carrying
-///   both a RING and a revolution-wall cycle has no public
-///   construction but a boolean of a ball against a revolve — is
-///   false: a revolve whose flat top runs in to a dome, followed by
-///   `merge_coplanar_faces`, mints exactly that face, and THIS unit
-///   made its outer cycle a rim the annulus routes. So a request for
-///   that face's ring rim (a LADDER) and its outer rim together does
-///   reach a mixed pair. It does not reach THIS arm: the outer rim is
-///   refused earlier, by the hostless host gate's ring arm, because
-///   the host carries a ring. The canary is therefore
-///   `review_fillet_h5_r1_probes::r1_the_mixed_shared_support_arm_is_not_what_refuses_the_bosss_two_rims`,
-///   which measures that the boss's two rims are refused by the host
-///   gate and NOT here — and reds the day the ringed host carves
-///   (`work/fillet/hostless-rim-on-a-ringed-host-refuses.md`), which is
-///   the moment this arm first needs a row of its own.
+///   **The mixed pair is REACHABLE and this arm is what refuses it.**
+///   A revolve whose flat top runs in to a dome, followed by
+///   `merge_coplanar_faces`, mints one plane face carrying both a RING
+///   (the dome rim, a ladder) and a revolution-wall outer cycle (the
+///   top rim, a hostless annulus); requesting the two together is a
+///   mixed pair, and each rim carves ALONE. Rowed by
+///   `blend6_ring_clearance::the_bosss_two_rims_refuse_together_and_compose_sequentially`,
+///   which also follows the recourse: the two calls in sequence build
+///   the same solid at the sum of the two closed forms.
 fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendError> {
     for (i, a) in rims.iter().enumerate() {
         for b in rims.iter().skip(i + 1) {
@@ -1924,6 +1925,53 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
     }
 }
 
+/// **The three clearances between a blend TRIM circle and one other
+/// circle of the same face**, meters, all closed forms over the two
+/// stored circles. Which one a caller reads is fixed by what the trim
+/// circle REPLACES on that face, never by which reads better.
+///
+/// - [`CircleMargins::external`] — the two circles are separated,
+///   neither inside the other. Read it when the strip the carve excises
+///   lies OUTSIDE the other circle and must not reach it: every ring of
+///   a ladder rim's host, and every ring of a seam-split annulus rim's
+///   wall.
+/// - [`CircleMargins::trim_inside_other`] — the other circle CONTAINS
+///   the trim circle. Read it when the other circle is the host face's
+///   own outer boundary, because the host lies inside that boundary and
+///   a trim circle nested in it with room to spare is the healthy case.
+/// - [`CircleMargins::other_inside_trim`] — the trim circle contains the
+///   other one. Read it when the trim BECOMES the face's outer boundary
+///   — a hostless annulus rim, whose carve excises everything between
+///   the trim and the old rim — because a ring outside the trim then
+///   sits in the excised strip.
+///
+/// The three are not interchangeable and no two of them are the same
+/// question: a ring in the strip reads POSITIVE under `external` when
+/// the two circles are small and far apart on the face, and a boundary
+/// that contains the trim reads minus the sum of the radii under it.
+struct CircleMargins<T> {
+    /// `‖cj − ci‖ − si − aj`: separation of two circles that lie
+    /// outside each other.
+    external: T,
+    /// `aj − (‖cj − ci‖ + si)`: how much room the OTHER circle has
+    /// around the trim circle it encloses.
+    trim_inside_other: T,
+    /// `si − (‖cj − ci‖ + aj)`: how much room the TRIM circle has around
+    /// the other circle it encloses.
+    other_inside_trim: T,
+}
+
+/// The three margins of [`CircleMargins`] for a trim circle `(ci, si)`
+/// and one other circle `(cj, aj)`, both read from stored carriers.
+fn circle_margins<T: Real>((ci, si): (Point3<T>, T), (cj, aj): (Point3<T>, T)) -> CircleMargins<T> {
+    let d = (cj - ci).norm();
+    CircleMargins {
+        external: d - si - aj,
+        trim_inside_other: aj - (d + si),
+        other_inside_trim: si - (d + aj),
+    }
+}
+
 /// The test-support door to [`ring_clearance`]: the same function, made
 /// nameable from this crate's `tests/` binaries for its two-tolerance
 /// trio pin (`tests/m6_surgery.rs`) and compiled into no shipped build.
@@ -2036,7 +2084,15 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                     Some(widened) => widened,
                     None => ring_circle(body, ring)?,
                 };
-                let margin = (cj - ci).norm() - si - aj;
+                // Which relation the ring stands in to the trim is
+                // fixed by what the trim REPLACES on this face
+                // ([`CircleMargins`]).
+                let m = circle_margins((ci, si), (cj, aj));
+                let margin = if rim.trim_replaces_host_boundary() {
+                    m.other_inside_trim
+                } else {
+                    m.external
+                };
                 ring_clearance(host, margin, band)?;
             }
         }
@@ -2045,12 +2101,13 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         // Outer boundary — a LADDER rim's question only. There the rim
         // is a ring, so the host's outer boundary is a separate cycle
         // the widened trim circle must clear. An ANNULUS rim's trim
-        // circle IS the replacement for part of that outer boundary and
-        // is separated from the rest of it by predicate 2's
-        // boundary-pair consumption sweep, which meters exactly those
-        // pairs at the arm's own setbacks; running the external-
-        // separation form here would refuse every such rim on its own
-        // rim edge.
+        // circle IS the replacement for part of that outer boundary, so
+        // metering it against the cycle it replaces is not a question
+        // this walk can put; the rest of that cycle is separated from
+        // it by predicate 2's boundary-pair consumption sweep, which
+        // meters exactly those pairs at the arm's own setbacks. What
+        // the annulus rim gets from this pass instead is the RING
+        // meter above, which is a different question.
         //
         // **This is an exactness step-down for the annulus rim, said
         // plainly:** a ladder rim gets BOTH a sampled screen (predicate
@@ -2069,27 +2126,16 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         let RimShape::Ladder { .. } = rim.shape else {
             continue;
         };
-        // Scoped honestly: the line arm measures the
-        // INFINITE carrier line, and the circle arm is EXTERNAL
-        // separation (`‖cj − ci‖ − si − aj`) only — no containment
-        // form. Both err in the conservative direction (a false
-        // refusal, never a false pass); the two false-refusal
-        // classes are (1) a trim circle NESTED inside a circular
-        // outer boundary, where the containment margin
-        // `aj − (‖cj − ci‖ + si)` is positive but the external form
-        // reads negative, and (2) a distant line edge whose EXTENSION
-        // passes near the trim circle. **Class (1) DOES occur** — a
-        // revolve whose flat top runs in to a dome, repaired with
-        // `merge_coplanar_faces`, is a ladder rim whose widened trim
-        // circle sits CONCENTRIC inside the host's circular outer
-        // boundary, and the external form reads minus the sum of the
-        // two radii where the containment margin is comfortably
-        // positive
-        // (`work/fillet/ring-clearance-refuses-a-nested-trim-circle.md`,
-        // which carries the fixture and the reading). Class (2) stays
-        // unmeasured. A body that hits either refuses `RingClearance`
-        // loudly rather than passing silently, which is why this is a
-        // false refusal and not a soundness hole.
+        // Scoped honestly. The CIRCLE arm reads both relations a
+        // boundary circle can stand in to the trim circle
+        // ([`CircleMargins`]) and clears on either. The LINE arm
+        // measures the INFINITE carrier line, so one false-refusal
+        // class is left: a distant line edge whose EXTENSION passes
+        // near the trim circle, which reads negative where the finite
+        // edge is nowhere near. It stays unmeasured, and errs in the
+        // conservative direction — a body that hits it refuses
+        // `RingClearance` loudly rather than passing silently, which is
+        // why it is a false refusal and not a soundness hole.
         // Anything else is already screened by predicate 2's sampled
         // sweep and adds nothing exact here.
         let outer = face_cycle(body, rim.host0()).ok_or_else(|| {
@@ -2115,8 +2161,14 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                     ring_clearance(rim.host0(), margin, band)?;
                 }
                 Curve3::Circle { center, radius, .. } => {
-                    let margin = (center - ci).norm() - si - radius;
-                    ring_clearance(rim.host0(), margin, band)?;
+                    // Either relation clears: the boundary circle
+                    // CONTAINS the trim circle (the host lies inside its
+                    // own outer boundary), or the edge is a convex arc
+                    // of a mixed cycle whose full circle encloses
+                    // nothing and the two are merely separated. Both
+                    // negative is the carve consuming its own host.
+                    let m = circle_margins((ci, si), (center, radius));
+                    ring_clearance(rim.host0(), m.external.max(m.trim_inside_other), band)?;
                 }
                 _ => {}
             }

@@ -393,7 +393,7 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
 /// every door it names is executed.** Four of them, since the closed
-/// clause gained its "one ring-free face carries every arc" half.
+/// clause gained its "one face carries every arc" half.
 ///
 /// The refusal: an OPEN chain whose supports are not plane–plane (the
 /// edge between a wedge wall and the sphere zone of a PARTIAL revolve),

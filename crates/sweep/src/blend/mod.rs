@@ -705,18 +705,15 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// on one plane face, and it carves through the annulus band's HOSTLESS
 /// crossing (README A3-2; the surgery's `HostFoot`).
 ///
-/// **The condition on that second half is load-bearing and was measured
-/// missing**: the host must carry NO RING of its own and the rim must be
-/// its WHOLE outer cycle, which is what the hostless host gate asks. A
-/// merged flat top that is an ANNULUS satisfies "one face carries every
-/// arc, in its outer cycle" and still refuses, on the ring arm — the
-/// boss fixture of
-/// `review_fillet_h5_r1_probes::r1_a_hostless_rim_on_a_ringed_host_refuses_under_a_recourse_that_promises_it`,
-/// which is the row that caught an unconditional wording promising the
-/// carve it had just refused. That frontier is
-/// `work/fillet/hostless-rim-on-a-ringed-host-refuses.md`; the sentence
-/// says the condition rather than over-promise at that body, exactly as
-/// its previous wording did for the previous frontier.
+/// **The condition on that second half is load-bearing**: the rim must
+/// be that face's WHOLE outer cycle, which is what the hostless host
+/// gate asks. A RING of the host does not disqualify it — the band's
+/// host trim becomes the face's new outer boundary and each ring is
+/// carried through when the trim CONTAINS it, which the surgery meters
+/// in closed form under `fillet3_ring_clearance` — so the clause
+/// promises the carve subject to that clearance and to nothing else.
+/// A merged flat top that is an ANNULUS carves through this clause:
+/// `blend6_ring_clearance::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
 /// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single links ending either at \
      fully-requested trivalent corners, over plane\u{2013}plane supports, or, for a straight \
@@ -726,8 +723,9 @@ pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open cha
      material side. For a fillet, closed chains that are circular rims between two \
      coaxial surfaces of revolution (a pip's plane\u{2013}sphere rim, a solid of revolution's \
      latitude rim) also carve, on either material side, either with each support face \
-     carrying one arc of the rim, or with one ring-free face carrying every arc as its \
-     whole outer cycle (a chamfer has no closed-chain band); junction carry-through and \
+     carrying one arc of the rim, or with one face carrying every arc as its whole \
+     outer cycle, its rings clearing the band (a chamfer has no closed-chain band); \
+     junction carry-through and \
      run-outs are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less

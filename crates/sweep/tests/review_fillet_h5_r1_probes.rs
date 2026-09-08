@@ -1,7 +1,7 @@
 //! **FILLET-H5 review probes (lane r1).** What the unit's own rows do
-//! not reach: the `Struts` host gate's two refusing arms, a hostless
-//! rim beside its neighbours in one call, and the recourse sentence the
-//! refusals carry.
+//! not reach: the `Struts` host gate on a host that carries a ring, a
+//! hostless rim beside its neighbours in one call, and the recourse
+//! sentence the door's answers carry.
 //!
 //! The body all three rows use is the **boss** — a cylinder of radius 1
 //! and height 1 whose flat top runs in to radius 0.5, where a
@@ -13,42 +13,28 @@
 //! - its BASE rim `(1, 0)` is the unit's own shape (one plane host,
 //!   the rim in that host's outer cycle, no rings) and CARVES;
 //! - its TOP OUTER rim `(1, 1)` is the same shape except that the
-//!   merged flat top also carries a RING (the dome rim), so it routes
-//!   to the same door and refuses there;
-//! - its DOME rim `(0.5, 1)` is in that ring, so it is a LADDER rim
-//!   (the unit's Phase 1 measured it refusing on a false ring
-//!   clearance, filed separately).
+//!   merged flat top also carries a RING (the dome rim), so its host
+//!   trim must contain that ring — which it does, and it carves;
+//! - its DOME rim `(0.5, 1)` is in that ring, so it is a LADDER rim,
+//!   nested inside its host's circular outer boundary.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Point2, Tol};
-use profile::ProfileVertex;
-use sweep::Revolution;
+use geom_core::Tol;
 use sweep::blend::BlendError;
 use sweep::blend::FILLET3_ASSEMBLY_RECOURSE;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{revolved_about_y, rim_arcs_at};
+use sweep::test_support::rim_arcs_at;
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-/// The boss: `(0,0) (1,0) (1,1) (0.5,1) [dome] (0,1.5)` revolved fully.
+/// The boss, repaired ([`sweep::test_support::boss`]).
 fn boss() -> Body<f64> {
-    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-    let mut b = revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.5, 1.0), q),
-            ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    );
+    let mut b = sweep::test_support::boss(true, tol());
     b.merge_coplanar_faces(tol())
         .expect("the pole-split caps repair");
     b
@@ -121,26 +107,25 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
     );
 }
 
-/// **A hostless rim whose host face ALSO carries a ring refuses, and
-/// the recourse it carries states that condition.**
+/// **A hostless rim whose host face ALSO carries a ring carves, under
+/// the recourse that promises it.**
 ///
 /// The boss's top outer rim `(1, 1)` is one plane host, the rim in that
-/// host's own OUTER cycle, crossings trivalent. It refuses anyway,
-/// because the merged flat top is an ANNULUS and the `Struts` host gate
-/// requires a ring-free host. The refusal is an `UnsupportedChain`,
-/// which carries `FILLET3_ASSEMBLY_RECOURSE`.
+/// host's own OUTER cycle, crossings trivalent — and the merged flat top
+/// is an ANNULUS, so it also carries the dome ring. The band's host trim
+/// becomes that face's new outer boundary and the ring lies inside it
+/// with margin, which the ring-clearance pass meters in closed form, so
+/// the carve is admitted rather than routed away from.
 ///
-/// **This row caught an unconditional wording** — a closed clause
+/// **This row caught an unconditional wording once** — a closed clause
 /// reading "whether each support face carries one arc of the rim or one
-/// face carries every arc", which promised the carve it had just
-/// refused. The clause now states both of its conditions, a RING-FREE
-/// host and the rim as that face's WHOLE outer cycle, so the sentence is
-/// true at this site; the row asserts the conditions rather than the
-/// bare promise. The frontier is
-/// `work/fillet/hostless-rim-on-a-ringed-host-refuses.md`, and this row
-/// reds the day it closes.
+/// face carries every arc", which promised the carve the door then
+/// refused. The clause's surviving condition is the rim being that
+/// face's WHOLE outer cycle; the ring half is a clearance, and the
+/// sentence says so. The row asserts the shape, the carve and the clause
+/// together, so a door that narrows again reds here.
 #[test]
-fn r1_a_hostless_rim_on_a_ringed_host_refuses_under_a_recourse_that_promises_it() {
+fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it() {
     let body = boss();
     let arcs = rim_arcs_at(&body, 1.0, 1.0);
     assert_eq!(arcs.len(), 2, "the repaired top outer rim is two arcs");
@@ -163,25 +148,25 @@ fn r1_a_hostless_rim_on_a_ringed_host_refuses_under_a_recourse_that_promises_it(
         "and that host also carries the dome ring"
     );
 
-    match fillet_edges(&body, &arcs, 0.05, tol()).map_err(|e| e.error) {
-        Err(BlendError::UnsupportedChain { detail, .. }) => {
-            assert!(
-                detail.contains("rings of its own"),
-                "the hostless host gate's ring arm: {detail}"
-            );
-            assert!(
-                FILLET3_ASSEMBLY_RECOURSE.contains("one ring-free face carrying every arc"),
-                "the recourse conditions its one-face half on a ring-free host: \
-                 {FILLET3_ASSEMBLY_RECOURSE}"
-            );
-            assert!(
-                FILLET3_ASSEMBLY_RECOURSE.contains("whole outer cycle"),
-                "and on the rim being that face's whole outer cycle: \
-                 {FILLET3_ASSEMBLY_RECOURSE}"
-            );
-        }
-        other => panic!("expected the ring arm of the hostless host gate, got {other:?}"),
-    }
+    let out = fillet_edges(&body, &arcs, 0.05, tol())
+        .expect("the ringed host's outer rim carves through the hostless crossing");
+    validate_geometric(&out.body, tol()).expect("tier-3 valid");
+    assert_eq!(out.band_faces.len(), 1, "one band");
+    assert_eq!(
+        mass_properties(&out.body, tol()).unwrap().volume_pad,
+        0.0,
+        "closed-form faces only"
+    );
+    assert!(
+        FILLET3_ASSEMBLY_RECOURSE.contains("its rings clearing the band"),
+        "the recourse makes the host's rings a clearance, not a disqualification: \
+         {FILLET3_ASSEMBLY_RECOURSE}"
+    );
+    assert!(
+        FILLET3_ASSEMBLY_RECOURSE.contains("whole outer cycle"),
+        "and conditions on the rim being that face's whole outer cycle: \
+         {FILLET3_ASSEMBLY_RECOURSE}"
+    );
 }
 
 /// **Two hostless rims of ONE body in one call** — the composition
@@ -237,14 +222,12 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
 ///
 /// The boss's merged flat top IS such a face, built by revolve plus
 /// `merge_coplanar_faces` and no boolean at all: its RING is the dome
-/// rim (a ladder rim) and its OUTER CYCLE is the top rim (now, after
-/// this unit, an annulus rim). So the doc's exclusivity clause is
-/// stale. The gate still does not fire — the `Struts` host gate's ring
-/// arm refuses first — which is what this row pins, so a change that
-/// relaxes that arm reds here rather than reaching an arm with no
-/// fixture.
+/// rim (a ladder rim) and its OUTER CYCLE is the top rim (an annulus
+/// rim). So the doc's exclusivity clause is stale, and the mixed pair is
+/// what the arm now answers: each rim carves ALONE, and requesting both
+/// in one call reaches this arm and takes its sequential recourse.
 #[test]
-fn r1_the_mixed_shared_support_arm_is_not_what_refuses_the_bosss_two_rims() {
+fn r1_the_mixed_shared_support_arm_is_what_refuses_the_bosss_two_rims() {
     let body = boss();
     let mut both = rim_arcs_at(&body, 1.0, 1.0);
     both.extend(rim_arcs_at(&body, 0.5, 1.0));
@@ -257,9 +240,9 @@ fn r1_the_mixed_shared_support_arm_is_not_what_refuses_the_bosss_two_rims() {
     );
     match fillet_edges(&body, &both, 0.05, tol()).map_err(|e| e.error) {
         Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
-            detail.contains("rings of its own"),
-            "the hostless host gate answers before the shared-support gate: {detail}"
+            detail.contains("SEQUENTIAL calls"),
+            "the mixed ladder/annulus arm, with its sequential recourse: {detail}"
         ),
-        other => panic!("expected the hostless host gate's ring arm, got {other:?}"),
+        other => panic!("expected the shared-support gate's mixed arm, got {other:?}"),
     }
 }

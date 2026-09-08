@@ -2,9 +2,10 @@
 id: hostless-rim-on-a-ringed-host-refuses
 kind: unit
 title: fillet: a hostless-crossing rim whose one plane host also carries a RING refuses; the annulus band's host trim has no answer for that ring
-status: dispatched
+status: review
 opened: 2026-09-05
 branch: blend/6-ring-clearance
+pr: 2215
 ---
 
 

@@ -2,21 +2,18 @@
 //!
 //! The unit `repaired-pole-rim-serves-no-closed-door` is about a closed
 //! rim whose arcs are hosted by ONE plane face in that face's OWN OUTER
-//! CYCLE — one host, no ring, and crossings the coplanar-merge repair
-//! left TRIVALENT (two rim arcs plus the mate's seam, the host's seam
-//! having been merged away). These rows pin what that shape is, where
-//! it comes from, and what the doors say about it, so the measurement
-//! the spec's Phase 1 asks for is a gate rather than a transcript.
+//! CYCLE — one host and crossings the coplanar-merge repair left
+//! TRIVALENT (two rim arcs plus the mate's seam, the host's seam having
+//! been merged away). These rows pin what that shape is, where it comes
+//! from, and what the doors say about it, so the measurement the spec's
+//! Phase 1 asks for is a gate rather than a transcript.
 //!
 //! Two of them state NEGATIVE structural facts and are the ones that
 //! earn their place: a full revolve of a pole-touching profile splits
 //! EVERY wall, not only the walls that touch the axis, so the shape has
-//! no native revolve instance
-//! (`work/fillet/plane-hosted-rim-has-no-native-instance.md`); and a
-//! repaired ANNULAR plane hosts its rim in a RING rather than in its
-//! outer cycle, which routes it to the ladder and into a ring-clearance
-//! refusal of a nested trim circle
-//! (`work/fillet/ring-clearance-refuses-a-nested-trim-circle.md`).
+//! no native revolve instance; and a repaired ANNULAR plane hosts its
+//! rim in a RING rather than in its outer cycle, which routes it to the
+//! LADDER and not here.
 //!
 //! The row that carries the unit's own claim is
 //! `the_plane_hosted_rim_carves_on_either_material_side`: every fixture
@@ -26,14 +23,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Point2, Sign, Tol};
-use profile::ProfileVertex;
-use sweep::Revolution;
-use sweep::blend::BlendError;
+use geom_core::Tol;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    assert_naming_totality, bowl, hemisphere_on_flat_base, lantern, plane_sphere_cut,
-    revolved_about_y, rim_arcs_at, waisted, wedge_fill,
+    assert_naming_totality, boss, bowl, hemisphere_on_flat_base, lantern, plane_sphere_cut,
+    rim_arcs_at, waisted, wedge_fill,
 };
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey, mass_properties, validate_geometric};
 
@@ -128,25 +122,6 @@ fn co_surface(body: &Body<f64>, e: EdgeKey) -> bool {
 // ------------------------------------------------------------------
 // The fixtures.
 // ------------------------------------------------------------------
-
-/// **The boss**: a cylinder of radius 1 and height 1 whose flat top
-/// runs in to radius 0.5, where a hemispherical dome of radius 0.5
-/// rises to the pole. `up` false is its dimple twin — the same pocket
-/// dipping to `(0, 0.5)` instead.
-fn boss(up: bool) -> Body<f64> {
-    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-    revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.5, 1.0), if up { q } else { -q }),
-            ProfileVertex::new(Point2::new(0.0, if up { 1.5 } else { 0.5 }), 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
-}
 
 fn repaired(mut body: Body<f64>) -> Body<f64> {
     body.merge_coplanar_faces(tol())
@@ -341,7 +316,7 @@ fn the_plane_hosted_shape_reaches_either_material_side() {
 fn a_pole_touching_revolve_splits_the_walls_that_do_not_touch_the_axis_too() {
     for up in [true, false] {
         let name = if up { "boss" } else { "dimple" };
-        let body = boss(up);
+        let body = boss(up, tol());
         assert_eq!(
             body.faces().count(),
             8,
@@ -367,19 +342,18 @@ fn a_pole_touching_revolve_splits_the_walls_that_do_not_touch_the_axis_too() {
 }
 
 /// **Repairing the boss does not produce the shape either — it produces
-/// a ring-hosted ladder rim that refuses on ring clearance.** The
-/// merged flat top is an ANNULUS, so its rim lands in a RING of it and
-/// routes to the ladder; the ladder's own gates pass, and the exact
-/// outer-boundary check then applies its EXTERNAL-separation form to a
-/// boundary circle that CONTAINS the trim circle. The margin is
-/// `−(trim radius + boundary radius)` on concentric circles — a
-/// refusal of a carve that is geometrically fine
-/// (`work/fillet/ring-clearance-refuses-a-nested-trim-circle.md`).
+/// a ring-hosted LADDER rim, which is a different door and carves
+/// there.** The merged flat top is an ANNULUS, so its rim lands in a
+/// RING of it and routes to the ladder rather than to this suite's
+/// hostless crossing. Its host's outer boundary is a circle CONTAINING
+/// the widened trim circle, which the ring-clearance pass clears on the
+/// containment relation; the carve's closed form is
+/// `blend6_ring_clearance`'s.
 #[test]
-fn a_repaired_boss_is_ring_hosted_and_refuses_on_a_nested_trim_circle() {
+fn a_repaired_boss_is_ring_hosted_and_takes_the_ladder_door() {
     for up in [true, false] {
         let name = if up { "boss" } else { "dimple" };
-        let body = repaired(boss(up));
+        let body = repaired(boss(up, tol()));
         let arcs = rim_arcs_at(&body, 0.5, 1.0);
         let hosts = planar_supports(&body, &arcs);
         assert_eq!(hosts.len(), 1, "{name}: the repair leaves one plane host");
@@ -394,21 +368,10 @@ fn a_repaired_boss_is_ring_hosted_and_refuses_on_a_nested_trim_circle() {
                 .all(|a| loop_edges(&body, fd.rings[0]).contains(a)),
             "{name}: the rim lies in that RING, not in the outer cycle — a ladder rim"
         );
-        match fillet_edges(&body, &arcs, 0.1, tol()).map_err(|e| e.error) {
-            Err(BlendError::RingClearance { margin, .. }) => {
-                assert_eq!(margin.predicate, "fillet3_ring_clearance");
-                assert_eq!(margin.sign, Sign::Negative);
-                // Concentric circles: the external form reads
-                // `0 − trim − boundary`, while the containment margin
-                // `boundary − trim` is comfortably positive.
-                let read = margin.value().expect("a definite reading");
-                assert!(
-                    read < -1.0,
-                    "{name}: the reading is minus the SUM of the two radii, got {read}"
-                );
-            }
-            other => panic!("{name}: expected a ring-clearance refusal, got {other:?}"),
-        }
+        let out = fillet_edges(&body, &arcs, 0.1, tol())
+            .unwrap_or_else(|e| panic!("{name}: the ladder rim carves, got {e:?}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
     }
 }
 

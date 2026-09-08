@@ -375,6 +375,80 @@ fn trio_spine_regularity() {
     );
 }
 
+/// **The two-tolerance trio for the CONTAINMENT relation the hostless
+/// annulus rim is metered under**, through the public door rather than
+/// at a predicate helper, because the relation is a property of the
+/// request and not of a number.
+///
+/// The body is the boss with its dome grown to radius `a`: the merged
+/// flat top carries the dome rim as a RING at `a` and the top rim as its
+/// whole OUTER cycle, and blending the top rim at `r` puts that band's
+/// host trim at `1 − r`, which becomes the face's new outer boundary. So
+/// the ring is carried through exactly when the trim CONTAINS it, by
+/// `(1 − r) − a`, and the three legs are that margin definitely
+/// negative, exactly zero, and inside the band.
+///
+/// **The predicate that answers is `fillet3_face_clearance`, not
+/// `fillet3_ring_clearance`, and that is the point.** On a coaxial pair
+/// predicate 2's sampled screen computes this same quantity exactly —
+/// its `gap − setback` is `(1 − a) − r` — and it runs first, so the
+/// exact closed form in the surgery's ring carry-through pass is the
+/// BACKSTOP of a screen it now agrees with rather than contradicts. The
+/// trio pins that agreement at all three outcomes: definite refusal,
+/// exactly-zero refusal (never a pass), and an in-band ESCALATION
+/// carrying the same recourse as the definite arm.
+#[test]
+fn trio_hostless_annulus_ring_containment() {
+    /// The boss with its dome at radius `a`, repaired.
+    fn domed(a: f64) -> Body<f64> {
+        let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+        let mut b = sweep::test_support::revolved_about_y(
+            vec![
+                ProfileVertex::new(p2(0.0, 0.0), 0.0),
+                ProfileVertex::new(p2(1.0, 0.0), 0.0),
+                ProfileVertex::new(p2(1.0, 1.0), 0.0),
+                ProfileVertex::new(p2(a, 1.0), q),
+                ProfileVertex::new(p2(0.0, 1.0 + a), 0.0),
+            ],
+            sweep::Revolution::Full,
+            tol(),
+        );
+        b.merge_coplanar_faces(tol())
+            .expect("the pole-split caps repair");
+        b
+    }
+    let refuse = |a: f64| -> BlendError {
+        let body = domed(a);
+        let arcs = sweep::test_support::rim_arcs_at(&body, 1.0, 1.0);
+        sweep::blend::build::fillet_edges(&body, &arcs, 0.1, tol())
+            .expect_err("a ring the trim circle does not contain refuses")
+            .error
+    };
+    // Definitely negative: the ring at 0.92 sits 0.02 outside the trim.
+    let definite = refuse(0.92);
+    assert!(
+        matches!(&definite, BlendError::FaceClearanceUncertified { margin, .. }
+            if margin.sign == Sign::Negative
+                && margin.value().is_some_and(|m| (m - -0.02).abs() < 1e-15)),
+        "the definite arm classifies at the containment margin: {definite}"
+    );
+    // Exactly on: the ring at 0.9 touches the trim circle — a refusal,
+    // not a pass, which is the polarity a clearance predicate has.
+    let exact = refuse(0.9);
+    assert!(
+        matches!(&exact, BlendError::FaceClearanceUncertified { margin, .. }
+            if margin.sign == Sign::Zero),
+        "a ring exactly on the trim circle refuses: {exact}"
+    );
+    // In band: the ring `5ε` outside the trim.
+    let escalated = refuse(0.9 + in_band());
+    assert_same_recourse(
+        &definite,
+        &escalated,
+        "enlarge the support face whose clearance is uncertified",
+    );
+}
+
 #[test]
 fn trio_face_clearance() {
     let body = boxy();
