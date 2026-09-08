@@ -722,3 +722,50 @@ fn r2_e2e_consumer_seat() {
     tess("3 (vessel beside box, opened)", &opened.body);
     let _ = a_solid;
 }
+
+/// **Is `ChartSpansSolids` reachable through public doors?** A
+/// disconnecting subtract files both components under ONE solid; if
+/// their fragments share a surface key, `Body::move_shells_to_new_solid`
+/// (public) yields a two-solid body whose chart spans both.
+#[test]
+fn r2_chart_spans_solids_through_subtract_then_move_shells() {
+    let slab = crate::verbs_shell::brick(0.0, 6.0, 0.0, 1.0, 0.0, 1.0);
+    let wall = crate::verbs_shell::brick(2.5, 3.5, -1.0, 2.0, -1.0, 2.0);
+    let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&slab, &wall, tol()) else {
+        panic!("no body")
+    };
+    let mut body = b.body;
+    let shells: Vec<topo::ShellKey> = body.shells().map(|(k, _)| k).collect();
+    assert_eq!(shells.len(), 2);
+    let mut shared_across_shells = 0usize;
+    for (fa, a) in body.faces() {
+        for (fb, bb) in body.faces() {
+            if fa < fb && a.surface == bb.surface && a.shell != bb.shell {
+                shared_across_shells += 1;
+            }
+        }
+    }
+    println!(
+        "[r2] split slab: face pairs on different shells sharing a surface key = {shared_across_shells}"
+    );
+    let minted = body
+        .move_shells_to_new_solid(&[shells[1]])
+        .expect("one component moves to its own solid");
+    println!(
+        "[r2] after move_shells_to_new_solid: solids={} minted={minted:?} tier3={:?}",
+        body.solids().count(),
+        topo::validate_geometric(&body, tol())
+    );
+    match topo::shell(&body, 0.05, tol()) {
+        Ok(s) => println!(
+            "[r2] the split slab as two solids BUILDS: solids={} volume={} want={}",
+            s.body.solids().count(),
+            volume(&s.body),
+            2.0 * (2.5 - 2.4 * 0.9 * 0.9)
+        ),
+        Err(e) => {
+            println!("[r2] the split slab as two solids refuses: {e}");
+            assert!(matches!(e, ShellError::ChartSpansSolids { .. }), "{e}");
+        }
+    }
+}
