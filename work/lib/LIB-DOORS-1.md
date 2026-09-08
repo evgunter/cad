@@ -2,11 +2,12 @@
 id: LIB-DOORS-1
 kind: unit
 title: the edit door projects every arm's payload as attributes
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/doors-1
 refs: [pncad-py-seven-doors-lack-field-projection]
 pr: 2227
+closed: 2026-09-08
 ---
 
 The first door under the rule ruled (A) on
