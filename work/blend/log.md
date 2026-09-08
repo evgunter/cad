@@ -211,3 +211,13 @@ the crate docs; eleven "raised" sites reworded (two in `loft.rs`, the
 announced S-BOOL seam; one in `revolve/partial.rs`); the crate header
 is the present inventory; the MATE-3 citation on `Extruded.body` is
 present tense with its residue filed. The first BLEND unit closes.
+
+**Unit 3 MERGED (2026-09-08)**, PR [#2141](https://github.com/evgunter/cad/pull/2141)
+at its fix-pass head `e71fc6cd` (full matrix green; merged with a
+docs-only main delta). Three recourse sentences describe their door's
+test in the door's order; `BlendArm::kinds()` beside `name()`; the map
+row reports failure sets; the ruled witness is the rod's crease. The
+red run's one failure was a fourth stale assert of the class, in
+`review_fillet_e2_probes` — the lane's sweep read constants and not
+the suite's asserts on them, said plainly. E units 1–3 are merged:
+block BLEND-B1 opens with unit 6.
