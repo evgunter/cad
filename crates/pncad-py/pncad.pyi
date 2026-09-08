@@ -578,7 +578,8 @@ class IdentityError(PncadError):
 
     `variant` is the workspace refusal's own tag:
     `randomness_unavailable`, `io`, `duplicate_id`, `header`,
-    `unknown_id`, `load`, `pin`, `pin_mismatch`, `save` or `update`.
+    `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
+    `save_would_duplicate_id`, `save_target_not_in_store` or `update`.
     Only `randomness_unavailable` is reachable through this door today
     — minting an identity has one failure mode, the OS entropy source
     refusing — but the tag names the refusal that actually occurred, so
@@ -593,6 +594,7 @@ class WorkspaceError(PncadError):
 
     `variant` is the refusing arm's stable tag: `io`, `duplicate_id`,
     `header`, `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
+    `save_would_duplicate_id`, `save_target_not_in_store`,
     `randomness_unavailable` or `update`.
 
     The arm's payload rides as attributes, every one present on every
@@ -600,8 +602,16 @@ class WorkspaceError(PncadError):
     handling reads `err.wanted` without first branching on
     `variant`. `path` is the file or directory the door touched;
     `id` the document identity at issue; `first`/`second` the two
-    files of a `duplicate_id`; `wanted`/`found` the two pins of a
-    `pin_mismatch`.
+    files of a `duplicate_id` — and of a `save_would_duplicate_id`,
+    which is the same pair, the file that already claims the id and
+    the file the refused save would have written; `wanted`/`found` the
+    two pins of a `pin_mismatch`.
+
+    `save_would_duplicate_id` is the SAVE door's refusal and
+    `duplicate_id` the SCAN's, because the recourse differs: a scan's
+    duplicate is two files that already exist and is fixed by deleting
+    one, while a save's is a write that has not happened and is fixed
+    by choosing an act — resave in place, or `save_as_new_document`.
 
     `pin_mismatch` is the arm the store exists to make loud: a
     `DocRef` names a VERSION, so a document edited since it was
@@ -2016,8 +2026,10 @@ class Workspace:
     """A directory of `*.pncad` save files, scanned into an
     identity -> path map.
 
-    The write side is deliberately minimal — `create` and `resave`,
-    and no general mutation API."""
+    The write side is deliberately minimal: `create` and `resave` for
+    the refactorings, `save_at` and `save_as_new_document` for the two
+    acts a save is (ASSEMBLY-DESIGN A4), and no general mutation
+    API."""
 
     def __init__(self, path: str) -> None:
         """Scan `path`, reading each `*.pncad` file's `id:` header
@@ -2065,6 +2077,56 @@ class Workspace:
         content is not, so references by id stay valid and references
         by PIN go stale — which is the point. Raises WorkspaceError,
         typed."""
+
+    def save_at(self, doc: Doc, target: str) -> str:
+        """Save `doc` at `target`, a save file of this store, and
+        answer its path — the ordinary "save at path", the FIRST of
+        the two acts a save is (ASSEMBLY-DESIGN A4).
+
+        THE IDENTITY IS KEPT. A save says which VERSION of a part is
+        on disk, never which part it is, so saving a copy beside the
+        original refuses (`save_would_duplicate_id`, with `first` the
+        file that already claims the id and `second` the file this
+        save would have written) and nothing is written. Without that
+        refusal the directory would hold two files claiming one
+        identity, and every later scan of it would refuse for every
+        document in it. To write the content as a SECOND part, use
+        `save_as_new_document`.
+
+        Otherwise the scan says which act this is: at the id's own
+        scanned path it is a resave; for an unclaimed id it is a
+        create at the caller's name, which `create` cannot spell
+        because it forces `{id}.pncad`.
+
+        `target` names a file in THIS store: a bare file name, or a
+        path whose parent is `root`, with the `.pncad` extension.
+        Anything else refuses (`save_target_not_in_store`) — a
+        different root is a different store, and copying a document
+        between stores is not this door.
+
+        Raises WorkspaceError, typed."""
+
+    def save_as_new_document(self, doc: Doc) -> tuple[str, str]:
+        """Save `doc` AS A NEW DOCUMENT — the same content under a
+        fresh random identity, at `{newid}.pncad` — and answer
+        `(new id, path)`. The SECOND of the two acts a save is
+        (ASSEMBLY-DESIGN A4): an explicit fork.
+
+        THE ORIGINAL IS UNTOUCHED, so every inbound `DocRef` pinning
+        the old id still resolves to it. That is what a fork means,
+        and it is why this act is spelled apart from `save_at` rather
+        than being what a save at a second path silently does.
+
+        The fork's CONTENT PIN equals the original's: the pin's
+        preimage is `canonical_bytes`, the document's serde form with
+        the `id` key removed, so the same content under a fresh
+        identity is detectably the same version. The two save FILES
+        differ, in the `id:` header line and the snapshot's own id.
+
+        `doc` is not modified: its identity is the caller's value and
+        the fresh one is answered here.
+
+        Raises WorkspaceError, typed."""
 
     def update_to_store(self, doc: Doc, id: str) -> list[DocEdit]:
         """The edits that move every reference to `id` onto the
