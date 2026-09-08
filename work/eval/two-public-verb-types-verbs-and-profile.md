@@ -2,10 +2,11 @@
 id: two-public-verb-types-verbs-and-profile
 kind: issue
 title: Two public types named Verb in one workspace (verbs::Verb, profile::Verb) — the collision is known at one site and reconciled nowhere
-status: spec
+status: review
 opened: 2026-09-05
 refs: [1910, 1547]
 branch: eval/5-two-verbs
+pr: 2168
 ---
 
 
@@ -31,3 +32,12 @@ a naming ruling, small enough to ride whichever unit next opens
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/eval/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). `crates/verbs` is EVAL's; the profile side is S-BOOL's glob and the rename or convention is announced there. A naming ruling small enough to ride the next unit that opens either surface.
+
+## Closed
+
+The convention, not the rename (PR 2168): `verbs::Verb` is the kernel's
+verb, `profile::Verb` the sketch program's, the two never meet in one
+signature, and every reader outside the owning crate spells the crate —
+stated in `crates/verbs/src/lib.rs`'s module doc and mirrored in one
+sentence at `profile::Verb`'s doc (S-BOOL seam, announced). The prose
+sweep, its hit list and the rename note for S-BOOL are in the PR body.
