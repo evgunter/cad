@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-01
 github: 1479
 refs: [730]
-needs_ev: true
+needs_ev: false
 ---
 
 ## From GitHub issue 1479
@@ -80,3 +80,13 @@ is already argued at the site.
 Recommendation: **(A)**. The attribute NAMES follow the kernel's own
 field names, which are already Ev's design; what a unit decides is
 only the flattening, and the worked examples fix that.
+
+## Ruled (2026-09-08, Ev on `[ev]` PR 2196)
+
+**(A)** — "A sounds good." The rule "every arm's payload is an
+attribute, every attribute present on every arm" is ratified for the
+binding; the six doors (`edit`, `declare`, `persist`, `frame`, `stl`,
+and `path` once the kernel-side `PathError` discriminant lands) are
+mechanical units, a door at a time or batched where the arms are few,
+each landing the door's attribute set as one exhaustive match with its
+stub, census and fixture rows. No per-door design conversation.

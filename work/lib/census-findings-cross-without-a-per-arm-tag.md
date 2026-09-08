@@ -4,7 +4,7 @@ kind: issue
 title: a tier-3' census finding crosses to Python as prose with no per-arm tag
 status: open
 opened: 2026-09-04
-needs_ev: true
+needs_ev: false
 ---
 
 
@@ -97,3 +97,12 @@ whole while the Python caller reads a sentence.
 Recommendation: **(A)**, as the single exception to "`variant` is a
 scalar" — stated as such at the door, so it does not become a second
 convention.
+
+## Ruled (2026-09-08, Ev on `[ev]` PR 2196)
+
+**(A)** — "A sounds good." `ValidationError` keeps `door` and
+`failure_count` and gains `findings: list[ValidationFinding]`, a frozen
+value class with `variant` and the arm's payload (`CensusSubject` as
+`subject_kind` plus the entity kind or the pair). The single exception
+to "`variant` is a scalar", stated as such at the door. `CensusContact`
+and `CensusSubject` leave `INTERIOR` together. One mechanical unit.
