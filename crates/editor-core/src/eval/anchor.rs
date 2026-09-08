@@ -236,15 +236,16 @@ pub(crate) fn derive_naming(
     Some(ProfileNaming { loops: anchors })
 }
 
-/// **The one per-coordinate walk over a placement**, in EITHER
-/// direction: every one of the twelve components through `f`, the
-/// three columns and the translation kept in their places, the first
-/// refusal returned. The walk is written once because it is the shape
-/// where a transposed `c1`/`c2` is invisible in review and identical
-/// in every copy but one; [`embed_affine`] (f64 → any scalar, with
-/// `Infallible` for the error) and the section door's lane → f64
-/// crossing (`wire::pinned_plane`, refused by the scalar's type) are
-/// its two callers and its only two directions.
+/// The fallible per-coordinate walk over a placement: every one of the
+/// twelve components through `f`, the three columns and the
+/// translation kept in their places, the first refusal returned. Its
+/// infallible direction is the kernel's [`geom_core::Affine3::map`]
+/// (and [`profile::SketchPlane::map`] over the type that carries a
+/// frame); this walk exists only because the kernel offers no
+/// fallible one, and it has one caller, the lane → `f64` crossing in
+/// [`super::wire::pinned_plane`], where a component refuses by the
+/// scalar's type. When the kernel offers `Affine3::try_map`, this
+/// walk retires into it.
 pub(crate) fn map_affine<A: geom_core::Real, B: geom_core::Real, E>(
     a: &geom_core::Affine3<A>,
     f: impl Fn(A) -> Result<B, E>,
@@ -256,29 +257,11 @@ pub(crate) fn map_affine<A: geom_core::Real, B: geom_core::Real, E>(
     ))
 }
 
-/// Embeds an exact-`f64` placement into any evaluation scalar — the
-/// infallible direction of [`map_affine`] (`from_f64` never refuses,
-/// which the `Infallible` error type states rather than asserts).
-///
-/// ONE HOME for a per-coordinate `from_f64` walk that had grown three:
-/// the profile embed below did it inline, the lift's second pass needed
-/// the same thing for a sketch plane, and each copy was three lines of
-/// index-by-index transcription. The other direction, lane → f64, is
-/// `wire::pinned_plane`, over the same walk.
-pub(crate) fn embed_affine<T: geom_core::Real>(
-    a: &geom_core::Affine3<f64>,
-) -> geom_core::Affine3<T> {
-    match map_affine(a, |x| Ok::<T, core::convert::Infallible>(T::from_f64(x))) {
-        Ok(placed) => placed,
-        Err(never) => match never {},
-    }
-}
-
-/// Embeds a stored exact-`f64` profile into any evaluation scalar (the
-/// retired payload's `embed`, now a free function; the `from_f64`
-/// embedding the parameter environment uses).
+/// Embeds a stored exact-`f64` profile into any evaluation scalar —
+/// the `from_f64` embedding the parameter environment uses. The plane
+/// goes through [`profile::SketchPlane::map`]; each loop's vertices
+/// and bulges are lifted component by component.
 pub fn embed_profile<T: geom_core::Real>(p: &Profile<f64>) -> Profile<T> {
-    let placement = embed_affine::<T>(&p.plane.placement);
     let loops = p
         .loops
         .iter()
@@ -300,7 +283,7 @@ pub fn embed_profile<T: geom_core::Real>(p: &Profile<f64>) -> Profile<T> {
             .with_tangent_joints(lp.tangent_joints().to_vec())
         })
         .collect();
-    Profile::new(profile::SketchPlane::new(placement), loops)
+    Profile::new(p.plane.map(T::from_f64), loops)
 }
 
 /// Rewrites one profile ref canonical → program.
