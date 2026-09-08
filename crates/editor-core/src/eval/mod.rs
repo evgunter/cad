@@ -418,26 +418,45 @@ pub enum ValuePayload<T: Decide> {
     Assertion(crate::measure::AssertionVerdict<T>),
 }
 
+/// **The family words** — the vocabulary a typed operand mismatch
+/// speaks ([`NodeErrorKind::WrongOperand`]'s `found`), written once.
+/// Three readers say them: [`ValuePayload::kind_name`] over a value,
+/// [`node_value_kind`] over a node, and the one-body door's refusal
+/// of an `Instances` operand.
+pub(crate) mod family {
+    pub(crate) const DATUM: &str = "datum";
+    pub(crate) const PROFILE: &str = "profile";
+    pub(crate) const BODY: &str = "body";
+    pub(crate) const BOOLEAN: &str = "boolean";
+    pub(crate) const SPLIT: &str = "split";
+    pub(crate) const INSTANCES: &str = "instances";
+    pub(crate) const DECLARATIONS: &str = "declarations";
+    pub(crate) const MATE: &str = "mate";
+    pub(crate) const MEASURE: &str = "measure";
+    pub(crate) const ASSERTION: &str = "assertion";
+}
+
 impl<T: Decide> ValuePayload<T> {
-    /// The payload family, for typed operand mismatches.
+    /// The payload family, for typed operand mismatches: the `family`
+    /// word the value lands in.
     pub fn kind_name(&self) -> &'static str {
         match self {
-            Self::Datum(_) => "datum",
-            Self::Profile(_) => "profile",
-            Self::Body(_) => "body",
-            Self::Boolean(_) => "boolean",
-            Self::Split { .. } => "split",
-            Self::Instances(_) => "instances",
-            Self::Declarations(_) => "declarations",
-            Self::Mate(_) => "mate",
-            Self::Measure { .. } => "measure",
+            Self::Datum(_) => family::DATUM,
+            Self::Profile(_) => family::PROFILE,
+            Self::Body(_) => family::BODY,
+            Self::Boolean(_) => family::BOOLEAN,
+            Self::Split { .. } => family::SPLIT,
+            Self::Instances(_) => family::INSTANCES,
+            Self::Declarations(_) => family::DECLARATIONS,
+            Self::Mate(_) => family::MATE,
+            Self::Measure { .. } => family::MEASURE,
             // The SAME family name as a measure that has a value: the
             // node kind is what a typed operand mismatch is about, and
             // "measure" is what this node is either way. Which of the
             // two a reader is holding is a question about the value,
             // and the two variants are how it is asked.
-            Self::MeasureUnavailable { .. } => "measure",
-            Self::Assertion(_) => "assertion",
+            Self::MeasureUnavailable { .. } => family::MEASURE,
+            Self::Assertion(_) => family::ASSERTION,
         }
     }
 }
@@ -448,35 +467,62 @@ impl<T: Decide> ValuePayload<T> {
 /// its expressions and never holds its value (the mate solve's
 /// derived offset, refusing a circular rule's `axis` operand).
 ///
-/// It is that match written a second time, over node kinds rather
-/// than over payloads, which is a correspondence a reader has to
-/// believe. What checks it is behavioural and partial: the mate
-/// suite's `msolve3_placer_refused` compares the refusal this word
-/// lands in against the one the operand's own evaluation raises, for
-/// the two families a circular rule's axis is actually authored as —
-/// a datum and a body. The other families are by inspection, and this
-/// sentence is where that is said.
+/// It is that match written a second time over node kinds, with a
+/// walk down the placer chain in front of it, which is a
+/// correspondence a reader has to believe. What checks it is
+/// behavioural and partial: the mate suite's `msolve3_placer_refused`
+/// compares the refusal this word lands in against the one the
+/// operand's own evaluation raises, and reaches three of the family
+/// words — `"datum"`, `"body"` and `"instances"` — over four authored
+/// shapes (a plane datum, a body, a transform of a pattern, a
+/// transform of a transform of a body). The other eight of
+/// `kind_name`'s arms are by inspection, and this sentence is where
+/// that is said.
 ///
-/// **One kind this cannot answer from the node alone:** a `Transform`
-/// is shape-preserving over its input's value (`Body → Body`,
-/// `Instances → Instances`), so its family is its INPUT's, and a
-/// reader holding only the node answers "body" — right for every
-/// transform of a body, and the one-body word for a transform of a
-/// pattern, whose evaluation says "instances". Reading through the
-/// input needs the document, which this signature does not carry
-/// (`work/eval/node-value-kind-answers-a-transform-by-node-kind.md`).
-pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
+/// **A placer answers with its input's family.** A `Transform` is
+/// shape-preserving over its input's value (`Body → Body`,
+/// `Instances → Instances`), so its family is its INPUT's, read
+/// through the document; a `Pattern` lands in `Instances` whatever it
+/// patterns. The walk follows only a transform's `input` edge, which
+/// the edit door fixes at insert to a node that is already live
+/// ([`crate::EditError::UnresolvedInput`]) and no edit rewrites, over
+/// a recipe checked acyclic at every edit that adds an edge
+/// ([`crate::EditError::WouldCycle`]) — so it terminates with no guard
+/// of its own.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingInput`] naming a transform's input that is
+/// no live node: the refusal that transform's own evaluation raises,
+/// and the only word the evaluation has for the shape — the operand
+/// never lands in a family, so its consumer is poisoned through the
+/// transform rather than refused with one. Unreachable through
+/// `apply`, which takes a node's dependents with it on delete; refused
+/// typed anyway.
+pub(crate) fn node_value_kind<P>(
+    doc: &Doc<P>,
+    node: &crate::node::Node<P>,
+) -> Result<&'static str, NodeErrorKind> {
     use crate::node::Node;
-    match node {
-        Node::Datum(_) => "datum",
-        Node::Profile(_) => "profile",
-        Node::Boolean { .. } => "boolean",
-        Node::Split { .. } => "split",
-        Node::Pattern { .. } => "instances",
-        Node::Declare { .. } => "declarations",
-        Node::Mate { .. } => "mate",
-        Node::Measure { .. } => "measure",
-        Node::Assertion { .. } => "assertion",
+    let mut at = node;
+    while let Node::Transform { input, .. } = at {
+        at = doc
+            .node(*input)
+            .ok_or(NodeErrorKind::MissingInput { input: *input })?;
+    }
+    Ok(match at {
+        Node::Transform { .. } => {
+            unreachable!("the walk above stops at the first node that is not a transform")
+        }
+        Node::Datum(_) => family::DATUM,
+        Node::Profile(_) => family::PROFILE,
+        Node::Boolean { .. } => family::BOOLEAN,
+        Node::Split { .. } => family::SPLIT,
+        Node::Pattern { .. } => family::INSTANCES,
+        Node::Declare { .. } => family::DECLARATIONS,
+        Node::Mate { .. } => family::MATE,
+        Node::Measure { .. } => family::MEASURE,
+        Node::Assertion { .. } => family::ASSERTION,
         Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -486,12 +532,11 @@ pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
         | Node::Shell { .. }
-        | Node::Transform { .. }
         | Node::Union { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
-        | Node::InstantiatePart { .. } => "body",
-    }
+        | Node::InstantiatePart { .. } => family::BODY,
+    })
 }
 
 /// A boolean node's typed result (F8: ∅ is a value, not an error).
@@ -2288,9 +2333,8 @@ where
         },
     };
     // The NOMINAL environment, built beside the lane one and carried
-    // with it: the document's own f64 parameter values, under no box
-    // and no seed. Why the key reads it, and what each lane's feed
-    // means, is stated once at `tag::slot`.
+    // with it as `wire::LaneEnv::nominal` — what it is and who reads
+    // it is stated there; why the key owes it, at `tag::slot`.
     let nominal_env = doc.param_env::<f64>();
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
@@ -2656,12 +2700,15 @@ where
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
             // The frame the profile is drawn on, at f64 and from the
-            // DOCUMENT — `wire::profile_plane_f64` carries why that is
-            // the right scalar and the right source.
-            let placement = match wire::profile_plane_f64(doc, program.plane, tol) {
-                Ok(placement) => placement,
-                Err(kind) => return fail(bracket, kind),
-            };
+            // DOCUMENT — the evaluation's nominal environment
+            // (`wire::LaneEnv::nominal`); `wire::profile_plane_f64`
+            // carries why that is the right scalar and the right
+            // source.
+            let placement =
+                match wire::profile_plane_f64(doc, program.plane, op_env.lane.nominal, tol) {
+                    Ok(placement) => placement,
+                    Err(kind) => return fail(bracket, kind),
+                };
             match wire::prepare_profile(placement, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(bracket, kind),
@@ -2965,22 +3012,18 @@ mod tag {
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
         /// after that slot's bits at the evaluation scalar, and it
-        /// carries the slot's expression evaluated in the document's
-        /// f64 parameter environment: no box, no seed
-        /// ([`crate::doc::Doc::param_env`] at f64).
+        /// carries the slot's expression evaluated at the evaluation's
+        /// nominal environment — [`super::wire::LaneEnv::nominal`],
+        /// whose doc says what that environment is.
         ///
-        /// **Why the key owes it.** Evaluation has TWO f64-pinned
-        /// readers of the document's nominals, and both decide what a
-        /// lane value IS. [`super::wire::profile_plane_f64`] reads a
-        /// FRAME node's nine slots there — one reader, reached from
-        /// two sites, the profile node's pre-pass and a loft or
-        /// sweep's section — and its answer is what the pinned lift
-        /// embeds whole into the lane profile's placement. The other
-        /// is the profile program's own resolution, which the key
-        /// already holds as a stream. So a key that fixed only the
-        /// lane bits would leave the first reader's input unfixed,
-        /// and the memo would serve a profile placed on another
-        /// nominal's plane.
+        /// **Why the key owes it.** The nominal's readers are listed
+        /// at [`super::wire::LaneEnv::nominal`], and each decides what
+        /// a lane value IS: the frame read is what the pinned lift
+        /// embeds whole into the lane profile's placement, and the
+        /// program resolutions are what the key already holds as a
+        /// stream. A key that fixed only the lane bits would leave the
+        /// frame read's input unfixed, and the memo would serve a
+        /// profile placed on another nominal's plane.
         ///
         /// **What the word means per lane.** At f64 under no box, or
         /// under a box whose axes are all zero-width and zero-offset,

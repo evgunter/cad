@@ -1912,6 +1912,98 @@ impl Node {
             },
         })
     }
+    /// **A measurement sink** (ERROR-DESIGN E3): one dimension-generic
+    /// node that denotes no body and evaluates to a typed quantity.
+    ///
+    /// `expr` is the measured expression — `MeasureExpr`, whose leaves
+    /// are closed-form primitives over `refs` and ordinary document
+    /// expressions. `refs` is the reference list those primitives
+    /// index, IN ORDER, each a `(node, name)` pair: the entity's
+    /// stable name, and the node its carrier is READ AT.
+    ///
+    /// **The read site is the half that makes a measure report placed
+    /// geometry.** A rigid transform is identity-preserving — the
+    /// moved body keeps the upstream name — so resolving at the
+    /// minting node measures the UNMOVED carrier. Selecting a face
+    /// from a transform's own selection door and naming that transform
+    /// gives the placed number; naming the minting node gives the
+    /// authored one. Both are legal, and they are different questions.
+    ///
+    /// **The references ARE dag edges**, unlike a `Node.declare`'s or
+    /// a `Node.mate`'s names: a measure resolves its own against
+    /// values that must already exist, so the referenced nodes are its
+    /// data dependencies and deleting one is refused at the delete
+    /// door (`delete_would_dangle`) like any other consumer's input.
+    ///
+    /// Every index is checked HERE, through Rust's `Node::measure` —
+    /// the one construction door — so an expression whose leaf points
+    /// past the end of `refs` raises `MeasureNodeFault` where it is
+    /// written rather than at the `Doc.apply` after it. Nothing else
+    /// is pre-checked: a name that no longer resolves
+    /// (`measure_ref_resolve`), a carrier pair with no v1 closed form
+    /// (`measure_unsupported`), a `min_clearance` handed an edge
+    /// (`measure_selection_kind`) and a non-finite result
+    /// (`measure_non_finite`) are all the kernel's own typed refusals
+    /// at `evaluate`.
+    #[staticmethod]
+    fn measure(
+        py: Python<'_>,
+        expr: &super::measure::MeasureExpr,
+        refs: Vec<(NodeId, String)>,
+    ) -> PyResult<Self> {
+        let refs = refs
+            .iter()
+            .map(|(at, name)| Ok(d::SitedRef::new(at.0, name_from_text(name)?)))
+            .collect::<PyResult<Vec<_>>>()?;
+        d::Node::measure(expr.0.clone(), refs)
+            .map(|inner| Self { inner })
+            .map_err(|fault| super::measure::measure_node_fault_err(py, &fault))
+    }
+
+    /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
+    /// intent as document data, in the versioned recipe rather than in
+    /// a script beside it.
+    ///
+    /// `measure` is the `Node.measure` this constrains — an ordinary
+    /// DAG edge, so a failed or poisoned measure poisons the assertion
+    /// rather than producing a verdict about nothing. `dir` is which
+    /// side of `bound` the measurement must fall on, and `bound` is an
+    /// `Expr` from `Doc.parse_expr`.
+    ///
+    /// **The bound is an expression and not a quantity, because its
+    /// DIMENSION is the measure's.** Every other node door takes a
+    /// typed `Length` or `Angle` because a slot's address fixes what
+    /// it holds; this one's is fixed by the node it points at, and it
+    /// may be an angle, a count or a plain scalar as readily as a
+    /// length. `Doc.parse_expr("0.5 mm")` is the one spelling, and it
+    /// reaches document parameters (`"min_web"`) in the same call —
+    /// which is what makes an assertion re-decidable by a parameter
+    /// edit.
+    ///
+    /// Two things are checked at `Doc.apply` rather than here,
+    /// because both need the document: that `measure` names a measure
+    /// at all (`assertion_target`) and that the bound's dimension is
+    /// the measured one (`assertion_dimension`). A document therefore
+    /// never carries a comparison of radians with metres.
+    ///
+    /// **Report-only, structurally.** No op in the vocabulary accepts
+    /// a verdict as an operand, the product gather skips an assertion
+    /// as it skips a declaration, and nothing downstream changes shape
+    /// because one is `Violated`. Read it with `Value.assertion`.
+    #[staticmethod]
+    fn assertion(
+        measure: &NodeId,
+        dir: super::measure::AssertionDir,
+        bound: &super::expr::Expr,
+    ) -> Self {
+        Self {
+            inner: d::Node::Assertion {
+                measure: measure.0,
+                bound: bound.0.clone(),
+                dir: dir.to_kernel(),
+            },
+        }
+    }
 }
 
 /// A document-level parameter name (guide §3.2) — a plain string
