@@ -548,3 +548,116 @@ carries no row for the page. The criterion for such a row is Ev's
 ratification, not a program close: `scripts/gates/README.md`'s row
 landed in the commit recording Ev's ratification while `work/gates`
 was still open. No row is added here.
+
+## Unit 4 — the cut line's two halves, pinned (2026-09-08)
+
+`cut-prefix-three-unpinned-spellings` closed on `meter/cut-prefix-pin`.
+`tools/tess-lint/tests/cut_line_pin.rs` reads
+`scripts/tess_budget_cut.sh` as text and holds its three spellings of
+the prefix to `CUT_PREFIX`, each located separately so each reds
+alone.
+
+**The finding was the shape, and it had moved under the filing.**
+`split_cut` grew a shape check between the filing and the lane, so the
+open question became whether the two constraints are the SAME. They
+were not: this crate admitted uppercase hex, an over-long object name
+and arbitrary whitespace after the prefix — three spellings
+`tess_budget_cut.sh` cannot emit and its `CUT_RE` does not match. The
+asymmetry costs in one direction only, and it is the bad one: the
+script's already-stamped arm would not recognise such a line, so it
+re-stamps a file that already carries a cut. `split_cut` is tightened
+to the script's language and a truth table now runs both readings
+side by side, the script's own regex extracted from its text and run
+by `grep -E`. Cited to `tess_lint::Report`, whose test decides both
+that a check is owed and that its voice is the harness voice;
+`tools/README.md`'s `CC1`–`CC5` were cited at first and are not any
+more, since they are stated over cross-column admissions and hand the
+general test back to `Report` themselves. The separate finding about
+that page's scope stands and is with Ev on #2147.
+
+**The fix pass, same PR.** Two assertions that could not fail went:
+the containment `!(reads && !recognises)` read the table's own
+constants rather than the computed answers, and a coverage predicate
+over the const table was subsumed by the per-row asserts. The
+containment now runs on the computed pair and runs FIRST, so a real
+inversion reds with what it costs rather than with a table mismatch.
+The stem sweep was narrowed to EXECUTABLE spellings — a comment line
+is skipped, proved by a decoy fixture — because
+`scripts/tess_budget_cut.sh` is CIW's and an ordinary sentence there
+was reddening a suite in a cargo root outside the workspace, with a
+message naming neither the rule nor the fix; every failure the sweep
+can produce now carries both. The floor moved from `>= 4` over five
+mentions to `>= 4` over exactly four executable ones.
+
+**Residue, filed on CIW's slate** (the fixes are edits to
+`scripts/tess_budget_cut.sh`, so they go where the owner will see them
+rather than waiting on this program's pre-close sweep):
+`cut-regex-unanchored-admits-a-line-the-lint-refuses`, `CUT_RE`
+lacking an end anchor, pinned meanwhile as the one row of the truth
+table where the two halves disagree; and
+`cut-script-header-claims-no-cross-language-gate-exists`, the script
+header sentence this unit falsified. On METER's own slate,
+`baseline-census-partition-assert-cannot-fail` — the second and only
+other `tools/` instance of the cannot-fail assertion class.
+
+**Left, deliberately:** `cut-line-commit-names-no-baseline-change`.
+Same seam, different defect, and its substance is what the verdict
+PRINTS rather than what the parser admits. A doc-only rider would
+half-close it.
+
+## Units 7 and 11 closed; and the slate is now larger than it opened (2026-09-08)
+
+Both lanes deliberately left this file alone to avoid conflicting with a
+live sibling, so their entries are written here.
+
+**Unit 7 — `k-report-baseline-fold-cert1-roster`** (PR 2140). The
+CERT-1 roster fold was READ and **no committed CSV was re-cut**, which
+is the unit's judgement rather than an omission: `k-report-data`'s rule
+1 cuts a new era when the DISTRIBUTION moves, and the three witnesses
+were pointwise identical to M7. The full falsification review ran the
+attack the lane had not — smallest ambient definite margin over every
+non-ε-coupled name, both eras — and could not break it.
+
+What the review DID break was **when** the measurement was taken: at
+the branch's merge base rather than the PR's base, with
+`props/curved.rs` moved 129+/74− in between, adding a refusal door that
+runs *before any margin is formed* and two recorded names. Re-swept at
+`c39a904e`: roster 279 → **281**, verdict unchanged. The lane also
+caught an arithmetic slip in its own first pass (the decade gap is
+14.8, not 15.8). The reviewer predicted ≥282; `interval_span_winding`
+turned out to exist at both tips, so 281 is right — checked here.
+
+**Unit 11 — `k-report-era-witnesses-have-no-guard`** (PR 2158), filed
+by unit 7's fix pass and closed the same night. `docs/K-REPORT.md` now
+states as a merged claim that M7 remains the era because the
+distribution did not move, and **nothing computed with the three values
+that claim rests on**, while `threshold_provenance.rs` re-derives four
+shipped constants against `M7` on every gate run. The guard asserts
+each witness's PREDICATE as well as its value — a floor that stayed at
+4.79652e-5 under a different name is a moved distribution wearing the
+old number — and it EXHIBITS the string-comparison trap rather than
+asserting it, running the selection both ways over the committed rows.
+
+Verified here by corrupting the committed `.gz` (renaming one predicate
+occurrence) rather than by editing a literal: RED with *"M7 carries 234
+distinct predicate names at eps=1e-9, not the 233"*, then restored
+byte-identical. That is the strong form — it catches corruption of the
+artefact, not merely an edited expectation.
+
+### The slate opened at eleven items and now stands at twenty-nine
+
+Eight of the eleven are closed and the directory is bigger than when it
+started. That is not drift: every one of the eighteen new files came
+out of a sweep a unit was required to run, or a reviewer's class
+finding, and each names a real defect with a citation. The program's
+own instruments kept finding siblings of what they were sent to fix —
+`EXPECTED_HEADER` hand-copied at five producers, a `Shared` ledger row
+a bare import satisfies, a partition assert that cannot fail, two sites
+claiming the k-lint gate diffs committed baselines when nothing does.
+
+**What that means for closing.** METER cannot exit by draining the
+slate to zero: at the current rate each closed unit files two more.
+The exit walk will have to rule on which of the twenty-nine are METER's
+to finish and which are re-homed — three already went to `work/ciw/`
+on unit 4, which is the pattern. Recording it now because the decision
+belongs in the walk and the number will be larger by then.
