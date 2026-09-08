@@ -392,7 +392,7 @@ impl ProfileLoop<f64> {
     /// and — for any `T` whose `from_f64` is exact on `f64`, `f64`
     /// itself included — bit-identical.
     ///
-    /// This door and the [`path`](crate::path) lattice's emission layer
+    /// This door and the [`path`] lattice's emission layer
     /// are the whole production population. The Q1 ruling anticipated
     /// two more materialization doors, a STEP-import face loop and a
     /// persisted-document read; **neither exists.** `crates/step-import`

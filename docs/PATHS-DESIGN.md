@@ -1042,11 +1042,32 @@ evaluate into. The units: this half is **BOOL-8**, the
 `arc_continue` retirement **BOOL-10**, the declared point-target
 continuation and its closer **BOOL-11**, the raw-door demotion
 **BOOL-9** (resequenced behind BOOL-11), the seam's declared arrival
-**BOOL-12**. **Both lattice halves and the SEAM have landed** — the
+**BOOL-12**.
+
+**CLOSED: both lattice halves, the seam, and the raw door.** The
 interior continuation (BOOL-8), the declared point-target form with its
-structural closer (BOOL-11), and the declared arrival that admits a
-subdivision or G1 seam (BOOL-12, §6's revised PQ4); the RAW DOOR remains
-(BOOL-9), and #433 closes when it lands.
+structural closer (BOOL-11), the declared arrival that admits a
+subdivision or G1 seam (BOOL-12, §6's revised PQ4), and the raw-door
+demotion (BOOL-9). The last of those executes the companion sentence
+above: `ProfileLoop`'s vertex table is minted by the lattice's emission
+layer, by `ProfileLoop::embed` (an exact `f64 → T` re-materialization of
+a table that already exists), and — behind
+`cfg(any(test, feature = "test-support"))`, absent from every shipped
+build — by `RawLoop`, for the fixtures a data-gate refusal row needs
+and the lattice must not be able to author. Two further materialization
+doors were anticipated and **do not exist**: a STEP-import face loop
+(`crates/step-import` never names `profile`) and a persisted-document
+read (deserialization can never mint a `ProfileLoop`;
+`editor-core/src/persist/wire.rs`'s header says so at the site), so
+nothing is marked for them.
+
+`validate` is unchanged and stays the data checker for materialized
+loops. The disagreement this item records was never one rule with two
+answers: the lattice checks AUTHORING (a declaration against the data
+being authored, before any table exists) and `validate` checks the
+MATERIALIZED TABLE (`tangent_joints` as data, author unknown). Both
+sites now say so — `validate.rs`'s module header and
+`ProfileLoop::tangent_joints`.
 
 **The seam, measured here and RULED (third round, Ev, in-chat,
 2026-09-01) — and LANDED (BOOL-11).** The interior continuation as
@@ -1059,10 +1080,16 @@ seam) refuses by construction. What forced the choice is the strict
 corner/subdivision ALTERNATION that one subdivision per side produces:
 the seam junction and the junction the closer departs are then always
 adjacent and always of different kinds, so no rotation puts a corner at
-both. The lift layer has carried a name for this wall since it was written:
+both. The lift layer carried a name for this wall from the day it was
+written until BOOL-9 retired it:
 `LiftRefusal::DeclaredJointBeforeClosingLine` (`crates/profile/src/lift.rs`),
-whose message says a run's "leaving segment closes the loop straight;
-`.tangent().line(len)` cannot close" — the straight wall exactly. (An
+whose message said a run's "leaving segment closes the loop straight;
+`.tangent().line(len)` cannot close" — the straight wall exactly. It is
+gone, and on the same premise as the ruling below: the closing straight
+leg off a declared joint IS the continuation verb, which declares the
+joint it mints and does close. Its all-declared sibling
+`AllJointsDeclared` went with it, for the entry's half of the same
+premise — `.at(p)` declares nothing, but the closing TARGET does. (An
 earlier draft cited `SameCarrierClose` here. That variant is about ARC
 runs — `arc_continue` has no closing form — so it names a different
 wall; the identical mis-citation was dropped from the lily demo's
