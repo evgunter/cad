@@ -96,11 +96,11 @@ fn column(name: &str) -> usize {
 /// The fixture's head block carries the values it declares, at the
 /// columns the header puts them in.
 ///
-/// **Width was already loud and content was silent.** A row that loses
-/// a field fails the parse in whichever test reaches it first; a row
-/// that keeps its width and blanks a head token failed nothing, on
-/// either side, because `name` reaches no rule and no report and the
-/// only assertion over it compared a fixture's constant with itself.
+/// **Width is loud without this and content is silent.** A row that
+/// loses a field fails the parse in whichever test reaches it first;
+/// a row that keeps its width and blanks a head token breaks nothing
+/// else, because `name` reaches no rule and no report and the one
+/// assertion over it compares this fixture's constant with itself.
 /// So this reads each head field by the header's index for its column
 /// — never by counting the literal, which is the thing under test —
 /// and says the sized row is named and the unsized row is not.
