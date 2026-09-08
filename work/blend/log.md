@@ -408,6 +408,16 @@ cap-pair claim on this one (`kernel-verbs-cap-pair-ulp-claim-stale`).
 Every E unit of the opening slate is now merged or in its last step
 (unit 4's re-run, unit K's fix pass).
 
+**Unit K MERGED (2026-09-08)**, PR [#2149](https://github.com/evgunter/cad/pull/2149)
+at its fix-pass head `2f7351f4` re-merged on main (full matrix green
+on the fix head; one run before it died at the default archive's
+finalization — the same artifact-service 403 unit 4 met, twice in one
+day). Ev's ruling on the K floor is in the tree; cap-rim helpers homed
+in `tests/common/cap_rims.rs`; one residue filed
+(`extrude-strut-rule-has-three-homes-and-fixed-context-argument-lists`).
+With this, every unit of the E slate is merged except unit 5, whose
+re-merged head awaits its run.
+
 **Unit 6 landed (2026-09-08)** on PR [#2215](https://github.com/evgunter/cad/pull/2215),
 head `41b45adc`, full matrix green; Phase 1's four carves at closed
 forms with pad 0, no stop-clause defect, every bit-dump identical at
