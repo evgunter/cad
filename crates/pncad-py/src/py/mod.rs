@@ -201,14 +201,18 @@ pyo3::create_exception!(
     StlError,
     PncadError,
     "An STL export refused. Carries `variant`, the stable tag of the \
-     refusing arm.\n\n\
+     refusing arm, plus the arm's payload as attributes — `None` \
+     where the arm does not carry one.\n\n\
      Three Rust refusals share this class because they refuse the same \
      CALL: the writers' own `StlError` (`degenerate_triangle`, \
      `index_out_of_range`, `too_many_triangles`, `io`), and the two \
      validated option newtypes, which are keyword arguments here — \
      `solid_name_unrepresentable`, `binary_header_too_long`, \
      `binary_header_sniffs_ascii`. The tags share one namespace, so \
-     which of the three refused is readable off `variant`."
+     which of the three refused is readable off `variant`.\n\n\
+     The payload: `triangle`, `index`, `count`, `character`, `len`, \
+     and `detail` — the underlying reporter's own words, whether \
+     that reporter is the output sink or the UTF-8 decoder."
 );
 pyo3::create_exception!(
     pncad,

@@ -18,7 +18,7 @@ Opened 2026-09-01; 0 comments.
 
 Doors that project every arm's payload as attributes, exhaustively, with every attribute present on every arm and `None` where inapplicable (so `getattr` never raises and a caller need not branch on `variant` first):
 
-`tessellate` (`py/mesh.rs`), `readback` (`py/readback.rs`), `select` (`py/select.rs`), `evaluation` (`py/value.rs`), `literal` (`py/doc.rs`), `mate` (`py/mate.rs`), `assembly`/`product` (`py/assembly.rs`), `split`/`inline`/`update` (`py/refactor.rs`), `workspace` (`py/store.rs`), `checks`/`enforce` (`py/checks.rs`).
+`tessellate` (`py/mesh.rs`), `readback` (`py/readback.rs`), `select` (`py/select.rs`), `evaluation` (`py/value.rs`), `literal` (`py/doc.rs`), `mate` (`py/mate.rs`), `assembly`/`product` (`py/assembly.rs`), `split`/`inline`/`update` (`py/refactor.rs`), `workspace` (`py/store.rs`), `checks`/`enforce` (`py/checks.rs`), `persist` (`py/doc.rs`, `py/store.rs`), `frame` (`py/place.rs`), `stl` (`py/mesh.rs`).
 
 Doors that cross with `variant` and the message only:
 
@@ -26,10 +26,7 @@ Doors that cross with `variant` and the message only:
 |---|---|---|
 | `edit_err` (`py/doc.rs`) | `EditError` | node ids, slot indices, entity kinds, dimensions |
 | `declare_err` (`py/doc.rs`) | `DeclareError` | its `Edit` arm's inner payload |
-| `persist_err` (`py/doc.rs`, `py/store.rs`) | `PersistError` | schema versions, the mismatching ids, the failing site |
 | `path_err` (`py/path.rs`) | `PathError<f64>` | the offending radius/leg/angle scalars |
-| `frame_err` (`py/place.rs`) | `FrameError` | the degenerate direction, the tolerance |
-| `stl_err` (`py/mesh.rs`) | `StlError`, `SolidNameError`, `BinaryHeaderError` | the offending byte/name |
 | `step_import` (`py/value.rs`) | `StepImportError` | entity id and line — **has a stated reason at the site** (all 21 arms are reachable and the id/line live in the prose), so it is the one door here that is already argued rather than merely unprojected |
 
 ## Why it is worth closing
@@ -41,6 +38,14 @@ The rule the crate states is that a typed exception's payload is attributes and 
 Per door, the shape the projected doors already use — a positional tuple from one exhaustive `match`, no wildcard arm, so an arm added kernel-side is a compile error rather than a silently unprojected payload. `py/readback.rs::readback_err` and `py/refactor.rs::split_err` are the two worked examples.
 
 Not one unit: `EditError` alone is ~40 arms, and each door's attribute set is a piece of Python surface that has to land in `pncad.pyi`, the binding census and the stub tests with it. Take them a door at a time.
+
+## Progress
+
+- **2026-09-08, LIB-DOORS-2** (`work/lib/LIB-DOORS-2.md`): the
+  `persist`, `frame` and `stl` doors project every arm's payload, each
+  from one exhaustive match with no wildcard. Three rows left the
+  table above. What remains is `edit` with `declare` (LIB-DOORS-1),
+  and the two argued rows, `path` and `step_import`.
 
 ## Notes
 

@@ -47,6 +47,8 @@ from pncad import (
     Doc,
     DocEdit,
     EditError,
+    PersistError,
+    StlError,
     DocRef,
     InlineOutcome,
     InterfaceRecord,
@@ -56,6 +58,7 @@ from pncad import (
     FlushFinding,
     FlushRung,
     Frame,
+    FrameError,
     GeomPred,
     Length,
     LengthUnit,
@@ -101,6 +104,7 @@ from pncad import (
     rad,
     enforce_checks,
     evaluate,
+    load,
     gauge_of,
     header_document_id,
     inline,
@@ -704,3 +708,45 @@ except ValidationError as validation_refusal:
     coincidence: str | None = first_finding.contact_kind
     if coincidence is not None:
         declarable: str = coincidence
+
+
+# The three doors LIB-DOORS-2 projected, typed. Every payload
+# attribute is `Optional[...]`, so a caller that has not narrowed one
+# is holding `X | None`; only the discriminant itself is a plain
+# `str`.
+try:
+    load("id: 00000000000000000000000000000000\n{}")
+except PersistError as persist_refusal:
+    which_stage: str = persist_refusal.variant
+    which_inner: str | None = persist_refusal.inner_variant
+    where: str | None = persist_refusal.site
+    which_param: str | None = persist_refusal.name
+    reporter_said: str | None = persist_refusal.detail
+    at_line: int | None = persist_refusal.line
+    recorded_epsilon: float | None = persist_refusal.document
+    if at_line is not None:
+        line_number: int = at_line
+
+try:
+    Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+except FrameError as frame_refusal:
+    which_input: str = frame_refusal.variant
+    which_band_arm: str | None = frame_refusal.inner_variant
+    in_band: float | None = frame_refusal.margin
+    lower: float | None = frame_refusal.margin_low
+    coincidence_at: float | None = frame_refusal.zero
+    escalation_at: float | None = frame_refusal.escalate
+    deciding: str | None = frame_refusal.predicate
+    if in_band is not None:
+        margin_value: float = in_band
+
+try:
+    gathered.tessellate(1 * mm).to_stl_binary(header="x" * 81)
+except StlError as stl_refusal:
+    which_stl_arm: str = stl_refusal.variant
+    facet: tuple[int, int, int] | None = stl_refusal.triangle
+    offending_char: str | None = stl_refusal.character
+    header_bytes: int | None = stl_refusal.len
+    sink_said: str | None = stl_refusal.detail
+    if header_bytes is not None:
+        how_long: int = header_bytes

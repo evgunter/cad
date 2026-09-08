@@ -417,9 +417,26 @@ class StlError(PncadError):
     `solid_name_unrepresentable`, `binary_header_too_long` or
     `binary_header_sniffs_ascii` from the two validated option values
     — which are keyword arguments here, so they refuse the same call
-    and share this class and its tag namespace."""
+    and share this class and its tag namespace.
+
+    The arm's payload rides beside it: `triangle` (the offending
+    facet's three position indices), `index` (a position index out of
+    range), `count` (a triangle count binary STL cannot number),
+    `character` (the character the `solid <name>` grammar does not
+    admit), `len` (the header's byte length), and `detail` — the
+    underlying reporter's own words, whether that reporter is the
+    output sink or the UTF-8 decoder.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
 
     variant: str
+    triangle: Optional[tuple[int, int, int]]
+    index: Optional[int]
+    count: Optional[int]
+    character: Optional[str]
+    len: Optional[int]
+    detail: Optional[str]
 
 class StepImportError(PncadError):
     """A STEP text the importer refused, or one that parsed to a

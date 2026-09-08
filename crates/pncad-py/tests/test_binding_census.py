@@ -575,6 +575,66 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
+    # THE PERSISTENCE DOOR'S PAYLOAD, under the same rule at the
+    # carrier that wraps the most refusals of other layers.
+    # `PersistError.variant` says WHICH stage refused; three of these
+    # are what that stage was refusing ABOUT, and they now cross
+    # rather than staying in the message.
+    #
+    # THE MEASUREMENT, because a category is a claim. All three were
+    # `different-shape`, and that reading was true when written: the
+    # persistence door carried one attribute, so there was no Python
+    # shape to point at. There is one now. `SnapshotError`'s
+    # nineteen arms and `ProgramFault`'s two mint a word apiece from
+    # an exhaustive match, so a kernel arm added without one stops the
+    # bindings compiling, and the word rides `inner_variant` beside
+    # the stage's own. `NonFiniteSite` is the one that does NOT cross
+    # as a word: it is a RECURSIVE descriptor (an edit's index
+    # wrapping the site inside that edit's payload), so it crosses as
+    # the kernel's own prose for where the float sits — one sentence
+    # on `site`, not a field per rung.
+    #
+    # What still has no Python spelling is the arms' FIELDS: a
+    # snapshot refusal's node ids and counts are the snapshot door's
+    # surface, not the persistence door's. A mapping here claims the
+    # discriminant crosses, and nothing more.
+    "ProgramFault": "PersistError.inner_variant",
+    "SnapshotError": "PersistError.inner_variant",
+    "NonFiniteSite": "PersistError.site",
+    # THE STL DOOR'S TWO OPTION REFUSALS. Both were `different-shape`
+    # under "their refusals ride `StlError.variant`", and the reading
+    # was true when written: only the tag crossed, so the arms had no
+    # Python shape. They have one now — the character the
+    # `solid <name>` grammar does not admit, and the header's byte
+    # length — projected from the same exhaustive match as the
+    # writers' own arms, so an arm added to either enum stops the
+    # bindings compiling.
+    "SolidNameError": "StlError.character",
+    "BinaryHeaderError": "StlError.len",
+    # THE TWO-TOLERANCE ESCALATION PAYLOAD, curated at the prelude
+    # because THIRTEEN prelude refusals carry it and a Rust caller
+    # holding an `Escalated` arm could not name what it held.
+    #
+    # THE MEASUREMENT, and it MOVED. This entry was `INTERIOR` by the
+    # carrier rule, on the count that not one of the thirteen
+    # projected the escalation's own shape — each crossing as a single
+    # tag plus the kernel's prose, with no bound exception carrying a
+    # margin, an enclosure bound or a band. `FrameError` now does: the
+    # frame constructors' degenerate arm carries `Option<Indeterminate>`
+    # and projects it as `margin` / `margin_low` / `margin_high`,
+    # `zero` / `escalate` and `predicate`. `FrameError` is not one of
+    # the thirteen — it is a `geom_core` refusal the frame
+    # constructors return, not a prelude-curated one — so that count
+    # is unchanged; what has changed is the sentence about bound
+    # exceptions, and this row moves with it.
+    #
+    # `MarginDiag` — the payload's own field type — is still not a
+    # curated name and so still not an entry here. The binding reads
+    # its three arms through `pncad::geom_core`, one module hop below
+    # the prelude, which is the fallback `prelude.rs` names; whether
+    # the carriage decision itself should move is
+    # `work/lib/margin-diag-non-curation-was-measured-on-a-count-that-moved.md`.
+    "Indeterminate": "FrameError.margin",
     # THE TIER-3′ CENSUS VOCABULARY, at the one door on this surface
     # whose discriminant crosses in a SEQUENCE.
     #
@@ -905,8 +965,7 @@ FAMILIES: dict[str, str] = {
 #: - *Refusal payloads flattened to a tag.* Python's exceptions carry
 #:   their refusal as ATTRIBUTES, but the arm is a `variant`/`kind`
 #:   string rather than a bound payload class, so the Rust arm types
-#:   have no Python name: `PersistError.variant` stands for
-#:   `SnapshotError`, `NonFiniteSite` and `ProgramFault`;
+#:   have no Python name:
 #:   `EvaluationError` for `NodeError`,
 #:   `BooleanError`, `TransformError` and the sweep/loft/fillet/
 #:   revolve refusals; `PathError` for `ProfileError` and
@@ -925,9 +984,6 @@ FAMILIES: dict[str, str] = {
 #:   `BOUND_AS` at that spelling) and whose `message` is the
 #:   exception's message — the resolver's own diagnosis, prose because
 #:   that is what it is;
-#:   `StlError.variant` for `SolidNameError` and `BinaryHeaderError`,
-#:   which refuse the same CALL the writers do because the options
-#:   they validate are that call's keyword arguments.
 #: - *An option struct that became keyword arguments.* `StepOptions` is
 #:   `Evaluation.step_string`'s six keywords, one per field and each
 #:   defaulting to the Rust default — a correspondence the crate's own
@@ -939,9 +995,10 @@ FAMILIES: dict[str, str] = {
 #:   and `BinaryHeader` protect an invariant, not a vocabulary, and
 #:   the invariant is checked at the call rather than at a
 #:   constructor Python would otherwise have to name. Their refusals
-#:   ride `StlError.variant` under `solid_name_*` / `binary_header_*`
-#:   tags, which is why `SolidNameError` and `BinaryHeaderError` are
-#:   in the flattened-payload bullet above too; `ImportOptions` is
+#:   ride `StlError` under `solid_name_*` / `binary_header_*` tags,
+#:   with their arms' payloads projected beside the tag, which is why
+#:   `SolidNameError` and `BinaryHeaderError` are in `BOUND_AS` and
+#:   not in the flattened-payload bullet above; `ImportOptions` is
 #:   `import_step`'s absent second argument; `EvalOptions` is
 #:   `evaluate`'s `resolver=`, the one field of it that changes an
 #:   ANSWER, bound at LIB-G18a — which is also when its memo residue
@@ -1468,7 +1525,6 @@ NOT_BOUND = {
     "Axis3": SHAPE,
     "AsciiOptions": SHAPE,
     "BinaryHeader": SHAPE,
-    "BinaryHeaderError": SHAPE,
     "BinaryOptions": SHAPE,
     "BlendRefusal": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
@@ -1548,7 +1604,6 @@ NOT_BOUND = {
     "NameOrigin": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
-    "NonFiniteSite": SHAPE,
     # The display-unit CODE a `DocParam` carries. A one-byte index into
     # the unit table has no Python spelling and should not get one: a
     # notation reaches Python as its SYMBOL, which is what
@@ -1567,7 +1622,6 @@ NOT_BOUND = {
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,
     "ProfileLift": SHAPE,
-    "ProgramFault": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
     "Real": SHAPE,
     "RecordedProgramError": SHAPE,
@@ -1579,9 +1633,7 @@ NOT_BOUND = {
     "SEL_DATUM_DISTANCE": SHAPE,
     "Side": SHAPE,
     "SlotId": SHAPE,
-    "SnapshotError": SHAPE,
     "SolidName": SHAPE,
-    "SolidNameError": SHAPE,
     "SplitSide": SHAPE,
     "StableName": SHAPE,
     "StepExportError": SHAPE,
@@ -1712,25 +1764,6 @@ NOT_BOUND = {
     "FilletLegShape": INTERIOR,
     "Filleted": INTERIOR,
     "FlushEvidence": INTERIOR,
-    # The two-tolerance escalation payload, curated at the prelude
-    # because THIRTEEN prelude refusals carry it and a Rust caller
-    # holding an `Escalated` arm could not name what it held. `INTERIOR`
-    # here by the carrier rule, and the count makes it the plainest
-    # instance of that rule in this file: not one of the thirteen
-    # projects the escalation's own shape. Each crosses as a single tag
-    # plus the kernel's prose — `escalated` on the node and path
-    # doors and in a check's evidence, `in_band` / `pair_in_band` at
-    # the selection funnel, `mate_indeterminate` at the mate gate —
-    # and no bound exception carries a margin, an enclosure bound or a
-    # band. So there is nothing here to split and nothing to pin.
-    #
-    # `MarginDiag` — the payload's own field type — is not a curated
-    # name at all and so not an entry here; the argument for stopping
-    # at this rung is written where the carriage is, beside
-    # `Indeterminate` in `prelude.rs`. The short of it: its arms are
-    # diagnostic data the escalation contract forbids branching on,
-    # and the recourse is the same three levers whichever arm it is.
-    "Indeterminate": INTERIOR,
     "Lofted": INTERIOR,
     "LoopProgram": INTERIOR,
     # A11's member vocabulary, and the structural answer it gives.
