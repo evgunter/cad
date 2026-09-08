@@ -467,3 +467,50 @@ and routing the seam through the two-surface machinery it is not.
 Sequencing: SHELL-3 still waits on PROPS' sign-hull unit (no PR yet,
 branch idle since 01:11 UTC); this unit touches `offset_axial.rs`
 only, so it runs now.
+
+## SHELL-7 MERGED (2026-09-08, PR #2200 — ordinal 2304, sample #161)
+
+The axial offset door takes a one-surface corner: a vertex all of
+whose faces lie on one surface of revolution moves as a point of that
+surface (`Profile::image_of` — the perpendicular foot on a moved line,
+the concentric point on a moved circle — one arithmetic the
+carried-datum arm and the new arm both call), with the azimuth carried
+as every seam's is; every same-surface LATITUDE seam (centre on the
+axis, plane normal to it) takes one posture through one predicate
+(`offset_axial_centre`, which folded two names for one fact), and the
+seam edges' declared rotation re-authors as a `RevolvedPoint` of the
+moved corner with the sketch-plane premise decided at the site. The
+full-period torus shells, solid and hollow (SHELL-5's measured row
+flipped to its closed form); the whole axial corpus is byte-identical
+at the true merge base, reproduced by both reviewers on corpora of
+their own. Both reviews APPROVE-WITH-FIXES, no MAJOR, no tally
+candidate. **Convergent:** the module header filed a fixture-backed
+arm under "unreached" and conflated "has a row" with "a door builds
+it"; the `(Line, ≥1 meridian)` refusal was reachable by hand and
+unpinned; the PR named the wrong merge base; the single-profile
+concurrence meter is a tautology (the edge layer is the meter; a
+vertex δ off its surface is snapped, bounded by δ); one quantity had
+two decide names. **Unilateral, both R1, by execution (MINOR, not
+tally):** the seam-posture class was wider than the torus — a
+collinear wall vertex makes a door-built one-surface CYLINDER vertex,
+and two cocircular arcs make a sphere with a latitude seam — every
+seam arm but the torus's certified one posture. The fix pass swept
+every seam arm (the table is in the PR) and found two shapes that
+stop PAST the seam door: a collinear-cap drum refuses at void
+insertion's graft re-certification and the two-arc sphere at the
+assembled body's tier 3, both cavities tier-3 valid through the direct
+door at their closed forms — pinned as rows, filed
+(`void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`),
+not widened. Spec premises this unit falsified, mine: "every corner
+is metered against every moved surface" (not for a one-surface
+corner); §2.1's differential instrument as named. Filed by the lane:
+`partial-cone-frustum-three-quarter-turn-refuses-edge-disagreement`
+(R1's pre-existing find, now pinned) and
+`offset-axial-predicates-missing-from-the-dimension-audit`; by this
+orchestrator, for TOPO: `split-edge-children-lack-pcurve-rows-on-curved-charts`
+(both reviewers, by execution). K rows: two names folded into one,
+one new (`offset_axial_reauthor_plane`), none in the committed
+baseline. Rubric idiom/tests/docs: not scored by either reviewer.
+
+Block SHELL-B2 slot 1 concludes; slot 2 remains (record branch-side).
+
