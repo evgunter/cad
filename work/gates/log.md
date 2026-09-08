@@ -1243,3 +1243,18 @@ from PR 2170's review: the six gates that checked homes by path alone
 adopt `gate_selftest_homes --subject`, `register-equal-allowlist.sh`'s
 merged call split into one per subject, proved by swapping two
 subjects.
+
+## Exit walk drafted (2026-09-08)
+
+With PR 2174 merged, every code row on the slate is closed: twenty-six
+rows over twenty-five PRs since 2026-09-06, every unit reviewed against
+`docs/prompts/reviewer-style-lane.md` with a planted breach, every
+review followed by a fix pass, every closing commit a state-sync.
+Open at exit: `D212` (rides `G4`, code-quality Track V's) and the
+`crates/*/src/bin/` half of
+`directory-prefix-skips-have-no-subject-check`, a ruling on `[ev]` PR
+2171. `docs/GATES-EXIT-WALK.md` is drafted from the plan's criteria
+and opened as an `[ev]` PR for Ev's ratification; the sweep
+(`work/gates/` deleted, the walk ledgered in `docs/DOC-LEDGER.md`,
+the two open rows re-homed to `work/code-quality/` with the fence)
+follows the ratification.
