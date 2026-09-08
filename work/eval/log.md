@@ -362,3 +362,12 @@ as `tag::scalar_join::FLOW_EXPR`; the format version keeps its rule
 words. Key dump at the new base with the two shell corpus documents
 added: 1071 rows, zero diff. Full matrix green. Both items closed;
 `D365` is EVAL's now (DOCM's `plan.md` still lists it — DOCM's file).
+
+## EVAL-6 dispatched (2026-09-08)
+
+The build of ruling 2137 (`docs/EVAL-6-SPEC.md`, on main): the placers
+are shape-preserving over the value. Correctness arm on. The spec's
+nested-pattern layout (`j·M + i`, `Instance(j)` over `Instance(i)`) is
+the orchestrator's elaboration and the lane is told to STOP if
+MSOLVE-2's member numbering does not coincide with it. CHROME's
+`denotes_body` and MSOLVE's two pins were announced above.
