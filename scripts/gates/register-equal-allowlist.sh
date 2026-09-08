@@ -66,14 +66,19 @@ set -euo pipefail
 # otherwise fire on the trait's own default body and on every scalar's
 # impl). Held as paths rather than as a hand-written ERE: the filter's
 # exemption is built from these lists and the clean fixture plants every
-# entry of both.
+# entry of both, and `gate_require_homes` proves every entry of both is
+# in the tree.
 #
-# ONE LIST, AND ONE DIRECTION PROVED. The fixture->filter direction reds
+# ONE LIST EACH, BOTH DIRECTIONS PROVED. The fixture->filter direction reds
 # the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is convention and not a check — a filter
-# naming a home no fixture plants stays green here, and catching that is
-# the subject-half residue's job
-# (`work/gates/whole-file-skips-do-not-check-their-subject.md`).
+# filter->fixture direction is the subject check, which reads these same
+# lists against the tree before the scan — so a file named here that the
+# clean fixture does not plant reds the clean case, and one that leaves
+# the tree reds the live run rather than exempting nothing in silence.
+# The two lists are checked as two, because their diagnoses differ in
+# what the missing entry would have exempted.
+CALLER_SUBJECT='the ratified constructor sites, the only files that may CALL Real::register_equal'
+DEFINITION_SUBJECT='the files that DEFINE or re-export Real::register_equal, where a mention is a definition and not a call'
 CALLER_HOMES=(
   crates/sweep/src/swept.rs
   crates/sweep/src/revolve/surfaces.rs
@@ -89,6 +94,8 @@ DEFINITION_HOMES=(
 
 gate() {
   gate_require_crate_sources
+  gate_require_homes "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"
+  gate_require_homes "$CALLER_SUBJECT" "${CALLER_HOMES[@]}"
   local hits
   # `.register_equal(` as a CALL, over the code-only view — a doc
   # comment naming the method, or a string literal, is not a call.
@@ -188,6 +195,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_call_in_another_sweep_file
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "the trait default, a scalar impl, the ratified caller and prose" gate_plant_clean
+  gate_selftest_homes "${DEFINITION_HOMES[@]}" "${CALLER_HOMES[@]}"
   printf '%s selftest OK: passes a clean fixture carrying every definition and caller file it exempts, the trait default and prose that names the method; fires on a call from another crate, on one hidden behind a block comment, on a second file inside sweep, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 

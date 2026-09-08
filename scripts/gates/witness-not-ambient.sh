@@ -82,14 +82,19 @@ set -euo pipefail
 # built from it and the clean fixture plants it. The three exemptions
 # below it are a DIRECTORY prefix twice and a path CLASS once —
 # `crates/*/src/bin/` names a cargo convention and not a file — so they
-# have no `FILE:LINE:` shape to pin and stay prefixes on purpose.#
-# ONE LIST, AND ONE DIRECTION PROVED. The fixture->filter direction reds
-# the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is convention and not a check — a filter
-# naming a home no fixture plants stays green here, and catching that is
-# the subject-half residue's job
-# (`work/gates/whole-file-skips-do-not-check-their-subject.md`).
+# have no `FILE:LINE:` shape to pin and stay prefixes on purpose, and
+# `gate_require_homes` is over the FILE for the same reason: a prefix
+# has no one path to prove exists.
+#
+# ONE LIST, BOTH DIRECTIONS PROVED. The fixture->filter direction reds
+# the clean fixture the moment the planted home stops being exempt; the
+# filter->fixture direction is the subject check, which reads this same
+# name against the tree before the scan — so a home named here that the
+# clean fixture does not plant reds the clean case, and a home that
+# leaves the tree reds the live run rather than exempting nothing in
+# silence.
 HOME_FILE=crates/geom-core/src/tolerance.rs
+HOME_SUBJECT='the file that DEFINES witness, where minting one is the definition and not an ambient read'
 
 gate() {
   gate_require_crate_sources
@@ -98,6 +103,10 @@ gate() {
   # the test-only modules leave the file set, so the count this gate
   # prints names what it actually read.
   gate_production_sources
+  # THE SKIP'S SUBJECT, AFTER THE SCAN SET AND BEFORE THE SCAN. A tree
+  # with no production source at all has no exemption to answer for
+  # either, and the guard above it names the larger failure.
+  gate_require_homes "$HOME_SUBJECT" "$HOME_FILE"
   hits=$(gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}" \
     | gate_grep -E 'Tol::witness|tolerance::witness' \
     | gate_grep -vE "$(gate_record_anchor "$HOME_FILE")" \
@@ -212,6 +221,7 @@ gate_selftest() {
   gate_selftest_passes "the same call inside a #[cfg(test)] module" plant_in_cfg_test
   gate_selftest_passes "a bin target's main under src/bin" plant_in_bin
   gate_selftest_test_module_homes "$want" plant_witness_at
+  gate_selftest_homes "$HOME_FILE"
   printf '%s selftest OK: passes a clean fixture carrying the file that DEFINES witness, prose/block-comment/string-literal mentions of the call, the same call inside a #[cfg(test)] module, and a bin target under src/bin; fires on a witness minted in library code, on the pncad::tolerance::witness facade spelling, on a main written outside src/bin, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 

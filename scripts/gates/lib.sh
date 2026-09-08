@@ -778,6 +778,50 @@ gate_record_anchor_any() {
   gate_ere_alternation "${alts[@]}"
 }
 
+# gate_require_homes SUBJECT HOME... — THE WHOLE-FILE SKIP'S SUBJECT
+# CHECK, over exactly the list the filter is built from. A missing home
+# is a RED and not an abstention, for the reason `gate_exact_skip_subject`
+# gives in full at its own refusal (D103's class): a skip whose home is
+# gone exempts nothing, and left standing it is a ratification the next
+# file written at that path inherits without argument.
+#
+# SUBJECT SAYS WHAT THE SKIP WOULD HAVE EXEMPTED, in the caller's own
+# words, and it is the half a bare `[ -f ]` cannot supply: the path
+# alone says a file is missing, and what a reader has to decide is
+# whether the exemption moved with it or died with it. It is
+# `gate_exact_skip`'s reason for refusing a skip declared without
+# `--subject`, read for a skip whose unit is a whole file.
+#
+# A SEPARATE CALL, NOT A CHECK INSIDE `gate_record_anchor_any`, though
+# that builder's every caller wants exactly this over exactly that
+# argument. The reason is the one `gate_exact_skip_pattern_for`'s header
+# sets out: the builder is read inside `gate_grep -vE "$(…)"`, so an
+# `exit` in it is the SUBSTITUTION's status and the expansion discards
+# it — the gate would print this diagnosis and then filter on the empty
+# pattern the refusal left behind, which drops every record and goes
+# green over a scan it never read. Called as a statement of its own
+# before the scan, errexit carries the refusal out of the gate.
+#
+# NOT `gate_require_file`, whose subject is the gate's SCAN target: it
+# records `GATE_SCAN_FILES=1`, and a skip's home is the one file the
+# scan decides nothing about, so a gate that counted its exemptions as
+# its scan would print a count that is not what it read.
+gate_require_homes() {
+  local subject=$1
+  shift
+  [ $# -gt 0 ] || {
+    gate_error "$(gate_name): gate_require_homes was given no home — this is the list the filter is built from, so an empty one here is an empty alternation there, and that matches every record"
+    exit 1
+  }
+  local home
+  for home in "$@"; do
+    if [ ! -f "$home" ]; then
+      gate_error "$(gate_name): this gate's whole-file skip is anchored at a path this tree does not have — $home is not a file under $PWD, and the skip anchored there would have exempted $subject. A skip whose home is gone exempts nothing, and left standing it is a ratification the next file written at that path inherits without argument, so it is a red here and not an abstention. If the home MOVED, re-anchor the skip to the new path — what is at the new path is an ordinary hit and needs its own ratification; if what it exempted was RETIRED, drop the entry in the change that retires it"
+      exit 1
+    fi
+  done
+}
+
 # gate_exact_skip [READER FLAGS] --subject S --repair R HOME TEXT... —
 # declare the gate's one anchored exact-text skip. READER FLAGS are
 # `gate_rust_code`'s, and they must be the ones the gate reads its scan
@@ -1906,6 +1950,42 @@ gate_exact_skip_selftest() {
     gate_exact_skip_plant_home_gone
   printf '%s selftest OK (the anchored exact-text skip): the ratified text at %s passes, the same text at a path that is not its home is an ordinary hit, the home standing with the text gone is the subject check'"'"'s red and the home gone from the tree is a red rather than an abstention; the pattern is built from the plain text once, so a metacharacter in the text or in the path is matched as itself; and a text that is not one record of the view ends the gate at the refusal rather than under it\n' \
     "$(gate_name)" "$GATE_EXACT_SKIP_HOME"
+}
+
+# --- THE WHOLE-FILE SKIP'S OWN CASES ----------------------------------
+#
+# WHY THEY LIVE HERE, and it is the argument the anchored exact-text
+# skip's cases make one section up: the mechanism has one home, so a
+# copy of these cases kept per gate is one edit away from being a copy
+# short. Every caller of `gate_require_homes` runs all of them and
+# carries all of them.
+#
+# ONE RUN PER HOME, rather than one run with the whole list removed. A
+# gate with several homes has several skips, and a single case that
+# removes them all is satisfied by a check that reads only the first:
+# the refusal is terminal at the FIRST missing path, so what the
+# remaining entries prove is that they are each reached. That is the
+# direction with the population — a home is renamed one at a time.
+
+# The home gone. REMOVED rather than not planted, because the clean
+# fixture of a gate that declares a whole-file skip plants every one of
+# its homes; that is what makes this a mutation of the clean tree and
+# not a fixture written to fail.
+gate_plant_home_gone() {
+  rm -f "$2/$1"
+}
+
+# gate_selftest_homes HOME... — the check's cases, for one gate, over
+# the SAME list the gate hands its filter and its clean fixture. Each
+# case wants the missing path BY NAME, so a diagnosis that named some
+# other home — or named none — fails here rather than reading as a pass.
+gate_selftest_homes() {
+  local home
+  for home in "$@"; do
+    gate_selftest_case "$home is not a file under" gate_plant_home_gone "$home"
+  done
+  printf '%s selftest OK (the whole-file skip'"'"'s subject): each of the %d home(s) it exempts is a red naming that path when it leaves the tree, so a skip cannot outlive its home and ratify whatever lands there next; and because the clean fixture plants the same list, a home named in the filter that the fixture does not plant reds the clean case\n' \
+    "$(gate_name)" "$#"
 }
 
 # gate_selftest_without_tool TOOL WANT — for a gate that shells out. A

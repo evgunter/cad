@@ -16,17 +16,22 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # THE SANCTIONED SEAM'S PATH, held once: the filter's exemption is built
-# from it and the clean fixture plants it.#
-# ONE LIST, AND ONE DIRECTION PROVED. The fixture->filter direction reds
+# from it, `gate_require_homes` proves it is in the tree, and the clean
+# fixture plants it.
+#
+# ONE LIST, BOTH DIRECTIONS PROVED. The fixture->filter direction reds
 # the clean fixture the moment a planted home stops being exempt; the
-# filter->fixture direction is convention and not a check — a filter
-# naming a home no fixture plants stays green here, and catching that is
-# the subject-half residue's job
-# (`work/gates/whole-file-skips-do-not-check-their-subject.md`).
+# filter->fixture direction is the subject check, which reads this same
+# name against the tree before the scan — so a home named here that the
+# clean fixture does not plant reds the clean case, and a home that
+# leaves the tree reds the live run rather than exempting nothing in
+# silence.
 HOME_FILE=crates/geom-core/src/bit_identity.rs
+HOME_SUBJECT='the sanctioned bit-identity seam, the one place the punning plumbing may be reached'
 
 gate() {
   gate_require_crate_sources
+  gate_require_homes "$HOME_SUBJECT" "$HOME_FILE"
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
     | gate_grep -E 'downcast_ref|downcast_mut|TypeId|core::any|std::any' \
@@ -93,6 +98,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, doc comments and a string literal naming the plumbing" plant_prose_only
+  gate_selftest_homes "$HOME_FILE"
   printf '%s selftest OK: passes a clean fixture carrying the sanctioned seam itself, and prose/doc/string mentions of the punning plumbing; fires on a downcast, on one hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
