@@ -834,6 +834,13 @@ gate_record_text() { gate_record_column text; }
 # record from such a path, and every reader that took no match for "no
 # such record" went blind on all of them. That question is
 # `gate_record_split`'s, never this constant's.
+#
+# THE OPEN FORM HAS NO CALLER TODAY, said rather than left to be
+# discovered: every anchor this directory builds is PINNED to a home, so
+# what the constant carries is the shape and the argument above it, and
+# the next matcher that wants "a record from any file" takes it from
+# here instead of respelling it. A caller that reaches for it to find
+# where a column ENDS has misread the paragraph above.
 GATE_RECORD_PREFIX_RE="^[^:]*$GATE_RECORD_LINE_RE"
 gate_record_anchor() {
   printf '^%s%s' "$(gate_ere_escape "$1")" "$GATE_RECORD_LINE_RE"
