@@ -751,8 +751,8 @@ GATE_RECORD_LINE_RE=':[0-9]+:'
 # and GR_TEXT. A FUNCTION rather than three `substr` calls per caller,
 # because the offsets ARE the reading and a caller that respells them is
 # a caller that can respell them wrong — which is how this directory
-# came to hold eight hand-written `index($0, ":")` pairs, each of them
-# the first-colon split under another spelling.
+# came to hold seven hand-written `index($0, ":")` pairs, in six gates,
+# each of them the first-colon split under another spelling.
 GATE_RECORD_AWK='
 function gate_record_split(rec) {
   if (GR_LN == "") GR_LN = ENVIRON["GATE_RECORD_LINE_RE"]
