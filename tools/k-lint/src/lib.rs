@@ -64,13 +64,16 @@
 //! into `sector_{arm,reflex,straight}` it also DROPS six the baseline
 //! still lists — 233 committed here, and 281 at the tip
 //! `docs/K-REPORT.md`'s M11 addendum counted (2026-09-08), 61 names in
-//! and 13 out. Both are DATED readings of a moving quantity, as that
-//! addendum's standing note says of every count it prints: a roster
-//! size phrased as though it were live reads as current forever and
-//! goes stale on the next merge. Neither direction reaches this lint,
-//! which lints the fresh rows it was handed and never compares them
-//! to the committed files; the thresholds
-//! below are the only thing the baseline supplies. The baseline is
+//! and 13 out. **Only the second is dated.** The committed 233 is a
+//! property of files `docs/k-report-data/README.md` rule 1 freezes, and
+//! `tests/threshold_provenance.rs` re-counts it off them on every gate
+//! run rather than carrying it as a figure. The tip count has no such
+//! guard and cannot have one here, and it is the shape that addendum's
+//! standing note warns about: a roster size phrased as though it were
+//! live reads as current forever and goes stale on the next merge.
+//! Neither direction reaches this lint, which lints the fresh rows it
+//! was handed and never compares them to the committed files; the
+//! thresholds below are the only thing the baseline supplies. The baseline is
 //! re-cut when the DISTRIBUTION moves — a new floor, a filled gap, an
 //! ε-coupled family — not on every merge and not on a rename.
 //!
