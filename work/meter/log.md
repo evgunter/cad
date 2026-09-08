@@ -325,3 +325,56 @@ PRs landing).
 
 Unit 1's PR is 2125, style review dispatched; unit 5's fix pass is
 still running.
+
+## Unit 5 CLOSED and merged (2026-09-08)
+
+PR 2115 merged at `c7dc5eb2d`, green on the full matrix. Three of the
+eight units are now closed (0, 2, 5) and the slate's cheap end is
+nearly spent.
+
+This is the unit the style lane earned its place on. The first version
+of the pin claimed to close the one genuinely silent direction — a
+predicate that stays rostered and stops being ε-coupled — and **the
+reviewer broke it green twice**: `margin.contains("target_len")` is a
+substring, so a `let fixed_target_len` sails through; and a mint whose
+`target_len` arrives as a function PARAMETER was never checked. A third
+mutation dropped a whole mint site from the parse by respelling
+`classify_len:: <T>(`, still green. The fix pass closed all three
+(whole-identifier match, the binding sought in the mint's own enclosing
+`fn` with a parameter REFUSED rather than answered, and a coverage
+floor), and added the converse check the review found open.
+
+`props_quad_last_round` is **excused by name rather than rostered**:
+ε-coupled by this unit's own criterion, but rule (4)'s floor is the
+minimum of 108 draws of `props_quad_converged`'s statistic and this
+predicate has contributed none across all nine committed baselines, so
+rostering it would be a distribution ruling with no distribution.
+
+**The orchestrator's ledger error is repaired properly rather than
+papered over.** The three helpers that made the `Shared` disposition
+half-true are hoisted into `crates/test-utils/src/source.rs`, deleted
+from `tools/tess-meter/tests/derivations.rs` and never written in
+`k-lint`. The class behind it is filed
+(`reader-census-shared-disposition-survives-partial-reversion`):
+`every_shared_entry_actually_reaches_the_shared_lexer` tests one
+substring that a bare `use` import satisfies, so all 44 `Shared` rows
+carry the same hole, and strengthening it means ruling on every row.
+
+### A near-miss the orchestrator owns
+
+Verifying the fix pass's "the pin now reds" claim, the orchestrator's
+first mutation script **failed its own assertion before writing the
+file**, and the suite came back green. Green on an unmutated tree,
+which is evidence of nothing. Reading that as verification would have
+merged an unproven pin into the PR whose whole subject is assertions
+that pass for the wrong reason. Caught, redone against the real anchor,
+and the answer was the true one: RED under the substring break, green
+reverted, `crates/` clean. **The lesson is the same one this program
+keeps producing — a green result is only evidence once you have checked
+that the thing you meant to break actually broke.**
+
+Three new items filed by the lane:
+`k-lint-last-round-is-eps-coupled-but-unrostered`,
+`k-lint-roster-wants-a-kernel-side-vocabulary` (a `const` slice from
+`geom_core::k_stats` would close the criterion issue in the same PROPS
+edit), and the reader-census class above.
