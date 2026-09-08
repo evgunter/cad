@@ -544,9 +544,27 @@ pub(crate) fn run_checks(
     let tol = Tol::witness();
     let default = d::ChecksConfig::default();
     let cfg = config.map_or(&default, |c| &c.0);
-    d::run_checks(&doc.inner, &evaluation.inner, cfg, tol)
+    // The pairing FIRST, because the answer may come from the memo and
+    // a memo reaches no gather to be refused by. Same refusal, same
+    // tag, one line earlier.
+    evaluation
+        .paired_with(doc)
+        .map_err(|m| mispaired_checks(py, m))?;
+    evaluation
+        .gathered(|memo, doc, ev| crate::product_memo::checks_report(memo, doc, ev, cfg, tol))
         .map(ChecksReport)
         .map_err(|err| checks_err(py, &err))
+}
+
+/// A mispaired `(doc, evaluation)` as this door's own refusal.
+fn mispaired_checks(py: Python<'_>, m: d::Mispaired) -> PyErr {
+    checks_err(
+        py,
+        &d::ChecksError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        },
+    )
 }
 
 /// **The registry's one refusing path.** Refuses iff `report` carries a

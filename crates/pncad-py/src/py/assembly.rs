@@ -136,9 +136,25 @@ pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyR
     // body is plain and `Body.validate_pseudomanifold` will report
     // any seam between two roots as undeclared. `assemble` is the
     // door that mints declarations over the same geometry.
-    d::product(&doc.inner, &evaluation.inner, tol)
+    evaluation
+        .paired_with(doc)
+        .map_err(|m| mispaired_product(py, m))?;
+    evaluation
+        .gathered(|memo, doc, ev| crate::product_memo::body(memo, doc, ev, tol))
         .map(|body| Body::plain(Arc::new(body)))
         .map_err(|err| product_err(py, &err))
+}
+
+/// A mispaired `(doc, evaluation)` as the gather's own refusal — the
+/// one the memo path cannot inherit from a gather it does not reach.
+fn mispaired_product(py: Python<'_>, m: d::Mispaired) -> PyErr {
+    product_err(
+        py,
+        &d::ProductError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        },
+    )
 }
 
 /// The product, with the stable names its entities answer to —
@@ -158,11 +174,15 @@ pub(crate) fn product_named(
     evaluation: &Evaluation,
 ) -> PyResult<(Body, Vec<String>)> {
     let tol = Tol::witness();
-    let (body, names) = d::product_named(&doc.inner, &evaluation.inner, tol)
+    evaluation
+        .paired_with(doc)
+        .map_err(|m| mispaired_product(py, m))?;
+    let (body, names) = evaluation
+        .gathered(|memo, doc, ev| crate::product_memo::body_and_names(memo, doc, ev, tol))
         .map_err(|err| product_err(py, &err))?;
     let names = names
         .iter()
-        .map(|(name, _)| name_text(py, name))
+        .map(|name| name_text(py, name))
         .collect::<PyResult<Vec<String>>>()?;
     Ok((Body::plain(Arc::new(body)), names))
 }
@@ -666,8 +686,18 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
 #[pyfunction]
 pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Assembly> {
     let tol = Tol::witness();
-    let assembly =
-        d::assemble(&doc.inner, &evaluation.inner, tol).map_err(|err| assembly_err(py, &err))?;
+    evaluation.paired_with(doc).map_err(|m| {
+        assembly_err(
+            py,
+            &d::AssemblyError::Product(Box::new(d::ProductError::EvaluationOfAnotherDocument {
+                expected: m.expected,
+                found: m.found,
+            })),
+        )
+    })?;
+    let assembly = evaluation
+        .gathered(|memo, doc, ev| crate::product_memo::assembly(memo, doc, ev, tol))
+        .map_err(|err| assembly_err(py, &err))?;
     let names = assembly
         .names
         .iter()
