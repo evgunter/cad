@@ -286,3 +286,23 @@ Filed on this slate: `assembly-recourse-omits-the-transverse-cap-open-chain`
 dispatched on the frozen head. The box hit zero bytes free mid-unit
 (three lane targets plus a workspace-scoped fix pass); rule 13 in the
 lane rules now scopes local runs to the touched crates.
+
+**Unit 3 reviewed (2026-09-08): MERGEABLE-AFTER-FIXES**, single style
+review on frozen `4a10b8f9` of PR [#2141](https://github.com/evgunter/cad/pull/2141).
+**The MAJOR is the orchestrator's decision, corrected by the reviewer
+and adopted:** the door tests KIND membership first (`Meridian::trace`
+has rows for plane, sphere, cylinder and cone, none for a torus) and
+the symmetry second, so "a rim between two coaxial surfaces of
+revolution" endorsed a coaxial torus–plane rim the door refuses on
+kind — the refusal's own sentence endorsing the request just refused,
+issue 1278's shape. The sentence now names the four kinds and then
+the two families, in the door's order; the map row derives families
+from `is_coaxial_torus`/`is_ruled` and checks the kinds, reporting the
+set; the followability row's ruled witness is the rod's crease, not
+a plane–plane cube that never entered the ruled door. The class the
+reviewer showed is wider than the filed instance — `GEOMETRY` names
+planes and a sphere cap where cylinders and cones carve, `ASSEMBLY`'s
+open clause omits the transverse-cap termination — so both siblings
+are fixed in the pass and the filed instance closes on it. Fix pass
+implementer-inherited, both probe rows adopted inverted into the fixed
+contract.
