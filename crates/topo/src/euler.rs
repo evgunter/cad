@@ -753,6 +753,33 @@ pub enum EulerOpError {
         /// The second face, in a different solid.
         f2: FaceKey,
     },
+    /// [`Body::move_shells_to_new_solid`]'s list is empty: a solid
+    /// with no shells is not a solid (tier 1's arity floor), so there
+    /// is nothing to mint.
+    NoShellsNamed,
+    /// [`Body::move_shells_to_new_solid`]'s list names one shell
+    /// twice — a caller desync, refused rather than resolved by list
+    /// order.
+    ShellRepeated {
+        /// The shell named more than once.
+        shell: ShellKey,
+    },
+    /// [`Body::move_shells_to_new_solid`]'s shells do not all belong
+    /// to one solid: the op re-partitions ONE solid's shells, and a
+    /// list spanning two has no single source solid to split from.
+    ShellsAcrossSolids {
+        /// The first shell, in the solid the op would split.
+        shell: ShellKey,
+        /// A later shell, in a different solid.
+        other: ShellKey,
+    },
+    /// [`Body::move_shells_to_new_solid`] would move EVERY shell of
+    /// its source solid, leaving it with none — tier 1's arity floor
+    /// again, on the solid that stays behind.
+    SolidWouldEmpty {
+        /// The solid that would be left without shells.
+        solid: SolidKey,
+    },
 }
 
 impl fmt::Display for EulerOpError {
@@ -903,6 +930,26 @@ impl fmt::Display for EulerOpError {
                  (cross-solid fusion is the boolean combine step, not an \
                  Euler surgery)"
             ),
+            Self::NoShellsNamed => write!(
+                f,
+                "move_shells_to_new_solid: no shells named, and a solid with no \
+                 shells is not a solid"
+            ),
+            Self::ShellRepeated { shell } => write!(
+                f,
+                "move_shells_to_new_solid: shell {shell:?} is named more than once \
+                 (caller desync)"
+            ),
+            Self::ShellsAcrossSolids { shell, other } => write!(
+                f,
+                "move_shells_to_new_solid: shells {shell:?} and {other:?} lie in \
+                 different solids (the op re-partitions one solid's shells)"
+            ),
+            Self::SolidWouldEmpty { solid } => write!(
+                f,
+                "move_shells_to_new_solid: moving every shell of solid {solid:?} \
+                 would leave it with none"
+            ),
         }
     }
 }
@@ -984,6 +1031,17 @@ pub(crate) fn every_euler_op_error_once()
             },
         },
         EulerOpError::CrossSolid { f1: fc, f2: fc },
+        EulerOpError::NoShellsNamed,
+        EulerOpError::ShellRepeated {
+            shell: ShellKey::default(),
+        },
+        EulerOpError::ShellsAcrossSolids {
+            shell: ShellKey::default(),
+            other: ShellKey::default(),
+        },
+        EulerOpError::SolidWouldEmpty {
+            solid: SolidKey::default(),
+        },
     ];
     for (i, kind) in EulerOpErrorKind::iter().enumerate() {
         assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
@@ -1057,7 +1115,11 @@ impl EulerOpError {
             | Self::NullScaffoldCurve { .. }
             | Self::SplitParamNotInterior { .. }
             | Self::SplitParamEscalated { .. }
-            | Self::CrossSolid { .. } => false,
+            | Self::CrossSolid { .. }
+            | Self::NoShellsNamed
+            | Self::ShellRepeated { .. }
+            | Self::ShellsAcrossSolids { .. }
+            | Self::SolidWouldEmpty { .. } => false,
         }
     }
 }
