@@ -2,10 +2,11 @@
 id: sweep-doc-comments-cite-tests-unenforced
 kind: unit
 title: Sixteen doc comments in sweep name a test file as their evidence, and nothing enforces any of them
-status: review
+status: closed
 opened: 2026-09-04
 branch: blend/5-doc-citations
 pr: 2155
+closed: 2026-09-08
 ---
 
 
@@ -87,3 +88,17 @@ this unit found four instances of it by reading. The corpus is
 another crate's suite (`admit.rs` naming a `test-utils` row) is outside
 it and the row says so. `work/code-quality/doc-line-citations-rot-silently.md`
 is the sibling class for `file:line` citations.
+
+## Closed (2026-09-08, PR 2155)
+
+One spelling for a test citation in `crates/sweep/src` — `<module>::<row>`,
+the one `cargo test -p sweep --test all -- <module>::<row>` filters on
+(the review corrected the first cut's path spelling, which cargo does
+not resolve) — at every site, and the instrument decided: a resolver
+row in the sweep suite (`review_blend5_r5_probes::every_test_citation_in_the_sweep_docs_resolves_to_a_test_row`),
+red on a rename or deletion, which caught a helper cited as a row on
+its first run. Two citations that promised more than their rows
+corrected; sentences that had grown into restatements of their rows
+cut to claim plus pointer. Residues filed: the eight deleted suite
+files still cited from `crates/sweep/tests/**` (S-TCOST's slate) and
+`docs/KERNEL-VERBS.md`'s cap-pair ulp claim (this slate).

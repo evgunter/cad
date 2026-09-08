@@ -221,3 +221,15 @@ red run's one failure was a fourth stale assert of the class, in
 `review_fillet_e2_probes` — the lane's sweep read constants and not
 the suite's asserts on them, said plainly. E units 1–3 are merged:
 block BLEND-B1 opens with unit 6.
+
+**Unit 5 MERGED (2026-09-08)**, PR [#2155](https://github.com/evgunter/cad/pull/2155)
+at its fix-pass head (full matrix green; a first red was the source-
+reader census in `crates/test-utils` demanding a ledger line for the
+new resolver row — added, a seam outside BLEND's paths, reported
+here). The module spelling at all forty-one sites, the resolver row
+as the instrument, the restating sentences cut back. Filed: the
+tests→tests citation class on S-TCOST's slate
+(`sweep-test-suites-cite-eight-deleted-suite-files`), the register's
+cap-pair claim on this one (`kernel-verbs-cap-pair-ulp-claim-stale`).
+Every E unit of the opening slate is now merged or in its last step
+(unit 4's re-run, unit K's fix pass).
