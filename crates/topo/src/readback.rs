@@ -620,17 +620,17 @@ impl std::error::Error for EulerParityError {}
 /// ```
 #[must_use]
 pub fn euler_counts<T: Real>(body: &Body<T>) -> EulerCounts {
-    let count = |n: usize| i64::try_from(n).expect("an arena length fits an i64");
     EulerCounts {
-        v: count(body.vertices().count()),
-        e: count(body.edges().count()),
-        f: count(body.faces().count()),
-        r: count(body.faces().map(|(_, face)| face.rings.len()).sum()),
-        s: count(body.shells().count()),
+        v: body.vertices().count() as i64,
+        e: body.edges().count() as i64,
+        f: body.faces().count() as i64,
+        r: body.faces().map(|(_, face)| face.rings.len() as i64).sum(),
+        s: body.shells().count() as i64,
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::{Point3, Tol};
 

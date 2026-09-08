@@ -163,6 +163,7 @@ use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc};
+use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, BooleanError, EdgeKey, FaceKey, Operand};
 
 use crate::{SceneBody, Stop, View};
@@ -548,40 +549,6 @@ fn describe<T, E: core::fmt::Debug>(outcome: &Result<T, E>) -> String {
     }
 }
 
-/// The genus of `body` by the Euler–Poincaré identity
-/// `v − e + f − r = 2(s − g)`, summed over shells.
-///
-/// The identity's left side is EVEN on any body the identity applies
-/// to, so an odd one is not a body with a surprising genus — it is a
-/// census that does not satisfy Euler–Poincaré at all, and halving it
-/// would turn that into a plausible number. Checked before the divide
-/// rather than after, because after is too late.
-///
-/// Duplicated, deliberately, in `tests/verbs_teapot.rs`: a binary's
-/// module cannot be imported by an integration test, and the two
-/// copies are three lines of a published identity rather than a shared
-/// invariant. The tie between them is that both are checked against
-/// the same measured censuses.
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn genus(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    let r: i64 = body.faces().map(|(_, x)| x.rings.len() as i64).sum();
-    let chi = v - e + f - r;
-    assert!(
-        chi % 2 == 0,
-        "v - e + f - r = {chi} is ODD, so this census does not satisfy \
-         Euler-Poincare and no genus follows from it"
-    );
-    body.shells().count() as i64 - chi / 2
-}
-
 /// The station where the foot cylinder meets the belly sphere, at
 /// inward offset `d`: the sphere shrinks concentrically and the
 /// cylinder shrinks radially, so their meeting slides ALONG the
@@ -735,7 +702,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         2,
         "the outer boundary and the cavity, in ONE solid"
     );
-    assert_eq!(genus(&pot), 0, "two sphere-like shells, no handles");
+    assert_eq!(
+        euler_counts(&pot).genus(),
+        Ok(0),
+        "two sphere-like shells, no handles"
+    );
 
     // The wall as a NUMBER, against the two stacks — and the cavity's
     // capacity asked for DIRECTLY rather than inferred from a
@@ -1150,10 +1121,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Ok(()),
         "tier 3 on the cup, which now also refuses a ring standing on its outer loop"
     );
-    let cup_rings: usize = cup.faces().map(|(_, f)| f.rings.len()).sum();
+    let cup_counts = euler_counts(&cup);
     assert_eq!(
-        (cup_rings, genus(&cup), cup.shells().count()),
-        (1, 0, 1),
+        (cup_counts.r, cup_counts.genus(), cup_counts.s),
+        (1, Ok(0), 1),
         "ONE rim annulus carrying ONE ring, genus 0 as `topo::shell`'s docs promise a \
          cup is, and the cavity fused into the boundary"
     );
@@ -1372,7 +1343,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             voids[0].volume,
             2.0 * WALL,
             planes.len(),
-            genus(&cup),
+            euler_counts(&cup)
+                .genus()
+                .unwrap_or_else(|refusal| panic!("{refusal}")),
             cup_props.volume,
         )),
         // The pot's axis is +y and its spout, handle and lid knob all

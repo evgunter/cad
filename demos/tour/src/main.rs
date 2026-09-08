@@ -72,7 +72,8 @@ mod walls;
 
 use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
-use pncad::topo::{Body, ContactRecords};
+use pncad::topo::readback::euler_counts;
+use pncad::topo::{Body, ContactRecords, EulerCounts};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
@@ -242,19 +243,6 @@ struct Stop {
     bodies: Vec<SceneBody>,
 }
 
-/// Topology census + genus via the Euler–Poincaré identity
-/// `v − e + f − r = 2(s − g)` (s = shells; g summed over shells; the
-/// identity is narration, tier 2 is the checker).
-fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
-    let v = body.vertices().count();
-    let e = body.edges().count();
-    let f = body.faces().count();
-    let r: usize = body.faces().map(|(_, face)| face.rings.len()).sum();
-    let s = body.shells().count();
-    let genus = s as i64 - (v as i64 - e as i64 + f as i64 - r as i64) / 2;
-    (v, e, f, r, s, genus)
-}
-
 /// A body entry for the scene manifest: file stems + render color.
 ///
 /// The STL stem is unconditional: every tour body tessellates and
@@ -343,7 +331,11 @@ fn run_body(
         }
     }
 
-    let (v, e, f, r, s, genus) = census(&sb.body);
+    let counts = euler_counts(&sb.body);
+    let genus = counts
+        .genus()
+        .unwrap_or_else(|refusal| panic!("{label}: {refusal}"));
+    let EulerCounts { v, e, f, r, s } = counts;
     println!(
         "   [{label}] topology: {v} vertices, {e} edges, {f} faces, {r} rings, \
          {s} shell(s) -> genus {genus}; validation: {}",

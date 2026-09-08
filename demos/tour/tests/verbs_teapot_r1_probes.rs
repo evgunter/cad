@@ -16,6 +16,7 @@ use pncad::geom_core::{Point2, Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, FaceKey, LoopBoundary};
 
 fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
@@ -113,8 +114,9 @@ fn loop_carriers(body: &Body<f64>, lk: pncad::topo::LoopKey) -> Vec<Curve3<f64>>
         .collect()
 }
 
-fn rings(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
+/// The body's ring count, through the census door.
+fn rings(body: &Body<f64>) -> i64 {
+    euler_counts(body).r
 }
 
 /// **P1 — #1082's fix, re-derived on the same fixture that first
@@ -234,17 +236,11 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     }
     assert_eq!(rings(&cup), 1, "and that is the body's only ring");
 
-    // Euler bookkeeping on the returned data reads genus 0 — computed
-    // here from raw counts, not via the scene's helper.
-    let (v, e, f) = (
-        cup.vertices().count() as i64,
-        cup.edges().count() as i64,
-        cup.faces().count() as i64,
-    );
-    let s = cup.shells().count() as i64;
+    // Euler bookkeeping on the returned data reads genus 0 — the census
+    // door over the returned arenas, not the scene's helper.
     assert_eq!(
-        s - (v - e + f - rings(&cup) as i64) / 2,
-        0,
+        euler_counts(&cup).genus(),
+        Ok(0),
         "Euler-Poincare over the returned arenas reads genus 0, as a cup's is"
     );
 

@@ -31,6 +31,7 @@ use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
 };
+use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
 
 /// A closed polygon through `$first` and the rest, on the `path`
@@ -83,21 +84,17 @@ fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     .body
 }
 
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
+/// The body's ring count, through the census door.
+fn rings(body: &Body<f64>) -> i64 {
+    euler_counts(body).r
 }
 
+/// The body's Euler–Poincaré genus, through the census door; an odd
+/// census is a torn store, and the row fails on the typed refusal.
 fn genus(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    body.shells().count() as i64 - (v - e + f - rings(body) as i64) / 2
+    euler_counts(body)
+        .genus()
+        .expect("a census that satisfies Euler–Poincaré")
 }
 
 /// Every planar face whose plane origin sits at station `y`.

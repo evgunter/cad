@@ -97,6 +97,7 @@ use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, ReplaceFaceError, ShellError};
 
 /// Every fixture's mouth plane.
@@ -812,40 +813,17 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<pncad::topo::FaceKey> {
         .collect()
 }
 
-/// Duplicated from the scene for the same reason as
-/// [`plane_chart_at`]; see [`genus`].
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
+/// The body's ring count, through the census door.
+fn rings(body: &Body<f64>) -> i64 {
+    euler_counts(body).r
 }
 
-/// The Euler–Poincaré genus. **Duplicated from `teapot::genus`**, and
-/// deliberately: a binary's module cannot be imported by an
-/// integration test, and this is three lines of a published identity
-/// rather than a shared invariant. Both copies check the parity before
-/// dividing, because an odd `v − e + f − r` is a census that does not
-/// satisfy the identity at all and halving it would turn that into a
-/// plausible number.
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
+/// The body's Euler–Poincaré genus, through the census door; an odd
+/// census is a torn store, and the row fails on the typed refusal.
 fn genus(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    let chi = v - e + f - rings(body) as i64;
-    assert!(
-        chi % 2 == 0,
-        "v - e + f - r = {chi} is ODD, so this census does not satisfy \
-         Euler-Poincare and no genus follows from it"
-    );
-    body.shells().count() as i64 - chi / 2
+    euler_counts(body)
+        .genus()
+        .expect("a census that satisfies Euler–Poincaré")
 }
 
 /// **The ANNULAR mouth: two disjoint rims, not one ring.**
