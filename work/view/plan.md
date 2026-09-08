@@ -131,6 +131,8 @@ should be visible on its own.
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
 | `view/censuses` (seven censuses in four hats, and an eighth) | #2103 | style + fix pass |
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
+| `view/summarised` (a summarised field renders as a summary) | — | dispatched 2026-09-07, Ev's ruling |
+| `view/labelled` (two of the four bare vocabularies, and the corrected rule) | — | dispatched 2026-09-07, Ev's ruling |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -338,6 +340,40 @@ been failing at; it is now the wave's largest single output.
   instance of `stale-file-citations-after-the-split`'s expensive half:
   the CLAIM going stale rather than the number. Read `scripts/work.py
   status --program view` before believing any list in this file.
+
+### The two 09-07 forks, and what re-deriving them changed
+
+Both went to Ev in chat with the tree re-read rather than the item
+summarised, and in both cases **the re-derivation moved the question**
+before he ruled. That is the argument for costing a fork against the
+tree instead of against its own file.
+
+**`finish-marker-cannot-say-summarised`** listed three candidate
+spellings and called none obviously right. The tree held a fourth,
+cheaper than all three: `LandedRun` already summarises `checks` through
+`&format_args!(…)`, which reads as a summary, while every other
+summarised field uses `is_some()`, which renders `false` and reads as a
+`bool` field. So the fix is to follow the precedent already in the file
+and leave `std`'s markers alone — the marker answers *are all fields
+shown*, and the question a reader needs is *is this value the whole
+field*, which belongs at the FIELD. **Ev: "sounds good"**, 2026-09-07.
+
+**`bare-vocabularies-declare-their-words-a-second-time`** framed a
+dichotomy: either the labelled arm absorbs all four bare vocabularies
+and the README's two-shape rule is DELETED, or it does not. Tracing
+every reader gives neither. `PathVerb` (`pane/create.rs:727`) and
+`ArcMode` (`widgets.rs:300`) have a PRODUCTION loop that iterates `ALL`
+and asks each option for its word; `ToolKind` and `Seat` have no
+word-reading iteration anywhere — their `ALL` is read only by
+`crates/viewer/tests/combine_ops.rs`, which maps kinds to bools and
+never asks for a word. **So it is two of four, and the rule is
+corrected rather than deleted**: the current test asks *is there a
+single-value reader?*, which sends `PathVerb`/`ArcMode` to the bare arm
+despite a loop wanting their words. The test that sorts this tree is
+*does anything iterate the table FOR ITS WORDS?* — a rule about whether
+the words are table data rather than about how many readers exist, and
+falsifiable by grep where the old one was not. **Ev: "sure"**,
+2026-09-07.
 
 ### The three design forks, going to Ev as one PR
 
