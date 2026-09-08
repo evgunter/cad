@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-05
 refs: [1977]
 branch: eval/1-affine-lift
+pr: 2139
 ---
 
 The per-coordinate walk over an `Affine3` — twelve components through
