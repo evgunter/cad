@@ -30,9 +30,22 @@ The PR body carries the measurements.
   sentence). The tour's `rim_at` already asserted each rim was one
   closed edge, which is the same fact.
 - **§4's ONE `Node::Fillet` call is TWO.** The one-request document
-  fillet refuses `Naming(Duplicate)` before any geometry is doubted.
-  Filed as `blend-slit-name-collides-when-two-rims-share-a-meridian`;
-  recorded as the scene's sixth finding and gap-commented at the site.
+  fillet refuses `Naming(Duplicate)` before any geometry is doubted —
+  ATTEMPTED live in `per_rim_answers` and pinned there, so the finding
+  is a probe and not a sentence. Filed as
+  `blend-slit-name-collides-when-two-rims-share-a-meridian`, whose
+  first cut over-generalised to "any two ADJACENT rims" and is
+  corrected to the true invariant (two bands slitting ONE seam
+  meridian; `{2,3}` and `{3,4}` are adjacent and compose).
+  `demos/tour/tests/teapot_document.rs` is the table, beside the
+  equality the split owes: the two requests build the kernel's
+  one-request body — same census, the same three bands bit for bit,
+  the same mass — and differ only in face ORDER.
+- **Wall 3's payload is the same face, operand and kinds — not the
+  same bits.** The base raised `other_face: FaceKey(1v1)` and the head
+  raises `2v1`: the same physical face (the mouth-rim annulus at
+  `y = 1/8`), whose arena key moved with the document's numbering.
+  Neither wall's probe ever pinned a key.
 - **§4's cross-check against `rim_at` is in the branch, not in the
   shipped scene.** The assertion ran in the commit that converted the
   scene and the scan went in the next one; what ships is the live
@@ -63,11 +76,51 @@ The PR body carries the measurements.
   executes, so `TestTorusvessel` authors that vessel's sealed hollow
   against its own closed form. Without it the §9 flip would have been
   a sentence rather than a row.
-- **The tess-budget baseline was re-cut.** The gate is CLEAN against
-  the committed file, and §9 predicted it would hold — but three
-  `teapotlid` rows permute their triangle counts (same multiset, same
-  per-scene total) because the two-request roll mints the lid's faces
-  in a different order, and thirty teapot rows gain the durable face
-  NAMES `SceneBody::named` now hands the sweep. The prediction's
-  premise failed rather than the gate, so the file was re-cut and what
-  moved is stated in the commit.
+- **The tess-budget baseline was re-cut, and the gate did not ask for
+  it.** `tools/tess-lint` is CLEAN against the PREVIOUS baseline and
+  clean against the re-cut one; both reviewers ran it both ways. So
+  nothing forced the file to move, and §8's third clause — a re-cut is
+  ordinary "only when the scene's geometry legitimately changed" — is
+  contradicted by exactly this: no geometry moved and the file moved
+  anyway. The move is 30 of 1353 rows, 27 gaining the durable face
+  NAME `SceneBody::named` now hands the sweep and 3 `teapotlid` rows
+  permuting their triangle counts among themselves (`{16200, 2048,
+  42560}`, same multiset, same per-scene total) because the
+  two-request roll mints the lid's faces in a different order. It was
+  taken because a committed baseline that no longer describes what the
+  sweep produces is the failure mode `docs/TESS-BUDGET.md` fears most,
+  and because CLAUDE.md's standing rule is to re-baseline and say what
+  moved. The reverse is SCHEDULED rather than remembered:
+  `per_rim_answers`' live pin says, on the day the naming
+  discriminator lands, to go back to one request and re-cut back.
+- **The uv render cell that moved is a §9 finding by the spec's
+  letter** — §9 admits only §5's reason for a moved cell, and §5's did
+  not fire. Its cause is the same face order: the uv sheet labels its
+  cells by face INDEX. Four cells moved in the sheet;
+  "charts intact and re-slotted" covers three of them, and the fourth
+  (`f005`) also changes where its trim loop STARTS and which way it is
+  traversed, which is the same permutation one level down.
+- **The lid's STL is the same triangle set either way**, measured: the
+  base and head `teapotlid` exports carry the same 63,204 canonical
+  triangles over equal vertex sets, and differ in EMISSION ORDER.
+  That is what "the geometry did not move" means here, stated as a
+  measurement rather than as an inference from a clean gate.
+- **Two duplications are disclosed rather than shared**, and both are
+  filed: `band`/`band_pi`/`band_rim`/`meridian_vertex` are twins of
+  `crates/editor-core/tests/corpus/vessel.rs`'s and are hand-spelled
+  in five places across this repo, and the vessel's whole constant
+  block is carried by both files. Neither can be shared — the tour is
+  a detached workspace and the kernel must never depend on demo
+  tooling — so what is filed is the missing FAÇADE door
+  (`no-facade-door-mints-a-revolves-role-names`).
+- **A recipe cannot hold a narration or probe body without it becoming
+  a product root**, which `gallery_document`'s three deletions and the
+  two probe documents absorb. Filed
+  (`a-recipe-cannot-hold-a-narration-body-without-it-becoming-a-root`)
+  and gap-commented at the door that pays it.
+- **The panel note renders the germ PAIR rather than `Debug`.** The
+  base dumped the refusal struct, which puts Rust field names and
+  arena keys into prose a person reads — the thing `pncad-py`'s own
+  `errors.rs` refuses to do. The wall-7 evidence is the PAIR, and it
+  survives verbatim; the console diagnostics still print the whole
+  payload, where a key is a diagnostic rather than prose.

@@ -2003,40 +2003,22 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              {reach} m of realized inner radius left. Note the sense bit in that scan: \
              {stored_plus} of this pot's {} planar FACES store a +y normal and only the \
              face's own orientation says which way each looks, so a sense-blind scan \
-             finds no antiparallel pair here at all. THE BELLY IS AN ARC, AND THAT IS THE \
-             SCENE'S FIRST FINDING RETIRED. It read THE BELLY IS STILL SQUARED for \
-             two waves: `shell` moved ONE chart at a time and re-anchored its \
-             neighbours on carriers that had not moved, so a junction survived only \
-             where the neighbouring surface was invariant under the moved face's own \
-             offset — and the class was OBLIQUE junctions rather than curvature, a \
-             triangular prism of all planes refusing exactly like a cone frustum. \
-             #1081 made the offsets SIMULTANEOUS: every corner is solved against all \
-             the surfaces meeting it at once, planar corners by a 3×3 solve (PR-2a) \
-             and a body of revolution's in its own meridian half-plane (PR-2b), where \
-             a plane is a line, a cylinder is a line, a cone is a line, a sphere is \
-             a circle centred ON the axis and a TORUS is that same circle centred one \
-             number off it. So the shoulders are gone: foot cylinder, ONE spherical \
-             zone, mouth. WALL 1 WAS RE-PLANTED ONE STEP OUT AND IS NOW RETIRED IN \
-             TURN: it pushed the belly's arc centre OFF the axis, making the wall a \
-             torus the meridian reduction did not know, so the body fell to the \
-             per-chart loop and the C5 table refused its plane x torus pair. The \
-             reduction knows the kind now, that pot hollows, and the probe above \
-             asserts the hollow instead of pinning a refusal — the hollow rides the \
-             meridian reduction, not the C5 table, and held on both sides of \
-             VERBS-C5ARMS's later `intersect::route` widening for the pair \
-             (`tests/verbs_teapot.rs` \
-             carries the junction table, the tangency discriminator and the sweep's \
-             blind spot). THE MOUTH IS \
+             THE BELLY IS AN ARC, AND THAT IS THE \
+             SCENE'S FIRST FINDING RETIRED — foot cylinder, ONE spherical zone, mouth, \
+             where the squared pot spent three segments; the mechanism that un-squared \
+             it is the module docs' finding 1 and is not re-told here. WALL 1 WAS \
+             RE-PLANTED ONE STEP OUT AND IS NOW RETIRED IN TURN: it pushed the belly's \
+             arc centre OFF the axis, making the wall a torus the meridian reduction \
+             did not know. The reduction knows the kind now, that pot hollows, and the \
+             probe above asserts the hollow instead of pinning a refusal \
+             (`tests/verbs_teapot.rs` carries the junction table, the tangency \
+             discriminator and the sweep's blind spot). THE MOUTH IS \
              OPEN, AND THAT WAS THE SCENE'S SECOND FINDING BEFORE IT WAS FIXED: \
              `shell_open` used to return a body that passed tiers 1-3 while each \
              designated half-disc carried its own cavity counterpart's boundary as a \
-             ring — sharing the axis apex the outer loop owned, running back along its \
-             seam legs — so the CDT refused it and the pot shipped sealed (#1082). The \
-             class was never \"a revolve's cap is two half-discs\": it was any \
-             designated face whose cavity counterpart's boundary cannot become an \
-             interior-disjoint RING of it, and what put it out of reach was the \
-             REVOLVE's seam rather than the mouth. The seam is retired before the glue \
-             now, through the Euler doors alone, and this pot's mouth comes back as ONE \
+             ring, so the CDT refused it and the pot shipped sealed (#1082); the class \
+             and its mechanism are the module docs' finding 2. The seam is retired \
+             before the glue now, and this pot's mouth comes back as ONE \
              annular rim carrying one ring, genus {}, V = {:.9} m³ against the wall's \
              closed form less the lifted mouth disc, {cup_triangles} triangles at δ = \
              {DELTA}. On an ANNULAR mouth the same class needs two disjoint annuli — a \
