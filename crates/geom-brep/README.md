@@ -380,9 +380,10 @@ door (three producers: boolean subtraction, shell, the full revolve of a
 holed profile). *Opened* (`shell_open`): the sealed construction, then
 each designated chart's cavity counterpart offset back outward onto it
 and the pair reduced by rim surgery (`canonicalize_chart`, `kfmrh`) to
-one annular rim face. Nothing opens; the result is closed and
-single-shell, and the invariant is closure, not genus (one opening is a
-cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
+one annular rim face. Nothing opens; the result is closed, the
+designated shell's thin solid is single-shell (a hollow operand's other
+thin solids keep their two), and the invariant is closure, not genus
+(one opening is a cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
 inverted cavity walls at edge re-attachment. A NURBS-walled body still
 cannot be shelled: `Approx × anything` has no C5 arm, so the
 face-replacement door refuses on a fitted face's intrinsically described

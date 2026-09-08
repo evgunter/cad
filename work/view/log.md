@@ -6512,3 +6512,184 @@ heading of any level — 131 lines of prose — so the real constraint is
 `work/issues/code-quality-item-quotes-a-viewer-doc-string-that-was-
 rewritten` (§6, quotation rot on another program's slate). Both filed
 by the orchestrator, neither taken here.
+
+## 2026-09-08 — the vocab gate's kind scan is anchored to a paragraph, and the item's own numbers were wrong (#2172)
+
+**The region, re-derived.** `readme_kinds` stopped at the next heading
+of ANY level, and `#### The lists that stay hand-written` is one, so the
+scan region was never the `###` section. Running the reader's own awk
+over `crates/viewer/README.md` at `d02bb0e6b` gives `:931-1079` — **149
+lines** — with the three bullets at `:1023`, `:1026`, `:1031`, all
+inside the enumeration paragraph `:1020-1033`. The residue entry above
+says "131 lines of prose" and the item said `:907-1037`; at the tree the
+item was written against the region was `:908-1021`, 114 lines, and
+`:1037` is inside the table's trailing prose — neither the end of the
+scan region nor the end of the section (`:1044`). Both endpoints and the
+count were wrong, and the item's `title:` carried the figure. **An
+orchestrator's filed number is a claim like any other**, and the lane
+that takes the item is where it gets checked; this one was told to check
+it and it did not survive.
+
+**The fix is an anchor on the announcing sentence**, which is what the
+item proposed. Two things it did not: the anchor matches a PREFIX of the
+line rather than the whole line, because a paragraph's wrap point is an
+artifact of the fill column while the four constants this gate already
+pins are headings and a table header, whole lines by construction; and
+the anchor carries the count word, so the README's prose number and
+`KIND_COUNT` now hold each other. Before this the section could say
+"Four kinds of list stay hand-written" over three bullets and nothing
+read the sentence at all.
+
+**A pass case is the receipt, and it has to fail unfixed.** The case
+this owed — a bolded bullet in the section's PROSE, expecting GREEN —
+was run against the whole-section scan restored into the file, and
+failed with the misdiagnosis the item described: *"ratifies 3 kinds …
+and this pass read 4: "A bolded bullet""*. Two more cases and three
+negative controls turn the suite red on demand. **A self-test case that
+passes before and after proves nothing**, and the way to know which one
+you wrote is to put the old code back and run it.
+
+**Two citations into this gate were stale before the branch touched
+it.** `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-
+names.md:25` names `:611-625` and "twelve `gate_selftest_case` rows";
+at `d02bb0e6b` those rows were `:930-973` and there were twenty. `work/
+issues/gate-rust-reader-splits-an-array-type-at-its-semicolon.md:65`
+names `:139-153` for a sentence that lives in the item reader's header,
+`:212-218`. Both were reported in the PR body rather than repointed from
+a unit branch, per §6. **A file that grows fast falsifies its own
+citations quietly**: neither was wrong when written, and nothing reads a
+line range to check it.
+
+## 2026-09-08 — a correction: the count hold was reachable around, and the kind reader read column 0 only (#2172, fix pass)
+
+**The entry above is falsified in one sentence and it is corrected
+here, not rewritten.** It says *"the anchor carries the count word, so
+the README's prose number and `KIND_COUNT` now hold each other."* They
+did not. The anchor holds the README against the GATE — amend the
+section to four kinds and no line starts "Three kinds of list stay
+hand-written", so the anchor reds. It did not hold the gate against
+ITSELF, and the red named the way around as a co-equal repair: *"restore
+the sentence, or change `KIND_ANCHOR` in $0 in the same diff"*. Take
+that second repair alone — `KIND_ANCHOR='Four kinds of list stay
+hand-written'`, `KIND_COUNT` left at 3 — and a section announcing Four
+across three bullets was GREEN, with `3 kinds read from "Four kinds of
+list stay hand-written"` printed on the OK line, a self-contradiction
+nothing reads. **A hold whose own diagnosis names the edit that
+defeats it is not a hold**, and the cost was one extra edit.
+
+**Both copies are kept; the third edge is what was missing.**
+`KIND_COUNT` is what makes an amendment cost an edit to the gate, so
+deriving the number from the anchor and deleting the constant would
+close the divergence by giving up the reason it exists.
+`anchor_states_count` checks the anchor's first word against
+`KIND_COUNT` before the README is opened, and the two anchor
+diagnoses now say the number word moves with `KIND_COUNT`. The
+count-mismatch red now names WHICH SIDE each number came from — it
+asserted *"$README's section ratifies $KIND_COUNT kinds"* using the
+GATE's number, telling an author the README ratifies four when the
+README ratified three, whose plausible wrong repair is to add a fourth
+bullet. The self-contradicting OK line is unreachable rather than
+diagnosed: a green line nobody reads is not a guard.
+
+**The kind reader read a bullet at column 0 only, and CommonMark does
+not.** A list marker sits at up to three spaces of indent and may
+interrupt a paragraph, so `  - **A fourth kind** …` on the line after
+the announcing sentence renders to every human reader as the first item
+of the announced list — and state 1 swallowed it as the sentence's own
+wrap, state 2 as a continuation. Three kinds read, `OK`, exit 0: **the
+wrong-and-quiet shape this gate exists to prevent, in the gate.** Fixed
+as a class at all three sites that assumed column 0 (state 1's escape,
+state 2's bullet, the `sed` that extracts the name), with the other
+side of the boundary encoded exactly rather than approximated: at four
+spaces the marker is a lazy continuation of the paragraph, a nested
+item of the bullet above, or an indented code block, and a leading tab
+advances to column four. Every rendering was checked against
+`markdown-it-py` in CommonMark mode.
+
+**Five fixtures and four direct rows, each run against the shape it
+covers.** A case that passes before and after proves nothing, so each
+was run against the unfixed spelling: reverting state 1's escape, state
+2's bullet or the `sed` each makes a planted indented kind pass;
+dropping the "the anchor must OPEN a paragraph" rule makes a QUOTATION
+of the sentence red as a second announcement; widening the boundary to
+`[[:space:]]*` reds on all three four-space near misses. The constant
+pair is not expressible as a fixture — a fixture plants a tree and the
+pair lives in the script, and a test hook that let one vary it would be
+a way to set the count from outside — so it is four direct calls on the
+predicate the guard is one `case` over.
+
+**The README's universal owed its exception.** *"The prose in this
+section may carry bulleted lists like any other prose"* is false for
+one position: a list separated from the ratified list by nothing but
+blank lines is ONE loose list in CommonMark, so its items are read as
+ratified kinds and red. The sentence now carries the exception and the
+rule that produces it. **A universal in prose owes the sweep rule that
+produces its population** — the same obligation §5 puts on a scope
+sentence in a PR.
+
+## 2026-09-08, orchestrator: #2172 merged, and a gate that failed its own thesis
+
+**#2172 is on main** (`2679a9451`), twenty-fourth unit, 37 jobs green.
+It closes `vocab-gate-counts-bullets-across-a-whole-prose-section`:
+the #2106 gate read every `- **` between its section heading and the
+next heading of any level — 149 lines of prose — so the constraint it
+actually imposed was *never write a bulleted list in this section*, and
+its error told the author they had added a **ratified kind** they had
+not. #2143's author had already paid for it, writing a whole README
+rewrite with no bulleted list to keep the gate green.
+
+**The review found the gate failing its own thesis.** A bullet indented
+two or three spaces renders — to CommonMark and therefore to every
+reader of the page — as an item of the announced list. The new reader
+escaped its paragraph state on `/^- /`, column zero only, and swallowed
+anything indented as a continuation. So a fourth ratified kind, visible
+to every human, read as three and printed `OK`, exit 0: **the exact
+defect this gate exists to prevent, inside the gate written to prevent
+it.** A `^`-anchored pattern over markdown is a claim about column zero
+that markdown does not make.
+
+**And the hold the change was argued on was not a hold.** The unit put
+the count word inside `KIND_ANCHOR` on the ground that the section
+could otherwise say "Four kinds…" over three bullets unread. The
+reviewer did not argue with that; it took the resulting red's OWN
+second suggested repair — change `KIND_ANCHOR` to match — and got
+**green, exit 0**, with the `OK` line printing `3 kinds read from
+"Four kinds of list stay hand-written"`. The count word bought one
+extra edit, and the error message named that edit. **A guard whose
+diagnosis offers a way around it is a speed bump, and the only way to
+learn that is to follow the repair the tool prints.**
+
+Both are closed, and both were verified here rather than taken on
+report: the indented bullet now exits 1 listing `"A fourth kind"` among
+the bullets read, and the `Four kinds…` state is now unreachable rather
+than merely diagnosed — a green line that contradicts itself is read by
+nobody, so it gets a guard, not a message.
+
+**The fix pass went past its brief three ways.** It settled the indent
+boundary with a CommonMark parser per position rather than reasoning
+about it (two and three spaces are items; four after the anchor line is
+a lazy continuation; four after a blank is an indented code block) and
+checked the regex under both gawk and mawk. It found a paired case
+nobody had named — the anchor now matches only where it OPENS a
+paragraph, which is the renderer's own lazy-continuation rule. And it
+caught a defect of its own: the new guard was first a bare call under
+`set -e` and killed the gate before its own `gate_error` could print.
+**A guard that dies before its own diagnosis is worse than no guard.**
+
+**The orchestrator's filed figures were wrong, and the diagnosis is
+better than "wrong".** The item said `crates/viewer/README.md:907-1037`,
+131 lines; the region was 114 lines at the tree it was written against
+and 149 at the branch's base. The reviewer found where 131 came from:
+`447124324`, one commit earlier, where `907-1037` inclusive *is* 131.
+**The figures were a blend of two trees.** The orchestrator's numbers
+get re-derived like anyone's.
+
+**Residue, filed rather than absorbed**:
+`gate-section-scans-end-on-any-column-zero-hash` (both README scans end
+at any column-0 `#`, so a Rust attribute inside a fence truncates the
+section and the anchor then reports a sentence that is visibly present
+as gone) and
+`gate-reader-guards-count-six-where-the-stated-rule-yields-nine` (the
+header's number counts guards where its own rule counts stages, leaving
+three diagnoses able to name the wrong reader — the
+misdiagnosis-by-`pipefail` that same file argues against elsewhere).
