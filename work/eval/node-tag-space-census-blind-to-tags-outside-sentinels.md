@@ -2,10 +2,12 @@
 id: node-tag-space-census-blind-to-tags-outside-sentinels
 kind: issue
 title: The content-key tag-space injectivity census reads only between the NODE-TAG-SPACE sentinels, so tags 41–45 written outside them are invisible to it — and node tag 5 already coexists with payload tag 5
-status: spec
+status: closed
 opened: 2026-09-05
 refs: [1910, 1593]
 branch: eval/2-tag-vocabularies
+pr: 2153
+closed: 2026-09-08
 ---
 
 
@@ -37,3 +39,40 @@ serves a wrong memo entry.
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/eval/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). The content-key machinery in `eval/mod.rs` is EVAL's; an E unit.
+
+## Closed
+
+EVAL-2 (`docs/EVAL-2-SPEC.md`). The content key's tags are declared
+by VOCABULARY — the set of alternatives read at one grammar position —
+and every vocabulary is censused over its whole row set, so "a tag
+written outside the sentinels" is a different vocabulary rather than a
+gap. What landed in `crates/editor-core/src/eval/mod.rs`:
+
+- `mod tag`: the structural words as named consts in ten groups
+  (`format`, `naming`, `presence`, `program`, `step`, `target`,
+  `winding`, `side`, `blend`, `measure_expr`), each with an `ALL` and
+  a one-sentence doc naming its grammar position; the rule stated once
+  at the module (within a vocabulary a number never changes meaning and
+  a retired one is never reused; across vocabularies numbers are
+  unrelated); `structural_tag_groups_are_injective` over
+  `tag::GROUPS`, with the target vocabulary's retired `43` held dead.
+- `seg_content_tag(SegTag) -> u8` censused by
+  `seg_content_tags_are_injective` over the new `SegTag::ALL`
+  (`names/select.rs`, projected from the enum's own declaration by a
+  macro); `feed_role_seg` writes the word through `SegTag::of` and
+  feeds payloads only; the `SEG-TAG-SPACE` source census is gone.
+- `arc_mode_tag(ArcMode) -> u8` over `ArcMode::ALL`
+  (`arc_mode_tags_are_injective`) — `D365`, claimed and closed with
+  this item; `ArcSide`/`ArcSweep` are two-member groups in `mod tag`
+  because their enums are `crates/profile`'s and carry no `ALL`.
+- The node-kind match keeps its source-text census, renamed
+  `NODE-KIND-VOCABULARY`, its doc saying it covers that match alone.
+- Every "one space / next free / high-water mark" sentence names its
+  vocabulary; no number moved (key dump at merge base and head: 1053
+  rows, zero-line diff; the PR body carries it).
+
+Residue disclosed and filed on this slate:
+`profile-program-stream-is-not-length-prefixed` — the profile payload's
+loop and step lists carry no counts, so one grammar position reads two
+vocabularies (`tag::program::LANE` and the `Cusp` verb are both 41);
+unreachable as a collision today, a format bump to fix, not this unit's.
