@@ -954,3 +954,41 @@ with a path per call. A finding a reviewer cannot reproduce is still
 worth filing — this one was live, and dropping it for want of a
 reproduction would have shipped an intermittent pin, which reds for a
 reason that is not the reason it exists.
+
+## Unit 8 CLOSED and merged; and a nastier variant of the day's pattern (2026-09-08)
+
+Merged at `9ad3b0bc7` (PR 2177), head `4ea426d08`, 37 checks green,
+after three rounds: the MAJOR, a style pass, and three prose fixes.
+`C15` stays OPEN with its residue now guarded by execution rather than
+argument, and `D206`'s neighbour `baseline_census.rs` carries six tests
+where it carried three.
+
+**The lane's diagnosis of its own N1 is better than the one I gave it,
+and it names a variant worth separating from the rest.** I filed the
+"harder permutation" claim as another instance of the day's
+uniqueness-claim pattern. It is not, quite. The lane's
+`extrapolated_triangles` measurement was REAL and survives — the
+permutation does move it in the last bit on 2 of 7 pairs. What was
+invented was the ATTRIBUTION: that only one of the two spellings
+produced that movement. In the lane's words, **"the measurement was
+sound and the attribution was invented, which is a nastier variant
+than an unmeasured claim: it arrives wearing evidence."**
+
+That is the shape to watch for, because an unmeasured claim can be
+caught by asking "did you measure this?" and this one cannot. It
+answers yes. The question that catches it is *"what did you measure,
+exactly, and what else would have produced the same number?"* — here,
+one `grep` for `FaceIndex` shows `totals` folds by ordinal through a
+`BTreeMap`, so relabelling and re-texting produce the identical addend
+sequence and there was never a weaker spelling to be stronger than.
+
+It also travelled furthest of any error today: the doc comment, the
+lane's report, the PR body, my message to the reviewer, and my summary
+to Ev. Only the reviewer stopped it, by implementing both versions and
+comparing them. **Evidence-shaped claims propagate faster than bare
+ones, because each reader takes the evidence as having been checked by
+the last.**
+
+`D103` (5 sites) and `D107` (1 site) — dead `work/code-quality/*.md`
+pointers the lane found outside METER's fence and correctly reported
+rather than filed — are the orchestrator's to route.
