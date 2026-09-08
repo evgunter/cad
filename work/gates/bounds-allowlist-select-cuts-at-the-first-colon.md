@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-06
 refs: [whole-file-skips-are-hand-spelled-not-anchored]
 branch: gates/bounds-select-anchor
+pr: 2157
 ---
 
 ## Finding
