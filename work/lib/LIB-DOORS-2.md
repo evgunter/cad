@@ -2,11 +2,12 @@
 id: LIB-DOORS-2
 kind: unit
 title: the persist, frame and stl doors project every arm's payload as attributes
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/doors-2
 refs: [pncad-py-seven-doors-lack-field-projection]
 pr: 2228
+closed: 2026-09-08
 ---
 
 
