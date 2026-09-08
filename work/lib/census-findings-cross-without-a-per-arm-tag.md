@@ -2,8 +2,10 @@
 id: census-findings-cross-without-a-per-arm-tag
 kind: issue
 title: a tier-3' census finding crosses to Python as prose with no per-arm tag
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-08
+refs: [LIB-FINDINGS, two-validation-payload-discriminants-still-uncrossed]
 ---
 
 
@@ -105,3 +107,52 @@ value class with `variant` and the arm's payload (`CensusSubject` as
 `subject_kind` plus the entity kind or the pair). The single exception
 to "`variant` is a scalar", stated as such at the door. `CensusContact`
 and `CensusSubject` leave `INTERIOR` together. One mechanical unit.
+
+## Closed (2026-09-08, LIB-FINDINGS)
+
+Shipped as (A). `ValidationError` keeps `door` and `failure_count` and
+gains `findings`, a list of frozen `ValidationFinding`s — one per
+failure, `len(findings) == failure_count`, in the kernel's own
+deterministic report order. Each carries `variant` (the arm, from an
+exhaustive map over all seventy-one) plus the arm's payload:
+`contact_kind` for `UndeclaredContact`'s `CensusContact`, and
+`subject_kind` with `entity_kind` for the two census-unsupported arms'
+`CensusSubject`. The joined message did not change, the door still
+raises once, and no shipped `door` value moved.
+
+**The two decisions the file asked for.**
+
+1. *Whether a joined refusal can carry per-arm tags at all* — yes, as
+   a sequence attribute, and stated AS the single exception to
+   "`variant` is a scalar" at the three places a reader meets it
+   (`ValidationFinding`'s docstring, `pncad.pyi`, the README's
+   taxonomy paragraph). The alternative the file named — one raise per
+   finding — was not taken: it changes `failure_count` semantics and
+   reports one of N failures where the join reports all.
+2. *Whether `CensusContact` leaves `INTERIOR`* — yes, with
+   `CensusSubject`, both to `BOUND_AS` at `ValidationFinding`'s
+   attributes, with the measurement written at the block. The
+   `INTERIOR` rows named their own falsifier ("a validate projection
+   with per-arm tags — and both would move together"), and that is
+   what fired.
+
+The measurement this file opened with: a caller wanting to branch on
+"vertex-on-face" versus "edge-edge crossing" had to parse the message.
+`crates/pncad-py/tests/test_validate.py`'s
+`TestTheRefusalsShape` is the executed form — one refusal off two
+resting slabs answers `{"vertex_on_face", "edge_face_overlap"}` off
+`findings`, and a cylinder on a slab answers two distinct `variant`s
+off ONE raise.
+
+The pin this file said would have to turn around,
+`test_no_per_arm_tag_crosses_and_the_census_says_so`, was rewritten
+rather than deleted: it is
+`test_the_per_arm_words_cross_and_the_census_says_so`, and it still
+asserts the two SCALAR words absent — one raise carries N findings, so
+neither `kind` nor `variant` could name one of them — before asserting
+where the arms live.
+
+Residue, with its own file:
+`two-validation-payload-discriminants-still-uncrossed` — the two
+`ValidationError` payload discriminants (`StaleDeclaration`,
+`RingContact`) the ruling did not name, still crossing as prose.

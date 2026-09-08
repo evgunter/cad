@@ -82,7 +82,10 @@ use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
-use pncad::topo::{BooleanError, ShellError, TransformError};
+use pncad::topo::{
+    BooleanError, CensusContact, CensusSubject, EntityId, ShellError, TransformError,
+    ValidationError,
+};
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
 use pncad::stl::{BinaryHeaderError, SolidNameError, StlError};
@@ -1893,5 +1896,157 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::StaleExpectation { .. } => "stale_expectation",
         CheckEvidence::NotSeparated { .. } => "not_separated",
         CheckEvidence::SeparationUnavailable { .. } => "separation_unavailable",
+    }
+}
+
+/// The stable tag for ONE validator finding — which
+/// `ValidationError` arm the body failed on.
+///
+/// **The one map on this list whose word crosses in a SEQUENCE.** Every
+/// other tag here answers a refusal that reports one fault, so its word
+/// is a scalar attribute. A validator reports every fault it found in
+/// one raise, so this word rides `ValidationFinding.variant`, one entry
+/// per finding, and `ValidationError.failure_count` is that list's
+/// length. The exception is argued by the door's shape and nowhere
+/// else: it is the one door that reports MANY refusals at once.
+///
+/// Exhaustive over the kernel enum with no wildcard, like every map
+/// here. `ValidationError` is closed and its own docs put the
+/// obligation on the sites that CLASSIFY: a match mapping it onto a
+/// smaller vocabulary must say what it does with each new failure
+/// kind, because a wildcard answers for the new kind silently. This is
+/// such a site, and the tag it mints is that answer.
+pub fn validation_error_tag(err: &ValidationError) -> &'static str {
+    match err {
+        ValidationError::Band { .. } => "band",
+        ValidationError::DanglingDescription { .. } => "dangling_description",
+        ValidationError::UncertifiableSurface { .. } => "uncertifiable_surface",
+        ValidationError::PoisonedSurfaceDescription { .. } => "poisoned_surface_description",
+        ValidationError::ApproxCertification { .. } => "approx_certification",
+        ValidationError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
+        ValidationError::DegenerateTorus { .. } => "degenerate_torus",
+        ValidationError::DegenerateTorusEscalated { .. } => "degenerate_torus_escalated",
+        ValidationError::NonpositiveTorusTube { .. } => "nonpositive_torus_tube",
+        ValidationError::EdgeCertification { .. } => "edge_certification",
+        ValidationError::DescriptionNotAdjacent { .. } => "description_not_adjacent",
+        ValidationError::PlanarFaceResidual { .. } => "planar_face_residual",
+        ValidationError::PlanarFaceEscalated { .. } => "planar_face_escalated",
+        ValidationError::PlanarBoundaryResidual { .. } => "planar_boundary_residual",
+        ValidationError::PlanarBoundaryEscalated { .. } => "planar_boundary_escalated",
+        ValidationError::SliverDihedral { .. } => "sliver_dihedral",
+        ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
+        ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
+        ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
+        ValidationError::UndeclaredCusp { .. } => "undeclared_cusp",
+        ValidationError::LaminaWedge { .. } => "lamina_wedge",
+        ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
+        ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
+        ValidationError::NegativeVolume => "negative_volume",
+        ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",
+        ValidationError::Pcurve { .. } => "pcurve",
+        ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",
+        ValidationError::RingContactEscalated { .. } => "ring_contact_escalated",
+        ValidationError::UndeclaredContact { .. } => "undeclared_contact",
+        ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
+        ValidationError::ContactContradicted { .. } => "contact_contradicted",
+        ValidationError::CensusEscalated { .. } => "census_escalated",
+        ValidationError::CensusUnsupported { .. } => "census_unsupported",
+        ValidationError::CensusLaneUnsupported { .. } => "census_lane_unsupported",
+        ValidationError::CensusUndecidable { .. } => "census_undecidable",
+        ValidationError::DanglingTopology { .. } => "dangling_topology",
+        ValidationError::DanglingGeometry { .. } => "dangling_geometry",
+        ValidationError::NextPrevMismatch { .. } => "next_prev_mismatch",
+        ValidationError::LoopCycleOverrun { .. } => "loop_cycle_overrun",
+        ValidationError::ParentLoopMismatch { .. } => "parent_loop_mismatch",
+        ValidationError::UnreachableHalfEdge { .. } => "unreachable_half_edge",
+        ValidationError::EdgeHalvesIdentical { .. } => "edge_halves_identical",
+        ValidationError::EdgeSlotBackpointerMismatch { .. } => "edge_slot_backpointer_mismatch",
+        ValidationError::HalfEdgeUnclaimed { .. } => "half_edge_unclaimed",
+        ValidationError::HalfEdgeMultiplyClaimed { .. } => "half_edge_multiply_claimed",
+        ValidationError::EdgeNotAntiparallel { .. } => "edge_not_antiparallel",
+        ValidationError::EmanatingStartMismatch { .. } => "emanating_start_mismatch",
+        ValidationError::EmptyLoopVertexWithEmanating { .. } => "empty_loop_vertex_with_emanating",
+        ValidationError::LoneVertexWithIncidence { .. } => "lone_vertex_with_incidence",
+        ValidationError::VertexOrbitOverrun { .. } => "vertex_orbit_overrun",
+        ValidationError::OrbitForeignMember { .. } => "orbit_foreign_member",
+        ValidationError::SplitVertexOrbit { .. } => "split_vertex_orbit",
+        ValidationError::OuterListedAsRing { .. } => "outer_listed_as_ring",
+        ValidationError::BackPointerMismatch { .. } => "back_pointer_mismatch",
+        ValidationError::OrphanEntity { .. } => "orphan_entity",
+        ValidationError::MultiplyOwned { .. } => "multiply_owned",
+        ValidationError::OrphanGeometry { .. } => "orphan_geometry",
+        ValidationError::SolidWithoutShells { .. } => "solid_without_shells",
+        ValidationError::ShellWithoutFaces { .. } => "shell_without_faces",
+        ValidationError::EdgeAcrossShells { .. } => "edge_across_shells",
+        ValidationError::ComponentEulerViolation { .. } => "component_euler_violation",
+        ValidationError::MissingProvenance { .. } => "missing_provenance",
+        ValidationError::LeakedProvenance { .. } => "leaked_provenance",
+        ValidationError::ScaffoldingEmptyLoop { .. } => "scaffolding_empty_loop",
+        ValidationError::ScaffoldingStrutVertex { .. } => "scaffolding_strut_vertex",
+        ValidationError::ShellDisconnected { .. } => "shell_disconnected",
+        ValidationError::NullScaffoldShared { .. } => "null_scaffold_shared",
+        ValidationError::LeakedNullFaceRecord { .. } => "leaked_null_face_record",
+        ValidationError::StaleNullFaceLoop { .. } => "stale_null_face_loop",
+        ValidationError::NullEdgeAtRest { .. } => "null_edge_at_rest",
+        ValidationError::NullFaceAtRest { .. } => "null_face_at_rest",
+    }
+}
+
+/// The stable tag for WHAT a census refusal is about — one entity, or
+/// the candidate face pair.
+///
+/// Two arms and two different recourses, which is why the word is
+/// worth a caller's branch: an `entity` subject is one carrier outside
+/// the certifiable inventory, and the repair is that carrier's —
+/// simplify it, or certify it through a supported lane. A `face_pair`
+/// is a candidate CONTACT, and the repair is the declaration protocol
+/// — declare the coincidence, or separate the two faces. The pair is
+/// unordered as a subject, so a caller resolving a refusal against its
+/// own records matches the pair either way round.
+pub fn census_subject_tag(subject: &CensusSubject) -> &'static str {
+    match subject {
+        CensusSubject::Entity(_) => "entity",
+        CensusSubject::FacePair(_, _) => "face_pair",
+    }
+}
+
+/// The stable tag for an entity's KIND — the discriminant of the
+/// arena reference a census subject names.
+///
+/// The KEY does not cross and this word is what stands in its place:
+/// Python holds an opaque `Body` handle and no arena key, so the kind
+/// is the whole of what a caller can read about the site. The key
+/// itself is in the kernel's own `Display` prose on the joined
+/// message, which is where it already was.
+pub fn entity_id_tag(entity: &EntityId) -> &'static str {
+    match entity {
+        EntityId::Solid(_) => "solid",
+        EntityId::Shell(_) => "shell",
+        EntityId::Face(_) => "face",
+        EntityId::Loop(_) => "loop",
+        EntityId::HalfEdge(_) => "half_edge",
+        EntityId::Edge(_) => "edge",
+        EntityId::Vertex(_) => "vertex",
+    }
+}
+
+/// The stable tag for WHICH coincidence the tier-3′ census found.
+///
+/// The arms are not one fact and the word is the difference between
+/// two opposite recourses: an `edge_face_pierce` is interpenetration
+/// and categorically undeclarable, while an `edge_edge_overlap` is
+/// certifiable through the bounding-record reconstruction today. A
+/// caller that cannot tell them apart cannot tell "declare this" from
+/// "you cannot declare this".
+pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
+    match contact {
+        CensusContact::VertexVertex { .. } => "vertex_vertex",
+        CensusContact::VertexOnFace { .. } => "vertex_on_face",
+        CensusContact::VertexOnEdge { .. } => "vertex_on_edge",
+        CensusContact::EdgeFacePierce { .. } => "edge_face_pierce",
+        CensusContact::EdgeEdgeCross { .. } => "edge_edge_cross",
+        CensusContact::EdgeEdgeOverlap { .. } => "edge_edge_overlap",
+        CensusContact::EdgeFaceOverlap { .. } => "edge_face_overlap",
+        CensusContact::ConformalPatch { .. } => "conformal_patch",
     }
 }

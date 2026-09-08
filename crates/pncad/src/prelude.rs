@@ -418,10 +418,16 @@ pub use topo::{
 // DISCRIMINANT, and every discriminant these refusals name is
 // spellable from this list.
 //
-// As with the blend vocabulary above, no Python tag moves: the
-// validate doors cross their failures as joined `Display` prose with
-// a `door` and a `failure_count` and no per-arm tag at all, so there
-// is nothing here to split or pin.
+// Two of the four now cross to Python as well, and this list is what
+// made that spellable. `ValidationError.findings` carries one word per
+// failure — the arm, plus `CensusContact` as `contact_kind` and
+// `CensusSubject` as `subject_kind` with the entity's kind beside it —
+// so the asymmetry these entries were written under, a Rust caller
+// matching the arm while a Python caller read the sentence, is closed
+// for the two payloads a caller acts on. `StaleDeclaration` and
+// `RingContact` are still Rust-side only. The sequence is the one on
+// this surface: `validate*` is the one door that reports many refusals
+// at once, and `failure_count` says so.
 pub use topo::{
     CensusContact, CensusSubject, RingContact, StaleDeclaration, ValidationError, validate,
     validate_closed, validate_geometric, validate_pseudomanifold,
