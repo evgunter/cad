@@ -504,3 +504,22 @@ The accounting goldens did not move (masses, not hashes). Reported
 for DOCM: `PartCache::get`'s shield doc still lists the profile
 pre-passes among what it catches. Correctness and style reviews
 dispatched on the frozen head.
+
+## EVAL-7 reviews adjudicated; fix pass to the implementer (2026-09-08)
+
+Correctness: MERGEABLE-WITH-FIXES — every claim reproduced (780 rows
+at f64 and Interval, 130 moved and all Profile; the re-blessed keys
+reproduced byte-equal from `VerdictVector::of`); the MAJOR is a
+PRE-EXISTING memo hole the hit-site argument leaned on: at the
+interval scalar the content key hashes a slot's interval bits while
+the pre-pass and the pinned op read its nominal f64, so one box with
+two nominals hits the other's memo (reproduced on the base). Fix pass:
+the comment says what is true, and the hole is filed on EVAL's slate
+and scheduled as unit 9. Style: the hit-path guard was debug-only
+with no row able to see it removed — it becomes a full assert with a
+should-panic row; the doubled validation under the pinned lift is
+decided for this PR as an honest statement (the Pinned arm says why it
+re-validates; `vdiff`'s doc says the populations are doubled) with
+the fix scheduled as unit 8; the pre-op row's misdescribed mechanism
+corrected and the real frame-open-no-decision row adopted; the m4
+golden rule's "once" corrected. Plan updated with units 8 and 9.
