@@ -485,3 +485,30 @@ door and rows in `readback.rs`, `topo`'s own sites converted,
 demo sources (in no program's `paths`) in the same PR under the
 demo-purpose rule. Difficulty pre-logged M, task class STRUCTURAL —
 again written knowing the slot's arm; disclosed.
+
+## Census door delivered; dual out at ordinal 2702 (2026-09-08)
+
+`topo/census-door` delivered as PR 2131, head `11257506c`, full
+matrix green (run 34174452199). The door is the ratified (A) shape:
+`readback::euler_counts` returning five `i64` counts with `s` =
+shells, `EulerCounts::genus` refusing typed on odd parity before the
+halving, `EulerParityError` its own type (every `ReadbackError` arm
+is about one entity from a door that takes its key; this one is about
+the whole store from a value already read). Rows: the cube, the holed
+box, a two-shell body re-homed into one solid by raw write (pins `s`
+= shells), the red-first torn store. The class receipt widened the
+ruling's sweep from 26 sites to 42 converted plus one listed with its
+owner (`review_m1_pr4`'s per-component `ShellComponent::genus`, shape
+(C)'s consumer when one arrives); the ring-less spellings were the
+sites the ruling's pattern could not see. Deviations disclosed: test
+helpers in `sweep/tests` and `tour/tests` keep their names as one-line
+delegates rather than rewriting seventy call sites; two test rows
+changed type to the door's `i64`; three ring-less sites and
+`assembly.rs`'s structural census converted. The demos call the door
+directly and print the same narration. S79's disposition is the
+orchestrator's: the door retires its #758 third only, #757 and #759
+stay open elsewhere. Dual dispatched on the frozen head: ordinal 2702,
+parity byte 70 ⇒ R1 OPUS, R2 FABLE; briefs stored with sha256
+privately. The claim entry on main wrote the difficulty as S/M where
+the dispatch entry above pre-logged M; the pre-logged value is the
+record and the row will carry M with this line as its disclosure.
