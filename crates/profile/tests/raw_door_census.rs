@@ -22,16 +22,52 @@
 //! manifests: no non-dev edge in the repository turns `test-support`
 //! on.
 //!
-//! **What none of them is: a compiler's answer.** The enforcement is a
-//! compile error in a build that has no dev-dependency edge, and these
-//! rows read source and manifests rather than running that build. The
-//! counterfactual was MEASURED once, by hand, and the measurement is in
-//! the unit's PR with both arms verbatim; it is not a row here because
-//! the suite runs from a `cargo nextest` archive on a machine with no
-//! toolchain and no registry, where a nested `cargo check` cannot run —
-//! a row that answers "cargo was not available" is not the row it
-//! claims to be. The honest permanent home for it is a gate with a
-//! toolchain, which is a CI-surface change and not this unit's.
+//! **What is and is not compiler-checked, precisely.**
+//!
+//! The IN-REPO half is compiler-guarded, and the unit's PR under-claimed
+//! this until R1 found the job: CI's `rustfmt + rustdoc (gate) + wasm32`
+//! row runs
+//!
+//! ```text
+//! cargo check --workspace --exclude pncad --exclude pncad-py \
+//!   --exclude viewer --features interval --target wasm32-unknown-unknown
+//! ```
+//!
+//! — a NON-dev compile of the kernel plus `editor-core` on every code
+//! run. `--target` builds no test targets, so nothing turns
+//! `test-support` on there: a production writer inside this repository
+//! is a compile error in that job, not merely a red row here. What the
+//! rows below add over it is the reason a red is understandable and the
+//! coverage of `demos/` and `tools/`, which that job excludes.
+//!
+//! The OUT-OF-REPO half — a downstream crate's `cargo build`, where the
+//! reach is what has to be absent — has no compiling instrument in this
+//! repository. The counterfactual was measured by hand (both arms are in
+//! the unit's PR); a permanent home for it needs a toolchain on a gate
+//! job, which is filed as
+//! `work/bool/raw-door-compile-proof-needs-a-gate.md` and is the
+//! schedule for it. The suite cannot host it: these rows run from a
+//! `cargo nextest` archive on a machine with no toolchain and no
+//! registry, and a row that reports "cargo was not available" is not the
+//! row it claims to be.
+//!
+//! # What this census cannot see
+//!
+//! [`is_writer`] reads TEXT, and three routes to the door leave no text
+//! it can match:
+//!
+//! - **A type alias.** `type Tbl = ProfileLoop<f64>;` and then
+//!   `Tbl::new(..)` names neither `ProfileLoop` nor `RawLoop` on the
+//!   calling line. Following aliases is name resolution, which is the
+//!   compiler's job — see the wasm32 row above, which does it.
+//! - **A generic bound.** `fn f<L: RawLoop<f64>>() { L::new(..) }`
+//!   likewise.
+//! - **A macro.** A writer assembled inside a `macro_rules!` body from
+//!   fragments is invisible until expansion.
+//!
+//! Each of those is caught by the wasm32 compile for in-repo code, which
+//! is why these are stated rather than chased: a text census that tries
+//! to become a resolver ends up a worse one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -59,12 +95,52 @@ fn attributes_above(lines: &[&str], i: usize) -> String {
     out
 }
 
+/// Removes every balanced `not(...)` group from an attribute run.
+///
+/// `#[cfg(not(any(test, feature = "test-support")))]` is the SHUT arm —
+/// the code a shipped build DOES compile — and a matcher that only asks
+/// whether the text contains "test" reads it as a test region and skips
+/// exactly the lines it exists to find. R2 found this: the review's
+/// mutation put a writer under `#[cfg(not(test))]` and the census went
+/// quiet.
+fn without_negations(attrs: &str) -> String {
+    let b = attrs.as_bytes();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < b.len() {
+        if attrs[i..].starts_with("not(") {
+            let mut depth = 0usize;
+            let mut j = i + 3;
+            while j < b.len() {
+                match b[j] {
+                    b'(' => depth += 1,
+                    b')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            i = (j + 1).min(b.len());
+            continue;
+        }
+        out.push(b[i] as char);
+        i += 1;
+    }
+    out
+}
+
 /// Does this attribute run gate on a test cfg? `#[cfg(test)]` and
 /// `#[cfg(any(test, feature = "test-support"))]` both count; the
 /// question this census asks is only whether a shipped build compiles
-/// what follows.
+/// what follows — so a cfg that NEGATES the test cfgs counts for
+/// nothing, which is what [`without_negations`] is for.
 fn gates_on_test(attrs: &str) -> bool {
-    attrs.contains("cfg(") && attrs.contains("test")
+    let positive = without_negations(attrs);
+    positive.contains("cfg(") && positive.contains("test")
 }
 
 /// Where a file's in-file test region begins — the first `mod` BLOCK
@@ -146,17 +222,78 @@ fn has_rust(dir: &Path) -> bool {
     })
 }
 
+/// Deletes every balanced generic argument list, so one needle answers
+/// for every way the same call can be spelled.
+///
+/// `<ProfileLoop<f64> as RawLoop<f64>>::new(` becomes
+/// `<ProfileLoop as RawLoop>::new(` and `ProfileLoop::<f64>::new(`
+/// becomes `ProfileLoop::new(`. The turbofish's `::` is eaten with the
+/// list, which is what folds the second form onto the first.
+fn without_generics(squashed: &str) -> String {
+    let b = squashed.as_bytes();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < b.len() {
+        // Only an angle bracket that OPENS a generic list: preceded by
+        // an identifier character or by a turbofish `::`. `a<b`, `->`
+        // and `<<` are left alone.
+        let opens = b[i] == b'<'
+            && i > 0
+            && (b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_' || b[i - 1] == b':');
+        if opens {
+            let mut depth = 0usize;
+            let mut j = i;
+            while j < b.len() {
+                match b[j] {
+                    b'<' => depth += 1,
+                    b'>' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            if j < b.len() {
+                // Eat a turbofish's `::` along with its list.
+                if out.ends_with("::") {
+                    out.truncate(out.len() - 2);
+                }
+                i = j + 1;
+                continue;
+            }
+        }
+        out.push(b[i] as char);
+        i += 1;
+    }
+    out
+}
+
+/// Is this line a hand-written vertex table?
+///
+/// The needles are PATHS, not calls: `.map(ProfileLoop::new)` passes
+/// the constructor without ever writing a `(` after it, and the first
+/// draft of this matcher required one.
 fn is_writer(line: &str) -> bool {
     let squashed: String = line.chars().filter(|c| !c.is_whitespace()).collect();
+    let normal = without_generics(&squashed);
     [
-        "RawLoop::new(",
-        "RawLoop::polygon(",
-        "ProfileLoop::new(",
-        "ProfileLoop::polygon(",
-        ".with_tangent_joints(",
+        // The plain and turbofish spellings.
+        "ProfileLoop::new",
+        "ProfileLoop::polygon",
+        // The trait named directly.
+        "RawLoop::new",
+        "RawLoop::polygon",
+        // Fully qualified: `<ProfileLoop as RawLoop>::new`.
+        "RawLoop>::new",
+        "RawLoop>::polygon",
+        // The declaration verb, on any receiver.
+        ".with_tangent_joints",
     ]
     .iter()
-    .any(|m| squashed.contains(m))
+    .any(|m| normal.contains(m))
 }
 
 /// Every `src/` file in the repository, outside this crate.
