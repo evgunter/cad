@@ -4358,6 +4358,6 @@ fable}. `/dev/urandom` byte **168** (< 252, no rejection), 168 mod 4 =
 **0** ⇒ FABLE at slot 1, OPUS at slots 2–4.
 
 - slot 1 — **LIB-G17** (Node::Shell) — FABLE — dispatched 2026-09-06
-- slot 2 — unclaimed — OPUS
+- slot 2 — **LIB-TEAPOT** (the tour's teapot through the document) — OPUS — dispatched 2026-09-08
 - slot 3 — unclaimed — OPUS
 - slot 4 — unclaimed — OPUS
