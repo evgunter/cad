@@ -130,3 +130,22 @@ Ev: "go ahead! and use whatever branches you want." Dispatched:
 - Seams owed at dispatch, not yet written: unit 6 → S-TCOST (the boss
   fixture homed in `test_support`, two probe copies deleted); unit 8 →
   PROPS (`dihedral.rs`).
+
+**Unit 2 reviewed (2026-09-08): MERGEABLE**, single style review on
+frozen `2d0057e8` of PR [#2122](https://github.com/evgunter/cad/pull/2122).
+Both sentences measured true for both signs of `w·n` through both
+doors on a tilted frame (the reviewer's two probe rows, adopted as
+ordinary tests — no existing row pinned the −n half by name);
+`Lofted.top` confirmed end-relative, so the item's second half was
+stale and `loft.rs` untouched. Adjudicated TAKE: one home for the
+winding rule (the crate docs own it; the field doc defers), the
+height words that crept back, the "raised" class across `extrude.rs`
+and `loft.rs`'s two sites (the announced twin-sentence seam), the
+stale MATE-3 citation on `Extruded.body` (present tense; the residue
+filed), the crate header's inventory. Filed by the fix pass as BLEND
+issues: the cap-rim K argument and `K*` spelled in five homes incl. a
+user-facing literal. DECLINED: the rename (taste; the count stands).
+**Orchestrator error, recorded:** the lane's worktree was reclaimed
+when its report arrived, before the fix pass — a resumed agent cannot
+run without it, so the fix pass went to a fresh lane. Rule from here:
+a lane's worktree is reclaimed at MERGE, not at report.
