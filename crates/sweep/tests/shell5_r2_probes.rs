@@ -409,6 +409,18 @@ fn r2_e2e_hollow_twice_then_open_the_inner_wall() {
     );
 
     // What can a consumer do with it?
+    // The record's `thickened` row for the void names a shell key the
+    // rim surgery has since KILLED (the void fuses into its twin). The
+    // field's docs do not say so, where `inner`'s do.
+    let dead_named: Vec<_> = opened
+        .naming
+        .thickened
+        .iter()
+        .filter(|(_, s)| opened.naming.dead.shells.contains(s))
+        .collect();
+    println!("thickened rows naming a DEAD shell: {dead_named:?}");
+    assert_eq!(dead_named.len(), 1, "the void row names a dead shell");
+
     let meshed = mesh::tessellate(out, 0.05, tol);
     println!(
         "mesh: {:?}",
@@ -665,4 +677,53 @@ fn r2_bitdump_single_shell_shell_corpus() {
     row("vessel_thin", &can(0.4, 0.0, 3.0), 0.05, &[]);
     std::fs::create_dir_all(&dir).expect("the dump dir");
     std::fs::write(format!("{dir}/shell5_r2_single_shell.txt"), &text).expect("write");
+}
+
+// ---------------------------------------------------------------------
+// Claim 8: a precondition the new door does NOT check
+// ---------------------------------------------------------------------
+
+/// **`move_shells_to_new_solid` will mint a solid with NO outer
+/// boundary**, and nothing downstream objects. Its five preconditions
+/// are all structural (resolve, one solid, non-empty remainder); none
+/// is about the shells forming a coherent piece of material. Moving a
+/// hollow box's VOID out on its own leaves one solid whose only shell
+/// has negative signed volume, and tier 3 passes it.
+///
+/// The shell verb never does this — it always moves the pair — but the
+/// door is `pub` on `Body`, and its own docs claim only "tier-1
+/// preservation". Measured here so the boundary of what it guarantees
+/// is on the page.
+#[test]
+fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
+    let tol = Tol::witness();
+    let mut body = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, tol)
+        .expect("the box hollows")
+        .body;
+    let voids = void_shells(&body);
+    assert_eq!(voids.len(), 1);
+    let minted = body
+        .move_shells_to_new_solid(&[voids[0]])
+        .expect("MEASURED: the door accepts a lone void");
+    assert_eq!(body.solids().count(), 2);
+    assert_eq!(
+        body.get_solid(minted).expect("the minted solid").shells,
+        vec![voids[0]]
+    );
+    assert_eq!(
+        topo::validate_geometric(&body, tol),
+        Ok(()),
+        "MEASURED: tier 3 passes a solid whose only shell is a cavity"
+    );
+    let roles = topo::classify_shells(&body, tol).expect("classifies");
+    let minted_roles: Vec<ShellRole> = roles
+        .iter()
+        .filter(|c| c.solid == minted)
+        .map(|c| c.role)
+        .collect();
+    assert_eq!(
+        minted_roles,
+        vec![ShellRole::Void],
+        "the minted solid is all cavity and no material"
+    );
 }
