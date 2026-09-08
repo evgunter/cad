@@ -688,6 +688,8 @@ class LengthUnit:
     def factor(self) -> float: ...
     def __mul__(self, value: float) -> Length: ...
     def __rmul__(self, value: float) -> Length: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class AngleUnit:
     @property
@@ -696,6 +698,69 @@ class AngleUnit:
     def factor(self) -> float: ...
     def __mul__(self, value: float) -> Angle: ...
     def __rmul__(self, value: float) -> Angle: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class WrittenLength:
+    """A length as it was AUTHORED: canonical metres plus the notation
+    it was written in.
+
+    `Length` erases — `25 * mm` is metres and the `mm` is gone at the
+    multiply — which is what the kernel below wants and what makes its
+    arithmetic closed. This is the record of what was TYPED, so a
+    document reads back the way it was written; `DocParam.written_length`
+    is the door it opens.
+
+    No arithmetic, deliberately: there is no answer to what notation
+    the sum of a millimetre and an inch is written in. Compute on the
+    `Length` inside and author the result with `canonical_in`.
+
+    Equality compares BOTH halves, so the same magnitude authored in
+    two units is two authorings."""
+
+    @staticmethod
+    def in_unit(value: float, unit: LengthUnit) -> WrittenLength:
+        """`value` written in `unit` — `25 * mm` that remembers the
+        `mm`. The multiply happens here."""
+
+    @staticmethod
+    def canonical_in(value: Length, unit: LengthUnit) -> WrittenLength:
+        """An ALREADY-canonical length that records `unit` as its
+        notation — the door for a value arrived at by computing."""
+    @property
+    def length(self) -> Length:
+        """The canonical value: the erasure door."""
+    @property
+    def meters(self) -> float: ...
+    @property
+    def unit(self) -> LengthUnit:
+        """The notation this was authored in."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class WrittenAngle:
+    """An angle as it was AUTHORED — `WrittenLength`'s mirror,
+    canonical radians plus its notation. Everything that class says
+    holds here."""
+
+    @staticmethod
+    def in_unit(value: float, unit: AngleUnit) -> WrittenAngle:
+        """`value` written in `unit` — `90 * deg` that remembers the
+        `deg`."""
+
+    @staticmethod
+    def canonical_in(value: Angle, unit: AngleUnit) -> WrittenAngle:
+        """An already-canonical angle that records `unit`."""
+    @property
+    def angle(self) -> Angle:
+        """The canonical value: the erasure door."""
+    @property
+    def radians(self) -> float: ...
+    @property
+    def unit(self) -> AngleUnit:
+        """The notation this was authored in."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 mm: Final[LengthUnit]
 cm: Final[LengthUnit]
@@ -1586,9 +1651,25 @@ class DocParam:
     @staticmethod
     def angle(value: Angle) -> DocParam: ...
     @staticmethod
+    def written_length(value: WrittenLength) -> DocParam:
+        """A Length parameter that REMEMBERS its notation — `25 mm`
+        stays `mm` in the document and in the file, where `length`
+        records the canonical metre row."""
+
+    @staticmethod
+    def written_angle(value: WrittenAngle) -> DocParam:
+        """An Angle parameter that remembers its notation."""
+
+    @staticmethod
     def scalar(value: float) -> DocParam: ...
     @staticmethod
     def count(value: int) -> DocParam: ...
+    @property
+    def unit(self) -> Optional[str]:
+        """The notation this was authored in, as the unit's own symbol
+        — `"mm"`, `"deg"`, `"m"`. A Scalar names the dimensionless row,
+        whose symbol is empty; a Count answers None, having no notation
+        to carry."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -1814,6 +1895,14 @@ class Doc:
     @property
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
+    @property
+    def params(self) -> dict[ParamName, DocParam]:
+        """The document's named parameters, by name.
+
+        The read side of `DocEdit.set_doc_param`, and the only door
+        that answers a whole parameter back: `Doc.eval` answers a
+        parameter reference's number with the dimension and the
+        authored notation both erased. A snapshot, not a view."""
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...

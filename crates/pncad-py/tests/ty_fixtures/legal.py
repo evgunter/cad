@@ -10,6 +10,7 @@ from pncad import (
     Advisory,
     Alignment,
     Angle,
+    AngleUnit,
     ArcSweep,
     Assembly,
     AxisSense,
@@ -30,6 +31,7 @@ from pncad import (
     ClassAdmission,
     ClusterMaintenance,
     Datum,
+    DocParam,
     Denotation,
     HitTestError,
     Expr,
@@ -46,6 +48,7 @@ from pncad import (
     Frame,
     GeomPred,
     Length,
+    LengthUnit,
     Body,
     Mesh,
     MateFault,
@@ -94,6 +97,8 @@ from pncad import (
     m,
     mixed_pins,
     mm,
+    WrittenAngle,
+    WrittenLength,
     pi_rad,
     product,
     product_named,
@@ -590,3 +595,19 @@ gathered.validate_pseudomanifold()
 # NODE's kind and not its value's, so it is answerable with no
 # evaluation in hand at all.
 which_kind: str = doc.node_kind(upright)
+
+# Authored notation: the value and the unit it was WRITTEN in, kept
+# together. `in_unit` multiplies (`25 * mm` that remembers the `mm`);
+# `canonical_in` takes a quantity whose arithmetic has already
+# happened and says which notation to record it in. The unit reads
+# back as the typed unit, and the parameter as its symbol.
+thickness: WrittenLength = WrittenLength.in_unit(25.0, mm)
+computed: WrittenLength = WrittenLength.canonical_in((20 * mm) + (5 * mm), mm)
+plain: Length = thickness.length
+notation: LengthUnit = thickness.unit
+turned: WrittenAngle = WrittenAngle.in_unit(90.0, deg)
+turn_notation: AngleUnit = turned.unit
+declared: DocParam = DocParam.written_length(thickness)
+spun: DocParam = DocParam.written_angle(turned)
+symbol: str | None = declared.unit
+table: dict[ParamName, DocParam] = doc.params

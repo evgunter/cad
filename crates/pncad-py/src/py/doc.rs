@@ -560,6 +560,26 @@ impl Doc {
         self.inner.order().iter().copied().map(NodeId).collect()
     }
 
+    /// **The document's named parameters**, by name (`Doc::params`).
+    ///
+    /// The read side of `DocEdit.set_doc_param`, and the only door
+    /// that answers a whole parameter back: `Doc.eval` answers a
+    /// parameter reference's NUMBER, with the dimension and the
+    /// authored notation both erased, so a consumer showing a
+    /// parameter — or checking that one it wrote is still written the
+    /// way it wrote it — had nowhere to look.
+    ///
+    /// A snapshot, not a view: the map is built here and mutating it
+    /// changes no document.
+    #[getter]
+    fn params<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for (name, param) in self.inner.params() {
+            out.set_item(ParamName(name.clone()), DocParam(param.clone()))?;
+        }
+        Ok(out)
+    }
+
     /// The document's tolerance.
     #[getter]
     fn epsilon(&self) -> f64 {
@@ -1975,6 +1995,27 @@ impl DocParam {
         ))
     }
 
+    /// A continuous Length parameter that REMEMBERS the notation it
+    /// was authored in — `25 mm` stays `mm` in the document and in
+    /// the file, where `length` records the canonical metre row.
+    ///
+    /// Total: a `WrittenLength` holds a length unit, so there is no
+    /// dimension for the notation to disagree with and no refusal
+    /// here. The mismatch the save/load validator watches for
+    /// (`PersistError` `display_unit`) is unreachable through this
+    /// door, which is the reason to author through it.
+    #[staticmethod]
+    fn written_length(value: &super::quantity::WrittenLength) -> Self {
+        Self(d::DocParam::written_length(value.0))
+    }
+
+    /// A continuous Angle parameter that remembers its notation —
+    /// [`Self::written_length`]'s mirror, total for its reason.
+    #[staticmethod]
+    fn written_angle(value: &super::quantity::WrittenAngle) -> Self {
+        Self(d::DocParam::written_angle(value.0))
+    }
+
     /// A continuous dimensionless parameter.
     #[staticmethod]
     fn scalar(value: f64) -> Self {
@@ -1985,6 +2026,24 @@ impl DocParam {
     #[staticmethod]
     fn count(value: i64) -> Self {
         Self(d::DocParam::Count { value })
+    }
+
+    /// The notation this parameter was authored in, as the unit's own
+    /// SYMBOL — `"mm"`, `"deg"`, `"m"`.
+    ///
+    /// A symbol rather than a unit object because the display unit a
+    /// parameter carries is a one-byte code into the table
+    /// (`UnitSym`), and a notation reaches Python as its symbol; a
+    /// `Scalar` parameter names the dimensionless row, whose symbol is
+    /// empty and reads as the absence it is. `None` is the different
+    /// answer: a `Count` carries no notation at all, because a count
+    /// is an integer and has none to carry.
+    #[getter]
+    fn unit(&self) -> Option<&'static str> {
+        match &self.0 {
+            d::DocParam::Continuous { display_unit, .. } => Some(display_unit.def().symbol()),
+            d::DocParam::Count { .. } => None,
+        }
     }
 
     /// Rust's `PartialEq`, mirrored — which is IEEE comparison of the
