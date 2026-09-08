@@ -2,10 +2,10 @@
 id: bracket-scope-is-run-op-not-the-node
 kind: issue
 title: The verdict bracket's scope is run_op, not the node: the profile pre-pass and the mate solve decide before any bracket opens
-status: open
+status: spec
 opened: 2026-09-05
 refs: [1969]
-needs_ev: true
+branch: eval/7-node-bracket
 ---
 
 ## What
@@ -121,3 +121,14 @@ re-baselines named in the PR), PROPS builds the document frame for the
 mate solve on its own item, and M10 is told its certification keys
 re-baseline; under 3, EVAL builds the pre-pass half of the document
 frame beside PROPS's mate half and closes this row as ratified.
+
+## Ruled (Ev, PR 2138, 2026-09-08)
+
+Answer 1: **a node's verdict log is every decision made on its
+behalf; the mate solve gets the document's frame.** This row becomes
+the unit for the node half: `docs/EVAL-7-SPEC.md`, branch
+`eval/7-node-bracket`, correctness arm on (every Profile node's log,
+the R2 pin, the certification keys and accounting goldens re-baseline
+and the PR names each). The document-level frame for
+`mate::solve_document` is PROPS's build on its escalation item, family
+3, announced there; M10 is told its certification keys move.
