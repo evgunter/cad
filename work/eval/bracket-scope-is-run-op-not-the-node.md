@@ -151,4 +151,9 @@ Profile node's own log or a document key over one — 126 node rows and
 — listed in the PR body; no non-Profile log moved. The mate solve's
 document frame is PROPS's build (its escalation item, family 3), not
 this row's. Residue filed beside this row:
-`profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift`.
+`profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift`
+(the doubled validation the log now shows) and
+`interval-content-key-hashes-bits-the-pre-pass-does-not-read` (the
+review's finding: at Interval the key does not hold the nominal the
+precompute reads, so the hit site's prefix identity is an f64
+argument).

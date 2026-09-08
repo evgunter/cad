@@ -138,11 +138,13 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     );
 
     let flips = editor_core::diff_summaries(&old, &new);
-    // GOLDEN (update only on a ratified predicate-vocabulary or
-    // fixture change — RE-PINNED once at the #101 merge: declared
-    // tangency added validation probes, so carrier_line_circle and
-    // chord_side instance counts grew; the FLIPS are unchanged):
-    // exactly ONE differing node — the profile —
+    // GOLDEN. A legitimate re-pin is a ratified change to what a log
+    // holds or to the predicate vocabulary or the fixture — never a
+    // number chased back into place. Re-pinned when declared tangency
+    // added validation probes (carrier_line_circle and chord_side
+    // instance counts grew) and when the node's frame widened to its
+    // precompute (every population doubled); the FLIPS are the same
+    // predicates both times. Exactly ONE differing node — the profile —
     // both runs Ok. The populations are the profile node's WHOLE log:
     // its pre-pass's f64 validation and its op's, which under the
     // pinned lift at f64 are the same validation twice, so every count

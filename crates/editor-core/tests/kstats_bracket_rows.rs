@@ -1,9 +1,21 @@
-//! The verdict bracket under the evaluator's own hard cases: the
-//! parallel schedule, a part inside a part, a node-memo hit, a
-//! cancelled prefix, where the profile pre-pass's decisions land, and
-//! a failure before the op runs. Every row is about WHAT FRAME RECEIVES
-//! WHAT when the bracket stack meets the evaluation service; the
-//! bracket's own rules are pinned in `geom_core::k_stats`.
+//! The verdict bracket under the evaluator's own hard cases. Every row
+//! is about WHAT FRAME RECEIVES WHAT when the bracket stack meets the
+//! evaluation service; the bracket's own rules are pinned in
+//! `geom_core::k_stats`. The rows:
+//!
+//! - the parallel schedule (an instantiate log is schedule-independent);
+//! - a part inside a part (the outer log is its own under both schedules);
+//! - a node-memo hit carries the prior's log;
+//! - a cancelled prefix leaves the frame stack intact;
+//! - every decision the part makes lands on one of its nodes' brackets,
+//!   and the assembly decides nothing outside its instances';
+//! - the Profile node's log opens with the precompute and the op's follow;
+//! - a memo hit runs the precompute in a frame it drops (f64, Interval),
+//!   and a hit whose prefix disagrees with the reused log refuses loud;
+//! - three pre-op refusals told apart: the D4 ε door (no frame is ever
+//!   opened), an `Expr` refusal (frame open, nothing decided, empty
+//!   escalations), and a precompute that escalates before failing (its
+//!   escalation rides the refusal).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -17,6 +29,7 @@ use editor_core::{
     ProfileDoc, ProfileProgram, RecipeNodeId, ResolveFailure, ResolveFault, content_pin, evaluate,
 };
 use fixture::{frame, insert, len, on_frame, square, step};
+use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::Bracket;
 
@@ -260,13 +273,10 @@ fn a_cancelled_run_leaves_the_next_runs_logs_and_the_frame_stack_intact() {
 
 /// **Every decision the part makes lands on one of its nodes'
 /// brackets.** Evaluated inside an outer bracket, the part leaves that
-/// frame empty: the profile pre-pass — the plane's axes, the program's
-/// replay, the f64 validation — decides on the Profile node's behalf
-/// and its log holds those decisions ahead of its op's, so the Profile
-/// node's count is the pre-pass's plus the op's and the part's total is
-/// its nodes' sum. The assembly decides nothing outside its nodes
-/// either: the part's decisions are shielded on the cache's miss path,
-/// and its instances' logs are their own ops'.
+/// frame empty: the profile's f64 precompute — the plane's axes, the
+/// program's replay, the validation — decides on the Profile node's
+/// behalf and its log holds those decisions ahead of its op's, so the
+/// Profile node's count is the precompute's plus the op's.
 #[test]
 fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
     let part_doc = part("kstats-outside-part", 0.0, 1.0);
@@ -286,11 +296,15 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
             (order[1], PROFILE_LOG),
             (order[2], EXTRUDE_LOG),
         ]),
-        "one log per node, the Profile node's carrying its pre-pass: {counts:?}"
+        "one log per node, the Profile node's carrying its precompute: {counts:?}"
     );
-    assert_eq!(counts.values().sum::<usize>(), 799);
-    assert_eq!(order[1], profile_node(&part_doc));
+}
 
+/// **The assembly decides nothing outside its instances' brackets**:
+/// the part's decisions are shielded on the cache's miss path, and
+/// each instance's log is its own op's.
+#[test]
+fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let (doc, ids, opts) = two_instances("kstats-outside");
     let outer = Bracket::open();
     let ev = run(&doc, &opts);
@@ -302,14 +316,17 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
     );
 }
 
-/// **The Profile node's log opens with the pre-pass and the op's
+/// **The Profile node's log opens with the precompute and the op's
 /// decisions follow.** One frame, in the order made: the plane's two
 /// axis decisions first, then the program's replay, then the f64
-/// validation, then the op's. Under the pinned lift at f64 the op's
-/// validation is the same `Profile<f64>` validated again under the same
-/// tolerance, so the pre-pass's validation tail and the op's log are
-/// the same sequence — the doubling is what the node computes, and the
-/// log now says so.
+/// validation, then the op's. The histogram moves legitimately only
+/// when `profile::validate`'s probes change (a predicate added, a
+/// probe count per segment pair changed) or the fixture does. The last
+/// assertion pins TODAY's double run — under the pinned lift at f64
+/// the op validates the embedded f64 form again, decision for decision
+/// (`work/eval/profile-node-log-holds-the-f64-validation-twice-under-the-pinned-lift.md`)
+/// — and is the line to drop when that unit lands, not a property of
+/// the log.
 #[test]
 fn the_profile_nodes_log_opens_with_the_pre_pass_and_the_ops_decisions_follow() {
     let part_doc = part("kstats-order-part", 0.0, 1.0);
@@ -340,21 +357,22 @@ fn the_profile_nodes_log_opens_with_the_pre_pass_and_the_ops_decisions_follow() 
     assert_eq!(
         &pre[6..],
         op,
-        "the f64 validation, recorded by the pre-pass and by the op"
+        "the f64 validation, recorded by the precompute and again by the op"
     );
 }
 
-/// **A memo hit runs the pre-pass in a frame it drops, and the reused
-/// value is the record.** The content key needs the resolved program,
-/// so the pre-pass runs before the lookup, inside the node's fresh
-/// frame; on a hit that frame is finished and discarded and the prior
-/// value — whose log already opens with the same decisions, the pass
-/// being a pure function of the key's inputs (D9) — is returned as is,
-/// Arc and all. What this row can see from outside: nothing recomputed,
-/// the same log object, and an outer frame that received none of the
-/// hit run's decisions. The prefix identity itself (dropped frame ==
-/// reused log's opening) is asserted at the hit site by a debug
-/// assertion, which this row drives at both scalars.
+/// **A memo hit runs the precompute in a frame it drops, and the
+/// reused value is the record.** The content key needs the resolved
+/// program, so the precompute runs before the lookup, inside the
+/// node's fresh frame; on a hit that frame is finished and discarded
+/// and the prior value — whose log already opens with the same
+/// decisions at f64, the precompute deciding from inputs the key fixes
+/// (D9) — is returned as is, Arc and all. What this row can see from
+/// outside: nothing recomputed, the same log object, and an outer
+/// frame that received none of the hit run's decisions. The prefix
+/// identity itself (dropped frame == reused log's opening) is asserted
+/// at the hit site, which this row drives at both scalars and the row
+/// after it reddens.
 fn a_memo_hit_drops_its_frame<T: EvalScalar>() {
     let part_doc = part("kstats-hit-part", 0.0, 1.0);
     let profile = profile_node(&part_doc);
@@ -397,12 +415,38 @@ fn a_memo_hit_drops_its_frame_at_interval() {
     a_memo_hit_drops_its_frame::<geom_core::Interval>();
 }
 
-/// **A failure before anything decides carries no escalations**: a
-/// document evaluated at a process ε other than the one it recorded
-/// refuses on every node before any pass runs (the D4 door). The node's
-/// frame was open and received nothing — no decision, not no frame —
-/// so `NodeError::escalations` is empty rather than whatever an outer
-/// frame held.
+/// **A hit whose precompute disagrees with the reused log refuses
+/// loud.** A prior whose Profile value carries an empty log, keys
+/// intact, is served to the hit path: the fresh frame's decisions are
+/// not a prefix of the reused log, and the hit site's assertion — the
+/// one the row above rests on — fires rather than returning a value
+/// whose record is not what the run decided.
+#[test]
+#[should_panic(expected = "a memo hit's pre-key decisions differ from the reused log's prefix")]
+fn a_memo_hit_whose_prefix_disagrees_with_the_reused_log_refuses_loud() {
+    let part_doc = part("kstats-hit-disagrees", 0.0, 1.0);
+    let profile = profile_node(&part_doc);
+    let mut first = run(&part_doc, &EvalOptions::default());
+    match first.nodes.get_mut(&profile) {
+        Some(NodeResult::Ok(v)) => v.verdicts = Arc::new(Vec::new()),
+        other => panic!("the profile evaluates: {other:?}"),
+    }
+    let _ = evaluate::<f64>(
+        &part_doc,
+        Some(&first),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+}
+
+/// **A refusal at the D4 ε door carries no escalations**: a document
+/// evaluated at a process ε other than the one it recorded is refused
+/// on every node before the schedule runs (`refuse_tolerance_conflict`
+/// mints every `NodeError` with empty escalations), so `eval_node` is
+/// never entered and no frame is ever opened — empty by construction
+/// of that door, and never whatever an outer frame held. The row
+/// after this one is the frame-open-nothing-decided case.
 #[test]
 fn a_pre_op_failure_has_empty_escalations() {
     let part_doc = part("kstats-pre-op", 0.0, 1.0);
@@ -446,7 +490,8 @@ fn a_pre_op_failure_has_empty_escalations() {
 #[test]
 fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let tol = Tol::witness();
-    let in_band = tol.eps() * tol.k().sqrt();
+    let band = Band::linear(tol).expect("the witness tolerance bands");
+    let in_band = (band.zero() * band.escalate()).sqrt();
     let edge = ParamName::new("island_edge");
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-pre-pass-fails"), tol);
     let (doc, _) = step(
@@ -511,6 +556,67 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     assert!(
         matches!(ev.result(extrude), Some(NodeResult::Poisoned { through }) if *through == profile)
     );
+    assert!(
+        outside.verdicts.is_empty() && outside.escalations.is_empty(),
+        "{outside:?}"
+    );
+}
+
+/// **A pre-key `Expr` refusal carries no escalations, with the frame
+/// open**: a profile vertex written as `1 / divisor`, the parameter's
+/// value moved to zero, refuses in the program's resolution — inside
+/// the node's frame, after zero decisions — so the error's escalations
+/// are empty because nothing decided, and the outer frame is empty
+/// because the frame was the node's.
+#[test]
+fn a_pre_key_expr_refusal_carries_no_escalations() {
+    let divisor = ParamName::new("divisor");
+    let doc = ProfileDoc::empty(DocumentId::derive("kstats-expr-refusal"), Tol::witness());
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetDocParam {
+            name: divisor.clone(),
+            value: DocParam::continuous(Dimension::Scalar, 1.0),
+        },
+    );
+    let (doc, plane) = insert(
+        doc,
+        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let over = || {
+        Expr::div(len(1.0), Expr::param(divisor.clone(), Dimension::Scalar))
+            .expect("a length over a scalar")
+    };
+    let program = ProfileProgram {
+        plane,
+        loops: vec![LoopProgram::polygon_expr([
+            [len(0.0), len(0.0)],
+            [over(), len(0.0)],
+            [over(), len(1.0)],
+            [len(0.0), len(1.0)],
+        ])],
+    };
+    let (doc, profile) = insert(doc, Node::Profile(program));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetDocParamValue {
+            name: divisor,
+            value: DocParamValue::Continuous(0.0),
+        },
+    );
+    let outer = Bracket::open();
+    let ev = run(&doc, &EvalOptions::default());
+    let outside = outer.finish();
+    let err = ev
+        .result(profile)
+        .and_then(NodeResult::error)
+        .expect("the profile refuses");
+    assert!(
+        matches!(err.kind, editor_core::NodeErrorKind::Expr { .. }),
+        "{}",
+        err.kind
+    );
+    assert!(err.escalations.is_empty());
     assert!(
         outside.verdicts.is_empty() && outside.escalations.is_empty(),
         "{outside:?}"

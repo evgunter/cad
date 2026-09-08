@@ -264,8 +264,9 @@ pub struct NodeValue<T: Decide> {
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
-    /// content key (a profile's resolution and f64 validation) and the
-    /// op's alike — in the order made, recorded through the one
+    /// content key (a profile's f64 precompute: the plane read, the
+    /// replay, the validation) and the op's alike — in the order made,
+    /// recorded through the one
     /// `k_stats` funnel. Scalar-independent data —
     /// same verdicts at f64 and Interval — and the diff-engine
     /// substrate ("both evaluations' verdict logs exist"). Rides the
@@ -2516,11 +2517,14 @@ where
     T: EvalScalar,
 {
     // The verdict bracket (N5): one frame per node, open from before
-    // the first thing that can decide on its behalf — the slot values,
-    // the profile program's resolution and f64 validation, the lane
-    // pass — to after the op, so the node's log is every decision made
-    // evaluating THIS node, pre-key and op alike, in the order made,
-    // through the one `k_stats` funnel. The guard is `!Send`, so the
+    // the first thing that can decide on its behalf to after the op,
+    // so the node's log is every decision made evaluating THIS node,
+    // pre-key and op alike, in the order made, through the one
+    // `k_stats` funnel. Before the key, only a Profile node decides:
+    // its plane read (`profile_plane_f64`) and its replay and f64
+    // validation (`prepare_profile`); slot and program-expression
+    // evaluation reach the funnel through `check_unlogged`, which
+    // lands in no frame. The guard is `!Send`, so the
     // frame closes on the worker that opened it (idiom-1 parallelism
     // runs whole nodes on one worker each); an op that evaluates
     // another document (an instantiated part) has that document's
@@ -2711,14 +2715,24 @@ where
         && v.content_key == content_key
         && v.naming_key == naming_key
     {
-        // The pre-key passes above ran inside this frame, and the
-        // reused value's log already opens with the same decisions:
-        // same content key ⇒ same inputs, and each pass is a pure
-        // function of them (D9). The reused value IS the record, so
-        // the fresh frame is finished and dropped rather than spliced
-        // in; the prefix identity it rests on is checked here.
+        // The profile's f64 precompute ran inside this frame, and the
+        // reused value's log opens with the same decisions. A
+        // `Verdict` is (predicate, sign), and at f64 the inputs the
+        // content key fixes — the resolved program, the plane's slots
+        // through the frame's key, the tolerance — are exactly what
+        // the precompute decides from, so D9 makes the two sequences
+        // equal. At Interval the frame's key hashes the slots' BOUNDS
+        // while the precompute reads their nominal f64, which the key
+        // does not hold: a nominal edit under a compensating box hits
+        // with a stale placement, and the same-sign check below cannot
+        // see it (`work/eval/interval-content-key-hashes-bits-the-pre-pass-does-not-read.md`).
+        // The reused value IS the record, so the fresh frame is
+        // finished and dropped rather than spliced in, and the prefix
+        // identity is asserted in every profile: one compare of a few
+        // dozen verdicts per hit, beside a precompute that just
+        // replayed and validated the profile.
         let fresh = bracket.finish();
-        debug_assert!(
+        assert!(
             v.verdicts.starts_with(&fresh.verdicts)
                 && v.escalations.starts_with(&fresh.escalations),
             "a memo hit's pre-key decisions differ from the reused log's prefix"
