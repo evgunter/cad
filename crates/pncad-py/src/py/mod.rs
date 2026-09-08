@@ -367,9 +367,9 @@ pyo3::create_exception!(
     NodePickError,
     PncadError,
     "A pick index could not be built. Carries `variant`, the stable \
-     tag of the refusing arm, plus `node`, `through`, `kind` and \
-     `body`, each present on every arm and `None` where that arm does \
-     not carry it.\n\n\
+     tag of the refusing arm, plus `node`, `through`, `kind`, `body` \
+     and `index_variant`, each present on every arm and `None` where \
+     that arm does not carry it.\n\n\
      `not_a_body` and `no_such_body` are different states and stay \
      apart: a datum, profile, declaration or mate NEVER draws, while a \
      node that draws nothing today (an annihilated boolean, an empty \
@@ -380,10 +380,11 @@ pyo3::create_exception!(
      prose. What a forwarded arm does not bring is the inner refusal's \
      extra ATTRIBUTES — a tessellation refusal's `value`, `bound`, \
      `requested` and `note` stay on `TessellateError`, where \
-     `Body.tessellate` raises them. `mesh_index` is the arm with \
-     nothing to forward: its payload type is deliberately absent from \
-     the façade, so it crosses as one tag plus the kernel's own prose, \
-     which states the offending patch, triangle and index."
+     `Body.tessellate` raises them. `mesh_index` neither forwards nor \
+     withholds: the word names the door whose invariant broke — the \
+     pick INDEX's — and `index_variant` carries the payload's own \
+     discriminant beside it, `position_out_of_range` today. The \
+     offending patch, triangle and position index are in the message."
 );
 pyo3::create_exception!(
     pncad,

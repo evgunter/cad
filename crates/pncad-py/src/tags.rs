@@ -64,7 +64,8 @@ use pncad::prelude::BlendKind;
 use pncad::profile::{CornerReason, CornerWindow, NoCornerReason, PathError, PathErrorKind};
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError, Resolution,
+    DanglingRef, HitTestError, InterrogateError, MeshPickError, NodePickError, ReadbackError,
+    Resolution, ResolveError, ResolveIndeterminate,
 };
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
@@ -1007,16 +1008,13 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 /// is that fact whether it is reached through `Body.tessellate` or
 /// through a pick index.
 ///
-/// The `Index` arm is the one that cannot forward. Its payload is
-/// `MeshPickError`, which CUR3 recorded DECIDED absent from the façade
-/// (`crates/pncad/tests/all.rs`'s `NOT_CARRIED`, argued in
-/// `crates/pncad/src/select.rs`): the type is not nameable here, so
-/// its arms cannot be matched and there is no per-arm tag to forward.
-/// The whole arm therefore crosses as ONE tag plus the kernel's own
-/// prose, which states the offending patch, triangle and index. That
-/// is a knowingly unprojected payload — `work/lib/mesh-pick-error-is-
-/// unmatchable-under-node-pick-error.md` records it — and not a lane
-/// this crate can close without a façade decision.
+/// The `Index` arm does NOT forward, and that is a decision rather
+/// than the absence one. `mesh_index` names which door's invariant
+/// broke — the pick INDEX's, not the tessellator's and not the
+/// evaluation's — and a caller branching on the standing ladder needs
+/// that word to stay put. What the payload says underneath it is a
+/// second question, answered beside the tag by
+/// [`mesh_pick_error_tag`] rather than in place of it.
 pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
     match err {
         NodePickError::Standing(err) => hit_test_error_tag(err),
@@ -1024,6 +1022,25 @@ pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
         NodePickError::NoSuchBody { .. } => "no_such_body",
         NodePickError::Tessellate(err) => tessellate_error_tag(err),
         NodePickError::Index(_) => "mesh_index",
+    }
+}
+
+/// The stable tag for the pick INDEX's own refusal — what
+/// `NodePickError::Index` carries.
+///
+/// One arm today, and the map exists for the reason the header states
+/// rather than for the branch it currently offers: the match is
+/// exhaustive, so a second indexing invariant added kernel-side stops
+/// this crate compiling instead of silently joining the first under
+/// `mesh_index`. The carrier's word says WHICH door refused; this one
+/// says which of that door's invariants broke.
+///
+/// The numbers the arm carries — patch, triangle and the out-of-range
+/// position index — stay in the kernel's own `Display`, which is
+/// where they already were.
+pub fn mesh_pick_error_tag(err: &MeshPickError) -> &'static str {
+    match err {
+        MeshPickError::PositionOutOfRange { .. } => "position_out_of_range",
     }
 }
 
@@ -1051,19 +1068,64 @@ pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
 /// bindings — capitalizes instead; that divergence predates this and
 /// is not repaired here, because a shipped tag value is an interface.
 ///
-/// **What this tag does NOT reach is the failure's own arm.**
-/// `ResolveError`, `ResolutionFailure` and `ResolveIndeterminate` are
-/// DECIDED absent from the façade (`crates/pncad/tests/all.rs`'s
-/// `NOT_CARRIED`, "Naming interior"), so there is no `vanished` /
-/// `ambiguous` / `node_gone` tag to forward and none is invented
-/// here: what crosses beside this word is the kernel's own `Display`.
-/// Banked as `work/lib/resolution-failure-arms-are-unmatchable-under-
-/// resolution.md`, the `MeshPickError` shape one family along.
+/// **What this tag does not reach is the failure's own arm**, and
+/// that is a split rather than a gap: [`resolve_error_tag`] and
+/// [`resolve_indeterminate_tag`] answer it, and the Python side
+/// carries both words — the state on `status`, the arm on `variant`.
+/// Keeping them apart is what keeps `status` a three-word vocabulary
+/// a caller can exhaust.
 pub fn resolution_status_tag(verdict: &Resolution) -> &'static str {
     match verdict {
         Resolution::Resolved(_) => "resolved",
         Resolution::Failed(_) => "failed",
         Resolution::Indeterminate(_) => "indeterminate",
+    }
+}
+
+/// The stable tag for WHICH failure a stored name met — the arm
+/// underneath a `failed` verdict.
+///
+/// The three words are three REPAIRS, which is the reason the kernel
+/// keeps the arms three and the reason they cross. `vanished`: the
+/// minting node still evaluates and no table derives the name any
+/// more, so the repair is a rebind onto whatever replaced it.
+/// `ambiguous`: the name is tie-marked and the kernel will not pick
+/// among equally-admissible candidates, so the repair is a refinement
+/// — and it is the one arm where a caller has something to CHOOSE.
+/// `node_gone`: the minting node left the document, so there is
+/// nothing to refine and the rebind is onto a different feature.
+///
+/// The arms' own names, snake-cased, because the kernel's vocabulary
+/// is the one a bug report and a UI should share.
+///
+/// What does NOT cross beside these is the diagnosis, the tombstone
+/// and the tie witness: they are the editor's re-evaluation
+/// telemetry, they are not carried through the façade, and the
+/// candidate NAMES a caller would refine among already cross as
+/// `offers`.
+pub fn resolve_error_tag(err: &ResolveError) -> &'static str {
+    match err {
+        ResolveError::Vanished { .. } => "vanished",
+        ResolveError::Ambiguous { .. } => "ambiguous",
+        ResolveError::NodeGone { .. } => "node_gone",
+    }
+}
+
+/// The stable tag for WHY a stored name is unanswerable this run —
+/// the arm underneath an `indeterminate` verdict.
+///
+/// The name is fine in all three and the RUN is not, so no repair
+/// here is a rebind; what the three words say is which node to look
+/// at. `target_failed`: the minting node failed on its own account.
+/// `target_poisoned`: it was poisoned by an upstream failure, so the
+/// repair is further up than the node that mints the name.
+/// `target_not_evaluated`: a canceled run never reached it, and
+/// re-evaluating is the whole of the recourse.
+pub fn resolve_indeterminate_tag(cause: &ResolveIndeterminate) -> &'static str {
+    match cause {
+        ResolveIndeterminate::TargetFailed { .. } => "target_failed",
+        ResolveIndeterminate::TargetPoisoned { .. } => "target_poisoned",
+        ResolveIndeterminate::TargetNotEvaluated { .. } => "target_not_evaluated",
     }
 }
 

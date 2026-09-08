@@ -3013,3 +3013,45 @@ pair is recorded and excluded from the tally (which it could not have
 moved). Both reviewers' isolation otherwise clean. Method lesson for
 the next dual on a shared box: `pgrep`/`ps` over the box is a glimpse
 channel; the brief should say "never list processes you do not own."
+
+**LIB-CUR5 MERGED (2026-09-08, #2169; mechanical under the 08-29
+ruling, no A/B row). The five banked payload rows closed under LB17's
+carrier rule; nine names curated, `MarginDiag` measured interior.**
+Row 1: `MeshPickError` carried on `crate::select` with `MeshPick` still
+interior (an index is BUILT, a refusal RECEIVED — CUR3's construction
+argument untouched); the tag does not forward: `variant` stays
+`mesh_index` and the payload's discriminant arrives beside it at
+`NodePickError.index_variant`, one arm matched exhaustively so a second
+indexing invariant breaks the build. Row 2: `ResolveError`,
+`ResolutionFailure`, `ResolveIndeterminate` carried beside `Resolution`;
+`all.rs`'s "a door carried for a consumer that does not exist" answered
+where it was made (a `Display`-rendering Rust panel was one consumer;
+a Python caller holding a string is the other); Python's `Resolution`
+gains `variant` — ONE attribute for both vocabularies, `status` already
+saying which it is drawn from, `None` on resolved. Five of six arms
+pinned from Python, `ambiguous` reached by no test on either side and
+both docstrings say so (an N2 tie has no authoring door). Row 3:
+`Indeterminate` on the prelude (thirteen prelude refusals carry it);
+`MarginDiag` NOT carried, measured: `pncad-py` names neither type
+anywhere, every escalation crosses as one tag plus prose, and the
+type's own doc forbids branching on the margin — `BandField`'s
+disposition with a different reason, written beside the carriage with
+its falsifier (a door that projects the escalation's shape). Row 4:
+`LoopKey` joins its three siblings (`RingMeetsOuter` names all four;
+pinned by signature). Row 5: `EntityId`, `GeomRef` (group 4, the sums
+over the keys) and `ContactFinding` (`crate::select`, the contact
+vocabulary's fourth quarter); the arena-key stop clause did NOT fire —
+the sealed names are `editor-core`'s `EntityRef`/`EntityKey`/`Entry`,
+these are `topo::entity`'s, and the distinction is now written in the
+prelude group. `NOT_CARRIED` 94→90. Re-sweep at the merge base: 22
+enum-shaped hits, five new and filed
+(`payload-rung-re-sweep-finds-five-more-uncurated-discriminants`:
+`CensusSubject`, `MappedCurve`, `RevolvedKind`, `PromotedKind`,
+`ImportContact`), blind spot (f) new — a private field of a curated
+struct reads as a payload. Residue filed:
+`mesh-index-numbers-cross-as-prose-under-a-projecting-door`. No kernel
+crate touched. Orchestrator note: main gained SHELL-5 (`topo/src/shell.rs`
+and the shell tracker) between the green run on `7239cf48` and the
+merge; no file overlaps this diff and nothing it touches reads shell
+geometry, so it landed on that run rather than chasing main a third
+time.
