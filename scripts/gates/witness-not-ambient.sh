@@ -37,6 +37,10 @@
 #    on the far side that could hold a witness to pass in. Note the
 #    path is `src/py`, not the whole crate: pncad-py's non-FFI
 #    modules are ordinary library code and are scanned.
+#    BOTH DIRECTORIES PROVE THEIR SUBJECT, on the argument at
+#    `DOOR_HOME` below: the exemption is the crate's door and the
+#    module's boundary, so what has to still be in the scan is the
+#    crate root and the module root, not the directory name.
 #  - crates/*/src/bin/ — a BINARY TARGET's `main`, which THE RULE
 #    above already names as an entry point ("a `main`, a test, the
 #    curated `pncad` door"). Not an exemption so much as the rule's
@@ -78,16 +82,36 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# THE FILE that DEFINES `witness`, held once: the filter's exemption is
-# built from it and the clean fixture plants it. The three exemptions
-# below it are a DIRECTORY prefix twice and a path CLASS once —
-# `crates/*/src/bin/` names a cargo convention and not a file — so they
-# have no `FILE:LINE:` shape to pin and stay prefixes on purpose, and
-# `gate_require_homes` is over the FILE for the same reason: a prefix
-# has no one path to prove exists. What the subject check buys the name
-# below is argued at that check.
+# THE THREE SUBJECTS THIS GATE'S EXEMPTIONS ANSWER FOR, held once: the
+# filter is built from them, the clean fixture plants them, and
+# `gate_require_homes` proves each is a file this scan actually reads.
+#
+# A DIRECTORY PREFIX'S SUBJECT IS A FILE — the one the directory is
+# ABOUT, not the directory itself, and this is the whole argument for
+# the two names below. `^crates/pncad/src/` exempts a crate's curated
+# door and `^crates/pncad-py/src/py/` a module's FFI boundary; what
+# makes either path that thing, rather than a name a rename left
+# behind, is that the crate root and the module root are still there.
+# Proving the DIRECTORY instead — it exists, or some scanned file lives
+# under it — is satisfied by the exempted file ITSELF: write anything
+# at the old path and the prefix ratifies it and is then ratified by
+# it, which is D103's circle rather than a check on it. The roots are
+# `cargo`'s and `rustc`'s own, so a crate rename or a module
+# reorganisation moves them and reds here.
+#
+# THE THIRD EXEMPTION, `^crates/[^/]+/src/bin/`, HAS NO SUBJECT TO
+# PROVE and is deliberately not in this list: it names a cargo
+# CONVENTION — anything under `src/bin/` is a bin target by
+# construction — and not a place, so a demand that some crate have a
+# `src/bin/` resident would red on a correct tree that has no bin
+# target. It is exercised as a fixture (`plant_in_bin`) rather than
+# checked as a subject.
 HOME_FILE=crates/geom-core/src/tolerance.rs
 HOME_SUBJECT='the file that DEFINES witness, where minting one is the definition and not an ambient read'
+DOOR_HOME=crates/pncad/src/lib.rs
+DOOR_SUBJECT='everything under crates/pncad/src, the curated document/authoring door whose whole job is to be the place a program starts'
+FFI_HOME=crates/pncad-py/src/py/mod.rs
+FFI_SUBJECT='everything under crates/pncad-py/src/py, the pyo3 boundary where a PYTHON program starts'
 
 gate() {
   gate_require_crate_sources
@@ -99,6 +123,8 @@ gate() {
   # AFTER THE SCAN SET, BEFORE THE SCAN — `gate_require_homes` reads the
   # set the line above decided, and its header says why there.
   gate_require_homes "$HOME_SUBJECT" "$HOME_FILE"
+  gate_require_homes "$DOOR_SUBJECT" "$DOOR_HOME"
+  gate_require_homes "$FFI_SUBJECT" "$FFI_HOME"
   hits=$(gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}" \
     | gate_grep -E 'Tol::witness|tolerance::witness' \
     | gate_grep -vE "$(gate_record_anchor "$HOME_FILE")" \
@@ -113,15 +139,20 @@ gate() {
   gate_ok "no kernel library code mints a tolerance witness"
 }
 
-# THE DEFINING FILE IS IN THE CLEAN FIXTURE, which is `lib.sh`'s
-# exact-skip contract read for a whole-file skip: a skip no fixture
-# exercises is dead in every case, and an anchor that over-narrows is
-# then noticed by nobody. The home mints the witness it is the home OF,
-# so the clean case reds the moment the exemption stops covering it.
+# EVERY SUBJECT IS IN THE CLEAN FIXTURE, which is `lib.sh`'s exact-skip
+# contract read for a whole-file skip: a skip no fixture exercises is
+# dead in every case, and an anchor that over-narrows is then noticed by
+# nobody. Each plant MINTS the witness its exemption covers, so the
+# clean case reds the moment that exemption stops covering it — the
+# defining file for the anchored home skip, the crate root for the
+# curated door's prefix, the module root for the pyo3 boundary's.
 gate_plant_clean() {
   gate_plant_clean_sources "$1"
-  mkdir -p "$1/${HOME_FILE%/*}"
-  printf 'pub fn witness() -> Tol { Tol::witness() }\n' > "$1/$HOME_FILE"
+  local home
+  for home in "$HOME_FILE" "$DOOR_HOME" "$FFI_HOME"; do
+    mkdir -p "$1/${home%/*}"
+    printf 'pub fn witness() -> Tol { Tol::witness() }\n' > "$1/$home"
+  done
 }
 
 # The home followed by a colon that is not a line number — one of the
@@ -197,6 +228,20 @@ plant_witness_at() {
   printf 'pub fn eps() -> f64 { geom_core::Tol::witness().eps() }\n' >> "$1"
 }
 
+# THE DIRECTORY PREFIX'S LIVE ROUTE, planted whole rather than left to
+# the home-gone case above it: the door's directory is renamed away and
+# a NEW file is written at the old path, minting the witness the prefix
+# still exempts. The two halves pass separately — a prefix whose
+# directory is gone exempts nothing, and a file at a path a prefix
+# covers is exempt without argument — and it is their composition that
+# is D103's route, so it is the composition the fixture plants.
+plant_door_renamed_away_then_rewritten() {
+  rm -rf "$1/crates/pncad/src"
+  mkdir -p "$1/crates/pncad/src"
+  printf 'pub fn eps() -> f64 { geom_core::Tol::witness().eps() }\n' \
+    > "$1/crates/pncad/src/new.rs"
+}
+
 gate_selftest() {
   local want="kernel library code minted a tolerance witness"
   gate_selftest_clean
@@ -213,8 +258,9 @@ gate_selftest() {
   gate_selftest_passes "the same call inside a #[cfg(test)] module" plant_in_cfg_test
   gate_selftest_passes "a bin target's main under src/bin" plant_in_bin
   gate_selftest_test_module_homes "$want" plant_witness_at
-  gate_selftest_homes --narrowed "$HOME_FILE"
-  printf '%s selftest OK: passes a clean fixture carrying the file that DEFINES witness, prose/block-comment/string-literal mentions of the call, the same call inside a #[cfg(test)] module, and a bin target under src/bin; fires on a witness minted in library code, on the pncad::tolerance::witness facade spelling, on a main written outside src/bin, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  gate_selftest_case "$DOOR_HOME is not a file under" plant_door_renamed_away_then_rewritten
+  gate_selftest_homes --narrowed "$HOME_FILE" "$DOOR_HOME" "$FFI_HOME"
+  printf '%s selftest OK: passes a clean fixture carrying the file that DEFINES witness and the two roots its directory prefixes exempt, prose/block-comment/string-literal mentions of the call, the same call inside a #[cfg(test)] module, and a bin target under src/bin; fires on a witness minted in library code, on the pncad::tolerance::witness facade spelling, on a main written outside src/bin, at the colon-carrying path a home skip that ends at `:` exempts, and where a directory prefix outlives the crate root it exempts and a new file mints the witness at the old path; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

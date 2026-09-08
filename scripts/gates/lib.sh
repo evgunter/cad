@@ -2099,10 +2099,22 @@ gate_plant_home_gone() {
 # calls `gate_production_sources` no longer reads the home, so its skip
 # exempts nothing and it must red; a gate that scans `GATE_SOURCE_FILES`
 # whole still reads it, the skip still covers it, and it must not.
+#
+# A `mod.rs` HOME IS ITS DIRECTORY'S MODULE, so the declaration that
+# mounts it names the DIRECTORY and sits ONE LEVEL UP: `mod py;` beside
+# `py/`, not `mod mod;` inside it. Written out because the sibling rule
+# applied literally to such a home overwrites the home with a
+# declaration that resolves onto ITSELF — which the resolver drops as
+# naming no other file, leaving the home in the scan and the case
+# passing a gate it was written to red.
 gate_plant_home_unscanned() {
   local home=$1 tmp=$2
-  local base=${home##*/}
-  printf '#[cfg(test)]\nmod %s;\n' "${base%.rs}" > "$tmp/${home%/*}/mod.rs"
+  local base=${home##*/} dir=${home%/*}
+  if [ "$base" = mod.rs ]; then
+    printf '#[cfg(test)]\nmod %s;\n' "${dir##*/}" > "$tmp/${dir%/*}/mod.rs"
+    return
+  fi
+  printf '#[cfg(test)]\nmod %s;\n' "${base%.rs}" > "$tmp/$dir/mod.rs"
 }
 
 # gate_selftest_homes [--narrowed] HOME... — the check's cases, for one
