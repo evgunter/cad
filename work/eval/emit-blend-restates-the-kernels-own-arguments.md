@@ -2,9 +2,10 @@
 id: emit-blend-restates-the-kernels-own-arguments
 kind: issue
 title: editor-core's emit_blend re-derives two arguments that now have their home in sweep's kernel types, and one is already narrower
-status: spec
+status: review
 opened: 2026-09-04
 track: V
+pr: 2160
 branch: eval/3-emit-blend-cites
 ---
 
@@ -62,3 +63,19 @@ parked there.
 ## Claimed by EVAL (2026-09-06)
 
 Moved from `work/code-quality/` to `work/eval/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track V; `names/emit_blend.rs` is EVAL's ground.
+
+## Closed
+
+PR 2160 (`eval/3-emit-blend-cites`). Both restatements in
+`crates/editor-core/src/names/emit_blend.rs` are citations now: the
+module-doc paragraph and the guard-site comment cite
+`sweep::blend::naming`'s module doc (a rustdoc link in the module doc,
+so a moved home reds the doc build) for "the guard cannot fire while
+the arenas reissue no retired key", and the face arm cites `Retired`'s
+own doc for "no face channel", keeping one line of consumer meaning
+("so a face key here is a real survivor"). The consumer's coverage
+sentence is dropped; the kernel's names both rows. The `wire_blend`
+cross-reference stays (its premise holds at `eval/wire.rs`); its
+parenthetical naming `wire_fillet`/`wire_chamfer`, which no longer
+exist, is gone. Sweep residue filed as
+`emitters-carry-pr-and-unit-archaeology-in-comments`.
