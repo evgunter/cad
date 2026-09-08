@@ -39,7 +39,11 @@ fn beside_raw(body: &Body<f64>, other: &Body<f64>, d: Vec3<f64>) -> (Body<f64>, 
 
 fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> {
     let (out, _) = beside_raw(body, other, Vec3::new(dx, 0.0, 0.0));
-    assert_eq!(topo::validate_geometric(&out, tol()), Ok(()), "operand valid");
+    assert_eq!(
+        topo::validate_geometric(&out, tol()),
+        Ok(()),
+        "operand valid"
+    );
     out
 }
 
@@ -216,7 +220,10 @@ fn r2_scope_naming_two_of_three_solids_leaves_the_third_bitwise() {
     partial.pop();
     let mut work = three.clone();
     let e = topo::offset_planes_together(&mut work, &partial, band(), tol()).unwrap_err();
-    assert!(matches!(e, topo::ReplaceFaceError::TogetherPartialSet { face } if solid_of(&three, face) == solids[2]), "{e}");
+    assert!(
+        matches!(e, topo::ReplaceFaceError::TogetherPartialSet { face } if solid_of(&three, face) == solids[2]),
+        "{e}"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -231,9 +238,14 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
     // A 0.5-cube whose top sits 0.02 (< 2t) below the void's ceiling.
     let inner = boxy(0.5, 0.5, 0.5);
     let (body, inner_solid) = beside_raw(&hollow, &inner, Vec3::new(0.75, 1.25, 3.75 - 0.02 - 0.5));
-    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()), "a solid inside a void is a valid body");
+    assert_eq!(
+        topo::validate_geometric(&body, tol()),
+        Ok(()),
+        "a solid inside a void is a valid body"
+    );
     println!("[r2] roles of the nested operand: {:?}", roles(&body));
-    let s = topo::shell(&body, t, tol()).expect("both shell; the void wall and the cube face never gate");
+    let s = topo::shell(&body, t, tol())
+        .expect("both shell; the void wall and the cube face never gate");
     let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9))
         + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5))
         + (v(0.5, 0.5, 0.5) - v(0.4, 0.4, 0.4));
@@ -248,12 +260,21 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
     assert_eq!(s.body.solids().count(), 3);
     assert_eq!(s.body.shells().count(), 6);
     assert!((volume(&s.body) - want).abs() < 1e-12);
-    assert!(s.naming.thickened.iter().any(|(owner, _)| *owner == inner_solid));
+    assert!(
+        s.naming
+            .thickened
+            .iter()
+            .any(|(owner, _)| *owner == inner_solid)
+    );
 
     // Same-solid control: a cube of the SAME size standing beside the
     // hollow box 0.02 from its outer wall never gates either (cross
     // solid) — but a 0.02 wall INSIDE one solid does.
-    let (thin, _) = beside_raw(&boxy(2.0, 3.0, 4.0), &boxy(0.5, 0.5, 0.5), Vec3::new(2.02, 0.0, 0.0));
+    let (thin, _) = beside_raw(
+        &boxy(2.0, 3.0, 4.0),
+        &boxy(0.5, 0.5, 0.5),
+        Vec3::new(2.02, 0.0, 0.0),
+    );
     topo::shell(&thin, t, tol()).expect("cross-solid 0.02 gap builds");
 }
 
@@ -268,17 +289,29 @@ fn r2_roles_are_read_over_the_whole_body_only_when_some_solid_is_hollow() {
     let bracket = Bracket::open();
     topo::shell(&pair, 0.05, tol()).expect("shells");
     let verdicts = bracket.finish().verdicts;
-    let signs = verdicts.iter().filter(|v| v.predicate == "chk_shell_volume_sign").count();
+    let signs = verdicts
+        .iter()
+        .filter(|v| v.predicate == "chk_shell_volume_sign")
+        .count();
     println!("[r2] hollow+plain: chk_shell_volume_sign verdicts = {signs}");
-    assert_eq!(signs, 3, "every shell of the body is classified, the plain solid's included");
+    assert_eq!(
+        signs, 3,
+        "every shell of the body is classified, the plain solid's included"
+    );
 
     let plain = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0);
     let bracket = Bracket::open();
     topo::shell(&plain, 0.05, tol()).expect("shells");
     let verdicts = bracket.finish().verdicts;
-    let signs = verdicts.iter().filter(|v| v.predicate == "chk_shell_volume_sign").count();
+    let signs = verdicts
+        .iter()
+        .filter(|v| v.predicate == "chk_shell_volume_sign")
+        .count();
     println!("[r2] plain+plain: chk_shell_volume_sign verdicts = {signs}");
-    assert_eq!(signs, 0, "a body of only single-shell solids reads no roles");
+    assert_eq!(
+        signs, 0,
+        "a body of only single-shell solids reads no roles"
+    );
 }
 
 #[test]
@@ -298,7 +331,14 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
     let evidence = VoidEvidence {
         shells: pre_reverted
             .shells()
-            .map(|(s, _)| (s, VoidContainment::Carried { sign: Sign::Positive }))
+            .map(|(s, _)| {
+                (
+                    s,
+                    VoidContainment::Carried {
+                        sign: Sign::Positive,
+                    },
+                )
+            })
             .collect(),
     };
     topo::insert_void(&mut host, host_solid, pre_reverted, &evidence, tol()).expect("inserts");
@@ -306,7 +346,10 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
     let (body, _) = beside_raw(&host, &boxy(2.0, 3.0, 4.0), Vec3::new(10.0, 0.0, 0.0));
     let e = topo::shell(&body, 0.05, tol()).expect_err("two outer shells in one solid refuse");
     println!("[r2] two-outer beside plain: {e}");
-    assert!(matches!(e, ShellError::OperandOuterShells { outer: 2 }), "{e}");
+    assert!(
+        matches!(e, ShellError::OperandOuterShells { outer: 2 }),
+        "{e}"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -323,7 +366,12 @@ fn r2_chart_spans_solids_reachability_through_a_disconnecting_subtract() {
     let r = topo::subtract(&slab, &wall, tol());
     let body = match r {
         Ok(topo::BooleanResult::Body(b)) => {
-            println!("[r2] disconnecting subtract: kind={:?} solids={} shells={}", b.kind, b.body.solids().count(), b.body.shells().count());
+            println!(
+                "[r2] disconnecting subtract: kind={:?} solids={} shells={}",
+                b.kind,
+                b.body.solids().count(),
+                b.body.shells().count()
+            );
             b.body
         }
         other => {
@@ -378,7 +426,13 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     let alone = topo::shell_open(&hv, t, &ceiling, tol()).expect("the void ceiling opens");
     let props = topo::mass_properties(&alone.body, tol()).unwrap();
     let want = hollow_vessel_want(t1, t, 1.0, 2.0, true);
-    println!("[r2] hollow vessel opened on its void ceiling: solids={} shells={} volume={} want={want} pad={}", alone.body.solids().count(), alone.body.shells().count(), props.volume, props.volume_pad);
+    println!(
+        "[r2] hollow vessel opened on its void ceiling: solids={} shells={} volume={} want={want} pad={}",
+        alone.body.solids().count(),
+        alone.body.shells().count(),
+        props.volume,
+        props.volume_pad
+    );
     assert_eq!(topo::validate_geometric(&alone.body, tol()), Ok(()));
     assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
     assert_eq!(alone.body.solids().count(), 2);
@@ -391,13 +445,18 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     let (_, void) = {
         // The vessel's void in the pair: the shell with a Void role.
         let rs = roles(&pair);
-        let voids: Vec<_> = rs.iter().filter(|(_, r)| *r == ShellRole::Void).map(|(s, _)| *s).collect();
+        let voids: Vec<_> = rs
+            .iter()
+            .filter(|(_, r)| *r == ShellRole::Void)
+            .map(|(s, _)| *s)
+            .collect();
         assert_eq!(voids.len(), 1);
         (rs, voids[0])
     };
     let ceiling = cap(&pair, void, y, 2.0 - t1);
     let sealed = topo::shell(&pair, t, tol()).expect("sealed");
-    let opened = topo::shell_open(&pair, t, &ceiling, tol()).expect("opened on the vessel's void ceiling");
+    let opened =
+        topo::shell_open(&pair, t, &ceiling, tol()).expect("opened on the vessel's void ceiling");
     // By OPERAND key: the box's entities survive under their keys in
     // both results, while the rim surgery kills vertices elsewhere.
     let (mut same, mut moved) = (0, 0);
@@ -409,13 +468,23 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
             let pt = b.get_point(b.get_vertex(k).unwrap().point).unwrap();
             (pt.x.to_bits(), pt.y.to_bits(), pt.z.to_bits())
         };
-        if p(&sealed.body) == p(&opened.body) { same += 1 } else { moved += 1 }
+        if p(&sealed.body) == p(&opened.body) {
+            same += 1
+        } else {
+            moved += 1
+        }
     }
     println!("[r2] box beside opened vessel: box vertices same={same} moved={moved}");
     assert_eq!((same, moved), (8, 0));
     let props = topo::mass_properties(&opened.body, tol()).unwrap();
-    let want = (v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t)) + hollow_vessel_want(t1, t, 1.0, 2.0, true);
-    println!("[r2] box beside opened vessel: solids={} shells={} volume={} want={want}", opened.body.solids().count(), opened.body.shells().count(), props.volume);
+    let want = (v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
+        + hollow_vessel_want(t1, t, 1.0, 2.0, true);
+    println!(
+        "[r2] box beside opened vessel: solids={} shells={} volume={} want={want}",
+        opened.body.solids().count(),
+        opened.body.shells().count(),
+        props.volume
+    );
     assert_eq!(topo::validate_geometric(&opened.body, tol()), Ok(()));
     assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
     assert_eq!(opened.body.solids().count(), 3);
@@ -449,7 +518,9 @@ fn r2_no_solid_is_only_the_empty_operand() {
 #[test]
 fn r2_solid_order_assertion_on_a_body_with_a_freed_solid_slot() {
     let mut body = boxy(2.0, 3.0, 4.0);
-    let lone = body.mvfs(Point3::new(50.0, 50.0, 50.0)).expect("a lone-vertex solid");
+    let lone = body
+        .mvfs(Point3::new(50.0, 50.0, 50.0))
+        .expect("a lone-vertex solid");
     let (mut body, third) = beside_raw(&body, &boxy(2.0, 3.0, 4.0), Vec3::new(10.0, 0.0, 0.0));
     let killed = body.kvfs(lone.solid).expect("the lone solid dies");
     assert_eq!(killed.killed_solid, lone.solid);
@@ -508,7 +579,11 @@ fn wall(body: &Body<f64>, solid: SolidKey, axis: Vec3<f64>, value: f64) -> FaceK
 fn tess(label: &str, body: &Body<f64>) {
     let m = mesh::tessellate(body, 1e-3, tol()).expect("tessellates");
     let tris: usize = m.patches.iter().map(|p| p.triangles.len()).sum();
-    println!("[r2] e2e {label}: tessellated positions={} patches={} triangles={tris}", m.positions.len(), m.patches.len());
+    println!(
+        "[r2] e2e {label}: tessellated positions={} patches={} triangles={tris}",
+        m.positions.len(),
+        m.patches.len()
+    );
     assert!(tris > 0);
 }
 
@@ -521,16 +596,29 @@ fn r2_e2e_consumer_seat() {
     let part_a = boxy(2.0, 3.0, 4.0);
     let part_b = vessel(1.0, 2.0);
     let mut assembly = part_a.clone();
-    let placed = topo::transform_rigid(&part_b, &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)), tol()).unwrap();
+    let placed = topo::transform_rigid(
+        &part_b,
+        &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
+        tol(),
+    )
+    .unwrap();
     let b_solid = topo::graft_disjoint(&mut assembly, &placed, tol()).expect("placed");
     let a_solid = assembly.solids().next().unwrap().0;
     let hollowed = topo::shell(&assembly, 0.05, tol()).expect("both parts hollow in one call");
     let want = one_wall(0.05) + PI * (1.0 * 2.0 - 0.95 * 0.95 * 1.9);
     let props = topo::mass_properties(&hollowed.body, tol()).unwrap();
-    println!("[r2] e2e 1: solids={} shells={} volume={} want={want}", hollowed.body.solids().count(), hollowed.body.shells().count(), props.volume);
+    println!(
+        "[r2] e2e 1: solids={} shells={} volume={} want={want}",
+        hollowed.body.solids().count(),
+        hollowed.body.shells().count(),
+        props.volume
+    );
     assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
     let rs = roles(&hollowed.body);
-    println!("[r2] e2e 1: roles {rs:?}; thickened {:?}", hollowed.naming.thickened);
+    println!(
+        "[r2] e2e 1: roles {rs:?}; thickened {:?}",
+        hollowed.naming.thickened
+    );
     assert_eq!(rs.iter().filter(|(_, r)| *r == ShellRole::Void).count(), 2);
     tess("1 (two hollow parts)", &hollowed.body);
 
@@ -542,42 +630,92 @@ fn r2_e2e_consumer_seat() {
     // whose key SURVIVES the second hollowing under the same key).
     let top = wall(&part_a, part_a.solids().next().unwrap().0, z, 4.0);
     let inner_ceiling = twin_of(&first.naming, top);
-    assert!(second.body.get_face(inner_ceiling).is_some(), "the void face survives under its key");
+    assert!(
+        second.body.get_face(inner_ceiling).is_some(),
+        "the void face survives under its key"
+    );
     // Which thin solid holds it now, through the record: thickened is
     // keyed by OPERAND SHELL, so face → shell → row.
     let its_shell = first.body.get_face(inner_ceiling).unwrap().shell;
-    let (owner, _) = second.naming.thickened.iter().find(|(_, s)| *s == its_shell).unwrap();
-    println!("[r2] e2e 2: the inner ceiling {inner_ceiling:?} sits in thin solid {owner:?} of {:?}", second.body.solids().map(|(k, _)| k).collect::<Vec<_>>());
-    let third = topo::shell_open(&second.body, 0.01, &[inner_ceiling], tol()).expect("hollow, hollow, open");
-    let want = (v(2.0, 3.0, 4.0) - v(1.98, 2.98, 3.98)) + (v(1.92, 2.92, 3.92) - v(1.9, 2.9, 3.9))
-        + (v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58)) + (v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5))
+    let (owner, _) = second
+        .naming
+        .thickened
+        .iter()
+        .find(|(_, s)| *s == its_shell)
+        .unwrap();
+    println!(
+        "[r2] e2e 2: the inner ceiling {inner_ceiling:?} sits in thin solid {owner:?} of {:?}",
+        second.body.solids().map(|(k, _)| k).collect::<Vec<_>>()
+    );
+    let third = topo::shell_open(&second.body, 0.01, &[inner_ceiling], tol())
+        .expect("hollow, hollow, open");
+    let want = (v(2.0, 3.0, 4.0) - v(1.98, 2.98, 3.98))
+        + (v(1.92, 2.92, 3.92) - v(1.9, 2.9, 3.9))
+        + (v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58))
+        + (v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5))
         - 1.52 * 2.52 * 0.01;
-    println!("[r2] e2e 2: solids={} shells={} volume={} want={want}", third.body.solids().count(), third.body.shells().count(), volume(&third.body));
+    println!(
+        "[r2] e2e 2: solids={} shells={} volume={} want={want}",
+        third.body.solids().count(),
+        third.body.shells().count(),
+        volume(&third.body)
+    );
     assert!((volume(&third.body) - want).abs() < 1e-12);
     assert_eq!(topo::validate_geometric(&third.body, tol()), Ok(()));
     tess("2 (hollow, hollow, open)", &third.body);
     // The OTHER way to say "inner wall": the dilated twin of that
     // ceiling — the OUTER face of the innermost thin solid.
     let outer_of_innermost = twin_of(&second.naming, inner_ceiling);
-    let alt = topo::shell_open(&second.body, 0.01, &[outer_of_innermost], tol()).expect("opens on the outer side too");
+    let alt = topo::shell_open(&second.body, 0.01, &[outer_of_innermost], tol())
+        .expect("opens on the outer side too");
     // That twin is the ceiling of S2's OUTER shell (1.6 × 2.6 × 3.6), so
     // this is an OUTER designation and the lid is the cavity footprint.
     let want_alt = want + 1.52 * 2.52 * 0.01 - 1.58 * 2.58 * 0.01;
-    println!("[r2] e2e 2': opened on the twin instead: volume={} want={want_alt}", volume(&alt.body));
+    println!(
+        "[r2] e2e 2': opened on the twin instead: volume={} want={want_alt}",
+        volume(&alt.body)
+    );
     assert!((volume(&alt.body) - want_alt).abs() < 1e-12);
 
     // ---- 3. Vessel beside a box, hollowed, then opened on the
     // vessel's inner wall. ----
+    // FRICTION, measured: the vessel's cap is a full revolve's — two
+    // half-disc faces on one chart — and designating ONE of them refuses
+    // `OpenFaceChartPartial`. The consumer has to know to widen a face
+    // to its chart and map each face through the record.
     let b_cap = wall(&assembly, b_solid, y, 2.0);
-    let b_inner_ceiling = twin_of(&hollowed.naming, b_cap);
-    let opened = topo::shell_open(&hollowed.body, 0.02, &[b_inner_ceiling], tol()).expect("opened on the vessel's inner wall");
+    let one_face_only = twin_of(&hollowed.naming, b_cap);
+    let e = topo::shell_open(&hollowed.body, 0.02, &[one_face_only], tol()).unwrap_err();
+    println!("[r2] e2e 3: one half-disc of the vessel's inner ceiling: {e}");
+    assert!(matches!(e, ShellError::OpenFaceChartPartial { .. }));
+    let chart = assembly.get_face(b_cap).unwrap().surface;
+    let b_inner_ceiling: Vec<FaceKey> = assembly
+        .faces()
+        .filter(|(_, f)| f.surface == chart)
+        .map(|(k, _)| twin_of(&hollowed.naming, k))
+        .collect();
+    let opened = topo::shell_open(&hollowed.body, 0.02, &b_inner_ceiling, tol())
+        .expect("opened on the vessel's inner wall");
     let want = one_wall(0.02) + hollow_vessel_want(0.05, 0.02, 1.0, 2.0, true);
     let props = topo::mass_properties(&opened.body, tol()).unwrap();
-    println!("[r2] e2e 3: solids={} shells={} volume={} want={want} rims={}", opened.body.solids().count(), opened.body.shells().count(), props.volume, opened.naming.rims.len());
+    println!(
+        "[r2] e2e 3: solids={} shells={} volume={} want={want} rims={}",
+        opened.body.solids().count(),
+        opened.body.shells().count(),
+        props.volume,
+        opened.naming.rims.len()
+    );
     assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
     assert_eq!(topo::validate_geometric(&opened.body, tol()), Ok(()));
-    let per_solid: Vec<(SolidKey, usize)> = opened.body.solids().map(|(k, s)| (k, s.shells.len())).collect();
-    println!("[r2] e2e 3: shells per solid {per_solid:?}; roles {:?}", roles(&opened.body));
+    let per_solid: Vec<(SolidKey, usize)> = opened
+        .body
+        .solids()
+        .map(|(k, s)| (k, s.shells.len()))
+        .collect();
+    println!(
+        "[r2] e2e 3: shells per solid {per_solid:?}; roles {:?}",
+        roles(&opened.body)
+    );
     tess("3 (vessel beside box, opened)", &opened.body);
     let _ = a_solid;
 }
