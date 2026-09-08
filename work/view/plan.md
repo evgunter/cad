@@ -132,7 +132,7 @@ should be visible on its own.
 | `view/censuses` (seven censuses in four hats, and an eighth) | #2103 | style + fix pass |
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
 | `view/summarised` (a summarised field renders as a summary) | #2148 | style — **in flight** |
-| `view/labelled` (two of the four bare vocabularies, and the corrected rule) | — | dispatched 2026-09-07, Ev's ruling |
+| `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -236,6 +236,26 @@ printing `OK` and exiting 0 over two planted breaches whenever its
 roster table was empty — a docs-tier edit away, and the #1953 class
 again. A style lane reads what the code says; only an adversarial one
 asks what it does when a reader dies.
+
+**Namespace what you write in the shared scratchpad.** #2143's reviewer
+generated `base.rs`, `head.rs`, `base.txt` and `head.txt` for its own
+word proof and overwrote four files of those exact names that another
+lane had left there. Nothing was lost that mattered, and the collision
+is silent by construction — a lane cannot tell whether a scratchpad
+file is its own. Dispatches carry a per-lane prefix now.
+
+**The rule a unit states is the first rule to check the unit against.**
+#2143 wrote *a universal in prose owes the sweep rule that produces its
+population* into `crates/viewer/README.md` and then stated a population
+its own rule does not produce: the sweep says every loop over a
+vocabulary's `ALL` under `src/` read for what it asks each entry for,
+and says **two** ask for the word — there are **seven**, and all seven
+do. "Two" was the count of newly converted vocabularies, a restriction
+no longer expressible once `PathVerb` and `ArcMode` joined the labelled
+five. It was also a regression: the rewrite deleted the one paragraph
+that had accounted for the other five. A reviewer who runs the stated
+rule catches this in one command; a reviewer who reads the sentence
+does not.
 
 **A base worktree needs its OWN target dir, not the lane's.** The rule
 above says export `CARGO_TARGET_DIR` everywhere; #2148's lane did, and
