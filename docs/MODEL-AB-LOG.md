@@ -4695,3 +4695,25 @@ not written until the dual concludes. Shared-box note applying to
 BOTH arms equally: one 4-core cloud box beside one other lane, `-j2`;
 R1's target is the implementer's warm one, R2's is seeded from an
 older warm build — wall-clock asymmetry only.
+
+Census-door review ordinal fixed at dispatch (2026-09-08, PR #2131
+open — frozen head `11257506c`; unit
+`work/topo/no-public-census-or-genus-query`, Ev's ruling (A) on [ev]
+PR 2010): **ordinal 2702** (TOPO band). Pre-draw fields: difficulty
+**S/M**, task class **STRUCTURAL** (one new public door in `readback`
+plus a mechanical sweep of the hand-written identity across three
+crates and the demos) — written knowing the slot's arm (block TOPO-B1
+drawn 2026-09-05), disclosed here. Implementer arm per block TOPO-B1
+slot 2 (record branch-side on `topo/b1-block`). Protocol v6 dual: draw
+= `/dev/urandom` byte **70**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `11257506c`, both briefs authored and STORED with sha256 before
+either dispatches (identical text modulo lane name, target and scratch
+paths, verified by diff), neither reviewer sees the other's report, v6
+item 5 isolation in both briefs; the implementer's unit log entry is
+not written until the dual concludes. Shared-box note applying to
+BOTH arms equally: one 4-core cloud box, no other lane live, `-j2`;
+R1's kernel target is the implementer's warm one and its demo target
+the implementer's warm demo target, R2's kernel target is seeded from
+an older warm build and its demo target is cold — wall-clock asymmetry
+only.

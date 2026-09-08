@@ -73,6 +73,29 @@ one tree — hosted does all three now — and what it still adds is its opt-in
 `--nightly` row. Reach for it before a merge that would be expensive to get
 wrong, not routinely.
 
+**A row you DEMOTE to the nightly is verified AT the demotion.** Moving a
+check out of the per-PR gate into `.github/workflows/nightly.yml` costs it the
+thing that made it trustworthy: every PR ran it, so a mistake in the move
+surfaced in minutes on the branch that made it. In the nightly it surfaces at
+the next fire, to nobody, and **a row that fails to run at all reports the same
+green as a row that ran and passed**. So before the per-PR copy is deleted,
+`workflow_dispatch` the demoted job on the demoting PR's head, read the STEP
+that does the work rather than the job name, and name the run id in the PR
+body. Three rows demoted on 2026-09-03 first executed two nights later,
+unattended, and happened to be correct; a fourth (`c5263958`) had unbalanced
+quotes and never ran at all, and was caught only because a person read a log.
+
+**The same holds one level in, for a `--selftest`.** A guard sited only in a
+scheduled workflow is exercised only on a schedule, which is the same defect
+with a smaller subject. A script's inputs are `scripts/*.py` or `scripts/*.sh`
+— not a file class `scripts/ci-filter.py` reads as TIER=docs — so the change
+set that can break its selftest is exactly the change set the per-PR gate runs
+on, and that is where the row belongs. `scripts/check-ci-mirror-parity.py`'s
+claim 4 has a second arm that refuses a `--selftest` mode NO WORKFLOW invokes
+— a row in `local-scripts/` does not count, because every hosted job deletes
+that tree. That is the floor, not this rule: it cannot tell a per-PR row from
+a nightly one, and you can.
+
 **Draft PRs do not run the gate at all.** Mark the PR ready for review when you
 want it gated; undrafting triggers a full run on the same head.
 
