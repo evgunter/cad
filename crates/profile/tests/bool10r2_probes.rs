@@ -50,12 +50,17 @@ fn worst_radial(lp: &ProfileLoop<f64>, centre: Point2<f64>, r: f64) -> f64 {
         .fold(0.0, f64::max)
 }
 
-fn bulge_leg(a: Point2<f64>, b: Point2<f64>, bulge: f64, n: usize) -> ClosedLoop<f64> {
+/// `None` when the KERNEL refuses the fixture — its own ε
+/// classification, not the placement's: at a coarser ambient ε the
+/// 1 mm sliver chord below sits inside the junction band. The rows
+/// assert their claims over every fixture the kernel accepts, and at
+/// the compiled default ε that is all of them (asserted).
+fn bulge_leg(a: Point2<f64>, b: Point2<f64>, bulge: f64, n: usize) -> Option<ClosedLoop<f64>> {
     Open.at(a)
         .arc_to(Bulge { p: b, b: bulge }.split(n), Tol::witness())
-        .unwrap()
+        .ok()?
         .line_to(Start, Tol::witness())
-        .unwrap()
+        .ok()
 }
 
 /// **Reversal identity and on-carrier placement, attacked.** Chords
@@ -89,11 +94,18 @@ fn stations_reverse_bit_identically_and_stay_on_the_carrier() {
     let counts = [2usize, 3, 4, 5, 6, 7, 8, 9, 12, 16];
     let mut worst = 0.0f64;
     let mut worst_at = String::new();
+    let mut refused = 0usize;
     for (a, b) in chords {
         for bulge in bulges {
             for n in counts {
-                let forward = pinned(bulge_leg(a, b, bulge, n));
-                let backward = pinned(bulge_leg(b, a, -bulge, n));
+                let (Some(forward), Some(backward)) =
+                    (bulge_leg(a, b, bulge, n), bulge_leg(b, a, -bulge, n))
+                else {
+                    refused += 1;
+                    continue;
+                };
+                let forward = pinned(forward);
+                let backward = pinned(backward);
                 assert_eq!(forward.vertices().len(), n + 1);
                 let piece = (4.0 * bulge.atan() / (4.0 * n as f64)).tan();
                 for k in 0..n {
@@ -125,6 +137,13 @@ fn stations_reverse_bit_identically_and_stay_on_the_carrier() {
     assert!(
         worst < 8.0 * f64::EPSILON,
         "a station left the carrier by {worst:e} (relative) at {worst_at}"
+    );
+    // At the compiled default ε (1e-9) every fixture builds; a coarser
+    // CI row may refuse the sliver chord in the kernel's own band.
+    assert!(
+        refused == 0 || Tol::witness().eps() > 1e-9,
+        "{refused} fixture(s) refused at ε = {}",
+        Tol::witness().eps()
     );
 }
 
@@ -356,7 +375,10 @@ fn a_split_closer_with_a_declared_arrival() {
 /// middle station the axis point exactly.
 #[test]
 fn a_thousand_piece_split_stays_on_the_carrier() {
-    let lp = pinned(bulge_leg(p2(0.0, -0.5), p2(0.0, 0.5), 1.0, 1000));
+    let lp = pinned(
+        bulge_leg(p2(0.0, -0.5), p2(0.0, 0.5), 1.0, 1000)
+            .expect("a unit semicircle builds at every ε"),
+    );
     assert_eq!(lp.vertices().len(), 1001);
     assert_eq!(lp.tangent_joints().len(), 999);
     let off = worst_radial(&lp, p2(0.0, 0.0), 0.5);

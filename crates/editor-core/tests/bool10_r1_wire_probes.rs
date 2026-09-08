@@ -84,6 +84,13 @@ fn drop_splits(v: &mut serde_json::Value, hits: &mut usize) {
 
 /// **The committed document loads, and its arc leg carries `splits`.**
 /// The baseline the two mutations below are measured against.
+///
+/// Re-aimed in the fix pass for CI's ε rows: the committed document
+/// pins the ε it was saved under, and that ONE line is the line the ε
+/// rows sweep by design (`crates/pncad/tests/all.rs::plate_param_
+/// authors_facade_only_and_its_saved_text_is_pinned` states the
+/// disposition), so the row re-pins it to the ambient ε and touches
+/// nothing else — the claim is about the arc leg's field, not the ε.
 #[test]
 fn the_committed_document_carries_the_split_count_and_loads() {
     let text = die_tool();
@@ -91,7 +98,10 @@ fn the_committed_document_carries_the_split_count_and_loads() {
         text.contains("\"splits\": 1"),
         "the committed die-tool document should carry the new field"
     );
-    load(&text, Tol::witness()).expect("the committed document loads at this head");
+    let (header, mut v) = split_header(&text);
+    v["snapshot"]["epsilon"] = serde_json::json!(Tol::witness().eps());
+    load(&join(&header, &v), Tol::witness())
+        .expect("the committed document loads at this head, at the ambient ε");
 }
 
 /// **`splits` is REQUIRED on read, not optional.** A document whose
