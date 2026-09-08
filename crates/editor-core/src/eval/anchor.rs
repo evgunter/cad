@@ -404,7 +404,7 @@ mod map_affine_probe {
 
     /// The twelve components in a fixed order, so a transposition
     /// between two walks cannot hide.
-    fn bits<T: Real + Copy>(a: &Affine3<T>, f: impl Fn(T) -> u64) -> [u64; 12] {
+    fn bits<T: Real>(a: &Affine3<T>, f: impl Fn(T) -> u64) -> [u64; 12] {
         let (l, t) = (a.linear, a.translation);
         [
             f(l.c0.x),
