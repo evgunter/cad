@@ -35,7 +35,7 @@ use pncad::select::SplitHalf;
 use viewer::combine::{
     BooleanTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
 };
-use viewer::pick::PickKinds;
+use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
     DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, Selection,

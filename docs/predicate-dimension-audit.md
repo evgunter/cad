@@ -308,9 +308,9 @@ which is what actually moves the number.
 | pcurve_cache.rs:1680/1772/1791 | pcurve_chart_orientation / sphere meridian | m² ÷ radius | m | OK |
 | pcurve_cache.rs:1752 | pcurve_sphere_chart_frame | m at :1770, dimensionless at :1836 (tie-break) | mixed | FLAG (note N5) |
 | pcurve_cache.rs:1759–1829 | pcurve_sphere_chart_* | m-scaled coefficients / rooted | m | OK |
-| pcurve_cache.rs (iso lane, M7) | pcurve_iso_boundary / iso_axis_u/v / iso_domain | chart-param values/extents/overhangs × stretch bounds (m per chart unit) | m | OK (metered door; added by the clause-(i) migration) |
+| pcurve_cache.rs (iso lane, M7) | pcurve_iso_boundary / iso_axis_u/v / iso_domain | chart-param values/extents/overhangs × stretch bounds (m per chart unit); two definite non-zero `pcurve_iso_boundary` verdicts route the seam class through a `pcurve_iso_domain` decide of the fixed channel's overshoot (× `stretch_u`; a column outside the domain refuses typed) to the collapsed-row hull (an interior column, `nurbs_iso::interior_iso_u`), whose slack is the channel's drift alone — no snap term | m | OK (metered door; added by the clause-(i) migration) |
 | pcurve_cache.rs (ARC-RIM iso class, M8-3) | pcurve_interval_forward / pcurve_iso_boundary | span × `param_rate` = arc LENGTH (the class's carrier is a `Curve3::Circle` by construction, so the rate is the radius); the sub-arc weight residual `w − cos(h/2)` metered at the radius | m | OK (metered door; its rate cannot be poison, which is why it carries no meter gate) |
-| pcurve_cache.rs (iso/fitted lanes) | pcurve_envelope | certified sup bound (m) | m | OK (added by the clause-(i) migration) |
+| pcurve_cache.rs (iso/fitted lanes) | pcurve_envelope | certified sup bound (m); on the seam class the traversed row's control-difference hull, a boundary row's copy or an interior column's de Boor collapse (each collapsed control point encloses the exact one at the interval scalar, so the hull's upper end still bounds the sup) | m | OK (added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation, M6-3) | pcurve_cone/sphere/torus_chart_axial / _centered / chart_radial_moving | axial displacement sums; radial-offset norms; Σ m-norms | m | OK (added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (over_lever door; added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation) | pcurve_cone_chart_nappe (h0/h data) | axial heights (m) | m | OK; the hs COSINE fallback is FLAG F13 |
@@ -429,6 +429,12 @@ which is what actually moves the number.
 | chart_region.rs (M9-2) | chart_region_orientation / chart_region_area | signed loop shoelace 2A (m²) / perimeter — the loop's (resp. intersection region's) mean width, through the same `Margin::over_lever` door as `split_section_area` two dimensions up (separate accumulators — the reasons are at `chart_region.rs`'s area margin) | m | OK (new in M9-2) |
 | chart_region.rs | chart_region_arm_inf | a chart lever arm — metres per chart unit, gated as a length (the collapsed-arm idiom, `pcurve_interval_meter`'s shape) | m | OK. The arm is a certified LOWER stretch bound (`certified_arms`), which is the side a positive-extent claim needs: an over-stated arm would inflate the metred region and certify a sliver, so the sup bounds (`geom_brep::chart_stretch_sup`) are deliberately not reachable from this lane. Definite-positive walks on; a collapsed arm is `ArmUnbounded`; an in-band arm escalates |
 | chart_region.rs (M9-2) | chart_region_seam_span | azimuth-span excess over one period (rad) × the chart's azimuth arm r | m | OK (new in M9-2) |
+| chart_bound.rs (TRIM-3) | chart_bound_gap | the separating-axis gap between a metred cell and a boundary edge, five axes under one name: the cell's four side axes take a coordinate difference of METRED chart quantities (`Margin::of`), and the segment's own normal axis takes the corner's signed offset `n·(c−A)` — an area (m²) — over `|n|`, the perpendicular distance the corner stands off the segment's line (`Margin::over_lever`) | m | OK (new in TRIM-3). One name, one population by construction: the five axes ask the same question (metres of clear space between a cell and one edge) and a positive on ANY of them separates, so splitting them would meter one decision as five |
+| chart_bound.rs (TRIM-3) | chart_bound_outer_span | the outer loop's own chart `u`-extent minus the chart's period — a chart-unit quantity (radians on an azimuth chart, knot units on a spline chart) through the chart's FIRST-channel lever arm (`Margin::levered`), so the margin is the metre excess by which the face wraps its own chart | m | OK (new in TRIM-3). Refusal-only and one-sided: a DEFINITE positive refuses the description, `Zero`/in-band/poison let it stand, and an inexact arm on a torus moves only where the refusal fires |
+| ray_parity.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_segment | a metred chord's own length — the degeneracy gate, through the `Margin::norm2` door | m | OK (new in TRIM-3) |
+| ray_parity.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_boundary | the cell centre's distance to a closed metred chord — perpendicular at an interior foot, endpoint otherwise | m | OK (new in TRIM-3) |
+| ray_parity.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_side | a polygon vertex's signed offset from the ray line, in metred chart coordinates | m | OK (new in TRIM-3) |
+| ray_parity.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_advance | a straddling chord's crossing advance along the ray: a 2×2 determinant (m²) over the straddle height (m) | m | OK (new in TRIM-3) |
 | boolean/rest.rs (M9-2 PR-2) | tangent_locus_axis_parallel | sin(axis, plane / axis, axis) × the 1 m verification arm (carrier_pair_relation's own) | m | OK (new in M9-2 PR-2) |
 | boolean/rest.rs (M9-2 PR-2) | tangent_locus_gap / tangent_locus_side | axis-to-plane (or axis-to-axis) distance minus radius sum/difference; signed height / radius difference — all metre data of the carriers | m | OK (new in M9-2 PR-2) |
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_gap | per-axis gap between two faces' SOUND reach boxes (plane hull ⊕ boundary-arc radius; cylinder axial span ⊕ radius; sphere ball — coordinate differences and radii, metres); only a DEFINITE positive clears the pair | m | OK (new in the union fix; boxes tightened to the face_box construction in the delta) |
@@ -787,6 +793,52 @@ Flagged, NOT fixed here (dispositions):
   at margin 0 and never a rule sample, so no K claim moves; what moves
   is the per-predicate attribution of 1,054 rows, now under their own
   name.
+
+- **F19** (added by TRIM-3, the chart-boundary outside test)
+  `topo/src/chart_bound.rs` `certifies_outside` and `assembled`: the
+  six rows above.
+  Every comparand is metres by construction, because the value they
+  decide on is a `MetredBound` — the description scaled by the chart's
+  arms (plane `(1, 1)`, cylinder `(r, 1)`, both exact) BEFORE any
+  predicate runs, so no chart-space quantity ever reaches the funnel.
+  Honest metres throughout, so **no site is flagged** and
+  `LEDGER_FLAGGED_SITES` does not move; this row is the disposition,
+  written here because the five names are new in the K roster and a
+  reader asking "what dimension is a chart-boundary cell margin"
+  should find the answer in the ledger.
+
+  **The claim has a guard, which is what a construction-based claim
+  owes.** "Metres by construction" rested on `metred` running before
+  any predicate and on `Margin::over_lever(n·(c−A), |n|)` dividing the
+  segment-normal area by the normal's length. The second half is the
+  fragile one: replacing that door with `Margin::of` decides a signed
+  AREA against the linear band and changes no verdict on any short
+  edge, so nothing stood against it. `t10_a_long_edge_guards_the_dimensional_claim`
+  is what does — a 10³ m edge and a gap of half the
+  coincidence threshold, where the honest margin is `ε/2` and the area
+  is `500·ε`, so the two doors disagree about dropping a cell that
+  meets the boundary.
+
+  Two readings of a definite `Sign::Zero` are deliberately the SAME
+  here, which is why the six names are not six questions but two.
+  `chart_bound_gap` and the four parity rows all read `Zero` as *not
+  certified* — the cell is kept — and that is the invariant
+  `certifies_outside` states: a drop needs a definite sign at `≥ K·ε`,
+  so `Zero`, an in-band margin and poison are one outcome. There is
+  therefore no strict/non-strict split of the F17 kind to name, and
+  the names exist only to keep their populations (a cell-to-edge gap,
+  a chord length, a point-to-chord distance, a side offset, a crossing
+  advance, and — asked once per description rather than once per cell
+  — an outer loop's period excess) from pooling.
+
+  **The `pcurves.rs` closure rows take a second call site under this
+  unit.** `chart_boundary` re-decides its loops' closure gap under the
+  walk's own `pcurve_loop_closure` / `pcurve_loop_closure_height`
+  names, with NO period allowed, because the description needs the
+  closure the walk's `± τ` arm deliberately admits to be excluded. Same
+  quantity, same arms (`azimuth_arm`, `v_meter`), same dimension — the
+  row two tables up covers it, and the population grows rather than
+  splitting.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

@@ -34,7 +34,7 @@ use pncad::document::{Dimension, Doc, Evaluation, Expr, Node, ProfileProgram, Re
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{HitTestError, NodePick};
-use viewer::pick::{EdgeId, EdgeNameFault, PickIndex};
+use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex};
 use viewer::scene;
 use viewer::session::{DocSession, EdgeSelection, FaceSelection};
 
@@ -294,7 +294,7 @@ fn the_fixture_has_the_shape_the_differential_needs() {
         hand.by_target.values().all(|&(_, len)| len > 0),
         "every window is non-empty; a ZERO-length window is not \
          constructible through this door and is checked at the \
-         structure instead (pick.rs's own unit rows)"
+         structure instead (pickindex.rs's own unit rows)"
     );
 }
 

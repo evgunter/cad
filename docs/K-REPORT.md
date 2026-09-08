@@ -652,9 +652,16 @@ nothing computes with it:
   `EPS_COUPLED_PREDICATES`, is a deliberate allow-list that fails
   **loud** — an ε-coupled predicate missing from it *keeps flagging*
   under the metre rules until someone rules. A roster omission
-  therefore cannot silently weaken the gate. (Its neighbour `tess-lint`
-  *does* diff a committed baseline; k-lint deliberately does not, and
-  that difference is what makes this ruling possible.)
+  therefore cannot silently weaken the gate **so long as the tight eps
+  rows run**: `tools/k-lint/src/lib.rs:165` and
+  `tests/review_probes.rs:68` measure a new ε-coupled family as silent
+  across ~96% of its range at the 1e-6 row, so the loudness is the
+  1e-9 and 1e-12 rows' and not the roster's. Every code-tier run gates
+  all three (2026-09-04); a run narrowed to `eps=1e-6` does not, and a
+  reader of this sentence at such a run is reading a claim its
+  evidence does not cover. (Its neighbour `tess-lint` *does* diff a
+  committed baseline; k-lint deliberately does not, and that
+  difference is what makes this ruling possible.)
 - A gate would have to be fed a machine-readable roster, which is the
   maintenance burden this decision declines; a reporting register would
   commit a second copy of a number the sweep already produces on every
@@ -666,6 +673,36 @@ two blind spots, and the seven names measured outside both documents.
 Adding a name carrier without recording it here still silently drops
 its rows from the roster; that is now a disclosed cost rather than an
 undetected one.
+
+**Roster addition (TRIM-3): the chart-boundary outside test.** Six
+names, in the crate scan's blind spot #4 — four of them are a
+`ray_parity::ParityRows` value, the carrier this document already
+lists, and `ParityRows`' own type docs say a new value is a roster
+change and belongs here. `topo/src/chart_bound.rs` decides:
+
+| name | carrier |
+|---|---|
+| `chart_bound_gap` | a bare literal at the `decide` site (the five-axis separating-axis test) |
+| `chart_bound_outer_span` | a named `const &str` (escape route 3) at `ChartBound::assembled` |
+| `chart_bound_segment` | `ParityRows` field |
+| `chart_bound_boundary` | `ParityRows` field |
+| `chart_bound_side` | `ParityRows` field |
+| `chart_bound_advance` | `ParityRows` field |
+
+Their dimensions and dispositions are `docs/predicate-dimension-audit.md`'s
+**F19**. `chart_bound_outer_span` is asked once per description rather
+than once per cell, so its population is orders of magnitude smaller
+than the other five and should not be read against them. They pool with nothing: a chart-boundary cell margin is its own
+population, which is exactly why the shared parity walk takes its row
+names from the caller.
+
+**They emit nothing on today's corpus, and that is a fact to read, not
+a hole.** `chart_boundary` has no shipped caller until the clearance
+seam lands, so a `k_probe_sweep.sh` CSV taken at this merge carries no
+`chart_bound_*` row — the roster's code half reaches them and its
+behavioural half does not, which is the second blind spot this section
+names, in its live form. The first sweep after the consumer lands is
+what reads their distribution.
 
 **Why no per-predicate margin data in this snapshot.** The recording
 mechanism is the `Probe` scalar: per-predicate CSVs require running a
@@ -1900,3 +1937,122 @@ nested `sqrt(…)²` at minutes per replay (138 s for the plate's
 nominal). Both stay dial-selectable and off; the census's rule column
 (`work/m10/symbolic-tier-census.md`) records which mechanism
 discharges each row.
+
+## M10-9 addendum (2026-09-06): the `registered` outcome — a constructor's axiom, counted apart
+
+M10-9 opened ERROR-DESIGN E12's reserve — **discharge by provenance** —
+as a session-level door in `geom_core::sym`
+(`Sym::register_equal`): a constructor states an identity it
+GUARANTEES, the lane scalar witnesses it, and a third normal-form walk
+consults the record. One CONSTRUCTOR ships — the swept arc carrier's builder — with the
+two same-object identities it guarantees: the rim `‖q_from − c‖ = r`
+(`sweep::swept::register_rim_identity`) and the span
+`carrier.eval(param_end) = q_to`, componentwise
+(`register_span_identity`), each with its proof in its doc comment and
+its own planted lie pinned typed.
+
+### The `registered` outcome
+
+`geom_core::k_stats::SampleOutcome::Registered` (serialized
+`registered`) joins `SymbolicZero` and `SignGated` as the K
+vocabulary's **eighth** token, through the same one home
+(`SampleOutcome::ALL` / `token()`, the cross-workspace pin in
+`k-lint`'s `tests/outcome_vocabulary.rs`, and `k-lint`'s own column
+`Scan::registered` with its per-file and TOTAL lines).
+
+It is its own column and not a third name for `symbolic_zero`, because
+the claim differs in kind. A symbolic `Zero` is a THEOREM: exact
+rational arithmetic from the parameter symbols down, nothing read. A
+registered `Zero` is an AXIOM about the construction — it rests
+additionally on the registrant's own argument, which is why the
+registrant carries that argument in its doc comment and why the door
+refuses a registration the lane scalar's value channel contradicts
+(`SymRegistration::Contradicted`, typed). Like both of the others it is
+NEVER a rule sample: the margin was never classified against the band,
+so rule 1 cannot fire on it and rules 2 and 3 have no threshold
+comparison to make.
+
+**The attribution is NECESSITY, not contact.** A decision counts
+`registered` only where the plain form and the early form have both
+declined and the same walk with the registry applied answers, so
+`symbolic_zero` and `sign_gated` are M10-8's on every document, to the
+decision (plate 723, R2 bracket 790, R1 annulus 248, R2 pad 368 at
+their nominals, door open or shut). The door moves decisions out of
+`numeric` and out of nothing else.
+
+### What it moved in the population
+
+At each document's nominal the two registrants discharge BOTH
+endpoint pinnings: `carrier_endpoint_start` 16/16 on the plate, 16/16
+on R1's annulus, 20 of 22 on R2's bracket and 24 of 32 on R2's pad;
+`carrier_endpoint_end` 16/16, 16/16, 20/20 and 24 of 28 — plus part of
+`carrier_matches_mapped_source` (8, 8, 8 and 12). Totals door OFF → ON:
+plate 0 → 40 `registered`, bracket 0 → 48, annulus 0 → 40, pad 0 → 60.
+They reach `carrier_on_surface_*` not at all (those rest on
+`u_ref·u_ref = 1`, which needs the SQUARED identity `v·v = r²`, a
+different node again).
+
+The `carrier_matches_mapped_source` share is 8, 8, 8 and 12 out of 72,
+72, 99 and 144 — **one per curve**, and it is the `i = 0` sample of the
+nine-sample certification schedule, where the mapped source evaluates
+to its own start vertex verbatim and the span identity supplies the
+other side. The other eight samples per curve are not reached: the
+mapped source spells the arc through `atan(bulge)` and `sin`/`cos`
+atoms (`geom-brep`'s `SketchSegment::eval`, anchored on `a` rather than
+on the centre) while the carrier spells it through the sagitta closed
+form, and the two normal forms meet only where the trig collapses.
+
+### And no ceiling moved — and neither did the BOUND
+
+Measured at ε = 1e-6, 1e-9 and 1e-12, door open and shut, both ends of
+every bracket asserted
+(`editor-core/tests/m10_9_pins_interval`, evidence in
+`m10_9_evidence_interval`). **A bound here is the SET of predicates
+over the band at the refusing end of a 16-step bisection**, not the one
+name a drive reports when it stops: a drive stops at its FIRST refusal,
+and at a scale well past the ceiling several predicates are over the
+band at once, so which name comes back is evaluation ORDER (validation
+before certification). M10-9's first cut read the refusal at twice the
+ceiling and reported a bound that moved with each registrant; it does
+not.
+
+| document | whole-certifying ceiling (bracket, all three ε rows) | over-band set at ceiling + δ, door open AND shut | enclosure |
+| --- | --- | --- | --- |
+| two-hole plate | `[7.811e2, 7.814e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+| R1 annulus | `[7.805e2, 7.810e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+| R2 link | `[4.930e2, 4.934e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0002 · ε]` |
+| R2 filleted bracket | `[3.871e2, 3.873e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+| R2 rounded pad | `[2.083e3, 2.084e3] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+
+Every ceiling scales with ε to within one bisection step at all three
+rows — none of them stopped scaling, which is the E12 claim this unit
+does not get to make. And **one predicate bounds all five, door open
+and door SHUT**: the fenced scaffolding residual, the carrier against
+the `MappedCurve` pushforward at the certifier's own samples, an
+identity between two independently built objects and therefore outside
+a node-aliasing door
+(`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`; the span
+identity's own row closed with the amendment,
+`plate-ceiling-is-now-the-arc-span-identity`). The door discharges
+40–60 decisions per document, and the identities it discharges were
+never what bounded one — which is a sharper result than "the ceiling
+did not move", and the one the unit reports.
+
+What DOES move with the registrants is the name a drive reports at
+twice the ceiling: `carrier_endpoint_start` → `carrier_endpoint_end` →
+`carrier_matches_mapped_source` on the plate. That is the mechanism
+working, pinned as such
+(`m10_9_pins_interval::m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity`),
+and it is not a bound. `line_span`, which the first cut named as the
+bracket's and the pad's bound, is itself an identity residual of the
+fillet construction and is recorded as one in the census.
+
+### The driver row
+
+`m10_3_driver_k_probe_interval`'s `two_hole_plate_narrow` is the
+fixture that carries arc geometry, so it is where the token has to
+LINT. The final head's per-file and TOTAL lines are quoted from the
+hosted log in the PR body; the `registered` column is non-zero there
+and zero on every straight-walled fixture, which is the same fact the
+inertness pin makes locally
+(`m10_9_pins_interval::m10_9_the_door_is_inert_on_straight_geometry`).

@@ -17,7 +17,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 /// Raise `EditError` carrying the refusal's stable tag.
-fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
+pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     let tag = edit_error_tag(err);
     typed_err(
         py,
@@ -1656,7 +1656,10 @@ impl Node {
     ///
     /// A dangling reference is not refused here: the solve refuses
     /// typed naming its head (`MateFault`, `mate_dangling_head`),
-    /// which is the ratified dangling-reference semantics.
+    /// which is the ratified dangling-reference semantics — or, where
+    /// the head resolves and a pattern or transform placing it could
+    /// not derive a pose, naming that placer and carrying the
+    /// evaluation's own cause (`mate_placer_refused`).
     #[staticmethod]
     fn mate(
         py: Python<'_>,

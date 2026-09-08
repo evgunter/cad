@@ -821,7 +821,13 @@ fn row7_instantiate_and_placement_round_trip() {
         doc,
         DocEdit::SetPlacement {
             node: ids[1],
-            frame: Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.25, [2.0, 3.0, 0.0]),
+            frame: Frame::rotate_then_translate(
+                [0.0, 0.0, 1.0],
+                0.25,
+                [2.0, 3.0, 0.0],
+                fixture::band(),
+            )
+            .expect("a literal axis has a definite direction"),
         },
     );
 
@@ -1139,7 +1145,8 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
         [1.0, 2.0, 3.0],      // non-unit, oblique
         [-0.5, 0.25, -0.125], // non-unit, short
     ] {
-        let frame = Frame::rotate_then_translate(axis, angle, translation);
+        let frame = Frame::rotate_then_translate(axis, angle, translation, fixture::band())
+            .expect("a literal axis has a definite direction");
         // `eval::wire::wire_transform`'s own expression, verbatim: the
         // axis normalized (its `unit`), then `Mat3::rotation_about`,
         // then `Affine3::from_parts` with the translation.

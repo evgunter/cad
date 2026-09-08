@@ -1,8 +1,8 @@
 //! The PyO3 surface. Compiled only under the `python` feature.
 
 mod assembly;
-mod checks;
-mod doc;
+pub(crate) mod checks;
+pub(crate) mod doc;
 mod expr;
 mod flush;
 mod mate;

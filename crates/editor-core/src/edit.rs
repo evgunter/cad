@@ -750,6 +750,23 @@ pub enum EditError {
         /// The offending target.
         node: RecipeNodeId,
     },
+    /// **A placement frame's ROTATION AXIS has no definite
+    /// direction** — the [`crate::AxisRefusal`]
+    /// [`crate::Frame::rotate_then_translate`] raises where the axis
+    /// is decided, carried into this vocabulary unaltered so an
+    /// author building a frame and setting it speaks ONE error type
+    /// from the constructor through the door.
+    ///
+    /// Its own arm rather than [`EditError::NonFinitePlacement`]:
+    /// that one's subject is the frame's coordinates, and a reader
+    /// told their frame is not finite goes looking at the frame,
+    /// which is exactly the mistaken subject this arm exists to stop
+    /// reporting. The cause is the axis, in the evaluation layer's
+    /// own words, with the role word naming the vector.
+    PlacementAxis {
+        /// The direction door's refusal, unaltered.
+        error: crate::eval::NodeRefusal,
+    },
     /// A mate's alignment datum carries a non-finite coordinate. The
     /// placement registry's own rule, one level out: an authored frame
     /// nothing can decide about never enters the document.
@@ -811,6 +828,23 @@ pub enum EditError {
 // ({slot:?}), which has a prose spelling (`SlotId::label`) it does not
 // use — that is a separate question, outside the amendment that
 // removed the other two, and it is filed rather than taken here.
+/// The AXIS's refusal, in the authoring vocabulary — what makes
+/// `Frame::rotate_then_translate(..)?` compose with
+/// `apply(.., DocEdit::SetPlacement { .. })?` in one function.
+///
+/// It converts from [`crate::AxisRefusal`] and from nothing else. A
+/// blanket `From<NodeErrorKind>` would make every node refusal in the
+/// crate convert into this arm through a bare `?`, which is a
+/// catch-all in the authoring vocabulary — the shape this arm was
+/// added to close.
+impl From<crate::AxisRefusal> for EditError {
+    fn from(error: crate::AxisRefusal) -> Self {
+        Self::PlacementAxis {
+            error: error.carried(),
+        }
+    }
+}
+
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -1092,6 +1126,12 @@ impl core::fmt::Display for EditError {
                  mirrored placements are admitted only behind the equivariance audit",
                 node.0
             ),
+            Self::PlacementAxis { error } => {
+                write!(
+                    f,
+                    "the placement frame's rotation axis is unusable: {error}"
+                )
+            }
             Self::NonFinitePlacement { node } => write!(
                 f,
                 "the placement frame for node {} carries a non-finite coordinate",

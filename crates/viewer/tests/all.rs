@@ -97,8 +97,12 @@ mod instance_authoring;
 mod landing_gathers;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+#[path = "msolve3_placer_refused.rs"]
+mod msolve3_placer_refused;
 #[path = "msolve4_blame_rows.rs"]
 mod msolve4_blame_rows;
+#[path = "msolve5_read_below_a_root.rs"]
+mod msolve5_read_below_a_root;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]

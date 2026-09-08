@@ -14,8 +14,9 @@
 //! `Declare` established, extended to the node half by A12's reading
 //! rule). What A12 adds on top is the *reading* edge: the MEMBER
 //! instance each reference's OPERAND resolves through, walking down
-//! to the minting instance past any number of transforms and at most
-//! one pattern level (A11's member vocabulary) — RECOMPUTED from the
+//! to the minting instance past any number of transforms, `Part`
+//! instance selections and pattern levels (A11's member vocabulary,
+//! [`member`]) — RECOMPUTED from the
 //! recipe at need ([`reading_edges`]) and never stored beside it. The
 //! partitions
 //! divide on that distinction — A9's relative-freedom components and
@@ -57,6 +58,7 @@
 //! solve door, because a declared clearance changes what "coincide"
 //! means and this unit solves coincidence only.
 
+use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 use geom_core::linalg::frame::FrameError;
@@ -64,12 +66,14 @@ use geom_core::linalg::{Affine3, Point3, Vec3};
 use geom_core::predicate::{BandError, Indeterminate};
 
 pub mod coset;
+pub mod member;
 pub mod solve;
 
 pub use coset::{Coset, Subgroup};
+pub use member::{Member, member_of};
 pub use solve::{
-    ClusterMaintenance, MateRole, Member, SolvedPoses, clusters, gauge_of, member_of,
-    reading_edges, relative_freedom_components, solve_document,
+    ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
+    relative_freedom_components, solve_document,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -624,12 +628,27 @@ pub enum MateFault {
         /// What survived the fold.
         residual: Subgroup,
     },
-    /// A mate's reference does not resolve to a live MEMBER — the
-    /// walk from its operand down to its name's head found no live
-    /// instantiate node, reached through transforms and at most one
-    /// pattern level at a derivable pose (A11's member vocabulary) —
+    /// **A mate's reference names no member of A11's vocabulary** —
     /// N5's dangling reference. It contributes no reading edge; the
     /// solve refuses typed rather than pretending the mate is absent.
+    ///
+    /// Exactly two causes, and both are about a copy or a node that
+    /// does not exist:
+    ///
+    /// - the WALK from the reference's operand down to its name's
+    ///   head stopped — a stranded operand, or a node that places no
+    ///   body of its own ([`crate::member_of`]);
+    /// - the copy the name says is at or beyond the pattern's
+    ///   evaluated count, so the named copy is not there.
+    ///
+    /// A placer that exists and whose pose merely could not be
+    /// DERIVED is [`MateFault::PlacerRefused`], which carries the
+    /// evaluation's own refusal. So this arm is about a node the
+    /// vocabulary does not reach or a copy that is not there — never
+    /// about arithmetic. It is still reported at a node that may be
+    /// perfectly live: a pattern the reference's name does not
+    /// qualify `Instance(i)` stops the walk, and the walk stops AT
+    /// that pattern.
     DanglingHead {
         /// The mate.
         mate: RecipeNodeId,
@@ -638,9 +657,69 @@ pub enum MateFault {
         /// **The node at which the reference resolves to no member**:
         /// where the walk stopped, which is a stranded operand when
         /// the operand is the broken half and the first node outside
-        /// the vocabulary otherwise. Not in general the reference's
-        /// own head, which is often live and fine.
+        /// the vocabulary otherwise; or the pattern whose count the
+        /// named copy is past. Not in general the reference's own
+        /// head, which is often live and fine.
         head: RecipeNodeId,
+    },
+    /// **A placer on the reference's chain refused to derive its
+    /// pose**, in the evaluation layer's own words.
+    ///
+    /// The member exists and the walk reached it; what did not exist
+    /// is the static offset a pattern copy or a transform on the way
+    /// contributes. Every such refusal is one the evaluation layer
+    /// already types — a slot that does not evaluate, a direction of
+    /// no definite length, an explicit-rule pattern, an axis operand
+    /// that is not an axis datum — so it is carried here UNALTERED
+    /// rather than relabelled as a dangling head.
+    ///
+    /// Carrying it is what makes the refusal readable at all. A mate
+    /// fault POISONS the document, so the placer node never evaluates
+    /// and never gets to state its own cause: this fault is the only
+    /// place that cause appears.
+    PlacerRefused {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side's reference the placer is on.
+        side: MateSide,
+        /// **The node whose evaluation raised the refusal.** It lies
+        /// on the reference's derivation: a pattern or a transform on
+        /// the chain, or a node one of those reads to derive its map
+        /// — a circular rule's axis DATUM is the one such node today,
+        /// and a slot of it that does not evaluate is reported here
+        /// under the datum's id, because that is the node an author
+        /// goes and fixes.
+        placer: RecipeNodeId,
+        /// The evaluation layer's own typed refusal for it, unchanged.
+        error: NodeRefusal,
+    },
+    /// **A `Node::Part` selects a copy the reference's NAME does not
+    /// name.** The name is the authority on which copy a mate speaks
+    /// about; a `Part` standing directly above a pattern in the walk
+    /// says which copy the body below it is. A document where those
+    /// disagree would be PLACED by the name and GATHERED by the
+    /// `Part` — two different bodies for one declaration — so the
+    /// solve refuses rather than choosing, and reports both indices.
+    ///
+    /// Raised per REFERENCE, where the solve reads each one, so it
+    /// reaches a declaring mate as surely as a tree edge's.
+    PartSelectsAnotherCopy {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side.
+        side: MateSide,
+        /// The `Part` node whose index expression disagrees.
+        part: RecipeNodeId,
+        /// The copy the reference's name names.
+        named: u32,
+        /// What the `Part`'s index expression evaluates to at the
+        /// document's parameter bindings.
+        ///
+        /// `i64`, where `named` is the `u32` a name's structural
+        /// index is: an evaluated Count can be negative or past the
+        /// pattern's count, and narrowing it to compare would be
+        /// deciding the disagreement this fault exists to report.
+        selected: i64,
     },
     /// A mate names ONE instance on both sides. A pair is two
     /// instances; a self-mate constrains nothing and is a recipe
@@ -781,6 +860,33 @@ impl core::fmt::Display for MateFault {
                 mate.0,
                 side.name(),
                 head.0
+            ),
+            Self::PlacerRefused {
+                mate,
+                side,
+                placer,
+                error,
+            } => write!(
+                f,
+                "mate {}'s {} reference has no derived pose: node {} refuses — {error}",
+                mate.0,
+                side.name(),
+                placer.0
+            ),
+            Self::PartSelectsAnotherCopy {
+                mate,
+                side,
+                part,
+                named,
+                selected,
+            } => write!(
+                f,
+                "mate {}'s {} reference names copy {named}; the part node {} above it selects \
+                 copy {selected} — the name says which copy a mate is about, and a document \
+                 that gathers another one is placed and gathered differently",
+                mate.0,
+                side.name(),
+                part.0
             ),
             Self::SelfMate { mate, instance } => write!(
                 f,

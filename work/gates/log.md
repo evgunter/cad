@@ -686,3 +686,157 @@ the generic record prefix named once (`GATE_RECORD_PREFIX_RE`) and
 read at its five sites; the pattern builders take their inputs as
 arguments; six comments to present tense; a stale D103 path in
 `viewer-module-kinds.sh` fixed. Five gates byte-identical live.
+
+
+## PR 2066 reviewed (2026-09-06)
+
+Style review of `debug-only-assert-euler-postcondition-is-on-no-row`:
+mergeable. Every pin re-derived, the three dropped attributes green
+before and red after, the near-miss mutations reproduced (and the old
+one-line fixture shown to hold nothing under all three), the residue
+shown to be a real consumer build break (`cargo check -p topo
+--release` with debug assertions off fails on `plane_bits_witness`).
+One finding changes the row's reasoning, sent back as a fix pass: the
+reader already has `--skip-cfg-test` and this gate reads without it,
+so `ArenaCounts` "cannot be served" was a choice, not a limit — the
+gate switches to the skip (test code is what a consumer never
+compiles), `ArenaCounts` joins `euler.rs`'s row, two pins re-baseline
+(`curved.rs`, `tessellate.rs`). Also: header history, one fact in
+three homes, the near-miss case planted per spelling rather than per
+row, the pin harness's message when a gate reds with a different
+count.
+## Landed: PR 2066 (2026-09-06)
+
+`debug-only-assert-euler-postcondition-is-on-no-row` closed. The seven
+`topo` arena-delta rows in `bit-identity-debug-only.sh` pin
+`assert_euler_postcondition` and `arena_counts` beside `ArenaDelta`,
+pins re-taken with the gate's own matcher over its code view (the pin
+is one use per delimiter-cut piece, so a one-line head naming two
+spellings counts once); dropping the attribute at `voids.rs:313` or at
+a `let before = self.arena_counts()` site was green before and is red
+now. `source.rs`'s row gained `plane_bits_witness|vec3_bits_witness|
+bits_witness` on the same reading. The near-miss fixture plants each
+identifier anchor alone plus the CamelCase and SCREAMING_SNAKE forms,
+each proved by mutation. Self-test 68 s → 87 s, linear in spellings.
+Left open with a reason: three attributes over `debug_assert_eq!`
+that compile out anyway. Residue on this slate:
+`debug-only-bit-witness-callers-are-on-no-row` (`plane_eq.rs:173`,
+`merge_faces.rs:1006`).
+Fix pass from the review: the gate reads with `--skip-cfg-test` (the
+reader has had it since PR 2058; a `cfg(test)` module is exactly what
+a consumer's release build never compiles), so `ArenaCounts` joins
+`euler.rs`'s row (pin 18 → 21; dropping the attribute at `euler.rs:246`
+was green and is red) and two pins re-baseline because their test
+modules carried gated uses — `mesh/curved.rs` 13 → 5,
+`mesh/tessellate.rs` 8 → 2; live uses 105 → 94. `source.rs` named as
+the third row whose pin is not the column sum. Header to present
+tense; the near-miss case planted per spelling with derived forms
+that are themselves a spelling dropped; the pin harness's message now
+separates "did not red" from "red with a stale number"; the residue
+row carries the consumer-build reproduction (`cargo check -p topo
+--release` with debug assertions off fails on `plane_bits_witness`).
+
+
+## Tenth wave dispatched (2026-09-06)
+
+`gates/bit-witness-callers`
+(`debug-only-bit-witness-callers-are-on-no-row` — rows for the two
+caller files of the bit-channel witnesses, and the self-test loop
+restructured to run each case once over all subjects if that is
+mechanical, since 13 subjects cost 87 s and two more would cost 115),
+branched from PR 2066's closing head. In flight: PR 2066 closing;
+`gates/file-skip-anchor` building; PR 2067 (`[ev]`) waiting for Ev.
+
+## Ev's ruling on PR 2067 (2026-09-06)
+
+Ev, in chat: "2067 is fine, the gates can stay greps." The DESIGN.md
+companion-table row for `scripts/gates/README.md` and the README's own
+recommendation passage record the ratification (Ev, 2026-09-06, PR
+2067) and PR 2067 merges. The standing rule the fix pass removed from
+the README stays out — not asked for, not ratified.
+
+## PR 2065 opened (2026-09-06)
+
+`gates/file-skip-anchor` reported: PR 2065
+(`home-anchored-file-skip-is-unescaped`). `signed-zero-one-home.sh`'s
+whole-file skip goes through `gate_record_anchor`; live output
+byte-identical. The row's premise corrected by probe in both
+directions: a `signed_zeroXrs` sibling is never scanned, but a path
+carrying a `:` inside it (`signed_zero_rs:9:x.rs`) is reachable and
+was exempt — narrow, not empty. Three fixtures, one per part of the
+anchor; the `^` had no witness in any gate before this. Sweep: no
+other gate interpolates a path into an ERE; the hand-escaped literal
+whole-file skips (thirteen lines naming eighteen homes, six gates) filed as
+`whole-file-skips-are-hand-spelled-not-anchored`. One `lib.sh`
+comment paragraph from PR 2064 corrected. Reviewer dispatched.
+
+## PR 2065 reviewed (2026-09-06)
+
+Style review of `home-anchored-file-skip-is-unescaped`: fix pass
+needed. The colon-path exemption, the byte-identity and the `^`
+witness (absent in all 19 gates before) reproduced. Findings sent
+back: the third fixture holds the trailing `:` the old spelling
+already had, not the `[0-9]+` it names (the discriminating path is
+`signed_zero.rs:x.rs`, one more member of the colon-carrying set);
+the over-claim corrected in `gate_record_anchor`'s header survives in
+the escaping case's header 1,050 lines below; the residue row's
+"fifteen" is 13 lines naming 18 homes; a one-grep measurement
+deferred as unmeasured; the reachability argument spelled in four
+places.
+
+## PR 2069 opened (2026-09-06)
+
+`gates/bit-witness-callers` reported: PR 2069
+(`debug-only-bit-witness-callers-are-on-no-row`). Rows for
+`boolean/plane_eq.rs` and `merge_faces.rs` with the witness spellings
+each file names (pins 1 and 2; live 94 → 97 uses); both dropped
+attributes green before, red after; no caller outside `crates/topo/src`
+repo-wide. The self-test loop restructured as the row proposed: each
+case plants every subject in one tree and runs the gate once,
+asserting per subject — 110 s → 14 s over 15 subjects, with one
+strengthening (a gate that stops at its first failing subject now
+reds, which the per-subject form could not see). Reviewer dispatched.
+
+## Eleventh wave dispatched (2026-09-06)
+
+`gates/whole-file-skips` (`whole-file-skips-are-hand-spelled-not-anchored`
+— the thirteen hand-escaped literal whole-file skips naming eighteen
+homes in six gates go through `gate_record_anchor`, each gate's clean
+fixture planting its homes and each gate getting the colon-path case;
+`gate-roster.sh`'s dot-only escape through `gate_ere_escape`), from
+main, on files no open PR touches. In review: PR 2069; in fix pass:
+PR 2065. With these three, the slate is `D212` alone, parked on `G4`.
+
+## PR 2069 reviewed (2026-09-06)
+
+Style review of `debug-only-bit-witness-callers-are-on-no-row`:
+mergeable. Every claim re-executed: both pins, both before/after
+attributes, the (case, subject) outcome set enumerated on both sides
+with the two harness falsifications (a subject that does not red is
+noticed; a right-path wrong-text line is noticed), all 38 (row,
+spelling) pairs planted, all eight mutations red, the strengthening
+confirmed against the merge-base harness (a gate that stops at its
+first failing subject passed there). Fix pass sent for style: the
+fixtures header describing the deleted loop, a subject count in a
+comment beside the line that derives it, history in the loop's
+comments, the pass twin's message naming no index, four spellings of
+"does the output carry a line naming this row and text", a substring
+assumption on subject paths, an incomplete hit list.
+
+## Landed: PR 2065 (2026-09-06)
+
+`home-anchored-file-skip-is-unescaped` closed. `signed-zero-one-home.sh`'s
+whole-file skip is built by `gate_record_anchor` (escaped path, the
+`FILE:LINE:` shape pinned); live output byte-identical. The row's
+premise was corrected by probe in both directions: a sibling differing
+at the extension dot is never scanned (`*.rs`), so the escaping half
+is construction; but a path carrying a `:` inside it after the home
+(`signed_zero.rs:x.rs`) is legal, reachable, and was exempt — the
+anchor's `[0-9]+` is what refuses it. Three fixtures, one per part of
+the anchor, each red under exactly its own mutation; the `^` had no
+witness in any of the 19 gates before this. The reachability argument
+has one home, `gate_record_anchor`'s header. The class the sweep
+found — every other whole-file skip is a hand-escaped literal, none
+pinning the shape, none checking its home exists — is on the slate as
+`whole-file-skips-are-hand-spelled-not-anchored`, defined by its grep
+rather than a count.
