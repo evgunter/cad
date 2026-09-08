@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-07
 closed: 2026-09-08
 branch: meter/10-fold-baseline-censuses
-refs: [baseline-sizing-census-pointers-stale]
+refs: [baseline-sizing-census-pointers-stale, baseline-sizing-census-second-copy]
 ---
 
 
@@ -73,10 +73,10 @@ count.** `tests/baseline.rs` would have been a third name neither file
 had. Twenty-four live mentions across fourteen files name
 `baseline_census.rs` — `tools/tess-lint/src/lib.rs` at four,
 `tests/cut_line_pin.rs`, `docs/TESS-BUDGET.md` at two and seventeen
-`work/` mentions across eleven rows — against six that name
-`baseline_sizing_census.rs`. Renaming both would have staled every one
-of them to remove a duplication; folding into the majority name stales
-six, one of which is this program's own plan line.
+`work/` mentions across eleven rows — against seven that name
+`baseline_sizing_census.rs`, across six files. Renaming both would
+have staled all 31 to remove a duplication; folding into the majority
+name stales seven.
 `work/meter/baseline-sizing-census-pointers-stale` carries them.
 
 **Three claims above did not survive to the fold, and they are the
@@ -91,8 +91,8 @@ thing it describes.**
   `IDENTITY_COLUMNS` lost an entry, and this row's copy of the name
   did not follow.
 - *"both point at the other"* — only `baseline_sizing_census.rs`
-  pointed. `baseline_census.rs` named no sibling at any of its 664
-  lines.
+  pointed, at four sites (`:28`, `:148`, `:164`, `:183`).
+  `baseline_census.rs` named no sibling at any of its 664 lines.
 
 **What was verified rather than assumed.**
 
@@ -109,14 +109,41 @@ thing it describes.**
   literal inside an `assert*!` extracted per test function and
   compared across functions. The two censuses' figures are disjoint —
   1353 / 64 / 12 / 7 / 14 / 22,352 against 1,552,822 / 164,710 /
-  46,019 / 110,811 / 93,066 / 44,162 / 2.408 / 1.0420. Three
-  incidental collisions, none a census figure: `0` from two
-  `[] as [&str; 0]` empties, `4` from a *"rule 4"* inside an assert
-  message, and `72`, which is two different predicates that agree on
-  this corpus — *scenes carrying a corpus-wide indistinguishable
-  pair* and *scenes in the baseline* — both already in
-  `baseline_census.rs` before this fold and neither introduced by it.
+  46,019 / 110,811 / 93,066 / 44,162 / 2.408 / 1.0420. **Two
+  non-figure literals appear in two functions each**, and neither is a
+  quantity: `4`, from the prose *"rule 4"* in one test's failure
+  message against the exponent of `5e-4` in another's tolerance; and
+  `72`, which is two different predicates that agree on this corpus —
+  *scenes carrying a corpus-wide indistinguishable pair* (`:468`) and
+  *scenes in the baseline* (`:595`) — both already in
+  `baseline_census.rs` before this fold, neither introduced by it, and
+  now dispositioned at the site rather than only here.
+
+  **A third "collision" reported in the first pass was not one, and it
+  was mine.** `0` was said to appear as `[] as [&str; 0]` in two
+  functions; there is exactly ONE such empty in the merged file
+  (`:801`) and one in the pre-fold census, and a single occurrence
+  cannot collide with itself. The extraction split function bodies on
+  the next `///` doc line, which does not bound a function, so one
+  test's literals leaked into a neighbour's set. Re-run with brace
+  matching, the result above is what it gives. The method was sound
+  and the conclusion held; the detail inside it was manufactured by a
+  bug in the check, in the paragraph headed as verified — which is the
+  worst place for one.
 
 **Test count: 7 before (6 + 1 across two binaries), 7 after (one
 binary), each of the seven names read out of `cargo test`'s output on
 both sides; crate total 80 before and after.**
+
+**Two false claims in the folded prose were corrected rather than
+carried over**, after the style review found them. Both were inherited
+from `baseline_sizing_census.rs` and one had been widened by the fold
+itself: the opening said `docs/TESS-BUDGET.md` *"point[s] here rather
+than carrying a second copy"* — true of `lib.rs` for the face-identity
+count, false of the document for sizing, and stated by the fold as a
+joint claim about both censuses — and the sizing section said *"there
+is no longer a citation to guard"*. The document carries four of the
+sizing census's asserted figures present-tense. The sentences now say
+what is true and point at the row that carries the rest:
+`work/meter/baseline-sizing-census-second-copy`. Nothing outside this
+file was edited for it.

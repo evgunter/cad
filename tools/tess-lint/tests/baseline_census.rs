@@ -8,11 +8,19 @@
 //! folded through the gate's own accumulator. Both are readings of a
 //! committed file that a re-baseline moves, and a number transcribed
 //! into prose is a number nothing can check, so both are counted here
-//! rather than written down. `lib.rs`'s module docs and
-//! `docs/TESS-BUDGET.md` point here rather than carrying a second
-//! copy: **a census has one executable home and every other site
-//! points at it**, because a pointer cannot go stale. That is the cure
-//! this tree's own CI comment states for the rule roster next door.
+//! rather than written down. **A census has one executable home and
+//! every other site points at it**, because a pointer cannot go
+//! stale — the cure this tree's own CI comment states for the rule
+//! roster next door.
+//!
+//! **That rule is the standard here, not a description of the tree.**
+//! `lib.rs`'s module docs meet it, for the face-identity count they
+//! used to transcribe. `docs/TESS-BUDGET.md` does not: it still
+//! carries four of the sizing figures asserted below in present-tense
+//! prose, and neither census can edit it. The row is
+//! `work/meter/baseline-sizing-census-second-copy`, and it is not the
+//! only site — this file's own sizing section transcribes the same
+//! four, which that row covers too.
 //!
 //! **No figure is asserted twice, and the split is which function
 //! asserts what.** The corpus counts — rows, sized rows, the scenes
@@ -161,13 +169,16 @@
 //!
 //! ## What it is for
 //!
-//! **A re-cut alarm.** It was written to guard the document's
-//! citation, and there is no longer a citation to guard: the document
-//! holds no live figure from this census, and it argues in its own
-//! text that a pointer cannot go stale. What is left is the job a
-//! pointer cannot do — go RED when a re-cut moves the tour's mesh or
-//! its sizing, so the move is read and written down rather than folded
-//! in silently.
+//! **A re-cut alarm, and the citation it guards is still live.**
+//! `docs/TESS-BUDGET.md` carries `grid_cells`, `patch_cells`,
+//! `opt_cells` and `span_opt_cells` — every one of them asserted
+//! below — in present-tense prose. So this census does the job a
+//! pointer cannot: go RED when a re-cut moves the tour's mesh or its
+//! sizing, so the move is read rather than folded in silently. **What
+//! it cannot do is finish the job.** A re-cut reds here and leaves
+//! those sentences standing, wrong, until somebody reads them; the
+//! alarm is the prompt to go and read them, not a guarantee they were
+//! read.
 //!
 //! It does not fire on everything a re-cut can move.
 //! `docs/TESS-BUDGET.md`'s "Re-cutting the baseline" says what the two
@@ -576,6 +587,11 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
         .into_iter()
         .collect();
 
+    // 72 twice in this file, and NOT one figure asserted twice: this
+    // is every scene of the corpus, where the pair census's 72 is the
+    // scenes carrying an indistinguishable pair among ALL rows. They
+    // agree only because every scene currently carries one, and a
+    // re-cut can end that without either assertion being wrong.
     assert_eq!(scenes.len(), 72, "scenes in the committed baseline");
     assert_eq!(
         gating,
