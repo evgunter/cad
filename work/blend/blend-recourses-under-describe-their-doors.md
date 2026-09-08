@@ -2,9 +2,10 @@
 id: blend-recourses-under-describe-their-doors
 kind: unit
 title: Two blend recourse sentences under-describe the doors they endorse
-status: dispatched
+status: review
 opened: 2026-09-04
 branch: blend/3-spine-recourse
+pr: 2141
 ---
 
 Neither of these is a DEAD recourse: following either sentence
