@@ -1305,6 +1305,127 @@ fn shell_refusal_tags_are_stable() {
     assert_eq!(node_error_tag(&lane), "shell_lane_unsupported");
 }
 
+/// **The two words a refusal puts on the wire, together.** The carrier
+/// says which door refused; the inner arm says what the refusal that
+/// door holds actually was.
+///
+/// Every row here is a PAIR, because the pair is the contract: the
+/// carrier word is unchanged by this map's existence (a caller
+/// branching on `revolve` still gets `revolve`), and the second word
+/// is the payload's own discriminant. The `None` rows are the other
+/// half of it and are not filler — an arm with no inner refusal, and
+/// an arm whose word is ALREADY the payload's, both answer `None`,
+/// and a change that started projecting either would move a shipped
+/// attribute.
+///
+/// Arms whose payload needs real geometry are covered by the
+/// exhaustive match alone, which is the alarm that matters: no map in
+/// `crate::tags` has a wildcard, so deleting a kernel arm stops this
+/// crate compiling rather than quietly dropping its word.
+#[test]
+fn inner_arm_tags_are_stable() {
+    use crate::tags::{node_error_tag, node_inner_kind_tag};
+    use pncad::document::{NodeErrorKind, PlacementRuleFault};
+    use pncad::profile::ProfileError;
+    use pncad::sweep::blend::{BlendError, BlendKind};
+    use pncad::sweep::{ExtrudeError, RevolveError, TubeError};
+    use pncad::topo::{ShellError, TransformError};
+
+    let pair = |kind: &NodeErrorKind| (node_error_tag(kind), node_inner_kind_tag(kind));
+
+    assert_eq!(
+        pair(&NodeErrorKind::Revolve(RevolveError::DegenerateAxis)),
+        ("revolve", Some("degenerate_axis"))
+    );
+    assert_eq!(
+        pair(&NodeErrorKind::Tube(Box::new(TubeError::NonUnitAxis))),
+        ("tube", Some("non_unit_axis"))
+    );
+    assert_eq!(
+        pair(&NodeErrorKind::Extrude(ExtrudeError::ObliqueExtrusion)),
+        ("extrude", Some("oblique_extrusion"))
+    );
+    assert_eq!(
+        pair(&NodeErrorKind::Transform(TransformError::NurbsPlaceholder)),
+        ("transform", Some("nurbs_placeholder"))
+    );
+    assert_eq!(
+        pair(&NodeErrorKind::Shell(Box::new(ShellError::Thickness {
+            thickness: -0.5
+        }))),
+        ("shell", Some("thickness"))
+    );
+    assert_eq!(
+        pair(&NodeErrorKind::Profile(ProfileError::EmptyProfile)),
+        ("profile", Some("empty_profile"))
+    );
+    // The blend's carrier word is the VERB, so the two words here are
+    // "which blend" and "what it refused about" — the clearest case
+    // for keeping them apart.
+    assert_eq!(
+        pair(&NodeErrorKind::Blend {
+            verb: BlendKind::Chamfer,
+            error: BlendError::NonpositiveSize { size: -1.0 },
+        }),
+        ("chamfer", Some("nonpositive_size"))
+    );
+
+    // No inner refusal: the payload is a pair of numbers.
+    assert_eq!(
+        pair(&NodeErrorKind::ToleranceConflict {
+            document_eps: 1e-9,
+            process_eps: 1e-12,
+        }),
+        ("tolerance_conflict", None)
+    );
+    // No payload at all.
+    assert_eq!(
+        pair(&NodeErrorKind::UnschedulableCycle),
+        ("unschedulable_cycle", None)
+    );
+    // The word is already the fault's, under the carrier's own name:
+    // `kind` IS the inner discriminant here, and projecting it twice
+    // would say the same thing in two places.
+    assert_eq!(
+        pair(&NodeErrorKind::PlacementRule(
+            PlacementRuleFault::CountSpelling
+        )),
+        ("placement_rule_mismatch", None)
+    );
+}
+
+/// The same pair at the edit door: `variant` and `inner_variant`.
+#[test]
+fn edit_inner_variant_tags_are_stable() {
+    use crate::tags::{edit_error_tag, edit_inner_variant_tag};
+    use pncad::document::{Distribution, EditError, ParamName, RecipeNodeId, RootFault};
+
+    let pair = |err: &EditError| (edit_error_tag(err), edit_inner_variant_tag(err));
+
+    let fault = Distribution::Normal { sigma: 0.0 }
+        .check()
+        .expect_err("a zero sigma breaks an E2 invariant");
+    assert_eq!(
+        pair(&EditError::InvalidDistribution {
+            name: ParamName::new("bore"),
+            fault,
+        }),
+        ("invalid_distribution", Some("sigma_not_positive"))
+    );
+    assert_eq!(
+        pair(&EditError::EmptyWitnessBulk),
+        ("empty_witness_bulk", None)
+    );
+    // `Roots` reads its word off the fault already, the way
+    // `PlacementRule` does one carrier over.
+    assert_eq!(
+        pair(&EditError::Roots(RootFault::Duplicate {
+            root: RecipeNodeId(1)
+        })),
+        ("root_duplicate", None)
+    );
+}
+
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is
 /// the one `pncad.pyi` names, and it is minted here rather than
 /// provoked: `getrandom::fill` has no injection seam (see
@@ -1853,8 +1974,89 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "band_error_tag",
+        values: &["empty", "invalid_lever_arm", "invalid_value"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "binary_header_error_tag",
         values: &["binary_header_sniffs_ascii", "binary_header_too_long"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "blend_error_tag",
+        values: &[
+            "band",
+            "body_not_intact",
+            "certify",
+            "chain_not_connected",
+            "chain_not_g1",
+            "chamfer_arm_unsupported",
+            "convexity_sign_flip",
+            "escalated",
+            "face_clearance_uncertified",
+            "nonpositive_size",
+            "op",
+            "radius_headroom",
+            "repeated_edge",
+            "ring_clearance",
+            "spine_irregular",
+            "spine_unsupported",
+            "surgery_invariant",
+            "tangential_edge",
+            "unsupported_body",
+            "unsupported_chain",
+            "unsupported_corner",
+            "unsupported_geometry",
+            "unsupported_run_out",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "boolean_error_tag",
+        values: &[
+            "arc_loop_containment_unsupported",
+            "band",
+            "classification_invariant",
+            "contact_contradicted",
+            "containment",
+            "corrupt_operand",
+            "crossing_insertion",
+            "curved_boolean_unsupported",
+            "curved_edge_unsupported",
+            "curved_pair_unsupported",
+            "curved_pierce_unsupported",
+            "curved_sector_side_unsupported",
+            "declaration_contradicted",
+            "escalated",
+            "euler",
+            "fallback_extent_unsupported",
+            "germ_frame_cylinder_pinch",
+            "germ_frame_unsupported",
+            "graft_recertify",
+            "invalid_declaration",
+            "join",
+            "join_desync",
+            "merge",
+            "non_maximal_faces",
+            "nurbs_extent_unsupported",
+            "pairing_mismatch",
+            "pcurves",
+            "point_split_carrier_unsupported",
+            "rest_zip_unsupported",
+            "result_invalid",
+            "result_volume_implausible",
+            "revert",
+            "rim_cusp_arm_unbuilt",
+            "rim_seam_not_declarable",
+            "scaffolding_operand",
+            "seam_orientation",
+            "torn_component",
+            "undeclared_coincidence",
+            "unrepresentable_result",
+            "unsupported_declaration_class",
+            "zip_correspondence",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -1967,6 +2169,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["root_fault_tag"],
     },
     TagEntry {
+        function: "edit_inner_variant_tag",
+        values: &[],
+        delegates: &[
+            "distribution_fault_tag",
+            "expr_dimension_error_tag",
+            "measure_node_fault_tag",
+            "node_error_tag",
+            "program_refusal_tag",
+        ],
+    },
+    TagEntry {
         function: "eval_error_tag",
         values: &[
             "continuous_expr_in_count_eval",
@@ -2004,6 +2217,22 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_count",
             "trig_needs_angle",
             "unknown_display_unit",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "extrude_error_tag",
+        values: &[
+            "band",
+            "cap_plane",
+            "cosurface_escalated",
+            "degenerate_extrusion",
+            "extrusion_escalated",
+            "oblique_extrusion",
+            "op",
+            "side_plane",
+            "sliver_join",
+            "sliver_rim",
         ],
         delegates: &[],
     },
@@ -2067,6 +2296,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["readback_error_tag"],
     },
     TagEntry {
+        function: "loft_error_tag",
+        values: &[
+            "band",
+            "cap_plane",
+            "degenerate_stacking",
+            "euler",
+            "pcurve",
+            "profile",
+            "reversed_stacking",
+            "seam_structure",
+            "section_structure",
+            "skin",
+            "stacking_escalated",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "mate_fault_tag",
         values: &[
             "mate_band",
@@ -2103,6 +2349,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "mesh_pick_error_tag",
         values: &["position_out_of_range"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "naming_error_tag",
+        values: &[
+            "duplicate",
+            "emission",
+            "escalated",
+            "missing_upstream",
+            "unnamed",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -2185,9 +2442,54 @@ const TAG_INVENTORY: &[TagEntry] = &[
         ],
     },
     TagEntry {
+        function: "node_inner_kind_tag",
+        values: &[],
+        delegates: &[
+            "band_error_tag",
+            "blend_error_tag",
+            "boolean_error_tag",
+            "eval_error_tag",
+            "eval_error_tag",
+            "eval_error_tag",
+            "extrude_error_tag",
+            "interrogate_error_tag",
+            "loft_error_tag",
+            "measure_node_fault_tag",
+            "naming_error_tag",
+            "param_attach_error_tag",
+            "param_box_error_tag",
+            "profile_error_tag",
+            "readback_error_tag",
+            "replay_error_tag",
+            "resolve_error_tag",
+            "resolve_error_tag",
+            "resolve_error_tag",
+            "resolve_error_tag",
+            "resolve_error_tag",
+            "revolve_error_tag",
+            "seed_error_tag",
+            "shell_error_tag",
+            "skin_error_tag",
+            "split_op_error_tag",
+            "structure_refusal_tag",
+            "transform_error_tag",
+            "tube_error_tag",
+        ],
+    },
+    TagEntry {
         function: "node_pick_error_tag",
         values: &["mesh_index", "no_such_body", "not_a_body"],
         delegates: &["hit_test_error_tag", "tessellate_error_tag"],
+    },
+    TagEntry {
+        function: "param_attach_error_tag",
+        values: &["field_not_on_kind", "stale_key"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "param_box_error_tag",
+        values: &["axis_unrepresentable", "unknown_param"],
+        delegates: &[],
     },
     TagEntry {
         function: "parse_error_tag",
@@ -2311,6 +2613,33 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "profile_error_tag",
+        values: &[
+            "band",
+            "degenerate_segment",
+            "empty_profile",
+            "escalated",
+            "multiple_outer_loops",
+            "near_full_arc",
+            "nesting_too_deep",
+            "non_simple",
+            "ray_casting_exhausted",
+            "sliver_loop",
+            "structure",
+            "tangency_contradicted",
+            "tangent_joint_out_of_range",
+            "tangential_contact",
+            "too_few_vertices",
+            "undeclared_tangency",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "program_refusal_tag",
+        values: &["geometry", "resolve", "transition", "validate"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "promoted_kind_tag",
         values: &["cylinder", "plane"],
         delegates: &[],
@@ -2341,6 +2670,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "replay_error_tag",
+        values: &["path", "transition"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "resolution_status_tag",
         values: &["failed", "indeterminate", "resolved"],
         delegates: &[],
@@ -2361,6 +2695,33 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "revolve_error_tag",
+        values: &[
+            "angle_escalated",
+            "arc_crosses_axis",
+            "axis_escalated",
+            "band",
+            "cap_plane",
+            "cosurface_escalated",
+            "degenerate_angle",
+            "degenerate_axis",
+            "full_range_angle",
+            "hole_touches_axis",
+            "multiple_axis_runs",
+            "non_manifold_axis_contact",
+            "op",
+            "pcurve",
+            "sliver_axis_clearance",
+            "sliver_join",
+            "sliver_radius",
+            "sliver_rim",
+            "unsupported_toroid",
+            "vertex_crosses_axis",
+            "void_insertion",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "root_fault_tag",
         values: &[
             "root_ancestor",
@@ -2368,6 +2729,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "root_not_live",
             "root_uncovered",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "seed_error_tag",
+        values: &["count_param", "tangent_unrepresentable", "unknown_param"],
         delegates: &[],
     },
     TagEntry {
@@ -2382,6 +2748,51 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tied_disagrees",
             "unclassified",
             "unreadable",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "shell_error_tag",
+        values: &[
+            "band",
+            "chart_sense_mixed",
+            "chart_spans_solids",
+            "corrupt",
+            "escalated",
+            "face",
+            "insert",
+            "lift",
+            "no_solid",
+            "not_valid",
+            "open_face_chart_partial",
+            "open_face_repeated",
+            "open_face_rim_not_expressible",
+            "open_face_ring_unsupported",
+            "open_face_stale",
+            "open_faces_disconnect",
+            "open_faces_exhaust_shell",
+            "operand_outer_shells",
+            "partition",
+            "rim",
+            "roles",
+            "thickness",
+            "wall_clearance",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "skin_error_tag",
+        values: &[
+            "bad_degree",
+            "degenerate_section",
+            "domain_not_unit",
+            "fit",
+            "knot_algebra",
+            "path_tangent_reversal",
+            "section_profile",
+            "section_shape_mismatch",
+            "structure",
+            "too_few_sections",
         ],
         delegates: &[],
     },
@@ -2407,6 +2818,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "uncut_param_reference",
             "unknown_cut_node",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "split_op_error_tag",
+        values: &["finish", "join", "pcurves", "reduce"],
         delegates: &[],
     },
     TagEntry {
@@ -2448,6 +2864,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "structure_refusal_tag",
+        values: &["flipped", "indeterminate"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "tessellate_error_tag",
         values: &[
             "certificate_exceeded",
@@ -2465,6 +2886,39 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_curved_shape",
             "unsupported_nurbs_face",
             "unsupported_surface",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "transform_error_tag",
+        values: &[
+            "approx_lane_unsupported",
+            "approx_recertify",
+            "band",
+            "certify",
+            "corrupt",
+            "non_finite_map",
+            "not_rigid",
+            "null_scaffold",
+            "nurbs_placeholder",
+            "pcurve",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "tube_error_tag",
+        values: &[
+            "band",
+            "degenerate_window",
+            "escalated",
+            "frame_not_orthogonal",
+            "full_range_window",
+            "non_unit_axis",
+            "non_unit_u_ref",
+            "nonpositive_wall",
+            "revolve",
+            "wall_exceeds_radius",
+            "wall_gap_collapsed",
         ],
         delegates: &[],
     },
@@ -2691,14 +3145,22 @@ impl<'a> Cursor<'a> {
 
     /// Parse the RIGHT of one arm's `=>`.
     ///
-    /// Exactly four shapes are recognised, which is the enumerating
+    /// Exactly six shapes are recognised, which is the enumerating
     /// claim this whole reader rests on: a string literal, a nested
-    /// `match`, a `{ ... }` block around one of those, or a call to
-    /// another tag function. Anything else — a `format!`, a `if`, a
+    /// `match`, a `{ ... }` block around one of those, a call to
+    /// another tag function, and — for the maps that answer
+    /// `Option<&'static str>` — a bare `None` or a `Some(..)` around
+    /// one of the others. Anything else — a `format!`, a `if`, a
     /// `const` reference, a method chain — fails here by name rather
     /// than being skipped, because a tag arrived at by a route this
     /// reader cannot follow is a tag the inventory silently stops
     /// covering.
+    ///
+    /// `None` contributes NOTHING: an arm that projects no word is a
+    /// decision the reader records by the absence of a value, exactly
+    /// as the source spells it. `Some` is not read as a delegation —
+    /// it is the wrapper, and what it wraps is what reaches the
+    /// inventory.
     fn parse_arm_body(&mut self, values: &mut Vec<String>, delegates: &mut Vec<String>) {
         self.skip_ws();
         let rest = self.rest();
@@ -2727,6 +3189,22 @@ impl<'a> Cursor<'a> {
             self.expect("{");
             self.parse_arm_body(values, delegates);
             self.expect("}");
+            return;
+        }
+        // `None` and `Some(..)`, in that order: `Some` must be tested
+        // before the delegation shape below, which would otherwise
+        // read the wrapper as the called map and skip what it wraps.
+        if let Some(after) = rest.strip_prefix("None")
+            && !after.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_')
+        {
+            self.expect("None");
+            return;
+        }
+        if rest.starts_with("Some(") {
+            self.expect("Some");
+            self.expect("(");
+            self.parse_arm_body(values, delegates);
+            self.expect(")");
             return;
         }
         let name: String = rest
@@ -2878,10 +3356,12 @@ fn read_tag_table(source: &str) -> TagTable {
                 panic!("tags.rs:{number}: a `pub fn` with no argument list: {line}")
             });
             assert!(
-                tail.ends_with(") -> &'static str {"),
+                tail.ends_with(") -> &'static str {")
+                    || tail.ends_with(") -> Option<&'static str> {"),
                 "tags.rs:{number}: a `pub fn` in the tag module whose signature is \
-                 not `(..) -> &'static str {{` on one line — I do not understand \
-                 this, and cannot say what it puts on the wire: {line}"
+                 neither `(..) -> &'static str {{` nor \
+                 `(..) -> Option<&'static str> {{` on one line — I do not \
+                 understand this, and cannot say what it puts on the wire: {line}"
             );
             assert!(
                 !name.is_empty()
@@ -2991,26 +3471,24 @@ fn read_tag_table(source: &str) -> TagTable {
 /// word it answers with. The two guards are complements and neither
 /// subsumes the other.
 ///
-/// **And the construction pins are sampled, not total.** Eighteen of
-/// the thirty-seven functions carry at least one — `interrogate`,
-/// `readback`, `hit_test`, `node_pick`, `tessellate`,
-/// `resolution_status`, `select_refusal`, `declare_error`,
-/// `expr_dimension`, `fmt_quantity`, `parse_error`, `eval_error`,
-/// `persist_error`, `workspace_error`, `step_import_error`,
-/// `path_error`, `checks_error`, `check_evidence` — and even those
-/// are samples (`persist_error_tag`: two of thirteen arms;
-/// `step_import_error_tag`: two of twenty-two; `path_error_tag`: four
-/// of thirty). The other nineteen — `assembly`, `binary_header`,
-/// `edit`, `export`, `frame`, `inline`, `mate_fault`, `node_error`,
-/// `part_fault`, `placement_rule_fault`, `product`,
-/// `recorded_program`, `refused_ref`, `resolve_fault`, `root_fault`,
-/// `solid_name`, `split`, `stl`, `update` — have none, and between
-/// them hold 199 of the table's 361 literals, `edit_error_tag`'s
-/// fifty and `node_error_tag`'s sixty-one included. For those the
-/// inventory below is the ONLY thing between a rename and a broken
-/// caller. That is a large gain over nothing; it is not the same claim
-/// as "the tag table is verified", and this comment refuses to make
-/// the second one.
+/// **And the construction pins are sampled, not total.** Some maps
+/// have one and many have none; even where a map is pinned, the pin
+/// builds a handful of its arms and the rest ride on the inventory
+/// alone. For those the inventory below is the ONLY thing between a
+/// rename and a broken caller. That is a large gain over nothing; it
+/// is not the same claim as "the tag table is verified", and this
+/// comment refuses to make the second one.
+///
+/// **No count and no roster is written here, deliberately.** This
+/// paragraph used to carry three aggregate numbers and two lists of
+/// function names, and every one of them went stale without anything
+/// going red — which is the argument `tests/test_binding_census.py`
+/// makes for refusing to write a count down, applied to the page that
+/// was writing three. The lists rotted the same way and less visibly:
+/// `node_error_tag` stood in the never-pinned roster while
+/// [`shell_refusal_tags_are_stable`] had been constructing three of
+/// its arms. What is checkable by machine is the table below; what is
+/// checkable by reading is each pin, beside the map it pins.
 ///
 /// **Out of scope, stated so it is not read as covered.**
 /// `SelectRefusal::{InBand, PairInBand}` carry a `predicate: &'static
@@ -3043,10 +3521,12 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
 
     // The floors: a reader that came back with nothing, or with a
     // plausible-looking handful, must red rather than pass vacuously.
-    // They are set well under the real numbers (37 functions, 361
-    // literal occurrences) so ordinary churn does not touch them.
+    // They are set well under whatever the table currently holds, so
+    // ordinary churn does not touch them — and they are ASSERTIONS,
+    // which is why they may carry numbers where the prose above may
+    // not.
     assert!(
-        table.functions.len() >= 30,
+        table.functions.len() >= 60,
         "the reader found only {} tag functions in src/tags.rs — it is \
          matching almost nothing, so this guard was about to pass \
          vacuously",
@@ -3054,7 +3534,7 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
     );
     let literals: usize = table.functions.values().map(|(v, _)| v.len()).sum();
     assert!(
-        literals >= 250,
+        literals >= 500,
         "the reader found only {literals} tag literals in src/tags.rs — \
          it is matching almost nothing, so this guard was about to pass \
          vacuously"

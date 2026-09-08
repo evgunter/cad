@@ -11,12 +11,27 @@ use pyo3::types::{PyDict, PyString};
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
-    edit_error_tag, expr_dimension_error_tag, persist_error_tag, workspace_error_tag,
+    edit_error_tag, edit_inner_variant_tag, expr_dimension_error_tag, persist_error_tag,
+    workspace_error_tag,
 };
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
+/// The refusing ARM's word, as an `EditError` carries it: the inner
+/// refusal's own discriminant beside the carrier's, `None` where the
+/// arm holds no inner refusal.
+fn inner_variant(py: Python<'_>, tag: Option<&'static str>) -> Py<PyAny> {
+    match tag {
+        Some(tag) => PyString::new(py, tag).unbind().into_any(),
+        None => py.None().into_any(),
+    }
+}
+
 /// Raise `EditError` carrying the refusal's stable tag.
+///
+/// `variant` is the CARRIER's word — which edit refused — and
+/// `inner_variant` is the arm of the refusal that word holds, `None`
+/// where it holds none. Both are always present.
 pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     let tag = edit_error_tag(err);
     typed_err(
@@ -26,7 +41,13 @@ pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
         // prose; the machine payload is the `variant` tag (see
         // `crate::tags`).
         err.to_string(),
-        &[("variant", PyString::new(py, tag).unbind().into_any())],
+        &[
+            ("variant", PyString::new(py, tag).unbind().into_any()),
+            (
+                "inner_variant",
+                inner_variant(py, edit_inner_variant_tag(err)),
+            ),
+        ],
     )
 }
 
@@ -42,12 +63,28 @@ fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
         py,
         ErrorClass::Edit,
         err.to_string(),
-        &[(
-            "variant",
-            PyString::new(py, crate::tags::declare_error_tag(err))
-                .unbind()
-                .into_any(),
-        )],
+        &[
+            (
+                "variant",
+                PyString::new(py, crate::tags::declare_error_tag(err))
+                    .unbind()
+                    .into_any(),
+            ),
+            // The `Edit` arm carries the document layer's refusal
+            // whole, so its inner arm crosses too; the sugar's own two
+            // arms have none.
+            (
+                "inner_variant",
+                inner_variant(
+                    py,
+                    match err {
+                        pncad::select::DeclareError::Edit(inner) => edit_inner_variant_tag(inner),
+                        pncad::select::DeclareError::NoFindings
+                        | pncad::select::DeclareError::NoMintedId => None,
+                    },
+                ),
+            ),
+        ],
     )
 }
 
@@ -126,10 +163,13 @@ pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> Py
             py,
             ErrorClass::Edit,
             format!("a stable name failed to serialize: {err}"),
-            &[(
-                "variant",
-                PyString::new(py, "name_serialize").unbind().into_any(),
-            )],
+            &[
+                (
+                    "variant",
+                    PyString::new(py, "name_serialize").unbind().into_any(),
+                ),
+                ("inner_variant", py.None().into_any()),
+            ],
         )
     })
 }
@@ -487,10 +527,13 @@ impl Doc {
                     py,
                     ErrorClass::Edit,
                     "an insert minted no node id",
-                    &[(
-                        "variant",
-                        PyString::new(py, "no_minted_id").unbind().into_any(),
-                    )],
+                    &[
+                        (
+                            "variant",
+                            PyString::new(py, "no_minted_id").unbind().into_any(),
+                        ),
+                        ("inner_variant", py.None().into_any()),
+                    ],
                 )
             })
     }
@@ -1795,17 +1838,20 @@ impl Node {
                     ErrorClass::Edit,
                     "an explicit placement rule carries its own placements, so it has no \
                      count slot: use Node.placed_union_at",
-                    &[(
-                        "variant",
-                        PyString::new(
-                            py,
-                            crate::tags::placement_rule_fault_tag(
-                                &d::PlacementRuleFault::CountSpelling,
-                            ),
-                        )
-                        .unbind()
-                        .into_any(),
-                    )],
+                    &[
+                        (
+                            "variant",
+                            PyString::new(
+                                py,
+                                crate::tags::placement_rule_fault_tag(
+                                    &d::PlacementRuleFault::CountSpelling,
+                                ),
+                            )
+                            .unbind()
+                            .into_any(),
+                        ),
+                        ("inner_variant", py.None().into_any()),
+                    ],
                 )
             })?;
         Ok(Self { inner: node })

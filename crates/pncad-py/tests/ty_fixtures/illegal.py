@@ -23,7 +23,9 @@ from pncad import (
     DocParam,
     DocEdit,
     DocRef,
+    EditError,
     EntityKind,
+    EvaluationError,
     Frame,
     GeomPred,
     NamePat,
@@ -576,3 +578,20 @@ Node.assertion(solid, AssertionDir.AtLeast, 1 * mm)  # ty: error
 # The verb vocabulary is a frozen value: a primitive is restated by
 # building a new one, never by editing one in place.
 MeasurePrimitive.distance(0, 1).verb = "gap"  # ty: error
+
+# The two refusal words are OPTIONAL strings. `inner_kind` is `None`
+# wherever the refusal has no arms, so reading it as a `str` is the
+# narrowing the caller has not done — the `resolve().variant` rule
+# above, at the refusal carrier.
+try:
+    evaluate(doc).value(solid)
+except EvaluationError as _refusal:
+    _arm: str = _refusal.inner_kind  # ty: error
+
+# ...and the same at the edit door, where the CARRIER's word is always
+# a string and only the inner one is optional: the two are not
+# interchangeable however alike they read.
+try:
+    doc.apply(DocEdit.delete_node(solid))
+except EditError as _refused:
+    _edit_arm: str = _refused.inner_variant  # ty: error

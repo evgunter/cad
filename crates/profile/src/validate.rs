@@ -25,12 +25,15 @@
 //!    [`crate::ProfileLoop::tangent_joints`]: definite tangency between
 //!    distinct carriers undeclared ⇒
 //!    [`ProfileError::UndeclaredTangency`]; a declaration that is
-//!    definitely not a tangency (transversal, or same-carrier
-//!    continuation — collinear/cocircular joints are carrier identity,
-//!    not tangency) ⇒ [`ProfileError::TangencyContradicted`] (declared
-//!    tangency is verified, never trusted). In-band near-tangency
-//!    escalates from the simplicity pass as it always did; the refusal
-//!    text carries the declare-or-move repair menu.
+//!    definitely not a tangency (a TRANSVERSAL joint) ⇒
+//!    [`ProfileError::TangencyContradicted`] (declared tangency is
+//!    verified, never trusted). A declaration on a joint whose two
+//!    segments continue on ONE carrier is honoured — identity is a fact
+//!    about carriers, tangency a fact about directions, and this check
+//!    reads the directions (Ev, in-chat, 2026-09-02; the
+//!    `same_carrier` arm that used to refuse it is retired). In-band
+//!    near-tangency escalates from the simplicity pass as it always
+//!    did; the refusal text carries the declare-or-move repair menu.
 //! 5. **Containment forest** — trilean point-in-loop by ray parity
 //!    (rays through arc segments included); a grazing ray is refused and
 //!    the next candidate ray tried deterministically (Mäntylä ch. 13's
@@ -38,6 +41,33 @@
 //!    = the outer boundary, depth 1 = holes; deeper nesting or multiple
 //!    outers are typed errors at M2 (one face region per profile).
 //! 6. **Canonicalization** — see [`ValidatedProfile`] for the rules.
+//!
+//! # What this gate is asking, and what it is not
+//!
+//! `validate` is the data checker for MATERIALIZED loops. A
+//! [`crate::ProfileLoop`] is a cache — the form an intensional recipe
+//! evaluates into — and every field of it, `tangent_joints` included,
+//! arrives here as data whose author this gate does not know and does
+//! not ask about.
+//!
+//! The [`crate::path`] lattice asks a different question. It checks
+//! AUTHORING: a declaration against the data being authored, at the
+//! moment the verb is written, before any table exists. Issue 433
+//! recorded the two as a disagreement — the lattice refusing a junction
+//! `validate` accepted — and the disagreement was never about geometry.
+//! They were answering different questions, and the authoring door was
+//! missing a spelling. It has it now (the continuation verbs), so a
+//! lattice-authored subdivided run reaches this gate with its zero-turn
+//! joints declared while a raw-authored one reaches it undeclared, and
+//! **both are accepted**. That is what "the two doors agree" means: not
+//! one rule with two answers, but two questions, each answered where it
+//! is asked.
+//!
+//! What that costs, stated: nothing here can tell a hand-written table
+//! from an emitted one, so nothing here enforces the lattice's rules.
+//! It is not meant to. The enforcement is upstream, at the doors, and
+//! [`crate::ProfileLoop`]'s own docs are the one home for what those
+//! are — this gate re-checks whatever comes through them anyway.
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!
@@ -1537,9 +1567,13 @@ fn judge_pair<T: Decide>(
 /// predicates) and reconciled with the loop's declarations:
 ///
 /// - `Tangent` undeclared ⇒ [`ProfileError::UndeclaredTangency`];
-/// - `Transversal` or `SameCarrier` declared ⇒
-///   [`ProfileError::TangencyContradicted`] (a declaration is verified,
-///   never trusted — and same-carrier continuation is not a tangency);
+/// - `Transversal` declared ⇒ [`ProfileError::TangencyContradicted`] (a
+///   declaration is verified, never trusted);
+/// - `SameCarrier` declared ⇒ **accepted**. Every zero-turn joint is a
+///   declared tangent joint (Ev, in-chat, 2026-09-02): identity is a
+///   fact about the carriers, tangency a fact about the directions, and
+///   the directions agree here. The arm that used to refuse it is
+///   retired — see the match below, which is the normative statement;
 /// - in-band / poisoned ⇒ [`ProfileError::Escalated`] at the pair site.
 fn judge_joints<T: Decide>(
     lp: &ProfileLoop<T>,

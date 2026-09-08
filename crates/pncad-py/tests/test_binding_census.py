@@ -528,6 +528,53 @@ BOUND_AS = {
     # door reaches. Both words are pinned in Rust, where the refusal
     # constructs.
     "PromotedKind": "StepImportError.promoted_kind",
+    # THE OP FAMILIES' REFUSALS, at the same spelling and under the
+    # same rule, applied at the carrier that holds the most of them.
+    # `EvaluationError.kind` says WHICH DOOR refused (`revolve`,
+    # `tube`, `boolean`, `fillet`); each of these is the kernel
+    # refusal that door raised, and its arm now crosses as
+    # `inner_kind` beside the carrier's word rather than in place of
+    # it — `MeshPickError`'s reading, one carrier over, for a carrier
+    # whose word every caller branching on the op ladder already
+    # holds.
+    #
+    # THE MEASUREMENT, because a category is a claim. Each of these
+    # was `different-shape` or `behind-a-door`, and both dispositions
+    # were true when written: the arms differed only in PROSE, so
+    # there was no Python shape to point at. There is one now, and it
+    # is a word per arm — twenty-one for `RevolveError`, forty-one for
+    # `BooleanError`, twenty-two for `ShellError` — minted by an
+    # exhaustive match, so a kernel arm added without a word stops the
+    # bindings compiling. What still has no Python spelling is the
+    # arm's FIELDS, and that is the payload question, tracked
+    # separately: a mapping here claims the discriminant crosses, and
+    # nothing more.
+    #
+    # `ShellError`, `SkinError`, `ParamAttachError` and the kernel's
+    # `topo::splitting::SplitError` cross the same way and are NOT
+    # rows here: none of them is a leaf name of the three curated
+    # lists this census reads (they arrive through the whole-crate
+    # re-exports), so this file never accounted for them and does not
+    # start now.
+    "BandError": "EvaluationError.inner_kind",
+    "BlendError": "EvaluationError.inner_kind",
+    "BooleanError": "EvaluationError.inner_kind",
+    "ExtrudeError": "EvaluationError.inner_kind",
+    "LoftError": "EvaluationError.inner_kind",
+    "ProfileError": "EvaluationError.inner_kind",
+    "RevolveError": "EvaluationError.inner_kind",
+    "TransformError": "EvaluationError.inner_kind",
+    "TubeError": "EvaluationError.inner_kind",
+    # `NamingError` and `ProgramRefusal` are new to the curated lists
+    # and arrive already bound. Both were `NOT_CARRIED` at the façade
+    # under "the curated face is a different shape", and the reading
+    # did not hold: neither has a curated door of its own, both are
+    # payloads of curated refusals (`NodeErrorKind::Naming`,
+    # `EditError::ProfileProgramRefused`), and a consumer could match
+    # either arm and not name what it caught. Carried, and their arms
+    # cross at the two carriers' second words.
+    "NamingError": "EvaluationError.inner_kind",
+    "ProgramRefusal": "EditError.inner_variant",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
     # accounted by rule 1; these two are the family's shape entries,
@@ -1384,9 +1431,7 @@ NOT_BOUND = {
     "BinaryHeader": SHAPE,
     "BinaryHeaderError": SHAPE,
     "BinaryOptions": SHAPE,
-    "BlendError": SHAPE,
     "BlendRefusal": SHAPE,
-    "BooleanError": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
@@ -1412,7 +1457,6 @@ NOT_BOUND = {
     "EvalOutcome": SHAPE,
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
-    "ExtrudeError": SHAPE,
     "ImportOptions": SHAPE,
     # The element type of `ImportOptions::declared_contacts`, curated
     # at the prelude because filling a public field means spelling its
@@ -1437,7 +1481,6 @@ NOT_BOUND = {
     # not bound in Python yet either (the Rust-side roster records
     # that, `surface_census.rs`).
     "ContinueTarget": SHAPE,
-    "LoftError": SHAPE,
     # The fourth arena key, joining the three above it in the same
     # bullet and for their reason: a validation refusal names a ring
     # beside its face, and Python holds neither.
@@ -1479,7 +1522,6 @@ NOT_BOUND = {
     "Point2": SHAPE,
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,
-    "ProfileError": SHAPE,
     "ProfileLift": SHAPE,
     "ProgramFault": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
@@ -1487,7 +1529,6 @@ NOT_BOUND = {
     "RecordedProgramError": SHAPE,
     "ResolveFailure": SHAPE,
     "RevolveAxis": SHAPE,
-    "RevolveError": SHAPE,
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
     "ASSERT_BOUND": SHAPE,
@@ -1506,7 +1547,6 @@ NOT_BOUND = {
     "TangentArcTarget": SHAPE,
     "Tol": SHAPE,
     "Tolerance": SHAPE,
-    "TransformError": SHAPE,
     "Vec2": SHAPE,
     "Vec3": SHAPE,
     # The slot vocabulary's 3-vector families, beside `Axis3` and
@@ -1551,7 +1591,6 @@ NOT_BOUND = {
     "write_step": SHAPE,
     # --- behind-a-door --------------------------------------------
     "Band": INTERIOR,
-    "BandError": INTERIOR,
     "BlendKind": INTERIOR,
     # The blend refusal's payload vocabulary, curated at LIB-CUR4 so a
     # prelude-carried `BlendError` is matchable THROUGH the prelude.
@@ -1778,7 +1817,6 @@ NOT_BOUND = {
     # `BlendError::UnsupportedCorner`'s second field, the policy
     # `CornerConfig::policy` assigns (LIB-CUR4).
     "RunOutPolicy": INTERIOR,
-    "TubeError": INTERIOR,
     "SegmentKind": INTERIOR,
     # `ValidationError::StaleContactDeclaration`'s payload (LIB-CUR4).
     "StaleDeclaration": INTERIOR,

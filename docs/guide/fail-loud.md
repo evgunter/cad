@@ -374,6 +374,49 @@ That `through` field is the difference between "something upstream
 failed" and a debugging session. In a 500-node document it points
 straight at the culprit.
 
+A failed node says **which door refused and what that door's refusal
+was**, in two words rather than one. `kind` is the op — `revolve`,
+`tube`, `extrude` — and `inner_kind` is the kernel refusal's own arm
+beneath it. They are two different enums' discriminants, which is why
+they are two attributes: the first is fixed by the node's kind before
+any payload is read, and the second exists only once the first has
+said which refusal it holds.
+
+```python
+import math
+
+from pncad import Doc, EvaluationError, Node, Open, Start, evaluate, m, rad
+
+
+def revolved(x0, angle):
+    doc = Doc()
+    frame = doc.sketch_frame()
+    square = (
+        Open.at((x0 * m, 0 * m))
+        .line_to(((x0 + 1) * m, 0 * m))
+        .line_to(((x0 + 1) * m, 1 * m))
+        .line_to((x0 * m, 1 * m))
+        .line_to(Start)
+    )
+    axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
+    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), axis, angle))
+    try:
+        evaluate(doc).value(node)
+        raise AssertionError("expected a typed refusal")
+    except EvaluationError as err:
+        return err.kind, err.inner_kind
+
+
+# One op, two faults, two repairs — and the op word never moves.
+assert revolved(1.0, 0 * rad) == ("revolve", "degenerate_angle")
+assert revolved(-0.5, 2 * math.pi * rad) == ("revolve", "vertex_crosses_axis")
+```
+
+`inner_kind` is `None` where the refusal has no arms of its own — the
+undeclared-contact refusal above is one, and its payload is the
+`finding` instead. The edit door carries the same pair, spelled
+`variant` and `inner_variant`.
+
 ## 6. Validation: a vector, not the first complaint
 
 The tier ladder returns `Result<(), Vec<ValidationError>>`. The vector
@@ -506,13 +549,17 @@ in the one place the prose is weakest.
 
 1. **Match the variant.** It names the class of thing that went
    wrong.
-2. **Read the payload.** It names the specific entity, node, loop,
+2. **Then match the inner one.** Where a refusal wraps another —
+   an evaluation failure wrapping an op's refusal, an edit wrapping a
+   direction door's — the second word says which arm of the wrapped
+   refusal fired, and that is usually the one with the repair in it.
+3. **Read the payload.** It names the specific entity, node, loop,
    step, or pair.
-3. **If there is a margin and a band, the answer is not "loosen the
+4. **If there is a margin and a band, the answer is not "loosen the
    tolerance".** An `Escalated` refusal means the decision was
    genuinely in-band — a sliver — and the model is ill-conditioned at
    this ε. The recourse is to fix the geometry or state the intent,
    not to widen the band until the kernel stops noticing.
-4. **If it is a coincidence refusal, decide whether you meant it.**
+5. **If it is a coincidence refusal, decide whether you meant it.**
    If you did, declare it. If you did not, you just found a bug in
    your model that a tolerant kernel would have shipped.

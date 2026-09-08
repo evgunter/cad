@@ -27,7 +27,11 @@
 // The recipe and its edits. `Applied` is `apply`'s return (the new
 // document plus its `EditRecord`) — re-exported so a caller can STORE
 // one in a typed field rather than only destructure it.
-pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
+// `ProgramRefusal` rides with `EditError` by the `VerbKind` rule below:
+// it is `EditError::ProfileProgramRefused`'s payload, and nothing else
+// this crate carries answers in it, so without it a consumer can match
+// the variant and read its refusal only out of prose.
+pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, ProgramRefusal, apply};
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.

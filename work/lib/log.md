@@ -3620,3 +3620,51 @@ row written. RE-HOMING: `blend-slit-name-collides-…` and
 `recipe-cannot-hold-a-narration-body` are editor-core findings filed
 on LIB's slate; they stay here as LIB-owned CROSS-FENCE items until
 the owning program claims them (STATUS shows them under lib).
+
+**LIB-ARMS MERGED (2026-09-08, #2217; mechanical under the 08-29
+ruling, no A/B row). The first unit under the per-arm rule Ev licensed
+on `[ev]` PR 2196: every refusal whose carrier already projects a word
+gains its inner arm as a second attribute.** `EvaluationError` gains
+`inner_kind` and `EditError` gains `inner_variant` — the kernel
+refusal's own arm as a snake_case word, `None` where the refusal has
+no arms — and `kind`/`variant` are untouched, so a caller branching on
+the op ladder sees no change (the ruling's own argument for the shape,
+measured: the diff deletes no match arm and no literal, and no
+`kind ==`/`variant ==` fixture moved). Ev's recorded reservation is
+answered at the door — the `EvaluationError` docstring, `pncad.pyi`
+and `docs/guide/fail-loud.md` (an executed block: `("revolve",
+"degenerate_angle")` / `("revolve", "vertex_crosses_axis")`) — as two
+enums' discriminants projected where each lives, not one division
+stored twice. The survey: 68 `NodeErrorKind` arms, 29 project an
+inner enum through twenty new exhaustive maps (profile, replay,
+structure-refusal, extrude, revolve, tube, split-op, blend, boolean,
+transform, skin, loft, band, naming, param-attach, shell,
+program-refusal, param-box, seed; 206 literals), 39 answer `None` in
+four stated groups (three already project the payload's word under
+the carrier's name; eight carry a VALUE enum, the payload half's
+question; five carry a struct with no matchable discriminant, one of
+them `WitnessBifurcation` — filed
+`witness-bifurcation-arm-has-no-inner-word`, an expiry not an
+omission; 23 carry no enum). `EditError`: 58 arms, five project.
+Nested enums one level only. The compile-time alarm fires both ways,
+RUN not asserted (a planted `RevolveError::ProbeArm` and a deleted
+map row both red `revolve_error_tag` with E0004). Six inner words
+reached from real documents, the `None` case pinned at both carriers,
+the poisoned path carries the root cause's pair; `EditError` reaches
+one of its five inner arms and the other four have pinned reasons
+(the doors pre-check). Disclosed deviation: the FAÇADE moved —
+`NamingError`, `ProgramRefusal`, `SeedError` out of `NOT_CARRIED` and
+`ParamBoxError` out of the `interval` block (`NOT_CARRIED` 90→87), by
+the façade's own payload rule, argued in `crates/pncad/tests/all.rs`;
+`BifurcationKind` deliberately stayed. Eleven census rows to
+`BOUND_AS` at the two carriers' second words with the measurement
+stated; four types that cross the same way are not rows because none
+is a leaf of the three curated lists. Also closed:
+`tag-inventory-prose-counts-are-stale` (option 1 — aggregates and
+rosters deleted, a roster found already false; the two floors reset
+to 60/500 under a table at 71/623). The tag-table reader learned
+`Option<&'static str>`, `Some(..)` and bare `None`. Mid-unit main
+moved under it (SHELL-8 renamed a shell arm and added one; the
+exhaustive match caught it — the alarm's first live firing). Not
+taken, per the brief: the payload half and the `findings` sequence,
+next. No kernel crate touched; the lane ran the pinned ruff for real.
