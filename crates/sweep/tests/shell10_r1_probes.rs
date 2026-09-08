@@ -327,3 +327,83 @@ fn r1_the_door_no_longer_launders_a_half_minted_out_of_scope_face() {
          and the result was tier-3 clean; at the head it is not"
     );
 }
+
+// ---------------------------------------------------------------
+// Cost, reproduced. Gated on CAD_R1_BENCH=1 so the suite is unaffected.
+// ---------------------------------------------------------------
+
+/// **Claim 7: reproduce one row of the PR's cost table, and measure the
+/// direct door's scaling with the scope on a FOUR-solid body naming
+/// one.** Release only; 20 warm-up calls, then 5 timed runs of 200,
+/// median ms/call.
+#[test]
+fn r1_cost() {
+    if std::env::var("CAD_R1_BENCH").as_deref() != Ok("1") {
+        return;
+    }
+    println!(
+        "[r1cost] debug_assertions compiled in: {}",
+        cfg!(debug_assertions)
+    );
+    let bench = |label: &str, f: &dyn Fn()| {
+        for _ in 0..20 {
+            f();
+        }
+        let mut ms: Vec<f64> = Vec::new();
+        for _ in 0..5 {
+            let t = std::time::Instant::now();
+            for _ in 0..200 {
+                f();
+            }
+            ms.push(t.elapsed().as_secs_f64() * 1000.0 / 200.0);
+        }
+        ms.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!("[r1cost] {label}: median {:.4} ms/call  all {ms:?}", ms[2]);
+    };
+
+    // Row 4 of the PR's table: the axial door on 1 of 2 vessels.
+    let pair = beside(&vessel(1.0, 2.0), &vessel(1.0, 2.0), 10.0);
+    let ves = pair.solids().next().unwrap().0;
+    let mv2 = moves_of(&pair, ves, -0.05);
+    bench("offset_charts_together, 1 of 2 vessels", &|| {
+        let mut w = pair.clone();
+        topo::offset_charts_together(&mut w, &mv2, band(), tol()).expect("builds");
+    });
+
+    // The same door on a FOUR-solid body naming one: if the door still
+    // scaled with the BODY the median would rise with the neighbours.
+    let mut four = vessel(1.0, 2.0);
+    for i in 1..4 {
+        four = beside(&four, &vessel(1.0, 2.0), 10.0 * f64::from(i));
+    }
+    let ves4 = four.solids().next().unwrap().0;
+    let mv4 = moves_of(&four, ves4, -0.05);
+    bench("offset_charts_together, 1 of 4 vessels", &|| {
+        let mut w = four.clone();
+        topo::offset_charts_together(&mut w, &mv4, band(), tol()).expect("builds");
+    });
+
+    // And the planar door, 1 of 4 boxes.
+    let mut fourb = boxy(2.0, 3.0, 4.0);
+    for i in 1..4 {
+        fourb = beside(&fourb, &boxy(2.0, 3.0, 4.0), 10.0 * f64::from(i));
+    }
+    let bx4 = fourb.solids().next().unwrap().0;
+    let mvb = moves_of(&fourb, bx4, -0.05);
+    bench("offset_planes_together, 1 of 4 boxes", &|| {
+        let mut w = fourb.clone();
+        topo::offset_planes_together(&mut w, &mvb, band(), tol()).expect("builds");
+    });
+
+    // Baseline: the `Body::clone` each timed closure pays, so the
+    // door's own cost can be read net of the operand's size.
+    bench("clone only, 2 vessels", &|| {
+        let _ = pair.clone();
+    });
+    bench("clone only, 4 vessels", &|| {
+        let _ = four.clone();
+    });
+    bench("clone only, 4 boxes", &|| {
+        let _ = fourb.clone();
+    });
+}
