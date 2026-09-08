@@ -128,3 +128,10 @@ are still two census tests, so `work/meter/plan.md:94` and
 `work/meter/log.md:323` (*"both census-touching"*) and
 `docs/TESS-BUDGET.md:530` (*"passes both tests silently"*) all still
 say something true.
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.

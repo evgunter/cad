@@ -69,3 +69,10 @@ word *baseline*, *diff* or *compare* — "checked against the committed
 rows", "validated against `docs/k-report-data/`" — is unmatched, and so
 is any statement inside `work/` (excluded above, since tracker items
 about this class are not instances of it).
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.

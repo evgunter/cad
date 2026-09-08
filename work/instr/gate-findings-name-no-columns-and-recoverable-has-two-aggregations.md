@@ -76,3 +76,10 @@ disclosed by METER unit 9's style review, which found the site as a
 live instance of a blind spot that unit's PR had claimed was empty —
 "a figure rendered through a helper rather than a literal format
 string". The claim was wrong; this is the instance.
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.

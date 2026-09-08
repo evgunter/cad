@@ -240,8 +240,14 @@ amended:
      with a correctness arm where a unit moves what a document
      evaluates to, GATES and METER are infra-only and claim their bands
      for bookkeeping; GATES closed 2026-09-08 with no row recorded,
-     its band staying allocated),
-     with **3300+ unallocated** — the orchestrator opening the next
+     its band staying allocated) · INSTR 3300–3399 (claimed 2026-09-08
+     in the commit that opened `work/instr/`, METER's successor for the
+     instrument crates and the two documents they feed, per
+     `docs/METER-EXIT-WALK.md` §4 as Ev ratified it that day; INSTR
+     inherits METER's posture — infra-only, the band claimed for
+     bookkeeping and no protocol run — and whether it ever runs one is
+     left to Ev, which the walk's §8 records as unsettled),
+     with **3400+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.

@@ -88,3 +88,10 @@ Found by `D203`'s sweep (METER unit 3), which fixed the one instance
 that was closable from the consumer's side (`cap_bands` / `snap_bands`
 against `bands`); premise and fence corrected by unit 3's fix pass,
 which also closed `Extent`'s.
+
+## Moved to INSTR (2026-09-08)
+
+Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
+walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
+2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
+the claim. This row is one of the twenty on INSTR's opening slate.
