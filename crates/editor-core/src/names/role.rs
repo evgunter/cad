@@ -407,7 +407,14 @@ pub enum RoleSeg {
     /// member's own names are therefore a function of the member's
     /// identity alone — neither its position nor how many members
     /// precede it — which is what lets a member be dropped without
-    /// renaming the rest.
+    /// renaming the rest. A declaration written in these names keeps
+    /// that identity through the fold's MERGES: a member's face that a
+    /// declared merge has consumed resolves, at the step its pair is
+    /// fed to, to the accumulation's `Merged` row whose flat
+    /// constituent set holds it. A face consumed any other way — by a
+    /// split, by containment, or inside a merged row later fragmented
+    /// — is not looked through, and a pair naming it is order-shaped
+    /// ([`crate::Node::Union`] states the bound).
     ///
     /// That is a statement about the WRAPPER, and about nothing else.
     /// Which of a union's names exist at all is still the pair verb's
@@ -455,8 +462,14 @@ pub enum RoleSeg {
         /// The B-side crossing entity's name.
         b: Box<StableName>,
     },
-    /// An F7 merged face: the sorted set of constituent names retires
-    /// into this name (N3; canonical order = name order).
+    /// An F7 merged face: the sorted, FLAT set of constituent names
+    /// retires into this name (N3; canonical order = name order). A
+    /// constituent is never itself a BARE merged face, through any
+    /// `FromA`/`FromB` wrapping — a merge of a merged face lists the
+    /// faces, never the merge. The one carve-out, stated here and
+    /// pointed at from every other site: a FRAGMENT of a merged face
+    /// (`[Merged(set), Fragment(q)]`) is a face in its own right, a
+    /// legitimate constituent, and is not nesting.
     Merged(Vec<StableName>),
     /// A fragment discriminator, composed AFTER the parent-bearing
     /// segment: `[FromA(f), Fragment(q)]` reads "the q-qualified

@@ -219,16 +219,21 @@ So the chain goes, not the link:
   evaluation as a vanished name does (N5), never silently. The
   "disjoint-only" reading is not taken: the common modelling case (a
   boss on a plate) would keep the pairwise chain alive.
-  **Measured limit (DOCM-7, 2026-09-06; ruling pending):** a
-  member-space name resolves at its step only while the face it names
-  is still an operand-table row there. Across a CHAIN of contacts a
-  declared merge consumes the middle member's face at an earlier step,
-  so the same member-space declaration set fuses in one member order
-  and refuses in another, and the recourse (the accumulation's
-  `Merged` row) nests by fold order. Whether the door looks through
-  to a merged face's constituents, flattens nested `Merged` names, or
-  this bullet is narrowed, is
-  `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`.
+  **Merges and order (ruled 2026-09-06, built by DOCM-8):** a merged
+  face's name is a FLAT constituent set (N3) — whatever mints a
+  `Merged` mints it flat, and a nested `Merged` is an emission bug,
+  never something a consumer flattens — so the accumulation's rows
+  carry no fold tree; and a member-space name resolves at its step
+  through whatever merges the fold has performed (the union rewrites
+  it to the flat `Merged` row containing it before the shared
+  resolver), so a declaration set whose faces are consumed by MERGES
+  fuses in every member order. The bound (measured at DOCM-8's
+  review): a face consumed by a split, by containment, or by a merge a
+  later step fragmented is not looked through and stays order-shaped
+  — `work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`.
+  DOCM-7 shipped the measured limit this replaces;
+  `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`
+  (closed at DOCM-8) is its record.
 
 ## DM5 — A node's inputs are pairwise distinct
 

@@ -562,7 +562,13 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
         doc,
         DocEdit::SetPlacement {
             node: ids[2],
-            frame: Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.25, [2.0, 3.0, 0.0]),
+            frame: Frame::rotate_then_translate(
+                [0.0, 0.0, 1.0],
+                0.25,
+                [2.0, 3.0, 0.0],
+                fixture::band(),
+            )
+            .expect("a literal axis has a definite direction"),
         },
     );
     assert_eq!(

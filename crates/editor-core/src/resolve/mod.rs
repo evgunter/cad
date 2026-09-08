@@ -1028,13 +1028,17 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 ///   a scan through `FromA(m)` could not do, since the offer it would
 ///   collect is the bare constituent and the name that would be live
 ///   is `FromA(x)`.
-/// - **Merge.** A retired constituent's merged row is offered from the
-///   table that HOLDS it, so the row is found whole and at its own
-///   depth. A candidate that merely embeds that row deeper (a seam
-///   across it, a boolean carrying it through) needs no separate
-///   offer: the merged row itself still resolves, at the node whose
-///   table minted it, because a lookup takes the first carrying node
-///   in evaluation order.
+/// - **Merge.** A retired name's merged row is offered from the table
+///   that HOLDS it: a live `Merged` row whose flat set COVERS the name
+///   (`names::merged::covers`). A constituent is covered outright. A
+///   merged face that a WIDER merge consumed — the inner row of a
+///   boolean over a boolean, carried into the outer as
+///   `FromA(inner:Merged(cs))` and never itself a constituent, since
+///   the outer row lists `cs`'s faces re-wrapped — is covered by that
+///   outer row, because every face it stood for is in the set. The
+///   row is found whole and at its own depth; a candidate that merely
+///   embeds it deeper (a seam across it) needs no separate offer, the
+///   row itself still resolving at the node whose table minted it.
 ///
 /// [`rebind_suggestions`] answers a different question — every
 /// derivation WRAPPING a name, so a paint can follow the entity
@@ -1048,18 +1052,14 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
             offers.extend(constituents.iter().cloned());
         }
     }
-    // Merge: a live Merged row lists `name` as a constituent.
+    // Merge: a live Merged row covers `name`.
     for (_, table) in tables(eval) {
         for (candidate, _) in table.iter() {
-            let mut contains = false;
-            for seg in &candidate.path {
-                if let RoleSeg::Merged(constituents) = seg
-                    && constituents.contains(name)
-                {
-                    contains = true;
-                }
-            }
-            if contains && !offers.contains(candidate) {
+            let covers = candidate.path.iter().any(|seg| match seg {
+                RoleSeg::Merged(constituents) => crate::names::merged::covers(constituents, name),
+                _ => false,
+            });
+            if covers && !offers.contains(candidate) {
                 offers.push(candidate.clone());
             }
         }
@@ -1096,6 +1096,14 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
                 if inner == name {
                     wraps = true;
                 }
+            });
+            // A merged row wraps every face it lists, and so wraps a
+            // merged face those faces came from: the flat set covers
+            // it (`names::merged::covers`) though no segment embeds
+            // it.
+            wraps |= candidate.path.iter().any(|seg| match seg {
+                RoleSeg::Merged(constituents) => crate::names::merged::covers(constituents, name),
+                _ => false,
             });
             if wraps {
                 out.push(candidate.clone());

@@ -115,9 +115,9 @@ pub use drive::{
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
-    EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult,
-    NodeValue, PartFault, ProfileLift, SectionScalar, SplitSide, UnitVec3, UnitVec3Error,
-    ValuePayload, VerbKind, evaluate,
+    EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeRefusal,
+    NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar, SplitSide, UnitVec3,
+    UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
@@ -163,7 +163,7 @@ pub use persist::{
     load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
-pub use placement::Frame;
+pub use placement::{AxisRefusal, Frame};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{Product, ProductError, product, product_named, product_recorded};

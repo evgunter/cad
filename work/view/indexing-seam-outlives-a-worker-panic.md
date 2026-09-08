@@ -17,7 +17,7 @@ gone — a `TryRecvError::Disconnected` in `poll` clears `running` and
 `waiting`, so `busy()` correctly answers `false` afterwards. What
 neither consumer does is READ that.
 
-- `PickCache::indexing` (`crates/viewer/src/pick.rs`) reports its own
+- `PickCache::indexing` (`crates/viewer/src/pickcache.rs`) reports its own
   `outstanding` field, which is cleared only by an answer that never
   arrives. So the toolbar spins on `indexing…` forever, requests a
   repaint every frame to collect a result nobody will send, and every

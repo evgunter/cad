@@ -359,7 +359,9 @@ fn touching_boxes_over_disjoint_solids_refuse_the_same_way() {
     // where it reaches x = 1. The first box tops out at y = 1, so the
     // two solids are clear of each other by 0.1 — while their
     // axis-aligned boxes overlap over x ∈ [0.893, 1], y ∈ [0.5, 1].
-    let rotated = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_4, [1.6, 0.5, 0.0]);
+    let rotated =
+        Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_4, [1.6, 0.5, 0.0], fixture::band())
+            .expect("a literal axis has a definite direction");
     let (doc, group) = boxes_at(vec![Frame::IDENTITY, rotated]);
     assert_eq!(
         uncertified_pair(&doc, group),
@@ -368,7 +370,9 @@ fn touching_boxes_over_disjoint_solids_refuse_the_same_way() {
     );
     // Pushed further out, the same arrangement certifies — so the
     // refusal above is the BOX test speaking, not a broken predicate.
-    let clear = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_4, [3.0, 0.5, 0.0]);
+    let clear =
+        Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_4, [3.0, 0.5, 0.0], fixture::band())
+            .expect("a literal axis has a definite direction");
     let (doc, group) = boxes_at(vec![Frame::IDENTITY, clear]);
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
@@ -627,8 +631,13 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
 
     // A proper frame at the same site still goes through — the gate
     // refuses the two states, not rotations in general.
-    let turned =
-        Frame::rotate_then_translate([0.0, 0.0, 1.0], std::f64::consts::FRAC_PI_2, [0.0; 3]);
+    let turned = Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::FRAC_PI_2,
+        [0.0; 3],
+        fixture::band(),
+    )
+    .expect("a literal axis has a definite direction");
     assert_eq!(with(turned).placement_rule_fault(), None);
     assert!(
         apply(
@@ -684,7 +693,10 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                 gsolid,
                 places
                     .iter()
-                    .map(|&(ax, an, t)| Frame::rotate_then_translate(ax, an, t))
+                    .map(|&(ax, an, t)| {
+                        Frame::rotate_then_translate(ax, an, t, fixture::band())
+                            .expect("a literal axis has a definite direction")
+                    })
                     .collect(),
             ),
         },

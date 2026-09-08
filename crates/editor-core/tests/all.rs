@@ -114,6 +114,8 @@ mod docm5_subject;
 mod docm6_seam_declarations;
 #[path = "docm7_union_declare.rs"]
 mod docm7_union_declare;
+#[path = "docm8_flat_merged.rs"]
+mod docm8_flat_merged;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
@@ -177,8 +179,14 @@ mod m10_4_r1_probes_interval;
 mod m10_4_seed;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
+#[path = "msolve2_member_chain.rs"]
+mod msolve2_member_chain;
+#[path = "msolve3_placer_refused.rs"]
+mod msolve3_placer_refused;
 #[path = "msolve4_mate_memo.rs"]
 mod msolve4_mate_memo;
+#[path = "msolve5_read_below_a_root.rs"]
+mod msolve5_read_below_a_root;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 
@@ -447,5 +455,16 @@ mod m10_8_r1_probes_interval;
 #[path = "m10_8_r2_probes_interval.rs"]
 mod m10_8_r2_probes_interval;
 
+#[path = "m10_9_evidence_interval.rs"]
+mod m10_9_evidence_interval;
+#[path = "m10_9_pins_interval.rs"]
+mod m10_9_pins_interval;
+
+#[path = "m10_9_r2_probes_interval.rs"]
+mod m10_9_r2_probes_interval;
+
 #[path = "kstats_bracket_rows.rs"]
 mod kstats_bracket_rows;
+
+#[path = "m10_9_r1_probes_interval.rs"]
+mod m10_9_r1_probes_interval;

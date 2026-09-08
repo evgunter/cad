@@ -2313,3 +2313,48 @@ the critical path is the one with no sample here. A cold-cache run pays more in
 every leg, and the release legs are the ones a cold `--release` profile moves
 most. The counterfactual is arithmetic, not a measurement: no run of the drawn
 shape exists on this tree to subtract. Nothing re-takes any of this.
+
+## 2026-09-06 — the python suite's seed key widened to the wheel's graph (CIW unit 2)
+
+The 2026-09-03 entry above records this axis becoming seed-keyed on
+`{pncad-py, pncad, editor-core}`. That set is withdrawn. The key is still
+SEEDS, and the set is now every member a **build of the wheel compiles** —
+`pncad-py`'s non-dev dependency closure, derived from `cargo metadata` — which
+on this tree is all eighteen members except `viewer` (above the wheel) and
+`test-utils` (a dev edge `maturin build` does not follow).
+
+**Why**, in one line: the three-name set called a crate unreachable whenever
+the façade did not re-export it whole, and reach does not work that way —
+`bvh::Ray` crosses into Python as a `#[pyclass]` through `editor-core`'s
+`pub use bvh::Ray` and `pncad::select`, and `crates/pncad-py/tests/test_picking.py`
+drives it in 37 places while `RUN_PNCAD_PY` said `false` for a `bvh` seed.
+
+**Billed minutes: +2 on every code-tier PR run whose seeds are under the wheel
+and missed the old three names**, which is most kernel changes — i.e. the
+2026-09-03 saving is given back, deliberately.
+
+**Wall clock: zero, measured rather than argued.** Over 35 successful
+code-tier `pull_request` runs on 2026-09-06 (jobs API, `python suite (wheel +
+guide + north-star)` present and not skipped):
+
+| | |
+| --- | --- |
+| the job's own duration | 115–125 s |
+| it starts at | +24 s to +60 s from the run's first job |
+| it finishes before the run ends by | **692–917 s** |
+| the run's wall clock | 856–1302 s |
+| peak concurrent jobs, with it | 16–18 (median 17) |
+| peak concurrent jobs, on the 5 sampled runs without it | 13–15 (median 14) |
+
+The job carries `needs: filter` only, so it starts immediately and runs beside
+the serial `build` → `test` chain that sets every code-tier run's length. It is
+not on the critical path at any sample, and the margin is an order of magnitude,
+not a few seconds. Peak concurrency stays under the 20-job ceiling.
+
+**What this measurement does not show.** The five runs without the job are not
+a control: they are missing three jobs, not one, so the between-runs medians
+(1068 s with, 918 s without) cannot be read as this row's cost. The in-run
+slack is the figure that carries the claim. Every sample is warm-cache; a cold
+`python` feature graph costs more than 125 s, and no cold sample was taken —
+the margin above is wide enough that this was judged not worth a run, which is
+a judgement and not a measurement. Nothing re-takes any of this.

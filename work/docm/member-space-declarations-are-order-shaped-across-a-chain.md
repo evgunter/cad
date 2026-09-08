@@ -2,8 +2,9 @@
 id: member-space-declarations-are-order-shaped-across-a-chain
 kind: issue
 title: A member-space declaration across a CHAIN of contacts fuses or refuses by member-list order
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-07
 refs: [DOCM-7, 2028]
 ---
 
@@ -108,3 +109,21 @@ The row flips when the ruling lands:
 `crates/editor-core/tests/docm7_union_declare.rs`,
 `member_space_declarations_across_a_chain_are_order_shaped` — it asserts
 BOTH outcomes as they are today and names this file.
+
+## Ruled (2026-09-06)
+
+Ev, in chat: a nested `Merged` should never have existed — whatever
+creates it should create it flat (N3's constituent SET was already the
+contract); `collapse` does not flatten, it refuses the nested shape as
+an emission bug. With flat sets the look-through is a membership test
+at the union's routing step, before the shared resolver. Built as
+`DOCM-8` (`docs/DOCM-8-SPEC.md`); this file closes at its merge.
+
+## Closed (2026-09-07)
+
+Answered by `DOCM-8` (PR 2073): the merged face's name is minted flat
+(through descent wrappers), and a member-space name absent from a
+step's tables is rewritten to the flat `Merged` row covering it — the
+chain fuses in every order. What stays order-shaped (a face consumed
+by a split, by containment, or by a merge later fragmented) is
+`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`.

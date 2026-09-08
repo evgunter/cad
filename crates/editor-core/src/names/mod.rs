@@ -33,6 +33,7 @@ mod emit_union;
 mod flush;
 mod geompred;
 pub(crate) mod interrogate;
+pub(crate) mod merged;
 mod role;
 mod select;
 mod table;

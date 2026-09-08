@@ -500,3 +500,113 @@ class (DOCM), the prose-gate class's fourth instance (FIX). The spec
 is deleted into the ledger. Next: block B3's slots 1 (FABLE) and 2
 (OPUS) bank for the chained-order ruling's unit and the certified range
 query (waits on M10); the v6 readout stays owed.
+
+## 2026-09-06 — DOCM-8 ruled and dispatched (block DOCM-B3 slot 1, FABLE)
+
+Ev ruled the chained-order gap in chat: a nested `Merged` should never
+have existed — whatever mints a `Merged` mints it flat (N3's
+constituent set was already the contract), and `collapse` refuses the
+nested shape rather than flattening it. With flat sets the look-through
+is a membership test at the union's routing step before the shared
+resolver (the orchestrator's reading of DM4, stated in DM4 at the
+spec's commit). Spec `docs/DOCM-8-SPEC.md` (S/M / STRUCTURAL, logged
+before dispatch on `docm/b3-block` as slot 1's pre-draw fields; the arm
+was fixed by the block draw, byte 124 ⇒ fable at slot 1). Unit branch
+`docm/8-flat-merged` from main with the spec on it; spec PR #2068 to
+main. Lane running.
+
+## 2026-09-06 — DOCM-8 stop clause fired; spec amended; lane resumed as the same arm
+
+The lane built the flat mint, `collapse`'s refusal, the look-through
+and the prose, then measured the stop clause on a four-member chain: a
+merged face that passes through an untouched fold step is named
+through a `FromA` descent chain (`[FromA([FromA([Merged(cs)])])]`), so
+the spec's "operand face named exactly `Merged(cs)`" rule never fired
+there and the next merge nested again; the same pass-through shape
+already exists in the pair boolean's corpus (`corner_table` node 22).
+Scratch-measured by the lane: reading the name through its wrappers
+and re-wrapping each constituent by the same chain makes all 48
+orders fuse and moves one more `corner_table` name. Ruled by the
+orchestrator as the ruling's own rule applied through descents (not a
+space crossing — every constituent stays a face name of the table the
+chain descends into): spec item 1 and A2 amended, the stop clause
+resolved; the lane resumes on the same arm (the DOCM-2 precedent).
+Draft PR #2073.
+
+## 2026-09-06 — DOCM-8 dual review dispatched
+
+DOCM-8's lane reported after the amendment: PR #2073 non-draft, full
+code-tier CI green at head `6d433b6f`; five deviations disclosed (the
+stop clause and its resolution; DOCM-7's flipped measurement row
+deleted and its probe re-homed; the `lib_g16` pin-ledger sentence
+adjusted; `role.rs`'s asymmetry paragraph left; the same-row pair
+refusal pinned at the function because routing cannot reach it);
+seven `corner_table` names and two pins moved, the die corpus
+unchanged. v6 dual dispatched: ordinal 1807 claimed on main at
+dispatch; parity byte 14 ⇒ R1 = OPUS, R2 = FABLE; briefs hashed and
+diff-identical modulo lane names; private build and scratch
+directories per lane. Both lanes running.
+
+## 2026-09-07 — DOCM-8 dual: R1 reported; R2 restarted after an API credit outage
+
+DOCM-8's dual dispatched 2026-09-06 15:33Z on frozen head 6d433b6f
+(ordinal 1807 claimed on main at dispatch, PR #2078; parity byte 14 ⇒
+R1 = OPUS, R2 = FABLE; briefs hashed and diff-identical modulo lane
+names). R1 reported (~55 min; APPROVE-WITH-FIXES with one MAJOR: the
+order-independence prose is false when a declared member face is
+SPLIT rather than merged away — a strict improvement over the base,
+where every such order refused, but the sentence and the missing
+issue file are the finding). R2 was terminated before its first
+action by the account's API usage credits running out; restarted
+2026-09-07 10:28Z on the same frozen head with the same brief. A
+wall-clock asymmetry between the arms (R2 ran ~19 h later), not an
+instrument one: the head, the brief and the isolation are unchanged,
+and R2 saw nothing of R1. Disclosed here and in the row at merge.
+
+## 2026-09-07 — DOCM-8 dual adjudicated; fix pass dispatched
+
+Both reports in (R1 OPUS, R2 FABLE — R2 restarted after the credit
+outage, same frozen head), both APPROVE-WITH-FIXES, no bilateral
+MAJOR, one unilateral MAJOR each. R1's: the three rewritten prose
+sites say reordering never changes whether a declaration resolves,
+and a declared member face SPLIT by a later member (not merged away)
+still refuses in some orders — the base refused every such order, so
+the code is a strict improvement and the sentence is the defect;
+R2 rated the same finding MINOR. R2's: N3's offer is lost for a face
+an outer merge consumed — with the flat set the inner merged face is
+no longer a constituent, so `merge_offers` offers nothing where the
+base offered the outer row (red probe). Ruled: one home for "does this
+merged row cover this name" (constituent, or a merged foot whose set
+is a subset), serving the offers, the paint-follow hook and the
+look-through — a reader interpreting a flat set, not a consumer
+flattening; the prose bounded to merges with the split/containment/
+fragmented residue filed and pinned as a measurement; a fail-loud
+check at the mint site so N3 holds for both emitters in the kernel;
+and, first, R2's off-target measurement that a DECLARED pair is
+reported `UndeclaredContact` on a three-neighbour star in ten of 24
+orders — a silent drop in the routing if it is the union's, to be
+traced before anything else. Both enter the tally as candidates.
+
+## DOCM-8 MERGED (2026-09-07, PR 2073, ordinal 1807, sample #154)
+
+Block DOCM-B3 slot 1 (FABLE), concluded; slot 2 (OPUS) remains. One
+stop (the pass-through shape; spec amended, same arm); the v6 dual
+(R1 opus APPROVE-WITH-FIXES 1/4/6, R2 fable APPROVE-WITH-FIXES 1/2/5;
+R2 restarted ~19 h after R1 on the same frozen head after the account's
+API credits ran out) and its union fix pass. Adjudicated: no bilateral
+MAJOR and two unilateral MAJORs, one per slot — R1's prose over-claim
+(a split member face is still order-shaped; the base refused every
+such order) and R2's lost N3 offer (a consumed merged face was no
+longer a constituent of the outer flat row). Ruled: one `covers` home
+for reading a flat set behind the offers, the paint-follow hook and the
+look-through; the prose bounded to merges with the residue filed and
+pinned; a mint-site refusal so N3 holds for both emitters; the
+declared-pair report traced first — the kernel's (an area-overlap cap
+contact admitted without a merge), filed. Both enter the tally as
+candidates. Closed: `member-space-declarations-are-order-shaped-across-a-chain`.
+Filed by the fix pass: the look-through's residue (DOCM), two emitter
+refusals a legal declared union reaches (DOCM), the area-overlap
+contact (kernel), the star's `JoinDesync` (`topo`). The spec is deleted
+into the ledger; DM4 carries the bound. Next: block B3 slot 2 (OPUS)
+banks for the certified range query (waits on M10); the v6 readout
+stays owed.

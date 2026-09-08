@@ -24,7 +24,7 @@ use pncad::mesh::TessellateError;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
 use viewer::history::ReplayError;
 use viewer::matetool::MateToolError;
-use viewer::pick::{EdgeNameFault, IdMapError, PatchId, PickError, PickIndexError};
+use viewer::pickindex::{EdgeNameFault, IdMapError, PatchId, PickError, PickIndexError};
 use viewer::scene::{SceneDocError, SceneError};
 
 /// Whether a rendering looks like a derived `Debug` rather than prose:
