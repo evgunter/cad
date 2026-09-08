@@ -2274,7 +2274,9 @@ fn workspace_save_at_refuses_a_second_file_for_one_identity() {
             assert_eq!(existing, original);
             assert_eq!(requested, dir.0.join("b.pncad"));
         }
-        other => panic!("a save beside the original must refuse SaveWouldDuplicateId, got {other:?}"),
+        other => {
+            panic!("a save beside the original must refuse SaveWouldDuplicateId, got {other:?}")
+        }
     }
 
     // BEFORE the file exists: the directory is what it was.
@@ -2362,7 +2364,10 @@ fn workspace_save_at_creates_an_unclaimed_id_under_the_chosen_name() {
             Err(pncad::workspace::WorkspaceError::SaveTargetNotInStore { path }) => {
                 assert_eq!(path, target);
             }
-            other => panic!("`{}` is not a store save target, got {other:?}", target.display()),
+            other => panic!(
+                "`{}` is not a store save target, got {other:?}",
+                target.display()
+            ),
         }
     }
     assert_eq!(ws_listing(&dir), vec!["chosen-name.pncad".to_string()]);

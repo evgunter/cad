@@ -1093,6 +1093,23 @@ fn workspace_error_tags_are_stable() {
     let missing = Workspace::open(Path::new("/nonexistent/pncad-workspace"))
         .expect_err("a directory that is not there refuses");
     assert_eq!(workspace_error_tag(&missing), "io");
+
+    // The save door's own two arms, constructed: neither is reachable
+    // from a store that holds nothing, and both are Python-visible.
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::SaveWouldDuplicateId {
+            id: pncad::document::DocumentId::derive("tagged"),
+            existing: std::path::PathBuf::from("/store/a.pncad"),
+            requested: std::path::PathBuf::from("/store/b.pncad"),
+        }),
+        "save_would_duplicate_id"
+    );
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::SaveTargetNotInStore {
+            path: std::path::PathBuf::from("/elsewhere/a.pncad"),
+        }),
+        "save_target_not_in_store"
+    );
 }
 
 /// The STEP importer's tags. Every arm of this enum is reachable
@@ -2152,6 +2169,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pin_mismatch",
             "randomness_unavailable",
             "save",
+            "save_target_not_in_store",
+            "save_would_duplicate_id",
             "unknown_id",
             "update",
         ],
