@@ -1271,6 +1271,54 @@ impl Node {
         })
     }
 
+    /// **A sketch frame DERIVED from a face** — "sketch on this
+    /// face", as a node.
+    ///
+    /// `at` is the body-denoting node the face is read out of, and it
+    /// is a DAG input exactly as [`Node::datum_axis_in_plane`]'s
+    /// `plane` is: the frame moves when the face moves, so raising the
+    /// body carries every sketch built on this frame up with it.
+    /// `face` is one of the opaque texts `Evaluation.all_faces` /
+    /// `select` answered with, handed back unread — the face is
+    /// NAMED, never transcribed as nine numbers.
+    ///
+    /// `spin` turns sketch +x about the face's OUTWARD normal, from
+    /// the carrier's own u-reference, right-handed. It has no default:
+    /// which way a sketch faces on a face is an authoring decision,
+    /// and a door that quietly chose zero would put a convention where
+    /// the document should carry one. Pass `0 * rad` to take the
+    /// u-reference unturned.
+    ///
+    /// The outward normal is the face's orientation sense times the
+    /// carrier's chart axis — `Pose.sense` and `Pose.axis`, the same
+    /// two facts `Evaluation.face_frame` hands out — so a sketch on
+    /// the underside of a plate faces out of the plate.
+    ///
+    /// Refuses typed at `evaluate`, never here: `face_frame_resolve`
+    /// for a name that stopped denoting (the repair is
+    /// `DocEdit.update_reference`), `face_frame_kind` for an edge or
+    /// vertex name, `face_frame_not_planar` for a curved carrier — a
+    /// sketch frame wants a plane, and `Evaluation.face_carrier_kind`
+    /// is the door that answers which carrier it found — and
+    /// `face_frame_readback` for a body whose stored geometry cannot
+    /// be re-read.
+    #[staticmethod]
+    fn datum_face_frame(
+        py: Python<'_>,
+        at: &NodeId,
+        face: &str,
+        spin: &super::quantity::Angle,
+    ) -> PyResult<Self> {
+        let spin = literal(py, spin.0.radians(), d::Dimension::Angle)?;
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::FaceFrame {
+                at: at.0,
+                face: name_from_text(face)?,
+                spin,
+            }),
+        })
+    }
+
     /// A datum plane: a point and a normal.
     ///
     /// The origin is dimensioned (`Length`); the normal is a
