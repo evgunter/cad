@@ -374,9 +374,14 @@ pub fn ball_poled_z_at<T: Decide + PcurveFittedLane>(r: T, c: Vec3<T>, tol: Tol)
 /// off-axis 60° ARC, revolved about the sketch y-axis by `rev`.
 ///
 /// That wall is a TORUS, and a torus support is outside every analytic
-/// arm's table — the canal-surface lane's front door, where the rolling
-/// ball's spine is neither a line nor a circle. It is what
-/// `FILLET3_SPINE_KIND_RECOURSE` is refused on.
+/// arm's table: the door tests KIND membership before it tests any
+/// symmetry, and no arm traces a torus. The refusal is therefore on
+/// KIND — not on the spine, whose shape the fixture does not settle.
+/// Its torus wall meets the base plane in a LATITUDE circle, so that
+/// rim's rolling ball does have a circular spine and the pair is two
+/// coaxial surfaces of revolution; the canal-surface lane owns it
+/// anyway, because the arm that would mint its torus band does not
+/// exist. It is what `FILLET3_SPINE_KIND_RECOURSE` is refused on.
 ///
 /// The arc is 60° about `(1.5, 0)` of radius `0.5`, so it meets the base
 /// at a square corner and the top at a 30° one — neither joint tangent,
