@@ -18,7 +18,9 @@ use core::f64::consts::PI;
 use geom::Surface;
 use geom_brep::Nappe;
 use geom_core::{Band, Point2, Point3, Tol, Vec2};
-use profile::{ArcSweep, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, bulge_from_center};
+use profile::{
+    ArcSweep, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, bulge_from_center,
+};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
@@ -107,7 +109,9 @@ fn corners(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness()).expect("props").volume
+    topo::mass_properties(body, Tol::witness())
+        .expect("props")
+        .volume
 }
 
 fn frustum_volume(r0: f64, r1: f64, h: f64) -> f64 {
@@ -128,7 +132,10 @@ fn cavity_closed_form(r0: f64, r1: f64, h: f64, t: f64) -> f64 {
 
 fn name(e: &ReplaceFaceError<f64>) -> String {
     let s = format!("{e:?}");
-    s.split(|c: char| !c.is_alphanumeric()).next().unwrap().to_string()
+    s.split(|c: char| !c.is_alphanumeric())
+        .next()
+        .unwrap()
+        .to_string()
 }
 
 /// **E2E, the consumer's seat.** Build a frustum below its apex and one
@@ -137,24 +144,51 @@ fn name(e: &ReplaceFaceError<f64>) -> String {
 #[test]
 fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
     for (what, r0, r1, want_nappe) in [
-        ("narrowing upward (below apex)", R_WIDE, R_NARROW, Nappe::Mirror),
-        ("widening upward (above apex)", R_NARROW, R_WIDE, Nappe::Opening),
+        (
+            "narrowing upward (below apex)",
+            R_WIDE,
+            R_NARROW,
+            Nappe::Mirror,
+        ),
+        (
+            "widening upward (above apex)",
+            R_NARROW,
+            R_WIDE,
+            Nappe::Opening,
+        ),
     ] {
         let body = frustum(r0, r1);
         let group = cone_faces(&body);
         for &f in &group {
-            assert_eq!(topo::face_nappe(&body, f, band()).unwrap(), want_nappe, "{what}");
+            assert_eq!(
+                topo::face_nappe(&body, f, band()).unwrap(),
+                want_nappe,
+                "{what}"
+            );
         }
         let v0 = volume(&body);
-        assert!((v0 - frustum_volume(r0, r1, H)).abs() <= 1e-15, "{what}: operand volume");
+        assert!(
+            (v0 - frustum_volume(r0, r1, H)).abs() <= 1e-15,
+            "{what}: operand volume"
+        );
         let hollow = topo::shell(&body, T, Tol::witness())
             .unwrap_or_else(|e| panic!("{what}: shell refused: {e}"))
             .body;
-        assert_eq!(topo::validate_geometric(&hollow, Tol::witness()), Ok(()), "{what}: tier 3");
+        assert_eq!(
+            topo::validate_geometric(&hollow, Tol::witness()),
+            Ok(()),
+            "{what}: tier 3"
+        );
         let cavity = v0 - volume(&hollow);
         let want = cavity_closed_form(r0, r1, H, T);
-        println!("[r1] {what}: operand {v0}, cavity {cavity}, closed form {want}, delta {}", cavity - want);
-        assert!((cavity - want).abs() <= 1e-12, "{what}: cavity {cavity} vs {want}");
+        println!(
+            "[r1] {what}: operand {v0}, cavity {cavity}, closed form {want}, delta {}",
+            cavity - want
+        );
+        assert!(
+            (cavity - want).abs() <= 1e-12,
+            "{what}: cavity {cavity} vs {want}"
+        );
 
         // A thick request: what does a user get when the wall would
         // reach its own apex?
@@ -174,16 +208,28 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
             let mut work = body.clone();
             let got = topo::replace_faces_offset(&mut work, &group, d, band(), Tol::witness());
             match &got {
-                Ok(()) => println!("[r1] {what} per-chart d={d}: BUILT, volume {}", volume(&work)),
+                Ok(()) => println!(
+                    "[r1] {what} per-chart d={d}: BUILT, volume {}",
+                    volume(&work)
+                ),
                 Err(e) => println!("[r1] {what} per-chart d={d}: {}: {e}", name(e)),
             }
-            assert!(matches!(got, Err(ReplaceFaceError::ReanchorOffCarrier { .. })), "{what} d={d}: {got:?}");
+            assert!(
+                matches!(got, Err(ReplaceFaceError::ReanchorOffCarrier { .. })),
+                "{what} d={d}: {got:?}"
+            );
         }
         // A single band of the two-band chart: the door names the sharer.
         let mut work = body.clone();
         let got = topo::replace_face_offset(&mut work, group[0], -T, band(), Tol::witness());
-        println!("[r1] {what} single band: {}", got.as_ref().err().map(name).unwrap_or_default());
-        assert!(matches!(got, Err(ReplaceFaceError::SharedSurfaceKey { .. })));
+        println!(
+            "[r1] {what} single band: {}",
+            got.as_ref().err().map(name).unwrap_or_default()
+        );
+        assert!(matches!(
+            got,
+            Err(ReplaceFaceError::SharedSurfaceKey { .. })
+        ));
     }
 }
 
@@ -209,7 +255,8 @@ fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Surfac
         .set_face_surface(group[0], topo::FaceSurface::New(surface.clone()))
         .expect("re-anchor");
     for &f in &group[1..] {
-        body.set_face_surface(f, topo::FaceSurface::Shared(key)).expect("share");
+        body.set_face_surface(f, topo::FaceSurface::Shared(key))
+            .expect("share");
     }
     surface
 }
@@ -236,12 +283,21 @@ fn r1_sum_positive_with_negative_corners() {
     for d in [-T, T] {
         let mut work = body.clone();
         let got = topo::replace_faces_offset(&mut work, &group, d, band(), Tol::witness());
-        println!("[r1] per-chart d={d}: {}", got.as_ref().err().map(name).unwrap_or("BUILT".into()));
-        assert!(matches!(got, Err(ReplaceFaceError::ApexWindow { .. })), "{got:?}");
+        println!(
+            "[r1] per-chart d={d}: {}",
+            got.as_ref().err().map(name).unwrap_or("BUILT".into())
+        );
+        assert!(
+            matches!(got, Err(ReplaceFaceError::ApexWindow { .. })),
+            "{got:?}"
+        );
         let mut work = body.clone();
         let moves = chart_moves(&work, d);
         let got = topo::offset_charts_together(&mut work, &moves, band(), Tol::witness());
-        println!("[r1] axial d={d}: {}", got.as_ref().err().map(name).unwrap_or("BUILT".into()));
+        println!(
+            "[r1] axial d={d}: {}",
+            got.as_ref().err().map(name).unwrap_or("BUILT".into())
+        );
     }
 }
 
@@ -279,8 +335,14 @@ fn r1_a_chart_on_both_nappes() {
         for d in [-T, T] {
             let mut work = body.clone();
             let got = topo::replace_faces_offset(&mut work, &faces, d, band(), Tol::witness());
-            println!("[r1] both nappes, {order}, per-chart d={d}: {}", got.as_ref().err().map(name).unwrap_or("BUILT".into()));
-            assert!(matches!(got, Err(ReplaceFaceError::ApexWindow { .. })), "{got:?}");
+            println!(
+                "[r1] both nappes, {order}, per-chart d={d}: {}",
+                got.as_ref().err().map(name).unwrap_or("BUILT".into())
+            );
+            assert!(
+                matches!(got, Err(ReplaceFaceError::ApexWindow { .. })),
+                "{got:?}"
+            );
         }
     }
     for d in [-T, T] {
@@ -289,8 +351,14 @@ fn r1_a_chart_on_both_nappes() {
         let got = topo::offset_charts_together(&mut work, &moves, band(), Tol::witness());
         match &got {
             Ok(()) => {
-                let cones: Vec<_> = cone_faces(&work).iter().map(|&f| cone_of(&work, f)).collect();
-                println!("[r1] both nappes, axial d={d}: BUILT; cone surfaces {cones:?}; tier3 {:?}", topo::validate_geometric(&work, Tol::witness()));
+                let cones: Vec<_> = cone_faces(&work)
+                    .iter()
+                    .map(|&f| cone_of(&work, f))
+                    .collect();
+                println!(
+                    "[r1] both nappes, axial d={d}: BUILT; cone surfaces {cones:?}; tier3 {:?}",
+                    topo::validate_geometric(&work, Tol::witness())
+                );
             }
             Err(e) => println!("[r1] both nappes, axial d={d}: {}: {e}", name(e)),
         }
@@ -328,9 +396,15 @@ fn sphere_capped_cone(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64) -> (Body<
         image(r1, z1)
     );
     let body = revolved(RawLoop::new(vec![
-        ProfileVertex::new(bottom, bulge_from_center(bottom, p2(r0, z0), p2(0.0, c0), ArcSweep::Ccw)),
+        ProfileVertex::new(
+            bottom,
+            bulge_from_center(bottom, p2(r0, z0), p2(0.0, c0), ArcSweep::Ccw),
+        ),
         ProfileVertex::new(p2(r0, z0), 0.0),
-        ProfileVertex::new(p2(r1, z1), bulge_from_center(p2(r1, z1), top, p2(0.0, c1), ArcSweep::Ccw)),
+        ProfileVertex::new(
+            p2(r1, z1),
+            bulge_from_center(p2(r1, z1), top, p2(0.0, c1), ArcSweep::Ccw),
+        ),
         ProfileVertex::new(top, 0.0),
     ]));
     (body, apex_y)
@@ -344,23 +418,47 @@ fn sphere_capped_cone(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64) -> (Body<
 #[test]
 fn r1_per_chart_cone_offset_reachability_attack() {
     for (what, r0, r1, want_nappe) in [
-        ("widening upward (above apex)", R_NARROW, R_WIDE, Nappe::Opening),
-        ("narrowing upward (below apex)", R_WIDE, R_NARROW, Nappe::Mirror),
+        (
+            "widening upward (above apex)",
+            R_NARROW,
+            R_WIDE,
+            Nappe::Opening,
+        ),
+        (
+            "narrowing upward (below apex)",
+            R_WIDE,
+            R_NARROW,
+            Nappe::Mirror,
+        ),
     ] {
         let d_door = -T; // inward at the face
         let d_mint = want_nappe.turn(d_door);
         let (body, _apex_y) = sphere_capped_cone(r0, 0.0, r1, H, d_mint);
-        assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "{what}: the operand validates");
+        assert_eq!(
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "{what}: the operand validates"
+        );
         let group = cone_faces(&body);
         assert!(!group.is_empty());
         for &f in &group {
-            assert_eq!(topo::face_nappe(&body, f, band()).unwrap(), want_nappe, "{what}");
+            assert_eq!(
+                topo::face_nappe(&body, f, band()).unwrap(),
+                want_nappe,
+                "{what}"
+            );
         }
         let old = cone_of(&body, group[0]);
         let v0 = volume(&body);
         let kinds: Vec<String> = body
             .faces()
-            .map(|(_, f)| format!("{:?}", body.get_surface(f.surface)).split(|c: char| !c.is_alphanumeric()).nth(1).unwrap_or("?").to_string())
+            .map(|(_, f)| {
+                format!("{:?}", body.get_surface(f.surface))
+                    .split(|c: char| !c.is_alphanumeric())
+                    .nth(1)
+                    .unwrap_or("?")
+                    .to_string()
+            })
             .collect();
         println!("[r1] {what}: faces {kinds:?}");
         for (d, chosen) in [(d_door, true), (-d_door, false)] {
@@ -372,11 +470,20 @@ fn r1_per_chart_cone_offset_reachability_attack() {
                     let tier3 = topo::validate_geometric(&work, Tol::witness());
                     let minted = cone_of(&work, cone_faces(&work)[0]);
                     let want = geom_brep::offset_surface(&old, want_nappe.turn(d), band()).unwrap();
-                    println!("[r1] {what} d={d} chosen={chosen}: BUILT volume {v0} -> {v1}, tier3 {tier3:?}");
+                    println!(
+                        "[r1] {what} d={d} chosen={chosen}: BUILT volume {v0} -> {v1}, tier3 {tier3:?}"
+                    );
                     println!("[r1]   minted {minted:?}\n[r1]   want   {want:?}");
                     assert!(chosen, "{what}: the control sign built");
-                    assert_eq!(format!("{minted:?}"), format!("{want:?}"), "{what}: the door's mint is the home's turn");
-                    assert!(v1 < v0, "{what}: an inward per-chart offset must shrink the body");
+                    assert_eq!(
+                        format!("{minted:?}"),
+                        format!("{want:?}"),
+                        "{what}: the door's mint is the home's turn"
+                    );
+                    assert!(
+                        v1 < v0,
+                        "{what}: an inward per-chart offset must shrink the body"
+                    );
                     assert_eq!(tier3, Ok(()), "{what}: tier 3");
                 }
                 Err(e) => println!("[r1] {what} d={d} chosen={chosen}: {}: {e}", name(e)),
