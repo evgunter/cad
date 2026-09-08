@@ -373,3 +373,28 @@ A11 gains one sentence. Stop clauses: a corpus part with a face no
 bound can be stated for; a k-lint or decision-log row moved by
 evaluating a part before the first node. Rides PR 2086 with the
 ruling; the lane reads the spec from this branch until it lands.
+
+## MSOLVE-6 stopped on the edit door's maintenance (2026-09-07)
+
+The lane built the unit (PR 2116, draft: the reach module, the lever
+formula, the retired constants, the doors, the docs) and stopped on
+clause (iii): `reconcile`, the keying maintenance `edit::apply` runs,
+solves the PRIOR document to preserve a split cluster's gauge pose,
+and the edit door holds no resolver. Two `asm_r2a` rows measure it
+(a re-minted frame at z = 4 instead of the solved z = 5). A design
+fork — the edit door's purity, or the maintenance's home, or a
+stamped extent beside the pin — so it goes to Ev as
+`reconcile-solves-with-no-resolver` on an `[ev]` PR, with the edit
+door taking a reach recommended. The lane holds on its branch.
+
+## The edit door ruled; MSOLVE-6 resumes (2026-09-08)
+
+Ev ruled (a) with the replay refinement on PR 2118, after three
+questions: how it relates to 2086 (the same B, one solve site
+further in), whether a stamped extent is a cache that drifts (it is
+derived from content-addressed data and checked at evaluation, but
+it is still a derived geometric fact in the recipe), and which is
+cleaner ignoring churn (the edit door taking the reach, with the log
+carrying the maintenance's frames so replay never solves — the
+orchestrator's honest answer reversed its own (h) lean). The spec
+gained its amendment section; the lane resumes on PR 2116.
