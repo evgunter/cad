@@ -891,3 +891,165 @@ pub(crate) fn scope_of_moves<T: Real>(
     }
     Scope::of_solids(body, &solids).ok_or(ReplaceFaceError::Corrupt)
 }
+
+#[cfg(test)]
+mod scope_walks {
+    //! The two walks SHELL-10 narrowed, pinned on a two-solid body:
+    //! the scope's construction and the doors' closing pcurve pass.
+
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{ChartMove, Scope, offset_planes_together, scope_of_moves};
+    use crate::body::Body;
+    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, SolidKey};
+    use crate::splitting::reassembly::quad_prism;
+    use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+
+    const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+
+    /// Two unit boxes, ten apart, as two solids of one body — grafted
+    /// through the public disjoint-graft door, so the operand is one a
+    /// caller could hold.
+    fn two_boxes() -> (Body<f64>, SolidKey, SolidKey) {
+        let tol = Tol::witness();
+        let mut body = quad_prism(&SQUARE, 1.0, tol);
+        let first = body.solids().next().unwrap().0;
+        let other = quad_prism(&SQUARE, 1.0, tol);
+        let placed = crate::transform_rigid(
+            &other,
+            &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
+            tol,
+        )
+        .unwrap();
+        let second = crate::graft_disjoint(&mut body, &placed, tol).unwrap();
+        assert!(crate::validate::validate_closed(&body).is_ok());
+        (body, first, second)
+    }
+
+    fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
+        body.faces()
+            .filter(|(_, d)| body.get_shell(d.shell).unwrap().solid == solid)
+            .map(|(k, _)| k)
+            .collect()
+    }
+
+    /// Every chart of `solid`, as a move of `distance`. A zero distance
+    /// is a legal move set — the corner solve answers an unmoved corner
+    /// before any meter runs — and it is what these rows use, so that
+    /// what they measure is the BOOKKEEPING around the solve.
+    fn moves_of(body: &Body<f64>, solid: SolidKey, distance: f64) -> Vec<ChartMove<f64>> {
+        let mut out: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
+        for face in faces_of(body, solid) {
+            let key = body.get_face(face).unwrap().surface;
+            match out.iter_mut().find(|(k, _)| *k == key) {
+                Some((_, v)) => v.push(face),
+                None => out.push((key, vec![face])),
+            }
+        }
+        out.into_iter()
+            .map(|(_, faces)| ChartMove { faces, distance })
+            .collect()
+    }
+
+    /// Breaks `solid`'s first loop cycle: one half-edge's `next` is
+    /// re-pointed at a key no arena holds, so the walk is `Broken`.
+    fn break_a_loop(body: &mut Body<f64>, solid: SolidKey) {
+        let face = faces_of(body, solid)[0];
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("a box face bounds a cycle");
+        };
+        body.get_half_edge_mut(first).unwrap().next = HalfEdgeKey::default();
+    }
+
+    /// **The scope is the named solids' entities and no others.** The
+    /// maps answer about the solid the moves name and are silent about
+    /// the other — which is what `holds_*` already reported, and is now
+    /// also what was walked.
+    #[test]
+    fn a_scope_holds_only_the_solids_it_names() {
+        let (body, first, second) = two_boxes();
+        let scope = Scope::of_solids(&body, &[first]).unwrap();
+        for f in faces_of(&body, first) {
+            assert_eq!(scope.solid_of(f), Some(first));
+            assert!(scope.holds_face(f));
+        }
+        for f in faces_of(&body, second) {
+            assert_eq!(scope.solid_of(f), None, "an unwalked solid's face");
+            assert!(!scope.holds_face(f));
+        }
+        // The whole body, for contrast: one walk, both solids.
+        let whole = Scope::whole(&body).unwrap();
+        for f in faces_of(&body, second) {
+            assert_eq!(whole.solid_of(f), Some(second));
+        }
+    }
+
+    /// **An out-of-scope solid's structural corruption is not this
+    /// call's to find.** `Scope::whole` — the walk the doors used to
+    /// take, and still the shell verb's — refuses this body; the walk a
+    /// move set naming the SOUND solid takes accepts it.
+    ///
+    /// **The door as a whole is not** — and the row stops at the scope
+    /// deliberately. A structurally corrupt body is refused by two
+    /// arena-global reads this unit did not narrow, both downstream of
+    /// the scope: the asserting setters' tier-1 postcondition
+    /// (`set_face_surface`, `set_edge_curve` — a panic, not a refusal,
+    /// and compiled into this workspace's release profile too) and the
+    /// closing tier-2 check. Driving the door here would measure those,
+    /// not this. The narrowing is the pair of walks above.
+    #[test]
+    fn an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk() {
+        let (mut body, first, second) = two_boxes();
+        break_a_loop(&mut body, second);
+
+        assert!(
+            Scope::whole(&body).is_none(),
+            "the whole-body walk still refuses a corrupt solid"
+        );
+        let moves = moves_of(&body, first, 0.0);
+        let scope = scope_of_moves(&body, &moves).expect("the sound solid's scope builds");
+        assert_eq!(scope.faces_in_scope(&body).unwrap(), faces_of(&body, first));
+        for f in faces_of(&body, second) {
+            assert!(!scope.holds_face(f));
+        }
+    }
+
+    /// **An out-of-scope face the pcurve lane cannot chart is not this
+    /// call's either** — the same shape as the row above, in the walk
+    /// that IS fully narrowed, so the door builds.
+    ///
+    /// The out-of-scope box wears a cylinder on one face: structurally
+    /// sound (tier 2 is clean), and a whole-body mint refuses it. The
+    /// door's scope-sized pass never reaches it.
+    #[test]
+    fn an_out_of_scope_faces_unmintable_chart_does_not_refuse_the_door() {
+        let tol = Tol::witness();
+        let (mut body, first, second) = two_boxes();
+        let victim = faces_of(&body, second)[0];
+        body.set_face_surface(
+            victim,
+            crate::euler::FaceSurface::New(geom::Surface::Cylinder {
+                origin: Point3::new(10.5, 0.5, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 0.5,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+        assert!(
+            crate::validate::validate_closed(&body).is_ok(),
+            "the operand is structurally sound; only its charting is not"
+        );
+        let mut whole = body.clone();
+        assert!(
+            crate::pcurves::mint_pcurves(&mut whole, tol).is_err(),
+            "a whole-body mint refuses this body — the base's pass, and the base's refusal"
+        );
+
+        let moves = moves_of(&body, first, 0.0);
+        let mut work = body.clone();
+        offset_planes_together(&mut work, &moves, Band::linear(tol).unwrap(), tol)
+            .expect("the door reads its scope, and its scope charts");
+    }
+}
