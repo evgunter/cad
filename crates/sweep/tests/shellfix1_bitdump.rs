@@ -13,6 +13,7 @@ use std::fmt::Write as _;
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::readback::euler_counts;
 use topo::{Body, FaceKey, LoopBoundary};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -106,15 +107,16 @@ fn plane_face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
 /// here so this file also compiles at the merge base unmodified.
 fn dump(body: &Body<f64>) -> String {
     let mut s = String::new();
+    let counts = euler_counts(body);
     let _ = writeln!(
         s,
         "census V={} E={} F={} L={} S={} R={}",
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count(),
+        counts.v,
+        counts.e,
+        counts.f,
         body.loops().count(),
-        body.shells().count(),
-        body.faces().map(|(_, f)| f.rings.len()).sum::<usize>(),
+        counts.s,
+        counts.r,
     );
     for (k, _) in body.vertices() {
         let p = body

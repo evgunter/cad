@@ -17,6 +17,7 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::query;
+use topo::readback::euler_counts;
 use topo::{Body, EdgeKey};
 
 /// The cube side, meters.
@@ -65,13 +66,9 @@ fn the_chamfered_cube() {
         "a chamfer has no closed-chain band"
     );
 
-    let (v, e, f) = (
-        out_body.vertices().count(),
-        out_body.edges().count(),
-        out_body.faces().count(),
-    );
-    assert_eq!((v, e, f), (24, 48, 26), "census");
-    assert_eq!(v as i64 - e as i64 + f as i64, 2, "Euler–Poincaré");
+    let counts = euler_counts(&out_body);
+    assert_eq!((counts.v, counts.e, counts.f), (24, 48, 26), "census");
+    assert_eq!(counts.genus(), Ok(0), "Euler–Poincaré");
 
     // Every face is a plane — the whole claim of the analytic case.
     for (k, _) in out_body.faces() {

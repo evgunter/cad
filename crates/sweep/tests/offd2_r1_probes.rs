@@ -8,6 +8,7 @@
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, FaceKey, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -263,31 +264,25 @@ fn probe_opened_box_census() {
     let cup = topo::shell_open(&body, t, &[top], Tol::witness())
         .expect("the PR's own green fixture")
         .body;
-    let v = cup.vertices().count() as i64;
-    let e = cup.edges().count() as i64;
-    let f = cup.faces().count() as i64;
-    let r: i64 = cup.faces().map(|(_, fc)| fc.rings.len() as i64).sum();
-    let s = cup.shells().count() as i64;
+    let counts = euler_counts(&cup);
+    let EulerCounts { v, e, f, r, s } = counts;
     println!("[probe] cup census: V={v} E={e} F={f} R={r} S={s}");
     assert_eq!(
         (v, e, f, r, s),
         (16, 24, 11, 1, 1),
         "the rim surgery's census"
     );
-    assert_eq!(v - e + f - r, 2 * s, "Euler–Poincaré at genus 0");
+    assert_eq!(counts.genus(), Ok(0), "Euler–Poincaré at genus 0");
 
     // And the tube (two opposite rims): genus 1.
     let bottom = plane_face_at(&body, 0.0);
     let tube = topo::shell_open(&body, t, &[top, bottom], Tol::witness())
         .expect("the PR's own green fixture")
         .body;
-    let v = tube.vertices().count() as i64;
-    let e = tube.edges().count() as i64;
-    let f = tube.faces().count() as i64;
-    let r: i64 = tube.faces().map(|(_, fc)| fc.rings.len() as i64).sum();
-    let s = tube.shells().count() as i64;
+    let counts = euler_counts(&tube);
+    let EulerCounts { v, e, f, r, s } = counts;
     println!("[probe] tube census: V={v} E={e} F={f} R={r} S={s}");
-    assert_eq!(v - e + f - r, 2 * (s - 1), "Euler–Poincaré at genus 1");
+    assert_eq!(counts.genus(), Ok(1), "Euler–Poincaré at genus 1");
 }
 
 /// TWO ADJACENT faces designated open — the designation the acceptance
@@ -386,7 +381,7 @@ fn probe_opened_vessel_cup() {
             // THE RINGS: one, and on the mouth plane — the rim is the
             // annulus between the wall's two radii, not a copy of the
             // cavity cap's own boundary laid over the designated face.
-            let rings: usize = cup.faces().map(|(_, f)| f.rings.len()).sum();
+            let counts = euler_counts(&cup);
             let mouth: Vec<FaceKey> = cup
                 .faces()
                 .filter(|(_, f)| {
@@ -401,18 +396,11 @@ fn probe_opened_vessel_cup() {
                 1,
                 "the rim carries exactly one ring"
             );
-            assert_eq!(rings, 1, "and that is the body's only ring");
+            assert_eq!(counts.r, 1, "and that is the body's only ring");
             // THE GENUS: `topo::shell`'s own docs say a cup is 0.
-            let (v, e, f) = (
-                cup.vertices().count() as i64,
-                cup.edges().count() as i64,
-                cup.faces().count() as i64,
-            );
-            let chi = v - e + f - rings as i64;
-            assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
             assert_eq!(
-                cup.shells().count() as i64 - chi / 2,
-                0,
+                counts.genus(),
+                Ok(0),
                 "one opening gives a cup, which is genus 0"
             );
             // THE MESH: the consumer that discovered #1082, run here.
@@ -430,8 +418,8 @@ fn probe_opened_vessel_cup() {
                 props.volume_pad
             );
             println!(
-                "[probe] vessel cup: Ok and coherent (volume {}, rings {rings})",
-                props.volume
+                "[probe] vessel cup: Ok and coherent (volume {}, rings {})",
+                props.volume, counts.r
             );
         }
     }

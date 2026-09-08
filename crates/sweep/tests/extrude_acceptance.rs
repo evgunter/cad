@@ -16,6 +16,7 @@ use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
+use topo::readback::{EulerCounts, euler_counts};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, LoopBoundary, validate, validate_closed,
     validate_geometric,
@@ -57,14 +58,9 @@ fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 }
 
 /// (v, e, f, r) of a body.
-fn counts(body: &Body<f64>) -> (usize, usize, usize, usize) {
-    let rings: usize = body.faces().map(|(_, f)| f.rings.len()).sum();
-    (
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count(),
-        rings,
-    )
+fn counts(body: &Body<f64>) -> (i64, i64, i64, i64) {
+    let EulerCounts { v, e, f, r, .. } = euler_counts(body);
+    (v, e, f, r)
 }
 
 /// Asserts tiers 1–3 all pass.
@@ -183,7 +179,7 @@ fn extruded_l_profile_passes_all_tiers() {
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (12, 18, 8, 0));
     // Component Euler–Poincaré at rest: v − e + f − r = 2(1 − g), g = 0.
-    assert_eq!(v as isize - e as isize + f as isize - r as isize, 2);
+    assert_eq!(v - e + f - r, 2);
     // All-plane surfaces: 2 caps + 6 sides.
     assert_eq!(t.body.surfaces().count(), 8);
     assert!(
@@ -236,7 +232,7 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (12, 18, 8, 2));
-    assert_eq!(v as isize - e as isize + f as isize - r as isize, 0); // g = 1
+    assert_eq!(v - e + f - r, 0); // g = 1
     // Both caps carry exactly one ring.
     assert_eq!(t.body.get_face(t.top).unwrap().rings.len(), 1);
     assert_eq!(t.body.get_face(t.bottom).unwrap().rings.len(), 1);
@@ -317,7 +313,7 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (16, 24, 10, 0));
-    assert_eq!(v as isize - e as isize + f as isize - r as isize, 2);
+    assert_eq!(v - e + f - r, 2);
     // 4 plane walls + 4 cylinder walls + 2 caps, no sharing.
     assert_eq!(t.body.surfaces().count(), 10);
     let cylinders = t
@@ -378,7 +374,7 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (4, 6, 4, 0));
-    assert_eq!(v as isize - e as isize + f as isize - r as isize, 2);
+    assert_eq!(v - e + f - r, 2);
     // 2 cap planes + exactly one shared cylinder.
     assert_eq!(t.body.surfaces().count(), 3);
     let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
@@ -466,7 +462,7 @@ fn both_extrusion_directions_build_outward_solids() {
     .unwrap();
     assert_all_tiers(&holed.body);
     let (v, e, f, r) = counts(&holed.body);
-    assert_eq!(v as isize - e as isize + f as isize - r as isize, 0); // g = 1
+    assert_eq!(v - e + f - r, 0); // g = 1
     assert!(outward_normal(&holed.body, holed.top).z < -0.99);
 }
 

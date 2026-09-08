@@ -42,6 +42,7 @@ use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
 use test_utils::fuzz;
 use topo::query;
+use topo::readback::euler_counts;
 use topo::{Body, EdgeKey};
 
 /// Extrude a convex polygon (counterclockwise vertices) by `h`.
@@ -110,8 +111,7 @@ fn assert_chamfer_shape(body: &Body<f64>, census: (usize, usize, usize)) {
         body.faces().count(),
     );
     assert_eq!(got, census, "census");
-    let (v, e, f) = got;
-    assert_eq!(v as i64 - e as i64 + f as i64, 2, "Euler–Poincaré");
+    assert_eq!(euler_counts(body).genus(), Ok(0), "Euler–Poincaré");
     for (k, _) in body.faces() {
         let fd = body.get_face(k).expect("a face");
         assert!(

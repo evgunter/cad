@@ -9,6 +9,7 @@
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::readback::euler_counts;
 use topo::{Body, FaceKey, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -18,23 +19,17 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings_of(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
+/// The body's ring count, through the census door.
+fn rings_of(body: &Body<f64>) -> i64 {
+    euler_counts(body).r
 }
 
+/// The body's Euler–Poincaré genus, through the census door; an odd
+/// census is a torn store, and the row fails on the typed refusal.
 fn genus_of(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    let chi = v - e + f - rings_of(body) as i64;
-    assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
-    body.shells().count() as i64 - chi / 2
+    euler_counts(body)
+        .genus()
+        .expect("a census that satisfies Euler–Poincaré")
 }
 
 /// Faces whose plane origin sits at height `y` (the revolve fixtures

@@ -22,6 +22,7 @@ use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use profile::{LoopRole, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
+use topo::readback::{EulerCounts, euler_counts};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, LoopBoundary, LoopKey, validate, validate_closed,
     validate_geometric,
@@ -57,14 +58,9 @@ fn assert_all_tiers(body: &Body<f64>) {
 }
 
 /// (v, e, f, r) of a body.
-fn counts(body: &Body<f64>) -> (usize, usize, usize, usize) {
-    let rings: usize = body.faces().map(|(_, f)| f.rings.len()).sum();
-    (
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count(),
-        rings,
-    )
+fn counts(body: &Body<f64>) -> (i64, i64, i64, i64) {
+    let EulerCounts { v, e, f, r, .. } = euler_counts(body);
+    (v, e, f, r)
 }
 
 /// The vertex points of a loop's cycle in `next` order.
@@ -318,7 +314,7 @@ fn survives_two_arc_hole_hand_traced_cycles() {
         assert_all_tiers(&t.body);
         let (v, e, f, r) = counts(&t.body);
         assert_eq!((v, e, f, r), (12, 18, 8, 2));
-        assert_eq!(v as isize - e as isize + f as isize - r as isize, 0); // g = 1
+        assert_eq!(v - e + f - r, 0); // g = 1
 
         // Swept traversal: canonical as-is for +n, reversed for −n.
         let swept = |canon: &[Point2<f64>], z: f64| -> Vec<Point3<f64>> {
@@ -384,7 +380,7 @@ fn survives_hole_near_outer_canonical_start() {
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (12, 18, 8, 2));
-    assert_eq!(v as isize - e as isize + f as isize - r as isize, 0);
+    assert_eq!(v - e + f - r, 0);
     assert!(signed_volume(&t.body) > 0.0);
 }
 
@@ -411,7 +407,7 @@ fn survives_multiple_holes_genus_h() {
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (16, 24, 10, 4));
-    assert_eq!(v as isize - e as isize + f as isize - r as isize, -2); // 2(1 − 2): g = 2
+    assert_eq!(v - e + f - r, -2); // 2(1 − 2): g = 2
     assert!(signed_volume(&t.body) > 0.0);
 
     let holes3 = vec![
@@ -428,7 +424,7 @@ fn survives_multiple_holes_genus_h() {
     assert_all_tiers(&t3.body);
     let (v, e, f, r) = counts(&t3.body);
     assert_eq!((v, e, f, r), (20, 30, 12, 6));
-    assert_eq!(v as isize - e as isize + f as isize - r as isize, -4); // 2(1 − 3): g = 3
+    assert_eq!(v - e + f - r, -4); // 2(1 − 3): g = 3
     assert!(signed_volume(&t3.body) > 0.0);
 }
 
