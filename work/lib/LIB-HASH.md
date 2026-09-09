@@ -2,11 +2,12 @@
 id: LIB-HASH
 kind: unit
 title: every comparable enum mirror hashes
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/hash
 refs: [pncad-py-comparable-enums-do-not-hash]
 pr: 2242
+closed: 2026-09-09
 ---
 
 
