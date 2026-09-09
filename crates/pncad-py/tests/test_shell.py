@@ -11,12 +11,12 @@ derivation): the cavity is `(L−2t) × (L−2t) × (H−t)`, so
 
 and every dimension here is dyadic, so both are asserted EXACTLY.
 
-What the Python surface cannot spell, stated: a rebuild through a
-slot edit. `Node.shell` takes a `Length`, the binding has no
-slot-parameter edit door, so the rebuild row below re-authors a second
-document at the bumped values and asks the SAME name text of it —
-which is what a caller keeping names would do, and what the row is
-evidence of.
+The rebuild is spelled twice, because the two spellings say
+different things. `DocEdit.set_param` moves the wall and the height on
+the LIVE document, which is what a caller with a cup in hand does; the
+row after it re-authors a second document at the bumped values and
+asks the SAME name text of it, which is what a caller keeping names
+across documents does. Both land on the closed form.
 """
 
 import unittest
@@ -24,6 +24,7 @@ import unittest
 from pncad import (
     CapEnd,
     Doc,
+    DocEdit,
     EntityKind,
     EvaluationError,
     NamePat,
@@ -134,6 +135,32 @@ class TestCup(unittest.TestCase):
         self.assertTrue(all(top not in name for name in outer))
         for name in rim + inner + outer:
             self.assertEqual(ev.resolve(name).status, "resolved")
+
+    def test_the_live_document_rebuilds_through_the_slot_edits(self):
+        """The cup at bumped values without re-authoring anything: two
+        `set_param` edits move the extrude's `distance` and the
+        shell's `shell_thickness`, and the SAME document lands on the
+        bumped closed form with its names still resolving."""
+        doc = Doc()
+        box, hollow = cup(doc)
+        self.assertEqual(mass(doc, hollow).volume, closed_forms(L, H, T)[0])
+        names = evaluate(doc).select(
+            hollow,
+            Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.group(OpGroup.Shell))),
+        )
+
+        doc.apply(DocEdit.set_param(box, "distance", doc.parse_expr(f"{H_BUMPED} m")))
+        doc.apply(
+            DocEdit.set_param(hollow, "shell_thickness", doc.parse_expr(f"{T_BUMPED} m"))
+        )
+
+        ev = evaluate(doc)
+        props = ev.value(hollow).body().mass_properties()
+        want_v, want_a = closed_forms(L, H_BUMPED, T_BUMPED)
+        self.assertEqual(props.volume, want_v)
+        self.assertEqual(props.surface_area, want_a)
+        for name in names:
+            self.assertEqual(ev.resolve(name).status, "resolved", name)
 
     def test_the_same_recipe_at_bumped_values_answers_the_same_names(self):
         doc = Doc()

@@ -48,6 +48,11 @@ pub mod pick_payload;
 // behind four bound doors, Python-independent so the default build
 // tests it.
 pub mod product_memo;
+// The slot alphabet read INWARD — the word a refusal answers with,
+// back to the slot a door addresses at. Python-independent, so the
+// default build compiles it and pins it against the forward map's own
+// committed inventory.
+pub mod slot_word;
 pub mod tags;
 // One validator finding as Python reads it: the words `tags` mints,
 // assembled into the sequence the validate doors raise. Python-

@@ -3026,6 +3026,58 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
 // The tag table's VALUES, pinned as a set.
 // ---------------------------------------------------------------
 
+/// **The slot alphabet reads back the way it was written.**
+///
+/// `slot_id_tag` writes the word a refusal publishes; `slot_from_word`
+/// reads the same word off a caller. A door that takes one is an
+/// address a caller can RETRY at only while the two agree word for
+/// word, so this pins them against each other in both directions.
+///
+/// The roster is not restated here. It is [`TAG_INVENTORY`]'s own
+/// `slot_id_tag` row — pinned to `src/tags.rs` by the guard below — so
+/// a slot the kernel adds arrives in this test through a table that is
+/// already required to move with it, rather than through a list
+/// someone has to remember to extend.
+#[test]
+fn every_slot_word_reads_back_to_the_slot_it_names() {
+    let entry = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "slot_id_tag")
+        .expect("the inventory carries the slot alphabet");
+    for word in entry.values {
+        match crate::slot_word::slot_from_word(word) {
+            Some(slot) => assert_eq!(
+                crate::tags::slot_id_tag(&slot),
+                *word,
+                "`{word}` reads back as a slot the forward map spells otherwise"
+            ),
+            // The one word an address is not completed by: a profile
+            // program's expression is reached by a loop index, a step
+            // index and an argument role, none of which the word
+            // carries.
+            None => assert_eq!(
+                *word, "profile",
+                "`{word}` is a slot a caller can read off a refusal and cannot write back at"
+            ),
+        }
+    }
+    // Nothing OUTSIDE the alphabet reads: a near miss is a refusal at
+    // the boundary, not a slot chosen by prefix or by case.
+    for junk in [
+        "",
+        "origin",
+        "Distance",
+        "distance ",
+        "count_x",
+        "profile_0_0",
+    ] {
+        assert!(
+            crate::slot_word::slot_from_word(junk).is_none(),
+            "{junk:?} is not a slot word"
+        );
+    }
+}
+
 /// One row of [`TAG_INVENTORY`]: a tag function in `src/tags.rs`, and
 /// the exact vocabulary it can put on the wire.
 struct TagEntry {
