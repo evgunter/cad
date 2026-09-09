@@ -61,10 +61,10 @@ use pncad::analysis::{AnalysisPolicyError, MeasureUnavailable, ParamBoxError, Se
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
-    MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, NodeErrorKind, ParseError,
-    PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
-    RefusedRef, Relation, RootFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
-    UpdateError,
+    LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
+    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
+    SnapshotError, SplitError, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -1288,6 +1288,19 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
         MateFault::SelfMate { .. } => "mate_self",
         MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",
+    }
+}
+
+/// The stable tag for a lever-arm refusal — the inner arm of
+/// [`mate_fault_tag`]'s `mate_datum_too_small_to_lever`, whose scale
+/// numbers ride beside it as `extent` and `floor`.
+///
+/// One word today, and the map is exhaustive rather than a constant
+/// so a second way to refuse a lever arm arrives here as a compile
+/// error.
+pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
+    match refusal {
+        LeverRefusal::DatumTooSmall { .. } => "datum_too_small",
     }
 }
 

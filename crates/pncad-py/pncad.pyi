@@ -4604,7 +4604,17 @@ class Subgroup:
 class MateFault:
     """Why the solve refused for one node — a VALUE, because the solve
     is total and records a refusal per node rather than failing the
-    document. `str(fault)` is the kernel's own prose."""
+    document. `str(fault)` is the kernel's own prose.
+
+    Every attribute is present on every arm and `None` where the arm
+    does not carry it, so `getattr` never raises and a caller need not
+    branch on `variant` first.
+
+    The classifier's words are the frame door's words: `margin`,
+    `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`
+    and `predicate` are spelled here exactly as `FrameError` spells
+    them, because an escalation a mate reports and one a frame
+    constructor reports are the same value."""
 
     @property
     def variant(self) -> str: ...
@@ -4642,6 +4652,86 @@ class MateFault:
     def selected(self) -> Optional[int]: ...
     @property
     def what(self) -> Optional[str]: ...
+    @property
+    def expected_document(self) -> Optional[str]:
+        """The document whose placement was asked for, as `Doc.id`
+        answers it — compare the two directly rather than reading
+        them out of the message."""
+
+    @property
+    def found_document(self) -> Optional[str]:
+        """The document the solve is OF."""
+
+    @property
+    def inner_variant(self) -> Optional[str]:
+        """The nested refusal's own word: the frame ladder's
+        (`FrameError.variant`'s vocabulary), the band constructor's
+        (`invalid_value`, `invalid_lever_arm`, `empty`), or the lever
+        refusal's (`datum_too_small`). `None` on an arm whose payload
+        is a struct rather than an enum — an escalation has no inner
+        word, and its shape is which margin attribute is set."""
+
+    @property
+    def margin(self) -> Optional[Length]:
+        """The in-band margin the classifier saw, when it saw a
+        value. Reading it is not branching on it: what the escalation
+        contract forbids is recovering the margin to make the sign
+        decision the classifier refused."""
+
+    @property
+    def margin_low(self) -> Optional[Length]:
+        """The classified enclosure's lower bound, where the
+        classifier saw an enclosure rather than a value."""
+
+    @property
+    def margin_high(self) -> Optional[Length]:
+        """Its upper bound."""
+
+    @property
+    def zero(self) -> Optional[float]:
+        """The coincidence threshold of the band a margin was
+        classified against, or of the band a constructor could not
+        form. A plain real, as the frame door answers it: a band's
+        thresholds are whatever its predicate measures in."""
+
+    @property
+    def escalate(self) -> Optional[float]:
+        """Its escalation threshold."""
+
+    @property
+    def field(self) -> Optional[str]:
+        """Which band threshold a rejected value was — `zero` or
+        `escalate`."""
+
+    @property
+    def value(self) -> Optional[float]:
+        """The rejected number: a threshold, or a lever arm handed to
+        the band constructor."""
+
+    @property
+    def lever_tilt(self) -> Optional[Angle]:
+        """The lever's TILT, when a contradictory clash was levered
+        rather than measured outright."""
+
+    @property
+    def lever_arm(self) -> Optional[Length]:
+        """The lever's ARM — the solve's own scale surrogate, the
+        larger of the two frame origins' distances and the authored
+        lengths, floored at one metre. NOT a contact feature: it names
+        that scale and nothing in the model. `clash` is the PRODUCT of
+        the two halves, and an arm that measured its margin without a
+        lever carries neither."""
+
+    @property
+    def extent(self) -> Optional[Length]:
+        """The length scale a datum named, when it named one too small
+        to lever a parallelism verdict over."""
+
+    @property
+    def floor(self) -> Optional[Length]:
+        """The floor that scale is under: below it the smallest tilt
+        the predicate could call non-parallel is about eps/extent
+        radians, so every tilt would read parallel."""
 
 class SolvedPoses:
     """The document's solved poses: each instance's pose relative to
