@@ -4,7 +4,6 @@ kind: issue
 title: pncad-py: twelve fieldless tag mirrors hash over kernel enums that derive PartialEq and Eq and no Hash
 status: open
 opened: 2026-09-09
-needs_ev: true
 ---
 
 
@@ -111,3 +110,15 @@ comparison Python already answers, and `==` keeps its answer. Net: 15
 one-word upward derives plus the unit `Hash`, 8 Python hashes
 removed — one mechanical unit spanning both sides, with the kernel
 touches announced on their programs' trackers.
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2265): (A), case by case
+
+Both sides always match; `Hash` is absent where Rust omits it for
+funnel reasons; elsewhere Rust may derive it, but no work is spent
+adding hashing where nothing plausibly keys. For this item: the
+twelve tag mirrors' kernel enums gain `Hash` upward (one derive word
+each — `Advisory`, `ArcSide`, `ArcSweep`, `AxisSense`, `CheckId`,
+`CheckKind`, `FlushRung`, `MateRole`, `MateSide`, `CarrierRelation`
+(Python's `PlaneRelation`), `Severity`, `SurfaceKind`), the Python
+mirrors unchanged. Mechanical unit LIB-MIRROR, one unit across both
+sides for all four items.
