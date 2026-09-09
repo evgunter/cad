@@ -194,44 +194,43 @@ macro_rules! continuous_quantity {
                 let rhs = other
                     .extract::<PyRef<'_, Self>>()
                     .map_err(|_| mismatch(py, "<=>", $dim, other))?;
-                // Canonical f64s. The `None` arm is REACHABLE and the
-                // comment here used to say it was not — "NaN cannot
-                // arise from the constructors (the boundary refuses
-                // non-finite input)", which is false in both halves:
-                // `quantity`'s newtypes are plain value wrappers that
-                // refuse no float (its module docs say so outright),
-                // and `float("nan") * mm` is an ordinary `Length`
-                // here. LIB-B-FORMAT found it by binding the door
-                // that has to have an opinion about poison.
-                //
-                // What it does about it is NOT settled, and the
-                // untyped `ValueError` below is the evidence: `==`
-                // goes through this same match, so two NaN lengths
-                // RAISE rather than answering `False` the way IEEE
-                // and every other Python float do. Banked in `work/lib`
-                // as `the-quantity-boundary-compares-and-hashes-as-if-
-                // poison-and-signed-zero-cannot-arrive` rather than
-                // decided here: it is a semantics call on a door
-                // LIB-B-FORMAT does not bind, and it shares a root
-                // with `__hash__`'s signed-zero split, which is in the
-                // same item. `tests/test_quantities.py` pins the
-                // behaviour AS IT STANDS, so changing it goes red.
-                match self.0.$canonical().partial_cmp(&rhs.0.$canonical()) {
-                    Some(ordering) => Ok(op.matches(ordering)),
-                    None => Err(pyo3::exceptions::PyValueError::new_err(
-                        "quantity comparison against a non-finite value",
-                    )),
-                }
+                // The canonical floats, compared exactly as the
+                // newtype's derived `PartialEq` and `PartialOrd`
+                // compare it: IEEE. A pair that does not order — a NaN
+                // operand — answers `false` to every relation except
+                // `!=`, and `-0.0` equals `0.0`. The newtypes refuse no
+                // float, and the funnel refuses non-finite at the doors
+                // where a value enters recipe data, so the boundary type
+                // does not re-decide it.
+                Ok(
+                    match self.0.$canonical().partial_cmp(&rhs.0.$canonical()) {
+                        Some(ordering) => op.matches(ordering),
+                        None => matches!(op, CompareOp::Ne),
+                    },
+                )
             }
 
-            fn __hash__(&self) -> u64 {
-                self.0.$canonical().to_bits()
-            }
+            // NO `__hash__`, mirroring the newtype, which derives no
+            // `Hash`: a quantity is a magnitude, not a key. Defining
+            // the comparisons and no hash is what makes the class
+            // unhashable, so a `set` or `dict` keyed on one is refused
+            // by Python itself. The authored record — `WrittenLength`,
+            // `WrittenAngle` — is the value that keys.
         }
     };
 }
 
 /// A length. Canonical unit: metres.
+///
+/// **Compares as IEEE, and does not hash.** The Rust newtype derives
+/// `PartialEq` and `PartialOrd` and no `Hash`, and this class is that
+/// surface: all six comparisons answer on the canonical metres, so a
+/// NaN length is equal to nothing including itself and orders against
+/// nothing, and `-0.0 * m` equals `0.0 * m`. Nothing here refuses a
+/// non-finite value — the doors where a value enters recipe data do
+/// that. Unhashable for the reason `Expr` is, one layer up: a
+/// magnitude is not a key, and the value that keys is the authored
+/// record, `WrittenLength`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct Length(pub(crate) q::Length);
@@ -282,6 +281,10 @@ continuous_quantity!(Length, Dimension::Length, meters, {
 });
 
 /// An angle. Canonical unit: radians.
+///
+/// [`Length`]'s mirror in every respect above: IEEE comparisons on the
+/// canonical radians, and no hash — `WrittenAngle` is the authored
+/// record that keys.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct Angle(pub(crate) q::Angle);

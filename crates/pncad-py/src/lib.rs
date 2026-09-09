@@ -33,6 +33,10 @@
 pub mod check_payload;
 pub mod edit_payload;
 pub mod errors;
+// One escalated predicate as the two doors that carry one publish it:
+// the margin's own fork written once, Python-independent so both
+// doors reach it under every feature.
+pub mod escalation;
 pub mod identity;
 // One mate refusal's payload as Python reads its attributes off it:
 // exhaustive over the kernel enum, Python-independent so the default

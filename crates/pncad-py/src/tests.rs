@@ -593,32 +593,32 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
     }
 }
 
-/// **Every constructible `MateFault` arm's payload, built and read.**
+/// **Every `MateFault` arm's payload, built and read.**
 ///
-/// The arm table, executable. `crate::mate_payload::mate_payload` is
-/// the projection `MateFault`'s seventeen Python attributes are read
-/// off, and this pin says what each arm puts on the wire: the exact
-/// set it CARRIES, in publication order, with the rest `None`.
+/// The arm table, executable and TOTAL: all thirteen arms are built
+/// here and every field each carries is read.
+/// `crate::mate_payload::mate_payload` is the projection
+/// `MateFault`'s thirty-one Python attributes are read off, and this
+/// pin says what each arm puts on the wire: the exact set it CARRIES,
+/// in publication order, with the rest `None`.
 ///
-/// **Nine of the thirteen arms are built here.** The other four —
-/// `Frame`, `Band`, `Indeterminate` and `Unleverable` — are exactly
-/// the arms whose payload is a nested refusal, which the projection
-/// does not flatten, so building one would add nothing to the wire.
-/// Three of the four types are nameable from here — `FrameError` and
-/// `BandField` one module hop below the curated lists at
-/// `pncad::geom_core`, `MarginDiag` on the prelude — and
-/// `LeverRefusal` is lifted to no crate root at all, so `Unleverable`
-/// cannot be built here whatever this table wants. That costs the
-/// table its totality and nothing else: totality of the PROJECTION is
-/// a different guarantee and a stronger one — `mate_payload`'s match
-/// is exhaustive with no wildcard, so an arm that reached Python
-/// unprojected would not compile. Filling the four is
-/// `work/lib/mate-fault-arms-carry-payload-that-does-not-cross.md`.
+/// Totality of the TABLE and totality of the PROJECTION are two
+/// guarantees and this file holds both. The projection's is the
+/// stronger and the older: `mate_payload`'s match is exhaustive with
+/// no wildcard, so an arm that reached Python unprojected would not
+/// compile. The table's is that every arm's field set is executed —
+/// which needs every payload type nameable from this crate, and is
+/// why `LeverRefusal` is curated at `pncad::document` beside the
+/// refusal that holds it.
 #[test]
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
     use pncad::document::{
-        DocumentId, MateFault as F, MateSide, NodeErrorKind, NodeRefusal, RecipeNodeId, Subgroup,
+        DocumentId, LeverRefusal, MateFault as F, MateSide, NodeErrorKind, NodeRefusal,
+        RecipeNodeId, Subgroup,
+    };
+    use pncad::geom_core::{
+        Band, BandError, BandField, FrameError, FrameInput, Indeterminate, MarginDiag,
     };
 
     let id = RecipeNodeId;
@@ -632,16 +632,180 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     };
 
     // The two documents a mispaired read named are the arm's whole
-    // payload and neither crosses: the subject is not a mate, and a
-    // document id is not one of this value's attributes.
+    // payload: the subject is not a mate, and both ids cross so a
+    // caller compares them against `Doc.id` rather than reading them
+    // out of the prose.
     carries(
         &F::PosesOfAnotherDocument {
             expected: DocumentId::derive("a"),
             found: DocumentId::derive("b"),
         },
-        &[],
+        &["expected_document", "found_document"],
     );
     carries(&F::ClassNotAdmitted { mate: id(1) }, &["mate"]);
+    // The four arms whose payload is a NESTED refusal. Each crosses
+    // under the inner refusal's own word, with the numbers that word
+    // qualifies beside it — the frame door's vocabulary, spelled the
+    // same way here.
+    let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
+    let escalated = |predicate| Indeterminate {
+        margin: MarginDiag::Value(2.0e-9),
+        band,
+        predicate,
+    };
+    carries(
+        &F::Frame {
+            mate: id(1),
+            side: MateSide::A,
+            error: FrameError::Degenerate {
+                input: FrameInput::Aim,
+                indeterminate: Some(escalated(Some("frame_aim_definite"))),
+            },
+        },
+        &[
+            "mate",
+            "side",
+            "predicate",
+            "inner_variant",
+            "margin",
+            "zero",
+            "escalate",
+        ],
+    );
+    // A definite zero refused outright rather than landing in the
+    // band, so there is no classification to publish.
+    carries(
+        &F::Frame {
+            mate: id(1),
+            side: MateSide::B,
+            error: FrameError::Degenerate {
+                input: FrameInput::Tangent,
+                indeterminate: None,
+            },
+        },
+        &["mate", "side", "inner_variant"],
+    );
+    // An enclosure straddles rather than landing: two bounds and no
+    // value, the `MarginDiag` fork the frame door publishes.
+    carries(
+        &F::Frame {
+            mate: id(1),
+            side: MateSide::A,
+            error: FrameError::Degenerate {
+                input: FrameInput::RollReference,
+                indeterminate: Some(Indeterminate {
+                    margin: MarginDiag::Enclosure {
+                        lo: -1.0e-9,
+                        hi: 3.0e-9,
+                    },
+                    band,
+                    predicate: None,
+                }),
+            },
+        },
+        &[
+            "mate",
+            "side",
+            "inner_variant",
+            "margin_low",
+            "margin_high",
+            "zero",
+            "escalate",
+        ],
+    );
+    // A poisoned margin is the absence of a number, not a number:
+    // the band still crosses.
+    carries(
+        &F::Frame {
+            mate: id(1),
+            side: MateSide::A,
+            error: FrameError::Degenerate {
+                input: FrameInput::MirrorNormal,
+                indeterminate: Some(Indeterminate {
+                    margin: MarginDiag::Invalid,
+                    band,
+                    predicate: None,
+                }),
+            },
+        },
+        &["mate", "side", "inner_variant", "zero", "escalate"],
+    );
+    // The frame ladder's own band refusal, two levels down:
+    // `inner_variant` is one level in — the word `FrameError` crosses
+    // under — and the band's payload is what the numbers say.
+    carries(
+        &F::Frame {
+            mate: id(1),
+            side: MateSide::B,
+            error: FrameError::Band(BandError::InvalidValue {
+                field: BandField::Escalate,
+                value: f64::INFINITY,
+            }),
+        },
+        &["mate", "side", "inner_variant", "field", "value"],
+    );
+    carries(
+        &F::Band {
+            error: BandError::InvalidValue {
+                field: BandField::Zero,
+                value: 0.0,
+            },
+        },
+        &["inner_variant", "field", "value"],
+    );
+    carries(
+        &F::Band {
+            error: BandError::InvalidLeverArm { value: -1.0 },
+        },
+        &["inner_variant", "value"],
+    );
+    carries(
+        &F::Band {
+            error: BandError::Empty {
+                zero: 1.0e-6,
+                escalate: 1.0e-9,
+            },
+        },
+        &["inner_variant", "zero", "escalate"],
+    );
+    // A struct, not an enum: the escalation has no inner WORD, and
+    // its shape is which margin attribute is set.
+    carries(
+        &F::Indeterminate {
+            mate: id(1),
+            diag: Box::new(escalated(Some("mate_clocking_redundant"))),
+        },
+        &["mate", "predicate", "margin", "zero", "escalate"],
+    );
+    carries(
+        &F::Unleverable {
+            mate: id(1),
+            refusal: LeverRefusal::DatumTooSmall {
+                extent: 1.0e-9,
+                floor: 1.0e-6,
+            },
+        },
+        &["mate", "inner_variant", "extent", "floor"],
+    );
+    // A levered clash carries both halves of the lever beside it;
+    // one measured without a lever carries neither.
+    carries(
+        &F::Contradictory {
+            held: id(1),
+            added: id(1),
+            predicate: "mate_clocking_redundant",
+            clash: 0.5,
+            lever: Some((0.25, 2.0)),
+        },
+        &[
+            "held",
+            "added",
+            "predicate",
+            "clash",
+            "lever_tilt",
+            "lever_arm",
+        ],
+    );
     carries(
         &F::TableLacks {
             mate: id(1),
@@ -727,6 +891,98 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         error: NodeRefusal::from(NodeErrorKind::NonFiniteDirection { role: "axis" }),
     };
     assert_eq!(mate_payload(&placer).error, Some("non_finite_direction"));
+
+    // The two ids answer the two ROLES, not one id twice: which
+    // document was asked for and which one the solve is of is the
+    // whole of what a mispaired read reports.
+    let mispaired = F::PosesOfAnotherDocument {
+        expected: DocumentId::derive("asked"),
+        found: DocumentId::derive("solved"),
+    };
+    let payload = mate_payload(&mispaired);
+    assert_eq!(payload.expected_document, Some(DocumentId::derive("asked")));
+    assert_eq!(payload.found_document, Some(DocumentId::derive("solved")));
+
+    // The nested refusals' words are the tag maps' own, so a caller
+    // branches on one vocabulary whether the refusal reached them
+    // from this door or from the door that owns it.
+    let frame_band = F::Frame {
+        mate: id(1),
+        side: MateSide::A,
+        error: FrameError::Band(BandError::InvalidLeverArm { value: 0.0 }),
+    };
+    assert_eq!(mate_payload(&frame_band).inner_variant, Some("band"));
+    assert_eq!(mate_payload(&frame_band).value, Some(0.0));
+    let degenerate = F::Frame {
+        mate: id(1),
+        side: MateSide::A,
+        error: FrameError::Degenerate {
+            input: FrameInput::Aim,
+            indeterminate: None,
+        },
+    };
+    assert_eq!(
+        mate_payload(&degenerate).inner_variant,
+        Some("degenerate_aim")
+    );
+    let unleverable = F::Unleverable {
+        mate: id(1),
+        refusal: LeverRefusal::DatumTooSmall {
+            extent: 1.0e-9,
+            floor: 1.0e-6,
+        },
+    };
+    let payload = mate_payload(&unleverable);
+    assert_eq!(payload.inner_variant, Some("datum_too_small"));
+    assert_eq!(payload.extent, Some(1.0e-9));
+    assert_eq!(payload.floor, Some(1.0e-6));
+
+    // The classifier's numbers are the ones the band and the margin
+    // held, on the frame door's own names.
+    let escalation = F::Indeterminate {
+        mate: id(1),
+        diag: Box::new(escalated(Some("mate_member_empty"))),
+    };
+    let payload = mate_payload(&escalation);
+    assert_eq!(payload.margin, Some(2.0e-9));
+    assert_eq!(
+        (payload.zero, payload.escalate),
+        (Some(1.0e-9), Some(1.0e-6))
+    );
+    assert_eq!(payload.predicate, Some("mate_member_empty"));
+    assert_eq!((payload.margin_low, payload.margin_high), (None, None));
+
+    // **`clash` IS the product of the lever's two halves.** The
+    // kernel computes the deviation at the raising site and stores
+    // it; the two halves ride beside it, and a caller multiplying
+    // them gets the number it was handed.
+    let levered = F::Contradictory {
+        held: id(1),
+        added: id(1),
+        predicate: "mate_clocking_redundant",
+        clash: 0.25 * 2.0,
+        lever: Some((0.25, 2.0)),
+    };
+    let payload = mate_payload(&levered);
+    let (tilt, arm) = (
+        payload
+            .lever_tilt
+            .expect("a levered clash carries its tilt"),
+        payload.lever_arm.expect("and its arm"),
+    );
+    assert_eq!(payload.clash, Some(tilt * arm));
+    // A margin measured without a lever carries neither half — the
+    // pair is `None` rather than a pair of zeroes claiming a lever
+    // nothing measured.
+    let unlevered = F::Contradictory {
+        held: id(1),
+        added: id(2),
+        predicate: "mate_member_empty",
+        clash: f64::NAN,
+        lever: None,
+    };
+    let payload = mate_payload(&unlevered);
+    assert_eq!((payload.lever_tilt, payload.lever_arm), (None, None));
 }
 
 /// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
@@ -3504,6 +3760,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wrong_kind",
         ],
         delegates: &["readback_error_tag"],
+    },
+    TagEntry {
+        function: "lever_refusal_tag",
+        values: &["datum_too_small"],
+        delegates: &[],
     },
     TagEntry {
         function: "loft_error_tag",

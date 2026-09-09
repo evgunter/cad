@@ -128,9 +128,10 @@ pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use lane::{BracketEnd, Lane};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, ClassAdmission,
-    ClusterMaintenance, Coset, MateFault, MateFrame, MatePrimitive, MateRole, MateSide, Member,
-    NO_AT_REST_RECORD_RECOURSE, SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, clusters,
-    gauge_of, member_of, reading_edges, relative_freedom_components, solve_document,
+    ClusterMaintenance, Coset, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateRole,
+    MateSide, Member, NO_AT_REST_RECORD_RECOURSE, SolvedPoses, Subgroup, UNDER_RECOURSE,
+    class_admission, clusters, gauge_of, member_of, reading_edges, relative_freedom_components,
+    solve_document,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
