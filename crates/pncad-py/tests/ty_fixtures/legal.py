@@ -63,6 +63,12 @@ from pncad import (
     Length,
     LengthUnit,
     Body,
+    CurvePromotion,
+    FaceCensus,
+    ImportReport,
+    MassProperties,
+    PlacedInstance,
+    StructureNormalization,
     Mesh,
     MateFault,
     MateFrame,
@@ -105,6 +111,7 @@ from pncad import (
     rad,
     enforce_checks,
     evaluate,
+    import_step,
     load,
     gauge_of,
     header_document_id,
@@ -797,3 +804,54 @@ except StlError as stl_refusal:
     sink_said: str | None = stl_refusal.detail
     if header_bytes is not None:
         how_long: int = header_bytes
+
+
+# The import report, read attribute by attribute. Every field of the
+# importer's success value is here, and the reads that MUST be narrowed
+# are exactly the ones the record leaves absent: a normalization's
+# promoted kind and residual, and the four entity fields of an assembly
+# row a file that places nothing does not state.
+_report: ImportReport = import_step(
+    evaluate(doc).step_string(lightened, product_name="plate")
+)
+imported_body: Body = _report.body
+# The gate's own enclosure — the same four fields `mass_properties`
+# answers, without running the quadrature a second time.
+enclosure: MassProperties = _report.enclosure
+imported_volume: float = enclosure.volume
+imported_area: float = enclosure.surface_area
+imported_volume_pad: float = enclosure.volume_pad
+imported_area_pad: float = enclosure.area_pad
+file_tolerance: float = _report.eps_in
+
+for _normalization in _report.normalizations:
+    _n: StructureNormalization = _normalization
+    remint_face: int = _n.face
+    remint_kind: str = _n.kind
+    promoted_to: str | None = _n.promoted_to
+    promotion_residual: float | None = _n.residual
+    stated: FaceCensus = _n.file_census
+    minted: FaceCensus = _n.kernel_census
+    face_delta: int = minted.faces - stated.faces
+    edge_delta: int = minted.edges - stated.edges
+    vertex_delta: int = minted.vertices - stated.vertices
+    if promotion_residual is not None:
+        how_far: float = promotion_residual
+
+for _promotion in _report.promotions:
+    _p: CurvePromotion = _promotion
+    carrier: int = _p.curve
+    carrier_kind: str = _p.kind
+    carrier_residual: float = _p.residual
+
+for _instance in _report.instances:
+    _i: PlacedInstance = _instance
+    solid_index: int = _i.index
+    msb: int = _i.solid
+    component: int = _i.component
+    occurrence: int | None = _i.occurrence
+    relationship: int | None = _i.relationship
+    transform: int | None = _i.transform
+    placement: Frame | None = _i.placement
+    if placement is not None:
+        placed_at: tuple[Length, Length, Length] = placement.origin

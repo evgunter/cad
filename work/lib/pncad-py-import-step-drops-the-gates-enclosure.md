@@ -2,8 +2,9 @@
 id: pncad-py-import-step-drops-the-gates-enclosure
 kind: issue
 title: pncad-py's import_step drops the gate's enclosure, so a Python import-then-measure pays two certified quadratures
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-09
 ---
 
 
@@ -85,3 +86,20 @@ handle): "yes definitely A over B." `import_step` answers an
 `.enclosure` (`MassProperties`) beside the record rows; `Body` stays
 a pure handle and `mass_properties` keeps its one meaning. Dispatches
 with the sibling as one unit (LIB-IMPORT-REPORT).
+
+## Closed (2026-09-09, LIB-IMPORT-REPORT)
+
+(A), as ruled. `import_step` answers an `ImportReport` carrying
+`.body` and `.enclosure`; the `..` that dropped the field is gone.
+`Body` is unchanged and `mass_properties` still means one thing — the
+handle did not gain a second answer.
+
+The cost the finding reported, re-measured through the Python door on
+this tree: on a lofted rational-walled body the second quadrature is
+8.24 s of a 16.50 s import-then-measure journey (49.9 %), which lands
+inside the 25–50 % this file claimed from TCOST-K3's fixtures. On a
+body whose every face has a closed form — the box the suite's
+round-trip row uses — it is 0.3 % of the row, because there is no
+quadrature to repeat. Both readings are bit-identical to the
+enclosure, which is the finding's "not a soundness defect" measured
+rather than repeated.

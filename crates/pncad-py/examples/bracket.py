@@ -148,7 +148,10 @@ def main():
 
     with open(path, encoding="ascii") as inp:
         reimported = import_step(inp.read())
-    volume = reimported.mass_properties().volume
+    # The report's enclosure is the import gate's own certified
+    # measurement of the body it just adopted, so the round-trip check
+    # costs no second quadrature.
+    volume = reimported.enclosure.volume
     assert abs(volume - props.volume) < 1e-12, "the export round-trips"
     print(f"exported     {path} ({os.path.getsize(path)} bytes; re-imported OK)")
 

@@ -30,6 +30,7 @@ from pncad import (
     EvaluationError,
     ValidationError,
     ValidationFinding,
+    Body,
     Frame,
     FrameError,
     GeomPred,
@@ -53,6 +54,7 @@ from pncad import (
     Sweep,
     Workspace,
     enforce_checks,
+    import_step,
     run_checks,
     subject_body,
     Alignment,
@@ -654,3 +656,23 @@ try:
     product(doc, evaluate(doc)).tessellate(1 * mm).to_stl_binary(header="x" * 81)
 except StlError as _stl:
     _header_bytes: int = _stl.len  # ty: error
+
+
+# The import door answers a REPORT, not a body. The whole point of the
+# value is that the body is one field of it beside the gate's own
+# measurement, so a caller that treats the report as the handle is
+# reaching past the field it wanted.
+_import = import_step("ISO-10303-21;\nEND-ISO-10303-21;\n")
+_as_body: Body = _import  # ty: error
+_measured = _import.mass_properties()  # ty: error
+
+# And a report is FROZEN, like every other value on this surface: the
+# import is restated by importing again, never by editing one in place.
+_import.eps_in = 1.0  # ty: error
+
+# The record's absent fields are `Optional` on every row — reading one
+# as its bare type is a narrowing the caller has not done.
+for _row in _import.normalizations:
+    _residual: float = _row.residual  # ty: error
+for _placed in _import.instances:
+    _frame: Frame = _placed.placement  # ty: error
