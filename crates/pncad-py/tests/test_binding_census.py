@@ -837,6 +837,16 @@ BOUND_AS = {
     # below, `different-shape`, because its discriminant arrives as
     # which of these attributes is set rather than as a word.
     "Indeterminate": "FrameError.margin",
+    # THE LEVER-ARM REFUSAL, curated at `pncad::document` beside the
+    # `MateFault` arm that carries it, and its discriminant is the
+    # word that arm publishes: `datum_too_small`, the one way a datum
+    # can name a scale too small to lever a verdict over.
+    #
+    # Its fields DO cross, which is the difference from the shell
+    # row below: `MateFault.extent` and `MateFault.floor` are the
+    # scale the datum named and the floor it is under, in metres, so
+    # nothing about this refusal is readable only in the prose.
+    "LeverRefusal": "MateFault.inner_variant",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,

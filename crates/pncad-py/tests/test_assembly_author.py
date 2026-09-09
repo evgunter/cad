@@ -127,6 +127,7 @@ from pncad import (
     evaluate,
     m,
     product,
+    rad,
     random_document_id,
     solve_document,
 )
@@ -943,6 +944,191 @@ class TestAssemblyRefusals(BenchWorkspace):
         # absence.
         self.assertEqual(str(caught.exception).count(pncad.PIN_MISMATCH_RECOURSE), 1)
         self.assertEqual(str(direct.exception).count(pncad.PIN_MISMATCH_RECOURSE), 1)
+
+
+class TestMateFaultPayload(BenchWorkspace):
+    """**Every payload attribute a mate refusal carries, read off an
+    authored mistake.**
+
+    The rule the crate states is that every arm's payload is an
+    attribute, present on every arm and `None` where the arm carries
+    none — so each row below reads the attributes its arm CARRIES and
+    then reads attributes of other arms off the same value, which must
+    be `None` rather than raise.
+
+    Four attributes have no row that carries them here and that is a
+    fact about the DOORS, not a gap: `margin_low`/`margin_high` are the
+    interval scalar's enclosure, which no f64 solve produces, and
+    `field`/`value` belong to a band the tolerance witness cannot fail
+    to form. `crates/pncad-py/src/tests.rs`'s arm table builds all four
+    directly; the rows here own the other half, that they are present
+    and `None` on the arms an author can reach."""
+
+    def two_instances(self):
+        doc = Doc(random_document_id() and "payload")
+        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        return doc, post_i, shelf_i
+
+    def stand_planar(self):
+        """One planar rest between two parts fixes the seating plane
+        and nothing else, so the solve refuses UNDER — the arm that
+        measures no lever."""
+        return bench_scene.stand(
+            self.ws, self.post_ref, self.shelf_ref, MatePrimitive.planar_rest(0 * m)
+        )
+
+    def clocked(self, clocking):
+        """A frame coincidence with a clocking RIDER: the coincidence
+        has already pinned the roll, so any nonzero clocking
+        contradicts it and the solve refuses with the deviation it
+        measured."""
+        doc, post_i, shelf_i = self.two_instances()
+        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        alignment = Alignment(
+            mate_frame(POST_SEAT),
+            mate_frame(SEAT_A),
+            MatePrimitive.frame_coincidence(),
+            AxisSense.Aligned,
+            clocking,
+        )
+        mate = doc.insert(
+            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
+        )
+        return solve_document(doc).fault(mate)
+
+    def test_a_levered_clash_carries_both_halves_of_its_lever(self):
+        """`clash` IS the product of the two halves.
+
+        The lever is the solve's own SCALE SURROGATE — the larger of
+        the two frame origins' distances and the authored lengths,
+        floored at one metre — and not a contact feature: it names
+        that scale and nothing in the model. So the two halves cross
+        beside the deviation they multiply to, and a caller that wants
+        the tilt reads it rather than dividing prose."""
+        fault = self.clocked(0.25 * rad)
+        self.assertEqual(fault.variant, "mate_contradictory")
+        self.assertEqual(fault.predicate, "mate_clocking_redundant")
+        self.assertEqual(fault.lever_tilt, 0.25 * rad)
+        self.assertIsNotNone(fault.lever_arm)
+        # To the kernel's own rounding, because the kernel computes
+        # the product at the raising site rather than storing a
+        # figure beside its halves.
+        self.assertEqual(
+            fault.clash.meters,
+            fault.lever_tilt.radians * fault.lever_arm.meters,
+        )
+        # The arm carries no nested refusal and no classification.
+        for absent in (
+            "inner_variant", "margin", "margin_low", "margin_high",
+            "zero", "escalate", "field", "value", "extent", "floor",
+            "expected_document", "found_document",
+        ):
+            self.assertIsNone(getattr(fault, absent), absent)
+
+    def test_a_mate_that_does_not_measure_a_lever_carries_neither_half(self):
+        """The pair is `None`, not a pair of zeroes: an arm whose
+        predicate measured its margin without a lever names no lever
+        at all."""
+        doc, (post_a, shelf_i, _), (mate_1, _) = self.stand_planar()
+        fault = solve_document(doc).fault(mate_1)
+        self.assertEqual(fault.variant, "mate_under")
+        self.assertIsNone(fault.lever_tilt)
+        self.assertIsNone(fault.lever_arm)
+        self.assertIsNone(fault.clash)
+
+    def test_a_solve_read_for_another_document_names_both(self):
+        """`SolvedPoses.placement` must answer with a frame or not at
+        all, so a solve of ANOTHER document refuses before any frame
+        is read — and names both ids as `Doc.id` spells them, so a
+        caller compares them directly."""
+        doc, (post_a, _, _), _ = self.stand_planar()
+        other = Doc("elsewhere")
+        lone = other.insert(Node.instantiate_part(self.post_ref))
+        with self.assertRaises(pncad.MateError) as caught:
+            solve_document(other).placement(doc, lone)
+        fault = caught.exception.fault
+        self.assertEqual(fault.variant, "mate_poses_of_another_document")
+        self.assertEqual(fault.expected_document, doc.id)
+        self.assertEqual(fault.found_document, other.id)
+        # The subject is two documents, so no mate is named at all.
+        self.assertIsNone(fault.mate)
+        self.assertIsNone(fault.side)
+
+    def test_a_datum_too_small_to_lever_names_its_scale_and_its_floor(self):
+        """A datum that names a length names the scale a parallelism
+        verdict is levered over. Named below the floor, the verdict
+        would be vacuous rather than tight — at an arm of L the
+        smallest tilt the predicate could call non-parallel is about
+        eps/L — so the solve refuses and reports both numbers."""
+        doc, post_i, shelf_i = self.two_instances()
+        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        tiny = MateFrame(
+            origin=(1e-9 * m, 0 * m, 0 * m),
+            axis=(0.0, 0.0, 1.0),
+            reference=(1.0, 0.0, 0.0),
+        )
+        alignment = Alignment(
+            tiny, tiny, MatePrimitive.frame_coincidence(), AxisSense.Aligned
+        )
+        mate = doc.insert(
+            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
+        )
+        fault = solve_document(doc).fault(mate)
+        self.assertEqual(fault.variant, "mate_datum_too_small_to_lever")
+        # The nested refusal's own word, beside the two numbers it
+        # qualifies.
+        self.assertEqual(fault.inner_variant, "datum_too_small")
+        self.assertEqual(fault.extent, 1e-9 * m)
+        self.assertLess(fault.extent, fault.floor)
+        self.assertEqual(fault.mate, mate)
+        # A lever REFUSED is not a lever measured: the contradictory
+        # arm's two halves are absent here.
+        self.assertIsNone(fault.lever_tilt)
+        self.assertIsNone(fault.lever_arm)
+
+    def test_a_mate_frame_in_the_ambiguity_band_carries_the_classifier(self):
+        """The frame ladder's refusal crosses under its own word, and
+        the classifier's payload rides on the words the frame door
+        already uses — `margin`, `zero`, `escalate`, `predicate` — so
+        a caller that learned them at `FrameError` reads them here.
+
+        The axis is derived from the run's epsilon rather than
+        hard-coded: the band's edges move with the tolerance."""
+        doc, post_i, shelf_i = self.two_instances()
+        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        in_band = 1.5 * doc.epsilon
+        short = MateFrame(
+            origin=(0 * m, 0 * m, 0 * m),
+            axis=(0.0, 0.0, in_band),
+            reference=(1.0, 0.0, 0.0),
+        )
+        alignment = Alignment(
+            short,
+            mate_frame(SEAT_A),
+            MatePrimitive.frame_coincidence(),
+            AxisSense.Aligned,
+        )
+        mate = doc.insert(
+            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
+        )
+        fault = solve_document(doc).fault(mate)
+        self.assertEqual(fault.variant, "mate_frame_degenerate")
+        # One level in: the word `FrameError` itself crosses under.
+        self.assertEqual(fault.inner_variant, "degenerate_aim")
+        self.assertEqual(fault.side, pncad.MateSide.A)
+        self.assertEqual(fault.margin.meters, in_band)
+        self.assertLess(fault.zero, fault.escalate)
+        self.assertLess(fault.zero, fault.margin.meters)
+        self.assertLess(fault.margin.meters, fault.escalate)
+        self.assertIsNotNone(fault.predicate)
+        # An f64 classification saw a VALUE, not an enclosure, and the
+        # band arm's own payload is absent on a degenerate one.
+        for absent in ("margin_low", "margin_high", "field", "value"):
+            self.assertIsNone(getattr(fault, absent), absent)
 
 
 class TestPinUpdateDoor(BenchWorkspace):
