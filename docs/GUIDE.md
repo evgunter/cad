@@ -1941,9 +1941,29 @@ assert doc.params.get(ParamName("bore_r")).distribution == Distribution.normal(0
 
 `Distribution`'s constructors run the same `check` the edit and load
 doors run, so a broken invariant refuses where it is written, as
-`DistributionFault`. What does NOT cross is the certified half — the
-E6 driver, the E4/E5 stackup, the E10 reports — which lives behind the
-`interval` feature the wheel is not built with.
+`DistributionFault`.
+
+The fourth door is the **advisory** one, and it is here because the
+certified half is not: `monte_carlo(doc, boxed, McConfig(samples=…,
+seed=…))` replays the document at `f64` over draws from its own
+distributions and answers an `McReport` — a `McMeasure` row per
+measure node, a `McAssertion` row per assertion with its empirical
+`violation_fraction`, and the fraction of draws that fell outside the
+box, which is the empirical twin of the tail column above. Every
+number in it is an estimate and none of it gates; the sample count and
+the seed ride on the report and on every line `McReport.render`
+writes, so a number copied out of one carries its label. `McConfig`'s
+`parallel` switch is there to be checked rather than tuned — the two
+schedules produce bit-identical reports. A band refuses the whole run
+(`McRefusal`, `variant == "band_has_no_measure"`), and
+`sample_offset(name, distribution, u)` is the single draw underneath,
+answering an offset in the distribution's own dimension.
+
+What does NOT cross is the certified half — the E6 driver, the E4/E5
+stackup, the E10 reports — which lives behind the `interval` feature
+the wheel is not built with. That is the whole reason the advisory
+lane is un-gated in the kernel: a caller with no certified scalar
+still gets the labeled estimate.
 
 ## 4. The rest of the documentation
 

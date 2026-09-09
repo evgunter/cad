@@ -58,9 +58,12 @@ So the two readings are:
 Which reading holds, and it is a curation act either way — a list
 moves, or an argument is written where the two lists meet. Deciding it
 also settles the general question, because the cross-list column is
-new and this is the whole of it: whether a payload owes its carrier's
-list, or the list of the module that owns the vocabulary.
+the whole of it: whether a payload owes its carrier's list, or the
+list of the module that owns the vocabulary. It has to be answered for
+both directions at once — the naming vocabulary under a document
+carrier, and the document vocabulary under an analysis carrier —
+because a rule that answered one and not the other is not a rule.
 
-Until it is decided the two names are pinned in
+Until it is decided the five names are pinned in
 `CROSS_LIST_DISPOSITIONS` in the script, pointed at this file, so a
-THIRD cross-list name reds CI rather than joining them silently.
+NEW cross-list name reds CI rather than joining them silently.

@@ -15,6 +15,12 @@ from pncad import (
     AnalyzedBox,
     AnalyzedParam,
     analyzed_box,
+    McAssertion,
+    McConfig,
+    McMeasure,
+    McReport,
+    monte_carlo,
+    sample_offset,
     Alignment,
     Angle,
     AngleUnit,
@@ -690,6 +696,23 @@ axis_names: list[ParamName] = boxed.names
 # declare, so the caller's variable is optional whichever way it goes.
 tail: float | None = boxed.tail_mass(ParamName("bore_r"))
 leaf: float | None = boxed.box_mass(ParamName("bore_r"), -1 * mm, 1 * mm)
+
+# The advisory lane. The config is optional because the shipped dials
+# are the kernel's; the box is not, because which parameters vary and
+# what counts as outside is the analysis's knob and never a default
+# hidden inside the run.
+dials: McConfig = McConfig(samples=64, seed=7, parallel=False)
+estimate: McReport = monte_carlo(doc, boxed, dials)
+shipped: McReport = monte_carlo(doc, boxed)
+per_measure: list[McMeasure] = estimate.measures
+per_assertion: list[McAssertion] = estimate.assertions
+labeled: str = estimate.render()
+# The fraction is over the DECIDED samples, so it is optional: a run
+# that decided none has no fraction rather than a zero.
+fraction: float | None = per_assertion[0].violation_fraction if per_assertion else None
+# One draw. The offset carries the distribution's own dimension, so a
+# Length annotation answers a Length.
+drawn: Length | Angle | float = sample_offset(ParamName("bore_r"), spread, 0.5)
 # Authored notation: the value and the unit it was WRITTEN in, kept
 # together. `in_unit` multiplies (`25 * mm` that remembers the `mm`);
 # `canonical_in` takes a quantity whose arithmetic has already
