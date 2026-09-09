@@ -4068,3 +4068,52 @@ for `datum-crosses-name-for-name-as-two-types`; answered on the PR
 cost is a stated hand-maintained list). #2230 merges when item 2 is
 ruled. The witness-bifurcation arm falls under the same rule and
 waits on the M6 solver constructing it.
+
+**LIB-HASH MERGED (2026-09-08, #2242; mechanical under the 08-29
+ruling, no A/B row). Every comparable enum mirror hashes.** All 24
+fieldless mirrors (not the item's 23: `AssertionDir` arrived between
+filing and fix, the argument for a guard over a roster) carry `eq,
+eq_int, frozen, hash` and derive `Eq, Hash`; `frozen` IS required —
+established from the pinned pyo3 0.29.0's `pyclass_hash`, not assumed
+— and costs a fieldless mirror nothing, said once at the first
+mirror. The item's question answered by reading every mirror's doc:
+none is deliberately unhashable. `Denotation` — the class the item's
+probe named as invisible to it — hashes by hand over the same
+`(tied, candidates)` its hand-written `__eq__` reads, and the stub
+declares the pair (the stub's own convention: hand-written dunders
+declared, pyo3-derived ones not). `test_hashability.py` is enumerated
+from the compiled module, never a written list: every member hashes,
+the whole surface goes into one set and reads back out of one dict,
+hash agrees with equality over every ordered pair, a door-minted tag
+keys the same as the class attribute, two door-minted denotations are
+one key — and `TestNothingComparesWithoutHashing` reads `__hash__`
+off every class in `vars(pncad)` and requires an unhashable one to be
+on the `UNHASHABLE` roster with a reason, so a 25th mirror without
+`hash` or a new value class that compares without hashing fails.
+Falsified for real: `frozen, hash` removed from `SurfaceKind` alone →
+two failures and three errors naming it; restored. The face-frame
+tally is the set it wanted to be. No kernel change (`editor_core::
+Denotation` does not derive `Hash`; the binding hashes the projection
+its `__eq__` reads). Two residue items filed inside the fence:
+`pncad-py-value-classes-compare-without-hashing` (eleven classes
+compare without hashing — `Expr`/`MeasureExpr` by design, stated on
+the stub; NINE undecided in three shapes: small value records,
+findings, reports/configs — each owing the `-0.0` fold `DocParam`
+already does) and `pncad-py-stub-omits-eq-on-three-mate-classes`
+(`MateFrame`/`MatePrimitive`/`Alignment` define `__eq__` the stub
+omits, unverifiable by `test_stubs.py`'s `hasattr` guard by
+construction). No `variant`/`kind` value or ordering moved; the lane
+ran the pinned ruff for real. One red the lane owned: the roster spelled a filed item as a `.md` string literal under `crates/`, which `ci-filter` fails closed on (it guards a consumed page dropping into the docs tier) — fixed by naming the item without the suffix, the selftest added to the lane's local run. ~3h20m (mostly CI polling and three merges of main), ~190k tokens.
+
+**`[ev]` PR 2230, item 2 RULED (2026-09-09, Ev): (D) — the name
+match accounts MEMBERS, not the type.** Asked as (A) a hand-kept
+same-spelling-different-type list, (B) rename the read-side class,
+(C) leave it; Ev asked for a structural check that keeps the name
+match, and (D) is that: a same-spelled Python namesake accounts only
+the arms (or pub fields) it spells, every other arm needing its own
+`BOUND_AS`/`NOT_BOUND` row. It would have caught `Datum::FaceFrame`
+and the `Node::Union`/`DocEdit::SetMembers` gap alike, and it reuses
+LIB-SWEEP's declaration resolver. Recorded on
+`datum-crosses-name-for-name-as-two-types`; the unit (LIB-MEMBERS)
+dispatches after LIB-SWEEP lands. Both items of #2230 are now ruled
+and the PR merges.

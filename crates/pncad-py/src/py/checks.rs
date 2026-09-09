@@ -54,8 +54,17 @@ use super::doc::{Doc, NodeId};
 use super::value::{Body, Evaluation};
 
 /// Which check a finding came from — the registry's closed set.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+// EVERY fieldless mirror in this crate carries these four options,
+// and this is the one place the reason is written down. A mirror is a
+// TAG: `eq`/`eq_int` make it comparable, and a comparable value that
+// does not hash is unusable as a set element or a dict key, because
+// Python leaves `__hash__` unset on any type that defines `__eq__`.
+// PyO3 spells `hash` as requiring `frozen` alongside `eq`, which a
+// fieldless mirror satisfies for nothing: it has no fields to mutate.
+// The hash is over the variant, so it agrees with the comparison by
+// construction — both read the same discriminant.
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::CheckId` variant of the same name"
@@ -67,8 +76,8 @@ pub(crate) enum CheckId {
 
 /// The certified/heuristic label (DS6): honesty of language and a
 /// default level, never a force cap.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::CheckKind` variant of the same name"
@@ -79,8 +88,8 @@ pub(crate) enum CheckKind {
 }
 
 /// A check's severity knob: off, warn, or refuse at the gate.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::Severity` variant of the same name"
@@ -93,8 +102,8 @@ pub(crate) enum Severity {
 
 /// The knob of a resident that may not refuse — `Severity` minus
 /// `Error`.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::Advisory` variant of the same name"
