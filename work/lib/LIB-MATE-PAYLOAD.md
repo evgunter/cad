@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-09
 branch: lib/mate-payload
 refs: [mate-fault-arms-carry-payload-that-does-not-cross]
+pr: 2258
 ---
 
 
@@ -76,6 +77,10 @@ none.
   test class's own docstring.
 - **No new door, no kernel behaviour change.** The `editor-core`
   re-export and the façade curation are the only non-binding edits.
+- **The sweep's six remaining hits are all outside this fence**, each
+  argued at its site or already on a slate (`meta-unversioned-arm-has-
+  no-inner-word` is the one open one). The hit list and its disposition
+  are in the PR body.
 
 ## Closed
 
