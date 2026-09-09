@@ -4,7 +4,6 @@ kind: issue
 title: no facade door mints a revolve's role names, so every consumer hand-spells the StableName
 status: open
 opened: 2026-09-08
-needs_ev: true
 ---
 
 
@@ -92,3 +91,13 @@ which is how `pncad::select` already spells the matching direction.
 Both mint the same `StableName`, and neither can check that the node
 is a revolve before resolution. If (B)'s call-site reading is
 preferred, an extension trait in `pncad::select` is a fine shape.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2231)
+
+**(A).** Ev: "A is fine." Free functions beside the vocabulary,
+reached at `pncad::select` — `band`, `band_pi`, `band_rim`,
+`meridian_vertex`, `carried` — each returning a `StableName`.
+Mechanical afterwards: the builders and the conversion of the
+consumers that can reach them (the unit decides where the functions
+are DEFINED so that the corpus, which cannot depend on `pncad`, can
+share them too, and says so).

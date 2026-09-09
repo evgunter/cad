@@ -2,9 +2,9 @@
 id: a-recipe-cannot-hold-a-narration-body-without-it-becoming-a-root
 kind: issue
 title: a recipe cannot hold a narration or probe body without it becoming a product root
-status: open
+status: closed
 opened: 2026-09-08
-needs_ev: true
+closed: 2026-09-09
 ---
 
 
@@ -93,3 +93,13 @@ cost** (the gallery deletions stay disclosed demo tooling), and "mass
 properties as a measure primitive" is filed as its own design
 question where E3 lives only if Ev wants a document to be able to
 assert one. Recommendation revised: **(D)**.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2231) — and closed
+
+**(D).** Ev: "sounds good, no need to file that mass properties issue
+i think." No change to nodes or roots. The kernel already has the
+seat: a body measured IN the graph by a `Node::Measure` is not a sink
+and the measure denotes no body. The tour's cost — measuring out of
+graph and deleting sinks before the gallery — is the demo's own and
+stays disclosed demo tooling. The mass-properties-as-a-measure-
+primitive question is NOT filed. Closed as declined.
