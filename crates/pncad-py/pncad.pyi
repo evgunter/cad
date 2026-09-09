@@ -1054,7 +1054,15 @@ class AnalysisPolicyError(PncadError):
 # DimensionError.
 
 class Length:
-    """A length. Construct as `25 * mm`."""
+    """A length. Construct as `25 * mm`.
+
+    Compares as IEEE on the canonical metres, mirroring the Rust
+    newtype's derived `PartialEq`/`PartialOrd`: a NaN length equals
+    nothing, not even itself, and orders against nothing; `-0.0 * m`
+    equals `0.0 * m`. UNHASHABLE, mirroring the newtype's absent
+    `Hash` — a magnitude is not a key, and `set`/`dict` say so with
+    `TypeError`. `WrittenLength` is the authored record that keys.
+    """
 
     @property
     def meters(self) -> float: ...
@@ -1071,10 +1079,13 @@ class Length:
     def __gt__(self, other: Length) -> bool: ...
     def __ge__(self, other: Length) -> bool: ...
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
 class Angle:
-    """An angle. Construct as `90 * deg`."""
+    """An angle. Construct as `90 * deg`.
+
+    `Length`'s mirror: IEEE comparisons on the canonical radians, and
+    unhashable. `WrittenAngle` is the authored record that keys.
+    """
 
     @property
     def radians(self) -> float: ...
@@ -1091,7 +1102,6 @@ class Angle:
     def __gt__(self, other: Angle) -> bool: ...
     def __ge__(self, other: Angle) -> bool: ...
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
 class Count:
     """A dimensionless integer count.
