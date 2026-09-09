@@ -4,7 +4,6 @@ kind: issue
 title: the Expr seat spells a written length in 55 characters, at 976 sites
 status: open
 opened: 2026-09-09
-needs_ev: true
 refs: [node-slot-literals-erase-the-authored-notation]
 ---
 
@@ -91,3 +90,14 @@ wanted, and what is it?
 
 Recommendation: **(A)**; names are yours to change (`length_in` /
 `angle_in` mirror `WrittenLength::in_unit`'s own verb).
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2266): (A)
+
+One composition, mirrored on both sides: `Expr::length_in(value,
+unit)` and `Expr::angle_in(value, unit)` in `editor-core` beside
+`Expr::written_length`/`written_angle`, each exactly
+`written_length(WrittenLength::in_unit(value, unit))` and refusing
+through the same `DimensionError`; `Expr.length_in(value, unit)` and
+`Expr.angle_in(value, unit)` in Python, the mirrors. No new type, no
+new seat. The written-form sites and the corpus's private shorthands
+convert to the one call. Mechanical unit LIB-HELPER.
