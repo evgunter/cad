@@ -1122,6 +1122,30 @@ wasm_check() {
          --features interval --target wasm32-unknown-unknown
 }
 
+# The browser entry point, which the row above cannot reach: it excludes
+# `viewer`, and every other viewer row in this file builds the HOST
+# target, where `cfg(target_family = "wasm")` is compiled out. So without
+# this row `viewer::app::run_web` and the `WebStartupError` arms around
+# it are source no check in either half compiles — the hole PR 1741's
+# `E0599` went through green.
+#
+# `--features app` is the load-bearing half: `run_web` lives behind that
+# non-default feature, so a default-features wasm check of this crate
+# passes over the defect.
+#
+# RUSTFLAGS scoped to the command, not exported, for the reason
+# serve-wasm.sh states at its own copy: `getrandom` needs a named wasm
+# backend in both halves, and an exported RUSTFLAGS silently replaces any
+# .cargo/config.toml rustflags.
+#
+# UNCONDITIONAL HERE, SEED-KEYED HOSTED — this file's standing asymmetry,
+# argued at the toolkit rows above.
+wasm_check_viewer() {
+  rustup target add wasm32-unknown-unknown \
+    && RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
+         cargo check -p viewer --features app --target wasm32-unknown-unknown
+}
+
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
 # and cheap; the cargo rows are already package-scoped by $SCOPE).
 # shellcheck disable=SC2086
@@ -1275,6 +1299,8 @@ rustdoc_gate() {
 run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
+# HOSTED MIRROR: fmt / wasm32 check (viewer app feature - the browser entry point)
+run_row "wasm32 check (viewer app)"    wasm_check_viewer
 # ε battery {default, 1e-6, 1e-12} (Ev's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Over the default archive;

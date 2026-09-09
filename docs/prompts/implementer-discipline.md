@@ -137,6 +137,19 @@ When you do run locally:
   artefacts into its branch history — unfixable under merge-only rules except
   by abandoning the branch and re-landing the diff (CERT-M2, 2026-09-02). Read
   `git status` before every `git add`; never add with `-A` unattended.
+- **`--workspace` is not every cargo root.** The workspace `exclude`s
+  `demos/tour`, `demos/wild`, `benches`, `tools/*` and
+  `interval-transcendentals`, so `cargo clippy --workspace --all-targets`
+  — the natural check before a push — compiles none of them. Two of those
+  are ordinary consumers of the public API, which means a signature change
+  breaks them the way it breaks a user: two lanes in one hour changed a
+  return type, re-spelled every caller `--workspace` could see, and
+  learned from CI that `demos/tour/tests/` was still red. The hosted gate
+  and `local-scripts/ci-local.sh` both cover every root; a bare
+  `--workspace` run does not, and knowing that is the whole fix. The
+  cheap version when you are not running the local gate is
+  `(cd demos/tour && cargo clippy --all-targets -- -D warnings)` and the
+  same in `demos/wild`.
 - **A build is not a test.** `cargo build` cannot see a broken
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.

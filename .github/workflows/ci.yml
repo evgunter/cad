@@ -1780,6 +1780,8 @@ jobs:
             echo 'RUN: the app-feature clippy row below compiles the eframe/wgpu graph.'
             echo 'RUN: the app-feature TEST row below executes the `app`-gated rows —'
             echo '     the chrome suites and the viewport pipeline-creation smoke row.'
+            echo 'RUN: the wasm32 viewer row at the end of this job compiles the browser'
+            echo '     entry point — the cfg(target_family = "wasm") arms no host row builds.'
           else
             echo 'SKIP: no seed in {viewer, pncad, bvh} — the eframe/wgpu graph is not compiled on this run.'
             echo 'SKIP: viewer was documented at DEFAULT features and its app-feature clippy row did not run.'
@@ -1787,6 +1789,11 @@ jobs:
             echo '     or the viewport pipeline-creation smoke row on this run. The archive'
             echo '     lane builds viewer at default features and reports that in its own'
             echo '     output, by name: the `app_lane_skipped_*` rows.'
+            echo 'SKIP: the wasm32 viewer row did not run, so the browser entry point —'
+            echo '     `run_web` and its cfg(target_family = "wasm") arms — was compiled by'
+            echo '     NOTHING on this run. No other row in this workflow builds it. A diff'
+            echo '     that could break it seeds viewer or classifies TIER=all, either of'
+            echo '     which turns this axis true — see that row for the full argument.'
             echo 'The nightly lane re-takes both ungated; viewer default-feature rows still ran in the closure.'
           fi
       # Sited here rather than in `clippy` so no lane gate can take it away
@@ -2024,10 +2031,90 @@ jobs:
       # on `pncad`, so a leg that excludes the façade cannot include a
       # crate sitting on top of it. GUI-5 owns the real wasm lane for
       # the GUI (docs/GUI-PLAN.md's unit list); this guard's subject is
-      # the kernel plus `editor-core`, and it stays that.
+      # the kernel plus `editor-core`, and it stays that. What the
+      # exclusion leaves uncompiled is picked up by the seed-keyed viewer
+      # row below rather than by widening this one.
       - name: wasm32 check (kernel + editor-core, --features interval)
         if: '!cancelled()'
         run: cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --features interval --target wasm32-unknown-unknown
+
+      # THE VIEWER'S OWN WASM ROW, AND WHY THE EXCLUSION ABOVE IS NOT A
+      # HOLE ANY MORE.
+      #
+      # The browser entry point — `viewer::app::run_web`, the
+      # `WebStartupError` enum and every `cfg(target_family = "wasm")`
+      # arm around them — is compiled by NO row above. The workspace row
+      # excludes `viewer`; every other viewer row in this job builds the
+      # HOST target, where those arms are `cfg`-ed out. So the block was
+      # source that no CI target compiled, and a text-driven sweep over
+      # this crate edited code the compiler never saw: PR 1741 shipped
+      # `error.to_string()` on `WebRunner::start`'s `JsValue`, which
+      # implements `Debug` and no `Display`, and that PR was green.
+      #
+      # SEED-KEYED, NOT FLAT, per Ev's viewer-CI-posture ruling
+      # (2026-08-27): the eframe/wgpu graph is not a bill every kernel
+      # change pays. This row reads the same `run_viewer_toolkit` axis
+      # the three rows above read, so it fires exactly when they do —
+      # when the seeds intersect {viewer, pncad, bvh}, or the tier is
+      # unscopable — and the verdict step above names it in both
+      # branches, because a green job name over a silent skip is the
+      # thing that ruling forbade.
+      #
+      # WHAT THE AXIS CAN ACTUALLY TAKE AWAY FROM THIS ROW IS ALMOST
+      # NOTHING, and that is worth writing down rather than leaving to
+      # be re-derived, because it is what makes the seed key sufficient
+      # here where the three rows above needed a nightly re-take. The
+      # code this row is the only compiler of lives in
+      # `crates/viewer/src/`, so a change to it SEEDS `viewer` and the
+      # axis is true. A dependency bump is a Cargo.toml or Cargo.lock
+      # edit, which is not an `_is_docs` path, so it classifies TIER=all
+      # and the axis is true. What is left is a wasm-specific break
+      # introduced in a crate `viewer` depends on but which is not in
+      # {viewer, pncad, bvh} — and every such crate is a member the
+      # workspace wasm row above already compiles for this target, since
+      # that row excludes only `pncad`, `pncad-py` and `viewer`. So the
+      # skipped case is a break that is simultaneously wasm-specific,
+      # outside the seed set, and outside a row that just compiled the
+      # same crate for the same target. That is not a hole this row is
+      # deferring to a nightly; it is the empty set at this dependency
+      # shape, and it stops being empty the day `viewer` grows an edge
+      # on a crate the workspace row excludes.
+      #
+      # WHAT IT COSTS WHEN IT FIRES: one `cargo check` over the toolkit
+      # graph at a SECOND target. Nothing in this job shares artefacts
+      # with it — the rows above are host-target — so it is a cold
+      # metadata build of eframe + wgpu + naga for wasm32 every time it
+      # runs. 61 s locally from an empty CARGO_TARGET_DIR on 4 vCPU.
+      # It buys nothing when the axis is false, which is why it is on
+      # the axis rather than beside the row above.
+      #
+      # `--features app` IS THE LOAD-BEARING HALF and must not be dropped
+      # for speed: `run_web` lives behind that non-default feature, so a
+      # default-features `-p viewer` wasm row passes over the very defect
+      # this exists to catch. Measured both ways on the 1741 revert.
+      #
+      # RUSTFLAGS, NOT AN `env:` KEY, and not exported: `getrandom`
+      # refuses to build for wasm32 until a backend is named, and naming
+      # one takes both halves — the `wasm_js` feature (viewer's
+      # `cfg(target_arch = "wasm32")` stanza) and this cfg. Scoped to the
+      # command because RUSTFLAGS silently REPLACES any
+      # .cargo/config.toml rustflags; the repo sets none today, so
+      # scoping costs nothing and a future entry is not quietly dropped.
+      # Same spelling as local-scripts/serve-wasm.sh's build.
+      #
+      # `check`, NOT `-D warnings`: this crate's wasm build carries
+      # dead-code warnings today (`WINDOW_TITLE`, `deliver_status` — host
+      # -only users, so the items are unreferenced at that target) and
+      # this row's subject is "it compiles", not this crate's lint
+      # posture. Denying warnings here would red on those two before it
+      # ever reached a real break, and the fix for them belongs to the
+      # crate's owners rather than to a guard.
+      #
+      # Mirror: local-scripts/ci-local.sh's `wasm32 check (viewer app)`.
+      - name: wasm32 check (viewer app feature - the browser entry point)
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: |
+          RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check -p viewer --features app --target wasm32-unknown-unknown
 
   clippy:
     name: clippy
