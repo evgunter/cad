@@ -4575,3 +4575,44 @@ Three items closed (`margin-diag-non-curation-…`,
 `cross-list-payload-rungs-under-document-only-carriers`). No shipped
 `variant`/`inner_variant` value moved; the lane ran the pinned ruff
 for real. Orchestrator note: the lane found the closed item's central reach claim false (`pncad::topo` is a whole-crate re-export, so the binding could always NAME the type; what was missing was the curated placement and the tag) and repaired two doc comments carrying the same false-reach shape; `MateFault::Indeterminate` becomes buildable in the binding as a side effect, which is `mate-fault-arms-carry-payload-that-does-not-cross`'s to spend. The 6/6 pin was proved by blanking `inner_variant` on the two arms and watching the pin go red. ~74 min, ~233k tokens.
+
+**LIB-MC MERGED (2026-09-09, #2255; mechanical under Ev's (A) on
+`advisory-monte-carlo-lane-has-no-python-door`, no A/B row). The
+advisory Monte Carlo lane has a Python door.** `monte_carlo(doc,
+analyzed, config=None) -> McReport`, a module function on the analysis
+surface; `analyzed` is REQUIRED (the box is the analysis's knob, E2,
+and hiding a default inside the run would move that choice); the GIL
+is released for the run. `McConfig(samples, seed, parallel)` frozen,
+comparable and hashable, each field defaulting to the kernel's own
+(`DEFAULT_SAMPLES`/`DEFAULT_SEED` on the module); a zero sample count
+is refused by the RUN, not pre-checked at the constructor. `McReport`
+/ `McMeasure` / `McAssertion` project every kernel field,
+`violation_fraction` as `Optional[float]`; `McReport.render()` crosses
+too (deviation, argued: the label discipline E11.1 requires — count and
+seed on every line — is structural in the kernel, and stopping it at
+the boundary would leave a caller printing unlabeled numbers).
+`McMeasure`/`McAssertion` hash folding `-0.0` through `fold_zero`.
+`McRefusal` typed under `PncadError` with `variant` from an exhaustive
+`mc_refusal_tag` and `param`/`node`/`cause` on every arm; the band arm
+DELEGATES to `measure_unavailable_tag` so one fault has one word.
+`sample_offset(param, dist, u)` crosses free, answering in the
+distribution's borrowed dimension. The bit-stability pin:
+`parallel=True` and `False` answer the same bits (`.hex()` on every
+field). Census: `analysis.rs` joined `FACADE_FILES` — curated 427→488,
+63 introduced, all accounted (16 by rule 1, 6 `BOUND_AS`, 41
+`NOT_BOUND` as `different-shape`: `OffsetInterval` and the 40 behind
+`#[cfg(feature = "interval")]`, absent from the wheel's build) and the
+census's `cfg` blind spot is stated at `FACADE_FILES`. The sweep took
+the same file (`ALL_LISTS` is five; the two readers share one
+resolver, so four-vs-five would be the "no two runs agree" defect one
+layer up), with a selftest witness for blind spot (j) — a `cfg`-gated
+`pub use` read as curated unconditionally. Six new rungs dispositioned:
+`PairingViolation` argued, `KProbe` filed
+(`kprobe-is-a-rung-under-drive-config-on-the-analysis-list`), and
+`Dimension`/`Distribution`/`MeasureUnavailableAt` ARGUED under the
+cross-list rule CUR8 ratified while this branch was open — the same
+rule with the two lists swapped, and the clearest case it has; the
+ratified prose in `document.rs`/`select.rs` now states the rule
+without a list count. GUIDE's distributions rung gained the fourth
+door. No shipped `variant` value moved; the lane ran the pinned ruff
+for real. Orchestrator note: the lane reported "~5 h 45 m" of wall clock, which is not what the clock shows — launched 06:45Z, reported 08:10Z, so ~85 min, most of it the hosted CI run; the figure below is the measured one. ~85 min, ~629k tokens.

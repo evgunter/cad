@@ -118,6 +118,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::MeasureNode => "MeasureNodeFault",
             ErrorClass::MeasureUnavailableAt => "MeasureUnavailableAt",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
+            ErrorClass::Mc => "McRefusal",
         }
     }
     for class in [
@@ -155,6 +156,7 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::MeasureNode,
         ErrorClass::MeasureUnavailableAt,
         ErrorClass::AnalysisPolicy,
+        ErrorClass::Mc,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
@@ -3538,6 +3540,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_under",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "mc_refusal_tag",
+        values: &["no_samples", "nominal_does_not_build"],
+        delegates: &["measure_unavailable_tag"],
     },
     TagEntry {
         function: "measure_node_fault_tag",

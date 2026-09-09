@@ -12,12 +12,12 @@ is invisible to it. Doors accumulated that way — the assembly gate,
 the advisory checks, picking, the expression read side, the
 workspace/content-pin family — and nothing noticed.
 
-This is the mechanism. Every name the façade's three curated lists
-introduce is either bound in Python or listed below with the family it
-belongs to, and a name that is neither fails here, naming itself.
+This is the mechanism. Every name the façade's curated lists introduce
+is either bound in Python or listed below with the family it belongs
+to, and a name that is neither fails here, naming itself.
 
 STDLIB ONLY, AND NO COMPILED MODULE. Every input is source TEXT — the
-three façade `.rs` files and `pncad.pyi` — so this runs wherever
+façade `.rs` files this file names and `pncad.pyi` — so this runs wherever
 `python3` runs, in the same degraded environment `run-python-tests.sh`
 exists for (that box has no pip and no ensurepip). It deliberately
 does NOT import `pncad`: `test_stubs.py` already pins the stub to the
@@ -28,8 +28,17 @@ built.
 THE SIDES IT COMPARES
 ---------------------
 The Rust side is the `pub use` lists in `crates/pncad/src/document.rs`,
-`select.rs` and `prelude.rs` — the three files that ARE the curated
-surface. They are read with the Rust guard's own technique: comments
+`select.rs`, `prelude.rs` and `analysis.rs` — the files that ARE the
+curated surface a Python caller is measured against. `analysis.rs`
+joined them at LIB-MC: it was outside this alphabet in BOTH directions
+while it curated the whole E1/E2 analysis lane and E11.1's advisory
+estimator, which is how three of one family's four chartered doors and
+a whole un-gated lane went unreported. Its certified half is behind
+`#[cfg(feature = "interval")]` and this reader cannot see a `cfg`
+attribute at all, so those names arrive looking exactly like the
+ungated ones beside them and are dispositioned by hand in `NOT_BOUND`
+— stated here because a blind spot nobody wrote down is an unverified
+claim. They are read with the Rust guard's own technique: comments
 stripped first, then the leaf name of every `pub use` item, so prose
 naming a type is not read as an export. `prelude.rs` re-exports through
 `crate::document` and `crate::select`, so a prelude entry has an origin
@@ -171,8 +180,8 @@ WHAT THIS DOES NOT CLAIM
 - Not that the curated surface is all of `pncad`. `crate::workspace`,
   `crate::authoring`, `crate::guide`, `crate::export`, `crate::profile`
   and `crate::tolerance` are outside the census; the Rust guard reads
-  all ten façade files, this one reads the three that curate the
-  document layer and the common surface. `workspace::Workspace`,
+  all ten façade files, this one reads the four that curate the
+  document layer, the common surface and the analysis lane. `workspace::Workspace`,
   `random_document_id` and `update_to_store` are therefore NOT counted
   here — the audit page's `test_the_named_gaps_are_still_gaps` is what
   watches those, and it is where all three landing is recorded
@@ -190,7 +199,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 FACADE = REPO / "crates" / "pncad" / "src"
-FACADE_FILES = ("document.rs", "select.rs", "prelude.rs")
+FACADE_FILES = ("document.rs", "select.rs", "prelude.rs", "analysis.rs")
 STUB = REPO / "crates" / "pncad-py" / "pncad.pyi"
 AUDIT = REPO / "docs" / "guide" / "north-star-audit.md"
 
@@ -331,7 +340,7 @@ def resolver():
 
     STDLIB ONLY still holds, and so does NO COMPILED MODULE. What arrives
     is more Rust SOURCE TEXT — the same reading, over the façade's whole
-    path-dependency closure instead of its three curated files.
+    path-dependency closure instead of its own curated files.
     """
     spec = importlib.util.spec_from_file_location("payload_rung_sweep", SWEEP)
     module = importlib.util.module_from_spec(spec)
@@ -736,7 +745,7 @@ BOUND_AS = {
     #
     # `ShellError`, `SkinError`, `ParamAttachError` and the kernel's
     # `topo::splitting::SplitError` cross the same way and are NOT
-    # rows here: none of them is a leaf name of the three curated
+    # rows here: none of them is a leaf name of the curated
     # lists this census reads (they arrive through the whole-crate
     # re-exports), so this file never accounted for them and does not
     # start now.
@@ -1117,6 +1126,27 @@ BOUND_AS = {
     "validate_pseudomanifold": "Body.validate_pseudomanifold",
     "write_ascii": "Mesh.to_stl_ascii",
     "write_binary": "Mesh.to_stl_binary",
+    # --- the analysis lane's free mass doors, which cross as METHODS
+    # ON THE BOX. The kernel keeps the free spelling for the driver,
+    # which prices intervals that are deliberately NOT the analyzed
+    # ones; a Python caller has no compile step that would catch one
+    # parameter's distribution paired with another's box, so the door
+    # that cannot be mispaired is the only one bound
+    # (`src/py/analysis.rs` argues it at length, from
+    # `AnalyzedBox::axis_tail_mass`'s own comment).
+    "box_mass": "AnalyzedBox.box_mass",
+    "tail_mass": "AnalyzedBox.tail_mass",
+    # The two payloads the analysis surface carries UNCONDITIONALLY,
+    # and it says why at the site: they are what `NodeErrorKind`'s
+    # `ParamBox` and `Seed` arms hold, and those arms exist on every
+    # build even though the door that fills them is behind `interval`.
+    # They cross exactly as their carrier does — flattened to the tag
+    # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
+    # one level in. A default-feature evaluation cannot produce either
+    # today, which is the same sentence `MinClearanceRefusal` carries
+    # one roster down: the LANE decides, not the feature.
+    "ParamBoxError": "EvaluationError.kind",
+    "SeedError": "EvaluationError.kind",
 }
 
 # The family tags a NOT_BOUND entry may carry. A `gap:` entry names the
@@ -2335,32 +2365,32 @@ NOT_BOUND = {
     # struct fields crosses as the word on the fault rather than as a
     # class.
     #
-    # THE CHARTER'S OTHER HALF WAS NEVER A ROW HERE AND COULD NOT
-    # BECOME ONE. It named the three analysis doors — the analyzed
-    # box, tail mass, leaf mass — and every one of them is curated in
-    # `crates/pncad/src/analysis.rs`, which is not one of the three
-    # files this census reads (the module docstring says so: it reads
-    # the three that curate the DOCUMENT layer and the common
-    # surface). So `analyzed_box`, `tail_mass`, `box_mass`,
+    # THE CHARTER'S OTHER HALF COULD NOT BE A ROW HERE, AND NOW IS.
+    # It named the three analysis doors — the analyzed box, tail mass,
+    # leaf mass — and every one of them is curated in
+    # `crates/pncad/src/analysis.rs`, which was not one of the files
+    # this census read: `analyzed_box`, `tail_mass`, `box_mass`,
     # `AnalysisPolicy`, `AnalyzedBox`, `AnalyzedParam`,
     # `MeasureUnavailable`, `OffsetInterval`, `DEFAULT_QUANTILE_MASS`
-    # and `sample_offset` are invisible to this file in BOTH
-    # directions: unbound they flipped no row, and bound they flip none
-    # either. The `Distribution` row is what made the family
-    # dispatchable at all, and the doors that closed it are reported in
-    # the unit rather than counted here. That is the B-FACE-FRAME gap
-    # between a charter and a roster, in its widest form so far: three
-    # of the charter's four things outside the alphabet.
+    # and `sample_offset` were invisible to this file in BOTH
+    # directions, so unbound they flipped no row and bound they flipped
+    # none either. That was the B-FACE-FRAME gap between a charter and
+    # a roster in its widest form: three of the charter's four things
+    # outside the alphabet. LIB-MC closed the blind spot by adding the
+    # file to `FACADE_FILES`, and all ten of those names are accounted
+    # now — seven by rule 1, `tail_mass` and `box_mass` in `BOUND_AS`
+    # as methods on the box, `OffsetInterval` in `NOT_BOUND` — with
+    # forty certified-half names arriving beside them.
     #
     # THE GATE, MEASURED, because a reader of the roster cannot see it
-    # either: the analysis façade splits at
-    # `crates/pncad/src/analysis.rs:49` (ungated) and `:55`/`:66`/`:83`
-    # /`:89`/`:104` (`#[cfg(feature = "interval")]`). All three
-    # chartered doors are on the ungated line, so the family closes on
-    # the DEFAULT build the wheel is made from; what is gated is the E6
-    # driver with its `ParamBox`, the E4/E5 stackup, `assertion_at` and
-    # the E10 reporting layer, none of which this family chartered.
-    # The positive form is `tests/test_distributions.py`.
+    # either: `crates/pncad/src/analysis.rs` splits into one UNGATED
+    # `pub use` list and five behind `#[cfg(feature = "interval")]`.
+    # All three chartered doors are on the ungated list, so the family
+    # closes on the DEFAULT build the wheel is made from; what is
+    # gated is the E6 driver with its `ParamBox`, the E4/E5 stackup,
+    # `assertion_at` and the E10 reporting layer, none of which this
+    # family chartered. The positive form is
+    # `tests/test_distributions.py`.
     # B-MEASURES IS GONE FROM THIS ROSTER, closed at LIB-B-MEASURES,
     # and the id left `FAMILIES` with it — which emptied that map, the
     # last census-owned charter closing. It cited SEVEN names and they
@@ -2503,6 +2533,87 @@ NOT_BOUND = {
     # `Node.fillet` and `Node.shell` already took — so nothing else
     # moved with them and nothing behind them was undercounted.
     # `tests/test_role_names.py` is the positive form.
+    # --- different-shape: the analysis lane's CERTIFIED half -------
+    #
+    # `crates/pncad/src/analysis.rs` joined `FACADE_FILES` at LIB-MC,
+    # which is the blind spot B-DISTRIBUTIONS reported and could not
+    # close: three of that family's four chartered things were outside
+    # this file's alphabet in BOTH directions, and so was the whole
+    # advisory lane a later unit bound. The file's names are now
+    # accounted like every other curated name — and forty of them
+    # arrive at once, in one family, because they are the analysis
+    # surface's certified half.
+    #
+    # THEY ARE NOT IN THE CRATE THIS BINDING COMPILES INTO. Each is
+    # behind `#[cfg(feature = "interval")]` on that page, and the wheel
+    # is built from the DEFAULT feature set: the E6 subdivision driver
+    # and its `ParamBox`, the E4/E5 sensitivity and stackup, E10's
+    # `assertion_at` and the reporting layer. Binding one would mean
+    # shipping a door absent from the artifact a user installs, so this
+    # is `different-shape` and not a `gap:` — there is no work owed
+    # while the shape of the thing is "no certified scalar on this
+    # side". The reader this scan CANNOT be: it strips comments and
+    # reads `pub use` statements, so a `cfg` attribute above one is
+    # invisible to it and these forty look exactly like the ungated
+    # names beside them. That is why the disposition is argued here
+    # rather than inferred, and why a name moving across that gate
+    # kernel-side moves no row here on its own.
+    #
+    # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
+    # shape: a Python surface that evaluates at a certified scalar. On
+    # that day these are doors a caller can reach and every one of them
+    # owes a spelling or a `gap:`. `MinClearanceRefusal`'s entry two
+    # screens up is the same sentence from the refusal side, and it is
+    # the sharper statement of it: the FEATURE is not always what
+    # gates, the LANE is.
+    "BoxAxis": SHAPE,
+    "BudgetKind": SHAPE,
+    "Certified": SHAPE,
+    "CertifiedLeaf": SHAPE,
+    "Chamber": SHAPE,
+    "ChamberSpan": SHAPE,
+    "DEFAULT_MAX_DEPTH": SHAPE,
+    "DEFAULT_MAX_LEAVES": SHAPE,
+    "DriveConfig": SHAPE,
+    "DriveRefusal": SHAPE,
+    "HistogramRow": SHAPE,
+    "LeafHistogram": SHAPE,
+    "LeafResults": SHAPE,
+    "LiftRefusal": SHAPE,
+    "MassBasis": SHAPE,
+    "MassBudget": SHAPE,
+    "MeasureAccounting": SHAPE,
+    "ParamBox": SHAPE,
+    "ParamBoxVerdict": SHAPE,
+    "PerParam": SHAPE,
+    "ReasonClass": SHAPE,
+    "Receipt": SHAPE,
+    "RefusalReason": SHAPE,
+    "RefusedLeaf": SHAPE,
+    "ReportCache": SHAPE,
+    "Rss": SHAPE,
+    "Sensitivity": SHAPE,
+    "SensitivityOutcome": SHAPE,
+    "SensitivityRefusal": SHAPE,
+    "Stackup": SHAPE,
+    "StackupRefusal": SHAPE,
+    "Unavailable": SHAPE,
+    "WINDOW_TIGHTENING": SHAPE,
+    "WorstCase": SHAPE,
+    "assertion_at": SHAPE,
+    "drive": SHAPE,
+    "leaf_histogram": SHAPE,
+    "render_sensitivity": SHAPE,
+    "report_key": SHAPE,
+    "stackup": SHAPE,
+    # The offset interval an analyzed axis varies over — UNGATED, and
+    # its Python shape is the `(lo, hi)` pair `AnalyzedParam.offsets`
+    # and `AnalyzedParam.absolute()` answer, in the axis's own
+    # dimension. The leaf-pricing door takes the same two ends as two
+    # arguments (`AnalyzedBox.box_mass`). A class holding two offsets
+    # would add a name to import for no question it answers, which is
+    # `Point2`'s argument at the top of this roster.
+    "OffsetInterval": SHAPE,
 }
 
 
@@ -2930,7 +3041,31 @@ MEMBERS_BOUND_AS = {
     "ValidationError::StaleNullFaceLoop": "ValidationFinding.variant",
     "ValidationError::NullEdgeAtRest": "ValidationFinding.variant",
     "ValidationError::NullFaceAtRest": "ValidationFinding.variant",
+    # --- the analysis lane's arms, in this file's alphabet at last -
+    # `analysis.rs` joined `FACADE_FILES` at LIB-MC, so three types
+    # rule 1 had already accounted by spelling now owe their members
+    # too. All of them cross the way every refusal arm in this table
+    # crosses — as the word on `variant`, which is what a caller
+    # branches on.
+    "AnalysisPolicyError::QuantileMassOutOfRange": "AnalysisPolicyError.variant",
+    "MeasureUnavailable::BandHasNoMeasure": "MeasureUnavailable.variant",
+    # The advisory lane's three ways of having no estimate. The band
+    # arm CARRIES the `MeasureUnavailable` one line above, and its word
+    # is that refusal's own: the run cannot draw from a band for the
+    # same reason a mass door cannot price one, and two words for one
+    # fault would let a caller who already branches on
+    # `band_has_no_measure` miss it here. Its parameter rides on
+    # `McRefusal.param`, the node and the rendered cause of the third
+    # arm on `McRefusal.node` and `McRefusal.cause`.
+    "McRefusal::BandHasNoMeasure": "McRefusal.variant",
+    "McRefusal::NoSamples": "McRefusal.variant",
+    "McRefusal::NominalDoesNotBuild": "McRefusal.variant",
     # --- an arm or a field that crosses as a DOOR ------------------
+    # An analyzed axis's DIMENSION, which is the parameter's own — the
+    # field is `dim` in the kernel and the reader is `dimension`, the
+    # word every other Python door in this vocabulary spells it with
+    # (`Distribution.dimension`, `Measurement.dimension`).
+    "AnalyzedParam::dim": "AnalyzedParam.dimension",
     # `Route` is `INTERIOR`; what it SAYS crosses as the two attributes
     # that name it, `of` and `via`.
     "CarriedDeclaration::route": "CarriedDeclaration.of",
@@ -3141,7 +3276,7 @@ class TestBindingCensus(unittest.TestCase):
         far above zero.
         """
         self.assertGreater(
-            len(self.curated), 300, "the façade's three lists shrank drastically"
+            len(self.curated), 300, "the façade's curated lists shrank drastically"
         )
         self.assertGreater(
             len(self.top), 75, "the stub scanner found almost nothing"

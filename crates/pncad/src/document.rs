@@ -28,17 +28,19 @@
 //! a consumer can match the variant AND name what it caught: that is
 //! the rule the `VerbKind`/`Arity` stanza below states, and it places
 //! every payload whose only home is the refusal holding it. It does
-//! NOT place a payload that belongs to a vocabulary one of the four
+//! NOT place a payload that belongs to a vocabulary one of the
 //! curated lists already owns — the naming roles are
-//! [`crate::select`]'s, the profile layer's are [`crate::profile`]'s
-//! — because the four lists are ONE surface cut into rooms rather
-//! than four self-sufficient exports. So such a payload is spelled
-//! ONCE, on the list that owns its vocabulary, and the carrier's list
-//! points at it. The cost is stated rather than hidden: a consumer
-//! importing this module alone matches the arm and needs a second
-//! `use` to name what it holds — one import, never a second crate.
-//! The cost the other way is the same name on two lists, which is two
-//! things that can drift.
+//! [`crate::select`]'s, the profile layer's are [`crate::profile`]'s,
+//! and the parameter and measurement vocabularies this module's own
+//! doors author are THIS list's, where [`crate::analysis`] carries
+//! their derived readers — because the lists are ONE surface cut into
+//! rooms rather than self-sufficient exports. So such a payload is
+//! spelled ONCE, on the list that owns its vocabulary, and the
+//! carrier's list points at it. The cost is stated rather than
+//! hidden: a consumer importing this module alone matches the arm and
+//! needs a second `use` to name what it holds — one import, never a
+//! second crate. The cost the other way is the same name on two
+//! lists, which is two things that can drift.
 
 // The recipe and its edits. `Applied` is `apply`'s return (the new
 // document plus its `EditRecord`) — re-exported so a caller can STORE

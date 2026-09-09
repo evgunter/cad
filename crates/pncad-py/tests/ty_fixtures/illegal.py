@@ -11,6 +11,9 @@ from pncad import (
     AssertionDir,
     AnalysisPolicy,
     analyzed_box,
+    McConfig,
+    monte_carlo,
+    sample_offset,
     ArcSide,
     ChecksConfig,
     Severity,
@@ -558,6 +561,24 @@ analyzed_box(doc).tail_mass("bore_r")  # ty: error
 # The policy is the ANALYSIS's knob and takes a bare mass, not a
 # quantity: a share of a distribution's mass is dimensionless.
 AnalysisPolicy(1 * mm)  # ty: error
+
+# The advisory run needs the BOX it is measured against — which
+# parameters vary and what counts as outside is not something the
+# document alone answers, so there is no one-argument spelling.
+monte_carlo(doc)  # ty: error
+
+# A sample count is a count and a seed is a seed: neither is a
+# quantity, and the type is what says so rather than a runtime check.
+McConfig(samples=1 * mm)  # ty: error
+# A report is a frozen value: a run is restated by running again,
+# never by editing the answer.
+monte_carlo(doc, analyzed_box(doc)).samples = 4  # ty: error
+
+# The draw door is keyed by a `ParamName` like every other door in
+# this vocabulary, and its quantile is a bare float in `[0, 1)` — a
+# share of a law's mass is dimensionless.
+sample_offset("bore_r", Distribution.normal(1 * mm), 0.5)  # ty: error
+sample_offset(ParamName("bore_r"), Distribution.normal(1 * mm), 1 * mm)  # ty: error
 
 # Two refusals in one line, and both are the point. A name the
 # document does not declare is not an axis, so `get` answers an
