@@ -2,11 +2,12 @@
 id: LIB-PYNAMES
 kind: unit
 title: the five role-name builders in Python, answering the name text the fillet and shell doors take
-status: review
+status: closed
 branch: lib/pynames
 opened: 2026-09-09
 refs: [pncad-py-has-no-door-that-mints-a-revolves-role-names]
 pr: 2252
+closed: 2026-09-09
 ---
 
 

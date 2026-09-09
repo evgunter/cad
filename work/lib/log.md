@@ -4489,3 +4489,44 @@ and say so" for a type the façade does not carry, and the lane did
 that for two arms and found a third stop the brief did not
 anticipate — a refusal that cannot be rendered — which is the better
 outcome than a door that panics. Seven tags reachable only through these arms are now provoked from Python; two (`rebind_appearance_collision`, `rebind_metadata_collision`) stay unreachable behind the uncurated appearance doors, stated. ~74 min, ~324k tokens.
+
+**LIB-PYNAMES MERGED (2026-09-09, #2252; mechanical under the 08-29
+ruling, no A/B row). NAMES' residue closed: the five role-name doors
+exist in Python — `band`, `band_pi`, `band_rim`, `meridian_vertex`,
+`carried` — as module-level functions beside `select`, each minting
+the kernel's own `StableName` through `pncad::select`'s builder and
+answering `name_text`'s output, so the text a door answers is
+BYTE-IDENTICAL to what a materializer answers for the same entity:
+one alphabet, minted on either side of the boundary.** That
+byte-equality is the whole claim and the pin: the left side of every
+row in `test_role_names.py` is a name Rust minted and serialized (a
+materialized selection), the right side the Python door's answer on
+the same arguments — a door agreeing on shape and not bytes would
+author a selection that resolves to nothing, which is exactly the
+failure a hand-written name has. Two scenes, the two shapes a full
+revolve takes: a profile clearing the axis (one face per segment,
+whole-circle rims) and one touching it (the pole splits every band
+into its `[0, π)` and `[π, 2π)` halves — why `band_pi` exists).
+`MeridianEnd`'s mirror gained ONE kernel mapping (`to_kernel`) used
+by both the selector side and the minting door — a second copy would
+be a second answer to "which end is Seam". The text stays opaque: a
+caller composes by naming a ROLE, never by assembling the
+serialization. The outer-loop limit is inherited and restated (a
+hole's band is reachable from neither alphabet). Census: all five
+names left `NOT_BOUND` and needed no `BOUND_AS` — the stub declares
+them at those exact spellings, so rule 1 accounts them — and
+`B-NAME-BUILDERS` left `FAMILIES`; the `StableName` `NOT_BOUND` row's
+reason sharpened (a name is `str` on this side; the doors mint by
+role and answer opaque text, which is why they are module doors and
+not methods on a name class). No conversion sites existed — the
+suite and the guide selected off evaluations, never hand-writing a
+name — so the doors' positive form is the new test file, and the
+guide gained a STEP ("Naming a role before the body exists",
+executed like every block) because the section teaching selections
+said the opposite of what is now true; prose that had gone false
+("there is no name-building vocabulary in Python", "never composed")
+was fixed, the surviving invariant being "a name is never READ or
+assembled". `meridian_vertex` takes the bound `MeridianEnd` mirror,
+not a word. The two volume oracles are asserted to a relative 1e-12
+(π summed in a different order than the kernel accumulates), stated. Two `legal.py` fixture variables were renamed because they shadowed the new module-level `carried`. No shipped word moved; the lane ran
+the pinned ruff for real. Orchestrator note: the pre-read of the first commit matched the report line for line; the mid-flight merge of EDITS (census, stub, both ty fixtures) was clean and every row was re-run on the merged tree. ~59 min (~9 of them waiting on the build slot), ~253k tokens.
