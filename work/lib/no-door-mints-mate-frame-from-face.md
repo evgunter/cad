@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-23
 github: 944
 refs: [938]
+needs_ev: true
 ---
 
 ## From GitHub issue 944
@@ -37,3 +38,48 @@ Deriving a frame from a face at AUTHORING time does not weaken A11: the solve st
 ## Home
 
 S-MATE's `keep_out` names this issue by number as its own, to be taken with LIB's hand-off; `crates/editor-core/src/mate.rs` is in its territory.
+
+## Question for Ev (2026-09-09, LIB orchestrator; `[ev]` PR)
+
+The authoring gesture "mate THIS face" has no spelling: `face_frame`
+answers a named face with a `Pose` (origin, axis, an optional `u_ref`;
+`crates/topo/src/readback.rs:88`), `MateFrame` is three authored
+vectors (origin, axis, reference; `crates/editor-core/src/mate.rs:115`),
+and nothing maps one into the other. Two decisions, then a shape.
+
+**1. Frozen or re-derived?** A11 makes the solve structural — it reads
+authored numbers and inspects no geometry. A door that derives a frame
+from a face can either MATERIALIZE the pose into numbers at authoring
+time (the `select` doors' own materialize-then-store rule: the mate
+stores three vectors exactly as if the author had typed them, and the
+solve is untouched), or record the face and re-derive the frame at
+solve time (geometry re-enters the solve, which A11 forbids and the
+item already presumes is not wanted). Recommendation: **frozen**. It
+removes the retyping, not the drift: a face that moves after an edit
+still leaves the stored frame behind, and the at-rest gate remains the
+signal, as today.
+
+**2. The reference axis when the face gives none.** `placement`
+refuses a `reference` parallel to `axis`, and a `Pose` carries
+`u_ref` only for faces with a canonical in-plane direction. So the
+door needs a rule for the rest: **(i)** take an explicit `reference`
+argument that is used when `u_ref` is absent and refused with a typed
+error when both are missing — recommended; **(ii)** invent one (any
+perpendicular), which makes the clocking arbitrary and silent.
+
+**3. The shape**, given 1 and 2(i): **(A)** one kernel door,
+`MateFrame::from_pose(pose, reference: Option<[f64; 3]>)` in
+`editor_core::mate`, plus the composition at the façade and in Python
+(`MateFrame.from_face(evaluation, node, name, reference=None)`),
+refusing as a typed `MateFrameError` when neither source gives a
+reference — recommended, mechanical once ruled; **(B)** the same door
+that also records the face's `StableName` on the `MateFrame` as
+provenance, so a later check can compare the frozen frame against the
+face's current pose and report drift — a new field on a persisted
+struct and a new advisory check, which is a second unit, not a
+refinement of the first; **(C)** leave it: the mitigation (model each
+part from the datum it mates on) stays the documented answer.
+
+**4. Whose.** The Home line names S-MATE, which has no tracker
+directory today; LIB can take (A) as a mechanical unit in this wave,
+or hand it to the solver's program. Recommendation: LIB takes (A).
