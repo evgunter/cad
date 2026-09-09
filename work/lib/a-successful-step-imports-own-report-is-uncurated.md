@@ -2,9 +2,10 @@
 id: a-successful-step-imports-own-report-is-uncurated
 kind: issue
 title: a successful STEP import's report is uncurated: StepImport and the normalization records
-status: open
+status: closed
 opened: 2026-09-08
 refs: [LIB-CUR6]
+closed: 2026-09-09
 ---
 
 
@@ -66,3 +67,61 @@ the carriage is `StepImport` plus the record vocabulary its `Solid`
 arm names, with each Python row placed by LB17's carrier rule —
 noting that Python's `import_step` answers a `Body` and drops the
 report entirely, so the Rust and Python halves may land apart.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+`import_step` is curated at neither end of its success half: a prelude
+consumer can call it and cannot SPELL the type it is handed
+(`StepImport`), nor read what the importer changed about the file
+(`StructureNormalization`, `NormalizationKind`, `CurvePromotion`,
+`PlacedInstance` — the record the type's own docs say is "reported,
+never silent"). Python's `import_step` drops the report entirely and
+answers a `Body`. Does the success value's report cross, and where?
+
+- **(A) Carry `StepImport` and the record vocabulary its `Solid` arm
+  names at the façade (`pncad::step_import` group, under the reach
+  clause: a door's own answer is spellable from the list that carries
+  the door), and give Python an `ImportReport` value class beside the
+  body** — normalizations, promotions, instances as frozen rows, each
+  placed by LB17's carrier rule. Rust and Python halves may land apart.
+  Recommended.
+- **(B) Carry the carrier alone** (`StepImport`), record vocabulary
+  interior: a caller can store the answer and still cannot read the
+  report.
+- **(C) Leave it**: the report stays a Rust-only, module-hop-away read.
+
+Recommendation: **(A)** — the door's own documentation argues twice
+that the report is something a caller reads.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2232)
+
+**(A).** Ev: "A is good." Carry `StepImport` and the record vocabulary
+its `Solid` arm names at the façade under the reach clause, and give
+Python an `ImportReport` value class beside the body — normalizations,
+promotions, instances as frozen rows, each placed by LB17's carrier
+rule. Rust and Python halves may land apart. The report's `.body` /
+`.enclosure` shape depends on the sibling
+(`pncad-py-import-step-drops-the-gates-enclosure`), still open with
+Ev at the time of this ruling; the unit dispatches once both are
+ruled.
+
+## Closed (2026-09-09, LIB-IMPORT-REPORT)
+
+(A), as ruled. `StepImport` and the record vocabulary its `Solid` arm
+names are on the prelude's `step_import` list —
+`StructureNormalization`, `NormalizationKind`, `CurvePromotion`,
+`PromotedCurveKind`, `PlacedInstance`, `FaceCensus`, with
+`PromotedKind` already there from the refusal side and now reached
+from two carriers. `crates/pncad/tests/all.rs`'s
+`the_import_answer_and_its_record_are_spellable_through_the_prelude`
+binds every field of the arm from the prelude alone, so an answer that
+stops being spellable stops compiling.
+
+The `Wireframe` arm the finding also named needed nothing new: its
+carriers are `Curve3`, already on the list, and its promotions are the
+same `CurvePromotion`.
+
+Python's half landed in the same unit rather than apart: the report is
+`ImportReport`, and each row of the record projects every field of its
+kernel type, with the two discriminants as words from exhaustive tag
+maps.

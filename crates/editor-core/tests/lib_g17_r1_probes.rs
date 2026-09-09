@@ -75,8 +75,8 @@ fn an_order_swap_changes_only_the_rim_name() {
     let a = vessel::document();
     let b = vessel::document_with_open(|pot| {
         [
-            vessel::band_pi(pot, vessel::SEG_MOUTH),
-            vessel::band(pot, vessel::SEG_MOUTH),
+            editor_core::band_pi(pot, vessel::SEG_MOUTH),
+            editor_core::band(pot, vessel::SEG_MOUTH),
         ]
     });
     let (sa, sb) = (a.result.unwrap(), b.result.unwrap());
@@ -122,14 +122,14 @@ fn an_order_swap_changes_only_the_rim_name() {
         only_a,
         vec![&format!(
             "{:?}",
-            rim(sa, vessel::band(pot, vessel::SEG_MOUTH))
+            rim(sa, editor_core::band(pot, vessel::SEG_MOUTH))
         )]
     );
     assert_eq!(
         only_b,
         vec![&format!(
             "{:?}",
-            rim(sb, vessel::band_pi(pot, vessel::SEG_MOUTH))
+            rim(sb, editor_core::band_pi(pot, vessel::SEG_MOUTH))
         )]
     );
 }

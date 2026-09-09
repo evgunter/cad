@@ -204,7 +204,7 @@ use crate::offset_together::ChartMove;
 use crate::props::PropsQuadLane;
 use crate::replace_face::ReplaceFaceError;
 
-/// The revolution axis every accepted surface shares, with the body's
+/// The revolution axis every accepted surface shares, with the scope's
 /// own radial extent — the length that levers every direction test
 /// here, so a verdict about alignment is a statement about the geometry
 /// being judged.
@@ -347,8 +347,15 @@ impl<T: Decide> Profile<T> {
 /// **Offset every chart of an axial `body` at once** (module docs).
 ///
 /// `moves` names each chart and its signed distance along the chart's
-/// stored outward direction; every face of the body must appear exactly
-/// once across them.
+/// stored outward direction. Every face of every SOLID the moves touch
+/// must appear exactly once across them, and no solid may be touched in
+/// part; a solid the moves do not name is not offset and its geometry
+/// is not written.
+///
+/// **What it READS is not as tight as what it writes**, and the whole
+/// account — which two reads are scope-sized, which four are still
+/// linear in the body, and what that costs — is [`crate::offset_together::Scope`]'s, stated
+/// there once for both doors.
 ///
 /// # Errors
 ///
@@ -388,14 +395,25 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
             seen.push(face);
         }
     }
+    // The scope is the SOLIDS the moves touch, and every face of each
+    // of them must be in the set: a corner belongs to one solid, so a
+    // solid named in part has corners whose answer depends on faces
+    // the door was not told about, while a solid named not at all has
+    // no corner this call can disturb.
+    let scope = crate::offset_together::scope_of_moves(body, moves)?;
     for (face, _) in body.faces() {
-        if !seen.contains(&face) {
+        if scope.holds_face(face) && !seen.contains(&face) {
             return Err(ReplaceFaceError::TogetherPartialSet { face });
         }
     }
 
     // ---- Decide: the axis, and every chart against it. ----
-    let frame = axial_frame(body)?;
+    //
+    // The axis is the SCOPE's, not the body's: a box standing beside a
+    // vessel has no axis of its own, and reading the seed or the
+    // extent off it would answer a question about the vessel with the
+    // box's geometry.
+    let frame = axial_frame(body, &scope)?;
     let mut charts: Vec<(FaceKey, MovedChart<T>)> = Vec::new();
     for m in moves {
         // **The cone's mirror nappe is a CONSUMER obligation, and this
@@ -457,6 +475,9 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
     // ---- Decide: every corner, before anything is written. ----
     let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
     for (vertex, _) in body.vertices() {
+        if !scope.holds_vertex(vertex) {
+            continue;
+        }
         let mut at: Vec<&MovedChart<T>> = Vec::new();
         for face in crate::offset_together::faces_at_vertex(body, vertex)? {
             let c = chart_of(face).ok_or(ReplaceFaceError::Corrupt)?;
@@ -479,6 +500,9 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
     for (edge, edge_data) in body.edges() {
+        if !scope.holds_edge(edge) {
+            continue;
+        }
         let (fa, fb) =
             crate::replace_face::edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
         let (ca, cb) = (
@@ -606,11 +630,17 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                 error,
             })?;
     }
-    // Every edge was re-described, and the charts here DO mint pcurve
-    // rows (a cylinder, a cone and a sphere all do), so this pass is
-    // load-bearing rather than the planar door's inert one.
-    crate::pcurves::mint_pcurves(&mut work, tol)
+    // Every edge OF THE SCOPE was re-described, and the charts here DO
+    // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
+    // pass is load-bearing rather than the planar door's inert one. It
+    // runs over the scope's faces alone: an out-of-scope row belongs to
+    // an edge this door did not touch and stays exactly as it was found.
+    let minting = scope.faces_in_scope();
+    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol)
         .map_err(|source| ReplaceFaceError::Pcurve { source })?;
+    // Tier 2 over the WHOLE clone, deliberately, and one of the four
+    // reads that stay linear in the body (`Scope`'s docs carry the
+    // account and the reason for each).
     if let Err(errors) = crate::validate::validate_closed(&work) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
@@ -626,13 +656,13 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 /// surface is a plane, cylinder, cone, sphere or TORUS, the curved ones
 /// share one axis LINE, and every plane is normal to it or contains it.
 ///
-/// `shell` reads this to pick its branch, so a body outside it keeps
-/// exactly the posture it had.
+/// `shell` reads this per SOLID to pick that solid's branch, so a solid
+/// outside it keeps exactly the posture it had.
 ///
 /// # Errors
 ///
 /// **An ESCALATION is not a `false`.** The gate's own tests are
-/// margined — a normal's misalignment levered by the body's extent, a
+/// margined — a normal's misalignment levered by the scope's extent, a
 /// centre's distance from the axis — and a margin that lands in the
 /// ambiguity band means this body's kinds are not DECIDED either way
 /// (D4 ¶3). Answering `false` there would turn "I cannot tell" into a
@@ -641,7 +671,7 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 /// the undecided geometry that actually stopped it. So the escalation
 /// is returned typed and the caller refuses with it. Every other
 /// verdict — a NURBS or fitted wall, a skew cylinder, a torus whose own
-/// axis is NOT the body's, an all-planar body with no axis at all — is
+/// axis is NOT the scope's, an all-planar scope with no axis at all — is
 /// a definite `false` and stays one. A COAXIAL torus is no longer one
 /// of them: it is inside the roster this door takes, and the table at
 /// the top of this module carries its meridian circle.
@@ -659,10 +689,27 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 /// therefore written for correctness rather than pinned by a fixture,
 /// which is stated here rather than left to be discovered as a gap.
 pub fn is_axial<T: Decide>(body: &Body<T>, band: Band) -> Result<bool, ReplaceFaceError<T>> {
-    let Ok(frame) = axial_frame(body) else {
+    let scope = crate::offset_together::Scope::whole(body).ok_or(ReplaceFaceError::Corrupt)?;
+    is_axial_in(body, &scope, band)
+}
+
+/// [`is_axial`] over the faces of the solids `scope` names, and nothing
+/// else. Axiality is a property of a solid — a box beside a vessel is
+/// not a body of revolution and each of the two is one — so the door
+/// decision is read per solid and a solid's answer never depends on
+/// what stands beside it.
+pub(crate) fn is_axial_in<T: Decide>(
+    body: &Body<T>,
+    scope: &crate::offset_together::Scope,
+    band: Band,
+) -> Result<bool, ReplaceFaceError<T>> {
+    let Ok(frame) = axial_frame(body, scope) else {
         return Ok(false);
     };
     for (face, f) in body.faces() {
+        if !scope.holds_face(face) {
+            continue;
+        }
         let Some(surface) = body.get_surface(f.surface) else {
             return Ok(false);
         };
@@ -678,16 +725,23 @@ pub fn is_axial<T: Decide>(body: &Body<T>, band: Band) -> Result<bool, ReplaceFa
     Ok(true)
 }
 
-/// The body's revolution axis and its radial extent, read off the first
-/// curved chart. An all-planar body has no axis and is not this door's.
-fn axial_frame<T: Real>(body: &Body<T>) -> Result<Frame<T>, ReplaceFaceError<T>> {
+/// The revolution axis of the solids `scope` names, and their radial
+/// extent, read off the first curved chart in scope. An all-planar
+/// scope has no axis and is not this door's.
+fn axial_frame<T: Real>(
+    body: &Body<T>,
+    scope: &crate::offset_together::Scope,
+) -> Result<Frame<T>, ReplaceFaceError<T>> {
     let first = body
         .faces()
-        .next()
+        .find(|(k, _)| scope.holds_face(*k))
         .map(|(k, _)| k)
         .ok_or(ReplaceFaceError::Corrupt)?;
     let mut seed: Option<(Point3<T>, Vec3<T>)> = None;
     for (face, f) in body.faces() {
+        if !scope.holds_face(face) {
+            continue;
+        }
         let Some(surface) = body.get_surface(f.surface) else {
             continue;
         };
@@ -726,11 +780,32 @@ fn axial_frame<T: Real>(body: &Body<T>) -> Result<Frame<T>, ReplaceFaceError<T>>
     // subtracting and re-adding `2.0`. Measured on the byte-dump
     // harness, which now reports the curved fixtures unchanged.
     let origin = seed_origin - dir * (vec_of(seed_origin)).dot(dir);
-    // The extent is the body's own furthest vertex from the axis point:
-    // the length a direction error would move a corner by, which is the
-    // geometry every alignment verdict here is about.
+    // The extent is the SCOPE's own furthest vertex from the axis
+    // point: the length a direction error would move a corner by, which
+    // is the geometry every alignment verdict here is about. A box
+    // standing beside a vessel would lever the vessel's margins by its
+    // own distance away, which is a fact about the assembly and not
+    // about the vessel's charts.
+    //
+    // **The scoping of THIS walk is unpinnable, and that is stated
+    // rather than left to be discovered.** `extent` feeds only
+    // `Margin::levered(x, extent)`, and every margin that reads it is
+    // EXACTLY zero on any body of revolution this workspace builds —
+    // the caps' normals, the wall's axis and the frame's direction are
+    // minted from one `AxisFrame`, so the sines and dot products are
+    // exact zeros rather than small numbers. A zero margin decides the
+    // same at every lever, so deleting the guard below leaves the whole
+    // suite green. What would pin it is an operand whose own alignment
+    // margin is NON-zero and small enough that the lever decides the
+    // verdict — a tilted revolve, which `revolve` refuses to build (its
+    // 2-D axis must be `±x`/`±y`) — or a hand-built body of that shape.
+    // The same posture the axis gate's third outcome is documented
+    // under: written for correctness rather than pinned by a fixture.
     let mut extent = T::zero();
-    for (_, v) in body.vertices() {
+    for (vertex, v) in body.vertices() {
+        if !scope.holds_vertex(vertex) {
+            continue;
+        }
         if let Some(p) = body.get_point(v.point) {
             extent = extent.max((*p - origin).norm());
         }

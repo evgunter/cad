@@ -41,6 +41,16 @@
 //!    face has no canonical frame, so `face_frame` refuses it rather
 //!    than nominating one (its kind is still readable).
 //!
+//! **A name can also be MINTED, not only answered.** A selection that
+//! is AUTHORED rather than materialized — a shell's open list, a
+//! fillet's frozen selection — is written before any evaluation of
+//! the minting node exists, so there is nothing to select against and
+//! the name has to be spelled. [`band`], [`band_pi`], [`band_rim`],
+//! [`meridian_vertex`] and [`carried`] are that direction of the
+//! vocabulary [`SegPat::tag`] matches in: each mints one
+//! [`StableName`](editor_core::StableName) with the
+//! [`EntityKind`] its role denotes already fixed.
+//!
 //! **A name also says which node MADE the entity.** [`attribute`]
 //! walks a name's carry-through segments — `FromTarget`, `FromA`,
 //! `Instance` and their siblings — down to the role that minted it,
@@ -54,15 +64,33 @@
 //! boolean's own verify-at-use — and [`declare`]/[`declare_all`]
 //! turn findings the caller has INSPECTED into `Node::Declare`.
 
+// `NamingError` is in this list by the payload rule `crate::document`
+// states: it is what `document::NodeErrorKind::Naming` holds, and the
+// emission layer that raises it is this module's. A consumer able to
+// match the arm and unable to name what it caught reads the emission
+// failure out of prose.
+//
+// **That placement is the general rule and not a one-name
+// exception**, and `EntityKind` and `SplitHalf` below are the rest of
+// it. Both are `document::NodeErrorKind`'s payload as well — and
+// `RefusedRef`'s and `PartSelect`'s — and both are the naming-role
+// vocabulary this module owns, beside `RoleSeg`, `SegTag` and
+// `Denotation`. A payload whose vocabulary one of the curated
+// lists owns lives on THAT list, spelled once; a payload whose only
+// home is the refusal holding it rides its carrier, which is what
+// `crate::document`'s `VerbKind` does. The cost is one extra `use`
+// for a consumer of `pncad::document` alone, and the cost the other
+// way is the same name on two lists.
 pub use editor_core::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NameOrigin, NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
-    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
-    declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_carrier_kind,
-    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
+    NameOrigin, NamePat, NameTable, NamingError, OpGroup, ProfileEdgeRef, ProfileVertexRef,
+    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
+    Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    attribute, band, band_pi, band_rim, carried, declare, declare_all, declare_node, denotation,
+    edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates,
+    meridian_vertex, select, select_where, vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class, on this evidence" — the fourth quarter of a vocabulary this

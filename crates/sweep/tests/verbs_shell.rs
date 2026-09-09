@@ -1101,12 +1101,17 @@ fn a_curved_two_shell_shell_refuses_step_export() {
 #[ignore = "a measurement, not a gate — see the doc comment"]
 fn the_shell_cost_is_measured_not_asserted() {
     use std::time::Instant;
-    let cases: Vec<(&str, Body<f64>, f64)> = vec![
-        ("box", boxy(2.0, 3.0, 4.0), 0.25),
-        ("vessel", vessel(1.0, 2.0), 0.2),
-        ("tube", tube(0.6, 1.0, 2.0), 0.1),
+    let v = vessel(1.0, 2.0);
+    let top = plane_chart_at_y(&v, 2.0);
+    let cases: Vec<(&str, Body<f64>, f64, Vec<FaceKey>)> = vec![
+        ("box", boxy(2.0, 3.0, 4.0), 0.25, Vec::new()),
+        ("vessel", v.clone(), 0.2, Vec::new()),
+        ("tube", tube(0.6, 1.0, 2.0), 0.1, Vec::new()),
+        // The opened arm: its lift door mints the whole body once more
+        // before the closing mint does.
+        ("vessel opened top", v, 0.2, top),
     ];
-    for (name, body, t) in cases {
+    for (name, body, t, open) in cases {
         // Counts are PRINTED, never spelled into the label: a hand
         // label drifts from the fixture (this row's first version said
         // "vessel (4 faces)" while printing 6) and a drifted label is
@@ -1119,7 +1124,7 @@ fn the_shell_cost_is_measured_not_asserted() {
             k.len()
         };
         let start = Instant::now();
-        let hollow = topo::shell(&body, t, Tol::witness())
+        let hollow = topo::shell_open(&body, t, &open, Tol::witness())
             .expect("the fixture shells")
             .body;
         let build = start.elapsed();

@@ -2,8 +2,9 @@
 id: pncad-py-comparable-enums-do-not-hash
 kind: issue
 title: pncad-py: every comparable enum crosses unhashable, so a tally by kind cannot use a set or dict
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-08
 ---
 
 
@@ -66,3 +67,31 @@ assert. The question worth asking before doing it is
 whether any of the 23 is deliberately unhashable — nothing in the tree
 says so, and the uniformity of the miss (23 of 23, no site asking for
 `hash`) reads as never-considered rather than decided.
+
+## Closed
+
+2026-09-08 by LIB-HASH. Every fieldless mirror in
+`crates/pncad-py/src/py/` carries `eq, eq_int, frozen, hash` and
+derives `Eq, Hash`; `{SurfaceKind.Plane}` no longer raises.
+
+**The count was 24, not 23**: `AssertionDir`
+(`crates/pncad-py/src/py/measure.rs`) arrived between the filing and
+the fix, which is the argument for the guard the unit added rather
+than a roster.
+
+**`frozen` is required** — pyo3 0.29.0's `pyclass_hash` refuses `hash`
+without both `frozen` and `eq` — and costs a fieldless mirror nothing.
+
+**The question this row asked is answered: no.** Not one of the 24 is
+deliberately unhashable; no doc comment on any mirror mentions
+hashing, keys, or a reason to refuse them. The uniformity of the miss
+read as never-considered and that is what it was.
+
+`Denotation` — the one class this row's probe named as invisible to it
+— hashes too, by hand, over the same `(tied, candidates)` its
+hand-written `__eq__` reads.
+
+The residue this row's blind spot pointed at is its own file:
+`pncad-py-value-classes-compare-without-hashing` holds the nine value
+classes that still compare without hashing, `Expr` and `MeasureExpr`
+being the two that say why they do not.

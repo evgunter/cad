@@ -536,6 +536,9 @@ mod review_fillet_h6_r1_probes;
 #[path = "review_fillet_h6_r2_probes.rs"]
 mod review_fillet_h6_r2_probes;
 
+#[path = "review_blend_k_rk_probes.rs"]
+mod review_blend_k_rk_probes;
+
 #[path = "fillet_h7_transverse_cap.rs"]
 mod fillet_h7_transverse_cap;
 #[path = "fillet_h7_transverse_cap_interval.rs"]
@@ -556,6 +559,11 @@ mod review_fillet_h7_r2_probes;
 #[path = "review_fillet_t_r2_probes.rs"]
 mod review_fillet_t_r2_probes;
 
+#[path = "review_blend5_r5_probes.rs"]
+mod review_blend5_r5_probes;
+
+#[path = "review_blend4_r4_probes.rs"]
+mod review_blend4_r4_probes;
 #[path = "shell5_r1_dump.rs"]
 mod shell5_r1_dump;
 #[path = "shell5_r1_probes.rs"]
@@ -574,6 +582,16 @@ mod shell7_common;
 
 #[path = "shell7_dump.rs"]
 mod shell7_dump;
+#[path = "shell8_common.rs"]
+mod shell8_common;
+#[path = "shell8_dump.rs"]
+mod shell8_dump;
+#[path = "shell8_multi_solid.rs"]
+mod shell8_multi_solid;
+#[path = "shell8_r1_probes.rs"]
+mod shell8_r1_probes;
+#[path = "shell8_r2_probes.rs"]
+mod shell8_r2_probes;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
@@ -583,3 +601,33 @@ mod shell7_r1_diff;
 
 #[path = "shell7_r2_probes.rs"]
 mod shell7_r2_probes;
+
+#[path = "shell9_probe.rs"]
+mod shell9_probe;
+
+#[path = "shell9_rows.rs"]
+mod shell9_rows;
+
+#[path = "shell9_r1_probes.rs"]
+mod shell9_r1_probes;
+
+#[path = "shell9_r2_probes.rs"]
+mod shell9_r2_probes;
+
+#[path = "shell9_r2_dump.rs"]
+mod shell9_r2_dump;
+
+#[path = "shell10_scoped_walks.rs"]
+mod shell10_scoped_walks;
+
+#[path = "shell10_r1_probes.rs"]
+mod shell10_r1_probes;
+
+#[path = "shell10_r2_probes.rs"]
+mod shell10_r2_probes;
+
+#[path = "shell10_r2_cost.rs"]
+mod shell10_r2_cost;
+
+#[path = "shell10_r2_dump.rs"]
+mod shell10_r2_dump;

@@ -14,11 +14,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    AssemblyError, CapEnd, DeclareError, Diagnosis, Dimension, DimensionError, DocParamValue,
-    EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateFault, MateSide,
-    MeshPickError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId,
-    RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId, SnapshotError,
-    StableName, StepArg,
+    AssemblyError, CapEnd, ContactClass, DeclareError, Diagnosis, Dimension, DimensionError,
+    DocParamValue, EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateFault,
+    MateSide, MeshPickError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault,
+    RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg,
 };
 
 /// Asserts the F6 shape over one rendering: the wanted content is
@@ -710,10 +710,50 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     );
 }
 
+/// The mint door's at-rest refusal ends on
+/// [`editor_core::NO_AT_REST_RECORD_RECOURSE`] — and so does the
+/// `MintRefusal` row it is raised from, because one function renders
+/// the sentence for both. A recourse reached by only one of the two
+/// carriers is a user who sees the repair or not depending on how deep
+/// the mate was declared.
+#[test]
+fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
+    let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
+    let raised = AssemblyError::NoAtRestRecord {
+        mate: RecipeNodeId(5),
+        class: ContactClass::Tangent,
+        why,
+    };
+    assert_f6(
+        &raised,
+        &[
+            "mate 5's class Tangent has no at-rest kernel record",
+            why,
+            editor_core::NO_AT_REST_RECORD_RECOURSE,
+        ],
+        &["NoAtRestRecord"],
+    );
+
+    let row = editor_core::MintRefusal::NoAtRestRecord {
+        mate: RecipeNodeId(5),
+        class: ContactClass::Tangent,
+        why,
+    };
+    assert_f6(
+        &row,
+        &[why, editor_core::NO_AT_REST_RECORD_RECOURSE],
+        &["NoAtRestRecord"],
+    );
+}
+
 /// A mate-solve contradiction states WHO is at fault. Two mates that
 /// cannot both hold are named as a pair; one mate that contradicts
 /// itself is named ONCE, because "mates 6 and 6" reads as an indexing
 /// fault and hides the shape the payload states.
+///
+/// Both shapes end on [`editor_core::CONTRADICTORY_RECOURSE`], which
+/// is why that sentence names neither a pair nor a count: one recourse
+/// covers a repair that is the same either way.
 #[test]
 fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     let pair = MateFault::Contradictory {
@@ -725,7 +765,11 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     };
     assert_f6(
         &pair,
-        &["mates 3 and 5 cannot both hold", "a clash of 0.01 m"],
+        &[
+            "mates 3 and 5 cannot both hold",
+            "a clash of 0.01 m",
+            editor_core::CONTRADICTORY_RECOURSE,
+        ],
         &["Contradictory"],
     );
     assert!(
@@ -742,7 +786,11 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     };
     assert_f6(
         &itself,
-        &["mate 6 contradicts itself", "mate_clocking_redundant"],
+        &[
+            "mate 6 contradicts itself",
+            "mate_clocking_redundant",
+            editor_core::CONTRADICTORY_RECOURSE,
+        ],
         &["Contradictory"],
     );
     assert!(
@@ -795,6 +843,11 @@ fn a_levered_clash_prints_only_a_product_that_is_the_product() {
 /// that merely fails to be finite — a NaN, a negative infinity, or an
 /// infinity under some other predicate — is reported as the
 /// non-measurement it is and never borrows the empty set's sentence.
+///
+/// The four shapes below are every exit the arm has, and each is
+/// checked to end on [`editor_core::CONTRADICTORY_RECOURSE`]: the
+/// repair does not depend on which measurement the predicate could
+/// report, so no exit may drop it.
 #[test]
 fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     let empty = MateFault::Contradictory {
@@ -808,6 +861,10 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     assert!(
         shown.contains("meet in the empty set") && !shown.contains("inf"),
         "the structural refusal has no metre figure to print: {shown:?}"
+    );
+    assert!(
+        shown.contains(editor_core::CONTRADICTORY_RECOURSE),
+        "{shown:?}"
     );
 
     for (what, clash) in [
@@ -831,6 +888,10 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
             shown.contains("not a finite length"),
             "a {what} margin says it is no measurement: {shown:?}"
         );
+        assert!(
+            shown.contains(editor_core::CONTRADICTORY_RECOURSE),
+            "{shown:?}"
+        );
     }
 
     // An infinity that carries a lever is still levered: the empty-set
@@ -846,5 +907,9 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     assert!(
         shown.contains("a roll of") && !shown.contains("empty set"),
         "a levered clash keeps its halves whatever the stored figure is: {shown:?}"
+    );
+    assert!(
+        shown.contains(editor_core::CONTRADICTORY_RECOURSE),
+        "{shown:?}"
     );
 }

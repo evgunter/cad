@@ -40,11 +40,11 @@
 //! every document green at `Dual64`.
 
 use editor_core::{
-    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileEdgeRef, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, StableName,
+    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
 };
 
-use crate::fixture::{ang, axis_in_plane, fname, frame, len};
+use crate::fixture::{ang, axis_in_plane, frame, len};
 
 use super::{CorpusDoc, Recorder};
 
@@ -97,28 +97,6 @@ pub fn meridian() -> LoopProgram {
         ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, Y_MOUTH))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
-}
-
-/// The `[0, π)` face swept from a meridian segment.
-pub fn band(pot: RecipeNodeId, seg: u32) -> StableName {
-    fname(
-        pot,
-        RoleSeg::Band(ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        }),
-    )
-}
-
-/// The `[π, 2π)` face swept from a meridian segment.
-pub fn band_pi(pot: RecipeNodeId, seg: u32) -> StableName {
-    fname(
-        pot,
-        RoleSeg::BandPi(ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        }),
-    )
 }
 
 /// The vessel with its `open` list AUTHORED by the caller — two names,

@@ -2,9 +2,10 @@
 id: mesh-index-numbers-cross-as-prose-under-a-projecting-door
 kind: issue
 title: NodePickError projects its arms' fields but not the index arm's three numbers
-status: open
+status: closed
 opened: 2026-09-08
 refs: [pncad-py-seven-doors-lack-field-projection]
+closed: 2026-09-08
 ---
 
 Disclosed by LIB-CUR5, which carried `MeshPickError` and projected its
@@ -51,3 +52,33 @@ Three attributes on the `NodePickError` exception (`patch`,
 `triangle`, `index`), `None` on every other arm, `pncad.pyi` and the
 `py/mod.rs` docstring with them. The Rust side needs nothing: the
 fields are public on a curated type.
+
+## Closed (2026-09-08, LIB-PROJ)
+
+`patch`, `triangle` and `index` are attributes on `NodePickError`,
+present on every arm and `None` on the four that are not the index
+arm. The projection is
+`crates/pncad-py/src/pick_payload.rs::index_payload`, exhaustive over
+both `NodePickError` and `MeshPickError` with no wildcard at either
+level; `py/pick.rs::node_pick_err` is the class's one raise site, so
+the three attributes are on every instance of the class by
+construction. Stub, class docstring, census row and ty fixture moved
+with them.
+
+**Where the numbers are pinned, and why not in Python.** This item is
+right that the arm is unreachable from any authoring door and
+unconstructible from Python, so no Python row can read the three
+numbers back. That is why the flattening is sited outside `py/`: the
+default no-Python build can construct a `MeshPickError` and read every
+field off it, and
+`src/tests.rs::every_pick_arm_projects_the_index_numbers_it_carries`
+does — at `patch: 3, triangle: 11, index: 47`, three distinct numbers
+so a swapped slot shows as a moved value rather than as zeroes
+agreeing. `test_picking.py` owns the other half of "present on every
+arm": that the three attributes exist and read `None` on the arms a
+caller can reach.
+
+The `MeshPickError` census row keeps its `BOUND_AS` spelling
+(`NodePickError.index_variant` is still where the discriminant
+crosses) and its prose moved: the sentence "the three numbers ... are
+in the message" is now "beside the discriminant".

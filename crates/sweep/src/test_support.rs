@@ -155,73 +155,6 @@ pub fn dome_profile(r: f64) -> Vec<ProfileVertex<f64>> {
     ]
 }
 
-/// The one CLOSED plane–sphere rim of `body` whose circle carrier has
-/// radius `rim_r` (to 1e-6). Selection is by the analytically known
-/// radius, not by uniqueness: the dome carries two such rims.
-///
-/// # Panics
-///
-/// If the body does not carry exactly one.
-pub fn closed_plane_sphere_rim(body: &Body<f64>, rim_r: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let start = body.get_half_edge(e.he_plus)?.start;
-            if Some(start) != body.half_edge_end(e.he_plus) {
-                return None;
-            }
-            let surf = |he| -> Option<geom::Surface<f64>> {
-                let l = body.get_half_edge(he)?.parent_loop;
-                let f = body.get_loop(l)?.face;
-                body.get_surface(body.get_face(f)?.surface).cloned()
-            };
-            let (a, b) = (surf(e.he_plus)?, surf(e.he_minus)?);
-            let ps = |x: &geom::Surface<f64>, y: &geom::Surface<f64>| {
-                matches!(x, geom::Surface::Plane { .. })
-                    && matches!(y, geom::Surface::Sphere { .. })
-            };
-            if !(ps(&a, &b) || ps(&b, &a)) {
-                return None;
-            }
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                geom::Curve3::Circle { radius, .. } if (radius - rim_r).abs() < 1e-6 => Some(k),
-                _ => None,
-            }
-        })
-        .collect();
-    assert_eq!(
-        hits.len(),
-        1,
-        "exactly one closed plane–sphere rim of radius {rim_r}"
-    );
-    one_edge_rim(body, hits[0])
-}
-
-/// **The one-edge rim `seed` belongs to, through the kernel door.**
-///
-/// The fixture-side spelling for a body whose latitude rims are single
-/// closed edges: a suite names the arc it means by whatever analytic
-/// handle its fixture states — radius, station, support kinds — and
-/// this asks [`topo::query::rim_of`] whether that arc IS the rim,
-/// rather than assuming it. Returns the door's answer, so the key a
-/// row blends is the key the door named.
-///
-/// # Panics
-///
-/// If the door refuses, or answers with more than one arc: either is a
-/// statement about the fixture, and a fixture that stopped minting a
-/// one-edge rim should say so loudly rather than blend a different set.
-#[must_use]
-pub fn one_edge_rim(body: &Body<f64>, seed: EdgeKey) -> EdgeKey {
-    let rim = topo::query::rim_of(body, seed)
-        .unwrap_or_else(|e| panic!("the selected arc is a whole rim, got {e}"));
-    match rim[..] {
-        [only] => only,
-        ref many => panic!("this fixture's rim is one closed edge, got {many:?}"),
-    }
-}
-
 /// **Every arc of the latitude rim at radius `rim_r` and station
 /// `rim_y`** — a FIXTURE SELECTION that names one of the rim's arcs,
 /// and the kernel door that hands back the rest.
@@ -266,6 +199,34 @@ pub fn rim_arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<Edg
     }
 }
 
+/// **The ONE edge of the rim at radius `rim_r` and station `rim_y`** —
+/// [`rim_arcs_at`]'s answer for a fixture whose rim is a single closed
+/// edge, in the shape a caller that holds one key needs.
+///
+/// Carries no scan and no window of its own: the selection is
+/// [`arcs_at`]'s and the rim is [`topo::query::rim_of`]'s. What it adds
+/// is the fixture's claim that this rim is ONE edge, said once here
+/// instead of at every suite that wants a key rather than a set.
+///
+/// `f64` where [`rim_arcs_at`] is generic: the interval lane blends the
+/// rim as the SET the door hands back, so the key shape has no caller
+/// there and buys no [`Bounds`] bracket read of its own.
+///
+/// # Panics
+///
+/// If the rim at that radius and station is not exactly one edge — an
+/// empty answer (no arc sits there) included, because a caller holding
+/// a key has no way to say "no rim".
+#[must_use]
+pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
+    match rim_arcs_at(body, rim_r, rim_y)[..] {
+        [only] => only,
+        ref many => {
+            panic!("the rim at radius {rim_r}, station {rim_y} is one closed edge, got {many:?}")
+        }
+    }
+}
+
 /// **The circle edges at radius `rim_r` and station `rim_y` whose two
 /// supports are different surfaces**, in key order — the raw scan, and
 /// deliberately NOT a rim.
@@ -275,6 +236,15 @@ pub fn rim_arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<Edg
 /// open arcs on one circle that no rim door will hand back, because
 /// they are not one. Selecting them is a fixture's job; what the door
 /// says about them is the row's subject.
+///
+/// **The station is `center.y` and nothing else**: this home names a
+/// latitude of a body poled along +y, which is the axis
+/// [`revolved_about_y`] mints and every fixture it builds. A body poled
+/// along z states its stations in `center.z`, so a z-poled fixture
+/// cannot ask this question here and rolls its own scan —
+/// `seed-finder-home-reads-only-the-y-station` carries the sites and
+/// the two shapes a fix could take. The premise is pinned by
+/// `review_blend4_r4_probes::arcs_at_reads_the_y_station_and_nothing_else`.
 ///
 /// The `1e-9` and the sole [`Bounds`] bound are [`rim_arcs_at`]'s, for
 /// its reasons.
@@ -1074,7 +1044,8 @@ pub const ROD_R: f64 = 0.5;
 pub const ROD_FLAT: f64 = 0.3;
 /// The rod's length, meters. **Unity**, so `A_section · L` and
 /// `A_section` coincide on this fixture; the factor is pinned by the
-/// `L = 2.5` rod in `tests/review_fillet_h7_r2_probes.rs`.
+/// `L = 2.5` rod in
+/// `review_fillet_h7_r2_probes::r2_the_prism_closed_form_scales_with_the_rod_length`.
 pub const ROD_L: f64 = 1.0;
 /// The fillet radius the rod rows carve at, meters — one home for the
 /// rod's four numbers.
