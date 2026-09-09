@@ -6,7 +6,7 @@ status: review
 branch: lib/helper
 opened: 2026-09-09
 refs: [expr-seat-costs-a-constructor-call-at-every-authored-number]
-pr: 0
+pr: 2269
 ---
 
 Closes `expr-seat-costs-a-constructor-call-at-every-authored-number`
