@@ -29,7 +29,7 @@ if !self.store.usable() {
 ```
 
 — a silent return. Its reporting arm (`self.notices.push(
-frame::store_refusal(&error))`, `app.rs:1022`) is reachable only from
+frame::store_refusal(&error))`, `app.rs:1023`) is reachable only from
 `save`'s `Err`, which the early return makes unreachable on the one
 target where the store is known unusable.
 
