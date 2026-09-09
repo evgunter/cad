@@ -20,3 +20,8 @@ program's `program.md` — but LIB is the program that touched all
 three this run (LIB-MC, LIB-DISCRIMINANTS, LIB-MIRROR), so it is
 filed here with the three paths for whoever draws the next
 territory map (`work/README.md` says how paths are claimed).
+
+## A fourth (2026-09-09, LIB-HELPER)
+
+`crates/editor-core/src/expr.rs` — the expression layer, touched by
+LIB-SEATS and LIB-HELPER this run — is also in no program's `paths:`.

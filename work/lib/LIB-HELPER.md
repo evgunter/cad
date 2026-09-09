@@ -2,11 +2,12 @@
 id: LIB-HELPER
 kind: unit
 title: Expr::length_in and angle_in, mirrored on both sides: one call at every authored number
-status: review
+status: closed
 branch: lib/helper
 opened: 2026-09-09
 refs: [expr-seat-costs-a-constructor-call-at-every-authored-number]
 pr: 2269
+closed: 2026-09-09
 ---
 
 Closes `expr-seat-costs-a-constructor-call-at-every-authored-number`
