@@ -883,7 +883,14 @@ class TestSketchPlaneFrame(unittest.TestCase):
         self.assertEqual([c.meters for c in frame.origin], [1.0, 2.0, 3.0])
         rebuilt = SketchPlane.from_frame(frame.origin, frame.u, frame.v)
         self.assertEqual(frame, rebuilt)
-        self.assertEqual(hash(frame), hash(rebuilt))
+
+    def test_a_plane_compares_and_does_not_hash(self):
+        """Rust's `SketchPlane` spells `==` as `bit_eq` and derives no
+        `Hash`; this class mirrors it, so `__hash__` is `None` and
+        Python itself refuses a plane as a key."""
+        self.assertIsNone(SketchPlane.__hash__)
+        with self.assertRaises(TypeError):
+            {SketchPlane.xy()}
 
     def test_equality_is_bit_exact_not_tolerant(self):
         """The `Doc.bit_eq` precedent: a sketch plane carries no

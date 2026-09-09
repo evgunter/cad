@@ -1451,3 +1451,7 @@ and their copies in `crates/sweep/tests/review_fillet_h5_r1_probes.rs`
 and `fillet_h5_hostless_rim.rs` deleted in favour of it; the ring-
 clearance refusal pins in those files and `fillet_h5_r2_probes.rs`
 flip to carves. A new suite `blend6_ring_clearance.rs` is added.
+
+## Announced from LIB (2026-09-09): one row added to `profile/tests/sketch_plane.rs`
+
+LIB-MIRROR (PR #2271) adds `the_partial_eq_impl_is_bit_eq_and_answers_the_same_on_the_two_zeros` beside the existing `bit_eq` row, pinning that `SketchPlane<f64>`'s new `impl PartialEq` answers exactly what `bit_eq` answers; one test, no fixture and no runtime cost.

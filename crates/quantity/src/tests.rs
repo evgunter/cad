@@ -514,3 +514,67 @@ fn each_carrier_admits_exactly_its_own_half_of_the_table() {
         }
     }
 }
+
+/// A unit is a key, and its hash is its symbol.
+///
+/// The claim a bug could break is the pair the hash contract is about:
+/// two INDEPENDENTLY reached values of one table row hash alike, and
+/// `Eq`'s answer is `PartialEq`'s answer on every ordered pair of the
+/// table. `def()` and `as_length()`/`as_angle()` are the two ways to
+/// cross between a row and its view, so a hash that read the index
+/// rather than the row, or an `Eq` that disagreed with the derived
+/// comparison, would fail here.
+#[test]
+fn a_unit_row_and_its_view_are_keys_that_hash_by_symbol() {
+    fn digest<T: core::hash::Hash>(value: &T) -> u64 {
+        use core::hash::Hasher;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        value.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    for row in UNITS {
+        let reached = unit_by_symbol(row.symbol()).expect("every row is reachable by its symbol");
+        assert_eq!(row, reached);
+        assert_eq!(digest(&row), digest(&reached));
+        if let Some(view) = row.as_length() {
+            assert_eq!(
+                digest(&view),
+                digest(&view.def().as_length().expect("a length row"))
+            );
+            assert_eq!(digest(&view), digest(&row));
+        }
+        if let Some(view) = row.as_angle() {
+            assert_eq!(
+                digest(&view),
+                digest(&view.def().as_angle().expect("an angle row"))
+            );
+            assert_eq!(digest(&view), digest(&row));
+        }
+    }
+
+    // `Eq` follows `PartialEq`'s answer, over every ordered pair.
+    for left in UNITS {
+        for right in UNITS {
+            assert_eq!(left.eq(&right), left.symbol() == right.symbol());
+        }
+    }
+
+    // The two views the bindings mirror, used as keys: one entry per
+    // row, read back by a value the table minted rather than the
+    // constant that keyed it.
+    let mut tally = std::collections::HashMap::new();
+    for unit in [MM, CM, M, IN] {
+        tally.insert(unit, unit.symbol());
+    }
+    assert_eq!(tally.len(), 4);
+    assert_eq!(
+        tally[&unit_by_symbol("in")
+            .expect("in is a row")
+            .as_length()
+            .expect("in is a length")],
+        "in"
+    );
+    let angles: std::collections::HashSet<_> = [DEG, RAD, PI, DEG].into_iter().collect();
+    assert_eq!(angles.len(), 3);
+}

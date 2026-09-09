@@ -39,7 +39,9 @@ from pncad import (
     DocEdit,
     DocParam,
     Expr,
+    McAssertion,
     McConfig,
+    McMeasure,
     MeasureExpr,
     MeasurePrimitive,
     Node,
@@ -426,8 +428,9 @@ class TestTheReportIsAValue(unittest.TestCase):
         one = monte_carlo(doc, box, config)
         two = monte_carlo(doc, box, config)
         self.assertEqual(one.measures[0], two.measures[0])
-        self.assertEqual(hash(one.measures[0]), hash(two.measures[0]))
-        self.assertEqual(len({one.assertions[0], two.assertions[0]}), 1)
+        self.assertEqual(one.assertions[0], two.assertions[0])
+        self.assertIsNone(McMeasure.__hash__)
+        self.assertIsNone(McAssertion.__hash__)
         with self.assertRaises(AttributeError):
             one.measures[0].mean = 0.0
 

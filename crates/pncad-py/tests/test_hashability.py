@@ -121,11 +121,28 @@ UNHASHABLE = {
     "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
     "report holds the run's findings in order; hashing an aggregate "
     "over a list is the same undecided cost, one rung up",
+    "Distribution": "by design: `editor_core::Distribution` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. An "
+    "offset band is a magnitude with a dimension, not a key; the "
+    "authored record that keys is `DocParam`, which folds `-0.0` "
+    "through the kernel's own `fold_signed_zeros` and hashes",
+    "DocParamValue": "by design: `editor_core::DocParamValue` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. It "
+    "is a parameter's magnitude — `Length`'s reason, one rung up; "
+    "`DocParam`, the authored declaration, is the row that keys",
+    "FaceCensus": "by design: `step_import::FaceCensus` derives "
+    "`PartialEq` and `Eq` and no `Hash`, and this class mirrors its "
+    "derives. Three counts read like a key, but the kernel reports a "
+    "census beside the region it counted and never tallies by one",
     "FlushFinding": "by design: `editor_core::FlushFinding` (the "
     "document seat's `topo::flush::FlushFinding<(StableName, "
     "StableName)>`) derives `PartialEq` and no `Hash`, and this class "
     "mirrors its derives. `CheckFinding`'s reason, for the contact "
     "verifier's findings",
+    "Frame": "by design: `editor_core::Frame` derives `PartialEq` and "
+    "no `Hash`, and this class mirrors its derives. `MateFrame`'s "
+    "reason for the absolute placement: a pose is a datum the solver "
+    "consumes, and it bottoms out in `f64`",
     "MateFrame": "by design: `editor_core::MateFrame` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
     "frame is a pose datum the solver consumes, not a key it tallies "
@@ -135,6 +152,24 @@ UNHASHABLE = {
     "`PartialEq` and no `Hash`, and this class mirrors its derives. "
     "The primitive names which coset of SE(3) a mate pins, and the "
     "kernel MATCHES on it rather than keying by it",
+    "McAssertion": "by design: `editor_core::McAssertion` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. It "
+    "is one row of a report — the counts an assertion drew — reported "
+    "in order beside its measures, never keyed on",
+    "McMeasure": "by design: `editor_core::McMeasure` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
+    "row of empirical statistics is a magnitude five times over, and a "
+    "row nothing could sample carries `NaN`, which equals nothing at "
+    "all",
+    "SketchPlane": "by design: `profile::SketchPlane<f64>` spells `==` "
+    "as `bit_eq` and derives no `Hash`, and this class mirrors it. The "
+    "comparison is bit-for-bit on both sides — `-0.0` and `0.0` are "
+    "different planes — and neither side keys by one",
+    "ValidationFinding": "by design: the binding's own "
+    "`validation::Finding` projection derives `PartialEq` and `Eq` and "
+    "no `Hash`, and this class mirrors its derives — unhashed to match "
+    "the findings beside it, which the kernel reports in a "
+    "deterministic ORDER rather than a set",
 }
 
 
