@@ -242,7 +242,7 @@ mod tests {
     /// extrude's, and the walk says so.
     #[test]
     fn a_carried_face_belongs_to_the_operand_it_came_from() {
-        let carried = at(FILLET, RoleSeg::FromTarget(Box::new(cap())));
+        let carried = crate::names::carried(FILLET, cap());
         let it = attribute(&carried);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert_eq!(it.chain(), [FILLET, EXTRUDE].as_slice());

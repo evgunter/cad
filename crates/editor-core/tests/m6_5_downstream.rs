@@ -317,15 +317,14 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
 #[test]
 fn the_downstream_reference_survives_an_upstream_bump() {
     let (doc, cube, blank) = filleted_blank();
-    let blank_top = StableName {
-        kind: EntityKind::Face,
-        node: blank,
-        path: vec![RoleSeg::FromTarget(Box::new(StableName {
+    let blank_top = editor_core::carried(
+        blank,
+        StableName {
             kind: EntityKind::Face,
             node: cube,
             path: vec![RoleSeg::Cap(CapEnd::End)],
-        }))],
-    };
+        },
+    );
     let before = table_of(&eval(&doc), blank);
     let bumped = apply(
         &doc,
