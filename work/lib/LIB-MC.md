@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-09
 branch: lib/mc
 refs: [advisory-monte-carlo-lane-has-no-python-door]
+pr: 2255
 ---
 
 
