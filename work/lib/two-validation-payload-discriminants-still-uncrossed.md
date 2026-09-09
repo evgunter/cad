@@ -5,7 +5,6 @@ title: two ValidationError payload discriminants still cross as prose only
 status: open
 opened: 2026-09-08
 refs: [LIB-FINDINGS]
-needs_ev: true
 ---
 
 Disclosed by LIB-FINDINGS, which crossed the two payloads Ev's
@@ -91,3 +90,16 @@ Recommendation: **(A)**. The per-arm rule you licensed says a
 discriminant a caller can act on crosses beside the carrier's word;
 there is no reason in the door's shape for two of four to stay prose,
 and the census has already learned to measure the move.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2230)
+
+**(A).** Ev: "A works." Every payload DISCRIMINANT of a projected
+refusal crosses as an attribute of its own, named per type
+(`stale_kind`, `ring_contact_kind`), `None` on every other arm — one
+attribute per concept, never one word meaning different things under
+different `variant`s. Fields that are arena keys still do not cross,
+so the projection stops at the discriminant, as it does everywhere
+else. Mechanical afterwards: two exhaustive maps, two attributes,
+census rows moving with the measurement; the bifurcation arm
+(`witness-bifurcation-arm-has-no-inner-word`) crosses under the same
+rule the day the M6 solver constructs it.
