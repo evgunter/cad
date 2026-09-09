@@ -6693,3 +6693,239 @@ as gone) and
 header's number counts guards where its own rule counts stages, leaving
 three diagnoses able to name the wrong reader — the
 misdiagnosis-by-`pipefail` that same file argues against elsewhere).
+
+## 2026-09-09 — the two wasm dead items are `cfg`, and the refusal that IS unsaid is somewhere else
+
+`viewer-items-unreferenced-at-wasm32` closed. CIW's PR 2263 added the
+first CI row compiling this crate for `wasm32-unknown-unknown` and
+found `WINDOW_TITLE` and `ViewerApp::deliver_status` unreferenced
+there; the row is `cargo check` and not `-D warnings` because of them,
+which made it the one viewer row in the workflow that cannot fail on a
+warning.
+
+**Both took shape (1) — `#[cfg(not(target_family = "wasm"))]` on the
+item — but only after shape (2) was run down.** The item declined to
+choose, and the reason to choose carefully is that shape (2) is a live
+defect and shape (1) buries it: if the browser build ought to be
+delivering status for a refusal it swallows, the `cfg` makes the
+silence permanent. Three findings settle it for `deliver_status`. The
+dialog verdict it carries cannot occur on wasm, because the browser
+links no dialog to return from. The refusal wasm *does* raise on those
+controls is raised earlier and already said, through
+`.on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)` — the same const
+string `dialog_status`'s `Show` arm would put on the line, so #1125's
+posture is met on the hover route, not the status route, and the same
+is true on a desktop with no zenity and no portal. And the status-line
+sentence is unreachable on every target anyway: one `self.chooser` copy
+both gates the button and feeds `dialog_status`, so every reachable
+verdict at both sites is `Keep`.
+
+**Shape (2) is real in this crate, and the sweep found it one control
+over.** The sweep rule was every `cfg(…target_family = "wasm"…)` site
+under `crates/viewer/src` — 35 by that spelling — asked whether the
+browser takes a different arm, whether the difference is a refusal, and
+whether anything says so. The preferences store is one: on wasm
+`Store` is `prefs::Absent`, `remember_theme` returns early on
+`!store.usable()`, and the palette picker is an ordinary enabled
+`ComboBox`. So a browser user picks a theme, it applies, the tab
+reloads, and the default is back with nothing having said why — against
+`prefs.rs:318-321`'s *"disabled with a reason, never offered and then
+silently ineffective"* and `app.rs:88-91`'s *"the Save control disables
+itself"*, which names a control that does not exist. Filed as
+`wasm-theme-choice-is-offered-and-silently-not-kept`. It gives
+`deliver_status` no wasm caller — `remember_theme` reports through
+`notices.push`, and the repair is chrome — which is why the two
+questions came apart.
+
+**The flip is proved and not made.** `.github/workflows/ci.yml` is
+CIW's and is untouched; **no YAML was written here** — what went to the
+orchestrator to route is the evidence that the flip would pass, and the
+two candidate commands it would have to hold, not a diff. Both spellings run clean at the wasm target on
+the closing tree, and the negative control is what makes that evidence:
+the same clippy command on the unfixed tree exits 101 with those two
+warnings as errors and nothing else, which is also the enumeration rule
+behind *exactly two* — the compiler's reachability verdict over the
+compiled configuration, not a grep. `--all-targets` is not available at
+that target and never was: `crates/viewer/tests/` reaches
+`ThreadEvaluator`, which is host-only.
+
+**A second residue, disclosed with its number.** A rustdoc pass at the
+browser target was already red at `1d29a8eeb` with nine unresolved
+intra-doc links — doc comments compiled at both targets linking
+host-only items, including `run_web`'s own doc linking `run`, which is
+unresolvable in the only configuration that compiles the item it
+documents. Nothing runs that pass, so nothing held the number. This PR
+makes it ten, deliberately: `apply_status`'s doc links
+`ViewerApp::deliver_status`, and de-linking a working host link to hold
+a count nothing reads would make the host docs worse for no reader.
+Filed as `viewer-docs-do-not-build-at-wasm32` with both shapes.
+
+**Citation sweep.** Every `app.rs:NNN` in `work/view/` was enumerated
+and each read at its base line; a pure 21-line insertion shifts every
+citation at or after 114. Most were already stale — the split's residue,
+which `stale-file-citations-after-the-split` holds — and a citation
+already wrong is not one this change falsified. Re-derived by finding
+the subject by name on the closing tree, in the three OPEN rows where
+the base line really was the subject: `to_f32` (`cursor-projection-is-
+f32-…`), `enum Pane` (`viewer-suites-hold-hand-written-complete-
+variant-lists`), and `ViewerApp`'s declaration, `sync_scene`'s six
+writes, the `None if opened` arm and its door comment
+(`viewerapp-document-derived-state-has-no-boundary`). Closed rows and
+this log's own past entries were left alone: both are records of what
+was true when written, not guards.
+
+## 2026-09-09 — #2272's fix pass: the wasm framing was half a class, and one dead symbol in `src/` was the cause of a tracker row
+
+The style review returned mergeable with no MAJOR. Four fixes, and
+three of them are the same mistake seen from three distances.
+
+**A target is not a class.** `wasm-theme-choice-is-offered-and-silently-
+not-kept` was filed as a browser defect — *"the one target where the
+store is known unusable"*. It is not: `remember_theme`'s guard reads
+`store.usable()`, which is a property of the store's STATE, and the
+native `FileStore` answers `false` too whenever `frame::prefs_path()`
+returns `None`, which it does when neither `XDG_CONFIG_HOME` nor `HOME`
+is set — a rule `frame.rs:1703-1706` states in the imperative and this
+path breaks. The item is re-framed around `usable()`; the reason it
+matters is that a fix keyed on `target_family` would have repaired the
+browser and shipped the desktop instance untouched.
+
+**And one level down, the refusal written for exactly that environment
+is dead.** `FileStore::save`'s pathless arm (`prefs.rs:407-413`) says
+*"no config directory in this environment"*; `store.save` has one call
+site in `src/` (`app.rs:1022`) and the `usable()` guard returns before
+it under precisely the condition that arm fires. No test reaches it
+either — the suite only builds `FileStore` through `at`. So the crate
+holds a typed sentence for a case it answers by returning quietly, and
+the guard and the refusal are one decision, not two.
+
+**A doc comment in `src/` was the source of a wrong tracker citation,
+and the sweep found the symptom.** `session/op.rs:742` said the chrome
+renders supersessions through `frame::supersession_notice`. **That
+symbol has never existed.** The real path is
+`frame::Withdrawal::superseded` through `Withdrawal::notice`, reached
+at `app.rs:932-935`. Fifteen occurrences of the dead name are in
+`work/view/*.md`, four in still-open items — including the
+`free-move-drag-dissolved-by-open.md:53-55` citation that
+`stale-file-citations-after-the-split` had already, correctly, decided
+not to repoint. The tracker learned the name from the code.
+
+The rule that makes it invisible: **`scripts/doc-gate.sh` fails only on
+BRACKETED intra-doc links**, so a bare `` `frame::foo` `` code span in a
+doc comment is prose to rustdoc and to the gate. Swept
+`crates/viewer/src` for the shape — 19 spans over 12 names for
+`frame::`/`session::`, 132 over 97 admitting every module prefix —
+restricting the definition check to this crate's own modules, which is
+what makes "not defined here" mean "does not exist". **Exactly two dead
+names, both `frame::`**: the one fixed, and `frame::dropped_hide_notice`
+thirteen lines below it. Filed as
+`doc-comments-name-symbols-that-do-not-exist`; the fixed one is now
+bracketed, so rustdoc holds it. The blind spot that bites is plain `//`
+comments — `app.rs:939` carries the same dead name and rustdoc can
+never reach it however it is written.
+
+**§Q6 on an unguarded reachability claim: write the reason, at the
+claim.** `deliver_status`'s doc says no `Show` reaches it at either call
+site. Nothing holds that: the one row over the arm exercises
+`dialog_status` as a pure function and stays green through any chrome
+change, and the door exists precisely because the `add_enabled` gate
+might be loosened. The paragraph now says so and names what a reader
+who loosens the gate must re-check. **No guard was invented for it** —
+Q6's third option is a written reason, and the honest answer here is
+that a guard would cost more than the arm.
+
+**What went to Ev rather than being answered.** Whether the status
+route was SUPPOSED to fire for an absent chooser, or whether
+`add_enabled` quietly took its job, is not decidable from the tree:
+every line is consistent with both readings and the difference is what
+#1125 intended. Filed as a `ruling`,
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser`, with
+`needs_ev: true` and no answer in it.
+
+**Two citations found wrong, left alone, and now written down.** The
+PR's sweep found `free-move-drag-dissolved-by-open.md:53-55` (a symbol
+that does not exist) and `new-document-owes-the-reframe-open-gets.md:18,
+20` (right subjects, wrong lines, at base and at head), judged both
+correctly, and recorded neither anywhere a later reader could find. A
+PR body is not a slate (§6). Both are rows in
+`stale-file-citations-after-the-split` now, with the base and head
+locations derived, and the first of them is a FOURTH class that item's
+line-number sweep cannot fix: a citation whose file and line are
+repairable but whose named symbol never existed. Class 1 is a subject
+that is gone; this is a subject that was never there, and repairing the
+number would leave a false sentence pointing somewhere real.
+
+**Operational.** The §Q6 paragraph is a ten-line insert at `app.rs:1065`,
+so every `app.rs` citation at or after it moved by +10 — including four
+this branch had already re-derived once. Re-derived again after the
+last edit, by finding each subject by name. That is the second time in
+one PR that the LAST edit invalidated an earlier sweep; the instrument
+is fine, the discipline is to run it last.
+
+## 2026-09-09, orchestrator: #2272 merged, and the question it left standing
+
+**#2272 is on main** (`47bfaedae`), twenty-fifth unit, 37 jobs green.
+It closes `viewer-items-unreferenced-at-wasm32`, CIW's §6 report from
+PR 2263: two items in `app.rs` were unreferenced at
+`wasm32-unknown-unknown --features app`, and were the only reason that
+CI row cannot deny warnings.
+
+**The unit was the choice, not the edit.** The item offered two shapes
+and declined between them — `#[cfg]` the items, matching every user, or
+find the wasm caller that was lost, in which case the warning is the
+symptom of a live defect. **Shape (1) for both**, and the review agreed,
+but narrowed the ground it rests on: of the three the PR argued, only
+one carries it. A single `self.chooser` copy both gates the button
+(`add_enabled(chooser.usable(), …)`) and feeds the verdict
+(`frame::dialog_status`), so `Show` requires a click on a widget built
+`enabled = false`. The reviewer closed that by reading egui 0.36.1
+rather than assuming it: pointer, keyboard and AccessKit click routes
+are each `if enabled &&`-gated, so the button cannot report a click.
+
+**Asking what would have shown the OTHER shape is what found the real
+defect**, one control over. The store's `usable()` guard makes
+`remember_theme` return early, so the palette picker is offered,
+applies, and its persistence is silently ineffective — against two
+prose claims that say the opposite, one naming a "Save control" that
+does not exist anywhere in the chrome. The fix pass then re-framed that
+finding off the target and onto the guard: `FileStore::usable` is
+`path.is_some()` and `frame::prefs_path()` returns `None` with neither
+`XDG_CONFIG_HOME` nor `HOME`, so **the native build takes the identical
+silent return**. A `target_family` fix would have repaired the browser
+and shipped the other half untouched. Filed as
+`wasm-theme-choice-is-offered-and-silently-not-kept`, now framed on the
+guard.
+
+**A dead symbol in `src/` was the cause of a wrong citation in
+`work/`.** `session/op.rs` named `frame::supersession_notice`, which
+has zero definitions; the real renderer is `frame::Withdrawal::superseded`.
+The tracker sweep had found the symptom and not the cause, and
+`doc-gate.sh` could not see it because the span was unbracketed. Fixed
+bracketed, so the name is held rather than merely correct today, and
+the class filed as `doc-comments-name-symbols-that-do-not-exist` —
+19 spans over 12 names for `frame`/`session`, exactly two dead, the
+second thirteen lines below the one repaired.
+
+**A fourth class for `stale-file-citations-after-the-split`**: class 1
+is a citation whose subject is GONE; this is one whose subject was
+NEVER THERE. Repairing the number leaves a false sentence pointing at
+something real, which is worse than a visibly broken one.
+
+**What stays open, and it is Ev's**:
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser`. Ground 3
+proves `dialog_status`'s `Show` arm has **zero production reachability
+on any target** — its only reader is a unit test on the pure function.
+That sentence was written for #1097, a WSL box where Open silently did
+nothing. Everyone in this chain read "it can never fire" as
+reassurance; it may instead be the finding, with `add_enabled` having
+quietly taken the status route's job. Pressing the PR's second ground
+points the same way: a disabled button's hover text is neither of the
+two channels `crates/viewer/README.md`'s provenance rule enumerates,
+and by that rule's own test it is badge-shaped — so "the same const
+string" was never the substitute it reads as. Harmless only because the
+route is empty everywhere.
+
+**Corrections to the orchestrator, both from lanes**: `superseded_text`
+is a `#[cfg(test)]` helper, not the production renderer, and the
+contract clause in `stale-file-citations-after-the-split` is at `:40-41`,
+not `:47-49`. Both were mine, both stated in briefs, both caught.

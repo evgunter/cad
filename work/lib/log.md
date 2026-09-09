@@ -4977,3 +4977,137 @@ Python unchanged**: the twelve tag mirrors' enums, `McConfig`,
 comparison Python answers. One mechanical unit across both sides,
 LIB-MIRROR, with the kernel derive touches announced on their
 programs' trackers.
+
+**LIB-MIRROR MERGED (2026-09-09, #2271; mechanical under Ev's (A)
+case by case on `[ev]` #2265, no A/B row). The derives match on both
+sides.** Upward, fourteen derive words, Python unchanged: `Hash` on the
+twelve tag mirrors' kernel enums (`CheckId` keeping `PartialOrd, Ord`,
+`CheckKind`, `Severity`, `Advisory`, `MateSide`, `AxisSense`,
+`MateRole`, `ArcSide`, `ArcSweep`, `FlushRung`, `CarrierRelation`,
+`SurfaceKind`) and on the two float-free records `McConfig` and
+`Denotation`, each at the line the items' tables cited; the brief's
+STOP (a field that does not derive `Hash`) never fired.
+`crates/quantity`: `Hash` by symbol on `UnitDef`, `LengthUnit` and
+`AngleUnit`, with `Eq` beside each (derived on the views, by hand on
+`UnitDef`, whose derived `PartialEq` reads an `f64` factor that is a
+finite literal on every sealed row) — `Hash` without `Eq` is no map
+key, so the deviation is the ruling's own claim made spellable; the
+test walks every `UNITS` row against `unit_by_symbol` and keys a map by
+the two views. Eight Python `__hash__`es removed — `Frame`,
+`DocParamValue`, `Distribution`, `McMeasure`, `McAssertion`,
+`FaceCensus`, `ValidationFinding`, `SketchPlane` — with the folds they
+alone carried; `fold_zero` and `Distribution::fold_signed_zeros` stay
+for `DocParam`, the (B′) carve-out; eight stub lines gone; eight
+`UNHASHABLE` rows in the roster's voice (21 entries). `impl PartialEq
+for SketchPlane<f64>` delegating to `bit_eq` (not `<T>`: `bit_eq` is
+`f64`-only), pinned over four planes including `-0.0` vs `0.0`. The
+two-way cells after: A 18→34, B 13→21, C 0, D 27→3 — cell D exactly
+the carve-out, cell B exactly the roster. `ScalarUnit` deliberately
+left (no Python mirror, one inhabitant — the case the refinement
+excludes). Six programs told with one dated line each (`bool`,
+`curved`, `docm`, `fix`, `msolve`, `tcost`); three touched kernel
+files are in NO program's `paths:` — `mc.rs`, `names/interrogate.rs`,
+`topo/flush.rs` — filed as `three-kernel-files-sit-in-no-programs-paths`.
+CI on the head: all 36 jobs green including every render lane (the
+check that would have caught a render move had "a derive changes no
+output" been wrong). Four items closed. No `variant`/`kind` value
+moved; the lane ran the pinned ruff for real. ~59 min, ~247k tokens.
+
+**LIB-HELPER MERGED (2026-09-09, #2269; mechanical under Ev's (A) on
+`expr-seat-costs-a-constructor-call-at-every-authored-number`, `[ev]`
+#2266, no A/B row). One composition, mirrored on both sides.**
+`Expr::length_in(value, unit)` and `Expr::angle_in(value, unit)` in
+`editor-core`'s `expr.rs` beside `written_length`/`written_angle`,
+each exactly `Self::written_length(WrittenLength::in_unit(value,
+unit))` (and the angle twin) — one line, no refusal of their own, no
+type of their own, the rustdoc naming both halves; `Expr.length_in`
+and `Expr.angle_in` as static methods in `py/expr.rs`, refusing
+through the same `LiteralError` path, declared in the stub, pinned
+name-for-name, accounted by the census under rule 1 with no roster
+edit. 974 sites converted by a scanner over the exact call shape with
+balanced-paren capture — 29 test modules, both ty fixtures, the
+README, the guide and its four sub-pages — plus the three Rust sites
+that spelled the composition by hand (the tour's `ring.rs` closure and
+revolve, `diefillet.rs`'s `ang`). The private shorthands are gone
+(`_wm` in two files, 19 calls inlined; the `_0M`/`_1M` pair in three);
+`SQUARE` stays where it names a fixture rather than a spelling. Stale
+imports pruned with the sites (`WrittenLength`/`WrittenAngle` left 36
+modules' import lists and 39 executed blocks; both types stay bound
+and curated). Pins: the helper equals the two calls for both
+dimensions, the saved file reads `"unit": "mm"` through it, a NaN
+length and an infinite angle raise `LiteralError` `non_finite`; in
+Rust, `bit_eq` against the hand composition plus both refusals. The
+guide's §1.3 says what the helper is and when to reach for it. Kernel
+diff: the two functions and their doc. No `variant`/`kind` value
+moved; the lane ran the pinned ruff for real. Item closed.
+Orchestrator note: the lane pushed nothing for its first fifty minutes
+while it measured and built; a check-in read it as alive from its
+running shells and left it, which was right. Two findings reported, not fixed: `written_length`'s rustdoc cites a test that does not exist (filed as `written-length-rustdoc-cites-a-test-that-does-not-exist`), and `expr.rs` is a fourth kernel file in no program's `paths:` (added to `three-kernel-files-sit-in-no-programs-paths`). ~140 min, ~217k tokens.
+
+## LB22 — wave 5 at rest (2026-09-09)
+
+The wave LB21 planned is landed. **Twenty-six mechanical units merged
+this run**, every one on green CI with an orchestrator diff read and
+no A/B row: DOORS-2 #2228, PROJ #2236, CUR7 #2237, DOORS-3 #2238,
+SMALL #2240, HASH #2242, WILDCARDS #2243, SWEEP #2245, DISCRIMINANTS
+#2246, MEMBERS #2247, NAMES #2248, IMPORT-REPORT #2249, GAPS-1 #2250,
+EDITS #2251, PYNAMES #2252, CUR8 #2253, SMALL-2 #2254, MC #2255,
+MATE-PAYLOAD #2258, ZERO #2259, HASH-2 #2261, SEATS #2264, LOOPS
+#2268, HELPER #2269, MIRROR #2271 — plus the DOCM hand-off #2267.
+**Eight `[ev]` PRs ruled and merged**: #2230 (per-arm projection (A);
+the census's member rule (D)), #2231 (role-name builders (A)), #2232
+(the import report (A)+(A); the Monte Carlo door (A)), #2233
+(dimensioned seats: every slot door takes an `Expr` (H); the quantity
+classes mirror the newtypes' derives (B′)), #2256 (a mate frame from a
+face: (F) now — a `FromFace` arm resolved at evaluation, MSOLVE's
+design item), #2257 (the builders take the loop index (A)), #2265
+(the mirror rule's reach, (A) case by case), #2266 (the `Expr` seat's
+helper (A)). The thread through the wave: **measure the Rust shape
+first and propose its mirror** — every ruling that took more than one
+round was a step back toward that, and the four that took several
+(#2233's item 1 through A→D→E→G→H) are the ones where the first
+proposal invented a Python shape instead of reading the Rust one.
+
+**Where the surface stands.** Every `MateFault`, `EditError`,
+`CheckEvidence`, `ValidationFinding` and `NodePickError` arm projects
+its payload as attributes through one exhaustive record; twenty-four
+fieldless mirrors and the units key, and every class that compares
+without hashing says why on the roster (the two-way derives table is
+A 34 / B 21 / C 0 / D 3, cell D exactly the (B′) carve-out); the four
+curated lists plus `analysis.rs` are swept by one script with a
+pinned count and a CI row; the census accounts members and gap
+families and has no family open; the five role-name builders take
+the loop index on both sides and the Python doors answer the kernel's
+bytes; every dimensioned slot door takes an `Expr`, `Expr` has its
+four constructors and the mirrored `length_in`/`angle_in`, and a
+written unit survives to read-back; the advisory Monte Carlo lane,
+STEP import's report, the datum doors, mesh boundaries and the slot
+edits are bound.
+
+**Parked, and on whom.** `the-expression-path-edit-cannot-refuse-as-prose`
+and `path-legs-erase-the-authored-notation-one-layer-down` on DOCM
+(`debug-in-prose-residue-after-finding-sink`,
+`recorded-program-arguments-carry-no-notation`);
+`no-door-mints-mate-frame-from-face` on MSOLVE
+(`mate-frames-resolve-from-a-face-at-evaluation` — LIB's Python half
+follows the arm); the audit's `arc_continue` line on BOOL-10 #2135
+(still in review); `correspondence-structs-coincide` on the verb seat;
+`random-integer-rays-search-trips-at-eps-1e-6-on-one-run` filed to
+DOCM. **Open in LIB's own fence**, none of it blocking:
+`three-kernel-files-sit-in-no-programs-paths` (four files now — for
+the next territory map), `written-length-rustdoc-cites-a-test-that-does-not-exist`,
+`kprobe-is-a-rung-under-drive-config-on-the-analysis-list`,
+`the-witness-edits-need-a-facade-type`,
+`mate-fault-arms-…` closed, and the residue items each unit filed
+under its own entry above.
+
+**What the next orchestrator picks up.** Nothing is dispatchable
+without a blocker moving: the Python halves parked on DOCM and MSOLVE
+wake when those programs land their shapes; the audit line wakes on
+BOOL-10's merge. Two container restarts this run (03:10Z, 16:00Z)
+cost no work — every lane pushes after every commit and resumes by
+message — and the wave's only self-inflicted cycles were log-tail
+conflicts between docs PRs landing minutes apart and one placeholder
+left in a pushed log entry, both caught the same hour. The check-in
+routine stays armed at a long interval while anything is parked on
+another program.

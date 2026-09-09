@@ -37,7 +37,6 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
-    WrittenLength,
     evaluate,
     m,
 )
@@ -47,13 +46,13 @@ def unit_cube(doc):
     """A 1 m cube on the ground plane, rooted at the origin."""
     square = doc.insert(
         Node.polygon([
-            (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
-            (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+            (Expr.length_in(0, m), Expr.length_in(0, m)),
+            (Expr.length_in(1, m), Expr.length_in(0, m)),
+            (Expr.length_in(1, m), Expr.length_in(1, m)),
+            (Expr.length_in(0, m), Expr.length_in(1, m)),
         ], plane=doc.sketch_frame())
     )
-    return doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(1, m))))
+    return doc.insert(Node.extrude(square, Expr.length_in(1, m)))
 
 
 def one(found):

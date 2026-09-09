@@ -503,23 +503,6 @@ impl ValidationFinding {
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }
-
-    /// Consistent with [`Self::__eq__`]: the six words ARE the value,
-    /// so hashing them hashes exactly what equality compares.
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::hash::DefaultHasher::new();
-        (
-            self.0.variant,
-            self.0.subject_kind,
-            self.0.entity_kind,
-            self.0.contact_kind,
-            self.0.stale_kind,
-            self.0.ring_contact_kind,
-        )
-            .hash(&mut hasher);
-        hasher.finish()
-    }
 }
 
 /// A datum: a construction plane, frame, axis, or point.
@@ -1573,15 +1556,6 @@ pub(crate) struct FaceCensus {
 impl FaceCensus {
     fn __eq__(&self, other: &Self) -> bool {
         (self.faces, self.edges, self.vertices) == (other.faces, other.edges, other.vertices)
-    }
-
-    /// Consistent with [`Self::__eq__`] by construction: it hashes the
-    /// same three counts the comparison reads.
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::hash::DefaultHasher::new();
-        (self.faces, self.edges, self.vertices).hash(&mut h);
-        h.finish()
     }
 
     fn __repr__(&self) -> String {

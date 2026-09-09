@@ -134,7 +134,7 @@ should be visible on its own.
 | `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass — **merged** |
 | `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass — **merged** |
 | `view/gate-bullets` (the vocab gate's kind scan, anchored) | #2172 | style + fix pass — **merged** |
-| `view/wasm-dead-items` (CIW's §6: two items dead at wasm32) | — | dispatched 2026-09-09 |
+| `view/wasm-dead-items` (CIW's §6: two items dead at wasm32) | #2272 | style + fix pass — **merged** |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -245,6 +245,29 @@ word proof and overwrote four files of those exact names that another
 lane had left there. Nothing was lost that mattered, and the collision
 is silent by construction — a lane cannot tell whether a scratchpad
 file is its own. Dispatches carry a per-lane prefix now.
+
+**Ask what would have shown the OTHER answer, and the answer that
+matters is often one control over.** #2272 had to choose between
+`#[cfg]`-ing two dead items and hunting a lost caller. The brief asked
+for the choice AND for what had been checked that would have shown the
+other shape — and that second half is what found the live defect: not
+in either item, but in the preferences store beside them, where a
+`usable()` guard makes the palette picker apply and silently not
+persist against prose claiming it is disabled with a reason. A
+justification written to be falsifiable searches; one written to be
+sufficient stops at the first sound argument.
+
+**A sweep shaped like the symptom finds the symptom.** That same unit's
+first framing came from a `cfg(target_family = "wasm")` sweep, so the
+defect it found was filed as a browser defect. It is not: `usable()` is
+`path.is_some()`, and the native build takes the identical silent
+return when neither `XDG_CONFIG_HOME` nor `HOME` is set. A
+`target_family` fix would have repaired the browser and shipped the
+other half. **Re-derive the population from the PROPERTY that fails,
+not from the pattern that surfaced it.** The same unit shows the other
+direction too: a dead symbol in a doc comment in `src/` was the cause
+of a wrong citation in `work/`, and the tracker-shaped sweep found only
+the symptom.
 
 **The orchestrator's own heartbeat is a single point of failure, and a
 one-shot timer is the wrong shape for it.** The check-in was a

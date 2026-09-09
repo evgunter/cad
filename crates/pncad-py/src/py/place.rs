@@ -354,22 +354,6 @@ impl Frame {
         self.0.bit_eq(&other.0)
     }
 
-    /// Consistent with [`Self::__eq__`] BY CONSTRUCTION: it hashes the
-    /// same twelve bit patterns the comparison reads.
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::hash::DefaultHasher::new();
-        for column in self.0.columns {
-            for c in column {
-                c.to_bits().hash(&mut h);
-            }
-        }
-        for c in self.0.translation {
-            c.to_bits().hash(&mut h);
-        }
-        h.finish()
-    }
-
     fn __repr__(&self) -> String {
         let [c0, c1, c2] = self.0.columns;
         let t = self.0.translation;

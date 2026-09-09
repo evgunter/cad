@@ -52,8 +52,6 @@ from pncad import (
     SurfaceKind,
     TubeWindow,
     Via,
-    WrittenAngle,
-    WrittenLength,
     circle,
     circle_split,
     deg,
@@ -68,25 +66,20 @@ from pncad import (
 SPINE_Z = (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0))
 
 
-def _wm(value):
-    """A metre coordinate as the written literal a slot takes."""
-    return Expr.written_length(WrittenLength.in_unit(value, m))
-
-
 def slab(doc, x, y, z):
     """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1], in metres."""
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.written_length(WrittenLength.in_unit(x[0], m)), Expr.written_length(WrittenLength.in_unit(y[0], m))),
-                (Expr.written_length(WrittenLength.in_unit(x[1], m)), Expr.written_length(WrittenLength.in_unit(y[0], m))),
-                (Expr.written_length(WrittenLength.in_unit(x[1], m)), Expr.written_length(WrittenLength.in_unit(y[1], m))),
-                (Expr.written_length(WrittenLength.in_unit(x[0], m)), Expr.written_length(WrittenLength.in_unit(y[1], m))),
+                (Expr.length_in(x[0], m), Expr.length_in(y[0], m)),
+                (Expr.length_in(x[1], m), Expr.length_in(y[0], m)),
+                (Expr.length_in(x[1], m), Expr.length_in(y[1], m)),
+                (Expr.length_in(x[0], m), Expr.length_in(y[1], m)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z[0], m))),
+            plane=doc.sketch_frame(elevation=Expr.length_in(z[0], m)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(z[1] - z[0], m))))
+    return doc.insert(Node.extrude(profile, Expr.length_in(z[1] - z[0], m)))
 
 
 def projectbox(doc):
@@ -140,16 +133,16 @@ class TestChute(unittest.TestCase):
         ]
         doc = Doc()
         frame = doc.sketch_frame()
-        profile = doc.insert(Node.polygon([(_wm(x), _wm(y)) for x, y in poly], plane=frame))
+        profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in poly], plane=frame))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(0.0),
             Expr.literal(1.0),
         )))
-        chute = doc.insert(Node.revolve(profile, axis, Expr.written_angle(WrittenAngle.in_unit(270, deg))))
+        chute = doc.insert(Node.revolve(profile, axis, Expr.angle_in(270, deg)))
 
         expected = (1287.0 / 2048.0) * math.pi
         self.assertAlmostEqual(volume_of(doc, chute), expected, delta=1e-12)
@@ -279,22 +272,22 @@ class TestHeatsinkFins(unittest.TestCase):
         profile = doc.insert(
             Node.polygon(
                 [
-                    (Expr.written_length(WrittenLength.in_unit(0.25, m)), Expr.written_length(WrittenLength.in_unit(0.125, m))),
-                    (Expr.written_length(WrittenLength.in_unit(0.4375, m)), Expr.written_length(WrittenLength.in_unit(0.125, m))),
-                    (Expr.written_length(WrittenLength.in_unit(0.4375, m)), Expr.written_length(WrittenLength.in_unit(0.875, m))),
-                    (Expr.written_length(WrittenLength.in_unit(0.25, m)), Expr.written_length(WrittenLength.in_unit(0.875, m))),
+                    (Expr.length_in(0.25, m), Expr.length_in(0.125, m)),
+                    (Expr.length_in(0.4375, m), Expr.length_in(0.125, m)),
+                    (Expr.length_in(0.4375, m), Expr.length_in(0.875, m)),
+                    (Expr.length_in(0.25, m), Expr.length_in(0.875, m)),
                 ],
-                plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0.1875, m))),
+                plane=doc.sketch_frame(elevation=Expr.length_in(0.1875, m)),
             )
         )
-        fin = doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(0.8125, m))))
+        fin = doc.insert(Node.extrude(profile, Expr.length_in(0.8125, m)))
         fins = doc.insert(
             Node.placed_union(
                 fin, Expr.count(5), PatternKind.linear((
                     Expr.literal(1.0),
                     Expr.literal(0.0),
                     Expr.literal(0.0),
-                ), Expr.written_length(WrittenLength.in_unit(0.3125, m)))
+                ), Expr.length_in(0.3125, m))
             )
         )
         doc.apply(DocEdit.bind_count_param(fins, ParamName("fins")))
@@ -545,8 +538,8 @@ def y_axis(doc, plane):
     are that frame's coordinates, not the world's.
     """
     return doc.insert(Node.datum_axis_in_plane(plane, (
-        Expr.written_length(WrittenLength.in_unit(0, m)),
-        Expr.written_length(WrittenLength.in_unit(0, m)),
+        Expr.length_in(0, m),
+        Expr.length_in(0, m),
     ), (
         Expr.literal(0.0),
         Expr.literal(1.0),
@@ -586,7 +579,7 @@ class TestBracket(unittest.TestCase):
 
         doc = Doc()
         bracket = doc.insert(
-            Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Expr.written_length(WrittenLength.in_unit(0.75, m)))
+            Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Expr.length_in(0.75, m))
         )
         expected = 0.75 * (5.25 - math.pi / 16.0)
         self.assertAlmostEqual(volume_of(doc, bracket), expected, delta=1e-12)
@@ -617,7 +610,7 @@ class TestVase(unittest.TestCase):
             Node.revolve(
                 doc.insert(Node.profile(outline, plane=frame)),
                 y_axis(doc, frame),
-                Expr.written_angle(WrittenAngle.in_unit(360, deg)),
+                Expr.angle_in(360, deg),
             )
         )
         self.assertAlmostEqual(volume_of(doc, vase), 2.939 * math.pi, delta=1e-12)
@@ -654,7 +647,7 @@ class TestSheave(unittest.TestCase):
             Node.revolve(
                 doc.insert(Node.profile(outline, plane=frame)),
                 y_axis(doc, frame),
-                Expr.written_angle(WrittenAngle.in_unit(360, deg)),
+                Expr.angle_in(360, deg),
             )
         )
         expected = 2.0 * (1997.0 / 1200.0) * math.pi - 0.189 * math.pi * math.pi
@@ -684,13 +677,13 @@ class TestBossplate(unittest.TestCase):
             .line_to(Start)
         )
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile(plate_outline, plane=doc.sketch_frame())), Expr.written_length(WrittenLength.in_unit(1.0, m)))
+            Node.extrude(doc.insert(Node.profile(plate_outline, plane=doc.sketch_frame())), Expr.length_in(1.0, m))
         )
         boss_outline = circle_split((2 * m, 2 * m), 0.5 * m, 3, 0 * rad)
         self.assertEqual(boss_outline.vertex_count, 3, "three arcs, three walls")
         boss = doc.insert(
             Node.extrude(
-                doc.insert(Node.profile(boss_outline, plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0.4, m))))), Expr.written_length(WrittenLength.in_unit(1.2, m))
+                doc.insert(Node.profile(boss_outline, plane=doc.sketch_frame(elevation=Expr.length_in(0.4, m)))), Expr.length_in(1.2, m)
             )
         )
         fused = doc.insert(Node.boolean(BooleanOp.Union, plate, boss))
@@ -723,7 +716,7 @@ def prism_loft(doc, heights):
     # than the profile list names and every assertion below would still pass,
     # on a solid nobody asked for.
     sections = [
-        doc.insert(Node.polygon([(_wm(x), _wm(y)) for x, y in pts], plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z, m)))))
+        doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in pts], plane=doc.sketch_frame(elevation=Expr.length_in(z, m))))
         for pts, z in zip([PRISM_SQUARE, PRISM_TRAPEZOID, PRISM_SQUARE], heights, strict=True)
     ]
     return doc.insert(Node.loft(sections, Expr.count(2)))
@@ -763,7 +756,7 @@ class TestLoftPrism(unittest.TestCase):
         through three sections refuses at evaluation."""
         doc = Doc()
         sections = [
-            doc.insert(Node.polygon([(_wm(x), _wm(y)) for x, y in PRISM_SQUARE], plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z, m)))))
+            doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in PRISM_SQUARE], plane=doc.sketch_frame(elevation=Expr.length_in(z, m))))
             for z in (0.0, 1.0, 2.0)
         ]
         overdegree = doc.insert(Node.loft(sections, Expr.count(3)))
@@ -839,11 +832,11 @@ class TestTheVDegreeParamBinding(unittest.TestCase):
             Node.extrude(
                 doc.insert(
                     Node.polygon(
-                        [(_wm(x), _wm(y)) for x, y in PRISM_SQUARE],
+                        [(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in PRISM_SQUARE],
                         plane=doc.sketch_frame(),
                     )
                 ),
-                Expr.written_length(WrittenLength.in_unit(1, m)),
+                Expr.length_in(1, m),
             )
         )
         with self.assertRaises(EditError) as absent:
@@ -931,8 +924,8 @@ def letter(doc, poly, plane, distance):
     plane's NORMAL — which is what makes the family a G3 scene. The
     normal is u x v, so the yz frame extrudes +x and the zx frame +y,
     exactly as the captions say."""
-    sketch = doc.insert(Node.polygon([(_wm(a), _wm(b)) for a, b in poly], plane=doc.sketch_frame(plane=plane)))
-    return doc.insert(Node.extrude(sketch, Expr.written_length(WrittenLength.in_unit(distance, m))))
+    sketch = doc.insert(Node.polygon([(Expr.length_in(a, m), Expr.length_in(b, m)) for a, b in poly], plane=doc.sketch_frame(plane=plane)))
+    return doc.insert(Node.extrude(sketch, Expr.length_in(distance, m)))
 
 
 def silhouette3(doc):
@@ -1040,7 +1033,7 @@ class TestTheSketchPlaneVocabulary(unittest.TestCase):
         build one are checked, the `Doc` shorthand and the `Node`
         constructor under it."""
         with self.assertRaises(TypeError):
-            Doc().sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(1, m)), plane=SketchPlane.yz())
+            Doc().sketch_frame(elevation=Expr.length_in(1, m), plane=SketchPlane.yz())
         with self.assertRaises(TypeError):
             Node.sketch_frame(elevation=1 * m, plane=SketchPlane.yz())
 
@@ -1100,7 +1093,7 @@ class TestPlate(unittest.TestCase):
                 plane=doc.sketch_frame(),
             )
         )
-        plate = doc.insert(Node.extrude(sketch, Expr.written_length(WrittenLength.in_unit(0.6, m))))
+        plate = doc.insert(Node.extrude(sketch, Expr.length_in(0.6, m)))
         expected = 0.6 * (6.0 * 3.0 - 2.0 * math.pi * 0.7 * 0.7)
         self.assertAlmostEqual(volume_of(doc, plate), expected, delta=1e-12)
 
@@ -1155,13 +1148,13 @@ class TestAz(unittest.TestCase):
                         plane=doc.sketch_frame(plane=a_plane),
                     )
                 ),
-                Expr.written_length(WrittenLength.in_unit(2.125, m)),
+                Expr.length_in(2.125, m),
             )
         )
         z = doc.insert(
             Node.extrude(
                 doc.insert(Node.profile(loop_of(self.Z_OUTLINE), plane=doc.sketch_frame(plane=z_plane))),
-                Expr.written_length(WrittenLength.in_unit(2.125, m)),
+                Expr.length_in(2.125, m),
             )
         )
         az = doc.insert(Node.boolean(BooleanOp.Intersect, a, z))
@@ -1188,22 +1181,22 @@ class TestDiefillet(unittest.TestCase):
         sq = doc.insert(
             Node.polygon(
                 [
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(self.L, m), Expr.length_in(0, m)),
+                    (Expr.length_in(self.L, m), Expr.length_in(self.L, m)),
+                    (Expr.length_in(0, m), Expr.length_in(self.L, m)),
                 ],
                 plane=doc.sketch_frame(),
             )
         )
-        cube = doc.insert(Node.extrude(sq, Expr.written_length(WrittenLength.in_unit(self.L, m))))
+        cube = doc.insert(Node.extrude(sq, Expr.length_in(self.L, m)))
         return doc, cube
 
     def test_diefillet_matches_the_scene_oracle(self):
         doc, cube = self.build()
         edges = evaluate(doc).all_edges(cube)
         self.assertEqual(len(edges), 12)
-        blank = doc.insert(Node.fillet(cube, Expr.written_length(WrittenLength.in_unit(self.R, m)), edges))
+        blank = doc.insert(Node.fillet(cube, Expr.length_in(self.R, m), edges))
 
         core = self.L - 2.0 * self.R
         want = (
@@ -1218,7 +1211,7 @@ class TestDiefillet(unittest.TestCase):
         """Not pre-checked at the boundary: the fillet node itself
         refuses an empty selection, typed, at evaluate."""
         doc, cube = self.build()
-        nothing = doc.insert(Node.fillet(cube, Expr.written_length(WrittenLength.in_unit(self.R, m)), []))
+        nothing = doc.insert(Node.fillet(cube, Expr.length_in(self.R, m), []))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(nothing)
         self.assertEqual(caught.exception.kind, "fillet_selection_empty")
@@ -1229,7 +1222,7 @@ class TestDiefillet(unittest.TestCase):
         half-parse."""
         _doc, cube = self.build()
         with self.assertRaises(ValueError):
-            Node.fillet(cube, Expr.written_length(WrittenLength.in_unit(self.R, m)), ["the top edge"])
+            Node.fillet(cube, Expr.length_in(self.R, m), ["the top edge"])
 
     def test_the_selection_is_canonical_whatever_order_it_arrives_in(self):
         """`Node.fillet` goes through Rust's one construction door, so
@@ -1246,18 +1239,18 @@ class TestDiefillet(unittest.TestCase):
             sq = target.insert(
                 Node.polygon(
                     [
-                        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                        (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                        (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
-                        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
+                        (Expr.length_in(0, m), Expr.length_in(0, m)),
+                        (Expr.length_in(self.L, m), Expr.length_in(0, m)),
+                        (Expr.length_in(self.L, m), Expr.length_in(self.L, m)),
+                        (Expr.length_in(0, m), Expr.length_in(self.L, m)),
                     ],
                     # The frame goes in the document being BUILT, not
                     # the one the edge names were read from.
                     plane=target.sketch_frame(),
                 )
             )
-            solid = target.insert(Node.extrude(sq, Expr.written_length(WrittenLength.in_unit(self.L, m))))
-            target.insert(Node.fillet(solid, Expr.written_length(WrittenLength.in_unit(self.R, m)), order))
+            solid = target.insert(Node.extrude(sq, Expr.length_in(self.L, m)))
+            target.insert(Node.fillet(solid, Expr.length_in(self.R, m), order))
         self.assertTrue(forward.bit_eq(backward))
 
 
@@ -1292,22 +1285,22 @@ class TestDiechamfer(unittest.TestCase):
         sq = doc.insert(
             Node.polygon(
                 [
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(self.L, m), Expr.length_in(0, m)),
+                    (Expr.length_in(self.L, m), Expr.length_in(self.L, m)),
+                    (Expr.length_in(0, m), Expr.length_in(self.L, m)),
                 ],
                 plane=doc.sketch_frame(),
             )
         )
-        cube = doc.insert(Node.extrude(sq, Expr.written_length(WrittenLength.in_unit(self.L, m))))
+        cube = doc.insert(Node.extrude(sq, Expr.length_in(self.L, m)))
         return doc, cube
 
     def test_the_chamfered_cube_matches_the_derived_closed_form(self):
         doc, cube = self.build()
         edges = evaluate(doc).all_edges(cube)
         self.assertEqual(len(edges), 12)
-        blank = doc.insert(Node.chamfer(cube, Expr.written_length(WrittenLength.in_unit(self.D, m)), edges))
+        blank = doc.insert(Node.chamfer(cube, Expr.length_in(self.D, m), edges))
         want = self.L ** 3 - 6.0 * self.L * self.D ** 2 + (16.0 / 3.0) * self.D ** 3
         self.assertAlmostEqual(volume_of(doc, blank), want, delta=1e-9 * want)
 
@@ -1317,8 +1310,8 @@ class TestDiechamfer(unittest.TestCase):
         around."""
         doc, cube = self.build()
         edges = evaluate(doc).all_edges(cube)
-        ch = doc.insert(Node.chamfer(cube, Expr.written_length(WrittenLength.in_unit(self.D, m)), edges))
-        fi = doc.insert(Node.fillet(cube, Expr.written_length(WrittenLength.in_unit(self.D, m)), edges))
+        ch = doc.insert(Node.chamfer(cube, Expr.length_in(self.D, m), edges))
+        fi = doc.insert(Node.fillet(cube, Expr.length_in(self.D, m), edges))
         self.assertLess(volume_of(doc, ch), volume_of(doc, fi))
 
     def test_the_chamfered_body_carries_names_of_its_own(self):
@@ -1327,7 +1320,7 @@ class TestDiechamfer(unittest.TestCase):
         a downstream selection can reach them."""
         doc, cube = self.build()
         edges = evaluate(doc).all_edges(cube)
-        blank = doc.insert(Node.chamfer(cube, Expr.written_length(WrittenLength.in_unit(self.D, m)), edges))
+        blank = doc.insert(Node.chamfer(cube, Expr.length_in(self.D, m), edges))
         ev = evaluate(doc)
         faces = ev.all_faces(blank)
         # 6 supports + 12 strips + 8 corner patches.
@@ -1345,7 +1338,7 @@ class TestDiechamfer(unittest.TestCase):
         """The refusal is the chamfer's, not the fillet's — one shared
         ladder, but the tag says which verb asked."""
         doc, cube = self.build()
-        nothing = doc.insert(Node.chamfer(cube, Expr.written_length(WrittenLength.in_unit(self.D, m)), []))
+        nothing = doc.insert(Node.chamfer(cube, Expr.length_in(self.D, m), []))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(nothing)
         self.assertEqual(caught.exception.kind, "chamfer_selection_empty")
@@ -1353,7 +1346,7 @@ class TestDiechamfer(unittest.TestCase):
     def test_a_name_is_carried_not_composed(self):
         _doc, cube = self.build()
         with self.assertRaises(ValueError):
-            Node.chamfer(cube, Expr.written_length(WrittenLength.in_unit(self.D, m)), ["the top edge"])
+            Node.chamfer(cube, Expr.length_in(self.D, m), ["the top edge"])
 
     def test_the_selection_is_canonical_whatever_order_it_arrives_in(self):
         doc, cube = self.build()
@@ -1364,18 +1357,18 @@ class TestDiechamfer(unittest.TestCase):
             sq = target.insert(
                 Node.polygon(
                     [
-                        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                        (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                        (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
-                        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
+                        (Expr.length_in(0, m), Expr.length_in(0, m)),
+                        (Expr.length_in(self.L, m), Expr.length_in(0, m)),
+                        (Expr.length_in(self.L, m), Expr.length_in(self.L, m)),
+                        (Expr.length_in(0, m), Expr.length_in(self.L, m)),
                     ],
                     # The frame goes in the document being BUILT, not
                     # the one the edge names were read from.
                     plane=target.sketch_frame(),
                 )
             )
-            solid = target.insert(Node.extrude(sq, Expr.written_length(WrittenLength.in_unit(self.L, m))))
-            target.insert(Node.chamfer(solid, Expr.written_length(WrittenLength.in_unit(self.D, m)), order))
+            solid = target.insert(Node.extrude(sq, Expr.length_in(self.L, m)))
+            target.insert(Node.chamfer(solid, Expr.length_in(self.D, m), order))
         self.assertTrue(forward.bit_eq(backward))
 
 
@@ -1442,28 +1435,28 @@ class DieScene:
         sketch = doc.insert(Node.profile(half, plane=frame))
         # The axis in the sketch's own coordinates: the frame's v IS world +z, so the pole axis is its own +y.
         axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(0.0),
             Expr.literal(1.0),
         )))
-        return doc.insert(Node.revolve(sketch, axis, Expr.written_angle(WrittenAngle.in_unit(2.0 * math.pi, rad))))
+        return doc.insert(Node.revolve(sketch, axis, Expr.angle_in(2.0 * math.pi, rad)))
 
     def pipped_die(self, doc):
         """The pipped cube: cube ∖ (21 fused balls), one subtract."""
         sq = doc.insert(
             Node.polygon(
                 [
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(self.L, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(self.L, m))),
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(self.L, m), Expr.length_in(0, m)),
+                    (Expr.length_in(self.L, m), Expr.length_in(self.L, m)),
+                    (Expr.length_in(0, m), Expr.length_in(self.L, m)),
                 ],
                 plane=doc.sketch_frame(),
             )
         )
-        cube = doc.insert(Node.extrude(sq, Expr.written_length(WrittenLength.in_unit(self.L, m))))
+        cube = doc.insert(Node.extrude(sq, Expr.length_in(self.L, m)))
         origin_ball = self.ball(doc)
 
         placed = []
@@ -1479,12 +1472,12 @@ class DieScene:
                         Node.transform(
                             origin_ball,
                             (
-                                Expr.written_length(WrittenLength.in_unit(c[0], m)),
-                                Expr.written_length(WrittenLength.in_unit(c[1], m)),
-                                Expr.written_length(WrittenLength.in_unit(c[2], m)),
+                                Expr.length_in(c[0], m),
+                                Expr.length_in(c[1], m),
+                                Expr.length_in(c[2], m),
                             ),
                             tuple(Expr.literal(a) for a in axis),
-                            Expr.written_angle(WrittenAngle.in_unit(angle, rad)),
+                            Expr.angle_in(angle, rad),
                         )
                     )
                 )
@@ -1608,7 +1601,7 @@ class TestDiecomposed(DieScene, unittest.TestCase):
             die, edges, [GeomPred.curve_kind(CurveKind.Line)]
         )
         self.assertEqual(len(straight), 12)
-        blank = doc.insert(Node.fillet(die, Expr.written_length(WrittenLength.in_unit(self.DIE_R, m)), straight))
+        blank = doc.insert(Node.fillet(die, Expr.length_in(self.DIE_R, m), straight))
 
         # Blend 2 — the pip rims, said by ADJACENT KINDS: the edges
         # whose two faces are a plane (the shrunk cap) and a sphere
@@ -1623,7 +1616,7 @@ class TestDiecomposed(DieScene, unittest.TestCase):
             [GeomPred.adjacent_kinds(SurfaceKind.Plane, SurfaceKind.Sphere)],
         )
         self.assertEqual(len(rims), 42)
-        composed = doc.insert(Node.fillet(blank, Expr.written_length(WrittenLength.in_unit(self.RIM_R, m)), rims))
+        composed = doc.insert(Node.fillet(blank, Expr.length_in(self.RIM_R, m), rims))
 
         want = self.blank_volume() - 21.0 * (
             self.spherical_cap(self.PIP_R, self.PIP_H) + self.rim_fillet_extra()
@@ -1661,11 +1654,11 @@ class TestDiechamferDie(DieScene, unittest.TestCase):
             die, edges, [GeomPred.curve_kind(CurveKind.Line)]
         )
         self.assertEqual(len(straight), 12)
-        chamfered = doc.insert(Node.chamfer(die, Expr.written_length(WrittenLength.in_unit(self.DIE_D, m)), straight))
+        chamfered = doc.insert(Node.chamfer(die, Expr.length_in(self.DIE_D, m), straight))
 
         # It evaluates, and it is not the fillet: at the same size the
         # flat strip cuts the corner the ball rides around.
-        filleted = doc.insert(Node.fillet(die, Expr.written_length(WrittenLength.in_unit(self.DIE_D, m)), straight))
+        filleted = doc.insert(Node.fillet(die, Expr.length_in(self.DIE_D, m), straight))
         self.assertLess(volume_of(doc, chamfered), volume_of(doc, filleted))
 
         # The scene's own census for the chamfered BOX, plus the 21
@@ -1690,13 +1683,13 @@ class TestTiltedcut(unittest.TestCase):
     def test_both_halves_bracket_the_exact_half_volume(self):
         doc = Doc()
         disc = doc.insert(Node.profile(circle((0 * m, 0 * m), self.R * m), plane=doc.sketch_frame()))
-        cylinder = doc.insert(Node.extrude(disc, Expr.written_length(WrittenLength.in_unit(self.H, m))))
+        cylinder = doc.insert(Node.extrude(disc, Expr.length_in(self.H, m)))
         plane = doc.insert(
             Node.datum_plane(
                 (
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
-                    Expr.written_length(WrittenLength.in_unit(self.H / 2.0, m)),
+                    Expr.length_in(0, m),
+                    Expr.length_in(0, m),
+                    Expr.length_in(self.H / 2.0, m),
                 ),
                 (
                     Expr.literal(math.sin(self.PHI)),
@@ -1722,12 +1715,12 @@ class TestTiltedcut(unittest.TestCase):
         sides, so `body()` refuses rather than picking one."""
         doc = Doc()
         disc = doc.insert(Node.profile(circle((0 * m, 0 * m), self.R * m), plane=doc.sketch_frame()))
-        cylinder = doc.insert(Node.extrude(disc, Expr.written_length(WrittenLength.in_unit(self.H, m))))
+        cylinder = doc.insert(Node.extrude(disc, Expr.length_in(self.H, m)))
         plane = doc.insert(
             Node.datum_plane((
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(1, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(1, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
@@ -2002,14 +1995,14 @@ class TestCrosslapExploded(unittest.TestCase):
         # being read as "no rotation".
         lifted = doc.insert(
             Node.transform(beam_b, (
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(1.25, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(1.25, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(1.0),
-            ), Expr.written_angle(WrittenAngle.in_unit(0, rad)))
+            ), Expr.angle_in(0, rad))
         )
         expected = 4.0 * 0.5 * 0.5 - 0.5 * 0.5 * 0.25
         self.assertEqual(expected, 0.9375)
@@ -2021,14 +2014,14 @@ class TestCrosslapExploded(unittest.TestCase):
         box = slab(doc, (0, 1), (0, 1), (0, 1))
         bad = doc.insert(
             Node.transform(box, (
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(1, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(1, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(0.0),
-            ), Expr.written_angle(WrittenAngle.in_unit(0, rad)))
+            ), Expr.angle_in(0, rad))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(bad)
@@ -2082,13 +2075,13 @@ class TestHollowring(unittest.TestCase):
         )
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(0.0),
             Expr.literal(1.0),
         )))
-        return doc.insert(Node.revolve(profile, axis, Expr.written_angle(WrittenAngle.in_unit(360, deg))))
+        return doc.insert(Node.revolve(profile, axis, Expr.angle_in(360, deg)))
 
     def test_hollowring_matches_the_torus_closed_forms(self):
         doc = Doc()
@@ -2223,13 +2216,13 @@ class TestKlein(unittest.TestCase):
         band = doc.insert(Node.profile(self.band(md), plane=frame))
         # The axis in the sketch's own coordinates: the axis is the plane's own +v — said in the plane now.
         axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(0.0),
             Expr.literal(1.0),
         )))
-        bulb = doc.insert(Node.revolve(band, axis, Expr.written_angle(WrittenAngle.in_unit(2 * math.pi, rad))))
+        bulb = doc.insert(Node.revolve(band, axis, Expr.angle_in(2 * math.pi, rad)))
 
         half = self.WALL / 2.0
 
@@ -2258,15 +2251,15 @@ class TestKlein(unittest.TestCase):
             ax = doc.insert(
                 Node.datum_axis_in_plane(
                     frame, (
-                        Expr.written_length(WrittenLength.in_unit(self.RLOOP, m)),
-                        Expr.written_length(WrittenLength.in_unit(0, m)),
+                        Expr.length_in(self.RLOOP, m),
+                        Expr.length_in(0, m),
                     ), (
                         Expr.literal(0.0),
                         Expr.literal(-1.0),
                     )
                 )
             )
-            return doc.insert(Node.revolve(annulus, ax, Expr.written_angle(WrittenAngle.in_unit(-sweep, rad))))
+            return doc.insert(Node.revolve(annulus, ax, Expr.angle_in(-sweep, rad)))
 
         return bulb, elbow(self.ZTOP, self.SWEEP_OVER), elbow(
             md["z_tube"], self.SWEEP_IN
@@ -2357,22 +2350,22 @@ class TestBudfillet(unittest.TestCase):
         profile = doc.insert(Node.profile(meridian, plane=frame))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(0.0),
             Expr.literal(1.0),
         )))
-        return doc.insert(Node.revolve(profile, axis, Expr.written_angle(WrittenAngle.in_unit(2 * math.pi, rad))))
+        return doc.insert(Node.revolve(profile, axis, Expr.angle_in(2 * math.pi, rad)))
 
     def test_three_curved_rims_roll_in_the_scenes_two_calls(self):
         doc = Doc()
         sharp = self.sharp(doc)
         base_plane = doc.insert(
             Node.datum_plane((
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(1.0),
@@ -2395,7 +2388,7 @@ class TestBudfillet(unittest.TestCase):
             [GeomPred.adjacent_kinds(SurfaceKind.Sphere, SurfaceKind.Cone)],
         )
         self.assertEqual(len(mouth), 1, "the description names one rim")
-        first = doc.insert(Node.fillet(sharp, Expr.written_length(WrittenLength.in_unit(self.ROLL, m)), mouth))
+        first = doc.insert(Node.fillet(sharp, Expr.length_in(self.ROLL, m), mouth))
 
         ev = evaluate(doc)
         lip = ev.select_where(
@@ -2419,12 +2412,12 @@ class TestBudfillet(unittest.TestCase):
             edges,
             [
                 GeomPred.adjacent_kinds(SurfaceKind.Cylinder, SurfaceKind.Plane),
-                GeomPred.datum_distance(base_plane, Cmp.Approx, Expr.written_length(WrittenLength.in_unit(0, m))),
+                GeomPred.datum_distance(base_plane, Cmp.Approx, Expr.length_in(0, m)),
             ],
         )
         self.assertEqual(len(base), 1)
 
-        rolled = doc.insert(Node.fillet(first, Expr.written_length(WrittenLength.in_unit(self.ROLL, m)), lip + base))
+        rolled = doc.insert(Node.fillet(first, Expr.length_in(self.ROLL, m), lip + base))
         ev = evaluate(doc)
         body = ev.value(rolled).body()
         body.validate()
@@ -2472,7 +2465,7 @@ def teapot_frame_and_axis(doc):
 def fully_revolved(doc, frame, axis, meridian):
     """One full turn of `meridian` about `axis`, drawn on `frame`."""
     profile = doc.insert(Node.profile(meridian, plane=frame))
-    return doc.insert(Node.revolve(profile, axis, Expr.written_angle(WrittenAngle.in_unit(2 * math.pi, rad))))
+    return doc.insert(Node.revolve(profile, axis, Expr.angle_in(2 * math.pi, rad)))
 
 
 class TestTeapot(unittest.TestCase):
@@ -2752,8 +2745,8 @@ class TestTeapot(unittest.TestCase):
             "the mouth disc is the meridian's fourth segment in program order",
         )
         mouth = [bands[seg_mouth], bands_pi[seg_mouth]]
-        sealed = doc.insert(Node.shell(pot, Expr.written_length(WrittenLength.in_unit(self.WALL, m)), []))
-        cup = doc.insert(Node.shell(pot, Expr.written_length(WrittenLength.in_unit(self.WALL, m)), mouth))
+        sealed = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), []))
+        cup = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), mouth))
 
         # ---- the lid: three rims, by name ----
         sharp = fully_revolved(doc, frame, axis, self.lid_meridian())
@@ -2771,7 +2764,7 @@ class TestTeapot(unittest.TestCase):
             self.assertAlmostEqual(
                 got[1].meters, station, delta=1e-12, msg=f"rim at vertex {v}"
             )
-        first = doc.insert(Node.fillet(sharp, Expr.written_length(WrittenLength.in_unit(self.ROLL, m)), [rims[self.RIMS[0][0]]]))
+        first = doc.insert(Node.fillet(sharp, Expr.length_in(self.ROLL, m), [rims[self.RIMS[0][0]]]))
         ev = evaluate(doc)
         carried = ev.select(
             first,
@@ -2784,7 +2777,7 @@ class TestTeapot(unittest.TestCase):
             ),
         )
         rest = [carried[self.RIMS[1][0] - 1], carried[self.RIMS[2][0] - 1]]
-        lid = doc.insert(Node.fillet(first, Expr.written_length(WrittenLength.in_unit(self.ROLL, m)), rest))
+        lid = doc.insert(Node.fillet(first, Expr.length_in(self.ROLL, m), rest))
 
         # ---- the spout: built about its own axis, then placed ----
         # The document says a placement in AXIS-ANGLE; the 3-4-5 turn
@@ -2795,15 +2788,15 @@ class TestTeapot(unittest.TestCase):
         spout = doc.insert(
             Node.transform(
                 spout_body,
-                tuple(_wm(c) for c in self.SPOUT_ROOT),
+                tuple(Expr.length_in(c, m) for c in self.SPOUT_ROOT),
                 (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                Expr.written_angle(WrittenAngle.in_unit(turn, rad)),
+                Expr.angle_in(turn, rad),
             )
         )
 
         # ---- the handle ----
         spine = doc.insert(
-            Node.datum_axis(tuple(_wm(c) for c in self.HANDLE_C), (
+            Node.datum_axis(tuple(Expr.length_in(c, m) for c in self.HANDLE_C), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(1.0),
@@ -2814,9 +2807,9 @@ class TestTeapot(unittest.TestCase):
             Node.tube(
                 spine,
                 (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.written_length(WrittenLength.in_unit(self.HANDLE_R, m)),
-                TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(-half, rad)), Expr.written_angle(WrittenAngle.in_unit(half, rad))),
-                Expr.written_length(WrittenLength.in_unit(self.HANDLE_TUBE, m)),
+                Expr.length_in(self.HANDLE_R, m),
+                TubeWindow.arc(Expr.angle_in(-half, rad), Expr.angle_in(half, rad)),
+                Expr.length_in(self.HANDLE_TUBE, m),
             )
         )
 
@@ -2891,15 +2884,15 @@ class TestTeapot(unittest.TestCase):
 
         # Half a chart is a refusal, from either side.
         for one in (half, half_pi):
-            node = doc.insert(Node.shell(pot, Expr.written_length(WrittenLength.in_unit(self.WALL, m)), [one]))
+            node = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), [one]))
             with self.assertRaises(EvaluationError) as caught:
                 evaluate(doc).value(node)
             self.assertEqual(caught.exception.kind, "shell")
             self.assertIn("chart", str(caught.exception))
 
         # Both halves, in each order: two documents, one shape.
-        forward = doc.insert(Node.shell(pot, Expr.written_length(WrittenLength.in_unit(self.WALL, m)), [half, half_pi]))
-        backward = doc.insert(Node.shell(pot, Expr.written_length(WrittenLength.in_unit(self.WALL, m)), [half_pi, half]))
+        forward = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), [half, half_pi]))
+        backward = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), [half_pi, half]))
         ev = evaluate(doc)
         faces = NamePat.of_kind(EntityKind.Face)
         rims = {}
@@ -3218,7 +3211,7 @@ class TestTorusvessel(unittest.TestCase):
         )
         frame, axis = teapot_frame_and_axis(doc)
         operand = fully_revolved(doc, frame, axis, meridian)
-        return operand, doc.insert(Node.shell(operand, Expr.written_length(WrittenLength.in_unit(self.WALL, m)), []))
+        return operand, doc.insert(Node.shell(operand, Expr.length_in(self.WALL, m), []))
 
     def test_a_torus_walled_vessel_hollows_through_the_document(self):
         doc = Doc()
@@ -3297,16 +3290,16 @@ class TestTwopeg(unittest.TestCase):
             .line_to((0 * m, y * m))
             .line_to(Start)
         )
-        profile = doc.insert(Node.profile(outline, plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z0, m)))))
-        return doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(self.PLATE[2], m))))
+        profile = doc.insert(Node.profile(outline, plane=doc.sketch_frame(elevation=Expr.length_in(z0, m))))
+        return doc.insert(Node.extrude(profile, Expr.length_in(self.PLATE[2], m)))
 
     def peg(self, doc, cx, z0, h):
         """The radius-0.5 rim as THREE 120° arcs of one carrier —
         `circle_split`, as the scene writes it, because the split
         count is part of what the seam looks like."""
         rim = circle_split((cx * m, self.PEG_Y * m), self.PEG_R * m, 3, 0 * deg)
-        profile = doc.insert(Node.profile(rim, plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z0, m)))))
-        return doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(h, m))))
+        profile = doc.insert(Node.profile(rim, plane=doc.sketch_frame(elevation=Expr.length_in(z0, m))))
+        return doc.insert(Node.extrude(profile, Expr.length_in(h, m)))
 
     def parts(self, doc):
         plain = self.PLATE[0] * self.PLATE[1] * self.PLATE[2]
@@ -3328,14 +3321,14 @@ class TestTwopeg(unittest.TestCase):
         p, q, v_p, v_q = self.parts(doc)
         lifted = doc.insert(
             Node.transform(q, (
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(1.6, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(1.6, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(1.0),
-            ), Expr.written_angle(WrittenAngle.in_unit(0, deg)))
+            ), Expr.angle_in(0, deg))
         )
         ev = evaluate(doc)
         for node, want in ((p, v_p), (q, v_q), (lifted, v_q)):
@@ -3432,8 +3425,8 @@ class TestTwopeg(unittest.TestCase):
         import pncad
 
         doc = Doc()
-        peg_p = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0, m)))))
-        peg = doc.insert(Node.extrude(peg_p, Expr.written_length(WrittenLength.in_unit(1, m))))
+        peg_p = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame(elevation=Expr.length_in(0, m))))
+        peg = doc.insert(Node.extrude(peg_p, Expr.length_in(1, m)))
         block_outline = (
             Open.at((-3 * m, -3 * m))
             .line_to((3 * m, -3 * m))
@@ -3444,10 +3437,10 @@ class TestTwopeg(unittest.TestCase):
         block_p = doc.insert(
             Node.profile(
                 [block_outline, circle((0 * m, 0 * m), 1 * m)],
-                plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(-1, m))),
+                plane=doc.sketch_frame(elevation=Expr.length_in(-1, m)),
             )
         )
-        block = doc.insert(Node.extrude(block_p, Expr.written_length(WrittenLength.in_unit(3, m))))
+        block = doc.insert(Node.extrude(block_p, Expr.length_in(3, m)))
         ev = evaluate(doc)
         findings = ev.find_flush_candidates(peg, block)
         self.assertEqual(len(findings), 4)
@@ -3491,16 +3484,16 @@ class TestMeshCrossCheck(unittest.TestCase):
         ]
         doc = Doc()
         frame = doc.sketch_frame()
-        profile = doc.insert(Node.polygon([(_wm(x), _wm(y)) for x, y in poly], plane=frame))
+        profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in poly], plane=frame))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(0.0),
             Expr.literal(1.0),
         )))
-        chute = doc.insert(Node.revolve(profile, axis, Expr.written_angle(WrittenAngle.in_unit(270, deg))))
+        chute = doc.insert(Node.revolve(profile, axis, Expr.angle_in(270, deg)))
 
         body = evaluate(doc).value(chute).body()
         body.validate()
@@ -3529,9 +3522,9 @@ class TestMeshCrossCheck(unittest.TestCase):
         ]
         doc = Doc()
         sketch = doc.insert(
-            Node.polygon([(_wm(a), _wm(b)) for a, b in letter], plane=doc.sketch_frame(plane=t_plane))
+            Node.polygon([(Expr.length_in(a, m), Expr.length_in(b, m)) for a, b in letter], plane=doc.sketch_frame(plane=t_plane))
         )
-        prism = doc.insert(Node.extrude(sketch, Expr.written_length(WrittenLength.in_unit(2.5, m))))
+        prism = doc.insert(Node.extrude(sketch, Expr.length_in(2.5, m)))
 
         body = evaluate(doc).value(prism).body()
         body.validate()
@@ -3551,15 +3544,15 @@ class TestMeshCrossCheck(unittest.TestCase):
         profile = doc.insert(
             Node.polygon(
                 [
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(1, m), Expr.length_in(0, m)),
+                    (Expr.length_in(1, m), Expr.length_in(1, m)),
+                    (Expr.length_in(0, m), Expr.length_in(1, m)),
                 ],
                 plane=doc.sketch_frame(),
             )
         )
-        cube = doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(1, m))))
+        cube = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
         mesh = evaluate(doc).value(cube).body().tessellate(1 * mm)
         data = mesh.to_stl_binary(header="pncad north-star audit")
         self.assertEqual(
@@ -3605,9 +3598,9 @@ class TestTubeAndHollowTube(unittest.TestCase):
     def spine(self, doc, direction=SPINE_Z):
         return doc.insert(
             Node.datum_axis((
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
             ), direction)
         )
 
@@ -3618,9 +3611,9 @@ class TestTubeAndHollowTube(unittest.TestCase):
             Node.tube(
                 spine,
                 (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.written_length(WrittenLength.in_unit(self.R, m)),
+                Expr.length_in(self.R, m),
                 TubeWindow.full(),
-                Expr.written_length(WrittenLength.in_unit(self.OUTER, m)),
+                Expr.length_in(self.OUTER, m),
             )
         )
         props = evaluate(doc).value(ring).body().mass_properties()
@@ -3640,10 +3633,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
             Node.hollow_tube(
                 spine,
                 (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.written_length(WrittenLength.in_unit(self.R, m)),
+                Expr.length_in(self.R, m),
                 TubeWindow.full(),
-                Expr.written_length(WrittenLength.in_unit(self.OUTER, m)),
-                Expr.written_length(WrittenLength.in_unit(self.WALL, m)),
+                Expr.length_in(self.OUTER, m),
+                Expr.length_in(self.WALL, m),
             )
         )
         inner = self.OUTER - self.WALL
@@ -3668,10 +3661,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
             Node.hollow_tube(
                 spine,
                 (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.written_length(WrittenLength.in_unit(self.R, m)),
-                TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(self.T0, rad)), Expr.written_angle(WrittenAngle.in_unit(self.T1, rad))),
-                Expr.written_length(WrittenLength.in_unit(self.OUTER, m)),
-                Expr.written_length(WrittenLength.in_unit(self.WALL, m)),
+                Expr.length_in(self.R, m),
+                TubeWindow.arc(Expr.angle_in(self.T0, rad), Expr.angle_in(self.T1, rad)),
+                Expr.length_in(self.OUTER, m),
+                Expr.length_in(self.WALL, m),
             )
         )
         inner = self.OUTER - self.WALL
@@ -3695,18 +3688,18 @@ class TestTubeAndHollowTube(unittest.TestCase):
         volume row on either node alone, but not this one."""
         doc = Doc()
         spine = self.spine(doc, (Expr.literal(0.0), Expr.literal(1.0), Expr.literal(0.0)))
-        window = TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(self.T0, rad)), Expr.written_angle(WrittenAngle.in_unit(self.T1, rad)))
+        window = TubeWindow.arc(Expr.angle_in(self.T0, rad), Expr.angle_in(self.T1, rad))
         solid = doc.insert(
-            Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(self.R, m)), window, Expr.written_length(WrittenLength.in_unit(self.OUTER, m)))
+            Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(self.R, m), window, Expr.length_in(self.OUTER, m))
         )
         hollow = doc.insert(
             Node.hollow_tube(
                 spine,
                 (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.written_length(WrittenLength.in_unit(self.R, m)),
-                TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(self.T0, rad)), Expr.written_angle(WrittenAngle.in_unit(self.T1, rad))),
-                Expr.written_length(WrittenLength.in_unit(self.OUTER, m)),
-                Expr.written_length(WrittenLength.in_unit(self.WALL, m)),
+                Expr.length_in(self.R, m),
+                TubeWindow.arc(Expr.angle_in(self.T0, rad), Expr.angle_in(self.T1, rad)),
+                Expr.length_in(self.OUTER, m),
+                Expr.length_in(self.WALL, m),
             )
         )
         ev = evaluate(doc)
@@ -3728,17 +3721,17 @@ class TestTubeAndHollowTube(unittest.TestCase):
         spine = self.spine(doc)
         ring = doc.insert(
             Node.tube(
-                spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(self.R, m)), TubeWindow.full(), Expr.written_length(WrittenLength.in_unit(self.OUTER, m))
+                spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(self.R, m), TubeWindow.full(), Expr.length_in(self.OUTER, m)
             )
         )
         elbow = doc.insert(
             Node.hollow_tube(
                 spine,
                 (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.written_length(WrittenLength.in_unit(self.R, m)),
-                TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(self.T0, rad)), Expr.written_angle(WrittenAngle.in_unit(self.T1, rad))),
-                Expr.written_length(WrittenLength.in_unit(self.OUTER, m)),
-                Expr.written_length(WrittenLength.in_unit(self.WALL, m)),
+                Expr.length_in(self.R, m),
+                TubeWindow.arc(Expr.angle_in(self.T0, rad), Expr.angle_in(self.T1, rad)),
+                Expr.length_in(self.OUTER, m),
+                Expr.length_in(self.WALL, m),
             )
         )
         ev = evaluate(doc)
@@ -3771,10 +3764,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
             Node.hollow_tube(
                 spine,
                 (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.written_length(WrittenLength.in_unit(self.R, m)),
-                TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(self.T0, rad)), Expr.written_angle(WrittenAngle.in_unit(self.T1, rad))),
-                Expr.written_length(WrittenLength.in_unit(self.OUTER, m)),
-                Expr.written_length(WrittenLength.in_unit(self.WALL, m)),
+                Expr.length_in(self.R, m),
+                TubeWindow.arc(Expr.angle_in(self.T0, rad), Expr.angle_in(self.T1, rad)),
+                Expr.length_in(self.OUTER, m),
+                Expr.length_in(self.WALL, m),
             )
         )
         ev = evaluate(doc)
@@ -3808,10 +3801,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
             Node.tube(
                 self.spine(Doc()),
                 (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.written_length(WrittenLength.in_unit(self.R, m)),
+                Expr.length_in(self.R, m),
                 TubeWindow.full(),
-                Expr.written_length(WrittenLength.in_unit(self.OUTER, m)),
-                Expr.written_length(WrittenLength.in_unit(self.WALL, m)),
+                Expr.length_in(self.OUTER, m),
+                Expr.length_in(self.WALL, m),
             )
 
         def refuse(minor, wall):
@@ -3821,10 +3814,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
                 Node.hollow_tube(
                     spine,
                     (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                    Expr.written_length(WrittenLength.in_unit(self.R, m)),
+                    Expr.length_in(self.R, m),
                     TubeWindow.full(),
-                    Expr.written_length(WrittenLength.in_unit(minor, m)),
-                    Expr.written_length(WrittenLength.in_unit(wall, m)),
+                    Expr.length_in(minor, m),
+                    Expr.length_in(wall, m),
                 )
             )
             with self.assertRaises(EvaluationError) as caught:
@@ -3841,8 +3834,8 @@ class TestTubeAndHollowTube(unittest.TestCase):
         spine = self.spine(doc)
         collapsed = doc.insert(
             Node.hollow_tube(
-                spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(1e14, m)), TubeWindow.full(),
-                Expr.written_length(WrittenLength.in_unit(1e12, m)), Expr.written_length(WrittenLength.in_unit(1e-6, m)),
+                spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(1e14, m), TubeWindow.full(),
+                Expr.length_in(1e12, m), Expr.length_in(1e-6, m),
             )
         )
         with self.assertRaises(EvaluationError) as caught:
@@ -3859,7 +3852,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
                     Expr.literal(1.0),
                     Expr.literal(0.0),
                     Expr.literal(0.0),
-                ), Expr.written_length(WrittenLength.in_unit(self.R, m)), None, Expr.written_length(WrittenLength.in_unit(self.OUTER, m))
+                ), Expr.length_in(self.R, m), None, Expr.length_in(self.OUTER, m)
             )
         doc = Doc()
         spine = self.spine(doc)
@@ -3867,9 +3860,9 @@ class TestTubeAndHollowTube(unittest.TestCase):
             Node.tube(
                 spine,
                 (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.written_length(WrittenLength.in_unit(self.R, m)),
-                TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(0, rad)), Expr.written_angle(WrittenAngle.in_unit(7, rad))),
-                Expr.written_length(WrittenLength.in_unit(self.OUTER, m)),
+                Expr.length_in(self.R, m),
+                TubeWindow.arc(Expr.angle_in(0, rad), Expr.angle_in(7, rad)),
+                Expr.length_in(self.OUTER, m),
             )
         )
         with self.assertRaises(EvaluationError) as caught:
@@ -4274,18 +4267,18 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         hollow = doc.insert(Node.boolean(BooleanOp.Subtract, box, cavity))
 
         clear = doc.insert(Node.datum_plane((
-            Expr.written_length(WrittenLength.in_unit(2.5, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(2.5, m),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(1.0),
             Expr.literal(0.0),
             Expr.literal(0.0),
         )))
         through = doc.insert(Node.datum_plane((
-            Expr.written_length(WrittenLength.in_unit(0.5, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(0.5, m),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(1.0),
             Expr.literal(0.0),
@@ -4315,9 +4308,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         box = projectbox(doc)
         tool = doc.insert(
             Node.datum_plane((
-                Expr.written_length(WrittenLength.in_unit(1.5, m)),
-                Expr.written_length(WrittenLength.in_unit(1.0, m)),
-                Expr.written_length(WrittenLength.in_unit(0.75, m)),
+                Expr.length_in(1.5, m),
+                Expr.length_in(1.0, m),
+                Expr.length_in(0.75, m),
             ), (
                 Expr.literal(0.75),
                 Expr.literal(0.1875),
@@ -4401,9 +4394,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         box = slab(doc, (0, 1), (0, 1), (0, 1))
         other = slab(doc, (2, 3), (0, 1), (0, 1))
         plane = doc.insert(Node.datum_plane((
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0.5, m)),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+            Expr.length_in(0.5, m),
         ), (
             Expr.literal(0.0),
             Expr.literal(0.0),
@@ -4421,7 +4414,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 Expr.literal(1.0),
                 Expr.literal(0.0),
                 Expr.literal(0.0),
-            ), Expr.written_length(WrittenLength.in_unit(4, m))))
+            ), Expr.length_in(4, m)))
         )
         self.assertEqual(evaluate(doc).value(family).kind, "instances")
         plural = doc.insert(Node.boolean(BooleanOp.Union, family, other))

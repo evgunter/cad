@@ -39,8 +39,6 @@ from pncad import (
     Selector,
     SketchPlane,
     Start,
-    WrittenAngle,
-    WrittenLength,
     deg,
     evaluate,
     m,
@@ -53,15 +51,15 @@ def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.written_length(WrittenLength.in_unit(x[0], m)), Expr.written_length(WrittenLength.in_unit(y[0], m))),
-                (Expr.written_length(WrittenLength.in_unit(x[1], m)), Expr.written_length(WrittenLength.in_unit(y[0], m))),
-                (Expr.written_length(WrittenLength.in_unit(x[1], m)), Expr.written_length(WrittenLength.in_unit(y[1], m))),
-                (Expr.written_length(WrittenLength.in_unit(x[0], m)), Expr.written_length(WrittenLength.in_unit(y[1], m))),
+                (Expr.length_in(x[0], m), Expr.length_in(y[0], m)),
+                (Expr.length_in(x[1], m), Expr.length_in(y[0], m)),
+                (Expr.length_in(x[1], m), Expr.length_in(y[1], m)),
+                (Expr.length_in(x[0], m), Expr.length_in(y[1], m)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z[0], m))),
+            plane=doc.sketch_frame(elevation=Expr.length_in(z[0], m)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(z[1] - z[0], m))))
+    return doc.insert(Node.extrude(profile, Expr.length_in(z[1] - z[0], m)))
 
 
 def mass_of(doc, node):
@@ -100,7 +98,7 @@ class TestTheFinGroup(unittest.TestCase):
                 Expr.literal(1.0),
                 Expr.literal(0.0),
                 Expr.literal(0.0),
-            ), Expr.written_length(WrittenLength.in_unit(PITCH, m))))
+            ), Expr.length_in(PITCH, m)))
         )
         self.assertEqual(len(doc) - before, 1)
 
@@ -122,14 +120,14 @@ class TestTheFinGroup(unittest.TestCase):
         for i in range(5):
             placed = chain_doc.insert(
                 Node.transform(fin, (
-                    Expr.written_length(WrittenLength.in_unit(i * PITCH, m)),
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.length_in(i * PITCH, m),
+                    Expr.length_in(0, m),
+                    Expr.length_in(0, m),
                 ), (
                     Expr.literal(0.0),
                     Expr.literal(0.0),
                     Expr.literal(1.0),
-                ), Expr.written_angle(WrittenAngle.in_unit(0, rad)))
+                ), Expr.angle_in(0, rad))
             )
             acc = (
                 placed
@@ -144,7 +142,7 @@ class TestTheFinGroup(unittest.TestCase):
                     Expr.literal(1.0),
                     Expr.literal(0.0),
                     Expr.literal(0.0),
-                ), Expr.written_length(WrittenLength.in_unit(PITCH, m)))
+                ), Expr.length_in(PITCH, m))
             )
         )
 
@@ -174,7 +172,7 @@ class TestTheFinGroup(unittest.TestCase):
                     Expr.literal(1.0),
                     Expr.literal(0.0),
                     Expr.literal(0.0),
-                ), Expr.written_length(WrittenLength.in_unit(PITCH, m)))
+                ), Expr.length_in(PITCH, m))
             )
         )
         ev = evaluate(doc)
@@ -253,15 +251,15 @@ def die_tool_document():
     square = doc.insert(
         Node.polygon(
             [
-                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                (Expr.written_length(WrittenLength.in_unit(DIE_L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                (Expr.written_length(WrittenLength.in_unit(DIE_L, m)), Expr.written_length(WrittenLength.in_unit(DIE_L, m))),
-                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(DIE_L, m))),
+                (Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.length_in(DIE_L, m), Expr.length_in(0, m)),
+                (Expr.length_in(DIE_L, m), Expr.length_in(DIE_L, m)),
+                (Expr.length_in(0, m), Expr.length_in(DIE_L, m)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0, m))),
+            plane=doc.sketch_frame(elevation=Expr.length_in(0, m)),
         )
     )
-    cube = doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(DIE_L, m))))
+    cube = doc.insert(Node.extrude(square, Expr.length_in(DIE_L, m)))
 
     # ---- the master ball, poled along +Z ----
     # `die_pips::half_disc_program` verbatim: ONE bulge-1 semicircle
@@ -279,8 +277,8 @@ def die_tool_document():
     # (0, 1) through the origin. Being in the plane is no longer a
     # tolerance question — it is what the four numbers mean.
     axis = doc.insert(Node.datum_axis_in_plane(plane, (
-        Expr.written_length(WrittenLength.in_unit(0, m)),
-        Expr.written_length(WrittenLength.in_unit(0, m)),
+        Expr.length_in(0, m),
+        Expr.length_in(0, m),
     ), (
         Expr.literal(0.0),
         Expr.literal(1.0),
@@ -291,7 +289,7 @@ def die_tool_document():
         .line_to(Start)
     )
     ball_p = doc.insert(Node.profile(half_disc, plane=plane))
-    ball = doc.insert(Node.revolve(ball_p, axis, Expr.written_angle(WrittenAngle.in_unit(2.0 * math.pi, rad))))
+    ball = doc.insert(Node.revolve(ball_p, axis, Expr.angle_in(2.0 * math.pi, rad)))
 
     # ---- the whole cutting tool, in ONE node ----
     tool = doc.insert(Node.placed_union_at(ball, pip_placements()))
@@ -532,8 +530,14 @@ class TestTheFrameValue(unittest.TestCase):
         minus = Frame.translation((-0.0 * m, 0 * m, 0 * m))
         self.assertEqual(zero, Frame.translation((0 * m, 0 * m, 0 * m)))
         self.assertNotEqual(zero, minus)
-        self.assertEqual(hash(zero), hash(Frame.translation((0 * m, 0 * m, 0 * m))))
-        self.assertEqual(len({zero, minus}), 2)
+
+    def test_a_frame_compares_and_does_not_hash(self):
+        """`editor_core::Frame` derives `PartialEq` and no `Hash`, and
+        this class mirrors its derives: a pose is a datum the solver
+        consumes, not a key, so `__hash__` is `None`."""
+        self.assertIsNone(Frame.__hash__)
+        with self.assertRaises(TypeError):
+            {Frame.translation((0 * m, 0 * m, 0 * m))}
 
     def test_a_placement_and_a_transform_agree_bit_for_bit(self):
         """The D9 promise the group-versus-chain equality rests on:
@@ -553,14 +557,14 @@ class TestTheFrameValue(unittest.TestCase):
         )
         moved = doc.insert(
             Node.transform(box, (
-                Expr.written_length(WrittenLength.in_unit(5, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.length_in(5, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(2.0),
-            ), Expr.written_angle(WrittenAngle.in_unit(30, deg)))
+            ), Expr.angle_in(30, deg))
         )
         self.assertEqual(mass_of(doc, placed).volume, mass_of(doc, moved).volume)
 
@@ -668,16 +672,16 @@ class TestTheCircularRule(unittest.TestCase):
         doc = Doc()
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
         axis = doc.insert(Node.datum_axis((
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(0.0),
             Expr.literal(0.0),
             Expr.literal(1.0),
         )))
         group = doc.insert(
-            Node.placed_union(box, Expr.count(4), PatternKind.circular(axis, Expr.written_angle(WrittenAngle.in_unit(90, deg))))
+            Node.placed_union(box, Expr.count(4), PatternKind.circular(axis, Expr.angle_in(90, deg)))
         )
         self.assertEqual(mass_of(doc, group).volume, 4.0)
 
@@ -696,7 +700,7 @@ class TestTheCountParamBinding(unittest.TestCase):
                     Expr.literal(1.0),
                     Expr.literal(0.0),
                     Expr.literal(0.0),
-                ), Expr.written_length(WrittenLength.in_unit(PITCH, m)))
+                ), Expr.length_in(PITCH, m))
             )
         )
         return doc, group

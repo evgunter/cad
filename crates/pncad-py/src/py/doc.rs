@@ -1455,20 +1455,6 @@ impl SketchPlane {
         self.0.bit_eq(&other.0)
     }
 
-    /// Consistent with [`Self::__eq__`] BY CONSTRUCTION: it hashes the
-    /// same twelve bit patterns the comparison reads, so bit-equal
-    /// planes hash equal and `-0.0` keeps its own bucket.
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let o = self.0.origin();
-        let (u, v, n) = (self.0.u(), self.0.v(), self.0.normal());
-        let mut h = std::hash::DefaultHasher::new();
-        for c in [o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z, n.x, n.y, n.z] {
-            c.to_bits().hash(&mut h);
-        }
-        h.finish()
-    }
-
     fn __repr__(&self) -> String {
         let o = self.0.placement.translation;
         let (u, v) = (self.0.placement.linear.c0, self.0.placement.linear.c1);
@@ -3000,23 +2986,6 @@ impl DocParamValue {
     /// the two spellings of zero are the same value.
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
-    }
-
-    /// Consistent with [`Self::__eq__`]: `-0.0` folds to `0.0`.
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::hash::DefaultHasher::new();
-        match self.0 {
-            d::DocParamValue::Continuous(v) => {
-                0u8.hash(&mut h);
-                fold_zero(v).to_bits().hash(&mut h);
-            }
-            d::DocParamValue::Count(v) => {
-                1u8.hash(&mut h);
-                v.hash(&mut h);
-            }
-        }
-        h.finish()
     }
 
     fn __repr__(&self) -> String {

@@ -157,3 +157,7 @@ Operations (2026-09-05/06): a Fable-side limit blocked this session and
 every Fable lane for ~24 h; three lanes were resumed from transcript
 without loss. `work.py --selftest`'s date-pinned fixture expired on
 2026-09-07 UTC and reddened one run before main cleared it.
+
+## Announced from LIB (2026-09-09): a derive word on `SurfaceKind` and `CarrierRelation`
+
+LIB-MIRROR (PR #2271) adds `Hash` to `geom_brep::SurfaceKind` (`intersect.rs:109`) and `topo::CarrierRelation` (`boolean/carrier_eq.rs:64`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; nothing else in either file moves.

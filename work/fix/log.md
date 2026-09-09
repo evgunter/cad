@@ -203,3 +203,7 @@ pass: `tier-3-prime-findings-render-through-debug` (shares
 `census.rs`). Still unscheduled: `coherence-findings-have-no-consumer`,
 `boolean-error-has-no-fieldless-kind`, `mate-clocking-has-no-gui-path`
 half 1.
+
+## Announced from LIB (2026-09-09): a derive word on the four `checks.rs` enums, and `Hash` by symbol in `quantity`
+
+LIB-MIRROR (PR #2271) adds `Hash` to `CheckId`, `CheckKind`, `Severity` and `Advisory` (`checks.rs:51,128,141,161`, `CheckId` keeping its `PartialOrd, Ord`), and gives `UnitDef`, `LengthUnit` and `AngleUnit` a hand-written `Hash` over the row's symbol plus `Eq` (`quantity/src/units.rs:563-585`, test at `quantity/src/tests.rs:528`) — the seal makes the symbol determine the row, so the hash agrees with the derived `PartialEq`; all under Ev's (A) ruling on `[ev]` #2265.

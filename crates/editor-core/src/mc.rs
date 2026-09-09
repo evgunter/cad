@@ -74,7 +74,7 @@ pub const DEFAULT_SAMPLES: usize = 512;
 pub const DEFAULT_SEED: u64 = 0x4d43_5f45_3131_5f31;
 
 /// How one MC run is configured.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct McConfig {
     /// How many samples ([`DEFAULT_SAMPLES`]).
     pub samples: usize,

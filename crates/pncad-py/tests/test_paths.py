@@ -38,7 +38,6 @@ from pncad import (
     Radius,
     Start,
     Via,
-    WrittenLength,
     circle,
     circle_split,
     deg,
@@ -412,7 +411,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_an_arc_bearing_profile_evaluates(self):
         doc = Doc()
-        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Expr.written_length(WrittenLength.in_unit(1, m))))
+        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Expr.length_in(1, m)))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
         body = ev.value(solid).body()
@@ -424,7 +423,7 @@ class TestTheProfileNode(unittest.TestCase):
     def test_the_carrier_form_lands_as_its_own_program_arm(self):
         doc = Doc()
         solid = doc.insert(
-            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m), plane=doc.sketch_frame())), Expr.written_length(WrittenLength.in_unit(2, m)))
+            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m), plane=doc.sketch_frame())), Expr.length_in(2, m))
         )
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
@@ -446,14 +445,14 @@ class TestTheProfileNode(unittest.TestCase):
 
         doc = Doc()
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2), plane=doc.sketch_frame())), Expr.written_length(WrittenLength.in_unit(1, m)))
+            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2), plane=doc.sketch_frame())), Expr.length_in(1, m))
         )
         boss = doc.insert(
             Node.extrude(
                 doc.insert(
-                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0.5, m))))
+                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), plane=doc.sketch_frame(elevation=Expr.length_in(0.5, m)))
                 ),
-                Expr.written_length(WrittenLength.in_unit(1, m)),
+                Expr.length_in(1, m),
             )
         )
         fused = doc.insert(Node.boolean(BooleanOp.Union, plate, boss))
@@ -464,7 +463,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_the_program_survives_persistence_bit_for_bit(self):
         doc = Doc()
-        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Expr.written_length(WrittenLength.in_unit(1, m))))
+        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Expr.length_in(1, m)))
         replayed = load(doc.save()).doc
         self.assertTrue(doc.bit_eq(replayed), "replay is bit-identical, not merely close")
 

@@ -29,7 +29,6 @@ from pncad import (
     Doc,
     Expr,
     Node,
-    WrittenLength,
     assemble,
     evaluate,
     m,
@@ -44,15 +43,15 @@ def slab(doc, x0, x1):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.written_length(WrittenLength.in_unit(x0, m)), Expr.written_length(WrittenLength.in_unit(0.0, m))),
-                (Expr.written_length(WrittenLength.in_unit(x1, m)), Expr.written_length(WrittenLength.in_unit(0.0, m))),
-                (Expr.written_length(WrittenLength.in_unit(x1, m)), Expr.written_length(WrittenLength.in_unit(1.0, m))),
-                (Expr.written_length(WrittenLength.in_unit(x0, m)), Expr.written_length(WrittenLength.in_unit(1.0, m))),
+                (Expr.length_in(x0, m), Expr.length_in(0.0, m)),
+                (Expr.length_in(x1, m), Expr.length_in(0.0, m)),
+                (Expr.length_in(x1, m), Expr.length_in(1.0, m)),
+                (Expr.length_in(x0, m), Expr.length_in(1.0, m)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0.0, m))),
+            plane=doc.sketch_frame(elevation=Expr.length_in(0.0, m)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(1.0, m))))
+    return doc.insert(Node.extrude(profile, Expr.length_in(1.0, m)))
 
 
 def one_box(label="memo-one-box"):
@@ -117,11 +116,11 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         doc.insert(
             Node.polygon(
                 [
-                    (Expr.written_length(WrittenLength.in_unit(0.0, m)), Expr.written_length(WrittenLength.in_unit(0.0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(1.0, m)), Expr.written_length(WrittenLength.in_unit(0.0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(1.0, m)), Expr.written_length(WrittenLength.in_unit(1.0, m))),
+                    (Expr.length_in(0.0, m), Expr.length_in(0.0, m)),
+                    (Expr.length_in(1.0, m), Expr.length_in(0.0, m)),
+                    (Expr.length_in(1.0, m), Expr.length_in(1.0, m)),
                 ],
-                plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0.0, m))),
+                plane=doc.sketch_frame(elevation=Expr.length_in(0.0, m)),
             )
         )
         ev = evaluate(doc)
