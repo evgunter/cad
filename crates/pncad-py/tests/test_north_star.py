@@ -3826,9 +3826,15 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # and `find_flush_candidates` joined them when G5 closed
         # (LIB-PYG5): the detector is an `Evaluation` method too
         # (`TestTable`/`TestCrosslapGlued` are the positive forms).
-        # `StableName` stays: a name is CARRIED as text, never
-        # composed, so there is no name type and no name grammar —
-        # a `FlushFinding`'s pair crosses as the same opaque texts.
+        # `StableName` stays, and for a sharper reason than "nothing
+        # spells it": a name is `str` on this side, so there is no
+        # name TYPE and no grammar to half-parse. The five role-name
+        # doors — `band`, `band_pi`, `band_rim`, `meridian_vertex`,
+        # `carried` — do not change that: each MINTS a name by naming
+        # a ROLE and answers the same opaque text a materializer
+        # answers, which is why they are module doors and not methods
+        # on a name class. A `FlushFinding`'s pair crosses as the same
+        # opaque texts.
         for door in [
             # `Mesh`/`TessellateError` left this list when G11 closed
             # (LIB-G11) — `TestMeshCrossCheck` below is the positive

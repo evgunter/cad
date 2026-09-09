@@ -1373,7 +1373,7 @@ inserts the offset boundary as a cavity; the faces you name in `open`
 are re-authored as annular RIMS instead, so a box opened at its top
 is a cup. `Node.shell(target, thickness, open)` is the door, and
 `open` is face names as text exactly as `Node.fillet` takes edge
-names — carried, never composed, frozen at authoring time.
+names — carried, never read, frozen at authoring time.
 
 One thing the blend selection does not have: **`open` is ordered.** A
 chart's rim is its FIRST designated face (the chart's other faces
@@ -1428,6 +1428,72 @@ try:
     raise AssertionError("a zero wall should not hollow")
 except EvaluationError as refusal:
     assert refusal.kind == "shell"
+```
+
+### Naming a role before the body exists
+
+Both doors above took names an evaluation had already answered. That
+is the ordinary case, and it has a hole: the first time you author a
+recipe there is nothing to select against, and a name you cannot name
+is a name you would have to hand-write — the serialized form, field by
+field, with no compiler and no door checking any of it.
+
+So a revolve's roles have MINTING doors, the same five `pncad::select`
+gives Rust: `band(node, seg)` and `band_pi(node, seg)` are the two
+halves of the face swept from meridian segment `seg`, `band_rim(node,
+vertex)` is the latitude rim standing at a meridian vertex,
+`meridian_vertex(end, node, vertex)` is that vertex itself, and
+`carried(node, inner)` is the name a survivor of `node` wears one op
+later. Each answers the SAME opaque text a materializer answers for
+that entity, so a selection authored this way and one selected off an
+evaluation are the same bytes.
+
+`seg` and `vertex` index the profile's canonical chain, on the OUTER
+loop: a hole's band is not reachable this way from either language.
+And the text is still never read or assembled — you name a ROLE, and
+the door does the rest.
+
+```python
+import math
+
+from pncad import (
+    Doc, EntityKind, NamePat, Node, Open, SegPat, SegTag, Selector,
+    Start, band, band_rim, carried, evaluate, m, rad,
+)
+
+RI, RO, H, T = 1.0, 2.0, 1.0, 0.125
+
+doc = Doc()
+frame = doc.sketch_frame()
+section = (
+    Open.at((RI * m, 0 * m))
+    .line_to((RO * m, 0 * m))
+    .line_to((RO * m, H * m))
+    .line_to((RI * m, H * m))
+    .line_to(Start)
+)
+ring = doc.insert(
+    Node.revolve(
+        doc.insert(Node.profile(section, plane=frame)),
+        doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0))),
+        2 * math.pi * rad,
+    )
+)
+
+# Segment 2 is the top annulus and vertex 2 the rim standing on it —
+# read off the profile as written, with nothing evaluated yet.
+cup = doc.insert(Node.shell(ring, T * m, [band(ring, 2)]))
+rolled = doc.insert(Node.fillet(ring, T * m, [band_rim(ring, 2), band_rim(ring, 3)]))
+
+ev = evaluate(doc)
+ev.value(cup).body().validate()
+ev.value(rolled).body().validate()
+
+# The minted names are the evaluation's own: the three bands that
+# survived the hollowing wear exactly `carried` of what they were.
+faces = NamePat.of_kind(EntityKind.Face)
+survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
+assert sorted(survivors) == sorted(carried(cup, band(ring, s)) for s in (0, 1, 3))
 ```
 
 ## 3. Parametric models

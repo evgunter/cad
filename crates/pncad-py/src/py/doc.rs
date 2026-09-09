@@ -2034,13 +2034,15 @@ impl Node {
     /// Constant-radius rolling-ball blends on a SELECTION of
     /// `target`'s edges.
     ///
-    /// `selection` is edge names as text — the strings
-    /// `Evaluation.all_edges` answers with. A name is CARRIED, not
-    /// composed and not read: the text is an opaque identifier whose
-    /// internal structure is not API (see [`name_text`]), so there is
-    /// no name-building vocabulary in Python and no supported way to
-    /// filter a materialized set. There is deliberately no "every
-    /// edge" spelling either.
+    /// `selection` is edge names as text: the strings
+    /// `Evaluation.all_edges` answers with, or the ones a role-name
+    /// door mints ([`super::select::band_rim`] and its four siblings)
+    /// for a node no evaluation has reached yet. A name is CARRIED,
+    /// never assembled and never read: the text is an opaque
+    /// identifier whose internal structure is not API (see
+    /// [`name_text`]), so a name is written by naming a ROLE and
+    /// there is no supported way to filter a materialized set. There
+    /// is deliberately no "every edge" spelling either.
     ///
     /// THE SELECTION FREEZES, exactly as in Rust: it is a commitment
     /// as of the evaluation you read it from, and an upstream edit
@@ -2079,9 +2081,9 @@ impl Node {
     /// edges — `Node.fillet`'s twin.
     ///
     /// `selection` is edge names as text, exactly as `Node.fillet`
-    /// takes them: the strings `Evaluation.all_edges` answers with,
-    /// CARRIED and never composed, with no "every edge" spelling and
-    /// no way to filter a materialized set. THE SELECTION FREEZES, in
+    /// takes them: materialized or minted, CARRIED and never read,
+    /// with no "every edge" spelling and no way to filter a
+    /// materialized set. THE SELECTION FREEZES, in
     /// the same sense and for the same reason — read `Node.fillet`.
     ///
     /// `distance` is the SETBACK along each support from the edge,
@@ -2117,8 +2119,10 @@ impl Node {
     /// Hollow `target` into a thin solid of wall `thickness`, with the
     /// faces in `open` re-authored as annular RIMS.
     ///
-    /// `open` is face names as TEXT, the strings `Evaluation.all_faces`
-    /// or a selector answers with, CARRIED and never composed — and,
+    /// `open` is face names as TEXT — the strings
+    /// `Evaluation.all_faces` or a selector answers with, or the ones
+    /// [`super::select::band`] and its siblings mint — CARRIED and
+    /// never read, and,
     /// unlike a blend's selection, IN THE ORDER GIVEN. The order is
     /// meaning: the kernel's record keeps a chart's designated faces
     /// in designation order, and the chart's rim is its FIRST

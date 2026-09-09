@@ -75,6 +75,7 @@ from pncad import (
     MatePrimitive,
     MateRole,
     NamePat,
+    MeridianEnd,
     Node,
     NodeId,
     NodePick,
@@ -110,7 +111,12 @@ from pncad import (
     deg,
     rad,
     enforce_checks,
+    band,
+    band_pi,
+    band_rim,
+    carried,
     evaluate,
+    meridian_vertex,
     import_step,
     load,
     gauge_of,
@@ -471,7 +477,7 @@ repinned: DocEdit = DocEdit.update_reference(instance, pin)
 product_roots: list[NodeId] = doc.roots
 cluster_frame: Frame = doc.placement(instance)
 registry: dict[NodeId, Frame] = doc.placements()
-carried: DocRef | None = doc.reference(instance)
+carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
 after_edit: list[ClusterMaintenance] = doc.last_maintenance
 
@@ -662,7 +668,7 @@ window: Distribution = Distribution.truncated_normal(1 * mm, -2 * mm, 2 * mm)
 declared_form: str = spread.kind
 annotated: DocParam = DocParam.length(4 * mm, spread)
 unannotated: DocParam = DocParam.length(4 * mm)
-carried: Distribution | None = annotated.distribution
+carried_distribution: Distribution | None = annotated.distribution
 read_back: DocParam | None = doc.params.get(ParamName("bore_r"))
 
 # The box is derived on request from a document and a policy, and the
@@ -875,3 +881,35 @@ for _instance in _report.instances:
     placement: Frame | None = _i.placement
     if placement is not None:
         placed_at: tuple[Length, Length, Length] = placement.origin
+
+
+# The five role-name doors: a name MINTED from a role, answering the
+# same `str` a materializer answers, and handed to the two doors that
+# take an authored selection. Nothing here evaluates anything — that
+# is what the doors are for.
+_names_doc = Doc()
+_names_frame = _names_doc.sketch_frame()
+_revolved: NodeId = _names_doc.insert(
+    Node.revolve(
+        _names_doc.insert(
+            Node.profile(
+                circle((2 * m, 1 * m), 0.5 * m), plane=_names_frame
+            )
+        ),
+        _names_doc.insert(
+            Node.datum_axis_in_plane(_names_frame, (0 * m, 0 * m), (0.0, 1.0))
+        ),
+        360 * deg,
+    )
+)
+minted_band: str = band(_revolved, 0)
+minted_half: str = band_pi(_revolved, 0)
+minted_rim: str = band_rim(_revolved, 1)
+minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, 1)
+minted_survivor: str = carried(_revolved, minted_band)
+_blended: NodeId = _names_doc.insert(
+    Node.fillet(_revolved, 0.1 * m, [minted_rim])
+)
+_hollowed: NodeId = _names_doc.insert(
+    Node.shell(_revolved, 0.1 * m, [minted_band, minted_half])
+)
