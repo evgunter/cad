@@ -11,10 +11,7 @@ use pyo3::types::{PyDict, PyString};
 use crate::errors::ErrorClass;
 use crate::py::expr::literal;
 use crate::py::typed_err;
-use crate::tags::{
-    edit_error_tag, edit_inner_variant_tag, persist_error_tag,
-    workspace_error_tag,
-};
+use crate::tags::{edit_error_tag, edit_inner_variant_tag, persist_error_tag, workspace_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -1635,11 +1632,7 @@ impl Node {
     /// number: a literal is a new document per value, a parameter
     /// reference is one `set_doc_param_value` per value.
     #[staticmethod]
-    fn extrude(
-        py: Python<'_>,
-        profile: &NodeId,
-        distance: &super::expr::Expr,
-    ) -> PyResult<Self> {
+    fn extrude(py: Python<'_>, profile: &NodeId, distance: &super::expr::Expr) -> PyResult<Self> {
         let distance = slot_expr(py, d::SlotId::Distance, distance)?;
         Ok(Self {
             inner: d::Node::Extrude {
@@ -1711,11 +1704,7 @@ impl Node {
     fn tube(
         py: Python<'_>,
         spine: &NodeId,
-        u_ref: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
+        u_ref: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
         major_radius: &super::expr::Expr,
         window: &TubeWindow,
         minor_radius: &super::expr::Expr,
@@ -1762,11 +1751,7 @@ impl Node {
     fn hollow_tube(
         py: Python<'_>,
         spine: &NodeId,
-        u_ref: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
+        u_ref: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
         major_radius: &super::expr::Expr,
         window: &TubeWindow,
         minor_radius: &super::expr::Expr,
@@ -1876,16 +1861,8 @@ impl Node {
     #[staticmethod]
     fn datum_axis(
         py: Python<'_>,
-        origin: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
-        direction: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
+        origin: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
+        direction: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
     ) -> PyResult<Self> {
         let origin = direction_expr(py, d::VectorSlot::Origin, &origin)?;
         let direction = direction_expr(py, d::VectorSlot::Direction, &direction)?;
@@ -2006,21 +1983,9 @@ impl Node {
     #[staticmethod]
     fn datum_frame(
         py: Python<'_>,
-        origin: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
-        u: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
-        v: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
+        origin: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
+        u: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
+        v: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Frame {
@@ -2041,16 +2006,8 @@ impl Node {
     #[staticmethod]
     fn datum_plane(
         py: Python<'_>,
-        origin: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
-        normal: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
+        origin: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
+        normal: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Plane {
@@ -2078,11 +2035,7 @@ impl Node {
     #[staticmethod]
     fn datum_point(
         py: Python<'_>,
-        position: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
+        position: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Point {
@@ -2267,16 +2220,8 @@ impl Node {
     fn transform(
         py: Python<'_>,
         input: &NodeId,
-        translation: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
-        rotation_axis: (
-            super::expr::Expr,
-            super::expr::Expr,
-            super::expr::Expr,
-        ),
+        translation: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
+        rotation_axis: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
         rotation_angle: &super::expr::Expr,
     ) -> PyResult<Self> {
         let translation = direction_expr(py, d::VectorSlot::Translation, &translation)?;
@@ -2483,16 +2428,15 @@ impl Node {
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
         let count = slot_expr(py, d::SlotId::Count, count)?;
-        let node = d::Node::placed_union(input.0, count, kind.0.clone())
-            .ok_or_else(|| {
-                boundary_edit_err(
-                    py,
-                    crate::tags::placement_rule_fault_tag(&d::PlacementRuleFault::CountSpelling),
-                    "an explicit placement rule carries its own placements, so it has no \
+        let node = d::Node::placed_union(input.0, count, kind.0.clone()).ok_or_else(|| {
+            boundary_edit_err(
+                py,
+                crate::tags::placement_rule_fault_tag(&d::PlacementRuleFault::CountSpelling),
+                "an explicit placement rule carries its own placements, so it has no \
                      count slot: use Node.placed_union_at"
-                        .to_owned(),
-                )
-            })?;
+                    .to_owned(),
+            )
+        })?;
         Ok(Self { inner: node })
     }
 
@@ -3559,11 +3503,7 @@ pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
 /// its own direction, shared so the two cannot drift.
 fn u_ref_expr(
     py: Python<'_>,
-    u: (
-        super::expr::Expr,
-        super::expr::Expr,
-        super::expr::Expr,
-    ),
+    u: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
 ) -> PyResult<[d::Expr; 3]> {
     direction_expr(py, d::VectorSlot::Direction, &u)
 }
@@ -3573,11 +3513,7 @@ fn u_ref_expr(
 pub(crate) fn direction_expr(
     py: Python<'_>,
     slot: d::VectorSlot,
-    v: &(
-        super::expr::Expr,
-        super::expr::Expr,
-        super::expr::Expr,
-    ),
+    v: &(super::expr::Expr, super::expr::Expr, super::expr::Expr),
 ) -> PyResult<[d::Expr; 3]> {
     Ok([
         slot_expr(py, slot.slot(d::Axis3::X), &v.0)?,
