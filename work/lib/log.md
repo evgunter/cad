@@ -4267,3 +4267,44 @@ in-file fails the rule; `Datum::FaceFrame`'s row removed fails naming
 it. No stub change, no new binding; the lane ran the pinned ruff for
 real. Orchestrator note: the three gap families are the next
 mechanical wave's obvious members. ~66 min, ~296k tokens.
+
+**LIB-IMPORT-REPORT MERGED (2026-09-09, #2249; mechanical under the
+08-29 ruling, no A/B row). Ev's (A)+(A) on `[ev]` #2232 items 1 and 2
+executed: `import_step`'s SUCCESS side crosses.** Rust half: the
+prelude's `step_import` group gains seven names — `StepImport` and
+the record vocabulary its `Solid` arm names (`StructureNormalization`,
+`NormalizationKind`, `CurvePromotion`, `PromotedCurveKind`,
+`PlacedInstance`, `FaceCensus`) — under the reach clause, with the
+prose saying which clause each half closes (the refusal was a
+MATCHABILITY gap, the answer a REACH one); the `Wireframe` arm needs
+no new name (`Curve3` is already on the list); a curation guard in
+`all.rs` binds every field of the arm by name from the prelude alone
+on a REAL import (the round-trip oracle's own exported text) and
+asserts the enclosure against a second `mass_properties` call bit for
+bit — "not a second computation" as an equality rather than a claim;
+`NormalizationKind` matched exhaustively there. Python half:
+`import_step` answers a frozen `ImportReport` with `body`,
+`enclosure` (the gate's own certified `MassProperties`), `eps_in`,
+and the three record lists as frozen rows (`StructureNormalization`,
+`CurvePromotion`, `PlacedInstance`, with `FaceCensus` a class of its
+own because a normalization carries TWO and their difference is the
+record); `Body` gains nothing, `mass_properties` keeps one meaning —
+the ruled shape. Decisions stated: `surface_promotion` keeps one word
+with `promoted_to`/`residual` beside it (five words, not six);
+`PlacedInstance.placement` is `Optional[Frame]`, `None` left as `None`
+(an identity `Frame` would read as a map the file chose). Deviation:
+`MassProperties` gains `Clone, Copy` + `skip_from_py_object` so the
+Python surface is unchanged. Census: `StepImport` → `ImportReport`
+with the double-quadrature measurement, the two discriminants to
+their `kind` words; the four row classes are same-spelled and
+accounted by rule 1 (a `BOUND_AS` row for them is stale by the decay
+check — found that way). Callers moved onto `.body`/`.enclosure`
+(`test_document.py`, `examples/bracket.py`, the guide's Python
+journey). The payload-rung sweep stays green with seven more curated
+names (narrowed 10, cross-list 4 unchanged). `ImportOptions`'
+non-crossing stands. Orchestrator note: this lane was killed by the
+container restart with six files uncommitted and resumed with "push
+first"; it committed the Python half, closed both items and opened
+the PR within forty minutes — the discipline's push-after-every-commit
+rule is what bounded the loss to one turn. The lane ran the pinned
+ruff for real. The measurement, taken: import-then-measure on a lofted rational-walled body 8.26 s + 8.24 s — the second quadrature is 49.9 % of the old journey and `.enclosure` is bit-identical; on the box 0.3 %, because a box has no quadrature to repeat. ~85 min including ~11 min of restart downtime, ~230k tokens.

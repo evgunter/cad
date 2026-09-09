@@ -2,9 +2,10 @@
 id: a-successful-step-imports-own-report-is-uncurated
 kind: issue
 title: a successful STEP import's report is uncurated: StepImport and the normalization records
-status: open
+status: closed
 opened: 2026-09-08
 refs: [LIB-CUR6]
+closed: 2026-09-09
 ---
 
 
@@ -103,3 +104,24 @@ rule. Rust and Python halves may land apart. The report's `.body` /
 (`pncad-py-import-step-drops-the-gates-enclosure`), still open with
 Ev at the time of this ruling; the unit dispatches once both are
 ruled.
+
+## Closed (2026-09-09, LIB-IMPORT-REPORT)
+
+(A), as ruled. `StepImport` and the record vocabulary its `Solid` arm
+names are on the prelude's `step_import` list —
+`StructureNormalization`, `NormalizationKind`, `CurvePromotion`,
+`PromotedCurveKind`, `PlacedInstance`, `FaceCensus`, with
+`PromotedKind` already there from the refusal side and now reached
+from two carriers. `crates/pncad/tests/all.rs`'s
+`the_import_answer_and_its_record_are_spellable_through_the_prelude`
+binds every field of the arm from the prelude alone, so an answer that
+stops being spellable stops compiling.
+
+The `Wireframe` arm the finding also named needed nothing new: its
+carriers are `Curve3`, already on the list, and its promotions are the
+same `CurvePromotion`.
+
+Python's half landed in the same unit rather than apart: the report is
+`ImportReport`, and each row of the record projects every field of its
+kernel type, with the two discriminants as words from exhaustive tag
+maps.

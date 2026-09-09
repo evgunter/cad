@@ -77,7 +77,7 @@ use pncad::select::{
     DanglingRef, HitTestError, InterrogateError, MeshPickError, NamingError, NodePickError,
     ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
 };
-use pncad::step_import::{PromotedKind, StepImportError};
+use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
@@ -1505,6 +1505,51 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
     match kind {
         PromotedKind::Plane => "plane",
         PromotedKind::Cylinder => "cylinder",
+    }
+}
+
+/// The stable tag for WHICH structure normalization a successful
+/// import re-minted — `StructureNormalization::kind`, on the success
+/// side of the same door.
+///
+/// The carrier is a value here rather than a refusal, and the rule is
+/// the one that decided `promoted_kind_tag`: the payload's category
+/// follows what its carrier does at the crossing. `ImportReport`
+/// crosses the record as frozen rows projecting every field, so this
+/// discriminant crosses as one of those fields — a word beside the
+/// entity id and the two censuses, never in place of them.
+///
+/// `SurfacePromotion` does NOT fold its payload into the word. Which
+/// analytic kind certified is [`promoted_kind_tag`]'s question and is
+/// answered at `promoted_to` beside this one, so a caller reading
+/// "the file's NURBS patch was adopted as an analytic surface" reads
+/// one word whichever kind it was, and the residual that certifies it
+/// is a number rather than a spelling.
+///
+/// The match is exhaustive, so a sixth normalization minted
+/// kernel-side stops this crate compiling instead of arriving under
+/// one of these five words.
+pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
+    match kind {
+        NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
+        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::FullPeriodTorus => "full_period_torus",
+        NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
+    }
+}
+
+/// The stable tag for the analytic kind a CURVE carrier was promoted
+/// to — `CurvePromotion::kind`.
+///
+/// One word today, and the exhaustive match is why it is a map rather
+/// than a literal: the named exclusions the recognizer carries
+/// (line-as-degree-1, ellipse, helix, open arcs) each land here when
+/// their follow-up does, and each stops this crate compiling until it
+/// has a word of its own.
+pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
+    match kind {
+        PromotedCurveKind::Circle => "circle",
     }
 }
 

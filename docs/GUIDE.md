@@ -893,10 +893,14 @@ props = body.mass_properties()
 assert abs(props.volume - 2.984e-5) < 1e-15
 assert props.volume_pad == 0.0
 
-# Export through the document layer, and re-import to prove it.
+# Export through the document layer, and re-import to prove it. The
+# report's `enclosure` is the IMPORT GATE's own certified measurement
+# of the body it just adopted — reading it re-measures nothing.
 step = ev.step_string(lightened, product_name="bracket")
 assert step.startswith("ISO-10303-21;")
-assert abs(import_step(step).mass_properties().volume - props.volume) < 1e-15
+report = import_step(step)
+assert abs(report.enclosure.volume - props.volume) < 1e-15
+assert report.instances[0].index == 0  # one assembly row per solid
 ```
 
 Two differences from the Rust walk are real and worth stating plainly
