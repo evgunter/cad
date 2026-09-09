@@ -287,17 +287,35 @@ class TestStlExport(unittest.TestCase):
         `endsolid <name>` unmatchable and the file unparseable."""
         with self.assertRaises(pncad.StlError) as caught:
             self.mesh.to_stl_ascii(solid_name="two\nlines")
-        self.assertEqual(caught.exception.variant, "solid_name_unrepresentable")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "solid_name_unrepresentable")
+        # The arm's payload: WHICH character the grammar refused.
+        self.assertEqual(refusal.character, "\n")
+        for absent in ("triangle", "index", "count", "len", "detail"):
+            self.assertIsNone(getattr(refusal, absent), absent)
 
     def test_a_header_that_sniffs_as_ascii_refuses(self):
         with self.assertRaises(pncad.StlError) as caught:
             self.mesh.to_stl_binary(header=" Solid v2")
-        self.assertEqual(caught.exception.variant, "binary_header_sniffs_ascii")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "binary_header_sniffs_ascii")
+        # The arm carries nothing: the header itself is the caller's
+        # own argument, and the fact is that it sniffs. Every
+        # attribute is still present, so `getattr` never raises.
+        for absent in (
+            "triangle", "index", "count", "character", "len", "detail"
+        ):
+            self.assertIsNone(getattr(refusal, absent), absent)
 
     def test_a_header_that_does_not_fit_refuses_rather_than_truncating(self):
         with self.assertRaises(pncad.StlError) as caught:
             self.mesh.to_stl_binary(header="x" * 81)
-        self.assertEqual(caught.exception.variant, "binary_header_too_long")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "binary_header_too_long")
+        # The arm's payload: how long the header actually was, against
+        # the format's 80 bytes.
+        self.assertEqual(refusal.len, 81)
+        self.assertIsNone(refusal.character)
 
 
 class TestCrossCheckOnBooleanGeometry(unittest.TestCase):

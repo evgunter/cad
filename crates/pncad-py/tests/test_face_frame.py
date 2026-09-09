@@ -111,16 +111,10 @@ class TestTheCarrierKindIsATagRead(unittest.TestCase):
         self.assertTrue(kind == SurfaceKind.Plane)
 
     def test_every_face_of_an_extrude_is_planar(self):
-        # A list rather than a set: `SurfaceKind` compares and does
-        # not hash, like every comparable enum this surface exposes
-        # (`work/lib/pncad-py-comparable-enums-do-not-hash.md`), so a
-        # tally by kind is a list of comparisons.
-        kinds = [
-            self.ev.face_carrier_kind(self.plate, f)
-            for f in self.ev.all_faces(self.plate)
-        ]
-        self.assertEqual(len(kinds), 6)
-        self.assertTrue(all(k == SurfaceKind.Plane for k in kinds))
+        faces = self.ev.all_faces(self.plate)
+        kinds = {self.ev.face_carrier_kind(self.plate, f) for f in faces}
+        self.assertEqual(len(faces), 6)
+        self.assertEqual(kinds, {SurfaceKind.Plane})
 
     def test_a_curved_carrier_reads_its_own_tag(self):
         """The read answers where the frame door declines. A torus

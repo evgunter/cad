@@ -2,9 +2,10 @@
 id: meta-unversioned-arm-has-no-inner-word
 kind: issue
 title: EditError's meta_unversioned arm carries a shape refusal with no Python word
-status: open
+status: closed
 opened: 2026-09-08
 refs: [LIB-DOORS-1]
+closed: 2026-09-08
 ---
 
 
@@ -48,3 +49,28 @@ with its `TAG_INVENTORY` row, point `edit_inner_variant_tag`'s
 `EditError.inner_variant`, the `ProgramRefusal` precedent). There is
 no Python door for `SetAppearanceMeta`, so the row is a Rust
 construction pin either way.
+
+## Closed (2026-09-08, LIB-CUR7)
+
+Every clause of "what closes it" executed, and nothing had to be
+re-argued: the payload rule already said carry it, and what had held
+it back was that the arm had no word to mint the type FOR. It has one.
+
+`MetaVersionError` is carried at `crates/pncad/src/document.rs`
+(`NOT_CARRIED` 85 -> 84, and the family entry that held it is replaced
+by the paragraph saying what moved). `meta_version_error_tag` speaks
+`not_a_map` / `missing_version` / `version_not_int` — the kernel's own
+three arms — with its `TAG_INVENTORY` row and the delegate row on
+`edit_inner_variant_tag`, whose `MetaUnversioned` arm now answers it.
+`every_edit_arm_projects_the_payload_it_carries` covers 58 of 58.
+Census row: `MetaVersionError` -> `EditError.inner_variant`, the
+`ProgramRefusal` precedent.
+
+The measurement the row asked for: `meta_unversioned` said that a D7
+producer convention was broken and now names which of the three ways,
+so a caller repairing a stored value knows whether to wrap it in a
+map, add the version, or make the version an integer. No shipped
+`variant` or `inner_variant` value moved — the arm's inner word was
+`None`. There is still no Python door that mints a
+`SetAppearanceMeta`, so the reach is the Rust construction pin, which
+is what the row predicted.

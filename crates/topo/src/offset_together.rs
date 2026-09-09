@@ -141,6 +141,11 @@ struct MovedPlane<T: Real> {
 /// and no solid may be touched in part; a solid the moves do not name
 /// is not offset and its geometry is not written.
 ///
+/// **What it READS is not as tight as what it writes**, and the whole
+/// account — which two reads are scope-sized, which four are still
+/// linear in the body, and what that costs — is [`Scope`]'s, stated
+/// there once for both doors.
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
@@ -390,10 +395,12 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
                 error,
             })?;
     }
-    // Every edge of the body was just re-described, so every stored
-    // pcurve row is stale — re-minted here for the same reason
+    // Every edge OF THE SCOPE was just re-described, so its stored
+    // pcurve rows are stale — re-minted here for the same reason
     // `replace_faces_offset` re-mints, and before the tier-2 gate that
-    // adopts the clone.
+    // adopts the clone. A row outside the scope is not re-derived: the
+    // door did not touch its edge, so the row is exactly as fresh as it
+    // was found, which is what the `Maintains` posture claims.
     //
     // **KEPT although it is inert today, deliberately.** Only MINTING
     // charts carry pcurve rows and a plane is not one, so on every body
@@ -402,12 +409,16 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     // that is said rather than left for a reader to discover. It stays
     // because the door's scope gate is the only thing making it inert:
     // the curved corners that follow bring charts that DO mint, and a
-    // door that re-describes every edge in the body without re-minting
+    // door that re-describes every edge in the scope without re-minting
     // would be storing stale rows the moment they arrive. The census
     // posture (`Maintains`, by re-minting) is therefore honest now and
     // stays honest then.
-    crate::pcurves::mint_pcurves(&mut work, tol)
+    let minting = scope.faces_in_scope();
+    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol)
         .map_err(|source| ReplaceFaceError::Pcurve { source })?;
+    // Tier 2 over the WHOLE clone, deliberately, and one of the four
+    // reads that stay linear in the body (`Scope`'s docs carry the
+    // account and the reason for each).
     if let Err(errors) = crate::validate::validate_closed(&work) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
@@ -697,21 +708,83 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// the named solids' vertices, and the edge walk their edges, so no
 /// entity outside the scope is offset or re-authored.
 ///
-/// **Constructing one is still a whole-body structural walk**, and so
-/// are the two passes each door closes with (`mint_pcurves` and
-/// `validate_closed`, over the whole clone). A corrupt shell, face,
-/// loop or half-edge ANYWHERE refuses the construction, whichever
-/// solids are named. That is a read, not a write — the scope bounds
-/// what moves, not what is looked at — and it is stated here because
-/// "the doors touch only the named solid" is true of the offset and
-/// false of the bookkeeping around it.
+/// # What a scoped call reads — the whole account, stated once
+///
+/// Both doors point here rather than restating it, because the two
+/// statements were byte-identical twins and a fact spelled twice is a
+/// fact that drifts.
+///
+/// **Narrowed to the scope, and only these two things.** (1) This
+/// partition: `of_solids` walks the named solids' shells and nothing
+/// else, so a shell, face, loop or half-edge that does not resolve
+/// refuses the construction only when it belongs to a solid the scope
+/// was asked about — a call about one solid is not refused for another
+/// solid's corruption. (2) The closing pcurve pass
+/// ([`crate::pcurves::mint_pcurves_of`], over
+/// [`Scope::faces_in_scope`]): the rows of the scope's faces are
+/// re-derived and no others are read or written.
+///
+/// **Everything else a door does is still O(body), and there is a lot
+/// of it.** In decreasing order of cost:
+///
+/// - **The asserting setters.** `set_face_surface` and `set_edge_curve`
+///   each run a whole-body tier-1 [`validate`](crate::validate()) as a
+///   postcondition, and a door performs one per moved face and one per
+///   re-described edge. A scoped planar call on a unit box pays 18 of
+///   them (6 + 12); the axial door pays 16; `shell_open` on the
+///   hollow-hollow-open body pays 90, and on box-beside-vessel opened,
+///   101. This dominates, and it is not this scope's to fix — it is
+///   `attach.rs`'s postcondition convention, filed as TOPO's own.
+/// - **Three whole-arena iterations in each door's decide phase**,
+///   filtered by `holds_face` / `holds_vertex` / `holds_edge`: the
+///   plane (or chart) sweep, the corner walk and the edge walk visit
+///   every entity of the body and skip the ones the scope does not
+///   hold. `axial_frame` sweeps `body.vertices()` the same way. The
+///   maps make the ANSWER scoped; the iteration is not.
+/// - **The clone** each door writes to.
+/// - **The closing tier-2 check**, `validate_closed` on that clone.
+///   Tier 1's passes are global by construction — ownership
+///   partitions, the edge ↔ half-edge bijection, orphan-geometry
+///   refcounts and edge-adjacency shell coherence are statements about
+///   the whole arena, and evaluating them over a shell subset reports
+///   every entity outside the subset as unowned or orphaned — so there
+///   is no restriction of them that is the same check narrowed rather
+///   than a different one.
+///
+/// So a scoped call is **linear in the whole body, not in its scope**,
+/// and it is measured that way: the same one-solid move set costs about
+/// 0.20, 0.30, 0.51 and 1.00 ms on bodies of one, two, four and eight
+/// solids. What this unit bought is which entities are WRITTEN and
+/// which failures are this call's — not the asymptotics. **Nothing
+/// pins that cost**: there is no guard and no register, so the numbers
+/// above are a measurement taken once, not a contract. The residue and
+/// what would close it: `work/shell/doors-still-read-the-whole-body-for-tier1.md`.
+///
+/// **Tier 2 is the whole contract on the result, and it is tier 2
+/// only.** A door returns `Ok` on a body that then fails
+/// `validate_geometric` or refuses to tessellate because of a solid it
+/// was never asked about — that solid's state is the operand's, and no
+/// tier-3 claim is made about it or about the result.
 ///
 /// The scope is total on the entities a shell owns, lone vertices
 /// included: an empty loop's vertex is reached through the loop's own
-/// face rather than through an orbit it has no half-edge for.
+/// face rather than through an orbit it has no half-edge for. It is
+/// **not** total on a body whose shells are not all owned: the walk
+/// runs solids → shells, so a shell no solid claims is in no scope,
+/// [`Scope::whole`] included. Such a body is tier-1 invalid (a shell's
+/// `solid` back-pointer and its owner's list are validated against
+/// each other), so no valid body has one.
 #[derive(Clone)]
 pub(crate) struct Scope {
+    /// The solids in scope. A `Vec` and a linear `contains`, like
+    /// `built` below: both hold the solids of ONE body — single digits
+    /// on every fixture this workspace builds — and a set would cost
+    /// more to build than the scans it saves.
     solids: Vec<SolidKey>,
+    /// The solids whose shells have been walked into the maps. A
+    /// superset of `solids` after a re-scope down, and what makes a
+    /// re-scope UP a walk of the difference rather than a lie.
+    built: Vec<SolidKey>,
     faces: SecondaryMap<FaceKey, SolidKey>,
     edges: SecondaryMap<EdgeKey, SolidKey>,
     vertices: SecondaryMap<VertexKey, SolidKey>,
@@ -724,51 +797,100 @@ impl Scope {
         Self::of_solids(body, &solids)
     }
 
-    /// The named solids. `None` on a structurally corrupt body — a
-    /// shell, face, loop or half-edge that does not resolve.
+    /// The named solids. `None` when one of THEIR shells, faces, loops
+    /// or half-edges does not resolve; a solid not named is not walked
+    /// and its state cannot refuse this construction.
     pub(crate) fn of_solids<T: Real>(body: &Body<T>, solids: &[SolidKey]) -> Option<Self> {
         let mut scope = Self {
             solids: solids.to_vec(),
+            built: Vec::new(),
             faces: SecondaryMap::new(),
             edges: SecondaryMap::new(),
             vertices: SecondaryMap::new(),
         };
-        for (shell, data) in body.shells() {
-            let solid = body.get_shell(shell)?.solid;
-            for &face in &data.faces {
-                scope.faces.insert(face, solid);
-                let f = body.get_face(face)?;
-                for r#loop in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-                    match body.get_loop(r#loop)?.boundary {
-                        crate::entity::LoopBoundary::Empty { vertex } => {
-                            scope.vertices.insert(vertex, solid);
-                        }
-                        crate::entity::LoopBoundary::Cycle { first } => {
-                            for he in body.loop_cycle(first)? {
-                                let half = body.get_half_edge(he)?;
-                                scope.vertices.insert(half.start, solid);
-                                scope.edges.insert(half.edge, solid);
+        scope.walk(body, solids)?;
+        Some(scope)
+    }
+
+    /// Walks the shells of every solid of `solids` the maps do not
+    /// already hold, extending them. Idempotent: a solid already in
+    /// `built` costs nothing.
+    fn walk<T: Real>(&mut self, body: &Body<T>, solids: &[SolidKey]) -> Option<()> {
+        for &solid in solids {
+            if self.built.contains(&solid) {
+                continue;
+            }
+            for &shell in &body.get_solid(solid)?.shells {
+                for &face in &body.get_shell(shell)?.faces {
+                    self.faces.insert(face, solid);
+                    let f = body.get_face(face)?;
+                    for r#loop in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                        match body.get_loop(r#loop)?.boundary {
+                            crate::entity::LoopBoundary::Empty { vertex } => {
+                                self.vertices.insert(vertex, solid);
+                            }
+                            crate::entity::LoopBoundary::Cycle { first } => {
+                                for he in body.loop_cycle(first)? {
+                                    let half = body.get_half_edge(he)?;
+                                    self.vertices.insert(half.start, solid);
+                                    self.edges.insert(half.edge, solid);
+                                }
                             }
                         }
                     }
                 }
             }
+            self.built.push(solid);
         }
-        Some(scope)
+        Some(())
     }
 
-    /// The solid `face` belongs to, whether or not it is in scope.
+    /// Every face of every solid this scope names — the faces a door's
+    /// closing pcurve pass is entitled to re-mint.
+    ///
+    /// **In face-arena order**, and that is a contract, not an
+    /// accident: it is read off the partition the walk already built,
+    /// whose `SecondaryMap` iterates in key-slot order, so this is
+    /// exactly [`crate::pcurves::mint_pcurves`]'s own order restricted
+    /// to the scope. No second walk of the body, and nothing here can
+    /// fail — the entities were resolved when the scope was built.
+    pub(crate) fn faces_in_scope(&self) -> Vec<FaceKey> {
+        self.faces
+            .iter()
+            .filter(|(_, solid)| self.solids.contains(solid))
+            .map(|(face, _)| face)
+            .collect()
+    }
+
+    /// The solid `face` belongs to as recorded by the walk: `Some` for
+    /// any face of a solid this scope has walked — which for a
+    /// [`Scope::whole`] is every face of the body, in or out of scope —
+    /// and `None` for a face of a solid it never visited.
     pub(crate) fn solid_of(&self, face: FaceKey) -> Option<SolidKey> {
         self.faces.get(face).copied()
     }
 
-    /// The same partition, re-aimed at `solids`. The three maps are the
-    /// BODY's own and say nothing about which solids are in scope, so
-    /// re-scoping is a swap of one `Vec` rather than a second walk over
-    /// every shell, face, loop and half-edge.
-    pub(crate) fn re_scope(&mut self, solids: &[SolidKey]) {
+    /// The same partition, re-aimed at `solids`, walking any of them
+    /// the maps do not already hold. Re-scoping DOWN — the shell verb's
+    /// case, a scope built over every solid and then narrowed — is a
+    /// swap of one `Vec`; re-scoping up to a solid never walked extends
+    /// the maps rather than answering `false` about entities that are
+    /// in scope. `None` on a structural failure in what it had to walk.
+    ///
+    /// **Extending rather than refusing, deliberately**: it makes "a
+    /// scope whose maps do not cover its own solids" unrepresentable
+    /// instead of typed, so no caller has a wrong answer to mishandle.
+    /// Nothing in the crate re-scopes UP today — the verb only narrows
+    /// from [`Scope::whole`] — so the arm is exercised by its pin
+    /// alone, `shell10_r2_probes::r2_a_re_scope_up_holds_the_solid_it_was_aimed_at`,
+    /// which reds if this becomes a bare `Vec` swap. The `None` the two
+    /// `shell.rs` callers map to `Corrupt` is likewise unreachable from
+    /// them by construction, and honest by type.
+    pub(crate) fn re_scope<T: Real>(&mut self, body: &Body<T>, solids: &[SolidKey]) -> Option<()> {
+        self.walk(body, solids)?;
         self.solids.clear();
         self.solids.extend_from_slice(solids);
+        Some(())
     }
 
     /// Is `face` on a solid this scope names?
@@ -799,21 +921,189 @@ pub(crate) fn scope_of_moves<T: Real>(
     body: &Body<T>,
     moves: &[ChartMove<T>],
 ) -> Result<Scope, ReplaceFaceError<T>> {
-    // ONE structural walk: the partition is the body's and the scope is
-    // a list over it, so the moves' solids are read off the partition
-    // that is then re-aimed at them.
-    let mut scope = Scope::whole(body).ok_or(ReplaceFaceError::Corrupt)?;
+    // A face names its solid in two pointer hops, so the solids are
+    // read off the moves themselves and the ONE structural walk that
+    // follows covers those solids alone.
     let mut solids: Vec<SolidKey> = Vec::new();
     for m in moves {
         for &face in &m.faces {
-            let solid = scope
-                .solid_of(face)
-                .ok_or(ReplaceFaceError::StaleFace { face })?;
+            let shell = body
+                .get_face(face)
+                .ok_or(ReplaceFaceError::StaleFace { face })?
+                .shell;
+            let solid = body
+                .get_shell(shell)
+                .ok_or(ReplaceFaceError::Corrupt)?
+                .solid;
             if !solids.contains(&solid) {
                 solids.push(solid);
             }
         }
     }
-    scope.re_scope(&solids);
-    Ok(scope)
+    Scope::of_solids(body, &solids).ok_or(ReplaceFaceError::Corrupt)
+}
+
+#[cfg(test)]
+mod scope_walks {
+    //! The two walks SHELL-10 narrowed, pinned on a two-solid body:
+    //! the scope's construction and the doors' closing pcurve pass.
+
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{ChartMove, Scope, offset_planes_together, scope_of_moves};
+    use crate::body::Body;
+    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, SolidKey};
+    use crate::splitting::reassembly::quad_prism;
+    use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+
+    const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+
+    /// Two unit boxes, ten apart, as two solids of one body — grafted
+    /// through the public disjoint-graft door, so the operand is one a
+    /// caller could hold.
+    fn two_boxes() -> (Body<f64>, SolidKey, SolidKey) {
+        let tol = Tol::witness();
+        let mut body = quad_prism(&SQUARE, 1.0, tol);
+        let first = body.solids().next().unwrap().0;
+        let other = quad_prism(&SQUARE, 1.0, tol);
+        let placed = crate::transform_rigid(
+            &other,
+            &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
+            tol,
+        )
+        .unwrap();
+        let second = crate::graft_disjoint(&mut body, &placed, tol).unwrap();
+        assert!(crate::validate::validate_closed(&body).is_ok());
+        (body, first, second)
+    }
+
+    fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
+        body.faces()
+            .filter(|(_, d)| body.get_shell(d.shell).unwrap().solid == solid)
+            .map(|(k, _)| k)
+            .collect()
+    }
+
+    /// Every chart of `solid`, as a move of `distance`. A zero distance
+    /// is a legal move set — the corner solve answers an unmoved corner
+    /// before any meter runs — and it is what these rows use, so that
+    /// what they measure is the BOOKKEEPING around the solve.
+    fn moves_of(body: &Body<f64>, solid: SolidKey, distance: f64) -> Vec<ChartMove<f64>> {
+        let mut out: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
+        for face in faces_of(body, solid) {
+            let key = body.get_face(face).unwrap().surface;
+            match out.iter_mut().find(|(k, _)| *k == key) {
+                Some((_, v)) => v.push(face),
+                None => out.push((key, vec![face])),
+            }
+        }
+        out.into_iter()
+            .map(|(_, faces)| ChartMove { faces, distance })
+            .collect()
+    }
+
+    /// Breaks `solid`'s first loop cycle: one half-edge's `next` is
+    /// re-pointed at a key no arena holds, so the walk is `Broken`.
+    fn break_a_loop(body: &mut Body<f64>, solid: SolidKey) {
+        let face = faces_of(body, solid)[0];
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("a box face bounds a cycle");
+        };
+        body.get_half_edge_mut(first).unwrap().next = HalfEdgeKey::default();
+    }
+
+    /// **The scope is the named solids' entities and no others.** The
+    /// maps answer about the solid the moves name and are silent about
+    /// the other — which is what `holds_*` already reported, and is now
+    /// also what was walked.
+    #[test]
+    fn a_scope_holds_only_the_solids_it_names() {
+        let (body, first, second) = two_boxes();
+        let scope = Scope::of_solids(&body, &[first]).unwrap();
+        for f in faces_of(&body, first) {
+            assert_eq!(scope.solid_of(f), Some(first));
+            assert!(scope.holds_face(f));
+        }
+        for f in faces_of(&body, second) {
+            assert_eq!(scope.solid_of(f), None, "an unwalked solid's face");
+            assert!(!scope.holds_face(f));
+        }
+        // The whole body, for contrast: one walk, both solids.
+        let whole = Scope::whole(&body).unwrap();
+        for f in faces_of(&body, second) {
+            assert_eq!(whole.solid_of(f), Some(second));
+        }
+    }
+
+    /// **An out-of-scope solid's structural corruption is not this
+    /// call's to find.** `Scope::whole` — the walk the doors used to
+    /// take, and still the shell verb's — refuses this body; the walk a
+    /// move set naming the SOUND solid takes accepts it.
+    ///
+    /// **The door as a whole is not** — and the row stops at the scope
+    /// deliberately. A structurally corrupt body is refused by two
+    /// arena-global reads this unit did not narrow, both downstream of
+    /// the scope: the asserting setters' tier-1 postcondition
+    /// (`set_face_surface`, `set_edge_curve` — a panic, not a refusal,
+    /// and compiled into this workspace's release profile too) and the
+    /// closing tier-2 check. Driving the door here would measure those,
+    /// not this. The narrowing is the pair of walks above.
+    #[test]
+    fn an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk() {
+        let (mut body, first, second) = two_boxes();
+        break_a_loop(&mut body, second);
+
+        assert!(
+            Scope::whole(&body).is_none(),
+            "the whole-body walk still refuses a corrupt solid"
+        );
+        let moves = moves_of(&body, first, 0.0);
+        let scope = scope_of_moves(&body, &moves).expect("the sound solid's scope builds");
+        // `faces_in_scope` is face-arena order by contract and
+        // `faces_of` reads the arena, so this is an equality of
+        // sequences, not of sets.
+        assert_eq!(scope.faces_in_scope(), faces_of(&body, first));
+        for f in faces_of(&body, second) {
+            assert!(!scope.holds_face(f));
+        }
+    }
+
+    /// **An out-of-scope face the pcurve lane cannot chart is not this
+    /// call's either** — the same shape as the row above, in the walk
+    /// that IS fully narrowed, so the door builds.
+    ///
+    /// The out-of-scope box wears a cylinder on one face: structurally
+    /// sound (tier 2 is clean), and a whole-body mint refuses it. The
+    /// door's scope-sized pass never reaches it.
+    #[test]
+    fn an_out_of_scope_faces_unmintable_chart_does_not_refuse_the_door() {
+        let tol = Tol::witness();
+        let (mut body, first, second) = two_boxes();
+        let victim = faces_of(&body, second)[0];
+        body.set_face_surface(
+            victim,
+            crate::euler::FaceSurface::New(geom::Surface::Cylinder {
+                origin: Point3::new(10.5, 0.5, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 0.5,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+        assert!(
+            crate::validate::validate_closed(&body).is_ok(),
+            "the operand is structurally sound; only its charting is not"
+        );
+        let mut whole = body.clone();
+        assert!(
+            crate::pcurves::mint_pcurves(&mut whole, tol).is_err(),
+            "a whole-body mint refuses this body — the base's pass, and the base's refusal"
+        );
+
+        let moves = moves_of(&body, first, 0.0);
+        let mut work = body.clone();
+        offset_planes_together(&mut work, &moves, Band::linear(tol).unwrap(), tol)
+            .expect("the door reads its scope, and its scope charts");
+    }
 }

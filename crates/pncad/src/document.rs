@@ -37,9 +37,15 @@
 // those two refusals say beyond the name. Carrying the KIND is not
 // carrying the appearance map: `Attr`, `AttrSet` and the record types
 // stay out, because nothing a consumer of this module holds answers in
-// them.
+// them. `MetaVersionError` rides for the same rule at the metadata
+// arm: it is the typed shape refusal `EditError::MetaUnversioned`
+// holds, and which of the three ways a stored value breaks the D7
+// producer convention — not a map, no `"v"` entry, a `"v"` that is not
+// an integer — is the whole of what that arm says beyond the name and
+// the key. Carrying the refusal is not carrying the value tree:
+// `MetaValue` and `MetaError` stay out, because the arm names neither.
 pub use editor_core::{
-    Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, ProgramRefusal, apply,
+    Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, MetaVersionError, ProgramRefusal, apply,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states

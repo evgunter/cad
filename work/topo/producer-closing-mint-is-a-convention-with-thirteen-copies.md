@@ -43,3 +43,19 @@ door's posture asserted by a test that walks the producers and finds
 the call — would have found the fourteenth. Where else to look: every
 public door that hands back a body (`graft_disjoint`, `Body::revert`,
 `split_edge`, `insert_voids` itself). Signed (SHELL orchestrator).
+
+**Amended by SHELL-10** (2026-09-08, a doc-only edit from the SHELL
+lane; the item is TOPO's and the finding above is unchanged). Two of
+the thirteen have left the population: `topo/src/offset_together.rs`
+and `topo/src/offset_axial.rs` now close with
+`pcurves::mint_pcurves_of` over the solids their move set names, not
+`mint_pcurves` over the body. Eleven copies, and the sentence "every
+producer's final mint re-derives every row of the body it returns" is
+now false of those two by design — each re-derives the rows of the
+faces it wrote and asserts nothing about the rest, which is the
+strongest claim a partial producer can make. The subset pass carries
+its own weaker at-rest guarantee (it cannot reach a row whose
+half-edge is dead, where the whole-body pass clears one); the
+contradiction that matters for THIS item is that a fourteenth
+spelling now exists, and a single enforced door would have to cover
+both.

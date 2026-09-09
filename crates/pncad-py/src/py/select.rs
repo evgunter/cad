@@ -47,8 +47,8 @@ use pncad::select as s;
 // ---------------------------------------------------------------
 
 /// Which entity kind a name denotes.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::EntityKind` variant of the same name"
@@ -88,8 +88,8 @@ pub(crate) fn entity_kind(kind: s::EntityKind) -> EntityKind {
 
 /// Which role-segment variant a [`SegPat`] names — the fieldless
 /// mirror of the role vocabulary, one tag per op-minted role.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::SegTag` variant of the same name"
@@ -202,8 +202,8 @@ impl SegTag {
 }
 
 /// The op group a role segment belongs to (`SegPat.group`'s argument).
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::OpGroup` variant of the same name"
@@ -238,8 +238,8 @@ impl OpGroup {
 
 /// Which end of the sweep vector a cap face closes (`SegPat.side`'s
 /// extrude spelling).
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::CapEnd` variant of the same name"
@@ -250,8 +250,8 @@ pub(crate) enum CapEnd {
 }
 
 /// A revolve meridian end.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::MeridianEnd` variant of the same name"
@@ -264,8 +264,8 @@ pub(crate) enum MeridianEnd {
 }
 
 /// A split output half.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::SplitHalf` variant of the same name"
@@ -291,8 +291,8 @@ impl SplitHalf {
 }
 
 /// Which support of a rim blend.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::RimSupport` variant of the same name"
@@ -337,8 +337,8 @@ impl SideArg {
 
 /// Which curve variant an edge's certified carrier is — the EXACT
 /// atom `GeomPred.curve_kind` matches on.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::CurveKind` variant of the same name"
@@ -363,8 +363,8 @@ impl CurveKind {
 
 /// Which surface variant a face is — `GeomPred.surface_kind` and both
 /// sides of `GeomPred.adjacent_kinds` match on it.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `geom_brep::SurfaceKind` variant of the same name"
@@ -417,8 +417,8 @@ impl SurfaceKind {
 /// bare float equality. A candidate whose margin lands INSIDE the band
 /// answers neither strict arm and REFUSES (`SelectRefusal`,
 /// `reason="in_band"`).
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::Cmp` variant of the same name"

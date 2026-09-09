@@ -347,8 +347,16 @@ class TestAMisDimensionedRowRefusesAtLoad(unittest.TestCase):
     def test_a_length_unit_on_an_angle_parameter(self):
         with self.assertRaises(PersistError) as raised:
             load(self.tampered("mm"))
-        self.assertEqual(raised.exception.variant, "display_unit")
-        self.assertIn("spin", str(raised.exception))
+        refusal = raised.exception
+        self.assertEqual(refusal.variant, "display_unit")
+        self.assertIn("spin", str(refusal))
+        # The arm's three fields, as payload rather than as prose: the
+        # parameter, what the unit measures, and what it was declared.
+        self.assertEqual(refusal.name, "spin")
+        self.assertEqual(refusal.unit, "length")
+        self.assertEqual(refusal.declared, "angle")
+        # This arm wraps no refusal of another layer.
+        self.assertIsNone(refusal.inner_variant)
 
     def test_an_off_table_symbol_refuses_earlier_and_differently(self):
         # A different fault: the token is not a row of the table at
