@@ -373,7 +373,7 @@ LIB-PYSEL bound the selector.)
 ```python
 import math
 
-from pncad import Doc, Node, deg, evaluate, m
+from pncad import Doc, Expr, Node, WrittenAngle, WrittenLength, deg, evaluate, m
 
 poly = [
     (1.0, 0.0), (1.75, 0.0), (1.75, 0.625), (1.5625, 0.625),
@@ -382,11 +382,17 @@ poly = [
 
 doc = Doc()
 frame = doc.sketch_frame()
-profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in poly], plane=frame))
+profile = doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in poly], plane=frame))
 # The axis in the sketch's own coordinates: the frame's v is world
 # +y, so the world y axis IS its own +y through (0, 0).
-axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
-chute = doc.insert(Node.revolve(profile, axis, 270 * deg))
+axis = doc.insert(Node.datum_axis_in_plane(frame, (
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+), (
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
+chute = doc.insert(Node.revolve(profile, axis, Expr.written_angle(WrittenAngle.in_unit(270, deg))))
 
 body = evaluate(doc).value(chute).body()
 body.validate()
@@ -406,7 +412,7 @@ its own plane extruded along that plane's normal — `SketchPlane`'s
 no-shared-carrier rule needs:
 
 ```python
-from pncad import Doc, Node, SketchPlane, evaluate, m
+from pncad import Doc, Expr, Node, SketchPlane, WrittenLength, evaluate, m
 
 # The scene's "T": a yz sketch at x = -0.25, extruded +x by 2.5 —
 # the plane's normal is u x v = y x z = +x, so the plane IS the axis.
@@ -420,9 +426,9 @@ T = [
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(a * m, b * m) for a, b in T], plane=doc.sketch_frame(plane=t_plane))
+    Node.polygon([(Expr.written_length(WrittenLength.in_unit(a, m)), Expr.written_length(WrittenLength.in_unit(b, m))) for a, b in T], plane=doc.sketch_frame(plane=t_plane))
 )
-prism = doc.insert(Node.extrude(sketch, 2.5 * m))
+prism = doc.insert(Node.extrude(sketch, Expr.written_length(WrittenLength.in_unit(2.5, m))))
 
 # Area = left bar 1.4375*0.5625 + stem 0.625*3.0 + right bar 1.4375*0.5
 # = 3.40234375; times the 2.5 extrusion, exactly dyadic.

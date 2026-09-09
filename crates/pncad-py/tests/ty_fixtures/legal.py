@@ -185,8 +185,8 @@ walked = (
 disc = circle((0 * mm, 0 * mm), 10 * mm)
 
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), 8 * mm))
-hole = doc.insert(Node.extrude(doc.insert(Node.profile(disc, plane=doc.sketch_frame(elevation=-1 * mm))), 10 * mm))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Expr.written_length(WrittenLength.in_unit(8, mm))))
+hole = doc.insert(Node.extrude(doc.insert(Node.profile(disc, plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(-1, mm))))), Expr.written_length(WrittenLength.in_unit(10, mm))))
 lightened = doc.insert(Node.boolean(BooleanOp.Subtract, plate, hole))
 volume: float = evaluate(doc).value(lightened).body().mass_properties().volume
 
@@ -198,11 +198,15 @@ upright: NodeId = doc.insert(
     Node.extrude(
         doc.insert(
             Node.polygon(
-                [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)],
+                [
+                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                ],
                 plane=doc.sketch_frame(plane=SketchPlane.yz()),
             )
         ),
-        2 * m,
+        Expr.written_length(WrittenLength.in_unit(2, m)),
     )
 )
 # The `SketchPlane` is still a VALUE — read back below — and the frame
@@ -210,7 +214,7 @@ upright: NodeId = doc.insert(
 # two things.
 offset_frame = SketchPlane.from_frame((0 * m, -0.5 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
 offset_node: NodeId = doc.sketch_frame(plane=offset_frame)
-sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=offset_node)), 4 * m))
+sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=offset_node)), Expr.written_length(WrittenLength.in_unit(4, m))))
 
 # A revolve's axis is written IN the frame it turns, in that frame's
 # own two coordinates — so `datum_axis_in_plane`, never `datum_axis`.
@@ -218,8 +222,14 @@ turned_frame: NodeId = doc.sketch_frame()
 turned: NodeId = doc.insert(
     Node.revolve(
         doc.insert(Node.profile(circle((3 * m, 0 * m), 1 * m), plane=turned_frame)),
-        doc.insert(Node.datum_axis_in_plane(turned_frame, (0 * m, 0 * m), (0.0, 1.0))),
-        360 * deg,
+        doc.insert(Node.datum_axis_in_plane(turned_frame, (
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        ))),
+        Expr.written_angle(WrittenAngle.in_unit(360, deg)),
     )
 )
 
@@ -227,15 +237,31 @@ turned: NodeId = doc.insert(
 # position and nothing else; a frame is an origin and two direction
 # triples, orthonormalized at evaluation, and it is a plane node a
 # profile may name.
-here: NodeId = doc.insert(Node.datum_point((0 * m, 0 * m, 2 * m)))
-near_here: GeomPred = GeomPred.datum_distance(here, Cmp.Less, 1 * m)
+here: NodeId = doc.insert(Node.datum_point((
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(2, m)),
+)))
+near_here: GeomPred = GeomPred.datum_distance(here, Cmp.Less, Expr.written_length(WrittenLength.in_unit(1, m)))
 authored_frame: NodeId = doc.insert(
-    Node.datum_frame((0 * m, 0 * m, 2 * m), (1.0, 0.0, 0.0), (0.0, 1.0, 1.0))
+    Node.datum_frame((
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+        Expr.written_length(WrittenLength.in_unit(2, m)),
+    ), (
+        Expr.literal(1.0),
+        Expr.literal(0.0),
+        Expr.literal(0.0),
+    ), (
+        Expr.literal(0.0),
+        Expr.literal(1.0),
+        Expr.literal(1.0),
+    ))
 )
 leaning: NodeId = doc.insert(
     Node.extrude(
         doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=authored_frame)),
-        1 * m,
+        Expr.written_length(WrittenLength.in_unit(1, m)),
     )
 )
 
@@ -248,7 +274,13 @@ leaning: NodeId = doc.insert(
 # compares NAMES and hands SIGNATURES to `ty`: a property this file
 # never mentions is a property neither of them reads.
 turned_axis: Datum = evaluate(doc).value(
-    doc.insert(Node.datum_axis_in_plane(turned_frame, (0 * m, 0 * m), (0.0, 1.0)))
+    doc.insert(Node.datum_axis_in_plane(turned_frame, (
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+    ), (
+        Expr.literal(0.0),
+        Expr.literal(1.0),
+    )))
 ).datum()
 axis_kind: str = turned_axis.kind
 axis_at: tuple[Length, Length, Length] = turned_axis.origin
@@ -260,10 +292,15 @@ axis_written_in_plane: tuple[tuple[Length, Length], tuple[float, float]] | None 
 # v-degree a plain int (a Count, structurally), and each section's
 # placement rides its own profile's plane.
 sections: list[NodeId] = [
-    doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame(elevation=z * m)))
+    doc.insert(Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+    ], plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z, m)))))
     for z in (0, 1, 2)
 ]
-skinned = doc.insert(Node.loft(sections, 2))
+skinned = doc.insert(Node.loft(sections, Expr.count(2)))
 skinned_volume: float = evaluate(doc).value(skinned).body().mass_properties().volume
 
 # LIB-PYBUNDLE: a multi-loop profile is a LIST of closed loops — the
@@ -280,48 +317,72 @@ plate_with_holes: NodeId = doc.insert(
                 plane=doc.sketch_frame(),
             )
         ),
-        1 * m,
+        Expr.written_length(WrittenLength.in_unit(1, m)),
     )
 )
 
 # Fillet by NAME: the materializer answers as of this evaluation, the
 # selection is stored, and from then on it is frozen.
 blend_edges: list[str] = evaluate(doc).all_edges(upright)
-blended: NodeId = doc.insert(Node.fillet(upright, 0.05 * m, blend_edges))
+blended: NodeId = doc.insert(Node.fillet(upright, Expr.written_length(WrittenLength.in_unit(0.05, m)), blend_edges))
 
 # Chamfer by NAME: the fillet's twin, and the SETBACK is a Length too.
-chamfered: NodeId = doc.insert(Node.chamfer(upright, 0.05 * m, blend_edges))
+chamfered: NodeId = doc.insert(Node.chamfer(upright, Expr.written_length(WrittenLength.in_unit(0.05, m)), blend_edges))
 open_faces: list[str] = evaluate(doc).all_faces(upright)[:1]
-hollowed: NodeId = doc.insert(Node.shell(upright, 0.01 * m, open_faces))
-sealed: NodeId = doc.insert(Node.shell(upright, 0.01 * m, []))
+hollowed: NodeId = doc.insert(Node.shell(upright, Expr.written_length(WrittenLength.in_unit(0.01, m)), open_faces))
+sealed: NodeId = doc.insert(Node.shell(upright, Expr.written_length(WrittenLength.in_unit(0.01, m)), []))
 
 # The tube pair. The window is a VALUE with two spellings, and the
 # hollow kind's wall is a required Length — there is no `wall=None`
 # that quietly makes it the solid door.
-spine: NodeId = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+spine: NodeId = doc.insert(Node.datum_axis((
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+), (
+    Expr.literal(0.0),
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
 donut: NodeId = doc.insert(
-    Node.tube(spine, (1.0, 0.0, 0.0), 0.2 * m, TubeWindow.full(), 0.05 * m)
+    Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(0.2, m)), TubeWindow.full(), Expr.written_length(WrittenLength.in_unit(0.05, m)))
 )
 elbow: NodeId = doc.insert(
     Node.hollow_tube(
         spine,
-        (1.0, 0.0, 0.0),
-        0.2 * m,
-        TubeWindow.arc(0 * rad, 1.5 * rad),
-        0.05 * m,
-        0.01 * m,
+        (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
+        Expr.written_length(WrittenLength.in_unit(0.2, m)),
+        TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(0, rad)), Expr.written_angle(WrittenAngle.in_unit(1.5, rad))),
+        Expr.written_length(WrittenLength.in_unit(0.05, m)),
+        Expr.written_length(WrittenLength.in_unit(0.01, m)),
     )
 )
 
 # Split by a datum plane; the value is a split, read as two optional
 # bodies rather than one.
-cutter: NodeId = doc.insert(Node.datum_plane((0 * m, 0 * m, 1 * m), (0.0, 0.0, 1.0)))
+cutter: NodeId = doc.insert(Node.datum_plane((
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(1, m)),
+), (
+    Expr.literal(0.0),
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
 halves = evaluate(doc).value(doc.insert(Node.split(plate_with_holes, cutter))).split()
 
 # A rigid placement: rotate about an axis through the world origin,
 # then translate.
 placed: NodeId = doc.insert(
-    Node.transform(plate_with_holes, (0 * m, 0 * m, 2 * m), (0.0, 0.0, 1.0), 90 * deg)
+    Node.transform(plate_with_holes, (
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+        Expr.written_length(WrittenLength.in_unit(2, m)),
+    ), (
+        Expr.literal(0.0),
+        Expr.literal(0.0),
+        Expr.literal(1.0),
+    ), Expr.written_angle(WrittenAngle.in_unit(90, deg)))
 )
 
 # The plane's frame, read back; and the bit-exact equality the read-back
@@ -345,7 +406,7 @@ rims: list[str] = ev.select_where(
     edges,
     [GeomPred.adjacent_kinds(SurfaceKind.Plane, [SurfaceKind.Sphere, SurfaceKind.Torus])],
 )
-narrowed_blend: NodeId = doc.insert(Node.fillet(lightened, 0.01 * m, straight))
+narrowed_blend: NodeId = doc.insert(Node.fillet(lightened, Expr.written_length(WrittenLength.in_unit(0.01, m)), straight))
 
 # The structural half: role-path shape, sides, sub-name prefixes, the
 # union — and `matches` on a materialized name, the binding reading
@@ -362,7 +423,7 @@ hit: bool = both.matches(blend_edges[0])
 
 # The decided atom: a datum-relative position rule, its comparand a
 # Length, its comparison the sign trilean.
-near_cutter: GeomPred = GeomPred.datum_distance(cutter, Cmp.Approx, 0 * m)
+near_cutter: GeomPred = GeomPred.datum_distance(cutter, Cmp.Approx, Expr.written_length(WrittenLength.in_unit(0, m)))
 low_faces: list[str] = ev.select_where(
     lightened,
     Selector.of(NamePat.of_kind(EntityKind.Face)),
@@ -416,12 +477,24 @@ flipped: Frame = Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0
 frame_origin: tuple[Length, Length, Length] = here.origin
 frame_det: float = here.determinant
 
-stepped: PatternKind = PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m)
-spin_axis: NodeId = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
-around: PatternKind = PatternKind.circular(spin_axis, 90 * deg)
+stepped: PatternKind = PatternKind.linear((
+    Expr.literal(1.0),
+    Expr.literal(0.0),
+    Expr.literal(0.0),
+), Expr.written_length(WrittenLength.in_unit(0.5, m)))
+spin_axis: NodeId = doc.insert(Node.datum_axis((
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+), (
+    Expr.literal(0.0),
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
+around: PatternKind = PatternKind.circular(spin_axis, Expr.written_angle(WrittenAngle.in_unit(90, deg)))
 listed: PatternKind = PatternKind.explicit([here, turned])
 
-fin_group: NodeId = doc.insert(Node.placed_union(plate, 5, stepped))
+fin_group: NodeId = doc.insert(Node.placed_union(plate, Expr.count(5), stepped))
 listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
 count_bound: DocEdit = DocEdit.bind_count_param(fin_group, ParamName("fins"))
 
@@ -430,8 +503,8 @@ count_bound: DocEdit = DocEdit.bind_count_param(fin_group, ParamName("fins"))
 # type with two constructors, and each takes what its arm holds — a
 # `SplitHalf` for the half, a plain `int` for the index (the
 # structural-slot exception `placed_union`'s count already rides).
-family: NodeId = doc.insert(Node.pattern(plate, 5, stepped))
-by_index: PartSelect = PartSelect.instance(2)
+family: NodeId = doc.insert(Node.pattern(plate, Expr.count(5), stepped))
+by_index: PartSelect = PartSelect.instance(Expr.count(2))
 one_copy: NodeId = doc.insert(Node.part(family, by_index))
 cut: NodeId = doc.insert(Node.split(plate, spin_axis))
 by_half: PartSelect = PartSelect.split_half(SplitHalf.Above)
@@ -557,7 +630,7 @@ is_flat: bool = carrier == SurfaceKind.Plane
 # A sketch frame DERIVED from that face: the body node, an opaque
 # name, and a DIMENSIONED spin. The result is a `Node` like any other
 # datum, and a profile takes its id as a plane.
-derived: Node = Node.datum_face_frame(upright, cap_name, 0.3 * rad)
+derived: Node = Node.datum_face_frame(upright, cap_name, Expr.written_angle(WrittenAngle.in_unit(0.3, rad)))
 on_the_face: NodeId = doc.insert(derived)
 # The advisory checks: a report out of one door, a gate the caller
 # opens at the other, and the subject a finding names.
@@ -927,9 +1000,15 @@ _revolved: NodeId = _names_doc.insert(
             )
         ),
         _names_doc.insert(
-            Node.datum_axis_in_plane(_names_frame, (0 * m, 0 * m), (0.0, 1.0))
+            Node.datum_axis_in_plane(_names_frame, (
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ))
         ),
-        360 * deg,
+        Expr.written_angle(WrittenAngle.in_unit(360, deg)),
     )
 )
 minted_band: str = band(_revolved, 0)
@@ -938,8 +1017,8 @@ minted_rim: str = band_rim(_revolved, 1)
 minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, 1)
 minted_survivor: str = carried(_revolved, minted_band)
 _blended: NodeId = _names_doc.insert(
-    Node.fillet(_revolved, 0.1 * m, [minted_rim])
+    Node.fillet(_revolved, Expr.written_length(WrittenLength.in_unit(0.1, m)), [minted_rim])
 )
 _hollowed: NodeId = _names_doc.insert(
-    Node.shell(_revolved, 0.1 * m, [minted_band, minted_half])
+    Node.shell(_revolved, Expr.written_length(WrittenLength.in_unit(0.1, m)), [minted_band, minted_half])
 )

@@ -54,6 +54,7 @@ from pncad import (
     DocEdit,
     DocRef,
     EntityKind,
+    Expr,
     Frame,
     MateFrame,
     MatePrimitive,
@@ -63,6 +64,7 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
+    WrittenLength,
     content_pin,
     evaluate,
     m,
@@ -124,15 +126,15 @@ def prism(label, width, depth, height):
     profile = doc.insert(
         Node.polygon(
             [
-                (0 * m, 0 * m),
-                (width * m, 0 * m),
-                (width * m, depth * m),
-                (0 * m, depth * m),
+                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                (Expr.written_length(WrittenLength.in_unit(width, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                (Expr.written_length(WrittenLength.in_unit(width, m)), Expr.written_length(WrittenLength.in_unit(depth, m))),
+                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(depth, m))),
             ],
-            plane=doc.sketch_frame(elevation=0 * m),
+            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0, m))),
         )
     )
-    doc.insert(Node.extrude(profile, height * m))
+    doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(height, m))))
     return doc
 
 
@@ -248,8 +250,8 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
     family = doc.insert(
         posts(
             post_i,
-            PATTERN_COUNT,
-            PatternKind.linear((0.0, 1.0, 0.0), PATTERN_SPACING * m),
+            Expr.count(PATTERN_COUNT),
+            PatternKind.linear((Expr.literal(0.0), Expr.literal(1.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(PATTERN_SPACING, m))),
         )
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))

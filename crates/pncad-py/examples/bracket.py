@@ -32,7 +32,7 @@ import math
 import os
 import tempfile
 
-from pncad import BooleanOp, Doc, Node, Open, Start, evaluate, import_step, mm
+from pncad import BooleanOp, Doc, Expr, Node, Open, Start, evaluate, import_step, mm
 
 PLATE = (80, 40)  # mm
 # The plate's corner radius: the natural one for this plate. It was
@@ -68,7 +68,7 @@ def rounded_plate(doc, width, height, radius, thickness):
         tip = tip.fillet(radius).toward(*ray).at(anchor)
     outline = tip.fillet(radius).to(Start)
     assert outline.vertex_count == 8, "four arcs, two tangent points each"
-    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), thickness))
+    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Expr.literal(thickness)))
 
 
 def slab(doc, x, y, z):
@@ -78,11 +78,16 @@ def slab(doc, x, y, z):
     z0, z1 = z
     profile = doc.insert(
         Node.polygon(
-            [(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-            plane=doc.sketch_frame(elevation=z0),
+            [
+                (Expr.literal(x0), Expr.literal(y0)),
+                (Expr.literal(x1), Expr.literal(y0)),
+                (Expr.literal(x1), Expr.literal(y1)),
+                (Expr.literal(x0), Expr.literal(y1)),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, z1 - z0))
+    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
 
 def main():

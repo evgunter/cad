@@ -56,16 +56,18 @@ from pncad import (
     AnalysisPolicy,
     AnalysisPolicyError,
     DEFAULT_QUANTILE_MASS,
-    Distribution,
     DimensionError,
+    Distribution,
+    DistributionFault,
     Doc,
     DocEdit,
     DocParam,
     DocParamValue,
-    DistributionFault,
+    Expr,
     MeasureUnavailable,
     Node,
     ParamName,
+    WrittenLength,
     analyzed_box,
     deg,
     load,
@@ -649,11 +651,16 @@ class TestTheAnnotationDoesNotMoveGeometry(unittest.TestCase):
         doc.apply(DocEdit.set_doc_param(ParamName("h"), param))
         profile = doc.insert(
             Node.polygon(
-                [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)],
+                [
+                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                ],
                 plane=doc.sketch_frame(),
             )
         )
-        return doc, doc.insert(Node.extrude(profile, 2 * m))
+        return doc, doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(2, m))))
 
     def test_the_solid_is_the_same_annotated_or_not(self):
         plain_doc, plain_solid = self.build(DocParam.length(2 * m))

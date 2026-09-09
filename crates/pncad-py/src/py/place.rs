@@ -12,6 +12,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
+use super::expr::Expr;
 use super::quantity::{Angle, Length};
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -396,28 +397,23 @@ pub(crate) struct PatternKind(pub(crate) d::PatternKind);
 impl PatternKind {
     /// Instances stepped along `direction`, `spacing` apart.
     ///
-    /// The direction is a dimensionless triple (`SlotId::Direction` is
-    /// `Scalar`); the spacing is a `Length`.
+    /// The direction's three slots are dimensionless
+    /// (`SlotId::Direction` is `Scalar`); the spacing's is a `Length`.
     #[staticmethod]
-    fn linear(py: Python<'_>, direction: (f64, f64, f64), spacing: &Length) -> PyResult<Self> {
-        let scalar = |v: f64| super::doc::literal(py, v, d::Dimension::Scalar);
+    fn linear(py: Python<'_>, direction: (Expr, Expr, Expr), spacing: &Expr) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Linear {
-            direction: [
-                scalar(direction.0)?,
-                scalar(direction.1)?,
-                scalar(direction.2)?,
-            ],
-            spacing: super::doc::literal(py, spacing.0.meters(), d::Dimension::Length)?,
+            direction: super::doc::direction_expr(py, d::VectorSlot::Direction, &direction)?,
+            spacing: super::doc::slot_expr(py, d::SlotId::Spacing, spacing)?,
         }))
     }
 
     /// Instances stepped `step` apart around `axis`, an upstream
     /// `datum_axis` node.
     #[staticmethod]
-    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Angle) -> PyResult<Self> {
+    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Expr) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
             axis: axis.0,
-            step: super::doc::literal(py, step.0.radians(), d::Dimension::Angle)?,
+            step: super::doc::slot_expr(py, d::SlotId::Step, step)?,
         }))
     }
 

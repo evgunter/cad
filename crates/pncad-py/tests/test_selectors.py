@@ -15,6 +15,7 @@ from pncad import (
     Cmp,
     Doc,
     EntityKind,
+    Expr,
     GeomPred,
     NamePat,
     Node,
@@ -22,6 +23,7 @@ from pncad import (
     SegTag,
     SelectRefusal,
     Selector,
+    WrittenLength,
     evaluate,
     m,
 )
@@ -29,9 +31,14 @@ from pncad import (
 
 def unit_cube(doc):
     square = doc.insert(
-        Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
+        Node.polygon([
+            (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+            (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+        ], plane=doc.sketch_frame())
     )
-    return doc.insert(Node.extrude(square, 1 * m))
+    return doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(1, m))))
 
 
 class TestDatumDistance(unittest.TestCase):
@@ -43,12 +50,20 @@ class TestDatumDistance(unittest.TestCase):
     def test_the_top_cap_is_the_face_a_metre_above_the_ground(self):
         doc = Doc()
         cube = unit_cube(doc)
-        ground = doc.insert(Node.datum_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+        ground = doc.insert(Node.datum_plane((
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
         ev = evaluate(doc)
 
         faces = Selector.of(NamePat.of_kind(EntityKind.Face))
         by_position = ev.select_where(
-            cube, faces, [GeomPred.datum_distance(ground, Cmp.Approx, 1 * m)]
+            cube, faces, [GeomPred.datum_distance(ground, Cmp.Approx, Expr.written_length(WrittenLength.in_unit(1, m)))]
         )
         by_role = ev.select(
             cube,
@@ -65,11 +80,11 @@ class TestDatumDistance(unittest.TestCase):
         # stated metre (their carrier origins are on the walls'
         # centroids), and none sits definitely above.
         below = ev.select_where(
-            cube, faces, [GeomPred.datum_distance(ground, Cmp.Less, 1 * m)]
+            cube, faces, [GeomPred.datum_distance(ground, Cmp.Less, Expr.written_length(WrittenLength.in_unit(1, m)))]
         )
         self.assertEqual(len(below), 5)
         above = ev.select_where(
-            cube, faces, [GeomPred.datum_distance(ground, Cmp.Greater, 1 * m)]
+            cube, faces, [GeomPred.datum_distance(ground, Cmp.Greater, Expr.written_length(WrittenLength.in_unit(1, m)))]
         )
         self.assertEqual(above, [])
 
@@ -84,7 +99,7 @@ class TestDatumDistance(unittest.TestCase):
             ev.select_where(
                 cube,
                 Selector.of(NamePat.of_kind(EntityKind.Face)),
-                [GeomPred.datum_distance(cube, Cmp.Approx, 1 * m)],
+                [GeomPred.datum_distance(cube, Cmp.Approx, Expr.written_length(WrittenLength.in_unit(1, m)))],
             )
         refusal = caught.exception
         self.assertEqual(refusal.reason, "not_a_datum")
@@ -109,7 +124,15 @@ class TestDatumDistance(unittest.TestCase):
         sweep)."""
         doc = Doc()
         cube = unit_cube(doc)
-        ground = doc.insert(Node.datum_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+        ground = doc.insert(Node.datum_plane((
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
         ev = evaluate(doc)
 
         sliver = doc.epsilon * (1.0 + 10.0) / 2.0
@@ -117,7 +140,7 @@ class TestDatumDistance(unittest.TestCase):
             ev.select_where(
                 cube,
                 Selector.of(NamePat.of_kind(EntityKind.Face)),
-                [GeomPred.datum_distance(ground, Cmp.Approx, (1.0 + sliver) * m)],
+                [GeomPred.datum_distance(ground, Cmp.Approx, Expr.written_length(WrittenLength.in_unit(1.0 + sliver, m)))],
             )
         refusal = caught.exception
         self.assertEqual(refusal.reason, "in_band")
