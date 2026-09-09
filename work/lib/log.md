@@ -4017,3 +4017,40 @@ differential); `test_guide.py` executes 38 blocks, up from 36. The
 audit's `arc_continue` line stays open until BOOL-10 (#2135) merges.
 No kernel crate touched; the lane ran the pinned ruff for real.
 ~65 min, ~182k tokens.
+
+**LIB-WILDCARDS MERGED (2026-09-09, #2243; mechanical under the
+08-29 ruling, no A/B row). The last two payload-accessor wildcards in
+`pncad-py`: `CheckEvidence`'s five accessors and `RefusedRef`'s two
+are exhaustive.** `CheckEvidence` gets a Python-independent record
+(`check_payload.rs`, the `mate_payload` shape; `reason` a `Cow` —
+borrowed from the separation arm's own sentence, owned where the
+shell arms render one) and `RefusedRef` stays in place, matching the
+`at` accessor it sat beside — and the deciding reason is
+`pick_payload`'s second one, not arm arithmetic: THREE of
+`CheckEvidence`'s six arms are unreachable from Python (`escalated`,
+`unsupported`, `separation_unavailable`), and the `py/` accessors
+compile only under the `python` feature, so an in-place projection
+would have pinned those arms nowhere. The lane named this as a
+deviation from the brief, which offered in-place matches as possibly
+cheaper AND asked for a construction pin — the two cannot both hold;
+the record is what the pin costs. Orchestrator note: the brief's
+error, correctly resolved. The added-arm alarm run and reverted: a
+seventh `CheckEvidence` arm fails `cargo check -p pncad-py` with no
+features at the record's match and at `tags.rs`. Pin covers four of
+six arms (the shell arms hold a `ShellClassifyError` the façade does
+not re-export), with the separation arm's sentence itself asserted.
+The sweep re-run at the merge base with the item's stated blind spot
+closed (named-binding and `Some`-of-default spellings): the added
+spellings found nothing the original pattern missed; remaining hits
+are the argued extracts (`validation.rs`, `py/doc.rs`'s `Node`
+extracts, `prose_census.rs`) and exhaustive named arms under `use`
+aliases; the pattern's own blind spot (line-local; a rustfmt-split
+arm or a helper-returning catch-all) stated. `py/checks.rs` and
+`py/assembly.rs` have no `_ =>` left. Residue:
+`check-evidence-shell-refusal-crosses-as-prose-only` (the shell
+door's typed refusal under two arms crosses as prose only; needs the
+curation half first) — its sibling `SeparationUnavailable { kind }` is
+already on FIX's slate (`boolean-kind-not-published-at-the-python-door`),
+reported rather than re-filed. No attribute added, renamed or
+removed; stub, census and Python suite untouched; the lane ran the
+pinned ruff for real. ~47 min, ~159k tokens.

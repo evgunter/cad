@@ -2,11 +2,12 @@
 id: LIB-WILDCARDS
 kind: unit
 title: the CheckEvidence and RefusedRef accessors exhaustive
-status: review
+status: closed
 opened: 2026-09-08
 branch: lib/wildcards
 refs: [payload-accessor-wildcards-remain-in-checks-and-assembly]
 pr: 2243
+closed: 2026-09-09
 ---
 
 The last two payload-accessor wildcards in `crates/pncad-py`, under
