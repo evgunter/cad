@@ -209,6 +209,10 @@ pub(crate) fn product_named(
 /// `at` (the operand a reference is read at when it is spelled there
 /// but the operand is not a product root), `width` (how many entities
 /// a tie holds) and `kind` (what a non-face reference did name).
+///
+/// Each of the three is an exhaustive match with no wildcard, so a
+/// refusal arm added kernel-side is a compile error here rather than
+/// a reference every accessor silently answers `None` about.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct RefusedRef(d::RefusedRef);
@@ -242,7 +246,9 @@ impl RefusedRef {
     fn width(&self) -> Option<u32> {
         match self.0 {
             d::RefusedRef::Ambiguous { width } => Some(width),
-            _ => None,
+            d::RefusedRef::Vanished
+            | d::RefusedRef::ReadBelowARoot { .. }
+            | d::RefusedRef::NotAFace { .. } => None,
         }
     }
 
@@ -252,7 +258,9 @@ impl RefusedRef {
     fn kind(&self) -> Option<&'static str> {
         match self.0 {
             d::RefusedRef::NotAFace { kind } => Some(entity_kind_tag(kind)),
-            _ => None,
+            d::RefusedRef::Vanished
+            | d::RefusedRef::ReadBelowARoot { .. }
+            | d::RefusedRef::Ambiguous { .. } => None,
         }
     }
 

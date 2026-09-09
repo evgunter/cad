@@ -1175,6 +1175,114 @@ fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static 
     }
 }
 
+/// **The import surface's SUCCESS half** — the answer a caller holds,
+/// and the record it reads out of it.
+///
+/// The sibling above pins the two sides of the CALL. This pins the
+/// return: `StepImport` and every type its `Solid` arm names are
+/// spelled here from the prelude alone, so an answer a caller cannot
+/// store in a field or return from a function fails to compile rather
+/// than being noticed by a reader.
+///
+/// The body is a real import — the round-trip oracle's own text — so
+/// `enclosure` is the gate's, not a fixture's, and the equality below
+/// is the field's documented promise measured rather than repeated:
+/// it is the SAME object the gate decided the +V invariant on, so a
+/// reader that takes it instead of re-measuring gets the same four
+/// fields bit for bit.
+#[test]
+fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
+    let (doc, _, body_node) = doors_box_doc();
+    let ev = doors_evaluate(&doc);
+    let text =
+        pncad::export::step_for_node(&ev, body_node, &StepOptions::default(), Tol::witness())
+            .expect("a body value exports");
+    let imported: StepImport = import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect("the export re-imports");
+
+    // Every field of the arm, bound by name and typed from this list.
+    let StepImport::Solid {
+        body,
+        enclosure,
+        eps_in,
+        normalizations,
+        curve_promotions,
+        instances,
+    } = imported
+    else {
+        panic!("the box re-imports as a solid, not a wireframe");
+    };
+    named::<Body<f64>>(body.clone());
+    named::<MassProperties<f64>>(enclosure);
+    named::<f64>(eps_in);
+    named::<Vec<StructureNormalization>>(normalizations.clone());
+    named::<Vec<CurvePromotion>>(curve_promotions.clone());
+    named::<Vec<PlacedInstance>>(instances.clone());
+
+    // "Not a second computation", as an equality rather than a claim.
+    let again = mass_properties(&body, Tol::witness()).expect("imported mass properties");
+    assert_eq!(enclosure.volume.to_bits(), again.volume.to_bits());
+    assert_eq!(
+        enclosure.surface_area.to_bits(),
+        again.surface_area.to_bits()
+    );
+    assert_eq!(enclosure.volume_pad.to_bits(), again.volume_pad.to_bits());
+    assert_eq!(enclosure.area_pad.to_bits(), again.area_pad.to_bits());
+
+    // The assembly record is kept whether or not the file states an
+    // assembly, so a one-solid box still carries one.
+    assert_eq!(instances.len(), 1, "one record per solid");
+    for instance in &instances {
+        named::<&usize>(&instance.index);
+        named::<&u64>(&instance.solid);
+        named::<&u64>(&instance.component);
+        named::<&Option<u64>>(&instance.occurrence);
+        named::<&Option<u64>>(&instance.relationship);
+        named::<&Option<u64>>(&instance.transform);
+        named::<&Option<pncad::geom_core::Affine3<f64>>>(&instance.placement);
+    }
+    for record in &normalizations {
+        named::<&u64>(&record.face);
+        named::<&str>(normalization_kind_is_readable(&record.kind));
+        for census in [&record.file_census, &record.kernel_census] {
+            named::<&FaceCensus>(census);
+            named::<&usize>(&census.faces);
+            named::<&usize>(&census.edges);
+            named::<&usize>(&census.vertices);
+        }
+    }
+    for promotion in &curve_promotions {
+        named::<&u64>(&promotion.curve);
+        named::<&f64>(&promotion.residual);
+        named::<&str>(match promotion.kind {
+            PromotedCurveKind::Circle => "circle",
+        });
+    }
+}
+
+/// Which normalization a record reports, matched EXHAUSTIVELY: a sixth
+/// kind minted kernel-side stops this compiling rather than arriving
+/// under one of these five words.
+///
+/// `SurfacePromotion` carries the discriminant the refusal side
+/// carries too, and it is read here through the same `PromotedKind`
+/// — one type, two carriers, one vocabulary for the caller.
+fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
+    match kind {
+        NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
+        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::FullPeriodTorus => "full_period_torus",
+        NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::SurfacePromotion { to, residual } => {
+            named::<&f64>(residual);
+            match to {
+                PromotedKind::Plane => "surface_promotion_plane",
+                PromotedKind::Cylinder => "surface_promotion_cylinder",
+            }
+        }
+    }
+}
+
 /// The other arm of the ladder: a Boolean result carries its own
 /// declared contacts and validates at tier 3′ with them. Also the
 /// end-to-end proof that the Boolean vocabulary is prelude-complete.

@@ -893,10 +893,14 @@ props = body.mass_properties()
 assert abs(props.volume - 2.984e-5) < 1e-15
 assert props.volume_pad == 0.0
 
-# Export through the document layer, and re-import to prove it.
+# Export through the document layer, and re-import to prove it. The
+# report's `enclosure` is the IMPORT GATE's own certified measurement
+# of the body it just adopted — reading it re-measures nothing.
 step = ev.step_string(lightened, product_name="bracket")
 assert step.startswith("ISO-10303-21;")
-assert abs(import_step(step).mass_properties().volume - props.volume) < 1e-15
+report = import_step(step)
+assert abs(report.enclosure.volume - props.volume) < 1e-15
+assert report.instances[0].index == 0  # one assembly row per solid
 ```
 
 Two differences from the Rust walk are real and worth stating plainly
@@ -1210,6 +1214,156 @@ assert len(meridians) == 2 and len(ev.all_edges(pipped)) == 16
 blended = doc.insert(Node.fillet(pipped, 0.05 * m, straight + rims))
 body = evaluate(doc).value(blended).body()
 body.validate()
+```
+
+### Chamfering the same edges: fillet's twin
+
+A chamfer takes the selection a fillet takes — edge names as opaque
+text, materialized off an evaluation and FROZEN into the recipe — so
+everything the fillet step said about naming holds here word for word.
+`Node.chamfer(target, distance, selection)` is the door, and Rust
+spells it `Node::chamfer`.
+
+Two things differ, and they are the whole difference. **`distance` is
+a SETBACK, not a radius**: it is measured along each support away from
+the edge, so a chamfer of the same number as a fillet cuts the corner
+the rolling ball would ride around and takes more material.  And **both
+supports must be planes** — an edge between curved faces refuses typed
+at `evaluate` rather than being blended some other way. The refusals
+are the chamfer's own words (`chamfer_selection_empty`), not the
+fillet's: one ladder, but the tag says which verb asked.
+
+```python
+from pncad import Doc, EvaluationError, Node, evaluate, m
+
+L, D = 1.0, 0.12
+
+doc = Doc()
+square = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)], plane=doc.sketch_frame())
+)
+cube = doc.insert(Node.extrude(square, L * m))
+
+# The same twelve names the fillet step stored, carried unread.
+edges = evaluate(doc).all_edges(cube)
+assert len(edges) == 12
+flat = doc.insert(Node.chamfer(cube, D * m, edges))
+round_ = doc.insert(Node.fillet(cube, D * m, edges))
+
+# A cube of side L set back by d is the cube less twelve edge wedges
+# and eight corner patches, which integrates to a closed form.
+want = L**3 - 6 * L * D**2 + (16 / 3) * D**3
+ev = evaluate(doc)
+body = ev.value(flat).body()
+body.validate()
+assert abs(body.mass_properties().volume - want) < 1e-9 * want
+
+# Setback against radius, at the same number: the flat strip cuts the
+# corner the ball rides around.
+assert (
+    body.mass_properties().volume
+    < ev.value(round_).body().mass_properties().volume
+)
+
+# The result is a NODE, so its faces are named and a downstream
+# selection can reach them: 6 supports, 12 strips, 8 corner patches.
+assert len(ev.all_faces(flat)) == 26
+
+# An empty selection is refused by the node, in the chamfer's own word.
+nothing = doc.insert(Node.chamfer(cube, D * m, []))
+try:
+    evaluate(doc).value(nothing)
+    raise AssertionError("an empty selection should not chamfer")
+except EvaluationError as refusal:
+    assert refusal.kind == "chamfer_selection_empty"
+```
+
+### Tubes: a ring from its intent, and the same ring with a wall
+
+A tube is authored from what you MEAN by it, not from a section
+profile you sweep yourself. `Node.tube(spine, u_ref, major_radius,
+window, minor_radius)` takes five things: `spine` is a
+`Node.datum_axis` whose origin is the ring's centre and whose
+direction is the axis the section turns about; `u_ref` is the
+reference direction the window's angles are measured from;
+`major_radius` is the centre-line radius, `minor_radius` the section's;
+and `window` is `TubeWindow.full()` for the whole ring or
+`TubeWindow.arc(t0, t1)` for an elbow of it. Every number is STORED
+rather than reconstructed, so what you wrote is what comes back out.
+
+There is no wall argument. **A tube with a wall is `Node.hollow_tube`,
+a different node kind**, and its `wall` is REQUIRED — not an optional
+argument on one door, because a solid ring and a pipe are different
+artifacts and a caller should have to say which one they mean. There
+`minor_radius` is the OUTER radius and the bore is
+`minor_radius - wall`; a full window closes that bore into a CAVITY,
+an arc leaves an open elbow of annular section.
+
+```python
+import math
+
+from pncad import Doc, Node, TubeWindow, evaluate, m, rad
+
+R, OUTER, WALL = 2.0, 0.5, 0.125
+T0, T1 = 0.0, 1.5
+
+doc = Doc()
+# The spine: centre at the origin, section turning about +z.
+spine = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+
+# The solid ring. Pappus meters it: V = 2 pi^2 R r^2.
+ring = doc.insert(
+    Node.tube(spine, (1.0, 0.0, 0.0), R * m, TubeWindow.full(), OUTER * m)
+)
+solid = evaluate(doc).value(ring).body()
+solid.validate()
+assert abs(solid.mass_properties().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-9
+
+# The same ring with a wall: a torus SHELL, its bore a cavity.
+inner = OUTER - WALL
+torus = doc.insert(
+    Node.hollow_tube(
+        spine, (1.0, 0.0, 0.0), R * m, TubeWindow.full(), OUTER * m, WALL * m
+    )
+)
+walled = evaluate(doc).value(torus).body()
+walled.validate()
+want = 2 * math.pi**2 * R * (OUTER**2 - inner**2)
+assert abs(walled.mass_properties().volume - want) < 1e-9
+
+# An ARC of the same pipe: an open elbow of annular section, whose
+# volume is the annulus swept through the window's angle.
+elbow = doc.insert(
+    Node.hollow_tube(
+        spine,
+        (1.0, 0.0, 0.0),
+        R * m,
+        TubeWindow.arc(T0 * rad, T1 * rad),
+        OUTER * m,
+        WALL * m,
+    )
+)
+annulus = math.pi * (OUTER**2 - inner**2)
+body = evaluate(doc).value(elbow).body()
+body.validate()
+assert abs(body.mass_properties().volume - (T1 - T0) * R * annulus) < 1e-9
+
+# The two doors, differenced over one document: what the wall took out
+# is exactly the bore, which is only true if each node reached its own
+# kernel door.
+open_ring = doc.insert(
+    Node.tube(spine, (1.0, 0.0, 0.0), R * m, TubeWindow.arc(T0 * rad, T1 * rad), OUTER * m)
+)
+ev = evaluate(doc)
+bore = (T1 - T0) * R * math.pi * inner**2
+assert (
+    abs(
+        ev.value(open_ring).body().mass_properties().volume
+        - ev.value(elbow).body().mass_properties().volume
+        - bore
+    )
+    < 1e-9
+)
 ```
 
 ### Hollowing a body: shell, with the faces you open named

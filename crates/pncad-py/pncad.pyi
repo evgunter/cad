@@ -226,7 +226,7 @@ class ValidationFinding:
     Two that say the same thing compare equal and hash equal.
 
     `variant` is which validator arm refused (`undeclared_contact`,
-    `census_undecidable`, `negative_volume`, …). The other three are
+    `census_undecidable`, `negative_volume`, …). The other five are
     that arm's payload and are `None` on an arm that carries none, so
     reading one never raises `AttributeError`:
 
@@ -243,6 +243,15 @@ class ValidationFinding:
       …). The branch that matters: an `edge_face_pierce` is
       interpenetration and cannot be declared, while an
       `edge_edge_overlap` can be.
+    - `stale_kind` — which declared record the tier-3′ census could
+      not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
+      `"curve_locus"`, `"patch"`). The granularity IS the recourse:
+      it says which record to withdraw or re-seat, and withdrawing
+      another one leaves the refusal standing.
+    - `ring_contact_kind` — how a ring meets its face's own outer loop
+      (`"vertex_vertex"`, `"vertex_on_edge"`, `"edge_along_edge"`).
+      The word says where the ring has to move: a shared position one
+      vertex clears, or a shared arc no single vertex move separates.
 
     No arena key crosses. A `Body` is an opaque handle, so WHICH face
     or vertex a finding names stays in the kernel's own prose on the
@@ -257,6 +266,10 @@ class ValidationFinding:
     def entity_kind(self) -> Optional[str]: ...
     @property
     def contact_kind(self) -> Optional[str]: ...
+    @property
+    def stale_kind(self) -> Optional[str]: ...
+    @property
+    def ring_contact_kind(self) -> Optional[str]: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -3324,6 +3337,114 @@ class Body:
         Nothing is pre-checked: a zero, negative or non-finite budget
         is the kernel's own `TessellateError`, raised here."""
 
+class FaceCensus:
+    """What one region contributes to the body, in faces, edges and
+    vertices.
+
+    Two of these ride every `StructureNormalization` — the counts the
+    file states for the region, and the counts the mint left it with."""
+
+    @property
+    def faces(self) -> int: ...
+    @property
+    def edges(self) -> int: ...
+    @property
+    def vertices(self) -> int: ...
+
+class StructureNormalization:
+    """One re-minted boundary graph, reported as data: the file's locus
+    was adopted whole, but its tessellation is not representable, so
+    the kernel cut the same surface its own way and says which.
+
+    Volume and validity are exact either way; what changed is only the
+    cut, and the two censuses are that change counted.
+
+    `promoted_to` and `residual` are the one arm's payload, `None` on
+    the other four — present on every row, so a read never raises and
+    a caller never has to branch on `kind` first."""
+
+    @property
+    def face(self) -> int: ...
+    @property
+    def kind(self) -> str: ...
+    @property
+    def promoted_to(self) -> Optional[str]: ...
+    @property
+    def residual(self) -> Optional[float]: ...
+    @property
+    def file_census(self) -> FaceCensus: ...
+    @property
+    def kernel_census(self) -> FaceCensus: ...
+
+class CurvePromotion:
+    """One promoted curve carrier: the file stated a NURBS carrier
+    whose deviation from an analytic curve certified at the import's
+    tolerance, so the edge adopted on the analytic carrier.
+
+    It re-mints nothing, which is why it carries no census and why its
+    key is a curve entity rather than a face."""
+
+    @property
+    def curve(self) -> int: ...
+    @property
+    def kind(self) -> str: ...
+    @property
+    def residual(self) -> float: ...
+
+class PlacedInstance:
+    """One materialized assembly instance — what the file said about
+    one solid of the imported body.
+
+    Every entity field names a real record in the file, or is `None`
+    because the file states no assembly: a file with no assembly
+    vocabulary still gets one row per solid, so a caller never has to
+    ask whether the record exists. `placement` is `None` for the
+    identity, which is what the file stating nothing means."""
+
+    @property
+    def index(self) -> int: ...
+    @property
+    def solid(self) -> int: ...
+    @property
+    def component(self) -> int: ...
+    @property
+    def occurrence(self) -> Optional[int]: ...
+    @property
+    def relationship(self) -> Optional[int]: ...
+    @property
+    def transform(self) -> Optional[int]: ...
+    @property
+    def placement(self) -> Optional[Frame]: ...
+
+class ImportReport:
+    """What a successful STEP import produced: the body, the gate's own
+    measurement of it, and the record of what the adoption changed.
+
+    `enclosure` is the certified `MassProperties` the import's at-rest
+    gate derived and decided the body's orientation invariant on — NOT
+    a second computation. Reading it measures the imported body once;
+    `report.body.mass_properties()` runs the certified quadrature a
+    second time over the same body at the same band, and answers the
+    same four fields bit for bit.
+
+    The three record lists are the adoption's own report, as data
+    rather than prose: every boundary graph re-minted, every NURBS
+    curve carrier adopted as an analytic one, and one assembly row per
+    solid — kept whether or not the file states an assembly."""
+
+    @property
+    def body(self) -> Body: ...
+    @property
+    def enclosure(self) -> MassProperties: ...
+    @property
+    def eps_in(self) -> float: ...
+    @property
+    def normalizations(self) -> list[StructureNormalization]: ...
+    @property
+    def promotions(self) -> list[CurvePromotion]: ...
+    @property
+    def instances(self) -> list[PlacedInstance]: ...
+
 class Mesh:
     """A tessellated body: one shared position buffer, and one
     triangle patch per face.
@@ -3391,16 +3512,17 @@ class Datum:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
     @property
-    def in_plane(self) -> Optional[tuple[tuple[float, float], tuple[float, float]]]:
+    def in_plane(self) -> Optional[tuple[tuple[Length, Length], tuple[float, float]]]:
         """An in-plane axis in its frame's own 2-D coordinates — the
         origin then the direction, as authored. `None` for every other
         kind, whose numbers are all world numbers.
 
-        The ORIGIN half crosses as bare floats in canonical metres,
-        where `Node.datum_axis_in_plane` writes it as
-        `tuple[Length, Length]`. That asymmetry between the write door
-        and this read door is recorded, not intended:
-        `work/lib/datum-in-plane-reads-back-a-length-pair-bare.md`."""
+        The halves cross differently because they are different
+        things. The ORIGIN is a position, so it carries `Length`s —
+        the same shape `Node.datum_axis_in_plane` writes it in and the
+        same shape `Datum.origin` reads back. The DIRECTION is
+        dimensionless and stays bare. Frame-local is a change of
+        datum, not of dimension."""
 
     @property
     def axes(
@@ -3570,6 +3692,7 @@ class Denotation:
     @property
     def candidates(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class Resolution:
     """A stored name's standing in one evaluation — what
@@ -4973,8 +5096,12 @@ def subject_body(
     through its value, and a declared boolean's own certified seam is
     not reported here as an undeclared contact."""
 
-def import_step(text: str) -> Body:
+def import_step(text: str) -> ImportReport:
     """Parse a STEP text with the kernel's importer and adopt its
-    solid — the round-trip oracle. Raises StepImportError, typed."""
+    solid, answering the whole report: `.body`, the gate's own
+    `.enclosure` of it, and what the adoption changed.
+
+    Reading `.enclosure` measures the import once — the gate already
+    ran that quadrature. Raises StepImportError, typed."""
 
 __build_info__: Final[dict[str, Any]]

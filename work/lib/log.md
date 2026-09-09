@@ -3980,3 +3980,331 @@ committed script reporting WHICH list. Orchestrator note: that item
 is the right next CUR unit, and a mechanical one. No kernel crate
 touched beyond `pncad`'s lists; the lane ran the pinned ruff for
 real. ~77 min, ~244k tokens.
+
+**LIB-SMALL MERGED (2026-09-08, #2240; mechanical under the 08-29
+ruling, no A/B row). Three small closes, one file each.** (1) The
+refactoring doors carry their maintenance: `SplitOutcome` gains
+`remainder_maintenance`/`part_maintenance` and `InlineOutcome` gains
+`maintenance`, each straight off the kernel outcome, and the three
+`Doc`-minting getters hand the record across with the document
+instead of `Vec::new()` — ALL THREE sites (the brief miscounted: the
+"third site" was `InlineOutcome.doc`, the inline wrapper's own, the
+same defect on the same ground). No getter added: the record reads
+off `Doc.last_maintenance`, the door that already answers the
+question; its doc and `Doc::accept`'s funnel note say why the
+refactoring wrappers are the one family that does not pass through
+the funnel. The funnel test's new row cuts the bench stand's whole
+cluster out: part `["join","join"]`, remainder `["split","split"]`,
+inline back `["join","join","drop"]` — non-empty on every door,
+because an empty record is indistinguishable from "nothing moved";
+the input document's own reading asserted UNCHANGED (a pure door).
+(2) `Datum.in_plane` reads its origin back DIMENSIONED — decided for
+`Length`, the bare-shape argument weighed and rejected AT the field:
+being written in a frame's coordinates changes the datum a position
+is measured from, never its dimension, and the write door had already
+settled it; the direction pair stays bare under `py/place.rs`'s rule.
+Stub, ty fixture, `TestDatumReadback` (`0.25 * m` in, a `Length` equal
+to it out, the sibling `origin` asserted beside it); no census row
+moves (no curated Rust name maps to the field). (3) Two guide steps
+before `### Hollowing a body`, where G17's spec said the shell step
+sits "beside" them: chamfer as fillet's twin (same frozen selection;
+setback not radius; planar supports only; the closed form metered;
+the chamfer takes more than the fillet at the same number;
+`chamfer_selection_empty` caught) and tubes (the five intent
+parameters, then the hollow tube's REQUIRED wall with `minor_radius`
+as the outer radius, an arc window, and the solid-minus-hollow bore
+differential); `test_guide.py` executes 38 blocks, up from 36. The
+audit's `arc_continue` line stays open until BOOL-10 (#2135) merges.
+No kernel crate touched; the lane ran the pinned ruff for real.
+~65 min, ~182k tokens.
+
+**LIB-WILDCARDS MERGED (2026-09-09, #2243; mechanical under the
+08-29 ruling, no A/B row). The last two payload-accessor wildcards in
+`pncad-py`: `CheckEvidence`'s five accessors and `RefusedRef`'s two
+are exhaustive.** `CheckEvidence` gets a Python-independent record
+(`check_payload.rs`, the `mate_payload` shape; `reason` a `Cow` —
+borrowed from the separation arm's own sentence, owned where the
+shell arms render one) and `RefusedRef` stays in place, matching the
+`at` accessor it sat beside — and the deciding reason is
+`pick_payload`'s second one, not arm arithmetic: THREE of
+`CheckEvidence`'s six arms are unreachable from Python (`escalated`,
+`unsupported`, `separation_unavailable`), and the `py/` accessors
+compile only under the `python` feature, so an in-place projection
+would have pinned those arms nowhere. The lane named this as a
+deviation from the brief, which offered in-place matches as possibly
+cheaper AND asked for a construction pin — the two cannot both hold;
+the record is what the pin costs. Orchestrator note: the brief's
+error, correctly resolved. The added-arm alarm run and reverted: a
+seventh `CheckEvidence` arm fails `cargo check -p pncad-py` with no
+features at the record's match and at `tags.rs`. Pin covers four of
+six arms (the shell arms hold a `ShellClassifyError` the façade does
+not re-export), with the separation arm's sentence itself asserted.
+The sweep re-run at the merge base with the item's stated blind spot
+closed (named-binding and `Some`-of-default spellings): the added
+spellings found nothing the original pattern missed; remaining hits
+are the argued extracts (`validation.rs`, `py/doc.rs`'s `Node`
+extracts, `prose_census.rs`) and exhaustive named arms under `use`
+aliases; the pattern's own blind spot (line-local; a rustfmt-split
+arm or a helper-returning catch-all) stated. `py/checks.rs` and
+`py/assembly.rs` have no `_ =>` left. Residue:
+`check-evidence-shell-refusal-crosses-as-prose-only` (the shell
+door's typed refusal under two arms crosses as prose only; needs the
+curation half first) — its sibling `SeparationUnavailable { kind }` is
+already on FIX's slate (`boolean-kind-not-published-at-the-python-door`),
+reported rather than re-filed. No attribute added, renamed or
+removed; stub, census and Python suite untouched; the lane ran the
+pinned ruff for real. ~47 min, ~159k tokens.
+
+**`[ev]` PR 2230, item 1 RULED (2026-09-09, Ev): (A).** "A works":
+every payload DISCRIMINANT of a projected refusal crosses as an
+attribute of its own, named per type, `None` on every other arm;
+arena-key fields still do not cross. Recorded on
+`two-validation-payload-discriminants-still-uncrossed` and split onto
+its own docs-only PR (#2244) so LIB-DISCRIMINANTS (`stale_kind`,
+`ring_contact_kind` on `ValidationFinding`, two exhaustive maps) can
+dispatch without waiting on item 2, where Ev asked why (A) over (B)
+for `datum-crosses-name-for-name-as-two-types`; answered on the PR
+(B fixes the instance, A the shape; B renames shipped surface; A's
+cost is a stated hand-maintained list). #2230 merges when item 2 is
+ruled. The witness-bifurcation arm falls under the same rule and
+waits on the M6 solver constructing it.
+
+**LIB-HASH MERGED (2026-09-08, #2242; mechanical under the 08-29
+ruling, no A/B row). Every comparable enum mirror hashes.** All 24
+fieldless mirrors (not the item's 23: `AssertionDir` arrived between
+filing and fix, the argument for a guard over a roster) carry `eq,
+eq_int, frozen, hash` and derive `Eq, Hash`; `frozen` IS required —
+established from the pinned pyo3 0.29.0's `pyclass_hash`, not assumed
+— and costs a fieldless mirror nothing, said once at the first
+mirror. The item's question answered by reading every mirror's doc:
+none is deliberately unhashable. `Denotation` — the class the item's
+probe named as invisible to it — hashes by hand over the same
+`(tied, candidates)` its hand-written `__eq__` reads, and the stub
+declares the pair (the stub's own convention: hand-written dunders
+declared, pyo3-derived ones not). `test_hashability.py` is enumerated
+from the compiled module, never a written list: every member hashes,
+the whole surface goes into one set and reads back out of one dict,
+hash agrees with equality over every ordered pair, a door-minted tag
+keys the same as the class attribute, two door-minted denotations are
+one key — and `TestNothingComparesWithoutHashing` reads `__hash__`
+off every class in `vars(pncad)` and requires an unhashable one to be
+on the `UNHASHABLE` roster with a reason, so a 25th mirror without
+`hash` or a new value class that compares without hashing fails.
+Falsified for real: `frozen, hash` removed from `SurfaceKind` alone →
+two failures and three errors naming it; restored. The face-frame
+tally is the set it wanted to be. No kernel change (`editor_core::
+Denotation` does not derive `Hash`; the binding hashes the projection
+its `__eq__` reads). Two residue items filed inside the fence:
+`pncad-py-value-classes-compare-without-hashing` (eleven classes
+compare without hashing — `Expr`/`MeasureExpr` by design, stated on
+the stub; NINE undecided in three shapes: small value records,
+findings, reports/configs — each owing the `-0.0` fold `DocParam`
+already does) and `pncad-py-stub-omits-eq-on-three-mate-classes`
+(`MateFrame`/`MatePrimitive`/`Alignment` define `__eq__` the stub
+omits, unverifiable by `test_stubs.py`'s `hasattr` guard by
+construction). No `variant`/`kind` value or ordering moved; the lane
+ran the pinned ruff for real. One red the lane owned: the roster spelled a filed item as a `.md` string literal under `crates/`, which `ci-filter` fails closed on (it guards a consumed page dropping into the docs tier) — fixed by naming the item without the suffix, the selftest added to the lane's local run. ~3h20m (mostly CI polling and three merges of main), ~190k tokens.
+
+**`[ev]` PR 2230, item 2 RULED (2026-09-09, Ev): (D) — the name
+match accounts MEMBERS, not the type.** Asked as (A) a hand-kept
+same-spelling-different-type list, (B) rename the read-side class,
+(C) leave it; Ev asked for a structural check that keeps the name
+match, and (D) is that: a same-spelled Python namesake accounts only
+the arms (or pub fields) it spells, every other arm needing its own
+`BOUND_AS`/`NOT_BOUND` row. It would have caught `Datum::FaceFrame`
+and the `Node::Union`/`DocEdit::SetMembers` gap alike, and it reuses
+LIB-SWEEP's declaration resolver. Recorded on
+`datum-crosses-name-for-name-as-two-types`; the unit (LIB-MEMBERS)
+dispatches after LIB-SWEEP lands. Both items of #2230 are now ruled
+and the PR merges.
+
+**`[ev]` PR 2231 RULED (2026-09-09, Ev).** Item 1
+(`a-recipe-cannot-hold-a-narration-body-without-it-becoming-a-root`):
+Ev suspected every option changed kernel code for a demo's benefit,
+and the tree agreed — roots are exactly the sink set, and a
+`Node::Measure` consumes its bodies as edges while denoting no body,
+so "measured, not modelled" already exists in-graph; the tour's cost
+is self-inflicted (it measures out of graph). Ruled **(D)**: no node
+or root change, closed as the demo's own cost; the residual E3
+question (mass properties as a measure primitive) explicitly NOT
+filed. Item 2 (`no-facade-door-mints-a-revolves-role-names`): Ev asked
+whether (A) over (B) was just less machinery — yes (an extension
+trait on an editor-core id vs free functions beside `SegPat::tag`) —
+and ruled **(A)**; the unit (LIB-NAMES) dispatches when a slot frees.
+Orchestrator note: item 1 is the second time today a filed design
+question dissolved on a closer read of the tree (the seat existed);
+the lesson for the filer is to grep for the seat before asking.
+
+**`[ev]` PR 2232 RULED (2026-09-09, Ev): (A), (A), (A) — what a
+curated door owes on its SUCCESS side.** Item 1
+(`a-successful-step-imports-own-report-is-uncurated`): carry
+`StepImport` and its record vocabulary at the façade under the reach
+clause, and give Python an `ImportReport` value class beside the
+body. Item 2 (`pncad-py-import-step-drops-the-gates-enclosure`): the
+report carries `.body` and `.enclosure`; `Body` stays a pure handle —
+ruled after Ev asked whether (A) was test-only and (B) not, and the
+premise was corrected (both change binding code; (A) at the door's
+return shape, (B) on the handle). Item 3
+(`advisory-monte-carlo-lane-has-no-python-door`): `monte_carlo` and
+its value classes bound as LIB's build, `analysis.rs` joining the
+census's read list — "no real hurry", so it queues behind the
+mechanical units. Items 1+2 dispatch as one unit (LIB-IMPORT-REPORT).
+
+**LIB-SWEEP MERGED (2026-09-09, #2245; mechanical under the 08-29
+ruling, no A/B row). The payload-rung sweep is a committed script,
+`scripts/payload-rung-sweep.py`, run by both halves of CI rather than
+re-derived from prose.** It reads ALL FOUR curated façade lists
+(`document`, `select`, `prelude`, `profile`) and reports which list
+each side of a row is on, which splits what a three-list run
+flattened: UNCURATED (on no list) from CROSS-LIST (curated, on no
+list that carries its carrier). Four counts, a deterministic narrowed
+table with `file:line`, `--json`, `--lists` to reproduce an earlier
+run's definition, `--check` pinning the narrowed NAMES against two
+disposition tables held as data with each argument's home
+(`DISPOSITIONS`, `CROSS_LIST_DISPOSITIONS`) in both directions, and a
+`--selftest` fixture battery; blind spots (a)–(i) indexed in the
+docstring and stated beside the code that has each ((a), (f), (g)
+CLOSED; (e) narrowed to macro-minted names; (b), (c), (d), (h) open;
+(i) new — registry dependencies are outside the path closure). The
+CI row sits in `discipline` on both halves under a `HOSTED MIRROR`
+marker. **The drift, bounded**: `curated` settles INCLUDING CUR5's
+unexplained 525 (CUR5 read the façade's whole source directory, not
+the three lists — 536 there today vs 413 over three lists, the same
+gap); `declared` is monotone with the tree; `narrowed` reconciles
+EXACTLY (CUR7's 16 names minus the six it settled = the ten the
+four-list run reports; the three-list run adds only `Step`, which is
+curated BESIDE its carrier on `profile.rs` and so is not a rung there
+— CUR7's prelude non-carriage stands); `raw` does NOT settle and is
+bounded instead (121 as specified; 146/160/185/188 with each closed
+blind spot re-opened; the reported 115 and 208 lie outside that
+interval, so the difference is what an implementation counted as one
+hit, which no artefact records). The refusal filter is a NAME test
+(`*Error`/`*Refusal`/`*Fault`), measured against a `Display` test
+that does not separate refusals from five carried discriminants —
+the lane's stated deviation from the brief's argued list
+(`LeverRefusal`, `MintRefusal` dropped by the filter, not by a row).
+Uncurated column at the merge base: no new row. Cross-list column:
+four rows over two names, filed as
+`cross-list-payload-rungs-under-document-only-carriers` (`EntityKind`
+and `SplitHalf`, on `select`+`prelude`, ride document-only carriers;
+the `NamingError` precedent on `select.rs:57` argues one way, the
+document list's own payload rule the other — a curation act either
+way, and it settles whether a payload owes its carrier's list or the
+vocabulary's), pinned in the script so a third such name reds CI.
+Orchestrator note: this is the resolver option (D) on `[ev]` #2230
+item 2 would reuse. Also measured by the lane: the selftest discriminates — nine mutants of the scan each red the battery; two runs byte-identical. ~92 min, ~208k tokens.
+
+**LIB-DISCRIMINANTS MERGED (2026-09-09, #2246; mechanical under the
+08-29 ruling, no A/B row). The first unit under Ev's (A) on
+`two-validation-payload-discriminants-still-uncrossed` (ruled this
+morning on `[ev]` #2230): `ValidationFinding` carries `stale_kind`
+(`StaleDeclaration`, four arms — which declared record lost its
+witness, which is which record to withdraw or re-seat) and
+`ring_contact_kind` (`RingContact`, three arms — how a ring meets its
+face's outer loop, which is where the ring has to move), each from an
+exhaustive tag map with no wildcard, `None` on every other arm; the
+arena-key FIELDS do not cross, so the projection stops at the
+discriminant as everywhere else.** `ring_contact_tag` reuses the
+census vocabulary's spellings where the shape is the same
+(`vertex_vertex`, `vertex_on_edge`, `edge_along_edge`), so a caller
+reading two contact words off one finding learns one spelling; the
+escalated sibling (`RingContactEscalated`) answers `None` — an
+undecidable separation is a margin, not a shape. Reachability, the
+part worth recording: NO arm of either enum is reachable from
+Python — a stale record needs a declaration parted from its witness
+and every door mints declarations from the geometry it looks at or
+gates them; a ring on its own outer loop needs raw Euler surgery the
+binding does not expose — so all seven words are pinned per arm in
+Rust with the reason, and `test_validate.py` says the gap is the
+DOORS' rather than the projection's; crossing them is still the move,
+because the attribute is the contract a caller reads the day a door
+produces one. Census: both rows from `INTERIOR` to `BOUND_AS` with
+the measurement, and the door's four payload discriminants are now
+the RULE rather than a pair. `witness-bifurcation-arm-has-no-inner-word`
+gains its `## Progress` line: the rule applies, the arm waits on the
+M6 solver constructing it. Stub, class docstring, `__repr__`/`__eq__`/
+`__hash__` over six words, ty fixture. No shipped `variant`/
+`contact_kind`/`subject_kind` value moved; the lane ran the pinned
+ruff for real. The lane's stated deviation: the two extractors keep `census_contact`'s extract-licence `_ => None` (the brief asked for that AND for arms named — over 71 arms the worked example wins; the classifying site `validation_error_tag` is the exhaustive one). ~72 min, ~207k tokens.
+
+**LIB-MEMBERS MERGED (2026-09-09, #2247; mechanical under the 08-29
+ruling, no A/B row). Ev's (D) on `datum-crosses-name-for-name-as-two-types`
+executed: the binding census's rule 1 keeps its name match, but a
+match accounts MEMBERS, not the type.** A curated name that resolves
+— through `scripts/payload-rung-sweep.py`'s resolver, SHARED by path
+rather than re-implemented (the script gains `declared_members`, the
+second reader on the same declarations, with selftest rows and two
+fixture types; its own report unchanged) — to a `pub enum` or `pub
+struct` accounts only the members its Python namesake spells (an arm
+as a class attribute, or snake-cased as a constructor/property/
+method; a bare-`pub` field as a same-named attribute); every other
+member owes a row in `MEMBERS_BOUND_AS` or `MEMBERS_NOT_BOUND`, and a
+member with neither fails the census naming itself. A second pair of
+tables, not `Type::Member` keys in `BOUND_AS`, because every check
+over that roster reads its keys as curated names. **The count, taken
+first**: 104 matched declarations, 616 members, 420 over 60 types
+needing rows — and `Node`/`DocEdit`/`Datum`, the expected bulk, are 18
+of the 420; the refusal enums whose arms cross as tag WORDS dominate
+(`ValidationError` 71, `EditError` 58, `PathError` 30, …), and the
+rule admits no exception, so they got rows (385 `BOUND_AS`, 35
+`NOT_BOUND`) — recorded as the measurement the ruling's cost estimate
+lacked, not used to narrow the rule. What the first run FOUND, which
+is the whole point: a SECOND same-spelled-different-type pair
+(`pncad.pyi`'s `DimensionError` is the quantity boundary's refusal;
+the curated one is editor-core's document-layer refusal, crossing at
+`ParseError.kind`); and three real gaps chartered as census families
+and filed — `two-datum-arms-have-no-node-constructor`
+(`Datum::Point`/`Frame`: a Python author builds four of six datum
+kinds), `five-doc-edit-arms-have-no-python-door` (`SetParam`,
+`SetExpression`, `Rebind`, `ReWitness`, `ReWitnessBulk`),
+`mesh-boundary-polylines-have-no-python-door` (`Mesh::boundaries`
+unread; a wireframe cannot be drawn). Blind spots stated at rule 1: a
+coincidental snake-case match (four of `Evaluation`'s ten fields are
+accounted that way against a different Python type); the resolver's
+alias/generic arms (b)/(d) and crate-not-module (h); a tuple struct's
+unnamed fields. Falsifier: `Node.extrude` removed from a stub surface
+in-file fails the rule; `Datum::FaceFrame`'s row removed fails naming
+it. No stub change, no new binding; the lane ran the pinned ruff for
+real. Orchestrator note: the three gap families are the next
+mechanical wave's obvious members. ~66 min, ~296k tokens.
+
+**LIB-IMPORT-REPORT MERGED (2026-09-09, #2249; mechanical under the
+08-29 ruling, no A/B row). Ev's (A)+(A) on `[ev]` #2232 items 1 and 2
+executed: `import_step`'s SUCCESS side crosses.** Rust half: the
+prelude's `step_import` group gains seven names — `StepImport` and
+the record vocabulary its `Solid` arm names (`StructureNormalization`,
+`NormalizationKind`, `CurvePromotion`, `PromotedCurveKind`,
+`PlacedInstance`, `FaceCensus`) — under the reach clause, with the
+prose saying which clause each half closes (the refusal was a
+MATCHABILITY gap, the answer a REACH one); the `Wireframe` arm needs
+no new name (`Curve3` is already on the list); a curation guard in
+`all.rs` binds every field of the arm by name from the prelude alone
+on a REAL import (the round-trip oracle's own exported text) and
+asserts the enclosure against a second `mass_properties` call bit for
+bit — "not a second computation" as an equality rather than a claim;
+`NormalizationKind` matched exhaustively there. Python half:
+`import_step` answers a frozen `ImportReport` with `body`,
+`enclosure` (the gate's own certified `MassProperties`), `eps_in`,
+and the three record lists as frozen rows (`StructureNormalization`,
+`CurvePromotion`, `PlacedInstance`, with `FaceCensus` a class of its
+own because a normalization carries TWO and their difference is the
+record); `Body` gains nothing, `mass_properties` keeps one meaning —
+the ruled shape. Decisions stated: `surface_promotion` keeps one word
+with `promoted_to`/`residual` beside it (five words, not six);
+`PlacedInstance.placement` is `Optional[Frame]`, `None` left as `None`
+(an identity `Frame` would read as a map the file chose). Deviation:
+`MassProperties` gains `Clone, Copy` + `skip_from_py_object` so the
+Python surface is unchanged. Census: `StepImport` → `ImportReport`
+with the double-quadrature measurement, the two discriminants to
+their `kind` words; the four row classes are same-spelled and
+accounted by rule 1 (a `BOUND_AS` row for them is stale by the decay
+check — found that way). Callers moved onto `.body`/`.enclosure`
+(`test_document.py`, `examples/bracket.py`, the guide's Python
+journey). The payload-rung sweep stays green with seven more curated
+names (narrowed 10, cross-list 4 unchanged). `ImportOptions`'
+non-crossing stands. Orchestrator note: this lane was killed by the
+container restart with six files uncommitted and resumed with "push
+first"; it committed the Python half, closed both items and opened
+the PR within forty minutes — the discipline's push-after-every-commit
+rule is what bounded the loss to one turn. The lane ran the pinned
+ruff for real. The measurement, taken: import-then-measure on a lofted rational-walled body 8.26 s + 8.24 s — the second quadrature is 49.9 % of the old journey and `.enclosure` is bit-identical; on the box 0.3 %, because a box has no quadrature to repeat. ~85 min including ~11 min of restart downtime, ~230k tokens.

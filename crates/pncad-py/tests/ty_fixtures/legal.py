@@ -63,6 +63,12 @@ from pncad import (
     Length,
     LengthUnit,
     Body,
+    CurvePromotion,
+    FaceCensus,
+    ImportReport,
+    MassProperties,
+    PlacedInstance,
+    StructureNormalization,
     Mesh,
     MateFault,
     MateFrame,
@@ -105,6 +111,7 @@ from pncad import (
     rad,
     enforce_checks,
     evaluate,
+    import_step,
     load,
     gauge_of,
     header_document_id,
@@ -206,8 +213,9 @@ turned: NodeId = doc.insert(
 
 # A datum read back. `origin` is a POSITION and carries `Length`s;
 # `direction` and `axes` are dimensionless and are bare. `in_plane` is
-# the one that is BOTH — its second pair is a direction and its first
-# is a position that nonetheless crosses bare (recorded at the stub).
+# the one that is BOTH — its first pair is a position and carries
+# `Length`s like every other position on this class, its second is a
+# direction and is bare.
 # Exercised here because the name-for-name check in `test_stubs.py`
 # compares NAMES and hands SIGNATURES to `ty`: a property this file
 # never mentions is a property neither of them reads.
@@ -216,7 +224,7 @@ turned_axis: Datum = evaluate(doc).value(
 ).datum()
 axis_kind: str = turned_axis.kind
 axis_at: tuple[Length, Length, Length] = turned_axis.origin
-axis_written_in_plane: tuple[tuple[float, float], tuple[float, float]] | None = (
+axis_written_in_plane: tuple[tuple[Length, Length], tuple[float, float]] | None = (
     turned_axis.in_plane
 )
 
@@ -733,7 +741,7 @@ except EditError as edit_refusal:
 
 # The one refusal on this surface whose discriminant is a SEQUENCE.
 # `findings` is a list, its length is `failure_count`, and each entry's
-# `variant` is a plain `str` while its three payload words are optional
+# `variant` is a plain `str` while its five payload words are optional
 # — the shape a caller reads without narrowing on `variant` first.
 try:
     gathered.validate_pseudomanifold()
@@ -746,8 +754,14 @@ except ValidationError as validation_refusal:
     about: str | None = first_finding.subject_kind
     carrier: str | None = first_finding.entity_kind
     coincidence: str | None = first_finding.contact_kind
+    unwitnessed: str | None = first_finding.stale_kind
+    where_the_ring_meets: str | None = first_finding.ring_contact_kind
     if coincidence is not None:
         declarable: str = coincidence
+    if unwitnessed is not None:
+        withdraw: str = unwitnessed
+    if where_the_ring_meets is not None:
+        move_the_ring: str = where_the_ring_meets
 
 
 # The three doors LIB-DOORS-2 projected, typed. Every payload
@@ -790,3 +804,54 @@ except StlError as stl_refusal:
     sink_said: str | None = stl_refusal.detail
     if header_bytes is not None:
         how_long: int = header_bytes
+
+
+# The import report, read attribute by attribute. Every field of the
+# importer's success value is here, and the reads that MUST be narrowed
+# are exactly the ones the record leaves absent: a normalization's
+# promoted kind and residual, and the four entity fields of an assembly
+# row a file that places nothing does not state.
+_report: ImportReport = import_step(
+    evaluate(doc).step_string(lightened, product_name="plate")
+)
+imported_body: Body = _report.body
+# The gate's own enclosure — the same four fields `mass_properties`
+# answers, without running the quadrature a second time.
+enclosure: MassProperties = _report.enclosure
+imported_volume: float = enclosure.volume
+imported_area: float = enclosure.surface_area
+imported_volume_pad: float = enclosure.volume_pad
+imported_area_pad: float = enclosure.area_pad
+file_tolerance: float = _report.eps_in
+
+for _normalization in _report.normalizations:
+    _n: StructureNormalization = _normalization
+    remint_face: int = _n.face
+    remint_kind: str = _n.kind
+    promoted_to: str | None = _n.promoted_to
+    promotion_residual: float | None = _n.residual
+    stated: FaceCensus = _n.file_census
+    minted: FaceCensus = _n.kernel_census
+    face_delta: int = minted.faces - stated.faces
+    edge_delta: int = minted.edges - stated.edges
+    vertex_delta: int = minted.vertices - stated.vertices
+    if promotion_residual is not None:
+        how_far: float = promotion_residual
+
+for _promotion in _report.promotions:
+    _p: CurvePromotion = _promotion
+    carrier: int = _p.curve
+    carrier_kind: str = _p.kind
+    carrier_residual: float = _p.residual
+
+for _instance in _report.instances:
+    _i: PlacedInstance = _instance
+    solid_index: int = _i.index
+    msb: int = _i.solid
+    component: int = _i.component
+    occurrence: int | None = _i.occurrence
+    relationship: int | None = _i.relationship
+    transform: int | None = _i.transform
+    placement: Frame | None = _i.placement
+    if placement is not None:
+        placed_at: tuple[Length, Length, Length] = placement.origin

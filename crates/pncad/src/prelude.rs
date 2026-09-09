@@ -499,16 +499,17 @@ pub use topo::{
 // DISCRIMINANT, and every discriminant these refusals name is
 // spellable from this list.
 //
-// Two of the four now cross to Python as well, and this list is what
-// made that spellable. `ValidationError.findings` carries one word per
-// failure — the arm, plus `CensusContact` as `contact_kind` and
-// `CensusSubject` as `subject_kind` with the entity's kind beside it —
-// so the asymmetry these entries were written under, a Rust caller
-// matching the arm while a Python caller read the sentence, is closed
-// for the two payloads a caller acts on. `StaleDeclaration` and
-// `RingContact` are still Rust-side only. The sequence is the one on
-// this surface: `validate*` is the one door that reports many refusals
-// at once, and `failure_count` says so.
+// All four cross to Python as well, and this list is what made that
+// spellable. `ValidationError.findings` carries one word per failure —
+// the arm, plus `CensusContact` as `contact_kind`, `CensusSubject` as
+// `subject_kind` with the entity's kind beside it, `StaleDeclaration`
+// as `stale_kind` and `RingContact` as `ring_contact_kind` — so the
+// asymmetry these entries were written under, a Rust caller matching
+// the arm while a Python caller read the sentence, is closed for every
+// payload discriminant this refusal carries. One attribute per
+// concept, `None` on every arm that carries none. The sequence is the
+// one on this surface: `validate*` is the one door that reports many
+// refusals at once, and `failure_count` says so.
 pub use topo::{
     CensusContact, CensusSubject, RingContact, StaleDeclaration, ValidationError, validate,
     validate_closed, validate_geometric, validate_pseudomanifold,
@@ -561,7 +562,52 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `ImportOptions` does not cross at all — Python's `import_step`
 // takes only the text — so `ImportContact` has nothing to project
 // until that argument does.
-pub use step_import::{ImportContact, ImportOptions, PromotedKind, StepImportError, import_step};
+// **The SUCCESS half crosses under the same clause, and it is the
+// reach one.** `import_step` answers
+// `Result<StepImport, StepImportError>`. The refusal above is
+// matchable; the answer was not spellable at all — a prelude caller
+// could call the door, destructure what came back by inference, and
+// could not state the type in a field, a return position or a `let`.
+// Contract clause 1 held throughout (everything is one hop away at
+// `pncad::step_import::…`); what did not hold is that a door's own
+// answer is spellable from the list that carries the door.
+//
+// So `StepImport` joins the list with the record vocabulary its
+// `Solid` arm names, because the arm's fields are the answer and each
+// is a `pub` field of a curated type — the `ImportContact` reasoning
+// one paragraph up, applied to the other side of the call. The
+// records are what the adoption CHANGED about the file, and the
+// types' own documentation says twice that a caller reads them:
+// `SurfacePromotion` is "reported, never silent", and the assembly
+// record is "kept whether or not the file states an assembly at all".
+//
+// `StructureNormalization` is the re-minted boundary graph (its
+// `NormalizationKind` and the `FaceCensus` pair it maps between),
+// `CurvePromotion` the analytic carrier a NURBS one certified as (its
+// `PromotedCurveKind`), and `PlacedInstance` the A7 assembly record.
+// `PromotedKind` was already here as the refusal's discriminant and
+// is `NormalizationKind::SurfacePromotion`'s too — one type, two
+// carriers, and the entry above says what it means on the refusal.
+// The `Wireframe` arm's payload needs nothing new: its carriers are
+// `Curve3`, on this list at group 2's `topo` re-export, and its
+// promotions are the same `CurvePromotion`.
+//
+// The Python half follows the carrier rule again, and lands on the
+// opposite side from `ImportOptions`. `StepImport::Solid` crosses as
+// a value — `ImportReport`, with `body`, `enclosure`, `eps_in` and
+// the three record lists as frozen rows — so the vocabulary it names
+// crosses as attributes on those rows: `NormalizationKind` and
+// `PromotedCurveKind` as `kind` words beside their payload fields,
+// `PlacedInstance::placement` as the `Frame` the surface already has.
+// `enclosure` is why the value shape matters rather than only the
+// spelling: it is the gate's own certified `MassProperties`, so a
+// Python caller who reads it measures the import once instead of
+// twice.
+pub use step_import::{
+    CurvePromotion, FaceCensus, ImportContact, ImportOptions, NormalizationKind, PlacedInstance,
+    PromotedCurveKind, PromotedKind, StepImport, StepImportError, StructureNormalization,
+    import_step,
+};
 // `StlError` is the writers' own refusal type — what `write_ascii` and
 // `write_binary` return. The option errors beside it
 // (`BinaryHeaderError`, `SolidNameError`) refuse at option

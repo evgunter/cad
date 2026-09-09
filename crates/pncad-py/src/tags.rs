@@ -77,14 +77,14 @@ use pncad::select::{
     DanglingRef, HitTestError, InterrogateError, MeshPickError, NamingError, NodePickError,
     ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
 };
-use pncad::step_import::{PromotedKind, StepImportError};
+use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanError, CensusContact, CensusSubject, EntityId, ShellError, TransformError,
-    ValidationError,
+    BooleanError, CensusContact, CensusSubject, EntityId, RingContact, ShellError,
+    StaleDeclaration, TransformError, ValidationError,
 };
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -1508,6 +1508,51 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
     }
 }
 
+/// The stable tag for WHICH structure normalization a successful
+/// import re-minted — `StructureNormalization::kind`, on the success
+/// side of the same door.
+///
+/// The carrier is a value here rather than a refusal, and the rule is
+/// the one that decided `promoted_kind_tag`: the payload's category
+/// follows what its carrier does at the crossing. `ImportReport`
+/// crosses the record as frozen rows projecting every field, so this
+/// discriminant crosses as one of those fields — a word beside the
+/// entity id and the two censuses, never in place of them.
+///
+/// `SurfacePromotion` does NOT fold its payload into the word. Which
+/// analytic kind certified is [`promoted_kind_tag`]'s question and is
+/// answered at `promoted_to` beside this one, so a caller reading
+/// "the file's NURBS patch was adopted as an analytic surface" reads
+/// one word whichever kind it was, and the residual that certifies it
+/// is a number rather than a spelling.
+///
+/// The match is exhaustive, so a sixth normalization minted
+/// kernel-side stops this crate compiling instead of arriving under
+/// one of these five words.
+pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
+    match kind {
+        NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
+        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::FullPeriodTorus => "full_period_torus",
+        NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
+    }
+}
+
+/// The stable tag for the analytic kind a CURVE carrier was promoted
+/// to — `CurvePromotion::kind`.
+///
+/// One word today, and the exhaustive match is why it is a map rather
+/// than a literal: the named exclusions the recognizer carries
+/// (line-as-degree-1, ellipse, helix, open arcs) each land here when
+/// their follow-up does, and each stops this crate compiling until it
+/// has a word of its own.
+pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
+    match kind {
+        PromotedCurveKind::Circle => "circle",
+    }
+}
+
 /// The stable tag for a document-layer export refusal
 /// (`pncad::export::step_for_node`'s error).
 pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
@@ -2217,5 +2262,49 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
         CensusContact::EdgeEdgeOverlap { .. } => "edge_edge_overlap",
         CensusContact::EdgeFaceOverlap { .. } => "edge_face_overlap",
         CensusContact::ConformalPatch { .. } => "conformal_patch",
+    }
+}
+
+/// The stable tag for WHICH declared record lost its witness — the
+/// granularity of the declaration the tier-3′ census could not
+/// confirm.
+///
+/// The word decides which record a caller withdraws or re-seats. A
+/// `vertex_vertex` or `vertex_on_face` record names entities, so the
+/// repair is at those entities; a `curve_locus` record was certified
+/// by a witness EDGE whose locus is gone, and a `patch` record by a
+/// trim overlap in a shared chart. Withdrawing the wrong granularity
+/// leaves the refusal standing, which is what a caller reading only
+/// `stale_contact_declaration` cannot avoid.
+///
+/// The record's KEYS stay in the kernel's own prose on the joined
+/// message: no arena key crosses to a surface that holds names.
+pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
+    match declaration {
+        StaleDeclaration::VertexVertex { .. } => "vertex_vertex",
+        StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::CurveLocus { .. } => "curve_locus",
+        StaleDeclaration::Patch { .. } => "patch",
+    }
+}
+
+/// The stable tag for HOW a ring meets its face's own outer loop.
+///
+/// The word decides where the ring has to move: a `vertex_vertex`
+/// contact is one shared position and a nudge of one vertex clears
+/// it, a `vertex_on_edge` contact puts a ring vertex on the interior
+/// of an outer edge, and an `edge_along_edge` contact shares a
+/// positive-length arc — the two loops run together rather than
+/// touching, and no single vertex move separates them.
+///
+/// The words are the census vocabulary's where the shape is the same
+/// one ([`census_contact_tag`]), because a caller reading two contact
+/// words off one finding should not have to learn two spellings for
+/// one coincidence.
+pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
+    match contact {
+        RingContact::Vertex { .. } => "vertex_vertex",
+        RingContact::VertexOnEdge { .. } => "vertex_on_edge",
+        RingContact::Edge { .. } => "edge_along_edge",
     }
 }

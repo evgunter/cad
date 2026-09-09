@@ -691,7 +691,11 @@ impl Doc {
     /// internally, and [`Doc::declare_findings`] closes it for the
     /// declare doors by taking the kernel sugar's whole acceptance up
     /// here; a door reaching `d::apply` for any OTHER edit lands here
-    /// or is a bug the test names.
+    /// or is a bug the test names. The refactoring wrappers are the
+    /// one family that does not pass through: they never `apply` a
+    /// single edit, they project a kernel outcome whose document and
+    /// maintenance were already paired below this wrapper, and they
+    /// carry that pairing across whole.
     fn accept(&mut self, applied: d::Applied<d::ProfileProgram>) -> d::EditRecord {
         self.inner = applied.doc;
         self.maintenance = applied.maintenance;
@@ -824,6 +828,15 @@ impl Doc {
     /// fresh document — a document that has never applied an edit has
     /// no last edit to report about. A REFUSED edit leaves this
     /// untouched, exactly as it leaves the document untouched.
+    ///
+    /// **A document a refactoring minted reads that refactoring's own
+    /// record.** `SplitOutcome.remainder`, `SplitOutcome.part` and
+    /// `InlineOutcome.doc` are values produced by applying a whole
+    /// edit LIST, so each reports what ITS list did to the placement
+    /// registry — the joins a re-anchored mate performed, the splits
+    /// a departing cluster left. The document and that record cross
+    /// together, so a caller reading here after either door reads the
+    /// record the kernel has rather than an empty list.
     ///
     /// **The reading begins at the load boundary.** A `Doc` handed out
     /// by `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
@@ -1189,8 +1202,8 @@ impl Doc {
 /// copy is forced; the obligation it owes the kernel is that every
 /// kernel operation has a member here, which
 /// [`_binds_every_kernel_operation`] is what enforces.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum BooleanOp {
     /// Fuse the operands.
     Union,
