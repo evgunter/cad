@@ -2,11 +2,12 @@
 id: LIB-SEATS
 kind: unit
 title: every dimensioned slot door takes an Expr, and Expr gains literal, written_length and written_angle
-status: review
+status: closed
 branch: lib/seats
 opened: 2026-09-09
 refs: [node-slot-literals-erase-the-authored-notation]
 pr: 2264
+closed: 2026-09-09
 ---
 
 Closes `node-slot-literals-erase-the-authored-notation` under Ev's
