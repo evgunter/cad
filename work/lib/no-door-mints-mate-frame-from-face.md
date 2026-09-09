@@ -118,3 +118,32 @@ is the objection and A11 can be revised to "the document plus its
 parts' evaluations", with LIB taking the façade and Python halves over
 whatever the kernel then stores; **(A)** if A11 stays as ratified. Not
 (B): frozen numbers plus the name stores both and buys only a report.
+
+### Can the solve avoid reading geometry forever? Asked 2026-09-09; measured: no
+
+`crates/editor-core/src/mate.rs` carries no `Expr` and no `ParamName`:
+`MateFrame` is three `[f64; 3]`, `PlanarRest.offset` is `f64`, the
+clocking rider `Option<f64>`. A mate is plain numbers, so a document
+parameter change in a part stales every mate on it silently until the
+at-rest gate refutes it, and the only cure under "authored numbers
+forever" is a person re-deriving frames — the part's modelling
+restated in numbers beside it. So the solve must read geometry
+eventually, and A11 reads as drawn around the solve ALGORITHM (coset
+intersection over decided predicates, no numeric fitting), not around
+where the frames come from.
+
+**(F), shaped so A11's algorithm claim stays and only its "inputs are
+the document alone" sentence moves:** `MateFrame` gains an arm —
+authored vectors as today, or `FromFace { face: StableName,
+reference: Option<[f64; 3]> }` — resolved at EVALUATION through the
+exact `face_pose` readback (analytic surfaces off their parameters; a
+NURBS face refuses typed and keeps taking authored vectors), with
+`reference` used when the face has no `u_ref` and refused when
+neither does; `solve_document` runs over resolved frames, the solve
+itself unchanged. The drift disappears rather than being reported;
+nothing is stored twice. MSOLVE's kernel and a DESIGN.md revision of
+A11's wording — a design item, not a mechanical unit; LIB's half (the
+re-export, `MateFrame.from_face` in Python) follows the arm. (A)
+becomes unnecessary: freezing is materializing the arm.
+
+Recommendation: **(F) now**, in that shape.
