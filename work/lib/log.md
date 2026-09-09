@@ -4104,3 +4104,16 @@ already does) and `pncad-py-stub-omits-eq-on-three-mate-classes`
 omits, unverifiable by `test_stubs.py`'s `hasattr` guard by
 construction). No `variant`/`kind` value or ordering moved; the lane
 ran the pinned ruff for real. One red the lane owned: the roster spelled a filed item as a `.md` string literal under `crates/`, which `ci-filter` fails closed on (it guards a consumed page dropping into the docs tier) — fixed by naming the item without the suffix, the selftest added to the lane's local run. ~3h20m (mostly CI polling and three merges of main), ~190k tokens.
+
+**`[ev]` PR 2230, item 2 RULED (2026-09-09, Ev): (D) — the name
+match accounts MEMBERS, not the type.** Asked as (A) a hand-kept
+same-spelling-different-type list, (B) rename the read-side class,
+(C) leave it; Ev asked for a structural check that keeps the name
+match, and (D) is that: a same-spelled Python namesake accounts only
+the arms (or pub fields) it spells, every other arm needing its own
+`BOUND_AS`/`NOT_BOUND` row. It would have caught `Datum::FaceFrame`
+and the `Node::Union`/`DocEdit::SetMembers` gap alike, and it reuses
+LIB-SWEEP's declaration resolver. Recorded on
+`datum-crosses-name-for-name-as-two-types`; the unit (LIB-MEMBERS)
+dispatches after LIB-SWEEP lands. Both items of #2230 are now ruled
+and the PR merges.
