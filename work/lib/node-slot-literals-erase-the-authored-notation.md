@@ -165,3 +165,26 @@ written literals and parsed expressions.
 
 Recommendation: **(E)**; (A) if the shorter spelling is preferred.
 Not both — two spellings of one thing.
+
+### (G), added 2026-09-09 after Ev asked whether a named union could replace `Expr` in Python
+
+At the seat, yes; as a replacement for the class, no. A Python `Expr`
+is the parsed tree — parameter references and arithmetic, with
+`dimension`/`text`/`params`/`literal_value` read off it — and no other
+Python value stands in for it: not a `str`, since parsing needs the
+document's parameter dimensions (`parse_expr(src, params)`, which is
+why the door is `Doc.parse_expr`), and node constructors are static,
+built before insertion. So the class stays as the one member that
+carries a tree.
+
+The stub already speaks named unions (`_Offset: TypeAlias = Length |
+Angle | float`, the path-leg unions). **(G): one alias declared once
+— `_SlotLength: TypeAlias = Length | WrittenLength | Expr` and its
+`Angle` twin — read by every dimensioned slot door's signature.** A
+`Length` takes the canonical fallback as today, a `WrittenLength`
+records its notation, an `Expr` binds the slot to a parsed tree at
+authoring. One seat with three members, not two spellings; (E)'s
+three `Expr` constructors become unnecessary (the written form enters
+the union directly) and may be added later purely as mirrors.
+
+Recommendation: **(G)**.
