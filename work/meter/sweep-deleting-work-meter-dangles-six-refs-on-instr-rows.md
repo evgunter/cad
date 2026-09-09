@@ -2,8 +2,9 @@
 id: sweep-deleting-work-meter-dangles-six-refs-on-instr-rows
 kind: issue
 title: deleting work/meter/ at the sweep leaves six refs: entries on INSTR rows naming ids that no longer exist, and lint requires every ref to resolve
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-09
 ---
 
 
@@ -121,3 +122,38 @@ It closes when the sweep has made the six substitutions and `lint` is green
 on a tree with `work/meter/` gone. Nothing here is a design question any
 more, so it wants no `[ev]` PR: the precedent is merged and the mapping is
 derived twice.
+
+## Closed (2026-09-09) — the sweep made the six substitutions
+
+Discharged by METER's closing sweep, in the commit that deletes
+`work/meter/` and `docs/METER-EXIT-WALK.md`
+(`docs/DOC-LEDGER.md`, sweep 10). The GATES form was followed as this
+row specified: the dying id replaced in `refs:` by the number of the PR
+that closed it, and one `## Refs at METER's sweep (2026-09-09)` section
+at each citing row saying which id is now cited by which PR.
+
+**The mapping was re-derived by the sweep before it was written**, both
+of the methods this row names, and both agree with the table above:
+`meter/split-scan-and-face-name` → 2167, `meter/cut-prefix-pin` → 2151,
+`meter/klint-roster-pin` → 2115, `meter/k-report-cert1-fold` → 2140,
+`meter/12-twinned-csv-fixture` → 2179.
+
+**The citing rows were re-derived too, rather than taken from the table.**
+Every `parent`, `blocked_on`, `rides_with` and `refs` entry in the whole
+tracker was parsed through `scripts/work.py`'s own `load_tree` and tested
+against the ids that die with `work/meter/` — 13 hits, of which 7 are
+inside `work/meter/` itself and die with it, and 6 are the rows named
+above. No third program cites a dying id. **What that sweep cannot
+reach** is unchanged from the one above: an id referenced from an
+unmerged branch, and prose citations, which lint does not see. The sweep
+PR reports the prose citations it found rather than rewriting them —
+`docs/DOC-LEDGER.md`'s *A note on inbound references* is the standing
+answer for those, and GATES' sweep left its own (`work/gates/D103.md` is
+still cited from `scripts/gates/viewer-module-kinds.sh:85` today).
+
+**One deviation from mechanical substitution, in two rows.**
+`k-lint-gate-described-as-diffing-the-committed-baselines` already carried
+`2140` beside the dying id and `tess-lint-recourse-quote-half-pinned`
+already carried `2179`; substituting in place would have written the same
+number twice, so the dying id was dropped and the section at each row says
+so.
