@@ -4054,3 +4054,17 @@ already on FIX's slate (`boolean-kind-not-published-at-the-python-door`),
 reported rather than re-filed. No attribute added, renamed or
 removed; stub, census and Python suite untouched; the lane ran the
 pinned ruff for real. ~47 min, ~159k tokens.
+
+**`[ev]` PR 2230, item 1 RULED (2026-09-09, Ev): (A).** "A works":
+every payload DISCRIMINANT of a projected refusal crosses as an
+attribute of its own, named per type, `None` on every other arm;
+arena-key fields still do not cross. Recorded on
+`two-validation-payload-discriminants-still-uncrossed` and split onto
+its own docs-only PR (#2244) so LIB-DISCRIMINANTS (`stale_kind`,
+`ring_contact_kind` on `ValidationFinding`, two exhaustive maps) can
+dispatch without waiting on item 2, where Ev asked why (A) over (B)
+for `datum-crosses-name-for-name-as-two-types`; answered on the PR
+(B fixes the instance, A the shape; B renames shipped surface; A's
+cost is a stated hand-maintained list). #2230 merges when item 2 is
+ruled. The witness-bifurcation arm falls under the same rule and
+waits on the M6 solver constructing it.
