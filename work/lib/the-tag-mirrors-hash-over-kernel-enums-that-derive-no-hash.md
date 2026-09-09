@@ -87,3 +87,27 @@ One question over four items (this one, `the-value-records-hash-by-hand-over-ker
 - **(C) Split by kind**: tags and units keep hashing as keys; the nine records lose it; `SketchPlane` decided on its own. Two rules where (A) has one.
 
 Recommendation: **(A)**. It is the reading under which (B′) and LIB-HASH's ruling (2016–2020: the mirrors carry `hash`) are both right, and it puts the repair where the drift is — in derive lists the kernel never needed to think about — rather than un-keying doors that are pinned as keys.
+
+### The case-by-case reading, added 2026-09-09 after Ev leaned (A) with a refinement
+
+Ev: hash absent where Rust omits it for funnel reasons; elsewhere
+Rust may derive it and both sides always match; but no work adding
+hashing where nothing plausibly keys. Measured: nothing in the tree
+keys on any of the 24 today (no kernel map keyed by them; the only
+Python key uses are the hashability pins), so the argument is from
+shape. **Add `Hash` upward, Python unchanged**: the 12 tag mirrors
+(fieldless, one derive word, a discriminant's natural use is a tally;
+a split tag surface would be worse than either uniform answer),
+`McConfig` (exact fields, the memo key for cached runs), `Denotation`
+(a set of what selections denote), and the unit views + `UnitDef`
+(the pinned tally-by-unit; a `Hash` by symbol under the seal, a few
+lines in `quantity`). **Drop Python's `__hash__`, Rust unchanged**:
+`Frame`, `DocParamValue`, `Distribution`, `McMeasure`, `McAssertion`
+(magnitudes; their hand folds are the work (B′) declined),
+`FaceCensus`, `ValidationFinding` (the binding's own projection).
+**`SketchPlane`**: no hash either side; `impl PartialEq for
+SketchPlane` in `profile` delegating to `bit_eq` so Rust means the
+comparison Python already answers, and `==` keeps its answer. Net: 15
+one-word upward derives plus the unit `Hash`, 8 Python hashes
+removed — one mechanical unit spanning both sides, with the kernel
+touches announced on their programs' trackers.
