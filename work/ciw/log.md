@@ -1461,3 +1461,60 @@ checker itself, all killed.
 `nightly.yml`'s criterion comment said this calibrator "sets the precedent
 that those are not PR-gate rows" — false after this unit. Rewritten in place
 to point at `criterion-selftest-nightly-only`.
+
+## 2026-09-08 — unit 3 merged and closed; a pattern named
+
+PR 2124 (`d5aba033`). The selftest that ran nowhere runs in `discipline`;
+the demotion convention is prose in `implementer-discipline.md` §2 with
+its own lack of enforcement stated at the paragraph; and the class got
+**claim 4's second arm** rather than a claim 12.
+
+**Both MAJORs were in the check built to prevent them, and that is the
+finding worth keeping.** The first version of the arm treated a
+`local-scripts/` line as a caller — and every hosted job deletes that
+tree at checkout, so a selftest running in **no CI at all** passed it.
+Worse, a selftest case pinned that as correct (`_ok_case`). The second:
+a `for` loop over two scripts in one `run:` block red both with a false
+message, on a matcher that required path and flag on one physical line,
+in a file that already carries `_join_continuations` for exactly that.
+
+**This is the second unit in a row on this program to ship its own
+defect one level in and pin it with a selftest.** Unit 2's
+`_selftest_facade_premise` REQUIRED `bvh` out of the python-suite seed
+set, and `bvh` was the counterexample both reviews found. Here
+`_ok_case(selftest_run_locally)` asserted the hole. The shape is the
+same both times: a case written by asking *"does the checker do what I
+just built"* rather than *"does this shape survive the failure the unit
+exists to prevent"* — the lane's own words on the fix pass. It is not a
+lane defect; two different lanes did it, so it is a property of how these
+units are written, and the reviews are what caught it both times. Worth
+saying plainly rather than filing: the correctness lane is earning its
+place on units that build gating machinery, and this program should keep
+assigning it on that trigger rather than on a guess about complexity.
+
+**Verified by the orchestrator rather than taken from the report**,
+because the MAJORs were serious: dropping the hosted row while keeping
+the local one now reds with a message that says why local does not
+count, and the `for`-loop refactor is silent. Both re-run by hand on the
+merged head.
+
+**The fold decided itself.** Fixing MAJOR-1 means a caller is a workflow
+and nothing else, which deletes the `os.walk` of `local-scripts/` — and
+with it the contradiction against claim 11's population rule, which had
+landed in the same file two days earlier and argues the population must
+be git's index. What was left was claim 4's loop with one more question
+in it, so that is where it is written. No file in this repo now walks
+`local-scripts/` outside git's index.
+
+Where the lane went further than the review asked, with the trade stated:
+matching is over the whole `run:` block rather than a joined line,
+because joining continuations alone does not fix the `for`-loop repro.
+Coarser, under-reports rather than false-reds, three blind spots
+disclosed at the function — the right direction on `reachable`'s own
+posture, since a check that reds a correct change gets routed around.
+
+Residue: `work/ciw/criterion-selftest-nightly-only` — `criterion-emit.py
+--selftest` is invoked only from `nightly.yml`, so a PR that breaks it
+merges green. Same class, one step milder, and the `nightly.yml` comment
+that cited this calibrator as its precedent for nightly siting is
+rewritten, because that precedent moved today.

@@ -2,7 +2,8 @@
 id: the-quantity-boundary-compares-and-hashes-as-if-poison-and-signed-zero-cannot-arrive
 kind: issue
 title: the quantity boundary compares and hashes as if poison and signed zero cannot arrive
-status: open
+status: closed
+closed: 2026-09-09
 opened: 2026-09-03
 refs: [1668]
 ---
@@ -118,3 +119,86 @@ A boundary micro-unit on `py/quantity.rs`, not a kernel change:
 Both are behaviour changes on doors that already carry pins, which is
 why they wait for a unit that owns them rather than riding a family
 sweep.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+Two semantics calls on the quantity boundary, both pinned as they
+stand: `==` on a non-finite quantity RAISES a bare `ValueError` (IEEE
+and the Python data model say `False`), and `-0.0 * m == 0.0 * m` is
+`True` with unequal hashes (a `set` can hold both). The kernel is
+deliberate — the newtypes do not refuse non-finite floats; the
+fail-loud doors are where values enter recipe data — so the binding
+assumed what the kernel does not promise.
+
+- **(A) `==`/`!=` answer plain IEEE equality and `__hash__` folds the
+  zero before `to_bits`; ORDERING on a non-finite quantity keeps
+  refusing, as a typed `PncadError` arm rather than a bare
+  `ValueError`.** Equality and hashing obey the data model everywhere
+  library code relies on it; the one loud door left is the one that
+  is defensible (sorting poison). Recommended.
+- **(B) Everything answers IEEE** — ordering too (`<` on NaN is
+  `False`); quiet where the rest of the boundary is loud.
+- **(C) Leave both**, and document the raise.
+
+Recommendation: **(A)**.
+
+### Where it happens, and the class — added 2026-09-09 after Ev asked
+
+Not a test: it is the runtime meaning of `==`, `<` and `hash()` on a
+Python `Length`/`Angle` — `crates/pncad-py/src/py/quantity.rs`'s
+`continuous_quantity!` macro routes all six comparisons through one
+`partial_cmp` and hashes raw bits. The tests pin it as it stands.
+
+The class is confined to the binding (the kernel is deliberate: IEEE
+`PartialEq`, bits only in `bit_eq`). Twelve hand-written `__hash__`
+sites over floats exist at the boundary; `fold_zero`
+(`quantity.rs:465`) is used by `WrittenLength`, `WrittenAngle` and
+`DocParam`, and four sites still hash raw bits — one on purpose (a
+sketch plane whose `__eq__` also compares bits). **(A) as the class**:
+one shared fold-then-bits hash for every class whose `__eq__` is
+IEEE, bit-hash only where `__eq__` is bit-eq, and a row in the
+module-enumerated `tests/test_hashability.py` asserting, for every
+float-constructible class, that the `-0.0` and `0.0` forms hash equal
+whenever they compare equal; plus the one macro arm so `==` on NaN
+answers `False`. Ordering on a non-finite quantity keeps refusing,
+typed.
+
+### (B′), added 2026-09-09 after Ev noted the kernel omits these in favour of the funnel
+
+Correct: Rust `Length`/`Angle` derive `PartialEq` and `PartialOrd`
+and NOT `Hash` or `Ord` (`crates/quantity/src/lib.rs:89-95`), and
+non-finite is refused at the funnel (`Expr::literal`'s door), never
+by the newtype. The faithful mirror is **(B′)**: `==` and the four
+orderings answer IEEE exactly as Rust's `PartialOrd` does (every
+comparison on NaN is `False`; nothing raises — (B)'s answer), and
+`__hash__` is REMOVED from `Length`/`Angle`, because Rust has none
+and a quantity is a magnitude, not a key — which dissolves the
+`-0.0`/NaN hash question for the newtypes instead of folding it.
+`DocParam`, `WrittenLength` and `WrittenAngle` keep their hashes
+(recipe data past the funnel; they already fold the zero). The two
+newtypes go on `tests/test_hashability.py`'s `UNHASHABLE` roster with
+that reason. Cost, stated: `{1 * m}` stops working; nothing in the
+suite does it today, and a caller who wants a key has
+`WrittenLength`. Recommendation revised: **(B′)**.
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2233): (B′)
+
+The Python `Length` and `Angle` mirror the Rust newtypes' derives.
+`==`, `!=`, `<`, `<=`, `>`, `>=` answer as Rust's `PartialEq`/
+`PartialOrd` do — IEEE: a non-finite quantity compares `False` on
+every relation (no `ValueError`, typed or bare), and `-0.0 * m ==
+0.0 * m` stays `True`. `__hash__` is removed from both classes, as
+the newtypes implement no `Hash`, and the two join
+`test_hashability.py`'s `UNHASHABLE` roster with that reason: the
+funnel refuses non-finite at the doors where a value enters recipe
+data, so the boundary type does not re-decide it. Mechanical unit
+LIB-ZERO.
+
+## Closed (2026-09-09, LIB-ZERO, #2259)
+
+`Length` and `Angle` compare as the derived `PartialEq`/`PartialOrd`
+(IEEE; a NaN operand answers `False` to every relation but `!=`) and
+no longer hash, with the reason on `test_hashability.py`'s roster; the
+`Written` pair keeps its hashes as the ruling states; the unit classes
+are filed separately (`the-unit-classes-hash-over-a-partialeq-only-newtype`).
+See `work/lib/LIB-ZERO.md`.

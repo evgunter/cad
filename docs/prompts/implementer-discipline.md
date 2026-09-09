@@ -141,6 +141,11 @@ When you do run locally:
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.
 
+**Write assertions a bug could break.** Name the runtime value that would make
+one false; where there is none — a predicate over things fixed at compile time,
+or one its neighbours already subsume — it is documentation, and deleting it is
+the repair.
+
 ## 3. Baselines, demos, and the status quo
 
 **No baseline is a target to preserve.** A lint threshold, a committed render, a
