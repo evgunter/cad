@@ -4575,3 +4575,85 @@ Three items closed (`margin-diag-non-curation-…`,
 `cross-list-payload-rungs-under-document-only-carriers`). No shipped
 `variant`/`inner_variant` value moved; the lane ran the pinned ruff
 for real. Orchestrator note: the lane found the closed item's central reach claim false (`pncad::topo` is a whole-crate re-export, so the binding could always NAME the type; what was missing was the curated placement and the tag) and repaired two doc comments carrying the same false-reach shape; `MateFault::Indeterminate` becomes buildable in the binding as a side effect, which is `mate-fault-arms-carry-payload-that-does-not-cross`'s to spend. The 6/6 pin was proved by blanking `inner_variant` on the two arms and watching the pin go red. ~74 min, ~233k tokens.
+
+**LIB-MC MERGED (2026-09-09, #2255; mechanical under Ev's (A) on
+`advisory-monte-carlo-lane-has-no-python-door`, no A/B row). The
+advisory Monte Carlo lane has a Python door.** `monte_carlo(doc,
+analyzed, config=None) -> McReport`, a module function on the analysis
+surface; `analyzed` is REQUIRED (the box is the analysis's knob, E2,
+and hiding a default inside the run would move that choice); the GIL
+is released for the run. `McConfig(samples, seed, parallel)` frozen,
+comparable and hashable, each field defaulting to the kernel's own
+(`DEFAULT_SAMPLES`/`DEFAULT_SEED` on the module); a zero sample count
+is refused by the RUN, not pre-checked at the constructor. `McReport`
+/ `McMeasure` / `McAssertion` project every kernel field,
+`violation_fraction` as `Optional[float]`; `McReport.render()` crosses
+too (deviation, argued: the label discipline E11.1 requires — count and
+seed on every line — is structural in the kernel, and stopping it at
+the boundary would leave a caller printing unlabeled numbers).
+`McMeasure`/`McAssertion` hash folding `-0.0` through `fold_zero`.
+`McRefusal` typed under `PncadError` with `variant` from an exhaustive
+`mc_refusal_tag` and `param`/`node`/`cause` on every arm; the band arm
+DELEGATES to `measure_unavailable_tag` so one fault has one word.
+`sample_offset(param, dist, u)` crosses free, answering in the
+distribution's borrowed dimension. The bit-stability pin:
+`parallel=True` and `False` answer the same bits (`.hex()` on every
+field). Census: `analysis.rs` joined `FACADE_FILES` — curated 427→488,
+63 introduced, all accounted (16 by rule 1, 6 `BOUND_AS`, 41
+`NOT_BOUND` as `different-shape`: `OffsetInterval` and the 40 behind
+`#[cfg(feature = "interval")]`, absent from the wheel's build) and the
+census's `cfg` blind spot is stated at `FACADE_FILES`. The sweep took
+the same file (`ALL_LISTS` is five; the two readers share one
+resolver, so four-vs-five would be the "no two runs agree" defect one
+layer up), with a selftest witness for blind spot (j) — a `cfg`-gated
+`pub use` read as curated unconditionally. Six new rungs dispositioned:
+`PairingViolation` argued, `KProbe` filed
+(`kprobe-is-a-rung-under-drive-config-on-the-analysis-list`), and
+`Dimension`/`Distribution`/`MeasureUnavailableAt` ARGUED under the
+cross-list rule CUR8 ratified while this branch was open — the same
+rule with the two lists swapped, and the clearest case it has; the
+ratified prose in `document.rs`/`select.rs` now states the rule
+without a list count. GUIDE's distributions rung gained the fourth
+door. No shipped `variant` value moved; the lane ran the pinned ruff
+for real. Orchestrator note: the lane reported "~5 h 45 m" of wall clock, which is not what the clock shows — launched 06:45Z, reported 08:10Z, so ~85 min, most of it the hosted CI run; the figure below is the measured one. ~85 min, ~629k tokens.
+
+**LIB-SMALL-2 MERGED (2026-09-09, #2254; mechanical under the 08-29
+ruling, no A/B row). Three small closes.** (1) The two refusals that
+carried no recourse end on one: `CONTRADICTORY_RECOURSE` and
+`NO_AT_REST_RECORD_RECOURSE` beside `UNDER_RECOURSE` in `mate.rs`,
+carried through `pncad::document` and bound top-level in Python on
+`UNDER_RECOURSE`'s precedent, so no test re-types the prose. One
+sentence covers both shapes the contradiction arm renders (a pair of
+mates, and a mate contradicting itself through its own rider — "delete
+one of the two" is false of the second); the arm's four exits (empty
+set, levered, finite, non-finite) fall through to one recourse write,
+and `display_contract.rs` asserts it on each. The rung is named in v1
+vocabulary rather than by a roadmap id (`Rest` is the one class v1
+mints and verifies at rest; a curved contact verified at rest is
+outside v1 and not built). The tour's refusal walk asserts all four
+recourses against the library's constants and its output was
+regenerated through its own door. (2) The stub declares `__eq__`
+where the compiled class carries one, and a guard reads it off the
+class's OWN `__dict__` — the direction `hasattr` cannot reach. The
+`module_class_names` underscore filter stays, argued at its site
+(`__eq__` is the one comparison dunder whose presence in the own dict
+is evidence). The fieldless mirrors are exempt and the exemption is
+CHECKED per member (two accesses answer the same object), with reach
+floors so two empty lists are not a pass. It found SEVEN, not the
+item's three: `Length`, `Angle`, `Count` compare through
+`__richcmp__` and `FaceCensus` had a `fn __eq__` the item's sweep
+missed — the item's own declared blind spot. (3) `crates/pncad/tests/
+all.rs` reads Rust through `test_utils::source`: `code_without_comments`
+deleted, the U1 guard's check 1 reads `use` STATEMENTS off `code_only`
+(check 2 stays on the literal-keeping view — a kernel path in a literal
+is the false-alarm direction), `root_declared_pub_names` and
+`code_without_cfg_gated` read tokens and balanced extents across line
+breaks; `test-utils` becomes the façade's one dev-dependency, admitted
+as a `use` root at the allow-list and argued in `Cargo.toml`. The item's
+stated blind spot for reader 3 was not the real one: a `#[cfg]`
+sharing its line with the item it gates made the line unit swallow the
+NEXT declaration — a false GREEN — and that is the selftest's fixture.
+`reader_census.rs`: `Shared`, `UNCONVERTED_TODAY` 5→4. Not taken:
+`north-star-audit-verb-list-names-arc-continue` (BOOL-10 #2135 still
+in review). Three items closed. No shipped `variant`/`kind` value
+moved; the lane ran the pinned ruff for real. Orchestrator note: the stub now declares `__eq__` on `Length` and `Angle`; the pending [ev] ruling on #2233 (B′) would remove their `__hash__`, which this guard does not touch, so the two do not collide. ~80 min, ~387k tokens.

@@ -1,6 +1,7 @@
 //! **Parameter uncertainty and the analysis lane** (ERROR-DESIGN
-//! E1/E2): the annotation a continuous parameter carries, and the
-//! three derived answers a caller reads back off a document.
+//! E1/E2, E11.1): the annotation a continuous parameter carries, the
+//! three derived answers a caller reads back off a document, and the
+//! advisory estimator that replays the document over draws from it.
 //!
 //! A [`Distribution`] is inert document metadata. It feeds no
 //! evaluation, no content key and no predicate — the kernel and the
@@ -60,19 +61,38 @@
 //! the analyzed ones; the driver is behind `interval` and has no
 //! Python surface, so nothing on this side wants them.
 //!
+//! # The advisory lane, which is on this side of the gate
+//!
+//! `monte_carlo` replays the document at `f64` over draws from its own
+//! distributions and answers an [`McReport`] — every number an
+//! ESTIMATE, with the sample count and the seed that produced it on
+//! the report and on every rendered line. It is bound here because it
+//! is UNGATED in the kernel, and it is ungated for exactly this
+//! caller: a consumer with no certified scalar still gets the labeled
+//! estimate, which is the whole point of an advisory lane.
+//!
+//! [`sample_offset`] is the same lane one rung down — the single draw
+//! the replay is built from, crossing as a free function beside it
+//! because that is what it is: one law, one quantile, one offset.
+//! Both refuse on a BAND, which is the module's standing refusal
+//! arriving in a third place; the run refuses as a whole rather than
+//! sampling the parameters it can, because a mean over a subset of
+//! them is an estimate of a different document.
+//!
 //! # What is NOT bound, and why it is a measurement rather than a gap
 //!
 //! `pncad::analysis` carries a second half — the E6 subdivision
 //! driver and its `ParamBox`, the E4/E5 sensitivity and stackup, the
 //! E10 reporting layer, `assertion_at` — behind
-//! `#[cfg(feature = "interval")]` (`crates/pncad/src/analysis.rs:55`,
-//! `:66`, `:83`, `:89`, `:104`). The wheel is built from the default
+//! `#[cfg(feature = "interval")]`. The wheel is built from the default
 //! feature set, so those names do not exist in the crate this module
 //! compiles into and binding them would mean shipping a door that is
-//! absent from the artifact a user installs. The three doors the E1
-//! charter names are all on the UNGATED list (`:49`), so the whole of
-//! this family compiles on the default build; the gate is a boundary
-//! this module stops at, not one it works around.
+//! absent from the artifact a user installs. Everything this module
+//! DOES bind is on the ungated list, so the whole of it compiles on
+//! the default build; the gate is a boundary this module stops at, not
+//! one it works around. `crates/pncad/src/analysis.rs` is read by the
+//! binding census, so a name crossing that boundary in either
+//! direction owes a row there rather than passing unremarked.
 
 use pyo3::prelude::*;
 use pyo3::types::PyString;
@@ -81,10 +101,11 @@ use crate::errors::{ErrorClass, QuantityOpMismatch, dimension_tag};
 use crate::py::typed_err;
 use crate::tags::{
     analysis_policy_error_tag, distribution_fault_tag, distribution_field_tag,
-    distribution_kind_tag, measure_unavailable_tag,
+    distribution_kind_tag, mc_refusal_tag, measure_unavailable_tag,
 };
 use pncad::analysis as a;
 use pncad::document as d;
+use pncad::tolerance::Tol;
 
 /// One offset argument, as it crossed: the canonical `f64` and the
 /// dimension the caller wrote it in.
@@ -729,13 +750,427 @@ fn analyzed_box(doc: &super::doc::Doc, policy: Option<&AnalysisPolicy>) -> Analy
     AnalyzedBox(a::analyzed_box(&doc.inner, &policy))
 }
 
+/// Raise `McRefusal` — the advisory lane's own refusal, with the
+/// whole payload projected.
+///
+/// The projected shape `py/readback.rs` states: `variant` plus every
+/// arm's payload, present on every arm and `None` where that arm does
+/// not carry one, so `getattr` never raises and a caller never has to
+/// branch on `variant` before reading a field.
+///
+/// The band arm's `param` comes out of the [`a::MeasureUnavailable`]
+/// it CARRIES, at the same attribute name that refusal spells it
+/// under — one fault, one word, one payload name, whichever door
+/// refused.
+fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    let param = match refusal {
+        a::McRefusal::BandHasNoMeasure(a::MeasureUnavailable::BandHasNoMeasure { param }) => {
+            text(&param.0)
+        }
+        a::McRefusal::NoSamples | a::McRefusal::NominalDoesNotBuild { .. } => py.None(),
+    };
+    let (node, cause) = match refusal {
+        a::McRefusal::NominalDoesNotBuild { node, cause } => (
+            match super::doc::NodeId(*node).into_pyobject(py) {
+                Ok(id) => id.into_any().unbind(),
+                Err(failed) => return failed,
+            },
+            text(cause),
+        ),
+        a::McRefusal::BandHasNoMeasure(_) | a::McRefusal::NoSamples => (py.None(), py.None()),
+    };
+    typed_err(
+        py,
+        ErrorClass::Mc,
+        refusal.to_string(),
+        &[
+            ("variant", text(mc_refusal_tag(refusal))),
+            ("param", param),
+            ("node", node),
+            ("cause", cause),
+        ],
+    )
+}
+
+/// **How one Monte-Carlo run is configured** (ERROR-DESIGN E11.1):
+/// the sample count, the seed both ride in the report, and which
+/// schedule runs them.
+///
+/// A frozen value with the kernel's own defaults, so
+/// `monte_carlo(doc, box)` is the shipped dial and a caller who wants
+/// a tail resolved further asks for more samples and pays linearly.
+///
+/// `parallel` is a RUNTIME switch and not a build one, because the
+/// property it exists to let a caller check is that it changes
+/// nothing: each sample is seeded from its own index, so the two
+/// schedules produce bit-identical reports.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct McConfig(a::McConfig);
+
+#[pymethods]
+impl McConfig {
+    #[new]
+    #[pyo3(signature = (samples = None, seed = None, parallel = None))]
+    fn new(samples: Option<usize>, seed: Option<u64>, parallel: Option<bool>) -> Self {
+        let base = a::McConfig::default();
+        Self(a::McConfig {
+            samples: samples.unwrap_or(base.samples),
+            seed: seed.unwrap_or(base.seed),
+            parallel: parallel.unwrap_or(base.parallel),
+        })
+    }
+
+    /// How many samples the run draws.
+    #[getter]
+    fn samples(&self) -> usize {
+        self.0.samples
+    }
+
+    /// The stream's seed, recorded in the report.
+    #[getter]
+    fn seed(&self) -> u64 {
+        self.0.seed
+    }
+
+    /// Whether the samples run under rayon.
+    #[getter]
+    fn parallel(&self) -> bool {
+        self.0.parallel
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (self.0.samples, self.0.seed, self.0.parallel).hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "McConfig(samples={}, seed={:#018x}, parallel={})",
+            self.0.samples, self.0.seed, self.0.parallel
+        )
+    }
+}
+
+/// **One measure node's empirical summary** — ADVISORY, and the label
+/// is on the report this row is not reachable without.
+///
+/// The statistics are over the samples that HAD a value: `unmeasured`
+/// counts the rest and is never averaged over. A measure with no
+/// `f64` value at any sample (a `min_clearance`, whose answer is an
+/// enclosure) is `unmeasured` at every draw, and then the four
+/// statistics are `0/0` — which is why the count is beside them
+/// rather than behind them.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct McMeasure(a::McMeasure);
+
+#[pymethods]
+impl McMeasure {
+    /// The measure node this row summarizes.
+    #[getter]
+    fn node(&self) -> super::doc::NodeId {
+        super::doc::NodeId(self.0.node)
+    }
+
+    /// The sample mean, over the samples where the measure had a
+    /// value.
+    #[getter]
+    fn mean(&self) -> f64 {
+        self.0.mean
+    }
+
+    /// The sample standard deviation (the `N − 1` form; `0.0` for one
+    /// sample, which is the only value a single draw supports).
+    #[getter]
+    fn sigma(&self) -> f64 {
+        self.0.sigma
+    }
+
+    /// The least measured value.
+    #[getter]
+    fn min(&self) -> f64 {
+        self.0.min
+    }
+
+    /// The greatest.
+    #[getter]
+    fn max(&self) -> f64 {
+        self.0.max
+    }
+
+    /// How many samples produced a value.
+    #[getter]
+    fn measured(&self) -> usize {
+        self.0.measured
+    }
+
+    /// How many produced none — a refusing node, or a measure with no
+    /// value at `f64`. Counted, never averaged over.
+    #[getter]
+    fn unmeasured(&self) -> usize {
+        self.0.unmeasured
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`], which is the kernel's
+    /// `PartialEq` — IEEE on the statistics, so the two spellings of
+    /// zero are one value and the hash folds them together. A row
+    /// nothing could sample carries `NaN`, which equals nothing
+    /// including itself, so no pair the contract is about reaches
+    /// this.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        self.0.node.0.hash(&mut h);
+        for v in [self.0.mean, self.0.sigma, self.0.min, self.0.max] {
+            super::doc::fold_zero(v).to_bits().hash(&mut h);
+        }
+        (self.0.measured, self.0.unmeasured).hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "McMeasure(node={}, mean={}, sigma={}, measured={}, unmeasured={})",
+            self.0.node.0, self.0.mean, self.0.sigma, self.0.measured, self.0.unmeasured
+        )
+    }
+}
+
+/// **One assertion node's empirical summary.**
+///
+/// The three counts partition the samples, and the third is kept OUT
+/// of [`Self::violation_fraction`]: an undecided sample is not a
+/// passing one, and folding it into either side would invent the
+/// verdict E10's third state exists to withhold.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct McAssertion(a::McAssertion);
+
+#[pymethods]
+impl McAssertion {
+    /// The assertion node this row summarizes.
+    #[getter]
+    fn node(&self) -> super::doc::NodeId {
+        super::doc::NodeId(self.0.node)
+    }
+
+    /// Samples whose verdict was `Holds`.
+    #[getter]
+    fn holds(&self) -> usize {
+        self.0.holds
+    }
+
+    /// Samples whose verdict was `Violated`.
+    #[getter]
+    fn violated(&self) -> usize {
+        self.0.violated
+    }
+
+    /// Samples with no verdict at all.
+    #[getter]
+    fn unevaluated(&self) -> usize {
+        self.0.unevaluated
+    }
+
+    /// The empirical violation fraction over the DECIDED samples, or
+    /// `None` when none were decided.
+    #[getter]
+    fn violation_fraction(&self) -> Option<f64> {
+        self.0.violation_fraction()
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`]: three counts and a node, all
+    /// of them exact.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (
+            self.0.node.0,
+            self.0.holds,
+            self.0.violated,
+            self.0.unevaluated,
+        )
+            .hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "McAssertion(node={}, holds={}, violated={}, unevaluated={})",
+            self.0.node.0, self.0.holds, self.0.violated, self.0.unevaluated
+        )
+    }
+}
+
+/// **The E11.1 advisory report.** Every number in it is an ESTIMATE,
+/// and the count and seed that produced it ride at the top.
+///
+/// It never gates, it is never persisted as an assertion, and it never
+/// enters the mass accounting. The certified answer covers the
+/// analyzed box; this one draws from the WHOLE distribution, tail
+/// included, so it estimates the quantity the certified lane
+/// deliberately does not.
+#[pyclass(frozen, module = "pncad")]
+pub(crate) struct McReport(a::McReport);
+
+#[pymethods]
+impl McReport {
+    /// How many samples were drawn.
+    #[getter]
+    fn samples(&self) -> usize {
+        self.0.samples
+    }
+
+    /// The seed they were drawn from.
+    #[getter]
+    fn seed(&self) -> u64 {
+        self.0.seed
+    }
+
+    /// Per measure node, in the document's own node order.
+    #[getter]
+    fn measures(&self) -> Vec<McMeasure> {
+        self.0.measures.iter().cloned().map(McMeasure).collect()
+    }
+
+    /// Per assertion node, in the document's own node order.
+    #[getter]
+    fn assertions(&self) -> Vec<McAssertion> {
+        self.0.assertions.iter().cloned().map(McAssertion).collect()
+    }
+
+    /// The fraction of samples that landed OUTSIDE the analyzed box —
+    /// the empirical twin of E2's tail term, and the one number here a
+    /// reader can check against the certified side.
+    #[getter]
+    fn outside_box(&self) -> f64 {
+        self.0.outside_box
+    }
+
+    /// **The human form**, with the advisory label and the dials on
+    /// every line that carries an estimate.
+    ///
+    /// The label repeats per line on purpose: a reader who copies one
+    /// line out of a report takes it with them, which a single header
+    /// line does not survive. It is the kernel's own rendering, so the
+    /// discipline E11.1 requires does not stop at the language
+    /// boundary.
+    fn render(&self) -> String {
+        self.0.render()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "McReport(ADVISORY, samples={}, seed={:#018x}, measures={}, assertions={})",
+            self.0.samples,
+            self.0.seed,
+            self.0.measures.len(),
+            self.0.assertions.len()
+        )
+    }
+}
+
+/// **The advisory lane's one door** (ERROR-DESIGN E11.1): replay the
+/// document at `f64` over `config.samples` draws from its own
+/// distributions, and summarize.
+///
+/// `analyzed` is the box the run is measured against — it is what
+/// decides which parameters VARY and which offsets count as outside,
+/// so it is the caller's explicit choice rather than a default hidden
+/// inside the run. The box comes from [`analyzed_box`], which is where
+/// the policy that shaped it lives.
+///
+/// Every number in the answer is an estimate and none of it gates.
+/// The certified lane is the only gate, and it is absent from this
+/// build: the wheel is the default feature set, which is exactly the
+/// caller this lane was un-gated for.
+///
+/// Raises `McRefusal`: a varying parameter carrying a band, a
+/// zero-sample request, or a document that does not build at its
+/// nominal.
+#[pyfunction]
+#[pyo3(signature = (doc, analyzed, config = None))]
+fn monte_carlo(
+    py: Python<'_>,
+    doc: &super::doc::Doc,
+    analyzed: &AnalyzedBox,
+    config: Option<&McConfig>,
+) -> PyResult<McReport> {
+    let config = config.map_or_else(a::McConfig::default, |c| c.0);
+    let tol = Tol::witness();
+    let recipe = &doc.inner;
+    let box_ = &analyzed.0;
+    // One full document evaluation per sample is the lane's honest
+    // price, so the interpreter runs while it is paid.
+    let answer = py.detach(|| a::monte_carlo(recipe, box_, &config, tol));
+    match answer {
+        Ok(report) => Ok(McReport(report)),
+        Err(refusal) => Err(mc_err(py, &refusal)),
+    }
+}
+
+/// **The offset a distribution puts at quantile `u`** — inverse-
+/// transform sampling's one door, and the advisory lane's only way to
+/// draw a parameter value.
+///
+/// `u` is a uniform draw in `[0, 1)`. The answer is an OFFSET from the
+/// nominal in the distribution's own dimension, so a `Length`
+/// parameter's offset is a `Length` — the same borrow every other door
+/// in this module makes, and the reason `param` is the NAME and the
+/// dimension comes off the distribution.
+///
+/// It draws from the WHOLE law, never from the analyzed box: the tail
+/// the box excludes is exactly the region the certified answer does
+/// not cover, so an estimator that clipped it would be estimating the
+/// same restriction twice.
+///
+/// Raises `MeasureUnavailable` for a band: limits without a shape
+/// cannot be sampled, and promoting one to uniform is the E2 violation
+/// this whole module refuses.
+#[pyfunction]
+fn sample_offset(
+    py: Python<'_>,
+    param: &super::doc::ParamName,
+    dist: &Distribution,
+    u: f64,
+) -> PyResult<Py<PyAny>> {
+    match a::sample_offset(&param.0, &dist.inner, u) {
+        Ok(offset) => quantity(py, offset, dist.dim),
+        Err(err) => Err(measure_err(py, &err)),
+    }
+}
+
 /// Register the analysis vocabulary on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Distribution>()?;
     m.add_class::<AnalysisPolicy>()?;
     m.add_class::<AnalyzedParam>()?;
     m.add_class::<AnalyzedBox>()?;
+    m.add_class::<McConfig>()?;
+    m.add_class::<McMeasure>()?;
+    m.add_class::<McAssertion>()?;
+    m.add_class::<McReport>()?;
     m.add_function(wrap_pyfunction!(analyzed_box, m)?)?;
+    m.add_function(wrap_pyfunction!(monte_carlo, m)?)?;
+    m.add_function(wrap_pyfunction!(sample_offset, m)?)?;
     m.add("DEFAULT_QUANTILE_MASS", a::DEFAULT_QUANTILE_MASS)?;
+    m.add("DEFAULT_SAMPLES", a::DEFAULT_SAMPLES)?;
+    m.add("DEFAULT_SEED", a::DEFAULT_SEED)?;
     Ok(())
 }

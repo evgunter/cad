@@ -72,7 +72,9 @@ use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError}
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult, ValuePayload};
-use crate::mate::{ClassAdmission, ContactClass, MateSide, class_admission};
+use crate::mate::{
+    ClassAdmission, ContactClass, MateSide, NO_AT_REST_RECORD_RECOURSE, class_admission,
+};
 use crate::names::interrogate::value_of;
 use crate::names::{EntityKey, EntityKind, Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId, SitedRef};
@@ -556,7 +558,7 @@ fn render_no_record(
     write!(
         f,
         "mate {}'s class {} has no at-rest kernel record — {why}; the record is \
-         not minted with an invented witness",
+         not minted with an invented witness — {NO_AT_REST_RECORD_RECOURSE}",
         mate.0,
         class.name()
     )

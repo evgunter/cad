@@ -2,8 +2,10 @@
 id: two-refusals-carry-no-recourse-sentence
 kind: issue
 title: MateFault::Contradictory and AssemblyError::NoAtRestRecord carry no recourse sentence
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-09
+parent: LIB-SMALL-2
 ---
 
 
@@ -56,3 +58,14 @@ applies to anything these arms render.
 S-MATE's `keep_out` assigns the refusal-display prose to LIB, whose
 charter carries the library's user-facing surface — the same routing the
 parent issue carried.
+
+## Closed
+
+Both arms end on a recourse constant sited beside `UNDER_RECOURSE` and
+`CLASS_DEFERRAL`, carried through the façade and bound top-level in
+Python; the tour's walk asserts all four refusals against the
+library's own constants. One sentence covers both shapes the
+contradiction arm renders, and all four of that arm's exits reach it.
+The rung is named in v1 vocabulary rather than by a roadmap id, which
+is what `CLASS_DEFERRAL` and `FIT_DEFERRAL` already do. Carried by
+LIB-SMALL-2.

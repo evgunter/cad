@@ -30,16 +30,21 @@ WHAT IT COMPUTES, in the four numbers `--counts` prints:
             caller branches on), is not itself an error type, and is declared
             in the same crate as its carrier
 
-THE FOURTH LIST. Every earlier run read three lists — `document.rs`,
+THE FOURTH AND FIFTH LISTS. Every early run read three — `document.rs`,
 `select.rs`, `prelude.rs` — because that is the set
-`crates/pncad-py/tests/test_binding_census.py` reads. The façade curates a
-fourth by hand, `profile.rs`, and a scan that does not read it cannot tell
+`crates/pncad-py/tests/test_binding_census.py` read. The façade curates
+`profile.rs` by hand as well, and a scan that does not read it cannot tell
 "uncurated" from "curated on a list I do not read": six hits one run reported
-as the former were already on the fourth. Adding the file is not the whole fix,
-because the four lists are not one surface — `profile.rs` is the profile
-layer's whole presented root, the prelude is the glob surface — so this script
-reports which list each side of a row is on, and separates two states that a
-three-list run flattened into one:
+as the former were already on the fourth. `analysis.rs` is the fifth, added
+when the census started reading it too — the two readers share this file's
+resolver, so a census over five lists and a sweep over four would be the same
+"no two runs agree on a number" defect one layer up. Adding a file is not the
+whole fix, because the lists are not one surface — `profile.rs` is the profile
+layer's whole presented root, the prelude is the glob surface, and
+`analysis.rs` splits into one ungated `pub use` and five behind
+`#[cfg(feature = "interval")]` that this reader cannot see as gated at all
+(blind spot (j) below) — so this script reports which list each side of a row
+is on, and separates two states that a three-list run flattened into one:
 
   UNCURATED  the payload is on no list at all
   CROSS-LIST the payload IS curated, on a list that does not carry its carrier
@@ -66,6 +71,11 @@ follow one across four documents.
   (h) crate-aware, not module-     OPEN    `sweep`
       aware
   (i) registry dependencies        OPEN    `dependency_set`
+  (j) `cfg`-gated `pub use` items  OPEN    `curated` (a name behind
+                                           `#[cfg(feature = "…")]` is read as
+                                           curated unconditionally, so a rung
+                                           reachable only in one feature
+                                           unification looks like any other)
 
 THE DISPOSITION TABLE (`DISPOSITIONS`) is the argued set as data: every
 narrowed name that has already been decided, with the home of the argument. It
@@ -85,7 +95,7 @@ closes is a pattern re-implemented per caller. Its blind spots are this file's,
 stated at the function, and the fixture battery below is where both readers are
 pinned.
 
-  payload-rung-sweep.py             the four counts and the narrowed table
+  payload-rung-sweep.py             the counts and the narrowed table
   payload-rung-sweep.py --json      the same, machine-readable
   payload-rung-sweep.py --check     narrowed names == DISPOSITIONS (the pin)
   payload-rung-sweep.py --lists document,select,prelude
@@ -107,7 +117,7 @@ from pathlib import Path
 
 FACADE_CRATE_DIR = "crates/pncad"
 FACADE_SRC = "crates/pncad/src"
-ALL_LISTS = ("document", "select", "prelude", "profile")
+ALL_LISTS = ("document", "select", "prelude", "profile", "analysis")
 
 
 # --- the disposition table -------------------------------------------------
@@ -130,9 +140,12 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                         "(crates/topo/src/boolean/plane_eq.rs)"),
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
+    "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
     "MappedCurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     "MetaValue": ("argued", "NOT_CARRIED, the metadata family; crates/pncad/src/document.rs "
                             "says why the value tree stays out"),
+    "PairingViolation": ("argued", "NOT_CARRIED, the analysis lane's interior residue "
+                                   "(crates/pncad/tests/all.rs)"),
     "ParamValue": ("argued", "NOT_CARRIED, a curated face of a different shape "
                              "(crates/pncad/tests/all.rs)"),
     "Qualifier": ("argued", "NOT_CARRIED, the naming interior (crates/pncad/tests/all.rs)"),
@@ -151,6 +164,23 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "SplitHalf": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
                             "crates/pncad/src/select.rs; the general rule is at the "
                             "payload-rule header of crates/pncad/src/document.rs"),
+    # The same rule with the two lists swapped, and it decides these the same
+    # way: the payload's vocabulary is the DOCUMENT layer's, so it is spelled
+    # once on `document` and the analysis list points at it. That split is the
+    # design's rather than the façade's — `crates/pncad/src/analysis.rs`'s own
+    # head says a distribution is document state its doors author and persist,
+    # while everything on the analysis list is DERIVED from it and never
+    # stored — so the analysis lane is the clearest case the rule has.
+    "Dimension": ("argued", "the parameter vocabulary is `document`'s and is spelled "
+                            "once; the general rule is at the payload-rule header of "
+                            "crates/pncad/src/document.rs"),
+    "Distribution": ("argued", "the parameter vocabulary is `document`'s and is spelled "
+                               "once; the general rule is at the payload-rule header of "
+                               "crates/pncad/src/document.rs"),
+    "MeasureUnavailableAt": ("argued", "the measurement vocabulary is `document`'s and is "
+                                       "spelled once; the general rule is at the "
+                                       "payload-rule header of "
+                                       "crates/pncad/src/document.rs"),
 }
 
 
@@ -595,7 +625,7 @@ class Row:
 
 
 def sweep(root: Path, lists: tuple[str, ...]) -> dict:
-    """The four counts and the rows behind them."""
+    """The counts and the rows behind them."""
     crates = dependency_set(root)
     index = declarations(root, crates)
     names = curated(root, lists)
@@ -761,7 +791,7 @@ def check(result: dict) -> int:
 
 # --- the fixture battery ---------------------------------------------------
 
-# A scratch tree with the whole shape in miniature: a façade whose four lists
+# A scratch tree with the whole shape in miniature: a façade whose five lists
 # curate names from two crates, one of which declares a type the other declares
 # too. Every filter and every category the sweep draws has a witness here, and
 # the counts below are asserted rather than printed, so a change to any of them
@@ -781,6 +811,7 @@ pub enum Carrier {
     Blank,
 }
 pub enum Rung { A, B }
+pub enum GatedCarrier { Only(Rung) }
 pub enum CrossPayload { X }
 pub enum Shared { S }
 pub enum Ghost { G }
@@ -810,6 +841,13 @@ _FIXTURE = {
     "crates/pncad/src/prelude.rs": "// A bare `pub use alpha::Rung;` would carry the rung, and does not.\n"
                                   "pub use alpha::{Carrier, Shared};\n",
     "crates/pncad/src/profile.rs": "pub use abeta::BetaCarrier;\n",
+    # Blind spot (j)'s witness: this reader strips comments and reads `pub use`
+    # statements, so the `cfg` above one is invisible and the name is curated
+    # unconditionally. A rung reachable only in one feature unification
+    # therefore looks exactly like any other, which is why the disposition
+    # tables carry that reading by hand.
+    "crates/pncad/src/analysis.rs": '#[cfg(feature = "interval")]\n'
+                                    "pub use alpha::GatedCarrier;\n",
     "crates/alpha/Cargo.toml": '[package]\nname = "alpha"\n\n[dependencies]\nabeta = { path = "../abeta" }\n',
     "crates/alpha/src/lib.rs": _FIXTURE_ALPHA,
     "crates/abeta/Cargo.toml": '[package]\nname = "abeta"\n',
@@ -838,15 +876,15 @@ def selftest() -> int:
 
         result = sweep(root, ALL_LISTS)
         counts = result["counts"]
-        want("curated names", counts["curated"], 5)
-        # alpha declares eleven bare-`pub` types — `pub(crate)` is not one, and
+        want("curated names", counts["curated"], 6)
+        # alpha declares twelve bare-`pub` types — `pub(crate)` is not one, and
         # neither is a name that appears only in a doc comment or a string
         # literal; beta declares three. `Wrapped` and `Marker` are declared and
         # curated by nothing, so they are carriers of nothing and move only
         # this count; they are here as the two member-shape witnesses below.
-        want("declared types", counts["declared"], 14)
-        want("raw hits", counts["raw"], 6)
-        want("narrowed", counts["narrowed"], 3)
+        want("declared types", counts["declared"], 15)
+        want("raw hits", counts["raw"], 7)
+        want("narrowed", counts["narrowed"], 4)
         want("cross-list raw", result["cross_list"], 1)
         want("cross-list narrowed", len(result["narrowed_cross"]), 1)
 
@@ -854,7 +892,17 @@ def selftest() -> int:
         want(
             "the narrowed rows",
             narrowed,
-            [("BetaRung", "BetaCarrier"), ("Rung", "Carrier"), ("Rung", "DocCarrier")],
+            [
+                ("BetaRung", "BetaCarrier"),
+                ("Rung", "Carrier"),
+                ("Rung", "DocCarrier"),
+                ("Rung", "GatedCarrier"),
+            ],
+        )
+        want(
+            "blind spot (j): a `cfg`-gated `pub use` is read as curated",
+            ("Rung", "GatedCarrier") in narrowed,
+            True,
         )
         want(
             "the cross-list row",
@@ -963,8 +1011,8 @@ def main(argv: list[str]) -> int:
     if args.check:
         if set(lists) != set(ALL_LISTS):
             print(
-                "--check pins the four-list sweep; it is the surface the façade "
-                "actually curates. Drop --lists.",
+                "--check pins the whole-façade sweep; it is the surface the "
+                "façade actually curates. Drop --lists.",
                 file=sys.stderr,
             )
             return 2

@@ -2,9 +2,11 @@
 id: pncad-py-stub-omits-eq-on-three-mate-classes
 kind: issue
 title: pncad-py: the stub omits __eq__ on MateFrame, MatePrimitive and Alignment, which all define it
-status: open
+status: closed
 opened: 2026-09-08
 refs: [LIB-HASH]
+closed: 2026-09-09
+parent: LIB-SMALL-2
 ---
 
 
@@ -59,3 +61,15 @@ compiled class's own `__dict__` (rather than `hasattr`) would catch
 this whole family, and `module_class_names` already filters
 underscore-prefixed names for a stated reason that this would have to
 argue with.
+
+## Closed
+
+Taken as the second option: a guard reading `__eq__` off the compiled
+class's own `__dict__`, with the underscore filter argued at
+`module_class_names` rather than widened, and the fieldless mirrors
+exempt on an interning property the row asserts per member. It found
+SEVEN, not three — `Length`, `Angle` and `Count` compare through
+`__richcmp__` and `FaceCensus` carries a `fn __eq__` this item's sweep
+missed, which is this item's own declared blind spot. All seven are
+declared, and `FaceCensus` gained the `__hash__` it implements.
+Carried by LIB-SMALL-2.

@@ -79,13 +79,18 @@ getrandom = { workspace = true }
 # ONE test binary for the whole suite (see tests/all.rs). Each extra
 # test target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
 #
-# No dev-dependencies, as hygiene — NOT as an enforcement mechanism.
-# An earlier comment here claimed an empty dev-dependency list made
-# the closure tests incapable of naming a kernel crate; that is false.
-# Cargo passes `--extern` for the ordinary [dependencies] above to
-# test targets too, so all twelve are in scope in tests/all.rs
-# regardless. What actually enforces the closure property is the
-# self-scanning guard test in that file.
+# The one dev-dependency is the shared Rust reader the suite's
+# source-scanning guards read through, and it is not a hole in the
+# closure property — an empty dev-dependency list never enforced that
+# and an earlier comment here was wrong to say it did. Cargo passes
+# `--extern` for the ordinary [dependencies] above to test targets
+# too, so all twelve are in scope in tests/all.rs regardless. What
+# enforces the closure property is the self-scanning guard test in
+# that file, which admits `test_utils` as a `use` root and no kernel
+# crate.
+[dev-dependencies]
+test-utils = { path = "../test-utils" }
+
 [[test]]
 name = "all"
 path = "tests/all.rs"

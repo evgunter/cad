@@ -1011,6 +1011,32 @@ class MeasureUnavailableAt(PncadError):
     scalar: str
     door: str
 
+class McRefusal(PncadError):
+    """A Monte-Carlo run produced nothing (ERROR-DESIGN E11.1).
+
+    `variant` is the stable tag; `param`, `node` and `cause` are the
+    arms' payloads, present on every arm and `None` where that arm
+    does not carry one.
+
+    Three ways a run has no estimate. A varying parameter carries a
+    BAND, which states limits without a shape and cannot be drawn from
+    (`band_has_no_measure`, with `param`) — the run refuses WHOLE
+    rather than sampling the rest, because a mean over a subset of the
+    parameters is an estimate of a different document. The request
+    asked for zero samples, and an estimator over no draws has no
+    estimate (`no_samples`). Or the document does not build at its
+    nominal, so there is nothing to replay
+    (`nominal_does_not_build`, with `node` and `cause`).
+
+    The band arm's `variant` is MeasureUnavailable's own word, because
+    it carries that refusal: one fault, one word, whichever door
+    said no."""
+
+    variant: str
+    param: Optional[str]
+    node: Optional[NodeId]
+    cause: Optional[str]
+
 class AnalysisPolicyError(PncadError):
     """An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is
     not a finite number strictly inside `(0, 1)`.
@@ -1044,6 +1070,7 @@ class Length:
     def __le__(self, other: Length) -> bool: ...
     def __gt__(self, other: Length) -> bool: ...
     def __ge__(self, other: Length) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class Angle:
@@ -1063,6 +1090,7 @@ class Angle:
     def __le__(self, other: Angle) -> bool: ...
     def __gt__(self, other: Angle) -> bool: ...
     def __ge__(self, other: Angle) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class Count:
@@ -1075,6 +1103,7 @@ class Count:
     def __init__(self, value: int) -> None: ...
     @property
     def value(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class LengthUnit:
@@ -2499,6 +2528,146 @@ def analyzed_box(
     `±z·sigma` for `normal`; and a width-zero interval at the nominal
     for a parameter with no distribution."""
 
+DEFAULT_SAMPLES: Final[int]
+DEFAULT_SEED: Final[int]
+
+class McConfig:
+    """How one Monte-Carlo run is configured (ERROR-DESIGN E11.1).
+
+    `samples` defaults to DEFAULT_SAMPLES and `seed` to DEFAULT_SEED —
+    the shipped dials, recorded rather than drawn from the clock,
+    because an advisory number whose seed is not in the report is a
+    number nobody can reproduce. A caller who wants a tail resolved
+    further asks for more samples and pays linearly, one full document
+    evaluation each.
+
+    `parallel` is a RUNTIME switch, and the property it exists to let
+    a caller check is that it changes nothing: each sample is seeded
+    from its own index, so the two schedules produce bit-identical
+    reports."""
+
+    def __init__(
+        self,
+        samples: Optional[int] = None,
+        seed: Optional[int] = None,
+        parallel: Optional[bool] = None,
+    ) -> None: ...
+    @property
+    def samples(self) -> int: ...
+    @property
+    def seed(self) -> int: ...
+    @property
+    def parallel(self) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class McMeasure:
+    """One measure node's empirical summary — ADVISORY, and not
+    reachable without the McReport that carries the label.
+
+    The statistics are over the samples that HAD a value; `unmeasured`
+    counts the rest and is never averaged over. A measure with no
+    `f64` value at any sample — a `min_clearance`, whose answer is an
+    enclosure — is unmeasured at every draw, which is why the count
+    sits beside the statistics rather than behind them."""
+
+    @property
+    def node(self) -> NodeId: ...
+    @property
+    def mean(self) -> float: ...
+    @property
+    def sigma(self) -> float:
+        """The sample standard deviation, the `N - 1` form."""
+    @property
+    def min(self) -> float: ...
+    @property
+    def max(self) -> float: ...
+    @property
+    def measured(self) -> int: ...
+    @property
+    def unmeasured(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class McAssertion:
+    """One assertion node's empirical summary.
+
+    The three counts partition the samples, and `unevaluated` is kept
+    OUT of `violation_fraction`: an undecided sample is not a passing
+    one, and folding it into either side would invent the verdict
+    E10's third state exists to withhold."""
+
+    @property
+    def node(self) -> NodeId: ...
+    @property
+    def holds(self) -> int: ...
+    @property
+    def violated(self) -> int: ...
+    @property
+    def unevaluated(self) -> int: ...
+    @property
+    def violation_fraction(self) -> Optional[float]:
+        """`violated / (holds + violated)`, or None when no sample
+        decided this assertion."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class McReport:
+    """The E11.1 advisory report: every number an ESTIMATE, with the
+    sample count and the seed that produced it at the top.
+
+    It never gates, it is never persisted as an assertion, and it
+    never enters the mass accounting. The certified answer covers the
+    analyzed box; this one draws from the WHOLE distribution, tail
+    included, so it estimates the quantity the certified lane
+    deliberately does not."""
+
+    @property
+    def samples(self) -> int: ...
+    @property
+    def seed(self) -> int: ...
+    @property
+    def measures(self) -> list[McMeasure]:
+        """Per measure node, in the document's own node order."""
+    @property
+    def assertions(self) -> list[McAssertion]:
+        """Per assertion node, in the document's own node order."""
+    @property
+    def outside_box(self) -> float:
+        """The fraction of samples that fell outside the analyzed box
+        — the empirical twin of E2's tail term, and the one number
+        here a reader can check against the certified side."""
+    def render(self) -> str:
+        """The human form, with the advisory label and the dials on
+        every line that carries an estimate."""
+
+def monte_carlo(
+    doc: Doc, analyzed: AnalyzedBox, config: Optional[McConfig] = None
+) -> McReport:
+    """Replay the document at `f64` over draws from its own
+    distributions, and summarize (ERROR-DESIGN E11.1).
+
+    `analyzed` decides which parameters VARY and which offsets count
+    as outside, so the box is the caller's explicit choice rather than
+    a default hidden inside the run.
+
+    ADVISORY, and the label is structural: the count and the seed ride
+    on the report and on every line `McReport.render` writes. Raises
+    McRefusal for a varying parameter carrying a band, a zero-sample
+    request, or a document that does not build at its nominal."""
+
+def sample_offset(param: ParamName, dist: Distribution, u: float) -> _Offset:
+    """The offset `dist` puts at quantile `u` — inverse-transform
+    sampling's one door, and the advisory lane's only way to draw a
+    parameter value.
+
+    `u` is a uniform draw in `[0, 1)`. The answer is an OFFSET from
+    the nominal in the distribution's own dimension, so a Length
+    parameter's offset is a Length. It draws from the WHOLE law, never
+    from the analyzed box: the tail the box excludes is exactly the
+    region the certified answer does not cover. Raises
+    MeasureUnavailable for a band, which `param` names."""
+
 class DocParam:
     """A named parameter's declared dimension and exact stored value
     (guide §3.2): what `DocEdit.set_doc_param` writes. Continuous
@@ -3509,6 +3678,8 @@ class FaceCensus:
     def edges(self) -> int: ...
     @property
     def vertices(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class StructureNormalization:
     """One re-minted boundary graph, reported as data: the file's locus
@@ -4444,6 +4615,8 @@ class MateFrame:
         perpendicular — the refusal the solve would meet, reachable
         BEFORE authoring the mate that carries it."""
 
+    def __eq__(self, other: object) -> bool: ...
+
 class AxisSense:
     """Which way the two sides' axes point at each other. `Opposed` is
     what kills every pi-flip ambiguity: the senses are AUTHORED, never
@@ -4491,6 +4664,8 @@ class MatePrimitive:
     def offset(self) -> Optional[Length]:
         """The planar rest's standoff, `None` for the others."""
 
+    def __eq__(self, other: object) -> bool: ...
+
 class Alignment:
     """The alignment datum: which frames coincide, at which axis
     sense, with which clocking rider.
@@ -4531,6 +4706,7 @@ class Alignment:
         `mate_datum_too_small_to_lever` fault. An alignment that names
         NO scale at all is not this case — it borrows the session box's
         scale and answers with a number."""
+    def __eq__(self, other: object) -> bool: ...
 
 class ClassAdmission:
     """How far a contact class gets in v1, as a value BOTH enforcing
@@ -4571,6 +4747,15 @@ vocabulary refuses with."""
 
 UNDER_RECOURSE: Final[str]
 """The recourse an under-determined tree mate's refusal ends on."""
+
+CONTRADICTORY_RECOURSE: Final[str]
+"""The recourse a mate contradiction's refusal ends on — one sentence
+for both shapes it renders, a pair of mates and a mate contradicting
+itself."""
+
+NO_AT_REST_RECORD_RECOURSE: Final[str]
+"""The recourse the at-rest gate's `NoAtRestRecord` refusal ends on:
+`Rest` is the one class v1 mints and verifies at rest."""
 
 class MateRole:
     """What a mate did in the solve: `Determining` (a tree mate — it

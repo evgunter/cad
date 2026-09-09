@@ -2716,7 +2716,7 @@ impl ParamName {
 /// `-0.0` folded to `0.0`, every other value untouched — the
 /// normalization a hash must apply wherever the equality it mirrors is
 /// IEEE (`-0.0 == 0.0`).
-fn fold_zero(v: f64) -> f64 {
+pub(crate) fn fold_zero(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v }
 }
 

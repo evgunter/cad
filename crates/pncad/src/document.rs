@@ -28,17 +28,19 @@
 //! a consumer can match the variant AND name what it caught: that is
 //! the rule the `VerbKind`/`Arity` stanza below states, and it places
 //! every payload whose only home is the refusal holding it. It does
-//! NOT place a payload that belongs to a vocabulary one of the four
+//! NOT place a payload that belongs to a vocabulary one of the
 //! curated lists already owns — the naming roles are
-//! [`crate::select`]'s, the profile layer's are [`crate::profile`]'s
-//! — because the four lists are ONE surface cut into rooms rather
-//! than four self-sufficient exports. So such a payload is spelled
-//! ONCE, on the list that owns its vocabulary, and the carrier's list
-//! points at it. The cost is stated rather than hidden: a consumer
-//! importing this module alone matches the arm and needs a second
-//! `use` to name what it holds — one import, never a second crate.
-//! The cost the other way is the same name on two lists, which is two
-//! things that can drift.
+//! [`crate::select`]'s, the profile layer's are [`crate::profile`]'s,
+//! and the parameter and measurement vocabularies this module's own
+//! doors author are THIS list's, where [`crate::analysis`] carries
+//! their derived readers — because the lists are ONE surface cut into
+//! rooms rather than self-sufficient exports. So such a payload is
+//! spelled ONCE, on the list that owns its vocabulary, and the
+//! carrier's list points at it. The cost is stated rather than
+//! hidden: a consumer importing this module alone matches the arm and
+//! needs a second `use` to name what it holds — one import, never a
+//! second crate. The cost the other way is the same name on two
+//! lists, which is two things that can drift.
 
 // The recipe and its edits. `Applied` is `apply`'s return (the new
 // document plus its `EditRecord`) — re-exported so a caller can STORE
@@ -259,7 +261,9 @@ pub use editor_core::{
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
-// solve places (`Member` is its answer).
+// solve places (`Member` is its answer). `UNDER_RECOURSE` and
+// `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
+// own refusals end on.
 /// Why a mate's datum could not form a lever arm, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
@@ -273,14 +277,14 @@ pub use editor_core::{
 /// name, and a consumer that could match `Unleverable` and not name
 /// this type read those two numbers out of the message prose.
 ///
-/// Its only home is the refusal holding it: nothing else in the four
+/// Its only home is the refusal holding it: nothing else on the
 /// curated lists answers in a `LeverRefusal`, so it rides its carrier
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, ClusterMaintenance, MateFault, MateFrame, MatePrimitive, MateRole,
-    MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, member_of,
-    reading_edges, relative_freedom_components, solve_document,
+    Alignment, AxisSense, CONTRADICTORY_RECOURSE, ClusterMaintenance, MateFault, MateFrame,
+    MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,
+    gauge_of, member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
@@ -317,10 +321,14 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // own or a part's — and `CarriedDeclarations` is what an instantiated
 // value carries up. `AssemblyError::CarriedMintRefusal` is the
 // outermost gate's refusal over an inner mate that could not be minted
-// at all.
+// at all. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence the
+// `NoAtRestRecord` arm ends on, carried for the reason
+// `UNDER_RECOURSE` is: a caller asserting that a refusal reaches its
+// recourse must not do it by re-typing the sentence.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
+    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef, Relation, Route, assemble,
+    assemble_gathered,
 };
 
 // Split and inline: the first-class
