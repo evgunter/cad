@@ -616,3 +616,18 @@ mod shell9_r2_probes;
 
 #[path = "shell9_r2_dump.rs"]
 mod shell9_r2_dump;
+
+#[path = "shell10_scoped_walks.rs"]
+mod shell10_scoped_walks;
+
+#[path = "shell10_r1_probes.rs"]
+mod shell10_r1_probes;
+
+#[path = "shell10_r2_probes.rs"]
+mod shell10_r2_probes;
+
+#[path = "shell10_r2_cost.rs"]
+mod shell10_r2_cost;
+
+#[path = "shell10_r2_dump.rs"]
+mod shell10_r2_dump;

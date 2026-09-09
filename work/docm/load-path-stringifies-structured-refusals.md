@@ -61,3 +61,10 @@ Refs #561 (the Python refusal-tag values pinned nowhere), which is adjacent but 
 ## Home
 
 LIB: the contract broken is the bindings' own (`crates/pncad-py/src/errors.rs`), the reproduction is through `pncad.load`, and the LIB register fold placed this issue in its **category B** (bindings-parity items the audit test structurally cannot see).
+
+## Re-homed (2026-09-08, LIB orchestrator)
+
+Moved from `work/lib/` to `work/docm/`: the defect site is `crates/editor-core/src/persist/wire.rs`'s `Error::custom` stringification, DOCM's territory; the `persist` door's Python projection (LIB-DOORS-2) projects what the arms carry and inherits this until it is fixed. Id, body and header
+are unchanged; the directory is the claim (`work/README.md`). LIB's
+half — the Python/façade rows that move when this closes — is named in
+the body and stays LIB's to execute once the kernel side lands.

@@ -25,3 +25,10 @@ The symmetric fix is the same move: a canonical-form fault on
 `BlendSelectionNotCanonical` retired for `SnapshotError::InputList`.
 Not this unit's (the blends are G16's vocabulary and the load-only
 check predates it); recorded from R2's review of PR 2150.
+
+## Re-homed (2026-09-08, LIB orchestrator)
+
+Moved from `work/lib/` to `work/docm/`: the check moves from the load validator onto `Node::input_fault` (`crates/editor-core/src/{edit,node}.rs`, `persist/check.rs`), DOCM's territory. Id, body and header
+are unchanged; the directory is the claim (`work/README.md`). LIB's
+half — the Python/façade rows that move when this closes — is named in
+the body and stays LIB's to execute once the kernel side lands.

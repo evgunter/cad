@@ -888,6 +888,7 @@ at the parent of the commit that removed it):
 - `SHELL-7-SPEC.md` — SHELL-7 — the axial offset door takes a one-surface corner: the full-period torus shells (unit spec)
 - `SHELL-8-SPEC.md` — SHELL-8 — shell is per solid, on every solid: the doors scoped, void insertion N-ary, the lift per designated solid (unit spec)
 - `SHELL-9-SPEC.md` — SHELL-9 — shell runs the closing pcurve mint: the void door transfers rows, the producer re-derives them (unit spec)
+- `SHELL-10-SPEC.md` — SHELL-10 — the simultaneous doors walk only their scope: the partition and the pcurve pass narrowed; the closure check could not be (unit spec)
 - `TCOST-1-SPEC.md` — TCOST-1 — the per-file test gate (spec)
 - `VERBS-GERMARMS-SPEC.md` — VERBS-GERMARMS — the curved pierce ring lane + the cyl×cyl germ arm (two PRs)
 - `VERBS-SHELLFIX-SPEC.md` — VERBS-SHELLFIX — the two teapot-found shell defects (two PRs)
