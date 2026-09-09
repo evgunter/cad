@@ -210,3 +210,18 @@ nothing does today), that is a kernel decision first and the Python
 union follows as its mirror, in the path-leg idiom — a separate item.
 Orthogonal to the seat: (G) takes `Length | WrittenLength | Expr`
 whatever `Expr`'s own spelling.
+
+### (H), added 2026-09-09 after Ev asked why (E) unions rather than `Expr.from_length`
+
+The union in (E)/(G) existed only to keep the existing spelling:
+every Python slot call is `Node.extrude(profile, 25 * mm)`, a bare
+`Length` into the slot — about 200 sites (169 in the Python tests,
+25 executed GUIDE blocks, 2 in the README). **(H), the exact mirror:
+each dimensioned slot door takes `Expr` and nothing else**, as the
+Rust slot does, and `Expr` gains Rust's constructors —
+`Expr.literal(25 * mm)` (the canonical fallback today's doors apply
+silently), `Expr.written_length(w)`, `Expr.written_angle(w)`. No
+union, one type at the seat, the `Length` shortcut goes, and the ~200
+sites become `Expr.literal(...)` (mechanical; the guide blocks
+re-execute). Recommendation: **(H)** if the shortcut is not worth a
+union, which is the call the rest of this surface's mirroring makes.
