@@ -2,8 +2,9 @@
 id: gui-wasm-build-is-not-gated-at-all
 kind: issue
 title: the GUI's wasm32 build is gated by nothing: ci.yml's wasm row excludes viewer, and default features exclude the app feature where the wasm code lives
-status: open
+status: dispatched
 opened: 2026-09-04
+branch: ciw/unreachable-roots
 ---
 
 

@@ -1518,3 +1518,46 @@ Residue: `work/ciw/criterion-selftest-nightly-only` — `criterion-emit.py
 merges green. Same class, one step milder, and the `nightly.yml` comment
 that cited this calibrator as its precedent for nightly siting is
 rewritten, because that precedent moved today.
+
+## 2026-09-09 — unit 3's close-out was a day late, and unit 4 dispatched
+
+**The close-out of unit 3 sat unopened for a day.** PR 2124 merged
+2026-09-08; the branch carrying its two rows' dispositions was pushed and
+no PR was ever opened for it, so both sat at `review` with a merged PR
+until 2026-09-09 (PR 2260). That is the same staleness this program was
+found in on 2026-09-06, recurred at the hands of the orchestrator that
+fixed it, and the lesson is narrower than "be careful": **pushing a
+branch is not landing it, and this program's own board is the only thing
+that says which**. A row at `review` whose PR has merged is the shape to
+grep for at every session start, not just when taking a program over.
+
+## Unit 4 dispatched: the roots a `--workspace` check cannot reach
+
+`gui-wasm-build-is-not-gated-at-all` and the surviving half of
+`detached-demo-workspaces-are-gated-only-by-a-sampled-row`, on
+`ciw/unreachable-roots`. One shape twice: a cargo root that the check a
+careful lane actually runs cannot see.
+
+**Premises re-verified on today's tree** rather than inherited from the
+2026-09-06 slate, because `main` moved ~1730 commits in a day:
+
+- `ci.yml:2030` still carries `--exclude viewer` on the wasm row (the
+  citation has moved twice now: `:1646` when filed, `:1936` on 09-06,
+  `:2030` today — the finding is stable, the line number is not).
+- `Cargo.toml:22` still excludes `demos` from the workspace, so
+  `cargo clippy --workspace --all-targets` still cannot reach
+  `demos/tour` or `demos/wild`.
+
+**The `[ev]` shape question is settled in advance** (Ev, 2026-09-09, in
+chat): take the seed-keyed treatment, not a flat row. Ev's
+viewer-CI-posture ruling refuses a permanent per-PR bill for the
+eframe/wgpu graph on every kernel change; `clippy-all-features`
+(`ci.yml`) already does the seed-keyed thing and is the precedent to
+follow. A flat row would need Ev and this one does not.
+
+**Style review, plus a correctness reviewer if the unit builds a gate.**
+That is the trigger this program is now using — named on 2026-09-08 after
+two units in a row shipped their own defect one level in and pinned it
+with a selftest. If the deliverable is workflow rows only, style is
+enough; if it grows a check with a derived population, the second lane is
+automatic rather than a judgement I make late.

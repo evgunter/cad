@@ -2,8 +2,9 @@
 id: detached-demo-workspaces-are-gated-only-by-a-sampled-row
 kind: issue
 title: demos/tour and demos/wild are detached workspaces, invisible to workspace-wide clippy and gated only by a sampled k-lint row
-status: open
+status: dispatched
 opened: 2026-09-04
+branch: ciw/unreachable-roots
 ---
 
 
