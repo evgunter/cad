@@ -145,7 +145,7 @@ impl<T: Real> Pending<T> {
 /// The one discrete bit every endpoint-free/derived mode carries in its
 /// own dress (§2c): which half-plane of the departure tangent the
 /// carrier centre sits on. `Left` of travel curves the arc CCW.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ArcSide {
     /// Centre on the left of travel (counterclockwise arc).
     Left,

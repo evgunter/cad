@@ -61,7 +61,7 @@ use super::plane_eq::{PlaneDesc, PlaneIdentity, oriented_plane_eq_verdict};
 /// `PlaneRelation`, the spelling its planar callers use. A parallel
 /// per-kind verdict enum would let a caller handle "same carrier" for
 /// planes and forget it for cylinders.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CarrierRelation {
     /// Same carrier, same material side (the ⁺ case of Eq. 15.3 and
     /// its curved analogues) — flush walls, and the merge stage's

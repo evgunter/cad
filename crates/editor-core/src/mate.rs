@@ -81,7 +81,7 @@ pub use solve::{
 pub use topo::ContactClass;
 
 /// Which side of a mate a diagnostic is about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MateSide {
     /// The `a` reference.
@@ -141,7 +141,7 @@ impl MateFrame {
 }
 
 /// Which way the two sides' axes point at each other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AxisSense {
     /// The axes point the same way (a shaft into a through-hole).

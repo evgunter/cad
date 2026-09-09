@@ -687,6 +687,23 @@ impl SketchPlane<f64> {
     }
 }
 
+/// `==` IS [`SketchPlane::bit_eq`] — the comparison this type already
+/// means, spelled as the trait so every caller reaches the same
+/// answer.
+///
+/// Only `f64` carries it, because only `f64` has the bit reading
+/// [`SketchPlane::bit_eq`] compares; a plane over another [`Real`] has
+/// no equality here.
+///
+/// PARTIAL and no [`Eq`], deliberately: the type carries no hash on
+/// either side of the binding boundary, and a plane is a placement to
+/// compare, not a key to tally by.
+impl PartialEq for SketchPlane<f64> {
+    fn eq(&self, other: &Self) -> bool {
+        self.bit_eq(other)
+    }
+}
+
 /// A sketch profile: closed loops on a sketch plane — the raw input
 /// data. [`Profile::validate`] is the only way to make it consumable by
 /// sweeps.

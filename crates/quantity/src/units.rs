@@ -444,11 +444,11 @@ mod view {
     use super::{UNITS, UnitDef, UnitQuantity, row_index};
 
     /// See [`super::LengthUnit`].
-    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct LengthUnit(u8);
 
     /// See [`super::AngleUnit`].
-    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct AngleUnit(u8);
 
     /// See [`super::ScalarUnit`].
@@ -542,6 +542,44 @@ mod view {
         pub const fn def(self) -> UnitDef {
             UNITS[self.0 as usize]
         }
+    }
+}
+
+/// A unit is a table row, and a row is a KEY: hashing one hashes its
+/// symbol.
+///
+/// The symbol DETERMINES the row (the seal on [`UnitDef`]), so the
+/// symbol is exactly as fine a partition as the derived [`PartialEq`]
+/// above it: two values that compare equal are the same row and carry
+/// the same symbol, so they hash alike, and two that hash alike are
+/// the same row. That is why the hash can be written by hand over one
+/// field while the comparison stays derived over three.
+///
+/// [`UnitDef`]'s [`Eq`] is by hand for the same reason. The derived
+/// comparison reads an `f64` factor, so it is not derivable — but
+/// every value of the type is a row of [`UNITS`], each factor a
+/// finite literal, so the relation is reflexive on every value that
+/// can exist and the equivalence [`Eq`] promises holds.
+impl core::hash::Hash for UnitDef {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        core::hash::Hash::hash(&self.symbol, state);
+    }
+}
+
+impl Eq for UnitDef {}
+
+/// See [`UnitDef`]'s hash: the view indexes a row, and the row's
+/// symbol is what a hash of it reads.
+impl core::hash::Hash for LengthUnit {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        core::hash::Hash::hash(self.symbol(), state);
+    }
+}
+
+/// See [`UnitDef`]'s hash.
+impl core::hash::Hash for AngleUnit {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        core::hash::Hash::hash(self.symbol(), state);
     }
 }
 
