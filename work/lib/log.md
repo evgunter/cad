@@ -4740,3 +4740,72 @@ The ITEM stays open until `[ev]` #2233 merges (it is on that branch);
 this unit closes with its ruling recorded there. Orchestrator note: the
 brief over-read the ruling on the Written pair; the lane read the
 ruling's own words and was right to. ~53 min, ~167k tokens.
+## `[ev]` #2233 ruled (2026-09-09): dimensioned seats at the Python boundary
+
+Two items, one theme — what a `Length`/`Angle` seat at the Python
+boundary owes — and both rulings came out of Ev pushing on the
+mirror. **Item 2 (`the-quantity-boundary-compares-and-hashes-as-if-
+poison-and-signed-zero-cannot-arrive`): (B′)** — the Python `Length`
+and `Angle` mirror the Rust newtypes' derives (`PartialEq, PartialOrd`,
+no `Hash`): IEEE comparisons with no raise on poison, no `__hash__`;
+the kernel omits hash and total order on values in favour of the
+funnel, so the boundary type does not re-decide it. Landed as LIB-ZERO
+(#2259) before this PR merged; the item is closed with it. **Item 1
+(`node-slot-literals-erase-the-authored-notation`): (H)**, reached
+through five revisions — (A) a `Length | WrittenLength` union at each
+slot; (D) the Python `Length` carrying its written unit, withdrawn
+because it broke the mirror; (E) `Length | Expr` with `Expr` gaining
+Rust's constructors, after Ev asked whether Rust has the union (it
+does not: the slot's type IS `Expr`) and whether Python has an `Expr`
+(it does, minted only by `parse_expr`); (G) a named union alias at the
+seat, after Ev asked whether a union could replace `Expr` (at the seat
+yes; the class no — Rust's tree enum is crate-private, and a Python
+union of node kinds would be wider than the kernel); and (H) when Ev
+asked why a union at all rather than `Expr.from_length`: the union
+existed only to keep the bare-`Length` spelling at ~200 sites. **(H):
+each dimensioned slot door takes an `Expr` and nothing else, as the
+Rust slot does, and `Expr` gains `literal`/`written_length`/
+`written_angle`**; helpers for ergonomics, if wanted, go on BOTH sides
+mirrored; and a site that spells a unit (`25 * mm`) converts to the
+WRITTEN form, keeping the notation, with `Expr.literal` only for a
+computed quantity. Mechanical unit LIB-SEATS. Orchestrator note: the
+lesson of this thread is the one `memories/` already states — measure
+the Rust shape first and propose its mirror; every revision here was a
+step back toward that.
+
+## `[ev]` #2257 ruled (2026-09-09): the role-name builders take the loop — (A)
+
+Ev asked why the four builders fix `loop_index: 0`; the answer was
+scope, not design — the ruled two-argument shape came from the
+thirteen hand-spelling sites, all outer-loop, and LIB-NAMES kept a
+ruled signature rather than widen it. With nothing about the outer
+loop earning the shortcut on its merits, **(A): the symmetric
+signature — `band(node, loop, seg)` and its three siblings take the
+loop index as an argument beside the segment, the outer loop `0` as
+`ProfileEdgeRef` spells it**; every current call passes `0`; the
+thirteen Rust sites and the five Python doors move to the new arity
+under the same byte-equality pins. Mechanical unit LIB-LOOPS.
+Orchestrator note: I recommended parking (D); Ev chose symmetry over
+the convenience, which is the surface's own rule — a builder that
+privileges one loop is a second way to spell the vocabulary.
+## `[ev]` #2256 ruled (2026-09-09): a mate frame from a face — (F), now
+
+Ev asked, in order: whether materializing a face's frame stores
+logically duplicate numbers (yes — derived data stored as authored,
+though the author types those numbers by hand today), then whether the
+solve can avoid reading geometry forever. Measured: `mate.rs` carries
+no `Expr` and no `ParamName` — a mate is plain `f64`s — so a document
+parameter change in a part stales its mates silently; the solve cannot
+even read a parameter today, so "never" is not available and the
+design moves now. **(F): `MateFrame` gains a `FromFace { face,
+reference }` arm resolved at evaluation through the exact `face_pose`
+readback (NURBS refuses typed and keeps authored vectors); the solve
+runs over resolved frames and is itself unchanged; nothing is stored
+twice; A11's inputs sentence is revised while its algorithm claim
+stays.** The kernel design is MSOLVE's, filed as
+`work/msolve/mate-frames-resolve-from-a-face-at-evaluation.md`; the
+LIB item is parked on it for the façade and Python half; (A) is not
+built. Orchestrator note: the first recommendation here was (A) with
+(F) as "presumably not wanted" on the item's own word; the measurement
+that settled it (no parameter reaches a mate) was one grep away and
+should have been in the first draft.
