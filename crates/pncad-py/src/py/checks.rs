@@ -37,6 +37,7 @@
 //! nothing analogous, so its refusing position is UNREPRESENTABLE
 //! rather than merely undocumented, in Python exactly as in Rust.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use pyo3::exceptions::PyValueError;
@@ -279,6 +280,15 @@ impl ChecksConfig {
 
 /// What one finding found, as a value with a stable `variant` tag and
 /// the arm's payload as attributes.
+///
+/// Every payload attribute is present on every arm, `None` where the
+/// arm does not carry it: `actual`, `expected`, `other_root`,
+/// `other_output`, `reason`.
+///
+/// The five read off ONE record, [`crate::check_payload`], whose
+/// match over the kernel enum is exhaustive with no wildcard: an
+/// evidence arm added there is a compile error rather than a finding
+/// every accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct CheckEvidence(pub(crate) d::CheckEvidence);
@@ -294,10 +304,7 @@ impl CheckEvidence {
     /// Components actually found, on `connectedness` alone.
     #[getter]
     fn actual(&self) -> Option<u32> {
-        match &self.0 {
-            d::CheckEvidence::Connectedness { actual, .. } => Some(*actual),
-            _ => None,
-        }
+        self.payload().actual
     }
 
     /// The expectation this subject was held to — on `connectedness`,
@@ -305,11 +312,7 @@ impl CheckEvidence {
     /// consumed.
     #[getter]
     fn expected(&self) -> Option<u32> {
-        match &self.0 {
-            d::CheckEvidence::Connectedness { expected, .. }
-            | d::CheckEvidence::StaleExpectation { expected } => Some(*expected),
-            _ => None,
-        }
+        self.payload().expected
     }
 
     /// The counterpart subject's root, on `not_separated` alone. The
@@ -317,19 +320,13 @@ impl CheckEvidence {
     /// order; this is the second.
     #[getter]
     fn other_root(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::CheckEvidence::NotSeparated { other_root, .. } => Some(NodeId(*other_root)),
-            _ => None,
-        }
+        self.payload().other_root.map(NodeId)
     }
 
     /// The counterpart subject's output index, on `not_separated`.
     #[getter]
     fn other_output(&self) -> Option<u32> {
-        match &self.0 {
-            d::CheckEvidence::NotSeparated { other_output, .. } => Some(*other_output),
-            _ => None,
-        }
+        self.payload().other_output
     }
 
     /// The underlying refusal's own prose, where the arm carries one:
@@ -338,13 +335,7 @@ impl CheckEvidence {
     /// kernel's own story, and `variant` is the branchable part.
     #[getter]
     fn reason(&self) -> Option<String> {
-        match &self.0 {
-            d::CheckEvidence::Escalated { source } | d::CheckEvidence::Unsupported { source } => {
-                Some(source.to_string())
-            }
-            d::CheckEvidence::SeparationUnavailable { reason, .. } => Some(reason.clone()),
-            _ => None,
-        }
+        self.payload().reason.map(Cow::into_owned)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -353,6 +344,19 @@ impl CheckEvidence {
 
     fn __repr__(&self) -> String {
         format!("CheckEvidence({:?})", check_evidence_tag(&self.0))
+    }
+}
+
+impl CheckEvidence {
+    /// This evidence's payload, read once per attribute.
+    ///
+    /// Every accessor above reads a field off THIS record rather than
+    /// matching the enum itself, so the arm table is written once —
+    /// exhaustively, with no wildcard, in `crate::check_payload` — and
+    /// an arm added kernel-side is a compile error there instead of
+    /// five attributes silently answering `None`.
+    fn payload(&self) -> crate::check_payload::CheckEvidencePayload<'_> {
+        crate::check_payload::check_payload(&self.0)
     }
 }
 

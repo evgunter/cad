@@ -2,9 +2,10 @@
 id: payload-accessor-wildcards-remain-in-checks-and-assembly
 kind: issue
 title: CheckEvidence and RefusedRef accessors still wildcard into None, the shape py/mate.rs just lost
-status: open
+status: closed
 opened: 2026-09-08
-refs: [mate-fault-accessors-wildcard-into-silence]
+closed: 2026-09-08
+refs: [mate-fault-accessors-wildcard-into-silence, LIB-WILDCARDS]
 ---
 
 Found by LIB-PROJ's sweep for the shape
@@ -60,3 +61,24 @@ LIB-PROJ's two-file fence. The decision each needs is the same one
 LIB-PROJ made: for `CheckEvidence`'s five, whether one flattening
 record earns its place or five exhaustive matches are cheaper; for
 `RefusedRef`'s two, simply to match the file's own third accessor.
+
+## Closed
+
+LIB-WILDCARDS (`work/lib/LIB-WILDCARDS.md`). Both rows are exhaustive:
+`CheckEvidence`'s five accessors read one record,
+`crates/pncad-py/src/check_payload.rs`, whose match over the six arms
+has no wildcard; `RefusedRef`'s `width` and `kind` name all four arms
+in place, as `at` above them already did. `grep -n "_ => None"` over
+the two files finds nothing.
+
+The two dispositions this item argued are unchanged and were re-read:
+`crates/pncad-py/src/validation.rs:73`/`:91` keeps the extract licence
+its own doc comment states, and `py/doc.rs`'s two `Node` extracts (now
+`:916`/`:931`, the file having moved under them) keep theirs.
+
+The sweep was re-run at the unit's merge base with this item's stated
+blind spot closed — the named-binding and `Some`-of-default spellings
+added to the pattern — and found no hit the original pattern missed.
+Its hit list is in the unit's PR.
+
+Residue: `check-evidence-shell-refusal-crosses-as-prose-only`.
