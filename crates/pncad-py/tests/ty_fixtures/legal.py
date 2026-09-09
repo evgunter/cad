@@ -618,6 +618,13 @@ measures: str = derived.dimension
 depends_on: list[ParamName] = derived.params
 bare: float | None = derived.literal_value
 worth: Length | Angle | float = doc.eval(derived)
+# LIB-EDITS: the two edits addressed the way a refusal answers — a
+# slot by its own WORD, a name by its own TEXT. Neither takes a class
+# of its own: the alphabet a caller writes at is the alphabet
+# `EditError.slot` reads back, and a stable name is opaque text on
+# this surface everywhere else too.
+slot_moved: DocEdit = DocEdit.set_param(plate, "distance", derived)
+repaired: DocEdit = DocEdit.rebind(open_faces[0], open_faces[0])
 how_many: int = doc.eval_count(doc.parse_expr("4"))
 # The display formatter: TEXT out, in the unit asked for, from the
 # quantity that carries the dimension. The sibling `in_unit` answers a

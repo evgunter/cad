@@ -3801,14 +3801,27 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "split", "transform", "tube", "union",
             ],
         )
+        #
+        # `DocEdit.set_param` and `DocEdit.rebind` JOINED it at
+        # LIB-EDITS: a node's continuous slot after the constructor
+        # that minted its literal, and the one repair of a stored
+        # name. They are two of `DocEdit`'s five unbuilt arms and the
+        # other three are not oversights — the two witness edits carry
+        # payloads the façade does not curate, and the expression-path
+        # edit refuses at a bad address with a message the binding's
+        # prose gate panics on. The positive form is
+        # `tests/test_slot_edits.py`, and `TestCup`'s live rebuild is
+        # what the continuous door bought a scene that had to
+        # re-author a document to move a wall.
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
                 "bind_count_param", "bind_instance_param",
                 "bind_v_degree_param", "delete_node",
-                "insert_node", "set_doc_param", "set_doc_param_value",
-                "set_members", "set_placement",
-                "set_roots", "set_tolerance", "update_reference",
+                "insert_node", "rebind", "set_doc_param",
+                "set_doc_param_value", "set_members", "set_param",
+                "set_placement", "set_roots", "set_tolerance",
+                "update_reference",
             ],
         )
 

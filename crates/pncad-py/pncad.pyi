@@ -1859,9 +1859,20 @@ class Node:
     @staticmethod
     def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
-    def extrude(profile: NodeId, distance: Length) -> Node: ...
+    def extrude(profile: NodeId, distance: Length) -> Node:
+        """Extrude a profile along its sketch-plane normal.
+
+        `distance` mints a LITERAL in the node's `distance` slot.
+        `DocEdit.set_param(node, "distance", expr)` moves it
+        afterwards, and makes it a named, editable number: a literal
+        is a new document per value, a parameter reference is one
+        `set_doc_param_value` per value."""
+
     @staticmethod
-    def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node: ...
+    def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node:
+        """Revolve a profile about a datum axis. `angle` mints a
+        literal in the node's `revolve_angle` slot, driven afterwards
+        by `DocEdit.set_param` as an extrude's `distance` is."""
     @staticmethod
     def tube(
         spine: NodeId,
@@ -1912,7 +1923,9 @@ class Node:
         set FREEZES at authoring time. `distance` is the SETBACK along
         each support, not a radius. An empty selection, an unresolvable
         name, or an edge whose supports are not both planes refuses
-        typed at `evaluate`.
+        typed at `evaluate`. `distance` mints a literal in the node's
+        `chamfer_distance` slot, moved by `DocEdit.set_param`; the
+        selection is repaired by `DocEdit.rebind`.
         """
 
     @staticmethod
@@ -1927,7 +1940,10 @@ class Node:
         Every face on a chart is named together (a full revolve's cap
         is two half-faces). An unresolvable name, a name that is not a
         face, a non-positive or unaffordable wall, or a curved
-        designated face refuses typed at `evaluate`.
+        designated face refuses typed at `evaluate`. `thickness` mints
+        a literal in the node's `shell_thickness` slot, moved by
+        `DocEdit.set_param`; a designation that has come to denote the
+        wrong face is repaired by `DocEdit.rebind`.
         """
 
     @staticmethod
@@ -2017,7 +2033,10 @@ class Node:
         `selection` is edge names as TEXT — the strings
         `Evaluation.all_edges` answers with. The set FREEZES at
         authoring time; an empty one, an unresolvable name, or an edge
-        the roller cannot enter refuses typed at `evaluate`.
+        the roller cannot enter refuses typed at `evaluate`. `radius`
+        mints a literal in the node's `radius` slot, moved by
+        `DocEdit.set_param`; one name of the selection is repaired by
+        `DocEdit.rebind`.
         """
 
     @staticmethod
@@ -2584,6 +2603,31 @@ class DocEdit:
         refuses `set_members_on_non_list`."""
 
     @staticmethod
+    def set_param(node: NodeId, slot: str, expr: Expr) -> DocEdit:
+        """Replace a CONTINUOUS slot's expression on a live node — an
+        extrude's `distance`, a fillet's `radius`, a revolve's
+        `revolve_angle` — after the constructor that minted it.
+
+        The constructors take numbers, so a node arrives with its
+        slots holding literals. This moves one afterwards, and puts an
+        EXPRESSION there: `Doc.parse_expr("plate_t * 2")` drives the
+        slot from a document parameter, as `bind_count_param` drives a
+        structural one.
+
+        The slot is named by its WORD — the same word `EditError.slot`
+        answers in, so a refusal is an address to retry at. A word
+        outside the alphabet is a `ValueError` at the boundary.
+        Structural slots (`count`, `instance`, `v_degree`,
+        `stations`) refuse `structural_slot_needs_structural_edit`
+        here; the `bind_*_param` trio is where they are edited.
+
+        Refuses typed: `unknown_node`, `unknown_slot` naming the slot
+        the node lacks, `slot_dimension_mismatch` carrying the
+        required and offered dimensions, and `unknown_doc_param` /
+        `doc_param_dimension_mismatch` for a parameter reference the
+        document does not answer."""
+
+    @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
     def set_doc_param(name: ParamName, value: DocParam) -> DocEdit:
@@ -2650,6 +2694,34 @@ class DocEdit:
 
         Refuses `update_on_non_instance`, and `pin_unchanged` when the
         site already names that version."""
+
+    @staticmethod
+    def rebind(from_name: str, to_name: str) -> DocEdit:
+        """Repair a stored name: rewrite every document site that
+        references `from_name` EXACTLY to reference `to_name`.
+
+        THE name repair, and the only one. A selection is stored as a
+        stable name — a fillet's edges, a chamfer's, a shell's open
+        faces, a declaration's pairs — and an upstream edit can leave
+        one denoting something else or nothing at all. This says what
+        it now denotes, ONCE: no alias table persists and nothing
+        follows automatically, so a second name needing the same
+        repair is a second edit. Each rewritten site re-canonicalizes
+        as its own node would — a blend selection is a set, a shell's
+        designation an ordered list that drops a repeat.
+
+        Neither half keeps the kernel's bare word (`from` is a Python
+        keyword), so both take the role suffix, as
+        `EditError.from_kind` / `to_kind` do.
+
+        Refuses typed: `rebind_identity`, `rebind_kind_mismatch`
+        carrying both kinds (a face reference cannot come to denote an
+        edge), `rebind_target_missing_node`, `rebind_unknown_name` (a
+        source this document never minted is a typo; a
+        deleted-but-once-lived node is the repair case and is
+        allowed), and `rebind_no_references` — nothing references the
+        source, so there is nothing to repair: a GUI's selection is
+        not document state, and repairing one is re-selecting."""
 
     @staticmethod
     def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
