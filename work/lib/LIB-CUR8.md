@@ -6,6 +6,7 @@ status: review
 branch: lib/cur8
 opened: 2026-09-09
 refs: [margin-diag-non-curation-was-measured-on-a-count-that-moved, check-evidence-shell-refusal-crosses-as-prose-only, cross-list-payload-rungs-under-document-only-carriers]
+pr: 2253
 ---
 
 Three curation decisions under the standing rules, each written
