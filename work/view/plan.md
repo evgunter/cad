@@ -134,6 +134,7 @@ should be visible on its own.
 | `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass — **merged** |
 | `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass — **merged** |
 | `view/gate-bullets` (the vocab gate's kind scan, anchored) | #2172 | style + fix pass — **merged** |
+| `view/wasm-dead-items` (CIW's §6: two items dead at wasm32) | — | dispatched 2026-09-09 |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -244,6 +245,30 @@ word proof and overwrote four files of those exact names that another
 lane had left there. Nothing was lost that mattered, and the collision
 is silent by construction — a lane cannot tell whether a scratchpad
 file is its own. Dispatches carry a per-lane prefix now.
+
+**The orchestrator's own heartbeat is a single point of failure, and a
+one-shot timer is the wrong shape for it.** The check-in was a
+`run_once_at` trigger re-armed by hand at the end of every turn. On
+2026-09-08 it fired, the turn ended without re-arming it, and VIEW sat
+idle for a day — no lane, no PR, 796 commits of drift, one row filed
+onto its slate by another program and unread. None of the rules above
+covers it, because they are all about lanes and evidence and this is
+about the orchestrator's own liveness. It is now a recurring cron
+(`57 */6 * * *`) whose prompt says not to make it a one-shot again, and
+deliberately rare rather than a tight poll: lanes notify this session
+directly when they finish, so the timer is only the backstop for a
+failure to dispatch after a report, and a sub-cache-TTL cadence would
+cost a cold context every firing to buy nothing (Ev, 2026-09-09).
+
+**A measurement can be an artifact of the instrument, and the first
+number out is the one to distrust.** Sizing the tracker's `file:line`
+citations, the first pass reported 49% of them pointing at a file that
+does not exist. It was counting the repo's own `session.rs:1517`
+shorthand as a missing path. Resolved against `git ls-files`, the
+figure is 2.1%. The corrected pass is in
+`work/issues/tracker-file-line-citations-measured`, along with the
+method, so the next reader can see why the numbers differ rather than
+picking whichever they meet first.
 
 **A hold is not a hold until the diagnosis's own repair is tried.**
 #2172 argued that putting the count word inside `KIND_ANCHOR` bought a
