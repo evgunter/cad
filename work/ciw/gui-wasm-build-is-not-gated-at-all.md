@@ -2,9 +2,10 @@
 id: gui-wasm-build-is-not-gated-at-all
 kind: issue
 title: the GUI's wasm32 build is gated by nothing: ci.yml's wasm row excludes viewer, and default features exclude the app feature where the wasm code lives
-status: dispatched
+status: review
 opened: 2026-09-04
 branch: ciw/unreachable-roots
+pr: 2263
 ---
 
 
@@ -100,3 +101,79 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Disposition (2026-09-09, PR 2263)
+
+**Built, as a seed-keyed row.** `.github/workflows/ci.yml`'s `fmt` job
+now carries `wasm32 check (viewer app feature - the browser entry
+point)`: `RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check -p
+viewer --features app --target wasm32-unknown-unknown`, gated on
+`needs.filter.outputs.run_viewer_toolkit` — the same axis the three
+toolkit rows above it read, and the treatment Ev confirmed in chat on
+2026-09-09 as the one that needs no further ruling. `RUSTFLAGS` is
+required, not decoration: `getrandom` refuses to build for wasm32 until
+a backend is named in both halves. Mirrored in `local-scripts/ci-local.sh`
+as `wasm32 check (viewer app)`, unconditional there.
+
+**The `--features app` half is kept**, which is what this item asked
+for: `run_web` lives behind that non-default feature, so the naive
+default-features row would have been green on the defect.
+
+**Reproduce-then-catch, hosted, in that order.** Run `34373755002`
+(`ff658559`, PR 1741's `E0599` planted back, no new row) concluded
+**success** across all 37 jobs — and the viewer axis was TRUE on that
+run, so `clippy (viewer app feature - eframe + wgpu)` ran `-D warnings`
+over the same crate and passed. Run `34375557117` (`121890d9`, same
+plant, row present) failed at exactly one step with
+`error[E0599]: JsValue doesn't implement std::fmt::Display`,
+`crates/viewer/src/app.rs:1990`. The plant is removed on this branch.
+
+**Cost when the key fires:** 57 s hosted with a warm cache, on a job
+that ran 5m39s without it — so +1 billed minute, and only on runs whose
+seeds already bought the eframe/wgpu graph. Nothing on runs where the
+axis is false.
+
+**No nightly re-take, and the reason is written at the row.** The three
+toolkit rows above it defer their skipped coverage to `nightly.yml`;
+this row does not need to, because every diff that can break it either
+seeds `viewer` (the code is under `crates/viewer/src`) or is a
+Cargo.toml/Cargo.lock edit classifying TIER=all — and both make the axis
+true. What is left is a wasm-specific break in a crate `viewer` depends
+on but which is outside {viewer, pncad, bvh}; every such crate is one
+the workspace wasm row above already compiles for this target. That
+argument is stated at the row so it is re-checked, not re-derived, if
+`viewer` grows a new edge.
+
+**The sweep this item asked for, its hit list, and its blind spot.**
+Pattern: `grep -rln 'target_family = "wasm"\|target_arch = "wasm32"'`
+over `crates/ demos/ tools/ benches/ interval-transcendentals/`. Eight
+files, all in `crates/viewer`, and every one is now compiled at that
+target by this row:
+
+- `src/app.rs` — the `run_web` entry point and `WebStartupError`. The
+  defect's own site. **Fixed** (this row compiles it).
+- `src/bin/viewer.rs` — six `cfg(target_family = "wasm")` items,
+  including the wasm `main` and `report_to_page`. **Fixed**, and
+  verified rather than assumed: `cargo check -p viewer` selects lib
+  AND bins, the bin's `required-features = ["app"]` is satisfied by
+  this row's `--features app`, and a deliberate `E0308` planted in
+  `report_to_page` failed the row (`could not compile viewer (bin
+  "viewer")`).
+- `src/lib.rs`, `src/prefs.rs`, `src/evalseam.rs`, `src/frame.rs` —
+  `cfg(not(target_family = "wasm"))` and one `cfg!` runtime branch.
+  **Fixed** in the sense that matters: the negated arms are what this
+  target *stops* compiling, and the row is what proves the remainder
+  still builds without them.
+- `tests/eval_seam.rs` — five negated arms in a test target. **Not this
+  unit**: `cargo check` without `--all-targets` builds no test targets,
+  and a wasm test lane is GUI-5's, not a compile guard's.
+- `Cargo.toml` (viewer, and `crates/pncad/Cargo.toml`) —
+  `cfg(target_arch = "wasm32")` dependency tables, not code. **Not a
+  defect**; they are the stanzas this row's `RUSTFLAGS` pairs with.
+
+What the pattern cannot match: a `cfg` written through `cfg_attr`, a
+feature-gated module whose contents are platform-specific without naming
+a target, and any target family other than wasm — nothing here
+establishes that a `cfg(windows)` or `cfg(target_os = "macos")` block is
+compiled by anything in this repo.
+

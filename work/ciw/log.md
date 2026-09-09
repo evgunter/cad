@@ -1561,3 +1561,42 @@ two units in a row shipped their own defect one level in and pinned it
 with a selftest. If the deliverable is workflow rows only, style is
 enough; if it grows a check with a derived population, the second lane is
 automatic rather than a judgement I make late.
+
+## Unit 4 delivered: one row built, one finding that resolves to a sentence
+
+PR 2263, on `ciw/unreachable-roots`. The two halves went different ways
+and that is the unit's result rather than a shortfall in it.
+
+**The wasm half is a row.** `ci.yml`'s `fmt` job grows
+`wasm32 check (viewer app feature - the browser entry point)`,
+seed-keyed on `run_viewer_toolkit` beside the three toolkit rows that
+already read that axis, with its verdict printed in both branches of the
+step that already prints one. Mirrored in `ci-local.sh` as
+`wasm32 check (viewer app)`, unconditional there per that file's
+standing asymmetry.
+
+Reproduce-then-catch, on hosted CI and in that order:
+
+- run `34373755002` on `ff658559` — PR 1741's `E0599` planted back into
+  `run_web`, no new row: **green**, all 37 jobs, twelve `test (…)` and
+  five `k-lint (gate, …)`. The viewer axis was TRUE on that run, so the
+  app-feature clippy row ran `-D warnings` over the same crate and
+  passed. The gate was not narrow; it was blind at that target.
+- run `34375557117` on `121890d9` — same plant, row added: **red at
+  exactly one step**, `E0599: JsValue doesn't implement Display`,
+  `crates/viewer/src/app.rs:1990`.
+- the plant is then removed and the branch is green again.
+
+Cost when the key fires: 57 s hosted (warm cache) on a job that was
+5m39s without it, so +1 billed minute on the runs the axis already buys
+the eframe/wgpu graph for, and nothing on the runs it does not.
+
+**The demos half builds nothing, deliberately.** `ci-local.sh` already
+runs `demos/tour` and `demos/wild` fmt+clippy (`demos_hygiene`), and the
+hosted `k-lint` steps have run on every code-tier run since 1850. So the
+tooling was right on both sides and the gap was a habit: a lane runs
+`cargo clippy --workspace --all-targets`, which reaches none of the five
+excluded cargo roots. The fix is one bullet in §2 of
+`docs/prompts/implementer-discipline.md` naming those roots and the
+two-line version of the check. A row would have been a third gate over
+work two gates already do.
