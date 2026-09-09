@@ -1145,14 +1145,16 @@ EDIT_ATTRS = (
 class TestTheEditDoorsPayload(unittest.TestCase):
     """The refusing arm's payload, off real edits.
 
-    The document layer's `EditError` has 58 arms and most have no
-    Python door — a rebind, a witness, an appearance write and an
-    expression-path edit are not among the ten `DocEdit` verbs. What
-    the rows below pin is the half a Python caller can provoke: the
+    The document layer's `EditError` has 58 arms and many have no
+    Python door — a witness, an appearance write and an
+    expression-path edit are not among the `DocEdit` verbs. What the
+    rows below pin is the half a Python caller can provoke: the
     payload arrives as attributes, the ids are the ids that were used,
     and the words are stable words rather than prose sliced out of the
     message. The arms with no door are pinned by construction in
-    `src/tests.rs`, where they can be built.
+    `src/tests.rs`, where they can be built; the rebind arms and the
+    continuous-slot arms are provoked through their own doors in
+    `tests/test_slot_edits.py`.
     """
 
     @staticmethod

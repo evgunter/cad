@@ -1179,11 +1179,11 @@ FAMILIES: dict[str, str] = {
         "beside the four that exist, and the refusals each can raise."
     ),
     "B-DOC-EDITS": (
-        "the five `DocEdit` arms no Python constructor builds — a "
-        "slot's expression after insertion, an expression at a path, a "
-        "rebound name, and the two witness edits. Closing it binds one "
-        "`DocEdit` constructor per arm and one test row per tag each "
-        "can raise."
+        "the three `DocEdit` arms no Python constructor builds — an "
+        "expression at a path, and the two witness edits. Closing it "
+        "needs a curated payload for the witness pair and a prose "
+        "rendering for the path refusal, then one constructor per arm "
+        "and one test row per tag each can raise."
     ),
     "B-MESH-BOUNDARIES": (
         "`Mesh::boundaries`, the tessellation's boundary polylines. A "
@@ -3024,14 +3024,35 @@ MEMBERS_NOT_BOUND = {
     # `work/lib/two-datum-arms-have-no-node-constructor.md`.
     "Datum::Point": f"{GAP}: B-DATUM-DOORS no `Node.datum_*` constructor mints this arm",
     "Datum::Frame": f"{GAP}: B-DATUM-DOORS no `Node.datum_*` constructor mints this arm",
-    # THE FIVE EDITS WITH NO PYTHON DOOR — a slot's expression after
-    # insertion, an expression at a path, a rebound name, and the two
-    # witness edits. Nothing about their arguments is unspellable; the
-    # constructors simply do not exist. Filed as
-    # `work/lib/five-doc-edit-arms-have-no-python-door.md`.
-    "DocEdit::SetParam": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
+    # THE THREE EDITS STILL WITH NO PYTHON DOOR, and each is a
+    # different sentence now that LIB-EDITS has built the two that
+    # were only missing. Those two left this roster ENTIRELY rather
+    # than moving into `MEMBERS_BOUND_AS`: `DocEdit.set_param` and
+    # `DocEdit.rebind` spell `SetParam` and `Rebind` namesake for
+    # namesake, and rule 1 accounts a member the stub spells. Their
+    # doors are the CONTINUOUS slot edit — one door for every slot,
+    # the opposite decision from the three `bind_*_param` doors,
+    # because the continuous slots are the whole named alphabet
+    # `EditError.slot` publishes and this door reads it in the other
+    # direction — and the one name repair, whose halves take the role
+    # suffix `EditError.from_kind` / `to_kind` take, for the reason
+    # those two do: `from` is a Python keyword.
+    #
+    # The WITNESS PAIR is the appearance four's argument at a second
+    # pair of types: `crates/pncad/src/document.rs` does not carry
+    # `WitnessDatum` or `BranchCertification` at all, so the arms have
+    # no payload a consumer of that module can name — in Rust or in
+    # Python. Filed as
+    # `work/lib/the-witness-edits-need-a-facade-type.md`.
+    #
+    # The EXPRESSION-PATH edit is neither: its payload is curated
+    # (`ExprPath` is `EditError.path`) and the constructor is
+    # mechanical. What blocks it is its own refusal — `path_off_tree`
+    # renders the address through `Debug`, and the binding's prose
+    # gate panics on that, so the door would panic exactly where it is
+    # supposed to refuse. Filed as
+    # `work/lib/the-expression-path-edit-cannot-refuse-as-prose.md`.
     "DocEdit::SetExpression": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
-    "DocEdit::Rebind": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
     "DocEdit::ReWitness": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
     "DocEdit::ReWitnessBulk": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
     # THE APPEARANCE FOUR, and the reason is the FAÇADE's rather than
