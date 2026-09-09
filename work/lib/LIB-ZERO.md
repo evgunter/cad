@@ -2,11 +2,12 @@
 id: LIB-ZERO
 kind: unit
 title: the quantity classes mirror the newtypes' derives: IEEE comparisons, no hash on Length and Angle
-status: review
+status: closed
 opened: 2026-09-09
 branch: lib/zero
 refs: [the-quantity-boundary-compares-and-hashes-as-if-poison-and-signed-zero-cannot-arrive]
 pr: 2259
+closed: 2026-09-09
 ---
 
 
