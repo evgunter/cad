@@ -1159,39 +1159,28 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES: dict[str, str] = {
-    # THE MAP WAS EMPTY, and it could be: B-MEASURES was the last
-    # charter standing and closed at LIB-B-MEASURES; the seven before
-    # it closed at LIB-B-READBACK, LIB-B-CHECKS, LIB-B-CANCEL,
-    # LIB-B-FACE-FRAME, LIB-B-PART, LIB-B-NOTATION and
-    # LIB-B-DISTRIBUTIONS. Every family the LIB residual register's
-    # category B enumerated is closed, and none of the four below
-    # comes from that register.
+    # THE MAP WAS EMPTY ONCE, and it could be again: every family the
+    # LIB residual register's category B enumerated is closed
+    # (B-READBACK, B-CHECKS, B-CANCEL, B-FACE-FRAME, B-PART,
+    # B-NOTATION, B-DISTRIBUTIONS, B-MEASURES), and neither of the two
+    # below comes from that register.
     #
-    # THREE OF THEM ARE THE MEMBER RULE'S OWN FINDINGS. Each is a
-    # member of a curated type Python spells identically, so the name
-    # match accounted it and no roster here could report it until
-    # members were counted. The fourth is a debt created rather than
-    # found: five names curated into `pncad::select` with no Python
-    # spelling at all. `test_every_gap_entry_names_a_defined_id` reads
-    # this map in both directions: no entry may cite a key that is not
-    # here, and no key here may go uncited.
-    "B-DATUM-DOORS": (
-        "the two `Datum` arms with no `Node.datum_*` constructor — "
-        "`Point` and `Frame`. Closing it binds a constructor for each, "
-        "beside the four that exist, and the refusals each can raise."
-    ),
+    # ONE OF THEM IS A MEMBER-RULE FINDING: a member of a curated type
+    # Python spells identically, so the name match accounted it and no
+    # roster here could report it until members were counted. The
+    # rule's other two findings closed at LIB-GAPS-1, which bound
+    # `Node.datum_point`, `Node.datum_frame` and `Mesh.boundaries`.
+    # The second is a debt created rather than found: five names
+    # curated into `pncad::select` with no Python spelling at all.
+    # `test_every_gap_entry_names_a_defined_id` reads this map in both
+    # directions: no entry may cite a key that is not here, and no key
+    # here may go uncited.
     "B-DOC-EDITS": (
         "the three `DocEdit` arms no Python constructor builds — an "
         "expression at a path, and the two witness edits. Closing it "
         "needs a curated payload for the witness pair and a prose "
         "rendering for the path refusal, then one constructor per arm "
         "and one test row per tag each can raise."
-    ),
-    "B-MESH-BOUNDARIES": (
-        "`Mesh::boundaries`, the tessellation's boundary polylines. A "
-        "Python consumer holds positions, triangles and patches and "
-        "cannot draw an edge. Closing it answers the polylines beside "
-        "`Mesh.patch`."
     ),
     "B-NAME-BUILDERS": (
         "minting a revolve's role name in one call — `band`, "
@@ -2933,13 +2922,17 @@ MEMBERS_BOUND_AS = {
     # `Value.datum()` answers with, and it spells none of these six. So
     # rule 1 accounted the whole enum on a spelling coincidence and
     # `FaceFrame` was invisible for the life of its family
-    # (`work/lib/datum-crosses-name-for-name-as-two-types.md`). Four arms
-    # cross as `Node.datum_*` constructors, one per arm; `Point` and
-    # `Frame` have none and are below.
+    # (`work/lib/datum-crosses-name-for-name-as-two-types.md`). All six
+    # arms cross as `Node.datum_*` constructors, one per arm. `Point`
+    # and `Frame` were the family B-DATUM-DOORS chartered, closed at
+    # LIB-GAPS-1: a Python author now builds six of six datum kinds,
+    # and each reads back through `Value.datum()`.
     "Datum::Plane": "Node.datum_plane",
     "Datum::Axis": "Node.datum_axis",
     "Datum::AxisInPlane": "Node.datum_axis_in_plane",
     "Datum::FaceFrame": "Node.datum_face_frame",
+    "Datum::Point": "Node.datum_point",
+    "Datum::Frame": "Node.datum_frame",
     # `Tied` is the arm the namesake spells; `Unique` is that attribute
     # being false.
     "Denotation::Unique": "Denotation.tied",
@@ -2984,7 +2977,7 @@ MEMBERS_BOUND_AS = {
     # The entity-kind filter, named for what it does at the door.
     "NamePat::kind": "NamePat.of_kind",
     # The datum arm crosses as one constructor per `Datum` arm (see the
-    # `Datum` rows above); this points at the first of the four.
+    # `Datum` rows above); this points at the first of the six.
     "Node::Datum": "Node.datum_plane",
     # Spelled out, as the stub spells every direction.
     "Ray::dir": "Ray.direction",
@@ -3006,10 +2999,12 @@ MEMBERS_BOUND_AS = {
 #: families, for their reasons, one level in.
 #:
 #: `different-shape` and `behind-a-door` read as they do above. A `gap:`
-#: entry is OWED WORK and names the id that owns it, and three of the ids
-#: here are chartered in `FAMILIES` by this rule's first run: five `DocEdit`
-#: arms, two `Datum` arms and one `Mesh` field that no Python door reaches.
-#: The fourth cites `G2`, the audit's, beside `sweep_body` above.
+#: entry is OWED WORK and names the id that owns it. One of the ids here
+#: is chartered in `FAMILIES` by this rule's first run — the five
+#: `DocEdit` arms no Python constructor builds; the rule's other two
+#: findings, the two `Datum` arms and the `Mesh` field, are bound and
+#: gone from this table. The remaining entry cites `G2`, the audit's,
+#: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
     # THE PATH VERBS' ARC SPECS, one family. A spec's fields are its
     # CONSTRUCTOR's arguments — `Bulge(p, b)`, `Center(c, winding, p)` —
@@ -3041,12 +3036,6 @@ MEMBERS_NOT_BOUND = {
     # The replay structure is the lattice's own bookkeeping; no Python
     # value is ever one.
     "ClosedLoop::structure": INTERIOR,
-    # THE TWO ARMS WITH NO DOOR. `Node` has no `datum_point` and no
-    # `datum_frame`, so a Python author can build four of the six datum
-    # kinds. Filed as
-    # `work/lib/two-datum-arms-have-no-node-constructor.md`.
-    "Datum::Point": f"{GAP}: B-DATUM-DOORS no `Node.datum_*` constructor mints this arm",
-    "Datum::Frame": f"{GAP}: B-DATUM-DOORS no `Node.datum_*` constructor mints this arm",
     # THE THREE EDITS STILL WITH NO PYTHON DOOR, and each is a
     # different sentence now that LIB-EDITS has built the two that
     # were only missing. Those two left this roster ENTIRELY rather
@@ -3099,11 +3088,6 @@ MEMBERS_NOT_BOUND = {
     # answers `Optional[NodeId]`, so there is no record list to hand
     # back.
     "Loaded::records": SHAPE,
-    # THE TESSELLATION'S BOUNDARY POLYLINES, which nothing in the
-    # binding reads: a Python consumer holds positions, triangles and
-    # patches and cannot draw the edges. Filed as
-    # `work/lib/mesh-boundary-polylines-have-no-python-door.md`.
-    "Mesh::boundaries": f"{GAP}: B-MESH-BOUNDARIES the mesh boundary polylines",
     # The declared FACES are arena keys, which the curation exists to
     # keep unnameable in Python; the pair reaches a caller as the two
     # names `a` and `b`.

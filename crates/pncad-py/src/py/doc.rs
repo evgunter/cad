@@ -1952,6 +1952,65 @@ impl Node {
         })
     }
 
+    /// **An oriented plane** — a sketch frame, from its origin and its
+    /// two in-plane directions.
+    ///
+    /// The origin is dimensioned (`Length`); `u` and `v` are
+    /// dimensionless triples, matching `SlotId::U`'s and
+    /// `SlotId::V`'s `Scalar`. They are authored freely and
+    /// ORTHONORMALIZED at evaluation with `u` KEPT: sketch +x is the
+    /// direction written here, and `v` yields its component along `u`,
+    /// so editing `v` alone cannot silently turn every profile drawn
+    /// on the frame.
+    ///
+    /// A [`Node::datum_plane`] pins five of a placement's six rigid
+    /// degrees of freedom. The sixth — the spin about the normal — is
+    /// what a sketch's x and y axes ARE, so a plane cannot serve as a
+    /// profile's plane and this is the node `Node.profile` names.
+    ///
+    /// [`Node::sketch_frame`] mints the same arm from a
+    /// [`SketchPlane`] value, which is where the named `xy`/`yz`/`zx`
+    /// planes and the `elevation=` sugar live. This door is the arm's
+    /// own spelling: three triples written straight into the node's
+    /// nine expression slots, with no rigid-frame value in between.
+    ///
+    /// Refuses at `evaluate`, never here. A `u` of zero length, or a
+    /// `v` parallel to it, is `degenerate_direction` naming which axis
+    /// went — `datum frame x axis`, `datum frame y axis`. A pair that
+    /// is merely not perpendicular is LEGAL: orthogonalizing it is
+    /// what the arm does.
+    #[staticmethod]
+    fn datum_frame(
+        py: Python<'_>,
+        origin: (
+            super::quantity::Length,
+            super::quantity::Length,
+            super::quantity::Length,
+        ),
+        u: (f64, f64, f64),
+        v: (f64, f64, f64),
+    ) -> PyResult<Self> {
+        let origin = [
+            literal(py, origin.0.0.meters(), d::Dimension::Length)?,
+            literal(py, origin.1.0.meters(), d::Dimension::Length)?,
+            literal(py, origin.2.0.meters(), d::Dimension::Length)?,
+        ];
+        let dir = |t: (f64, f64, f64)| -> PyResult<[d::Expr; 3]> {
+            Ok([
+                literal(py, t.0, d::Dimension::Scalar)?,
+                literal(py, t.1, d::Dimension::Scalar)?,
+                literal(py, t.2, d::Dimension::Scalar)?,
+            ])
+        };
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::Frame {
+                origin,
+                u: dir(u)?,
+                v: dir(v)?,
+            }),
+        })
+    }
+
     /// A datum plane: a point and a normal.
     ///
     /// The origin is dimensioned (`Length`); the normal is a
@@ -1981,6 +2040,40 @@ impl Node {
         ];
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Plane { origin, normal }),
+        })
+    }
+
+    /// A datum point: a position, and nothing else.
+    ///
+    /// The position is dimensioned (`Length`), matching
+    /// `SlotId::Origin`. There is no direction, because a point has
+    /// none — `Datum.direction` reads back `None` for this kind, where
+    /// a plane's or an axis's answers a triple.
+    ///
+    /// It denotes no body and cuts nothing; what a point is FOR is
+    /// being referred to. `GeomPred.datum_distance` reads an entity's
+    /// UNSIGNED distance to it, so a point is how a selection says
+    /// "near here" without naming a face.
+    ///
+    /// Nothing refuses at evaluation: three slots are read and the
+    /// position is the value. A non-finite coordinate refuses HERE, as
+    /// every literal does.
+    #[staticmethod]
+    fn datum_point(
+        py: Python<'_>,
+        position: (
+            super::quantity::Length,
+            super::quantity::Length,
+            super::quantity::Length,
+        ),
+    ) -> PyResult<Self> {
+        let position = [
+            literal(py, position.0.0.meters(), d::Dimension::Length)?,
+            literal(py, position.1.0.meters(), d::Dimension::Length)?,
+            literal(py, position.2.0.meters(), d::Dimension::Length)?,
+        ];
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::Point { position }),
         })
     }
 

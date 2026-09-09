@@ -4354,3 +4354,93 @@ SendMessage with "push first", nothing lost — the "push after every
 commit" rule held, and the restart cost was one re-poll. No kernel
 behaviour change; tour renders and die corpus byte-identical per the
 lane; the lane ran the pinned ruff for real. Thirteen sites in eight files converted; the sites NOT converted are listed with reasons (the emitter, the kind pins, a `BandRimPi` pairing with no builder). ~2h (incl. the restart), ~232k tokens.
+
+**LIB-GAPS-1 MERGED (2026-09-09, #2250; mechanical under the 08-29
+ruling, no A/B row). Two of the three census families LIB-MEMBERS'
+member rule chartered, closed: `Node.datum_point(position)` and
+`Node.datum_frame(origin, u, v)` beside the four datum constructors —
+a Python author now builds six of six datum kinds — and
+`Mesh.boundaries`, the tessellation's boundary polylines.** The
+datum doors take the sibling shapes (`Length` triples for positions,
+bare direction triples matching the slots' `Scalar`); `datum_frame`'s
+`u`/`v` are authored freely and orthonormalized at evaluation with
+`u` kept, so a merely non-perpendicular pair is legal and a parallel
+one refuses `degenerate_direction` naming the axis; a point refuses
+nothing at evaluation (a non-finite coordinate refuses at the door,
+as every literal does). `Node.sketch_frame` still mints the same
+`Frame` arm from a `SketchPlane` value; `datum_frame` is the arm's
+own spelling, the two documented against each other. The read side
+needed no extension — `Value.datum()` already answered `"point"` and
+`"frame"`; the arms were readable and only unauthorable, exactly as
+filed. `Mesh.boundaries` answers `list[list[int]]`, one polyline of
+position indices per model edge in the kernel's edge order — the
+same opaque alphabet `Mesh.triangles` speaks — with two stated
+decisions: no value class (the polyline's other three fields are
+arena keys the curation keeps unnameable, so a class would hold the
+indices and nothing else; the pairing that makes an index a handle
+already exists as `NodePick.boundary_names`, entry for entry), and
+answered whole rather than by index (a patch is indexed because
+`triangles` concatenates them and separability must be recoverable;
+polylines have no concatenated spelling to be separable from — the
+list IS the door). Closure decided on indices, never coordinates, as
+watertightness is. Stated deviation from the brief: the
+`Mesh::boundaries` census row is DELETED rather than moved — the
+member rule accounts a same-named attribute on the namesake, and the
+roster-decay check refuses a row for a member the namesake now
+spells; the two `Datum` rows move to `MEMBERS_BOUND_AS` (the
+read-side `Datum` spells no arm); `B-DATUM-DOORS` and
+`B-MESH-BOUNDARIES` leave `FAMILIES`. Rows: read-back, both
+downstream doors (a sketch plane on the frame, a distance to the
+point) and both refusal shapes for the datums; count, index
+validity, segments-are-triangle-edges, closure and name pairing for
+the polylines; stub, fixtures, the north-star roster (the one the
+census cannot see). Three stale sentences saying the polylines were
+unbound corrected. No kernel change; the lane ran the pinned ruff
+for real. Five stale sentences saying the polylines were unbound corrected (module header, the pick door, the stub, the meshing guide page, the audit's G11 row) — the guide page also wrongly said no index-to-name door existed on either side; `NodePick.patch_names`/`boundary_names` are that door and the page names them now. ~64 min, ~240k tokens.
+
+**LB21 — wave 5 planned from the slate after wave 4 (2026-09-09,
+after LIB-NAMES landed).** Wave 4 (LB20) closed thirteen units in
+one day — DOORS-2, PROJ, DOORS-3, CUR7, SMALL, WILDCARDS, HASH, SWEEP,
+DISCRIMINANTS, MEMBERS, IMPORT-REPORT, NAMES, plus three `[ev]` PRs
+ruled and merged (#2230, #2231, #2232) with #2233 still open — and
+the slate is 21 open issues, five of them filed by wave 4's own
+units. Sorted by what they wait on. RUNNING: LIB-GAPS-1 (the two
+datum constructors and the mesh boundary polylines) and LIB-EDITS
+(the five `DocEdit` constructors) — both MEMBERS' findings. QUEUED,
+mechanical, briefs written: LIB-PYNAMES (the five role-name builders
+in Python, answering the name text the fillet and shell doors take —
+NAMES' residue and the `B-NAME-BUILDERS` family); LIB-CUR8 (three
+curation decisions under LB17: `MarginDiag`/`BandField` re-measured
+on the count DOORS-2 moved, `ShellClassifyError`'s carriage under
+`CheckEvidence`, and the cross-list rule SWEEP surfaced — whether a
+payload owes its carrier's list or the vocabulary's); LIB-SMALL-2
+(the two recourse sentences S-MATE handed to LIB, the stub's missing
+`__eq__` on three mate classes with the guard that would have caught
+it, the façade guard's last three line-local readers through
+`code_only`; the audit's `arc_continue` line rides along only if
+BOOL-10 #2135 has merged); LIB-MC (the advisory Monte Carlo door,
+ruled (A) and unhurried per Ev). AFTER CUR8: LIB-MATE-PAYLOAD (the
+`MateFault` arms whose payload does not cross — the two `DocumentId`s
+mechanical now, `Frame`'s in the frame door's vocabulary, `Band`/
+`Indeterminate` per CUR8's decision, `Unleverable` still behind a type
+editor-core does not re-export). AFTER `[ev]` #2233: item 1 (A) — the
+fifteen slot doors accept `Length | WrittenLength` — and item 2 (B′)
+— the quantity newtypes compare as Rust's `PartialOrd` and stop
+hashing — then LIB-HASH-2 applying the same mirror rule to the nine
+value classes `pncad-py-value-classes-compare-without-hashing` lists.
+WAITING on other programs or on Ev: `path`'s door (the kernel
+`PathError` discriminant, SMELL D37/D39); the witness-bifurcation arm
+(the M6 solver); `correspondence-structs-coincide` (the verb seat);
+`no-door-mints-mate-frame-from-face` (S-MATE's by number, a
+freeze-at-authoring design question — the next `[ev]` batch);
+`the-role-name-builders-reach-only-the-outer-profile-loop` (a
+signature choice with three shapes weighed, low stakes — the same
+batch). Orchestrator notes for the record: (1) a curated-list change
+IS a census change — every brief that touches a `pub use` list now
+carries `run-python-tests.sh` in its verification list, after NAMES'
+red; (2) the container restart at ~03:10Z cost one re-poll and zero
+work, because every lane pushes after every commit — the rule earned
+its place today; (3) merging the second of two lanes that touched the
+census file has needed a main merge and a CI re-run every time this
+wave; the file is the shared seam of the binding, and two lanes on it
+at once is a cost to weigh at dispatch, not a defect.

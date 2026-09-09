@@ -3772,6 +3772,12 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `tests/test_union.py` and `TestTheVDegreeParamBinding`
         # above.
         #
+        # `datum_point` and `datum_frame` JOINED it at LIB-GAPS-1,
+        # which closed B-DATUM-DOORS: all six arms of the kernel's
+        # `Datum` now have a constructor, so a Python author builds
+        # six of six datum kinds. The positive form is
+        # `TestDatumPointAndFrame` in `tests/test_document.py`.
+        #
         # `measure` and `assertion` JOINED it at LIB-B-MEASURES, which
         # closed B-MEASURES. They are the last two of the kernel's
         # twenty-five recipe node kinds to become constructible from
@@ -3787,7 +3793,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             [
                 "assertion", "boolean", "chamfer", "datum_axis",
                 "datum_axis_in_plane", "datum_face_frame",
-                "datum_plane", "declare",
+                "datum_frame", "datum_plane", "datum_point", "declare",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
                 "loft", "mate", "measure", "part", "pattern",
                 "placed_union", "placed_union_at",

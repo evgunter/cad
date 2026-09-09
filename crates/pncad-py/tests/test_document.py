@@ -11,21 +11,26 @@ import unittest
 import pncad
 from pncad import (
     BooleanOp,
+    Cmp,
     Distribution,
     Doc,
     DocEdit,
     DocParam,
     EditError,
+    EntityKind,
     EvaluationError,
     Frame,
+    GeomPred,
     Length,
     MeasureExpr,
     MeasurePrimitive,
     DocParamValue,
+    NamePat,
     Node,
     Open,
     ParamName,
     PatternKind,
+    Selector,
     SketchPlane,
     Start,
     evaluate,
@@ -909,6 +914,125 @@ class TestDatumReadback(unittest.TestCase):
         # The sketch frame is the world xy plane, so the two spellings
         # of the same point agree coordinate for coordinate.
         self.assertEqual(datum.origin, (0.25 * m, 0.5 * m, 0 * m))
+
+
+class TestDatumPointAndFrame(unittest.TestCase):
+    """The two arms a Python author could not write. Six of the six
+    datum kinds now have a `Node.datum_*` constructor; each of these
+    two reads back through `Value.datum()`, and each is here because a
+    downstream door consumes it — a selection measures its distance to
+    a point, a profile is drawn on a frame."""
+
+    def test_a_point_reads_back_as_its_position_and_faces_no_way(self):
+        doc = Doc()
+        point = doc.insert(Node.datum_point((1 * m, 2 * m, 3 * m)))
+        datum = evaluate(doc).value(point).datum()
+        self.assertEqual(datum.kind, "point")
+        for coordinate in datum.origin:
+            self.assertIsInstance(coordinate, Length)
+        self.assertEqual(datum.origin, (1 * m, 2 * m, 3 * m))
+        # The fields the other kinds fill are `None`, not a zero triple
+        # standing in for a direction a point does not have.
+        self.assertIsNone(datum.direction)
+        self.assertIsNone(datum.axes)
+        self.assertIsNone(datum.in_plane)
+
+    def test_a_selection_measures_its_distance_to_a_point(self):
+        """The downstream door: `GeomPred.datum_distance` is UNSIGNED
+        to a point, so a point is how a rule says "near here" without
+        naming a face."""
+        doc = Doc()
+        cube = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        # On the bottom cap's centroid, a metre under the top cap's.
+        here = doc.insert(Node.datum_point((0.5 * m, 0.5 * m, 0 * m)))
+        ev = evaluate(doc)
+        faces = Selector.of(NamePat.of_kind(EntityKind.Face))
+        on_it = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Approx, 0 * m)])
+        far = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Greater, 0.9 * m)])
+        self.assertEqual(len(on_it), 1)
+        self.assertEqual(len(far), 1)
+        self.assertNotEqual(on_it, far)
+
+    def test_a_frame_reads_back_as_an_orthonormalized_pair(self):
+        """`u` is KEPT as written and `v` yields its component along it,
+        so a pair that is merely not perpendicular is legal and the
+        axes come back unit."""
+        doc = Doc()
+        frame = doc.insert(
+            Node.datum_frame((0 * m, 0 * m, 1 * m), (1.0, 0.0, 0.0), (1.0, 2.0, 0.0))
+        )
+        datum = evaluate(doc).value(frame).datum()
+        self.assertEqual(datum.kind, "frame")
+        self.assertEqual(datum.origin, (0 * m, 0 * m, 1 * m))
+        self.assertIsNone(datum.in_plane)
+        u, v = datum.axes
+        # An axis is a DIRECTION: dimensionless, and bare.
+        self.assertNotIsInstance(u[0], Length)
+        self.assertEqual(u, (1.0, 0.0, 0.0))
+        for got, want in zip(v, (0.0, 1.0, 0.0), strict=True):
+            self.assertAlmostEqual(got, want)
+        # The normal rides ALONGSIDE the axes: u x v, so a reader
+        # asking which way the frame faces gets a plane's answer.
+        for got, want in zip(datum.direction, (0.0, 0.0, 1.0), strict=True):
+            self.assertAlmostEqual(got, want)
+
+    def test_a_profile_is_drawn_on_an_authored_frame(self):
+        """The downstream door, and the frame's tilt showing in the
+        body: the same square extruded on a frame leaning 45 degrees
+        puts material above the metre the world-xy version tops out
+        at."""
+        ground = (0 * m, 0 * m, 0 * m)
+        corners = [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)]
+
+        def prism(plane_node, doc):
+            square = doc.insert(Node.polygon(corners, plane=plane_node))
+            return doc.insert(Node.extrude(square, 1 * m))
+
+        doc = Doc()
+        tilted = doc.insert(Node.datum_frame(ground, (1.0, 0.0, 0.0), (0.0, 1.0, 1.0)))
+        leaning = prism(tilted, doc)
+        upright = prism(doc.sketch_frame(), doc)
+        floor = doc.insert(Node.datum_plane(ground, (0.0, 0.0, 1.0)))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(leaning))
+        # A rigid tilt is volume-preserving; where the material SITS is
+        # what moved.
+        self.assertAlmostEqual(
+            ev.value(leaning).body().mass_properties().volume, 1.0, delta=1e-9
+        )
+        faces = Selector.of(NamePat.of_kind(EntityKind.Face))
+        above = [GeomPred.datum_distance(floor, Cmp.Greater, 1 * m)]
+        self.assertEqual(ev.select_where(upright, faces, above), [])
+        self.assertNotEqual(ev.select_where(leaning, faces, above), [])
+
+    def test_a_frame_whose_axes_span_no_plane_refuses_at_evaluate(self):
+        """Gram-Schmidt states "these two span no plane" as a LENGTH,
+        so the refusal is the direction one every datum raises, naming
+        which axis went."""
+        for u, v, axis in (
+            ((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), "x"),
+            ((1.0, 0.0, 0.0), (2.0, 0.0, 0.0), "y"),
+        ):
+            with self.subTest(axis=axis):
+                doc = Doc()
+                bad = doc.insert(Node.datum_frame((0 * m, 0 * m, 0 * m), u, v))
+                with self.assertRaises(EvaluationError) as caught:
+                    evaluate(doc).value(bad)
+                self.assertEqual(caught.exception.kind, "degenerate_direction")
+                self.assertIn(f"datum frame {axis} axis", str(caught.exception))
+
+    def test_a_non_finite_coordinate_refuses_at_the_door(self):
+        """Both doors build literals, so the kernel's own literal
+        refusal arrives where the call was written, carrying the
+        offending number."""
+        with self.assertRaises(pncad.LiteralError) as caught:
+            Node.datum_point((float("nan") * m, 0 * m, 0 * m))
+        self.assertEqual(caught.exception.kind, "non_finite")
+        with self.assertRaises(pncad.LiteralError) as caught:
+            Node.datum_frame(
+                (0 * m, 0 * m, 0 * m), (float("inf"), 0.0, 0.0), (0.0, 1.0, 0.0)
+            )
+        self.assertEqual(caught.exception.value, float("inf"))
 
 
 class TestBooleanDeclareArgument(unittest.TestCase):

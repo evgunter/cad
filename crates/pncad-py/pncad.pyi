@@ -1969,6 +1969,17 @@ class Node:
         normal: tuple[float, float, float],
     ) -> Node: ...
     @staticmethod
+    def datum_point(position: tuple[Length, Length, Length]) -> Node:
+        """A datum point: a position, and nothing else.
+
+        There is no direction, because a point has none —
+        `Datum.direction` reads back `None` for this kind. A point
+        denotes no body and cuts nothing; what it is FOR is being
+        referred to, and `GeomPred.datum_distance` reads an entity's
+        UNSIGNED distance to it. Nothing refuses at `evaluate`; a
+        non-finite coordinate raises `LiteralError` here.
+        """
+    @staticmethod
     def datum_face_frame(at: NodeId, face: str, spin: Angle) -> Node:
         """A sketch frame DERIVED from a face — "sketch on this face".
 
@@ -1987,6 +1998,32 @@ class Node:
         for a name that stopped denoting, `face_frame_kind` for an
         edge or vertex name, `face_frame_not_planar` for a curved
         carrier, `face_frame_readback` for unreadable geometry.
+        """
+
+    @staticmethod
+    def datum_frame(
+        origin: tuple[Length, Length, Length],
+        u: tuple[float, float, float],
+        v: tuple[float, float, float],
+    ) -> Node:
+        """An oriented plane — a sketch frame, written as its origin
+        and its two in-plane directions.
+
+        `u` and `v` are authored freely and ORTHONORMALIZED at
+        evaluation with `u` kept: sketch +x is the direction written
+        here and `v` yields its component along `u`, so editing `v`
+        alone cannot silently turn every profile drawn on the frame. A
+        pair that is merely not perpendicular is legal.
+
+        A `datum_plane` pins five of a placement's six rigid degrees of
+        freedom; the sixth is the spin about the normal, which is what
+        a sketch's x and y axes ARE — so this, not a plane, is the node
+        `Node.profile` names. `Node.sketch_frame` mints the same arm
+        from a `SketchPlane` value; this door writes the three triples
+        straight into the node's nine slots.
+
+        A zero-length `u`, or a `v` parallel to it, refuses typed at
+        `evaluate` — `degenerate_direction`, naming which axis went.
         """
 
     @staticmethod
@@ -3528,13 +3565,14 @@ class Mesh:
 
     No arena key crosses. A patch's face, a boundary's edge and their
     vertex back-references are keys, so a patch is addressed by INDEX
-    here and the per-edge boundary polylines are not bound at all.
+    here and a boundary polyline is a run of position indices with
+    nothing else in it.
 
     What the index is FOR, beside drawing, is `NodePick.patch_names`:
     it answers one stable name per patch, in patch order, so a viewer
     goes from the patch it drew to the name it can select with without
-    the key ever leaving. `NodePick.boundary_names` is the edge
-    twin."""
+    the key ever leaving. `NodePick.boundary_names` is the edge twin,
+    entry for entry with `boundaries`."""
 
     @property
     def positions(self) -> list[tuple[Length, Length, Length]]:
@@ -3560,6 +3598,25 @@ class Mesh:
     def triangle_count(self) -> int: ...
     def patch(self, index: int) -> list[tuple[int, int, int]]:
         """One face's triangles. Raises `IndexError` past the end."""
+
+    @property
+    def boundaries(self) -> list[list[int]]:
+        """Every edge's chord polyline, as index runs into `positions`,
+        in the kernel's edge order.
+
+        The same alphabet `triangles` speaks: the surface is drawn from
+        the triangles, the MODEL's edges from these — a wireframe or a
+        hidden-line view. Each polyline runs in its edge's intrinsic
+        direction and carries at least two indices; an edge that closes
+        on itself repeats its vertex index at both ends, so a closed
+        edge is `line[0] == line[-1]`, decided on indices and never on
+        coordinates.
+
+        They are answered whole rather than one at a time because
+        there is no concatenated spelling to be separable from: a run
+        of indices means nothing joined to the next edge's. A
+        polyline's POSITION here is the handle
+        `NodePick.boundary_names` inverts, entry for entry."""
 
     def to_stl_ascii(self, solid_name: str = "") -> str:
         """The ASCII STL text, `solid <name>` first line.

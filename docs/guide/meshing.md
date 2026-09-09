@@ -71,14 +71,21 @@ comparison and no tolerance anywhere in it.
 export order — the walk both STL writers make, so the array and an
 exported file agree facet for facet.
 
-What does **not** cross is the picking chain. A patch's face, a
-boundary polyline's edge and their vertex back-references are arena
-keys, and keeping those unnameable is what the whole curated surface
-is for. So a patch is addressed by INDEX here, and the per-edge
-boundary polylines — whose only content beside indices is those keys
-— are not bound at all. A door from a patch to a `StableName` would
-be the honest shape and does not exist on either side of the
-boundary; see the north-star audit's G11 row.
+**Per-edge boundary polylines.** `mesh.boundaries` answers one
+polyline per model edge, in the same index alphabet — the surface is
+drawn from the triangles, the model's *edges* from these, which is
+what a wireframe or a hidden-line view is made of. A polyline runs in
+its edge's intrinsic direction; an edge that closes on itself repeats
+its vertex index at both ends, so `line[0] == line[-1]` is the
+closure, decided on indices like everything else here.
+
+What does **not** cross are the arena keys. A patch's face, a boundary
+polyline's edge and their vertex back-references are keys, and keeping
+those unnameable is what the whole curated surface is for. So a patch
+and a polyline are addressed by INDEX here. The door from an index to
+a `StableName` is the honest shape and it exists: `NodePick`'s
+`patch_names` and `boundary_names` answer one name per patch and per
+polyline, in the same order, with the key never leaving the kernel.
 
 ## Step 5, written by the caller
 

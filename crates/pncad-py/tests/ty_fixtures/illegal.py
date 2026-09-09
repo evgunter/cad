@@ -155,6 +155,14 @@ Node.transform(solid, (0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 1 * m)  # ty: erro
 # A datum plane's normal is a dimensionless triple.
 Node.datum_plane((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m))  # ty: error
 
+# A datum point's position is a POSITION: dimensioned, like every other
+# position on this surface.
+Node.datum_point((0.0, 0.0, 0.0))  # ty: error
+
+# A datum frame's two axes are DIRECTIONS and are bare; the origin is
+# the only dimensioned argument it takes.
+Node.datum_frame((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0))  # ty: error
+
 # A multi-loop profile is a list of LOOPS, and nothing else.
 Node.profile([circle((0 * m, 0 * m), 1 * m), "hole"])  # ty: error
 
