@@ -1987,5 +1987,5 @@ pub async fn run_web(tol: Tol, canvas_id: &str) -> Result<(), WebStartupError> {
         // the honest rendering — `as_string()` is not the alternative,
         // because it answers `None` for every non-string `JsValue` and
         // would drop the browser's message entirely.
-        .map_err(|error| WebStartupError::Runner(format!("{error:?}")))
+        .map_err(|error| WebStartupError::Runner(error.to_string()))
 }
