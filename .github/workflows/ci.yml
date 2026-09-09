@@ -1339,6 +1339,24 @@ jobs:
           python3 scripts/slowest-tests.py --selftest
           python3 scripts/pr-added-tests.py --selftest
           scripts/base-test-listing.sh --selftest
+      # THE PAYLOAD-RUNG SWEEP, run rather than re-derived. The façade's four
+      # curated lists carry refusals whose payloads may be on no list at all,
+      # and the sweep that finds them was a paragraph of prose re-implemented
+      # by every unit that ran it: three runs reported three sets of numbers
+      # over one tree, and one disagreed with itself. `--check` pins the
+      # NAMES it finds against the dispositions in the script, so a new rung
+      # reds the PR that lands it instead of waiting for the next re-sweep.
+      #
+      # SITED IN THIS JOB because its inputs are the crates' sources and the
+      # script, which is exactly the change set a `run_build` job runs on. Its
+      # own fixture battery rides the same row, for the reason every selftest
+      # here does: nothing else drives a scanner's filters, and a scanner that
+      # stopped seeing a category reports the same green as one that saw none.
+      # Stdlib python over the tree — no toolchain, no cargo, no network.
+      - name: payload-rung sweep (the curated lists' payloads are decided)
+        run: |
+          python3 scripts/payload-rung-sweep.py --selftest
+          python3 scripts/payload-rung-sweep.py --check
       # THE REQUIRED CHECK'S OWN READER, and it is the same argument as the row
       # above one step further out. `scripts/check-run-jobs.py` IS the `gate ok`
       # job — the single name a merge queue or a branch protection is meant to
