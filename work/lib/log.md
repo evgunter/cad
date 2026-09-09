@@ -4117,3 +4117,35 @@ LIB-SWEEP's declaration resolver. Recorded on
 `datum-crosses-name-for-name-as-two-types`; the unit (LIB-MEMBERS)
 dispatches after LIB-SWEEP lands. Both items of #2230 are now ruled
 and the PR merges.
+
+**`[ev]` PR 2231 RULED (2026-09-09, Ev).** Item 1
+(`a-recipe-cannot-hold-a-narration-body-without-it-becoming-a-root`):
+Ev suspected every option changed kernel code for a demo's benefit,
+and the tree agreed — roots are exactly the sink set, and a
+`Node::Measure` consumes its bodies as edges while denoting no body,
+so "measured, not modelled" already exists in-graph; the tour's cost
+is self-inflicted (it measures out of graph). Ruled **(D)**: no node
+or root change, closed as the demo's own cost; the residual E3
+question (mass properties as a measure primitive) explicitly NOT
+filed. Item 2 (`no-facade-door-mints-a-revolves-role-names`): Ev asked
+whether (A) over (B) was just less machinery — yes (an extension
+trait on an editor-core id vs free functions beside `SegPat::tag`) —
+and ruled **(A)**; the unit (LIB-NAMES) dispatches when a slot frees.
+Orchestrator note: item 1 is the second time today a filed design
+question dissolved on a closer read of the tree (the seat existed);
+the lesson for the filer is to grep for the seat before asking.
+
+**`[ev]` PR 2232 RULED (2026-09-09, Ev): (A), (A), (A) — what a
+curated door owes on its SUCCESS side.** Item 1
+(`a-successful-step-imports-own-report-is-uncurated`): carry
+`StepImport` and its record vocabulary at the façade under the reach
+clause, and give Python an `ImportReport` value class beside the
+body. Item 2 (`pncad-py-import-step-drops-the-gates-enclosure`): the
+report carries `.body` and `.enclosure`; `Body` stays a pure handle —
+ruled after Ev asked whether (A) was test-only and (B) not, and the
+premise was corrected (both change binding code; (A) at the door's
+return shape, (B) on the handle). Item 3
+(`advisory-monte-carlo-lane-has-no-python-door`): `monte_carlo` and
+its value classes bound as LIB's build, `analysis.rs` joining the
+census's read list — "no real hurry", so it queues behind the
+mechanical units. Items 1+2 dispatch as one unit (LIB-IMPORT-REPORT).
