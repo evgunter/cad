@@ -2,11 +2,12 @@
 id: LIB-DISCRIMINANTS
 kind: unit
 title: ValidationFinding carries stale_kind and ring_contact_kind
-status: review
+status: closed
 branch: lib/discriminants
 opened: 2026-09-09
 refs: [two-validation-payload-discriminants-still-uncrossed]
 pr: 2246
+closed: 2026-09-09
 ---
 
 Ev's ruling (A) on `two-validation-payload-discriminants-still-uncrossed`,
