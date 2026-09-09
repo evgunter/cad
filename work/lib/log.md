@@ -4900,3 +4900,16 @@ calls alone; the lane measured every seat and found ~976 — the
 estimate was the brief's, the count is the lane's. The lane was
 killed by a container restart mid-conversion and resumed by message
 with five files uncommitted; nothing was lost. ~77 min, ~342k tokens.
+
+## `[ev]` #2266 ruled (2026-09-09): the `Expr` seat's helper — (A)
+
+LIB-SEATS measured the (H) seat's cost — the written form at 55
+characters where `25 * mm` was 7, at 976 sites, with private
+shorthands already appearing in the corpus — and Ev's note on (H) had
+set the terms: a helper goes on both sides, mirrored, or not at all.
+**(A): `Expr::length_in(value, unit)` / `Expr::angle_in(value,
+unit)` in `editor-core`, each exactly `written_length(
+WrittenLength::in_unit(value, unit))`, and `Expr.length_in` /
+`Expr.angle_in` in Python** — one call at every authored number, the
+notation kept, no new type or seat. Mechanical unit LIB-HELPER
+(the ~976 written-form sites and the private shorthands convert).
