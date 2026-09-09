@@ -1719,3 +1719,33 @@ sites have no retry — and `rerun-failed-jobs` answers 403 for a lane's
 token, so a lane cannot even re-run past it. Units 5-7 (mirror parity
 past argv, the PIPESTATUS sweep, the doc citations) are all cheaper to
 delay than an hour of everyone's red runs.
+
+## 2026-09-09 — the apt preamble dispatched, and a wake-up habit corrected
+
+`apt-update-fails-on-the-runner-image-google-chrome-repo` on
+`ciw/apt-preamble`, ahead of units 5-7 for the reason in the previous
+entry: it reds every branch at once and no diff can fix it.
+
+**An orchestrator process defect, recorded because it recurred.** Unit
+4's close-out PR (2270) went green and this orchestrator did not merge
+it, because the turn ended with *"I'll merge it when green"* and **no
+watcher armed**. Ev noticed. This is the same shape as the close-out that
+sat unopened for a day on 2026-09-08 — a PR whose next step depends on an
+event nobody is listening for — and `memories/agent-lane-operations.md`
+says the same thing about lanes: *"lost wake-on-completion events are
+endemic"*, and the discipline doc's *"a hosted CI wait is the same case,
+not an exception"*.
+
+The fix is mechanical, not resolve: **when a turn ends with a PR waiting
+on CI, arm the wake in that same turn** — `subscribe_pr_activity` on the
+PR, which delivers check-suite rollups into this session, or a foreground
+poll before the turn ends. Earlier in this program's run the poll was
+armed every time and it worked; the habit lapsed exactly when the PRs
+became routine.
+
+Both of this program's process defects so far have the same shape: a
+thing that was going to happen anyway, with nothing scheduled to make it
+happen. That is also what half of its ITEMS are about — a demoted row
+nobody reads, a selftest nothing invokes, a residue disclosed and not
+filed. Worth noticing that the orchestrator keeps producing the defect
+class its own program exists to close.

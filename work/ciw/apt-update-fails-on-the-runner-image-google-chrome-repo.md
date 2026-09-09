@@ -2,8 +2,9 @@
 id: apt-update-fails-on-the-runner-image-google-chrome-repo
 kind: issue
 title: apt-get update fails repo-wide on the runner image's google-chrome list, and it reds four steps in two workflows
-status: open
+status: dispatched
 opened: 2026-09-09
+branch: ciw/apt-preamble
 ---
 
 Found by CIW unit 4's fix pass (PR 2263) when two consecutive runs went
