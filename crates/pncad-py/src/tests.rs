@@ -13,8 +13,8 @@ use crate::errors::{
     ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose,
 };
 use crate::tags::{
-    expr_dimension_error_tag, path_error_tag, persist_error_tag, promoted_kind_tag,
-    step_import_error_tag, workspace_error_tag,
+    expr_dimension_error_tag, normalization_kind_tag, path_error_tag, persist_error_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag, workspace_error_tag,
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
@@ -2249,6 +2249,52 @@ fn promoted_kind_tags_are_stable() {
     }
 }
 
+/// The SUCCESS side's two value discriminants — what a report's rows
+/// say, as opposed to what a refusal says.
+///
+/// Minted rather than reached, and for a sharper reason than the
+/// refusal above: four of these five normalizations need a file
+/// exercising a specific Open CASCADE export shape (an edge-free
+/// sphere, a degenerate apex, a full-period torus face, a seamless
+/// band) and those are `step-import`'s own corpus fixtures. What this
+/// pins is the wire spelling every row carries, and that
+/// `surface_promotion` does NOT fold its analytic kind into the word:
+/// which kind certified is the payload beside it, at
+/// `promoted_kind_tag`'s two words, so a caller reading "a patch was
+/// promoted" reads one word whichever kind it was.
+#[test]
+fn import_report_row_tags_are_stable() {
+    use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind};
+    for (kind, word) in [
+        (NormalizationKind::EdgeFreeSphere, "edge_free_sphere"),
+        (
+            NormalizationKind::DegenerateApexCone,
+            "degenerate_apex_cone",
+        ),
+        (NormalizationKind::FullPeriodTorus, "full_period_torus"),
+        (
+            NormalizationKind::SeamlessPeriodicBand,
+            "seamless_periodic_band",
+        ),
+    ] {
+        assert_eq!(normalization_kind_tag(&kind), word);
+    }
+    for kind in [PromotedKind::Plane, PromotedKind::Cylinder] {
+        assert_eq!(
+            normalization_kind_tag(&NormalizationKind::SurfacePromotion {
+                to: kind,
+                residual: 1e-11,
+            }),
+            "surface_promotion",
+            "the arm's word is the normalization, not the kind"
+        );
+    }
+    assert_eq!(
+        promoted_curve_kind_tag(&PromotedCurveKind::Circle),
+        "circle"
+    );
+}
+
 #[test]
 fn path_error_tags_are_stable() {
     use pncad::prelude::{Open, Start, circle, p2, polygon};
@@ -3556,6 +3602,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["hit_test_error_tag", "tessellate_error_tag"],
     },
     TagEntry {
+        function: "normalization_kind_tag",
+        values: &[
+            "degenerate_apex_cone",
+            "edge_free_sphere",
+            "full_period_torus",
+            "seamless_periodic_band",
+            "surface_promotion",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "param_attach_error_tag",
         values: &["field_not_on_kind", "stale_key"],
         delegates: &[],
@@ -3716,6 +3773,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "program_refusal_tag",
         values: &["geometry", "resolve", "transition", "validate"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "promoted_curve_kind_tag",
+        values: &["circle"],
         delegates: &[],
     },
     TagEntry {

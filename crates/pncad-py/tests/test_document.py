@@ -608,10 +608,72 @@ class TestStepExport(unittest.TestCase):
         step = ev.step_string(box, product_name="doors-box")
         self.assertIn("ISO-10303-21", step)
         # The oracle is the kernel's own importer: the text PARSES and
-        # adopts as a first-class solid whose volume agrees.
-        body = import_step(step)
-        volume = body.mass_properties().volume
-        self.assertAlmostEqual(volume, 3.0, places=9)
+        # adopts as a first-class solid whose volume agrees. The
+        # enclosure is the import gate's OWN measurement, so reading it
+        # is the whole journey — nothing here measures twice.
+        report = import_step(step)
+        self.assertAlmostEqual(report.enclosure.volume, 3.0, places=9)
+
+    def test_the_reports_enclosure_is_not_a_second_computation(self):
+        """The gate already ran the certified quadrature to decide this
+        body's orientation invariant, and `enclosure` is that result
+        handed back rather than dropped.
+
+        BIT equality, not `assertAlmostEqual`: the claim is that the
+        two are the same computation over the same body at the same
+        band, and a tolerance here would pass just as happily if they
+        were two different ones that happened to agree.
+        """
+        doc = Doc()
+        box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
+        report = import_step(evaluate(doc).step_string(box))
+        again = report.body.mass_properties()
+        for field in ("volume", "surface_area", "volume_pad", "area_pad"):
+            self.assertEqual(
+                getattr(report.enclosure, field).hex(),
+                getattr(again, field).hex(),
+                f"{field} differs between the gate's enclosure and a re-measure",
+            )
+
+    def test_the_report_carries_every_field_of_the_import(self):
+        """Each field of the importer's success value is an attribute,
+        and each record row spells out its own payload.
+
+        The exported box states no assembly and needs no re-minting, so
+        two of the three lists are empty and the third is not: the
+        assembly record is kept whether or not the file states one,
+        which is what makes `instances` an answer rather than a
+        leftover.
+        """
+        doc = Doc()
+        box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
+        report = import_step(evaluate(doc).step_string(box))
+        self.assertIsInstance(report.body, pncad.Body)
+        self.assertIsInstance(report.enclosure, pncad.MassProperties)
+        self.assertGreater(report.eps_in, 0.0)
+        self.assertEqual(report.normalizations, [])
+        self.assertEqual(report.promotions, [])
+        self.assertEqual(len(report.instances), 1, "one row per solid")
+
+        instance = report.instances[0]
+        self.assertEqual(instance.index, 0)
+        self.assertGreater(instance.solid, 0)
+        self.assertGreater(instance.component, 0)
+        # The file places nothing, so the occurrence half of the record
+        # is `None` rather than absent — a read never raises.
+        for absent in ("occurrence", "relationship", "transform", "placement"):
+            self.assertIsNone(getattr(instance, absent))
+
+    def test_the_report_is_frozen(self):
+        """A report is a VALUE: it is restated by importing again,
+        never by editing one in place."""
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        report = import_step(evaluate(doc).step_string(box))
+        with self.assertRaises(AttributeError):
+            report.eps_in = 1.0
+        with self.assertRaises(AttributeError):
+            report.instances[0].index = 7
 
     def test_export_of_a_profile_is_a_typed_refusal(self):
         doc = Doc()
