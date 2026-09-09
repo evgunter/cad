@@ -136,3 +136,32 @@ and hands it to `Expr::written_length` — `demos/tour/src/ring.rs:190`
 does exactly that. Python already mirrors both types, so the mirror of
 "a Rust door takes an `Expr` built from either" is **(A)**: each slot
 door accepts `Length | WrittenLength`. Recommendation: **(A)**.
+
+### (E), added 2026-09-09 after Ev asked whether Rust has the union and whether Python has an `Expr`
+
+Measured: Rust has no union — the slot's type IS `Expr`
+(`Node::Extrude { profile, distance: Expr }`), and an author builds
+it first through `Expr::literal` (canonical unit) or
+`Expr::written_length` (notation kept; `demos/tour/src/ring.rs:190`).
+Python has `Expr`, and three doors already take one into a slot
+(`DocEdit.set_param`, `Node.assertion`, `Doc.eval`), but it has no
+constructors of its own: a Python `Expr` is minted only by
+`Doc.parse_expr` or read back from a parameter, and the fifteen node
+constructors build theirs internally from a `Length` through
+`Expr::literal` — which is the erasure.
+
+**(E): each dimensioned slot door accepts `Length | Expr`** — the
+`Length` the canonical-fallback convenience it is today, the `Expr`
+what the Rust slot takes — **and `Expr` gains Rust's constructors as
+static methods**: `Expr.literal(value)`, `Expr.written_length(
+WrittenLength)`, `Expr.written_angle(WrittenAngle)`. Then
+`Node.extrude(profile, Expr.written_length(w))` reads back `25 mm`,
+and `Node.extrude(profile, doc.parse_expr("h * 2"))` binds a slot
+to an expression at authoring without the insert-then-`set_param`
+two-step. Cost against (A): one more call at the site, and three
+constructors that mirror Rust's public API anyway. Gain: the slot's
+Python type reads as its Rust type, and one seat serves literals,
+written literals and parsed expressions.
+
+Recommendation: **(E)**; (A) if the shorter spelling is preferred.
+Not both — two spellings of one thing.
