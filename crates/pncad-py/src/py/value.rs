@@ -1575,6 +1575,15 @@ impl FaceCensus {
         (self.faces, self.edges, self.vertices) == (other.faces, other.edges, other.vertices)
     }
 
+    /// Consistent with [`Self::__eq__`] by construction: it hashes the
+    /// same three counts the comparison reads.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (self.faces, self.edges, self.vertices).hash(&mut h);
+        h.finish()
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "FaceCensus(faces={}, edges={}, vertices={})",

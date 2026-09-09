@@ -532,6 +532,57 @@ BOUND_AS = {
     # door reaches. Both words are pinned in Rust, where the refusal
     # constructs.
     "PromotedKind": "StepImportError.promoted_kind",
+    # THE SUCCESS HALF OF THE SAME DOOR, which crosses as a VALUE and
+    # so puts the carrier rule to work in the other direction.
+    #
+    # `StepImport` is what `import_step` answers. Its `Solid` arm is
+    # the whole of what Python's door can adopt, so the carrier crosses
+    # AS that arm — `ImportReport`, a frozen value with `body`,
+    # `enclosure`, `eps_in` and the three record lists — rather than as
+    # a two-arm sum with a `variant` a Python caller could never see
+    # the other value of. The `Wireframe` arm is not dropped: it is
+    # already this door's typed refusal (`StepImportError.variant ==
+    # "wireframe"`), because a wireframe is not a body and this door
+    # adopts bodies.
+    #
+    # THE MEASUREMENT, because a shape claim is a claim. Before this
+    # the door answered a bare `Body` and the arm's other five fields
+    # had no Python spelling at all; the natural journey — import a
+    # file, ask what it encloses — ran the certified quadrature TWICE
+    # over one body at one band, once inside the import gate and once
+    # in `Body.mass_properties`. `enclosure` is the gate's own result
+    # handed back, so that journey now measures once, and
+    # `test_document.py` pins the two BIT for bit rather than within a
+    # tolerance: the claim is that they are the same computation, and
+    # an almost-equality would pass for two different ones that agreed.
+    "StepImport": "ImportReport",
+    # The record vocabulary the `Solid` arm names —
+    # `StructureNormalization`, `CurvePromotion`, `PlacedInstance` and
+    # the `FaceCensus` pair a normalization maps between — is NOT
+    # mapped here and needs no entry: each crosses as a frozen row
+    # class Python spells identically, so all four are accounted for by
+    # rule 1. What a row projects is its own fields, which is the
+    # census's voice for a value the caller READS, where a refusal's
+    # payload gets a word on the exception. Only the two discriminants
+    # below need a mapping, because a Python caller holds a word rather
+    # than the enum.
+    #
+    # `StructureNormalization::kind`, by the carrier rule and at the
+    # value side's spelling: the carrier projects every field as an
+    # attribute, so its discriminant is one of those fields — a word at
+    # `kind`, with the one arm's payload beside it at `promoted_to`
+    # (which analytic kind certified, `PromotedKind`'s own two words)
+    # and `residual`, `None` on the other four arms. The word does NOT
+    # fold the kind in: a caller reading "a patch was promoted" reads
+    # `surface_promotion` whichever kind it was, and branches on the
+    # second attribute if it cares. Five words from an exhaustive
+    # match, so a sixth normalization stops the bindings compiling.
+    "NormalizationKind": "StructureNormalization.kind",
+    # `CurvePromotion::kind`, the same rule one row over. One word
+    # today (`circle`) and a map rather than a literal because the
+    # recognizer's named exclusions — line-as-degree-1, ellipse, helix,
+    # open arcs — each land here when their follow-up does.
+    "PromotedCurveKind": "CurvePromotion.kind",
     # THE OP FAMILIES' REFUSALS, at the same spelling and under the
     # same rule, applied at the carrier that holds the most of them.
     # `EvaluationError.kind` says WHICH DOOR refused (`revolve`,
