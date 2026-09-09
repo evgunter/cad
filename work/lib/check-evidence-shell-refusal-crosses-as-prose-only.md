@@ -2,7 +2,8 @@
 id: check-evidence-shell-refusal-crosses-as-prose-only
 kind: issue
 title: the shell door's typed refusal under escalated/unsupported crosses to Python as prose only
-status: open
+status: closed
+closed: 2026-09-09
 opened: 2026-09-08
 refs: [mate-fault-arms-carry-payload-that-does-not-cross, pncad-py-seven-doors-lack-field-projection]
 ---
@@ -62,3 +63,25 @@ attribute the arms DO carry crosses. What is missing is a branchable
 word for the refusal inside two arms, on a path (`run_checks` over a
 subject whose shells will not classify) that no Python test reaches
 today.
+
+## Closed
+
+Carried at LIB-CUR8. `pncad::document` re-exports
+`topo::ShellClassifyError` beside `CheckEvidence` under the payload
+rule that list states, and the two arms now publish
+`inner_variant` — `band`, `props`, `escalated`, `zero_volume` — beside
+the `reason` they already crossed. The construction pin
+(`every_check_evidence_arm_projects_the_payload_it_carries`) covers 6
+of 6 arms.
+
+**One claim in the body above was wrong and is worth recording**: the
+façade DID make the type nameable already, through the whole-crate
+re-export `pncad::topo` (`crates/pncad/src/lib.rs`), which
+`crates/pncad-py` uses elsewhere. What was missing was the curated
+placement and the tag, not the reach — the pin covered four of six
+arms because nobody had built the other two, not because nobody
+could.
+
+`CheckEvidence::SeparationUnavailable { kind }` remains FIX's
+(`work/fix/boolean-kind-not-published-at-the-python-door.md`),
+untouched.

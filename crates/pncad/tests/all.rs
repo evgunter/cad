@@ -583,10 +583,40 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         ("loop", "surface")
     );
 
-    // The escalation payload is reached by bare prelude name too, and
-    // by SIGNATURE rather than by value: nothing on this list can
-    // build one, which is the rung below stopping.
-    named::<fn(&Indeterminate) -> (Band, Option<&'static str>)>(escalation_is_readable);
+    // The escalation payload is reached by bare prelude name, and by
+    // VALUE now that the rung below it is carried: the struct is
+    // built from prelude names alone and every field is read back,
+    // the margin's own arm included.
+    let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
+    assert_eq!(
+        escalation_is_readable(&Indeterminate {
+            margin: MarginDiag::Enclosure {
+                lo: -1e-9,
+                hi: 1e-9
+            },
+            band,
+            predicate: Some("face_orientation"),
+        }),
+        (band, Some("face_orientation"), "enclosure")
+    );
+    assert_eq!(
+        escalation_is_readable(&Indeterminate {
+            margin: MarginDiag::Value(1e-12),
+            band,
+            predicate: None,
+        })
+        .2,
+        "value"
+    );
+    assert_eq!(
+        escalation_is_readable(&Indeterminate {
+            margin: MarginDiag::Invalid,
+            band,
+            predicate: None,
+        })
+        .2,
+        "invalid"
+    );
 
     // What a census refusal is ABOUT, and the two recourses it
     // separates. Both payload types are prelude names, so the entity
@@ -703,23 +733,37 @@ fn entity_and_geometry_sites_are_matchable(
 /// `Indeterminate` is a STRUCT, so what a curated list owes about it
 /// is field access rather than a match: a caller holding an
 /// `Escalated` arm out of any of the thirteen refusals that carry one
-/// asks which band the margin was classified against and which
-/// predicate could not decide. `Band` is on the same list, which is
-/// what makes the pair readable in one import.
+/// asks which band the margin was classified against, which predicate
+/// could not decide, and what the classifier saw. `Band` and
+/// `MarginDiag` are on the same list, which is what makes the whole
+/// struct readable in one import.
 ///
-/// **No value is built here, and the reason IS the stop.** Building
-/// one means writing `margin:`, and that field's type is
-/// deliberately uncurated — so this function reads an escalation it
-/// is handed and cannot fabricate one, which is exactly the shape a
-/// consumer is left in. `margin` is bound and never named.
-fn escalation_is_readable(escalation: &Indeterminate) -> (Band, Option<&'static str>) {
+/// The margin's arm is matched EXHAUSTIVELY, and the three words are
+/// three different next moves: a value landed in the band (tighten ε),
+/// an enclosure straddles (subdivide), a poisoned margin was never a
+/// validly posed question (neither helps). Reading which one it is is
+/// not recovering the sign the classifier refused.
+fn escalation_is_readable(
+    escalation: &Indeterminate,
+) -> (Band, Option<&'static str>, &'static str) {
     let Indeterminate {
         margin,
         band,
         predicate,
     } = escalation;
-    let _ = margin;
-    (*band, *predicate)
+    let seen = match margin {
+        MarginDiag::Value(m) => {
+            named::<f64>(*m);
+            "value"
+        }
+        MarginDiag::Enclosure { lo, hi } => {
+            named::<f64>(*lo);
+            named::<f64>(*hi);
+            "enclosure"
+        }
+        MarginDiag::Invalid => "invalid",
+    };
+    (*band, *predicate, seen)
 }
 
 /// The picking refusal's own payload, matched through `crate::select`

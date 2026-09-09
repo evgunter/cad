@@ -83,10 +83,21 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // sit at ONE root together (`pncad::geom_core`) — contract clause 1,
 // one crate, one path.
 //
-// This flips if `Band::angular_at` ever acquires a kernel caller:
-// `ε/lever_arm` can underflow to zero for a large enough arm, which
-// makes `field: Zero` reachable and the discriminant real. Stated so
-// the next curation pass re-measures rather than re-deriving.
+// **The discriminant is READ at a boundary and still not variable**,
+// which is the distinction this argument turns on. `geom_core`'s own
+// `FrameError::Band` crosses to Python with the field's word beside
+// it, so a consumer does see `zero` or `escalate` spelled out; every
+// producer that reaches that crossing is `Band::linear`, whose `zero`
+// check cannot fire under `Tol`'s invariant, so the two arms the
+// crossing maps are an exhaustive match's drift alarm and not two
+// reachable facts. A word that can be read and never seen to change
+// is not a discriminant a caller branches on.
+//
+// This flips when `field: Zero` becomes reachable — a kernel caller
+// of `Band::angular_at`, where `ε/lever_arm` underflows to zero for a
+// large enough arm, or a door that takes a band's thresholds from its
+// caller. Stated so the next curation pass re-measures rather than
+// re-deriving.
 //
 // **`Indeterminate` IS here, and the count is the argument.** It is
 // the two-tolerance escalation payload (D4 ¶1 addendum): the thing a
@@ -101,43 +112,43 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // whether tightening ε would help, and could not name what it was
 // holding without a module hop.
 //
-// **`MarginDiag` is NOT here, and that is measured, the `BandField`
-// reading one payload over.** It is `Indeterminate::margin`'s type:
-// the in-band value, the enclosure that straddles the boundary, or
-// the fact that the margin was poisoned. Its own documentation says
-// what settles it — the arms are "here for error messages and margin
-// telemetry, not to be branched on", because recovering the margin to
-// make the sign decision the classifier refused is exactly what the
-// escalation contract forbids. The recourse is the same three levers
-// whichever arm it is, and `COINCIDENCE_RECOURSE` states them once
-// for all of them.
+// **`MarginDiag` IS here, and the measurement is the argument.** It
+// is `Indeterminate::margin`'s type: the in-band value, the enclosure
+// that straddles the boundary, or the fact that the margin was
+// poisoned. A door projects the escalation's own SHAPE —
+// `geom_core`'s `FrameError::Degenerate` carries an
+// `Option<Indeterminate>`, and the Python frame constructors fork on
+// the margin's arm to publish it: `margin` for a value,
+// `margin_low`/`margin_high` for an enclosure, neither for a poisoned
+// one, beside the band's `zero` and `escalate` and the deciding
+// `predicate`. The discriminant is read at a boundary and it varies,
+// which is what `BandField` one payload over is not.
 //
-// The boundary measurement agrees for the thirteen: no consumer of
-// THOSE refusals reads the discriminant. Every one of them crosses
-// into Python as a single tag plus the kernel's own prose
-// (`escalated`, `in_band`, `pair_in_band`, `mate_indeterminate`),
-// carrying no margin, no enclosure bound and no band. So a curated
-// `MarginDiag` would publish a three-arm type whose arms none of them
-// branches on, which is `BandField`'s situation with a different
-// reason for it: there the discriminant was constant, here it varies
-// and is not a decision.
+// **Reading the arm is not branching on the margin**, and that
+// distinction is the type's own. What the escalation contract forbids
+// is recovering the margin to make the sign decision the classifier
+// refused; what the three arms separate is whether there was a number
+// at all. A value says the margin landed in the band and tightening ε
+// may help; an enclosure says a certified bracket straddles, which is
+// the subdivision driver's lever; a poisoned margin says the question
+// was never validly posed, and it is the one arm none of
+// `COINCIDENCE_RECOURSE`'s three levers answers. Three different next
+// moves, off a struct this list already carries.
 //
-// **ONE door now projects the escalation's shape, and it is not one
-// of the thirteen.** `geom_core`'s own `FrameError::Degenerate`
-// carries an `Option<Indeterminate>`, and the Python frame
-// constructors project it — `margin`, or the enclosure's two bounds,
-// beside the band's `zero` and `escalate` and the deciding
-// `predicate`. That binding reads `MarginDiag`'s three arms through
-// `pncad::geom_core`, which is the module hop this paragraph already
-// names as the fallback, so nothing about the PRELUDE's carriage
-// follows from it mechanically — but the count the non-carriage was
-// measured on has moved, and the next curation pass should
-// re-measure rather than re-derive. Either way `Indeterminate`,
+// So the rung under a carried struct is carried too: a caller holding
+// an `Escalated` arm out of any of the thirteen reads `band`,
+// `predicate` and `margin` by bare name in one import. `Indeterminate`,
 // `MarginDiag` and `Band` sit at ONE root together
-// (`pncad::geom_core`), so the fallback is a module hop and never a
-// second crate.
+// (`pncad::geom_core`) for anyone who prefers the module path — a
+// longer path, never a second crate.
+//
+// This flips back if the escalation's shape stops being projected
+// anywhere, so that every consumer of every carried refusal reads the
+// margin out of the kernel's prose again: then the type is telemetry
+// with no consumer, which is what a curated list does not publish.
 pub use geom_core::{
-    Affine3, Band, BandError, Indeterminate, Mat3, Point2, Point3, Real, Tol, Tolerance, Vec2, Vec3,
+    Affine3, Band, BandError, Indeterminate, MarginDiag, Mat3, Point2, Point3, Real, Tol,
+    Tolerance, Vec2, Vec3,
 };
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
@@ -403,9 +414,10 @@ pub use geom_brep::SurfaceKind;
 // body-lineage-scoped against the evaluation that minted them and
 // which `pncad`'s own guard forbids naming.
 //
-// **`MappedCurve` is NOT here, and that is measured — the third
-// entry of the `BandField` / `MarginDiag` family and the first whose
-// reason is the ARM rather than the payload.** It is
+// **`MappedCurve` is NOT here, and that is measured — a further
+// entry of the `BandField` family of payloads argued OUT of this
+// list, and the first whose reason is the ARM rather than the
+// payload.** It is
 // `EdgeDescription::Scaffold`'s payload: the sketch pushforward a D3
 // scaffolding description carries. Three measurements settle it.
 //

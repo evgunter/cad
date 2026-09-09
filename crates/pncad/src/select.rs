@@ -69,6 +69,18 @@
 // emission layer that raises it is this module's. A consumer able to
 // match the arm and unable to name what it caught reads the emission
 // failure out of prose.
+//
+// **That placement is the general rule and not a one-name
+// exception**, and `EntityKind` and `SplitHalf` below are the rest of
+// it. Both are `document::NodeErrorKind`'s payload as well — and
+// `RefusedRef`'s and `PartSelect`'s — and both are the naming-role
+// vocabulary this module owns, beside `RoleSeg`, `SegTag` and
+// `Denotation`. A payload whose vocabulary one of the four curated
+// lists owns lives on THAT list, spelled once; a payload whose only
+// home is the refusal holding it rides its carrier, which is what
+// `crate::document`'s `VerbKind` does. The cost is one extra `use`
+// for a consumer of `pncad::document` alone, and the cost the other
+// way is the same name on two lists.
 pub use editor_core::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
