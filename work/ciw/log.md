@@ -1587,9 +1587,9 @@ Reproduce-then-catch, on hosted CI and in that order:
   `crates/viewer/src/app.rs:1990`.
 - the plant is then removed and the branch is green again.
 
-Cost when the key fires: 57 s hosted (warm cache) on a job that was
-5m39s without it, so +1 billed minute on the runs the axis already buys
-the eframe/wgpu graph for, and nothing on the runs it does not.
+Cost when the key fires: the step is 55 s green and 57 s red; the job
+goes 5m42s without it to 6m00s with it, both of which bill 6 minutes.
+Nothing at all on the runs the axis turns off.
 
 **The demos half builds nothing, deliberately.** `ci-local.sh` already
 runs `demos/tour` and `demos/wild` fmt+clippy (`demos_hygiene`), and the

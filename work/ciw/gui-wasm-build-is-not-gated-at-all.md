@@ -128,10 +128,14 @@ plant, row present) failed at exactly one step with
 `error[E0599]: JsValue doesn't implement std::fmt::Display`,
 `crates/viewer/src/app.rs:1990`. The plant is removed on this branch.
 
-**Cost when the key fires:** 57 s hosted with a warm cache, on a job
-that ran 5m39s without it — so +1 billed minute, and only on runs whose
-seeds already bought the eframe/wgpu graph. Nothing on runs where the
-axis is false.
+**Cost when the key fires**, measured on this PR's own runs: the STEP
+is 55 s green (`34377712872`) and 57 s red (`34375557117`); the JOB is
+5m42s without the row (`34373755002`) and 6m00s with it, i.e. +18 s,
+because `rustdoc (gate)` in the same job swings tens of seconds between
+runs. Both readings round to 6 billed minutes, so the billed cost on
+that pair is +0 — not quoted as a flat +0, because the same swing can
+put the job over a boundary on another day. Nothing at all on runs where
+the axis is false.
 
 **No nightly re-take, and the reason is written at the row.** The three
 toolkit rows above it defer their skipped coverage to `nightly.yml`;

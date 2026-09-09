@@ -2084,7 +2084,22 @@ jobs:
       # graph at a SECOND target. Nothing in this job shares artefacts
       # with it — the rows above are host-target — so it is a cold
       # metadata build of eframe + wgpu + naga for wasm32 every time it
-      # runs. 61 s locally from an empty CARGO_TARGET_DIR on 4 vCPU.
+      # runs, and `rust-cache` carries the registry but not that graph's
+      # artefacts across runs.
+      #
+      # MEASURED, hosted (ubuntu-latest, 2 vCPU), on this row's own
+      # introducing PR. THE STEP is 55 s green (run 34377712872) and
+      # 57 s on the red it was demonstrated against (run 34375557117).
+      # THE JOB is 5m42s without the row (run 34373755002) and 6m00s
+      # with it (run 34377712872) — +18 s, which is less than the step,
+      # because this job's `rustdoc (gate)` alone swings tens of seconds
+      # between runs. BOTH ROUND TO 6 BILLED MINUTES, so the billed cost
+      # on that pair of readings is +0; do not quote that as a flat +0
+      # the way the row above's comment warns, because the same swing
+      # that hides the step here can put the job over a boundary on
+      # another day. Locally, 61 s from an empty CARGO_TARGET_DIR on
+      # 4 vCPU.
+      #
       # It buys nothing when the axis is false, which is why it is on
       # the axis rather than beside the row above.
       #
