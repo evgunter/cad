@@ -979,20 +979,28 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES: dict[str, str] = {
-    # **EMPTY, and that is a state this file has to be able to hold.**
-    # B-MEASURES was the last charter standing, and it closed at
-    # LIB-B-MEASURES; the six before it closed at LIB-B-READBACK,
-    # LIB-B-CHECKS, LIB-B-CANCEL, LIB-B-FACE-FRAME, LIB-B-PART,
-    # LIB-B-NOTATION and LIB-B-DISTRIBUTIONS. Every census-owned
-    # family the LIB residual register's category B enumerated is
-    # therefore closed, and what is left in `NOT_BOUND` under a `gap:`
-    # tag cites an AUDIT id (`G2`) rather than one this file owns.
+    # THIS MAP WAS EMPTY, and the file has to be able to hold that
+    # state: B-MEASURES was the last charter standing and it closed at
+    # LIB-B-MEASURES, after LIB-B-READBACK, LIB-B-CHECKS,
+    # LIB-B-CANCEL, LIB-B-FACE-FRAME, LIB-B-PART, LIB-B-NOTATION and
+    # LIB-B-DISTRIBUTIONS. Every census-owned family the LIB residual
+    # register's category B enumerated is closed, and the entries
+    # below are a NEW debt rather than a survivor of that list.
     #
     # `test_every_gap_entry_names_a_defined_id` reads this in both
-    # directions and passes over an empty map: no entry can cite a key
-    # that is not here, and no key here goes uncited. A new family is
-    # chartered by adding a key and the `gap:` entries that cite it in
-    # the same diff — which is what every one of the seven did.
+    # directions: no entry can cite a key that is not here, and no key
+    # here goes uncited. A new family is chartered by adding a key and
+    # the `gap:` entries that cite it in the same diff — which is what
+    # every one of the seven did, and what this one does.
+    "B-NAME-BUILDERS": (
+        "Minting a revolve's role name in one call: `band`, `band_pi`, "
+        "`band_rim`, `meridian_vertex` and `carried` answer a `StableName` "
+        "in Rust, and a unit closing this delivers the same five in Python, "
+        "answering the name TEXT `Node.fillet`'s selection and "
+        "`Node.shell`'s open list already take — so a caller who must "
+        "AUTHOR a selection, with no evaluation to select against, stops "
+        "hand-writing the serialized JSON."
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -2272,6 +2280,19 @@ NOT_BOUND = {
     # the second argument crossed by being CAPTURED rather than by
     # already having a spelling; `BOUND_AS` says how, and
     # `tests/test_validate.py` is the positive form.
+    # --- gap: minting a revolve's role name (census-owned) --------
+    # The Rust façade answers each of these in one call; Python speaks
+    # names as TEXT and authors both selections the doors exist for
+    # (`Node.fillet`'s frozen selection, `Node.shell`'s open list), so
+    # a Python author with no evaluation to select against writes the
+    # serialized name by hand. That is the debt, and it is a NEW one:
+    # these five names were curated into `pncad::select` before any
+    # Python spelling existed for them.
+    "band": f"{GAP}: B-NAME-BUILDERS the [0, pi) band face of a meridian segment",
+    "band_pi": f"{GAP}: B-NAME-BUILDERS the [pi, 2pi) band face, the wire case's twin",
+    "band_rim": f"{GAP}: B-NAME-BUILDERS the latitude rim at a meridian vertex",
+    "carried": f"{GAP}: B-NAME-BUILDERS the name a single-operand survivor takes",
+    "meridian_vertex": f"{GAP}: B-NAME-BUILDERS the meridian vertex at one end",
 }
 
 
