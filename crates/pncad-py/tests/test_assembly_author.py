@@ -1031,7 +1031,7 @@ class TestMateFaultPayload(BenchWorkspace):
         """The pair is `None`, not a pair of zeroes: an arm whose
         predicate measured its margin without a lever names no lever
         at all."""
-        doc, (post_a, shelf_i, _), (mate_1, _) = self.stand_planar()
+        doc, _, (mate_1, _) = self.stand_planar()
         fault = solve_document(doc).fault(mate_1)
         self.assertEqual(fault.variant, "mate_under")
         self.assertIsNone(fault.lever_tilt)
@@ -1043,7 +1043,7 @@ class TestMateFaultPayload(BenchWorkspace):
         all, so a solve of ANOTHER document refuses before any frame
         is read — and names both ids as `Doc.id` spells them, so a
         caller compares them directly."""
-        doc, (post_a, _, _), _ = self.stand_planar()
+        doc, _, _ = self.stand_planar()
         other = Doc("elsewhere")
         lone = other.insert(Node.instantiate_part(self.post_ref))
         with self.assertRaises(pncad.MateError) as caught:
