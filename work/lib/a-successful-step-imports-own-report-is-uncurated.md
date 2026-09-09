@@ -5,7 +5,6 @@ title: a successful STEP import's report is uncurated: StepImport and the normal
 status: open
 opened: 2026-09-08
 refs: [LIB-CUR6]
-needs_ev: true
 ---
 
 
@@ -92,3 +91,15 @@ answers a `Body`. Does the success value's report cross, and where?
 
 Recommendation: **(A)** — the door's own documentation argues twice
 that the report is something a caller reads.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2232)
+
+**(A).** Ev: "A is good." Carry `StepImport` and the record vocabulary
+its `Solid` arm names at the façade under the reach clause, and give
+Python an `ImportReport` value class beside the body — normalizations,
+promotions, instances as frozen rows, each placed by LB17's carrier
+rule. Rust and Python halves may land apart. The report's `.body` /
+`.enclosure` shape depends on the sibling
+(`pncad-py-import-step-drops-the-gates-enclosure`), still open with
+Ev at the time of this ruling; the unit dispatches once both are
+ruled.

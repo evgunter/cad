@@ -4,7 +4,6 @@ kind: issue
 title: the E11.1 advisory estimator is ungated on the facade and unreachable from Python
 status: open
 opened: 2026-09-08
-needs_ev: true
 ---
 
 
@@ -74,3 +73,14 @@ question)?
 - **(C) `sample_offset` only** — the one draw door, no report.
 
 Recommendation: **(A)**; the lane was un-gated for this caller.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2232)
+
+**(A).** Ev: "sure, A works, though there's no real hurry here."
+`monte_carlo(doc, config) -> McReport` as a free function with frozen
+`McConfig`/`McReport`/`McMeasure`/`McAssertion` value classes and
+`McRefusal` as a typed exception under the taxonomy, `sample_offset`
+beside it; `crates/pncad/src/analysis.rs` joins the files the census
+reads, with the rows it forces stated. LIB's build; the lane's
+numerics untouched. Unhurried: dispatched when the queue is otherwise
+empty.
