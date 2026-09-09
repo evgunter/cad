@@ -2,11 +2,11 @@
 id: no-door-mints-mate-frame-from-face
 kind: issue
 title: No door mints a mate's alignment frame from a selected face
-status: open
+status: parked
 opened: 2026-08-23
 github: 944
 refs: [938]
-needs_ev: true
+blocked_on: [mate-frames-resolve-from-a-face-at-evaluation]
 ---
 
 ## From GitHub issue 944
@@ -147,3 +147,15 @@ re-export, `MateFrame.from_face` in Python) follows the arm. (A)
 becomes unnecessary: freezing is materializing the arm.
 
 Recommendation: **(F) now**, in that shape.
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2256): (F), now
+
+Ev: "sounds great!" to (F) in the shape above — a `MateFrame` arm that
+names a face and resolves at evaluation through the exact readback,
+the solve unchanged over resolved frames, nothing stored twice, and
+A11's inputs sentence revised while its algorithm claim stays. The
+kernel design is MSOLVE's: filed as
+`work/msolve/mate-frames-resolve-from-a-face-at-evaluation.md`. LIB's
+half — the façade re-export and `MateFrame.from_face(...)` in Python
+— follows the arm and is this item's remaining scope; (A) is not
+built. This item stays open, parked on the MSOLVE item.

@@ -4740,3 +4740,25 @@ The ITEM stays open until `[ev]` #2233 merges (it is on that branch);
 this unit closes with its ruling recorded there. Orchestrator note: the
 brief over-read the ruling on the Written pair; the lane read the
 ruling's own words and was right to. ~53 min, ~167k tokens.
+
+## `[ev]` #2256 ruled (2026-09-09): a mate frame from a face — (F), now
+
+Ev asked, in order: whether materializing a face's frame stores
+logically duplicate numbers (yes — derived data stored as authored,
+though the author types those numbers by hand today), then whether the
+solve can avoid reading geometry forever. Measured: `mate.rs` carries
+no `Expr` and no `ParamName` — a mate is plain `f64`s — so a document
+parameter change in a part stales its mates silently; the solve cannot
+even read a parameter today, so "never" is not available and the
+design moves now. **(F): `MateFrame` gains a `FromFace { face,
+reference }` arm resolved at evaluation through the exact `face_pose`
+readback (NURBS refuses typed and keeps authored vectors); the solve
+runs over resolved frames and is itself unchanged; nothing is stored
+twice; A11's inputs sentence is revised while its algorithm claim
+stays.** The kernel design is MSOLVE's, filed as
+`work/msolve/mate-frames-resolve-from-a-face-at-evaluation.md`; the
+LIB item is parked on it for the façade and Python half; (A) is not
+built. Orchestrator note: the first recommendation here was (A) with
+(F) as "presumably not wanted" on the item's own word; the measurement
+that settled it (no parameter reaches a mate) was one grep away and
+should have been in the first draft.
