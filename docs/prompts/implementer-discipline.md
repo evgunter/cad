@@ -141,13 +141,6 @@ When you do run locally:
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.
 
-**A green you have not first seen red measures your harness, not the tree.**
-Break the check on purpose, confirm it fails at the line you named, then fix
-it. Three greens in one program meant nothing: two mutations never reached
-executing code, and one chain ended `| grep -E "^test result|FAILED" && …`,
-where `grep` exits 0 on a MATCH — so three real failures satisfied it. Trust a
-runner's exit status over a match on its output.
-
 **Write assertions a bug could break.** Name the runtime value that would make
 one false; where there is none — a predicate over things fixed at compile time,
 or one its neighbours already subsume — it is documentation, and deleting it is
@@ -189,16 +182,9 @@ the logic of a change.
 
 If your unit fixes an instance of a class, say what pattern you swept with and
 **what that pattern could not match**. A sweep whose blind spot is unstated is
-an unverified claim, not a negative result — and disclosing a blind spot is not
-discharging it: *"my pattern could not match X"* is a work order to find X
-another way. **A uniqueness claim is a sweep result**, so *"the only"* and
-*"nowhere else"* are not writable before the sweep that could falsify them has
-run. And **a sweep is only as wide as the command you typed** — the paths are
-an axis as much as the pattern, and a figure's scope comes from the claim it is
-offered for, not from the command that produced it.
-
-Note also that a sweep is accurate as of your merge base, not your merge: a
-long-running lane owes a re-sweep before it lands.
+an unverified claim, not a negative result. Note also that a sweep is accurate
+as of your merge base, not your merge: a long-running lane owes a re-sweep
+before it lands.
 
 **Assume it is a class.** The trigger above is your own judgement that the
 defect has siblings, and that judgement is where this rule misses. Before you
@@ -252,19 +238,3 @@ body, filed nowhere, by a lane that read this section as an exemption from
 body is not a slate and the finding is gone. (Read as a conflict by the T-2
 style review, 2026-09-04; it is not one, and this paragraph exists because it
 reads like one.)
-
-## 7. Claims about the tree
-
-Every error one program made in a day was an inference from the SHAPE of a
-thing in place of a READING of it — which function a doc list implied was
-gated, which file a quoted figure lived in, what a lint's red meant. Each
-needed one `grep`, one control run or one header read. **Never cite a
-`file:line` you have not opened**, and **commit before you take citations**:
-any other order re-creates the defect, since a later edit shifts the lines you
-already wrote down. Prefer the enclosing test or symbol name.
-
-**Say what you measured, not what you concluded from it.** A measurement with
-an invented attribution arrives wearing evidence, so *"did you measure this?"*
-answers yes; what catches it is **"what exactly did you measure, and what else
-would have produced the same number?"** Ask it of claims you pass on as well as
-your own.
