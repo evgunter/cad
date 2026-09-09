@@ -46,8 +46,13 @@ use pncad::tolerance::Tol;
 /// the thresholds a `BandError::Empty` could not form a band from.
 /// `value` is likewise the rejected number of either `InvalidValue`
 /// or `InvalidLeverArm`.
+///
+/// The classifier half is [`crate::escalation::escalation`] rather
+/// than a fork written here: the mate door publishes the SAME
+/// escalation under these same words, and one projection is what
+/// keeps the two from drifting.
 pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> PyErr {
-    use pncad::geom_core::{BandError, FrameError as E, MarginDiag};
+    use pncad::geom_core::{BandError, FrameError as E};
 
     let none = || py.None();
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
@@ -87,21 +92,18 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
                 indeterminate: Some(i),
                 ..
             } => {
-                let (m, lo, hi) = match i.margin {
-                    MarginDiag::Value(m) => (Some(m), None, None),
-                    MarginDiag::Enclosure { lo, hi } => (None, Some(lo), Some(hi)),
-                    // A poisoned margin is the absence of a number,
-                    // not a number: the band still crosses.
-                    MarginDiag::Invalid => (None, None, None),
-                };
+                // The margin's fork is `crate::escalation`'s, shared
+                // with the mate door that publishes the same
+                // escalation under these same words.
+                let e = crate::escalation::escalation(i);
                 (
                     none(),
-                    maybe(m),
-                    maybe(lo),
-                    maybe(hi),
-                    real(i.band.zero()),
-                    real(i.band.escalate()),
-                    word(i.predicate),
+                    maybe(e.margin),
+                    maybe(e.margin_low),
+                    maybe(e.margin_high),
+                    real(e.zero),
+                    real(e.escalate),
+                    word(e.predicate),
                     none(),
                     none(),
                 )

@@ -375,11 +375,18 @@ class TestTheRefusalsShape(unittest.TestCase):
             first.findings[0].variant = "something_else"
 
     def test_every_finding_carries_every_attribute(self):
-        """No `getattr` trap. Four attributes on every finding, `None`
+        """No `getattr` trap. Six attributes on every finding, `None`
         where the arm carries nothing to fill them — so a caller reads
         `subject_kind` without first branching on `variant`."""
         for finding in self.refusal().findings:
-            for attribute in ("variant", "subject_kind", "entity_kind", "contact_kind"):
+            for attribute in (
+                "variant",
+                "subject_kind",
+                "entity_kind",
+                "contact_kind",
+                "stale_kind",
+                "ring_contact_kind",
+            ):
                 with self.subTest(attribute=attribute):
                     self.assertTrue(hasattr(finding, attribute))
             self.assertIsInstance(finding.variant, str)
@@ -387,6 +394,11 @@ class TestTheRefusalsShape(unittest.TestCase):
             # `entity`/`face_pair` half is pinned in Rust, below.
             self.assertIsNone(finding.subject_kind)
             self.assertIsNone(finding.entity_kind)
+            # An undeclared coincidence is neither an unconfirmed
+            # declaration nor a ring standing on its outer loop, and
+            # `None` is what says so on the arm that carries neither.
+            self.assertIsNone(finding.stale_kind)
+            self.assertIsNone(finding.ring_contact_kind)
 
     def test_two_distinct_arms_arrive_off_one_raise(self):
         """The claim the sequence exists for: ONE raise, several arms,
@@ -441,6 +453,32 @@ class TestTheRefusalsShape(unittest.TestCase):
         its_arm_has`), and this row is the statement that the gap is
         the DOORS' and not the projection's. What Python reaches is
         the census pair above.
+
+        The two payload arms below are the same statement about the
+        same doors, and each has its own reason:
+
+        - `stale_contact_declaration` (`stale_kind`) wants a declared
+          record the geometry stopped backing. Every door that hands
+          Python a body WITH declarations either mints them from the
+          geometry it is looking at — `Value.body` off a boolean,
+          whose surviving records are the ones the result still
+          witnesses — or gates them first: `assemble` answers an
+          `Assembly` only after tier 3′ passed over exactly that pair,
+          and refuses with `AssemblyError` when it does not. `product`
+          gathers and declares nothing, so its bodies are plain. A
+          `ContactRecords` has no Python spelling, so nothing here can
+          part a record from its witness; the kernel's own suites do
+          it by tampering with the record set directly.
+        - `ring_meets_outer` (`ring_contact_kind`) wants a face whose
+          ring stands on its own outer loop. That is built by raw
+          Euler surgery — the shell verb's suites glue a lifted
+          counterpart chart on with `kfmrh` to make one — and this
+          surface exposes no Euler operator; every body Python holds
+          came out of a verb that validated it.
+
+        Both are pinned in Rust by construction, one row per arm
+        (`src/tests.rs::every_stale_declaration_arm_projects_the_
+        payload_it_carries`, and its ring counterpart).
         """
         doc = Doc()
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 1 * m))
@@ -451,6 +489,31 @@ class TestTheRefusalsShape(unittest.TestCase):
         reached = {f.variant for f in caught.exception.findings}
         self.assertNotIn("census_unsupported", reached)
         self.assertNotIn("census_lane_unsupported", reached)
+        self.assertNotIn("stale_contact_declaration", reached)
+        self.assertNotIn("ring_meets_outer", reached)
+
+    def test_a_declared_glue_leaves_no_record_for_the_census_to_miss(self):
+        """The nearest a Python scene gets to a stale declaration, and
+        why it is not one.
+
+        A declared rest between two slabs, wired into the union that
+        welds it: the seam the declaration names is consumed by the
+        boolean, so the result carries no record that could lose its
+        witness, and the fourth rung passes. This is the row behind
+        the reason `stale_kind` is pinned in Rust rather than driven
+        from here — the scene reaches the declare/boolean pair, which
+        is the only door that hands Python a body carrying records it
+        did not gate, and it still cannot mint an unwitnessed one.
+        """
+        doc, lower, upper = two_slabs_resting()
+        findings = evaluate(doc).find_flush_candidates(lower, upper)
+        self.assertEqual(len(findings), 1)
+        declaration = doc.declare(findings[0])
+        glued = doc.insert(
+            Node.boolean(BooleanOp.Union, lower, upper, declare=declaration)
+        )
+        body = evaluate(doc).value(glued).body()
+        body.validate_pseudomanifold()  # raises if a record went stale
 
 
 if __name__ == "__main__":

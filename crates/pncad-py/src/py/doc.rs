@@ -625,6 +625,42 @@ pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName>
     })
 }
 
+/// Read a named slot back from the word `EditError.slot` answers in.
+///
+/// A slot is a NAME, never an index (spec D5), and the name is the
+/// same word in both directions: the word a refusal publishes is the
+/// word a door takes, so a caller retries at the address it was
+/// refused at without translating anything.
+///
+/// A word outside the alphabet is a boundary `ValueError` — the same
+/// class of refusal as text that is not a stable name, with no kernel
+/// refusal to forward. A well-formed word the TARGET NODE does not
+/// carry is a different question and belongs to the kernel, which
+/// answers it as `unknown_slot` naming the slot the node lacks.
+///
+/// `profile` is a word of the alphabet with no slot to read back:
+/// the rest of its address is two integers and an argument role that
+/// the word does not carry, so it refuses in its own sentence rather
+/// than as a misspelling.
+fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
+    if let Some(slot) = crate::slot_word::slot_from_word(word) {
+        return Ok(slot);
+    }
+    Err(pyo3::exceptions::PyValueError::new_err(
+        if word == "profile" {
+            "`profile` addresses one expression inside a profile program, and the rest of \
+         that address — a loop index, a step index and which argument — is not carried \
+         by the word: a profile's numbers are re-authored, not edited at a slot"
+                .to_owned()
+        } else {
+            format!(
+                "not a slot: {word:?} — a slot is named by its own word (`distance`, \
+             `radius`, `count`, `origin_x`), the word `EditError.slot` answers in"
+            )
+        },
+    ))
+}
+
 /// A recipe node's identity within a document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
@@ -1573,6 +1609,12 @@ impl Node {
     }
 
     /// Extrude an upstream profile along its sketch-plane normal.
+    ///
+    /// `distance` mints a LITERAL in the node's `distance` slot.
+    /// `DocEdit.set_param(node, "distance", expr)` is what moves it
+    /// afterwards, and what makes it a named, editable number: a
+    /// literal is a new document per value, a parameter reference is
+    /// one `set_doc_param_value` per value.
     #[staticmethod]
     fn extrude(
         py: Python<'_>,
@@ -1589,6 +1631,10 @@ impl Node {
     }
 
     /// Revolve an upstream profile about a datum axis.
+    ///
+    /// `angle` mints a literal in the node's `revolve_angle` slot —
+    /// `DocEdit.set_param` is what drives it afterwards, as it is for
+    /// an extrude's `distance`.
     #[staticmethod]
     fn revolve(
         py: Python<'_>,
@@ -1906,6 +1952,65 @@ impl Node {
         })
     }
 
+    /// **An oriented plane** — a sketch frame, from its origin and its
+    /// two in-plane directions.
+    ///
+    /// The origin is dimensioned (`Length`); `u` and `v` are
+    /// dimensionless triples, matching `SlotId::U`'s and
+    /// `SlotId::V`'s `Scalar`. They are authored freely and
+    /// ORTHONORMALIZED at evaluation with `u` KEPT: sketch +x is the
+    /// direction written here, and `v` yields its component along `u`,
+    /// so editing `v` alone cannot silently turn every profile drawn
+    /// on the frame.
+    ///
+    /// A [`Node::datum_plane`] pins five of a placement's six rigid
+    /// degrees of freedom. The sixth — the spin about the normal — is
+    /// what a sketch's x and y axes ARE, so a plane cannot serve as a
+    /// profile's plane and this is the node `Node.profile` names.
+    ///
+    /// [`Node::sketch_frame`] mints the same arm from a
+    /// [`SketchPlane`] value, which is where the named `xy`/`yz`/`zx`
+    /// planes and the `elevation=` sugar live. This door is the arm's
+    /// own spelling: three triples written straight into the node's
+    /// nine expression slots, with no rigid-frame value in between.
+    ///
+    /// Refuses at `evaluate`, never here. A `u` of zero length, or a
+    /// `v` parallel to it, is `degenerate_direction` naming which axis
+    /// went — `datum frame x axis`, `datum frame y axis`. A pair that
+    /// is merely not perpendicular is LEGAL: orthogonalizing it is
+    /// what the arm does.
+    #[staticmethod]
+    fn datum_frame(
+        py: Python<'_>,
+        origin: (
+            super::quantity::Length,
+            super::quantity::Length,
+            super::quantity::Length,
+        ),
+        u: (f64, f64, f64),
+        v: (f64, f64, f64),
+    ) -> PyResult<Self> {
+        let origin = [
+            literal(py, origin.0.0.meters(), d::Dimension::Length)?,
+            literal(py, origin.1.0.meters(), d::Dimension::Length)?,
+            literal(py, origin.2.0.meters(), d::Dimension::Length)?,
+        ];
+        let dir = |t: (f64, f64, f64)| -> PyResult<[d::Expr; 3]> {
+            Ok([
+                literal(py, t.0, d::Dimension::Scalar)?,
+                literal(py, t.1, d::Dimension::Scalar)?,
+                literal(py, t.2, d::Dimension::Scalar)?,
+            ])
+        };
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::Frame {
+                origin,
+                u: dir(u)?,
+                v: dir(v)?,
+            }),
+        })
+    }
+
     /// A datum plane: a point and a normal.
     ///
     /// The origin is dimensioned (`Length`); the normal is a
@@ -1938,16 +2043,52 @@ impl Node {
         })
     }
 
+    /// A datum point: a position, and nothing else.
+    ///
+    /// The position is dimensioned (`Length`), matching
+    /// `SlotId::Origin`. There is no direction, because a point has
+    /// none — `Datum.direction` reads back `None` for this kind, where
+    /// a plane's or an axis's answers a triple.
+    ///
+    /// It denotes no body and cuts nothing; what a point is FOR is
+    /// being referred to. `GeomPred.datum_distance` reads an entity's
+    /// UNSIGNED distance to it, so a point is how a selection says
+    /// "near here" without naming a face.
+    ///
+    /// Nothing refuses at evaluation: three slots are read and the
+    /// position is the value. A non-finite coordinate refuses HERE, as
+    /// every literal does.
+    #[staticmethod]
+    fn datum_point(
+        py: Python<'_>,
+        position: (
+            super::quantity::Length,
+            super::quantity::Length,
+            super::quantity::Length,
+        ),
+    ) -> PyResult<Self> {
+        let position = [
+            literal(py, position.0.0.meters(), d::Dimension::Length)?,
+            literal(py, position.1.0.meters(), d::Dimension::Length)?,
+            literal(py, position.2.0.meters(), d::Dimension::Length)?,
+        ];
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::Point { position }),
+        })
+    }
+
     /// Constant-radius rolling-ball blends on a SELECTION of
     /// `target`'s edges.
     ///
-    /// `selection` is edge names as text — the strings
-    /// `Evaluation.all_edges` answers with. A name is CARRIED, not
-    /// composed and not read: the text is an opaque identifier whose
-    /// internal structure is not API (see [`name_text`]), so there is
-    /// no name-building vocabulary in Python and no supported way to
-    /// filter a materialized set. There is deliberately no "every
-    /// edge" spelling either.
+    /// `selection` is edge names as text: the strings
+    /// `Evaluation.all_edges` answers with, or the ones a role-name
+    /// door mints ([`super::select::band_rim`] and its four siblings)
+    /// for a node no evaluation has reached yet. A name is CARRIED,
+    /// never assembled and never read: the text is an opaque
+    /// identifier whose internal structure is not API (see
+    /// [`name_text`]), so a name is written by naming a ROLE and
+    /// there is no supported way to filter a materialized set. There
+    /// is deliberately no "every edge" spelling either.
     ///
     /// THE SELECTION FREEZES, exactly as in Rust: it is a commitment
     /// as of the evaluation you read it from, and an upstream edit
@@ -1965,6 +2106,10 @@ impl Node {
     /// construction door, so the stored set is canonical (sorted,
     /// deduplicated) and two recipes that select the same edges are
     /// bit-identical whatever order Python listed them in.
+    ///
+    /// `radius` mints a literal in the node's `radius` slot, moved
+    /// afterwards by `DocEdit.set_param`; the SELECTION is repaired
+    /// one name at a time by `DocEdit.rebind`.
     #[staticmethod]
     fn fillet(
         py: Python<'_>,
@@ -1986,9 +2131,9 @@ impl Node {
     /// edges — `Node.fillet`'s twin.
     ///
     /// `selection` is edge names as text, exactly as `Node.fillet`
-    /// takes them: the strings `Evaluation.all_edges` answers with,
-    /// CARRIED and never composed, with no "every edge" spelling and
-    /// no way to filter a materialized set. THE SELECTION FREEZES, in
+    /// takes them: materialized or minted, CARRIED and never read,
+    /// with no "every edge" spelling and no way to filter a
+    /// materialized set. THE SELECTION FREEZES, in
     /// the same sense and for the same reason — read `Node.fillet`.
     ///
     /// `distance` is the SETBACK along each support from the edge,
@@ -2004,6 +2149,10 @@ impl Node {
     ///
     /// The node is built through Rust's `Node::chamfer`, the one
     /// construction door, so the stored set is canonical.
+    ///
+    /// `distance` mints a literal in the node's `chamfer_distance`
+    /// slot, moved afterwards by `DocEdit.set_param`; the selection
+    /// is repaired by `DocEdit.rebind`, as a fillet's is.
     #[staticmethod]
     fn chamfer(
         py: Python<'_>,
@@ -2024,8 +2173,10 @@ impl Node {
     /// Hollow `target` into a thin solid of wall `thickness`, with the
     /// faces in `open` re-authored as annular RIMS.
     ///
-    /// `open` is face names as TEXT, the strings `Evaluation.all_faces`
-    /// or a selector answers with, CARRIED and never composed — and,
+    /// `open` is face names as TEXT — the strings
+    /// `Evaluation.all_faces` or a selector answers with, or the ones
+    /// [`super::select::band`] and its siblings mint — CARRIED and
+    /// never read, and,
     /// unlike a blend's selection, IN THE ORDER GIVEN. The order is
     /// meaning: the kernel's record keeps a chart's designated faces
     /// in designation order, and the chart's rim is its FIRST
@@ -2046,6 +2197,12 @@ impl Node {
     /// wall two facing faces cannot both afford, a curved designated
     /// face (`shell`) — every one of those is the kernel's own typed
     /// refusal at `evaluate`.
+    ///
+    /// `thickness` mints a literal in the node's `shell_thickness`
+    /// slot, moved afterwards by `DocEdit.set_param`; a designated
+    /// face that has come to denote the wrong face is repaired by
+    /// `DocEdit.rebind`, which rewrites the list in place and
+    /// re-canonicalizes it.
     #[staticmethod]
     fn shell(
         py: Python<'_>,
@@ -2559,7 +2716,7 @@ impl ParamName {
 /// `-0.0` folded to `0.0`, every other value untouched — the
 /// normalization a hash must apply wherever the equality it mirrors is
 /// IEEE (`-0.0 == 0.0`).
-fn fold_zero(v: f64) -> f64 {
+pub(crate) fn fold_zero(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v }
 }
 
@@ -2913,17 +3070,25 @@ impl DocParamValue {
 /// GUI, the bindings, macro recording and headless tests.
 ///
 /// The exposed edits are `insert_node`, `delete_node`,
-/// `set_members`, `set_tolerance`, the document-parameter pair
-/// (`set_doc_param` / `set_doc_param_value`), `set_roots`,
-/// `set_placement`, `update_reference`, and `bind_count_param` /
-/// `bind_instance_param` / `bind_v_degree_param`, the structural-slot
-/// edit narrowed to one named slot and a parameter reference. The remaining variants (continuous
-/// slot edits, re-witnessing, appearance, rebinds, expression paths)
-/// are mechanical additions once the surface they need is curated —
-/// each waits on an expression vocabulary, which is the reason the
-/// count edit crosses in this narrowed form rather than as the
-/// general door. Tracked as named gaps in
-/// `docs/guide/north-star-audit.md`.
+/// `set_members`, `set_param`, `set_tolerance`, the
+/// document-parameter pair (`set_doc_param` / `set_doc_param_value`),
+/// `set_roots`, `set_placement`, `update_reference`, `rebind`, and
+/// `bind_count_param` / `bind_instance_param` / `bind_v_degree_param`,
+/// the structural-slot edit narrowed to one named slot and a
+/// parameter reference.
+///
+/// **What is NOT here, and why each one is not.** The appearance and
+/// metadata four are the FAÇADE's answer rather than this module's:
+/// `Attr`, `AttrSet`, the record types and `MetaValue` are off
+/// `pncad::document`'s curated list, so those arms have no payload a
+/// consumer of that module can name in either language. The two
+/// witness edits are the same sentence at `WitnessDatum` and
+/// `BranchCertification`, which that list does not carry either. The
+/// expression-path edit is a different reason and a repairable one:
+/// its own refusal at a bad address renders the address through
+/// `Debug`, which is what [`crate::py::typed_err`]'s prose gate
+/// panics on, so the door would raise a binding panic exactly where
+/// it is supposed to refuse.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct DocEdit {
@@ -2981,6 +3146,47 @@ impl DocEdit {
                 members: members.iter().map(|m| m.0).collect(),
             },
         }
+    }
+
+    /// **Replace a CONTINUOUS slot's expression on a live node** — an
+    /// extrude's `distance`, a fillet's `radius`, a revolve's
+    /// `revolve_angle` — after the constructor that minted it.
+    ///
+    /// The constructors take numbers, so a node arrives with its
+    /// slots holding literals. This is the door that moves one
+    /// afterwards, and the door that puts an EXPRESSION there: hand
+    /// it `Doc.parse_expr("plate_t * 2")` and the slot is driven by a
+    /// document parameter from then on, exactly as
+    /// `bind_count_param` drives a structural one.
+    ///
+    /// **The slot is named by its WORD** — the same word
+    /// `EditError.slot` answers in — so a refusal is an address a
+    /// caller can retry at without translating anything. It is a
+    /// NAME, never an index (spec D5), and a word outside the
+    /// alphabet is a `ValueError` at the boundary rather than an edit
+    /// the kernel gets to see.
+    ///
+    /// Structural slots are NOT this door's: `count`, `instance`,
+    /// `v_degree` and `stations` are Count-typed, and aiming here at
+    /// one refuses `structural_slot_needs_structural_edit` rather
+    /// than quietly crossing the divide the edit vocabulary keeps
+    /// unlosable. The `bind_*_param` trio is where they are edited.
+    ///
+    /// Refuses typed on `EditError`: `unknown_node`, `unknown_slot`
+    /// for a slot this node does not carry (naming the slot it
+    /// lacks), `slot_dimension_mismatch` for an expression of the
+    /// wrong dimension (carrying the required and offered pair), and
+    /// `unknown_doc_param` / `doc_param_dimension_mismatch` for a
+    /// parameter reference the document does not answer.
+    #[staticmethod]
+    fn set_param(node: &NodeId, slot: &str, expr: &super::expr::Expr) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::DocEdit::SetParam {
+                node: node.0,
+                slot: slot_from_text(slot)?,
+                expr: expr.0.clone(),
+            },
+        })
     }
 
     /// Set the document tolerance.
@@ -3222,6 +3428,49 @@ impl DocEdit {
                 new_pin: new_pin.0,
             },
         }
+    }
+
+    /// **Repair a stored name**: rewrite every document site that
+    /// references `from_name` EXACTLY to reference `to_name`.
+    ///
+    /// THE name repair, and the only one. A selection is stored as a
+    /// stable name — a fillet's edges, a chamfer's, a shell's open
+    /// faces, a declaration's pairs — and a recipe edit upstream can
+    /// leave one denoting something else or nothing at all. This edit
+    /// says what it now denotes, once: no alias table persists and
+    /// nothing follows automatically afterwards, so a second name
+    /// that needs the same repair is a second edit.
+    ///
+    /// **A one-shot recorded intent, not a rename.** The sites
+    /// rewritten are the payloads that carry a name, and every one of
+    /// them re-canonicalizes as its own node would: a blend selection
+    /// is a set, a shell's designation an ordered list that drops a
+    /// repeat and keeps the earlier position.
+    ///
+    /// Neither half keeps the kernel's bare word — `from` is a Python
+    /// keyword — so both take the role suffix, exactly as
+    /// `EditError.from_kind` / `to_kind` do rather than one of the
+    /// pair reading oddly.
+    ///
+    /// Refuses typed on `EditError`: `rebind_identity` (a recorded
+    /// no-op is noise), `rebind_kind_mismatch` (a face reference
+    /// cannot come to denote an edge — the kind is part of the
+    /// reference's type, and the refusal carries both kinds),
+    /// `rebind_target_missing_node` (the selection must denote
+    /// something the recipe still has), `rebind_unknown_name` (a
+    /// source this document never minted is a typo; a
+    /// deleted-but-once-lived node is the repair case and is
+    /// allowed), and `rebind_no_references` (nothing references the
+    /// source, so there is nothing to repair — a GUI's selection is
+    /// not document state, and repairing one is re-selecting).
+    #[staticmethod]
+    fn rebind(from_name: &str, to_name: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::DocEdit::Rebind {
+                from: name_from_text(from_name)?,
+                to: name_from_text(to_name)?,
+            },
+        })
     }
 }
 

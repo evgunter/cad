@@ -62,8 +62,8 @@ fn p1_order_swap_changes_only_the_rim_name() {
     let a = vessel::document();
     let b = vessel::document_with_open(|pot| {
         [
-            vessel::band_pi(pot, vessel::SEG_MOUTH),
-            vessel::band(pot, vessel::SEG_MOUTH),
+            editor_core::band_pi(pot, vessel::SEG_MOUTH),
+            editor_core::band(pot, vessel::SEG_MOUTH),
         ]
     });
     let (ea, eb) = (eval::<f64>(&a.doc), eval::<f64>(&b.doc));

@@ -226,7 +226,7 @@ class ValidationFinding:
     Two that say the same thing compare equal and hash equal.
 
     `variant` is which validator arm refused (`undeclared_contact`,
-    `census_undecidable`, `negative_volume`, …). The other three are
+    `census_undecidable`, `negative_volume`, …). The other five are
     that arm's payload and are `None` on an arm that carries none, so
     reading one never raises `AttributeError`:
 
@@ -243,6 +243,15 @@ class ValidationFinding:
       …). The branch that matters: an `edge_face_pierce` is
       interpenetration and cannot be declared, while an
       `edge_edge_overlap` can be.
+    - `stale_kind` — which declared record the tier-3′ census could
+      not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
+      `"curve_locus"`, `"patch"`). The granularity IS the recourse:
+      it says which record to withdraw or re-seat, and withdrawing
+      another one leaves the refusal standing.
+    - `ring_contact_kind` — how a ring meets its face's own outer loop
+      (`"vertex_vertex"`, `"vertex_on_edge"`, `"edge_along_edge"`).
+      The word says where the ring has to move: a shared position one
+      vertex clears, or a shared arc no single vertex move separates.
 
     No arena key crosses. A `Body` is an opaque handle, so WHICH face
     or vertex a finding names stays in the kernel's own prose on the
@@ -257,6 +266,10 @@ class ValidationFinding:
     def entity_kind(self) -> Optional[str]: ...
     @property
     def contact_kind(self) -> Optional[str]: ...
+    @property
+    def stale_kind(self) -> Optional[str]: ...
+    @property
+    def ring_contact_kind(self) -> Optional[str]: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -998,6 +1011,32 @@ class MeasureUnavailableAt(PncadError):
     scalar: str
     door: str
 
+class McRefusal(PncadError):
+    """A Monte-Carlo run produced nothing (ERROR-DESIGN E11.1).
+
+    `variant` is the stable tag; `param`, `node` and `cause` are the
+    arms' payloads, present on every arm and `None` where that arm
+    does not carry one.
+
+    Three ways a run has no estimate. A varying parameter carries a
+    BAND, which states limits without a shape and cannot be drawn from
+    (`band_has_no_measure`, with `param`) — the run refuses WHOLE
+    rather than sampling the rest, because a mean over a subset of the
+    parameters is an estimate of a different document. The request
+    asked for zero samples, and an estimator over no draws has no
+    estimate (`no_samples`). Or the document does not build at its
+    nominal, so there is nothing to replay
+    (`nominal_does_not_build`, with `node` and `cause`).
+
+    The band arm's `variant` is MeasureUnavailable's own word, because
+    it carries that refusal: one fault, one word, whichever door
+    said no."""
+
+    variant: str
+    param: Optional[str]
+    node: Optional[NodeId]
+    cause: Optional[str]
+
 class AnalysisPolicyError(PncadError):
     """An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is
     not a finite number strictly inside `(0, 1)`.
@@ -1015,7 +1054,15 @@ class AnalysisPolicyError(PncadError):
 # DimensionError.
 
 class Length:
-    """A length. Construct as `25 * mm`."""
+    """A length. Construct as `25 * mm`.
+
+    Compares as IEEE on the canonical metres, mirroring the Rust
+    newtype's derived `PartialEq`/`PartialOrd`: a NaN length equals
+    nothing, not even itself, and orders against nothing; `-0.0 * m`
+    equals `0.0 * m`. UNHASHABLE, mirroring the newtype's absent
+    `Hash` — a magnitude is not a key, and `set`/`dict` say so with
+    `TypeError`. `WrittenLength` is the authored record that keys.
+    """
 
     @property
     def meters(self) -> float: ...
@@ -1031,10 +1078,14 @@ class Length:
     def __le__(self, other: Length) -> bool: ...
     def __gt__(self, other: Length) -> bool: ...
     def __ge__(self, other: Length) -> bool: ...
-    def __hash__(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
 
 class Angle:
-    """An angle. Construct as `90 * deg`."""
+    """An angle. Construct as `90 * deg`.
+
+    `Length`'s mirror: IEEE comparisons on the canonical radians, and
+    unhashable. `WrittenAngle` is the authored record that keys.
+    """
 
     @property
     def radians(self) -> float: ...
@@ -1050,7 +1101,7 @@ class Angle:
     def __le__(self, other: Angle) -> bool: ...
     def __gt__(self, other: Angle) -> bool: ...
     def __ge__(self, other: Angle) -> bool: ...
-    def __hash__(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
 
 class Count:
     """A dimensionless integer count.
@@ -1062,6 +1113,7 @@ class Count:
     def __init__(self, value: int) -> None: ...
     @property
     def value(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class LengthUnit:
@@ -1846,9 +1898,20 @@ class Node:
     @staticmethod
     def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
-    def extrude(profile: NodeId, distance: Length) -> Node: ...
+    def extrude(profile: NodeId, distance: Length) -> Node:
+        """Extrude a profile along its sketch-plane normal.
+
+        `distance` mints a LITERAL in the node's `distance` slot.
+        `DocEdit.set_param(node, "distance", expr)` moves it
+        afterwards, and makes it a named, editable number: a literal
+        is a new document per value, a parameter reference is one
+        `set_doc_param_value` per value."""
+
     @staticmethod
-    def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node: ...
+    def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node:
+        """Revolve a profile about a datum axis. `angle` mints a
+        literal in the node's `revolve_angle` slot, driven afterwards
+        by `DocEdit.set_param` as an extrude's `distance` is."""
     @staticmethod
     def tube(
         spine: NodeId,
@@ -1899,7 +1962,9 @@ class Node:
         set FREEZES at authoring time. `distance` is the SETBACK along
         each support, not a radius. An empty selection, an unresolvable
         name, or an edge whose supports are not both planes refuses
-        typed at `evaluate`.
+        typed at `evaluate`. `distance` mints a literal in the node's
+        `chamfer_distance` slot, moved by `DocEdit.set_param`; the
+        selection is repaired by `DocEdit.rebind`.
         """
 
     @staticmethod
@@ -1907,14 +1972,18 @@ class Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
-        `open` is face names as TEXT, IN THE ORDER GIVEN: a chart's
+        `open` is face names as TEXT — materialized or minted — IN
+        THE ORDER GIVEN: a chart's
         rim is its FIRST designated face, so name first the face that
         should carry the rim's identity. A repeat keeps its first
         occurrence; an EMPTY list is the SEALED hollow, which is legal.
         Every face on a chart is named together (a full revolve's cap
         is two half-faces). An unresolvable name, a name that is not a
         face, a non-positive or unaffordable wall, or a curved
-        designated face refuses typed at `evaluate`.
+        designated face refuses typed at `evaluate`. `thickness` mints
+        a literal in the node's `shell_thickness` slot, moved by
+        `DocEdit.set_param`; a designation that has come to denote the
+        wrong face is repaired by `DocEdit.rebind`.
         """
 
     @staticmethod
@@ -1940,6 +2009,17 @@ class Node:
         normal: tuple[float, float, float],
     ) -> Node: ...
     @staticmethod
+    def datum_point(position: tuple[Length, Length, Length]) -> Node:
+        """A datum point: a position, and nothing else.
+
+        There is no direction, because a point has none —
+        `Datum.direction` reads back `None` for this kind. A point
+        denotes no body and cuts nothing; what it is FOR is being
+        referred to, and `GeomPred.datum_distance` reads an entity's
+        UNSIGNED distance to it. Nothing refuses at `evaluate`; a
+        non-finite coordinate raises `LiteralError` here.
+        """
+    @staticmethod
     def datum_face_frame(at: NodeId, face: str, spin: Angle) -> Node:
         """A sketch frame DERIVED from a face — "sketch on this face".
 
@@ -1961,13 +2041,44 @@ class Node:
         """
 
     @staticmethod
+    def datum_frame(
+        origin: tuple[Length, Length, Length],
+        u: tuple[float, float, float],
+        v: tuple[float, float, float],
+    ) -> Node:
+        """An oriented plane — a sketch frame, written as its origin
+        and its two in-plane directions.
+
+        `u` and `v` are authored freely and ORTHONORMALIZED at
+        evaluation with `u` kept: sketch +x is the direction written
+        here and `v` yields its component along `u`, so editing `v`
+        alone cannot silently turn every profile drawn on the frame. A
+        pair that is merely not perpendicular is legal.
+
+        A `datum_plane` pins five of a placement's six rigid degrees of
+        freedom; the sixth is the spin about the normal, which is what
+        a sketch's x and y axes ARE — so this, not a plane, is the node
+        `Node.profile` names. `Node.sketch_frame` mints the same arm
+        from a `SketchPlane` value; this door writes the three triples
+        straight into the node's nine slots.
+
+        A zero-length `u`, or a `v` parallel to it, refuses typed at
+        `evaluate` — `degenerate_direction`, naming which axis went.
+        """
+
+    @staticmethod
     def fillet(target: NodeId, radius: Length, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
         `selection` is edge names as TEXT — the strings
-        `Evaluation.all_edges` answers with. The set FREEZES at
+        `Evaluation.all_edges` answers with, or the ones a role-name
+        door mints (`band_rim` and its four siblings) for a node no
+        evaluation has reached yet. The set FREEZES at
         authoring time; an empty one, an unresolvable name, or an edge
-        the roller cannot enter refuses typed at `evaluate`.
+        the roller cannot enter refuses typed at `evaluate`. `radius`
+        mints a literal in the node's `radius` slot, moved by
+        `DocEdit.set_param`; one name of the selection is repaired by
+        `DocEdit.rebind`.
         """
 
     @staticmethod
@@ -2427,6 +2538,146 @@ def analyzed_box(
     `±z·sigma` for `normal`; and a width-zero interval at the nominal
     for a parameter with no distribution."""
 
+DEFAULT_SAMPLES: Final[int]
+DEFAULT_SEED: Final[int]
+
+class McConfig:
+    """How one Monte-Carlo run is configured (ERROR-DESIGN E11.1).
+
+    `samples` defaults to DEFAULT_SAMPLES and `seed` to DEFAULT_SEED —
+    the shipped dials, recorded rather than drawn from the clock,
+    because an advisory number whose seed is not in the report is a
+    number nobody can reproduce. A caller who wants a tail resolved
+    further asks for more samples and pays linearly, one full document
+    evaluation each.
+
+    `parallel` is a RUNTIME switch, and the property it exists to let
+    a caller check is that it changes nothing: each sample is seeded
+    from its own index, so the two schedules produce bit-identical
+    reports."""
+
+    def __init__(
+        self,
+        samples: Optional[int] = None,
+        seed: Optional[int] = None,
+        parallel: Optional[bool] = None,
+    ) -> None: ...
+    @property
+    def samples(self) -> int: ...
+    @property
+    def seed(self) -> int: ...
+    @property
+    def parallel(self) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class McMeasure:
+    """One measure node's empirical summary — ADVISORY, and not
+    reachable without the McReport that carries the label.
+
+    The statistics are over the samples that HAD a value; `unmeasured`
+    counts the rest and is never averaged over. A measure with no
+    `f64` value at any sample — a `min_clearance`, whose answer is an
+    enclosure — is unmeasured at every draw, which is why the count
+    sits beside the statistics rather than behind them."""
+
+    @property
+    def node(self) -> NodeId: ...
+    @property
+    def mean(self) -> float: ...
+    @property
+    def sigma(self) -> float:
+        """The sample standard deviation, the `N - 1` form."""
+    @property
+    def min(self) -> float: ...
+    @property
+    def max(self) -> float: ...
+    @property
+    def measured(self) -> int: ...
+    @property
+    def unmeasured(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class McAssertion:
+    """One assertion node's empirical summary.
+
+    The three counts partition the samples, and `unevaluated` is kept
+    OUT of `violation_fraction`: an undecided sample is not a passing
+    one, and folding it into either side would invent the verdict
+    E10's third state exists to withhold."""
+
+    @property
+    def node(self) -> NodeId: ...
+    @property
+    def holds(self) -> int: ...
+    @property
+    def violated(self) -> int: ...
+    @property
+    def unevaluated(self) -> int: ...
+    @property
+    def violation_fraction(self) -> Optional[float]:
+        """`violated / (holds + violated)`, or None when no sample
+        decided this assertion."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class McReport:
+    """The E11.1 advisory report: every number an ESTIMATE, with the
+    sample count and the seed that produced it at the top.
+
+    It never gates, it is never persisted as an assertion, and it
+    never enters the mass accounting. The certified answer covers the
+    analyzed box; this one draws from the WHOLE distribution, tail
+    included, so it estimates the quantity the certified lane
+    deliberately does not."""
+
+    @property
+    def samples(self) -> int: ...
+    @property
+    def seed(self) -> int: ...
+    @property
+    def measures(self) -> list[McMeasure]:
+        """Per measure node, in the document's own node order."""
+    @property
+    def assertions(self) -> list[McAssertion]:
+        """Per assertion node, in the document's own node order."""
+    @property
+    def outside_box(self) -> float:
+        """The fraction of samples that fell outside the analyzed box
+        — the empirical twin of E2's tail term, and the one number
+        here a reader can check against the certified side."""
+    def render(self) -> str:
+        """The human form, with the advisory label and the dials on
+        every line that carries an estimate."""
+
+def monte_carlo(
+    doc: Doc, analyzed: AnalyzedBox, config: Optional[McConfig] = None
+) -> McReport:
+    """Replay the document at `f64` over draws from its own
+    distributions, and summarize (ERROR-DESIGN E11.1).
+
+    `analyzed` decides which parameters VARY and which offsets count
+    as outside, so the box is the caller's explicit choice rather than
+    a default hidden inside the run.
+
+    ADVISORY, and the label is structural: the count and the seed ride
+    on the report and on every line `McReport.render` writes. Raises
+    McRefusal for a varying parameter carrying a band, a zero-sample
+    request, or a document that does not build at its nominal."""
+
+def sample_offset(param: ParamName, dist: Distribution, u: float) -> _Offset:
+    """The offset `dist` puts at quantile `u` — inverse-transform
+    sampling's one door, and the advisory lane's only way to draw a
+    parameter value.
+
+    `u` is a uniform draw in `[0, 1)`. The answer is an OFFSET from
+    the nominal in the distribution's own dimension, so a Length
+    parameter's offset is a Length. It draws from the WHOLE law, never
+    from the analyzed box: the tail the box excludes is exactly the
+    region the certified answer does not cover. Raises
+    MeasureUnavailable for a band, which `param` names."""
+
 class DocParam:
     """A named parameter's declared dimension and exact stored value
     (guide §3.2): what `DocEdit.set_doc_param` writes. Continuous
@@ -2534,6 +2785,31 @@ class DocEdit:
         refuses `set_members_on_non_list`."""
 
     @staticmethod
+    def set_param(node: NodeId, slot: str, expr: Expr) -> DocEdit:
+        """Replace a CONTINUOUS slot's expression on a live node — an
+        extrude's `distance`, a fillet's `radius`, a revolve's
+        `revolve_angle` — after the constructor that minted it.
+
+        The constructors take numbers, so a node arrives with its
+        slots holding literals. This moves one afterwards, and puts an
+        EXPRESSION there: `Doc.parse_expr("plate_t * 2")` drives the
+        slot from a document parameter, as `bind_count_param` drives a
+        structural one.
+
+        The slot is named by its WORD — the same word `EditError.slot`
+        answers in, so a refusal is an address to retry at. A word
+        outside the alphabet is a `ValueError` at the boundary.
+        Structural slots (`count`, `instance`, `v_degree`,
+        `stations`) refuse `structural_slot_needs_structural_edit`
+        here; the `bind_*_param` trio is where they are edited.
+
+        Refuses typed: `unknown_node`, `unknown_slot` naming the slot
+        the node lacks, `slot_dimension_mismatch` carrying the
+        required and offered dimensions, and `unknown_doc_param` /
+        `doc_param_dimension_mismatch` for a parameter reference the
+        document does not answer."""
+
+    @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
     def set_doc_param(name: ParamName, value: DocParam) -> DocEdit:
@@ -2600,6 +2876,34 @@ class DocEdit:
 
         Refuses `update_on_non_instance`, and `pin_unchanged` when the
         site already names that version."""
+
+    @staticmethod
+    def rebind(from_name: str, to_name: str) -> DocEdit:
+        """Repair a stored name: rewrite every document site that
+        references `from_name` EXACTLY to reference `to_name`.
+
+        THE name repair, and the only one. A selection is stored as a
+        stable name — a fillet's edges, a chamfer's, a shell's open
+        faces, a declaration's pairs — and an upstream edit can leave
+        one denoting something else or nothing at all. This says what
+        it now denotes, ONCE: no alias table persists and nothing
+        follows automatically, so a second name needing the same
+        repair is a second edit. Each rewritten site re-canonicalizes
+        as its own node would — a blend selection is a set, a shell's
+        designation an ordered list that drops a repeat.
+
+        Neither half keeps the kernel's bare word (`from` is a Python
+        keyword), so both take the role suffix, as
+        `EditError.from_kind` / `to_kind` do.
+
+        Refuses typed: `rebind_identity`, `rebind_kind_mismatch`
+        carrying both kinds (a face reference cannot come to denote an
+        edge), `rebind_target_missing_node`, `rebind_unknown_name` (a
+        source this document never minted is a typo; a
+        deleted-but-once-lived node is the repair case and is
+        allowed), and `rebind_no_references` — nothing references the
+        source, so there is nothing to repair: a GUI's selection is
+        not document state, and repairing one is re-selecting."""
 
     @staticmethod
     def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
@@ -3264,6 +3568,53 @@ class GeomPred:
         or point. The datum is a node reference like every other
         input, which keeps the rule equivariant."""
 
+
+# Minting a revolve's role name: the five doors that ANSWER a name
+# rather than selecting one. `select` answers names FROM an
+# evaluation; a selection that is AUTHORED — `Node.fillet`'s frozen
+# selection, `Node.shell`'s open list — is written before any
+# evaluation of the minting node exists, so its names are spelled,
+# and these spell them. The answer is the SAME text a materializer
+# answers for that entity, byte for byte: one alphabet, minted on
+# either side of the boundary. The text stays opaque — a caller
+# composes by naming a ROLE, never by assembling the serialization.
+
+def band(node: NodeId, seg: int) -> str:
+    """The `[0, pi)` band face swept from meridian segment `seg` of
+    the revolve at `node`.
+
+    `seg` indexes the OUTER loop's canonical chain; a hole's band is
+    not reachable through this door. The kind is fixed at the role's
+    own — a face — which is the field a hand-written name gets wrong
+    silently until emission refuses it."""
+
+def band_pi(node: NodeId, seg: int) -> str:
+    """The `[pi, 2pi)` band face swept from meridian segment `seg` —
+    `band`'s twin, where a full revolve emits a segment as two faces.
+    Outer loop; a face, as `band` is."""
+
+def band_rim(node: NodeId, vertex: int) -> str:
+    """The latitude rim at meridian vertex `vertex` — the edge between
+    the bands of segments `vertex - 1` and `vertex`. Outer loop; an
+    edge."""
+
+def meridian_vertex(end: MeridianEnd, node: NodeId, vertex: int) -> str:
+    """The meridian vertex at `end`: the copy of profile vertex
+    `vertex` on a wedge cap plane (`MeridianEnd.Start`,
+    `MeridianEnd.End`) on a partial revolve, or the surviving meridian
+    vertex (`MeridianEnd.Seam`) on a full one. Outer loop; a
+    vertex."""
+
+def carried(node: NodeId, inner: str) -> str:
+    """The name a survivor of `node` takes: the name `inner` it had in
+    the target's table, wrapped — the single-operand pass-through a
+    blend's shrunk support or a shell's outer wall wears one op later.
+
+    `inner` is a name text like any other, and the kind is its own: a
+    survivor is the same entity carried through one op, so the wrapper
+    renames it without re-kinding it. Text that is not a name at all
+    raises `ValueError`."""
+
 # --- values -----------------------------------------------------------
 
 class MassProperties:
@@ -3324,6 +3675,116 @@ class Body:
         Nothing is pre-checked: a zero, negative or non-finite budget
         is the kernel's own `TessellateError`, raised here."""
 
+class FaceCensus:
+    """What one region contributes to the body, in faces, edges and
+    vertices.
+
+    Two of these ride every `StructureNormalization` — the counts the
+    file states for the region, and the counts the mint left it with."""
+
+    @property
+    def faces(self) -> int: ...
+    @property
+    def edges(self) -> int: ...
+    @property
+    def vertices(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class StructureNormalization:
+    """One re-minted boundary graph, reported as data: the file's locus
+    was adopted whole, but its tessellation is not representable, so
+    the kernel cut the same surface its own way and says which.
+
+    Volume and validity are exact either way; what changed is only the
+    cut, and the two censuses are that change counted.
+
+    `promoted_to` and `residual` are the one arm's payload, `None` on
+    the other four — present on every row, so a read never raises and
+    a caller never has to branch on `kind` first."""
+
+    @property
+    def face(self) -> int: ...
+    @property
+    def kind(self) -> str: ...
+    @property
+    def promoted_to(self) -> Optional[str]: ...
+    @property
+    def residual(self) -> Optional[float]: ...
+    @property
+    def file_census(self) -> FaceCensus: ...
+    @property
+    def kernel_census(self) -> FaceCensus: ...
+
+class CurvePromotion:
+    """One promoted curve carrier: the file stated a NURBS carrier
+    whose deviation from an analytic curve certified at the import's
+    tolerance, so the edge adopted on the analytic carrier.
+
+    It re-mints nothing, which is why it carries no census and why its
+    key is a curve entity rather than a face."""
+
+    @property
+    def curve(self) -> int: ...
+    @property
+    def kind(self) -> str: ...
+    @property
+    def residual(self) -> float: ...
+
+class PlacedInstance:
+    """One materialized assembly instance — what the file said about
+    one solid of the imported body.
+
+    Every entity field names a real record in the file, or is `None`
+    because the file states no assembly: a file with no assembly
+    vocabulary still gets one row per solid, so a caller never has to
+    ask whether the record exists. `placement` is `None` for the
+    identity, which is what the file stating nothing means."""
+
+    @property
+    def index(self) -> int: ...
+    @property
+    def solid(self) -> int: ...
+    @property
+    def component(self) -> int: ...
+    @property
+    def occurrence(self) -> Optional[int]: ...
+    @property
+    def relationship(self) -> Optional[int]: ...
+    @property
+    def transform(self) -> Optional[int]: ...
+    @property
+    def placement(self) -> Optional[Frame]: ...
+
+class ImportReport:
+    """What a successful STEP import produced: the body, the gate's own
+    measurement of it, and the record of what the adoption changed.
+
+    `enclosure` is the certified `MassProperties` the import's at-rest
+    gate derived and decided the body's orientation invariant on — NOT
+    a second computation. Reading it measures the imported body once;
+    `report.body.mass_properties()` runs the certified quadrature a
+    second time over the same body at the same band, and answers the
+    same four fields bit for bit.
+
+    The three record lists are the adoption's own report, as data
+    rather than prose: every boundary graph re-minted, every NURBS
+    curve carrier adopted as an analytic one, and one assembly row per
+    solid — kept whether or not the file states an assembly."""
+
+    @property
+    def body(self) -> Body: ...
+    @property
+    def enclosure(self) -> MassProperties: ...
+    @property
+    def eps_in(self) -> float: ...
+    @property
+    def normalizations(self) -> list[StructureNormalization]: ...
+    @property
+    def promotions(self) -> list[CurvePromotion]: ...
+    @property
+    def instances(self) -> list[PlacedInstance]: ...
+
 class Mesh:
     """A tessellated body: one shared position buffer, and one
     triangle patch per face.
@@ -3335,13 +3796,14 @@ class Mesh:
 
     No arena key crosses. A patch's face, a boundary's edge and their
     vertex back-references are keys, so a patch is addressed by INDEX
-    here and the per-edge boundary polylines are not bound at all.
+    here and a boundary polyline is a run of position indices with
+    nothing else in it.
 
     What the index is FOR, beside drawing, is `NodePick.patch_names`:
     it answers one stable name per patch, in patch order, so a viewer
     goes from the patch it drew to the name it can select with without
-    the key ever leaving. `NodePick.boundary_names` is the edge
-    twin."""
+    the key ever leaving. `NodePick.boundary_names` is the edge twin,
+    entry for entry with `boundaries`."""
 
     @property
     def positions(self) -> list[tuple[Length, Length, Length]]:
@@ -3367,6 +3829,25 @@ class Mesh:
     def triangle_count(self) -> int: ...
     def patch(self, index: int) -> list[tuple[int, int, int]]:
         """One face's triangles. Raises `IndexError` past the end."""
+
+    @property
+    def boundaries(self) -> list[list[int]]:
+        """Every edge's chord polyline, as index runs into `positions`,
+        in the kernel's edge order.
+
+        The same alphabet `triangles` speaks: the surface is drawn from
+        the triangles, the MODEL's edges from these — a wireframe or a
+        hidden-line view. Each polyline runs in its edge's intrinsic
+        direction and carries at least two indices; an edge that closes
+        on itself repeats its vertex index at both ends, so a closed
+        edge is `line[0] == line[-1]`, decided on indices and never on
+        coordinates.
+
+        They are answered whole rather than one at a time because
+        there is no concatenated spelling to be separable from: a run
+        of indices means nothing joined to the next edge's. A
+        polyline's POSITION here is the handle
+        `NodePick.boundary_names` inverts, entry for entry."""
 
     def to_stl_ascii(self, solid_name: str = "") -> str:
         """The ASCII STL text, `solid <name>` first line.
@@ -4144,6 +4625,8 @@ class MateFrame:
         perpendicular — the refusal the solve would meet, reachable
         BEFORE authoring the mate that carries it."""
 
+    def __eq__(self, other: object) -> bool: ...
+
 class AxisSense:
     """Which way the two sides' axes point at each other. `Opposed` is
     what kills every pi-flip ambiguity: the senses are AUTHORED, never
@@ -4191,6 +4674,8 @@ class MatePrimitive:
     def offset(self) -> Optional[Length]:
         """The planar rest's standoff, `None` for the others."""
 
+    def __eq__(self, other: object) -> bool: ...
+
 class Alignment:
     """The alignment datum: which frames coincide, at which axis
     sense, with which clocking rider.
@@ -4231,6 +4716,7 @@ class Alignment:
         `mate_datum_too_small_to_lever` fault. An alignment that names
         NO scale at all is not this case — it borrows the session box's
         scale and answers with a number."""
+    def __eq__(self, other: object) -> bool: ...
 
 class ClassAdmission:
     """How far a contact class gets in v1, as a value BOTH enforcing
@@ -4272,6 +4758,15 @@ vocabulary refuses with."""
 UNDER_RECOURSE: Final[str]
 """The recourse an under-determined tree mate's refusal ends on."""
 
+CONTRADICTORY_RECOURSE: Final[str]
+"""The recourse a mate contradiction's refusal ends on — one sentence
+for both shapes it renders, a pair of mates and a mate contradicting
+itself."""
+
+NO_AT_REST_RECORD_RECOURSE: Final[str]
+"""The recourse the at-rest gate's `NoAtRestRecord` refusal ends on:
+`Rest` is the one class v1 mints and verifies at rest."""
+
 class MateRole:
     """What a mate did in the solve: `Determining` (a tree mate — it
     placed its child), `Declaring` (it solved nothing and is carried
@@ -4304,7 +4799,17 @@ class Subgroup:
 class MateFault:
     """Why the solve refused for one node — a VALUE, because the solve
     is total and records a refusal per node rather than failing the
-    document. `str(fault)` is the kernel's own prose."""
+    document. `str(fault)` is the kernel's own prose.
+
+    Every attribute is present on every arm and `None` where the arm
+    does not carry it, so `getattr` never raises and a caller need not
+    branch on `variant` first.
+
+    The classifier's words are the frame door's words: `margin`,
+    `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`
+    and `predicate` are spelled here exactly as `FrameError` spells
+    them, because an escalation a mate reports and one a frame
+    constructor reports are the same value."""
 
     @property
     def variant(self) -> str: ...
@@ -4342,6 +4847,86 @@ class MateFault:
     def selected(self) -> Optional[int]: ...
     @property
     def what(self) -> Optional[str]: ...
+    @property
+    def expected_document(self) -> Optional[str]:
+        """The document whose placement was asked for, as `Doc.id`
+        answers it — compare the two directly rather than reading
+        them out of the message."""
+
+    @property
+    def found_document(self) -> Optional[str]:
+        """The document the solve is OF."""
+
+    @property
+    def inner_variant(self) -> Optional[str]:
+        """The nested refusal's own word: the frame ladder's
+        (`FrameError.variant`'s vocabulary), the band constructor's
+        (`invalid_value`, `invalid_lever_arm`, `empty`), or the lever
+        refusal's (`datum_too_small`). `None` on an arm whose payload
+        is a struct rather than an enum — an escalation has no inner
+        word, and its shape is which margin attribute is set."""
+
+    @property
+    def margin(self) -> Optional[Length]:
+        """The in-band margin the classifier saw, when it saw a
+        value. Reading it is not branching on it: what the escalation
+        contract forbids is recovering the margin to make the sign
+        decision the classifier refused."""
+
+    @property
+    def margin_low(self) -> Optional[Length]:
+        """The classified enclosure's lower bound, where the
+        classifier saw an enclosure rather than a value."""
+
+    @property
+    def margin_high(self) -> Optional[Length]:
+        """Its upper bound."""
+
+    @property
+    def zero(self) -> Optional[float]:
+        """The coincidence threshold of the band a margin was
+        classified against, or of the band a constructor could not
+        form. A plain real, as the frame door answers it: a band's
+        thresholds are whatever its predicate measures in."""
+
+    @property
+    def escalate(self) -> Optional[float]:
+        """Its escalation threshold."""
+
+    @property
+    def field(self) -> Optional[str]:
+        """Which band threshold a rejected value was — `zero` or
+        `escalate`."""
+
+    @property
+    def value(self) -> Optional[float]:
+        """The rejected number: a threshold, or a lever arm handed to
+        the band constructor."""
+
+    @property
+    def lever_tilt(self) -> Optional[Angle]:
+        """The lever's TILT, when a contradictory clash was levered
+        rather than measured outright."""
+
+    @property
+    def lever_arm(self) -> Optional[Length]:
+        """The lever's ARM — the solve's own scale surrogate, the
+        larger of the two frame origins' distances and the authored
+        lengths, floored at one metre. NOT a contact feature: it names
+        that scale and nothing in the model. `clash` is the PRODUCT of
+        the two halves, and an arm that measured its margin without a
+        lever carries neither."""
+
+    @property
+    def extent(self) -> Optional[Length]:
+        """The length scale a datum named, when it named one too small
+        to lever a parallelism verdict over."""
+
+    @property
+    def floor(self) -> Optional[Length]:
+        """The floor that scale is under: below it the smallest tilt
+        the predicate could call non-parallel is about eps/extent
+        radians, so every tilt would read parallel."""
 
 class SolvedPoses:
     """The document's solved poses: each instance's pose relative to
@@ -4854,9 +5439,12 @@ class CheckEvidence:
 
     `connectedness` (`actual`, `expected`) — the count disagreed,
     compared exactly, with no epsilon anywhere in it. `escalated` /
-    `unsupported` (`reason`) — a shell's orientation read could not be
-    decided at this tolerance, so the count is UNKNOWABLE and says so
-    rather than guessing. `stale_expectation` (`expected`) — an
+    `unsupported` (`reason`, `inner_variant`) — a shell's orientation
+    read could not be decided at this tolerance, or a face is outside
+    the flux inventory, so the count is UNKNOWABLE and says so rather
+    than guessing; `inner_variant` is which of the shell door's four
+    refusals it was (`band`, `props`, `escalated`, `zero_volume`).
+    `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,
     which is a fact about the CERTIFICATE and never a claim that the
@@ -4876,6 +5464,8 @@ class CheckEvidence:
     def other_output(self) -> Optional[int]: ...
     @property
     def reason(self) -> Optional[str]: ...
+    @property
+    def inner_variant(self) -> Optional[str]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class CheckFinding:
@@ -4975,8 +5565,12 @@ def subject_body(
     through its value, and a declared boolean's own certified seam is
     not reported here as an undeclared contact."""
 
-def import_step(text: str) -> Body:
+def import_step(text: str) -> ImportReport:
     """Parse a STEP text with the kernel's importer and adopt its
-    solid — the round-trip oracle. Raises StepImportError, typed."""
+    solid, answering the whole report: `.body`, the gate's own
+    `.enclosure` of it, and what the adoption changed.
+
+    Reading `.enclosure` measures the import once — the gate already
+    ran that quadrature. Raises StepImportError, typed."""
 
 __build_info__: Final[dict[str, Any]]

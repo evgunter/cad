@@ -45,10 +45,14 @@ fn meters(v: (Length, Length, Length)) -> [f64; 3] {
     [v.0.0.meters(), v.1.0.meters(), v.2.0.meters()]
 }
 
+/// One bare metre figure as the length it is.
+fn length(m: f64) -> Length {
+    Length(pncad::quantity::Length::from_meters(m))
+}
+
 /// Metres out.
 fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
-    let len = |x: f64| Length(pncad::quantity::Length::from_meters(x));
-    (len(v[0]), len(v[1]), len(v[2]))
+    (length(v[0]), length(v[1]), length(v[2]))
 }
 
 /// A kernel point as three lengths.
@@ -567,11 +571,21 @@ impl Subgroup {
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `mate`, `side`, `head`, `placer`, `error`,
 /// `instance`, `parent`, `child`, `residual`, `held`, `added`,
-/// `predicate`, `clash`, `part`, `named`, `selected`, `what`. The
-/// human message is the kernel's own prose, available as
-/// `str(fault)`.
+/// `predicate`, `clash`, `part`, `named`, `selected`, `what`,
+/// `expected_document`, `found_document`, `inner_variant`, `margin`,
+/// `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`,
+/// `lever_tilt`, `lever_arm`, `extent`, `floor`. The human message is
+/// the kernel's own prose, available as `str(fault)`.
 ///
-/// The seventeen read off ONE record, [`crate::mate_payload`], whose
+/// **The classifier's words are the frame door's words.** `margin` /
+/// `margin_low` / `margin_high`, `zero` / `escalate`, `field` /
+/// `value` and `predicate` are spelled here exactly as
+/// [`super::place::frame_err`] spells them, because an escalation a
+/// mate reports and one a frame constructor reports are the same
+/// value; the fork itself is `crate::escalation`, which both doors
+/// call.
+///
+/// The thirty-one read off ONE record, [`crate::mate_payload`], whose
 /// match over the kernel enum is exhaustive with no wildcard: a fault
 /// arm added there is a compile error rather than a mate that every
 /// accessor here silently answers `None` about.
@@ -672,9 +686,7 @@ impl MateFault {
     /// was not.
     #[getter]
     fn clash(&self) -> Option<Length> {
-        self.payload()
-            .clash
-            .map(|m| Length(pncad::quantity::Length::from_meters(m)))
+        self.payload().clash.map(length)
     }
 
     /// The `Part` node whose index expression disagrees with the copy
@@ -702,6 +714,121 @@ impl MateFault {
     #[getter]
     fn what(&self) -> Option<&'static str> {
         self.payload().what
+    }
+
+    /// The document whose placement was asked for, as `Doc.id`
+    /// answers it — so a caller compares the two ids directly rather
+    /// than reading them out of the message.
+    #[getter]
+    fn expected_document(&self) -> Option<String> {
+        self.payload().expected_document.map(|id| id.hex())
+    }
+
+    /// The document the solve is OF.
+    #[getter]
+    fn found_document(&self) -> Option<String> {
+        self.payload().found_document.map(|id| id.hex())
+    }
+
+    /// **The nested refusal's own word**: the frame ladder's
+    /// (`FrameError.variant`'s vocabulary), the band constructor's, or
+    /// the lever refusal's. `None` on an arm whose payload is a struct
+    /// rather than an enum — an escalation has no inner word, and its
+    /// shape is which margin attribute is set.
+    #[getter]
+    fn inner_variant(&self) -> Option<&'static str> {
+        self.payload().inner_variant
+    }
+
+    /// The in-band margin the classifier saw, when it saw a value.
+    ///
+    /// Reading it is not branching on it: what the escalation
+    /// contract forbids is recovering the margin to make the sign
+    /// decision the classifier refused.
+    #[getter]
+    fn margin(&self) -> Option<Length> {
+        self.payload().margin.map(length)
+    }
+
+    /// The classified enclosure's lower bound, where the classifier
+    /// saw an enclosure rather than a value.
+    #[getter]
+    fn margin_low(&self) -> Option<Length> {
+        self.payload().margin_low.map(length)
+    }
+
+    /// Its upper bound.
+    #[getter]
+    fn margin_high(&self) -> Option<Length> {
+        self.payload().margin_high.map(length)
+    }
+
+    /// The coincidence threshold of the band a margin was classified
+    /// against, or of the band a constructor could not form.
+    ///
+    /// A plain real, as the frame door answers it: a `Band`'s
+    /// thresholds are whatever its predicate measures in, and the
+    /// same type carries angular ones.
+    #[getter]
+    fn zero(&self) -> Option<f64> {
+        self.payload().zero
+    }
+
+    /// Its escalation threshold.
+    #[getter]
+    fn escalate(&self) -> Option<f64> {
+        self.payload().escalate
+    }
+
+    /// WHICH band threshold a rejected value was — `zero` or
+    /// `escalate`.
+    #[getter]
+    fn field(&self) -> Option<&'static str> {
+        self.payload().field
+    }
+
+    /// The rejected number: a threshold, or a lever arm handed to the
+    /// band constructor.
+    #[getter]
+    fn value(&self) -> Option<f64> {
+        self.payload().value
+    }
+
+    /// The lever's TILT, when a contradictory clash was levered
+    /// rather than measured outright.
+    #[getter]
+    fn lever_tilt(&self) -> Option<Angle> {
+        self.payload()
+            .lever_tilt
+            .map(|r| Angle(pncad::quantity::Angle::from_radians(r)))
+    }
+
+    /// The lever's ARM — **the solve's own scale surrogate**, the
+    /// larger of the two frame origins' distances and the authored
+    /// lengths, floored at one metre. It is NOT a contact feature, so
+    /// it names that scale and nothing in the model.
+    ///
+    /// `clash` is the PRODUCT of the two halves: a levered refusal
+    /// reports `lever_tilt * lever_arm` as its deviation. An arm that
+    /// measured its margin without a lever carries neither half.
+    #[getter]
+    fn lever_arm(&self) -> Option<Length> {
+        self.payload().lever_arm.map(length)
+    }
+
+    /// The length scale a datum named, when it named one too small to
+    /// lever a parallelism verdict over.
+    #[getter]
+    fn extent(&self) -> Option<Length> {
+        self.payload().extent.map(length)
+    }
+
+    /// The floor that scale is under: below it the smallest tilt the
+    /// predicate could call non-parallel is about eps/extent radians,
+    /// so every tilt would read parallel.
+    #[getter]
+    fn floor(&self) -> Option<Length> {
+        self.payload().floor.map(length)
     }
 
     fn __str__(&self) -> String {
@@ -1029,5 +1156,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
     m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;
     m.add("UNDER_RECOURSE", d::UNDER_RECOURSE)?;
+    m.add("CONTRADICTORY_RECOURSE", d::CONTRADICTORY_RECOURSE)?;
+    m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
     Ok(())
 }

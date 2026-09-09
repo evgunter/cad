@@ -15,6 +15,12 @@ from pncad import (
     AnalyzedBox,
     AnalyzedParam,
     analyzed_box,
+    McAssertion,
+    McConfig,
+    McMeasure,
+    McReport,
+    monte_carlo,
+    sample_offset,
     Alignment,
     Angle,
     AngleUnit,
@@ -63,12 +69,19 @@ from pncad import (
     Length,
     LengthUnit,
     Body,
+    CurvePromotion,
+    FaceCensus,
+    ImportReport,
+    MassProperties,
+    PlacedInstance,
+    StructureNormalization,
     Mesh,
     MateFault,
     MateFrame,
     MatePrimitive,
     MateRole,
     NamePat,
+    MeridianEnd,
     Node,
     NodeId,
     NodePick,
@@ -104,7 +117,13 @@ from pncad import (
     deg,
     rad,
     enforce_checks,
+    band,
+    band_pi,
+    band_rim,
+    carried,
     evaluate,
+    meridian_vertex,
+    import_step,
     load,
     gauge_of,
     header_document_id,
@@ -201,6 +220,22 @@ turned: NodeId = doc.insert(
         doc.insert(Node.profile(circle((3 * m, 0 * m), 1 * m), plane=turned_frame)),
         doc.insert(Node.datum_axis_in_plane(turned_frame, (0 * m, 0 * m), (0.0, 1.0))),
         360 * deg,
+    )
+)
+
+# The two datum arms whose constructors complete the six. A point is a
+# position and nothing else; a frame is an origin and two direction
+# triples, orthonormalized at evaluation, and it is a plane node a
+# profile may name.
+here: NodeId = doc.insert(Node.datum_point((0 * m, 0 * m, 2 * m)))
+near_here: GeomPred = GeomPred.datum_distance(here, Cmp.Less, 1 * m)
+authored_frame: NodeId = doc.insert(
+    Node.datum_frame((0 * m, 0 * m, 2 * m), (1.0, 0.0, 0.0), (0.0, 1.0, 1.0))
+)
+leaning: NodeId = doc.insert(
+    Node.extrude(
+        doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=authored_frame)),
+        1 * m,
     )
 )
 
@@ -448,7 +483,7 @@ repinned: DocEdit = DocEdit.update_reference(instance, pin)
 product_roots: list[NodeId] = doc.roots
 cluster_frame: Frame = doc.placement(instance)
 registry: dict[NodeId, Frame] = doc.placements()
-carried: DocRef | None = doc.reference(instance)
+carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
 after_edit: list[ClusterMaintenance] = doc.last_maintenance
 
@@ -549,6 +584,10 @@ from_here: tuple[Length, Length, Length] = aimed.origin
 along: tuple[float, float, float] = aimed.direction
 struck: PickHit | None = seamed.pick_face([index], aimed)
 drawn: Mesh = index.mesh
+# The model's edges, in the position-index alphabet the triangles
+# speak — one polyline per edge, paired entry for entry with
+# `boundary_names` below.
+wireframe: list[list[int]] = drawn.boundaries
 paired_with: NodeId = index.node
 which_body: int = index.body
 # The per-slot inversion: a name, or the loud arm as a VALUE in the
@@ -591,6 +630,13 @@ measures: str = derived.dimension
 depends_on: list[ParamName] = derived.params
 bare: float | None = derived.literal_value
 worth: Length | Angle | float = doc.eval(derived)
+# LIB-EDITS: the two edits addressed the way a refusal answers — a
+# slot by its own WORD, a name by its own TEXT. Neither takes a class
+# of its own: the alphabet a caller writes at is the alphabet
+# `EditError.slot` reads back, and a stable name is opaque text on
+# this surface everywhere else too.
+slot_moved: DocEdit = DocEdit.set_param(plate, "distance", derived)
+repaired: DocEdit = DocEdit.rebind(open_faces[0], open_faces[0])
 how_many: int = doc.eval_count(doc.parse_expr("4"))
 # The display formatter: TEXT out, in the unit asked for, from the
 # quantity that carries the dimension. The sibling `in_unit` answers a
@@ -635,7 +681,7 @@ window: Distribution = Distribution.truncated_normal(1 * mm, -2 * mm, 2 * mm)
 declared_form: str = spread.kind
 annotated: DocParam = DocParam.length(4 * mm, spread)
 unannotated: DocParam = DocParam.length(4 * mm)
-carried: Distribution | None = annotated.distribution
+carried_distribution: Distribution | None = annotated.distribution
 read_back: DocParam | None = doc.params.get(ParamName("bore_r"))
 
 # The box is derived on request from a document and a policy, and the
@@ -650,6 +696,23 @@ axis_names: list[ParamName] = boxed.names
 # declare, so the caller's variable is optional whichever way it goes.
 tail: float | None = boxed.tail_mass(ParamName("bore_r"))
 leaf: float | None = boxed.box_mass(ParamName("bore_r"), -1 * mm, 1 * mm)
+
+# The advisory lane. The config is optional because the shipped dials
+# are the kernel's; the box is not, because which parameters vary and
+# what counts as outside is the analysis's knob and never a default
+# hidden inside the run.
+dials: McConfig = McConfig(samples=64, seed=7, parallel=False)
+estimate: McReport = monte_carlo(doc, boxed, dials)
+shipped: McReport = monte_carlo(doc, boxed)
+per_measure: list[McMeasure] = estimate.measures
+per_assertion: list[McAssertion] = estimate.assertions
+labeled: str = estimate.render()
+# The fraction is over the DECIDED samples, so it is optional: a run
+# that decided none has no fraction rather than a zero.
+fraction: float | None = per_assertion[0].violation_fraction if per_assertion else None
+# One draw. The offset carries the distribution's own dimension, so a
+# Length annotation answers a Length.
+drawn: Length | Angle | float = sample_offset(ParamName("bore_r"), spread, 0.5)
 # Authored notation: the value and the unit it was WRITTEN in, kept
 # together. `in_unit` multiplies (`25 * mm` that remembers the `mm`);
 # `canonical_in` takes a quantity whose arithmetic has already
@@ -734,7 +797,7 @@ except EditError as edit_refusal:
 
 # The one refusal on this surface whose discriminant is a SEQUENCE.
 # `findings` is a list, its length is `failure_count`, and each entry's
-# `variant` is a plain `str` while its three payload words are optional
+# `variant` is a plain `str` while its five payload words are optional
 # — the shape a caller reads without narrowing on `variant` first.
 try:
     gathered.validate_pseudomanifold()
@@ -747,8 +810,14 @@ except ValidationError as validation_refusal:
     about: str | None = first_finding.subject_kind
     carrier: str | None = first_finding.entity_kind
     coincidence: str | None = first_finding.contact_kind
+    unwitnessed: str | None = first_finding.stale_kind
+    where_the_ring_meets: str | None = first_finding.ring_contact_kind
     if coincidence is not None:
         declarable: str = coincidence
+    if unwitnessed is not None:
+        withdraw: str = unwitnessed
+    if where_the_ring_meets is not None:
+        move_the_ring: str = where_the_ring_meets
 
 
 # The three doors LIB-DOORS-2 projected, typed. Every payload
@@ -791,3 +860,86 @@ except StlError as stl_refusal:
     sink_said: str | None = stl_refusal.detail
     if header_bytes is not None:
         how_long: int = header_bytes
+
+
+# The import report, read attribute by attribute. Every field of the
+# importer's success value is here, and the reads that MUST be narrowed
+# are exactly the ones the record leaves absent: a normalization's
+# promoted kind and residual, and the four entity fields of an assembly
+# row a file that places nothing does not state.
+_report: ImportReport = import_step(
+    evaluate(doc).step_string(lightened, product_name="plate")
+)
+imported_body: Body = _report.body
+# The gate's own enclosure — the same four fields `mass_properties`
+# answers, without running the quadrature a second time.
+enclosure: MassProperties = _report.enclosure
+imported_volume: float = enclosure.volume
+imported_area: float = enclosure.surface_area
+imported_volume_pad: float = enclosure.volume_pad
+imported_area_pad: float = enclosure.area_pad
+file_tolerance: float = _report.eps_in
+
+for _normalization in _report.normalizations:
+    _n: StructureNormalization = _normalization
+    remint_face: int = _n.face
+    remint_kind: str = _n.kind
+    promoted_to: str | None = _n.promoted_to
+    promotion_residual: float | None = _n.residual
+    stated: FaceCensus = _n.file_census
+    minted: FaceCensus = _n.kernel_census
+    face_delta: int = minted.faces - stated.faces
+    edge_delta: int = minted.edges - stated.edges
+    vertex_delta: int = minted.vertices - stated.vertices
+    if promotion_residual is not None:
+        how_far: float = promotion_residual
+
+for _promotion in _report.promotions:
+    _p: CurvePromotion = _promotion
+    carrier: int = _p.curve
+    carrier_kind: str = _p.kind
+    carrier_residual: float = _p.residual
+
+for _instance in _report.instances:
+    _i: PlacedInstance = _instance
+    solid_index: int = _i.index
+    msb: int = _i.solid
+    component: int = _i.component
+    occurrence: int | None = _i.occurrence
+    relationship: int | None = _i.relationship
+    transform: int | None = _i.transform
+    placement: Frame | None = _i.placement
+    if placement is not None:
+        placed_at: tuple[Length, Length, Length] = placement.origin
+
+
+# The five role-name doors: a name MINTED from a role, answering the
+# same `str` a materializer answers, and handed to the two doors that
+# take an authored selection. Nothing here evaluates anything — that
+# is what the doors are for.
+_names_doc = Doc()
+_names_frame = _names_doc.sketch_frame()
+_revolved: NodeId = _names_doc.insert(
+    Node.revolve(
+        _names_doc.insert(
+            Node.profile(
+                circle((2 * m, 1 * m), 0.5 * m), plane=_names_frame
+            )
+        ),
+        _names_doc.insert(
+            Node.datum_axis_in_plane(_names_frame, (0 * m, 0 * m), (0.0, 1.0))
+        ),
+        360 * deg,
+    )
+)
+minted_band: str = band(_revolved, 0)
+minted_half: str = band_pi(_revolved, 0)
+minted_rim: str = band_rim(_revolved, 1)
+minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, 1)
+minted_survivor: str = carried(_revolved, minted_band)
+_blended: NodeId = _names_doc.insert(
+    Node.fillet(_revolved, 0.1 * m, [minted_rim])
+)
+_hollowed: NodeId = _names_doc.insert(
+    Node.shell(_revolved, 0.1 * m, [minted_band, minted_half])
+)

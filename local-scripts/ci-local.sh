@@ -425,6 +425,16 @@ discipline() {
         && scripts/base-test-listing.sh --selftest); then
     rc=1
   fi
+  # The payload-rung sweep over the façade's four curated lists, and its own
+  # fixture battery. The sweep used to be prose re-implemented by each unit
+  # that ran it, and no two implementations agreed on a count; `--check` pins
+  # the names it finds against the script's disposition tables, so a new rung
+  # reds here and hosted rather than waiting for someone to re-derive it.
+  # HOSTED MIRROR: discipline / payload-rung sweep (the curated lists' payloads are decided)
+  if ! (python3 scripts/payload-rung-sweep.py --selftest \
+        && python3 scripts/payload-rung-sweep.py --check); then
+    rc=1
+  fi
   # The reader behind the hosted `gate ok` job — the one check a merge queue or
   # a branch protection is meant to require. The READING has no local half and
   # is not supposed to: its subject is a hosted run's own job list, and this box

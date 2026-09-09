@@ -3772,6 +3772,12 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `tests/test_union.py` and `TestTheVDegreeParamBinding`
         # above.
         #
+        # `datum_point` and `datum_frame` JOINED it at LIB-GAPS-1,
+        # which closed B-DATUM-DOORS: all six arms of the kernel's
+        # `Datum` now have a constructor, so a Python author builds
+        # six of six datum kinds. The positive form is
+        # `TestDatumPointAndFrame` in `tests/test_document.py`.
+        #
         # `measure` and `assertion` JOINED it at LIB-B-MEASURES, which
         # closed B-MEASURES. They are the last two of the kernel's
         # twenty-five recipe node kinds to become constructible from
@@ -3787,7 +3793,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             [
                 "assertion", "boolean", "chamfer", "datum_axis",
                 "datum_axis_in_plane", "datum_face_frame",
-                "datum_plane", "declare",
+                "datum_frame", "datum_plane", "datum_point", "declare",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
                 "loft", "mate", "measure", "part", "pattern",
                 "placed_union", "placed_union_at",
@@ -3795,14 +3801,27 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "split", "transform", "tube", "union",
             ],
         )
+        #
+        # `DocEdit.set_param` and `DocEdit.rebind` JOINED it at
+        # LIB-EDITS: a node's continuous slot after the constructor
+        # that minted its literal, and the one repair of a stored
+        # name. They are two of `DocEdit`'s five unbuilt arms and the
+        # other three are not oversights — the two witness edits carry
+        # payloads the façade does not curate, and the expression-path
+        # edit refuses at a bad address with a message the binding's
+        # prose gate panics on. The positive form is
+        # `tests/test_slot_edits.py`, and `TestCup`'s live rebuild is
+        # what the continuous door bought a scene that had to
+        # re-author a document to move a wall.
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
                 "bind_count_param", "bind_instance_param",
                 "bind_v_degree_param", "delete_node",
-                "insert_node", "set_doc_param", "set_doc_param_value",
-                "set_members", "set_placement",
-                "set_roots", "set_tolerance", "update_reference",
+                "insert_node", "rebind", "set_doc_param",
+                "set_doc_param_value", "set_members", "set_param",
+                "set_placement", "set_roots", "set_tolerance",
+                "update_reference",
             ],
         )
 
@@ -3820,9 +3839,15 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # and `find_flush_candidates` joined them when G5 closed
         # (LIB-PYG5): the detector is an `Evaluation` method too
         # (`TestTable`/`TestCrosslapGlued` are the positive forms).
-        # `StableName` stays: a name is CARRIED as text, never
-        # composed, so there is no name type and no name grammar —
-        # a `FlushFinding`'s pair crosses as the same opaque texts.
+        # `StableName` stays, and for a sharper reason than "nothing
+        # spells it": a name is `str` on this side, so there is no
+        # name TYPE and no grammar to half-parse. The five role-name
+        # doors — `band`, `band_pi`, `band_rim`, `meridian_vertex`,
+        # `carried` — do not change that: each MINTS a name by naming
+        # a ROLE and answers the same opaque text a materializer
+        # answers, which is why they are module doors and not methods
+        # on a name class. A `FlushFinding`'s pair crosses as the same
+        # opaque texts.
         for door in [
             # `Mesh`/`TessellateError` left this list when G11 closed
             # (LIB-G11) — `TestMeshCrossCheck` below is the positive

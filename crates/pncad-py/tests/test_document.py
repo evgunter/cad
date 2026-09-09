@@ -11,21 +11,26 @@ import unittest
 import pncad
 from pncad import (
     BooleanOp,
+    Cmp,
     Distribution,
     Doc,
     DocEdit,
     DocParam,
     EditError,
+    EntityKind,
     EvaluationError,
     Frame,
+    GeomPred,
     Length,
     MeasureExpr,
     MeasurePrimitive,
     DocParamValue,
+    NamePat,
     Node,
     Open,
     ParamName,
     PatternKind,
+    Selector,
     SketchPlane,
     Start,
     evaluate,
@@ -608,10 +613,72 @@ class TestStepExport(unittest.TestCase):
         step = ev.step_string(box, product_name="doors-box")
         self.assertIn("ISO-10303-21", step)
         # The oracle is the kernel's own importer: the text PARSES and
-        # adopts as a first-class solid whose volume agrees.
-        body = import_step(step)
-        volume = body.mass_properties().volume
-        self.assertAlmostEqual(volume, 3.0, places=9)
+        # adopts as a first-class solid whose volume agrees. The
+        # enclosure is the import gate's OWN measurement, so reading it
+        # is the whole journey — nothing here measures twice.
+        report = import_step(step)
+        self.assertAlmostEqual(report.enclosure.volume, 3.0, places=9)
+
+    def test_the_reports_enclosure_is_not_a_second_computation(self):
+        """The gate already ran the certified quadrature to decide this
+        body's orientation invariant, and `enclosure` is that result
+        handed back rather than dropped.
+
+        BIT equality, not `assertAlmostEqual`: the claim is that the
+        two are the same computation over the same body at the same
+        band, and a tolerance here would pass just as happily if they
+        were two different ones that happened to agree.
+        """
+        doc = Doc()
+        box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
+        report = import_step(evaluate(doc).step_string(box))
+        again = report.body.mass_properties()
+        for field in ("volume", "surface_area", "volume_pad", "area_pad"):
+            self.assertEqual(
+                getattr(report.enclosure, field).hex(),
+                getattr(again, field).hex(),
+                f"{field} differs between the gate's enclosure and a re-measure",
+            )
+
+    def test_the_report_carries_every_field_of_the_import(self):
+        """Each field of the importer's success value is an attribute,
+        and each record row spells out its own payload.
+
+        The exported box states no assembly and needs no re-minting, so
+        two of the three lists are empty and the third is not: the
+        assembly record is kept whether or not the file states one,
+        which is what makes `instances` an answer rather than a
+        leftover.
+        """
+        doc = Doc()
+        box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
+        report = import_step(evaluate(doc).step_string(box))
+        self.assertIsInstance(report.body, pncad.Body)
+        self.assertIsInstance(report.enclosure, pncad.MassProperties)
+        self.assertGreater(report.eps_in, 0.0)
+        self.assertEqual(report.normalizations, [])
+        self.assertEqual(report.promotions, [])
+        self.assertEqual(len(report.instances), 1, "one row per solid")
+
+        instance = report.instances[0]
+        self.assertEqual(instance.index, 0)
+        self.assertGreater(instance.solid, 0)
+        self.assertGreater(instance.component, 0)
+        # The file places nothing, so the occurrence half of the record
+        # is `None` rather than absent — a read never raises.
+        for absent in ("occurrence", "relationship", "transform", "placement"):
+            self.assertIsNone(getattr(instance, absent))
+
+    def test_the_report_is_frozen(self):
+        """A report is a VALUE: it is restated by importing again,
+        never by editing one in place."""
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        report = import_step(evaluate(doc).step_string(box))
+        with self.assertRaises(AttributeError):
+            report.eps_in = 1.0
+        with self.assertRaises(AttributeError):
+            report.instances[0].index = 7
 
     def test_export_of_a_profile_is_a_typed_refusal(self):
         doc = Doc()
@@ -849,6 +916,125 @@ class TestDatumReadback(unittest.TestCase):
         self.assertEqual(datum.origin, (0.25 * m, 0.5 * m, 0 * m))
 
 
+class TestDatumPointAndFrame(unittest.TestCase):
+    """The two arms a Python author could not write. Six of the six
+    datum kinds now have a `Node.datum_*` constructor; each of these
+    two reads back through `Value.datum()`, and each is here because a
+    downstream door consumes it — a selection measures its distance to
+    a point, a profile is drawn on a frame."""
+
+    def test_a_point_reads_back_as_its_position_and_faces_no_way(self):
+        doc = Doc()
+        point = doc.insert(Node.datum_point((1 * m, 2 * m, 3 * m)))
+        datum = evaluate(doc).value(point).datum()
+        self.assertEqual(datum.kind, "point")
+        for coordinate in datum.origin:
+            self.assertIsInstance(coordinate, Length)
+        self.assertEqual(datum.origin, (1 * m, 2 * m, 3 * m))
+        # The fields the other kinds fill are `None`, not a zero triple
+        # standing in for a direction a point does not have.
+        self.assertIsNone(datum.direction)
+        self.assertIsNone(datum.axes)
+        self.assertIsNone(datum.in_plane)
+
+    def test_a_selection_measures_its_distance_to_a_point(self):
+        """The downstream door: `GeomPred.datum_distance` is UNSIGNED
+        to a point, so a point is how a rule says "near here" without
+        naming a face."""
+        doc = Doc()
+        cube = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        # On the bottom cap's centroid, a metre under the top cap's.
+        here = doc.insert(Node.datum_point((0.5 * m, 0.5 * m, 0 * m)))
+        ev = evaluate(doc)
+        faces = Selector.of(NamePat.of_kind(EntityKind.Face))
+        on_it = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Approx, 0 * m)])
+        far = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Greater, 0.9 * m)])
+        self.assertEqual(len(on_it), 1)
+        self.assertEqual(len(far), 1)
+        self.assertNotEqual(on_it, far)
+
+    def test_a_frame_reads_back_as_an_orthonormalized_pair(self):
+        """`u` is KEPT as written and `v` yields its component along it,
+        so a pair that is merely not perpendicular is legal and the
+        axes come back unit."""
+        doc = Doc()
+        frame = doc.insert(
+            Node.datum_frame((0 * m, 0 * m, 1 * m), (1.0, 0.0, 0.0), (1.0, 2.0, 0.0))
+        )
+        datum = evaluate(doc).value(frame).datum()
+        self.assertEqual(datum.kind, "frame")
+        self.assertEqual(datum.origin, (0 * m, 0 * m, 1 * m))
+        self.assertIsNone(datum.in_plane)
+        u, v = datum.axes
+        # An axis is a DIRECTION: dimensionless, and bare.
+        self.assertNotIsInstance(u[0], Length)
+        self.assertEqual(u, (1.0, 0.0, 0.0))
+        for got, want in zip(v, (0.0, 1.0, 0.0), strict=True):
+            self.assertAlmostEqual(got, want)
+        # The normal rides ALONGSIDE the axes: u x v, so a reader
+        # asking which way the frame faces gets a plane's answer.
+        for got, want in zip(datum.direction, (0.0, 0.0, 1.0), strict=True):
+            self.assertAlmostEqual(got, want)
+
+    def test_a_profile_is_drawn_on_an_authored_frame(self):
+        """The downstream door, and the frame's tilt showing in the
+        body: the same square extruded on a frame leaning 45 degrees
+        puts material above the metre the world-xy version tops out
+        at."""
+        ground = (0 * m, 0 * m, 0 * m)
+        corners = [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)]
+
+        def prism(plane_node, doc):
+            square = doc.insert(Node.polygon(corners, plane=plane_node))
+            return doc.insert(Node.extrude(square, 1 * m))
+
+        doc = Doc()
+        tilted = doc.insert(Node.datum_frame(ground, (1.0, 0.0, 0.0), (0.0, 1.0, 1.0)))
+        leaning = prism(tilted, doc)
+        upright = prism(doc.sketch_frame(), doc)
+        floor = doc.insert(Node.datum_plane(ground, (0.0, 0.0, 1.0)))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(leaning))
+        # A rigid tilt is volume-preserving; where the material SITS is
+        # what moved.
+        self.assertAlmostEqual(
+            ev.value(leaning).body().mass_properties().volume, 1.0, delta=1e-9
+        )
+        faces = Selector.of(NamePat.of_kind(EntityKind.Face))
+        above = [GeomPred.datum_distance(floor, Cmp.Greater, 1 * m)]
+        self.assertEqual(ev.select_where(upright, faces, above), [])
+        self.assertNotEqual(ev.select_where(leaning, faces, above), [])
+
+    def test_a_frame_whose_axes_span_no_plane_refuses_at_evaluate(self):
+        """Gram-Schmidt states "these two span no plane" as a LENGTH,
+        so the refusal is the direction one every datum raises, naming
+        which axis went."""
+        for u, v, axis in (
+            ((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), "x"),
+            ((1.0, 0.0, 0.0), (2.0, 0.0, 0.0), "y"),
+        ):
+            with self.subTest(axis=axis):
+                doc = Doc()
+                bad = doc.insert(Node.datum_frame((0 * m, 0 * m, 0 * m), u, v))
+                with self.assertRaises(EvaluationError) as caught:
+                    evaluate(doc).value(bad)
+                self.assertEqual(caught.exception.kind, "degenerate_direction")
+                self.assertIn(f"datum frame {axis} axis", str(caught.exception))
+
+    def test_a_non_finite_coordinate_refuses_at_the_door(self):
+        """Both doors build literals, so the kernel's own literal
+        refusal arrives where the call was written, carrying the
+        offending number."""
+        with self.assertRaises(pncad.LiteralError) as caught:
+            Node.datum_point((float("nan") * m, 0 * m, 0 * m))
+        self.assertEqual(caught.exception.kind, "non_finite")
+        with self.assertRaises(pncad.LiteralError) as caught:
+            Node.datum_frame(
+                (0 * m, 0 * m, 0 * m), (float("inf"), 0.0, 0.0), (0.0, 1.0, 0.0)
+            )
+        self.assertEqual(caught.exception.value, float("inf"))
+
+
 class TestBooleanDeclareArgument(unittest.TestCase):
     """LIB-PYBUNDLE rider (c): `Node.boolean` grew `declare=`, the
     DATA door for a declared contact. The protocol that BUILDS a
@@ -1083,14 +1269,16 @@ EDIT_ATTRS = (
 class TestTheEditDoorsPayload(unittest.TestCase):
     """The refusing arm's payload, off real edits.
 
-    The document layer's `EditError` has 58 arms and most have no
-    Python door — a rebind, a witness, an appearance write and an
-    expression-path edit are not among the ten `DocEdit` verbs. What
-    the rows below pin is the half a Python caller can provoke: the
+    The document layer's `EditError` has 58 arms and many have no
+    Python door — a witness, an appearance write and an
+    expression-path edit are not among the `DocEdit` verbs. What the
+    rows below pin is the half a Python caller can provoke: the
     payload arrives as attributes, the ids are the ids that were used,
     and the words are stable words rather than prose sliced out of the
     message. The arms with no door are pinned by construction in
-    `src/tests.rs`, where they can be built.
+    `src/tests.rs`, where they can be built; the rebind arms and the
+    continuous-slot arms are provoked through their own doors in
+    `tests/test_slot_edits.py`.
     """
 
     @staticmethod

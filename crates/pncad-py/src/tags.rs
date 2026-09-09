@@ -57,13 +57,16 @@
 //! attribute, a helper, or a cleverer arm added here is a deliberate
 //! diff that teaches the reader too, never a silent hole.
 
-use pncad::analysis::{AnalysisPolicyError, MeasureUnavailable, ParamBoxError, SeedError};
+use pncad::analysis::{
+    AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
+};
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
-    MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, NodeErrorKind, ParseError,
-    PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
-    RefusedRef, Relation, RootFault, SlotId, SnapshotError, SplitError, UpdateError,
+    LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
+    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
+    SnapshotError, SplitError, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -77,14 +80,14 @@ use pncad::select::{
     DanglingRef, HitTestError, InterrogateError, MeshPickError, NamingError, NodePickError,
     ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
 };
-use pncad::step_import::{PromotedKind, StepImportError};
+use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanError, CensusContact, CensusSubject, EntityId, ShellError, TransformError,
-    ValidationError,
+    BooleanError, CensusContact, CensusSubject, EntityId, RingContact, ShellError,
+    StaleDeclaration, TransformError, ValidationError,
 };
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -435,6 +438,23 @@ pub fn distribution_field_tag(field: &DistributionField) -> &'static str {
 pub fn measure_unavailable_tag(err: &MeasureUnavailable) -> &'static str {
     match err {
         MeasureUnavailable::BandHasNoMeasure { .. } => "band_has_no_measure",
+    }
+}
+
+/// The stable tag for a Monte-Carlo run that produced nothing
+/// (ERROR-DESIGN E11.1).
+///
+/// The band arm DELEGATES to [`measure_unavailable_tag`] rather than
+/// spelling a word of its own, because it carries that very refusal:
+/// the advisory lane cannot draw from a band for the same reason the
+/// mass doors cannot price one, and two words for one fault would let
+/// a caller who already branches on `band_has_no_measure` miss it
+/// here.
+pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
+    match refusal {
+        McRefusal::BandHasNoMeasure(err) => measure_unavailable_tag(err),
+        McRefusal::NoSamples => "no_samples",
+        McRefusal::NominalDoesNotBuild { .. } => "nominal_does_not_build",
     }
 }
 
@@ -1290,6 +1310,19 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
     }
 }
 
+/// The stable tag for a lever-arm refusal — the inner arm of
+/// [`mate_fault_tag`]'s `mate_datum_too_small_to_lever`, whose scale
+/// numbers ride beside it as `extent` and `floor`.
+///
+/// One word today, and the map is exhaustive rather than a constant
+/// so a second way to refuse a lever arm arrives here as a compile
+/// error.
+pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
+    match refusal {
+        LeverRefusal::DatumTooSmall { .. } => "datum_too_small",
+    }
+}
+
 /// The stable tag for a declare-sugar refusal (the
 /// `Doc.declare`/`Doc.declare_all` doors over
 /// `editor_core::declare_all`). The `Edit` arm carries the document
@@ -1505,6 +1538,51 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
     match kind {
         PromotedKind::Plane => "plane",
         PromotedKind::Cylinder => "cylinder",
+    }
+}
+
+/// The stable tag for WHICH structure normalization a successful
+/// import re-minted — `StructureNormalization::kind`, on the success
+/// side of the same door.
+///
+/// The carrier is a value here rather than a refusal, and the rule is
+/// the one that decided `promoted_kind_tag`: the payload's category
+/// follows what its carrier does at the crossing. `ImportReport`
+/// crosses the record as frozen rows projecting every field, so this
+/// discriminant crosses as one of those fields — a word beside the
+/// entity id and the two censuses, never in place of them.
+///
+/// `SurfacePromotion` does NOT fold its payload into the word. Which
+/// analytic kind certified is [`promoted_kind_tag`]'s question and is
+/// answered at `promoted_to` beside this one, so a caller reading
+/// "the file's NURBS patch was adopted as an analytic surface" reads
+/// one word whichever kind it was, and the residual that certifies it
+/// is a number rather than a spelling.
+///
+/// The match is exhaustive, so a sixth normalization minted
+/// kernel-side stops this crate compiling instead of arriving under
+/// one of these five words.
+pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
+    match kind {
+        NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
+        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::FullPeriodTorus => "full_period_torus",
+        NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
+    }
+}
+
+/// The stable tag for the analytic kind a CURVE carrier was promoted
+/// to — `CurvePromotion::kind`.
+///
+/// One word today, and the exhaustive match is why it is a map rather
+/// than a literal: the named exclusions the recognizer carries
+/// (line-as-degree-1, ellipse, helix, open arcs) each land here when
+/// their follow-up does, and each stops this crate compiling until it
+/// has a word of its own.
+pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
+    match kind {
+        PromotedCurveKind::Circle => "circle",
     }
 }
 
@@ -2068,6 +2146,30 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
     }
 }
 
+/// The stable tag for the shell door's own refusal — the inner arm of
+/// [`CheckEvidence::Escalated`] and [`CheckEvidence::Unsupported`].
+///
+/// The carrier's word says which finding the registry made: the count
+/// is unknowable because a shell would not classify (`escalated`), or
+/// because a face of the subject is outside the flux inventory
+/// (`unsupported`). This one says which of the shell door's four ways
+/// it refused, so a caller reads it instead of substring-matching the
+/// sentence: the run's tolerance formed no band, a face refused in the
+/// props inventory, the sign read escalated in-band, or the signed
+/// volume is definitely zero and there is no side to classify to.
+///
+/// `band` is the same word [`checks_error_tag`] mints for the
+/// registry's own band refusal, one namespace up, and means the same
+/// thing at both: the tolerance would not form a band.
+pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
+    match err {
+        ShellClassifyError::Band { .. } => "band",
+        ShellClassifyError::Props { .. } => "props",
+        ShellClassifyError::Escalated { .. } => "escalated",
+        ShellClassifyError::ZeroVolume { .. } => "zero_volume",
+    }
+}
+
 /// The stable tag for ONE validator finding — which
 /// `ValidationError` arm the body failed on.
 ///
@@ -2217,5 +2319,49 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
         CensusContact::EdgeEdgeOverlap { .. } => "edge_edge_overlap",
         CensusContact::EdgeFaceOverlap { .. } => "edge_face_overlap",
         CensusContact::ConformalPatch { .. } => "conformal_patch",
+    }
+}
+
+/// The stable tag for WHICH declared record lost its witness — the
+/// granularity of the declaration the tier-3′ census could not
+/// confirm.
+///
+/// The word decides which record a caller withdraws or re-seats. A
+/// `vertex_vertex` or `vertex_on_face` record names entities, so the
+/// repair is at those entities; a `curve_locus` record was certified
+/// by a witness EDGE whose locus is gone, and a `patch` record by a
+/// trim overlap in a shared chart. Withdrawing the wrong granularity
+/// leaves the refusal standing, which is what a caller reading only
+/// `stale_contact_declaration` cannot avoid.
+///
+/// The record's KEYS stay in the kernel's own prose on the joined
+/// message: no arena key crosses to a surface that holds names.
+pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
+    match declaration {
+        StaleDeclaration::VertexVertex { .. } => "vertex_vertex",
+        StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::CurveLocus { .. } => "curve_locus",
+        StaleDeclaration::Patch { .. } => "patch",
+    }
+}
+
+/// The stable tag for HOW a ring meets its face's own outer loop.
+///
+/// The word decides where the ring has to move: a `vertex_vertex`
+/// contact is one shared position and a nudge of one vertex clears
+/// it, a `vertex_on_edge` contact puts a ring vertex on the interior
+/// of an outer edge, and an `edge_along_edge` contact shares a
+/// positive-length arc — the two loops run together rather than
+/// touching, and no single vertex move separates them.
+///
+/// The words are the census vocabulary's where the shape is the same
+/// one ([`census_contact_tag`]), because a caller reading two contact
+/// words off one finding should not have to learn two spellings for
+/// one coincidence.
+pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
+    match contact {
+        RingContact::Vertex { .. } => "vertex_vertex",
+        RingContact::VertexOnEdge { .. } => "vertex_on_edge",
+        RingContact::Edge { .. } => "edge_along_edge",
     }
 }

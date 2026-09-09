@@ -11,6 +11,9 @@ from pncad import (
     AssertionDir,
     AnalysisPolicy,
     analyzed_box,
+    McConfig,
+    monte_carlo,
+    sample_offset,
     ArcSide,
     ChecksConfig,
     Severity,
@@ -30,10 +33,12 @@ from pncad import (
     EvaluationError,
     ValidationError,
     ValidationFinding,
+    Body,
     Frame,
     FrameError,
     GeomPred,
     NamePat,
+    CapEnd,
     Node,
     NodeId,
     NodePick,
@@ -53,6 +58,7 @@ from pncad import (
     Sweep,
     Workspace,
     enforce_checks,
+    import_step,
     run_checks,
     subject_body,
     Alignment,
@@ -65,7 +71,10 @@ from pncad import (
     content_pin,
     deg,
     rad,
+    band,
+    carried,
     evaluate,
+    meridian_vertex,
     load,
     m,
     mm,
@@ -152,6 +161,14 @@ Node.transform(solid, (0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 1 * m)  # ty: erro
 
 # A datum plane's normal is a dimensionless triple.
 Node.datum_plane((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m))  # ty: error
+
+# A datum point's position is a POSITION: dimensioned, like every other
+# position on this surface.
+Node.datum_point((0.0, 0.0, 0.0))  # ty: error
+
+# A datum frame's two axes are DIRECTIONS and are bare; the origin is
+# the only dimensioned argument it takes.
+Node.datum_frame((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0))  # ty: error
 
 # A multi-loop profile is a list of LOOPS, and nothing else.
 Node.profile([circle((0 * m, 0 * m), 1 * m), "hole"])  # ty: error
@@ -253,6 +270,20 @@ Node.pattern(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  # ty: 
 # error, and the second argument is deliberately not.)
 name: ParamName = ParamName("which")
 DocEdit.bind_count_param(solid, name, slot="instance")  # ty: error
+
+# LIB-EDITS. The CONTINUOUS slot edit takes the slot's word and an
+# EXPRESSION, which is a dimension-checked tree `Doc.parse_expr`
+# builds — never a bare number and never a dimensioned quantity, both
+# of which would smuggle a second way of saying what a slot holds.
+DocEdit.set_param(solid, "distance", 1 * m)  # ty: error
+DocEdit.set_param(solid, "distance", 1.0)  # ty: error
+# And the word is TEXT: a slot is a name, so there is no slot type to
+# pass and an index is not one either.
+DocEdit.set_param(solid, 0, doc.parse_expr("1 m"))  # ty: error
+
+# The name repair takes two NAMES — opaque text, as every other
+# name-taking door on this surface does. A node is not one.
+DocEdit.rebind(solid, solid)  # ty: error
 
 # A reference is (identity, pin) in that order and neither is the
 # other's type: an id is the canonical hex TEXT, a pin is a value.
@@ -531,6 +562,24 @@ analyzed_box(doc).tail_mass("bore_r")  # ty: error
 # quantity: a share of a distribution's mass is dimensionless.
 AnalysisPolicy(1 * mm)  # ty: error
 
+# The advisory run needs the BOX it is measured against — which
+# parameters vary and what counts as outside is not something the
+# document alone answers, so there is no one-argument spelling.
+monte_carlo(doc)  # ty: error
+
+# A sample count is a count and a seed is a seed: neither is a
+# quantity, and the type is what says so rather than a runtime check.
+McConfig(samples=1 * mm)  # ty: error
+# A report is a frozen value: a run is restated by running again,
+# never by editing the answer.
+monte_carlo(doc, analyzed_box(doc)).samples = 4  # ty: error
+
+# The draw door is keyed by a `ParamName` like every other door in
+# this vocabulary, and its quantile is a bare float in `[0, 1)` — a
+# share of a law's mass is dimensionless.
+sample_offset("bore_r", Distribution.normal(1 * mm), 0.5)  # ty: error
+sample_offset(ParamName("bore_r"), Distribution.normal(1 * mm), 1 * mm)  # ty: error
+
 # Two refusals in one line, and both are the point. A name the
 # document does not declare is not an axis, so `get` answers an
 # OPTION that has to be narrowed; and an axis speaks its parameter's
@@ -654,3 +703,37 @@ try:
     product(doc, evaluate(doc)).tessellate(1 * mm).to_stl_binary(header="x" * 81)
 except StlError as _stl:
     _header_bytes: int = _stl.len  # ty: error
+
+
+# The import door answers a REPORT, not a body. The whole point of the
+# value is that the body is one field of it beside the gate's own
+# measurement, so a caller that treats the report as the handle is
+# reaching past the field it wanted.
+_import = import_step("ISO-10303-21;\nEND-ISO-10303-21;\n")
+_as_body: Body = _import  # ty: error
+_measured = _import.mass_properties()  # ty: error
+
+# And a report is FROZEN, like every other value on this surface: the
+# import is restated by importing again, never by editing one in place.
+_import.eps_in = 1.0  # ty: error
+
+# The record's absent fields are `Optional` on every row — reading one
+# as its bare type is a narrowing the caller has not done.
+for _row in _import.normalizations:
+    _residual: float = _row.residual  # ty: error
+for _placed in _import.instances:
+    _frame: Frame = _placed.placement  # ty: error
+
+
+# A role-name door mints a name from a NODE and an index into the
+# profile's canonical chain. A name is not a node, an index is not a
+# length, and the end vocabulary is closed: `MeridianEnd` names a
+# revolve's ends and a `CapEnd` is an extrude's.
+_names_doc = Doc()
+_names_node: NodeId = _names_doc.sketch_frame()
+_minted: str = band(_names_node, 0)
+_from_a_name: str = band(_minted, 0)  # ty: error
+_from_a_length: str = band(_names_node, 1 * m)  # ty: error
+_wrong_vocabulary: str = meridian_vertex(CapEnd.End, _names_node, 0)  # ty: error
+_a_node_is_not_a_name: str = carried(_names_node, _names_node)  # ty: error
+_a_name_is_not_a_node: str = carried(_minted, _minted)  # ty: error

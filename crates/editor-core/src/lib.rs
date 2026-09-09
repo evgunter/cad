@@ -127,8 +127,9 @@ pub use expr::{
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use lane::{BracketEnd, Lane};
 pub use mate::{
-    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, ClusterMaintenance, Coset, MateFault,
-    MateFrame, MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE,
+    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, ClassAdmission,
+    ClusterMaintenance, Coset, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateRole,
+    MateSide, Member, NO_AT_REST_RECORD_RECOURSE, SolvedPoses, Subgroup, UNDER_RECOURSE,
     class_admission, clusters, gauge_of, member_of, reading_edges, relative_freedom_components,
     solve_document,
 };
@@ -149,9 +150,10 @@ pub use names::{
     InterrogateError, MeridianEnd, NameOrigin, NamePat, NameTable, NamingError, OpGroup,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
     SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
-    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare,
-    declare_all, declare_node, denotation, edge_frame, face_carrier_kind, face_frame,
-    find_flush_candidates, select, select_where, vertex_position,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
+    band_pi, band_rim, carried, declare, declare_all, declare_node, denotation, edge_frame,
+    face_carrier_kind, face_frame, find_flush_candidates, meridian_vertex, select, select_where,
+    vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,

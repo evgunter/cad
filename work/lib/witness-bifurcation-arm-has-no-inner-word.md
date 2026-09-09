@@ -42,3 +42,16 @@ carries `BifurcationKind` and `node_inner_kind_tag`'s
 plus the census row and a Python row that reaches one of the three
 words. Until then the `None` is a decision and not an omission, and
 this file is what says the decision has an expiry.
+
+## Progress (2026-09-09, LIB-DISCRIMINANTS)
+
+The rule now applies to this arm. Ev ruled (A) on
+`two-validation-payload-discriminants-still-uncrossed`: every payload
+DISCRIMINANT of a projected refusal crosses as an attribute of its
+own, named per type, `None` on every other arm — so
+`BifurcationKind` crossing as an inner word is settled in principle,
+and this row is no longer waiting on a decision. It waits on the two
+facts stated above, both unchanged: the M6 solver constructing the
+arm, and the façade carrying `BifurcationKind` out of `NOT_CARRIED`
+the day it does.
+

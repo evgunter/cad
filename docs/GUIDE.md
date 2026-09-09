@@ -893,10 +893,14 @@ props = body.mass_properties()
 assert abs(props.volume - 2.984e-5) < 1e-15
 assert props.volume_pad == 0.0
 
-# Export through the document layer, and re-import to prove it.
+# Export through the document layer, and re-import to prove it. The
+# report's `enclosure` is the IMPORT GATE's own certified measurement
+# of the body it just adopted — reading it re-measures nothing.
 step = ev.step_string(lightened, product_name="bracket")
 assert step.startswith("ISO-10303-21;")
-assert abs(import_step(step).mass_properties().volume - props.volume) < 1e-15
+report = import_step(step)
+assert abs(report.enclosure.volume - props.volume) < 1e-15
+assert report.instances[0].index == 0  # one assembly row per solid
 ```
 
 Two differences from the Rust walk are real and worth stating plainly
@@ -1369,7 +1373,7 @@ inserts the offset boundary as a cavity; the faces you name in `open`
 are re-authored as annular RIMS instead, so a box opened at its top
 is a cup. `Node.shell(target, thickness, open)` is the door, and
 `open` is face names as text exactly as `Node.fillet` takes edge
-names — carried, never composed, frozen at authoring time.
+names — carried, never read, frozen at authoring time.
 
 One thing the blend selection does not have: **`open` is ordered.** A
 chart's rim is its FIRST designated face (the chart's other faces
@@ -1424,6 +1428,72 @@ try:
     raise AssertionError("a zero wall should not hollow")
 except EvaluationError as refusal:
     assert refusal.kind == "shell"
+```
+
+### Naming a role before the body exists
+
+Both doors above took names an evaluation had already answered. That
+is the ordinary case, and it has a hole: the first time you author a
+recipe there is nothing to select against, and a name you cannot name
+is a name you would have to hand-write — the serialized form, field by
+field, with no compiler and no door checking any of it.
+
+So a revolve's roles have MINTING doors, the same five `pncad::select`
+gives Rust: `band(node, seg)` and `band_pi(node, seg)` are the two
+halves of the face swept from meridian segment `seg`, `band_rim(node,
+vertex)` is the latitude rim standing at a meridian vertex,
+`meridian_vertex(end, node, vertex)` is that vertex itself, and
+`carried(node, inner)` is the name a survivor of `node` wears one op
+later. Each answers the SAME opaque text a materializer answers for
+that entity, so a selection authored this way and one selected off an
+evaluation are the same bytes.
+
+`seg` and `vertex` index the profile's canonical chain, on the OUTER
+loop: a hole's band is not reachable this way from either language.
+And the text is still never read or assembled — you name a ROLE, and
+the door does the rest.
+
+```python
+import math
+
+from pncad import (
+    Doc, EntityKind, NamePat, Node, Open, SegPat, SegTag, Selector,
+    Start, band, band_rim, carried, evaluate, m, rad,
+)
+
+RI, RO, H, T = 1.0, 2.0, 1.0, 0.125
+
+doc = Doc()
+frame = doc.sketch_frame()
+section = (
+    Open.at((RI * m, 0 * m))
+    .line_to((RO * m, 0 * m))
+    .line_to((RO * m, H * m))
+    .line_to((RI * m, H * m))
+    .line_to(Start)
+)
+ring = doc.insert(
+    Node.revolve(
+        doc.insert(Node.profile(section, plane=frame)),
+        doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0))),
+        2 * math.pi * rad,
+    )
+)
+
+# Segment 2 is the top annulus and vertex 2 the rim standing on it —
+# read off the profile as written, with nothing evaluated yet.
+cup = doc.insert(Node.shell(ring, T * m, [band(ring, 2)]))
+rolled = doc.insert(Node.fillet(ring, T * m, [band_rim(ring, 2), band_rim(ring, 3)]))
+
+ev = evaluate(doc)
+ev.value(cup).body().validate()
+ev.value(rolled).body().validate()
+
+# The minted names are the evaluation's own: the three bands that
+# survived the hollowing wear exactly `carried` of what they were.
+faces = NamePat.of_kind(EntityKind.Face)
+survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
+assert sorted(survivors) == sorted(carried(cup, band(ring, s)) for s in (0, 1, 3))
 ```
 
 ## 3. Parametric models
@@ -1871,9 +1941,29 @@ assert doc.params.get(ParamName("bore_r")).distribution == Distribution.normal(0
 
 `Distribution`'s constructors run the same `check` the edit and load
 doors run, so a broken invariant refuses where it is written, as
-`DistributionFault`. What does NOT cross is the certified half — the
-E6 driver, the E4/E5 stackup, the E10 reports — which lives behind the
-`interval` feature the wheel is not built with.
+`DistributionFault`.
+
+The fourth door is the **advisory** one, and it is here because the
+certified half is not: `monte_carlo(doc, boxed, McConfig(samples=…,
+seed=…))` replays the document at `f64` over draws from its own
+distributions and answers an `McReport` — a `McMeasure` row per
+measure node, a `McAssertion` row per assertion with its empirical
+`violation_fraction`, and the fraction of draws that fell outside the
+box, which is the empirical twin of the tail column above. Every
+number in it is an estimate and none of it gates; the sample count and
+the seed ride on the report and on every line `McReport.render`
+writes, so a number copied out of one carries its label. `McConfig`'s
+`parallel` switch is there to be checked rather than tuned — the two
+schedules produce bit-identical reports. A band refuses the whole run
+(`McRefusal`, `variant == "band_has_no_measure"`), and
+`sample_offset(name, distribution, u)` is the single draw underneath,
+answering an offset in the distribution's own dimension.
+
+What does NOT cross is the certified half — the E6 driver, the E4/E5
+stackup, the E10 reports — which lives behind the `interval` feature
+the wheel is not built with. That is the whole reason the advisory
+lane is un-gated in the kernel: a caller with no certified scalar
+still gets the labeled estimate.
 
 ## 4. The rest of the documentation
 
