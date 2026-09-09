@@ -96,3 +96,36 @@ bill. What should the guard's alphabet do?
 
 Recommendation: **(A)**; small, mechanical afterwards, and the census
 is the one guard the binding surface has.
+
+### (D), added 2026-09-09 after Ev asked for a structural check that keeps the name match
+
+**Keep rule 1's name match, but a match accounts MEMBERS, not the
+type.** When a curated Rust name resolves to an enum (or a struct),
+the same-spelled Python namesake accounts only the arms (or pub
+fields) it actually spells — an arm as a class attribute
+(`SurfaceKind.Plane`) or as a snake-cased constructor/property
+(`Node::Extrude` → `Node.extrude`). Every arm the namesake does not
+spell needs its own `BOUND_AS` (`Datum::FaceFrame` →
+`Node.datum_face_frame`) or `NOT_BOUND` row. The resolver that turns a
+curated name into its declaration is the one `LIB-SWEEP` commits as a
+script (`payload-rung-sweep-is-prose-and-a-third-run-disagrees`), so
+the machinery is shared rather than new.
+
+Why it is structural: the read-side `Datum` spells none of the
+authoring enum's five arms, so the name match would have demanded five
+rows on the day it was written, and `FaceFrame` would have been the
+one with nothing to write in it. It would also have caught the other
+instance of the same hole: `Node::Union` and `DocEdit::SetMembers`
+were arms behind bound names with no door until LIB-DOORS-3, invisible
+to the census and visible only to a hand-kept roster in
+`test_north_star.py`. Two known instances, no list.
+
+Costs and blind spots: a one-time backfill of per-arm rows for every
+curated enum whose arms cross under other spellings (`Node`, `DocEdit`,
+`Datum` the big three; the unit's first step is the count); an arm
+whose snake-cased name coincidentally matches an unrelated attribute
+still slips; generic or aliased members are outside the source
+reader's reach, as they are for the payload sweep.
+
+Recommendation revised: **(D)** over (A); under (D) the list (A)
+proposes is unnecessary.
