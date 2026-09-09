@@ -68,3 +68,28 @@ scenes are where it bites.
 
 Recommendation: **(A)** — additive, and it says the intent where a
 reader of the recipe will find it.
+
+### (D), added 2026-09-09 after Ev asked whether every option changes real code for a demo's benefit
+
+It does, and the tree says the seat already exists. Roots are exactly
+the DAG's sink set (`crates/editor-core/src/roots.rs`); a
+`Node::Measure` reports the bodies it references as real edges
+(`Node::inputs`) and "denotes NO body" (`crates/editor-core/src/node.rs`,
+ERROR-DESIGN E3) — so a body measured IN the graph is already
+"measured, not modelled", with no root semantics involved. The tour's
+cost is self-inflicted: it measures OUT of the graph
+(`pncad::topo::mass_properties` on values read off the evaluation)
+and then deletes the sinks before handing the gallery its document.
+
+The residual gap is narrower than (A)/(B)/(C): the measure lattice
+carries four primitives (`Distance`, `Angle`, `MinClearance`, `Gap`;
+`crates/editor-core/src/measure.rs`), so a probe whose question is a
+mass property or a shell census cannot be asked in-graph. That is a
+question about E3's primitive set — whether a document may assert a
+mass property — and it is general, not the tour's.
+
+**(D) No change to nodes or roots; this item closes as the demo's own
+cost** (the gallery deletions stay disclosed demo tooling), and "mass
+properties as a measure primitive" is filed as its own design
+question where E3 lives only if Ev wants a document to be able to
+assert one. Recommendation revised: **(D)**.

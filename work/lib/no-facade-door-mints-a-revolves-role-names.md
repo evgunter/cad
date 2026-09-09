@@ -82,3 +82,13 @@ take?
 
 Recommendation: **(A)**. Small, in LIB's fence, and it is what the two
 duplicated vessel spellings (tour and corpus) would at least share.
+
+### Why (A) over (B), added 2026-09-09 after Ev asked
+
+Essentially less machinery. `RecipeNodeId` is editor-core's type, so
+`node.band(seg)` means an extension trait a caller imports (or a
+wrapper type), while (A) is free functions beside `SegPat::tag(…)`,
+which is how `pncad::select` already spells the matching direction.
+Both mint the same `StableName`, and neither can check that the node
+is a revolve before resolution. If (B)'s call-site reading is
+preferred, an extension trait in `pncad::select` is a fine shape.
