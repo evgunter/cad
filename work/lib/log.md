@@ -4444,3 +4444,48 @@ its place today; (3) merging the second of two lanes that touched the
 census file has needed a main merge and a CI re-run every time this
 wave; the file is the shared seam of the binding, and two lanes on it
 at once is a cost to weigh at dispatch, not a defect.
+
+**LIB-EDITS MERGED (2026-09-09, #2251; mechanical under the 08-29
+ruling, no A/B row). The third of LIB-MEMBERS' chartered families,
+`B-DOC-EDITS`: TWO doors of the five, and the three that could not
+be built each stopped for a reason the lane verified by trying.**
+`DocEdit.set_param(node, slot, expr)` — a continuous slot's
+expression on a live node, the slot named by its WORD (the same word
+`EditError.slot` answers in, so a refusal is an address a caller
+retries at unchanged; D5: a name, never an index); the alphabet is
+read inward by a new `slot_word.rs`, sited apart from `tags.rs`
+because the tag-value guard reads that module as a table of
+`-> &'static str` functions and would stop at one answering a
+`SlotId`; the round trip is pinned against the guard's own inventory
+(every word reads back to the slot that spells it, `profile` being
+the one word with no reading — a program expression's address is two
+integers and an argument role the word does not carry, refused in its
+own sentence), and junk words are boundary `ValueError`s. One door
+for every continuous slot, against one door per structural slot: the
+decisions differ because the vocabularies do. `DocEdit.rebind(from_name,
+to_name)` — THE name repair, halves suffixed as `EditError.from_kind`/
+`to_kind` are (`from` is a keyword), one test row per tag it can raise
+and a success row on the live shell document `test_shell.py` said the
+Python surface could not rebuild through. The three that stopped:
+`ReWitness`/`ReWitnessBulk` carry `WitnessDatum` and
+`BranchCertification`, which the façade does not curate at all (filed:
+`the-witness-edits-need-a-facade-type`); `SetExpression` is mechanical
+and its payload curated, but its own refusal `path_off_tree` renders
+the address through `Debug`, and the binding's prose gate — a
+`debug_assert` the workspace keeps live under release — panics on the
+brace fingerprint, so the door would PANIC exactly where it must
+refuse. The lane wrote the door, provoked the refusal, saw the panic,
+and parked the item on DOCM's `debug-in-prose-residue-after-finding-sink`
+(`the-expression-path-edit-cannot-refuse-as-prose`; the
+`KNOWN_BRACED` row now says it blocks a door). Census: `SetParam` and
+`Rebind` leave `MEMBERS_NOT_BOUND` entirely (namesake for namesake,
+rule 1 accounts them); `B-DOC-EDITS` stays in `FAMILIES` with three
+rows and a charter re-written to say what each needs first.
+`DocEdit` has fourteen static constructors; five node constructors
+name the door that moves the literal they mint. No shipped
+`variant`/`kind`/`slot` value moved; the lane ran the pinned ruff for
+real. Orchestrator note: the brief said "STOP on that arm, file it,
+and say so" for a type the façade does not carry, and the lane did
+that for two arms and found a third stop the brief did not
+anticipate — a refusal that cannot be rendered — which is the better
+outcome than a door that panics. Seven tags reachable only through these arms are now provoked from Python; two (`rebind_appearance_collision`, `rebind_metadata_collision`) stay unreachable behind the uncurated appearance doors, stated. ~74 min, ~324k tokens.

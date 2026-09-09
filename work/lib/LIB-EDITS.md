@@ -2,11 +2,12 @@
 id: LIB-EDITS
 kind: unit
 title: the five DocEdit arms with no Python door get their constructors
-status: review
+status: closed
 opened: 2026-09-09
 branch: lib/edits
 refs: [five-doc-edit-arms-have-no-python-door]
 pr: 2251
+closed: 2026-09-09
 ---
 
 
