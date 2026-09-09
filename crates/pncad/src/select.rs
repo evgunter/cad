@@ -41,6 +41,16 @@
 //!    face has no canonical frame, so `face_frame` refuses it rather
 //!    than nominating one (its kind is still readable).
 //!
+//! **A name can also be MINTED, not only answered.** A selection that
+//! is AUTHORED rather than materialized — a shell's open list, a
+//! fillet's frozen selection — is written before any evaluation of
+//! the minting node exists, so there is nothing to select against and
+//! the name has to be spelled. [`band`], [`band_pi`], [`band_rim`],
+//! [`meridian_vertex`] and [`carried`] are that direction of the
+//! vocabulary [`SegPat::tag`] matches in: each mints one
+//! [`StableName`](editor_core::StableName) with the
+//! [`EntityKind`] its role denotes already fixed.
+//!
 //! **A name also says which node MADE the entity.** [`attribute`]
 //! walks a name's carry-through segments — `FromTarget`, `FromA`,
 //! `Instance` and their siblings — down to the role that minted it,
@@ -66,9 +76,9 @@ pub use editor_core::{
     NameOrigin, NamePat, NameTable, NamingError, OpGroup, ProfileEdgeRef, ProfileVertexRef,
     RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
     Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, declare, declare_all, declare_node, denotation, edge_frame, edge_name,
-    face_carrier_kind, face_frame, face_name, find_flush_candidates, select, select_where,
-    vertex_position,
+    attribute, band, band_pi, band_rim, carried, declare, declare_all, declare_node, denotation,
+    edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates,
+    meridian_vertex, select, select_where, vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class, on this evidence" — the fourth quarter of a vocabulary this
