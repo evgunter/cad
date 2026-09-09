@@ -67,6 +67,16 @@ set or dict it always wanted to be.
   document why they do not) and
   `pncad-py-stub-omits-eq-on-three-mate-classes` (the stub omits an
   `__eq__` three classes define).
+- **The filed item is named in the test WITHOUT its `.md` suffix**, and
+  the reason is written at the constant that holds it
+  (`crates/pncad-py/tests/test_hashability.py`'s `FILED`). A `.md`
+  string literal in a python file under `crates/` is a page
+  `scripts/ci-filter.py` must resolve to a repo path before it can
+  decide the change tier, and it fails closed on one it cannot —
+  correctly, since the failure it guards is a consumed page dropping
+  into the docs tier where its suite stops running. Caught by the
+  hosted gate on the first head, not by the unit's own verification
+  list, which does not carry the selftest.
 - **No kernel change.** `editor_core::Denotation` derives `PartialEq,
   Eq` and not `Hash`; adding it would have been the shorter fix and
   reaches outside the bindings, so the binding hashes the projection
