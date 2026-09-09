@@ -414,9 +414,10 @@ pub use geom_brep::SurfaceKind;
 // body-lineage-scoped against the evaluation that minted them and
 // which `pncad`'s own guard forbids naming.
 //
-// **`MappedCurve` is NOT here, and that is measured — the third
-// entry of the `BandField` / `MarginDiag` family and the first whose
-// reason is the ARM rather than the payload.** It is
+// **`MappedCurve` is NOT here, and that is measured — a further
+// entry of the `BandField` family of payloads argued OUT of this
+// list, and the first whose reason is the ARM rather than the
+// payload.** It is
 // `EdgeDescription::Scaffold`'s payload: the sketch pushforward a D3
 // scaffolding description carries. Three measurements settle it.
 //

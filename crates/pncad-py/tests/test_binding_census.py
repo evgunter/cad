@@ -832,12 +832,10 @@ BOUND_AS = {
     # is unchanged; what has changed is the sentence about bound
     # exceptions, and this row moves with it.
     #
-    # `MarginDiag` — the payload's own field type — is still not a
-    # curated name and so still not an entry here. The binding reads
-    # its three arms through `pncad::geom_core`, one module hop below
-    # the prelude, which is the fallback `prelude.rs` names; whether
-    # the carriage decision itself should move is
-    # `work/lib/margin-diag-non-curation-was-measured-on-a-count-that-moved.md`.
+    # `MarginDiag` — the payload's own field type — is a curated name
+    # too, on the same list and for the same crossing: its own row is
+    # below, `different-shape`, because its discriminant arrives as
+    # which of these attributes is set rather than as a word.
     "Indeterminate": "FrameError.margin",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its

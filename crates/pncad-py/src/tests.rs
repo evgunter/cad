@@ -599,16 +599,19 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 /// set it CARRIES, in publication order, with the rest `None`.
 ///
 /// **Nine of the thirteen arms are built here.** The other four —
-/// `Frame`, `Band`, `Indeterminate` and `Unleverable` — each hold a
-/// nested refusal whose TYPE the `pncad` façade does not re-export
-/// (`FrameError`, `BandField`, `MarginDiag`, `LeverRefusal`), so this
-/// crate cannot name a value to put in them. That costs the table its
-/// totality and nothing else: those four are exactly the arms whose
-/// payload is the nested refusal, which the projection does not
-/// flatten, and totality of the PROJECTION is a different guarantee
-/// and a stronger one — `mate_payload`'s match is exhaustive with no
-/// wildcard, so an arm that reached Python unprojected would not
-/// compile.
+/// `Frame`, `Band`, `Indeterminate` and `Unleverable` — are exactly
+/// the arms whose payload is a nested refusal, which the projection
+/// does not flatten, so building one would add nothing to the wire.
+/// Three of the four types are nameable from here — `FrameError` and
+/// `BandField` one module hop below the curated lists at
+/// `pncad::geom_core`, `MarginDiag` on the prelude — and
+/// `LeverRefusal` is lifted to no crate root at all, so `Unleverable`
+/// cannot be built here whatever this table wants. That costs the
+/// table its totality and nothing else: totality of the PROJECTION is
+/// a different guarantee and a stronger one — `mate_payload`'s match
+/// is exhaustive with no wildcard, so an arm that reached Python
+/// unprojected would not compile. Filling the four is
+/// `work/lib/mate-fault-arms-carry-payload-that-does-not-cross.md`.
 #[test]
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
