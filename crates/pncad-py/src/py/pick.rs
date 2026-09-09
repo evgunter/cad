@@ -488,11 +488,10 @@ impl NodePick {
     /// [`Self::mesh`]**, in polyline order — [`Self::patch_names`]'
     /// edge twin, same contract and same per-slot loud arm.
     ///
-    /// The polylines themselves are not bound (their content beside
-    /// indices is arena keys), so what this is FOR is a consumer that
-    /// hit-tests against drawn edges by POSITION — a display
-    /// coordinate valid for one tessellation — and reads the name out
-    /// of here.
+    /// `Mesh.boundaries` is the drawing side: entry `i` here names the
+    /// edge polyline `i` of that list, so a consumer that drew the
+    /// wireframe and hit-tested an edge reads its selectable name out
+    /// of here, with the arena key never leaving.
     fn boundary_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .boundary_names(&evaluation.inner)

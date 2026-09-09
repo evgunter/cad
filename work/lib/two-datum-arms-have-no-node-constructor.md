@@ -2,8 +2,10 @@
 id: two-datum-arms-have-no-node-constructor
 kind: issue
 title: Datum::Point and Datum::Frame have no Node constructor
-status: open
+status: closed
 opened: 2026-09-09
+closed: 2026-09-09
+parent: LIB-GAPS-1
 ---
 
 
@@ -43,3 +45,27 @@ their stanzas in `pncad.pyi`; the refusal rows each can raise; and the
 two `MEMBERS_NOT_BOUND` rows moving to `MEMBERS_BOUND_AS` in
 `crates/pncad-py/tests/test_binding_census.py`, which empties
 `B-DATUM-DOORS` out of `FAMILIES` with them.
+
+## Closed (2026-09-09, LIB-GAPS-1)
+
+`Node.datum_point(position)` and `Node.datum_frame(origin, u, v)` sit
+beside the four in `crates/pncad-py/src/py/doc.rs`, with their stanzas
+in `pncad.pyi`: a `Length` triple for each position, bare triples for
+`u` and `v`, exactly as the four siblings take them. A Python author
+builds six of the six datum kinds.
+
+The refusals are the arms' own and are asserted in
+`TestDatumPointAndFrame` (`crates/pncad-py/tests/test_document.py`): a
+non-finite coordinate is `LiteralError` at the door for both, and a
+frame whose `u` is zero or whose `v` is parallel to it is
+`degenerate_direction` at `evaluate`, naming which axis went. A pair
+that is merely not perpendicular is legal — orthogonalizing it is what
+the arm does — and the read-back row shows `v` yielding.
+
+The read side needed nothing: `Value.datum()` already answered
+`kind == "point"` and `"frame"`, with `origin` dimensioned and the
+frame's `axes` bare. The arms were readable and only unauthorable,
+which is what this file said.
+
+Both `MEMBERS_NOT_BOUND` rows moved to `MEMBERS_BOUND_AS` and
+`B-DATUM-DOORS` left `FAMILIES` with them.
