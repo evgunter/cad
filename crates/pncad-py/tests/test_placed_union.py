@@ -26,6 +26,7 @@ from pncad import (
     EditError,
     EntityKind,
     EvaluationError,
+    Expr,
     Frame,
     FrameError,
     NamePat,
@@ -38,6 +39,8 @@ from pncad import (
     Selector,
     SketchPlane,
     Start,
+    WrittenAngle,
+    WrittenLength,
     deg,
     evaluate,
     m,
@@ -50,15 +53,15 @@ def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [
-                (x[0] * m, y[0] * m),
-                (x[1] * m, y[0] * m),
-                (x[1] * m, y[1] * m),
-                (x[0] * m, y[1] * m),
+                (Expr.written_length(WrittenLength.in_unit(x[0], m)), Expr.written_length(WrittenLength.in_unit(y[0], m))),
+                (Expr.written_length(WrittenLength.in_unit(x[1], m)), Expr.written_length(WrittenLength.in_unit(y[0], m))),
+                (Expr.written_length(WrittenLength.in_unit(x[1], m)), Expr.written_length(WrittenLength.in_unit(y[1], m))),
+                (Expr.written_length(WrittenLength.in_unit(x[0], m)), Expr.written_length(WrittenLength.in_unit(y[1], m))),
             ],
-            plane=doc.sketch_frame(elevation=z[0] * m),
+            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z[0], m))),
         )
     )
-    return doc.insert(Node.extrude(profile, (z[1] - z[0]) * m))
+    return doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(z[1] - z[0], m))))
 
 
 def mass_of(doc, node):
@@ -93,7 +96,11 @@ class TestTheFinGroup(unittest.TestCase):
         fin = fin_only(doc)
         before = len(doc)
         group = doc.insert(
-            Node.placed_union(fin, 5, PatternKind.linear((1.0, 0.0, 0.0), PITCH * m))
+            Node.placed_union(fin, Expr.count(5), PatternKind.linear((
+                Expr.literal(1.0),
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+            ), Expr.written_length(WrittenLength.in_unit(PITCH, m))))
         )
         self.assertEqual(len(doc) - before, 1)
 
@@ -114,7 +121,15 @@ class TestTheFinGroup(unittest.TestCase):
         acc = None
         for i in range(5):
             placed = chain_doc.insert(
-                Node.transform(fin, (i * PITCH * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 0 * rad)
+                Node.transform(fin, (
+                    Expr.written_length(WrittenLength.in_unit(i * PITCH, m)),
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                ), (
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                    Expr.literal(1.0),
+                ), Expr.written_angle(WrittenAngle.in_unit(0, rad)))
             )
             acc = (
                 placed
@@ -125,7 +140,11 @@ class TestTheFinGroup(unittest.TestCase):
         group_doc = Doc()
         group = group_doc.insert(
             Node.placed_union(
-                fin_only(group_doc), 5, PatternKind.linear((1.0, 0.0, 0.0), PITCH * m)
+                fin_only(group_doc), Expr.count(5), PatternKind.linear((
+                    Expr.literal(1.0),
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                ), Expr.written_length(WrittenLength.in_unit(PITCH, m)))
             )
         )
 
@@ -151,7 +170,11 @@ class TestTheFinGroup(unittest.TestCase):
         doc = Doc()
         group = doc.insert(
             Node.placed_union(
-                fin_only(doc), 5, PatternKind.linear((1.0, 0.0, 0.0), PITCH * m)
+                fin_only(doc), Expr.count(5), PatternKind.linear((
+                    Expr.literal(1.0),
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                ), Expr.written_length(WrittenLength.in_unit(PITCH, m)))
             )
         )
         ev = evaluate(doc)
@@ -230,15 +253,15 @@ def die_tool_document():
     square = doc.insert(
         Node.polygon(
             [
-                (0 * m, 0 * m),
-                (DIE_L * m, 0 * m),
-                (DIE_L * m, DIE_L * m),
-                (0 * m, DIE_L * m),
+                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                (Expr.written_length(WrittenLength.in_unit(DIE_L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                (Expr.written_length(WrittenLength.in_unit(DIE_L, m)), Expr.written_length(WrittenLength.in_unit(DIE_L, m))),
+                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(DIE_L, m))),
             ],
-            plane=doc.sketch_frame(elevation=0 * m),
+            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0, m))),
         )
     )
-    cube = doc.insert(Node.extrude(square, DIE_L * m))
+    cube = doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(DIE_L, m))))
 
     # ---- the master ball, poled along +Z ----
     # `die_pips::half_disc_program` verbatim: ONE bulge-1 semicircle
@@ -255,14 +278,20 @@ def die_tool_document():
     # frame's own v direction, so the meridian's pole-to-pole line is
     # (0, 1) through the origin. Being in the plane is no longer a
     # tolerance question — it is what the four numbers mean.
-    axis = doc.insert(Node.datum_axis_in_plane(plane, (0 * m, 0 * m), (0.0, 1.0)))
+    axis = doc.insert(Node.datum_axis_in_plane(plane, (
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+    ), (
+        Expr.literal(0.0),
+        Expr.literal(1.0),
+    )))
     half_disc = (
         Open.at((0 * m, -PIP_R * m))
         .arc_to(Bulge((0 * m, PIP_R * m), 1.0))
         .line_to(Start)
     )
     ball_p = doc.insert(Node.profile(half_disc, plane=plane))
-    ball = doc.insert(Node.revolve(ball_p, axis, (2.0 * math.pi) * rad))
+    ball = doc.insert(Node.revolve(ball_p, axis, Expr.written_angle(WrittenAngle.in_unit(2.0 * math.pi, rad))))
 
     # ---- the whole cutting tool, in ONE node ----
     tool = doc.insert(Node.placed_union_at(ball, pip_placements()))
@@ -415,7 +444,7 @@ class TestThePlacementRuleRefuses(unittest.TestCase):
         fin = fin_only(doc)
         rule = PatternKind.explicit([Frame.translation((0 * m, 0 * m, 0 * m))])
         with self.assertRaises(EditError) as caught:
-            Node.placed_union(fin, 1, rule)
+            Node.placed_union(fin, Expr.count(1), rule)
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
 
     def test_an_empty_placement_list_refuses(self):
@@ -523,7 +552,15 @@ class TestTheFrameValue(unittest.TestCase):
             )
         )
         moved = doc.insert(
-            Node.transform(box, (5 * m, 0 * m, 0 * m), (0.0, 0.0, 2.0), 30 * deg)
+            Node.transform(box, (
+                Expr.written_length(WrittenLength.in_unit(5, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(2.0),
+            ), Expr.written_angle(WrittenAngle.in_unit(30, deg)))
         )
         self.assertEqual(mass_of(doc, placed).volume, mass_of(doc, moved).volume)
 
@@ -630,9 +667,17 @@ class TestTheCircularRule(unittest.TestCase):
         the stepped map is literally the same one."""
         doc = Doc()
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
-        axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+        axis = doc.insert(Node.datum_axis((
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
         group = doc.insert(
-            Node.placed_union(box, 4, PatternKind.circular(axis, 90 * deg))
+            Node.placed_union(box, Expr.count(4), PatternKind.circular(axis, Expr.written_angle(WrittenAngle.in_unit(90, deg))))
         )
         self.assertEqual(mass_of(doc, group).volume, 4.0)
 
@@ -647,7 +692,11 @@ class TestTheCountParamBinding(unittest.TestCase):
         doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(2)))
         group = doc.insert(
             Node.placed_union(
-                fin_only(doc), 2, PatternKind.linear((1.0, 0.0, 0.0), PITCH * m)
+                fin_only(doc), Expr.count(2), PatternKind.linear((
+                    Expr.literal(1.0),
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                ), Expr.written_length(WrittenLength.in_unit(PITCH, m)))
             )
         )
         return doc, group

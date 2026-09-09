@@ -2,8 +2,9 @@
 id: node-slot-literals-erase-the-authored-notation
 kind: issue
 title: node-slot literals record the canonical row, whatever unit the caller wrote
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-09
 ---
 
 
@@ -240,3 +241,21 @@ wrote millimetres, so the conversion keeps the notation
 (`Expr.written_length(...)`) wherever the source spells a unit, and
 falls back to `Expr.literal(...)` only for a computed quantity with no
 written form. Mechanical unit LIB-SEATS.
+
+## Closed (2026-09-09, LIB-SEATS)
+
+`(H)` built. `Expr` gained `literal`, `written_length`,
+`written_angle` and `count`; 25 dimensioned slot doors take an `Expr`
+and nothing else, checked against `SlotId::dimension` at the door with
+the kernel's own `EditError`; ~976 authoring sites converted by Ev's
+note (2). `Node.extrude(profile, Expr.written_length(w))` now records
+`25 mm` where it recorded `0.025 m` —
+`test_notation.TestANodeSlotRecordsTheAuthoredNotation` is the pair of
+bytes.
+
+Two residues have their own files rather than this prose: the
+ergonomic cost of the seat, with its site counts, is
+`expr-seat-costs-a-constructor-call-at-every-authored-number`, and the
+same erasure one layer down in the paths vocabulary — which mirrors
+Rust's own `RecordedProgram` and so is a kernel question — is
+`path-legs-erase-the-authored-notation-one-layer-down`.

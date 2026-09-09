@@ -4851,3 +4851,65 @@ tags and hand-hashed records too — to be put as one PR. The item
 `variant`/`kind` value moved; the lane ran the pinned ruff for real.
 Orchestrator note: the lane was killed by a container restart while
 polling CI and resumed by message; nothing was lost. ~77 min, ~212k tokens.
+
+**LIB-SEATS MERGED (2026-09-09, #2264; mechanical under Ev's (H) on
+`node-slot-literals-erase-the-authored-notation`, `[ev]` #2233 item
+1, no A/B row). Every dimensioned slot door takes an `Expr` and
+nothing else, as the Rust slot does, and `Expr` gains its
+constructors.** `Expr.literal(Length | Angle | float)`,
+`Expr.written_length`, `Expr.written_angle` and `Expr.count(int)` —
+the kernel's four, mirrored, in `py/expr.rs`; the argument's own type
+is the literal's dimension, so there is no second fact to keep in
+step. The refusal MOVED and stayed typed: the `literal` helper left
+`py/doc.rs` for the constructor's own body, raising `LiteralError`
+with the kernel's tag and the offending number at `Expr.literal` /
+`written_*` instead of at fifteen node doors. **25 doors take an
+`Expr`** — the item's 18 plus seven its `literal(py, …)` pattern
+could not see (`Node.datum_frame`/`datum_point`, which landed after
+the item was written; the four count slots that minted through
+`Expr::count`; `Doc.sketch_frame`). The slot's dimension is READ, not
+restated: `doc.rs::slot_expr` checks the argument against
+`SlotId::dimension()`, the kernel's own table, and refuses with the
+kernel's own `EditError::SlotDimensionMismatch` — the value `apply`
+would raise for the same expression in the same slot — so the boundary
+carries no second vocabulary for one fault; `direction_expr` is the
+per-axis form over a `VectorSlot`. Two deviations stated:
+`GeomPred.datum_distance` has no door-side check (its comparand is not
+a node slot, and the kernel refuses a non-length at `select_where` —
+a pre-check would be the predicted refusal the crate forbids); and
+`Node.sketch_frame` converts `elevation`, the one authored number, not
+the rigid twelve-float `plane`. **~1,477 sites converted** (904 `written_length` + 72 `written_angle` in the written form against 460 `literal` + 41 `count` — the literal count dominated by dimensionless triples with no notation to lose; an AST rewrite over argument spans, 22 sites by hand) across 31
+test files, the guide's executed blocks and its four sub-pages, the
+README, `examples/bracket.py` and both ty fixtures, by Ev's note: a
+site that spells a unit keeps its notation
+(`Expr.written_length(WrittenLength.in_unit(25, mm))`), a computed
+quantity takes `Expr.literal`. The ty fixtures moved both ways: a bare
+`Length` at a slot is an ILLEGAL row, and the rows that used to draw a
+DIMENSION-mismatch diagnostic no longer can — one type at the seat
+makes the dimension a door check, not a type check — and say so. No
+helper, deliberately (Ev's note 1); the ergonomic cost is filed with
+its site counts as `expr-seat-costs-a-constructor-call-at-every-authored-number`,
+and a sibling the sweep found is filed rather than taken —
+`path-legs-erase-the-authored-notation-one-layer-down` (the path
+vocabulary records `f64` through `RecordedProgram` before any `Expr`
+exists, Rust's own shape and so a kernel question). Kernel untouched
+(`crates/editor-core`, `crates/quantity`: zero diff); no
+`variant`/`kind` value moved; the lane ran the pinned ruff for real.
+Orchestrator note: the brief estimated ~200 sites from the Node-door
+calls alone; the lane measured every seat and found ~976 — the
+estimate was the brief's, the count is the lane's. The lane was
+killed by a container restart mid-conversion and resumed by message
+with five files uncommitted; nothing was lost. ~77 min, ~342k tokens.
+
+## `[ev]` #2266 ruled (2026-09-09): the `Expr` seat's helper — (A)
+
+LIB-SEATS measured the (H) seat's cost — the written form at 55
+characters where `25 * mm` was 7, at 976 sites, with private
+shorthands already appearing in the corpus — and Ev's note on (H) had
+set the terms: a helper goes on both sides, mirrored, or not at all.
+**(A): `Expr::length_in(value, unit)` / `Expr::angle_in(value,
+unit)` in `editor-core`, each exactly `written_length(
+WrittenLength::in_unit(value, unit))`, and `Expr.length_in` /
+`Expr.angle_in` in Python** — one call at every authored number, the
+notation kept, no new type or seat. Mechanical unit LIB-HELPER
+(the ~976 written-form sites and the private shorthands convert).

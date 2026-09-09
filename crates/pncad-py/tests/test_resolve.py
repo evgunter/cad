@@ -52,13 +52,21 @@ from pncad import (
     Doc,
     DocEdit,
     EntityKind,
+    Expr,
     Node,
     NodePick,
     PncadError,
+    WrittenAngle,
+    WrittenLength,
     deg,
     evaluate,
     m,
 )
+
+
+def _wm(value):
+    """A metre coordinate as the written literal a slot takes."""
+    return Expr.written_length(WrittenLength.in_unit(value, m))
 
 #: The chordal budget the pick indices in this file are built at. The
 #: solids are planar-faced, so the tessellation is exact at any budget
@@ -88,10 +96,10 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
     return doc.insert(
         Node.polygon(
             [
-                ((x + 0.0) * m, (y + 0.0) * m),
-                ((x + side) * m, (y + 0.0) * m),
-                ((x + side) * m, (y + side) * m),
-                ((x + 0.0) * m, (y + side) * m),
+                (Expr.written_length(WrittenLength.in_unit(x + 0.0, m)), Expr.written_length(WrittenLength.in_unit(y + 0.0, m))),
+                (Expr.written_length(WrittenLength.in_unit(x + side, m)), Expr.written_length(WrittenLength.in_unit(y + 0.0, m))),
+                (Expr.written_length(WrittenLength.in_unit(x + side, m)), Expr.written_length(WrittenLength.in_unit(y + side, m))),
+                (Expr.written_length(WrittenLength.in_unit(x + 0.0, m)), Expr.written_length(WrittenLength.in_unit(y + side, m))),
             ],
             plane=doc.sketch_frame(),
         )
@@ -100,7 +108,7 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
 
 def unit_cube(doc, at=(0.0, 0.0)):
     """A 1 m cube on the ground plane — z from 0 to 1."""
-    return doc.insert(Node.extrude(square(doc, at=at), 1.0 * m))
+    return doc.insert(Node.extrude(square(doc, at=at), Expr.written_length(WrittenLength.in_unit(1.0, m))))
 
 
 class TestAResolvedVerdict(unittest.TestCase):
@@ -195,7 +203,15 @@ class TestEvaluationWideVersusNodeScoped(unittest.TestCase):
         self.doc = Doc()
         self.cube = unit_cube(self.doc)
         self.moved = self.doc.insert(
-            Node.transform(self.cube, (3 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 0 * deg)
+            Node.transform(self.cube, (
+                Expr.written_length(WrittenLength.in_unit(3, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.written_angle(WrittenAngle.in_unit(0, deg)))
         )
         self.other = unit_cube(self.doc, at=(9.0, 9.0))
         self.ev = evaluate(self.doc)
@@ -237,9 +253,9 @@ class TestEvaluationWideVersusNodeScoped(unittest.TestCase):
 def plate(doc, corners):
     """A 0.1 m-thick plate over `corners`, on the sketch plane."""
     profile = doc.insert(
-        Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame())
+        Node.polygon([(_wm(x), _wm(y)) for x, y in corners], plane=doc.sketch_frame())
     )
-    return profile, doc.insert(Node.extrude(profile, 0.1 * m))
+    return profile, doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(0.1, m))))
 
 
 SQUARE = ((0.0, 0.0), (1.0, 0.0), (1.0, 0.5), (0.0, 0.5))
@@ -331,21 +347,33 @@ def blank(radius):
     cube = unit_cube(doc)
     edges = evaluate(doc).all_edges(cube)
     assert len(edges) == 12
-    blended = doc.insert(Node.fillet(cube, radius * m, edges))
+    blended = doc.insert(Node.fillet(cube, Expr.written_length(WrittenLength.in_unit(radius, m)), edges))
     peg = doc.insert(
         Node.extrude(
             doc.insert(
                 Node.polygon(
-                    [(0.6 * m, 0.3 * m), (1.4 * m, 0.3 * m),
-                     (1.4 * m, 0.7 * m), (0.6 * m, 0.7 * m)],
+                    [
+                        (Expr.written_length(WrittenLength.in_unit(0.6, m)), Expr.written_length(WrittenLength.in_unit(0.3, m))),
+                        (Expr.written_length(WrittenLength.in_unit(1.4, m)), Expr.written_length(WrittenLength.in_unit(0.3, m))),
+                        (Expr.written_length(WrittenLength.in_unit(1.4, m)), Expr.written_length(WrittenLength.in_unit(0.7, m))),
+                        (Expr.written_length(WrittenLength.in_unit(0.6, m)), Expr.written_length(WrittenLength.in_unit(0.7, m))),
+                    ],
                     plane=doc.sketch_frame(),
                 )
             ),
-            0.4 * m,
+            Expr.written_length(WrittenLength.in_unit(0.4, m)),
         )
     )
     lifted = doc.insert(
-        Node.transform(peg, (0 * m, 0 * m, 0.3 * m), (0.0, 0.0, 1.0), 0 * deg)
+        Node.transform(peg, (
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0.3, m)),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        ), Expr.written_angle(WrittenAngle.in_unit(0, deg)))
     )
     fused = doc.insert(Node.boolean(BooleanOp.Union, blended, lifted))
     return doc, blended, fused

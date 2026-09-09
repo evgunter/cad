@@ -27,13 +27,18 @@ surface, and nothing is pre-checked: a zero, negative or non-finite
 budget is the kernel's own refusal, raised where you wrote the call.
 
 ```python
-from pncad import Doc, Node, TessellateError, evaluate, m, mm
+from pncad import Doc, Expr, Node, TessellateError, WrittenLength, evaluate, m, mm
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(2, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(2, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+    ], plane=doc.sketch_frame())
 )
-slab = doc.insert(Node.extrude(sketch, 1 * m))
+slab = doc.insert(Node.extrude(sketch, Expr.written_length(WrittenLength.in_unit(1, m))))
 body = evaluate(doc).value(slab).body()
 
 mesh = body.tessellate(0.5 * mm)
@@ -99,7 +104,7 @@ The mesh's arrays are the somewhere else.
 ```python
 import math
 
-from pncad import Doc, Node, deg, evaluate, m, mm
+from pncad import Doc, Expr, Node, WrittenAngle, WrittenLength, deg, evaluate, m, mm
 
 
 def signed_volume(mesh):
@@ -145,14 +150,25 @@ doc = Doc()
 frame = doc.sketch_frame()
 outline = doc.insert(
     Node.polygon(
-        [(0.5 * m, 0 * m), (1.5 * m, 0 * m), (1.5 * m, 2 * m), (0.5 * m, 2 * m)],
+        [
+            (Expr.written_length(WrittenLength.in_unit(0.5, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+            (Expr.written_length(WrittenLength.in_unit(1.5, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+            (Expr.written_length(WrittenLength.in_unit(1.5, m)), Expr.written_length(WrittenLength.in_unit(2, m))),
+            (Expr.written_length(WrittenLength.in_unit(0.5, m)), Expr.written_length(WrittenLength.in_unit(2, m))),
+        ],
         plane=frame,
     )
 )
 # The axis in the sketch's own coordinates: the frame's v is world
 # +y, so the world y axis IS its own +y through (0, 0).
-axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
-washer = doc.insert(Node.revolve(outline, axis, 360 * deg))
+axis = doc.insert(Node.datum_axis_in_plane(frame, (
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+), (
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
+washer = doc.insert(Node.revolve(outline, axis, Expr.written_angle(WrittenAngle.in_unit(360, deg))))
 
 body = evaluate(doc).value(washer).body()
 body.validate()
@@ -193,13 +209,18 @@ refused **at the call**, not when someone later fails to open the
 file.
 
 ```python
-from pncad import Doc, Node, StlError, evaluate, m, mm
+from pncad import Doc, Expr, Node, StlError, WrittenLength, evaluate, m, mm
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+    ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(sketch, 1 * m))
+cube = doc.insert(Node.extrude(sketch, Expr.written_length(WrittenLength.in_unit(1, m))))
 mesh = evaluate(doc).value(cube).body().tessellate(1 * mm)
 
 text = mesh.to_stl_ascii(solid_name="cube")
