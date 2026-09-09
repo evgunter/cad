@@ -57,33 +57,35 @@ def enum_mirrors():
     return mirrors
 
 
+#: The item holding the classes below that are undecided rather than
+#: deliberate.
+#:
+#: Written WITHOUT its `.md` suffix, and that is load-bearing: a `.md`
+#: string literal in a python file under `crates/` is a page
+#: `scripts/ci-filter.py` has to resolve to a repo path before it can
+#: decide the change tier, and it fails closed on one it cannot. This
+#: is prose naming a tracker item, not a page any suite reads.
+FILED = "undecided — work/lib/pncad-py-value-classes-compare-without-hashing"
+
 #: The classes that compare without hashing, each with WHY. A class
 #: that lands here without a line is a defect, not a decision, which is
 #: what `TestNothingComparesWithoutHashing` is for.
 #:
 #: Read the values as prose; nothing parses them.
 UNHASHABLE = {
-    "Expr": "equality is an IEEE comparison of the literals inside, so "
-    "`0.0` and `-0.0` are equal trees whose bits are not (stated on the stub)",
-    "MeasureExpr": "`Expr`'s reason, for `Expr`'s trees",
-    "Alignment": "value class with fields; filed as "
-    "work/lib/pncad-py-value-classes-compare-without-hashing.md",
-    "AnalysisPolicy": "value class with fields; filed as "
-    "work/lib/pncad-py-value-classes-compare-without-hashing.md",
-    "CheckEvidence": "value class with fields; filed as "
-    "work/lib/pncad-py-value-classes-compare-without-hashing.md",
-    "CheckFinding": "value class with fields; filed as "
-    "work/lib/pncad-py-value-classes-compare-without-hashing.md",
-    "ChecksConfig": "value class with fields; filed as "
-    "work/lib/pncad-py-value-classes-compare-without-hashing.md",
-    "ChecksReport": "value class with fields; filed as "
-    "work/lib/pncad-py-value-classes-compare-without-hashing.md",
-    "FlushFinding": "value class with fields; filed as "
-    "work/lib/pncad-py-value-classes-compare-without-hashing.md",
-    "MateFrame": "value class with fields; filed as "
-    "work/lib/pncad-py-value-classes-compare-without-hashing.md",
-    "MatePrimitive": "value class with fields; filed as "
-    "work/lib/pncad-py-value-classes-compare-without-hashing.md",
+    "Expr": "by design: equality is an IEEE comparison of the literals "
+    "inside, so `0.0` and `-0.0` are equal trees whose bits are not "
+    "(stated on the stub)",
+    "MeasureExpr": "by design: `Expr`'s reason, for `Expr`'s trees",
+    "Alignment": FILED,
+    "AnalysisPolicy": FILED,
+    "CheckEvidence": FILED,
+    "CheckFinding": FILED,
+    "ChecksConfig": FILED,
+    "ChecksReport": FILED,
+    "FlushFinding": FILED,
+    "MateFrame": FILED,
+    "MatePrimitive": FILED,
 }
 
 
