@@ -4530,3 +4530,48 @@ assembled". `meridian_vertex` takes the bound `MeridianEnd` mirror,
 not a word. The two volume oracles are asserted to a relative 1e-12
 (π summed in a different order than the kernel accumulates), stated. Two `legal.py` fixture variables were renamed because they shadowed the new module-level `carried`. No shipped word moved; the lane ran
 the pinned ruff for real. Orchestrator note: the pre-read of the first commit matched the report line for line; the mid-flight merge of EDITS (census, stub, both ty fixtures) was clean and every row was re-run on the merged tree. ~59 min (~9 of them waiting on the build slot), ~253k tokens.
+
+**LIB-CUR8 MERGED (2026-09-09, #2253; mechanical curation under
+the 08-29 ruling, no A/B row). Three curation decisions, each with
+its falsifier written where the next sweep reads it, and the sweep
+itself is now the re-sweep.** (1) `MarginDiag` CARRIED at the prelude
+beside `Indeterminate`/`Band`/`BandError`: the old non-carriage's own
+trigger fired — a door projects the escalation's SHAPE (the frame
+constructors fork on the three margin arms: a value, an enclosure's
+two bounds, or nothing for a poisoned margin), so the discriminant is
+read at a boundary AND varies; the argument distinguishes reading the
+arm (whether there was a number at all — three different next moves)
+from branching on the margin (recovering the sign the classifier
+refused, which the escalation contract forbids). Falsifier: no door
+projecting the shape anywhere makes the type telemetry with no
+consumer. `all.rs`'s `escalation_is_readable` now matches the three
+arms exhaustively by bare prelude name and BUILDS the struct it
+reads. (2) `BandField` NOT carried, argued anew on the new count: the
+word is read at a boundary (`band_field_tag` crosses it on the frame
+refusal) but still not VARIABLE — every producer reaching the
+crossing is `Band::linear`, whose `zero` check cannot fire under
+`Tol`'s invariant, so the two arms are an exhaustive match's drift
+alarm; falsifier restated (a kernel caller of `Band::angular_at`, or
+a door taking a band's thresholds from its caller). (3)
+`ShellClassifyError` CARRIED at `pncad::document` beside
+`CheckEvidence` under that list's payload rule, and projected as an
+inner word: `shell_classify_error_tag` (four literals, exhaustive:
+`band`/`props`/`escalated`/`zero_volume`), `inner_variant` on the
+payload record (the exhaustive destructure grows to six) and on the
+Python `CheckEvidence`, the stub, an inventory row; the construction
+pin covers 6/6 arms where it covered four. `SeparationUnavailable
+{ kind }` left to FIX, stated. (4) The cross-list rule decided for
+the GENERAL case: a payload whose vocabulary one of the four curated
+lists owns lives on THAT list, spelled once, and the carrier's list
+points at it; a payload whose only home is the refusal holding it
+rides its carrier (the `VerbKind` rule) — written beside the
+`NamingError` precedent in `select.rs` and as the general sentence at
+`document.rs`'s payload-rule header; `EntityKind` and `SplitHalf` stay
+on `select`+`prelude`, and the sweep's `CROSS_LIST_DISPOSITIONS` rows
+move from `filed` to `argued`. Sweep: curated 471, declared 821, raw
+111, narrowed 9, cross-list 94 raw / 4 narrowed, `--check` green.
+Three items closed (`margin-diag-non-curation-…`,
+`check-evidence-shell-refusal-crosses-as-prose-only`,
+`cross-list-payload-rungs-under-document-only-carriers`). No shipped
+`variant`/`inner_variant` value moved; the lane ran the pinned ruff
+for real. Orchestrator note: the lane found the closed item's central reach claim false (`pncad::topo` is a whole-crate re-export, so the binding could always NAME the type; what was missing was the curated placement and the tag) and repaired two doc comments carrying the same false-reach shape; `MateFault::Indeterminate` becomes buildable in the binding as a side effect, which is `mate-fault-arms-carry-payload-that-does-not-cross`'s to spend. The 6/6 pin was proved by blanking `inner_variant` on the two arms and watching the pin go red. ~74 min, ~233k tokens.
