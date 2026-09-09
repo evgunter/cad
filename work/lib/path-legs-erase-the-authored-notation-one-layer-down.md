@@ -2,9 +2,10 @@
 id: path-legs-erase-the-authored-notation-one-layer-down
 kind: issue
 title: a path leg's 25 mm is recorded as a bare f64 before any Expr exists
-status: open
+status: parked
 opened: 2026-09-09
 refs: [node-slot-literals-erase-the-authored-notation]
+blocked_on: [recorded-program-arguments-carry-no-notation]
 ---
 
 
