@@ -2,8 +2,9 @@
 id: datum-crosses-name-for-name-as-two-types
 kind: issue
 title: the census accounts `Datum` name-for-name across two different types, so a whole authoring arm hid behind it
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-09
 ---
 
 
@@ -141,3 +142,32 @@ one `scripts/payload-rung-sweep.py` (LIB-SWEEP) commits. Mechanical
 afterwards: the census rule, the declaration reader, and the one-time
 backfill of per-arm rows (`Node`, `DocEdit`, `Datum` the big three;
 the unit's first step is the count). (A)'s list is unnecessary.
+
+## Closed (2026-09-09, LIB-MEMBERS)
+
+(D) is implemented. `crates/pncad-py/tests/test_binding_census.py`'s
+rule 1 now accounts MEMBERS: a curated name that resolves — through
+`scripts/payload-rung-sweep.py`'s resolver, shared rather than
+re-implemented — to a `pub enum` or `pub struct` accounts only the
+members its Python namesake spells, and every other member owes a row
+in `MEMBERS_BOUND_AS` or `MEMBERS_NOT_BOUND`.
+
+The first run: 104 matched declarations, 616 members, 420 of them
+over 60 types needing rows. `Node`, `DocEdit` and `Datum` were 18 of
+the 420 rather than the expected bulk; the refusal enums whose arms
+cross as tag words are what dominates it.
+
+`Datum::FaceFrame` is a row (`Node.datum_face_frame`), and dropping
+that one row fails the census naming it. Two arms of the same enum,
+`Point` and `Frame`, turned out to have no Python constructor at all
+and are filed as
+`work/lib/two-datum-arms-have-no-node-constructor.md`; the rule also
+found five undoored `DocEdit` arms
+(`work/lib/five-doc-edit-arms-have-no-python-door.md`), an unread
+`Mesh::boundaries`
+(`work/lib/mesh-boundary-polylines-have-no-python-door.md`), and a
+SECOND same-spelled-different-type pair, `DimensionError`, which is
+the exact shape this item was opened about.
+
+(A)'s `SAME_SPELLING_DIFFERENT_TYPE` list was not written, as the
+ruling says it need not be.

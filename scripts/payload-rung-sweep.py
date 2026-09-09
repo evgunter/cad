@@ -73,6 +73,18 @@ is what makes the next run a diff — `--check` fails when the narrowed set stop
 matching it, so a NEW rung fails a gate rather than waiting for the next
 re-sweep to notice it.
 
+A SECOND READER ON THE SAME DECLARATIONS, and no second implementation.
+`declared_members` answers what a declaration's members are CALLED — an enum's
+variant names, a struct's bare-`pub` field names — which is the other half of
+the chunk `payload_identifiers` reads for types. Nothing in this script's own
+report uses it: `crates/pncad-py/tests/test_binding_census.py` does, to ask
+whether the Python namesake of a curated Rust name spells that name's MEMBERS
+or only the name. It lives here because the resolver it needs is this one
+(`dependency_set`, `declarations`, `curated`), and the defect the whole script
+closes is a pattern re-implemented per caller. Its blind spots are this file's,
+stated at the function, and the fixture battery below is where both readers are
+pinned.
+
   payload-rung-sweep.py             the four counts and the narrowed table
   payload-rung-sweep.py --json      the same, machine-readable
   payload-rung-sweep.py --check     narrowed names == DISPOSITIONS (the pin)
@@ -343,6 +355,80 @@ def payload_identifiers(decl: Decl) -> set[str]:
             rest = chunk
         names.update(_IDENT.findall(rest))
     return names
+
+
+def _without_attributes(chunk: str) -> str:
+    """`chunk` with every `#[…]` attribute cut, brackets nested correctly.
+
+    `payload_identifiers` above does not need this — it drops ONE leading
+    identifier and keeps the rest, so an attribute costs it a false name that
+    resolves to no declaration. A reader that wants the member's OWN name
+    needs the attribute gone: `#[default] Pinned` names `Pinned`, not
+    `default`.
+    """
+    out, i, n = [], 0, len(chunk)
+    while i < n:
+        if chunk.startswith("#[", i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if chunk[j] == "[":
+                    depth += 1
+                elif chunk[j] == "]":
+                    depth -= 1
+                j += 1
+            i = j
+        else:
+            out.append(chunk[i])
+            i += 1
+    return "".join(out)
+
+
+_VARIANT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_PUB_FIELD = re.compile(r"pub\s+([A-Za-z_][A-Za-z0-9_]*)\s*:")
+
+
+def declared_members(decl: Decl) -> list[str]:
+    """The names `decl`'s own members carry, in declaration order.
+
+    An enum's VARIANT names and a struct's bare-`pub` FIELD names — the two
+    things a consumer of the declaration can name one level in. The same body
+    split `payload_identifiers` uses, reading the other half of each chunk:
+    that one wants the payload TYPES and drops the member's own name, this one
+    wants the name and drops the types.
+
+    The public/interior line is `payload_identifiers`': a struct's private
+    field is not a member a caller reaches, so it is not listed. An enum's
+    variants are as public as the enum, so all of them are.
+
+    BLIND SPOTS, the same set the rest of this file has, plus one of its own.
+    (h) is the sharpest here: two types with one name inside one crate are
+    indistinguishable, so the first declaration in path order supplies the
+    member list for both. (e) applies unchanged — a member whose NAME is
+    minted by a macro is spelled by no line this reads.
+
+    ITS OWN: a TUPLE struct's fields have no names, so `pub struct Ray(pub
+    Vec3)` answers the empty list rather than a positional one. That is the
+    honest answer to what a member is CALLED — there is nothing to call it —
+    and it puts a tuple struct's fields outside every question asked of this
+    list.
+    """
+    shape, text = decl.body
+    if shape != "brace":
+        return []
+    out: list[str] = []
+    for chunk in _split_top(text):
+        body = _without_attributes(chunk).strip()
+        if not body:
+            continue
+        if decl.kind == "enum":
+            m = _VARIANT.match(body)
+            if m:
+                out.append(m.group(0))
+        else:
+            m = _PUB_FIELD.match(body)
+            if m:
+                out.append(m.group(1))
+    return out
 
 
 # --- the façade's path-dependency set --------------------------------------
@@ -688,6 +774,8 @@ pub enum Carrier {
     Faulty(ThingError),
     Fielded(Detail),
     Foreign(BetaRung),
+    #[default]
+    Blank,
 }
 pub enum Rung { A, B }
 pub enum CrossPayload { X }
@@ -701,6 +789,8 @@ pub struct DocCarrier {
     hidden: Secret,
 }
 pub(crate) enum Interior { I }
+pub struct Wrapped(pub Rung);
+pub struct Marker;
 const SPELL: &str = "pub enum Bogus { }";
 """
 
@@ -746,10 +836,12 @@ def selftest() -> int:
         result = sweep(root, ALL_LISTS)
         counts = result["counts"]
         want("curated names", counts["curated"], 5)
-        # alpha declares nine bare-`pub` types — `pub(crate)` is not one, and
+        # alpha declares eleven bare-`pub` types — `pub(crate)` is not one, and
         # neither is a name that appears only in a doc comment or a string
-        # literal; beta declares three.
-        want("declared types", counts["declared"], 12)
+        # literal; beta declares three. `Wrapped` and `Marker` are declared and
+        # curated by nothing, so they are carriers of nothing and move only
+        # this count; they are here as the two member-shape witnesses below.
+        want("declared types", counts["declared"], 14)
         want("raw hits", counts["raw"], 6)
         want("narrowed", counts["narrowed"], 3)
         want("cross-list raw", result["cross_list"], 1)
@@ -779,6 +871,33 @@ def selftest() -> int:
             "a payload curated beside its carrier is no rung at all",
             "Shared" in raw or "Shared" in {r.hit.name for r in result["cross"]},
             False,
+        )
+
+        # THE MEMBER READER, on the same declarations the rows above came from.
+        # It is the other half of each chunk: the member's own NAME, where
+        # `payload_identifiers` reads the types beside it.
+        index = declarations(root, crates)
+        members = {name: declared_members(decls[0]) for name, decls in index.items()}
+        want(
+            "an enum's members are its variant names, in declaration order",
+            members["Carrier"],
+            ["Plain", "Sibling", "Named", "Ghost", "Faulty", "Fielded", "Foreign", "Blank"],
+        )
+        want(
+            "an attribute is not the member's name",
+            members["Carrier"][-1],
+            "Blank",
+        )
+        want("a struct's members are its bare-`pub` fields", members["DocCarrier"], ["open"])
+        want("a private field is not a member", "hidden" in members["DocCarrier"], False)
+        want("a tuple struct's fields have no names", members["Wrapped"], [])
+        want("a unit struct has no members", members["Marker"], [])
+        # Crate-awareness reaches this reader too: `Rung` is declared in both
+        # crates and the two declarations carry different members.
+        want(
+            "each declaration answers with its own members",
+            sorted(d.crate + ":" + ",".join(declared_members(d)) for d in index["Rung"]),
+            ["abeta:Z", "alpha:A,B"],
         )
 
         # Crate-awareness: `Rung` is declared in both crates, and `Carrier`'s
