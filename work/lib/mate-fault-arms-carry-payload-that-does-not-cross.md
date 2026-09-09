@@ -2,9 +2,10 @@
 id: mate-fault-arms-carry-payload-that-does-not-cross
 kind: issue
 title: Six MateFault arms carry payload no attribute crosses, four of them unconstructible through the facade
-status: open
+status: closed
 opened: 2026-09-08
 refs: [mate-fault-accessors-wildcard-into-silence, pncad-py-seven-doors-lack-field-projection]
+closed: 2026-09-09
 ---
 
 Disclosed by LIB-PROJ, which made the `MateFault` accessors exhaustive
@@ -84,3 +85,31 @@ should speak it. `Band`'s and `Indeterminate`'s type questions
 `margin-diag-non-curation-was-measured-on-a-count-that-moved`;
 `Unleverable`'s `LeverRefusal` and `Contradictory`'s `lever` remain
 this file's.
+
+## Closed (2026-09-09, LIB-MATE-PAYLOAD)
+
+All six fields cross, and the two halves of the finding closed
+together.
+
+The six, in the frame door's settled vocabulary and never a second
+spelling of it: `PosesOfAnotherDocument`'s pair as
+`expected_document`/`found_document`, each the `str` a `Doc.id`
+answers; `Frame`, `Band` and `Unleverable` under `inner_variant`, with
+the classifier's `margin`/`margin_low`/`margin_high`, `zero`/
+`escalate`, `field`/`value` and the deciding `predicate` — which the
+record already had for `Contradictory` and which is one concept, so it
+is shared; `Indeterminate` under the same classifier words with no
+inner word, because it carries a struct and its shape is which margin
+attribute is set; `Contradictory`'s lever as `lever_tilt`/`lever_arm`,
+carrying the kernel's sentence that the arm is the solve's scale
+surrogate and not a contact feature. Seventeen attributes became
+thirty-one.
+
+The second half is gone with it. `LeverRefusal` is re-exported from
+`editor-core`'s stanza and curated at `pncad::document` beside the
+refusal that holds it (the cross-list rule: its only home is its
+carrier), so all four payload types are nameable from `pncad-py` and
+`every_mate_fault_arm_projects_the_payload_it_carries` builds all
+thirteen arms and reads every field of each. The "nine of thirteen"
+docstring is deleted; the executable arm table and the projection's
+totality are now the same guarantee.

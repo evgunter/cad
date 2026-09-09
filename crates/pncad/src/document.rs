@@ -264,6 +264,23 @@ pub use editor_core::{
 // solve places (`Member` is its answer). `UNDER_RECOURSE` and
 // `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
 // own refusals end on.
+/// Why a mate's datum could not form a lever arm, which
+/// [`MateFault::Unleverable`] carries — by the payload rule this list
+/// states at `VerbKind`.
+///
+/// A parallelism verdict is levered over the largest length the mate's
+/// own datum names, and a datum that names one too small decides
+/// nothing: at an arm of `L` the smallest tilt the predicate could call
+/// non-parallel is about ε/L, so a nanometre datum reads every pair as
+/// parallel. WHICH scale was named and WHAT floor it is under —
+/// `extent` and `floor` — is the whole of what the arm says beyond the
+/// name, and a consumer that could match `Unleverable` and not name
+/// this type read those two numbers out of the message prose.
+///
+/// Its only home is the refusal holding it: nothing else on the
+/// curated lists answers in a `LeverRefusal`, so it rides its carrier
+/// here rather than being spelled on a list that owns its vocabulary.
+pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, ClusterMaintenance, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,

@@ -4657,3 +4657,46 @@ NEXT declaration — a false GREEN — and that is the selftest's fixture.
 `north-star-audit-verb-list-names-arc-continue` (BOOL-10 #2135 still
 in review). Three items closed. No shipped `variant`/`kind` value
 moved; the lane ran the pinned ruff for real. Orchestrator note: the stub now declares `__eq__` on `Length` and `Angle`; the pending [ev] ruling on #2233 (B′) would remove their `__hash__`, which this guard does not touch, so the two do not collide. ~80 min, ~387k tokens.
+
+**LIB-MATE-PAYLOAD MERGED (2026-09-09, #2258; mechanical under (A)
+on `pncad-py-seven-doors-lack-field-projection`, no A/B row). The
+six `MateFault` fields that did not cross now do, and the arm table
+pins 13/13.** Fourteen attributes, 17→31, in the record's order:
+`expected_document`/`found_document` (the `str` a `Doc.id` answers),
+`inner_variant`, `margin`/`margin_low`/`margin_high`, `zero`/
+`escalate`, `field`/`value`, `lever_tilt`/`lever_arm`, `extent`/
+`floor`; `presence()` stays exhaustive with no `..`. The frame door's
+vocabulary is REUSED, not re-spelled: the classifier's fork (a value,
+an enclosure's two bounds, or nothing for a poisoned margin) is one
+helper, `escalation.rs`, sited outside `py` so it compiles and is
+tested under every feature, and both `frame_err` and the mate record
+call it — two doors forking separately would be two spellings of one
+fact. `predicate` is SHARED between `Contradictory` and
+`Indeterminate` ("the predicate that decided" and "the one that could
+not" are one concept asked of two outcomes; the arm says which), said
+in the rustdoc and the stub. `inner_variant` is ONE level in
+(`frame_error_tag` for `Frame`, `band_error_tag` for `Band`,
+`lever_refusal_tag` for `Unleverable`; `Indeterminate` carries a
+struct and has no inner word — its shape is which margin attribute is
+set, CUR8's `different-shape` measurement). Quantities: margins,
+`lever_arm`, `extent`, `floor` are `Length`, `lever_tilt` an `Angle`;
+`zero`/`escalate`/`value` stay plain reals because that is what the
+frame door already answers for them (a band's thresholds are in
+whatever its predicate measures, and dimensioning them here would
+decide a question that door left open). The one curation:
+`LeverRefusal` re-exported from `editor-core` and curated at
+`pncad::document` beside `MateFault` under the cross-list rule (its
+only home is the refusal holding it, so it rides its carrier), with
+`lever_refusal_tag` (one literal, exhaustive so a second arm is a
+compile error) and its inventory row; census `BOUND_AS`
+`MateFault.inner_variant`. The arm table builds sixteen values over
+the thirteen arms (each `MarginDiag` and `BandError` arm executed)
+and reads every field of each; the "nine of thirteen" docstring is
+gone. Python rows reach each attribute by authoring the mistake (the
+levered and unlevered clash, the mispaired solve, the too-small
+datum, the in-band frame); four attributes have no Python row that
+CARRIES them because no f64 solve produces an enclosure and the
+tolerance witness cannot fail to form a band — stated, the Rust
+table owns that half. No new door, no kernel behaviour change beyond
+the re-export and the curation; no shipped `variant`/`inner_variant`
+value moved; the lane ran the pinned ruff for real. Orchestrator note: the falsification was run the way the brief asked — `floor` blanked on the `Unleverable` arm turned the pin red, reverted green — and the mid-flight merge of SMALL-2 conflicted in the two re-export stanzas (both lanes added names to them), resolved by union and re-verified. ~73 min, ~284k tokens.
