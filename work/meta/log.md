@@ -86,3 +86,35 @@ them back, which is the class this program exists to close — and the
 mechanised version of the first one is exactly what item (1) builds.
 Recorded here rather than quietly fixed, because a census that has been
 wrong once is a census whose next reader should know it.
+
+## An inbound edit to `docs/prompts/implementer-discipline.md` (2026-09-09, CIW, PR 2263)
+
+CIW added one bullet to §2's "When you do run locally" list, under this
+program's standing clause for §2 run-facts. Recorded here so the edit has
+a record on META's side rather than only in CIW's tracker.
+
+**What it says:** `cargo clippy --workspace --all-targets` compiles
+nothing under the roots `Cargo.toml` excludes (`benches`, `demos`,
+`tools`, `interval-transcendentals`); `demos/tour` and `demos/wild` are
+ordinary consumers of the public API, so a signature change breaks them
+the way it breaks a user; those two and `tools/*` are gated on every
+code-tier run and by `ci-local.sh`, while `benches` (rustfmt only in the
+PR gate, clippy in the nightly with no local mirror) and
+`interval-transcendentals` (clippy only when the filter buys that job)
+are weaker than that.
+
+**It carries no count on purpose**, and tells the reader to derive the
+list with `scripts/doc-gate.sh --print-roots`. That is this program's
+own subject twice over: the bullet's first draft asserted "the hosted
+gate and `ci-local.sh` both cover every root", which is false for two of
+them, and named "five" roots where the derivation says seven. The same
+PR found the count stale in five places inside CIW's own fence —
+`ci.yml`'s cache-scope paragraph (six/seven), `ci-local.sh`'s rustdoc
+note, and three lines of `scripts/doc-gate.sh` including a selftest
+failure message — all of which have said "six" since before
+`tools/tess-meter` landed. Every one now points at the derivation
+instead of carrying a number. A prompt read at the start of every lane
+is the last place a hand-run census belongs.
+
+META owns the wording; CIW invites the rewrite.
+
