@@ -1439,19 +1439,21 @@ is a name you would have to hand-write — the serialized form, field by
 field, with no compiler and no door checking any of it.
 
 So a revolve's roles have MINTING doors, the same five `pncad::select`
-gives Rust: `band(node, seg)` and `band_pi(node, seg)` are the two
-halves of the face swept from meridian segment `seg`, `band_rim(node,
-vertex)` is the latitude rim standing at a meridian vertex,
-`meridian_vertex(end, node, vertex)` is that vertex itself, and
-`carried(node, inner)` is the name a survivor of `node` wears one op
-later. Each answers the SAME opaque text a materializer answers for
-that entity, so a selection authored this way and one selected off an
-evaluation are the same bytes.
+gives Rust: `band(node, loop_index, seg)` and `band_pi(node,
+loop_index, seg)` are the two halves of the face swept from meridian
+segment `seg`, `band_rim(node, loop_index, vertex)` is the latitude
+rim standing at a meridian vertex, `meridian_vertex(end, node,
+loop_index, vertex)` is that vertex itself, and `carried(node, inner)`
+is the name a survivor of `node` wears one op later. Each answers the
+SAME opaque text a materializer answers for that entity, so a
+selection authored this way and one selected off an evaluation are the
+same bytes.
 
-`seg` and `vertex` index the profile's canonical chain, on the OUTER
-loop: a hole's band is not reachable this way from either language.
-And the text is still never read or assembled — you name a ROLE, and
-the door does the rest.
+`loop_index` names the profile loop — 0 the outer one, then the holes
+in the order the profile describes them — and `seg` and `vertex` index
+that loop's canonical chain, so a hole's band is spelled exactly like
+the outer one at its own loop. And the text is still never read or
+assembled — you name a ROLE, and the door does the rest.
 
 ```python
 import math
@@ -1481,9 +1483,12 @@ ring = doc.insert(
 )
 
 # Segment 2 is the top annulus and vertex 2 the rim standing on it —
-# read off the profile as written, with nothing evaluated yet.
-cup = doc.insert(Node.shell(ring, T * m, [band(ring, 2)]))
-rolled = doc.insert(Node.fillet(ring, T * m, [band_rim(ring, 2), band_rim(ring, 3)]))
+# read off the profile as written, with nothing evaluated yet. The
+# section has one loop, so every name below is on loop 0.
+cup = doc.insert(Node.shell(ring, T * m, [band(ring, 0, 2)]))
+rolled = doc.insert(
+    Node.fillet(ring, T * m, [band_rim(ring, 0, 2), band_rim(ring, 0, 3)])
+)
 
 ev = evaluate(doc)
 ev.value(cup).body().validate()
@@ -1493,7 +1498,7 @@ ev.value(rolled).body().validate()
 # survived the hollowing wear exactly `carried` of what they were.
 faces = NamePat.of_kind(EntityKind.Face)
 survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
-assert sorted(survivors) == sorted(carried(cup, band(ring, s)) for s in (0, 1, 3))
+assert sorted(survivors) == sorted(carried(cup, band(ring, 0, s)) for s in (0, 1, 3))
 ```
 
 ## 3. Parametric models
