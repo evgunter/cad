@@ -2,11 +2,12 @@
 id: LIB-MC
 kind: unit
 title: the advisory Monte Carlo lane gets its Python door and the census reads analysis.rs
-status: review
+status: closed
 opened: 2026-09-09
 branch: lib/mc
 refs: [advisory-monte-carlo-lane-has-no-python-door]
 pr: 2255
+closed: 2026-09-09
 ---
 
 
