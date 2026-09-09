@@ -23,7 +23,9 @@ from pncad import (
     Doc,
     DocEdit,
     EditError,
+    Expr,
     Node,
+    WrittenLength,
     evaluate,
     m,
 )
@@ -50,15 +52,15 @@ def slab(doc, box):
     profile = doc.insert(
         Node.polygon(
             [
-                (x0 * m, y0 * m),
-                (x1 * m, y0 * m),
-                (x1 * m, y1 * m),
-                (x0 * m, y1 * m),
+                (Expr.written_length(WrittenLength.in_unit(x0, m)), Expr.written_length(WrittenLength.in_unit(y0, m))),
+                (Expr.written_length(WrittenLength.in_unit(x1, m)), Expr.written_length(WrittenLength.in_unit(y0, m))),
+                (Expr.written_length(WrittenLength.in_unit(x1, m)), Expr.written_length(WrittenLength.in_unit(y1, m))),
+                (Expr.written_length(WrittenLength.in_unit(x0, m)), Expr.written_length(WrittenLength.in_unit(y1, m))),
             ],
-            plane=doc.sketch_frame(elevation=z0 * m),
+            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z0, m))),
         )
     )
-    return doc.insert(Node.extrude(profile, (z1 - z0) * m))
+    return doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(z1 - z0, m))))
 
 
 def measured(doc, node):

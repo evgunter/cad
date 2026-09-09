@@ -42,14 +42,25 @@
 //! continuous one for a count is a typed refusal from the kernel
 //! (`count_expr_in_continuous_eval`), never a silent promotion.
 //!
-//! Inward, the only door is the TEXT one. `parse_expr` is the
-//! checking parser whose every reduction runs the smart constructors,
-//! so it reaches the whole algebra — the operators, the functions,
-//! the unit suffixes, the parameter references — through a single
-//! call, with exactly the refusals the constructors raise. The dozen
-//! individual builders are deliberately not bound: they would be a
-//! second spelling of one grammar, and the text is the spelling a
-//! panel already has in hand.
+//! Inward there are two doors, and they answer different questions.
+//! `parse_expr` is the checking parser whose every reduction runs the
+//! smart constructors, so it reaches the whole algebra — the
+//! operators, the functions, the unit suffixes, the parameter
+//! references — through a single call, with exactly the refusals the
+//! constructors raise. The dozen individual builders are deliberately
+//! not bound: they would be a second spelling of one grammar, and the
+//! text is the spelling a panel already has in hand.
+//!
+//! The LITERAL constructors are the other door, and they are not a
+//! second spelling of the parser: they are what an authoring caller
+//! holding a `Length` has, where the parser wants a string it would
+//! have to build. `Expr.literal` stores the canonical row for the
+//! value's own dimension, `Expr.written_length` / `Expr.written_angle`
+//! store the notation the author wrote, and `Expr.count` is the exact
+//! integer a structural slot takes. They are the four kernel
+//! constructors a Rust author reaches for, mirrored — and since every
+//! dimensioned slot door takes an `Expr`, they are how a slot is
+//! given a number at all.
 
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString};
@@ -60,13 +71,66 @@ use crate::py::typed_err;
 use crate::tags::{eval_error_tag, expr_dimension_error_tag, parse_error_tag};
 use pncad::document as d;
 
+/// One literal argument, as it crossed: the canonical `f64` and the
+/// dimension the caller's own type says it is in.
+///
+/// A `Length`, an `Angle` or a bare `float`, and anything else is a
+/// `TypeError` naming the three — the boundary refusal for an
+/// argument that is not a quantity at all, rather than one whose
+/// dimension is wrong.
+fn quantity(obj: &Bound<'_, PyAny>) -> PyResult<(f64, d::Dimension)> {
+    if let Ok(length) = obj.extract::<PyRef<'_, super::quantity::Length>>() {
+        return Ok((length.0.meters(), d::Dimension::Length));
+    }
+    if let Ok(angle) = obj.extract::<PyRef<'_, super::quantity::Angle>>() {
+        return Ok((angle.0.radians(), d::Dimension::Angle));
+    }
+    if let Ok(scalar) = obj.extract::<f64>() {
+        return Ok((scalar, d::Dimension::Scalar));
+    }
+    Err(pyo3::exceptions::PyTypeError::new_err(
+        "a literal is a Length, an Angle or a float — the value's own \
+         type is the dimension it is written in",
+    ))
+}
+
+/// Raise `LiteralError` for a value the expression layer refused,
+/// carrying the refusal's stable tag and the offending number.
+fn literal_err(py: Python<'_>, value: f64, err: &d::DimensionError) -> PyErr {
+    let tag = expr_dimension_error_tag(err);
+    let value_obj = match value.into_pyobject(py) {
+        Ok(bound) => bound.unbind().into_any(),
+        Err(failed) => return failed.into(),
+    };
+    typed_err(
+        py,
+        ErrorClass::Literal,
+        format!("literal {value}: {err}"),
+        &[
+            ("kind", PyString::new(py, tag).unbind().into_any()),
+            ("value", value_obj),
+        ],
+    )
+}
+
+/// Build a dimensioned literal expression, refusing at the boundary.
+pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Expr> {
+    d::Expr::literal(value, dim).map_err(|err| literal_err(py, value, &err))
+}
+
 /// **A dimension-checked expression** — the recipe's arithmetic, as a
 /// value.
 ///
-/// Built by `Doc.parse_expr`, which is the only door: the dimension
-/// checker runs at CONSTRUCTION, so an ill-dimensioned tree does not
-/// exist to be handed around, and the text door runs every one of
-/// those checks on the way in.
+/// Built by `Doc.parse_expr` or by one of the four literal
+/// constructors below: the dimension checker runs at CONSTRUCTION, so
+/// an ill-dimensioned tree does not exist to be handed around, and
+/// every door runs those checks on the way in.
+///
+/// It is what every dimensioned slot takes — `Node.extrude(profile,
+/// Expr.written_length(w))` — which is the Rust slot's own type
+/// (`Node::Extrude { distance: Expr }`) reaching Python unchanged. A
+/// slot therefore holds a literal, a written literal or a parsed tree
+/// with no second seat and no conversion.
 ///
 /// Read it three ways. `dimension` says what it measures, and it is
 /// the fact that decides which evaluator answers. `text` is the
@@ -88,6 +152,79 @@ pub(crate) struct Expr(pub(crate) d::Expr);
 
 #[pymethods]
 impl Expr {
+    /// A continuous literal in the CANONICAL unit for its dimension
+    /// — `Expr::literal`, and the door a slot takes a computed
+    /// quantity through.
+    ///
+    /// `value` is a `Length`, an `Angle` or a bare `float`, and the
+    /// argument's own type is the literal's dimension: there is no
+    /// second fact to keep in step and no dimension to spell. What it
+    /// stores is the canonical row — metres, radians, the
+    /// dimensionless one — so `Expr.literal(25 * mm)` reads back
+    /// `0.025 m`. A value written in a unit the document should
+    /// remember is [`Self::written_length`]'s or
+    /// [`Self::written_angle`]'s, not this door's.
+    ///
+    /// A `Count` is not reachable here and that is the kernel's rule,
+    /// not a narrowing: a count is an exact integer, so it has its
+    /// own door ([`Self::count`]).
+    ///
+    /// The refusal is `Expr::literal`'s OWN error type, matched — not
+    /// predicted: the binding carries no pre-check of its own, so it
+    /// cannot drift from what the kernel refuses. The exception
+    /// carries `kind` (the stable tag) AND `value`, the offending
+    /// number — the kernel error deliberately carries no float, but
+    /// the boundary has it in hand.
+    #[staticmethod]
+    fn literal(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let (canonical, dim) = quantity(value)?;
+        Ok(Self(literal(py, canonical, dim)?))
+    }
+
+    /// A continuous literal from an AUTHORED length — the value and
+    /// the notation it was written in, together
+    /// (`Expr::written_length`).
+    ///
+    /// The door a recipe records `25 mm` through rather than the
+    /// canonical `0.025 m`: the unit is presentation metadata, it
+    /// round-trips through the file, and it is what a reader sees
+    /// when the slot is shown. `WrittenLength.in_unit(25.0, mm)` is
+    /// the value; there is no dimension to spell, because an authored
+    /// length is a length.
+    ///
+    /// Refuses what [`Self::literal`] refuses and nothing more: a
+    /// non-finite value. A unit that measures the wrong quantity
+    /// cannot be written, so the mismatch has no door here.
+    #[staticmethod]
+    fn written_length(py: Python<'_>, written: &super::quantity::WrittenLength) -> PyResult<Self> {
+        d::Expr::written_length(written.0)
+            .map(Self)
+            .map_err(|err| literal_err(py, written.0.meters(), &err))
+    }
+
+    /// A continuous literal from an AUTHORED angle —
+    /// [`Self::written_length`]'s mirror, and everything that door
+    /// says holds here with an `AngleUnit`.
+    #[staticmethod]
+    fn written_angle(py: Python<'_>, written: &super::quantity::WrittenAngle) -> PyResult<Self> {
+        d::Expr::written_angle(written.0)
+            .map(Self)
+            .map_err(|err| literal_err(py, written.0.radians(), &err))
+    }
+
+    /// A `Count` literal — an exact integer, and the door every
+    /// structural slot takes its value through (`Expr::count`).
+    ///
+    /// Total: a count is an integer and every integer is a count, so
+    /// there is nothing to refuse. It is a separate door from
+    /// [`Self::literal`] for the reason spec D4 gives — a count is
+    /// exact, and reaching it through a float would be the implicit
+    /// promotion the kernel refuses.
+    #[staticmethod]
+    fn count(value: i64) -> Self {
+        Self(d::Expr::count(value))
+    }
+
     /// What this expression measures: `"length"`, `"angle"`,
     /// `"count"` or `"scalar"`.
     ///

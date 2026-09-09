@@ -59,8 +59,17 @@ saving it as a NEW document mints a fresh id, an explicit fork.
 import tempfile
 
 from pncad import (
-    PIN_MISMATCH_RECOURSE, ContentPin, Doc, DocRef, Node, Workspace,
-    WorkspaceError, content_pin, m,
+    ContentPin,
+    Doc,
+    DocRef,
+    Expr,
+    Node,
+    PIN_MISMATCH_RECOURSE,
+    Workspace,
+    WorkspaceError,
+    WrittenLength,
+    content_pin,
+    m,
 )
 
 
@@ -68,8 +77,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(height, m))))
     return doc
 
 
@@ -157,10 +166,32 @@ instance and composes the map of everything it passes.
 import tempfile
 
 from pncad import (
-    Alignment, AxisSense, CapEnd, ContactClass, Doc, DocEdit, DocRef,
-    EditError, EntityKind, Frame, MateFrame, MatePrimitive, NamePat,
-    Node, SegPat, SegTag, Selector, Workspace, clusters, content_pin,
-    evaluate, gauge_of, m, reading_edges,
+    Alignment,
+    AxisSense,
+    CapEnd,
+    ContactClass,
+    Doc,
+    DocEdit,
+    DocRef,
+    EditError,
+    EntityKind,
+    Expr,
+    Frame,
+    MateFrame,
+    MatePrimitive,
+    NamePat,
+    Node,
+    SegPat,
+    SegTag,
+    Selector,
+    Workspace,
+    WrittenLength,
+    clusters,
+    content_pin,
+    evaluate,
+    gauge_of,
+    m,
+    reading_edges,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -171,8 +202,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(height, m))))
     return doc
 
 
@@ -340,8 +371,19 @@ the assembly.
 import tempfile
 
 from pncad import (
-    Doc, DocEdit, DocRef, EvaluationError, Frame, Node, Workspace,
-    content_pin, evaluate, m, product,
+    Doc,
+    DocEdit,
+    DocRef,
+    EvaluationError,
+    Expr,
+    Frame,
+    Node,
+    Workspace,
+    WrittenLength,
+    content_pin,
+    evaluate,
+    m,
+    product,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -352,8 +394,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(height, m))))
     return doc
 
 
@@ -426,8 +468,16 @@ consequence is a workflow you will hit on your first day:
 import tempfile
 
 from pncad import (
-    Doc, DocRef, EvaluationError, Node, Workspace, content_pin,
-    evaluate, m,
+    Doc,
+    DocRef,
+    EvaluationError,
+    Expr,
+    Node,
+    Workspace,
+    WrittenLength,
+    content_pin,
+    evaluate,
+    m,
 )
 
 
@@ -435,8 +485,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(height, m))))
     return doc
 
 
@@ -510,10 +560,32 @@ against the geometry it claims.
 import tempfile
 
 from pncad import (
-    Alignment, AxisSense, CapEnd, ContactClass, Doc, DocEdit, DocRef,
-    EntityKind, Frame, MateFrame, MatePrimitive, MateRole, NamePat,
-    Node, SegPat, SegTag, Selector, Workspace, assemble, content_pin,
-    evaluate, m, product, solve_document,
+    Alignment,
+    AxisSense,
+    CapEnd,
+    ContactClass,
+    Doc,
+    DocEdit,
+    DocRef,
+    EntityKind,
+    Expr,
+    Frame,
+    MateFrame,
+    MatePrimitive,
+    MateRole,
+    NamePat,
+    Node,
+    SegPat,
+    SegTag,
+    Selector,
+    Workspace,
+    WrittenLength,
+    assemble,
+    content_pin,
+    evaluate,
+    m,
+    product,
+    solve_document,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -524,8 +596,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(height, m))))
     return doc
 
 
@@ -635,11 +707,35 @@ or widen a declaration you did not make.
 import tempfile
 
 from pncad import (
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, Doc,
-    DocEdit, DocRef, EntityKind, Frame, MateFrame, MatePrimitive,
-    MateSide, NamePat, Node, ProductError, SegPat, SegTag, Selector,
-    UNDER_RECOURSE, Workspace, assemble, content_pin, evaluate, m,
-    product, solve_document,
+    Alignment,
+    AssemblyError,
+    AxisSense,
+    CapEnd,
+    ContactClass,
+    Doc,
+    DocEdit,
+    DocRef,
+    EntityKind,
+    Expr,
+    Frame,
+    MateFrame,
+    MatePrimitive,
+    MateSide,
+    NamePat,
+    Node,
+    ProductError,
+    SegPat,
+    SegTag,
+    Selector,
+    UNDER_RECOURSE,
+    Workspace,
+    WrittenLength,
+    assemble,
+    content_pin,
+    evaluate,
+    m,
+    product,
+    solve_document,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -650,8 +746,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(height, m))))
     return doc
 
 
@@ -821,9 +917,23 @@ refuses `part_pin_mismatch` rather than splicing the version on disk.
 import tempfile
 
 from pncad import (
-    Doc, DocEdit, DocRef, Frame, InlineError, Node, SplitError,
-    Workspace, content_pin, evaluate, inline, m, product,
-    random_document_id, split,
+    Doc,
+    DocEdit,
+    DocRef,
+    Expr,
+    Frame,
+    InlineError,
+    Node,
+    SplitError,
+    Workspace,
+    WrittenLength,
+    content_pin,
+    evaluate,
+    inline,
+    m,
+    product,
+    random_document_id,
+    split,
 )
 
 
@@ -831,8 +941,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(height, m))))
     return doc
 
 
@@ -930,8 +1040,17 @@ state.
 import tempfile
 
 from pncad import (
-    Doc, DocRef, Node, UpdateError, Workspace, content_pin, m,
-    mixed_pins, update_references,
+    Doc,
+    DocRef,
+    Expr,
+    Node,
+    UpdateError,
+    Workspace,
+    WrittenLength,
+    content_pin,
+    m,
+    mixed_pins,
+    update_references,
 )
 
 
@@ -939,8 +1058,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(height, m))))
     return doc
 
 

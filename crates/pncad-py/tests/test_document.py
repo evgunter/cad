@@ -16,15 +16,16 @@ from pncad import (
     Doc,
     DocEdit,
     DocParam,
+    DocParamValue,
     EditError,
     EntityKind,
     EvaluationError,
+    Expr,
     Frame,
     GeomPred,
     Length,
     MeasureExpr,
     MeasurePrimitive,
-    DocParamValue,
     NamePat,
     Node,
     Open,
@@ -33,6 +34,8 @@ from pncad import (
     Selector,
     SketchPlane,
     Start,
+    WrittenAngle,
+    WrittenLength,
     evaluate,
     import_step,
     load,
@@ -53,11 +56,16 @@ def slab(doc, x, y, z):
     z0, z1 = z
     profile = doc.insert(
         Node.polygon(
-            [(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-            plane=doc.sketch_frame(elevation=z0),
+            [
+                (Expr.literal(x0), Expr.literal(y0)),
+                (Expr.literal(x1), Expr.literal(y0)),
+                (Expr.literal(x1), Expr.literal(y1)),
+                (Expr.literal(x0), Expr.literal(y1)),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, z1 - z0))
+    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
 
 class TestDocumentEditing(unittest.TestCase):
@@ -80,7 +88,11 @@ class TestDocumentEditing(unittest.TestCase):
         minted = doc.apply(
             DocEdit.insert_node(
                 Node.polygon(
-                    [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)], plane=frame
+                    [
+                        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                    ], plane=frame
                 )
             )
         )
@@ -132,10 +144,14 @@ class TestNodeKindReadDoor(unittest.TestCase):
         frame = doc.sketch_frame()
         profile = doc.insert(
             Node.polygon(
-                [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)], plane=frame
+                [
+                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                ], plane=frame
             )
         )
-        solid = doc.insert(Node.extrude(profile, 1 * m))
+        solid = doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(1, m))))
         self.assertEqual(doc.node_kind(frame), "datum")
         self.assertEqual(doc.node_kind(profile), "profile")
         self.assertEqual(doc.node_kind(solid), "extrude")
@@ -158,7 +174,15 @@ class TestNodeKindReadDoor(unittest.TestCase):
         doc = Doc()
         solid = unit_box(doc, 2 * m, 2 * m, 2 * m)
         moved = doc.insert(
-            Node.transform(solid, (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 0 * rad)
+            Node.transform(solid, (
+                Expr.written_length(WrittenLength.in_unit(1, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.written_angle(WrittenAngle.in_unit(0, rad)))
         )
         ev = evaluate(doc)
         # Two different recipes, one value kind: `Value.kind` is the
@@ -398,7 +422,7 @@ class TestLiteralRefusals(unittest.TestCase):
         box = unit_box(doc, 1 * m, 1 * m, 1 * m)
         profile_node = doc.order()[0]
         with self.assertRaises(pncad.LiteralError) as caught:
-            doc.insert(Node.extrude(profile_node, float("nan") * m))
+            doc.insert(Node.extrude(profile_node, Expr.written_length(WrittenLength.in_unit(float("nan"), m))))
         self.assertEqual(caught.exception.kind, "non_finite")
         self.assertNotEqual(
             caught.exception.value, caught.exception.value
@@ -886,7 +910,13 @@ class TestDatumReadback(unittest.TestCase):
     def axis(self, x, y):
         doc = Doc()
         frame = doc.sketch_frame()
-        node = doc.insert(Node.datum_axis_in_plane(frame, (x, y), (0.0, 1.0)))
+        node = doc.insert(Node.datum_axis_in_plane(frame, (
+            Expr.literal(x),
+            Expr.literal(y),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
         return evaluate(doc).value(node).datum()
 
     def test_the_in_plane_origin_reads_back_as_the_length_pair_it_was_written_as(self):
@@ -925,7 +955,11 @@ class TestDatumPointAndFrame(unittest.TestCase):
 
     def test_a_point_reads_back_as_its_position_and_faces_no_way(self):
         doc = Doc()
-        point = doc.insert(Node.datum_point((1 * m, 2 * m, 3 * m)))
+        point = doc.insert(Node.datum_point((
+            Expr.written_length(WrittenLength.in_unit(1, m)),
+            Expr.written_length(WrittenLength.in_unit(2, m)),
+            Expr.written_length(WrittenLength.in_unit(3, m)),
+        )))
         datum = evaluate(doc).value(point).datum()
         self.assertEqual(datum.kind, "point")
         for coordinate in datum.origin:
@@ -944,11 +978,15 @@ class TestDatumPointAndFrame(unittest.TestCase):
         doc = Doc()
         cube = unit_box(doc, 1 * m, 1 * m, 1 * m)
         # On the bottom cap's centroid, a metre under the top cap's.
-        here = doc.insert(Node.datum_point((0.5 * m, 0.5 * m, 0 * m)))
+        here = doc.insert(Node.datum_point((
+            Expr.written_length(WrittenLength.in_unit(0.5, m)),
+            Expr.written_length(WrittenLength.in_unit(0.5, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+        )))
         ev = evaluate(doc)
         faces = Selector.of(NamePat.of_kind(EntityKind.Face))
-        on_it = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Approx, 0 * m)])
-        far = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Greater, 0.9 * m)])
+        on_it = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Approx, Expr.written_length(WrittenLength.in_unit(0, m)))])
+        far = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Greater, Expr.written_length(WrittenLength.in_unit(0.9, m)))])
         self.assertEqual(len(on_it), 1)
         self.assertEqual(len(far), 1)
         self.assertNotEqual(on_it, far)
@@ -959,7 +997,19 @@ class TestDatumPointAndFrame(unittest.TestCase):
         axes come back unit."""
         doc = Doc()
         frame = doc.insert(
-            Node.datum_frame((0 * m, 0 * m, 1 * m), (1.0, 0.0, 0.0), (1.0, 2.0, 0.0))
+            Node.datum_frame((
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(1, m)),
+            ), (
+                Expr.literal(1.0),
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+            ), (
+                Expr.literal(1.0),
+                Expr.literal(2.0),
+                Expr.literal(0.0),
+            ))
         )
         datum = evaluate(doc).value(frame).datum()
         self.assertEqual(datum.kind, "frame")
@@ -981,18 +1031,32 @@ class TestDatumPointAndFrame(unittest.TestCase):
         body: the same square extruded on a frame leaning 45 degrees
         puts material above the metre the world-xy version tops out
         at."""
-        ground = (0 * m, 0 * m, 0 * m)
-        corners = [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)]
+        zero = Expr.written_length(WrittenLength.in_unit(0, m))
+        one = Expr.written_length(WrittenLength.in_unit(1, m))
+        ground = (zero, zero, zero)
+        corners = [(zero, zero), (one, zero), (one, one), (zero, one)]
 
         def prism(plane_node, doc):
             square = doc.insert(Node.polygon(corners, plane=plane_node))
-            return doc.insert(Node.extrude(square, 1 * m))
+            return doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(1, m))))
 
         doc = Doc()
-        tilted = doc.insert(Node.datum_frame(ground, (1.0, 0.0, 0.0), (0.0, 1.0, 1.0)))
+        tilted = doc.insert(Node.datum_frame(ground, (
+            Expr.literal(1.0),
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+            Expr.literal(1.0),
+        )))
         leaning = prism(tilted, doc)
         upright = prism(doc.sketch_frame(), doc)
-        floor = doc.insert(Node.datum_plane(ground, (0.0, 0.0, 1.0)))
+        floor = doc.insert(Node.datum_plane(ground, (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(leaning))
         # A rigid tilt is volume-preserving; where the material SITS is
@@ -1001,7 +1065,7 @@ class TestDatumPointAndFrame(unittest.TestCase):
             ev.value(leaning).body().mass_properties().volume, 1.0, delta=1e-9
         )
         faces = Selector.of(NamePat.of_kind(EntityKind.Face))
-        above = [GeomPred.datum_distance(floor, Cmp.Greater, 1 * m)]
+        above = [GeomPred.datum_distance(floor, Cmp.Greater, Expr.written_length(WrittenLength.in_unit(1, m)))]
         self.assertEqual(ev.select_where(upright, faces, above), [])
         self.assertNotEqual(ev.select_where(leaning, faces, above), [])
 
@@ -1009,13 +1073,18 @@ class TestDatumPointAndFrame(unittest.TestCase):
         """Gram-Schmidt states "these two span no plane" as a LENGTH,
         so the refusal is the direction one every datum raises, naming
         which axis went."""
+        scl = Expr.literal
         for u, v, axis in (
-            ((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), "x"),
-            ((1.0, 0.0, 0.0), (2.0, 0.0, 0.0), "y"),
+            ((scl(0.0), scl(0.0), scl(0.0)), (scl(0.0), scl(1.0), scl(0.0)), "x"),
+            ((scl(1.0), scl(0.0), scl(0.0)), (scl(2.0), scl(0.0), scl(0.0)), "y"),
         ):
             with self.subTest(axis=axis):
                 doc = Doc()
-                bad = doc.insert(Node.datum_frame((0 * m, 0 * m, 0 * m), u, v))
+                bad = doc.insert(Node.datum_frame((
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                ), u, v))
                 with self.assertRaises(EvaluationError) as caught:
                     evaluate(doc).value(bad)
                 self.assertEqual(caught.exception.kind, "degenerate_direction")
@@ -1026,11 +1095,27 @@ class TestDatumPointAndFrame(unittest.TestCase):
         refusal arrives where the call was written, carrying the
         offending number."""
         with self.assertRaises(pncad.LiteralError) as caught:
-            Node.datum_point((float("nan") * m, 0 * m, 0 * m))
+            Node.datum_point((
+                Expr.written_length(WrittenLength.in_unit(float("nan"), m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+            ))
         self.assertEqual(caught.exception.kind, "non_finite")
         with self.assertRaises(pncad.LiteralError) as caught:
             Node.datum_frame(
-                (0 * m, 0 * m, 0 * m), (float("inf"), 0.0, 0.0), (0.0, 1.0, 0.0)
+                (
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                ), (
+                    Expr.literal(float("inf")),
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                ), (
+                    Expr.literal(0.0),
+                    Expr.literal(1.0),
+                    Expr.literal(0.0),
+                )
             )
         self.assertEqual(caught.exception.value, float("inf"))
 
@@ -1096,9 +1181,15 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         frame = doc.sketch_frame()
         profile = self.square(doc, frame, x0)
         axis = doc.insert(
-            Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0))
+            Node.datum_axis_in_plane(frame, (
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ))
         )
-        node = doc.insert(Node.revolve(profile, axis, angle))
+        node = doc.insert(Node.revolve(profile, axis, Expr.literal(angle)))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(node)
         return caught.exception
@@ -1122,7 +1213,7 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
     def test_a_second_op_speaks_its_own_arms(self):
         doc = Doc()
         frame = doc.sketch_frame()
-        flat = doc.insert(Node.extrude(self.square(doc, frame), 0 * m))
+        flat = doc.insert(Node.extrude(self.square(doc, frame), Expr.written_length(WrittenLength.in_unit(0, m))))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(flat)
         self.assertEqual(
@@ -1149,9 +1240,17 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         # of the root cause's words or neither.
         doc = Doc()
         frame = doc.sketch_frame()
-        flat = doc.insert(Node.extrude(self.square(doc, frame), 0 * m))
+        flat = doc.insert(Node.extrude(self.square(doc, frame), Expr.written_length(WrittenLength.in_unit(0, m))))
         moved = doc.insert(
-            Node.transform(flat, (0 * m, 0 * m, 1 * m), (0.0, 0.0, 1.0), 0 * rad)
+            Node.transform(flat, (
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.written_length(WrittenLength.in_unit(1, m)),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.written_angle(WrittenAngle.in_unit(0, rad)))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(moved)
@@ -1189,7 +1288,7 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         doc = Doc()
         frame = doc.sketch_frame()
         profile = self.square(doc, frame)
-        doc.insert(Node.extrude(profile, 1 * m))
+        doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(1, m))))
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.delete_node(profile))
         self.assertEqual(caught.exception.variant, "delete_would_dangle")
@@ -1288,11 +1387,16 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         z0, z1 = z
         profile = doc.insert(
             Node.polygon(
-                [(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-                plane=doc.sketch_frame(elevation=z0),
+                [
+                    (Expr.literal(x0), Expr.literal(y0)),
+                    (Expr.literal(x1), Expr.literal(y0)),
+                    (Expr.literal(x1), Expr.literal(y1)),
+                    (Expr.literal(x0), Expr.literal(y1)),
+                ],
+                plane=doc.sketch_frame(elevation=Expr.literal(z0)),
             )
         )
-        return doc.insert(Node.extrude(profile, z1 - z0))
+        return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
     def set_of(self, refusal):
         """The attributes this refusal CARRIES, with the rest asserted
@@ -1341,7 +1445,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         self.assertEqual(self.set_of(read.exception), {"variant", "node"})
 
         with self.assertRaises(EditError) as written:
-            doc.insert(Node.extrude(stray, 1 * m))
+            doc.insert(Node.extrude(stray, Expr.written_length(WrittenLength.in_unit(1, m))))
         self.assertEqual(written.exception.variant, "unresolved_input")
         self.assertEqual(written.exception.input, stray)
         self.assertIsNone(written.exception.node)
@@ -1353,7 +1457,11 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         pattern = doc.insert(
-            Node.pattern(box, 3, PatternKind.linear((1.0, 0.0, 0.0), 2 * m))
+            Node.pattern(box, Expr.count(3), PatternKind.linear((
+                Expr.literal(1.0),
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+            ), Expr.written_length(WrittenLength.in_unit(2, m))))
         )
         with self.assertRaises(EditError) as unknown:
             doc.apply(DocEdit.bind_count_param(pattern, ParamName("n")))
@@ -1380,7 +1488,11 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         pattern = doc.insert(
-            Node.pattern(box, 3, PatternKind.linear((1.0, 0.0, 0.0), 2 * m))
+            Node.pattern(box, Expr.count(3), PatternKind.linear((
+                Expr.literal(1.0),
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+            ), Expr.written_length(WrittenLength.in_unit(2, m))))
         )
         doc.apply(DocEdit.set_doc_param(ParamName("len"), DocParam.length(1 * m)))
         with self.assertRaises(EditError) as caught:
@@ -1424,7 +1536,11 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         # node downstream that references it. `variant` is the FAULT's
         # word already, so `inner_variant` stays `None`.
         pattern = doc.insert(
-            Node.pattern(box, 3, PatternKind.linear((1.0, 0.0, 0.0), 2 * m))
+            Node.pattern(box, Expr.count(3), PatternKind.linear((
+                Expr.literal(1.0),
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+            ), Expr.written_length(WrittenLength.in_unit(2, m))))
         )
         with self.assertRaises(EditError) as roots:
             doc.apply(DocEdit.set_roots([box, pattern]))
@@ -1469,6 +1585,6 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         with self.assertRaises(EditError) as caught:
-            Node.placed_union(box, 3, PatternKind.explicit([]))
+            Node.placed_union(box, Expr.count(3), PatternKind.explicit([]))
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
         self.assertEqual(self.set_of(caught.exception), {"variant"})

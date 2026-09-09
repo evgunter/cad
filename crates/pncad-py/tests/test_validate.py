@@ -57,6 +57,7 @@ from pncad import (
     BooleanOp,
     Doc,
     DocEdit,
+    Expr,
     Node,
     ValidationError,
     ValidationFinding,
@@ -75,20 +76,25 @@ def slab(doc, x, y, z):
     """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1], in metres."""
     profile = doc.insert(
         Node.polygon(
-            [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
-            plane=doc.sketch_frame(elevation=z[0]),
+            [
+                (Expr.literal(x[0]), Expr.literal(y[0])),
+                (Expr.literal(x[1]), Expr.literal(y[0])),
+                (Expr.literal(x[1]), Expr.literal(y[1])),
+                (Expr.literal(x[0]), Expr.literal(y[1])),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z[0])),
         )
     )
-    return doc.insert(Node.extrude(profile, z[1] - z[0]))
+    return doc.insert(Node.extrude(profile, Expr.literal(z[1] - z[0])))
 
 
 def cylinder(doc, centre, radius, z0, height):
     """A right circular cylinder — the curved carrier the census has an
     opinion about that a box does not."""
     profile = doc.insert(
-        Node.profile(circle(centre, radius), doc.sketch_frame(elevation=z0))
+        Node.profile(circle(centre, radius), doc.sketch_frame(elevation=Expr.literal(z0)))
     )
-    return doc.insert(Node.extrude(profile, height))
+    return doc.insert(Node.extrude(profile, Expr.literal(height)))
 
 
 def two_slabs_resting():

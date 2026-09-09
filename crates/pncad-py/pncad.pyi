@@ -1546,7 +1546,7 @@ class TubeWindow:
     @staticmethod
     def full() -> TubeWindow: ...
     @staticmethod
-    def arc(t0: Angle, t1: Angle) -> TubeWindow: ...
+    def arc(t0: Expr, t1: Expr) -> TubeWindow: ...
     def __repr__(self) -> str: ...
 
 class SketchPlane:
@@ -1686,10 +1686,10 @@ class PatternKind:
 
     @staticmethod
     def linear(
-        direction: tuple[float, float, float], spacing: Length
+        direction: tuple[Expr, Expr, Expr], spacing: Expr
     ) -> PatternKind: ...
     @staticmethod
-    def circular(axis: NodeId, step: Angle) -> PatternKind:
+    def circular(axis: NodeId, step: Expr) -> PatternKind:
         """Stepped around `axis`, an upstream `datum_axis` node."""
 
     @staticmethod
@@ -1714,10 +1714,9 @@ class PartSelect:
         with no material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
-    def instance(index: int) -> PartSelect:
+    def instance(index: Expr) -> PartSelect:
         """The `index`-th instance of a `Node.pattern` value, from
-        zero. A plain `int` — the structural-slot exception
-        `Node.placed_union`'s `count` already rides — and the node's
+        zero. A count `Expr` — `Expr.count(3)` — and the node's
         `Instance` slot, which `DocEdit.bind_instance_param` binds to a
         parameter. Outside `0 .. count`, including a negative, refuses
         at `evaluate` (`instance_out_of_range`); nothing wraps or
@@ -1877,7 +1876,7 @@ class Node:
     @staticmethod
     def sketch_frame(
         plane: Optional[SketchPlane] = None,
-        elevation: Optional[Length] = None,
+        elevation: Optional[Expr] = None,
     ) -> Node:
         """The sketch frame a profile is drawn on, as a node.
 
@@ -1888,7 +1887,7 @@ class Node:
 
     @staticmethod
     def polygon(
-        points: list[tuple[Length, Length]],
+        points: list[tuple[Expr, Expr]],
         plane: NodeId,
     ) -> Node: ...
     @overload
@@ -1898,7 +1897,7 @@ class Node:
     @staticmethod
     def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
-    def extrude(profile: NodeId, distance: Length) -> Node:
+    def extrude(profile: NodeId, distance: Expr) -> Node:
         """Extrude a profile along its sketch-plane normal.
 
         `distance` mints a LITERAL in the node's `distance` slot.
@@ -1908,17 +1907,17 @@ class Node:
         `set_doc_param_value` per value."""
 
     @staticmethod
-    def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node:
+    def revolve(profile: NodeId, axis: NodeId, angle: Expr) -> Node:
         """Revolve a profile about a datum axis. `angle` mints a
         literal in the node's `revolve_angle` slot, driven afterwards
         by `DocEdit.set_param` as an extrude's `distance` is."""
     @staticmethod
     def tube(
         spine: NodeId,
-        u_ref: tuple[float, float, float],
-        major_radius: Length,
+        u_ref: tuple[Expr, Expr, Expr],
+        major_radius: Expr,
         window: TubeWindow,
-        minor_radius: Length,
+        minor_radius: Expr,
     ) -> Node:
         """A solid ring torus, or an elbow of one, from its intent parameters.
 
@@ -1935,11 +1934,11 @@ class Node:
     @staticmethod
     def hollow_tube(
         spine: NodeId,
-        u_ref: tuple[float, float, float],
-        major_radius: Length,
+        u_ref: tuple[Expr, Expr, Expr],
+        major_radius: Expr,
         window: TubeWindow,
-        minor_radius: Length,
-        wall: Length,
+        minor_radius: Expr,
+        wall: Expr,
     ) -> Node:
         """`Node.tube`'s sibling with a WALL, which is REQUIRED.
 
@@ -1953,9 +1952,9 @@ class Node:
         """
 
     @staticmethod
-    def loft(profiles: list[NodeId], v_degree: int) -> Node: ...
+    def loft(profiles: list[NodeId], v_degree: Expr) -> Node: ...
     @staticmethod
-    def chamfer(target: NodeId, distance: Length, selection: list[str]) -> Node:
+    def chamfer(target: NodeId, distance: Expr, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
@@ -1968,7 +1967,7 @@ class Node:
         """
 
     @staticmethod
-    def shell(target: NodeId, thickness: Length, open: list[str]) -> Node:
+    def shell(target: NodeId, thickness: Expr, open: list[str]) -> Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
@@ -1988,14 +1987,14 @@ class Node:
 
     @staticmethod
     def datum_axis(
-        origin: tuple[Length, Length, Length],
-        direction: tuple[float, float, float],
+        origin: tuple[Expr, Expr, Expr],
+        direction: tuple[Expr, Expr, Expr],
     ) -> Node: ...
     @staticmethod
     def datum_axis_in_plane(
         plane: NodeId,
-        origin: tuple[Length, Length],
-        direction: tuple[float, float],
+        origin: tuple[Expr, Expr],
+        direction: tuple[Expr, Expr],
     ) -> Node:
         """An axis written IN a sketch frame — a revolve's axis.
 
@@ -2005,11 +2004,11 @@ class Node:
         """
     @staticmethod
     def datum_plane(
-        origin: tuple[Length, Length, Length],
-        normal: tuple[float, float, float],
+        origin: tuple[Expr, Expr, Expr],
+        normal: tuple[Expr, Expr, Expr],
     ) -> Node: ...
     @staticmethod
-    def datum_point(position: tuple[Length, Length, Length]) -> Node:
+    def datum_point(position: tuple[Expr, Expr, Expr]) -> Node:
         """A datum point: a position, and nothing else.
 
         There is no direction, because a point has none —
@@ -2020,7 +2019,7 @@ class Node:
         non-finite coordinate raises `LiteralError` here.
         """
     @staticmethod
-    def datum_face_frame(at: NodeId, face: str, spin: Angle) -> Node:
+    def datum_face_frame(at: NodeId, face: str, spin: Expr) -> Node:
         """A sketch frame DERIVED from a face — "sketch on this face".
 
         `at` is the body-denoting node the face is read out of, and a
@@ -2042,9 +2041,9 @@ class Node:
 
     @staticmethod
     def datum_frame(
-        origin: tuple[Length, Length, Length],
-        u: tuple[float, float, float],
-        v: tuple[float, float, float],
+        origin: tuple[Expr, Expr, Expr],
+        u: tuple[Expr, Expr, Expr],
+        v: tuple[Expr, Expr, Expr],
     ) -> Node:
         """An oriented plane — a sketch frame, written as its origin
         and its two in-plane directions.
@@ -2067,7 +2066,7 @@ class Node:
         """
 
     @staticmethod
-    def fillet(target: NodeId, radius: Length, selection: list[str]) -> Node:
+    def fillet(target: NodeId, radius: Expr, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
         `selection` is edge names as TEXT — the strings
@@ -2089,9 +2088,9 @@ class Node:
     @staticmethod
     def transform(
         input: NodeId,
-        translation: tuple[Length, Length, Length],
-        rotation_axis: tuple[float, float, float],
-        rotation_angle: Angle,
+        translation: tuple[Expr, Expr, Expr],
+        rotation_axis: tuple[Expr, Expr, Expr],
+        rotation_angle: Expr,
     ) -> Node:
         """A rigid placement: rotate about `rotation_axis` through the
         WORLD ORIGIN by `rotation_angle`, then translate. A pure
@@ -2137,7 +2136,7 @@ class Node:
         raises EditError (`no_findings`)."""
 
     @staticmethod
-    def pattern(input: NodeId, count: int, kind: PatternKind) -> Node:
+    def pattern(input: NodeId, count: Expr, kind: PatternKind) -> Node:
         """One prototype, `count` placements stepped by `kind`, N
         BODIES OUT — the replicated family with nothing fused.
 
@@ -2148,8 +2147,9 @@ class Node:
         seat, so the node that reaches those doors with one copy is
         `Node.part`.
 
-        `count` is a plain `int` and is the node's `Count` slot
-        (`DocEdit.bind_count_param`). Below one refuses at `evaluate`
+        `count` is a count `Expr` — `Expr.count(4)` — and is the
+        node's `Count` slot (`DocEdit.bind_count_param`). Below one
+        refuses at `evaluate`
         (`non_positive_count`); an `explicit` rule refuses at
         `Doc.insert` (`placement_rule_mismatch`), since it carries its
         own placements."""
@@ -2167,16 +2167,16 @@ class Node:
         `instance_out_of_range`."""
 
     @staticmethod
-    def placed_union(input: NodeId, count: int, kind: PatternKind) -> Node:
+    def placed_union(input: NodeId, count: Expr, kind: PatternKind) -> Node:
         """The group boolean over a PARAMETRIC rule: one prototype,
         `count` placements stepped by `kind`, ONE body out.
 
         The value is an ordinary body, so every downstream door
         consumes it with no new arms — which is exactly what a
-        pattern's plural payload cannot do. `count` is a plain `int`,
-        the structural-slot exception to the typed-quantity rule
-        (`Node.loft`'s `v_degree` precedent): a Count is an integer in
-        the kernel's own expression language, not a measurement.
+        pattern's plural payload cannot do. `count` is a count `Expr`
+        — `Expr.count(4)`, the `Node.loft` `v_degree` precedent: a
+        Count is an integer in the kernel's own expression language,
+        not a measurement.
 
         Disjointness is CERTIFIED: overlapping placements raise
         EvaluationError (`placements_uncertified`) naming the pair,
@@ -2318,10 +2318,20 @@ class Expr:
     """A dimension-checked expression — the recipe's arithmetic, as a
     value.
 
-    `Doc.parse_expr` is the only door that builds one, and the
-    dimension checker runs as it parses, so an ill-dimensioned tree
-    does not exist to be handed around. `Doc.eval` and
-    `Doc.eval_count` are what read its value back.
+    `Doc.parse_expr` and the four literal constructors below are the
+    doors that build one, and the dimension checker runs at every one
+    of them, so an ill-dimensioned tree does not exist to be handed
+    around. `Doc.eval` and `Doc.eval_count` are what read its value
+    back.
+
+    It is what every dimensioned slot takes —
+    `Node.extrude(profile, Expr.written_length(w))` — which is the
+    Rust slot's own type reaching Python unchanged. So one seat holds
+    a literal, a literal that remembers its notation, and a parsed
+    tree, and a slot is given a number through
+    `Expr.literal(25 * mm)` (canonical `0.025 m`) or
+    `Expr.written_length(WrittenLength.in_unit(25.0, mm))` (`25 mm`,
+    the notation kept).
 
     `dimension` says what it measures and is the fact that decides
     which evaluator answers. `text` is the source it reads back as —
@@ -2334,6 +2344,31 @@ class Expr:
     equal expressions whose bit patterns are not — and no hash
     respects the first without lying about the second."""
 
+    @staticmethod
+    def literal(value: Length | Angle | float) -> Expr:
+        """A continuous literal in the CANONICAL unit for its
+        dimension. The argument's own type is the dimension, so
+        `Expr.literal(25 * mm)` is a length and reads back `0.025 m`;
+        `Expr.written_length` is the door that keeps the `mm`.
+
+        `LiteralError` for a non-finite value. A count is not
+        reachable here — it is exact, and `Expr.count` is its door."""
+    @staticmethod
+    def written_length(written: WrittenLength) -> Expr:
+        """A continuous literal from an AUTHORED length — the value
+        and the notation together, so the document reads back `25 mm`
+        rather than the canonical `0.025 m`.
+
+        `LiteralError` for a non-finite value, and nothing else: an
+        authored length names a length unit, so there is no dimension
+        for the notation to disagree with."""
+    @staticmethod
+    def written_angle(written: WrittenAngle) -> Expr:
+        """`Expr.written_length`'s mirror for an authored angle."""
+    @staticmethod
+    def count(value: int) -> Expr:
+        """A `Count` literal — the exact integer a structural slot
+        takes. Total: every integer is a count."""
     @property
     def dimension(self) -> str:
         """`"length"`, `"angle"`, `"count"` or `"scalar"`."""
@@ -3034,7 +3069,7 @@ class Doc:
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
-        elevation: Optional[Length] = None,
+        elevation: Optional[Expr] = None,
     ) -> NodeId:
         """Insert a sketch frame and return its id.
 
@@ -3562,11 +3597,15 @@ class GeomPred:
         whichever side carries which."""
 
     @staticmethod
-    def datum_distance(datum: NodeId, cmp: Cmp, value: Length) -> GeomPred:
+    def datum_distance(datum: NodeId, cmp: Cmp, value: Expr) -> GeomPred:
         """DECIDED: the entity's distance to a datum node against a
-        stated `Length` — signed to a datum plane, unsigned to an axis
-        or point. The datum is a node reference like every other
-        input, which keeps the rule equivariant."""
+        stated length `Expr` — signed to a datum plane, unsigned to an
+        axis or point. The datum is a node reference like every other
+        input, which keeps the rule equivariant.
+
+        The value is not a node slot, so its dimension is checked
+        where the predicate is prepared: anything but a length is
+        `SelectRefusal` (`not_a_length`) at `select_where`."""
 
 
 # Minting a revolve's role name: the five doors that ANSWER a name

@@ -9,9 +9,10 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 
 use crate::errors::ErrorClass;
+use crate::py::expr::literal;
 use crate::py::typed_err;
 use crate::tags::{
-    edit_error_tag, edit_inner_variant_tag, expr_dimension_error_tag, persist_error_tag,
+    edit_error_tag, edit_inner_variant_tag, persist_error_tag,
     workspace_error_tag,
 };
 use pncad::document as d;
@@ -548,31 +549,33 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
     )
 }
 
-/// Build a dimensioned literal expression, refusing at the boundary.
+/// The expression a node SLOT takes, refused at the door when its
+/// dimension is not the slot's.
 ///
-/// The refusal is `Expr::literal`'s OWN error type, matched — not
-/// predicted: the binding carries no pre-check of its own, so it
-/// cannot drift from what the kernel refuses. The exception carries
-/// `kind` (the stable tag) AND `value`, the offending number — the
-/// kernel error deliberately
-/// carries no float, but the boundary has it in hand.
-pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Expr> {
-    d::Expr::literal(value, dim).map_err(|err| {
-        let tag = expr_dimension_error_tag(&err);
-        let value_obj = match value.into_pyobject(py) {
-            Ok(bound) => bound.unbind().into_any(),
-            Err(failed) => return failed.into(),
-        };
-        typed_err(
-            py,
-            ErrorClass::Literal,
-            format!("literal {value}: {err}"),
-            &[
-                ("kind", PyString::new(py, tag).unbind().into_any()),
-                ("value", value_obj),
-            ],
-        )
-    })
+/// The dimension a slot requires is [`d::SlotId::dimension`] — the
+/// kernel's own table, read rather than restated — and the refusal is
+/// the kernel's own `EditError`, the one `apply` raises for the same
+/// expression in the same slot. So an angle handed to a length slot
+/// says the same words whether the door caught it or the insert did,
+/// and the boundary carries no second vocabulary for one fault.
+pub(crate) fn slot_expr(
+    py: Python<'_>,
+    slot: d::SlotId,
+    expr: &super::expr::Expr,
+) -> PyResult<d::Expr> {
+    let found = expr.0.dim();
+    let expected = slot.dimension();
+    if found == expected {
+        return Ok(expr.0.clone());
+    }
+    Err(edit_err(
+        py,
+        &d::EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        },
+    ))
 }
 
 /// A stable name as Python holds it: the name's OWN serde text.
@@ -1031,7 +1034,7 @@ impl Doc {
         &mut self,
         py: Python<'_>,
         plane: Option<SketchPlane>,
-        elevation: Option<super::quantity::Length>,
+        elevation: Option<super::expr::Expr>,
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
         self.insert(py, &node)
@@ -1311,13 +1314,12 @@ impl PartSelect {
     /// The `index`-th instance of a `Node.pattern` value, counting
     /// from zero.
     ///
-    /// `index` crosses as a plain `int`, the structural-slot exception
-    /// to the typed-quantity rule that `Node.placed_union`'s `count`
-    /// and `Node.loft`'s `v_degree` already ride: a Count is an
-    /// integer in the kernel's own expression language, not a
-    /// measurement. It is the node's `Instance` STRUCTURAL slot, so
-    /// `DocEdit.bind_instance_param` can replace this literal with a
-    /// document parameter afterwards.
+    /// `index` is a count `Expr` — `Expr.count(3)` — because a Count
+    /// is an integer in the kernel's own expression language, not a
+    /// measurement, and every slot on this surface takes the
+    /// expression its kernel slot holds. It is the node's `Instance`
+    /// STRUCTURAL slot, so `DocEdit.bind_instance_param` can replace
+    /// this literal with a document parameter afterwards.
     ///
     /// The admitted indices are `0 .. count`. A negative index and one
     /// past the end refuse the same way at `evaluate`
@@ -1325,8 +1327,12 @@ impl PartSelect {
     /// neither is wrapped nor clamped, because either would hand back
     /// a body the author did not name.
     #[staticmethod]
-    fn instance(index: i64) -> Self {
-        Self(d::PartSelect::Instance(d::Expr::count(index)))
+    fn instance(py: Python<'_>, index: &super::expr::Expr) -> PyResult<Self> {
+        Ok(Self(d::PartSelect::Instance(super::doc::slot_expr(
+            py,
+            d::SlotId::Instance,
+            index,
+        )?)))
     }
 }
 
@@ -1485,24 +1491,27 @@ impl SketchPlane {
 /// spellings to drift. Passing both is a boundary `TypeError`: the
 /// author asked for two different planes and the kernel is fail-loud,
 /// so nothing is silently preferred.
+///
+/// `elevated` says only WHETHER an elevation was written, because the
+/// height itself is an expression the caller authored and the frame
+/// this returns is a rigid value of floats. The plane it answers for
+/// an elevation is therefore the xy-plane at zero, and the caller
+/// writes the authored height into the origin's z slot.
 fn sketch_plane(
     plane: Option<SketchPlane>,
-    elevation: Option<super::quantity::Length>,
+    elevated: bool,
 ) -> PyResult<pncad::profile::SketchPlane<f64>> {
-    match (plane, elevation) {
-        (Some(_), Some(_)) => Err(pyo3::exceptions::PyTypeError::new_err(
+    match (plane, elevated) {
+        (Some(_), true) => Err(pyo3::exceptions::PyTypeError::new_err(
             "plane= and elevation= name the sketch plane two different ways; \
              pass exactly one (elevation is the xy-plane sugar)",
         )),
-        (Some(p), None) => Ok(p.0),
-        (None, elevation) => {
-            let z = elevation.map_or(0.0, |e| e.0.meters());
-            Ok(pncad::profile::SketchPlane::from_frame(
-                pncad::authoring::p3::<f64>(0.0, 0.0, z),
-                pncad::authoring::v3(1.0, 0.0, 0.0),
-                pncad::authoring::v3(0.0, 1.0, 0.0),
-            ))
-        }
+        (Some(p), false) => Ok(p.0),
+        (None, _) => Ok(pncad::profile::SketchPlane::from_frame(
+            pncad::authoring::p3::<f64>(0.0, 0.0, 0.0),
+            pncad::authoring::v3(1.0, 0.0, 0.0),
+            pncad::authoring::v3(0.0, 1.0, 0.0),
+        )),
     }
 }
 
@@ -1522,8 +1531,10 @@ impl Node {
     /// `elevation=` is the xy sugar — the world xy-plane, that far up
     /// z. The default is the xy-plane itself.
     ///
-    /// Coordinates arrive as typed `Length`s, so a bare number
-    /// is a boundary refusal rather than an ambiguous unit; they are
+    /// Coordinates arrive as length `Expr`s — the profile program's
+    /// own slot type — so a vertex can be a written `25 mm`, a
+    /// canonical literal or a parameter reference, and a bare number
+    /// is a boundary refusal rather than an ambiguous unit. They are
     /// the sketch's own (x, y), which `plane` maps into the world.
     ///
     /// `elevation` earns its keep because the kernel is fail-loud
@@ -1537,27 +1548,35 @@ impl Node {
     #[staticmethod]
     fn polygon(
         py: Python<'_>,
-        points: Vec<(super::quantity::Length, super::quantity::Length)>,
+        points: Vec<(super::expr::Expr, super::expr::Expr)>,
         plane: NodeId,
     ) -> PyResult<Self> {
         let plane = plane.0;
         // The polygon as a loop PROGRAM (the post-switch v4 payload:
         // the program IS the profile's definition). The expansion
         // itself is `LoopProgram::polygon_expr`'s, not this door's:
-        // the binding lifts each vertex to a Length literal and hands
-        // the corners over. Too few points is not pre-checked — the
-        // edit door's replay probe refuses it typed, at `insert`.
+        // the binding checks each vertex against the program slot it
+        // lands in and hands the corners over. Too few points is not
+        // pre-checked — the edit door's replay probe refuses it typed,
+        // at `insert`.
         let point = |py2: Python<'_>,
-                     p: &(super::quantity::Length, super::quantity::Length)|
+                     step: usize,
+                     p: &(super::expr::Expr, super::expr::Expr)|
          -> PyResult<[d::Expr; 2]> {
+            let at = |arg| d::SlotId::Profile {
+                loop_: 0,
+                step: u32::try_from(step).unwrap_or(u32::MAX),
+                arg,
+            };
             Ok([
-                literal(py2, p.0.0.meters(), d::Dimension::Length)?,
-                literal(py2, p.1.0.meters(), d::Dimension::Length)?,
+                slot_expr(py2, at(d::StepArg::PointX), &p.0)?,
+                slot_expr(py2, at(d::StepArg::PointY), &p.1)?,
             ])
         };
         let corners = points
             .iter()
-            .map(|p| point(py, p))
+            .enumerate()
+            .map(|(step, p)| point(py, step, p))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
@@ -1610,18 +1629,18 @@ impl Node {
 
     /// Extrude an upstream profile along its sketch-plane normal.
     ///
-    /// `distance` mints a LITERAL in the node's `distance` slot.
-    /// `DocEdit.set_param(node, "distance", expr)` is what moves it
-    /// afterwards, and what makes it a named, editable number: a
-    /// literal is a new document per value, a parameter reference is
-    /// one `set_doc_param_value` per value.
+    /// `distance` is the node's `distance` slot, written at
+    /// authoring. `DocEdit.set_param(node, "distance", expr)` is what
+    /// moves it afterwards, and what makes it a named, editable
+    /// number: a literal is a new document per value, a parameter
+    /// reference is one `set_doc_param_value` per value.
     #[staticmethod]
     fn extrude(
         py: Python<'_>,
         profile: &NodeId,
-        distance: &super::quantity::Length,
+        distance: &super::expr::Expr,
     ) -> PyResult<Self> {
-        let distance = literal(py, distance.0.meters(), d::Dimension::Length)?;
+        let distance = slot_expr(py, d::SlotId::Distance, distance)?;
         Ok(Self {
             inner: d::Node::Extrude {
                 profile: profile.0,
@@ -1632,7 +1651,7 @@ impl Node {
 
     /// Revolve an upstream profile about a datum axis.
     ///
-    /// `angle` mints a literal in the node's `revolve_angle` slot —
+    /// `angle` is the node's `revolve_angle` slot —
     /// `DocEdit.set_param` is what drives it afterwards, as it is for
     /// an extrude's `distance`.
     #[staticmethod]
@@ -1640,9 +1659,9 @@ impl Node {
         py: Python<'_>,
         profile: &NodeId,
         axis: &NodeId,
-        angle: &super::quantity::Angle,
+        angle: &super::expr::Expr,
     ) -> PyResult<Self> {
-        let angle = literal(py, angle.0.radians(), d::Dimension::Angle)?;
+        let angle = slot_expr(py, d::SlotId::RevolveAngle, angle)?;
         Ok(Self {
             inner: d::Node::Revolve {
                 profile: profile.0,
@@ -1692,18 +1711,22 @@ impl Node {
     fn tube(
         py: Python<'_>,
         spine: &NodeId,
-        u_ref: (f64, f64, f64),
-        major_radius: &super::quantity::Length,
+        u_ref: (
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
+        ),
+        major_radius: &super::expr::Expr,
         window: &TubeWindow,
-        minor_radius: &super::quantity::Length,
+        minor_radius: &super::expr::Expr,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Tube {
                 spine: spine.0,
                 u_ref: u_ref_expr(py, u_ref)?,
-                major_radius: literal(py, major_radius.0.meters(), d::Dimension::Length)?,
+                major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, major_radius)?,
                 window: window.inner.clone(),
-                minor_radius: literal(py, minor_radius.0.meters(), d::Dimension::Length)?,
+                minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, minor_radius)?,
             },
         })
     }
@@ -1739,20 +1762,24 @@ impl Node {
     fn hollow_tube(
         py: Python<'_>,
         spine: &NodeId,
-        u_ref: (f64, f64, f64),
-        major_radius: &super::quantity::Length,
+        u_ref: (
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
+        ),
+        major_radius: &super::expr::Expr,
         window: &TubeWindow,
-        minor_radius: &super::quantity::Length,
-        wall: &super::quantity::Length,
+        minor_radius: &super::expr::Expr,
+        wall: &super::expr::Expr,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::HollowTube {
                 spine: spine.0,
                 u_ref: u_ref_expr(py, u_ref)?,
-                major_radius: literal(py, major_radius.0.meters(), d::Dimension::Length)?,
+                major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, major_radius)?,
                 window: window.inner.clone(),
-                minor_radius: literal(py, minor_radius.0.meters(), d::Dimension::Length)?,
-                wall: literal(py, wall.0.meters(), d::Dimension::Length)?,
+                minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, minor_radius)?,
+                wall: slot_expr(py, d::SlotId::TubeWall, wall)?,
             },
         })
     }
@@ -1771,10 +1798,10 @@ impl Node {
     /// sections different planes (`elevation=`, or `plane=` for
     /// anything else).
     ///
-    /// The degree crosses as a literal here and is the node's
-    /// `VDegree` slot — `DocEdit.bind_v_degree_param` is what makes it
-    /// a named, editable number, and `DocEdit.set_members` is what
-    /// rewrites the section list without re-authoring the node.
+    /// The degree is the node's `VDegree` slot —
+    /// `DocEdit.bind_v_degree_param` is what makes it a named,
+    /// editable number, and `DocEdit.set_members` is what rewrites
+    /// the section list without re-authoring the node.
     ///
     /// Nothing is pre-checked here. An empty or one-element list, a
     /// degree outside `1 ≤ d ≤ len − 1`, a section that is not a
@@ -1782,13 +1809,13 @@ impl Node {
     /// those is the kernel's own typed refusal, arriving from `insert`
     /// or from `evaluate` exactly where the Rust surface raises it.
     #[staticmethod]
-    fn loft(profiles: Vec<NodeId>, v_degree: i64) -> Self {
-        Self {
+    fn loft(py: Python<'_>, profiles: Vec<NodeId>, v_degree: &super::expr::Expr) -> PyResult<Self> {
+        Ok(Self {
             inner: d::Node::Loft {
                 profiles: profiles.iter().map(|p| p.0).collect(),
-                v_degree: d::Expr::count(v_degree),
+                v_degree: slot_expr(py, d::SlotId::VDegree, v_degree)?,
             },
-        }
+        })
     }
 
     /// **The sketch frame a profile is drawn on**, as a node.
@@ -1810,17 +1837,18 @@ impl Node {
     fn sketch_frame(
         py: Python<'_>,
         plane: Option<SketchPlane>,
-        elevation: Option<super::quantity::Length>,
+        elevation: Option<super::expr::Expr>,
     ) -> PyResult<Self> {
-        let place = sketch_plane(plane, elevation)?.placement;
+        // `elevation` is the one AUTHORED number this door takes, and
+        // it is the frame's own origin z: the xy-plane that far up.
+        // The rest of the frame is a rigid VALUE, twelve floats with
+        // no notation to keep, so it lowers to canonical literals.
+        let elevation = elevation
+            .map(|e| slot_expr(py, d::SlotId::Origin(d::Axis3::Z), &e))
+            .transpose()?;
+        let place = sketch_plane(plane, elevation.is_some())?.placement;
         let (u, v) = (place.linear.c0, place.linear.c1);
-        let len3 = |x: f64, y: f64, z: f64| -> PyResult<[d::Expr; 3]> {
-            Ok([
-                literal(py, x, d::Dimension::Length)?,
-                literal(py, y, d::Dimension::Length)?,
-                literal(py, z, d::Dimension::Length)?,
-            ])
-        };
+        let len = |x: f64| literal(py, x, d::Dimension::Length);
         let scl3 = |v: pncad::prelude::Vec3<f64>| -> PyResult<[d::Expr; 3]> {
             Ok([
                 literal(py, v.x, d::Dimension::Scalar)?,
@@ -1828,13 +1856,13 @@ impl Node {
                 literal(py, v.z, d::Dimension::Scalar)?,
             ])
         };
+        let z = match elevation {
+            Some(e) => e,
+            None => len(place.translation.z)?,
+        };
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Frame {
-                origin: len3(
-                    place.translation.x,
-                    place.translation.y,
-                    place.translation.z,
-                )?,
+                origin: [len(place.translation.x)?, len(place.translation.y)?, z],
                 u: scl3(u)?,
                 v: scl3(v)?,
             }),
@@ -1843,28 +1871,24 @@ impl Node {
 
     /// A datum axis: a point and a direction.
     ///
-    /// The origin is dimensioned (`Length`); the direction is a
-    /// dimensionless triple, matching `SlotId::Direction`'s `Scalar`.
+    /// The origin's three slots are `Length`s; the direction's are
+    /// dimensionless, matching `SlotId::Direction`'s `Scalar`.
     #[staticmethod]
     fn datum_axis(
         py: Python<'_>,
         origin: (
-            super::quantity::Length,
-            super::quantity::Length,
-            super::quantity::Length,
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
         ),
-        direction: (f64, f64, f64),
+        direction: (
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
+        ),
     ) -> PyResult<Self> {
-        let origin = [
-            literal(py, origin.0.0.meters(), d::Dimension::Length)?,
-            literal(py, origin.1.0.meters(), d::Dimension::Length)?,
-            literal(py, origin.2.0.meters(), d::Dimension::Length)?,
-        ];
-        let direction = [
-            literal(py, direction.0, d::Dimension::Scalar)?,
-            literal(py, direction.1, d::Dimension::Scalar)?,
-            literal(py, direction.2, d::Dimension::Scalar)?,
-        ];
+        let origin = direction_expr(py, d::VectorSlot::Origin, &origin)?;
+        let direction = direction_expr(py, d::VectorSlot::Direction, &direction)?;
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Axis { origin, direction }),
         })
@@ -1874,7 +1898,7 @@ impl Node {
     ///
     /// `plane` is the `Datum.frame` node the axis lives in, and the
     /// two pairs are that frame's own 2-D coordinates: the origin
-    /// dimensioned (`Length`), the direction dimensionless and
+    /// slots `Length`, the direction's dimensionless and
     /// unnormalized, as `SlotId::Direction`'s `Scalar` says.
     ///
     /// A revolve takes one of these and NOT a `datum_axis`: a 3-D axis
@@ -1886,19 +1910,19 @@ impl Node {
     fn datum_axis_in_plane(
         py: Python<'_>,
         plane: NodeId,
-        origin: (super::quantity::Length, super::quantity::Length),
-        direction: (f64, f64),
+        origin: (super::expr::Expr, super::expr::Expr),
+        direction: (super::expr::Expr, super::expr::Expr),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::AxisInPlane {
                 plane: plane.0,
                 origin: [
-                    literal(py, origin.0.0.meters(), d::Dimension::Length)?,
-                    literal(py, origin.1.0.meters(), d::Dimension::Length)?,
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &origin.0)?,
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &origin.1)?,
                 ],
                 direction: [
-                    literal(py, direction.0, d::Dimension::Scalar)?,
-                    literal(py, direction.1, d::Dimension::Scalar)?,
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &direction.0)?,
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &direction.1)?,
                 ],
             }),
         })
@@ -1919,7 +1943,7 @@ impl Node {
     /// the carrier's own u-reference, right-handed. It has no default:
     /// which way a sketch faces on a face is an authoring decision,
     /// and a door that quietly chose zero would put a convention where
-    /// the document should carry one. Pass `0 * rad` to take the
+    /// the document should carry one. Pass `Expr.literal(0 * rad)` to take
     /// u-reference unturned.
     ///
     /// The outward normal is the face's orientation sense times the
@@ -1940,9 +1964,9 @@ impl Node {
         py: Python<'_>,
         at: &NodeId,
         face: &str,
-        spin: &super::quantity::Angle,
+        spin: &super::expr::Expr,
     ) -> PyResult<Self> {
-        let spin = literal(py, spin.0.radians(), d::Dimension::Angle)?;
+        let spin = slot_expr(py, d::SlotId::Spin, spin)?;
         Ok(Self {
             inner: d::Node::Datum(d::Datum::FaceFrame {
                 at: at.0,
@@ -1983,30 +2007,26 @@ impl Node {
     fn datum_frame(
         py: Python<'_>,
         origin: (
-            super::quantity::Length,
-            super::quantity::Length,
-            super::quantity::Length,
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
         ),
-        u: (f64, f64, f64),
-        v: (f64, f64, f64),
+        u: (
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
+        ),
+        v: (
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
+        ),
     ) -> PyResult<Self> {
-        let origin = [
-            literal(py, origin.0.0.meters(), d::Dimension::Length)?,
-            literal(py, origin.1.0.meters(), d::Dimension::Length)?,
-            literal(py, origin.2.0.meters(), d::Dimension::Length)?,
-        ];
-        let dir = |t: (f64, f64, f64)| -> PyResult<[d::Expr; 3]> {
-            Ok([
-                literal(py, t.0, d::Dimension::Scalar)?,
-                literal(py, t.1, d::Dimension::Scalar)?,
-                literal(py, t.2, d::Dimension::Scalar)?,
-            ])
-        };
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Frame {
-                origin,
-                u: dir(u)?,
-                v: dir(v)?,
+                origin: direction_expr(py, d::VectorSlot::Origin, &origin)?,
+                u: direction_expr(py, d::VectorSlot::U, &u)?,
+                v: direction_expr(py, d::VectorSlot::V, &v)?,
             }),
         })
     }
@@ -2022,24 +2042,21 @@ impl Node {
     fn datum_plane(
         py: Python<'_>,
         origin: (
-            super::quantity::Length,
-            super::quantity::Length,
-            super::quantity::Length,
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
         ),
-        normal: (f64, f64, f64),
+        normal: (
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
+        ),
     ) -> PyResult<Self> {
-        let origin = [
-            literal(py, origin.0.0.meters(), d::Dimension::Length)?,
-            literal(py, origin.1.0.meters(), d::Dimension::Length)?,
-            literal(py, origin.2.0.meters(), d::Dimension::Length)?,
-        ];
-        let normal = [
-            literal(py, normal.0, d::Dimension::Scalar)?,
-            literal(py, normal.1, d::Dimension::Scalar)?,
-            literal(py, normal.2, d::Dimension::Scalar)?,
-        ];
         Ok(Self {
-            inner: d::Node::Datum(d::Datum::Plane { origin, normal }),
+            inner: d::Node::Datum(d::Datum::Plane {
+                origin: direction_expr(py, d::VectorSlot::Origin, &origin)?,
+                normal: direction_expr(py, d::VectorSlot::Normal, &normal)?,
+            }),
         })
     }
 
@@ -2062,18 +2079,15 @@ impl Node {
     fn datum_point(
         py: Python<'_>,
         position: (
-            super::quantity::Length,
-            super::quantity::Length,
-            super::quantity::Length,
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
         ),
     ) -> PyResult<Self> {
-        let position = [
-            literal(py, position.0.0.meters(), d::Dimension::Length)?,
-            literal(py, position.1.0.meters(), d::Dimension::Length)?,
-            literal(py, position.2.0.meters(), d::Dimension::Length)?,
-        ];
         Ok(Self {
-            inner: d::Node::Datum(d::Datum::Point { position }),
+            inner: d::Node::Datum(d::Datum::Point {
+                position: direction_expr(py, d::VectorSlot::Origin, &position)?,
+            }),
         })
     }
 
@@ -2107,17 +2121,17 @@ impl Node {
     /// deduplicated) and two recipes that select the same edges are
     /// bit-identical whatever order Python listed them in.
     ///
-    /// `radius` mints a literal in the node's `radius` slot, moved
-    /// afterwards by `DocEdit.set_param`; the SELECTION is repaired
-    /// one name at a time by `DocEdit.rebind`.
+    /// `radius` is the node's `radius` slot, moved afterwards by
+    /// `DocEdit.set_param`; the SELECTION is repaired one name at a
+    /// time by `DocEdit.rebind`.
     #[staticmethod]
     fn fillet(
         py: Python<'_>,
         target: &NodeId,
-        radius: &super::quantity::Length,
+        radius: &super::expr::Expr,
         selection: Vec<String>,
     ) -> PyResult<Self> {
-        let radius = literal(py, radius.0.meters(), d::Dimension::Length)?;
+        let radius = slot_expr(py, d::SlotId::Radius, radius)?;
         let selection = selection
             .iter()
             .map(|text| name_from_text(text))
@@ -2150,17 +2164,17 @@ impl Node {
     /// The node is built through Rust's `Node::chamfer`, the one
     /// construction door, so the stored set is canonical.
     ///
-    /// `distance` mints a literal in the node's `chamfer_distance`
-    /// slot, moved afterwards by `DocEdit.set_param`; the selection
-    /// is repaired by `DocEdit.rebind`, as a fillet's is.
+    /// `distance` is the node's `chamfer_distance` slot, moved
+    /// afterwards by `DocEdit.set_param`; the selection is repaired
+    /// by `DocEdit.rebind`, as a fillet's is.
     #[staticmethod]
     fn chamfer(
         py: Python<'_>,
         target: &NodeId,
-        distance: &super::quantity::Length,
+        distance: &super::expr::Expr,
         selection: Vec<String>,
     ) -> PyResult<Self> {
-        let distance = literal(py, distance.0.meters(), d::Dimension::Length)?;
+        let distance = slot_expr(py, d::SlotId::ChamferDistance, distance)?;
         let selection = selection
             .iter()
             .map(|text| name_from_text(text))
@@ -2198,8 +2212,8 @@ impl Node {
     /// face (`shell`) — every one of those is the kernel's own typed
     /// refusal at `evaluate`.
     ///
-    /// `thickness` mints a literal in the node's `shell_thickness`
-    /// slot, moved afterwards by `DocEdit.set_param`; a designated
+    /// `thickness` is the node's `shell_thickness` slot, moved
+    /// afterwards by `DocEdit.set_param`; a designated
     /// face that has come to denote the wrong face is repaired by
     /// `DocEdit.rebind`, which rewrites the list in place and
     /// re-canonicalizes it.
@@ -2207,10 +2221,10 @@ impl Node {
     fn shell(
         py: Python<'_>,
         target: &NodeId,
-        thickness: &super::quantity::Length,
+        thickness: &super::expr::Expr,
         open: Vec<String>,
     ) -> PyResult<Self> {
-        let thickness = literal(py, thickness.0.meters(), d::Dimension::Length)?;
+        let thickness = slot_expr(py, d::SlotId::ShellThickness, thickness)?;
         let open = open
             .iter()
             .map(|text| name_from_text(text))
@@ -2246,32 +2260,28 @@ impl Node {
     /// (`degenerate_direction`) rather than being read as "no
     /// rotation".
     ///
-    /// `translation` is dimensioned (`Length`s); the axis is a
-    /// dimensionless triple, matching `SlotId::RotationAxis`'s
-    /// `Scalar`; the angle is an `Angle`.
+    /// `translation`'s slots are `Length`s; the axis's are
+    /// dimensionless, matching `SlotId::RotationAxis`'s `Scalar`; the
+    /// angle's is an `Angle`.
     #[staticmethod]
     fn transform(
         py: Python<'_>,
         input: &NodeId,
         translation: (
-            super::quantity::Length,
-            super::quantity::Length,
-            super::quantity::Length,
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
         ),
-        rotation_axis: (f64, f64, f64),
-        rotation_angle: &super::quantity::Angle,
+        rotation_axis: (
+            super::expr::Expr,
+            super::expr::Expr,
+            super::expr::Expr,
+        ),
+        rotation_angle: &super::expr::Expr,
     ) -> PyResult<Self> {
-        let translation = [
-            literal(py, translation.0.0.meters(), d::Dimension::Length)?,
-            literal(py, translation.1.0.meters(), d::Dimension::Length)?,
-            literal(py, translation.2.0.meters(), d::Dimension::Length)?,
-        ];
-        let rotation_axis = [
-            literal(py, rotation_axis.0, d::Dimension::Scalar)?,
-            literal(py, rotation_axis.1, d::Dimension::Scalar)?,
-            literal(py, rotation_axis.2, d::Dimension::Scalar)?,
-        ];
-        let rotation_angle = literal(py, rotation_angle.0.radians(), d::Dimension::Angle)?;
+        let translation = direction_expr(py, d::VectorSlot::Translation, &translation)?;
+        let rotation_axis = direction_expr(py, d::VectorSlot::RotationAxis, &rotation_axis)?;
+        let rotation_angle = slot_expr(py, d::SlotId::RotationAngle, rotation_angle)?;
         Ok(Self {
             inner: d::Node::Transform {
                 input: input.0,
@@ -2376,11 +2386,10 @@ impl Node {
     /// list. Reach for `placed_union` when the family IS the shape,
     /// and for `pattern` + `part` when one copy of it is.
     ///
-    /// `count` crosses as a plain `int`, the structural-slot exception
-    /// `placed_union` already rides, and it is the node's `Count` slot
-    /// — `DocEdit.bind_count_param` is what makes it a named,
-    /// editable number. A count below one refuses at `evaluate`
-    /// (`non_positive_count`).
+    /// `count` is a count `Expr` — `Expr.count(4)` — and it is the
+    /// node's `Count` slot, so `DocEdit.bind_count_param` is what
+    /// makes it a named, editable number. A count below one refuses
+    /// at `evaluate` (`non_positive_count`).
     ///
     /// An `explicit` rule refuses typed at `Doc.insert`
     /// (`EditError`, `placement_rule_mismatch`): it carries its own
@@ -2393,14 +2402,19 @@ impl Node {
     /// deep whatever the count, so a selector spelled against the
     /// prototype resolves against every copy.
     #[staticmethod]
-    fn pattern(input: &NodeId, count: i64, kind: &super::place::PatternKind) -> Self {
-        Self {
+    fn pattern(
+        py: Python<'_>,
+        input: &NodeId,
+        count: &super::expr::Expr,
+        kind: &super::place::PatternKind,
+    ) -> PyResult<Self> {
+        Ok(Self {
             inner: d::Node::Pattern {
                 input: input.0,
-                count: d::Expr::count(count),
+                count: slot_expr(py, d::SlotId::Count, count)?,
                 kind: kind.0.clone(),
             },
-        }
+        })
     }
 
     /// **The projection**: ONE body out of a multi-body value — "the
@@ -2446,11 +2460,10 @@ impl Node {
     /// naming is the `Instance(i)` qualifier, ONE segment deep
     /// whatever the count.
     ///
-    /// `count` crosses as a plain `int`, the structural-slot exception
-    /// to the typed quantities (`Node.loft`'s `v_degree` precedent):
-    /// a Count is an integer in the kernel's own expression language,
-    /// not a dimensioned measurement, and there is no `Count` quantity
-    /// to wrap it in.
+    /// `count` is a count `Expr` — `Expr.count(4)`, the `Node.loft`
+    /// `v_degree` precedent: a Count is an integer in the kernel's own
+    /// expression language, not a dimensioned measurement, and there
+    /// is no `Count` quantity to wrap it in.
     ///
     /// Disjointness is CERTIFIED, never declared: overlapping
     /// placements refuse typed at `evaluate` (`placements_uncertified`,
@@ -2466,10 +2479,11 @@ impl Node {
     fn placed_union(
         py: Python<'_>,
         input: &NodeId,
-        count: i64,
+        count: &super::expr::Expr,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
-        let node = d::Node::placed_union(input.0, d::Expr::count(count), kind.0.clone())
+        let count = slot_expr(py, d::SlotId::Count, count)?;
+        let node = d::Node::placed_union(input.0, count, kind.0.clone())
             .ok_or_else(|| {
                 boundary_edit_err(
                     py,
@@ -3540,14 +3554,35 @@ pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
     })
 }
 
-/// A reference direction's three components as Scalar literals — the
-/// spelling `Node.datum_axis` gives its own direction, shared so the
-/// two cannot drift.
-fn u_ref_expr(py: Python<'_>, u: (f64, f64, f64)) -> PyResult<[d::Expr; 3]> {
+/// A reference direction's three components, each checked against the
+/// direction slot it lands in — the spelling `Node.datum_axis` gives
+/// its own direction, shared so the two cannot drift.
+fn u_ref_expr(
+    py: Python<'_>,
+    u: (
+        super::expr::Expr,
+        super::expr::Expr,
+        super::expr::Expr,
+    ),
+) -> PyResult<[d::Expr; 3]> {
+    direction_expr(py, d::VectorSlot::Direction, &u)
+}
+
+/// A vector slot's three components, each checked against its own
+/// per-axis `SlotId`.
+pub(crate) fn direction_expr(
+    py: Python<'_>,
+    slot: d::VectorSlot,
+    v: &(
+        super::expr::Expr,
+        super::expr::Expr,
+        super::expr::Expr,
+    ),
+) -> PyResult<[d::Expr; 3]> {
     Ok([
-        literal(py, u.0, d::Dimension::Scalar)?,
-        literal(py, u.1, d::Dimension::Scalar)?,
-        literal(py, u.2, d::Dimension::Scalar)?,
+        slot_expr(py, slot.slot(d::Axis3::X), &v.0)?,
+        slot_expr(py, slot.slot(d::Axis3::Y), &v.1)?,
+        slot_expr(py, slot.slot(d::Axis3::Z), &v.2)?,
     ])
 }
 
@@ -3579,23 +3614,19 @@ impl TubeWindow {
     /// the reference direction, right-handed. Wedge caps close the
     /// ends.
     ///
-    /// Both angles cross as `Angle`, the same dimensioned quantity
-    /// `Node.revolve` takes its sweep angle as — an angle is never a
+    /// Both angles cross as angle `Expr`s, the same seat
+    /// `Node.revolve` takes its sweep angle at — a slot is never a
     /// bare float on this surface.
     ///
     /// Nothing is checked here. A reversed or degenerate span, and a
     /// span reaching one full period (which must say `full()`), are
     /// the kernel's own typed refusals at `evaluate`.
     #[staticmethod]
-    fn arc(
-        py: Python<'_>,
-        t0: &super::quantity::Angle,
-        t1: &super::quantity::Angle,
-    ) -> PyResult<Self> {
+    fn arc(py: Python<'_>, t0: &super::expr::Expr, t1: &super::expr::Expr) -> PyResult<Self> {
         Ok(Self {
             inner: d::TubeWindow::Arc {
-                t0: literal(py, t0.0.radians(), d::Dimension::Angle)?,
-                t1: literal(py, t1.0.radians(), d::Dimension::Angle)?,
+                t0: slot_expr(py, d::SlotId::TubeWindowStart, t0)?,
+                t1: slot_expr(py, d::SlotId::TubeWindowEnd, t1)?,
             },
         })
     }
