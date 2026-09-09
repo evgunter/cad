@@ -26,14 +26,42 @@
 //! that line are ordinary Rust that the default workspace build
 //! compiles and tests.
 
+// One check finding's evidence as Python reads its attributes off
+// it: exhaustive over the kernel enum, Python-independent so the
+// default build compiles the drift alarm and can construct the arms
+// no authoring door reaches.
+pub mod check_payload;
+pub mod edit_payload;
 pub mod errors;
+// One escalated predicate as the two doors that carry one publish it:
+// the margin's own fork written once, Python-independent so both
+// doors reach it under every feature.
+pub mod escalation;
 pub mod identity;
+// One mate refusal's payload as Python reads its attributes off it:
+// exhaustive over the kernel enum, Python-independent so the default
+// build compiles the drift alarm and tests the projection.
+pub mod mate_payload;
 pub mod node_kind;
+// The pick index's three numbers as Python reads them off a pick
+// refusal: exhaustive over both kernel enums, Python-independent so
+// the default build compiles the drift alarm and can construct the
+// one arm no authoring door reaches.
+pub mod pick_payload;
 // The gathered product memoized on an evaluation: the behaviour
 // behind four bound doors, Python-independent so the default build
 // tests it.
 pub mod product_memo;
+// The slot alphabet read INWARD — the word a refusal answers with,
+// back to the slot a door addresses at. Python-independent, so the
+// default build compiles it and pins it against the forward map's own
+// committed inventory.
+pub mod slot_word;
 pub mod tags;
+// One validator finding as Python reads it: the words `tags` mints,
+// assembled into the sequence the validate doors raise. Python-
+// independent, so the default build tests it.
+pub mod validation;
 
 #[cfg(feature = "python")]
 mod py;

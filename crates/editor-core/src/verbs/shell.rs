@@ -274,9 +274,9 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Thickness { thickness } => E::Thickness {
             thickness: end(thickness, Infimum),
         },
-        E::NotOneSolid { solids } => E::NotOneSolid { solids },
+        E::NoSolid => E::NoSolid,
         E::Roles { error } => E::Roles { error },
-        E::OperandOuterShells { outer } => E::OperandOuterShells { outer },
+        E::OperandOuterShells { solid, outer } => E::OperandOuterShells { solid, outer },
         E::Partition { shell, error } => E::Partition { shell, error },
         // The pessimistic pair, which is the reading under which the two
         // offsets cross: the material as thin as the bracket admits,
@@ -292,6 +292,7 @@ pub(crate) fn fold_shell_error<T: Real>(
             gap: end(gap, Infimum),
             needed: end(needed, Supremum),
         },
+        E::ChartSpansSolids { face, other } => E::ChartSpansSolids { face, other },
         E::ChartSenseMixed { face, other } => E::ChartSenseMixed { face, other },
         E::Face { face, error } => E::Face {
             face,
@@ -314,6 +315,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Rim { face, error } => E::Rim { face, error },
         E::Escalated { source } => E::Escalated { source },
         E::Corrupt { key } => E::Corrupt { key },
+        E::Pcurve { source } => E::Pcurve { source },
         E::NotValid { errors } => E::NotValid { errors },
     }
 }
@@ -351,6 +353,22 @@ fn fold_replace_face_error<T: Real>(
             v_min: end(v_min, Infimum),
             v_max: end(v_max, Supremum),
             shift: end(shift, Supremum),
+        },
+        // The face's own station span, widened to the bracket that
+        // makes the refusal most true: the least corner read at its
+        // infimum and the greatest at its supremum is the widest span
+        // the operand admits, and a span that reaches across the apex
+        // is what this refuses.
+        R::NappeStraddles {
+            face,
+            station_min,
+            station_max,
+            what,
+        } => R::NappeStraddles {
+            face,
+            station_min: end(station_min, Infimum),
+            station_max: end(station_max, Supremum),
+            what,
         },
         R::ApexWindowUnknown { face } => R::ApexWindowUnknown { face },
         R::NeighborPairUnroutable {

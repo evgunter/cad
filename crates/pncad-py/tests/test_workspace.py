@@ -310,6 +310,133 @@ class TestIdentityMinting(StoreCase):
         self.assertIsInstance(caught.exception.variant, str)
 
 
+class TestASaveIsTwoActs(StoreCase):
+    """A4, ruled: saving a document at a path keeps its identity and
+    refuses typed when the store already holds that id under another
+    filename; saving it AS A NEW DOCUMENT mints a fresh id, an
+    explicit fork."""
+
+    def listing(self):
+        return sorted(os.listdir(self.dir))
+
+    def test_saving_a_copy_beside_the_original_refuses_before_it_exists(self):
+        """The act the store used to be bricked by. The refusal is at
+        the SAVE door, so the second file never exists and the
+        directory still scans clean afterwards — which is the whole
+        point."""
+        ws = self.store()
+        doc = Doc()
+        box(doc, 1 * m, 1 * m, 1 * m)
+        original = ws.save_at(doc, "original.pncad")
+        before = self.listing()
+
+        with self.assertRaises(WorkspaceError) as caught:
+            ws.save_at(doc, "copy.pncad")
+        err = caught.exception
+        self.assertEqual(err.variant, "save_would_duplicate_id")
+        self.assertEqual(err.id, doc.id)
+        self.assertEqual(err.first, original)
+        self.assertEqual(err.second, os.path.join(self.dir, "copy.pncad"))
+        # Nothing was written: the refusal came before the file.
+        self.assertEqual(self.listing(), before)
+        self.assertNotIn("copy.pncad", before)
+
+        # And the store is NOT bricked — a later scan still opens, and
+        # still resolves the document it holds.
+        rescanned = self.store()
+        self.assertEqual(rescanned.documents(), {doc.id: original})
+        self.assertEqual(rescanned.current_pin(doc.id), content_pin(doc))
+
+    def test_a_save_at_the_scanned_path_is_a_resave(self):
+        ws = self.store()
+        doc = Doc()
+        box(doc, 1 * m, 1 * m, 1 * m)
+        original = ws.save_at(doc, "part.pncad")
+        before = content_pin(doc)
+
+        box(doc, 2 * m, 2 * m, 2 * m)
+        self.assertEqual(ws.save_at(doc, "part.pncad"), original)
+        self.assertEqual(self.listing(), ["part.pncad"])
+        self.assertEqual(len(ws), 1)
+        # Identity did not move; content did.
+        self.assertEqual(ws.documents(), {doc.id: original})
+        self.assertNotEqual(ws.current_pin(doc.id), before)
+        self.assertEqual(ws.current_pin(doc.id), content_pin(doc))
+
+    def test_an_unclaimed_id_creates_at_the_chosen_filename(self):
+        ws = self.store()
+        doc = Doc()
+        box(doc, 1 * m, 1 * m, 1 * m)
+        path = ws.save_at(doc, "chosen-name.pncad")
+        self.assertEqual(path, os.path.join(self.dir, "chosen-name.pncad"))
+        self.assertNotEqual(os.path.basename(path), f"{doc.id}.pncad")
+        # The store gained it, and a cold scan agrees.
+        self.assertEqual(len(ws), 1)
+        self.assertEqual(self.store().documents(), {doc.id: path})
+        # The root written out names the same file as the bare name.
+        self.assertEqual(ws.save_at(doc, path), path)
+
+    def test_a_target_that_is_not_a_file_of_this_store_refuses(self):
+        ws = self.store()
+        doc = Doc()
+        box(doc, 1 * m, 1 * m, 1 * m)
+        for target in (
+            "notes.txt",
+            "sub/part.pncad",
+            os.path.join(self.dir, "sub", "part.pncad"),
+            os.path.join(tempfile.gettempdir(), "another-store", "part.pncad"),
+        ):
+            with self.subTest(target=target):
+                with self.assertRaises(WorkspaceError) as caught:
+                    ws.save_at(doc, target)
+                err = caught.exception
+                self.assertEqual(err.variant, "save_target_not_in_store")
+                self.assertEqual(err.path, target)
+        self.assertEqual(self.listing(), [])
+
+    def test_saving_as_a_new_document_mints_a_fresh_identity(self):
+        ws = self.store()
+        doc = Doc()
+        box(doc, 1 * m, 1 * m, 1 * m)
+        original = ws.save_at(doc, "original.pncad")
+        inbound = DocRef(doc.id, content_pin(doc))
+        self.assertEqual(len(ws), 1)
+
+        new_id, new_path = ws.save_as_new_document(doc)
+        self.assertNotEqual(new_id, doc.id)
+        self.assertEqual(new_path, os.path.join(self.dir, f"{new_id}.pncad"))
+        # `doc` itself is untouched: the fresh identity is answered,
+        # never assigned to the caller's value.
+        self.assertEqual(doc.id, inbound.id)
+
+        # The ORIGINAL is untouched, so the old reference still names
+        # it — that is what a fork means.
+        self.assertEqual(ws.documents()[doc.id], original)
+        self.assertEqual(ws.resolve(inbound).id, doc.id)
+
+        # The new id resolves to the fork, under the SAME pin:
+        # identity is not content, so a copy under a fresh id is
+        # detectably the same version.
+        self.assertEqual(ws.current_pin(new_id), inbound.pin)
+        forked = ws.resolve(DocRef(new_id, inbound.pin))
+        self.assertEqual(forked.id, new_id)
+        self.assertEqual(content_pin(forked), content_pin(doc))
+        # The two save FILES differ, in the `id:` header and the
+        # snapshot's own id.
+        def header_of(path):
+            with open(path) as f:
+                return header_document_id(f.read())
+
+        self.assertEqual(header_of(original), doc.id)
+        self.assertEqual(header_of(new_path), new_id)
+
+        # Both coexist in one scan, and the store grew by one.
+        self.assertEqual(len(ws), 2)
+        self.assertEqual(self.listing(),
+                         sorted(["original.pncad", f"{new_id}.pncad"]))
+        self.assertEqual(self.store().documents(), ws.documents())
+
+
 class TestTheStoreRefusesLoudly(StoreCase):
     """Every arm the bound doors can reach, and each carries its own
     payload rather than prose to be parsed."""
@@ -387,16 +514,24 @@ class TestTheStoreRefusesLoudly(StoreCase):
         ws = self.store()
         doc = Doc()
         box(doc, 1 * m, 1 * m, 1 * m)
-        ws.create(doc)
-        with self.assertRaises(WorkspaceError) as caught:
-            ws.current_pin(random_document_id())
-        err = caught.exception
-        for field in ("variant", "path", "id", "first", "second", "wanted", "found"):
-            self.assertTrue(hasattr(err, field), f"{field} is absent")
-        self.assertIsNone(err.path)
-        self.assertIsNone(err.wanted)
-        self.assertIsNone(err.found)
-        self.assertIsInstance(err, pncad.PncadError)
+        ws.save_at(doc, "held.pncad")
+        fields = ("variant", "path", "id", "first", "second", "wanted", "found")
+        doors = (
+            ("unknown_id", lambda: ws.current_pin(random_document_id())),
+            ("save_would_duplicate_id", lambda: ws.save_at(doc, "copy.pncad")),
+            ("save_target_not_in_store", lambda: ws.save_at(doc, "notes.txt")),
+        )
+        for variant, door in doors:
+            with self.subTest(variant=variant):
+                with self.assertRaises(WorkspaceError) as caught:
+                    door()
+                err = caught.exception
+                self.assertEqual(err.variant, variant)
+                for field in fields:
+                    self.assertTrue(hasattr(err, field), f"{field} is absent")
+                self.assertIsNone(err.wanted)
+                self.assertIsNone(err.found)
+                self.assertIsInstance(err, pncad.PncadError)
 
 
 if __name__ == "__main__":

@@ -138,66 +138,99 @@ pub(crate) fn empty() -> Arc<NameTable> {
     Arc::new(NameTable::new())
 }
 
-/// Wraps a pattern master's table per structural instance index
-/// (A8/N1 `Instance(i)`): instance `i` holds the master's keys
-/// verbatim (`transform_rigid` key-stability), body index `i`.
+/// **An output-body index, as the table carries it.** [`EntityRef::body`]
+/// is a `u32`, so a body count past that has no row to land in — the
+/// one bound every multi-body value shares, which is why an index past
+/// it is this layer's refusal wherever it is met (the evaluator's
+/// placers and `Node::Part`, the emitters, the mate walk's `Part`
+/// agreement) and not a number silently narrowed.
+pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
+    u32::try_from(index).map_err(|_| NamingError::Emission {
+        what: "an output-body index exceeds the table's u32 row width",
+    })
+}
+
+/// **The placement-major layout**, the one home of its arithmetic:
+/// placement `placement` of a master's body `body`, the master holding
+/// `per` bodies, is output body `placement·per + body`. `wire_pattern`
+/// builds that body there, [`name_pattern`] keys its rows by it, and
+/// the mate walk reads a `Part`'s index through it. A `body` at or past
+/// `per` is a row the master does not have; a product past `u32` is
+/// [`output_body`]'s refusal.
+pub(crate) fn flat_body_index(placement: u32, per: u32, body: u32) -> Result<u32, NamingError> {
+    if body >= per {
+        return Err(NamingError::Emission {
+            what: "a pattern master's table names a body the master does not have",
+        });
+    }
+    placement
+        .checked_mul(per)
+        .and_then(|b| b.checked_add(body))
+        .ok_or(NamingError::Emission {
+            what: "an output-body index exceeds the table's u32 row width",
+        })
+}
+
+/// Wraps a pattern master's table per structural placement index
+/// (A8/N1 `Instance(j)`): placement `j` holds the master's keys
+/// verbatim (`transform_rigid` key-stability).
 ///
-/// **The wrapping is uniform** (ASM-2K D-2): `Instance(i)` wraps EVERY
+/// **The wrapping is uniform** (ASM-2K D-2): `Instance(j)` wraps EVERY
 /// name of the master, whatever the master's body holds. A master with
 /// several SOLIDS is one such master and is admitted — its names are
 /// already distinct within it (derivation paths tell its solids apart),
-/// and one qualifier per instance carries that distinctness across the
-/// instances; no per-solid sub-index exists, because which solid a name
-/// denotes is read off the name's own derivation, never off the
+/// and one qualifier per placement carries that distinctness across the
+/// placements; no per-solid sub-index exists, because which solid a
+/// name denotes is read off the name's own derivation, never off the
 /// instance qualifier.
 ///
-/// What stays refused is narrower than that (review R7): a master with
-/// MULTIPLE output BODIES. Body index here IS the instance index, so
-/// admitting one would need a ratified instance×body layout — and
-/// nothing can produce one, `body_operand` refusing multi-body inputs
-/// upstream. Totality is checked against every instance body.
+/// **The instance×body layout.** The master has `per` output bodies —
+/// one for a body-valued input, `M` for an `Instances` value placed
+/// whole (a nested pattern) — and the wrapped table is placement-major
+/// over them: the master's row at body `i` lands, under placement
+/// `j`, at output body `j·per + i`, the index `wire_pattern` builds
+/// that body at and `Node::Part` selects it by. For a one-body master
+/// the body index IS the placement index. A nested pattern's name is
+/// therefore `Instance(j)` over the inner `Instance(i)` over the
+/// master's name — the chain the mate walk consumes outermost first —
+/// and no row of the master is re-keyed past `per`: one at a body the
+/// master does not have is the input's emission bug, refused typed
+/// ([`flat_body_index`]). Totality is checked against every output body.
 pub(crate) fn name_pattern<T: geom_core::Real>(
     node: RecipeNodeId,
     master: &NameTable,
     n: i64,
+    per: usize,
     instances: &[Arc<Body<T>>],
 ) -> Result<Arc<NameTable>, NamingError> {
+    let per = output_body(per)?;
     let mut t = NameTable::new();
-    for i in 0..n {
-        let iu = u32::try_from(i).map_err(|_| NamingError::Emission {
-            what: "pattern instance index exceeds u32",
-        })?;
+    for j in 0..n {
+        let ju = output_body(usize::try_from(j).unwrap_or(usize::MAX))?;
+        // Output body of the master's body `i` under placement `j`.
+        let at = |e: &EntityRef| -> Result<EntityRef, NamingError> {
+            Ok(ent(flat_body_index(ju, per, e.body)?, e.key))
+        };
         for (name, entry) in master.iter() {
             let wrapped = StableName {
                 kind: name.kind,
                 node,
                 path: vec![super::role::RoleSeg::Instance {
-                    i: iu,
+                    i: ju,
                     of: Box::new(name.clone()),
                 }],
             };
             match entry {
-                super::table::Entry::Unique(e) => {
-                    if e.body != 0 {
-                        return Err(NamingError::Emission {
-                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed); multi-SOLID masters are admitted",
-                        });
-                    }
-                    t.insert(wrapped, ent(iu, e.key))?;
-                }
+                super::table::Entry::Unique(e) => t.insert(wrapped, at(e)?)?,
                 super::table::Entry::Tied(es) => {
-                    if es.iter().any(|e| e.body != 0) {
-                        return Err(NamingError::Emission {
-                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed); multi-SOLID masters are admitted",
-                        });
-                    }
-                    t.insert_tied(wrapped, es.iter().map(|e| ent(iu, e.key)).collect())?;
+                    let rows = es.iter().map(at).collect::<Result<Vec<_>, _>>()?;
+                    t.insert_tied(wrapped, rows)?;
                 }
             }
         }
     }
     for (i, body) in instances.iter().enumerate() {
-        check_total(&t, body, u32::try_from(i).unwrap_or(u32::MAX))?;
+        check_total(&t, body, output_body(i)?)?;
     }
     Ok(Arc::new(t))
 }
@@ -231,9 +264,7 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
         ent(0, EntityKey::Body),
     )?;
     for (i, keys) in bridges.iter().enumerate() {
-        let iu = u32::try_from(i).map_err(|_| NamingError::Emission {
-            what: "placed-union instance index exceeds u32",
-        })?;
+        let iu = output_body(i)?;
         let mapped = |key: EntityKey| -> Option<EntityKey> {
             match key {
                 EntityKey::Body => None,
@@ -251,16 +282,18 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                     of: Box::new(name.clone()),
                 }],
             };
-            // The prototype's table is a single-output-body table
-            // (`body_operand` refuses multi-body inputs upstream), so a
-            // row at any other index is a bug — surfaced, not dropped.
+            // The prototype is ONE body — a placed union fuses what
+            // `body_operand` admits, and a value of several bodies is
+            // `Pattern`'s to place, never this node's to fuse — so its
+            // table is a single-output-body table, and a row at any
+            // other index is a bug: surfaced, not dropped.
             let rows: Vec<EntityRef> = match entry {
                 super::table::Entry::Unique(e) => vec![*e],
                 super::table::Entry::Tied(es) => es.clone(),
             };
             if rows.iter().any(|e| e.body != 0) {
                 return Err(NamingError::Emission {
-                    what: "placed union of a multi-OUTPUT-BODY prototype — deferred (typed); multi-SOLID prototypes are admitted",
+                    what: "a placed union's prototype table names a body the prototype does not have",
                 });
             }
             let moved: Vec<EntityRef> = rows
@@ -633,7 +666,8 @@ mod pattern_tests {
         let n = 3_i64;
         let bodies = instances(&master_body, n, 5.0);
         let node = RecipeNodeId(9);
-        let t = name_pattern(node, &master, n, &bodies).expect("a multi-solid master is admitted");
+        let t =
+            name_pattern(node, &master, n, 1, &bodies).expect("a multi-solid master is admitted");
 
         let times = usize::try_from(n).unwrap();
         assert_eq!(t.len(), master.len() * times, "census: N × the master's");
@@ -674,7 +708,7 @@ mod pattern_tests {
         let (n, step) = (3_i64, 5.0);
         let bodies = instances(&master_body, n, step);
         let node = RecipeNodeId(9);
-        let t = name_pattern(node, &master, n, &bodies).expect("admitted");
+        let t = name_pattern(node, &master, n, 1, &bodies).expect("admitted");
 
         let mut checked = 0;
         for i in 0..n {
@@ -707,24 +741,90 @@ mod pattern_tests {
         assert_eq!(checked, 16 * 3, "both solids' 8 vertices, every instance");
     }
 
-    /// The refusal that STAYS (and is not the multi-solid one): a
-    /// master with several output BODIES has no ratified instance×body
-    /// layout, so it refuses typed rather than conflating halves.
+    /// A master's table re-keyed onto body `body`, names verbatim.
+    fn at_body(table: &NameTable, body: u32) -> NameTable {
+        let mut t = NameTable::new();
+        for (name, entry) in table.iter() {
+            let Entry::Unique(e) = entry else {
+                panic!("the fixture's extrude ties nothing");
+            };
+            t.insert(name.clone(), ent(body, e.key)).unwrap();
+        }
+        t
+    }
+
+    /// A master row at a body the master does not have refuses typed:
+    /// the layout re-keys body `i < per` to `j·per + i`, and a row past
+    /// `per` is the input's own emission bug, never re-keyed into
+    /// another placement's range.
     #[test]
-    fn a_multi_output_body_master_still_refuses_typed() {
+    fn a_master_row_past_the_masters_body_count_refuses_typed() {
         let (body, a) = cube(RecipeNodeId(1), 0.0);
-        let mut master = NameTable::new();
-        for (name, entry) in a.iter() {
-            if let Entry::Unique(e) = entry {
-                master.insert(name.clone(), ent(1, e.key)).unwrap();
+        let master = at_body(&a, 1);
+        let err = name_pattern(RecipeNodeId(9), &master, 2, 1, &[Arc::new(body)])
+            .expect_err("a row past the master's body count must refuse");
+        assert!(
+            format!("{err:?}").contains("does not have"),
+            "typed, and about the body: {err:?}"
+        );
+    }
+
+    /// **The instance×body layout**, at the emitter: a two-body master
+    /// (`per = 2`) under `n = 3` placements names `3 × 2` bodies,
+    /// body `i`'s row under placement `j` at output body `j·2 + i`,
+    /// wrapped `Instance(j)` over the master's own name; totality
+    /// holds over all six.
+    #[test]
+    fn a_multi_output_body_master_lays_out_placement_major() {
+        let (b0, a) = cube(RecipeNodeId(1), 0.0);
+        let (b1, b) = cube(RecipeNodeId(2), 10.0);
+        let mut master = at_body(&a, 0);
+        for (name, entry) in at_body(&b, 1).iter() {
+            let Entry::Unique(e) = entry else {
+                panic!("the fixture's extrude ties nothing");
+            };
+            master.insert(name.clone(), *e).unwrap();
+        }
+        let (n, per, step) = (3_i64, 2_usize, 5.0);
+        let mut bodies: Vec<Arc<Body<f64>>> = Vec::new();
+        for j in 0..n {
+            for body in [&b0, &b1] {
+                bodies.push(Arc::new(if j == 0 {
+                    body.clone()
+                } else {
+                    topo::transform_rigid(
+                        body,
+                        &Affine3::translation(Vec3::new(0.0, 0.0, step * j as f64)),
+                        Tol::witness(),
+                    )
+                    .unwrap()
+                }));
             }
         }
-        let err = name_pattern(RecipeNodeId(9), &master, 2, &[Arc::new(body)])
-            .expect_err("a multi-output-body master must refuse");
-        assert!(
-            format!("{err:?}").contains("multi-OUTPUT-BODY"),
-            "typed, and about bodies: {err:?}"
-        );
+        let node = RecipeNodeId(9);
+        let t = name_pattern(node, &master, n, per, &bodies).expect("admitted");
+        assert_eq!(t.len(), master.len() * 3, "census: N × the master's");
+        for j in 0..n {
+            let ju = u32::try_from(j).unwrap();
+            for (name, entry) in master.iter() {
+                let Entry::Unique(e) = entry else { continue };
+                let wrapped = StableName {
+                    kind: name.kind,
+                    node,
+                    path: vec![RoleSeg::Instance {
+                        i: ju,
+                        of: Box::new(name.clone()),
+                    }],
+                };
+                let flat = ju * u32::try_from(per).unwrap() + e.body;
+                assert_eq!(
+                    t.lookup(&wrapped),
+                    Some(&Entry::Unique(ent(flat, e.key))),
+                    "body {} under placement {j} is output body {flat}",
+                    e.body
+                );
+            }
+        }
     }
 }
 

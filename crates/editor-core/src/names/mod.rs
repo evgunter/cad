@@ -41,7 +41,9 @@ mod table;
 pub use attribute::{NameOrigin, attribute};
 pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
-pub(crate) use emit::{check_total, empty, name_pattern, name_placed_union};
+pub(crate) use emit::{
+    check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body,
+};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
@@ -66,7 +68,8 @@ pub(crate) use role::name_free_seg;
 pub(crate) use role::never_in_a_boolean_table;
 pub use role::{
     CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,
-    RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
+    RolePath, RoleSeg, SideVerdict, SplitHalf, StableName, band, band_pi, band_rim, carried,
+    meridian_vertex,
 };
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};

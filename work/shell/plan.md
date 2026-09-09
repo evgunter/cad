@@ -50,22 +50,43 @@ arm must agree with `ShellNaming`), `editor-core`'s recipe doors
    (PR #1756, 2026-09-04). LIB-G17 unparked.
 2. **SHELL-2** `transform-rigid-refuses-approx-face` — LANDED
    (PR #1758, 2026-09-04); the plan's old item 4, pulled forward.
-3. **Next: the hollow operand** — `shell-of-hollow-body-thicken-every-boundary`,
-   Ev's ruling verbatim in the body; retire `OperandAlreadyHollow`.
-   Consequence stated once: one thin solid per boundary shell — the
-   outer shell erodes inward and every void shell dilates outward,
-   both by `t`. Self-contained in `shell.rs`; takes block SHELL-B1's
-   slot 2. Spec to write.
-4. **The nappe home** — `mint-offset-ignores-cone-mirror-nappe` and
-   `shell-offset-three-followups` items 2–3: one nappe home both
-   consumers read (`replace_face::mint_offset` and
-   `offset_axial::nappe_signed`, both this program's now), with
-   `ConeOffset::displacement` in the sweep; predicate names for the
-   winding uses (four owners after VERBS-1031B's `merge_faces` site —
-   the validator's and `merge_faces`' sites are other programs'
-   files, so that half is announced on their boards before it lands).
-   Unblocked since RIMCAP PR-1 and 1031B merged (2026-09-04). Opens
-   block SHELL-B2.
+3. **SHELL-5** `shell-of-hollow-body-thicken-every-boundary` — LANDED
+   (PR #2159, 2026-09-08): one thin solid per operand shell, the
+   planar clearance gate grown by `t`, `RimNaming::side`. Block
+   SHELL-B1 concluded.
+4. **SHELL-6** `mint-offset-ignores-cone-mirror-nappe` — LANDED
+   (PR #2178, 2026-09-08): `face_nappe`/`group_nappe`, one home in the
+   offset lane; the live ε-scale sign defect closed. Block SHELL-B2
+   slot 0. The winding-predicate rename (`shell-offset-three-followups`
+   item 2) is NOT in it: three owners' files and a K-lint population
+   — it stays on that item until announced on TOPO's and S-BOOL's
+   boards.
+4b. **SHELL-7** `axial-door-refuses-a-one-surface-seam-corner` —
+   LANDED (PR #2200, 2026-09-08): the one-surface corner and every
+   same-surface latitude seam; the full-period torus shells. Block
+   SHELL-B2 slot 1.
+4c. **SHELL-8** `shell-open-on-a-multi-solid-body` — LANDED (PR
+   #2207, 2026-09-08): the verb applied per solid on a multi-solid
+   body, designations on any solid; `insert_voids` (S-BOOL seam) and
+   `classify_shells_of` (PROPS seam). Block SHELL-B2 slot 2, the
+   block's last; SHELL-B2 concluded. Follow-ups filed:
+   `shell-doors-still-walk-the-whole-body` (lane) and
+   `shelled-result-does-not-name-the-wall-it-built` (orchestrator).
+4d. **SHELL-9** — LANDED (PR #2223, 2026-09-08): `shell` runs the
+   closing pcurve mint; the sphere half of
+   `void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`
+   closed. Block SHELL-B3 slot 0. Filed by the lane:
+   `shell-launders-a-stale-operand-row` (the class is kernel-wide —
+   TOPO's `producer-closing-mint-is-a-convention-with-thirteen-copies`).
+4e. **SHELL-10** — LANDED (PR #2229, 2026-09-08): the partition and
+   the pcurve pass narrowed to the scope; the closure check could not
+   be (tier 1 has no per-shell entry — `doors-still-read-the-whole-body-for-tier1`,
+   with the setters' whole-body postcondition placed for TOPO as
+   `attach-postconditions-validate-the-whole-body-and-panic`). Block
+   SHELL-B3 slot 1. The drum half is TOPO's
+   (`work/topo/revert-does-not-mirror-plane-chart-images`); the
+   cone-hyperbola refusal is parked on
+   `offset-lane-has-no-conic-carrier` (Ev's fork).
 5. RULED B (Ev, #1737, 2026-09-04): **SHELL-3** — the clearance
    engine's body-level half moves into `topo` behind `interval`
    (joint with M10; no behaviour change, the M10-5/6 suites are the

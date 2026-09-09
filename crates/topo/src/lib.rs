@@ -177,6 +177,7 @@ pub mod movefac;
 mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
+pub mod offset_nappe;
 pub mod offset_together;
 pub mod param_source;
 pub mod pcurves;
@@ -267,6 +268,8 @@ pub mod test_support {
 #[cfg(test)]
 mod r2_probes;
 #[cfg(test)]
+mod shell10_r2_probes;
+#[cfg(test)]
 mod tier3_tests;
 pub mod transform;
 pub mod validate;
@@ -282,8 +285,9 @@ pub use boolean::{
     SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment, VoidEvidence,
     VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
     boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
-    flush_pair_relation, insert_void, intersect, intersect_with, oriented_plane_eq, point_in_solid,
-    subtract, subtract_with, tangent_locus, tangent_pair_relation, union, union_with,
+    flush_pair_relation, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
+    point_in_solid, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
+    union_with,
 };
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
@@ -328,11 +332,13 @@ pub use instance::{
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
+pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
-pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, pcurve_of};
+pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
-    ShellClassification, ShellClassifyError, ShellRole, classify_shells, mass_properties,
+    ShellClassification, ShellClassifyError, ShellRole, classify_shells, classify_shells_of,
+    mass_properties,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;

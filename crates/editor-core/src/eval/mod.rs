@@ -34,7 +34,7 @@ pub(crate) use wire::{
     need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
 };
 
-pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
+pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 
 use std::collections::BTreeMap;
@@ -263,8 +263,11 @@ pub struct NodeValue<T: Decide> {
     /// identity with the geometry it is keyed into.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
-    /// decision the node's op made, in decision order, recorded
-    /// through the one `k_stats` funnel. Scalar-independent data —
+    /// decision made evaluating the node — those made before its
+    /// content key (a profile's f64 precompute: the plane read, the
+    /// replay, the validation) and the op's alike — in the order made,
+    /// recorded through the one
+    /// `k_stats` funnel. Scalar-independent data —
     /// same verdicts at f64 and Interval — and the diff-engine
     /// substrate ("both evaluations' verdict logs exist"). Rides the
     /// value, so memo reuse transfers the log with the geometry it
@@ -279,9 +282,9 @@ pub struct NodeValue<T: Decide> {
     /// summarizes; one that needs them in hand reads this.
     pub verdicts: Arc<VerdictLog>,
     /// The node's escalation log: every INDETERMINATE predicate outcome
-    /// the node's op met, in decision order, recorded in the same
+    /// met evaluating the node, in decision order, recorded in the same
     /// `k_stats` frame as the verdicts. Non-empty on a value only when
-    /// the op absorbed an escalation and built anyway — a leaf the
+    /// the node absorbed an escalation and built anyway — a leaf the
     /// subdivision driver must not certify (E6: every predicate
     /// definite), which is what it reads this for. Rides the value with
     /// the verdicts, for the same reason.
@@ -325,7 +328,11 @@ pub enum ValuePayload<T: Decide> {
     /// through the driver, then the profile crate's validation door)
     /// plus its program-anchor naming map ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
-    /// A single body: Extrude, Revolve, Transform.
+    /// A single body: every one-body op (extrude, revolve, the tubes,
+    /// loft, sweep, blends, shell, union, placed union, instantiate,
+    /// `Part`) and a `Transform` of one body — a transform's value has
+    /// its input's shape, so a transform of instances is
+    /// [`Self::Instances`].
     Body(Arc<Body<T>>),
     /// A boolean's result: a body with its contact records, or the
     /// typed empty success (F8; D3).
@@ -338,7 +345,25 @@ pub enum ValuePayload<T: Decide> {
         below: SplitSide<T>,
     },
     /// A pattern's instances AS DATA (D3: patterns do not implicitly
-    /// union; index `i` is the A8/N1 `Instance(i)` substrate).
+    /// union; index `i` is the A8/N1 `Instance(i)` substrate — for a
+    /// nested pattern the flat index `j·M + i`, `wire_pattern`'s
+    /// layout).
+    ///
+    /// **Who takes it, and who refuses.** The placers take it WHOLE
+    /// and are shape-preserving over it: `Transform` yields the same
+    /// instances under one rigid map, `Pattern` yields their `N·M`
+    /// placements, both as `Instances`, because a rigid map of N
+    /// bodies is N rigid maps and needs no guess. `Part` takes one
+    /// instance out of it by index, and the product gather takes
+    /// every instance in order. Every other consumer of a body
+    /// operand — the set is `wire::body_operand`'s callers: a datum's
+    /// face frame, a blend's and a shell's body, a split's target, a
+    /// boolean's and a union's members, a placed union's prototype —
+    /// takes ONE body and refuses this value typed (`WrongOperand`):
+    /// a boolean of N bodies is N booleans or one union of them, a
+    /// blend of N bodies is N blends, and the recipe does not guess
+    /// which (D3), so the asymmetry between the placers and the rest
+    /// is the decision, not an omission.
     Instances(Vec<Arc<Body<T>>>),
     /// A Declare node's pairs with their contact classes, passed
     /// through as data (D3; the boolean consumes them at its
@@ -393,26 +418,45 @@ pub enum ValuePayload<T: Decide> {
     Assertion(crate::measure::AssertionVerdict<T>),
 }
 
+/// **The family words** — the vocabulary a typed operand mismatch
+/// speaks ([`NodeErrorKind::WrongOperand`]'s `found`), written once.
+/// Three readers say them: [`ValuePayload::kind_name`] over a value,
+/// [`node_value_kind`] over a node, and the one-body door's refusal
+/// of an `Instances` operand.
+pub(crate) mod family {
+    pub(crate) const DATUM: &str = "datum";
+    pub(crate) const PROFILE: &str = "profile";
+    pub(crate) const BODY: &str = "body";
+    pub(crate) const BOOLEAN: &str = "boolean";
+    pub(crate) const SPLIT: &str = "split";
+    pub(crate) const INSTANCES: &str = "instances";
+    pub(crate) const DECLARATIONS: &str = "declarations";
+    pub(crate) const MATE: &str = "mate";
+    pub(crate) const MEASURE: &str = "measure";
+    pub(crate) const ASSERTION: &str = "assertion";
+}
+
 impl<T: Decide> ValuePayload<T> {
-    /// The payload family, for typed operand mismatches.
+    /// The payload family, for typed operand mismatches: the `family`
+    /// word the value lands in.
     pub fn kind_name(&self) -> &'static str {
         match self {
-            Self::Datum(_) => "datum",
-            Self::Profile(_) => "profile",
-            Self::Body(_) => "body",
-            Self::Boolean(_) => "boolean",
-            Self::Split { .. } => "split",
-            Self::Instances(_) => "instances",
-            Self::Declarations(_) => "declarations",
-            Self::Mate(_) => "mate",
-            Self::Measure { .. } => "measure",
+            Self::Datum(_) => family::DATUM,
+            Self::Profile(_) => family::PROFILE,
+            Self::Body(_) => family::BODY,
+            Self::Boolean(_) => family::BOOLEAN,
+            Self::Split { .. } => family::SPLIT,
+            Self::Instances(_) => family::INSTANCES,
+            Self::Declarations(_) => family::DECLARATIONS,
+            Self::Mate(_) => family::MATE,
+            Self::Measure { .. } => family::MEASURE,
             // The SAME family name as a measure that has a value: the
             // node kind is what a typed operand mismatch is about, and
             // "measure" is what this node is either way. Which of the
             // two a reader is holding is a question about the value,
             // and the two variants are how it is asked.
-            Self::MeasureUnavailable { .. } => "measure",
-            Self::Assertion(_) => "assertion",
+            Self::MeasureUnavailable { .. } => family::MEASURE,
+            Self::Assertion(_) => family::ASSERTION,
         }
     }
 }
@@ -423,26 +467,62 @@ impl<T: Decide> ValuePayload<T> {
 /// its expressions and never holds its value (the mate solve's
 /// derived offset, refusing a circular rule's `axis` operand).
 ///
-/// It is that match written a second time, over node kinds rather
-/// than over payloads, which is a correspondence a reader has to
-/// believe. What checks it is behavioural and partial: the mate
-/// suite's `msolve3_placer_refused` compares the refusal this word
-/// lands in against the one the operand's own evaluation raises, for
-/// the two families a circular rule's axis is actually authored as —
-/// a datum and a body. The other families are by inspection, and this
-/// sentence is where that is said.
-pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
+/// It is that match written a second time over node kinds, with a
+/// walk down the placer chain in front of it, which is a
+/// correspondence a reader has to believe. What checks it is
+/// behavioural and partial: the mate suite's `msolve3_placer_refused`
+/// compares the refusal this word lands in against the one the
+/// operand's own evaluation raises, and reaches three of the family
+/// words — `"datum"`, `"body"` and `"instances"` — over four authored
+/// shapes (a plane datum, a body, a transform of a pattern, a
+/// transform of a transform of a body). The other eight of
+/// `kind_name`'s arms are by inspection, and this sentence is where
+/// that is said.
+///
+/// **A placer answers with its input's family.** A `Transform` is
+/// shape-preserving over its input's value (`Body → Body`,
+/// `Instances → Instances`), so its family is its INPUT's, read
+/// through the document; a `Pattern` lands in `Instances` whatever it
+/// patterns. The walk follows only a transform's `input` edge, which
+/// the edit door fixes at insert to a node that is already live
+/// ([`crate::EditError::UnresolvedInput`]) and no edit rewrites, over
+/// a recipe checked acyclic at every edit that adds an edge
+/// ([`crate::EditError::WouldCycle`]) — so it terminates with no guard
+/// of its own.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingInput`] naming a transform's input that is
+/// no live node: the refusal that transform's own evaluation raises,
+/// and the only word the evaluation has for the shape — the operand
+/// never lands in a family, so its consumer is poisoned through the
+/// transform rather than refused with one. Unreachable through
+/// `apply`, which takes a node's dependents with it on delete; refused
+/// typed anyway.
+pub(crate) fn node_value_kind<P>(
+    doc: &Doc<P>,
+    node: &crate::node::Node<P>,
+) -> Result<&'static str, NodeErrorKind> {
     use crate::node::Node;
-    match node {
-        Node::Datum(_) => "datum",
-        Node::Profile(_) => "profile",
-        Node::Boolean { .. } => "boolean",
-        Node::Split { .. } => "split",
-        Node::Pattern { .. } => "instances",
-        Node::Declare { .. } => "declarations",
-        Node::Mate { .. } => "mate",
-        Node::Measure { .. } => "measure",
-        Node::Assertion { .. } => "assertion",
+    let mut at = node;
+    while let Node::Transform { input, .. } = at {
+        at = doc
+            .node(*input)
+            .ok_or(NodeErrorKind::MissingInput { input: *input })?;
+    }
+    Ok(match at {
+        Node::Transform { .. } => {
+            unreachable!("the walk above stops at the first node that is not a transform")
+        }
+        Node::Datum(_) => family::DATUM,
+        Node::Profile(_) => family::PROFILE,
+        Node::Boolean { .. } => family::BOOLEAN,
+        Node::Split { .. } => family::SPLIT,
+        Node::Pattern { .. } => family::INSTANCES,
+        Node::Declare { .. } => family::DECLARATIONS,
+        Node::Mate { .. } => family::MATE,
+        Node::Measure { .. } => family::MEASURE,
+        Node::Assertion { .. } => family::ASSERTION,
         Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -452,12 +532,11 @@ pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
         | Node::Shell { .. }
-        | Node::Transform { .. }
         | Node::Union { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
-        | Node::InstantiatePart { .. } => "body",
-    }
+        | Node::InstantiatePart { .. } => family::BODY,
+    })
 }
 
 /// A boolean node's typed result (F8: ∅ is a value, not an error).
@@ -517,14 +596,16 @@ pub struct NodeError {
     pub node: RecipeNodeId,
     /// The typed cause.
     pub kind: NodeErrorKind,
-    /// Every indeterminate predicate outcome the op met before it
-    /// failed, in decision order (the same frame [`NodeValue::escalations`]
-    /// reads on success). This is how a consumer learns that a failure
-    /// IS an escalation — and on which margin — without matching on
-    /// whichever op error enum `kind` wrapped it in: a kernel refusal
-    /// that carries an `Indeterminate` inside its own variant is
-    /// recorded here too, because the funnel saw it first. Empty when
-    /// the node failed before its op ran (a slot, an input, a cycle).
+    /// Every indeterminate predicate outcome met evaluating the node
+    /// before it failed, in decision order (the same frame
+    /// [`NodeValue::escalations`] reads on success), whether the
+    /// failure came from the op or from a pass before its content key.
+    /// This is how a consumer learns that a failure IS an escalation —
+    /// and on which margin — without matching on whichever op error
+    /// enum `kind` wrapped it in: a kernel refusal that carries an
+    /// `Indeterminate` inside its own variant is recorded here too,
+    /// because the funnel saw it first. Empty when nothing had decided
+    /// yet (an input, a cycle, a slot that does not evaluate).
     ///
     /// **Not persisted**, like [`NodeValue::escalations`]: a failure's
     /// escalations are a fact about one run at one box, read in hand
@@ -2251,6 +2332,10 @@ where
             Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source),
         },
     };
+    // The NOMINAL environment, built beside the lane one and carried
+    // with it as `wire::LaneEnv::nominal` — what it is and who reads
+    // it is stated there; why the key owes it, at `tag::slot`.
+    let nominal_env = doc.param_env::<f64>();
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
@@ -2271,6 +2356,7 @@ where
         lane: wire::LaneEnv {
             lift: opts.profile_lift,
             params: &env,
+            nominal: &nominal_env,
             seed: opts.seed.as_ref(),
         },
     };
@@ -2511,19 +2597,34 @@ fn eval_node<T>(
 where
     T: EvalScalar,
 {
-    // A failure before the op runs: no bracket was open, so there is
-    // nothing recorded to carry.
-    let fail = |kind: NodeErrorKind| NodeStep {
+    // The verdict bracket (N5): one frame per node, open from before
+    // the first thing that can decide on its behalf to after the op,
+    // so the node's log is every decision made evaluating THIS node,
+    // pre-key and op alike, in the order made, through the one
+    // `k_stats` funnel. Before the key, only a Profile node decides:
+    // its plane read (`profile_plane_f64`) and its replay and f64
+    // validation (`prepare_profile`); slot and program-expression
+    // evaluation reach the funnel through `check_unlogged`, which
+    // lands in no frame. The guard is `!Send`, so the
+    // frame closes on the worker that opened it (idiom-1 parallelism
+    // runs whole nodes on one worker each); an op that evaluates
+    // another document (an instantiated part) has that document's
+    // nodes open and close their own frames ABOVE this one, so theirs
+    // land on their own nodes and this frame receives only this node's.
+    let bracket = geom_core::k_stats::Bracket::open();
+    // A failure carries what the frame recorded on the way to it,
+    // whether or not the op ran.
+    let fail = |bracket: geom_core::k_stats::Bracket, kind: NodeErrorKind| NodeStep {
         result: NodeResult::Failed(NodeError {
             node: id,
             kind,
-            escalations: Arc::new(Vec::new()),
+            escalations: Arc::new(bracket.finish().escalations),
         }),
         reused: false,
     };
     let Some(node) = doc.node(id) else {
         // Unreachable: the schedule only lists live nodes.
-        return fail(NodeErrorKind::MissingInput { input: id });
+        return fail(bracket, NodeErrorKind::MissingInput { input: id });
     };
 
     // Poison propagation (spec D2, GQ2): first blocking input in the
@@ -2533,7 +2634,7 @@ where
     let mut upstream_naming: Vec<(RecipeNodeId, NamingKey)> = Vec::new();
     for input in node.inputs() {
         match results.get(&input) {
-            None => return fail(NodeErrorKind::MissingInput { input }),
+            None => return fail(bracket, NodeErrorKind::MissingInput { input }),
             Some(NodeResult::Failed(_)) => {
                 return NodeStep {
                     result: NodeResult::Poisoned { through: input },
@@ -2554,10 +2655,20 @@ where
     }
 
     // Slot evaluation — the (node, slot) context door (PR 1's banked
-    // NonFiniteResult obligation lands here).
+    // NonFiniteResult obligation lands here). TWICE, through the one
+    // door: at the evaluation scalar, which is what the op runs on,
+    // and at the document's nominal, which is what the f64-pinned
+    // readers decide from and therefore what the content key owes
+    // them (`tag::slot`). A nominal that refuses refuses the NODE, in
+    // the shape a lane refusal already has: no reader of that nominal
+    // could have read it either.
     let slot_values = match slots::eval_slots(node, env) {
         Ok(v) => v,
-        Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+        Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
+    };
+    let nominal_values = match slots::eval_slots(node, op_env.lane.nominal) {
+        Ok(v) => v,
+        Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
     };
 
     // Profile-program resolution (LIB-SWITCH §4b): program Exprs
@@ -2573,30 +2684,34 @@ where
     // still f64-only is the resolution that STRUCTURE is selected from
     // — this one — which is the part the C6 sentence was ever about.
     let resolved_program = match node {
-        crate::node::Node::Profile(program) => match program.resolve(&doc.param_env::<f64>()) {
+        crate::node::Node::Profile(program) => match program.resolve(op_env.lane.nominal) {
             Ok(r) => Some(r),
-            Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+            Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
         },
         _ => None,
     };
 
     // The profile F64 PRECOMPUTE (replay + f64 validation + the naming
-    // anchor) also lives here, OUTSIDE the verdict-log bracket: it is
-    // C6 structure selection — the successor of the stored f64 bits —
-    // not a per-lane op decision, so the node's logged verdicts stay
-    // exactly the lane validation the op runs (the v1 logged surface).
+    // anchor): C6 structure selection — the successor of the stored
+    // f64 bits — made on this node's behalf, so its decisions are the
+    // first entries of the node's log: the whole of it under the
+    // pinned lift, and ahead of the op's own replay and validation
+    // under the guided lift.
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
             // The frame the profile is drawn on, at f64 and from the
-            // DOCUMENT — `wire::profile_plane_f64` carries why that is
-            // the right scalar and the right source.
-            let placement = match wire::profile_plane_f64(doc, program.plane, tol) {
-                Ok(placement) => placement,
-                Err(kind) => return fail(kind),
-            };
+            // DOCUMENT — the evaluation's nominal environment
+            // (`wire::LaneEnv::nominal`); `wire::profile_plane_f64`
+            // carries why that is the right scalar and the right
+            // source.
+            let placement =
+                match wire::profile_plane_f64(doc, program.plane, op_env.lane.nominal, tol) {
+                    Ok(placement) => placement,
+                    Err(kind) => return fail(bracket, kind),
+                };
             match wire::prepare_profile(placement, resolved, tol) {
                 Ok(pre) => Some(pre),
-                Err(kind) => return fail(kind),
+                Err(kind) => return fail(bracket, kind),
             }
         }
         _ => None,
@@ -2621,11 +2736,14 @@ where
                             crate::node::Node::Assertion { .. } => "the assertion's bound,",
                             _ => "value leaf of the measured expression,",
                         };
-                        return fail(NodeErrorKind::PayloadExpr {
-                            what,
-                            index: values.len(),
-                            source,
-                        });
+                        return fail(
+                            bracket,
+                            NodeErrorKind::PayloadExpr {
+                                what,
+                                index: values.len(),
+                                source,
+                            },
+                        );
                     }
                 }
             }
@@ -2656,7 +2774,7 @@ where
         (ProfileLift::Guided, crate::node::Node::Profile(program), Some(_)) => {
             match program.resolve(env) {
                 Ok(r) => Some(r),
-                Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+                Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
             }
         }
         _ => None,
@@ -2665,6 +2783,7 @@ where
     let content_key = content_key(
         node,
         &slot_values,
+        &nominal_values,
         payload_values.as_deref(),
         resolved_program.as_deref(),
         lane_program.as_deref(),
@@ -2692,24 +2811,35 @@ where
         && v.content_key == content_key
         && v.naming_key == naming_key
     {
+        // The profile's f64 precompute ran inside this frame, and the
+        // reused value's log opens with the same decisions. A
+        // `Verdict` is (predicate, sign), and the inputs the content
+        // key fixes — the resolved program, the plane's slots through
+        // the frame's key, the tolerance — are exactly what the
+        // precompute decides from, so D9 makes the two sequences
+        // equal. It holds at EVERY scalar, and `tag::slot` is why: the
+        // precompute reads nominals, and the frame's key fixes its
+        // slots there as well as at the lane.
+        // The reused value IS the record, so the fresh frame is
+        // finished and dropped rather than spliced in, and the prefix
+        // identity is asserted in every profile: one compare of a few
+        // dozen verdicts per hit, beside a precompute that just
+        // replayed and validated the profile.
+        let fresh = bracket.finish();
+        assert!(
+            v.verdicts.starts_with(&fresh.verdicts)
+                && v.escalations.starts_with(&fresh.escalations),
+            "a memo hit's pre-key decisions differ from the reused log's prefix"
+        );
         return NodeStep {
             result: NodeResult::Ok(v.clone()),
             reused: true,
         };
     }
 
-    // The verdict bracket (N5): every decision the op makes — kernel
-    // predicates and N2 discriminators alike, definite or escalated —
-    // lands in this node's frame through the one `k_stats` funnel. The
-    // guard is per node and `!Send`, so the frame closes on the worker
-    // that opened it (idiom-1 parallelism runs whole nodes on one
-    // worker each); an op that evaluates another document (an
-    // instantiated part) has that document's nodes open and close
-    // their own frames ABOVE this one, so this frame receives exactly
-    // this op's decisions and theirs land on their own nodes. A memo
-    // hit above never reaches here and carries the prior's frame with
-    // the value it reuses.
-    let bracket = geom_core::k_stats::Bracket::open();
+    // The op's decisions — kernel predicates and N2 discriminators
+    // alike, definite or escalated — follow the pre-key ones in the
+    // frame opened above, which closes once the op returns.
     let op = wire::run_op(
         id,
         node,
@@ -2807,11 +2937,14 @@ where
 /// becomes a function with a row here, as `split_half_tag` and
 /// `content_tag` have.
 mod tag {
-    /// Declares each group's words and projects the group's `ALL` and
-    /// the census roster `GROUPS` from the same declaration, so a word
-    /// declared is a word censused.
+    /// Declares each group's words and its retired numbers, and
+    /// projects the group's `ALL`, its `RETIRED` and the census roster
+    /// `GROUPS` from the same declaration, so a word declared is a word
+    /// censused and a number retired is a number no group can reclaim.
     macro_rules! tag_groups {
-        ($( $(#[$gm:meta])* $group:ident { $( $(#[$cm:meta])* $name:ident = $val:literal ),* $(,)? } )*) => {
+        ($( $(#[$gm:meta])* $group:ident $(retires [ $($ret:literal),* $(,)? ])? {
+            $( $(#[$cm:meta])* $name:ident = $val:literal ),* $(,)?
+        } )*) => {
             $(
                 $(#[$gm])*
                 pub(crate) mod $group {
@@ -2820,12 +2953,21 @@ mod tag {
                     /// the row set its census iterates.
                     #[allow(dead_code, reason = "the census's row set, read by the test module")]
                     pub(crate) const ALL: &[u8] = &[$( $name ),*];
+                    /// Every number this group has RETIRED: written by
+                    /// some earlier version of the key with a meaning
+                    /// this group no longer has, and therefore dead
+                    /// here for good. Declared beside the live words so
+                    /// the census reads both from one place.
+                    #[allow(dead_code, reason = "the census's row set, read by the test module")]
+                    pub(crate) const RETIRED: &[u8] = &[$( $( $ret ),* )?];
                 }
             )*
-            /// Every group, by name, for the census — projected from the
-            /// declarations, so a group declared is a group censused.
+            /// Every group, by name, with its live and its retired
+            /// words, for the census — projected from the declarations,
+            /// so a group declared is a group censused.
             #[allow(dead_code, reason = "the census's roster, read by the test module")]
-            pub(crate) const GROUPS: &[(&str, &[u8])] = &[$( (stringify!($group), $group::ALL) ),*];
+            pub(crate) const GROUPS: &[(&str, &[u8], &[u8])] =
+                &[$( (stringify!($group), $group::ALL, $group::RETIRED) ),*];
         };
     }
 
@@ -2840,7 +2982,11 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            VERSION = 6,
+            /// v7: every slot writes its nominal beside its lane bits
+            /// and the profile payload's loop and step lists write
+            /// their counts — two channels every existing node of
+            /// their kinds writes into.
+            VERSION = 7,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -2848,10 +2994,11 @@ mod tag {
             DOMAIN = 3,
         }
         /// The word before an optional datum — a solved placement, a
-        /// witness, an alignment length, a clocking angle — so that a
-        /// `None` cannot alias a `Some` whose payload happens to be
-        /// empty (a witness with no bytes): the payload's presence is
-        /// a word of its own, read before the payload.
+        /// witness, an alignment length, a clocking angle, a profile's
+        /// resolved program — so that a `None` cannot alias a `Some`
+        /// whose payload happens to be empty (a witness with no bytes,
+        /// a loop list of length zero): the payload's presence is a
+        /// word of its own, read before the payload.
         presence {
             ABSENT = 0,
             PRESENT = 1,
@@ -2862,27 +3009,105 @@ mod tag {
             CLEAR = 0,
             FAULTED = 1,
         }
-        /// The words that structure a profile node's program payload,
-        /// read where a loop or a stream may end: the resolved stream
-        /// is `NONE`, or per loop `LOOP_START` then the loop's steps;
-        /// the lane stream, when the lift's second pass ran, is `LANE`
-        /// then per loop `LOOP_START` and the loop's scalars, each
-        /// under `LANE_SCALAR`; then, per carrier loop whose radius is
-        /// flow-bearing, `CARRIER_RADIUS` and the radius expression.
+        /// **The word before a slot's NOMINAL — the one home of why a
+        /// key holds one, and of every exception.** It is written
+        /// after that slot's bits at the evaluation scalar, and it
+        /// carries the slot's expression evaluated at the evaluation's
+        /// nominal environment — [`super::wire::LaneEnv::nominal`],
+        /// whose doc says what that environment is.
         ///
-        /// The loop and step lists are not length-prefixed, so at a
-        /// resolved loop boundary the reader also admits the verb
-        /// vocabulary ([`super::verb_tag`]) — where `LANE` and the
-        /// `Cusp` verb are both `41`. No key moves on it: a `Cusp`
-        /// cannot end a loop (its tip is directed-incoming and no
-        /// closing verb accepts it), so the word after a `Cusp` is
-        /// always a verb tag, never `LOOP_START`; and at the end of
-        /// the stream the next word is the upstream-key count, `1`
-        /// for a profile, which no verb tag is. Recorded as EVAL's
-        /// residue `profile-program-stream-is-not-length-prefixed`;
-        /// the number does not change here.
-        program {
-            NONE = 0,
+        /// **Why the key owes it.** The nominal's readers are listed
+        /// at [`super::wire::LaneEnv::nominal`], and each decides what
+        /// a lane value IS: the frame read is what the pinned lift
+        /// embeds whole into the lane profile's placement, and the
+        /// program resolutions are what the key already holds as a
+        /// stream. A key that fixed only the lane bits would leave the
+        /// frame read's input unfixed, and the memo would serve a
+        /// profile placed on another nominal's plane.
+        ///
+        /// **What the word means per lane.** At f64 under no box, or
+        /// under a box whose axes are all zero-width and zero-offset,
+        /// it repeats the lane bits; under a degenerate box at a
+        /// NON-zero offset — the one f64 boxes admit — the lane value
+        /// is `nominal + offset` and this word is the only thing that
+        /// keys the nominal apart. At `Dual64` it repeats the value
+        /// half, the seed riding the tangent. At `Interval` it is the
+        /// input the bounds do not determine at all: a nominal edit
+        /// under a compensating box moves the nominal while leaving
+        /// `(lo, hi, dec)` equal.
+        ///
+        /// **The exceptions, all of them.**
+        ///
+        /// * A COUNT slot writes no nominal word. [`crate::expr::eval_count`]
+        ///   reads the document's exact `Count` binding at every
+        ///   scalar and [`crate::analysis::param_env_over`] widens
+        ///   only `Continuous` parameters, so a count's lane word IS
+        ///   its nominal.
+        /// * A `Profile` node has no slots here at all — its program
+        ///   expressions resolve in their own stage
+        ///   ([`super::slots::eval_slots`] exempts the node) — and
+        ///   needs none: the resolved stream it feeds is resolved in
+        ///   this same environment, so the nominal is already in its
+        ///   key.
+        /// * The measurement vocabulary's PAYLOAD expressions
+        ///   (`Measure`, `Assertion`) write no nominal word. They are
+        ///   read only by their own node's op at the evaluation
+        ///   scalar, so no f64-pinned reader has an input for the key
+        ///   to owe. The day a pre-pass reads a measured bound at
+        ///   f64, they join this rule.
+        ///
+        /// **There is no word for a refused nominal.** A slot whose
+        /// expression does not evaluate at the nominal refuses the
+        /// NODE, typed, at the same door its lane refusal goes
+        /// through — no reader of that nominal could have read it
+        /// either, so a value keyed on "the nominal is unreadable"
+        /// would be a value no reader can produce.
+        slot {
+            NOMINAL = 1,
+        }
+        /// The words that structure a profile node's program payload,
+        /// read where a loop or a stream may end. **Every LOOP list
+        /// and every STEP list is length-prefixed**: the resolved
+        /// stream is its presence word ([`presence`]) and, when
+        /// present, the loop count, then per loop `LOOP_START`, the
+        /// loop's step count and its steps; the lane stream, when the
+        /// lift's second pass ran, is `LANE`, the loop count, then per
+        /// loop `LOOP_START`, the loop's scalar count and its scalars,
+        /// each under `LANE_SCALAR`; then, per carrier loop whose
+        /// radius is flow-bearing, `CARRIER_RADIUS` and the radius
+        /// expression.
+        ///
+        /// The counts are what make a loop boundary a SINGLE
+        /// vocabulary: a reader that has consumed a loop's declared
+        /// step count is at a loop boundary or at the end of the list
+        /// it counted, never at a word it must tell apart from the
+        /// verb vocabulary ([`super::verb_tag`]). Two words of this
+        /// group collide with that one — `LANE` and the `Cusp` verb
+        /// are both `41`, `LANE_SCALAR` and the `ContinueTo` verb are
+        /// both `42` — which is the class the counts cover, and it has
+        /// two members rather than the one it is easy to see. It is
+        /// single-vocabulary a second way too, independently of the
+        /// counts: a `Cusp` cannot end a loop, its tip being
+        /// directed-incoming with no closing verb accepting it, so the
+        /// word after a `Cusp` is always a verb tag and never
+        /// `LOOP_START`.
+        ///
+        /// **The carrier-radius entries are a list with no count**, and
+        /// they are the exception the sentence above is worded around.
+        /// Each is `CARRIER_RADIUS` and then a lowered expression whose
+        /// own bytes are length-prefixed
+        /// ([`crate::param_source::feed_content_key`]), so a reader
+        /// finishing one entry is at the next `CARRIER_RADIUS` or at
+        /// the end of the payload — the same END position the optional
+        /// `LANE` section stops at, where the next word is the
+        /// upstream-key count, `1` for a profile since its plane is its
+        /// one input, and neither `41` nor `45`.
+        ///
+        /// `0` is RETIRED here: it was this group's absent-program
+        /// marker, and the resolved stream's presence is
+        /// [`presence`]'s word now, so a loop count of `0` cannot
+        /// alias it.
+        program retires [0] {
             LOOP_START = 1,
             LANE = 41,
             LANE_SCALAR = 42,
@@ -2900,8 +3125,8 @@ mod tag {
         /// vertex, an authored point (followed by its coordinates), or
         /// the entry vertex with the seam's tangent joint declared.
         /// `43` held a retired second declaration and stays dead in
-        /// this vocabulary (`RETIRED_TARGET_TAGS`).
-        target {
+        /// this vocabulary (its `retired` list).
+        target retires [43] {
             START = 4,
             POINT = 5,
             START_ARRIVING = 44,
@@ -2938,11 +3163,6 @@ mod tag {
             MAX = 9,
         }
     }
-
-    /// The numbers the target vocabulary may not use: retired with the
-    /// second arrival declaration, and dead for good.
-    #[cfg(test)]
-    pub(crate) const RETIRED_TARGET_TAGS: &[u8] = &[43];
 }
 
 /// **The content-key tag of a MIGRATED verb** — the memoization
@@ -3111,7 +3331,9 @@ impl SolveAnswer {
 }
 
 /// The content key (spec D4): op kind, structural params, evaluated
-/// expression values AS BITS, upstream keys — plus the ambient
+/// expression values AS BITS **and each of them again at the
+/// document's nominal f64** (the rule at [`tag::slot`]), upstream keys
+/// — plus the ambient
 /// tolerance (ε, k), which parameterizes every decision the kernel
 /// ops make, and a leading format version. M4 PR 4: the node's
 /// recorded witness datum (if any) is an input too — `solution
@@ -3120,15 +3342,17 @@ impl SolveAnswer {
 /// not read the witness, so the recompute reproduces identical
 /// results — W4's "semantically invisible", honestly re-derived
 /// rather than assumed).
-// The two arguments past the seventh are both INPUTS to the key,
-// which is the one thing a content key is allowed to grow: the lift's
-// lane-resolved program, and the measurement vocabulary's
-// payload-expression values — the same input the slot values are,
-// arriving by a second route because a `MeasureExpr` is not a slot.
+// The arguments past the node are all INPUTS to the key, which is the
+// one thing a content key is allowed to grow: the environment every
+// same slots at the document's nominal, the lift's lane-resolved
+// program, and the measurement vocabulary's payload-expression values
+// — the same input the slot values are, arriving by a second route
+// because a `MeasureExpr` is not a slot.
 #[allow(clippy::too_many_arguments)]
 fn content_key<T>(
     node: &crate::node::Node<ProfileProgram>,
     slot_values: &slots::SlotValues<T>,
+    nominal_values: &slots::SlotValues<f64>,
     payload_values: Option<&[T]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
@@ -3295,20 +3519,25 @@ where
             // the day a frame's own key changes shape.
             // Present by eval_node's stage order (profiles resolve
             // before keying); written defensively — no panic paths in
-            // this crate — and the `NONE` marker keeps an (impossible)
+            // this crate — and the presence word keeps an (impossible)
             // absent-program key distinct from any real program's key
-            // rather than aliasing an empty one. The words are the
-            // profile-payload vocabulary's (`tag::program`).
+            // rather than aliasing an empty loop list, which the loop
+            // count alone could not do. The structural words are the
+            // profile-payload vocabulary's (`tag::program`), where the
+            // length-prefixing rule is stated.
             match resolved_program {
                 Some(resolved) => {
+                    h.write_tag(tag::presence::PRESENT);
+                    h.write_u64(resolved.len() as u64);
                     for steps in resolved {
                         h.write_tag(tag::program::LOOP_START);
+                        h.write_u64(steps.len() as u64);
                         for step in steps {
                             feed_step(&mut h, step);
                         }
                     }
                 }
-                None => h.write_tag(tag::program::NONE),
+                None => h.write_tag(tag::presence::ABSENT),
             }
             // The f64 stream above IS the structure identity and stays
             // in the key unconditionally, lane-independent as ever.
@@ -3318,8 +3547,10 @@ where
             // it has always been and cannot alias a lifted one's.
             if let Some(lane) = lane_program {
                 h.write_tag(tag::program::LANE);
+                h.write_u64(lane.len() as u64);
                 for steps in lane {
                     h.write_tag(tag::program::LOOP_START);
+                    h.write_u64(steps.len() as u64);
                     for step in steps {
                         feed_lane_step(&mut h, step);
                     }
@@ -3636,20 +3867,41 @@ where
         // written here rather than pinned by one.
         Node::Union { members, .. } => h.write_u64(members.len() as u64),
     }
-    // Evaluated slot values, in the node's deterministic slot order.
-    for (i, (_slot, val)) in slot_values.iter().enumerate() {
+    // Evaluated slot values, in the node's deterministic slot order,
+    // each followed by its NOMINAL — the rule, its exceptions and why
+    // the key owes it are at [`tag::slot`]. The two lists come from
+    // ONE door ([`slots::eval_slots`]) at two environments, so they
+    // are the same slots in the same order and zip pairwise; the
+    // slot id is carried into the loop so the pairing is asserted
+    // rather than assumed.
+    for (i, ((slot, val), (nominal_slot, nominal))) in
+        slot_values.iter().zip(nominal_values.iter()).enumerate()
+    {
+        debug_assert_eq!(slot, nominal_slot, "the two slot lists are one order");
         h.write_u64(i as u64);
-        match val {
-            slots::SlotVal::Scalar(v) => v.feed(&mut h),
-            slots::SlotVal::Count(n) => h.write_i64(*n),
+        match (val, nominal) {
+            (slots::SlotVal::Scalar(v), slots::SlotVal::Scalar(n)) => {
+                v.feed(&mut h);
+                h.write_tag(tag::slot::NOMINAL);
+                h.write_f64_bits(*n);
+            }
+            // A count feeds no nominal ([`tag::slot`]). The mixed arms
+            // are unreachable — one door decided both lists' shapes
+            // off the same `SlotId::is_structural` — and are written
+            // rather than panicked: the lane value is the node's own
+            // answer, and dropping the nominal word from one slot can
+            // only ever merge keys the mixed shape already made
+            // impossible.
+            (slots::SlotVal::Count(c), _) => h.write_i64(*c),
+            (slots::SlotVal::Scalar(v), slots::SlotVal::Count(_)) => v.feed(&mut h),
         }
     }
     // The node's evaluated PAYLOAD expressions, in `payload_exprs`
-    // order — the same resolved-value convention the slots above
-    // follow, so a parameter under a measured bound moves the key
-    // exactly as one under an extrude's distance does. Absent (not
-    // empty) for every node kind that carries none, so no existing
-    // document's key moves by a byte.
+    // order — resolved values, as the slots above are, so a parameter
+    // under a measured bound moves the key exactly as one under an
+    // extrude's distance does. No nominal rides them, and [`tag::slot`]
+    // carries why. Absent (not empty) for every node kind that carries
+    // none, so no existing document's key moves by a byte.
     if let Some(values) = payload_values {
         h.write_u64(values.len() as u64);
         for v in values {
@@ -4751,22 +5003,34 @@ mod tag_vocabulary_tests {
     /// and a retired number is not reused. Iterates `tag::GROUPS`,
     /// which `tag_groups!` projects from the declarations themselves,
     /// so a word declared is a word read here: a duplicate typed into
-    /// any group reds, naming the group and both positions.
+    /// any group reds, naming the group and both positions, and so
+    /// does a live word that some earlier version of the key wrote
+    /// with another meaning.
+    ///
+    /// The retired lists are per GROUP rather than one list beside the
+    /// module, because a number is retired FROM a vocabulary and means
+    /// nothing outside it — `43` is dead in `target` and live in
+    /// `scalar_join`, `0` is dead in `program` and live in `presence`.
+    /// Declaring them in the group they are dead in is what lets the
+    /// roster carry both lists and the row read them together.
     #[test]
     fn structural_tag_groups_are_injective() {
-        for (group, all) in tag::GROUPS {
+        for (group, all, retired) in tag::GROUPS {
             assert!(!all.is_empty(), "group `{group}` declares no tag");
             for (i, a) in all.iter().enumerate() {
                 if let Some(j) = all[..i].iter().position(|b| b == a) {
                     panic!("group `{group}` claims tag {a} twice: at positions {j} and {i}");
                 }
             }
-        }
-        for retired in tag::RETIRED_TARGET_TAGS {
-            assert!(
-                !tag::target::ALL.contains(retired),
-                "target tag {retired} is retired and must stay dead"
-            );
+            for (i, r) in retired.iter().enumerate() {
+                if let Some(j) = retired[..i].iter().position(|b| b == r) {
+                    panic!("group `{group}` retires tag {r} twice: at positions {j} and {i}");
+                }
+                assert!(
+                    !all.contains(r),
+                    "group `{group}` claims tag {r}, which it retired"
+                );
+            }
         }
     }
 
@@ -4938,7 +5202,7 @@ mod tag_vocabulary_tests {
         assert_eq!(target_tag(&Target::Start), 4);
         assert_eq!(target_tag(&Target::StartArriving), 44);
         assert_eq!(target_tag(&Target::Point(origin)), 5);
-        for retired in tag::RETIRED_TARGET_TAGS {
+        for retired in tag::target::RETIRED {
             assert!(all.iter().all(|t| target_tag(t) != *retired));
         }
     }

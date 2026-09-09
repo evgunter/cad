@@ -223,9 +223,13 @@ fn r1p4_a_bare_ball_hollows_to_its_closed_form() {
 /// which moves the `v < 0` nappe's material `−d` along its own chart
 /// normal — the ConeOffset home documents exactly this. The frustum's
 /// wall is below its apex, so an inward `−t` request GROWS it at the
-/// mint; the door's `nappe_signed` is what corrects the sign. Both
-/// facts asserted here, so the latent-defect report stays true and the
-/// correction stays load-bearing.
+/// mint: the mint is nappe-blind by contract.
+///
+/// The correction is `topo::Nappe`'s turn, applied by every consumer
+/// from the one answer `topo::face_nappe` decides for the face
+/// (`shell6_nappe_home` pins that both doors take it). This row spells
+/// the turn itself, so the contract and its discharge stay pinned
+/// against each other at the mint, off any door.
 #[test]
 fn r1p3_the_cone_mint_is_nappe_blind_and_the_door_corrects_it() {
     use geom::Surface;
@@ -257,9 +261,16 @@ fn r1p3_the_cone_mint_is_nappe_blind_and_the_door_corrects_it() {
         grown > r0,
         "the raw mint must grow the below-apex wall on an inward request: {grown} vs {r0}"
     );
-    // And the corrected sign shrinks it by exactly t/cos α at the base
+    // And the turned sign shrinks it by exactly t/cos α at the base
     // station — which is the offset frustum the closed-form row pins.
-    let corrected = geom_brep::offset_surface(&cone, T, band).expect("the cone offsets");
+    // The wall is on the mirror nappe, so the turn is a negation.
+    let turned = geom_brep::Nappe::Mirror.turn(-T);
+    assert_eq!(
+        turned.to_bits(),
+        T.to_bits(),
+        "the mirror nappe's turn is a negation"
+    );
+    let corrected = geom_brep::offset_surface(&cone, turned, band).expect("the cone offsets");
     let Surface::Cone { apex: apex_c, .. } = corrected else {
         panic!("a cone's offset is a cone");
     };

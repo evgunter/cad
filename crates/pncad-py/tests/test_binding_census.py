@@ -12,12 +12,12 @@ is invisible to it. Doors accumulated that way — the assembly gate,
 the advisory checks, picking, the expression read side, the
 workspace/content-pin family — and nothing noticed.
 
-This is the mechanism. Every name the façade's three curated lists
-introduce is either bound in Python or listed below with the family it
-belongs to, and a name that is neither fails here, naming itself.
+This is the mechanism. Every name the façade's curated lists introduce
+is either bound in Python or listed below with the family it belongs
+to, and a name that is neither fails here, naming itself.
 
 STDLIB ONLY, AND NO COMPILED MODULE. Every input is source TEXT — the
-three façade `.rs` files and `pncad.pyi` — so this runs wherever
+façade `.rs` files this file names and `pncad.pyi` — so this runs wherever
 `python3` runs, in the same degraded environment `run-python-tests.sh`
 exists for (that box has no pip and no ensurepip). It deliberately
 does NOT import `pncad`: `test_stubs.py` already pins the stub to the
@@ -28,8 +28,17 @@ built.
 THE SIDES IT COMPARES
 ---------------------
 The Rust side is the `pub use` lists in `crates/pncad/src/document.rs`,
-`select.rs` and `prelude.rs` — the three files that ARE the curated
-surface. They are read with the Rust guard's own technique: comments
+`select.rs`, `prelude.rs` and `analysis.rs` — the files that ARE the
+curated surface a Python caller is measured against. `analysis.rs`
+joined them at LIB-MC: it was outside this alphabet in BOTH directions
+while it curated the whole E1/E2 analysis lane and E11.1's advisory
+estimator, which is how three of one family's four chartered doors and
+a whole un-gated lane went unreported. Its certified half is behind
+`#[cfg(feature = "interval")]` and this reader cannot see a `cfg`
+attribute at all, so those names arrive looking exactly like the
+ungated ones beside them and are dispositioned by hand in `NOT_BOUND`
+— stated here because a blind spot nobody wrote down is an unverified
+claim. They are read with the Rust guard's own technique: comments
 stripped first, then the leaf name of every `pub use` item, so prose
 naming a type is not read as an export. `prelude.rs` re-exports through
 `crate::document` and `crate::select`, so a prelude entry has an origin
@@ -64,6 +73,47 @@ accounted for in exactly one of three ways:
    passing vacuously is the FLOORS
    asserted in `test_the_census_is_not_vacuous`, and those are
    assertions rather than prose.
+
+   **A NAME MATCH ACCOUNTS MEMBERS, NOT THE TYPE** (Ev, 2026-09-09, on
+   `work/lib/datum-crosses-name-for-name-as-two-types.md`). Where the
+   curated name resolves to a `pub enum` or `pub struct`, the match
+   accounts only the members the Python namesake actually SPELLS — an
+   arm as a class attribute of the same name (`SurfaceKind.Plane`) or
+   as a snake-cased method, property or static constructor
+   (`Node::Extrude` -> `Node.extrude`); a struct's bare-`pub` field as
+   a same-named attribute. Every other member owes a row of its own,
+   in `MEMBERS_BOUND_AS` or `MEMBERS_NOT_BOUND`, and a member with
+   neither a spelling nor a row fails here naming itself.
+
+   The reason is that rule 1 is exactly as strong as the coincidence
+   that the two sides picked the same word, and twice that coincidence
+   has hidden a whole door. Rust's `Datum` is the AUTHORING enum whose
+   arms a recipe holds; Python's is the READ-side value `Value.datum()`
+   answers with, and it spells none of the six — so `Datum::FaceFrame`
+   was invisible for the life of the family chartered to bind it.
+   `Node::Union` and `DocEdit::SetMembers` were the same shape behind
+   two names this file accounts whole, and only a hand-kept roster in
+   `tests/test_north_star.py` could see them. The member rule would
+   have demanded a row for each on the day the name matched.
+
+   WHAT IT STILL CANNOT SEE, because a rule with an unstated blind
+   spot is an unverified claim:
+
+   - a member whose snake-cased name COINCIDENTALLY matches an
+     unrelated attribute of the namesake is accounted, and nothing
+     here asks whether the two are about the same thing. Four of
+     `editor_core::Evaluation`'s ten fields are accounted that way,
+     against a Python `Evaluation` that is a different type;
+   - a member reachable only through a type ALIAS or an associated
+     type, and a member whose type is a generic parameter — the
+     resolver's blind spots (b) and (d), which it states at
+     `payload_identifiers` and `sweep`;
+   - the resolver is CRATE-aware and not MODULE-aware (its blind spot
+     (h)), so two types with one name inside one crate are one
+     declaration here, and the first in path order supplies both
+     member lists;
+   - a TUPLE struct's fields have no names, so there is nothing for a
+     namesake to spell and nothing to owe a row.
 2. `BOUND_AS` maps it to the Python spelling that answers the same
    question, and THAT SPELLING IS VERIFIED to exist in the stub — a
    mapping naming a spelling the stub does not declare fails. Without
@@ -130,8 +180,8 @@ WHAT THIS DOES NOT CLAIM
 - Not that the curated surface is all of `pncad`. `crate::workspace`,
   `crate::authoring`, `crate::guide`, `crate::export`, `crate::profile`
   and `crate::tolerance` are outside the census; the Rust guard reads
-  all ten façade files, this one reads the three that curate the
-  document layer and the common surface. `workspace::Workspace`,
+  all ten façade files, this one reads the four that curate the
+  document layer, the common surface and the analysis lane. `workspace::Workspace`,
   `random_document_id` and `update_to_store` are therefore NOT counted
   here — the audit page's `test_the_named_gaps_are_still_gaps` is what
   watches those, and it is where all three landing is recorded
@@ -141,12 +191,15 @@ WHAT THIS DOES NOT CLAIM
 """
 
 import ast
+import functools
+import importlib.util
+import re
 import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 FACADE = REPO / "crates" / "pncad" / "src"
-FACADE_FILES = ("document.rs", "select.rs", "prelude.rs")
+FACADE_FILES = ("document.rs", "select.rs", "prelude.rs", "analysis.rs")
 STUB = REPO / "crates" / "pncad-py" / "pncad.pyi"
 AUDIT = REPO / "docs" / "guide" / "north-star-audit.md"
 
@@ -262,6 +315,91 @@ def stub_surface():
                             members.add(f"{node.name}.{target.id}")
     top = {n for n in top if not n.startswith("_") or n == "__build_info__"}
     return top, members
+
+
+# --- the curated declarations, through the sweep's resolver ------------
+
+#: The payload-rung sweep, which is the resolver this file SHARES rather
+#: than re-implements. It already answers the two questions the member
+#: rule needs — which crates the façade's path closure reaches, and which
+#: `pub enum`/`pub struct` each curated name resolves to — and it answers
+#: them crate-aware, which a spelling comparison cannot. Re-deriving that
+#: here is the defect that script exists to close: the pattern was prose,
+#: three runs re-implemented it, and no two agreed on a number.
+SWEEP = REPO / "scripts" / "payload-rung-sweep.py"
+
+
+@functools.cache
+def resolver():
+    """`scripts/payload-rung-sweep.py`, loaded as a module.
+
+    By PATH rather than by `import`, because the file is a script with a
+    hyphen in its name and is not an importable module — and because the
+    path is the honest statement of what is shared. Nothing runs at import:
+    the script's work is behind `main`, so this costs a parse.
+
+    STDLIB ONLY still holds, and so does NO COMPILED MODULE. What arrives
+    is more Rust SOURCE TEXT — the same reading, over the façade's whole
+    path-dependency closure instead of its own curated files.
+    """
+    spec = importlib.util.spec_from_file_location("payload_rung_sweep", SWEEP)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_LEADING_SNAKE = re.compile(r"(.)([A-Z][a-z]+)")
+_INNER_SNAKE = re.compile(r"([a-z0-9])([A-Z])")
+
+
+def snake_case(name):
+    """`FaceFrame` -> `face_frame`: the shift a Rust arm makes to become a
+    Python constructor, property or method."""
+    return _INNER_SNAKE.sub(r"\1_\2", _LEADING_SNAKE.sub(r"\1_\2", name)).lower()
+
+
+@functools.cache
+def curated_declarations():
+    """`{name: (declaration, [member, ...])}` for the names rule 1 matches.
+
+    A curated name enters only if `pncad.pyi` declares it top-level — a
+    name in `BOUND_AS` or `NOT_BOUND` is argued WHOLE, with its reason at
+    its entry, and the member rule is about what a name match accounts for.
+    The resolution is the sweep's: the declaration in the crate the `pub
+    use` statement named, falling back to the declaration set for that
+    spelling where the carrying crate does not declare it.
+    """
+    sweep = resolver()
+    index = sweep.declarations(REPO, sweep.dependency_set(REPO))
+    lists = tuple(stem.removesuffix(".rs") for stem in FACADE_FILES)
+    top, _ = stub_surface()
+    found = {}
+    for name, where in sweep.curated(REPO, lists).items():
+        if name not in top:
+            continue
+        roots = {root for statements in where.values() for root in statements}
+        decls = [d for d in index.get(name, []) if d.crate in roots]
+        decls = decls or index.get(name, [])
+        if not decls:
+            continue
+        members = sweep.declared_members(decls[0])
+        if members:
+            found[name] = (decls[0], members)
+    return found
+
+
+def unspelled_members(spelled):
+    """`[(type, member), ...]` — every member of a matched declaration the
+    Python namesake does not spell, in declaration order."""
+    out = []
+    for name, (_decl, members) in sorted(curated_declarations().items()):
+        for member in members:
+            if f"{name}.{member}" in spelled:
+                continue
+            if f"{name}.{snake_case(member)}" in spelled:
+                continue
+            out.append((name, member))
+    return out
 
 
 # --- the audit page's gap ids -----------------------------------------
@@ -409,6 +547,14 @@ BOUND_AS = {
     "UnitVec3": "Datum.direction",
     "UnitVec3Error": "EvaluationError.kind",
     "PI": "pi_rad",
+    # `DistributionField` names WHICH offset of a distribution a fault
+    # is about, and it crosses as that word on the fault rather than as
+    # a class: a three-member closed set naming struct fields is what a
+    # caller compares against, and a class would add an import for no
+    # question it answers. The `NodeErrorKind` row's shape — a curated
+    # enum flattened onto an exception attribute — one level in, on an
+    # exception that already carries `variant`.
+    "DistributionField": "DistributionFault.field",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
@@ -493,10 +639,301 @@ BOUND_AS = {
     # exists for what the type does NOT have yet: the match that mints
     # it is exhaustive, so a second indexing invariant stops the
     # bindings compiling instead of joining the first under one word.
-    # Python has no class for the payload and needs none — the three
-    # numbers the arm carries describe a mesh that violates its own
-    # invariant, which is a bug report and not something to branch on.
+    # Python has no class for the payload and needs none, but its
+    # three numbers cross beside the discriminant — `patch`,
+    # `triangle` and `index` on the same exception, `None` on every
+    # other arm. They describe a mesh that violates its own invariant,
+    # which is a bug report and not something to branch on; a bug
+    # report is assembled from numbers, and the payload's type is not
+    # raisable, so this door is the only crossing they get.
     "MeshPickError": "NodePickError.index_variant",
+    # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
+    # analytic kind's stage-1 estimator declined on a face that could
+    # not import without promotion. It crosses by the carrier rule at
+    # `MeshPickError`'s spelling and for that entry's reason: the
+    # carrier's arm HAS a word of its own, `recognition_ambiguous`,
+    # which names the condition and which a caller branching on the
+    # import ladder needs to stay put. So the payload's discriminant
+    # arrives BESIDE it rather than in place of it, `None` on every
+    # other arm.
+    #
+    # Two values, and they are two different next moves: `plane`
+    # declining is a flatness question at the file's tolerance,
+    # `cylinder` declining is an ill-conditioned axis and wants more
+    # of the patch. The match that mints them is exhaustive, so a
+    # third promotable kind stops the bindings compiling instead of
+    # joining one of these.
+    #
+    # No Python test row: firing the arm needs a file with a
+    # multi-bound curved face on an ill-conditioned NURBS surface,
+    # which is a `step-import` fixture and not something an authoring
+    # door reaches. Both words are pinned in Rust, where the refusal
+    # constructs.
+    "PromotedKind": "StepImportError.promoted_kind",
+    # THE SUCCESS HALF OF THE SAME DOOR, which crosses as a VALUE and
+    # so puts the carrier rule to work in the other direction.
+    #
+    # `StepImport` is what `import_step` answers. Its `Solid` arm is
+    # the whole of what Python's door can adopt, so the carrier crosses
+    # AS that arm — `ImportReport`, a frozen value with `body`,
+    # `enclosure`, `eps_in` and the three record lists — rather than as
+    # a two-arm sum with a `variant` a Python caller could never see
+    # the other value of. The `Wireframe` arm is not dropped: it is
+    # already this door's typed refusal (`StepImportError.variant ==
+    # "wireframe"`), because a wireframe is not a body and this door
+    # adopts bodies.
+    #
+    # THE MEASUREMENT, because a shape claim is a claim. Before this
+    # the door answered a bare `Body` and the arm's other five fields
+    # had no Python spelling at all; the natural journey — import a
+    # file, ask what it encloses — ran the certified quadrature TWICE
+    # over one body at one band, once inside the import gate and once
+    # in `Body.mass_properties`. `enclosure` is the gate's own result
+    # handed back, so that journey now measures once, and
+    # `test_document.py` pins the two BIT for bit rather than within a
+    # tolerance: the claim is that they are the same computation, and
+    # an almost-equality would pass for two different ones that agreed.
+    "StepImport": "ImportReport",
+    # The record vocabulary the `Solid` arm names —
+    # `StructureNormalization`, `CurvePromotion`, `PlacedInstance` and
+    # the `FaceCensus` pair a normalization maps between — is NOT
+    # mapped here and needs no entry: each crosses as a frozen row
+    # class Python spells identically, so all four are accounted for by
+    # rule 1. What a row projects is its own fields, which is the
+    # census's voice for a value the caller READS, where a refusal's
+    # payload gets a word on the exception. Only the two discriminants
+    # below need a mapping, because a Python caller holds a word rather
+    # than the enum.
+    #
+    # `StructureNormalization::kind`, by the carrier rule and at the
+    # value side's spelling: the carrier projects every field as an
+    # attribute, so its discriminant is one of those fields — a word at
+    # `kind`, with the one arm's payload beside it at `promoted_to`
+    # (which analytic kind certified, `PromotedKind`'s own two words)
+    # and `residual`, `None` on the other four arms. The word does NOT
+    # fold the kind in: a caller reading "a patch was promoted" reads
+    # `surface_promotion` whichever kind it was, and branches on the
+    # second attribute if it cares. Five words from an exhaustive
+    # match, so a sixth normalization stops the bindings compiling.
+    "NormalizationKind": "StructureNormalization.kind",
+    # `CurvePromotion::kind`, the same rule one row over. One word
+    # today (`circle`) and a map rather than a literal because the
+    # recognizer's named exclusions — line-as-degree-1, ellipse, helix,
+    # open arcs — each land here when their follow-up does.
+    "PromotedCurveKind": "CurvePromotion.kind",
+    # THE OP FAMILIES' REFUSALS, at the same spelling and under the
+    # same rule, applied at the carrier that holds the most of them.
+    # `EvaluationError.kind` says WHICH DOOR refused (`revolve`,
+    # `tube`, `boolean`, `fillet`); each of these is the kernel
+    # refusal that door raised, and its arm now crosses as
+    # `inner_kind` beside the carrier's word rather than in place of
+    # it — `MeshPickError`'s reading, one carrier over, for a carrier
+    # whose word every caller branching on the op ladder already
+    # holds.
+    #
+    # THE MEASUREMENT, because a category is a claim. Each of these
+    # was `different-shape` or `behind-a-door`, and both dispositions
+    # were true when written: the arms differed only in PROSE, so
+    # there was no Python shape to point at. There is one now, and it
+    # is a word per arm — twenty-one for `RevolveError`, forty-one for
+    # `BooleanError`, twenty-two for `ShellError` — minted by an
+    # exhaustive match, so a kernel arm added without a word stops the
+    # bindings compiling. What still has no Python spelling is the
+    # arm's FIELDS, and that is the payload question, tracked
+    # separately: a mapping here claims the discriminant crosses, and
+    # nothing more.
+    #
+    # `ShellError`, `SkinError`, `ParamAttachError` and the kernel's
+    # `topo::splitting::SplitError` cross the same way and are NOT
+    # rows here: none of them is a leaf name of the curated
+    # lists this census reads (they arrive through the whole-crate
+    # re-exports), so this file never accounted for them and does not
+    # start now.
+    "BandError": "EvaluationError.inner_kind",
+    "BlendError": "EvaluationError.inner_kind",
+    "BooleanError": "EvaluationError.inner_kind",
+    "ExtrudeError": "EvaluationError.inner_kind",
+    "LoftError": "EvaluationError.inner_kind",
+    "ProfileError": "EvaluationError.inner_kind",
+    "RevolveError": "EvaluationError.inner_kind",
+    "TransformError": "EvaluationError.inner_kind",
+    "TubeError": "EvaluationError.inner_kind",
+    # `NamingError` and `ProgramRefusal` are new to the curated lists
+    # and arrive already bound. Both were `NOT_CARRIED` at the façade
+    # under "the curated face is a different shape", and the reading
+    # did not hold: neither has a curated door of its own, both are
+    # payloads of curated refusals (`NodeErrorKind::Naming`,
+    # `EditError::ProfileProgramRefused`), and a consumer could match
+    # either arm and not name what it caught. Carried, and their arms
+    # cross at the two carriers' second words.
+    "NamingError": "EvaluationError.inner_kind",
+    "ProgramRefusal": "EditError.inner_variant",
+    # `MetaVersionError` is the same row one arm over, and it arrives
+    # by the same reading failing. It was `NOT_CARRIED` under "the
+    # curated face is a different shape", qualified: it is a nested
+    # REFUSAL rather than a leaf value, and the arm holding it carried
+    # no inner word to name it by, so naming it was the per-arm-tag
+    # question. That question is answered — every carrier that
+    # projects a word now projects its arm's word beside it — and
+    # `EditError::MetaUnversioned` answers WHICH of the three ways a
+    # stored metadata value breaks the D7 producer convention
+    # (`not_a_map`, `missing_version`, `version_not_int`) rather than
+    # only that it did.
+    #
+    # THE MEASUREMENT: there is no Python door that mints a
+    # `SetAppearanceMeta`, so no Python row can provoke this arm and
+    # the reach is a Rust construction pin — `src/tests.rs`'s
+    # `every_edit_arm_projects_the_payload_it_carries`, which the
+    # carriage moves from 57 of 58 arms to 58 of 58, because the arm
+    # it could not build was the one whose third field this façade did
+    # not carry.
+    "MetaVersionError": "EditError.inner_variant",
+    # THE PERSISTENCE DOOR'S PAYLOAD, under the same rule at the
+    # carrier that wraps the most refusals of other layers.
+    # `PersistError.variant` says WHICH stage refused; three of these
+    # are what that stage was refusing ABOUT, and they now cross
+    # rather than staying in the message.
+    #
+    # THE MEASUREMENT, because a category is a claim. All three were
+    # `different-shape`, and that reading was true when written: the
+    # persistence door carried one attribute, so there was no Python
+    # shape to point at. There is one now. `SnapshotError`'s
+    # nineteen arms and `ProgramFault`'s two mint a word apiece from
+    # an exhaustive match, so a kernel arm added without one stops the
+    # bindings compiling, and the word rides `inner_variant` beside
+    # the stage's own. `NonFiniteSite` is the one that does NOT cross
+    # as a word: it is a RECURSIVE descriptor (an edit's index
+    # wrapping the site inside that edit's payload), so it crosses as
+    # the kernel's own prose for where the float sits — one sentence
+    # on `site`, not a field per rung.
+    #
+    # What still has no Python spelling is the arms' FIELDS: a
+    # snapshot refusal's node ids and counts are the snapshot door's
+    # surface, not the persistence door's. A mapping here claims the
+    # discriminant crosses, and nothing more.
+    "ProgramFault": "PersistError.inner_variant",
+    "SnapshotError": "PersistError.inner_variant",
+    "NonFiniteSite": "PersistError.site",
+    # THE STL DOOR'S TWO OPTION REFUSALS. Both were `different-shape`
+    # under "their refusals ride `StlError.variant`", and the reading
+    # was true when written: only the tag crossed, so the arms had no
+    # Python shape. They have one now — the character the
+    # `solid <name>` grammar does not admit, and the header's byte
+    # length — projected from the same exhaustive match as the
+    # writers' own arms, so an arm added to either enum stops the
+    # bindings compiling.
+    "SolidNameError": "StlError.character",
+    "BinaryHeaderError": "StlError.len",
+    # THE TWO-TOLERANCE ESCALATION PAYLOAD, curated at the prelude
+    # because THIRTEEN prelude refusals carry it and a Rust caller
+    # holding an `Escalated` arm could not name what it held.
+    #
+    # THE MEASUREMENT, and it MOVED. This entry was `INTERIOR` by the
+    # carrier rule, on the count that not one of the thirteen
+    # projected the escalation's own shape — each crossing as a single
+    # tag plus the kernel's prose, with no bound exception carrying a
+    # margin, an enclosure bound or a band. `FrameError` now does: the
+    # frame constructors' degenerate arm carries `Option<Indeterminate>`
+    # and projects it as `margin` / `margin_low` / `margin_high`,
+    # `zero` / `escalate` and `predicate`. `FrameError` is not one of
+    # the thirteen — it is a `geom_core` refusal the frame
+    # constructors return, not a prelude-curated one — so that count
+    # is unchanged; what has changed is the sentence about bound
+    # exceptions, and this row moves with it.
+    #
+    # `MarginDiag` — the payload's own field type — is a curated name
+    # too, on the same list and for the same crossing: its own row is
+    # below, `different-shape`, because its discriminant arrives as
+    # which of these attributes is set rather than as a word.
+    "Indeterminate": "FrameError.margin",
+    # THE LEVER-ARM REFUSAL, curated at `pncad::document` beside the
+    # `MateFault` arm that carries it, and its discriminant is the
+    # word that arm publishes: `datum_too_small`, the one way a datum
+    # can name a scale too small to lever a verdict over.
+    #
+    # Its fields DO cross, which is the difference from the shell
+    # row below: `MateFault.extent` and `MateFault.floor` are the
+    # scale the datum named and the floor it is under, in metres, so
+    # nothing about this refusal is readable only in the prose.
+    "LeverRefusal": "MateFault.inner_variant",
+    # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
+    # beside the two `CheckEvidence` arms that carry it, and its
+    # discriminant is the word those arms publish: `band`, `props`,
+    # `escalated` or `zero_volume`. `CheckEvidence.reason` is the same
+    # refusal's sentence — the kernel's own prose — and this is the
+    # branchable half beside it, so a caller stops substring-matching
+    # the sentence to learn which shell refusal escalated the count.
+    #
+    # Its own fields do not cross: which shell, and the mass-properties
+    # failure under `props`, are the shell door's vocabulary and this
+    # entry claims the discriminant and nothing more.
+    "ShellClassifyError": "CheckEvidence.inner_variant",
+    # THE TIER-3′ CENSUS VOCABULARY, at the one door on this surface
+    # whose discriminant crosses in a SEQUENCE.
+    #
+    # THE MEASUREMENT, because both entries were `INTERIOR` and both
+    # arguments were true when written. The validate doors crossed
+    # their failures as joined `Display` prose with a `door` and a
+    # `failure_count` and no per-arm tag whatsoever, so which
+    # coincidence the census found was not a thing Python could read
+    # at all — the finding reached a caller only inside that text,
+    # through the kernel's own rendering. Those rows also said what
+    # would flip them: "a validate projection with per-arm tags — and
+    # both would move together". That door exists now, and they do.
+    #
+    # `ValidationError.findings` is a list of `ValidationFinding`s, one
+    # per failure, `len(findings) == failure_count`. `CensusContact` is
+    # `UndeclaredContact`'s payload and its arm is `contact_kind`;
+    # `CensusSubject` is what `CensusUnsupported` and
+    # `CensusLaneUnsupported` are ABOUT and its arm is `subject_kind`,
+    # with `entity_kind` beside it for the `Entity` arm's carrier.
+    # Each is minted by an exhaustive match in `src/tags.rs`, so a
+    # kernel arm added without a word stops the bindings compiling.
+    #
+    # THE SEQUENCE IS THE EXCEPTION AND IS ARGUED AS ONE. Every other
+    # mapping on this list is a scalar attribute because every other
+    # refusal reports ONE fault; `validate*` is the one door that
+    # reports many at once, which `failure_count` has said since it was
+    # bound. `ValidationFinding`'s docstring, `pncad.pyi` and the
+    # README all state that at the door, so it does not read as a
+    # second convention.
+    #
+    # What still has no Python spelling is the arm's FIELDS — which
+    # vertex, which face — and that is the payload question rather
+    # than this one: no arena key crosses to a surface that holds
+    # names.
+    #
+    # EVERY payload DISCRIMINANT of this door now crosses, and the
+    # four entries here are that rule rather than a pair. The two
+    # below joined the two above under the ruling that generalised
+    # them: a discriminant a caller can act on crosses as an attribute
+    # of its own, named per type, `None` on every other arm — one word
+    # per concept, never one word meaning different things under
+    # different `variant`s. `StaleDeclaration` is
+    # `stale_contact_declaration`'s and says WHICH record lost its
+    # witness, which is which record to withdraw; `RingContact` is
+    # `ring_meets_outer`'s and says HOW the ring meets the outer loop,
+    # which is where the ring has to move. Neither payload's FIELDS
+    # cross — both are arena keys — so the projection stops at the
+    # discriminant, as it does at the two above.
+    #
+    # THE MEASUREMENT for the second pair. Both were `INTERIOR` with
+    # the argument that the ruling had named two types and these were
+    # not them. `ValidationFinding.stale_kind` and
+    # `.ring_contact_kind` are those two rows moved: each is minted by
+    # an exhaustive match in `src/tags.rs` beside the other two, so a
+    # kernel arm added to either enum stops the bindings compiling.
+    # No Python scene reaches either arm — a stale record needs a
+    # declaration parted from its witness and no door hands one out, a
+    # ring on its outer loop needs raw Euler surgery — so the words
+    # are pinned per arm in `src/tests.rs` and named as unreachable in
+    # `tests/test_validate.py`. Crossing them is still the move: the
+    # attribute is the contract, and a caller reads it the day a door
+    # produces one.
+    "CensusContact": "ValidationFinding.contact_kind",
+    "CensusSubject": "ValidationFinding.subject_kind",
+    "RingContact": "ValidationFinding.ring_contact_kind",
+    "StaleDeclaration": "ValidationFinding.stale_kind",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
     # accounted by rule 1; these two are the family's shape entries,
@@ -622,6 +1059,22 @@ BOUND_AS = {
     # `EditError.variant` — `duplicate_input` and `too_few_members`.
     # The third renderer is the load validator's `SnapshotError`, which
     # this façade does not carry at all.
+    # The edit door's PAYLOAD, projected at LIB-DOORS-1. `SlotId` is
+    # `EditError.slot`, one stable word per named slot — the
+    # measurement is that a caller who could read WHICH edit refused
+    # could not read which SLOT it refused at, and six arms carry one.
+    # `AttrKind` is `EditError.kind` at the two appearance arms;
+    # `ExprPath` is `EditError.path`, whose two halves ride the `node`
+    # and `slot` attributes that already name them, so the address
+    # crosses whole across three attributes rather than as a fourth
+    # type. All three were `NOT_CARRIED` at the façade under "the
+    # curated face is a different shape", and for `AttrKind` and
+    # `ExprPath` the reading did not hold: they are `EditError`
+    # payloads with no curated door of their own, which is the payload
+    # rule `ProgramRefusal` and `NamingError` moved under.
+    "AttrKind": "EditError.kind",
+    "ExprPath": "EditError.path",
+    "SlotId": "EditError.slot",
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "PlacementRuleFault": "EditError.variant",
@@ -648,6 +1101,15 @@ BOUND_AS = {
     "intersect_with": "Node.boolean",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
+    # The façade's lattice-backed loop door and the document layer's
+    # node constructor answer the same question — a closed outline from
+    # a coordinate table — one rung apart, which is the mapping rule's
+    # ordinary case (`extrude` -> `Node.extrude`). Python has no
+    # loops-in-hand seat to spell the Rust door at: `Node.polygon`
+    # names a frame and mints a node, and the refusals it can raise are
+    # the same PATHS refusals, tagged (`polygon_too_few_vertices`,
+    # `junction_tangent`).
+    "polygon": "Node.polygon",
     "revolve": "Node.revolve",
     "save": "Doc.save",
     "select": "Evaluation.select",
@@ -674,6 +1136,27 @@ BOUND_AS = {
     "validate_pseudomanifold": "Body.validate_pseudomanifold",
     "write_ascii": "Mesh.to_stl_ascii",
     "write_binary": "Mesh.to_stl_binary",
+    # --- the analysis lane's free mass doors, which cross as METHODS
+    # ON THE BOX. The kernel keeps the free spelling for the driver,
+    # which prices intervals that are deliberately NOT the analyzed
+    # ones; a Python caller has no compile step that would catch one
+    # parameter's distribution paired with another's box, so the door
+    # that cannot be mispaired is the only one bound
+    # (`src/py/analysis.rs` argues it at length, from
+    # `AnalyzedBox::axis_tail_mass`'s own comment).
+    "box_mass": "AnalyzedBox.box_mass",
+    "tail_mass": "AnalyzedBox.tail_mass",
+    # The two payloads the analysis surface carries UNCONDITIONALLY,
+    # and it says why at the site: they are what `NodeErrorKind`'s
+    # `ParamBox` and `Seed` arms hold, and those arms exist on every
+    # build even though the door that fills them is behind `interval`.
+    # They cross exactly as their carrier does — flattened to the tag
+    # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
+    # one level in. A default-feature evaluation cannot produce either
+    # today, which is the same sentence `MinClearanceRefusal` carries
+    # one roster down: the LANE decides, not the feature.
+    "ParamBoxError": "EvaluationError.kind",
+    "SeedError": "EvaluationError.kind",
 }
 
 # The family tags a NOT_BOUND entry may carry. A `gap:` entry names the
@@ -725,55 +1208,27 @@ GAP = "gap"
 #: carrying the unit that moved it — `B-READBACK` closed at
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
-FAMILIES = {
-    "B-NOTATION": (
-        "authored notation, the D6 boundary's other half; closing it "
-        "binds `WrittenLength` / `WrittenAngle` onto the `DocParam` and "
-        "expression constructors, so a Python caller who writes "
-        "`25 * mm` gets a parameter that REMEMBERS the millimetres — "
-        "today the unit erases at the `Length` door and the document "
-        "records the canonical row, which is what Rust authoring "
-        "stopped doing at schema v20"
-    ),
-    "B-DISTRIBUTIONS": (
-        "parameter uncertainty and the analysis lane (ERROR-DESIGN "
-        "E1/E2); closing it binds `Distribution`'s four forms onto a "
-        "`DocParam` constructor and the analysis doors that read them "
-        "back — the analyzed box, tail mass and leaf mass, with "
-        "`DistributionFault` and the band's typed measure refusal as "
-        "arms a Python caller can dispatch on. Today Python authors "
-        "unannotated parameters only: a document read back from a file "
-        "carries an annotation Python can READ ONLY THROUGH equality, "
-        "hashing and `repr`, and cannot spell. The sharp edge is the "
-        "WRITE door, not the read one — `set_doc_param` is "
-        "create-or-replace, so passing it a `DocParam` rebuilt from a "
-        "dimension and a number DELETES the annotation silently. "
-        "`set_doc_param_value` is the value-only door that carries the "
-        "declaration forward and is what a Python caller moving a "
-        "number must use until this family closes"
-    ),
-    "B-MEASURES": (
-        "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
-        "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
-        "four verbs and `AssertionDir` onto `Node.measure` / "
-        "`Node.assertion` constructors, with `MeasureNodeFault` as the "
-        "refusal a caller dispatches on, and `MinClearanceRefusal` / "
-        "`MeasureUnavailableAt` as the two the FOURTH verb adds: "
-        "`min_clearance` is answered by an engine rather than a "
-        "closed form (M10-6), so it can refuse for the engine's own "
-        "reasons, and at a point scalar it has no value at all and "
-        "says which scalar and which door could answer. The READ half already ships "
-        "and is deliberately not in this gap: `Value.measure` answers "
-        "with a `Measurement` (value plus the F1 dimension it rides) "
-        "and `Value.assertion` with a `Verdict` (three states kept "
-        "three, both numbers on a decided one). That split is the "
-        "unit's own disposition: the friction the R-series reviews "
-        "keep finding is unreadable RESULTS, and a Python caller can "
-        "now read a web and its verdict off any evaluation, including "
-        "one loaded from a file authored elsewhere. What a Python "
-        "caller cannot yet do is WRITE one — the same asymmetry "
-        "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
-        "edge, because no existing write door silently drops a measure"
+FAMILIES: dict[str, str] = {
+    # THE MAP WAS EMPTY ONCE, and it could be again: every family the
+    # LIB residual register's category B enumerated is closed
+    # (B-READBACK, B-CHECKS, B-CANCEL, B-FACE-FRAME, B-PART,
+    # B-NOTATION, B-DISTRIBUTIONS, B-MEASURES), and the one below does
+    # not come from that register either.
+    #
+    # THE ONE LEFT IS A MEMBER-RULE FINDING: a member of a curated type
+    # Python spells identically, so the name match accounted it and no
+    # roster here could report it until members were counted. The
+    # rule's other two findings closed at LIB-GAPS-1, which bound
+    # `Node.datum_point`, `Node.datum_frame` and `Mesh.boundaries`.
+    # `test_every_gap_entry_names_a_defined_id` reads this map in both
+    # directions: no entry may cite a key that is not here, and no key
+    # here may go uncited.
+    "B-DOC-EDITS": (
+        "the three `DocEdit` arms no Python constructor builds — an "
+        "expression at a path, and the two witness edits. Closing it "
+        "needs a curated payload for the witness pair and a prose "
+        "rendering for the path refusal, then one constructor per arm "
+        "and one test row per tag each can raise."
     ),
 }
 
@@ -814,8 +1269,7 @@ FAMILIES = {
 #: - *Refusal payloads flattened to a tag.* Python's exceptions carry
 #:   their refusal as ATTRIBUTES, but the arm is a `variant`/`kind`
 #:   string rather than a bound payload class, so the Rust arm types
-#:   have no Python name: `PersistError.variant` stands for
-#:   `SnapshotError`, `NonFiniteSite` and `ProgramFault`;
+#:   have no Python name:
 #:   `EvaluationError` for `NodeError`,
 #:   `BooleanError`, `TransformError` and the sweep/loft/fillet/
 #:   revolve refusals; `PathError` for `ProfileError` and
@@ -833,10 +1287,7 @@ FAMILIES = {
 #:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
 #:   `BOUND_AS` at that spelling) and whose `message` is the
 #:   exception's message — the resolver's own diagnosis, prose because
-#:   that is what it is;
-#:   `StlError.variant` for `SolidNameError` and `BinaryHeaderError`,
-#:   which refuse the same CALL the writers do because the options
-#:   they validate are that call's keyword arguments.
+#:   that is what it is.
 #: - *An option struct that became keyword arguments.* `StepOptions` is
 #:   `Evaluation.step_string`'s six keywords, one per field and each
 #:   defaulting to the Rust default — a correspondence the crate's own
@@ -848,9 +1299,10 @@ FAMILIES = {
 #:   and `BinaryHeader` protect an invariant, not a vocabulary, and
 #:   the invariant is checked at the call rather than at a
 #:   constructor Python would otherwise have to name. Their refusals
-#:   ride `StlError.variant` under `solid_name_*` / `binary_header_*`
-#:   tags, which is why `SolidNameError` and `BinaryHeaderError` are
-#:   in the flattened-payload bullet above too; `ImportOptions` is
+#:   ride `StlError` under `solid_name_*` / `binary_header_*` tags,
+#:   with their arms' payloads projected beside the tag, which is why
+#:   `SolidNameError` and `BinaryHeaderError` are in `BOUND_AS` and
+#:   not in the flattened-payload bullet above; `ImportOptions` is
 #:   `import_step`'s absent second argument; `EvalOptions` is
 #:   `evaluate`'s `resolver=`, the one field of it that changes an
 #:   ANSWER, bound at LIB-G18a — which is also when its memo residue
@@ -882,13 +1334,21 @@ FAMILIES = {
 #:
 #:   `UNDER_RECOURSE` and `CLASS_DEFERRAL` left this bullet at
 #:   LIB-G18b and are bound top-level, on `PIN_MISMATCH_RECOURSE`'s
-#:   precedent: an assembly author's two most-hit refusals are an
+#:   precedent: an assembly author's most-hit refusals are an
 #:   under-determined mate and a class outside v1, and a test that
 #:   wants to say "the refusal ends on its recourse" must not do it by
 #:   re-typing the sentence. `CLASS_DEFERRAL` is also what
 #:   `ClassAdmission.why` answers for the `not_admitted` arm, from the
 #:   table rather than restated — so the constant and the door agree
 #:   by construction.
+#:
+#:   `CONTRADICTORY_RECOURSE` and `NO_AT_REST_RECORD_RECOURSE` are
+#:   bound for the same reason and complete the set: the four typed
+#:   refusals an assembly author meets — under-determined, in
+#:   contradiction, outside the at-rest vocabulary, and pinned to a
+#:   version the store no longer holds — each end on a named sentence,
+#:   and binding two of the four would leave the other two assertable
+#:   only by re-typing prose.
 #: - *Structures Python's authoring surface replaces with its own.*
 #:   `Applied` and `EditRecord` are `apply`'s pair, and `Doc.apply`
 #:   mutates in place and answers `Optional[NodeId]`, so there is no
@@ -900,9 +1360,15 @@ FAMILIES = {
 #:   `bulge_from_center`/`bulge_from_via` into the
 #:   `Center`/`Via` spec modes that are bound. `Dimension` is what
 #:   `DocParam.length`/`angle`/`count`/`scalar` choose between;
-#:   `SlotId` is what `DocEdit.bind_count_param` names implicitly;
 #:   `ProfileDoc` is the alias `Node.profile` builds from loops;
 #:   `SplitSide` is the position in `Value.split`'s tuple.
+#:
+#:   **`SlotId` left this bullet at LIB-DOORS-1** and is in `BOUND_AS`
+#:   below. Its sentence stayed true and stopped being the whole
+#:   answer: Python still ADDRESSES a slot through a door that names
+#:   it, and it now READS one off a refusal — `EditError.slot`, a
+#:   stable word per slot. Addressing and reading are two questions,
+#:   and a roster that compares names has to answer the second.
 #: - *A write sink Python does not need.* `write_step` takes a Rust
 #:   `Write`; `Evaluation.step_string` answers the text and Python
 #:   writes it. (`write_ascii`/`write_binary` are not here either, and
@@ -1062,7 +1528,10 @@ FAMILIES = {
 #: `MeshPick`, and a refusal is received rather than built. The
 #: payload alone is curated now and its discriminant crosses at
 #: `NodePickError.index_variant` (`BOUND_AS`, above), which is where
-#: the reasoning for the split spelling lives.
+#: the reasoning for the split spelling lives. Its three numbers
+#: crossed later, as `patch`, `triangle` and `index` on the same
+#: exception: the closing left them in the prose, and the standing
+#: rule is that an arm's payload is attributes.
 #: **B-RESOLVE is CLOSED and no longer a `gap` id here**
 #: (LIB-B-RESOLVE). It held three names — `resolve`, `Resolution` and
 #: `RunCtx` — and the question a consumer that STORES names must ask
@@ -1154,6 +1623,11 @@ FAMILIES = {
 #: added `DocEdit.bind_instance_param` beside it, one door per slot,
 #: keeping the shape decision rather than crossing the enum.
 #:
+#: That row has since moved into `BOUND_AS` (LIB-DOORS-1), and the
+#: paragraph above is unchanged by the move: the door-per-slot
+#: decision it records is about ADDRESSING a slot, and what moved is
+#: reading one off a refusal.
+#:
 #: The third thing is not a name at all, and is the measurement worth
 #: keeping here: closing this family REQUIRED binding a door the
 #: charter never mentioned. `PartSelect.instance` selects out of a
@@ -1170,6 +1644,47 @@ FAMILIES = {
 #: `PartSelect.split_half` / `PartSelect.instance`, `Node.pattern`,
 #: and `DocEdit.bind_instance_param`. The positive form is
 #: `tests/test_part_select.py`.
+#: **B-NOTATION is CLOSED and no longer a `gap` id here**
+#: (LIB-B-NOTATION), and it is the first family whose roster was
+#: HONEST about its own entries: it cited two names, `WrittenLength`
+#: and `WrittenAngle`, the family needed exactly those two bound, and
+#: both now leave the roster under rule 1. What it could not see was
+#: everything ELSE closing them required, which is B-FACE-FRAME's
+#: lesson arriving on a family that had no accounting error at all.
+#:
+#: The measurement first, because the charter's claim was executed
+#: rather than repeated: `DocParam.length(25 * mm)` saved
+#: `"display_unit": "m"`. The `mm` erases at the `Length` door,
+#: because a Python `Length` wraps `quantity::Length` and is canonical
+#: metres and nothing else — and it CANNOT be taught the unit, since
+#: it carries the arithmetic `quantity::written` refuses to define a
+#: notation for. So the notation crosses as the second type, which is
+#: what these two entries always named.
+#:
+#: `Doc.params` is a METHOD of a curated type. `Doc` is curated and
+#: the stub declares a top-level `Doc`, so rule 1 accounts it WHOLE —
+#: and Python had NO door that answered a document parameter back, not
+#: the map and not one by name. `Doc.eval` answers a parameter
+#: reference's number with the dimension and the notation both erased,
+#: so a document could remember `mm` and no caller could ask. Binding
+#: the authoring half alone would have shipped a memory nothing could
+#: read except by saving to text and parsing the JSON by hand.
+#:
+#: `LengthUnit.__eq__` is a MISSING DUNDER, one level further in than
+#: a method and invisible to BOTH rosters here: `test_stubs.py` checks
+#: stub-declared operators against the compiled class, so an operator
+#: neither side declares is unreportable. The unit classes carried no
+#: comparison at all, so `mm == mm` was true only by identity, and a
+#: unit read back off a value compared unequal to the constant it was
+#: written in. A read door for a notation is unusable without it.
+#:
+#: What closing it bound: `WrittenLength` / `WrittenAngle`,
+#: `DocParam.written_length` / `written_angle`, `DocParam.unit`,
+#: `Doc.params`, and equality and hashing on `LengthUnit` /
+#: `AngleUnit`. `Expr::written_length` needed nothing:
+#: `Doc.parse_expr("25 mm")` already reaches `literal_with_unit` and
+#: `Expr.text` reads the notation back. The positive form is
+#: `tests/test_notation.py`.
 #: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
 #: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
 #: `EvalError` — and closing it moved NINE, because the three could
@@ -1336,11 +1851,8 @@ NOT_BOUND = {
     "Axis3": SHAPE,
     "AsciiOptions": SHAPE,
     "BinaryHeader": SHAPE,
-    "BinaryHeaderError": SHAPE,
     "BinaryOptions": SHAPE,
-    "BlendError": SHAPE,
     "BlendRefusal": SHAPE,
-    "BooleanError": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
@@ -1366,8 +1878,23 @@ NOT_BOUND = {
     "EvalOutcome": SHAPE,
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
-    "ExtrudeError": SHAPE,
     "ImportOptions": SHAPE,
+    # The element type of `ImportOptions::declared_contacts`, curated
+    # at the prelude because filling a public field means spelling its
+    # element type and a Rust caller could not: the import-side
+    # declaration channel was callable and not FILLABLE. That defect
+    # is a Rust one and it does not reproduce here, which is why this
+    # entry is `different-shape` rather than a gap. It follows its
+    # carrier one bullet above — `ImportOptions` is `import_step`'s
+    # absent second argument — and an element type of an absent
+    # argument has strictly less to cross than the argument does.
+    #
+    # Read this entry beside `import_step` if that second argument is
+    # ever bound: at that moment `ImportContact` needs a Python
+    # spelling of its own (a constructor for the position anchor), and
+    # this row stops being honest in exactly the shape the
+    # `EvalOutcome` entry above records.
+    "ImportContact": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
     # `continue_to`'s target trait, absorbed into the verb exactly as
@@ -1375,7 +1902,6 @@ NOT_BOUND = {
     # not bound in Python yet either (the Rust-side roster records
     # that, `surface_census.rs`).
     "ContinueTarget": SHAPE,
-    "LoftError": SHAPE,
     # The fourth arena key, joining the three above it in the same
     # bullet and for their reason: a validation refusal names a ring
     # beside its face, and Python holds neither.
@@ -1385,21 +1911,41 @@ NOT_BOUND = {
     # the keys themselves and for exactly their reason: a Python
     # caller holds opaque NAME text and never a key, so a sum over
     # keys has nothing to project either. What the sums' arms say
-    # DOES reach Python, at the one door where it is the answer rather
-    # than the site: `ReadbackError.variant` is `dangling_entity` or
-    # `dangling_geometry`, which is which of the two came back empty,
-    # and `DanglingRef` is the `BOUND_AS` entry that records it.
+    # DOES reach Python, at the two doors where the arm is the answer
+    # rather than the site: `ReadbackError.variant` is
+    # `dangling_entity` or `dangling_geometry`, which is which of the
+    # two came back empty (`DanglingRef` is the `BOUND_AS` entry that
+    # records it), and `ValidationFinding.entity_kind` is which KIND of
+    # carrier a census refusal's entity subject is. Both project the
+    # discriminant and neither projects the key, which is why this row
+    # does not move: the sum is still a sum over things Python cannot
+    # hold.
     "EntityId": SHAPE,
     "GeomRef": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
+    # WHAT THE CLASSIFIER SAW, curated at the prelude beside the
+    # `Indeterminate` that holds it — and a discriminant that crosses
+    # as WHICH ATTRIBUTE IS SET rather than as a word.
+    #
+    # THE MEASUREMENT. The frame constructors' degenerate arm carries
+    # an `Option<Indeterminate>` and the binding forks on this type's
+    # three arms to publish it: `margin` for a value,
+    # `margin_low`/`margin_high` for an enclosure, and neither for a
+    # poisoned margin, in every case beside the band's `zero` and
+    # `escalate`. So all three arms reach a Python caller and each is
+    # distinguishable from the other two — which is what makes the
+    # carriage a carriage — but the shape they arrive in is the
+    # attribute set of the refusal, not a tag on it. A `margin_diag`
+    # word beside them would publish one fact twice, the
+    # `frame_error_tag` rule at the arm one rung up.
+    "MarginDiag": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.
     "NameOrigin": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
-    "NonFiniteSite": SHAPE,
     # The display-unit CODE a `DocParam` carries. A one-byte index into
     # the unit table has no Python spelling and should not get one: a
     # notation reaches Python as its SYMBOL, which is what
@@ -1410,31 +1956,36 @@ NOT_BOUND = {
     # the same content off `PathError.corners` — one `(x, y, reason)`
     # row per refusing corner, the reason its stable tag — so the Rust
     # enums have no Python spelling of their own.
+    #
+    # `NoCornerReason` is new to the curated lists and joins them
+    # rather than arriving as a gap, because its two arms are already
+    # IN those rows: `corner_reason_tag` matches the no-tangent-circle
+    # arm one level in, so a corner refuses as `offset_carriers_
+    # disjoint` or `no_corner_side_candidate` and never as the arm
+    # name alone. It is curated at the prelude for the pair it closes
+    # there — the fillet constructor's no-corner reason beside the
+    # lattice door's `PathNoCornerReason`, which was carried on its
+    # own — and its Python half was never the gap.
     "CornerReason": SHAPE,
     "CornerRefusal": SHAPE,
     "CornerWindow": SHAPE,
+    "NoCornerReason": SHAPE,
     "PathNoCornerReason": SHAPE,
     "Point2": SHAPE,
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,
-    "ProfileError": SHAPE,
     "ProfileLift": SHAPE,
-    "ProgramFault": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
     "Real": SHAPE,
     "RecordedProgramError": SHAPE,
     "ResolveFailure": SHAPE,
     "RevolveAxis": SHAPE,
-    "RevolveError": SHAPE,
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
     "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     "Side": SHAPE,
-    "SlotId": SHAPE,
-    "SnapshotError": SHAPE,
     "SolidName": SHAPE,
-    "SolidNameError": SHAPE,
     "SplitSide": SHAPE,
     "StableName": SHAPE,
     "StepExportError": SHAPE,
@@ -1444,13 +1995,14 @@ NOT_BOUND = {
     "TangentArcTarget": SHAPE,
     "Tol": SHAPE,
     "Tolerance": SHAPE,
-    "TransformError": SHAPE,
     "Vec2": SHAPE,
     "Vec3": SHAPE,
-    # The slot vocabulary's 3-vector families, beside `Axis3` and
-    # `SlotId` and for their reason: Python addresses a slot through
-    # its own spelling, so the Rust enum that groups three of them is
-    # not a name a Python caller needs.
+    # The slot vocabulary's 3-vector families, beside `Axis3`: Python
+    # addresses a slot through a door that names it, so the Rust enum
+    # grouping three of them is not a name a Python caller needs. The
+    # COMPONENT is not lost with it — `EditError.slot` spells the axis
+    # into the word (`origin_x`), so a family and its axis read off
+    # one string rather than off a type Python would have to hold.
     "VectorSlot": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
@@ -1489,7 +2041,6 @@ NOT_BOUND = {
     "write_step": SHAPE,
     # --- behind-a-door --------------------------------------------
     "Band": INTERIOR,
-    "BandError": INTERIOR,
     "BlendKind": INTERIOR,
     # The blend refusal's payload vocabulary, curated at LIB-CUR4 so a
     # prelude-carried `BlendError` is matchable THROUGH the prelude.
@@ -1510,28 +2061,6 @@ NOT_BOUND = {
     "BooleanResult": INTERIOR,
     "BooleanResultKind": INTERIOR,
     "BooleanValue": INTERIOR,
-    # The tier-3′ census vocabulary, curated at LIB-CUR4 beside the
-    # `ValidationError` the prelude already carried. Same rule as the
-    # blend four above, and the validate doors are the starker case:
-    # they cross their failures as joined `Display` prose with a `door`
-    # and a `failure_count` and NO per-arm tag whatsoever, so which
-    # coincidence the census found is not a thing Python can read at
-    # all today. `DeclaredContact` below is the sibling that settles
-    # the category — it is `ValidationError::ContactContradicted`'s
-    # payload, it has been curated all along, and it sits at
-    # `INTERIOR`.
-    #
-    # LIB-B-VALIDATE4 bound the door that PRODUCES those arms and left
-    # this disposition standing, with one sharper thing to say for it.
-    # A census finding does reach Python — inside the joined message,
-    # through the kernel's own `Debug` rendering of this type, keys and
-    # all. So the sentence above is exact rather than comfortable:
-    # nothing here is a thing Python can READ, and the reason a tag
-    # map was not written to fix that is that the rendering is the
-    # KERNEL's (`work/lib/tier-3-prime-findings-render-through-debug
-    # .md`), so inventing a second vocabulary at the boundary would
-    # fork a diagnosis the kernel already words.
-    "CensusContact": INTERIOR,
     # The instantiation seam's declaration bookkeeping. `Relation` and
     # `Route` are the two halves of what a carried finding says, and
     # Python reads both without holding either type:
@@ -1548,21 +2077,50 @@ NOT_BOUND = {
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     # The contact vocabulary's fourth quarter, curated beside the
-    # three that were already here. `INTERIOR` by the same carrier
-    # rule and the same measurement the CUR4 entries above record: a
-    # finding has exactly one route to Python and it is prose: it is
-    # `CensusContact::ConformalPatch`'s payload, and the validate
-    # doors cross their failures as joined `Display` text with a
-    # `door` and a `failure_count` and no per-arm tag at all.
+    # three that were already here. `INTERIOR` by the carrier rule,
+    # measured one rung DOWN from where its carrier now crosses: it is
+    # `CensusContact::ConformalPatch`'s payload, and `CensusContact`
+    # itself reaches Python as `ValidationFinding.contact_kind` —
+    # `conformal_patch`, the word — while what that arm CARRIES stays
+    # behind it. The finding is a declared pair and a verdict, and
+    # projecting it would be projecting a payload's payload; the
+    # discriminant is what a curated list owes and it crosses.
     # (`FlushFinding`, which Python DOES hold, is the detector's own
     # type and not this one — a pair, a class and the evidence — so it
     # settles nothing here either way.) `DeclaredContact` and
     # `ContactVerdict` — this type's two fields — sit at `INTERIOR`
     # beside it, which is the sibling test the `CensusContact` entry
-    # above names.
+    # names.
     "ContactFinding": INTERIOR,
     "ContactRefusal": INTERIOR,
     "ContactVerdict": INTERIOR,
+    # THE PROFILE REFUSALS' PAYLOAD VOCABULARY, curated at the prelude
+    # so a prelude-carried `ProfileError`, `CornerReason` or
+    # `PathError` is matchable THROUGH the prelude rather than only
+    # nameable one module hop away.
+    #
+    # `INTERIOR` by the carrier rule, and the measurement is that both
+    # carriers cross as words with their FIELDS left behind.
+    # `ProfileError` reaches Python at `EvaluationError.inner_kind` —
+    # `non_simple`, `escalated`, one word per arm — so which contact
+    # two segments made, which stage escalated and which segment it
+    # was are in the kernel's prose and nowhere else. `PathError`
+    # reaches it with a `corners` list, and that list carries the
+    # corner's point and its reason word: the anchor arm flattens to
+    # `anchor_outside_trimmed_extent`, so the side and its carrier
+    # kind — and with the carrier kind, whether the setback beside it
+    # is a distance or an arc length — do not cross either.
+    #
+    # Not a `gap:`, for the reason the blend four are not: the debt is
+    # a door projecting its arms' FIELDS, which is
+    # `work/lib/pncad-py-seven-doors-lack-field-projection.md`'s
+    # (the `path` door is one of the six it names), and not a missing
+    # binding for these five types.
+    "ContactKind": INTERIOR,
+    "EscalationSite": INTERIOR,
+    "FilletLeg": INTERIOR,
+    "FilletLegCarrier": INTERIOR,
+    "SegmentRef": INTERIOR,
     "ContentBits": INTERIOR,
     # `BlendError::ConvexitySignFlip`'s payload and
     # `UnsupportedCorner`'s, the other two of the blend four.
@@ -1571,31 +2129,22 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    # What an edge's locus IS, read back off a certified carrier.
+    # Python holds an opaque `Body` handle and no door on it answers a
+    # description, so nothing here is a thing Python can read.
+    #
+    # `MappedCurve` — the `Scaffold` arm's payload — is not a curated
+    # name and so not an entry here; the argument for stopping at that
+    # rung is written where this type is carried, in `prelude.rs`
+    # group 4, and it is an argument about the ARM rather than about
+    # the crossing: the scaffolding door is fenced to construction and
+    # tier 3 refuses it at rest.
     "EdgeDescription": INTERIOR,
     "Extruded": INTERIOR,
     "Extrusion": INTERIOR,
     "FilletLegShape": INTERIOR,
     "Filleted": INTERIOR,
     "FlushEvidence": INTERIOR,
-    # The two-tolerance escalation payload, curated at the prelude
-    # because THIRTEEN prelude refusals carry it and a Rust caller
-    # holding an `Escalated` arm could not name what it held. `INTERIOR`
-    # here by the carrier rule, and the count makes it the plainest
-    # instance of that rule in this file: not one of the thirteen
-    # projects the escalation's own shape. Each crosses as a single tag
-    # plus the kernel's prose — `escalated` on the node and path
-    # doors and in a check's evidence, `in_band` / `pair_in_band` at
-    # the selection funnel, `mate_indeterminate` at the mate gate —
-    # and no bound exception carries a margin, an enclosure bound or a
-    # band. So there is nothing here to split and nothing to pin.
-    #
-    # `MarginDiag` — the payload's own field type — is not a curated
-    # name at all and so not an entry here; the argument for stopping
-    # at this rung is written where the carriage is, beside
-    # `Indeterminate` in `prelude.rs`. The short of it: its arms are
-    # diagnostic data the escalation contract forbids branching on,
-    # and the recourse is the same three levers whichever arm it is.
-    "Indeterminate": INTERIOR,
     "Lofted": INTERIOR,
     "LoopProgram": INTERIOR,
     # A11's member vocabulary, and the structural answer it gives.
@@ -1670,15 +2219,24 @@ NOT_BOUND = {
     "PropsQuadLane": INTERIOR,
     "Revolution": INTERIOR,
     "Revolved": INTERIOR,
-    # `ValidationError::RingMeetsOuter`'s payload (LIB-CUR4).
-    "RingContact": INTERIOR,
+    # `Revolved::kind` — the ratified case split, curated at the
+    # prelude because the two arms are two disjoint sets of handles
+    # and a Rust caller reading the wedge caps off a partial revolve
+    # has to branch. `INTERIOR` by the carrier rule and by the
+    # plainest measurement of it in this file: the carrier does not
+    # cross AT ALL. Python speaks the document layer, so a revolve is
+    # a `Node.revolve` whose answer is a body — no `Revolved` value
+    # reaches Python, and `pncad-py` names neither type anywhere.
+    #
+    # Not a `gap:` either: what a Python caller wants out of those
+    # handles is the FACES, and it asks for those by name through
+    # `Evaluation.select` rather than by key. A key bundle has nothing
+    # to project to a surface that holds names and never keys.
+    "RevolvedKind": INTERIOR,
     # `BlendError::UnsupportedCorner`'s second field, the policy
     # `CornerConfig::policy` assigns (LIB-CUR4).
     "RunOutPolicy": INTERIOR,
-    "TubeError": INTERIOR,
     "SegmentKind": INTERIOR,
-    # `ValidationError::StaleContactDeclaration`'s payload (LIB-CUR4).
-    "StaleDeclaration": INTERIOR,
     "StepArg": INTERIOR,
     "Surface": INTERIOR,
     "ValidatedLoop": INTERIOR,
@@ -1746,26 +2304,42 @@ NOT_BOUND = {
     # moving anything a caller can do.
     "sweep_body": f"{GAP}: G2 sweep (wire_sweep banked on U4/LQ3)",
     # --- gap: parameter distributions and the analysis lane -------
-    # --- gap: authoring a measurement (census-owned) --------------
-    # The READING half ships (`Value.measure`, `Value.assertion`); what
-    # is listed here is the authoring vocabulary alone.
-    "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
-    # `SitedRef` is bound where a MATE reference is authored
-    # (`Node.mate` takes each side as a node and a name), so the type
-    # itself is never handed across; the measure half that would hand
-    # one over is the gap above.
-    "SitedRef": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
-    # The two M10-6 added with the fourth verb. They are READING
-    # names — a caller dispatches on them after an evaluation, not
-    # while authoring — but the read door that would surface them
-    # (`Value.measure` on a `min_clearance`) cannot be reached until
-    # the authoring half exists, so they close with the same family.
-    "MinClearanceRefusal": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasureUnavailableAt": f"{GAP}: B-MEASURES measurement authoring",
-    "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    # --- the measurement authoring vocabulary, closed --------------
+    # `SitedRef` is bound where a reference is AUTHORED — `Node.mate`
+    # takes each of its two sides as a node and a name, and
+    # `Node.measure` takes a LIST of the same pair, because a mate has
+    # exactly two sides and a measure's arity is its reference list.
+    # The type itself is therefore never handed across, and a class
+    # wrapping the two halves would add ceremony and no reach: a name
+    # is opaque text by the ordinal-28 contract and a read site is a
+    # node id. This row was a `gap:` until LIB-B-MEASURES, on the
+    # reading that the measure half would hand one over; it does not,
+    # and this is the same sentence the entry already carried, now
+    # true of both doors.
+    "SitedRef": SHAPE,
+    # **The clearance engine's refusal, flattened to a tag — and
+    # unreachable at the lane Python evaluates on.** It reaches Python
+    # as `EvaluationError.kind == "measure_clearance_refused"`
+    # (`src/tags.rs`), which is this bullet's ordinary shape. What is
+    # NOT ordinary is that no Python evaluation can produce one: the
+    # refusal's only producer is
+    # `impl MinClearanceLane for geom_core::Interval`, and the binding
+    # evaluates at `f64` alone (`src/py/value.rs`), so the FEATURE is
+    # not what gates it — the SCALAR is, and `pncad-py --features
+    # interval` reaches it no better. That is `profile_lift`'s
+    # sentence above arriving on the refusal side: the door starts
+    # answering differently exactly when Python gains a non-`f64`
+    # evaluation, and it should gain its spelling in the unit that
+    # brings one. Binding an exception class nothing raises would move
+    # a name off this roster without moving anything a caller can do,
+    # which is `sweep_body`'s argument two bullets up.
+    #
+    # Its SIBLING went the other way and the pair is the measurement:
+    # `MeasureUnavailableAt` is what the `f64` lane answers a
+    # `min_clearance` WITH, so it is reachable today and is bound
+    # top-level under rule 1. One kernel file, one verb, two refusals,
+    # and the lane decides which of them a Python caller can ever see.
+    "MinClearanceRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -1783,10 +2357,96 @@ NOT_BOUND = {
     # The closure paragraph in this constant's docstring says what the
     # family's other two charter names were, and why neither was ever
     # a row.
-    "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
-    "WrittenLength": f"{GAP}: B-NOTATION authored notation",
-    "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
-    "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    # B-NOTATION IS GONE FROM THIS ROSTER, closed at LIB-B-NOTATION,
+    # and the id left `FAMILIES` with it. It cited TWO names here —
+    # `WrittenLength` and `WrittenAngle` — and both leave the roster
+    # ENTIRELY rather than moving to `BOUND_AS`: `pncad.pyi` declares
+    # both at the same spelling, so rule 1 accounts them. The closure
+    # paragraph in this constant's docstring records what a roster
+    # honest about its own two entries still could not see.
+    # B-DISTRIBUTIONS IS GONE FROM THIS ROSTER, closed at
+    # LIB-B-DISTRIBUTIONS, and the id left `FAMILIES` with it. It cited
+    # THREE names and they left three different ways, which is the
+    # rule demonstrated on one family: `Distribution` and
+    # `DistributionFault` are top-level in `pncad.pyi` at those exact
+    # spellings, so rule 1 accounts them and they leave the roster
+    # entirely; `DistributionField` is in `BOUND_AS` as
+    # `DistributionFault.field`, because a three-member set naming
+    # struct fields crosses as the word on the fault rather than as a
+    # class.
+    #
+    # THE CHARTER'S OTHER HALF COULD NOT BE A ROW HERE, AND NOW IS.
+    # It named the three analysis doors — the analyzed box, tail mass,
+    # leaf mass — and every one of them is curated in
+    # `crates/pncad/src/analysis.rs`, which was not one of the files
+    # this census read: `analyzed_box`, `tail_mass`, `box_mass`,
+    # `AnalysisPolicy`, `AnalyzedBox`, `AnalyzedParam`,
+    # `MeasureUnavailable`, `OffsetInterval`, `DEFAULT_QUANTILE_MASS`
+    # and `sample_offset` were invisible to this file in BOTH
+    # directions, so unbound they flipped no row and bound they flipped
+    # none either. That was the B-FACE-FRAME gap between a charter and
+    # a roster in its widest form: three of the charter's four things
+    # outside the alphabet. LIB-MC closed the blind spot by adding the
+    # file to `FACADE_FILES`, and all ten of those names are accounted
+    # now — seven by rule 1, `tail_mass` and `box_mass` in `BOUND_AS`
+    # as methods on the box, `OffsetInterval` in `NOT_BOUND` — with
+    # forty certified-half names arriving beside them.
+    #
+    # THE GATE, MEASURED, because a reader of the roster cannot see it
+    # either: `crates/pncad/src/analysis.rs` splits into one UNGATED
+    # `pub use` list and five behind `#[cfg(feature = "interval")]`.
+    # All three chartered doors are on the ungated list, so the family
+    # closes on the DEFAULT build the wheel is made from; what is
+    # gated is the E6 driver with its `ParamBox`, the E4/E5 stackup,
+    # `assertion_at` and the E10 reporting layer, none of which this
+    # family chartered. The positive form is
+    # `tests/test_distributions.py`.
+    # B-MEASURES IS GONE FROM THIS ROSTER, closed at LIB-B-MEASURES,
+    # and the id left `FAMILIES` with it — which emptied that map, the
+    # last census-owned charter closing. It cited SEVEN names and they
+    # left three different ways, which is one more way than
+    # B-DISTRIBUTIONS demonstrated:
+    #
+    #   - FIVE leave the roster ENTIRELY under rule 1, because
+    #     `pncad.pyi` declares each top-level at the same spelling:
+    #     `MeasureExpr`, `MeasurePrimitive` and `AssertionDir` as the
+    #     authoring vocabulary, and `MeasureNodeFault` and
+    #     `MeasureUnavailableAt` as exception classes keeping their
+    #     Rust types' own names.
+    #   - TWO stay here and are RETAGGED `SHAPE` — `SitedRef` and
+    #     `MinClearanceRefusal`, each argued at its own entry above.
+    #     Neither is a debt any more and neither is reach: one is a
+    #     type whose two halves are what the doors take, the other a
+    #     refusal flattened to a tag no `f64` evaluation can raise.
+    #
+    # THE CHARTER NAMED A SPELLING THIS FILE HAD ALREADY TAKEN. The
+    # analysis lane's `MeasureUnavailable` bound at LIB-B-DISTRIBUTIONS
+    # one unit earlier, and this family's `MeasureUnavailableAt` is a
+    # DIFFERENT kernel type answering a different question — the band
+    # that states limits without a shape, against the point scalar
+    # with nowhere to put an enclosure. Both keep their own Rust
+    # names, neither subclasses the other, and the two tag functions
+    # are deliberately not one function.
+    #
+    # THE GATE, MEASURED, and it is not the one B-DISTRIBUTIONS found:
+    # every name this family owns is curated in
+    # `crates/pncad/src/document.rs`, which carries NO `cfg`, so
+    # nothing here is behind `interval` on the façade. The limit is a
+    # LANE — see the `MinClearanceRefusal` entry — and it bites one
+    # refusal out of the family's whole surface.
+    #
+    # WHAT THIS FILE COULD NOT SEE, in both directions. `Node::Measure`
+    # and `Node::Assertion` are ARMS of `Node`, which rule 1 accounts
+    # whole, so two of the kernel's twenty-five recipe node kinds were
+    # unconstructible from Python for the life of the binding and no
+    # roster here said so. `Doc.node_kind` answered `"measure"` and
+    # `"assertion"` the whole time — a committed vocabulary exhaustive
+    # over the kernel enum cannot tell a word a caller can reach from
+    # one it cannot. `MeasureNodeFault`'s one arm sat behind the edit
+    # tag `measure_malformed`, and nine more measurement arms sit
+    # behind `EvaluationError.kind`, which is a `BOUND_AS` mapping
+    # this file accounts whole. The positive form is
+    # `tests/test_measures.py`.
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six
     # families held 43 names — the pin-update door, the at-rest gate,
     # mates and the solve, instantiated parts, split/inline, explicit
@@ -1873,6 +2533,736 @@ NOT_BOUND = {
     # the second argument crossed by being CAPTURED rather than by
     # already having a spelling; `BOUND_AS` says how, and
     # `tests/test_validate.py` is the positive form.
+    # B-NAME-BUILDERS IS GONE FROM THIS ROSTER, closed at LIB-PYNAMES,
+    # and the id is gone from `FAMILIES` with it. All five names left
+    # and none needed a `BOUND_AS`: `pncad.pyi` declares `band`,
+    # `band_pi`, `band_rim`, `meridian_vertex` and `carried` at those
+    # exact spellings, so rule 1 accounts them. It is B-FORMAT's case
+    # with one difference worth the line: the family was chartered
+    # over a door's ANSWER rather than its argument — the name TEXT
+    # `Node.fillet` and `Node.shell` already took — so nothing else
+    # moved with them and nothing behind them was undercounted.
+    # `tests/test_role_names.py` is the positive form.
+    # --- different-shape: the analysis lane's CERTIFIED half -------
+    #
+    # `crates/pncad/src/analysis.rs` joined `FACADE_FILES` at LIB-MC,
+    # which is the blind spot B-DISTRIBUTIONS reported and could not
+    # close: three of that family's four chartered things were outside
+    # this file's alphabet in BOTH directions, and so was the whole
+    # advisory lane a later unit bound. The file's names are now
+    # accounted like every other curated name — and forty of them
+    # arrive at once, in one family, because they are the analysis
+    # surface's certified half.
+    #
+    # THEY ARE NOT IN THE CRATE THIS BINDING COMPILES INTO. Each is
+    # behind `#[cfg(feature = "interval")]` on that page, and the wheel
+    # is built from the DEFAULT feature set: the E6 subdivision driver
+    # and its `ParamBox`, the E4/E5 sensitivity and stackup, E10's
+    # `assertion_at` and the reporting layer. Binding one would mean
+    # shipping a door absent from the artifact a user installs, so this
+    # is `different-shape` and not a `gap:` — there is no work owed
+    # while the shape of the thing is "no certified scalar on this
+    # side". The reader this scan CANNOT be: it strips comments and
+    # reads `pub use` statements, so a `cfg` attribute above one is
+    # invisible to it and these forty look exactly like the ungated
+    # names beside them. That is why the disposition is argued here
+    # rather than inferred, and why a name moving across that gate
+    # kernel-side moves no row here on its own.
+    #
+    # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
+    # shape: a Python surface that evaluates at a certified scalar. On
+    # that day these are doors a caller can reach and every one of them
+    # owes a spelling or a `gap:`. `MinClearanceRefusal`'s entry two
+    # screens up is the same sentence from the refusal side, and it is
+    # the sharper statement of it: the FEATURE is not always what
+    # gates, the LANE is.
+    "BoxAxis": SHAPE,
+    "BudgetKind": SHAPE,
+    "Certified": SHAPE,
+    "CertifiedLeaf": SHAPE,
+    "Chamber": SHAPE,
+    "ChamberSpan": SHAPE,
+    "DEFAULT_MAX_DEPTH": SHAPE,
+    "DEFAULT_MAX_LEAVES": SHAPE,
+    "DriveConfig": SHAPE,
+    "DriveRefusal": SHAPE,
+    "HistogramRow": SHAPE,
+    "LeafHistogram": SHAPE,
+    "LeafResults": SHAPE,
+    "LiftRefusal": SHAPE,
+    "MassBasis": SHAPE,
+    "MassBudget": SHAPE,
+    "MeasureAccounting": SHAPE,
+    "ParamBox": SHAPE,
+    "ParamBoxVerdict": SHAPE,
+    "PerParam": SHAPE,
+    "ReasonClass": SHAPE,
+    "Receipt": SHAPE,
+    "RefusalReason": SHAPE,
+    "RefusedLeaf": SHAPE,
+    "ReportCache": SHAPE,
+    "Rss": SHAPE,
+    "Sensitivity": SHAPE,
+    "SensitivityOutcome": SHAPE,
+    "SensitivityRefusal": SHAPE,
+    "Stackup": SHAPE,
+    "StackupRefusal": SHAPE,
+    "Unavailable": SHAPE,
+    "WINDOW_TIGHTENING": SHAPE,
+    "WorstCase": SHAPE,
+    "assertion_at": SHAPE,
+    "drive": SHAPE,
+    "leaf_histogram": SHAPE,
+    "render_sensitivity": SHAPE,
+    "report_key": SHAPE,
+    "stackup": SHAPE,
+    # The offset interval an analyzed axis varies over — UNGATED, and
+    # its Python shape is the `(lo, hi)` pair `AnalyzedParam.offsets`
+    # and `AnalyzedParam.absolute()` answer, in the axis's own
+    # dimension. The leaf-pricing door takes the same two ends as two
+    # arguments (`AnalyzedBox.box_mass`). A class holding two offsets
+    # would add a name to import for no question it answers, which is
+    # `Point2`'s argument at the top of this roster.
+    "OffsetInterval": SHAPE,
+}
+
+
+#: Members a matched type's Python namesake does not spell, and the Python
+#: spelling that answers the same question. Keyed `Type::Member`, and each
+#: value is VERIFIED to exist in the stub exactly as `BOUND_AS`'s is — a row
+#: naming a spelling `pncad.pyi` does not declare fails.
+#:
+#: WHY A SECOND TABLE AND NOT `Type::Member` KEYS IN `BOUND_AS`. Every check
+#: over that roster reads its keys as CURATED NAMES: `test_the_rosters_decay`
+#: fails a key the façade no longer exports, and
+#: `test_every_curated_name_is_bound_or_listed` reads one as the accounting
+#: of a name. `Node::Union` is not a curated name and never will be — it is a
+#: member of one. Two questions, two tables, each decaying against the set it
+#: is actually about, which is the same reason `BOUND_AS` and `NOT_BOUND` are
+#: two tables rather than one column.
+#:
+#: THREE SHAPES ACCOUNT FOR ALL OF IT.
+#:
+#: - **An arm that crosses as a TAG WORD**, which is most of this table.
+#:   Python's exceptions carry their refusal as ATTRIBUTES, and the arm is a
+#:   `variant`/`kind` STRING rather than a bound payload class — the
+#:   flattened-payload bullet of `NOT_BOUND`, one level in. Each word is
+#:   minted by an exhaustive match in `crates/pncad-py/src/tags.rs`, so a
+#:   kernel arm added without one stops the bindings compiling; what the row
+#:   adds is the other direction, that a reader of the ARM can find the word.
+#:   A few VALUE enums cross the same way and are noted where their attribute
+#:   is not called `variant`.
+#: - **An arm that crosses as a CONSTRUCTOR** — the `Node::Extrude` ->
+#:   `Node.extrude` shift, at the arms rule 1 could not see: `Datum`'s are
+#:   `Node.datum_*`, and `DocEdit::SetStructuralParam` is one door per slot.
+#: - **A field that crosses as a READER**, the struct half: `Ray::dir` is
+#:   `Ray.direction`, `Mesh::patches` is `Mesh.patch`.
+#:
+#: A row claims what a `BOUND_AS` row claims and no more: a Python caller can
+#: reach what that member is about, at that spelling. Not the same shape, not
+#: the same receiver, and nothing about semantics.
+MEMBERS_BOUND_AS = {
+    # --- an arm that crosses as a TAG WORD -------------------------
+    "AssemblyError::Product": "AssemblyError.variant",
+    "AssemblyError::Reference": "AssemblyError.variant",
+    "AssemblyError::NoAtRestRecord": "AssemblyError.variant",
+    "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
+    "AssemblyError::AtRest": "AssemblyError.variant",
+    "AssemblyError::Uncertified": "AssemblyError.variant",
+    # A VALUE's arms, not a refusal's, and the word is `relation` because
+    # what the walk answers is how a declaration stands to the document
+    # it was gathered from.
+    "Attribution::Refuted": "Attribution.relation",
+    "Attribution::Declined": "Attribution.relation",
+    "Attribution::Carried": "Attribution.relation",
+    "Attribution::Unattributed": "Attribution.relation",
+    # The registry's evidence, a value: which resident found what.
+    "CheckEvidence::Connectedness": "CheckEvidence.variant",
+    "CheckEvidence::Escalated": "CheckEvidence.variant",
+    "CheckEvidence::Unsupported": "CheckEvidence.variant",
+    "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
+    "CheckEvidence::NotSeparated": "CheckEvidence.variant",
+    "CheckEvidence::SeparationUnavailable": "CheckEvidence.variant",
+    "ChecksError::Root": "ChecksError.variant",
+    "ChecksError::Band": "ChecksError.variant",
+    "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
+    "ChecksError::Product": "ChecksError.variant",
+    # `Mints` is the arm the namesake spells (`ClassAdmission.mints`);
+    # the other two are the word.
+    "ClassAdmission::NoAtRestRecord": "ClassAdmission.variant",
+    "ClassAdmission::NotAdmitted": "ClassAdmission.variant",
+    # What an accepted edit did to the placement registry, read off
+    # `Doc.last_maintenance`.
+    "ClusterMaintenance::Join": "ClusterMaintenance.variant",
+    "ClusterMaintenance::Split": "ClusterMaintenance.variant",
+    "ClusterMaintenance::GaugeRewrite": "ClusterMaintenance.variant",
+    "ClusterMaintenance::Drop": "ClusterMaintenance.variant",
+    # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
+    # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
+    # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
+    # name is `editor_core`'s document-layer refusal, a different type
+    # answering a different question. Rule 1 matched them on spelling
+    # alone, exactly as it matched the two `Datum`s. The ten arms cross
+    # where the class's own docstring says they do: `Doc.parse_expr`
+    # raises `ParseError` with `variant == "dimension"` and the
+    # mismatch's own tag as `kind`, which is the one of the three
+    # crossings that keeps it branchable (literal construction is
+    # `LiteralError.kind`; a save file's arrives as `PersistError`
+    # `variant == "parse"`, issue #694).
+    "DimensionError::Mismatch": "ParseError.kind",
+    "DimensionError::MulNeedsScalar": "ParseError.kind",
+    "DimensionError::DivNeedsScalarDivisor": "ParseError.kind",
+    "DimensionError::TrigNeedsAngle": "ParseError.kind",
+    "DimensionError::CountNeedsExplicitPromotion": "ParseError.kind",
+    "DimensionError::NotCount": "ParseError.kind",
+    "DimensionError::LiteralCountIsInteger": "ParseError.kind",
+    "DimensionError::NonFiniteLiteral": "ParseError.kind",
+    "DimensionError::DisplayUnitMismatch": "ParseError.kind",
+    "DimensionError::UnknownDisplayUnit": "ParseError.kind",
+    "DistributionFault::NonFinite": "DistributionFault.variant",
+    "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
+    "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
+    "EditError::UnknownNode": "EditError.variant",
+    "EditError::ProfileProgramRefused": "EditError.variant",
+    "EditError::UnresolvedInput": "EditError.variant",
+    "EditError::WouldCycle": "EditError.variant",
+    "EditError::DuplicateInput": "EditError.variant",
+    "EditError::RepeatedDesignation": "EditError.variant",
+    "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::TooFewMembers": "EditError.variant",
+    "EditError::DeleteWouldDangle": "EditError.variant",
+    "EditError::UnknownSlot": "EditError.variant",
+    "EditError::SlotDimensionMismatch": "EditError.variant",
+    "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",
+    "EditError::NotStructuralSlot": "EditError.variant",
+    "EditError::UnknownPayloadParam": "EditError.variant",
+    "EditError::PayloadParamDimensionMismatch": "EditError.variant",
+    "EditError::MeasureMalformed": "EditError.variant",
+    "EditError::AssertionTarget": "EditError.variant",
+    "EditError::DeclareInputNotDeclare": "EditError.variant",
+    "EditError::AssertionDimension": "EditError.variant",
+    "EditError::UnknownDocParam": "EditError.variant",
+    "EditError::DocParamDimensionMismatch": "EditError.variant",
+    "EditError::ContinuousParamCannotBeCount": "EditError.variant",
+    "EditError::DocParamNotDeclared": "EditError.variant",
+    "EditError::DocParamValueKindMismatch": "EditError.variant",
+    "EditError::PathOffTree": "EditError.variant",
+    "EditError::Dimension": "EditError.variant",
+    "EditError::DeclareNamesMissingNode": "EditError.variant",
+    "EditError::ReadSiteMissingNode": "EditError.variant",
+    "EditError::NonFiniteDocParam": "EditError.variant",
+    "EditError::InvalidDistribution": "EditError.variant",
+    "EditError::RebindTargetMissingNode": "EditError.variant",
+    "EditError::RebindUnknownName": "EditError.variant",
+    "EditError::RebindKindMismatch": "EditError.variant",
+    "EditError::RebindIdentity": "EditError.variant",
+    "EditError::RebindNoReferences": "EditError.variant",
+    "EditError::WitnessOnNonSketch": "EditError.variant",
+    "EditError::DuplicateWitnessEntry": "EditError.variant",
+    "EditError::EmptyWitnessBulk": "EditError.variant",
+    "EditError::NameUnresolvedInEvaluation": "EditError.variant",
+    "EditError::RebindAppearanceCollision": "EditError.variant",
+    "EditError::AppearanceWrongKind": "EditError.variant",
+    "EditError::AppearanceNamesMissingNode": "EditError.variant",
+    "EditError::AppearanceNotSet": "EditError.variant",
+    "EditError::InvalidTolerance": "EditError.variant",
+    "EditError::MetaUnversioned": "EditError.variant",
+    "EditError::MetaNonFinite": "EditError.variant",
+    "EditError::MetaNotSet": "EditError.variant",
+    "EditError::RebindMetadataCollision": "EditError.variant",
+    "EditError::Roots": "EditError.variant",
+    "EditError::PlacementOnNonInstance": "EditError.variant",
+    "EditError::PlacementRuleMismatch": "EditError.variant",
+    "EditError::EmptyPlacementList": "EditError.variant",
+    "EditError::ImproperPlacement": "EditError.variant",
+    "EditError::NonFinitePlacement": "EditError.variant",
+    "EditError::PlacementAxis": "EditError.variant",
+    "EditError::NonFiniteAlignment": "EditError.variant",
+    "EditError::UpdateOnNonInstance": "EditError.variant",
+    "EditError::PinUnchanged": "EditError.variant",
+    "EvalError::UnknownParam": "EvalError.variant",
+    "EvalError::ParamDimensionMismatch": "EvalError.variant",
+    "EvalError::CountExprInContinuousEval": "EvalError.variant",
+    "EvalError::ContinuousExprInCountEval": "EvalError.variant",
+    "EvalError::CountOverflow": "EvalError.variant",
+    "EvalError::CountToScalarOutOfRange": "EvalError.variant",
+    "EvalError::NonFiniteResult": "EvalError.variant",
+    "FmtQuantityError::NonFinite": "FmtQuantityError.variant",
+    "HitTestError::NodeNotEvaluated": "HitTestError.variant",
+    "HitTestError::NodeFailed": "HitTestError.variant",
+    "HitTestError::NodePoisoned": "HitTestError.variant",
+    "HitTestError::Unnamed": "HitTestError.variant",
+    "InlineError::UnknownNode": "InlineError.variant",
+    "InlineError::NotAnInstance": "InlineError.variant",
+    "InlineError::InstanceConsumed": "InlineError.variant",
+    "InlineError::Unresolved": "InlineError.variant",
+    "InlineError::EpsilonSeam": "InlineError.variant",
+    "InlineError::PartCarriesMetadata": "InlineError.variant",
+    "InlineError::ParamConflict": "InlineError.variant",
+    "InlineError::UnplaceableFrame": "InlineError.variant",
+    "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
+    "InlineError::ForeignInstanceName": "InlineError.variant",
+    "InlineError::StrandedPartName": "InlineError.variant",
+    "InlineError::Edit": "InlineError.variant",
+    "MateFault::PosesOfAnotherDocument": "MateFault.variant",
+    "MateFault::Frame": "MateFault.variant",
+    "MateFault::ClassNotAdmitted": "MateFault.variant",
+    "MateFault::TableLacks": "MateFault.variant",
+    "MateFault::Indeterminate": "MateFault.variant",
+    "MateFault::Band": "MateFault.variant",
+    "MateFault::Contradictory": "MateFault.variant",
+    "MateFault::Under": "MateFault.variant",
+    "MateFault::DanglingHead": "MateFault.variant",
+    "MateFault::PlacerRefused": "MateFault.variant",
+    "MateFault::PartSelectsAnotherCopy": "MateFault.variant",
+    "MateFault::SelfMate": "MateFault.variant",
+    "MateFault::Unleverable": "MateFault.variant",
+    "MeasureNodeFault::RefIndexOutOfRange": "MeasureNodeFault.variant",
+    "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
+    "NodePickError::Standing": "NodePickError.variant",
+    "NodePickError::NotABody": "NodePickError.variant",
+    "NodePickError::NoSuchBody": "NodePickError.variant",
+    "NodePickError::Tessellate": "NodePickError.variant",
+    "ParseError::UnexpectedChar": "ParseError.variant",
+    "ParseError::UnexpectedEnd": "ParseError.variant",
+    "ParseError::UnexpectedToken": "ParseError.variant",
+    "ParseError::TrailingInput": "ParseError.variant",
+    "ParseError::MalformedNumber": "ParseError.variant",
+    "ParseError::IntegerOverflow": "ParseError.variant",
+    "ParseError::UnknownUnit": "ParseError.variant",
+    "ParseError::UnknownFunction": "ParseError.variant",
+    "ParseError::WrongArity": "ParseError.variant",
+    "ParseError::UnknownParam": "ParseError.variant",
+    "ParseError::Dimension": "ParseError.variant",
+    "PathError::JunctionTangent": "PathError.variant",
+    "PathError::JunctionCusp": "PathError.variant",
+    "PathError::SeamTangent": "PathError.variant",
+    "PathError::SeamArrivalOffDirection": "PathError.variant",
+    "PathError::SeamArrivalLeverTooShort": "PathError.variant",
+    "PathError::ContinuationTargetOffRay": "PathError.variant",
+    "PathError::NoCornerForFillet": "PathError.variant",
+    "PathError::NoCornerOfPair": "PathError.variant",
+    "PathError::FilletOffsetLeverTooShort": "PathError.variant",
+    "PathError::ArcLegOnOpenFillet": "PathError.variant",
+    "PathError::SeamRetrimsArcFirstSide": "PathError.variant",
+    "PathError::NonpositiveLeg": "PathError.variant",
+    "PathError::NonpositiveFilletRadius": "PathError.variant",
+    "PathError::NonpositiveCircleRadius": "PathError.variant",
+    "PathError::DegenerateArcSpec": "PathError.variant",
+    "PathError::CircleSplitCount": "PathError.variant",
+    "PathError::PolygonTooFewVertices": "PathError.variant",
+    "PathError::ArcContinueNeedsArcCarrier": "PathError.variant",
+    "PathError::ArcContinueOffCarrier": "PathError.variant",
+    "PathError::ZeroDirection": "PathError.variant",
+    "PathError::ArcViaCollinear": "PathError.variant",
+    "PathError::DegenerateArcChord": "PathError.variant",
+    "PathError::ArcCenterNotEquidistant": "PathError.variant",
+    "PathError::DegenerateArcCenter": "PathError.variant",
+    "PathError::FarEndAnchorWithoutFillet": "PathError.variant",
+    "PathError::Escalated": "PathError.variant",
+    "PathError::Band": "PathError.variant",
+    "PathError::Structure": "PathError.variant",
+    "PathError::UnderdeterminedLeg": "PathError.variant",
+    "PathError::OverdeterminedJunction": "PathError.variant",
+    "PersistError::NonFinite": "PersistError.variant",
+    "PersistError::ProfileProgram": "PersistError.variant",
+    "PersistError::Distribution": "PersistError.variant",
+    "PersistError::DisplayUnit": "PersistError.variant",
+    "PersistError::Serialize": "PersistError.variant",
+    "PersistError::HeaderId": "PersistError.variant",
+    "PersistError::IdMismatch": "PersistError.variant",
+    "PersistError::Parse": "PersistError.variant",
+    "PersistError::Unreadable": "PersistError.variant",
+    "PersistError::EditReplay": "PersistError.variant",
+    "PersistError::ToleranceConflict": "PersistError.variant",
+    "PersistError::ToleranceInvalid": "PersistError.variant",
+    "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
+    "ProductError::UnknownNode": "ProductError.variant",
+    "ProductError::Naming": "ProductError.variant",
+    "ProductError::RootFailed": "ProductError.variant",
+    "ProductError::RootPoisoned": "ProductError.variant",
+    "ProductError::NoBodyRoots": "ProductError.variant",
+    "ProductError::Graft": "ProductError.variant",
+    "ProductError::SolidInvalid": "ProductError.variant",
+    "ProductError::ProductInvalid": "ProductError.variant",
+    "ProductError::ContactLineage": "ProductError.variant",
+    "ReadbackError::Dangling": "ReadbackError.variant",
+    "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
+    "ReadbackError::NoCarrier": "ReadbackError.variant",
+    # A value the at-rest gate hands back, not a raised refusal.
+    "RefusedRef::Vanished": "RefusedRef.variant",
+    "RefusedRef::ReadBelowARoot": "RefusedRef.variant",
+    "RefusedRef::Ambiguous": "RefusedRef.variant",
+    "RefusedRef::NotAFace": "RefusedRef.variant",
+    # The VERDICT's three arms are `status`, not `variant`: `variant`
+    # beside it is the failure's own arm, which is why the two words
+    # are separate here (`ResolveError`/`ResolveIndeterminate` in
+    # `BOUND_AS`).
+    "Resolution::Resolved": "Resolution.status",
+    "Resolution::Failed": "Resolution.status",
+    "Resolution::Indeterminate": "Resolution.status",
+    # `reason` rather than `variant`, the word this door has always
+    # carried.
+    "SelectRefusal::InBand": "SelectRefusal.reason",
+    "SelectRefusal::TiedDisagrees": "SelectRefusal.reason",
+    "SelectRefusal::Unreadable": "SelectRefusal.reason",
+    "SelectRefusal::NotADatum": "SelectRefusal.reason",
+    "SelectRefusal::NotALength": "SelectRefusal.reason",
+    "SelectRefusal::PairInBand": "SelectRefusal.reason",
+    "SelectRefusal::BadValue": "SelectRefusal.reason",
+    "SelectRefusal::Band": "SelectRefusal.reason",
+    "SplitError::EmptyCut": "SplitError.variant",
+    "SplitError::UnknownCutNode": "SplitError.variant",
+    "SplitError::PartIdCollides": "SplitError.variant",
+    "SplitError::SeveredEdge": "SplitError.variant",
+    "SplitError::OperandSeveredFromMate": "SplitError.variant",
+    "SplitError::TornCluster": "SplitError.variant",
+    "SplitError::UncutParamReference": "SplitError.variant",
+    "SplitError::PartNameReachesRemainder": "SplitError.variant",
+    "SplitError::NameStraddlesCut": "SplitError.variant",
+    "SplitError::BodyNameCrossesCut": "SplitError.variant",
+    "SplitError::Pin": "SplitError.variant",
+    "SplitError::PartEdit": "SplitError.variant",
+    "SplitError::RemainderEdit": "SplitError.variant",
+    "StepImportError::Syntax": "StepImportError.variant",
+    "StepImportError::DanglingReference": "StepImportError.variant",
+    "StepImportError::WrongEntityType": "StepImportError.variant",
+    "StepImportError::MalformedRecord": "StepImportError.variant",
+    "StepImportError::UnsupportedEntity": "StepImportError.variant",
+    "StepImportError::UnsupportedUnit": "StepImportError.variant",
+    "StepImportError::NothingToImport": "StepImportError.variant",
+    "StepImportError::Structure": "StepImportError.variant",
+    "StepImportError::MissingUncertainty": "StepImportError.variant",
+    "StepImportError::InvalidEpsOverride": "StepImportError.variant",
+    "StepImportError::DeclarationUnresolved": "StepImportError.variant",
+    "StepImportError::VertexWithoutPoint": "StepImportError.variant",
+    "StepImportError::MalformedReal": "StepImportError.variant",
+    "StepImportError::Topology": "StepImportError.variant",
+    "StepImportError::Assembly": "StepImportError.variant",
+    "StepImportError::Adoption": "StepImportError.variant",
+    "StepImportError::RimOffWallBoundary": "StepImportError.variant",
+    "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
+    "StepImportError::Pcurves": "StepImportError.variant",
+    "StepImportError::Placement": "StepImportError.variant",
+    "StepImportError::Instance": "StepImportError.variant",
+    "StepImportError::TierInvalid": "StepImportError.variant",
+    "StlError::DegenerateTriangle": "StlError.variant",
+    "StlError::IndexOutOfRange": "StlError.variant",
+    "StlError::TooManyTriangles": "StlError.variant",
+    "StlError::Io": "StlError.variant",
+    # The solve's freedom class, a value: `Subgroup.variant` plus the
+    # axis attributes each arm carries.
+    "Subgroup::Se3": "Subgroup.variant",
+    "Subgroup::Planar": "Subgroup.variant",
+    "Subgroup::Cylindrical": "Subgroup.variant",
+    "Subgroup::Prismatic": "Subgroup.variant",
+    "Subgroup::Revolute": "Subgroup.variant",
+    "Subgroup::Trivial": "Subgroup.variant",
+    "Subgroup::Empty": "Subgroup.variant",
+    "TessellateError::InvalidChordalTolerance": "TessellateError.variant",
+    "TessellateError::UnsupportedSurface": "TessellateError.variant",
+    "TessellateError::UnsupportedNurbsFace": "TessellateError.variant",
+    "TessellateError::UnsupportedCurve": "TessellateError.variant",
+    "TessellateError::NullScaffoldEdge": "TessellateError.variant",
+    "TessellateError::RingOnCurvedFace": "TessellateError.variant",
+    "TessellateError::EmptyLoop": "TessellateError.variant",
+    "TessellateError::MissingEntity": "TessellateError.variant",
+    "TessellateError::ResolutionOverflow": "TessellateError.variant",
+    "TessellateError::CertificateExceeded": "TessellateError.variant",
+    "TessellateError::Triangulation": "TessellateError.variant",
+    "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
+    "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
+    "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
+    "TessellateError::Band": "TessellateError.variant",
+    "UpdateError::NoSuchReference": "UpdateError.variant",
+    "UpdateError::AlreadyPinned": "UpdateError.variant",
+    # The one door that reports MANY faults at once, so the word rides
+    # the FINDING rather than the exception: `len(findings) ==
+    # failure_count`, one `variant` each (`crates/pncad-py/src/
+    # validation.rs`).
+    "ValidationError::Band": "ValidationFinding.variant",
+    "ValidationError::DanglingDescription": "ValidationFinding.variant",
+    "ValidationError::UncertifiableSurface": "ValidationFinding.variant",
+    "ValidationError::PoisonedSurfaceDescription": "ValidationFinding.variant",
+    "ValidationError::ApproxCertification": "ValidationFinding.variant",
+    "ValidationError::ApproxLaneUnsupported": "ValidationFinding.variant",
+    "ValidationError::DegenerateTorus": "ValidationFinding.variant",
+    "ValidationError::DegenerateTorusEscalated": "ValidationFinding.variant",
+    "ValidationError::NonpositiveTorusTube": "ValidationFinding.variant",
+    "ValidationError::EdgeCertification": "ValidationFinding.variant",
+    "ValidationError::DescriptionNotAdjacent": "ValidationFinding.variant",
+    "ValidationError::PlanarFaceResidual": "ValidationFinding.variant",
+    "ValidationError::PlanarFaceEscalated": "ValidationFinding.variant",
+    "ValidationError::PlanarBoundaryResidual": "ValidationFinding.variant",
+    "ValidationError::PlanarBoundaryEscalated": "ValidationFinding.variant",
+    "ValidationError::SliverDihedral": "ValidationFinding.variant",
+    "ValidationError::TransverseNotIntrinsic": "ValidationFinding.variant",
+    "ValidationError::ScaffoldAtRest": "ValidationFinding.variant",
+    "ValidationError::TangentNotIntrinsic": "ValidationFinding.variant",
+    "ValidationError::UndeclaredCusp": "ValidationFinding.variant",
+    "ValidationError::LaminaWedge": "ValidationFinding.variant",
+    "ValidationError::LoopRoleInverted": "ValidationFinding.variant",
+    "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
+    "ValidationError::NegativeVolume": "ValidationFinding.variant",
+    "ValidationError::VolumeUncomputable": "ValidationFinding.variant",
+    "ValidationError::Pcurve": "ValidationFinding.variant",
+    "ValidationError::RingMeetsOuter": "ValidationFinding.variant",
+    "ValidationError::RingContactEscalated": "ValidationFinding.variant",
+    "ValidationError::UndeclaredContact": "ValidationFinding.variant",
+    "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
+    "ValidationError::ContactContradicted": "ValidationFinding.variant",
+    "ValidationError::CensusEscalated": "ValidationFinding.variant",
+    "ValidationError::CensusUnsupported": "ValidationFinding.variant",
+    "ValidationError::CensusLaneUnsupported": "ValidationFinding.variant",
+    "ValidationError::CensusUndecidable": "ValidationFinding.variant",
+    "ValidationError::DanglingTopology": "ValidationFinding.variant",
+    "ValidationError::DanglingGeometry": "ValidationFinding.variant",
+    "ValidationError::NextPrevMismatch": "ValidationFinding.variant",
+    "ValidationError::LoopCycleOverrun": "ValidationFinding.variant",
+    "ValidationError::ParentLoopMismatch": "ValidationFinding.variant",
+    "ValidationError::UnreachableHalfEdge": "ValidationFinding.variant",
+    "ValidationError::EdgeHalvesIdentical": "ValidationFinding.variant",
+    "ValidationError::EdgeSlotBackpointerMismatch": "ValidationFinding.variant",
+    "ValidationError::HalfEdgeUnclaimed": "ValidationFinding.variant",
+    "ValidationError::HalfEdgeMultiplyClaimed": "ValidationFinding.variant",
+    "ValidationError::EdgeNotAntiparallel": "ValidationFinding.variant",
+    "ValidationError::EmanatingStartMismatch": "ValidationFinding.variant",
+    "ValidationError::EmptyLoopVertexWithEmanating": "ValidationFinding.variant",
+    "ValidationError::LoneVertexWithIncidence": "ValidationFinding.variant",
+    "ValidationError::VertexOrbitOverrun": "ValidationFinding.variant",
+    "ValidationError::OrbitForeignMember": "ValidationFinding.variant",
+    "ValidationError::SplitVertexOrbit": "ValidationFinding.variant",
+    "ValidationError::OuterListedAsRing": "ValidationFinding.variant",
+    "ValidationError::BackPointerMismatch": "ValidationFinding.variant",
+    "ValidationError::OrphanEntity": "ValidationFinding.variant",
+    "ValidationError::MultiplyOwned": "ValidationFinding.variant",
+    "ValidationError::OrphanGeometry": "ValidationFinding.variant",
+    "ValidationError::SolidWithoutShells": "ValidationFinding.variant",
+    "ValidationError::ShellWithoutFaces": "ValidationFinding.variant",
+    "ValidationError::EdgeAcrossShells": "ValidationFinding.variant",
+    "ValidationError::ComponentEulerViolation": "ValidationFinding.variant",
+    "ValidationError::MissingProvenance": "ValidationFinding.variant",
+    "ValidationError::LeakedProvenance": "ValidationFinding.variant",
+    "ValidationError::ScaffoldingEmptyLoop": "ValidationFinding.variant",
+    "ValidationError::ScaffoldingStrutVertex": "ValidationFinding.variant",
+    "ValidationError::ShellDisconnected": "ValidationFinding.variant",
+    "ValidationError::NullScaffoldShared": "ValidationFinding.variant",
+    "ValidationError::LeakedNullFaceRecord": "ValidationFinding.variant",
+    "ValidationError::StaleNullFaceLoop": "ValidationFinding.variant",
+    "ValidationError::NullEdgeAtRest": "ValidationFinding.variant",
+    "ValidationError::NullFaceAtRest": "ValidationFinding.variant",
+    # --- the analysis lane's arms, in this file's alphabet at last -
+    # `analysis.rs` joined `FACADE_FILES` at LIB-MC, so three types
+    # rule 1 had already accounted by spelling now owe their members
+    # too. All of them cross the way every refusal arm in this table
+    # crosses — as the word on `variant`, which is what a caller
+    # branches on.
+    "AnalysisPolicyError::QuantileMassOutOfRange": "AnalysisPolicyError.variant",
+    "MeasureUnavailable::BandHasNoMeasure": "MeasureUnavailable.variant",
+    # The advisory lane's three ways of having no estimate. The band
+    # arm CARRIES the `MeasureUnavailable` one line above, and its word
+    # is that refusal's own: the run cannot draw from a band for the
+    # same reason a mass door cannot price one, and two words for one
+    # fault would let a caller who already branches on
+    # `band_has_no_measure` miss it here. Its parameter rides on
+    # `McRefusal.param`, the node and the rendered cause of the third
+    # arm on `McRefusal.node` and `McRefusal.cause`.
+    "McRefusal::BandHasNoMeasure": "McRefusal.variant",
+    "McRefusal::NoSamples": "McRefusal.variant",
+    "McRefusal::NominalDoesNotBuild": "McRefusal.variant",
+    # --- an arm or a field that crosses as a DOOR ------------------
+    # An analyzed axis's DIMENSION, which is the parameter's own — the
+    # field is `dim` in the kernel and the reader is `dimension`, the
+    # word every other Python door in this vocabulary spells it with
+    # (`Distribution.dimension`, `Measurement.dimension`).
+    "AnalyzedParam::dim": "AnalyzedParam.dimension",
+    # `Route` is `INTERIOR`; what it SAYS crosses as the two attributes
+    # that name it, `of` and `via`.
+    "CarriedDeclaration::route": "CarriedDeclaration.of",
+    # The lattice's closed loop is handed to `Node.profile` opaquely and
+    # read back only as two counts.
+    "ClosedLoop::loop_": "ClosedLoop.vertex_count",
+    "ClosedLoop::program": "ClosedLoop.step_count",
+    # THE ARM THIS RULE WAS RULED FOR. `Datum` is the `editor_core`
+    # AUTHORING enum; `pncad.pyi`'s `Datum` is the READ-side value
+    # `Value.datum()` answers with, and it spells none of these six. So
+    # rule 1 accounted the whole enum on a spelling coincidence and
+    # `FaceFrame` was invisible for the life of its family
+    # (`work/lib/datum-crosses-name-for-name-as-two-types.md`). All six
+    # arms cross as `Node.datum_*` constructors, one per arm. `Point`
+    # and `Frame` were the family B-DATUM-DOORS chartered, closed at
+    # LIB-GAPS-1: a Python author now builds six of six datum kinds,
+    # and each reads back through `Value.datum()`.
+    "Datum::Plane": "Node.datum_plane",
+    "Datum::Axis": "Node.datum_axis",
+    "Datum::AxisInPlane": "Node.datum_axis_in_plane",
+    "Datum::FaceFrame": "Node.datum_face_frame",
+    "Datum::Point": "Node.datum_point",
+    "Datum::Frame": "Node.datum_frame",
+    # `Tied` is the arm the namesake spells; `Unique` is that attribute
+    # being false.
+    "Denotation::Unique": "Denotation.tied",
+    # The structural-slot edit, reached through one door per slot rather
+    # than by naming the arm — `bind_count_param`, `bind_instance_param`
+    # and `bind_v_degree_param` all build this arm.
+    "DocEdit::SetStructuralParam": "DocEdit.bind_count_param",
+    # The continuous arm is what the three dimensioned constructors
+    # mint; `Count` is the arm the namesake spells.
+    "DocParam::Continuous": "DocParam.length",
+    # As `DocParam` above, one rung down at the value.
+    "DocParamValue::Continuous": "DocParamValue.length",
+    # THE RUST RUN'S OWN FIELDS, under a Python class that is a different
+    # type: `pncad.pyi`'s `Evaluation` is the binding's captured
+    # (document, evaluation) pair. Four of its ten fields carry names
+    # the pair spells anyway (`order`, `recomputed`, `reused`,
+    # `part_evaluations`); these are the rest. `prior_refused` is the
+    # `Mispaired` entry's sentence in `NOT_BOUND` — the fact reaches
+    # Python as `reused` being 0 with every node recomputed.
+    "Evaluation::document": "Doc.id",
+    "Evaluation::prior_refused": "Evaluation.reused",
+    "Evaluation::nodes": "Evaluation.value",
+    "Evaluation::outcome": "Evaluation.canceled",
+    # The detector's finding: its pair crosses as two NAMES, its class
+    # as the word, its evidence as the rung that carried it.
+    "FlushFinding::pair": "FlushFinding.a",
+    "FlushFinding::class": "FlushFinding.class_",
+    "FlushFinding::evidence": "FlushFinding.rung",
+    # The maintenance travels with the document handed back, so it is
+    # read off that `Doc` rather than off the outcome
+    # (`crates/pncad-py/src/py/refactor.rs`).
+    "InlineOutcome::maintenance": "Doc.last_maintenance",
+    # The replayed edit LIST crosses as its length; `Applied`/
+    # `EditRecord` are `different-shape` in `NOT_BOUND` and the records
+    # field is below with them.
+    "Loaded::edits": "Loaded.edit_count",
+    # One patch at a time, by index, beside `patch_count`.
+    "Mesh::patches": "Mesh.patch",
+    # `class_` because `class` is a Python keyword — the `IN`/`inch`
+    # shift, one level in.
+    "MintedDeclaration::class": "MintedDeclaration.class_",
+    # The entity-kind filter, named for what it does at the door.
+    "NamePat::kind": "NamePat.of_kind",
+    # The datum arm crosses as one constructor per `Datum` arm (see the
+    # `Datum` rows above); this points at the first of the six.
+    "Node::Datum": "Node.datum_plane",
+    # Spelled out, as the stub spells every direction.
+    "Ray::dir": "Ray.direction",
+    # The nested patterns a segment pattern matches its arguments with.
+    "SegPat::args": "SegPat.of",
+    # The alternatives, named for the door that takes them.
+    "Selector::alts": "Selector.any_of",
+    # The frame crosses as its four readers rather than as an `Affine3`,
+    # which is `different-shape` in `NOT_BOUND`; this points at the
+    # first of them.
+    "SketchPlane::placement": "SketchPlane.origin",
+    # As `InlineOutcome` below: the maintenance rides the document each
+    # half is handed back on.
+    "SplitOutcome::remainder_maintenance": "Doc.last_maintenance",
+    "SplitOutcome::part_maintenance": "Doc.last_maintenance",
+}
+
+#: Members with no Python spelling at all, by family — `NOT_BOUND`'s three
+#: families, for their reasons, one level in.
+#:
+#: `different-shape` and `behind-a-door` read as they do above. A `gap:`
+#: entry is OWED WORK and names the id that owns it. One of the ids here
+#: is chartered in `FAMILIES` by this rule's first run — the five
+#: `DocEdit` arms no Python constructor builds; the rule's other two
+#: findings, the two `Datum` arms and the `Mesh` field, are bound and
+#: gone from this table. The remaining entry cites `G2`, the audit's,
+#: beside `sweep_body` above.
+MEMBERS_NOT_BOUND = {
+    # THE PATH VERBS' ARC SPECS, one family. A spec's fields are its
+    # CONSTRUCTOR's arguments — `Bulge(p, b)`, `Center(c, winding, p)` —
+    # and nothing reads one back: the spec is consumed by the verb it is
+    # passed to. `SplitHalf`/`Side` and the radius sign are the same
+    # `different-shape` argument the selector plumbing carries.
+    "ArcLen::r": SHAPE,
+    "ArcLen::side": SHAPE,
+    "ArcLen::len": SHAPE,
+    "Bulge::p": SHAPE,
+    "Bulge::b": SHAPE,
+    "Center::c": SHAPE,
+    "Center::winding": SHAPE,
+    "Center::p": SHAPE,
+    "Radius::r": SHAPE,
+    "Radius::side": SHAPE,
+    "Sweep::r": SHAPE,
+    "Sweep::side": SHAPE,
+    "Sweep::angle": SHAPE,
+    "Via::q": SHAPE,
+    "Via::p": SHAPE,
+    # `ContactRecords` is `INTERIOR` and this is that entry one level
+    # in: nothing hands one out, so the field has nothing to project.
+    "Assembly::contacts": INTERIOR,
+    # The kernel's own story about the refused declaration, composed
+    # into the finding's `str()` — the flattened-payload bullet at the
+    # door that renders rather than raises.
+    "AtRestFinding::error": SHAPE,
+    # The replay structure is the lattice's own bookkeeping; no Python
+    # value is ever one.
+    "ClosedLoop::structure": INTERIOR,
+    # THE THREE EDITS STILL WITH NO PYTHON DOOR, and each is a
+    # different sentence now that LIB-EDITS has built the two that
+    # were only missing. Those two left this roster ENTIRELY rather
+    # than moving into `MEMBERS_BOUND_AS`: `DocEdit.set_param` and
+    # `DocEdit.rebind` spell `SetParam` and `Rebind` namesake for
+    # namesake, and rule 1 accounts a member the stub spells. Their
+    # doors are the CONTINUOUS slot edit — one door for every slot,
+    # the opposite decision from the three `bind_*_param` doors,
+    # because the continuous slots are the whole named alphabet
+    # `EditError.slot` publishes and this door reads it in the other
+    # direction — and the one name repair, whose halves take the role
+    # suffix `EditError.from_kind` / `to_kind` take, for the reason
+    # those two do: `from` is a Python keyword.
+    #
+    # The WITNESS PAIR is the appearance four's argument at a second
+    # pair of types: `crates/pncad/src/document.rs` does not carry
+    # `WitnessDatum` or `BranchCertification` at all, so the arms have
+    # no payload a consumer of that module can name — in Rust or in
+    # Python. Filed as
+    # `work/lib/the-witness-edits-need-a-facade-type.md`.
+    #
+    # The EXPRESSION-PATH edit is neither: its payload is curated
+    # (`ExprPath` is `EditError.path`) and the constructor is
+    # mechanical. What blocks it is its own refusal — `path_off_tree`
+    # renders the address through `Debug`, and the binding's prose
+    # gate panics on that, so the door would panic exactly where it is
+    # supposed to refuse. Filed as
+    # `work/lib/the-expression-path-edit-cannot-refuse-as-prose.md`.
+    "DocEdit::SetExpression": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
+    "DocEdit::ReWitness": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
+    "DocEdit::ReWitnessBulk": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
+    # THE APPEARANCE FOUR, and the reason is the FAÇADE's rather than
+    # this file's: `crates/pncad/src/document.rs` carries `AttrKind` and
+    # leaves `Attr`, `AttrSet` and the record types out, because nothing
+    # a consumer of that module holds answers in them. An arm whose
+    # payload the façade does not carry has nothing for a Python
+    # constructor to take, and the metadata pair is the same sentence at
+    # `MetaValue`.
+    "DocEdit::SetAppearance": SHAPE,
+    "DocEdit::ClearAppearance": SHAPE,
+    "DocEdit::SetAppearanceMeta": SHAPE,
+    "DocEdit::ClearAppearanceMeta": SHAPE,
+    # The epoch is minted per run and is not a caller's choice, which is
+    # `EvalOptions`'s own sentence one rung in. The appearance
+    # resolution is the appearance family the façade leaves out (see the
+    # `DocEdit` rows).
+    "Evaluation::epoch": INTERIOR,
+    "Evaluation::appearance": SHAPE,
+    # `EditRecord` is `different-shape`: `Doc.apply` mutates in place and
+    # answers `Optional[NodeId]`, so there is no record list to hand
+    # back.
+    "Loaded::records": SHAPE,
+    # The declared FACES are arena keys, which the curation exists to
+    # keep unnameable in Python; the pair reaches a caller as the two
+    # names `a` and `b`.
+    "MintedDeclaration::faces": SHAPE,
+    # The one recipe node kind with no Python constructor, and it is not
+    # an omission: `wire_sweep` refuses unconditionally (U4/LQ3,
+    # kernel-owned), so the door could not succeed. `sweep_body` carries
+    # the same citation in `NOT_BOUND`.
+    "Node::Sweep": f"{GAP}: G2 sweep — no `Node.sweep`, `wire_sweep` refusing",
 }
 
 
@@ -1880,6 +3270,7 @@ class TestBindingCensus(unittest.TestCase):
     def setUp(self):
         self.curated = curated_names()
         self.top, self.members = stub_surface()
+        self.declarations = curated_declarations()
 
     def test_the_census_is_not_vacuous(self):
         """Floors on both scanners, picked by measurement.
@@ -1895,13 +3286,28 @@ class TestBindingCensus(unittest.TestCase):
         far above zero.
         """
         self.assertGreater(
-            len(self.curated), 300, "the façade's three lists shrank drastically"
+            len(self.curated), 300, "the façade's curated lists shrank drastically"
         )
         self.assertGreater(
             len(self.top), 75, "the stub scanner found almost nothing"
         )
         self.assertGreater(
             len(self.members), 250, "the member scanner found almost nothing"
+        )
+        # And the same floor on the RUST side of the member rule, whose
+        # scanner is a whole second reader: 104 matched declarations
+        # carrying 616 members at this unit's merge base. A resolver that
+        # answered nothing would satisfy the member obligation vacuously,
+        # exactly as an empty curated set would satisfy the name one.
+        self.assertGreater(
+            len(self.declarations),
+            60,
+            "no curated name resolved to a declaration with members",
+        )
+        self.assertGreater(
+            sum(len(members) for _decl, members in self.declarations.values()),
+            400,
+            "the declaration scanner found almost no members",
         )
 
     def test_every_bound_as_spelling_exists_in_the_stub(self):
@@ -1910,23 +3316,27 @@ class TestBindingCensus(unittest.TestCase):
         this whole roster decorative."""
         absent = sorted(
             f"{name} -> {spelling}"
-            for name, spelling in BOUND_AS.items()
+            for table in (BOUND_AS, MEMBERS_BOUND_AS)
+            for name, spelling in table.items()
             if spelling not in self.top and spelling not in self.members
         )
         self.assertEqual(
             absent,
             [],
-            "BOUND_AS names Python spellings pncad.pyi does not declare",
+            "a bound-as roster names Python spellings pncad.pyi does not "
+            "declare",
         )
 
     def test_the_two_rosters_are_disjoint(self):
         overlap = sorted(set(BOUND_AS) & set(NOT_BOUND))
+        overlap += sorted(set(MEMBERS_BOUND_AS) & set(MEMBERS_NOT_BOUND))
         self.assertEqual(overlap, [], "a name cannot be both bound and unbound")
 
     def test_every_not_bound_family_is_one_of_the_three(self):
         bad = sorted(
             f"{name}: {family}"
-            for name, family in NOT_BOUND.items()
+            for table in (NOT_BOUND, MEMBERS_NOT_BOUND)
+            for name, family in table.items()
             if family not in (SHAPE, INTERIOR)
             and not family.startswith(f"{GAP}: ")
         )
@@ -1979,7 +3389,8 @@ class TestBindingCensus(unittest.TestCase):
         )
         bad = []
         cited = set()
-        for name, family in sorted(NOT_BOUND.items()):
+        entries = sorted(NOT_BOUND.items()) + sorted(MEMBERS_NOT_BOUND.items())
+        for name, family in entries:
             if not family.startswith(f"{GAP}: "):
                 continue
             words = family[len(f"{GAP}: ") :].split()
@@ -2035,6 +3446,100 @@ class TestBindingCensus(unittest.TestCase):
             "with the family it belongs to (a 'gap:' entry must name the "
             "pointer that owns the work).",
         )
+
+    def test_every_member_of_a_matched_type_is_spelled_or_listed(self):
+        """**The member obligation, mechanical.**
+
+        Rule 1 accounts a curated name by SPELLING, which is exactly as
+        strong as the coincidence that the two sides picked the same
+        word. Where that name resolves to an enum or a struct, this is
+        what the match actually buys: the members the Python namesake
+        spells, and nothing else. A member it does not spell is a door
+        that may or may not exist, and it fails here until someone says
+        which.
+
+        `Datum::FaceFrame` is why. The curated `Datum` is `editor_core`'s
+        AUTHORING enum and `pncad.pyi`'s is the read-side value — two
+        types, one word — so a whole authoring arm was unbound behind a
+        name-for-name match for the life of the family chartered to bind
+        it. `Node::Union` and `DocEdit::SetMembers` were the same shape
+        behind two more names this file accounts whole.
+        """
+        unaccounted = sorted(
+            f"{name}::{member}"
+            for name, member in unspelled_members(self.members)
+            if f"{name}::{member}" not in MEMBERS_BOUND_AS
+            and f"{name}::{member}" not in MEMBERS_NOT_BOUND
+        )
+        self.assertEqual(
+            unaccounted,
+            [],
+            f"{len(unaccounted)} member(s) of a curated type Python spells "
+            "identically are neither spelled by the namesake nor listed: "
+            "spell each on the namesake (an arm as a same-named class "
+            "attribute or a snake-cased constructor, a field as a same-named "
+            "attribute), or add it to MEMBERS_BOUND_AS with the Python "
+            "spelling that answers the same question, or to MEMBERS_NOT_BOUND "
+            "with the family it belongs to.",
+        )
+
+    def test_the_member_rule_catches_a_spelling_that_moves(self):
+        """**The falsifier, run rather than argued.**
+
+        A guard that has never been seen to fail is a guard nobody has
+        checked, and the member rule's whole claim is that a door
+        disappearing from the Python side stops being invisible. So the
+        rule is run once against a stub surface with `Node.extrude`
+        taken out of it: the arm must come back unaccounted, naming
+        itself, and must NOT be unaccounted against the real surface.
+
+        `Node::Extrude` is the subject because it is the shift the rule
+        is named for — an arm crossing as a snake-cased constructor —
+        and because `Node` is exactly the type whose arms rule 1
+        accounted whole while `Union` sat unbound behind it.
+        """
+        moved = {member for member in self.members if member != "Node.extrude"}
+        self.assertIn(
+            ("Node", "Extrude"),
+            unspelled_members(moved),
+            "the member rule did not notice a constructor leaving the stub",
+        )
+        self.assertNotIn(
+            ("Node", "Extrude"),
+            unspelled_members(self.members),
+            "`Node.extrude` is in the stub and the rule should account it",
+        )
+
+    def test_the_member_rosters_decay(self):
+        """Both directions again, over the set the member rule is about.
+
+        A row for a member the declaration no longer has — renamed,
+        deleted, or its type no longer curated or no longer matched by
+        rule 1 — is a decision about nothing. So is a row for a member
+        the Python namesake has SINCE started spelling, which is how a
+        `gap:` row is meant to leave when the door is built.
+        """
+        declared = {
+            f"{name}::{member}"
+            for name, (_decl, members) in self.declarations.items()
+            for member in members
+        }
+        unspelled = {
+            f"{name}::{member}"
+            for name, member in unspelled_members(self.members)
+        }
+        rows = set(MEMBERS_BOUND_AS) | set(MEMBERS_NOT_BOUND)
+        stale = sorted(
+            f"{row} (not a member of a curated type rule 1 matches)"
+            for row in rows
+            if row not in declared
+        )
+        stale += sorted(
+            f"{row} (the Python namesake spells it now; drop the row)"
+            for row in rows
+            if row in declared and row not in unspelled
+        )
+        self.assertEqual(stale, [], "stale member rows — remove them")
 
     def test_the_rosters_decay(self):
         """Both directions, exactly as the Rust guard's stale check.

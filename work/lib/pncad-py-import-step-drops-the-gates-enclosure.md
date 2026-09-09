@@ -2,8 +2,9 @@
 id: pncad-py-import-step-drops-the-gates-enclosure
 kind: issue
 title: pncad-py's import_step drops the gate's enclosure, so a Python import-then-measure pays two certified quadratures
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-09
 ---
 
 
@@ -50,3 +51,55 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+Python's importer drops the gate's `enclosure` (the import's own
+certified `MassProperties`, "not a second computation") and hands back
+a bare `Body`, so import-then-`mass_properties` runs the quadrature
+twice (25–50 % of the row's wall at default ε). Two shapes, and the
+choice is about what a `Body` handle IS:
+
+- **(A) The report carries it.** `import_step` answers an
+  `ImportReport` (the value class of the sibling question) with
+  `.body` and `.enclosure` (`MassProperties`) beside the record rows;
+  `Body` stays a pure handle and `mass_properties` keeps its one
+  meaning. A caller who wants the free number reads it off the report.
+  Recommended, together with (A) on the sibling.
+- **(B) The handle carries it.** `Body` gains an
+  `Optional[MassProperties]` (`None` unless it arrived through a gate)
+  and `mass_properties` answers from it when present — the natural
+  journey is free without reading a report, at the price of a handle
+  whose method means two things.
+- **(C) Leave the double quadrature** and correct the field's docs.
+
+Recommendation: **(A)**; if you prefer the journey to be free without
+the caller touching a report, (B) is the smaller change to write and
+the larger one to explain.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2232)
+
+**(A).** Ev, after the premise was corrected (both (A) and (B) change
+binding code — (A) at the door's return shape, (B) on the `Body`
+handle): "yes definitely A over B." `import_step` answers an
+`ImportReport` (the sibling's value class) with `.body` and
+`.enclosure` (`MassProperties`) beside the record rows; `Body` stays
+a pure handle and `mass_properties` keeps its one meaning. Dispatches
+with the sibling as one unit (LIB-IMPORT-REPORT).
+
+## Closed (2026-09-09, LIB-IMPORT-REPORT)
+
+(A), as ruled. `import_step` answers an `ImportReport` carrying
+`.body` and `.enclosure`; the `..` that dropped the field is gone.
+`Body` is unchanged and `mass_properties` still means one thing — the
+handle did not gain a second answer.
+
+The cost the finding reported, re-measured through the Python door on
+this tree: on a lofted rational-walled body the second quadrature is
+8.24 s of a 16.50 s import-then-measure journey (49.9 %), which lands
+inside the 25–50 % this file claimed from TCOST-K3's fixtures. On a
+body whose every face has a closed form — the box the suite's
+round-trip row uses — it is 0.3 % of the row, because there is no
+quadrature to repeat. Both readings are bit-identical to the
+enclosure, which is the finding's "not a soundness defect" measured
+rather than repeated.

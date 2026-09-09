@@ -3135,3 +3135,1677 @@ reported not filed: `Subject`'s derivation in `editor-core`'s
 `run_checks` has to be re-spelled by any caller holding a product, and
 `Subject::not_needed` is private (DOCM's). Lane was cut off by an API
 session limit mid-unit and resumed in place once it reset.
+**LIB-CORPUS MERGED (2026-09-08, #2182; mechanical under the 08-29
+ruling, no A/B row). The bench corpus is authored, not committed —
+Ev's ruling (E), PR 2019.** `crates/pncad-py/tests/corpus/bench/` (four
+`.pncad` documents and the `MANIFEST`) deleted, and with it the whole
+staleness surface; `crates/pncad-py/tests/bench_scene.py` is the ONE
+Python definition of the tour's bench (six constants, three derived
+seats, two part shapes, the flat-pack layout, the mated stand), which
+`test_assembly_author.py` authors from as before and
+`test_assembly_eval.py` now writes into a temp `Workspace` and resolves
+back out through a `DocRef` on every call, so the load path is
+exercised over documents nothing keeps on disk. The header's false
+claim that Python could not author an instantiate node is gone with
+the bytes. The tour guard stays and widens: `TestTheSceneIsTheToursOwn`
+reads `demos/tour/src/assembly.rs`'s source and compares the six base
+constants by value, the three seats BY FORMULA (parsed and computed, so
+a changed derivation reds though the bases did not move), the flat-
+pack's placement literals and the stand's gauge offset and mate seats,
+each arm mutation-proven red (ten mutations of the tour, ten reds); what it cannot see (structure, the two
+deliberate Python/tour differences — literal prisms for parametric
+ones, `placed_union` for `Node::Pattern` — anything outside the
+constant block and the two authoring fns, and a rename or reformat,
+which reds as a false alarm) is stated in the test's header rather than
+banked. Every oracle the eval test carried is still asserted; the
+placement row was re-cut as a family outline plus one cap frame per
+placement, and three rows that moved the shelf's pin through a
+parameter edit now re-author the part under the same label, since the
+Python-authored parts hold no parameters. `demo-tour asm-corpus` and
+`assembly::corpus` RETIRED (its only consumer was the deleted corpus;
+`gallery` remains the door that saves documents), the render lanes
+reporting no moved frame. `ci.yml`'s die-corpus note re-pointed. Now
+that `Node.pattern` is bound (B-PART), authoring the posts as a pattern
+is the separately filed job
+(`bench-flat-pack-star-is-now-a-pattern-job`), not this unit's. Orchestrator
+note: main gained only LIB-PRODUCT between the green run on `dfb5e776`
+and the merge, no file overlapping this diff, so it landed on that run.
+
+**LIB-POLYGON MERGED (2026-09-08, #2183; mechanical under the 08-29
+ruling, no A/B row). The lattice-backed façade polygon door — Ev's
+ruling (A), PR 2017.** `pncad::authoring::polygon(&[(f64, f64)], tol)
+-> Result<ProfileLoop<T>, PathError<T>>` (`T: Decide`, the bound the
+lattice's junction decisions need), curated into the prelude, spelled
+exactly as the tour's helper spelled it — `Open.at(p0)`, a `line_to`
+per vertex, `line_to(Start)` as the seam — so a within-band-tangent or
+cusped corner refuses AT AUTHORING and the emitted loop is the raw
+vertex table (bulge 0, no declared joints; pinned position-for-
+position and against the hand-spelled chain, since `RawLoop` is off
+the façade and `ProfileLoop` has no `PartialEq` — the brief's `==`
+against the raw constructor was unwritable at that seat, disclosed).
+Two ruled cross-fence touches, both the only edits in their trees:
+`crates/profile` gains ONE arm, `PathError::PolygonTooFewVertices {
+given }` with its `PathErrorKind` mirror, `kind()` row and `Display`
+recourse, crossing as `polygon_too_few_vertices` with its
+`TAG_INVENTORY` row and a construction pin through the door; and
+`demos/tour/src/paths.rs` is deleted with its eleven call sites moved
+onto the door (the ruling's thirteen counted references, not
+invocations — the true count is recorded on the item), no scene
+changed, all three render lanes green with no re-baseline. The
+authoring-seam roster guard in `all.rs` names `polygon` beside
+`validated` as the two fallible seams. Census: `polygon` is a curated
+name now and rule 1 does not account it (`pncad.pyi` spells it only as
+`Node.polygon`), so `BOUND_AS` maps it there with the reason; no roster
+row moved. `docs/guide/examples.md` lost the helper's row and a false
+sentence beside it (the tour's `Cargo.toml` names no kernel crate but
+`pncad`). Not taken, on the lane's argument and the orchestrator's
+agreement: `docs/PATHS-DESIGN.md` §3's refusal register enumerates the
+lattice VERBS' refusals and no verb produces this arm — PATHS's page,
+not LIB's, if that register is ever meant to list every `PathError`
+arm. Filed: `tag-inventory-prose-counts-are-stale` (the tag-table doc
+comment narrates 37 functions / 361 literals against a measured
+42 / 402; the unit corrected only the count its own change moves).
+Orchestrator note: main gained the gate scripts and TESS-BUDGET
+between the green run on `c45c6785` and the merge, no file overlapping
+this diff, so it landed on that run.
+
+**LIB-SAVEFORK MERGED (2026-09-08, #2184; mechanical under the 08-29
+ruling, no A/B row). A save is two acts — Ev's ruling (A), PR 2016,
+recorded at ASSEMBLY.md A4.** Two doors on `Workspace`
+(`crates/pncad/src/workspace.rs`), bound on Python's `Workspace` under
+the same names: `save_at(doc, target, tol)` keeps the identity and
+reads the scan BEFORE any write — the id claimed at a different path
+refuses typed, claimed at `target` it is a resave, unclaimed it is a
+create at the caller's name (which `create` cannot spell, forcing
+`{id}.pncad`); `save_as_new_document(doc, tol) -> (DocumentId,
+PathBuf)` mints a fresh random id and writes `{newid}.pncad` through
+`create`'s validator, the original untouched so every inbound `DocRef`
+pinning the old id still resolves to it. The arm decision, argued
+both ways and settled on a NEW arm: `WorkspaceError::
+SaveWouldDuplicateId { id, existing, requested }` rather than
+`DuplicateId` reused, because the recourse differs (the scan's
+duplicate is two files that exist, fixed by deleting one; the save
+door's is a write that has not happened, fixed by choosing an act);
+a second new arm `SaveTargetNotInStore { path }` refuses a target that
+is not a `*.pncad` file directly in the store root, since a different
+root is a different store. Both matched exhaustively at
+`resolve_fault`, `workspace_err` and the tag map; Python tags
+`save_would_duplicate_id` / `save_target_not_in_store` with inventory
+rows and construction pins, the two paths riding `first`/`second` so
+handling reads any duplicate-id refusal without branching on the door.
+The pin question answered: the fork's content pin EQUALS the
+original's, because `canonical_bytes` removes the `id` key (A4's own
+sentence), and the two save files differ in the `id:` header and the
+snapshot's id — pinned in both languages, with the fork shown to
+differ from the original in identity and nothing else. Five facts
+pinned on each side (refuses before the file exists and the store
+still opens; resave in place; create at a chosen name; the fork's
+identity, resolution and coexistence; equal pins). **One announced
+fence crossing**: `crates/editor-core/src/doc.rs` gains
+`Doc::under_identity(self, id) -> Self` — the fork constructor, one
+field, no minting, DOCM's file — because `Doc::id` is crate-private,
+no `DocEdit` moves it, and the alternative was a serde round-trip in
+the façade; the CHROME `member_of` shape, disclosed in the PR and the
+unit file, and DOCM may re-home it. Hand-off filed on VIEW
+(`work/view/session-save-is-two-acts.md`): `SessionOp::Save` writes
+around the store through `docio::save_path`, the tree's only
+production write that does, so the ruled refusal cannot fire from the
+viewer until that routes through `save_at`, and a second op spells the
+fork. Guide and audit sentences that said "`create` and `resave` are
+the two write doors" corrected. The lane installed the pinned ruff and
+ran `check-python-lint.py` for real. Orchestrator note: main gained one
+SHELL commit (`shell/ab-claims-2303`) between the green run on `1ec85d61`
+and the merge, overlapping nothing in this diff, so it landed on that
+run.
+
+**THE RULED QUEUE IS EMPTY (2026-09-08, LIB orchestrator).** LB14's four
+lanes have all landed: wave 1 mechanical (B-FACE-FRAME, MECH2), LIB-G17
+on the full protocol, LIB-CUR5, and the four `[ev]` forks ruled and
+built (SAVEFORK, POLYGON, CORPUS, PRODUCT), plus B-PART. Nine LIB
+merges in one day, every one on a green head with the state-sync
+commit last. Two method notes worth keeping: a green head whose only
+drift from main is non-overlapping files lands without another chase,
+with the drift named in the entry (four of today's merges did — the
+alternative was a ~20-minute CI cycle per tracker commit on a main
+that moved every twenty minutes); and a lane's target and clone are
+reclaimed only AFTER the merge call succeeds (CORPUS's clone was
+removed a step early and had to be re-cloned to resolve a tail-of-log
+conflict — kept both entries in landing order).
+
+- **LB19 — wave 3 is the three chartered census families, then the
+  curation residue.** Mechanical under the 08-29 ruling, the B-PART
+  shape (derived scope stated before code; the census's field- and
+  variant-level blind spots measured at each closure): B-NOTATION and
+  B-DISTRIBUTIONS staggered (they share the census, the stub, the tag
+  files and the parameter doors), B-MEASURES after B-DISTRIBUTIONS as
+  its own file sequences it. B-DISTRIBUTIONS establishes the
+  `interval` gate on the analysis read doors FIRST and binds only what
+  the default build compiles, reporting the rest as the measured
+  limit. Then a LIB-CUR6 over `payload-rung-re-sweep-finds-five-more-
+  uncurated-discriminants` (the CUR3 test — is it a discriminant a
+  caller branches on — applied to each of the five, `ImportContact`
+  judged as a reach defect instead), and the bench pattern job
+  (`bench-flat-pack-star-is-now-a-pattern-job`, a Python row that
+  MEASURES whether a plural payload answers the mates and the A5 gate
+  the same way). The next full-protocol candidate is the teapot
+  conversion (`teapot-scene-through-node-shell`: render lane, tess-
+  budget rows, three audit rows flip on a Python row) — it needs a spec
+  and LIB-13 slot 2 (OPUS by the block's arithmetic) before dispatch.
+  LB15's two DOCM hand-offs and the tag-projection issues
+  (`lib-per-arm-error-tags`, `pncad-py-seven-doors-lack-field-projection`,
+  `census-findings-cross-without-a-per-arm-tag`) stay queued behind
+  them: the last three are one design question about per-arm
+  projection and go to Ev as one `[ev]` PR when the wave clears.
+
+**LIB-B-NOTATION MERGED (2026-09-08, #2189; mechanical under the 08-29
+ruling, no A/B row). Census family B-NOTATION CLOSED — a parameter
+authored in millimetres remembers the millimetres.** Measured first,
+with the bytes: at the merge base `DocParam.length(25 * mm)` saved
+`"display_unit": "m"`, the canonical row, because a Python `Length`
+wraps the arithmetic type and erases at the multiply — and it cannot
+be taught the unit, since `quantity::written` deliberately defines no
+arithmetic on an authored value (no notation for the sum of a
+millimetre and an inch). So the notation crosses as the SECOND type,
+the pair the census's two rows always named: `WrittenLength` /
+`WrittenAngle` bound at their own spelling (`in_unit` multiplies and
+remembers, `canonical_in` records a notation for a value already
+computed, `length`/`angle`/`meters`/`radians`/`unit`, equality on both
+halves, no arithmetic), `DocParam.written_length` / `written_angle`
+(total — a mis-dimensioned written value is UNREPRESENTABLE at the
+type, so the row is a ty fixture, and the persist walk's `display_unit`
+refusal is pinned as the one reachable from Python), and
+`DocParam.unit` answering the symbol (`""` for the dimensionless row,
+`None` for a Count). Both roster rows leave under rule 1; the charter
+leaves `FAMILIES`. The unit's real yield is the third census lesson:
+this was the first family whose roster was honest about its own
+entries, and closing it still required two doors the roster could not
+see — `Doc.params`, a METHOD of a rule-1 type (Python had NO door
+answering a parameter back, so the memory would have been observable
+only by parsing saved JSON), and `LengthUnit.__eq__`/`__hash__` (with
+`AngleUnit`'s), a MISSING DUNDER invisible to both rosters because
+`test_stubs.py` checks only stub-declared operators (`mm == mm` held by
+identity alone). Not taken, argued: `Expr::written_length` needs no
+door because `Doc.parse_expr("25 mm")` already records the notation and
+`Expr.text` reads it back; `DocParamValue` gets no written door because
+the notation rides with the declaration (pinned both ways). 30 rows
+reading the saved bytes wherever the claim is about what a document
+records. Filed: `node-slot-literals-erase-the-authored-notation` (52
+node-slot literal sites in 18 doors record the canonical row — the same
+erasure one vocabulary over, and the typed doors disagree with the text
+door about one authoring). The lane ran the pinned ruff for real.
+Orchestrator merged main (SAVEFORK, overlapping `pncad.pyi` and the
+legal fixture — additive hunks, clean merge) and landed on the re-run.
+
+**LIB-B-DISTRIBUTIONS MERGED (2026-09-08, #2192; mechanical under the
+08-29 ruling, no A/B row). Census family B-DISTRIBUTIONS CLOSED —
+parameter uncertainty and the analysis lane (E1/E2).** The gate
+measured before scope, as the brief required: `crates/pncad/src/
+analysis.rs` splits at `:49` (ungated) and `:55`–`:104` (`interval`),
+all three chartered doors are on the ungated line, so the family
+closes on the default build the wheel is made from and nothing is
+deferred behind a feature; there is no precedent for a feature-gated
+Python door and none was minted. Bound: `Distribution.band / uniform /
+normal / truncated_normal` as a frozen constructor class whose offsets
+are TYPED quantities in the parameter's own dimension (the annotation
+carries none of its own — E2 — so it borrows the declaration's, which
+makes the read direction free and two disagreements checkable as
+`DimensionError` with `op` naming the door) and whose construction
+runs the kernel's own `Distribution::check`, so a document that would
+refuse to load cannot be authored and the refusal lands where the
+sigma is written (`DistributionFault`, every arm's payload present on
+every arm); `DocParam.length/angle/scalar(value, distribution=None)`
+and `DocParam.distribution`/`dimension`; `analyzed_box(doc, policy)`
+with `AnalysisPolicy`, `AnalyzedBox`, `AnalyzedParam`,
+`DEFAULT_QUANTILE_MASS`; the tail and leaf columns as METHODS ON THE
+BOX (`tail_mass`, `box_mass`) rather than the kernel's free functions,
+on the kernel's own argument that loose triples let a caller pair one
+parameter's distribution with another's box; `MeasureUnavailable` (a
+band prices nothing shape-dependent, and names the parameter) and
+`AnalysisPolicyError`. The sharp edge pinned in all three states
+(the rebuilt `DocParam` still deletes the annotation; the value door
+carries it forward; a redeclaration can now restate it) — there is no
+distribution-only edit arm and none was invented, so the closure is
+the constructor and the prose on `set_doc_param` says what the door
+does. Census: three rows left three ways (`Distribution`,
+`DistributionFault` under rule 1; `DistributionField` to `BOUND_AS` as
+`DistributionFault.field`); the charter leaves `FAMILIES`. The census
+lesson in its widest form yet: three of the charter's four things
+(`analyzed_box`, tail mass, leaf mass) were never rows and could not
+be, because `crates/pncad/src/analysis.rs` is outside the census's
+alphabet in both directions — which will do the same to B-MEASURES's
+read half. 36 Python rows mirroring `m10_1_analysis.rs` and the
+façade's end-to-end row, two Rust pins on the default path, five
+fixtures each way, a GUIDE §3.3 block executed by `test_guide.py`.
+Deviations with homes: a keyed `Doc.doc_param` was written and then
+deleted at the B-NOTATION merge in favour of `doc.params.get(name)`
+(one door per question); `written_length/angle` take no
+`distribution=` because the kernel's notation doors write none
+(reported as the kernel-side gap). Filed:
+`advisory-monte-carlo-lane-has-no-python-door` (the E11.1 estimator is
+ungated on the façade precisely for the caller with no certified
+scalar, and a Python caller is that caller). Reported outside the
+fence: `std_deviation`'s `NOT_CARRIED` row withholds a name whose
+answer is one method call away on a carried type (M10's call).
+Orchestrator note: main gained EVAL/RESOLVE internals and tests between
+the green run on `528d9274` and the merge, overlapping nothing in this
+diff, so it landed on that run.
+
+**LIB-CUR6 MERGED (2026-09-08, #2193; mechanical under the 08-29
+ruling, no A/B row). The five re-sweep hits settled under the CUR3
+test, four carried and one argued at the entry.** `CensusSubject`
+carried into prelude group 5 (two arms, two recourses — an `Entity` is
+a carrier outside the certifiable inventory, a `FacePair` is a
+candidate contact; both payload types CUR5 curated, so the
+discriminant was the last thing in the way; the unordered-pair half
+deliberately unpinned since no curated name mints two distinct
+`FaceKey`s, said at the guard); `RevolvedKind` carried into group 3
+and CONSTRUCTED rather than fabricated — the row calls `revolve` twice
+and reaches both arms, whose fields are two disjoint sets of handles
+rather than a label; `PromotedKind` carried into group 7 with the
+item's carrier attribution CORRECTED (`SurfacePromotion` sits on an
+uncurated chain; the curated carrier is
+`StepImportError::RecognitionAmbiguous::kind`), the tag arriving
+beside `recognition_ambiguous` rather than forwarded
+(`StepImportError.promoted_kind`, `promoted_kind_tag` exhaustive,
+inventory row, Rust pin) and a stale runtime docstring ("`refused` or
+`wireframe`") fixed in passing; `ImportContact` carried as a REACH
+defect — `ImportOptions::declared_contacts` is a `pub Vec` whose
+element type no curated list spelled, so the import-side declaration
+channel was callable and not fillable, and the façade row now fills
+it; `MappedCurve` NOT carried, the third entry of the
+`BandField`/`MarginDiag` family and the first whose reason is the ARM:
+`Scaffold` is fenced to construction and refused at rest, its
+authoring form is on no list, every kernel consumer is a re-mint, and
+the rung is uncarried whole (`ChartCurve`, `Pcurve`), so carrying one
+arm would be the `Convexity` inconsistency in reverse — falsifier
+stated. Census: `PromotedKind` to `BOUND_AS`, `ImportContact`
+`different-shape` beside its absent argument, `CensusSubject` and
+`RevolvedKind` `INTERIOR` by the carrier rule with the measurement
+(the validate doors cross as prose; `Revolved` does not cross at all).
+Re-sweep at the merge base with blind spot (f) closed (bare-`pub`
+fields only), (g) new and closed (variant names read as payloads),
+(e) narrowed (a `pub enum` inside a `macro_rules!` body IS indexed),
+(h) new and open (crate-aware, not module-aware): six new hits, all in
+`profile`, filed as
+`payload-rung-re-sweep-finds-six-uncurated-profile-discriminants`;
+the lane's counts do not reconcile with CUR5's and it says so — the
+pattern is prose re-implemented each run, every row hand-verified to
+a `file:line`. Also filed:
+`a-successful-step-imports-own-report-is-uncurated` (`import_step`'s
+refusal half is curated and its success half is not). No kernel crate
+touched; the lane ran the pinned ruff for real. Branch level with
+main at the merge.
+
+**LIB-BENCH-PATTERN MERGED (2026-09-08, #2199; mechanical under the
+08-29 ruling, no A/B row). The flat-pack posts measured as
+`Node.pattern` against `placed_union` through every layout door, and
+the pattern shipped.** `bench_scene.layout` grew a `posts=` switch
+over the two spellings (one count, one rule, one set of constants) and
+`TestBenchLayout` runs its whole battery under `subTest` against
+BOTH: over the flat-pack the plural `Instances` value answers exactly
+as the fused body does — `product` gathers `PATTERN_COUNT ×
+POST_VOLUME + SHELF_VOLUME`, `select` answers `PATTERN_COUNT` distinct
+instance-qualified cap names, each `face_frame` lands on the placement
+ladder's rung to 1e-12, every `denotation` is untied at one candidate,
+the tessellated outline is the same box, and `assemble` passes the A5
+gate outright with `minted == []`. The two spellings part at exactly
+ONE door and the pattern is the better side of it: on a document
+authored for the question, a mate head on a `Node.pattern` copy
+resolves, solves `Determining`, joins one cluster and mints — the
+`SlotId::Instance` walk (`editor-core/src/mate/member.rs`) reached
+from Python for the first time — while the same head on a
+`placed_union` copy refuses ("does not resolve to a live member") and
+the mate node's failure reds the product. The issue's premise that the
+LAYOUT carries mates over the posts was FALSE and its `## Closed` says
+so: the pattern is in the layout, whose expectations are the material,
+the outline, the per-placement frames, the names and a gate that
+passes with nothing minted; the cluster, gauge, solved translation,
+minted declarations and CERTIFYING gate are `TestBenchStand`'s, which
+carries no pattern and is untouched. `posts=` keeps `placed_union`
+reachable so the comparison stays executed rather than remembered.
+Audit: row 43 `**YES**`/`—` with the substitution sentence replaced by
+the measurement, headline "34 outright, and 3 more" (37 of 45
+unchanged — a row moved between the YES columns, not across the NO
+line), G8 `degrades 3`, G18's residue sentence records the row as
+written, and the gap-list arithmetic prose (the one sentence the tally
+guard does not check, already stale at `32 + 4 = 36`) corrected to
+`34 + 3 = 37, and 37 + 8 = 45`. Python tree: the scene's second
+"deliberate difference" deleted (parametric prisms stay), the eval
+seam row reads `[POST_VOLUME] * PATTERN_COUNT`, the outline row
+tessellates every body (`.body()` refuses typed on `instances`), the
+tour guard's blind spot (2) is one item, a docstring's "four ways"
+now names the constant (2). No kernel change; `demos/tour` untouched;
+the lane ran the pinned ruff for real. One inherited red on the first
+run (`render lanes / freecad montages` hung at its upload step with
+both lanes reporting `matches this render`; `rerun-failed-jobs` is
+403 for this integration) cleared by the main re-merge — green on the
+landed head, recorded in a PR comment. Orchestrator note: main gained
+EVAL's per-node nominal-environment work (`editor-core/src/eval/`,
+its tests) and an AB-LOG row after this head's last merge, none of
+which overlaps the diff, so it landed on that run's green without
+another chase.
+
+**LIB-B-MEASURES MERGED (2026-09-08, #2198; mechanical under the
+08-29 ruling, no A/B row). The authoring half of measurement bound,
+and `FAMILIES` is EMPTY.** Two of the kernel's twenty-three recipe
+node kinds — `Measure` and `Assertion` — had been unconstructible from
+Python for the life of the binding while `Value.measure`/`assertion`
+read them; now `MeasurePrimitive` (`.distance/.angle/.min_clearance/
+.gap`, frozen static constructors reading `verb`/`dimension`/an
+argument-ordered `refs` pair off the kernel's own doors),
+`AssertionDir` (`AtLeast`/`AtMost` with `symbol` — the `BooleanOp`
+MIRROR rather than the brief's constructor-class shape, argued: every
+fieldless kernel enum on this surface is an `eq_int` mirror and the
+spelling buys the exhaustiveness witness
+`_binds_every_kernel_direction`), `MeasureExpr` (the WHOLE arithmetic
+— `primitive/value/add/sub/neg/mul/div/min/max`, `dimension`, a
+pre-order `primitives`; `value` takes an `Expr` from `Doc.parse_expr`,
+the one text door), `Node.measure(expr, refs: list[tuple[NodeId,
+str]])` through the kernel's own `Node::measure` so an index past the
+end refuses where it is written (`MeasureNodeFault`:
+`variant/verb/index/refs`), and `Node.assertion(measure, dir, bound:
+Expr)` — the bound an `Expr` because its dimension is fixed by the
+node it points at, not by a slot address, and so a bound can BE a
+document parameter (re-decidable by an edit; pinned Holds → Violated
+on one `set_doc_param_value`). The gate measured and it is the LANE,
+not a feature: every curated name sits in `pncad/src/document.rs`
+under no `cfg`; `min_clearance` is answered by `MinClearanceLane`,
+whose only `Some` impl is `Interval`, and the binding evaluates at
+`f64` alone — so `MeasureUnavailableAt` (`variant/verb/scalar/door`,
+tag `needs_enclosure`, raised by `Value.measure` in place of
+`EvaluationError`) IS reachable on the default build and
+`MinClearanceRefusal` is reachable at NO feature set; it stays on the
+roster retagged SHAPE with that sentence (a third way off a charter,
+after B-DISTRIBUTIONS's two), and `SitedRef` retagged SHAPE (never
+handed across — both authoring doors take a node and a name). The
+name collision with B-DISTRIBUTIONS's `MeasureUnavailable` resolved by
+keeping the Rust type's own name: neither subclasses the other, the
+two tag functions deliberately not one, the non-subclassing pinned.
+`MeasureExpr`'s arithmetic raises the expression layer's own
+`DimensionError` through `LiteralError` (a shared class WIDENED:
+`LiteralError.value` now `Optional[float]`, the door inventory at four
+doors, the "every kind on this class is a literal-value refusal"
+sentence rewritten because the unit made it false; routing to
+`ErrorClass::Dimension` rejected to keep "never intercepts an
+expression-layer mismatch" true). Five rows leave `NOT_BOUND` under
+rule 1; every remaining `gap:` cites an AUDIT id (`G2`), none the
+census owns. Closed forms re-derived, not transcribed from
+`m10_2_measure.rs`: ±0.30 cylinders measure 0.60, slabs gap +2 in
+both role orders, opposed caps subtend exactly pi, bore/pin gap
+`r_bore - r_pin` across all three C5 regimes, the same vertex name at
+an extrude and its transform exactly the translation apart; a
+`min_clearance` measure evaluates with no value and its assertion
+reports `Unevaluated` naming verb and door; a document carrying both
+saves, loads and `bit_eq`s. Sweeps: every `Node` arm's constructor
+(two absent: `Sweep`, not-this-unit, and the n-ary `Union` with
+`SetMembers` beside it, FILED as
+`n-ary-union-and-set-members-have-no-python-door`); every measurement
+refusal arm with ten reached and three not, each with its reason
+(`measure_malformed` at the EDIT door unreachable by construction,
+its LOAD twin reached; `measure_ref_unreadable` needs the state
+`test_face_frame.py` records as unreachable). `test_north_star.py`'s
+G1-residue paragraph ("an expression goes in through no door at all")
+corrected — narrower, still there. A second site of #694
+(`load-path-stringifies-structured-refusals`, at `Snapshot`) named
+and pinned. Outside the fence, PR body only: a measure authored over
+the product ROOTS takes them (D-3's tip transfer) and `product` then
+refuses `no_body_roots` with no `set_roots` repair — pinned as a row
+whose docstring says it exists to go red with the argument in hand.
+42 new Python tests; the lane ran the pinned ruff for real; no kernel
+crate touched. Orchestrator note: main gained BENCH-PATTERN after
+this head's last merge (`bench_scene.py`, the assembly tests, the
+audit page, tracker files), none overlapping the diff; merged in for
+the log tail alone and landed on run 34225477952's green without
+another chase.
+
+**LIB-TEAPOT MERGED (2026-09-08, #2206; full protocol — block LIB-13
+slot 2, v6 dual at ordinal 304, sample #163). The tour's teapot is
+ONE recipe document and the numeric scans are gone.** The pot's
+revolve is hollowed twice by `Node::Shell` over one operand and wall,
+parted only by the open list (empty for the sealed body whose census,
+capacity and Void class §3's pins read; the mouth's `Band`/`BandPi`
+half-discs BY NAME for the cup, which comes back as ONE rim face); the
+lid's revolve rolls through `Node::Fillet` on its `BandRim` names —
+THREE names, not the spec's six, because an annular profile takes the
+emitter's lamina branch (one closed rim per meridian vertex, no
+`BandRimPi`) — and in TWO requests where `fillet_edges` takes one,
+because the one-request output cannot be NAMED: the flange's rim and
+the dome's foot both slit the flange cone's seam meridian and
+`RoleSeg::BandSlit` is keyed on the source edge alone, so the emitter
+refuses `Naming(Duplicate)` before any geometry is doubted (§8's first
+stop clause, fired one step over from where it was written; filed as
+`blend-slit-name-collides-when-two-rims-share-a-meridian` — editor-
+core's code, on LIB's slate by the spec's routing, RE-HOMED below —
+with the true shape after the dual: two rims whose bands slit the SAME
+seam meridian, adjacency necessary not sufficient); the spout's
+revolve is placed by `Node::Transform` in axis-angle, whose cos/sin of
+`atan2(0.8, 0.6)` come back as the 3-4-5 components and whose placed
+root annulus sits on the authored root at exactly 0.0 — MEASURED off
+the body only at the fix pass, the delivered assertion having been an
+arithmetic identity (the dispatcher's seeded question, found by both
+reviewers); the handle is `Datum::Axis` + `Node::Tube`; the two joins
+the operand gate has no arm for are `Node::Boolean` nodes that refuse
+at `evaluate` under the kernel's `CurvedPairUnsupported` (same face,
+operand and kinds as the kernel-direct union; wall 3's `other_face`
+KEY moved 1v1→2v1 with the arena numbering, disclosed at the fix).
+`plane_chart_at` and `rim_at` deleted — the role names were asserted
+equal to the scan's keys in the branch before the scan went, and what
+ships reads each rim's circle back THROUGH its name. `gallery_document`
+exposes the recipe (four roots; three sinks deleted, which is the
+document layer saying a recipe cannot hold a narration body — filed).
+Tess budget: the gate clean against BOTH the pre-PR and the re-cut
+baseline; the baseline re-cut anyway because 27 teapot rows gained the
+durable face `name` and three `teapotlid` rows permuted their
+triangle counts with the two-request roll's face order — a file that
+moved with no geometry moved, §8's third clause contradicted and said
+so, the reverse re-cut scheduled by the live probe that goes red the
+day `BandSlit` gains its discriminator. Render lanes: wild and FreeCAD
+"matches this render"; uv NEUTRAL on the lid's re-slotted cells — the
+one moved cell, a §9 finding by the spec's letter, cause disclosed.
+Audit: rows 27 and 44 → YES on `TestTeapot` and `TestTorusvessel`
+(the torus-walled vessel's sealed hollow against its own closed form
+at two thicknesses — a row the spec did not ask for and the page's
+discipline required), row 45 stays NO on `Body::merge_coplanar_faces`,
+G17 `stops` 3→1, headline 39 of 45 (36 + 3 YES\*, 6 blocked). Dual:
+CONVERGED (A-W-F 1/6/7 / A-W-F 1/6/7, rubric 4/3/3 both), severity
+labels swapped on both headlines, zero unilateral MAJORs, no tally
+candidate, pair flagged under item 5 (the build-slot banner leak,
+filed). Fix pass IMPLEMENTER-INHERITED: all seventeen items taken, none declined, six commits: the spout's placement MEASURED off the placed body — root and tip annuli named at the revolve and read at the transform against the exact image under the direction's own matrix, ≤1e-15, axis cross 0e0, both subjects guarded off the turn's fixed axis, the bitwise libm pin retired for the `erf` precedent and the observed cos/sin REPORTED (the Python row pins the same; deleting `Node.transform` now fails at 0.0078125 vs −0.1266); the Python lid row pins each selected rim's station before the roll and the three band spine stations after it (the vertex-3 mutant red at 0.21198 vs 0.21875), `RIMS` as `(vertex, radius, station)`, `SEG_MOUTH` read off the built revolve; `rim_circle` from the NAME to the one edge that carries it and the circle off that edge's own carrier (R2's same-station mutant unreachable); finding 6 ATTEMPTED live in `per_rim_answers` with the `Naming(Duplicate)` pinned and the reverse re-cut scheduled in the assertion; `demos/tour/tests/teapot_document.rs` with the rim-pair table ({1,2} and the triple refuse; five pairs incl. adjacent {2,3},{3,4} build 8/16/8) and the two-requests-equal-one-request row (census, the three bands' stored `(station, major, minor)` bit for bit, mass to 1e-14, face ORDER asserted to differ); the mouth-chart pin restored both ways; `join_outcome` with a reachable `Ok` arm; the germ-pair sentence matched whole; R1's mouth mutants as a Python row with V/A EXACTLY equal across the two orders; the issue corrected to the shared-meridian invariant with the vertex→segment table (0→5, 1→1, 2→1, 3→2, 4→3, 5→5); wall 3's key disclosed at four sites; stale prose at six sites; the gallery `why` truthful and `concat!`-built; the re-cut disclosed as UNFORCED (lint clean against both baselines, §8's clause contradicted and said so); the uv cell a §9 finding with f005's loop-start change named; the lid STL measurement recorded; two duplications disclosed and FILED (`no-facade-door-mints-a-revolves-role-names`, `a-recipe-cannot-hold-a-narration-body-without-it-becoming-a-root`, gap-commented at `gallery_document`); the note renders the germ pair not `Debug` and drops 11,261→9,764 chars. nextest 6662/6662, Python 698 OK, pinned ruff, tess-lint 0 findings and 0 rows moved by the fix pass; the finalize 403 hit one intermediate head once and never recurred. Orchestrator
+notes: the implementer lane was killed by a container restart mid-unit
+with the branch unpushed (the clone survived; resumed; "push early" now
+means before the first build); the reviewers' scratch must live in
+their own lane directories, not the shared root (`memories/` lesson
+candidate, not written — Ev's call). Spec deleted at merge, ledger
+row written. RE-HOMING: `blend-slit-name-collides-…` and
+`recipe-cannot-hold-a-narration-body` are editor-core findings filed
+on LIB's slate; they stay here as LIB-owned CROSS-FENCE items until
+the owning program claims them (STATUS shows them under lib).
+
+**LIB-ARMS MERGED (2026-09-08, #2217; mechanical under the 08-29
+ruling, no A/B row). The first unit under the per-arm rule Ev licensed
+on `[ev]` PR 2196: every refusal whose carrier already projects a word
+gains its inner arm as a second attribute.** `EvaluationError` gains
+`inner_kind` and `EditError` gains `inner_variant` — the kernel
+refusal's own arm as a snake_case word, `None` where the refusal has
+no arms — and `kind`/`variant` are untouched, so a caller branching on
+the op ladder sees no change (the ruling's own argument for the shape,
+measured: the diff deletes no match arm and no literal, and no
+`kind ==`/`variant ==` fixture moved). Ev's recorded reservation is
+answered at the door — the `EvaluationError` docstring, `pncad.pyi`
+and `docs/guide/fail-loud.md` (an executed block: `("revolve",
+"degenerate_angle")` / `("revolve", "vertex_crosses_axis")`) — as two
+enums' discriminants projected where each lives, not one division
+stored twice. The survey: 68 `NodeErrorKind` arms, 29 project an
+inner enum through twenty new exhaustive maps (profile, replay,
+structure-refusal, extrude, revolve, tube, split-op, blend, boolean,
+transform, skin, loft, band, naming, param-attach, shell,
+program-refusal, param-box, seed; 206 literals), 39 answer `None` in
+four stated groups (three already project the payload's word under
+the carrier's name; eight carry a VALUE enum, the payload half's
+question; five carry a struct with no matchable discriminant, one of
+them `WitnessBifurcation` — filed
+`witness-bifurcation-arm-has-no-inner-word`, an expiry not an
+omission; 23 carry no enum). `EditError`: 58 arms, five project.
+Nested enums one level only. The compile-time alarm fires both ways,
+RUN not asserted (a planted `RevolveError::ProbeArm` and a deleted
+map row both red `revolve_error_tag` with E0004). Six inner words
+reached from real documents, the `None` case pinned at both carriers,
+the poisoned path carries the root cause's pair; `EditError` reaches
+one of its five inner arms and the other four have pinned reasons
+(the doors pre-check). Disclosed deviation: the FAÇADE moved —
+`NamingError`, `ProgramRefusal`, `SeedError` out of `NOT_CARRIED` and
+`ParamBoxError` out of the `interval` block (`NOT_CARRIED` 90→87), by
+the façade's own payload rule, argued in `crates/pncad/tests/all.rs`;
+`BifurcationKind` deliberately stayed. Eleven census rows to
+`BOUND_AS` at the two carriers' second words with the measurement
+stated; four types that cross the same way are not rows because none
+is a leaf of the three curated lists. Also closed:
+`tag-inventory-prose-counts-are-stale` (option 1 — aggregates and
+rosters deleted, a roster found already false; the two floors reset
+to 60/500 under a table at 71/623). The tag-table reader learned
+`Option<&'static str>`, `Some(..)` and bare `None`. Mid-unit main
+moved under it (SHELL-8 renamed a shell arm and added one; the
+exhaustive match caught it — the alarm's first live firing). Not
+taken, per the brief: the payload half and the `findings` sequence,
+next. No kernel crate touched; the lane ran the pinned ruff for real.
+
+**LIB-FINDINGS MERGED (2026-09-08, #2225; mechanical under the 08-29
+ruling, no A/B row). Ev's ruling (A) on
+`census-findings-cross-without-a-per-arm-tag` shipped: `ValidationError`
+keeps `door` and `failure_count` and gains `findings`, a list of frozen
+`ValidationFinding`s — one per failure, `len(findings) ==
+failure_count`, in the kernel's own report order — the single exception
+to "`variant` is a scalar", argued by the door's own shape (the one door
+that reports MANY refusals in one raise) at the three places a reader
+meets it (the class docstring, `pncad.pyi`, the README's taxonomy
+paragraph) so it does not become a second convention.** Each finding
+carries `variant` (the arm, from `validation_error_tag`, exhaustive
+over all 71 `ValidationError` arms, no wildcard), `contact_kind`
+(`UndeclaredContact`'s `CensusContact`, 8 arms) and `subject_kind` +
+`entity_kind` (the two census-unsupported arms' `CensusSubject`: 2
+arms, and the `EntityId` kind beside it, 7 — CUR6's own shape at the
+façade, the ruling's "plus the entity kind or the pair"), every
+attribute present on every finding, `None` where the arm carries none;
+no arena key crosses (a `Body` is an opaque handle), so WHICH face or
+vertex stays in the kernel's prose on the joined message, which is
+byte-identical; the door still raises once. Python-independent
+`validation.rs` assembles the words (its two payload EXTRACTORS carry
+a `_` arm under the kernel enum's own extract licence — a question,
+not a classification; the classifying map is the exhaustive one).
+Rows: the old absence pin REWRITTEN into its positive form (the two
+scalar words still absent — one raise carries N findings — and the
+sequence is where the arms live); `len == failure_count`; each word a
+phrase the message spells; structural `==`/hash and frozenness; every
+attribute present; two distinct arms off ONE raise (a cylinder resting
+on a slab: `undeclared_contact` with `vertex_on_face` beside
+`census_undecidable`); the arms Python cannot produce NAMED with the
+reason (the structural/geometric arms want a corrupt arena; the two
+subject-carrying arms want an uncertifiable carrier, and every public
+product certifies) and pinned in Rust where the refusal constructs;
+ty fixtures both ways. Census: `CensusContact` and `CensusSubject` left
+`INTERIOR` for `BOUND_AS` together, as their own rows' falsifier
+predicted; `EntityId`, `ContactFinding`, `RingContact`,
+`StaleDeclaration` re-argued where they named the old measurement;
+the prelude's group-5 note corrected (comment only, no façade name
+moved). Residue filed:
+`two-validation-payload-discriminants-still-uncrossed`
+(`StaleDeclaration`, `RingContact` — the ruling named two types and
+these are not them). Not taken: the six doors' payload attributes
+(LIB-DOORS-1 ran beside this unit). No kernel crate touched; the lane
+ran the pinned ruff for real.
+
+## Announced seam from SHELL (2026-09-08): `ShellError::Pcurve` arm in editor-core's fold
+
+SHELL-9 (PR #2223) adds `ShellError::Pcurve { source: PcurveMintError }`
+(the closing pcurve mint's typed refusal — unreachable by any
+committed fixture, stated so) and extends the one exhaustive fold,
+`crates/editor-core/src/verbs/shell.rs`'s `fold_shell_error`, with
+the arm; `pncad-py`'s census and tags need nothing (the field is not
+`Real`-typed; every `ShellError` folds to the `"shell"` tag). Same
+shape as SHELL-5's `ShellError` change. No action asked. Signed
+(SHELL orchestrator).
+
+**LIB-DOORS-1 MERGED (2026-09-08, #2227; mechanical under the 08-29
+ruling, no A/B row). The first door under Ev's ruling (A) on
+`pncad-py-seven-doors-lack-field-projection`: `EditError`'s 58 arms
+flatten into one record of 21 payload fields, published beside
+`variant`/`inner_variant` as 23 attributes on every raise site of the
+class — the document layer's, the declare sugar's `Edit` arm, and the
+three the boundary builds itself — present on every arm, `None` where
+the arm carries none.** One exhaustive match with no wildcard in a new
+Python-independent `edit_payload.rs` (a stated deviation from the two
+worked examples, which sit inside the `python`-gated module: the drift
+alarm has to ring on the interpreter-less CI row and the construction
+pins have to be able to run there), a struct with `..Self::NONE` rather
+than a 1218-entry positional tuple with exhaustiveness kept twice (the
+match, and `presence`'s `..`-less destructuring). One attribute per
+CONCEPT: `node`/`input`/`referenced_by` under the kernel's three
+spellings of a subject node, `expected`/`found` carrying
+`declared`/`referenced` and `measured`/`bound` as dimension words, a
+short list's `found` spelled apart as `count`, `from_kind`/`to_kind`
+(a Python keyword), `path` vs `value_path` (two trees). `slot` is a
+WORD not an index — `SlotId` is a named per-node-type enum (D5: never
+an index) — so `slot_id_tag` (40 literals, the axis spelled into the
+word, `Profile{..}` stopping at `profile`) and `attr_kind_tag` (3)
+join the table. Façade moved twice under its own payload rule
+(`AttrKind`, `ExprPath` out of `NOT_CARRIED`, 87→85; `MetaVersionError`
+deliberately NOT — a nested refusal whose arm has no inner word, the
+per-arm question, filed `meta-unversioned-arm-has-no-inner-word`, the
+one arm of 58 the construction pin cannot build). Nine arms reached
+from Python by real edits, the rest pinned in Rust with the reason per
+arm; a deleted match arm fails to compile (run, reverted); no shipped
+`variant`/`inner_variant` moved. Census: `SlotId`, `AttrKind`,
+`ExprPath` to `BOUND_AS` with the measurement (addressing a slot and
+reading one off a refusal are two questions). The item stays open with
+a `## Progress` line: the edit door done, `persist`/`frame`/`stl`
+running as LIB-DOORS-2, `path` behind the kernel `PathError`
+discriminant. Merged main twice mid-unit incl. LIB-FINDINGS (two ty
+fixture conflicts, both hunks kept). No kernel crate touched; the lane
+ran the pinned ruff for real.
+
+**LB20 — wave 4 planned from a full slate survey (2026-09-08, after
+LIB-FINDINGS and LIB-DOORS-1 landed).** The ruled queue emptied twice
+today; a read-only survey of every open LIB item (33) sorted them by
+class and by the files a fix touches. MECHANICAL, grouped into lanes
+that do not collide (two builds live at a time): LIB-PROJ (the ten
+`MateFault` accessors exhaustive + the pick indices as attributes;
+owns `py/mate.rs`, `py/pick.rs`) DISPATCHED beside LIB-DOORS-2;
+LIB-CUR7 (`meta-unversioned-arm-has-no-inner-word` + the six profile
+discriminants; owns the façade lists and `tags.rs`) and LIB-DOORS-3
+(the n-ary union / `SetMembers` doors + the `VDegree` structural slot;
+owns `py/doc.rs`'s constructors) after DOORS-2 lands; LIB-SMALL (the
+split/inline maintenance getter, `Datum.in_plane`'s length pair, the
+guide's chamfer and tube steps, the audit's `arc_continue` line once
+BOOL-10 merges); LIB-HASH (the 23 comparable enums hash) ALONE in a
+gap. DESIGN, asked as four unrelated `[ev]` PRs per Ev's standing ask,
+each recommending (A): #2230 (does per-arm projection generalise past
+the two named types; the census alphabet declares same-spelled types),
+#2231 (the authoring seat: a probe body the product skips; builders
+for a revolve's role names), #2232 (what a curated door owes on its
+SUCCESS side: the import report, the gate's enclosure, the advisory
+lane), #2233 (dimensioned seats: written notation at node slots;
+equality/hash on a poisoned or signed-zero quantity). KERNEL-SIDE,
+RE-HOMED by territory with a `## Re-homed` note each: the blend-slit
+collision, the blend selection's load-only check and the persist
+path's stringification to DOCM; the mouth chart and the shell corpus
+hold to SHELL; the predicate-name pins to BOOL. STAYING in LIB by
+assignment or by expiry: the mate-frame door and the two recourse
+sentences (S-MATE's hand-off gives refusal prose to LIB), the
+witness-bifurcation arm (an expiry on M6), the façade guard's readers
+(Track E), `correspondence-structs-coincide` (a verb-seat hold with no
+owner). `path`'s door waits on the kernel `PathError` discriminant.
+Orchestrator note for the record: the per-arm maps are a standing
+tripwire — main's own kernel PRs tripped them three times today (a
+shell arm renamed, an extrude arm retired, a shell arm added), each
+fixed by one map row; and reviewer scratch must live in each lane's
+own directory (the item-5 lesson, `build-slot-banner-leaks…`).
+
+**LIB-DOORS-2 MERGED (2026-09-08, #2228; mechanical under the 08-29
+ruling, no A/B row). The second unit under Ev's ruling (A) on
+`pncad-py-seven-doors-lack-field-projection`: the `persist`, `frame`
+and `stl` doors project every arm's payload as attributes, present on
+every arm and `None` where the arm carries none, each from ONE
+exhaustive match with no wildcard, on the single door function every
+raise site of the class already went through.** `persist_err` (thirteen
+arms, fifteen fields beside `variant`; `py/store.rs`'s pin doors ride
+the same door): the four NESTED arms — a profile-program fault, a
+distribution fault, a snapshot invariant, a replayed edit's `EditError`
+— cross as their own word on `inner_variant` with the nested payload
+left as the inner door's surface, which minted `program_fault_tag`
+(2) and `snapshot_error_tag` (19, delegating the product-root arm to
+`root_fault_tag`); `detail` and `document` each carry one concept
+under the kernel's several spellings; the recursive `NonFiniteSite`
+crosses as one sentence on `site`, not a field per rung. `frame_err`
+(two arms, nine fields): the degenerate arm's `input` is NOT a second
+attribute — it IS the per-input `variant` — while the classifier's
+own shape crosses when the margin landed in band (`margin` or
+`margin_low`/`margin_high`, `zero`/`escalate`, `predicate`; a poisoned
+margin carries the band and no number) and nothing when it was a
+definite zero; the `band` arm carries `inner_variant`/`field`/`value`
+via the new `band_field_tag` (2). `stl_err` (six fields): the three
+kernel enums plus the boundary's own `not_utf8` unified as a private
+four-arm `StlRefusal` so the projection is one match — the stated
+deviation, crossing nothing. Reachability: five persist arms, three
+frame arms and three STL arms driven from Python with the payload
+asserted; the arms no Python door can reach (the persist door's four
+nested arms, the frame door's `band` — every constructor derives its
+band from the tolerance witness, so `Band::linear` cannot fail there —
+the STL writers' four) pinned in Rust with the reason per arm. Census:
+six rows to `BOUND_AS` with the measurement (`ProgramFault`,
+`SnapshotError`, `NonFiniteSite`, `SolidNameError`,
+`BinaryHeaderError`, `Indeterminate`). **The curation consequence:**
+`prelude.rs` argued `MarginDiag`'s and `BandField`'s non-carriage on
+"no attribute on any bound exception carries a margin, an enclosure
+bound or a band", and the frame door made that sentence false — the
+count of thirteen prelude refusals is intact (`FrameError` is a
+`geom_core` refusal, not one of them), the sentence is not. Both
+prose notes corrected in the PR; the re-measure the prelude asks for
+is filed as
+`margin-diag-non-curation-was-measured-on-a-count-that-moved` (a
+curation question, not a binding one; nothing unreachable). No shipped
+`variant` moved; 23 new tag literals, all on `inner_variant` or
+`field`. The carrying item stays open with a second `## Progress`
+line: what remains is `path` (behind the kernel `PathError`
+discriminant) and `step_import` (argued at its site). No kernel crate
+touched beyond the prelude's prose. A deleted arm fails to compile
+(three `E0004`s, one per door; run, reverted). Merged main twice
+mid-unit; the lane ran the pinned ruff for real.
+
+**LIB-PROJ MERGED (2026-09-08, #2236; mechanical under the 08-29
+ruling, no A/B row). Two one-file projection repairs under Ev's
+ruling (A): the `MateFault` accessors are exhaustive, and
+`NodePickError` projects the index arm's three numbers.** The
+seventeen mate accessors now read off ONE record,
+`crates/pncad-py/src/mate_payload.rs` (the `edit_payload.rs` shape —
+`MateFaultPayload`, `presence()` without `..`, `NONE`, one exhaustive
+match over thirteen arms, sited outside `py/` so the drift alarm
+rings on the no-Python row): the lane's stated choice, since
+seventeen per-accessor matches would name thirteen arms seventeen
+times and charge a new kernel arm seventeen edits. `Unleverable`
+answers `mate` and nothing else — its `LeverRefusal` is a nested
+refusal of a type the façade does not re-export, filed rather than
+guessed. The lane swept its own file past the charter, with the
+reason: `MatePrimitive::offset`, `Subgroup`'s three and
+`ClusterMaintenance`'s seven became exhaustive IN PLACE (few arms
+over few accessors — a record there adds a layer without removing a
+match); `py/mate.rs` has no `_ =>` at all. Measured: a `MateFault`
+arm added kernel-side fails `cargo check -p pncad-py` with no
+features at the record's match, where before only the tag map fired
+and the seventeen accessors compiled unchanged. `NodePickError`
+gains `patch`/`triangle`/`index` from `pick_payload.rs::index_payload`
+(exhaustive over both `NodePickError` and the `MeshPickError` inside
+it); `node_pick_err` is the class's one raise site, so the three are
+on every instance by construction. **The brief's claim the lane
+could not make**: "the three pick numbers reachable from Python" —
+the arm reports a mesh violating its own invariant, unauthorable and
+unconstructible from Python, exactly as the item said; pinned in
+Rust at three distinct numbers (`3`/`11`/`47`, so a swapped slot
+shows as a moved value), with Python owning the present-and-`None`
+half. Orchestrator note: that claim was the brief's error, not the
+lane's, and the lane's refusal to assert it is the discipline working.
+Census: `MeshPickError`'s `BOUND_AS` mapping unchanged, prose moved.
+Two residue items filed: `mate-fault-arms-carry-payload-that-does-not-cross`
+(six kernel fields over six arms no attribute crosses — two
+`DocumentId`s, `Contradictory.lever`, and the four nested refusals
+whose types the façade does not re-export, which is why the Rust arm
+table pins nine of thirteen; the projection is still total, the
+executable table is not, and the two guarantees differ — the `Frame`
+row's wait ended when DOORS-2 landed, noted on the file) and
+`payload-accessor-wildcards-remain-in-checks-and-assembly` (the
+sweep's hit list: `py/checks.rs`'s five `CheckEvidence` accessors and
+`py/assembly.rs`'s two `RefusedRef` accessors are live siblings of
+the shape; `validation.rs`'s extract licence argued at its site;
+`py/doc.rs`'s `Node` extract not this class; blind spot stated for a
+named catch-all). Both closed items carry `## Closed`. No kernel
+crate touched; the lane ran the pinned ruff for real; ~1h15m,
+~221k tokens.
+
+**LIB-DOORS-3 MERGED (2026-09-08, #2238; mechanical under the 08-29
+ruling, no A/B row). Three doors, all arms behind a bound name and
+so invisible to the census's rule 1: `Node.union(members,
+declare=None)`, `DocEdit.set_members(node, members)`, and
+`DocEdit.bind_v_degree_param(node, name)`.** `union` is the n-ary
+fold over a member LIST in the list's order (D9), with `boolean`'s
+optional `declare` slot fed at the fold step its pair meets at; 22 of
+the kernel's 23 `Node` variants now have a constructor, `Sweep` the
+stated exception (`wire_sweep` refuses unconditionally). `set_members`
+is what makes the membership DATA rather than a boolean chain's
+shape: the three tags minted at LIB-DOORS-1 with no Python caller
+(`set_members_on_non_list`, `too_few_members`, `duplicate_input`) are
+each provoked from Python with the payload asserted (`count`,
+`input`, `node`). `bind_v_degree_param` is `VDegree`'s door beside
+its two siblings, each naming its own slot; `Stations` stays
+undoored (its only node is the sweep) and `bind_count_param`'s prose
+now accounts for all four structural slots. The scene the item asked
+for: `TestLoftPrism`'s three sections skinned at a BOUND degree
+enclose 9 m³ at degree 2 and 8.75 at degree 1, one `set_doc_param`
+apart, with the kernel's value rule still refusing degree 3 bound
+exactly as literal. `test_union.py` pins the fold against
+`boolean(boolean(a,b),c)` and against the three boxes'
+inclusion-exclusion closed form (16.40625 m³), and one row per
+refusal at both doors. The roster in `test_north_star.py` gains the
+three names (the positive list that sees missing arms); the guide
+gains one sentence at the loft rung, no step (LIB-SMALL's). One
+stated deviation: a duplicated inert `@staticmethod` above
+`set_roots` in the stub deleted inside the stanza the unit edits. No
+façade list moved (the argument types were already the loft's and
+the boolean's), no projection changed, no `variant`/`kind` value
+moved; the lane ran the pinned ruff for real. ~40 min, ~195k tokens.
+**LIB-CUR7 MERGED (2026-09-08, #2237; mechanical under the 08-29
+ruling, no A/B row). The `meta_unversioned` arm has its inner word,
+and the six profile discriminants LIB-CUR6's re-sweep filed are
+decided.** `MetaVersionError` carried at `pncad::document` under the
+payload rule (`NOT_CARRIED` 85→84; the family paragraph that held it
+— "a nested refusal whose arm has no inner word" — replaced by the
+one saying both halves of that reading are spent), `meta_version_error_tag`
+(three literals, the kernel's own arms) with its inventory row,
+`edit_inner_variant_tag`'s `MetaUnversioned` arm pointed at it, and
+the construction pin now covers **58 of 58** `EditError` arms; the
+census row moves to `EditError.inner_variant` with the measurement
+(no Python door mints `SetAppearanceMeta`, so the reach is the Rust
+pin). No shipped word moved: the arm's inner word was `None`. The
+six: FIVE carried onto the prelude as one stanza beside the refusals
+that name them — `ContactKind` (three self-intersections, three
+repairs), `EscalationSite` (which stage escalated; the recourse forks
+on it before it reads the band) with `SegmentRef` under it (a seventh
+name, the lane's stated deviation: the rung under `EscalationSite`
+and the direct payload of four other `ProfileError` arms, so
+carrying one without the other stops one short), `FilletLeg` (the
+one thing a caller shortens), `FilletLegCarrier` (decides the UNITS
+of the setback beside it), and `NoCornerReason`, decided beside
+`PathNoCornerReason` as the item asked — the pair closes. `Step` NOT
+carried, argued in `prelude.rs` with its falsifier: the RECORDING half
+of the profile layer (program, replay door, its refusal, the
+structure record) is uncarried whole, and the element type is the
+last thing a replay caller needs; flips if a prelude door ever takes
+or returns a recorded program. `carried_refusal_payloads_are_matchable_through_the_prelude`
+gains the profile rung by bare prelude name. Census: five `INTERIOR`
+by the carrier rule with the measurement (`ProfileError` crosses one
+word per arm at `EvaluationError.inner_kind`; `PathError`'s `corners`
+rows flatten the anchor arm to a word), `NoCornerReason`
+`different-shape` with the corner family whose rows already carry
+its two words. **The re-sweep** at the merge base: banked set EMPTY,
+no new hit — and the methodology finding the item asked to be
+recorded is now its own file,
+`payload-rung-sweep-is-prose-and-a-third-run-disagrees`: three runs,
+three sets of numbers (raw hits 115/137/208 with no tree change
+accounting for the last jump; CUR6's own table and prose disagreed by
+one row), plus the blind spot this run adds — every implementation
+reads three of the façade's FOUR curated lists, and all six hits were
+already on the fourth (`pncad/src/profile.rs`), which did not make
+them false positives (matchability THROUGH the prelude is what a
+curated list owes) but means the scan cannot tell "uncurated" from
+"curated on a list I do not read". What closes it is the sweep as a
+committed script reporting WHICH list. Orchestrator note: that item
+is the right next CUR unit, and a mechanical one. No kernel crate
+touched beyond `pncad`'s lists; the lane ran the pinned ruff for
+real. ~77 min, ~244k tokens.
+
+**LIB-SMALL MERGED (2026-09-08, #2240; mechanical under the 08-29
+ruling, no A/B row). Three small closes, one file each.** (1) The
+refactoring doors carry their maintenance: `SplitOutcome` gains
+`remainder_maintenance`/`part_maintenance` and `InlineOutcome` gains
+`maintenance`, each straight off the kernel outcome, and the three
+`Doc`-minting getters hand the record across with the document
+instead of `Vec::new()` — ALL THREE sites (the brief miscounted: the
+"third site" was `InlineOutcome.doc`, the inline wrapper's own, the
+same defect on the same ground). No getter added: the record reads
+off `Doc.last_maintenance`, the door that already answers the
+question; its doc and `Doc::accept`'s funnel note say why the
+refactoring wrappers are the one family that does not pass through
+the funnel. The funnel test's new row cuts the bench stand's whole
+cluster out: part `["join","join"]`, remainder `["split","split"]`,
+inline back `["join","join","drop"]` — non-empty on every door,
+because an empty record is indistinguishable from "nothing moved";
+the input document's own reading asserted UNCHANGED (a pure door).
+(2) `Datum.in_plane` reads its origin back DIMENSIONED — decided for
+`Length`, the bare-shape argument weighed and rejected AT the field:
+being written in a frame's coordinates changes the datum a position
+is measured from, never its dimension, and the write door had already
+settled it; the direction pair stays bare under `py/place.rs`'s rule.
+Stub, ty fixture, `TestDatumReadback` (`0.25 * m` in, a `Length` equal
+to it out, the sibling `origin` asserted beside it); no census row
+moves (no curated Rust name maps to the field). (3) Two guide steps
+before `### Hollowing a body`, where G17's spec said the shell step
+sits "beside" them: chamfer as fillet's twin (same frozen selection;
+setback not radius; planar supports only; the closed form metered;
+the chamfer takes more than the fillet at the same number;
+`chamfer_selection_empty` caught) and tubes (the five intent
+parameters, then the hollow tube's REQUIRED wall with `minor_radius`
+as the outer radius, an arc window, and the solid-minus-hollow bore
+differential); `test_guide.py` executes 38 blocks, up from 36. The
+audit's `arc_continue` line stays open until BOOL-10 (#2135) merges.
+No kernel crate touched; the lane ran the pinned ruff for real.
+~65 min, ~182k tokens.
+
+**LIB-WILDCARDS MERGED (2026-09-09, #2243; mechanical under the
+08-29 ruling, no A/B row). The last two payload-accessor wildcards in
+`pncad-py`: `CheckEvidence`'s five accessors and `RefusedRef`'s two
+are exhaustive.** `CheckEvidence` gets a Python-independent record
+(`check_payload.rs`, the `mate_payload` shape; `reason` a `Cow` —
+borrowed from the separation arm's own sentence, owned where the
+shell arms render one) and `RefusedRef` stays in place, matching the
+`at` accessor it sat beside — and the deciding reason is
+`pick_payload`'s second one, not arm arithmetic: THREE of
+`CheckEvidence`'s six arms are unreachable from Python (`escalated`,
+`unsupported`, `separation_unavailable`), and the `py/` accessors
+compile only under the `python` feature, so an in-place projection
+would have pinned those arms nowhere. The lane named this as a
+deviation from the brief, which offered in-place matches as possibly
+cheaper AND asked for a construction pin — the two cannot both hold;
+the record is what the pin costs. Orchestrator note: the brief's
+error, correctly resolved. The added-arm alarm run and reverted: a
+seventh `CheckEvidence` arm fails `cargo check -p pncad-py` with no
+features at the record's match and at `tags.rs`. Pin covers four of
+six arms (the shell arms hold a `ShellClassifyError` the façade does
+not re-export), with the separation arm's sentence itself asserted.
+The sweep re-run at the merge base with the item's stated blind spot
+closed (named-binding and `Some`-of-default spellings): the added
+spellings found nothing the original pattern missed; remaining hits
+are the argued extracts (`validation.rs`, `py/doc.rs`'s `Node`
+extracts, `prose_census.rs`) and exhaustive named arms under `use`
+aliases; the pattern's own blind spot (line-local; a rustfmt-split
+arm or a helper-returning catch-all) stated. `py/checks.rs` and
+`py/assembly.rs` have no `_ =>` left. Residue:
+`check-evidence-shell-refusal-crosses-as-prose-only` (the shell
+door's typed refusal under two arms crosses as prose only; needs the
+curation half first) — its sibling `SeparationUnavailable { kind }` is
+already on FIX's slate (`boolean-kind-not-published-at-the-python-door`),
+reported rather than re-filed. No attribute added, renamed or
+removed; stub, census and Python suite untouched; the lane ran the
+pinned ruff for real. ~47 min, ~159k tokens.
+
+**`[ev]` PR 2230, item 1 RULED (2026-09-09, Ev): (A).** "A works":
+every payload DISCRIMINANT of a projected refusal crosses as an
+attribute of its own, named per type, `None` on every other arm;
+arena-key fields still do not cross. Recorded on
+`two-validation-payload-discriminants-still-uncrossed` and split onto
+its own docs-only PR (#2244) so LIB-DISCRIMINANTS (`stale_kind`,
+`ring_contact_kind` on `ValidationFinding`, two exhaustive maps) can
+dispatch without waiting on item 2, where Ev asked why (A) over (B)
+for `datum-crosses-name-for-name-as-two-types`; answered on the PR
+(B fixes the instance, A the shape; B renames shipped surface; A's
+cost is a stated hand-maintained list). #2230 merges when item 2 is
+ruled. The witness-bifurcation arm falls under the same rule and
+waits on the M6 solver constructing it.
+
+**LIB-HASH MERGED (2026-09-08, #2242; mechanical under the 08-29
+ruling, no A/B row). Every comparable enum mirror hashes.** All 24
+fieldless mirrors (not the item's 23: `AssertionDir` arrived between
+filing and fix, the argument for a guard over a roster) carry `eq,
+eq_int, frozen, hash` and derive `Eq, Hash`; `frozen` IS required —
+established from the pinned pyo3 0.29.0's `pyclass_hash`, not assumed
+— and costs a fieldless mirror nothing, said once at the first
+mirror. The item's question answered by reading every mirror's doc:
+none is deliberately unhashable. `Denotation` — the class the item's
+probe named as invisible to it — hashes by hand over the same
+`(tied, candidates)` its hand-written `__eq__` reads, and the stub
+declares the pair (the stub's own convention: hand-written dunders
+declared, pyo3-derived ones not). `test_hashability.py` is enumerated
+from the compiled module, never a written list: every member hashes,
+the whole surface goes into one set and reads back out of one dict,
+hash agrees with equality over every ordered pair, a door-minted tag
+keys the same as the class attribute, two door-minted denotations are
+one key — and `TestNothingComparesWithoutHashing` reads `__hash__`
+off every class in `vars(pncad)` and requires an unhashable one to be
+on the `UNHASHABLE` roster with a reason, so a 25th mirror without
+`hash` or a new value class that compares without hashing fails.
+Falsified for real: `frozen, hash` removed from `SurfaceKind` alone →
+two failures and three errors naming it; restored. The face-frame
+tally is the set it wanted to be. No kernel change (`editor_core::
+Denotation` does not derive `Hash`; the binding hashes the projection
+its `__eq__` reads). Two residue items filed inside the fence:
+`pncad-py-value-classes-compare-without-hashing` (eleven classes
+compare without hashing — `Expr`/`MeasureExpr` by design, stated on
+the stub; NINE undecided in three shapes: small value records,
+findings, reports/configs — each owing the `-0.0` fold `DocParam`
+already does) and `pncad-py-stub-omits-eq-on-three-mate-classes`
+(`MateFrame`/`MatePrimitive`/`Alignment` define `__eq__` the stub
+omits, unverifiable by `test_stubs.py`'s `hasattr` guard by
+construction). No `variant`/`kind` value or ordering moved; the lane
+ran the pinned ruff for real. One red the lane owned: the roster spelled a filed item as a `.md` string literal under `crates/`, which `ci-filter` fails closed on (it guards a consumed page dropping into the docs tier) — fixed by naming the item without the suffix, the selftest added to the lane's local run. ~3h20m (mostly CI polling and three merges of main), ~190k tokens.
+
+**`[ev]` PR 2230, item 2 RULED (2026-09-09, Ev): (D) — the name
+match accounts MEMBERS, not the type.** Asked as (A) a hand-kept
+same-spelling-different-type list, (B) rename the read-side class,
+(C) leave it; Ev asked for a structural check that keeps the name
+match, and (D) is that: a same-spelled Python namesake accounts only
+the arms (or pub fields) it spells, every other arm needing its own
+`BOUND_AS`/`NOT_BOUND` row. It would have caught `Datum::FaceFrame`
+and the `Node::Union`/`DocEdit::SetMembers` gap alike, and it reuses
+LIB-SWEEP's declaration resolver. Recorded on
+`datum-crosses-name-for-name-as-two-types`; the unit (LIB-MEMBERS)
+dispatches after LIB-SWEEP lands. Both items of #2230 are now ruled
+and the PR merges.
+
+**`[ev]` PR 2231 RULED (2026-09-09, Ev).** Item 1
+(`a-recipe-cannot-hold-a-narration-body-without-it-becoming-a-root`):
+Ev suspected every option changed kernel code for a demo's benefit,
+and the tree agreed — roots are exactly the sink set, and a
+`Node::Measure` consumes its bodies as edges while denoting no body,
+so "measured, not modelled" already exists in-graph; the tour's cost
+is self-inflicted (it measures out of graph). Ruled **(D)**: no node
+or root change, closed as the demo's own cost; the residual E3
+question (mass properties as a measure primitive) explicitly NOT
+filed. Item 2 (`no-facade-door-mints-a-revolves-role-names`): Ev asked
+whether (A) over (B) was just less machinery — yes (an extension
+trait on an editor-core id vs free functions beside `SegPat::tag`) —
+and ruled **(A)**; the unit (LIB-NAMES) dispatches when a slot frees.
+Orchestrator note: item 1 is the second time today a filed design
+question dissolved on a closer read of the tree (the seat existed);
+the lesson for the filer is to grep for the seat before asking.
+
+**`[ev]` PR 2232 RULED (2026-09-09, Ev): (A), (A), (A) — what a
+curated door owes on its SUCCESS side.** Item 1
+(`a-successful-step-imports-own-report-is-uncurated`): carry
+`StepImport` and its record vocabulary at the façade under the reach
+clause, and give Python an `ImportReport` value class beside the
+body. Item 2 (`pncad-py-import-step-drops-the-gates-enclosure`): the
+report carries `.body` and `.enclosure`; `Body` stays a pure handle —
+ruled after Ev asked whether (A) was test-only and (B) not, and the
+premise was corrected (both change binding code; (A) at the door's
+return shape, (B) on the handle). Item 3
+(`advisory-monte-carlo-lane-has-no-python-door`): `monte_carlo` and
+its value classes bound as LIB's build, `analysis.rs` joining the
+census's read list — "no real hurry", so it queues behind the
+mechanical units. Items 1+2 dispatch as one unit (LIB-IMPORT-REPORT).
+
+**LIB-SWEEP MERGED (2026-09-09, #2245; mechanical under the 08-29
+ruling, no A/B row). The payload-rung sweep is a committed script,
+`scripts/payload-rung-sweep.py`, run by both halves of CI rather than
+re-derived from prose.** It reads ALL FOUR curated façade lists
+(`document`, `select`, `prelude`, `profile`) and reports which list
+each side of a row is on, which splits what a three-list run
+flattened: UNCURATED (on no list) from CROSS-LIST (curated, on no
+list that carries its carrier). Four counts, a deterministic narrowed
+table with `file:line`, `--json`, `--lists` to reproduce an earlier
+run's definition, `--check` pinning the narrowed NAMES against two
+disposition tables held as data with each argument's home
+(`DISPOSITIONS`, `CROSS_LIST_DISPOSITIONS`) in both directions, and a
+`--selftest` fixture battery; blind spots (a)–(i) indexed in the
+docstring and stated beside the code that has each ((a), (f), (g)
+CLOSED; (e) narrowed to macro-minted names; (b), (c), (d), (h) open;
+(i) new — registry dependencies are outside the path closure). The
+CI row sits in `discipline` on both halves under a `HOSTED MIRROR`
+marker. **The drift, bounded**: `curated` settles INCLUDING CUR5's
+unexplained 525 (CUR5 read the façade's whole source directory, not
+the three lists — 536 there today vs 413 over three lists, the same
+gap); `declared` is monotone with the tree; `narrowed` reconciles
+EXACTLY (CUR7's 16 names minus the six it settled = the ten the
+four-list run reports; the three-list run adds only `Step`, which is
+curated BESIDE its carrier on `profile.rs` and so is not a rung there
+— CUR7's prelude non-carriage stands); `raw` does NOT settle and is
+bounded instead (121 as specified; 146/160/185/188 with each closed
+blind spot re-opened; the reported 115 and 208 lie outside that
+interval, so the difference is what an implementation counted as one
+hit, which no artefact records). The refusal filter is a NAME test
+(`*Error`/`*Refusal`/`*Fault`), measured against a `Display` test
+that does not separate refusals from five carried discriminants —
+the lane's stated deviation from the brief's argued list
+(`LeverRefusal`, `MintRefusal` dropped by the filter, not by a row).
+Uncurated column at the merge base: no new row. Cross-list column:
+four rows over two names, filed as
+`cross-list-payload-rungs-under-document-only-carriers` (`EntityKind`
+and `SplitHalf`, on `select`+`prelude`, ride document-only carriers;
+the `NamingError` precedent on `select.rs:57` argues one way, the
+document list's own payload rule the other — a curation act either
+way, and it settles whether a payload owes its carrier's list or the
+vocabulary's), pinned in the script so a third such name reds CI.
+Orchestrator note: this is the resolver option (D) on `[ev]` #2230
+item 2 would reuse. Also measured by the lane: the selftest discriminates — nine mutants of the scan each red the battery; two runs byte-identical. ~92 min, ~208k tokens.
+
+**LIB-DISCRIMINANTS MERGED (2026-09-09, #2246; mechanical under the
+08-29 ruling, no A/B row). The first unit under Ev's (A) on
+`two-validation-payload-discriminants-still-uncrossed` (ruled this
+morning on `[ev]` #2230): `ValidationFinding` carries `stale_kind`
+(`StaleDeclaration`, four arms — which declared record lost its
+witness, which is which record to withdraw or re-seat) and
+`ring_contact_kind` (`RingContact`, three arms — how a ring meets its
+face's outer loop, which is where the ring has to move), each from an
+exhaustive tag map with no wildcard, `None` on every other arm; the
+arena-key FIELDS do not cross, so the projection stops at the
+discriminant as everywhere else.** `ring_contact_tag` reuses the
+census vocabulary's spellings where the shape is the same
+(`vertex_vertex`, `vertex_on_edge`, `edge_along_edge`), so a caller
+reading two contact words off one finding learns one spelling; the
+escalated sibling (`RingContactEscalated`) answers `None` — an
+undecidable separation is a margin, not a shape. Reachability, the
+part worth recording: NO arm of either enum is reachable from
+Python — a stale record needs a declaration parted from its witness
+and every door mints declarations from the geometry it looks at or
+gates them; a ring on its own outer loop needs raw Euler surgery the
+binding does not expose — so all seven words are pinned per arm in
+Rust with the reason, and `test_validate.py` says the gap is the
+DOORS' rather than the projection's; crossing them is still the move,
+because the attribute is the contract a caller reads the day a door
+produces one. Census: both rows from `INTERIOR` to `BOUND_AS` with
+the measurement, and the door's four payload discriminants are now
+the RULE rather than a pair. `witness-bifurcation-arm-has-no-inner-word`
+gains its `## Progress` line: the rule applies, the arm waits on the
+M6 solver constructing it. Stub, class docstring, `__repr__`/`__eq__`/
+`__hash__` over six words, ty fixture. No shipped `variant`/
+`contact_kind`/`subject_kind` value moved; the lane ran the pinned
+ruff for real. The lane's stated deviation: the two extractors keep `census_contact`'s extract-licence `_ => None` (the brief asked for that AND for arms named — over 71 arms the worked example wins; the classifying site `validation_error_tag` is the exhaustive one). ~72 min, ~207k tokens.
+
+**LIB-MEMBERS MERGED (2026-09-09, #2247; mechanical under the 08-29
+ruling, no A/B row). Ev's (D) on `datum-crosses-name-for-name-as-two-types`
+executed: the binding census's rule 1 keeps its name match, but a
+match accounts MEMBERS, not the type.** A curated name that resolves
+— through `scripts/payload-rung-sweep.py`'s resolver, SHARED by path
+rather than re-implemented (the script gains `declared_members`, the
+second reader on the same declarations, with selftest rows and two
+fixture types; its own report unchanged) — to a `pub enum` or `pub
+struct` accounts only the members its Python namesake spells (an arm
+as a class attribute, or snake-cased as a constructor/property/
+method; a bare-`pub` field as a same-named attribute); every other
+member owes a row in `MEMBERS_BOUND_AS` or `MEMBERS_NOT_BOUND`, and a
+member with neither fails the census naming itself. A second pair of
+tables, not `Type::Member` keys in `BOUND_AS`, because every check
+over that roster reads its keys as curated names. **The count, taken
+first**: 104 matched declarations, 616 members, 420 over 60 types
+needing rows — and `Node`/`DocEdit`/`Datum`, the expected bulk, are 18
+of the 420; the refusal enums whose arms cross as tag WORDS dominate
+(`ValidationError` 71, `EditError` 58, `PathError` 30, …), and the
+rule admits no exception, so they got rows (385 `BOUND_AS`, 35
+`NOT_BOUND`) — recorded as the measurement the ruling's cost estimate
+lacked, not used to narrow the rule. What the first run FOUND, which
+is the whole point: a SECOND same-spelled-different-type pair
+(`pncad.pyi`'s `DimensionError` is the quantity boundary's refusal;
+the curated one is editor-core's document-layer refusal, crossing at
+`ParseError.kind`); and three real gaps chartered as census families
+and filed — `two-datum-arms-have-no-node-constructor`
+(`Datum::Point`/`Frame`: a Python author builds four of six datum
+kinds), `five-doc-edit-arms-have-no-python-door` (`SetParam`,
+`SetExpression`, `Rebind`, `ReWitness`, `ReWitnessBulk`),
+`mesh-boundary-polylines-have-no-python-door` (`Mesh::boundaries`
+unread; a wireframe cannot be drawn). Blind spots stated at rule 1: a
+coincidental snake-case match (four of `Evaluation`'s ten fields are
+accounted that way against a different Python type); the resolver's
+alias/generic arms (b)/(d) and crate-not-module (h); a tuple struct's
+unnamed fields. Falsifier: `Node.extrude` removed from a stub surface
+in-file fails the rule; `Datum::FaceFrame`'s row removed fails naming
+it. No stub change, no new binding; the lane ran the pinned ruff for
+real. Orchestrator note: the three gap families are the next
+mechanical wave's obvious members. ~66 min, ~296k tokens.
+
+**LIB-IMPORT-REPORT MERGED (2026-09-09, #2249; mechanical under the
+08-29 ruling, no A/B row). Ev's (A)+(A) on `[ev]` #2232 items 1 and 2
+executed: `import_step`'s SUCCESS side crosses.** Rust half: the
+prelude's `step_import` group gains seven names — `StepImport` and
+the record vocabulary its `Solid` arm names (`StructureNormalization`,
+`NormalizationKind`, `CurvePromotion`, `PromotedCurveKind`,
+`PlacedInstance`, `FaceCensus`) — under the reach clause, with the
+prose saying which clause each half closes (the refusal was a
+MATCHABILITY gap, the answer a REACH one); the `Wireframe` arm needs
+no new name (`Curve3` is already on the list); a curation guard in
+`all.rs` binds every field of the arm by name from the prelude alone
+on a REAL import (the round-trip oracle's own exported text) and
+asserts the enclosure against a second `mass_properties` call bit for
+bit — "not a second computation" as an equality rather than a claim;
+`NormalizationKind` matched exhaustively there. Python half:
+`import_step` answers a frozen `ImportReport` with `body`,
+`enclosure` (the gate's own certified `MassProperties`), `eps_in`,
+and the three record lists as frozen rows (`StructureNormalization`,
+`CurvePromotion`, `PlacedInstance`, with `FaceCensus` a class of its
+own because a normalization carries TWO and their difference is the
+record); `Body` gains nothing, `mass_properties` keeps one meaning —
+the ruled shape. Decisions stated: `surface_promotion` keeps one word
+with `promoted_to`/`residual` beside it (five words, not six);
+`PlacedInstance.placement` is `Optional[Frame]`, `None` left as `None`
+(an identity `Frame` would read as a map the file chose). Deviation:
+`MassProperties` gains `Clone, Copy` + `skip_from_py_object` so the
+Python surface is unchanged. Census: `StepImport` → `ImportReport`
+with the double-quadrature measurement, the two discriminants to
+their `kind` words; the four row classes are same-spelled and
+accounted by rule 1 (a `BOUND_AS` row for them is stale by the decay
+check — found that way). Callers moved onto `.body`/`.enclosure`
+(`test_document.py`, `examples/bracket.py`, the guide's Python
+journey). The payload-rung sweep stays green with seven more curated
+names (narrowed 10, cross-list 4 unchanged). `ImportOptions`'
+non-crossing stands. Orchestrator note: this lane was killed by the
+container restart with six files uncommitted and resumed with "push
+first"; it committed the Python half, closed both items and opened
+the PR within forty minutes — the discipline's push-after-every-commit
+rule is what bounded the loss to one turn. The lane ran the pinned
+ruff for real. The measurement, taken: import-then-measure on a lofted rational-walled body 8.26 s + 8.24 s — the second quadrature is 49.9 % of the old journey and `.enclosure` is bit-identical; on the box 0.3 %, because a box has no quadrature to repeat. ~85 min including ~11 min of restart downtime, ~230k tokens.
+
+**LIB-NAMES MERGED (2026-09-09, #2248; mechanical under the 08-29
+ruling, no A/B row). Ev's (A) on `no-facade-door-mints-a-revolves-role-names`
+executed: `band`, `band_pi`, `band_rim`, `meridian_vertex` and
+`carried` are free functions returning a `StableName`, reached at
+`pncad::select`.** DEFINED one crate down, in
+`crates/editor-core/src/names/role.rs` beside the `RoleSeg` arms they
+mint, re-exported through `names::mod`, `editor_core`'s root and
+`pncad::select` — the lane's stated decision, because
+`crates/editor-core/tests/corpus/` cannot depend on `pncad` and
+defining them there is what lets the corpus share them
+(`names/README.md`'s own module table puts the vocabulary in
+`role.rs`). Signatures the ruling's verbatim, `meridian_vertex(end,
+node, vertex)` with the end first as the arm carries it; each fixes
+the `EntityKind` its role denotes (`Face`/`Face`/`Edge`/`Vertex`),
+`carried` takes the inner name's kind (a survivor is the same entity
+one op later) — the field a hand-spelled name got wrong silently
+until emission refused it. Consumers converted: the tour (five
+private helpers deleted), its test, the corpus `vessel.rs` (its two
+`pub` helpers deleted and their G17 callers moved), and the
+hand-spelled `BandRim`/`FromTarget` sites in six more editor-core
+test files. Five pins, one per builder, each asserting the exact
+`StableName` against the hand-spelled form it replaces. Carried at
+`select` only, not the prelude (its group 9 is hand-curated with its
+own argument). Two residues filed:
+`pncad-py-has-no-door-that-mints-a-revolves-role-names` (Python
+speaks names as text and hand-writes the `StableName` JSON at the
+fillet and shell doors — the same gap one alphabet over, worse) and
+`the-role-name-builders-reach-only-the-outer-profile-loop`
+(`loop_index: 0` fixed by the `u32` signature; a hole's band is
+still hand-spelled at two test sites; three shapes weighed). **Two
+orchestrator notes.** (1) The lane's first CI head was RED on the
+python suite: re-exporting five names at `pncad::select` made them
+curated names the binding census must account for, and no rows were
+written — fixed with a new census family `B-NAME-BUILDERS` (a
+`FAMILIES` charter for the five Python doors the filed item asks
+for) and five `NOT_BOUND` gap rows citing it. My brief's verification list omitted
+`run-python-tests.sh` because the unit "touched no Python"; a
+curated-list change is a census change, and the brief should have
+said so — recorded as the brief's gap. (2) A container restart at
+~03:10Z killed this lane mid-CI-poll (clean, pushed) and
+LIB-IMPORT-REPORT mid-edit (six files uncommitted); both resumed via
+SendMessage with "push first", nothing lost — the "push after every
+commit" rule held, and the restart cost was one re-poll. No kernel
+behaviour change; tour renders and die corpus byte-identical per the
+lane; the lane ran the pinned ruff for real. Thirteen sites in eight files converted; the sites NOT converted are listed with reasons (the emitter, the kind pins, a `BandRimPi` pairing with no builder). ~2h (incl. the restart), ~232k tokens.
+
+**LIB-GAPS-1 MERGED (2026-09-09, #2250; mechanical under the 08-29
+ruling, no A/B row). Two of the three census families LIB-MEMBERS'
+member rule chartered, closed: `Node.datum_point(position)` and
+`Node.datum_frame(origin, u, v)` beside the four datum constructors —
+a Python author now builds six of six datum kinds — and
+`Mesh.boundaries`, the tessellation's boundary polylines.** The
+datum doors take the sibling shapes (`Length` triples for positions,
+bare direction triples matching the slots' `Scalar`); `datum_frame`'s
+`u`/`v` are authored freely and orthonormalized at evaluation with
+`u` kept, so a merely non-perpendicular pair is legal and a parallel
+one refuses `degenerate_direction` naming the axis; a point refuses
+nothing at evaluation (a non-finite coordinate refuses at the door,
+as every literal does). `Node.sketch_frame` still mints the same
+`Frame` arm from a `SketchPlane` value; `datum_frame` is the arm's
+own spelling, the two documented against each other. The read side
+needed no extension — `Value.datum()` already answered `"point"` and
+`"frame"`; the arms were readable and only unauthorable, exactly as
+filed. `Mesh.boundaries` answers `list[list[int]]`, one polyline of
+position indices per model edge in the kernel's edge order — the
+same opaque alphabet `Mesh.triangles` speaks — with two stated
+decisions: no value class (the polyline's other three fields are
+arena keys the curation keeps unnameable, so a class would hold the
+indices and nothing else; the pairing that makes an index a handle
+already exists as `NodePick.boundary_names`, entry for entry), and
+answered whole rather than by index (a patch is indexed because
+`triangles` concatenates them and separability must be recoverable;
+polylines have no concatenated spelling to be separable from — the
+list IS the door). Closure decided on indices, never coordinates, as
+watertightness is. Stated deviation from the brief: the
+`Mesh::boundaries` census row is DELETED rather than moved — the
+member rule accounts a same-named attribute on the namesake, and the
+roster-decay check refuses a row for a member the namesake now
+spells; the two `Datum` rows move to `MEMBERS_BOUND_AS` (the
+read-side `Datum` spells no arm); `B-DATUM-DOORS` and
+`B-MESH-BOUNDARIES` leave `FAMILIES`. Rows: read-back, both
+downstream doors (a sketch plane on the frame, a distance to the
+point) and both refusal shapes for the datums; count, index
+validity, segments-are-triangle-edges, closure and name pairing for
+the polylines; stub, fixtures, the north-star roster (the one the
+census cannot see). Three stale sentences saying the polylines were
+unbound corrected. No kernel change; the lane ran the pinned ruff
+for real. Five stale sentences saying the polylines were unbound corrected (module header, the pick door, the stub, the meshing guide page, the audit's G11 row) — the guide page also wrongly said no index-to-name door existed on either side; `NodePick.patch_names`/`boundary_names` are that door and the page names them now. ~64 min, ~240k tokens.
+
+**LB21 — wave 5 planned from the slate after wave 4 (2026-09-09,
+after LIB-NAMES landed).** Wave 4 (LB20) closed thirteen units in
+one day — DOORS-2, PROJ, DOORS-3, CUR7, SMALL, WILDCARDS, HASH, SWEEP,
+DISCRIMINANTS, MEMBERS, IMPORT-REPORT, NAMES, plus three `[ev]` PRs
+ruled and merged (#2230, #2231, #2232) with #2233 still open — and
+the slate is 21 open issues, five of them filed by wave 4's own
+units. Sorted by what they wait on. RUNNING: LIB-GAPS-1 (the two
+datum constructors and the mesh boundary polylines) and LIB-EDITS
+(the five `DocEdit` constructors) — both MEMBERS' findings. QUEUED,
+mechanical, briefs written: LIB-PYNAMES (the five role-name builders
+in Python, answering the name text the fillet and shell doors take —
+NAMES' residue and the `B-NAME-BUILDERS` family); LIB-CUR8 (three
+curation decisions under LB17: `MarginDiag`/`BandField` re-measured
+on the count DOORS-2 moved, `ShellClassifyError`'s carriage under
+`CheckEvidence`, and the cross-list rule SWEEP surfaced — whether a
+payload owes its carrier's list or the vocabulary's); LIB-SMALL-2
+(the two recourse sentences S-MATE handed to LIB, the stub's missing
+`__eq__` on three mate classes with the guard that would have caught
+it, the façade guard's last three line-local readers through
+`code_only`; the audit's `arc_continue` line rides along only if
+BOOL-10 #2135 has merged); LIB-MC (the advisory Monte Carlo door,
+ruled (A) and unhurried per Ev). AFTER CUR8: LIB-MATE-PAYLOAD (the
+`MateFault` arms whose payload does not cross — the two `DocumentId`s
+mechanical now, `Frame`'s in the frame door's vocabulary, `Band`/
+`Indeterminate` per CUR8's decision, `Unleverable` still behind a type
+editor-core does not re-export). AFTER `[ev]` #2233: item 1 (A) — the
+fifteen slot doors accept `Length | WrittenLength` — and item 2 (B′)
+— the quantity newtypes compare as Rust's `PartialOrd` and stop
+hashing — then LIB-HASH-2 applying the same mirror rule to the nine
+value classes `pncad-py-value-classes-compare-without-hashing` lists.
+WAITING on other programs or on Ev: `path`'s door (the kernel
+`PathError` discriminant, SMELL D37/D39); the witness-bifurcation arm
+(the M6 solver); `correspondence-structs-coincide` (the verb seat);
+`no-door-mints-mate-frame-from-face` (S-MATE's by number, a
+freeze-at-authoring design question — the next `[ev]` batch);
+`the-role-name-builders-reach-only-the-outer-profile-loop` (a
+signature choice with three shapes weighed, low stakes — the same
+batch). Orchestrator notes for the record: (1) a curated-list change
+IS a census change — every brief that touches a `pub use` list now
+carries `run-python-tests.sh` in its verification list, after NAMES'
+red; (2) the container restart at ~03:10Z cost one re-poll and zero
+work, because every lane pushes after every commit — the rule earned
+its place today; (3) merging the second of two lanes that touched the
+census file has needed a main merge and a CI re-run every time this
+wave; the file is the shared seam of the binding, and two lanes on it
+at once is a cost to weigh at dispatch, not a defect.
+
+**LIB-EDITS MERGED (2026-09-09, #2251; mechanical under the 08-29
+ruling, no A/B row). The third of LIB-MEMBERS' chartered families,
+`B-DOC-EDITS`: TWO doors of the five, and the three that could not
+be built each stopped for a reason the lane verified by trying.**
+`DocEdit.set_param(node, slot, expr)` — a continuous slot's
+expression on a live node, the slot named by its WORD (the same word
+`EditError.slot` answers in, so a refusal is an address a caller
+retries at unchanged; D5: a name, never an index); the alphabet is
+read inward by a new `slot_word.rs`, sited apart from `tags.rs`
+because the tag-value guard reads that module as a table of
+`-> &'static str` functions and would stop at one answering a
+`SlotId`; the round trip is pinned against the guard's own inventory
+(every word reads back to the slot that spells it, `profile` being
+the one word with no reading — a program expression's address is two
+integers and an argument role the word does not carry, refused in its
+own sentence), and junk words are boundary `ValueError`s. One door
+for every continuous slot, against one door per structural slot: the
+decisions differ because the vocabularies do. `DocEdit.rebind(from_name,
+to_name)` — THE name repair, halves suffixed as `EditError.from_kind`/
+`to_kind` are (`from` is a keyword), one test row per tag it can raise
+and a success row on the live shell document `test_shell.py` said the
+Python surface could not rebuild through. The three that stopped:
+`ReWitness`/`ReWitnessBulk` carry `WitnessDatum` and
+`BranchCertification`, which the façade does not curate at all (filed:
+`the-witness-edits-need-a-facade-type`); `SetExpression` is mechanical
+and its payload curated, but its own refusal `path_off_tree` renders
+the address through `Debug`, and the binding's prose gate — a
+`debug_assert` the workspace keeps live under release — panics on the
+brace fingerprint, so the door would PANIC exactly where it must
+refuse. The lane wrote the door, provoked the refusal, saw the panic,
+and parked the item on DOCM's `debug-in-prose-residue-after-finding-sink`
+(`the-expression-path-edit-cannot-refuse-as-prose`; the
+`KNOWN_BRACED` row now says it blocks a door). Census: `SetParam` and
+`Rebind` leave `MEMBERS_NOT_BOUND` entirely (namesake for namesake,
+rule 1 accounts them); `B-DOC-EDITS` stays in `FAMILIES` with three
+rows and a charter re-written to say what each needs first.
+`DocEdit` has fourteen static constructors; five node constructors
+name the door that moves the literal they mint. No shipped
+`variant`/`kind`/`slot` value moved; the lane ran the pinned ruff for
+real. Orchestrator note: the brief said "STOP on that arm, file it,
+and say so" for a type the façade does not carry, and the lane did
+that for two arms and found a third stop the brief did not
+anticipate — a refusal that cannot be rendered — which is the better
+outcome than a door that panics. Seven tags reachable only through these arms are now provoked from Python; two (`rebind_appearance_collision`, `rebind_metadata_collision`) stay unreachable behind the uncurated appearance doors, stated. ~74 min, ~324k tokens.
+
+**LIB-PYNAMES MERGED (2026-09-09, #2252; mechanical under the 08-29
+ruling, no A/B row). NAMES' residue closed: the five role-name doors
+exist in Python — `band`, `band_pi`, `band_rim`, `meridian_vertex`,
+`carried` — as module-level functions beside `select`, each minting
+the kernel's own `StableName` through `pncad::select`'s builder and
+answering `name_text`'s output, so the text a door answers is
+BYTE-IDENTICAL to what a materializer answers for the same entity:
+one alphabet, minted on either side of the boundary.** That
+byte-equality is the whole claim and the pin: the left side of every
+row in `test_role_names.py` is a name Rust minted and serialized (a
+materialized selection), the right side the Python door's answer on
+the same arguments — a door agreeing on shape and not bytes would
+author a selection that resolves to nothing, which is exactly the
+failure a hand-written name has. Two scenes, the two shapes a full
+revolve takes: a profile clearing the axis (one face per segment,
+whole-circle rims) and one touching it (the pole splits every band
+into its `[0, π)` and `[π, 2π)` halves — why `band_pi` exists).
+`MeridianEnd`'s mirror gained ONE kernel mapping (`to_kernel`) used
+by both the selector side and the minting door — a second copy would
+be a second answer to "which end is Seam". The text stays opaque: a
+caller composes by naming a ROLE, never by assembling the
+serialization. The outer-loop limit is inherited and restated (a
+hole's band is reachable from neither alphabet). Census: all five
+names left `NOT_BOUND` and needed no `BOUND_AS` — the stub declares
+them at those exact spellings, so rule 1 accounts them — and
+`B-NAME-BUILDERS` left `FAMILIES`; the `StableName` `NOT_BOUND` row's
+reason sharpened (a name is `str` on this side; the doors mint by
+role and answer opaque text, which is why they are module doors and
+not methods on a name class). No conversion sites existed — the
+suite and the guide selected off evaluations, never hand-writing a
+name — so the doors' positive form is the new test file, and the
+guide gained a STEP ("Naming a role before the body exists",
+executed like every block) because the section teaching selections
+said the opposite of what is now true; prose that had gone false
+("there is no name-building vocabulary in Python", "never composed")
+was fixed, the surviving invariant being "a name is never READ or
+assembled". `meridian_vertex` takes the bound `MeridianEnd` mirror,
+not a word. The two volume oracles are asserted to a relative 1e-12
+(π summed in a different order than the kernel accumulates), stated. Two `legal.py` fixture variables were renamed because they shadowed the new module-level `carried`. No shipped word moved; the lane ran
+the pinned ruff for real. Orchestrator note: the pre-read of the first commit matched the report line for line; the mid-flight merge of EDITS (census, stub, both ty fixtures) was clean and every row was re-run on the merged tree. ~59 min (~9 of them waiting on the build slot), ~253k tokens.
+
+**LIB-CUR8 MERGED (2026-09-09, #2253; mechanical curation under
+the 08-29 ruling, no A/B row). Three curation decisions, each with
+its falsifier written where the next sweep reads it, and the sweep
+itself is now the re-sweep.** (1) `MarginDiag` CARRIED at the prelude
+beside `Indeterminate`/`Band`/`BandError`: the old non-carriage's own
+trigger fired — a door projects the escalation's SHAPE (the frame
+constructors fork on the three margin arms: a value, an enclosure's
+two bounds, or nothing for a poisoned margin), so the discriminant is
+read at a boundary AND varies; the argument distinguishes reading the
+arm (whether there was a number at all — three different next moves)
+from branching on the margin (recovering the sign the classifier
+refused, which the escalation contract forbids). Falsifier: no door
+projecting the shape anywhere makes the type telemetry with no
+consumer. `all.rs`'s `escalation_is_readable` now matches the three
+arms exhaustively by bare prelude name and BUILDS the struct it
+reads. (2) `BandField` NOT carried, argued anew on the new count: the
+word is read at a boundary (`band_field_tag` crosses it on the frame
+refusal) but still not VARIABLE — every producer reaching the
+crossing is `Band::linear`, whose `zero` check cannot fire under
+`Tol`'s invariant, so the two arms are an exhaustive match's drift
+alarm; falsifier restated (a kernel caller of `Band::angular_at`, or
+a door taking a band's thresholds from its caller). (3)
+`ShellClassifyError` CARRIED at `pncad::document` beside
+`CheckEvidence` under that list's payload rule, and projected as an
+inner word: `shell_classify_error_tag` (four literals, exhaustive:
+`band`/`props`/`escalated`/`zero_volume`), `inner_variant` on the
+payload record (the exhaustive destructure grows to six) and on the
+Python `CheckEvidence`, the stub, an inventory row; the construction
+pin covers 6/6 arms where it covered four. `SeparationUnavailable
+{ kind }` left to FIX, stated. (4) The cross-list rule decided for
+the GENERAL case: a payload whose vocabulary one of the four curated
+lists owns lives on THAT list, spelled once, and the carrier's list
+points at it; a payload whose only home is the refusal holding it
+rides its carrier (the `VerbKind` rule) — written beside the
+`NamingError` precedent in `select.rs` and as the general sentence at
+`document.rs`'s payload-rule header; `EntityKind` and `SplitHalf` stay
+on `select`+`prelude`, and the sweep's `CROSS_LIST_DISPOSITIONS` rows
+move from `filed` to `argued`. Sweep: curated 471, declared 821, raw
+111, narrowed 9, cross-list 94 raw / 4 narrowed, `--check` green.
+Three items closed (`margin-diag-non-curation-…`,
+`check-evidence-shell-refusal-crosses-as-prose-only`,
+`cross-list-payload-rungs-under-document-only-carriers`). No shipped
+`variant`/`inner_variant` value moved; the lane ran the pinned ruff
+for real. Orchestrator note: the lane found the closed item's central reach claim false (`pncad::topo` is a whole-crate re-export, so the binding could always NAME the type; what was missing was the curated placement and the tag) and repaired two doc comments carrying the same false-reach shape; `MateFault::Indeterminate` becomes buildable in the binding as a side effect, which is `mate-fault-arms-carry-payload-that-does-not-cross`'s to spend. The 6/6 pin was proved by blanking `inner_variant` on the two arms and watching the pin go red. ~74 min, ~233k tokens.
+
+**LIB-MC MERGED (2026-09-09, #2255; mechanical under Ev's (A) on
+`advisory-monte-carlo-lane-has-no-python-door`, no A/B row). The
+advisory Monte Carlo lane has a Python door.** `monte_carlo(doc,
+analyzed, config=None) -> McReport`, a module function on the analysis
+surface; `analyzed` is REQUIRED (the box is the analysis's knob, E2,
+and hiding a default inside the run would move that choice); the GIL
+is released for the run. `McConfig(samples, seed, parallel)` frozen,
+comparable and hashable, each field defaulting to the kernel's own
+(`DEFAULT_SAMPLES`/`DEFAULT_SEED` on the module); a zero sample count
+is refused by the RUN, not pre-checked at the constructor. `McReport`
+/ `McMeasure` / `McAssertion` project every kernel field,
+`violation_fraction` as `Optional[float]`; `McReport.render()` crosses
+too (deviation, argued: the label discipline E11.1 requires — count and
+seed on every line — is structural in the kernel, and stopping it at
+the boundary would leave a caller printing unlabeled numbers).
+`McMeasure`/`McAssertion` hash folding `-0.0` through `fold_zero`.
+`McRefusal` typed under `PncadError` with `variant` from an exhaustive
+`mc_refusal_tag` and `param`/`node`/`cause` on every arm; the band arm
+DELEGATES to `measure_unavailable_tag` so one fault has one word.
+`sample_offset(param, dist, u)` crosses free, answering in the
+distribution's borrowed dimension. The bit-stability pin:
+`parallel=True` and `False` answer the same bits (`.hex()` on every
+field). Census: `analysis.rs` joined `FACADE_FILES` — curated 427→488,
+63 introduced, all accounted (16 by rule 1, 6 `BOUND_AS`, 41
+`NOT_BOUND` as `different-shape`: `OffsetInterval` and the 40 behind
+`#[cfg(feature = "interval")]`, absent from the wheel's build) and the
+census's `cfg` blind spot is stated at `FACADE_FILES`. The sweep took
+the same file (`ALL_LISTS` is five; the two readers share one
+resolver, so four-vs-five would be the "no two runs agree" defect one
+layer up), with a selftest witness for blind spot (j) — a `cfg`-gated
+`pub use` read as curated unconditionally. Six new rungs dispositioned:
+`PairingViolation` argued, `KProbe` filed
+(`kprobe-is-a-rung-under-drive-config-on-the-analysis-list`), and
+`Dimension`/`Distribution`/`MeasureUnavailableAt` ARGUED under the
+cross-list rule CUR8 ratified while this branch was open — the same
+rule with the two lists swapped, and the clearest case it has; the
+ratified prose in `document.rs`/`select.rs` now states the rule
+without a list count. GUIDE's distributions rung gained the fourth
+door. No shipped `variant` value moved; the lane ran the pinned ruff
+for real. Orchestrator note: the lane reported "~5 h 45 m" of wall clock, which is not what the clock shows — launched 06:45Z, reported 08:10Z, so ~85 min, most of it the hosted CI run; the figure below is the measured one. ~85 min, ~629k tokens.
+
+**LIB-SMALL-2 MERGED (2026-09-09, #2254; mechanical under the 08-29
+ruling, no A/B row). Three small closes.** (1) The two refusals that
+carried no recourse end on one: `CONTRADICTORY_RECOURSE` and
+`NO_AT_REST_RECORD_RECOURSE` beside `UNDER_RECOURSE` in `mate.rs`,
+carried through `pncad::document` and bound top-level in Python on
+`UNDER_RECOURSE`'s precedent, so no test re-types the prose. One
+sentence covers both shapes the contradiction arm renders (a pair of
+mates, and a mate contradicting itself through its own rider — "delete
+one of the two" is false of the second); the arm's four exits (empty
+set, levered, finite, non-finite) fall through to one recourse write,
+and `display_contract.rs` asserts it on each. The rung is named in v1
+vocabulary rather than by a roadmap id (`Rest` is the one class v1
+mints and verifies at rest; a curved contact verified at rest is
+outside v1 and not built). The tour's refusal walk asserts all four
+recourses against the library's constants and its output was
+regenerated through its own door. (2) The stub declares `__eq__`
+where the compiled class carries one, and a guard reads it off the
+class's OWN `__dict__` — the direction `hasattr` cannot reach. The
+`module_class_names` underscore filter stays, argued at its site
+(`__eq__` is the one comparison dunder whose presence in the own dict
+is evidence). The fieldless mirrors are exempt and the exemption is
+CHECKED per member (two accesses answer the same object), with reach
+floors so two empty lists are not a pass. It found SEVEN, not the
+item's three: `Length`, `Angle`, `Count` compare through
+`__richcmp__` and `FaceCensus` had a `fn __eq__` the item's sweep
+missed — the item's own declared blind spot. (3) `crates/pncad/tests/
+all.rs` reads Rust through `test_utils::source`: `code_without_comments`
+deleted, the U1 guard's check 1 reads `use` STATEMENTS off `code_only`
+(check 2 stays on the literal-keeping view — a kernel path in a literal
+is the false-alarm direction), `root_declared_pub_names` and
+`code_without_cfg_gated` read tokens and balanced extents across line
+breaks; `test-utils` becomes the façade's one dev-dependency, admitted
+as a `use` root at the allow-list and argued in `Cargo.toml`. The item's
+stated blind spot for reader 3 was not the real one: a `#[cfg]`
+sharing its line with the item it gates made the line unit swallow the
+NEXT declaration — a false GREEN — and that is the selftest's fixture.
+`reader_census.rs`: `Shared`, `UNCONVERTED_TODAY` 5→4. Not taken:
+`north-star-audit-verb-list-names-arc-continue` (BOOL-10 #2135 still
+in review). Three items closed. No shipped `variant`/`kind` value
+moved; the lane ran the pinned ruff for real. Orchestrator note: the stub now declares `__eq__` on `Length` and `Angle`; the pending [ev] ruling on #2233 (B′) would remove their `__hash__`, which this guard does not touch, so the two do not collide. ~80 min, ~387k tokens.
+
+**LIB-MATE-PAYLOAD MERGED (2026-09-09, #2258; mechanical under (A)
+on `pncad-py-seven-doors-lack-field-projection`, no A/B row). The
+six `MateFault` fields that did not cross now do, and the arm table
+pins 13/13.** Fourteen attributes, 17→31, in the record's order:
+`expected_document`/`found_document` (the `str` a `Doc.id` answers),
+`inner_variant`, `margin`/`margin_low`/`margin_high`, `zero`/
+`escalate`, `field`/`value`, `lever_tilt`/`lever_arm`, `extent`/
+`floor`; `presence()` stays exhaustive with no `..`. The frame door's
+vocabulary is REUSED, not re-spelled: the classifier's fork (a value,
+an enclosure's two bounds, or nothing for a poisoned margin) is one
+helper, `escalation.rs`, sited outside `py` so it compiles and is
+tested under every feature, and both `frame_err` and the mate record
+call it — two doors forking separately would be two spellings of one
+fact. `predicate` is SHARED between `Contradictory` and
+`Indeterminate` ("the predicate that decided" and "the one that could
+not" are one concept asked of two outcomes; the arm says which), said
+in the rustdoc and the stub. `inner_variant` is ONE level in
+(`frame_error_tag` for `Frame`, `band_error_tag` for `Band`,
+`lever_refusal_tag` for `Unleverable`; `Indeterminate` carries a
+struct and has no inner word — its shape is which margin attribute is
+set, CUR8's `different-shape` measurement). Quantities: margins,
+`lever_arm`, `extent`, `floor` are `Length`, `lever_tilt` an `Angle`;
+`zero`/`escalate`/`value` stay plain reals because that is what the
+frame door already answers for them (a band's thresholds are in
+whatever its predicate measures, and dimensioning them here would
+decide a question that door left open). The one curation:
+`LeverRefusal` re-exported from `editor-core` and curated at
+`pncad::document` beside `MateFault` under the cross-list rule (its
+only home is the refusal holding it, so it rides its carrier), with
+`lever_refusal_tag` (one literal, exhaustive so a second arm is a
+compile error) and its inventory row; census `BOUND_AS`
+`MateFault.inner_variant`. The arm table builds sixteen values over
+the thirteen arms (each `MarginDiag` and `BandError` arm executed)
+and reads every field of each; the "nine of thirteen" docstring is
+gone. Python rows reach each attribute by authoring the mistake (the
+levered and unlevered clash, the mispaired solve, the too-small
+datum, the in-band frame); four attributes have no Python row that
+CARRIES them because no f64 solve produces an enclosure and the
+tolerance witness cannot fail to form a band — stated, the Rust
+table owns that half. No new door, no kernel behaviour change beyond
+the re-export and the curation; no shipped `variant`/`inner_variant`
+value moved; the lane ran the pinned ruff for real. Orchestrator note: the falsification was run the way the brief asked — `floor` blanked on the `Unleverable` arm turned the pin red, reverted green — and the mid-flight merge of SMALL-2 conflicted in the two re-export stanzas (both lanes added names to them), resolved by union and re-verified. ~73 min, ~284k tokens.
+
+**LIB-ZERO MERGED (2026-09-09, #2259; mechanical under Ev's (B′) on
+`the-quantity-boundary-compares-and-hashes-as-if-poison-and-signed-zero-cannot-arrive`,
+`[ev]` #2233 item 2, no A/B row). The Python `Length` and `Angle`
+mirror the newtypes' derives.** `continuous_quantity!`'s
+`__richcmp__` answers on the canonical floats exactly as the derived
+`PartialEq`/`PartialOrd` do — IEEE: a NaN operand answers `False` to
+every relation but `!=`, `±inf` orders normally, `-0.0 * m == 0.0 * m`
+— and the bare `ValueError` arm and its history-telling comment are
+gone, replaced by the invariant (the newtypes refuse no float; the
+funnel refuses non-finite where a value enters recipe data, so the
+boundary type does not re-decide it). `__hash__` is removed from the
+macro with no replacement: PyO3 puts `__hash__ = None` in the class
+dict for a class that defines the comparisons and no hash, verified on
+the compiled module rather than assumed, so `{1 * m}` raises Python's
+own `TypeError`. The invariant is stated on the two `#[pyclass]` docs
+and the stub stanzas (the two stub `__hash__` lines go; `__eq__` stays
+for the drift guard); neither GUIDE nor the README taught the subject.
+`Length` and `Angle` join `test_hashability.py`'s `UNHASHABLE` with the
+ruling's reason; the nine `FILED` entries (LIB-HASH-2) are untouched.
+The mirror table over all seven classes in the file: `Count` matches
+its `Eq/Ord/Hash` derives exactly (left); `WrittenLength`/`WrittenAngle`
+hash over `PartialEq`-only newtypes and are LEFT because the ruling as
+posed names them as keeping their hashes (recipe data past the funnel,
+folding the zero) — a deviation from the brief, which had read the
+rule as reaching them, stated; `LengthUnit`/`AngleUnit` have the same
+more-than-the-derives shape and were FILED rather than decided
+(`the-unit-classes-hash-over-a-partialeq-only-newtype`: a unit is a
+table row, the seal makes the symbol determine the row, and
+`test_notation.py` pins a unit as a dict key on purpose — if the rule
+reaches them the repair is upward on `crates/quantity`). Pins moved and
+listed: the "raises today" row becomes an eighteen-answer truth table
+on a NaN operand plus `±inf` rows; the signed-zero row keeps the
+`format`/`==` relationship and loses its hash line; three rows added.
+Kernel untouched (`crates/quantity` and every other crate: zero diff);
+no `variant`/`kind` value moved; the lane ran the pinned ruff for real.
+The ITEM stays open until `[ev]` #2233 merges (it is on that branch);
+this unit closes with its ruling recorded there. Orchestrator note: the
+brief over-read the ruling on the Written pair; the lane read the
+ruling's own words and was right to. ~53 min, ~167k tokens.
+## `[ev]` #2233 ruled (2026-09-09): dimensioned seats at the Python boundary
+
+Two items, one theme — what a `Length`/`Angle` seat at the Python
+boundary owes — and both rulings came out of Ev pushing on the
+mirror. **Item 2 (`the-quantity-boundary-compares-and-hashes-as-if-
+poison-and-signed-zero-cannot-arrive`): (B′)** — the Python `Length`
+and `Angle` mirror the Rust newtypes' derives (`PartialEq, PartialOrd`,
+no `Hash`): IEEE comparisons with no raise on poison, no `__hash__`;
+the kernel omits hash and total order on values in favour of the
+funnel, so the boundary type does not re-decide it. Landed as LIB-ZERO
+(#2259) before this PR merged; the item is closed with it. **Item 1
+(`node-slot-literals-erase-the-authored-notation`): (H)**, reached
+through five revisions — (A) a `Length | WrittenLength` union at each
+slot; (D) the Python `Length` carrying its written unit, withdrawn
+because it broke the mirror; (E) `Length | Expr` with `Expr` gaining
+Rust's constructors, after Ev asked whether Rust has the union (it
+does not: the slot's type IS `Expr`) and whether Python has an `Expr`
+(it does, minted only by `parse_expr`); (G) a named union alias at the
+seat, after Ev asked whether a union could replace `Expr` (at the seat
+yes; the class no — Rust's tree enum is crate-private, and a Python
+union of node kinds would be wider than the kernel); and (H) when Ev
+asked why a union at all rather than `Expr.from_length`: the union
+existed only to keep the bare-`Length` spelling at ~200 sites. **(H):
+each dimensioned slot door takes an `Expr` and nothing else, as the
+Rust slot does, and `Expr` gains `literal`/`written_length`/
+`written_angle`**; helpers for ergonomics, if wanted, go on BOTH sides
+mirrored; and a site that spells a unit (`25 * mm`) converts to the
+WRITTEN form, keeping the notation, with `Expr.literal` only for a
+computed quantity. Mechanical unit LIB-SEATS. Orchestrator note: the
+lesson of this thread is the one `memories/` already states — measure
+the Rust shape first and propose its mirror; every revision here was a
+step back toward that.
+
+## `[ev]` #2257 ruled (2026-09-09): the role-name builders take the loop — (A)
+
+Ev asked why the four builders fix `loop_index: 0`; the answer was
+scope, not design — the ruled two-argument shape came from the
+thirteen hand-spelling sites, all outer-loop, and LIB-NAMES kept a
+ruled signature rather than widen it. With nothing about the outer
+loop earning the shortcut on its merits, **(A): the symmetric
+signature — `band(node, loop, seg)` and its three siblings take the
+loop index as an argument beside the segment, the outer loop `0` as
+`ProfileEdgeRef` spells it**; every current call passes `0`; the
+thirteen Rust sites and the five Python doors move to the new arity
+under the same byte-equality pins. Mechanical unit LIB-LOOPS.
+Orchestrator note: I recommended parking (D); Ev chose symmetry over
+the convenience, which is the surface's own rule — a builder that
+privileges one loop is a second way to spell the vocabulary.
+## `[ev]` #2256 ruled (2026-09-09): a mate frame from a face — (F), now
+
+Ev asked, in order: whether materializing a face's frame stores
+logically duplicate numbers (yes — derived data stored as authored,
+though the author types those numbers by hand today), then whether the
+solve can avoid reading geometry forever. Measured: `mate.rs` carries
+no `Expr` and no `ParamName` — a mate is plain `f64`s — so a document
+parameter change in a part stales its mates silently; the solve cannot
+even read a parameter today, so "never" is not available and the
+design moves now. **(F): `MateFrame` gains a `FromFace { face,
+reference }` arm resolved at evaluation through the exact `face_pose`
+readback (NURBS refuses typed and keeps authored vectors); the solve
+runs over resolved frames and is itself unchanged; nothing is stored
+twice; A11's inputs sentence is revised while its algorithm claim
+stays.** The kernel design is MSOLVE's, filed as
+`work/msolve/mate-frames-resolve-from-a-face-at-evaluation.md`; the
+LIB item is parked on it for the façade and Python half; (A) is not
+built. Orchestrator note: the first recommendation here was (A) with
+(F) as "presumably not wanted" on the item's own word; the measurement
+that settled it (no parameter reaches a mate) was one grep away and
+should have been in the first draft.

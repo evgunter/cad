@@ -1329,7 +1329,12 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
         "path",
         1,
         "`ExprPath` is a named-field struct; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
+         work/docm/debug-in-prose-residue-after-finding-sink.md. \
+         This one BLOCKS A DOOR rather than only degrading a message: \
+         `path_off_tree` is what an expression-path edit refuses with, \
+         so binding that edit would panic the gate exactly where the \
+         door is supposed to refuse (work/lib/\
+         the-expression-path-edit-cannot-refuse-as-prose.md)",
     ),
     (
         "crates/editor-core/src/edit.rs",
@@ -1541,6 +1546,22 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
         "shift",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+         this renders a brace in an interval build and prose in a default one",
+    ),
+    (
+        "crates/topo/src/replace_face.rs",
+        "ReplaceFaceError",
+        "station_max",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+         this renders a brace in an interval build and prose in a default one",
+    ),
+    (
+        "crates/topo/src/replace_face.rs",
+        "ReplaceFaceError",
+        "station_min",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
          this renders a brace in an interval build and prose in a default one",

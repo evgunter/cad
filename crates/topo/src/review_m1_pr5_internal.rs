@@ -240,6 +240,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ("mekr_chord", "derives the spec, then calls `mekr`"),
     ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
     (
+        "insert_void",
+        "calls `insert_voids` with the one destination as a slice — same body, same assertion",
+    ),
+    (
         "set_edge_curve_nurbs_lane",
         "`set_edge_curve` with the NURBS certifier injected — same body, same assertion",
     ),
@@ -299,6 +303,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("mint_pcurves", "pcurve caches only; no topology touched"),
+    (
+        "mint_pcurves_of",
+        "pcurve caches of a face subset only; no topology touched",
+    ),
     (
         "set_null_face_pair",
         "null-face annotation; tier 2 bans it at rest, tier 1 does not see it",

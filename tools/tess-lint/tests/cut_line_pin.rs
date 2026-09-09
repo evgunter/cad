@@ -48,13 +48,24 @@
 //! malformed cut breaks is the reading of the file rather than a
 //! measurement in it.
 //!
-//! `tools/README.md`'s `CC1`–`CC5` are the same rule one level over,
-//! and are NOT cited as routing this: they are stated over
-//! cross-COLUMN admissions, `CC1` names `tess_lint::parse` and
-//! `k_lint::lint_csv` as the boundary rather than the private
-//! `split_cut`, and `CC5` explicitly hands the general test back to
-//! `Report`. The provenance line is not a column and this file does
-//! not claim it is.
+//! `tools/README.md`'s `CC1` and `CC5` route this. That page is the
+//! READING-BOUNDARY rule, of which the cross-column admission is the
+//! largest instance rather than the subject: `CC1` puts a check owed
+//! on what the file says at the one function that turns text into
+//! readings, and names a sub-reading with its own text-to-value step
+//! — `split_cut`, which [`tess_lint::parse`] calls before its first
+//! row — as inside that boundary rather than beside it. `CC5` gives
+//! the voice and forwards the owed-test question to
+//! [`tess_lint::Report`], which is the test stated above; the
+//! forwarding is what licenses that citation from the other cargo
+//! root, and this file, sitting in `Report`'s own crate, quotes it
+//! directly.
+//!
+//! `CC2`, `CC3` and `CC4` are labelled to the per-column admissions
+//! table and are NOT cited here. The provenance line is one line with
+//! no column structure at all, so there is no entry for a policy to
+//! widen, no table to check beside, and no per-row disposition to
+//! refuse.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -135,7 +146,7 @@ const TABLE: &[(&str, bool, bool, &str)] = &[
         "the shortest abbreviation either half admits",
     ),
     (
-        "# tess-budget-cut: 3f55f361b22e 2026-09-08T04:03:35+00:00",
+        "# tess-budget-cut: 448275c8db35 2026-09-08T14:04:46+00:00",
         true,
         true,
         "the shape the committed baseline carries, read from it below",

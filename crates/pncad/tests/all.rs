@@ -8,10 +8,8 @@
 //! `tests/all.rs` mounts its suites with `#[path]` and carries
 //! `every_suite_file_is_aggregated`, which checks that set against the
 //! directory on every run. This `tests/` directory holds ONE `.rs`
-//! file — this one — so there is no set to check; and the row could not
-//! live here anyway, because it reads `test_utils::source` and the
-//! guard at the bottom of this file admits no `use` root but the
-//! façade. What keeps that sentence TRUE is not this paragraph:
+//! file — this one — so there is no set to check. What keeps that
+//! sentence TRUE is not this paragraph:
 //! `crates/bvh/tests/aggregator_headers.rs`'s
 //! `a_non_aggregating_tests_directory_holds_one_suite_file` reds if a
 //! second suite is ever dropped in beside this one, where
@@ -36,9 +34,10 @@
 //! What enforces the pin instead is the guard test at the bottom of
 //! this file: it reads THIS FILE'S OWN SOURCE at compile time and
 //! fails if any kernel crate is named outside a `pncad::` path, or if
-//! any `use` statement has a root other than the façade or the
-//! standard library. That is a source-level check executed as a test,
-//! not a link-level impossibility — honest about its own strength.
+//! any `use` statement has a root other than the façade, the standard
+//! library, or the shared source reader every guard in this file reads
+//! through. That is a source-level check executed as a test, not a
+//! link-level impossibility — honest about its own strength.
 //!
 //! The remaining tests are compile-level pins: functions that
 //! destructure each cross-crate payload and hand it to a monomorphic
@@ -47,9 +46,15 @@
 
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
-// The ONLY import root permitted in this file.
+// The ONLY import roots permitted in this file: the façade, and the
+// shared Rust reader the source-scanning guards below read source
+// through. `test_utils` is a dev-dependency and no kernel crate — it
+// carries no geometry, so naming it says nothing about what a consumer
+// of this façade can reach — and the guard's own allow-list is where
+// that claim is stated and enforced.
 use pncad::prelude::*;
 use pncad::tolerance::Tol;
+use test_utils::source::{ItemBody, balanced_end, code_and_literals, code_only, item_body};
 
 /// Consumes a value without executing anything — the sink that makes
 /// each payload's type appear in a signature.
@@ -370,6 +375,39 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
     }
 }
 
+/// `ValidationError::CensusUnsupported`'s and
+/// `CensusLaneUnsupported`'s payload — what the refusing arm was
+/// examining, and therefore whose recourse applies.
+///
+/// The two arms are two different repairs, which is the CUR3 test.
+/// An `Entity` subject is one carrier outside the certifiable
+/// inventory: simplify that carrier, or certify it through a
+/// supported lane. A `FacePair` is a candidate CONTACT, so the
+/// recourse is the declaration protocol — declare the coincidence, or
+/// separate the two faces. Both payload types are on the prelude, so
+/// the answer is read out whole rather than bound and re-rendered.
+///
+/// The pair is UNORDERED as a subject, which a caller resolving a
+/// refusal against its own records depends on. That half is NOT
+/// pinned here and the reason is the same stop every key row on this
+/// list hits: distinguishing `(a, b)` from `(b, a)` needs two
+/// distinct `FaceKey`s, and nothing on the curated lists mints one —
+/// `topo`'s own suites own that pin. What this signature pins is the
+/// discriminant, which is what a curated list owes.
+fn census_subject_is_matchable(subject: CensusSubject) -> (&'static str, Option<EntityId>) {
+    match subject {
+        CensusSubject::Entity(what) => {
+            named::<EntityId>(what);
+            ("entity", Some(what))
+        }
+        CensusSubject::FacePair(a, b) => {
+            named::<FaceKey>(a);
+            named::<FaceKey>(b);
+            ("face_pair", None)
+        }
+    }
+}
+
 /// `ValidationError::StaleContactDeclaration`'s and `RingMeetsOuter`'s
 /// payloads — which record to withdraw, and how the ring meets the
 /// loop it should not be touching.
@@ -409,6 +447,71 @@ fn stale_declaration_and_ring_contact_are_matchable(
         RingContact::Edge { .. } => "edge",
     };
     (stale, ring)
+}
+
+/// The profile refusals' payloads — what `ProfileError`,
+/// `CornerReason` and `PathError` say beyond their arm names.
+///
+/// `EscalationSite` is where the rung under it shows: two of its four
+/// arms hand back a `SegmentRef`, and reading the site's loop and
+/// segment indices is the whole point of binding one.
+fn profile_payloads_are_matchable(
+    contact: ContactKind,
+    site: EscalationSite,
+    leg: FilletLeg,
+    carrier: FilletLegCarrier,
+    reason: NoCornerReason,
+) -> (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+) {
+    let contact = match contact {
+        ContactKind::Crossing => "crossing",
+        ContactKind::Touch => "touch",
+        ContactKind::Overlap => "overlap",
+    };
+    let site = match site {
+        EscalationSite::Segment(at) => {
+            named::<usize>(at.loop_index);
+            named::<usize>(at.segment_index);
+            "segment"
+        }
+        EscalationSite::SegmentPair(first, second) => {
+            named::<SegmentRef>(first);
+            named::<SegmentRef>(second);
+            "segment_pair"
+        }
+        EscalationSite::Loop { loop_index } => {
+            named::<usize>(loop_index);
+            "loop"
+        }
+        EscalationSite::Fillet => "fillet",
+    };
+    let leg = match leg {
+        FilletLeg::Incoming => "incoming",
+        FilletLeg::Outgoing => "outgoing",
+    };
+    // The arc arm carries the two numbers that decide how the setback
+    // beside it is read; the line arm carries none.
+    let carrier = match carrier {
+        FilletLegCarrier::Line => "line",
+        FilletLegCarrier::Arc {
+            radius,
+            angular_margin,
+        } => {
+            named::<f64>(radius);
+            named::<f64>(angular_margin);
+            "arc"
+        }
+    };
+    let reason = match reason {
+        NoCornerReason::OffsetCarriersDisjoint => "offset_carriers_disjoint",
+        NoCornerReason::NoCornerSideCandidate => "no_corner_side_candidate",
+    };
+    (contact, site, leg, carrier, reason)
 }
 
 /// The carried payload vocabularies, matched through the prelude
@@ -480,10 +583,91 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         ("loop", "surface")
     );
 
-    // The escalation payload is reached by bare prelude name too, and
-    // by SIGNATURE rather than by value: nothing on this list can
-    // build one, which is the rung below stopping.
-    named::<fn(&Indeterminate) -> (Band, Option<&'static str>)>(escalation_is_readable);
+    // The escalation payload is reached by bare prelude name, and by
+    // VALUE now that the rung below it is carried: the struct is
+    // built from prelude names alone and every field is read back,
+    // the margin's own arm included.
+    let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
+    assert_eq!(
+        escalation_is_readable(&Indeterminate {
+            margin: MarginDiag::Enclosure {
+                lo: -1e-9,
+                hi: 1e-9
+            },
+            band,
+            predicate: Some("face_orientation"),
+        }),
+        (band, Some("face_orientation"), "enclosure")
+    );
+    assert_eq!(
+        escalation_is_readable(&Indeterminate {
+            margin: MarginDiag::Value(1e-12),
+            band,
+            predicate: None,
+        })
+        .2,
+        "value"
+    );
+    assert_eq!(
+        escalation_is_readable(&Indeterminate {
+            margin: MarginDiag::Invalid,
+            band,
+            predicate: None,
+        })
+        .2,
+        "invalid"
+    );
+
+    // What a census refusal is ABOUT, and the two recourses it
+    // separates. Both payload types are prelude names, so the entity
+    // arm's subject comes back whole rather than as a rendered
+    // string.
+    assert_eq!(
+        census_subject_is_matchable(CensusSubject::Entity(EntityId::Face(FaceKey::default()))),
+        ("entity", Some(EntityId::Face(FaceKey::default())))
+    );
+    assert_eq!(
+        census_subject_is_matchable(CensusSubject::FacePair(
+            FaceKey::default(),
+            FaceKey::default()
+        )),
+        ("face_pair", None)
+    );
+
+    // The profile rung, by bare prelude name — and the pair this
+    // closes: the fillet constructor's no-corner reason beside the
+    // lattice door's, which was curated on its own.
+    assert_eq!(
+        profile_payloads_are_matchable(
+            ContactKind::Overlap,
+            EscalationSite::SegmentPair(
+                SegmentRef {
+                    loop_index: 0,
+                    segment_index: 1,
+                },
+                SegmentRef {
+                    loop_index: 0,
+                    segment_index: 3,
+                },
+            ),
+            FilletLeg::Outgoing,
+            FilletLegCarrier::Arc {
+                radius: 2.0,
+                angular_margin: -0.5,
+            },
+            NoCornerReason::OffsetCarriersDisjoint,
+        ),
+        (
+            "overlap",
+            "segment_pair",
+            "outgoing",
+            "arc",
+            "offset_carriers_disjoint"
+        )
+    );
+    match PathNoCornerReason::CarriersParallel {
+        PathNoCornerReason::CarriersParallel | PathNoCornerReason::CarriersDoNotMeet => {}
+    }
 
     assert_eq!(
         stale_declaration_and_ring_contact_are_matchable(
@@ -549,23 +733,37 @@ fn entity_and_geometry_sites_are_matchable(
 /// `Indeterminate` is a STRUCT, so what a curated list owes about it
 /// is field access rather than a match: a caller holding an
 /// `Escalated` arm out of any of the thirteen refusals that carry one
-/// asks which band the margin was classified against and which
-/// predicate could not decide. `Band` is on the same list, which is
-/// what makes the pair readable in one import.
+/// asks which band the margin was classified against, which predicate
+/// could not decide, and what the classifier saw. `Band` and
+/// `MarginDiag` are on the same list, which is what makes the whole
+/// struct readable in one import.
 ///
-/// **No value is built here, and the reason IS the stop.** Building
-/// one means writing `margin:`, and that field's type is
-/// deliberately uncurated — so this function reads an escalation it
-/// is handed and cannot fabricate one, which is exactly the shape a
-/// consumer is left in. `margin` is bound and never named.
-fn escalation_is_readable(escalation: &Indeterminate) -> (Band, Option<&'static str>) {
+/// The margin's arm is matched EXHAUSTIVELY, and the three words are
+/// three different next moves: a value landed in the band (tighten ε),
+/// an enclosure straddles (subdivide), a poisoned margin was never a
+/// validly posed question (neither helps). Reading which one it is is
+/// not recovering the sign the classifier refused.
+fn escalation_is_readable(
+    escalation: &Indeterminate,
+) -> (Band, Option<&'static str>, &'static str) {
     let Indeterminate {
         margin,
         band,
         predicate,
     } = escalation;
-    let _ = margin;
-    (*band, *predicate)
+    let seen = match margin {
+        MarginDiag::Value(m) => {
+            named::<f64>(*m);
+            "value"
+        }
+        MarginDiag::Enclosure { lo, hi } => {
+            named::<f64>(*lo);
+            named::<f64>(*hi);
+            "enclosure"
+        }
+        MarginDiag::Invalid => "invalid",
+    };
+    (*band, *predicate, seen)
 }
 
 /// The picking refusal's own payload, matched through `crate::select`
@@ -718,6 +916,97 @@ fn the_f64_seam_is_exact() {
     assert_eq!((q.x, q.y), (7.25, -0.0));
 }
 
+/// The lattice-backed polygon door: what it accepts, what it refuses,
+/// and that what it emits is the raw vertex table.
+///
+/// The refusals are the point of the door. A coordinate table minted
+/// straight into a loop carries no junction, so a corner that is
+/// tangent (or cusped) within the band is discovered a tier later, at
+/// `validate`. Here it is discovered at the corner.
+#[test]
+fn the_polygon_door_authors_through_the_lattice() {
+    let tol = Tol::witness();
+
+    let square: ProfileLoop<f64> =
+        polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)], tol).expect("a square authors");
+    assert_eq!(square.vertices().len(), 4);
+
+    let triangle: ProfileLoop<f64> =
+        polygon(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], tol).expect("a triangle authors");
+    assert_eq!(triangle.vertices().len(), 3);
+
+    // Three corners is the floor, and the arm says which count it
+    // refused — every sub-three table takes the same door.
+    for table in [&[(0.0, 0.0), (1.0, 0.0)][..], &[(0.0, 0.0)][..], &[][..]] {
+        let given = table.len();
+        match polygon::<f64>(table, tol) {
+            Err(PathError::PolygonTooFewVertices { given: n }) => assert_eq!(n, given),
+            other => panic!("{given} vertices must refuse as PolygonTooFewVertices: {other:?}"),
+        }
+    }
+
+    // Three collinear points: the corner at (1, 0) departs along its
+    // own incoming tangent, which the lattice classifies AT THE
+    // CORNER. A raw vertex table would have accepted this and left it
+    // for validate.
+    match polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)], tol) {
+        Err(PathError::JunctionTangent { .. }) => {}
+        other => panic!("a collinear corner must refuse as JunctionTangent: {other:?}"),
+    }
+}
+
+/// **The identity claim**: the door changes how a polygon is SAID, not
+/// what it is. The emitted loop is the raw vertex table — every
+/// authored point in order, every bulge zero, no declared joints.
+///
+/// The claim is pinned against the table rather than against a call to
+/// the raw minting door, because that door is unreachable from here by
+/// construction: `RawLoop` is off the façade's presented surface
+/// (`no_raw_loop_minting_door_is_nameable_through_the_facade`) and this
+/// file may name no crate but `pncad` (the guard at the bottom). What
+/// is asserted is what `RawLoop::polygon` mints for the same points —
+/// its whole contract — read back through the façade's own readers.
+#[test]
+fn the_polygon_door_emits_the_raw_vertex_table() {
+    let tol = Tol::witness();
+    let table = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.5, 4.0), (0.0, 3.0)];
+    let loop_: ProfileLoop<f64> = polygon(&table, tol).expect("the outline authors");
+
+    let want: Vec<ProfileVertex<f64>> = table
+        .iter()
+        .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+        .collect();
+    let got = loop_.vertices();
+    assert_eq!(got.len(), want.len(), "one vertex per authored point");
+    for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+        assert_eq!((g.pos().x, g.pos().y), (w.pos().x, w.pos().y), "vertex {i}");
+        assert_eq!(g.bulge(), w.bulge(), "vertex {i} bulge");
+    }
+    assert!(
+        loop_.tangent_joints().is_empty(),
+        "a polygon declares no tangent joint"
+    );
+
+    // And the same loop the hand-spelled chain emits: the door IS that
+    // chain, not a second lowering of the same table.
+    let chain: ProfileLoop<f64> = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), tol)
+        .and_then(|t| t.line_to(p2(2.0, 3.0), tol))
+        .and_then(|t| t.line_to(p2(0.5, 4.0), tol))
+        .and_then(|t| t.line_to(p2(0.0, 3.0), tol))
+        .and_then(|t| t.line_to(Start, tol))
+        .expect("the hand-spelled chain authors")
+        .into();
+    let hand = chain.vertices();
+    assert_eq!(hand.len(), got.len());
+    for (i, (g, h)) in got.iter().zip(hand).enumerate() {
+        assert_eq!((g.pos().x, g.pos().y), (h.pos().x, h.pos().y), "vertex {i}");
+        assert_eq!(g.bulge(), h.bulge(), "vertex {i} bulge");
+    }
+    assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
+}
+
 /// The validation ladder as the corpus actually walks it.
 ///
 /// Tiers 1 and 2 run on every body. Tier 3 and tier 3′ are
@@ -782,6 +1071,265 @@ fn the_authoring_ladder_runs_on_one_dependency() {
 
     let step = step_string(&built.body, &StepOptions::default(), Tol::witness()).expect("step");
     assert!(step.starts_with("ISO-10303-21;"));
+}
+
+/// **A carried RESULT's discriminant, matched through the prelude —
+/// and CONSTRUCTED here rather than fabricated.**
+///
+/// `revolve` is a prelude door and its answer is a `Revolved`, whose
+/// `kind` is the ratified case split. The two arms are two disjoint
+/// sets of handles rather than one shape with a label: a partial
+/// revolution has wedge CAPS and both meridian chains, a full one has
+/// no caps, one seam chain, and the wire case's second π-band. So
+/// "which faces did my revolve make" is answered by this branch and
+/// by no other, and every key type the arms carry is on the same
+/// list.
+///
+/// Both arms are reached by calling the door, which makes this a
+/// construction pin and not only a naming one.
+#[test]
+fn a_revolve_result_is_matchable_through_the_prelude() {
+    // An off-axis rectangle, revolved about the sketch y axis: x is
+    // the radius, so the profile never touches the axis and the full
+    // case is the lamina one.
+    let rect: ClosedLoop<f64> = Open
+        .at(p2(1.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .and_then(|t| t.line_to(p2(2.0, 1.0), Tol::witness()))
+        .and_then(|t| t.line_to(p2(1.0, 1.0), Tol::witness()))
+        .and_then(|t| t.line_to(Start, Tol::witness()))
+        .expect("the rectangle authors");
+    let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], Tol::witness())
+        .expect("profile validates");
+    let axis = RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
+    };
+
+    let quarter = revolve(
+        &profile,
+        axis,
+        Revolution::Partial(std::f64::consts::FRAC_PI_2),
+        Tol::witness(),
+    )
+    .expect("a quarter revolution builds");
+    assert_eq!(revolved_kind_is_matchable(&quarter.kind), "partial");
+
+    let whole = revolve(&profile, axis, Revolution::Full, Tol::witness())
+        .expect("a full revolution builds");
+    assert_eq!(revolved_kind_is_matchable(&whole.kind), "full");
+}
+
+/// The case split, matched exhaustively with every field's type
+/// spelled from the prelude — the pin that a caller can read the
+/// handles out and not merely see which arm it got.
+fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
+    match kind {
+        RevolvedKind::Partial {
+            start_cap,
+            end_cap,
+            start_meridians,
+            end_meridians,
+        } => {
+            named::<FaceKey>(*start_cap);
+            named::<FaceKey>(*end_cap);
+            named::<&Vec<Vec<EdgeKey>>>(start_meridians);
+            named::<&Vec<Vec<EdgeKey>>>(end_meridians);
+            "partial"
+        }
+        RevolvedKind::Full {
+            meridians,
+            pi_walls,
+            pi_meridians,
+            pi_rims,
+        } => {
+            named::<&Vec<Vec<Option<EdgeKey>>>>(meridians);
+            named::<&Vec<Option<FaceKey>>>(pi_walls);
+            named::<&Vec<Option<EdgeKey>>>(pi_meridians);
+            named::<&Vec<Option<EdgeKey>>>(pi_rims);
+            "full"
+        }
+    }
+}
+
+/// **The import surface, on both sides of the call** — the refusal a
+/// caller matches, and the options a caller fills.
+///
+/// The two halves are two different curation defects and this pins
+/// each. `PromotedKind` is `RecognitionAmbiguous`'s discriminant: the
+/// arm was matchable and the kind whose estimator declined was
+/// readable only out of the message prose. `ImportContact` is the
+/// element type of a `pub` field on the options struct, so the
+/// declaration channel was callable and not FILLABLE — the value
+/// below could not be written from this list at all.
+///
+/// What the `import_step` call pins is exactly that: the door accepts
+/// options a prelude caller filled. Whether an anchor RESOLVES is
+/// `step-import`'s own suite, on a file with vertices to resolve
+/// against; here the text is not a STEP file and the refusal is the
+/// parser's.
+#[test]
+fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::RecognitionAmbiguous {
+            id: 104,
+            surface: 105,
+            kind: PromotedKind::Plane,
+            margin: 1e-9,
+        }),
+        Some("plane")
+    );
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::RecognitionAmbiguous {
+            id: 142,
+            surface: 143,
+            kind: PromotedKind::Cylinder,
+            margin: 1e-9,
+        }),
+        Some("cylinder")
+    );
+    assert_eq!(
+        recognition_ambiguity_is_matchable(&StepImportError::NothingToImport),
+        None
+    );
+
+    let options = ImportOptions {
+        eps_in: Some(1e-7),
+        declared_contacts: vec![ImportContact::VertexRest {
+            at: [0.0, 0.0, 0.5],
+        }],
+    };
+    assert!(matches!(
+        import_step("not a step file", &options, Tol::witness()),
+        Err(StepImportError::Syntax { .. })
+    ));
+}
+
+/// Which analytic kind's estimator declined, read off the arm that
+/// reports it — `None` on every other refusal.
+///
+/// The kinds are matched EXHAUSTIVELY, so a third one recognised
+/// kernel-side stops this compiling rather than arriving under an
+/// existing word. Their recourses differ, which is why the
+/// discriminant is worth a curated name: a plane that will not
+/// certify is a flatness question at ε_in, a cylinder that will not
+/// is an ill-conditioned axis and wants more of the patch.
+fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static str> {
+    match err {
+        StepImportError::RecognitionAmbiguous { kind, .. } => Some(match kind {
+            PromotedKind::Plane => "plane",
+            PromotedKind::Cylinder => "cylinder",
+        }),
+        _ => None,
+    }
+}
+
+/// **The import surface's SUCCESS half** — the answer a caller holds,
+/// and the record it reads out of it.
+///
+/// The sibling above pins the two sides of the CALL. This pins the
+/// return: `StepImport` and every type its `Solid` arm names are
+/// spelled here from the prelude alone, so an answer a caller cannot
+/// store in a field or return from a function fails to compile rather
+/// than being noticed by a reader.
+///
+/// The body is a real import — the round-trip oracle's own text — so
+/// `enclosure` is the gate's, not a fixture's, and the equality below
+/// is the field's documented promise measured rather than repeated:
+/// it is the SAME object the gate decided the +V invariant on, so a
+/// reader that takes it instead of re-measuring gets the same four
+/// fields bit for bit.
+#[test]
+fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
+    let (doc, _, body_node) = doors_box_doc();
+    let ev = doors_evaluate(&doc);
+    let text =
+        pncad::export::step_for_node(&ev, body_node, &StepOptions::default(), Tol::witness())
+            .expect("a body value exports");
+    let imported: StepImport = import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect("the export re-imports");
+
+    // Every field of the arm, bound by name and typed from this list.
+    let StepImport::Solid {
+        body,
+        enclosure,
+        eps_in,
+        normalizations,
+        curve_promotions,
+        instances,
+    } = imported
+    else {
+        panic!("the box re-imports as a solid, not a wireframe");
+    };
+    named::<Body<f64>>(body.clone());
+    named::<MassProperties<f64>>(enclosure);
+    named::<f64>(eps_in);
+    named::<Vec<StructureNormalization>>(normalizations.clone());
+    named::<Vec<CurvePromotion>>(curve_promotions.clone());
+    named::<Vec<PlacedInstance>>(instances.clone());
+
+    // "Not a second computation", as an equality rather than a claim.
+    let again = mass_properties(&body, Tol::witness()).expect("imported mass properties");
+    assert_eq!(enclosure.volume.to_bits(), again.volume.to_bits());
+    assert_eq!(
+        enclosure.surface_area.to_bits(),
+        again.surface_area.to_bits()
+    );
+    assert_eq!(enclosure.volume_pad.to_bits(), again.volume_pad.to_bits());
+    assert_eq!(enclosure.area_pad.to_bits(), again.area_pad.to_bits());
+
+    // The assembly record is kept whether or not the file states an
+    // assembly, so a one-solid box still carries one.
+    assert_eq!(instances.len(), 1, "one record per solid");
+    for instance in &instances {
+        named::<&usize>(&instance.index);
+        named::<&u64>(&instance.solid);
+        named::<&u64>(&instance.component);
+        named::<&Option<u64>>(&instance.occurrence);
+        named::<&Option<u64>>(&instance.relationship);
+        named::<&Option<u64>>(&instance.transform);
+        named::<&Option<pncad::geom_core::Affine3<f64>>>(&instance.placement);
+    }
+    for record in &normalizations {
+        named::<&u64>(&record.face);
+        named::<&str>(normalization_kind_is_readable(&record.kind));
+        for census in [&record.file_census, &record.kernel_census] {
+            named::<&FaceCensus>(census);
+            named::<&usize>(&census.faces);
+            named::<&usize>(&census.edges);
+            named::<&usize>(&census.vertices);
+        }
+    }
+    for promotion in &curve_promotions {
+        named::<&u64>(&promotion.curve);
+        named::<&f64>(&promotion.residual);
+        named::<&str>(match promotion.kind {
+            PromotedCurveKind::Circle => "circle",
+        });
+    }
+}
+
+/// Which normalization a record reports, matched EXHAUSTIVELY: a sixth
+/// kind minted kernel-side stops this compiling rather than arriving
+/// under one of these five words.
+///
+/// `SurfacePromotion` carries the discriminant the refusal side
+/// carries too, and it is read here through the same `PromotedKind`
+/// — one type, two carriers, one vocabulary for the caller.
+fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
+    match kind {
+        NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
+        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::FullPeriodTorus => "full_period_torus",
+        NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::SurfacePromotion { to, residual } => {
+            named::<&f64>(residual);
+            match to {
+                PromotedKind::Plane => "surface_promotion_plane",
+                PromotedKind::Cylinder => "surface_promotion_cylinder",
+            }
+        }
+    }
 }
 
 /// The other arm of the ladder: a Boolean result carries its own
@@ -856,43 +1404,27 @@ fn a_boolean_result_validates_at_tier_3_prime() {
 /// more machinery than a one-file invariant deserves, and a text scan
 /// errs toward false ALARM rather than false confidence — the safe
 /// direction for a guard whose whole job is to not overpromise.
-/// Strips `//` comments so the guard judges CODE, not prose — the
-/// docs above quote the original leak by its real name on purpose,
-/// and documentation naming a thing is not code reaching for it.
-fn code_without_comments(src: &str) -> String {
-    // Written as code points, not character literals: this function's
-    // own source is part of what the guard scans, and a literal quote
-    // here would corrupt the string-state tracking below.
-    const DQUOTE: u8 = 0x22;
-    const BACKSLASH: u8 = 0x5c;
-    const SLASH: u8 = 0x2f;
-
-    let mut out = String::with_capacity(src.len());
-    for line in src.lines() {
-        let b = line.as_bytes();
-        let (mut i, mut in_str, mut cut) = (0usize, false, b.len());
-        while i < b.len() {
-            match b[i] {
-                BACKSLASH if in_str => i += 1,
-                DQUOTE => in_str = !in_str,
-                SLASH if !in_str && b.get(i + 1) == Some(&SLASH) => {
-                    cut = i;
-                    break;
-                }
-                _ => {}
-            }
-            i += 1;
-        }
-        out.push_str(&line[..cut]);
-        out.push('\n'); // preserved, so reported line numbers stay true
-    }
-    out
-}
-
+/// Comments are blanked so the guard judges CODE, not prose — the docs
+/// above quote the original leak by its real name on purpose, and
+/// documentation naming a thing is not code reaching for it.
+///
+/// **Two views, and the difference decides two different questions.**
+/// [`code_and_literals`] keeps string literals, which is what the
+/// kernel-path scan wants: a needle spelled contiguously in a literal
+/// here is indistinguishable from one spelled in code, and reading it
+/// as a violation errs toward false ALARM — the safe direction for a
+/// guard, and the reason the selftests below assemble their kernel
+/// names at runtime. [`code_only`] blanks literals too, which is what
+/// the `use`-root scan wants: a `use` inside a literal is a snippet a
+/// selftest built, not an import this file makes, and reading it as
+/// one errs toward false CONFIDENCE about a root the file never
+/// names.
 #[test]
 fn this_file_reaches_the_kernel_only_through_pncad() {
     const FACADE: &str = "pncad";
-    let src = code_without_comments(include_str!("all.rs"));
+    let text = include_str!("all.rs");
+    let code = code_only(text);
+    let src = code_and_literals(text);
     let src: &str = &src;
     // The re-exported crates, plus the one deliberately left interior.
     const KERNEL: [&str; 12] = [
@@ -912,18 +1444,17 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 
     let mut violations: Vec<String> = Vec::new();
 
-    // Check 1: every `use` statement's root is the façade or std.
-    for (n, line) in src.lines().enumerate() {
-        let t = line.trim_start();
-        let Some(rest) = t.strip_prefix("use ") else {
-            continue;
-        };
-        let root: String = rest
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
-        if !matches!(root.as_str(), "pncad" | "std" | "core" | "alloc") {
-            violations.push(format!("line {}: `use {root}` — not the façade", n + 1));
+    // Check 1: every `use` STATEMENT's root is the façade, the
+    // standard library, or the shared source reader — the one
+    // non-façade root this file names, and no kernel crate. Read as
+    // statements over the literal-blanked view: see
+    // [`use_statement_roots`] for both halves of why.
+    for (n, root) in use_statement_roots(&code) {
+        if !matches!(
+            root.as_str(),
+            "pncad" | "std" | "core" | "alloc" | "test_utils"
+        ) {
+            violations.push(format!("line {n}: `use {root}` — not the façade"));
         }
     }
 
@@ -971,6 +1502,63 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 /// The 1-based line the byte offset `at` falls on in `code`.
 fn line_of(code: &str, at: usize) -> usize {
     code[..at].matches('\n').count() + 1
+}
+
+/// Every `use` STATEMENT in a blanked view: the line it opens on, and
+/// the crate root it names.
+///
+/// **Statements, not lines**, for [`pub_use_statements`]'s reason one
+/// keyword over: a `use` whose root sits on a continuation line is not
+/// a `use` a line-local reader sees at all, and the root is the whole
+/// subject of the check that reads this.
+///
+/// **The view must be [`code_only`]**, and that is the second half.
+/// The needle is `use `, which this file spells inside string literals
+/// — the reader selftests build synthetic import snippets — so a
+/// literal-keeping view reads a snippet's root as this file's own and
+/// reports a violation the file never committed. Blanking literals is
+/// what makes the reader's own fixtures invisible to it.
+///
+/// A `use` is a statement opener only where nothing but whitespace,
+/// the end of the previous statement, a block boundary or a visibility
+/// stands before it — so `pub use` is one and a `use` inside a path is
+/// not.
+fn use_statement_roots(code: &str) -> Vec<(usize, String)> {
+    let mut out = Vec::new();
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("use") {
+        let at = from + off;
+        from = at + "use".len();
+        // A whole word, not the tail of `reuse` and not the head of
+        // `used`.
+        let word = code[..at]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+            && code[from..]
+                .chars()
+                .next()
+                .is_none_or(|c| !(c.is_alphanumeric() || c == '_'));
+        let opener = {
+            let before = code[..at].trim_end();
+            before.is_empty()
+                || before.ends_with(';')
+                || before.ends_with('{')
+                || before.ends_with('}')
+                || before.ends_with("pub")
+                || before.ends_with(')')
+        };
+        if !(word && opener) {
+            continue;
+        }
+        let root: String = code[from..]
+            .trim_start()
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        out.push((line_of(code, at), root));
+    }
+    out
 }
 
 /// Every `pub use` STATEMENT in already-comment-stripped `code`: the
@@ -1111,7 +1699,7 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in FACADE_SOURCES {
-        let code = code_without_comments(src);
+        let code = code_and_literals(src);
         for (n, stmt) in pub_use_statements(&code) {
             if stmt.contains(&module_reexport) {
                 violations.push(format!(
@@ -1206,7 +1794,7 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
 
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in FACADE_SOURCES {
-        let code = code_without_comments(src);
+        let code = code_and_literals(src);
         for (n, stmt) in pub_use_statements(&code) {
             if stmt.contains(&module_reexport) {
                 violations.push(format!(
@@ -1256,7 +1844,7 @@ fn the_boundary_readers_read_across_line_breaks() {
     // kernel path here would be its own first match.
     let layer = ["editor", "core"].join("_");
     let list = format!("// prose about it\npub use {layer}::{{\n    Doc,\n    EntityRef,\n}};\n");
-    let code = code_without_comments(&list);
+    let code = code_and_literals(&list);
     let stmts = pub_use_statements(&code);
     assert_eq!(
         stmts.len(),
@@ -2231,6 +2819,206 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
         }
         other => panic!("the raw snapshot's pin must refuse PinMismatch, got {other:?}"),
     }
+}
+
+// ---- A4: a save is two acts (the save door and the fork) ----
+
+/// The store directory's `*.pncad` file names, sorted — what a
+/// refusal must leave untouched.
+fn ws_listing(dir: &WsDir) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(&dir.0)
+        .expect("the scratch dir reads")
+        .map(|entry| {
+            entry
+                .expect("the entry reads")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// A4's FIRST act: saving a document at a path keeps its identity, so
+/// "save a copy beside the original" refuses typed at the save door.
+/// Nothing is written — and the store still opens, which is the whole
+/// point: a second file claiming the id would make every later scan
+/// refuse for every document in the directory.
+#[test]
+fn workspace_save_at_refuses_a_second_file_for_one_identity() {
+    let dir = WsDir::new("save-dup");
+    let (doc, text) = ws_doc("ws-save-dup");
+    let original = dir.write("a.pncad", &text);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+
+    match ws.save_at(&doc, "b.pncad", Tol::witness()) {
+        Err(pncad::workspace::WorkspaceError::SaveWouldDuplicateId {
+            id,
+            existing,
+            requested,
+        }) => {
+            assert_eq!(id, doc.id());
+            assert_eq!(existing, original);
+            assert_eq!(requested, dir.0.join("b.pncad"));
+        }
+        other => {
+            panic!("a save beside the original must refuse SaveWouldDuplicateId, got {other:?}")
+        }
+    }
+
+    // BEFORE the file exists: the directory is what it was.
+    assert_eq!(ws_listing(&dir), vec!["a.pncad".to_string()]);
+    assert_eq!(ws.documents().len(), 1);
+    // And a later open still scans clean — the store is not bricked.
+    let reopened = pncad::workspace::Workspace::open(&dir.0).expect("the store still opens");
+    assert_eq!(reopened.documents().get(&doc.id()), Some(&original));
+}
+
+/// A save at the id's OWN scanned path is a resave: the file keeps its
+/// name, the identity does not move and the content does.
+#[test]
+fn workspace_save_at_the_scanned_path_is_a_resave() {
+    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    let dir = WsDir::new("save-resave");
+    let (doc, text) = ws_doc("ws-save-resave");
+    let original = dir.write("part.pncad", &text);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let before = pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes");
+
+    let edited = pncad::document::apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("depth"),
+            value: DocParam::continuous(Dimension::Length, 0.9),
+        },
+        Tol::witness(),
+    )
+    .expect("the edit applies")
+    .doc;
+    assert_eq!(edited.id(), doc.id(), "an edit never moves the identity");
+
+    let written = ws
+        .save_at(&edited, "part.pncad", Tol::witness())
+        .expect("a save at the scanned path is a resave");
+    assert_eq!(written, original);
+    assert_eq!(ws_listing(&dir), vec!["part.pncad".to_string()]);
+    assert_eq!(ws.documents().len(), 1);
+
+    let after = ws
+        .current_pin(doc.id(), Tol::witness())
+        .expect("the store pins its current content");
+    assert_ne!(after, before, "the content moved, so the pin did");
+    assert_eq!(
+        after,
+        pncad::document::content_pin(&edited, Tol::witness()).expect("the pin computes")
+    );
+}
+
+/// An UNCLAIMED id saved at a chosen file name is a create at that
+/// name — the door the refactorings' `create` cannot spell, since it
+/// forces `{id}.pncad`. A target that is not a save file of THIS store
+/// refuses instead, before anything is written.
+#[test]
+fn workspace_save_at_creates_an_unclaimed_id_under_the_chosen_name() {
+    let dir = WsDir::new("save-create");
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("an empty store scans clean");
+    let (doc, _) = ws_doc("ws-save-create");
+
+    let path = ws
+        .save_at(&doc, "chosen-name.pncad", Tol::witness())
+        .expect("an unclaimed id creates at the caller's name");
+    assert_eq!(path, dir.0.join("chosen-name.pncad"));
+    assert_eq!(ws.documents().get(&doc.id()), Some(&path));
+    // A fresh scan agrees, at the caller's name and not `{id}.pncad`.
+    let scanned = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    assert_eq!(scanned.documents(), ws.documents());
+
+    // The root written out is the same target as the bare name.
+    assert_eq!(
+        ws.save_at(&doc, dir.0.join("chosen-name.pncad"), Tol::witness())
+            .expect("the same file, spelled with its directory"),
+        path
+    );
+
+    // A target that is not a `*.pncad` file directly in this root is
+    // refused: a different root is a different store.
+    for target in [
+        std::path::PathBuf::from("notes.txt"),
+        std::path::PathBuf::from("sub/chosen-name.pncad"),
+        dir.0.join("sub").join("chosen-name.pncad"),
+    ] {
+        match ws.save_at(&doc, &target, Tol::witness()) {
+            Err(pncad::workspace::WorkspaceError::SaveTargetNotInStore { path }) => {
+                assert_eq!(path, target);
+            }
+            other => panic!(
+                "`{}` is not a store save target, got {other:?}",
+                target.display()
+            ),
+        }
+    }
+    assert_eq!(ws_listing(&dir), vec!["chosen-name.pncad".to_string()]);
+}
+
+/// A4's SECOND act: saving AS A NEW DOCUMENT mints a fresh id — an
+/// explicit fork. The original is untouched and every inbound `DocRef`
+/// pinning the old id still resolves to it; the new id resolves to the
+/// fork; both files coexist in one scan. The fork's CONTENT PIN equals
+/// the original's, because the pin's preimage excludes the id.
+#[test]
+fn workspace_save_as_new_document_mints_a_fresh_identity() {
+    let dir = WsDir::new("fork");
+    let (doc, text) = ws_doc("ws-fork");
+    let original = dir.write("original.pncad", &text);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let pin = pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes");
+    let inbound = pncad::document::DocRef { id: doc.id(), pin };
+
+    let (new_id, new_path) = ws
+        .save_as_new_document(&doc, Tol::witness())
+        .expect("the fork writes");
+    assert_ne!(new_id, doc.id(), "a fork is a new part");
+    assert_eq!(new_path, dir.0.join(format!("{new_id}.pncad")));
+
+    // The original is untouched, so the inbound reference still names
+    // it — which is what a fork MEANS.
+    assert_eq!(ws.documents().get(&doc.id()), Some(&original));
+    assert!(
+        ws.resolve(&inbound, Tol::witness())
+            .expect("the old reference still resolves")
+            .bit_eq(&doc)
+    );
+
+    // The new id resolves to the fork, under the SAME pin: identity is
+    // not content (the canonical bytes are the serde form with `id`
+    // removed), so the fork is detectably the same version.
+    assert_eq!(
+        ws.current_pin(new_id, Tol::witness())
+            .expect("the fork pins"),
+        pin,
+        "the fork's content pin is the original's"
+    );
+    let forked = ws
+        .resolve(&pncad::document::DocRef { id: new_id, pin }, Tol::witness())
+        .expect("the new id resolves to the fork");
+    assert_eq!(forked.id(), new_id);
+    assert!(
+        !forked.bit_eq(&doc) && forked.under_identity(doc.id()).bit_eq(&doc),
+        "the fork differs from the original in its identity and nothing else"
+    );
+    // The two save FILES differ, in the `id:` header and the
+    // snapshot's own id.
+    assert_ne!(
+        std::fs::read_to_string(&original).expect("the original reads"),
+        std::fs::read_to_string(&new_path).expect("the fork reads")
+    );
+
+    // Both files coexist in one scan, and the store grew by one.
+    assert_eq!(ws.documents().len(), 2);
+    let scanned = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    assert_eq!(scanned.documents(), ws.documents());
+    assert_eq!(ws_listing(&dir).len(), 2);
 }
 
 // ---- ASM-2A: instantiate-part, end to end through a real workspace ----
@@ -3360,13 +4148,47 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ProgramRefusal`, `ExprPath`, `ParamValue`,
-///   `BifurcationKind`, `NamingError`,
-///   `MetaValue`, `MetaError`, `MetaVersionError`, `from_value`,
+///   (`ProfilePayload`, `ParamValue`,
+///   `BifurcationKind`,
+///   `MetaValue`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
-///   behind one. (`ClassAdmission`/`class_admission` left this family
+///   behind one.
+///
+///   **`ProgramRefusal` and `NamingError` were in this family and the
+///   reading did not hold for them.** Neither has a curated door of
+///   its own: `ProgramRefusal` is what `EditError::ProfileProgramRefused`
+///   holds and `NamingError` is what `NodeErrorKind::Naming` holds,
+///   and both carriers are curated — so a consumer could match either
+///   arm and had no way to name what it caught. That is the payload
+///   rule this list's own `VerbKind` entry states, and `crate::document`
+///   and `crate::select` carry them now. `BifurcationKind` stays: its
+///   carrier arm is not constructed before the M6 solver, so nothing
+///   can hold one to name. (`ClassAdmission`/`class_admission` left this family
 ///   at GUI-4: a mate-authoring consumer needs the admission table
 ///   BEFORE committing, so `crate::document` carries them now.)
+///
+///   **`AttrKind` and `ExprPath` were in it too, and the reading did
+///   not hold for them either.** Both are `EditError` payloads —
+///   `RebindAppearanceCollision` and `AppearanceNotSet` name a display
+///   attribute's KIND, `PathOffTree` names an expression ADDRESS — and
+///   neither has a curated door of its own, so the same payload rule
+///   carries them. Carrying them is not carrying their
+///   neighbourhoods: `Attr`, `AttrSet` and the appearance records stay
+///   out, because no curated carrier answers in those.
+///   **`MetaVersionError` left this family too, and what moved was
+///   the sentence that held it here.** It stayed on the reading that
+///   it is a nested REFUSAL rather than a leaf value, whose arm
+///   carried no inner word to name it by — so naming it was the
+///   per-arm-tag question and not the payload one. Both halves of
+///   that are spent: every refusal whose carrier projects a word now
+///   gains its own arm as a second attribute, so
+///   `EditError::MetaUnversioned` answers WHICH of the three ways a
+///   stored metadata value breaks the D7 producer convention, and the
+///   type that word is minted from has to be nameable to mint it.
+///   `crate::document` carries it now. Its neighbourhood does not
+///   come with it — `MetaValue` and `MetaError` are the value tree
+///   and the producer boundary's own refusal, and no curated carrier
+///   answers in either.
 ///
 ///   **The A5 gate used to be in this family and was wrong to be.**
 ///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
@@ -3435,7 +4257,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `StructureFlip`, `AxisScalar`, `param_env_over`, `SeedScalar`,
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
 ///   placement off a derived frame — a lane fact, decided by the type),
-///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
+///   `seed_env`, `std_deviation`, `sensitivities`,
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
@@ -3456,6 +4278,14 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   that had none, and `crate::analysis` states the trade at its own
 ///   head rather than here.
 ///
+///   **`SeedError` left this family**, with `ParamBoxError` beside it:
+///   they are `NodeErrorKind`'s `Seed` and `ParamBox` payloads, and
+///   those arms exist on every build, so both are carried
+///   UNCONDITIONALLY — `ParamBoxError` moved out of the driver's
+///   `interval` block for that reason. A payload a default-feature
+///   consumer can match and cannot name is the defect; the seams that
+///   MINT them stay interior below.
+///
 ///   What stays interior is what a consumer of the REPORTS does not
 ///   hold: the flip evidence a refusal carries (read through the
 ///   refusal's own `Display`), the two scalar CAPABILITY seams and
@@ -3463,14 +4293,13 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 90] = [
+const NOT_CARRIED: [&str; 84] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
     "AppearanceRecord",
     "AppearanceResolution",
     "Attr",
-    "AttrKind",
     "BracketEnd",
     "AttrSet",
     "AxisScalar",
@@ -3487,7 +4316,6 @@ const NOT_CARRIED: [&str; 90] = [
     "Entry",
     "Epoch",
     "EvalScalar",
-    "ExprPath",
     "FlipEvidence",
     "FlipSet",
     "Implicated",
@@ -3496,11 +4324,9 @@ const NOT_CARRIED: [&str; 90] = [
     "MeshPick",
     "MetaError",
     "MetaValue",
-    "MetaVersionError",
     "MinClearanceLane",
     "MinClearanceOperand",
     "MintRefusal",
-    "NamingError",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
@@ -3509,14 +4335,12 @@ const NOT_CARRIED: [&str; 90] = [
     "ParamValue",
     "PredicateDivergence",
     "ProfilePayload",
-    "ProgramRefusal",
     "Qualifier",
     "RecipeEditRef",
     "Resolved",
     "Rgba8",
     "RunStatus",
     "SectionScalar",
-    "SeedError",
     "SeedScalar",
     "ShellLane",
     "SideVerdict",
@@ -3567,18 +4391,20 @@ const NOT_CARRIED: [&str; 90] = [
 /// spelled document-layer name, and the guard would pass while the
 /// name was uncarried.
 ///
-/// Comments are stripped first, so prose naming a type is not read as
-/// an export. A statement with no `::` (a whole-crate `pub use foo;`)
-/// introduces the crate name itself and belongs to no root.
+/// **Every scanner in this family takes a BLANKED view**, never raw
+/// source: comments and literals are erased once by the caller, so
+/// prose naming a type is not read as an export and two scanners over
+/// one file cannot disagree about what the file says. A statement with
+/// no `::` (a whole-crate `pub use foo;`) introduces the crate name
+/// itself and belongs to no root.
 ///
 /// A leading `::` is stripped before the root is read: the façade
 /// spells one of its layers with the absolute prefix, because that
 /// file's own module shadows the crate name.
-fn pub_use_names(src: &str, root: &str) -> std::collections::BTreeSet<String> {
-    let code = code_without_comments(src);
+fn pub_use_names(code: &str, root: &str) -> std::collections::BTreeSet<String> {
     let prefix = format!("{root}::");
     let mut names = std::collections::BTreeSet::new();
-    let mut rest: &str = &code;
+    let mut rest: &str = code;
     while let Some(at) = rest.find("pub use ") {
         rest = &rest[at + "pub use ".len()..];
         let Some(end) = rest.find(';') else { break };
@@ -3606,10 +4432,9 @@ fn pub_use_names(src: &str, root: &str) -> std::collections::BTreeSet<String> {
 /// Every name a `pub use` statement introduces, with no root
 /// restriction — the form for reading a crate's OWN `lib.rs`, where
 /// each statement's root is one of that crate's modules.
-fn module_pub_use_names(src: &str) -> std::collections::BTreeSet<String> {
-    let code = code_without_comments(src);
+fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
     let mut names = std::collections::BTreeSet::new();
-    let mut rest: &str = &code;
+    let mut rest: &str = code;
     while let Some(at) = rest.find("pub use ") {
         rest = &rest[at + "pub use ".len()..];
         let Some(end) = rest.find(';') else { break };
@@ -3696,7 +4521,7 @@ fn every_document_layer_root_export_is_carried_or_listed() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../editor-core/src/lib.rs");
     let src = std::fs::read_to_string(&kernel_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", kernel_lib.display()));
-    let exported = module_pub_use_names(&src);
+    let exported = module_pub_use_names(&code_and_literals(&src));
     assert_layer_root_exports_are_carried_or_listed(
         "editor_core",
         "the document layer",
@@ -3743,7 +4568,7 @@ fn assert_layer_root_exports_are_carried_or_listed(
     // a statement in this same scan.
     let mut carried = std::collections::BTreeSet::new();
     for (_, facade_src) in FACADE_SOURCES {
-        carried.append(&mut pub_use_names(facade_src, layer));
+        carried.append(&mut pub_use_names(&code_and_literals(facade_src), layer));
     }
 
     let uncarried: Vec<&str> = exported
@@ -3796,34 +4621,51 @@ fn assert_layer_root_exports_are_carried_or_listed(
 /// demanded a carrier statement for six sentences no build outside
 /// `profile/tests/` compiles.
 ///
-/// Line-based and deliberately shallow: it drops the attribute line,
-/// then the item it gates, up to the statement's terminator. That is
-/// exactly the shape both roots use.
-fn code_without_cfg_gated(src: &str) -> String {
-    let mut out = String::new();
-    let mut lines = src.lines();
-    while let Some(line) = lines.next() {
-        if !line.trim_start().starts_with("#[cfg(") {
-            out.push_str(line);
-            out.push('\n');
-            continue;
-        }
-        let mut depth: i32 = 0;
-        for gated in lines.by_ref() {
-            for c in gated.chars() {
-                match c {
-                    '{' | '(' | '[' => depth += 1,
-                    '}' | ')' | ']' => depth -= 1,
-                    _ => {}
-                }
-            }
-            let trimmed = gated.trim_end();
-            if depth <= 0 && (trimmed.ends_with(';') || trimmed.ends_with('}')) {
-                break;
-            }
-        }
+/// Takes a BLANKED view and answers one with the gated spans blanked
+/// too: the attribute from its `#`, through its own bracket list
+/// however that wraps, and on through the item it gates to that item's
+/// terminator. Blanked rather than deleted, so every line and column
+/// in the answer is still the line and column of the original.
+///
+/// The attribute's extent is [`balanced_end`] over its `[`, and the
+/// item's is [`item_body`], so neither a wrapped `#[cfg(…)]` list nor
+/// a wrapped item head can hide a gate — the shape a line test cannot
+/// see, and the reason a gated item used to survive into the view
+/// whole.
+fn code_without_cfg_gated(code: &str) -> String {
+    let mut gated: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("#[cfg(") {
+        let at = from + off;
+        // The `[`, one byte past the `#`.
+        let Some(close) = balanced_end(code, at + 1) else {
+            break;
+        };
+        let end = match item_body(code, close + 1) {
+            ItemBody::Body(body) => body.end,
+            ItemBody::Declaration(semi) => semi + 1,
+            // A head with no terminator is broken text, not an item;
+            // stop rather than blank to end of file.
+            ItemBody::Unterminated => break,
+        };
+        gated.push(at..end);
+        from = end;
     }
-    out
+    // Byte for byte, so a multi-byte character inside a gated item is
+    // never half-erased, and newline for newline, so the answer's line
+    // structure is the original's.
+    let blanked: Vec<u8> = code
+        .bytes()
+        .enumerate()
+        .map(|(at, b)| {
+            if b != b'\n' && gated.iter().any(|g| g.contains(&at)) {
+                b' '
+            } else {
+                b
+            }
+        })
+        .collect();
+    String::from_utf8(blanked).expect("blanking never splits a character")
 }
 
 /// Every `pub` item a crate root DECLARES rather than re-exports:
@@ -3831,7 +4673,11 @@ fn code_without_cfg_gated(src: &str) -> String {
 /// plus the `pub mod` declarations, written at column 0.
 ///
 /// Column 0 is the whole scope rule — an item inside a `mod` block in
-/// the same file is indented, and is not a root export.
+/// the same file is indented, and is not a root export. It is a rule
+/// about where the DECLARATION opens, not about where its name is
+/// written, so the keyword and the name are read as tokens across
+/// whatever whitespace separates them: `pub struct` on one line and
+/// its name on the next is one declaration and is counted.
 ///
 /// [`module_pub_use_names`] alone misses all of these. For the
 /// document layer that costs nothing today, which is why its guard
@@ -3843,27 +4689,39 @@ fn code_without_cfg_gated(src: &str) -> String {
 /// five of the types the façade carries and one it deliberately does
 /// not — so for that layer the same omission would be a hole, and
 /// this closes it.
-fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
-    let code = code_without_comments(src);
+fn root_declared_pub_names(code: &str) -> std::collections::BTreeSet<String> {
+    /// The identifier at the head of `text`, and what follows it.
+    fn token(text: &str) -> (String, &str) {
+        let text = text.trim_start();
+        let word: String = text
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        (word.clone(), &text[word.len()..])
+    }
+
     let mut names = std::collections::BTreeSet::new();
-    for line in code.lines() {
-        let Some(rest) = line.strip_prefix("pub ") else {
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("pub") {
+        let at = from + off;
+        from = at + "pub".len();
+        // Column 0 is the scope rule, and it is the whole test this
+        // site has to make: `republish` at column 0 puts its `pub`
+        // mid-word, so the byte before is not a newline, and
+        // `publish` at column 0 reads `lish` where a keyword must be.
+        if at != 0 && code.as_bytes()[at - 1] != b'\n' {
             continue;
-        };
-        let Some((keyword, tail)) = rest.split_once(' ') else {
-            continue;
-        };
+        }
+        // `pub(crate)` reads no keyword here and is skipped, exactly as
+        // a visibility narrower than the root's surface should be.
+        let (keyword, tail) = token(&code[from..]);
         if !matches!(
-            keyword,
+            keyword.as_str(),
             "mod" | "struct" | "enum" | "fn" | "trait" | "type" | "const" | "static" | "union"
         ) {
             continue;
         }
-        let name: String = tail
-            .trim_start()
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
+        let (name, _) = token(tail);
         if !name.is_empty() {
             names.insert(name);
         }
@@ -3871,21 +4729,95 @@ fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
     names
 }
 
+/// **The three readers that used to read a statement through a LINE,
+/// each on the shape it used to miss.**
+///
+/// Every one of them is a NEGATIVE-claim reader — it answers "no
+/// violation", "no such export", "nothing gated here" — so a shape it
+/// cannot see is a false GREEN and not a false alarm. That is why each
+/// row below builds the wrapped spelling rather than trusting that
+/// rustfmt will never write one.
+#[test]
+fn the_root_readers_read_statements_not_lines() {
+    // (1) The U1 guard's `use` scan, on a root that wrapped to the
+    // next line. Assembled at runtime for the reason every needle in
+    // this file is.
+    let wrapped_use = format!("use\n    {}::Deserialize;\n", "serde");
+    assert_eq!(
+        use_statement_roots(&code_only(&wrapped_use)),
+        vec![(1, "serde".to_string())],
+        "a `use` whose root is on a continuation line is one statement, \
+         reported at the line it opens on"
+    );
+    // The other half of that conversion: the literal-blanked view is
+    // what keeps this file's own fixtures out of the guard's answer.
+    let quoted = format!("let snippet = \"use {}::Deserialize;\";\n", "serde");
+    assert!(
+        use_statement_roots(&code_only(&quoted)).is_empty(),
+        "a `use` inside a string literal is a fixture, not an import"
+    );
+
+    // (2) `root_declared_pub_names`, on a declaration whose NAME
+    // wrapped away from its keyword.
+    let wrapped_decl = "pub struct\n    Wrapped;\npub fn plain() {}\n";
+    let names = root_declared_pub_names(&code_and_literals(wrapped_decl));
+    assert!(
+        names.contains("Wrapped") && names.contains("plain"),
+        "a name on a continuation line is still the declaration's: {names:?}"
+    );
+    let nested = "mod inner {\n    pub struct Interior;\n}\n";
+    assert!(
+        root_declared_pub_names(&code_and_literals(nested)).is_empty(),
+        "column 0 is still the whole scope rule"
+    );
+
+    // (3) `code_without_cfg_gated`. The LINE was this reader's unit,
+    // so an attribute sharing its line with the item it gates took
+    // the item AFTER it as well — a root export silently absent from
+    // the view a completeness guard then passes over.
+    let inline_gate = "#[cfg(feature = \"x\")] pub struct Gated;\npub struct Kept;\n";
+    let view = code_without_cfg_gated(&code_and_literals(inline_gate));
+    let names = root_declared_pub_names(&view);
+    assert!(
+        !names.contains("Gated") && names.contains("Kept"),
+        "the gate ends where its ITEM ends, not where its line does: {names:?}"
+    );
+    // And the shape whose list wrapped, which the attribute's own
+    // brackets now decide rather than a line test.
+    let wrapped_gate = "#[cfg(\n    feature = \"x\"\n)]\npub struct Gated;\npub struct Kept;\n";
+    let view = code_without_cfg_gated(&code_and_literals(wrapped_gate));
+    let names = root_declared_pub_names(&view);
+    assert!(
+        !names.contains("Gated") && names.contains("Kept"),
+        "a wrapped `#[cfg(…)]` gates exactly the item under it: {names:?}"
+    );
+    assert_eq!(
+        view.lines().count(),
+        wrapped_gate.lines().count(),
+        "blanked rather than deleted, so every line is where it was"
+    );
+}
+
 /// The profile layer's interior: root exports the façade's curated
-/// `profile` module does not carry, by family. One family, one entry.
+/// `profile` module does not carry, by family. One family, one entry —
+/// **and the list is empty**, which is a stronger statement than the
+/// one entry it used to hold.
 ///
-/// - **The minting tier** (`RawLoop`): the one name whose absence is
-///   the module's entire reason for existing. It carries `new` and
-///   `polygon`; leaving the trait unnameable is what makes
-///   `ProfileLoop::polygon(…)` fail to resolve while `ProfileLoop`
-///   itself stays nameable. Carrying it here would undo the curation.
+/// It held `RawLoop`, the minting tier: a root export the façade
+/// deliberately declined to carry, so that `ProfileLoop::polygon(…)`
+/// failed to resolve through the façade while `ProfileLoop` itself
+/// stayed nameable. The trait is now gated behind that crate's
+/// `test-support` feature, exactly as its six `FILLET_*_RECOURSE`
+/// sentences are, so no consumer's build compiles it and there is
+/// nothing for the façade to decline. [`code_without_cfg_gated`] is
+/// what makes the scan agree, and this list emptying is what that
+/// demotion looks like from here: the name did not move from carried
+/// to uncarried, it left the layer's shipped root surface.
 ///
-/// The layer's six `FILLET_*_RECOURSE` sentences are NOT listed here,
-/// and the reason is worth keeping: they are exported behind that
-/// crate's `test-support` feature, so no consumer's build compiles
-/// them and there is nothing for the façade to carry.
-/// [`code_without_cfg_gated`] is what makes the scan agree.
-const PROFILE_NOT_CARRIED: [&str; 1] = ["RawLoop"];
+/// The list stays, and stays checked in both directions — a future
+/// interior root export is still a finding, and a stale entry still
+/// fails.
+const PROFILE_NOT_CARRIED: [&str; 0] = [];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**
@@ -3920,9 +4852,9 @@ fn every_profile_layer_root_export_is_carried_or_listed() {
     let layer_lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../profile/src/lib.rs");
     let src = std::fs::read_to_string(&layer_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", layer_lib.display()));
-    let src = code_without_cfg_gated(&src);
-    let mut exported = module_pub_use_names(&src);
-    exported.append(&mut root_declared_pub_names(&src));
+    let code = code_without_cfg_gated(&code_and_literals(&src));
+    let mut exported = module_pub_use_names(&code);
+    exported.append(&mut root_declared_pub_names(&code));
 
     assert_layer_root_exports_are_carried_or_listed(
         "profile",
@@ -3945,10 +4877,9 @@ const PER_NAME_GUARDED: [&str; 2] = ["editor_core", "profile"];
 /// Every crate the façade re-exports WHOLE at its root — `pub use
 /// foo;`, no path and no brace list — so every name that crate's root
 /// exports is nameable one hop past the façade by construction.
-fn whole_crate_re_exports(src: &str) -> std::collections::BTreeSet<String> {
-    let code = code_without_comments(src);
+fn whole_crate_re_exports(code: &str) -> std::collections::BTreeSet<String> {
     let mut names = std::collections::BTreeSet::new();
-    let mut rest: &str = &code;
+    let mut rest: &str = code;
     while let Some(at) = rest.find("pub use ") {
         rest = &rest[at + "pub use ".len()..];
         let Some(end) = rest.find(';') else { break };
@@ -4026,7 +4957,7 @@ fn every_facade_layer_is_whole_re_exported_or_per_name_guarded() {
         .iter()
         .find(|(name, _)| *name == "lib.rs")
         .unwrap_or_else(|| panic!("FACADE_SOURCES no longer lists the façade root"));
-    let whole = whole_crate_re_exports(root_src);
+    let whole = whole_crate_re_exports(&code_and_literals(root_src));
 
     let unclassified: Vec<&str> = layers
         .iter()
@@ -4064,27 +4995,30 @@ fn every_facade_layer_is_whole_re_exported_or_per_name_guarded() {
 /// **The crate doc's claim about the authoring seams, guarded.**
 ///
 /// The claim is that every [`pncad::authoring`] seam is a single
-/// kernel constructor call except `validated`, which is the two-call
-/// form. Its predecessor was a COUNT ("six of the seven"), and the
-/// count went stale the moment the `polygon` door was removed —
-/// nothing was watching, so the sentence outlived the surface it
-/// described by two units.
+/// kernel constructor call except two — `validated`, the
+/// `Profile::new` + `Profile::validate` pair, and `polygon`, the
+/// PATHS-lattice chain a coordinate table lowers to.
 ///
-/// This watches the failure mode that actually happened: the roster
-/// moving under a sentence about it. Adding or removing a seam fails
-/// here, and so does a second seam chaining a follow-up kernel call
-/// onto its constructor. The chain is matched as `.validate(` and not
-/// as `).validate(`, because the receiver and the call it chains onto
-/// need not share a line: a chain rustfmt wrapped is the same hit.
+/// The failure mode this watches is the roster moving under a
+/// sentence about it: a prose COUNT is checked only when someone
+/// happens to look, so the roster is asserted by name here instead.
+/// Adding or removing a seam fails here, and so does a second seam
+/// chaining a `Profile::validate` onto its constructor. That chain is
+/// matched as `.validate(` and not as `).validate(`, because the
+/// receiver and the call it chains onto need not share a line: a
+/// chain rustfmt wrapped is the same hit.
 ///
 /// **Not guarded, stated:** "a single kernel constructor call" is
 /// about a body's SHAPE, and counting calls in source text is the
 /// kind of scan that reports its own parser rather than the code. The
-/// roster plus the chain check is what a text scan can honestly
-/// assert; the rest is the per-function rustdoc and its doctests.
+/// chain check reads ONE shape, `validated`'s; `polygon`'s multi-call
+/// shape is a lattice chain this scan does not look for, and what
+/// holds it to its documented behaviour is its own doctest and the
+/// door tests above. The roster plus the chain check is what a text
+/// scan can honestly assert; the rest is the per-function rustdoc.
 #[test]
 fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
-    let code = code_without_comments(include_str!("../src/authoring.rs"));
+    let code = code_and_literals(include_str!("../src/authoring.rs"));
     let mut seams: Vec<&str> = Vec::new();
     let mut chaining: Vec<&str> = Vec::new();
     let mut current: Option<&str> = None;
@@ -4110,16 +5044,16 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
     seams.sort_unstable();
     assert_eq!(
         seams,
-        ["p2", "p3", "real", "v2", "v3", "validated"],
+        ["p2", "p3", "polygon", "real", "v2", "v3", "validated"],
         "the authoring seam roster moved — re-read the crate doc's \
          sentence about it before changing this list"
     );
     assert_eq!(
         chaining,
         ["validated"],
-        "`validated` is documented as the ONE two-call seam; another \
-         seam now chains a follow-up kernel call, so the crate doc's \
-         claim needs re-wording"
+        "`validated` is documented as the seam that chains \
+         `Profile::validate` onto its constructor; another seam now \
+         does too, so the crate doc's claim needs re-wording"
     );
 }
 
@@ -4163,7 +5097,7 @@ fn tour_sources() -> Vec<(String, String)> {
         }
         let text = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
-        out.push((name, code_without_comments(&text)));
+        out.push((name, code_and_literals(&text)));
     }
     out.sort();
     assert!(
