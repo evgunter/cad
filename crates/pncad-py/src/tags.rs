@@ -57,7 +57,9 @@
 //! attribute, a helper, or a cleverer arm added here is a deliberate
 //! diff that teaches the reader too, never a silent hole.
 
-use pncad::analysis::{AnalysisPolicyError, MeasureUnavailable, ParamBoxError, SeedError};
+use pncad::analysis::{
+    AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
+};
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
@@ -436,6 +438,23 @@ pub fn distribution_field_tag(field: &DistributionField) -> &'static str {
 pub fn measure_unavailable_tag(err: &MeasureUnavailable) -> &'static str {
     match err {
         MeasureUnavailable::BandHasNoMeasure { .. } => "band_has_no_measure",
+    }
+}
+
+/// The stable tag for a Monte-Carlo run that produced nothing
+/// (ERROR-DESIGN E11.1).
+///
+/// The band arm DELEGATES to [`measure_unavailable_tag`] rather than
+/// spelling a word of its own, because it carries that very refusal:
+/// the advisory lane cannot draw from a band for the same reason the
+/// mass doors cannot price one, and two words for one fault would let
+/// a caller who already branches on `band_has_no_measure` miss it
+/// here.
+pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
+    match refusal {
+        McRefusal::BandHasNoMeasure(err) => measure_unavailable_tag(err),
+        McRefusal::NoSamples => "no_samples",
+        McRefusal::NominalDoesNotBuild { .. } => "nominal_does_not_build",
     }
 }
 

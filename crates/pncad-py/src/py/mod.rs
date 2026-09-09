@@ -555,6 +555,27 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    McRefusal,
+    PncadError,
+    "A Monte-Carlo run produced nothing (ERROR-DESIGN E11.1). Carries \
+     `variant` (the stable tag), and `param`, `node` and `cause` — the \
+     arms' payloads, present on every arm and `None` where that arm \
+     does not carry one.\n\n\
+     Three ways a run has no estimate: a varying parameter carries a \
+     BAND, which states limits without a shape and cannot be drawn \
+     from (`band_has_no_measure`, `param`); the request asked for zero \
+     samples, and an estimator over no draws has no estimate \
+     (`no_samples`); or the document does not build at its nominal, so \
+     there is nothing to replay (`nominal_does_not_build`, `node` and \
+     `cause`).\n\n\
+     The band arm's `variant` is `MeasureUnavailable`'s own word, \
+     because it carries that refusal: the lane refuses the WHOLE run \
+     naming the parameter rather than sampling the rest, since a mean \
+     over a subset of the parameters is an estimate of a different \
+     document."
+);
+pyo3::create_exception!(
+    pncad,
     AnalysisPolicyError,
     PncadError,
     "An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is \
@@ -657,6 +678,7 @@ fn raise_typed(
         ErrorClass::MeasureNode => MeasureNodeFault::new_err(message),
         ErrorClass::MeasureUnavailableAt => MeasureUnavailableAt::new_err(message),
         ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
+        ErrorClass::Mc => McRefusal::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -722,6 +744,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
         py.get_type::<MeasureUnavailableAt>(),
     )?;
     m.add("AnalysisPolicyError", py.get_type::<AnalysisPolicyError>())?;
+    m.add("McRefusal", py.get_type::<McRefusal>())?;
 
     quantity::register(m)?;
     path::register(m)?;
