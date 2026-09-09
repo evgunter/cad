@@ -1587,9 +1587,10 @@ Reproduce-then-catch, on hosted CI and in that order:
   `crates/viewer/src/app.rs:1990`.
 - the plant is then removed and the branch is green again.
 
-Cost when the key fires: the step is 55 s green and 57 s red; the job
-goes 5m42s without it to 6m00s with it, both of which bill 6 minutes.
-Nothing at all on the runs the axis turns off.
+Cost when the key fires: the step is 53-57 s across four runs. No job
+delta is quoted — the `fmt` job read 342 s without the row and 307 s
+with it, because `rustdoc (gate)` in the same job moved 106-126 s over
+the same four runs. Nothing at all on the runs the axis turns off.
 
 **The demos half builds nothing, deliberately.** `ci-local.sh` already
 runs `demos/tour` and `demos/wild` fmt+clippy (`demos_hygiene`), and the
@@ -1600,3 +1601,39 @@ excluded cargo roots. The fix is one bullet in §2 of
 `docs/prompts/implementer-discipline.md` naming those roots and the
 two-line version of the check. A row would have been a third gate over
 work two gates already do.
+
+## Unit 4 fix pass: the row was right, four of its neighbours' claims were not
+
+No MAJOR. The reviewer independently re-took the strong form of the
+demonstration from the step records — `clippy (viewer app feature)` ran
+`-D warnings` over that crate and passed while the plant was live — so
+the sentence that justifies the row holds.
+
+What the pass actually cost was **four premises the row falsified**, none
+of which the lane found: `ci.yml`'s "WHAT IS NOW UNGUARDED" paragraph
+(`pncad` is now conditionally guarded; fixed here), the `fmt` job header
+(its shared property has not been "workspace-wide and filter-blind" for
+two changes; restated here), `crates/viewer/README.md`'s "not CI-guarded"
+sentence (CHROME's and VIEW's; reported), and — found while checking the
+first — the repo's belief that
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` is required at all. At
+getrandom 0.3.4 the FEATURE alone selects the backend; the flag stays for
+recipe-parity with `serve-wasm.sh`, whose own comment is corrected here,
+but two viewer documents still assert it is load-bearing and are the
+owners' to fix.
+
+**A lesson this program should keep**: a row that compiles something
+nothing compiled before is a claim-falsifier, and its diff should be read
+as one. Every wrong sentence above was a *true* sentence about the tree
+before the row landed.
+
+Two counting defects, same shape. The discipline bullet named "five"
+cargo roots against a derivation of seven, and asserted a coverage
+uniformity that does not hold (`benches` clippy is nightly-only with no
+local mirror; `interval-transcendentals`' is filter-gated). Chasing it
+found "six" in five more places inside this program's fence, all stale
+since `tools/tess-meter` landed. Every one is now a pointer to
+`scripts/doc-gate.sh --print-roots` rather than a number. Filing a count
+is filing a thing that goes stale silently — the same lesson unit 1 took
+on its blind-spot list, and META's log now carries it too.
+

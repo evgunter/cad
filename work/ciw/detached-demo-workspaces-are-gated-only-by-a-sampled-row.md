@@ -141,18 +141,32 @@ two gates already do, and the k-lint rows would still be the ones that
 fired first.
 
 **So the gap is a habit, and it gets a sentence.** A lane's own check is
-`cargo clippy --workspace --all-targets`, and `--workspace` reaches none
-of the five excluded cargo roots — `demos/tour`, `demos/wild`,
-`benches`, `tools/*`, `interval-transcendentals` (`Cargo.toml:22`). That
-is not something a careful lane would think to check, which is exactly
-the argument this item's sibling makes for calling it infrastructure
-rather than discipline — except that here the infrastructure is already
-correct and only the lane's model of it is wrong. §2 of
-`docs/prompts/implementer-discipline.md` now carries a bullet naming the
-excluded roots, naming the two consumers among them as ordinary users of
-the public API, citing the two-lanes-in-an-hour instance above, and
-giving the two-line version of the check for a lane not running the
-local gate.
+`cargo clippy --workspace --all-targets`, and `--workspace` reaches
+nothing under the roots `Cargo.toml:22` excludes. That is not something
+a careful lane would think to check, which is the argument this item's
+sibling makes for calling it infrastructure rather than discipline —
+except that here the infrastructure is already correct and only the
+lane's model of it is wrong. §2 of
+`docs/prompts/implementer-discipline.md` now carries a bullet saying so,
+naming `demos/tour` and `demos/wild` as ordinary users of the public
+API, and giving the two-line version of the check.
+
+**The bullet's own first draft was the defect one level up**, and the
+fix pass caught it. It said "the hosted gate and `ci-local.sh` both
+cover every root", which is false for two of them: `benches` gets
+rustfmt in the PR gate and its only clippy is `nightly.yml`'s, with no
+local mirror at all, and `interval-transcendentals`' clippy runs only
+when the filter buys `interval-backend`. It also said "five" roots where
+`scripts/doc-gate.sh --print-roots` derives seven. **The bullet now
+carries no count and tells the reader to run that derivation** — and the
+same staleness turned out to sit in five places inside CIW's own fence
+(`ci.yml`'s cache-scope paragraph, `ci-local.sh`'s rustdoc note, and
+three lines of `scripts/doc-gate.sh`, one of them a selftest failure
+message), every one of which had said "six" since before
+`tools/tess-meter` landed. All five are fixed in this PR, by deletion of
+the number rather than by correction of it. A sentence written to fix a
+lane's model of coverage, which is itself wrong about coverage, is worse
+than no sentence.
 
 **Disposition (3) of the three listed above, then**, and (1) and (2) are
 moot: (2) landed with 1850 and (1) has nothing left to disambiguate,

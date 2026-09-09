@@ -119,7 +119,9 @@ as `wasm32 check (viewer app)`, unconditional there.
 for: `run_web` lives behind that non-default feature, so the naive
 default-features row would have been green on the defect.
 
-**Reproduce-then-catch, hosted, in that order.** Run `34373755002`
+**Reproduce-then-catch, hosted, in that order** — the lib-target
+evidence is hosted; the bin-target evidence below is LOCAL, and the two
+are marked apart deliberately rather than reported under one word. Run `34373755002`
 (`ff658559`, PR 1741's `E0599` planted back, no new row) concluded
 **success** across all 37 jobs — and the viewer axis was TRUE on that
 run, so `clippy (viewer app feature - eframe + wgpu)` ran `-D warnings`
@@ -128,14 +130,14 @@ plant, row present) failed at exactly one step with
 `error[E0599]: JsValue doesn't implement std::fmt::Display`,
 `crates/viewer/src/app.rs:1990`. The plant is removed on this branch.
 
-**Cost when the key fires**, measured on this PR's own runs: the STEP
-is 55 s green (`34377712872`) and 57 s red (`34375557117`); the JOB is
-5m42s without the row (`34373755002`) and 6m00s with it, i.e. +18 s,
-because `rustdoc (gate)` in the same job swings tens of seconds between
-runs. Both readings round to 6 billed minutes, so the billed cost on
-that pair is +0 — not quoted as a flat +0, because the same swing can
-put the job over a boundary on another day. Nothing at all on runs where
-the axis is false.
+**Cost when the key fires:** the STEP is 53-57 s across four hosted
+runs. **No job-level delta is quoted, and the first version of this
+disposition was wrong to quote one.** The four `fmt` jobs ran 342 s (no
+row), 339 s (red, aborted at the row), 360 s and 307 s — and 307 s is a
+WITH-row reading, 35 s *below* the no-row one. `rustdoc (gate)` alone
+moved 106-126 s across the same runs, so a before/after pair on this job
+measures that noise, not this step. Nothing at all on runs where the
+axis is false.
 
 **No nightly re-take, and the reason is written at the row.** The three
 toolkit rows above it defer their skipped coverage to `nightly.yml`;
@@ -180,4 +182,64 @@ feature-gated module whose contents are platform-specific without naming
 a target, and any target family other than wasm — nothing here
 establishes that a `cfg(windows)` or `cfg(target_os = "macos")` block is
 compiled by anything in this repo.
+
+## Three premises this row falsified, and what happened to each
+
+A row that compiles something nothing compiled before makes claims about
+that thing false. All three were found by the fix pass's reviewer, not
+by the lane.
+
+1. **`ci.yml`'s "WHAT IS NOW UNGUARDED" paragraph**, ninety lines above
+   the new row in the same file: *"the `pncad`/`pncad-py` façade under
+   `--cfg getrandom_backend="wasm_js"`"*. `viewer` depends on `pncad`,
+   so on every axis-true run the new row compiles `pncad` at that
+   target. **Fixed in this PR**: the paragraph now names `pncad-py`
+   alone and says the `pncad` guard is conditional on a row it may not
+   assume ran.
+2. **`crates/viewer/README.md`'s browser-spike section**: *"It is also
+   not CI-guarded: the wasm32 step excludes `viewer` … so a dependency
+   bump can break this build with every check green."* A dependency bump
+   classifies TIER=all, which makes the axis true, which fires the row —
+   precisely the case that sentence calls uncovered. **Not fixed**:
+   `crates/viewer/README.md` is CHROME's and VIEW's. Reported in the PR
+   body. The `cfg`-pattern sweep above could not have caught this — it
+   matches source, and this is prose. That is the sweep's blind spot,
+   stated where the sweep is.
+3. **`ci.yml`'s `fmt` job header**: *"WHY THESE THREE AND NOT SOME OTHER
+   SET … Two of them still read nothing from the filter."* The job's
+   shared property has not been "workspace-wide and filter-blind" for
+   two changes now, and this row is the latest reader of the viewer
+   axis. **Fixed in this PR**: the header states what the set actually
+   is and what property admits a row into it, and tells the reader to
+   grep the key rather than trust a count.
+
+## A fourth premise, in three of the repo's own documents
+
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` is **not required** at
+the pinned `getrandom` 0.3.4. That version's `src/backends.rs` takes its
+final wasm32 arm under `cfg(feature = "wasm_js")`; the `compile_error!`
+still reading *"enabling the `wasm_js` feature flag alone is
+insufficient"* sits in that arm's ELSE, i.e. it is what a reader hits
+with the FEATURE off. Measured: the row is green with the cfg dropped.
+
+The flag stays — it is free, the row's subject is the build
+`serve-wasm.sh` performs, and getrandom's own diagnostic still asserts
+it is needed — but three documents assert it is load-bearing.
+`local-scripts/serve-wasm.sh` is CIW's and is **corrected in this PR**;
+`crates/viewer/README.md` and `crates/viewer/Cargo.toml`'s wasm stanza
+are CHROME's and VIEW's and are **reported, not edited**.
+
+## Residue disclosed, with its file
+
+- `work/view/viewer-items-unreferenced-at-wasm32.md` — the two dead-code
+  warnings that are why this row is `check` and not `-D warnings`, filed
+  on the owner's slate, carrying the flip as its close condition. The
+  row's own comment names that file, so the debt is readable from the
+  code as well as from the tracker.
+- `work/ciw/mirror-pairs-env-divergence-unchecked.md` — this row's
+  `RUSTFLAGS` prefix is invisible to `check-ci-mirror-parity.py`
+  (`:1304` discards every token before `cargo`), so the parity pass this
+  PR cites proves the `--features` value matches and nothing about the
+  prefix. Recorded there as a measured instance with the population
+  count that item asked for; deliberately not built here.
 

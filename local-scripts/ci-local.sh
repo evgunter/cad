@@ -1133,13 +1133,20 @@ wasm_check() {
 # non-default feature, so a default-features wasm check of this crate
 # passes over the defect.
 #
-# RUSTFLAGS scoped to the command, not exported, for the reason
-# serve-wasm.sh states at its own copy: `getrandom` needs a named wasm
-# backend in both halves, and an exported RUSTFLAGS silently replaces any
+# THE RUSTFLAGS ARE NOT LOAD-BEARING AND ARE KEPT ANYWAY. At the
+# `getrandom` this tree pins, the `wasm_js` FEATURE alone selects the
+# backend — viewer's `cfg(target_arch = "wasm32")` stanza — and this row
+# was verified green with the cfg dropped. (No version literal here on
+# purpose: read `Cargo.lock`, and read that crate's `src/backends.rs`
+# before believing either this comment or its diagnostic.) It stays because the row's subject
+# is the build serve-wasm.sh performs, and because getrandom's own
+# diagnostic still asserts the flag is required, so the day that arm
+# changes back this row must not be what discovers it. Scoped to the
+# command, never exported: RUSTFLAGS silently replaces any
 # .cargo/config.toml rustflags.
 #
 # UNCONDITIONAL HERE, SEED-KEYED HOSTED — this file's standing asymmetry,
-# argued at the toolkit rows above.
+# argued at the toolkit rows in the dispatch list below.
 wasm_check_viewer() {
   rustup target add wasm32-unknown-unknown \
     && RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
@@ -1284,7 +1291,8 @@ run_row "clippy (pncad-py, python)"    cargo clippy -p pncad-py --features pytho
 #
 # NO `--pr`, AND NO `--scope`, FOR THE SAME REASON. Hosted, the `fmt`
 # job runs the WORKSPACE pass alone and scopes it to the change closure;
-# the six cargo roots the workspace excludes and the
+# the cargo roots the workspace excludes (derived, never counted here —
+# `scripts/doc-gate.sh --print-roots`) and the
 # --no-default-features re-read of every root with a not(feature) half
 # are nightly.yml's `rustdoc (gate, every root)`, ungated, once a day.
 # This half runs all three passes over every root on every invocation,

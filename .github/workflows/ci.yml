@@ -1543,7 +1543,8 @@ jobs:
   # local-scripts/ci-local.sh. None of the three is on the critical path,
   # which is `build + archive (interval)` at ~88% of a ~13 min run, so the
   # serialisation costs no wall-clock for the run as a whole. The measured
-  # figures live at the wasm32 step.
+  # figures live at the wasm32 steps — there are two of them now, the
+  # workspace one and the viewer one, and each carries its own.
   #
   # NOT MERGED IN, deliberately: `discipline`, whose ~30 s buys nothing
   # here and would eat the headroom this job keeps under its billing
@@ -1555,20 +1556,35 @@ jobs:
   # Merging rotates Swatinem/rust-cache's key (it hashes the job), so
   # expect exactly one cold run after any change here and warm thereafter.
   #
-  # WHY THESE THREE AND NOT SOME OTHER SET. All three are workspace-wide
-  # ratchets that share one checkout and one toolchain: `cargo fmt --all`,
-  # the rustdoc gate over a derived root set, and a `--workspace`
-  # cross-compile. Two of them still read nothing from the filter and
-  # behave identically in tier `all` and tier `closure`.
+  # WHY THIS SET, AND WHAT THE SET ACTUALLY IS NOW. It started as three
+  # workspace-wide ratchets that read nothing from the filter — `cargo fmt
+  # --all`, the rustdoc gate over a derived root set, and a `--workspace`
+  # cross-compile — and the paragraph here argued from that shape. The
+  # shape has moved twice and the argument no longer rests on it, so it is
+  # restated rather than patched:
   #
-  # THE RUSTDOC ROW NO LONGER DOES, and that is a change to this
-  # paragraph's own premise rather than a footnote to it (S-TCOST C2): it
-  # reads `cargo_scope` and runs the workspace pass over the closure. The
-  # sharing still holds, because what makes these three shareable is one
-  # checkout, one toolchain and three verdicts that must not merge — not
-  # the scoping. `clippy` stays out for a different reason than "it is
-  # scoped": it is the job the filter's per-closure row is NAMED by, and a
-  # red there should say `clippy`.
+  #   * THE RUSTDOC ROW READS THE FILTER (S-TCOST C2): `cargo_scope`, so
+  #     the workspace pass runs over the closure in tier `closure`.
+  #   * THE VIEWER AXIS IS READ ALL OVER THIS JOB, not by the one pair
+  #     that arrived with it: the rustdoc pass's `--skip-viewer-toolkit`
+  #     arm, the verdict step that prints which way it went, and the
+  #     `run_viewer_toolkit` guards on the app-feature clippy row, its two
+  #     installs, the app-feature test row and the viewer wasm32 row at
+  #     the foot of the job. Grep the key rather than trusting a count
+  #     here. They are HERE precisely because this job has no lane gate —
+  #     a seed-keyed axis has to be able to speak on every run, which in
+  #     the lane-gated `clippy` job it could not.
+  #   * ONE STEP IS OUTSIDE THE WORKSPACE ENTIRELY (`rustfmt (benches)`),
+  #     for the reason written at it.
+  #
+  # SO THE SHARED PROPERTY IS NOT "workspace-wide and filter-blind". It is
+  # one checkout, one toolchain, one cache, and verdicts that must stay
+  # separate — formatting, prose, and two cross-compiles are four
+  # different findings and the matrix-free merge must not turn them into
+  # one. That is what admits a new row here and what would refuse one that
+  # needed a different checkout or a lane gate. `clippy` stays out for a
+  # different reason than "it is scoped": it is the job the filter's
+  # per-closure row is NAMED by, and a red there should say `clippy`.
   fmt:
     name: rustfmt + rustdoc (gate) + wasm32
     runs-on: ubuntu-latest
@@ -1593,18 +1609,23 @@ jobs:
       #
       # `Swatinem/rust-cache` caches the target directories it is TOLD
       # about, and its default is one: `./target`. The rustdoc gate below
-      # used to document SEVEN cargo roots here — the workspace plus the
-      # six the workspace excludes — and each of those six builds into a
-      # target directory of its own. Every one of them therefore compiled
-      # from nothing on EVERY run of this job, `demos/tour` and
-      # `demos/wild` rebuilding the whole kernel each time, while the
-      # workspace pass ran against a warm graph. F6 fixed that by telling
-      # the cache about all seven.
+      # used to document EVERY cargo root here — the workspace plus the
+      # ones it excludes — and each excluded root builds into a target
+      # directory of its own. Every one of them therefore compiled from
+      # nothing on EVERY run of this job, `demos/tour` and `demos/wild`
+      # rebuilding the whole kernel each time, while the workspace pass
+      # ran against a warm graph. F6 fixed that by telling the cache
+      # about all of them.
       #
       # THIS JOB NOW DOCUMENTS ONE, so `--print-roots` under `--pr` prints
-      # one and this input names one. The six excluded roots moved to the
+      # one and this input names one. The excluded roots moved to the
       # nightly with the pass that reads them; caching them here would
       # restore and re-save target directories no step in this job writes.
+      #
+      # NO COUNT IS WRITTEN HERE, and that is deliberate: this paragraph
+      # said "six" and "seven" for as long as there were six, and went on
+      # saying it after `tools/tess-meter` made it seven. The list is
+      # `scripts/doc-gate.sh --print-roots` and nowhere else.
       # The derivation is unchanged and still comes from the gate, so the
       # cache's scope cannot drift from the passes that run — which is the
       # whole point of asking rather than listing.
@@ -1947,10 +1968,16 @@ jobs:
       # dev-dependency of a path dependency and never enters either.)
       #
       # WHAT IS NOW UNGUARDED, stated because §Q6's whole subject is
-      # claims nothing re-takes: the `pncad`/`pncad-py` façade under
-      # `--cfg getrandom_backend="wasm_js"`. GQ6-RESURVEY §4's third table
-      # row and its "verified fix" paragraph are a one-time reading again,
-      # and §4 now says so at the row. Same ruling, same reason.
+      # claims nothing re-takes: `pncad-py` at wasm32. `pncad` was in this
+      # sentence too until the viewer row at the end of this job landed —
+      # `viewer` depends on the façade, so on every axis-true run that row
+      # compiles `pncad` for this target inside the viewer's feature
+      # unification, which is where the `getrandom` wasm backend is
+      # selected. That is a CONDITIONAL guard on a row this one is not
+      # allowed to assume ran; what it is not is the nothing this
+      # paragraph used to describe. GQ6-RESURVEY §4's third table row and
+      # its "verified fix" paragraph are a one-time reading again, and §4
+      # now says so at the row. Same ruling, same reason.
       #
       # SITED IN THIS JOB, not in one of its own (Ev's earlier
       # constraint: the guard must not add runner time). Actions bills PER
@@ -2088,17 +2115,18 @@ jobs:
       # artefacts across runs.
       #
       # MEASURED, hosted (ubuntu-latest, 2 vCPU), on this row's own
-      # introducing PR. THE STEP is 55 s green (run 34377712872) and
-      # 57 s on the red it was demonstrated against (run 34375557117).
-      # THE JOB is 5m42s without the row (run 34373755002) and 6m00s
-      # with it (run 34377712872) — +18 s, which is less than the step,
-      # because this job's `rustdoc (gate)` alone swings tens of seconds
-      # between runs. BOTH ROUND TO 6 BILLED MINUTES, so the billed cost
-      # on that pair of readings is +0; do not quote that as a flat +0
-      # the way the row above's comment warns, because the same swing
-      # that hides the step here can put the job over a boundary on
-      # another day. Locally, 61 s from an empty CARGO_TARGET_DIR on
-      # 4 vCPU.
+      # introducing PR: THE STEP is 55-57 s across four runs. Locally,
+      # 61 s from an empty CARGO_TARGET_DIR on 4 vCPU.
+      #
+      # NO JOB-LEVEL DELTA IS QUOTED, and that is a finding rather than
+      # an omission. Across the same four runs this job ran 307 s, 342 s
+      # and 360 s, and the 307 s reading is the one WITH the row — 35 s
+      # BELOW the no-row reading. `rustdoc (gate)` alone moved 106-126 s
+      # between those runs, so a before/after pair on this job measures
+      # that noise and not this step. Anyone wanting the billed cost has
+      # to take it against a distribution, not a pair; the row above's
+      # comment makes the same point about its own straddling baseline
+      # and is worth reading before quoting any figure here.
       #
       # It buys nothing when the axis is false, which is why it is on
       # the axis rather than beside the row above.
@@ -2108,22 +2136,42 @@ jobs:
       # default-features `-p viewer` wasm row passes over the very defect
       # this exists to catch. Measured both ways on the 1741 revert.
       #
-      # RUSTFLAGS, NOT AN `env:` KEY, and not exported: `getrandom`
-      # refuses to build for wasm32 until a backend is named, and naming
-      # one takes both halves — the `wasm_js` feature (viewer's
-      # `cfg(target_arch = "wasm32")` stanza) and this cfg. Scoped to the
-      # command because RUSTFLAGS silently REPLACES any
-      # .cargo/config.toml rustflags; the repo sets none today, so
-      # scoping costs nothing and a future entry is not quietly dropped.
-      # Same spelling as local-scripts/serve-wasm.sh's build.
+      # RUSTFLAGS, AND WHAT IT IS AND IS NOT DOING — measured at this
+      # lockfile rather than inherited, because the repo's prose about it
+      # was stale in three places when this row was written. `getrandom`
+      # refuses to build for wasm32-unknown-unknown until a backend is
+      # selected. THE FEATURE ALONE NOW SELECTS ONE: at the `getrandom`
+      # this tree pins, the final wasm32 arm of `src/backends.rs` takes
+      # `mod wasm_js` under `cfg(feature = "wasm_js")`, and the
+      # `compile_error!` whose text still reads *"enabling the `wasm_js`
+      # feature flag alone is insufficient"* sits in that arm's ELSE. So
+      # `viewer`'s `cfg(target_arch = "wasm32")` stanza is what makes this
+      # build work, and this row was verified green with the cfg dropped.
       #
-      # `check`, NOT `-D warnings`: this crate's wasm build carries
-      # dead-code warnings today (`WINDOW_TITLE`, `deliver_status` — host
-      # -only users, so the items are unreferenced at that target) and
-      # this row's subject is "it compiles", not this crate's lint
-      # posture. Denying warnings here would red on those two before it
-      # ever reached a real break, and the fix for them belongs to the
-      # crate's owners rather than to a guard.
+      # IT STAYS ANYWAY, for two reasons that are not "it might be
+      # needed": the row's subject is the build
+      # `local-scripts/serve-wasm.sh` performs, and guarding a recipe with
+      # a different command is how a guard drifts off its claim; and
+      # getrandom's own diagnostic still asserts the flag is required, so
+      # the day that arm changes back this row must not be the thing that
+      # discovers it. It costs nothing and it is not load-bearing — do not
+      # write that it is.
+      #
+      # Scoped to the command, not exported and not an `env:` key, because
+      # RUSTFLAGS silently REPLACES any .cargo/config.toml rustflags; the
+      # repo sets none today, so scoping costs nothing and a future entry
+      # is not quietly dropped. Same spelling as serve-wasm.sh's build.
+      #
+      # `check`, NOT `-D warnings`, AND THAT IS A DEBT WITH A FILE. This
+      # crate's wasm build carries two dead-code warnings today —
+      # `WINDOW_TITLE` and `ViewerApp::deliver_status`, whose users are
+      # all `cfg(not(target_family = "wasm"))` — so denying warnings here
+      # would red on those before it ever reached a real break, and
+      # fixing them is the crate owners' call, not a guard's. It leaves
+      # this as the ONE viewer row in this workflow that cannot fail on a
+      # warning, which is not a resting state:
+      # `work/view/viewer-items-unreferenced-at-wasm32.md` holds the flip,
+      # and this row becomes `-D warnings` when that item closes.
       #
       # Mirror: local-scripts/ci-local.sh's `wasm32 check (viewer app)`.
       - name: wasm32 check (viewer app feature - the browser entry point)
