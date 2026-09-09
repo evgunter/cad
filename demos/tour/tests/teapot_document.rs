@@ -42,9 +42,9 @@ use pncad::document::{
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
-use pncad::prelude::{EntityKind, ProfileVertexRef, RoleSeg, StableName, fillet_edges, query};
+use pncad::prelude::{StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
-use pncad::select::edge_name;
+use pncad::select::{band_rim, carried, edge_name};
 use pncad::topo::{Body, EdgeKey};
 
 // ---- the lid's stations, from `src/teapot.rs` ----
@@ -78,25 +78,6 @@ fn lpt(x: f64, y: f64) -> [Expr; 2] {
 }
 fn line_to(x: f64, y: f64) -> ProgramStep {
     ProgramStep::LineTo(ProgramTarget::Point(lpt(x, y)))
-}
-
-fn band_rim(node: RecipeNodeId, vertex: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Edge,
-        node,
-        path: vec![RoleSeg::BandRim(ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        })],
-    }
-}
-
-fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
-    StableName {
-        kind: inner.kind,
-        node,
-        path: vec![RoleSeg::FromTarget(Box::new(inner))],
-    }
 }
 
 fn lid_meridian() -> LoopProgram {

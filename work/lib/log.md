@@ -4308,3 +4308,49 @@ first"; it committed the Python half, closed both items and opened
 the PR within forty minutes — the discipline's push-after-every-commit
 rule is what bounded the loss to one turn. The lane ran the pinned
 ruff for real. The measurement, taken: import-then-measure on a lofted rational-walled body 8.26 s + 8.24 s — the second quadrature is 49.9 % of the old journey and `.enclosure` is bit-identical; on the box 0.3 %, because a box has no quadrature to repeat. ~85 min including ~11 min of restart downtime, ~230k tokens.
+
+**LIB-NAMES MERGED (2026-09-09, #2248; mechanical under the 08-29
+ruling, no A/B row). Ev's (A) on `no-facade-door-mints-a-revolves-role-names`
+executed: `band`, `band_pi`, `band_rim`, `meridian_vertex` and
+`carried` are free functions returning a `StableName`, reached at
+`pncad::select`.** DEFINED one crate down, in
+`crates/editor-core/src/names/role.rs` beside the `RoleSeg` arms they
+mint, re-exported through `names::mod`, `editor_core`'s root and
+`pncad::select` — the lane's stated decision, because
+`crates/editor-core/tests/corpus/` cannot depend on `pncad` and
+defining them there is what lets the corpus share them
+(`names/README.md`'s own module table puts the vocabulary in
+`role.rs`). Signatures the ruling's verbatim, `meridian_vertex(end,
+node, vertex)` with the end first as the arm carries it; each fixes
+the `EntityKind` its role denotes (`Face`/`Face`/`Edge`/`Vertex`),
+`carried` takes the inner name's kind (a survivor is the same entity
+one op later) — the field a hand-spelled name got wrong silently
+until emission refused it. Consumers converted: the tour (five
+private helpers deleted), its test, the corpus `vessel.rs` (its two
+`pub` helpers deleted and their G17 callers moved), and the
+hand-spelled `BandRim`/`FromTarget` sites in six more editor-core
+test files. Five pins, one per builder, each asserting the exact
+`StableName` against the hand-spelled form it replaces. Carried at
+`select` only, not the prelude (its group 9 is hand-curated with its
+own argument). Two residues filed:
+`pncad-py-has-no-door-that-mints-a-revolves-role-names` (Python
+speaks names as text and hand-writes the `StableName` JSON at the
+fillet and shell doors — the same gap one alphabet over, worse) and
+`the-role-name-builders-reach-only-the-outer-profile-loop`
+(`loop_index: 0` fixed by the `u32` signature; a hole's band is
+still hand-spelled at two test sites; three shapes weighed). **Two
+orchestrator notes.** (1) The lane's first CI head was RED on the
+python suite: re-exporting five names at `pncad::select` made them
+curated names the binding census must account for, and no rows were
+written — fixed with a new census family `B-NAME-BUILDERS` (a
+`FAMILIES` charter for the five Python doors the filed item asks
+for) and five `NOT_BOUND` gap rows citing it. My brief's verification list omitted
+`run-python-tests.sh` because the unit "touched no Python"; a
+curated-list change is a census change, and the brief should have
+said so — recorded as the brief's gap. (2) A container restart at
+~03:10Z killed this lane mid-CI-poll (clean, pushed) and
+LIB-IMPORT-REPORT mid-edit (six files uncommitted); both resumed via
+SendMessage with "push first", nothing lost — the "push after every
+commit" rule held, and the restart cost was one re-poll. No kernel
+behaviour change; tour renders and die corpus byte-identical per the
+lane; the lane ran the pinned ruff for real. Thirteen sites in eight files converted; the sites NOT converted are listed with reasons (the emitter, the kind pins, a `BandRimPi` pairing with no builder). ~2h (incl. the restart), ~232k tokens.

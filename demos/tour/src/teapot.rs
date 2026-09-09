@@ -210,12 +210,12 @@ use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::query;
-use pncad::prelude::{
-    EntityKind, NamePat, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegPat, SegTag, Selector,
-    StableName,
-};
+use pncad::prelude::{EntityKind, MeridianEnd, NamePat, SegPat, SegTag, Selector, StableName};
 use pncad::profile::ArcSweep;
-use pncad::select::{edge_name, face_carrier_kind, face_frame, select, vertex_position};
+use pncad::select::{
+    band, band_pi, band_rim, carried, edge_name, face_carrier_kind, face_frame, meridian_vertex,
+    select, vertex_position,
+};
 use pncad::topo::{Body, BooleanError, Operand};
 
 use crate::{SceneBody, Stop, View};
@@ -405,71 +405,6 @@ fn arc_to(cx: f64, cy: f64, winding: ArcSweep, x: f64, y: f64) -> ProgramStep {
         winding,
         target: ProgramTarget::Point(lpt(x, y)),
     })
-}
-
-/// The `[0, π)` face swept from meridian segment `seg` of `node`.
-fn band(node: RecipeNodeId, seg: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::Band(ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        })],
-    }
-}
-
-/// The `[π, 2π)` face swept from meridian segment `seg` of `node`.
-fn band_pi(node: RecipeNodeId, seg: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::BandPi(ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        })],
-    }
-}
-
-/// The closed latitude rim swept from meridian VERTEX `vertex` of
-/// `node` — the edge between the bands of segments `vertex − 1` and
-/// `vertex`.
-fn band_rim(node: RecipeNodeId, vertex: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Edge,
-        node,
-        path: vec![RoleSeg::BandRim(ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        })],
-    }
-}
-
-/// A name for an entity `node` carried through unchanged from its
-/// target — what a survivor of a blend is called one op later.
-fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
-    StableName {
-        kind: inner.kind,
-        node,
-        path: vec![RoleSeg::FromTarget(Box::new(inner))],
-    }
-}
-
-/// The meridian VERTEX itself, on the seam — the point a `band_rim`'s
-/// circle passes through, and what ties a rim's ROLE to the station
-/// and radius the scene authored it at.
-fn meridian_vertex(node: RecipeNodeId, vertex: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
-        node,
-        path: vec![RoleSeg::MeridianVertex(
-            pncad::prelude::MeridianEnd::Seam,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex,
-            },
-        )],
-    }
 }
 
 /// **The vessel's meridian**: base disc, foot, belly, mouth disc —
@@ -992,7 +927,7 @@ fn rim_circle(
     let [(station, radius)] = carried[..] else {
         panic!("the rim's name denotes exactly one edge, got {carried:?}");
     };
-    let p = vertex_position(ev, node, &meridian_vertex(node, vertex))
+    let p = vertex_position(ev, node, &meridian_vertex(MeridianEnd::Seam, node, vertex))
         .expect("the meridian vertex's name denotes a vertex");
     assert!(
         (p.y - station).abs() < 1e-12 && (p.x.hypot(p.z) - radius).abs() < 1e-12,

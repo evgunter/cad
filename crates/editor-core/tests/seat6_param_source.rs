@@ -37,9 +37,9 @@ use crate::fixture;
 use corpus::{body_of, eval, failures};
 use editor_core::param_source;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, EvalOptions,
-    Evaluation, Expr, Node, ParamName, PartResolver, ProfileDoc, ProfileVertexRef, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, SlotId, StableName, content_pin, evaluate,
+    CancelToken, Dimension, DocEdit, DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr,
+    Node, ParamName, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, SlotId,
+    content_pin, evaluate,
 };
 use fixture::{
     ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, prism_edges, square, step,
@@ -461,14 +461,7 @@ fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Expr) -> (ProfileDoc, Reci
             angle: ang(std::f64::consts::TAU),
         },
     );
-    let mouth = StableName {
-        kind: EntityKind::Edge,
-        node: revolve,
-        path: vec![RoleSeg::BandRim(ProfileVertexRef {
-            loop_index: 0,
-            vertex: 2,
-        })],
-    };
+    let mouth = editor_core::band_rim(revolve, 2);
     insert(
         doc,
         Node::Fillet {
