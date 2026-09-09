@@ -13,6 +13,7 @@ binding them would reach past the curation — and a caller-written
 divergence-theorem sum is the more honest cross-check anyway.
 """
 
+import itertools
 import math
 import unittest
 
@@ -21,9 +22,11 @@ from pncad import (
     BooleanOp,
     Doc,
     Node,
+    NodePick,
     Open,
     SketchPlane,
     Start,
+    TubeWindow,
     circle,
     deg,
     evaluate,
@@ -200,6 +203,83 @@ class TestMeshReadBack(unittest.TestCase):
         )
 
 
+class TestBoundaryPolylines(unittest.TestCase):
+    """The MODEL's edges, in the same index alphabet the triangles
+    speak — what a wireframe or a hidden-line view is drawn from."""
+
+    def setUp(self):
+        self.doc = Doc()
+        self.node = box(self.doc, 2.0, 3.0, 1.0)
+        self.body = body_of(self.doc, self.node)
+        self.mesh = self.body.tessellate(1 * mm)
+
+    def test_a_box_carries_one_polyline_per_edge(self):
+        """Twelve edges, twelve polylines, and a planar edge is a
+        single chord: two indices, and no interior chord point."""
+        self.assertEqual(len(self.mesh.boundaries), 12)
+        for line in self.mesh.boundaries:
+            self.assertEqual(len(line), 2)
+
+    def test_every_boundary_index_points_into_the_shared_buffer(self):
+        """The same claim `triangles` makes, so the two can be drawn
+        against one position array: a segment endpoint IS a mesh vertex,
+        never a coordinate of its own."""
+        n = len(self.mesh.positions)
+        for line in self.mesh.boundaries:
+            self.assertGreaterEqual(len(line), 2)
+            for i in line:
+                self.assertIsInstance(i, int)
+                self.assertLess(i, n)
+                self.assertGreaterEqual(i, 0)
+
+    def test_a_boundary_segment_is_an_edge_of_some_triangle(self):
+        """A polyline traces the model edge the patches meet along, so
+        every segment is a triangle edge — decided on INDICES, which is
+        what the shared buffer buys."""
+        edges = set()
+        for a, b, c in self.mesh.triangles:
+            edges.update({(a, b), (b, c), (c, a), (b, a), (c, b), (a, c)})
+        for line in self.mesh.boundaries:
+            for seg in itertools.pairwise(line):
+                self.assertIn(seg, edges)
+
+    def test_a_closed_edge_closes_and_a_straight_one_does_not(self):
+        """A full-period self-loop edge repeats its single vertex INDEX
+        at both ends, so `line[0] == line[-1]` IS the closure — decided
+        on indices, never on coordinates, exactly as watertightness is.
+
+        A box's twelve straight edges are exactly the ones that do not
+        close; a full torus's two seam circles are edges that do. A
+        cylinder's rims are neither: the chart splits each into two
+        half-period arcs, so they close as a CHAIN of two polylines and
+        not as one."""
+        for line in self.mesh.boundaries:
+            self.assertNotEqual(line[0], line[-1])
+
+        doc = Doc()
+        spine = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+        ring = doc.insert(
+            Node.tube(spine, (1.0, 0.0, 0.0), 0.5 * m, TubeWindow.full(), 0.1 * m)
+        )
+        lines = body_of(doc, ring).tessellate(20 * mm).boundaries
+        closed = [line for line in lines if line[0] == line[-1]]
+        self.assertEqual(len(closed), 2)
+        for line in closed:
+            # A circle is not a chord: closing takes interior points.
+            self.assertGreater(len(line), 3)
+
+    def test_the_polylines_pair_with_the_names_entry_for_entry(self):
+        """A polyline's POSITION in the list is its handle: the pick
+        door answers one selectable name per polyline in the same
+        order, so a consumer that drew an edge can say which edge it
+        drew without an arena key ever crossing."""
+        ev = evaluate(self.doc)
+        pick = NodePick.build(ev, self.node, 0, 1 * mm)
+        names = pick.boundary_names(ev)
+        self.assertEqual(len(names), len(pick.mesh.boundaries))
+        self.assertTrue(all(isinstance(name, str) for name in names))
+
+
 class TestWatertight(unittest.TestCase):
     """The closure contract, checked on indices."""
 
@@ -287,17 +367,35 @@ class TestStlExport(unittest.TestCase):
         `endsolid <name>` unmatchable and the file unparseable."""
         with self.assertRaises(pncad.StlError) as caught:
             self.mesh.to_stl_ascii(solid_name="two\nlines")
-        self.assertEqual(caught.exception.variant, "solid_name_unrepresentable")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "solid_name_unrepresentable")
+        # The arm's payload: WHICH character the grammar refused.
+        self.assertEqual(refusal.character, "\n")
+        for absent in ("triangle", "index", "count", "len", "detail"):
+            self.assertIsNone(getattr(refusal, absent), absent)
 
     def test_a_header_that_sniffs_as_ascii_refuses(self):
         with self.assertRaises(pncad.StlError) as caught:
             self.mesh.to_stl_binary(header=" Solid v2")
-        self.assertEqual(caught.exception.variant, "binary_header_sniffs_ascii")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "binary_header_sniffs_ascii")
+        # The arm carries nothing: the header itself is the caller's
+        # own argument, and the fact is that it sniffs. Every
+        # attribute is still present, so `getattr` never raises.
+        for absent in (
+            "triangle", "index", "count", "character", "len", "detail"
+        ):
+            self.assertIsNone(getattr(refusal, absent), absent)
 
     def test_a_header_that_does_not_fit_refuses_rather_than_truncating(self):
         with self.assertRaises(pncad.StlError) as caught:
             self.mesh.to_stl_binary(header="x" * 81)
-        self.assertEqual(caught.exception.variant, "binary_header_too_long")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "binary_header_too_long")
+        # The arm's payload: how long the header actually was, against
+        # the format's 80 bytes.
+        self.assertEqual(refusal.len, 81)
+        self.assertIsNone(refusal.character)
 
 
 class TestCrossCheckOnBooleanGeometry(unittest.TestCase):

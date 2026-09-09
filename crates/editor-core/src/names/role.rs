@@ -542,10 +542,12 @@ pub enum RoleSeg {
     // as the boolean emitter's `FromA`/`Seam` do: the target's names
     // move, and these move with them, without this emitter deciding
     // anything about geometry.
-    /// An entity carried through from the fillet's target (argument:
-    /// its name in the target's table) — a shrunk support face, an
-    /// untouched edge, a far vertex. The single-operand analogue of
-    /// [`RoleSeg::FromA`].
+    /// An entity carried through from the op's target (argument: its
+    /// name in the target's table) — a blend's shrunk support face,
+    /// untouched edge or far vertex, or a shell's outer wall. The
+    /// single-operand analogue of [`RoleSeg::FromA`], shared by every
+    /// single-operand verb whose survivors keep their operand keys;
+    /// which verb carried the entity is the minting node's business.
     FromTarget(Box<StableName>),
     /// The blend face rounding a source edge.
     BlendFace(Box<StableName>),
@@ -607,6 +609,37 @@ pub enum RoleSeg {
     /// became it.
     BandSlit(Box<StableName>),
 
+    // ---- Shell (the hollowing verb's vocabulary) ----
+    //
+    // Every segment carries the SOURCE entity's OWN stable name from
+    // the target's table, so a shell name composes covariantly under
+    // an upstream bump exactly as the blend segments do: the target's
+    // names move, and these move with them. The outer wall is not
+    // here — a survivor keeps its operand key and is named
+    // [`RoleSeg::FromTarget`], the blend's pass-through, because it IS
+    // the same entity carried through one op.
+    /// **The cavity twin of a source entity**: the face, edge or
+    /// vertex the inward offset minted for the named one. A designated
+    /// face's own twin dies in the rim surgery and is never named; its
+    /// boundary's twins survive as the rim's ring and are named here,
+    /// as twins of the boundary edges — a ring is a cycle of twins, not
+    /// a role of its own.
+    Inner(Box<StableName>),
+    /// **The annular rim a designated chart became**, named for the
+    /// FIRST face designated on that chart — the face the chart's
+    /// members merged onto, whose own name vanishes with the merge.
+    /// `Rim(mouth)` is what a selector says for "the mouth's rim".
+    Rim(Box<StableName>),
+    /// **The promoted rim of a designated face's HOLE**: the annulus
+    /// between a hole's boundary and its cavity twin, one per hole, in
+    /// the kernel's pairing order.
+    HoleRim {
+        /// The first designated face of the chart the hole is in.
+        of: Box<StableName>,
+        /// The hole's index in the kernel's pairing order.
+        hole: u32,
+    },
+
     // ---- Instantiate part (ASM-2A D-4: the name bridge) ----
     /// An entity of an instantiated part's product, named under the
     /// instance (argument: its PART-LOCAL stable name).
@@ -631,6 +664,102 @@ pub enum RoleSeg {
         /// The master entity this instance copy corresponds to.
         of: Box<StableName>,
     },
+}
+
+/// **The `[0, π)` band face swept from meridian segment `seg`** of
+/// the revolve at `node` — [`RoleSeg::Band`], on the profile's OUTER
+/// loop.
+///
+/// This and its four siblings are the MINTING direction of the
+/// vocabulary [`SegPat::tag`](crate::SegPat::tag) matches in. A
+/// selection that is ANSWERED — [`select`](fn@crate::select),
+/// [`all_faces`](fn@super::all_faces) — needs an evaluation to answer
+/// from; a selection that is AUTHORED, a shell's open list or a
+/// fillet's frozen selection, is written before any evaluation of the
+/// minting node exists, so its names are spelled. Each builder fixes
+/// the [`EntityKind`] its role always denotes, which is the field a
+/// hand-spelled name gets wrong silently until emission refuses it.
+///
+/// `seg` indexes the outer loop's canonical chain (`loop_index: 0`).
+/// A hole's band takes [`RoleSeg::Band`] with the loop it is in.
+#[must_use]
+pub fn band(node: RecipeNodeId, seg: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![RoleSeg::Band(ProfileEdgeRef {
+            loop_index: 0,
+            segment: seg,
+        })],
+    }
+}
+
+/// **The `[π, 2π)` band face swept from meridian segment `seg`** —
+/// [`band`]'s twin in the wire case, where a full revolve emits every
+/// profile segment as two faces ([`RoleSeg::BandPi`]). Outer loop;
+/// [`EntityKind::Face`], as [`band`] is.
+#[must_use]
+pub fn band_pi(node: RecipeNodeId, seg: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![RoleSeg::BandPi(ProfileEdgeRef {
+            loop_index: 0,
+            segment: seg,
+        })],
+    }
+}
+
+/// **The latitude rim at meridian vertex `vertex`** —
+/// [`RoleSeg::BandRim`], the edge between the bands of segments
+/// `vertex − 1` and `vertex`. Outer loop; an [`EntityKind::Edge`].
+#[must_use]
+pub fn band_rim(node: RecipeNodeId, vertex: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Edge,
+        node,
+        path: vec![RoleSeg::BandRim(ProfileVertexRef {
+            loop_index: 0,
+            vertex,
+        })],
+    }
+}
+
+/// **The meridian vertex at `end`** — [`RoleSeg::MeridianVertex`]:
+/// the copy of profile vertex `vertex` on a wedge cap plane
+/// ([`MeridianEnd::Start`], [`MeridianEnd::End`]) on a partial
+/// revolve, or the surviving meridian vertex ([`MeridianEnd::Seam`])
+/// on a full one. Outer loop; an [`EntityKind::Vertex`].
+#[must_use]
+pub fn meridian_vertex(end: MeridianEnd, node: RecipeNodeId, vertex: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Vertex,
+        node,
+        path: vec![RoleSeg::MeridianVertex(
+            end,
+            ProfileVertexRef {
+                loop_index: 0,
+                vertex,
+            },
+        )],
+    }
+}
+
+/// **The name a survivor of `node` takes**: [`RoleSeg::FromTarget`]
+/// of the name `inner` it had in the target's table — the
+/// single-operand pass-through a blend's shrunk support or a shell's
+/// outer wall wears one op later.
+///
+/// The kind is `inner`'s and cannot be anything else: a survivor is
+/// the same entity carried through one op, so the wrapper renames it
+/// without re-kinding it.
+#[must_use]
+pub fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
+    StableName {
+        kind: inner.kind,
+        node,
+        path: vec![RoleSeg::FromTarget(Box::new(inner))],
+    }
 }
 
 /// **The bare recipe-node id a segment carries, if any** — the third
@@ -673,6 +802,9 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::BandCross(_)
         | RoleSeg::BandCut(_)
         | RoleSeg::BandSlit(_)
+        | RoleSeg::Inner(_)
+        | RoleSeg::Rim(_)
+        | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
         | RoleSeg::Instance { .. } => None,
     }
@@ -777,9 +909,109 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::BandCross(_)
             | $crate::names::RoleSeg::BandCut(_)
             | $crate::names::RoleSeg::BandSlit(_)
+            | $crate::names::RoleSeg::Inner(_)
+            | $crate::names::RoleSeg::Rim(_)
+            | $crate::names::RoleSeg::HoleRim { .. }
             | $crate::names::RoleSeg::InPart { .. }
             | $crate::names::RoleSeg::Instance { .. }
     };
 }
 
 pub(crate) use never_in_a_boolean_table;
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName, band,
+        band_pi, band_rim, carried, meridian_vertex,
+    };
+    use crate::node::RecipeNodeId;
+
+    /// The node every pin below mints against.
+    const N: RecipeNodeId = RecipeNodeId(7);
+
+    /// A builder mints EXACTLY the name a caller would spell by hand.
+    /// Five pins, one per builder, each written the long way — the
+    /// spelling they replace at their consumers — so a builder cannot
+    /// drift from the vocabulary without this file disagreeing with
+    /// itself.
+    #[test]
+    fn band_mints_the_hand_spelled_face() {
+        assert_eq!(
+            band(N, 3),
+            StableName {
+                kind: EntityKind::Face,
+                node: N,
+                path: vec![RoleSeg::Band(ProfileEdgeRef {
+                    loop_index: 0,
+                    segment: 3,
+                })],
+            }
+        );
+    }
+
+    #[test]
+    fn band_pi_mints_the_hand_spelled_face() {
+        assert_eq!(
+            band_pi(N, 3),
+            StableName {
+                kind: EntityKind::Face,
+                node: N,
+                path: vec![RoleSeg::BandPi(ProfileEdgeRef {
+                    loop_index: 0,
+                    segment: 3,
+                })],
+            }
+        );
+    }
+
+    #[test]
+    fn band_rim_mints_the_hand_spelled_edge() {
+        assert_eq!(
+            band_rim(N, 2),
+            StableName {
+                kind: EntityKind::Edge,
+                node: N,
+                path: vec![RoleSeg::BandRim(ProfileVertexRef {
+                    loop_index: 0,
+                    vertex: 2,
+                })],
+            }
+        );
+    }
+
+    #[test]
+    fn meridian_vertex_mints_the_hand_spelled_vertex() {
+        assert_eq!(
+            meridian_vertex(MeridianEnd::Seam, N, 2),
+            StableName {
+                kind: EntityKind::Vertex,
+                node: N,
+                path: vec![RoleSeg::MeridianVertex(
+                    MeridianEnd::Seam,
+                    ProfileVertexRef {
+                        loop_index: 0,
+                        vertex: 2,
+                    },
+                )],
+            }
+        );
+    }
+
+    /// `carried` takes the INNER name's kind, which is the one field
+    /// of a pass-through wrapper a caller can get wrong: the pin
+    /// wraps an edge and asserts the wrapper is an edge.
+    #[test]
+    fn carried_mints_the_hand_spelled_wrapper_and_keeps_the_kind() {
+        let inner = band_rim(N, 2);
+        let outer = RecipeNodeId(9);
+        assert_eq!(
+            carried(outer, inner.clone()),
+            StableName {
+                kind: EntityKind::Edge,
+                node: outer,
+                path: vec![RoleSeg::FromTarget(Box::new(inner))],
+            }
+        );
+    }
+}

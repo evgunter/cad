@@ -397,12 +397,38 @@ impl Alignment {
 pub const UNDER_RECOURSE: &str = "add the complementary mate, or delete the mate if free relative \
                                   motion was intended";
 
+/// **The recourse a [`MateFault::Contradictory`] ends on**: what an
+/// author does about two declarations that admit no common pose.
+///
+/// One sentence for both shapes the arm renders — a PAIR of mates and
+/// a mate contradicting itself through its own rider — because the
+/// repair is the same in both and a sentence naming "one of the two"
+/// is false of the second. The rung is the solve door: cosets are
+/// intersected exactly, so nothing here is a tolerance to widen and no
+/// pose is averaged out of the two.
+pub const CONTRADICTORY_RECOURSE: &str = "delete the mate that was not meant, or re-author the \
+                                          datum that is wrong; the solve intersects cosets \
+                                          exactly and never averages two declarations";
+
 /// **The v1 class restriction, named.** `Fit` is specified and not
 /// built; a mate cannot declare a designed clearance until the kernel
 /// variant lands with its first consumer, and AQ6 is where the
 /// cross-document detail is still open.
 pub const CLASS_DEFERRAL: &str = "v1 mates SOLVE Rest and Tangent and ASSEMBLE Rest alone; the \
                                   cross-document detail of a designed clearance is undischarged";
+
+/// **The recourse a [`crate::AssemblyError::NoAtRestRecord`] ends
+/// on**: what an author does about a class that solves and has no
+/// record to be verified by at rest.
+///
+/// The arm already quotes the table's reason for THIS class; this is
+/// the repair, and it names the rung the way [`CLASS_DEFERRAL`] does —
+/// `Rest` is the one class v1 carries all the way to the gate, and a
+/// curved contact verified at rest is outside v1 rather than a
+/// tolerance away.
+pub const NO_AT_REST_RECORD_RECOURSE: &str = "declare the contact as a Rest, the one class v1 \
+                                              mints and verifies at rest; a curved contact \
+                                              verified at rest is outside v1 and is not built";
 
 /// **How far a contact class gets in v1** — the whole class policy as
 /// a value, read by both doors that enforce it.
@@ -695,11 +721,13 @@ pub enum MateFault {
     },
     /// **A `Node::Part` selects a copy the reference's NAME does not
     /// name.** The name is the authority on which copy a mate speaks
-    /// about; a `Part` standing directly above a pattern in the walk
-    /// says which copy the body below it is. A document where those
+    /// about; a `Part` standing above a pattern in the walk (with
+    /// nothing but transforms between) says which body of that
+    /// pattern's value the body below it is. A document where those
     /// disagree would be PLACED by the name and GATHERED by the
     /// `Part` — two different bodies for one declaration — so the
-    /// solve refuses rather than choosing, and reports both indices.
+    /// solve refuses rather than choosing, and reports both indices
+    /// in the `Part`'s index space.
     ///
     /// Raised per REFERENCE, where the solve reads each one, so it
     /// reaches a declaring mate as surely as a tree edge's.
@@ -710,7 +738,9 @@ pub enum MateFault {
         side: MateSide,
         /// The `Part` node whose index expression disagrees.
         part: RecipeNodeId,
-        /// The copy the reference's name names.
+        /// The copy the reference's name names, as the body index
+        /// the `Part` selects by: the copy index itself over a
+        /// pattern of one body, the flat `j·M + i` over a nested one.
         named: u32,
         /// What the `Part`'s index expression evaluates to at the
         /// document's parameter bindings.
@@ -806,38 +836,40 @@ impl core::fmt::Display for MateFault {
                 // reading a sentinel back out of a number makes every
                 // other non-finite margin claim to be this case.
                 if *predicate == MATE_MEMBER_EMPTY {
-                    return write!(
+                    write!(
                         f,
                         "found the cosets meet in the empty set — a structural refusal, with no \
                          margin to measure"
-                    );
-                }
-                // A levered clash IS the product of its two halves, so
-                // the sentence prints the product it computes here.
-                // Stating a stored figure beside the halves would
-                // assert an identity nothing enforces.
-                if let Some((radians, arm)) = lever {
-                    return write!(
+                    )?;
+                } else if let Some((radians, arm)) = lever {
+                    // A levered clash IS the product of its two halves,
+                    // so the sentence prints the product it computes
+                    // here. Stating a stored figure beside the halves
+                    // would assert an identity nothing enforces.
+                    write!(
                         f,
                         "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m \
                          where the cosets would have had to meet",
                         radians * arm
-                    );
-                }
-                // Every other margin is a length measured outright —
-                // and a length that is not finite is not one.
-                if clash.is_finite() {
+                    )?;
+                } else if clash.is_finite() {
+                    // Every other margin is a length measured outright
+                    // — and a length that is not finite is not one.
                     write!(
                         f,
                         "measured a clash of {clash} m where the cosets would have had to meet"
-                    )
+                    )?;
                 } else {
                     write!(
                         f,
                         "measured a clash that is not a finite length ({clash}) where the cosets \
                          would have had to meet"
-                    )
+                    )?;
                 }
+                // The repair is the same whichever measurement the
+                // predicate had to report, so it is stated once, after
+                // all four.
+                write!(f, " — {CONTRADICTORY_RECOURSE}")
             }
             Self::Under {
                 mate,

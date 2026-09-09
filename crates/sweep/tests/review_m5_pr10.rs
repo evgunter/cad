@@ -287,6 +287,11 @@ fn review_skin_on_refuses_unclamped_params() {
 /// `PathTangentReversal`'s anti-parallel arm does NOT fire and the
 /// frame is built from an ill-conditioned axis.
 ///
+/// **This is the one home for that magnitude.** `skin.rs`'s C6 note
+/// and the `PathTangentReversal` docs point here rather than restating
+/// it, because what this row asserts is the BUILD — the number is the
+/// observed value of the case it runs, not an assertion.
+///
 /// This row asserts that truth rather than the tidier claim, so the
 /// docs and the code cannot drift apart. If a future PR gives the
 /// frame choice a named angular predicate with a real margin (see

@@ -92,7 +92,11 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/editor-core/src/eval/mod.rs",
-        disposition: Shared, // node-tag-space census, code view
+        disposition: Shared, // node-kind vocabulary census, code view
+    },
+    Entry {
+        path: "crates/editor-core/src/verbs/mod.rs",
+        disposition: Shared, // the two-Verb naming convention, code view
     },
     Entry {
         path: "crates/editor-core/tests/all.rs",
@@ -158,15 +162,26 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/pncad-py/src/tests.rs",
-        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to read
+        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to
+                             // read; the kind words in src/node_kind.rs: literal view alone
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
-        disposition: Unconverted("Track E, issue #763 — `code_without_comments`, line-based"),
+        disposition: Shared, // the facade boundary guards, code and literal views
     },
     Entry {
         path: "crates/profile/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/profile/tests/r2_bool9_review_probes.rs",
+        disposition: Shared, // the value-equal row's ceiling is asserted to
+                             // EXIST in lift_census.rs, code+literal view
+    },
+    Entry {
+        path: "crates/profile/tests/raw_door_census.rs",
+        disposition: Shared, // production-writer census + the raw door's own
+                             // gate, code+literal view
     },
     Entry {
         path: "crates/profile/tests/seal.rs",
@@ -199,6 +214,11 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/sweep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/sweep/tests/review_blend5_r5_probes.rs",
+        disposition: Shared, // the doc citations and the rows they name,
+                             // prose and code views
     },
     Entry {
         path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
@@ -644,7 +664,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 5;
+const UNCONVERTED_TODAY: usize = 4;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what

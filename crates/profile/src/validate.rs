@@ -25,12 +25,15 @@
 //!    [`crate::ProfileLoop::tangent_joints`]: definite tangency between
 //!    distinct carriers undeclared ⇒
 //!    [`ProfileError::UndeclaredTangency`]; a declaration that is
-//!    definitely not a tangency (transversal, or same-carrier
-//!    continuation — collinear/cocircular joints are carrier identity,
-//!    not tangency) ⇒ [`ProfileError::TangencyContradicted`] (declared
-//!    tangency is verified, never trusted). In-band near-tangency
-//!    escalates from the simplicity pass as it always did; the refusal
-//!    text carries the declare-or-move repair menu.
+//!    definitely not a tangency (a TRANSVERSAL joint) ⇒
+//!    [`ProfileError::TangencyContradicted`] (declared tangency is
+//!    verified, never trusted). A declaration on a joint whose two
+//!    segments continue on ONE carrier is honoured — identity is a fact
+//!    about carriers, tangency a fact about directions, and this check
+//!    reads the directions (Ev, in-chat, 2026-09-02; the
+//!    `same_carrier` arm that used to refuse it is retired). In-band
+//!    near-tangency escalates from the simplicity pass as it always
+//!    did; the refusal text carries the declare-or-move repair menu.
 //! 5. **Containment forest** — trilean point-in-loop by ray parity
 //!    (rays through arc segments included); a grazing ray is refused and
 //!    the next candidate ray tried deterministically (Mäntylä ch. 13's
@@ -38,6 +41,33 @@
 //!    = the outer boundary, depth 1 = holes; deeper nesting or multiple
 //!    outers are typed errors at M2 (one face region per profile).
 //! 6. **Canonicalization** — see [`ValidatedProfile`] for the rules.
+//!
+//! # What this gate is asking, and what it is not
+//!
+//! `validate` is the data checker for MATERIALIZED loops. A
+//! [`crate::ProfileLoop`] is a cache — the form an intensional recipe
+//! evaluates into — and every field of it, `tangent_joints` included,
+//! arrives here as data whose author this gate does not know and does
+//! not ask about.
+//!
+//! The [`crate::path`] lattice asks a different question. It checks
+//! AUTHORING: a declaration against the data being authored, at the
+//! moment the verb is written, before any table exists. Issue 433
+//! recorded the two as a disagreement — the lattice refusing a junction
+//! `validate` accepted — and the disagreement was never about geometry.
+//! They were answering different questions, and the authoring door was
+//! missing a spelling. It has it now (the continuation verbs), so a
+//! lattice-authored subdivided run reaches this gate with its zero-turn
+//! joints declared while a raw-authored one reaches it undeclared, and
+//! **both are accepted**. That is what "the two doors agree" means: not
+//! one rule with two answers, but two questions, each answered where it
+//! is asked.
+//!
+//! What that costs, stated: nothing here can tell a hand-written table
+//! from an emitted one, so nothing here enforces the lattice's rules.
+//! It is not meant to. The enforcement is upstream, at the doors, and
+//! [`crate::ProfileLoop`]'s own docs are the one home for what those
+//! are — this gate re-checks whatever comes through them anyway.
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!
@@ -799,6 +829,41 @@ pub struct ValidatedSegment<T: Real> {
     pub kind: SegmentKind<T>,
 }
 
+impl ValidatedSegment<f64> {
+    /// The `f64` segment embedded at `U`: the endpoints and the bulge
+    /// through `from_f64`, the classification and turn carried, and an
+    /// arc's carrier REBUILT at `U` from the embedded endpoints and
+    /// bulge through validation's own arithmetic
+    /// ([`seg::arc_carrier`] on the segment's [`seg::ChordFrame`]) —
+    /// the carrier is derived data, not a stored value, and at a
+    /// certified scalar the derivation is what mints its enclosure.
+    /// See [`ValidatedProfile::lift_onto`].
+    fn lift<U: Real>(self) -> ValidatedSegment<U> {
+        let (start, end, bulge) = (
+            self.start.map(U::from_f64),
+            self.end.map(U::from_f64),
+            U::from_f64(self.bulge),
+        );
+        let kind = match self.kind {
+            SegmentKind::Line => SegmentKind::Line,
+            SegmentKind::Arc { turn, .. } => {
+                let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
+                SegmentKind::Arc {
+                    center: carrier.center,
+                    radius: carrier.radius,
+                    turn,
+                }
+            }
+        };
+        ValidatedSegment {
+            start,
+            end,
+            bulge,
+            kind,
+        }
+    }
+}
+
 /// A canonicalized loop: role, chain, and classified segments —
 /// read-only.
 #[derive(Debug, Clone)]
@@ -920,6 +985,24 @@ impl<T: Real> ValidatedLoop<T> {
     }
 }
 
+impl ValidatedLoop<f64> {
+    /// The `f64` loop embedded at `U`: vertices and segments in place,
+    /// the role and the joint set carried. See
+    /// [`ValidatedProfile::lift_onto`].
+    fn lift<U: Real>(self) -> ValidatedLoop<U> {
+        ValidatedLoop {
+            vertices: self
+                .vertices
+                .into_iter()
+                .map(|v| ProfileVertex::new(v.pos().map(U::from_f64), U::from_f64(v.bulge())))
+                .collect(),
+            segments: self.segments.into_iter().map(|s| s.lift()).collect(),
+            tangent_joints: self.tangent_joints,
+            role: self.role,
+        }
+    }
+}
+
 /// One blend arc of a validated loop: which canonical segment it is,
 /// and the arc data the classifier gave it.
 #[derive(Clone, Copy, Debug)]
@@ -973,6 +1056,56 @@ impl<T: Real> ValidatedProfile<T> {
     /// order).
     pub fn loops(&self) -> &[ValidatedLoop<T>] {
         &self.loops
+    }
+}
+
+impl ValidatedProfile<f64> {
+    /// The `f64` canonical form embedded at `U`, on `plane`: every
+    /// stored scalar — each vertex's position and bulge, each segment's
+    /// endpoints and bulge — through [`Real::from_f64`]; each arc's
+    /// carrier, which is DERIVED data, rebuilt at `U` from the embedded
+    /// endpoints and bulge through validation's own arithmetic; the
+    /// plane taken as given (validation is 2-D and reads nothing of it
+    /// — [`ValidatedProfile::plane`]); everything else carried. No
+    /// predicate runs and no verdict is logged. A `ValidatedProfile` is
+    /// minted by [`Profile::validate`], [`Profile::validate_recording`]
+    /// and [`Profile::validate_guided`] from a raw profile, and by this
+    /// from an `f64` one; nothing else mints one.
+    ///
+    /// # What is carried, and on whose authority
+    ///
+    /// The canonical form is two kinds of fact. The COMBINATORIAL ones
+    /// — loop order (outer first, holes in input order), the loop
+    /// count, each loop's vertex count, segment `k` running from vertex
+    /// `k` to `k + 1 mod n`, the tangent-joint set as sorted canonical
+    /// vertex indices — are index structure; the lift maps no index,
+    /// so they hold at `U` by construction. The DECIDED ones — each
+    /// loop's role, its traversal sense (outer counterclockwise, holes
+    /// clockwise), its start at the lex-min vertex, each segment's
+    /// `Line`/`Arc` classification and turn, each joint's verified
+    /// tangency, the absence of contact — are the verdicts `validate`
+    /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
+    /// is the design of this door rather than a claim that a validation
+    /// at `U` would agree: under the evaluator's pinned lift, structure
+    /// is selected once, at `f64`, identically for every lane, and the
+    /// guided lift is the lane that re-verifies every decision at its
+    /// own scalar and refuses what that scalar cannot confirm
+    /// (`ProfileLift`'s doc in `editor-core`). What a validation at `U`
+    /// would say, for the record: at `Dual64` the value channel is bit
+    /// for bit the `f64` computation, so every predicate would decide
+    /// the same; at `Interval` every margin is an enclosure of the
+    /// `f64` margin, so a predicate would decide the same or escalate
+    /// as indeterminate — and that escalation is deliberately the
+    /// guided lift's job, not re-consulted here. The one bit the two
+    /// forms can differ in is a `Dual64` derivative channel: constants
+    /// embed with `+0.0` where a negated constant's derivative at `U`
+    /// would be `-0.0` — equal as numbers, read by no predicate.
+    #[must_use]
+    pub fn lift_onto<U: Real>(self, plane: crate::SketchPlane<U>) -> ValidatedProfile<U> {
+        ValidatedProfile {
+            plane,
+            loops: self.loops.into_iter().map(|lp| lp.lift()).collect(),
+        }
     }
 }
 
@@ -1434,9 +1567,13 @@ fn judge_pair<T: Decide>(
 /// predicates) and reconciled with the loop's declarations:
 ///
 /// - `Tangent` undeclared ⇒ [`ProfileError::UndeclaredTangency`];
-/// - `Transversal` or `SameCarrier` declared ⇒
-///   [`ProfileError::TangencyContradicted`] (a declaration is verified,
-///   never trusted — and same-carrier continuation is not a tangency);
+/// - `Transversal` declared ⇒ [`ProfileError::TangencyContradicted`] (a
+///   declaration is verified, never trusted);
+/// - `SameCarrier` declared ⇒ **accepted**. Every zero-turn joint is a
+///   declared tangent joint (Ev, in-chat, 2026-09-02): identity is a
+///   fact about the carriers, tangency a fact about the directions, and
+///   the directions agree here. The arm that used to refuse it is
+///   retired — see the match below, which is the normative statement;
 /// - in-band / poisoned ⇒ [`ProfileError::Escalated`] at the pair site.
 fn judge_joints<T: Decide>(
     lp: &ProfileLoop<T>,

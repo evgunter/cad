@@ -2721,6 +2721,7 @@ dependencies = [
  "step-import",
  "stl",
  "sweep",
+ "test-utils",
  "topo",
 ]
 

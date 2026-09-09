@@ -41,6 +41,16 @@
 //!    face has no canonical frame, so `face_frame` refuses it rather
 //!    than nominating one (its kind is still readable).
 //!
+//! **A name can also be MINTED, not only answered.** A selection that
+//! is AUTHORED rather than materialized — a shell's open list, a
+//! fillet's frozen selection — is written before any evaluation of
+//! the minting node exists, so there is nothing to select against and
+//! the name has to be spelled. [`band`], [`band_pi`], [`band_rim`],
+//! [`meridian_vertex`] and [`carried`] are that direction of the
+//! vocabulary [`SegPat::tag`] matches in: each mints one
+//! [`StableName`](editor_core::StableName) with the
+//! [`EntityKind`] its role denotes already fixed.
+//!
 //! **A name also says which node MADE the entity.** [`attribute`]
 //! walks a name's carry-through segments — `FromTarget`, `FromA`,
 //! `Instance` and their siblings — down to the role that minted it,
@@ -54,16 +64,52 @@
 //! boolean's own verify-at-use — and [`declare`]/[`declare_all`]
 //! turn findings the caller has INSPECTED into `Node::Declare`.
 
+// `NamingError` is in this list by the payload rule `crate::document`
+// states: it is what `document::NodeErrorKind::Naming` holds, and the
+// emission layer that raises it is this module's. A consumer able to
+// match the arm and unable to name what it caught reads the emission
+// failure out of prose.
+//
+// **That placement is the general rule and not a one-name
+// exception**, and `EntityKind` and `SplitHalf` below are the rest of
+// it. Both are `document::NodeErrorKind`'s payload as well — and
+// `RefusedRef`'s and `PartSelect`'s — and both are the naming-role
+// vocabulary this module owns, beside `RoleSeg`, `SegTag` and
+// `Denotation`. A payload whose vocabulary one of the curated
+// lists owns lives on THAT list, spelled once; a payload whose only
+// home is the refusal holding it rides its carrier, which is what
+// `crate::document`'s `VerbKind` does. The cost is one extra `use`
+// for a consumer of `pncad::document` alone, and the cost the other
+// way is the same name on two lists.
 pub use editor_core::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NameOrigin, NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
-    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
-    declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_carrier_kind,
-    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
+    NameOrigin, NamePat, NameTable, NamingError, OpGroup, ProfileEdgeRef, ProfileVertexRef,
+    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
+    Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    attribute, band, band_pi, band_rim, carried, declare, declare_all, declare_node, denotation,
+    edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates,
+    meridian_vertex, select, select_where, vertex_position,
 };
+/// The kernel contact FINDING — "this face pair would verify as this
+/// class, on this evidence" — the fourth quarter of a vocabulary this
+/// list already carried three quarters of.
+///
+/// [`ContactClass`], [`ContactRefusal`] and [`ContactVerdict`] are
+/// above, lifted from `editor_core`; the finding itself is `topo`'s
+/// and was reachable only one module hop away. It is what
+/// `CensusContact::ConformalPatch` carries, so a caller matching a
+/// prelude-curated `ValidationError` down to that arm was binding a
+/// value whose type this list did not name — and it is what the flush
+/// detector's own vocabulary is built from, since a
+/// [`FlushFinding`] is a finding plus the pair it was found on.
+///
+/// Its two fields are already here, which is what makes the stop
+/// under it a stop rather than a deferral: a finding is a
+/// [`DeclaredContact`] plus the [`ContactVerdict`] that decided it,
+/// by composition, and both are carried above.
+pub use topo::ContactFinding;
 /// The frame type the geometry doors answer with, its refusal, and
 /// the refusal's own payload — re-exported from the kernel's
 /// read-back module so a façade user names one crate, not two.
@@ -96,14 +142,28 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 // reason.
 //
 // **The raw-assembly lane is NOT carried, and its absence is
-// structural.** `MeshPick` and `MeshPickError` stay interior, so a
-// façade consumer cannot build one — and `PickTarget`'s `pick` field
-// is a `&MeshPick`, so the target whose contract warns of a
-// confidently wrong name (issue #1098) has no constructor here. The
-// type is carried only because `pick_face`'s signature names it.
-// `NodePick` is therefore not merely the door to prefer: through this
-// façade it is the only one.
-pub use editor_core::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
+// structural.** `MeshPick` stays interior, so a façade consumer
+// cannot build one — and `PickTarget`'s `pick` field is a
+// `&MeshPick`, so the target whose contract warns of a confidently
+// wrong name has no constructor here. The type is carried only
+// because `pick_face`'s signature names it. `NodePick` is therefore
+// not merely the door to prefer: through this façade it is the only
+// one.
+//
+// **`MeshPickError` is carried and its index is not, and the two
+// facts do not pull against each other.** The absence above is about
+// CONSTRUCTION: an index a consumer cannot build is a target a
+// consumer cannot mis-pair. A refusal is not constructed — it arrives
+// as `NodePickError::Index`'s payload, out of a door that is carried
+// — and what a curated list owes about a refusal it names is that the
+// refusal is MATCHABLE through it. Every other arm of `NodePickError`
+// is: `Standing` carries a curated `HitTestError`, `Tessellate` a
+// prelude-curated `TessellateError`, the two the door owns carry a
+// `RecipeNodeId` and a `u32`. Carrying the payload alone leaves the
+// index unbuildable and closes that one exception.
+pub use editor_core::{
+    HitTestError, MeshPickError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face,
+};
 
 // **The resolution verdict a stored name gets at the next
 // evaluation** — the machinery the ratified resolution-failure
@@ -139,9 +199,22 @@ pub use editor_core::{HitTestError, NodePick, NodePickError, PickHit, PickTarget
 // at all, so nothing here names a key-bearing payload as a TYPE.
 //
 // What is carried is the verdict a consumer that stores names must
-// read on every re-evaluation, and nothing beyond it: the payload
-// vocabulary a richer diagnosis UI would want (`Diagnosis`,
-// `Tombstone`, `TieWitness`, `RecipeEditRef`, `resolve_with_prior`)
-// stays interior until something consumes it, because a door carried
-// for a consumer that does not exist is a claim nobody is checking.
-pub use editor_core::{Resolution, RunCtx, resolve};
+// read on every re-evaluation, plus the three types its arms are —
+// `ResolutionFailure`, its `ResolveError`, and `ResolveIndeterminate`
+// — so that a consumer can branch on WHICH failure it got and not
+// only on THAT it failed. `vanished`, `ambiguous` and `node_gone` ask
+// for three different repairs, and `target_failed` /
+// `target_poisoned` / `target_not_evaluated` name three different
+// nodes to look at; without the types those six facts arrive as two
+// words and a sentence.
+//
+// The richer-diagnosis vocabulary underneath them stays interior:
+// `Diagnosis`, `Tombstone`, `TieWitness`, `RecipeEditRef` and
+// `resolve_with_prior` are the telemetry and key-bearing half, and
+// `Resolved` is the arm that holds an `EntityRef` outright. A caller
+// BINDS those and branches on the discriminant the arm gives it,
+// which is what a curated list owes; nothing here names one as a
+// type.
+pub use editor_core::{
+    Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, RunCtx, resolve,
+};

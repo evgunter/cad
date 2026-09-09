@@ -447,3 +447,263 @@ here; `C15` and `D201` restated it too and are corrected. `D213`'s
 close is rewritten to lead with the argument that carries it — a
 property of `parse` and `first_disagreement`, no kernel content — with
 the mesh chain demoted to what it is actually for.
+
+## Unit 3 — `D203`, the cross-column rule (2026-09-08)
+
+The rule gets one home: `tools/tess-lint/README.md`, clauses
+`CC1`–`CC5`, cited by path from `k-lint`'s `Admissible` and from the
+band check in `lint_csv`, and by clause from four sites in
+`tess-lint`. First `tools/*/README.md` in the tree; the precedent is
+`scripts/gates/README.md` — a design page beside the code it governs,
+where the governed code is not one crate.
+
+**The unit was briefed with two instances and the sweep found seven.**
+The lane pairing unit 1 landed four commits earlier is a genuine third
+— checked against the merged source, not assumed: `parse`, harness
+voice, two columns `Admissible` polices singly, and a comment already
+calling itself *"the second cross-column rule"*. The others: the
+all-or-none sizing tail, `worst_dev` against `dev_samples`, `k-lint`'s
+`Margin` against `outcome` (which resolves a cross-column invariant by
+WIDENING the table's signature rather than checking beside it, and is
+the reason `CC2` exists as a separate clause), and `Extent`'s trim-box
+non-degeneracy, which is checked nowhere because `span_opt_cells`'
+geometric floor already refuses every violating row.
+
+`cap_bands` / `snap_bands` against `bands` was the one instance
+closable from the consumer's side and is now refused at `parse`. The
+report prints those counts `of {bands}`, so an unrefused one reached
+the reader as a reading. Mutation-checked in both directions: red with
+the guard removed, red with `>` widened to `>=`.
+
+`CC5` is the clause that did the most work in the sweep — an admission
+refuses what the producer could not have written, never what the
+instrument exists to measure. `grid_cells` against `span_opt_cells`
+has exactly the shape of an invariant and is the `split` ratio the
+report is for; the committed baseline carries rows on both sides of
+it.
+
+Filed: `tess-lint-zero-certificate-two-meanings` — `worst_cert = 0`
+has two meanings in `mesh::budget` and one in `Admissible::Certificate`,
+and the discriminant the kernel names is `0` on every row of the
+`--sizing-only` sweep CI gates on. Producer-side fix, outside `D203`'s
+fence.
+
+### Unit 3, fix pass (2026-09-08)
+
+**`CC4` was false and the style review broke it by construction.** It
+claimed the trim box's non-degeneracy was a property *"no row
+surviving the per-column table can violate"*. Reproduced: a row with
+`u0 = u1 = 0e0` beside `span_opt_cells = 2.5e1` parses, and the
+collapsed box reaches rule 4's `identity` as the face-identity reading
+`["nurbs", "0.0", "0.0", "0.0", "1.0", …]`. The true criterion was "no
+row THIS PRODUCER writes can violate" — producer-correctness, which is
+the one thing the instrument exists not to assume and which
+`tess-meter`'s own header says outright.
+
+The clause is not rewritten as a conditional exemption; it is
+**inverted**. `CC4` now says there is no fourth disposition: a
+producer-side entailment is not one, because the boundary cannot see
+the producer's code. `Extent` moves to `CC3` and is checked. That
+disposes of the cross-crate entailment nobody could invalidate, and of
+the exemption that was facing the wrong way.
+
+**The page moved to `tools/README.md`.** The cited precedent
+(`scripts/gates/README.md`) is a DIRECTORY page, the rule's subject is
+two instruments, and hosting a shared rule inside one of its two
+consumers is the drift shape. `tools/tess-lint/README.md` held nothing
+else and is deleted; eight citations across the two crates now name
+the new path. The `CC3` instance roster is deleted with it — each site
+cites the clause where it stands, and a census on a clause page rots.
+
+**Citations rot loudly now.** Each citing crate `include_str!`s the
+page (a moved page stops both crates compiling) and asserts that every
+clause id it cites is a heading there and that the page carries no
+clause it has not seen (a `CC6` reds both). Negation-checked in all
+three directions.
+
+**Two more instances by the unit's own criterion**, both checked at
+`parse` in the harness voice: `patch_cells = nu · nv`, stated in
+`tess_meter::columns` and in the header and printed by the report; and
+`opt_cells ≤ patch_cells`, since `best_split_scan` seeds its running
+minimum with the same whole-patch schedule. The blanket "optimality
+relations are the report's subject" that swept the second one out had
+been verified only for `grid_cells`/`span_opt_cells`; it does not
+generalise, and the distinction is now written into `CC5`. Both are
+exact on all 64 sized rows of the committed baseline, `opt_cells`
+equal on six of them.
+
+**Three claims corrected.** `CC1` no longer says the row type is the
+contract past the boundary — `tess_lint::Row` says the opposite at
+itself, and `k-lint` has no row type at all and exports `lint_sample`
+over raw scalars its own tests call with hand-written bands.
+`tess-meter`'s "diagnostics no rule reads" is retired: the consumers
+arrived. And `tess-lint-zero-certificate-two-meanings` rested on a
+false premise — the gate reads TWO CSVs through the same `parse`, and
+`dev_samples` is 2464–201096 on all 64 sized rows of the committed
+baseline, so the discriminant is live on that side.
+
+**The page is unratified and now says so.** Six code sites cite
+`CC1`–`CC5` as clause law and `docs/DESIGN.md`'s companion table
+carries no row for the page. The criterion for such a row is Ev's
+ratification, not a program close: `scripts/gates/README.md`'s row
+landed in the commit recording Ev's ratification while `work/gates`
+was still open. No row is added here.
+
+## Unit 4 — the cut line's two halves, pinned (2026-09-08)
+
+`cut-prefix-three-unpinned-spellings` closed on `meter/cut-prefix-pin`.
+`tools/tess-lint/tests/cut_line_pin.rs` reads
+`scripts/tess_budget_cut.sh` as text and holds its three spellings of
+the prefix to `CUT_PREFIX`, each located separately so each reds
+alone.
+
+**The finding was the shape, and it had moved under the filing.**
+`split_cut` grew a shape check between the filing and the lane, so the
+open question became whether the two constraints are the SAME. They
+were not: this crate admitted uppercase hex, an over-long object name
+and arbitrary whitespace after the prefix — three spellings
+`tess_budget_cut.sh` cannot emit and its `CUT_RE` does not match. The
+asymmetry costs in one direction only, and it is the bad one: the
+script's already-stamped arm would not recognise such a line, so it
+re-stamps a file that already carries a cut. `split_cut` is tightened
+to the script's language and a truth table now runs both readings
+side by side, the script's own regex extracted from its text and run
+by `grep -E`. Cited to `tess_lint::Report`, whose test decides both
+that a check is owed and that its voice is the harness voice;
+`tools/README.md`'s `CC1`–`CC5` were cited at first and are not any
+more, since they are stated over cross-column admissions and hand the
+general test back to `Report` themselves. The separate finding about
+that page's scope stands and is with Ev on #2147.
+
+**The fix pass, same PR.** Two assertions that could not fail went:
+the containment `!(reads && !recognises)` read the table's own
+constants rather than the computed answers, and a coverage predicate
+over the const table was subsumed by the per-row asserts. The
+containment now runs on the computed pair and runs FIRST, so a real
+inversion reds with what it costs rather than with a table mismatch.
+The stem sweep was narrowed to EXECUTABLE spellings — a comment line
+is skipped, proved by a decoy fixture — because
+`scripts/tess_budget_cut.sh` is CIW's and an ordinary sentence there
+was reddening a suite in a cargo root outside the workspace, with a
+message naming neither the rule nor the fix; every failure the sweep
+can produce now carries both. The floor moved from `>= 4` over five
+mentions to `>= 4` over exactly four executable ones.
+
+**Residue, filed on CIW's slate** (the fixes are edits to
+`scripts/tess_budget_cut.sh`, so they go where the owner will see them
+rather than waiting on this program's pre-close sweep):
+`cut-regex-unanchored-admits-a-line-the-lint-refuses`, `CUT_RE`
+lacking an end anchor, pinned meanwhile as the one row of the truth
+table where the two halves disagree; and
+`cut-script-header-claims-no-cross-language-gate-exists`, the script
+header sentence this unit falsified. On METER's own slate,
+`baseline-census-partition-assert-cannot-fail` — the second and only
+other `tools/` instance of the cannot-fail assertion class.
+
+**Left, deliberately:** `cut-line-commit-names-no-baseline-change`.
+Same seam, different defect, and its substance is what the verdict
+PRINTS rather than what the parser admits. A doc-only rider would
+half-close it.
+
+## Unit 6 — `D206` + `D201`, one re-cut (2026-09-08)
+
+Branch `meter/split-scan-and-face-name`, three separable commits and
+one sweep.
+
+`SPLIT_SCAN_SAMPLES` is 379: the one-sided envelope reads 5.0075% at
+378 and 4.9939% at 379 against the gate's 5%, so the threshold the row
+carried is the right one and was re-derived rather than inherited. On
+the `ceil`'d column the family's worst falls 5.88% → 2.94%. Every
+sample-count-dependent percentage in `tess-meter` moved with it,
+including two suprema that would have read ABOVE the new bound had they
+been left.
+
+The budget CSV carries a `name` column at position 2 — a `StableName`
+in its ratified serialization with `,` swapped for `;`. **6 of the
+tour's 72 scene bodies can hand over an evaluation** (the three
+heatsinks and the three die stops), so 286 of 1353 rows carry a name
+and the rest are honestly empty, which is what Ev's second clause
+scopes as an outcome. **The coverage is disjoint from the defect**:
+none of the 64 sized rows and none of the 14 rows in the seven
+same-shape pairs is named, so `C15` cannot be discharged by reading
+the column.
+
+**The fix pass corrected what the unit claimed, not what it did.** The
+sentence licensing 379 said the one-sided envelope was "the largest
+factor a `ceil`'d count can inherit from where a bound happens to sit
+relative to the lattice". It is not: the envelope bounds the
+CONTINUOUS excess, and a `ceil`'d miss costs a whole division —
+`muu = 100, mvv = 0.1` over a `1 × 10` box at `δ_s = 1` admits 65 cells
+at `t = 26` and the shipped scan reports 70, **7.6923%** against a
+4.9939% envelope and against the gate's whole 5% margin. One missed
+division out of `n` costs `1/n`, and the corpus's median
+per-analysis-cell optimum is 44.4 cells — near seven divisions an
+axis, where one whole division is 14%. So `D206`'s premise
+survives its own closure, re-filed as
+`tess-lint-growth-margin-unprotected-from-ceil-quantisation`; what 379
+bought is the continuous half, now re-derived by a row instead of
+asserted in prose. Two range-claim figures went the same way — a
+scan-to-true ratio quoted as a ceiling is a sample at an unstated
+density, and denser sampling of the same range beats both.
+
+One sweep, with the deviation pass, at `3f55f361b22e`. Two columns
+moved for this unit's reasons (`opt_cells` −1.16%, `span_opt_cells`
+−0.64% over the sweep); seven more moved because the previous cut was
+four days and 442 `crates/` commits stale, which nothing reports —
+filed as `tess-lint-ungated-columns-fold-silently`.
+## Units 7 and 11 closed; and the slate is now larger than it opened (2026-09-08)
+
+Both lanes deliberately left this file alone to avoid conflicting with a
+live sibling, so their entries are written here.
+
+**Unit 7 — `k-report-baseline-fold-cert1-roster`** (PR 2140). The
+CERT-1 roster fold was READ and **no committed CSV was re-cut**, which
+is the unit's judgement rather than an omission: `k-report-data`'s rule
+1 cuts a new era when the DISTRIBUTION moves, and the three witnesses
+were pointwise identical to M7. The full falsification review ran the
+attack the lane had not — smallest ambient definite margin over every
+non-ε-coupled name, both eras — and could not break it.
+
+What the review DID break was **when** the measurement was taken: at
+the branch's merge base rather than the PR's base, with
+`props/curved.rs` moved 129+/74− in between, adding a refusal door that
+runs *before any margin is formed* and two recorded names. Re-swept at
+`c39a904e`: roster 279 → **281**, verdict unchanged. The lane also
+caught an arithmetic slip in its own first pass (the decade gap is
+14.8, not 15.8). The reviewer predicted ≥282; `interval_span_winding`
+turned out to exist at both tips, so 281 is right — checked here.
+
+**Unit 11 — `k-report-era-witnesses-have-no-guard`** (PR 2158), filed
+by unit 7's fix pass and closed the same night. `docs/K-REPORT.md` now
+states as a merged claim that M7 remains the era because the
+distribution did not move, and **nothing computed with the three values
+that claim rests on**, while `threshold_provenance.rs` re-derives four
+shipped constants against `M7` on every gate run. The guard asserts
+each witness's PREDICATE as well as its value — a floor that stayed at
+4.79652e-5 under a different name is a moved distribution wearing the
+old number — and it EXHIBITS the string-comparison trap rather than
+asserting it, running the selection both ways over the committed rows.
+
+Verified here by corrupting the committed `.gz` (renaming one predicate
+occurrence) rather than by editing a literal: RED with *"M7 carries 234
+distinct predicate names at eps=1e-9, not the 233"*, then restored
+byte-identical. That is the strong form — it catches corruption of the
+artefact, not merely an edited expectation.
+
+### The slate opened at eleven items and now stands at twenty-nine
+
+Eight of the eleven are closed and the directory is bigger than when it
+started. That is not drift: every one of the eighteen new files came
+out of a sweep a unit was required to run, or a reviewer's class
+finding, and each names a real defect with a citation. The program's
+own instruments kept finding siblings of what they were sent to fix —
+`EXPECTED_HEADER` hand-copied at five producers, a `Shared` ledger row
+a bare import satisfies, a partition assert that cannot fail, two sites
+claiming the k-lint gate diffs committed baselines when nothing does.
+
+**What that means for closing.** METER cannot exit by draining the
+slate to zero: at the current rate each closed unit files two more.
+The exit walk will have to rule on which of the twenty-nine are METER's
+to finish and which are re-homed — three already went to `work/ciw/`
+on unit 4, which is the pattern. Recording it now because the decision
+belongs in the walk and the number will be larger by then.

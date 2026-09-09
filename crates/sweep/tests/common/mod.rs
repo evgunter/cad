@@ -14,7 +14,12 @@
 //!   reason;
 //! - this module — section authoring, the profile vocabulary a suite
 //!   builds a body FROM;
-//! - [`orient`] — what a suite CHECKS of a body it built;
+//! - [`orient`] — what a suite CHECKS of a body it built, by reading
+//!   POSITIONS off the shipped charts;
+//! - [`cap_rims`] — what a suite checks of a body's CAP RIMS: the
+//!   boundary walk, the face across a rim, and the description each
+//!   rim carries. A reader, not an evaluator, which is why it is not
+//!   [`orient`];
 //! - [`approx`] — the `Surface::Approx` surgery vocabulary (body
 //!   authoring, so it routes to this module rather than to a suite);
 //! - [`cavity`] — the vented-cavity fixture vocabulary (body
@@ -65,6 +70,12 @@
 /// but the check several suites make of a body they built.
 pub mod orient;
 
+/// Reading a built body's cap rims — the boundary walk, the face
+/// across a rim, and the description each rim carries. What a suite
+/// CHECKS of a body it built, so it routes beside [`orient`] rather
+/// than into it: nothing here evaluates a surface.
+pub mod cap_rims;
+
 /// The `Surface::Approx` surgery vocabulary — the pulled-back base,
 /// the fixtures the OFF-C rows convert, and the surface + carrier +
 /// pcurve surgery itself. Body authoring, so it routes here.
@@ -80,6 +91,12 @@ pub mod cavity;
 /// fixture and the parameter-identity channel's, one authoring for
 /// the one door both read. Body authoring, so it routes here.
 pub mod germ_pair;
+
+/// The cone-nappe fixtures and the corner walk the SHELL-6 suites
+/// share — two mirrored frustums, the coned tube, and the reader that
+/// takes a face's own corner stations. Body authoring plus the one
+/// reader three suites check a cone face with, so it routes here.
+pub mod cone_nappe;
 
 /// The closed-form volumes those suites meter against. Not a fixture
 /// and not a check of a body, but a truth derived WITHOUT the kernel;

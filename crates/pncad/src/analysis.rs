@@ -46,17 +46,25 @@
 //! from it comes through the `min_clearance` MEASURE, which is document
 //! state and is carried by [`crate::document`].
 
+// `ParamBoxError` and `SeedError` are carried UNCONDITIONALLY, unlike
+// the driver below: they are what `document::NodeErrorKind`'s `ParamBox`
+// and `Seed` arms hold, and those arms exist on every build. A payload
+// type reachable only under a feature is a refusal a default-feature
+// consumer can match and cannot name — the rule `crate::document`
+// states for `VerbKind` and `NodeRefusal`, applied where the carrier is
+// unconditional and the door that fills it is not.
 pub use editor_core::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, DEFAULT_QUANTILE_MASS,
-    MeasureUnavailable, OffsetInterval, analyzed_box, box_mass, sample_offset, tail_mass,
+    MeasureUnavailable, OffsetInterval, ParamBoxError, SeedError, analyzed_box, box_mass,
+    sample_offset, tail_mass,
 };
 
 /// The E6 driver and the box it drives over.
 #[cfg(feature = "interval")]
 pub use editor_core::{
     BoxAxis, BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig,
-    DriveRefusal, LeafResults, MeasureAccounting, ParamBox, ParamBoxError, ParamBoxVerdict,
-    ReasonClass, Receipt, RefusalReason, RefusedLeaf, drive,
+    DriveRefusal, LeafResults, MeasureAccounting, ParamBox, ParamBoxVerdict, ReasonClass, Receipt,
+    RefusalReason, RefusedLeaf, drive,
 };
 
 /// The E4/E5 sensitivity and stackup report — the answer to "does this

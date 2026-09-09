@@ -240,6 +240,33 @@ impl BlendArm {
         }
     }
 
+    /// The arm's two support KINDS, in the same order
+    /// [`Self::name`] spells them — one word each, in the vocabulary
+    /// the recourse sentences use for a stored surface.
+    ///
+    /// Split out from [`Self::name`] because a refused caller needs
+    /// the KIND SET (four words, which is what the door tests first)
+    /// and the refusal's payload needs the PAIRS (eleven rows), and
+    /// only the second of those is a display string.
+    /// `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`
+    /// checks each word here against the pair half of [`Self::name`],
+    /// so the two spellings cannot drift apart.
+    #[must_use]
+    pub fn kinds(self) -> [&'static str; 2] {
+        match self {
+            Self::PlanePlaneCylinder | Self::PlanePlaneStrip => ["plane", "plane"],
+            Self::PlaneSphereTorus => ["plane", "sphere"],
+            Self::SphereConeTorus => ["sphere", "cone"],
+            Self::ConePlaneTorus => ["cone", "plane"],
+            Self::ConeConeTorus => ["cone", "cone"],
+            Self::CylinderConeTorus => ["cylinder", "cone"],
+            Self::CylinderSphereTorus => ["cylinder", "sphere"],
+            Self::CylinderPlaneTorus | Self::CylinderPlaneCylinder => ["cylinder", "plane"],
+            Self::SphereSphereTorus => ["sphere", "sphere"],
+            Self::CylinderCylinderCylinder => ["cylinder", "cylinder"],
+        }
+    }
+
     /// Every arm, for the coverage rows and the refusal-roster check.
     pub const ALL: [Self; 12] = [
         Self::PlanePlaneCylinder,

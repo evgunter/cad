@@ -29,7 +29,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
-use crate::py::doc::{NodeId, literal, name_from_text};
+use crate::py::doc::{NodeId, literal, name_from_text, name_text};
 use crate::py::quantity::Length;
 use crate::py::typed_err;
 use crate::tags::select_refusal_tag;
@@ -47,8 +47,8 @@ use pncad::select as s;
 // ---------------------------------------------------------------
 
 /// Which entity kind a name denotes.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::EntityKind` variant of the same name"
@@ -88,8 +88,8 @@ pub(crate) fn entity_kind(kind: s::EntityKind) -> EntityKind {
 
 /// Which role-segment variant a [`SegPat`] names — the fieldless
 /// mirror of the role vocabulary, one tag per op-minted role.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::SegTag` variant of the same name"
@@ -140,6 +140,10 @@ pub(crate) enum SegTag {
     BandCross,
     BandCut,
     BandSlit,
+    // Shell
+    Inner,
+    Rim,
+    HoleRim,
     // Pattern
     Instance,
     // Instantiate part
@@ -188,6 +192,9 @@ impl SegTag {
             Self::BandCross => s::SegTag::BandCross,
             Self::BandCut => s::SegTag::BandCut,
             Self::BandSlit => s::SegTag::BandSlit,
+            Self::Inner => s::SegTag::Inner,
+            Self::Rim => s::SegTag::Rim,
+            Self::HoleRim => s::SegTag::HoleRim,
             Self::Instance => s::SegTag::Instance,
             Self::InPart => s::SegTag::InPart,
         }
@@ -195,8 +202,8 @@ impl SegTag {
 }
 
 /// The op group a role segment belongs to (`SegPat.group`'s argument).
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::OpGroup` variant of the same name"
@@ -210,6 +217,7 @@ pub(crate) enum OpGroup {
     Fillet,
     Pattern,
     InstantiatePart,
+    Shell,
 }
 
 impl OpGroup {
@@ -223,14 +231,15 @@ impl OpGroup {
             Self::Fillet => s::OpGroup::Fillet,
             Self::Pattern => s::OpGroup::Pattern,
             Self::InstantiatePart => s::OpGroup::InstantiatePart,
+            Self::Shell => s::OpGroup::Shell,
         }
     }
 }
 
 /// Which end of the sweep vector a cap face closes (`SegPat.side`'s
 /// extrude spelling).
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::CapEnd` variant of the same name"
@@ -241,8 +250,8 @@ pub(crate) enum CapEnd {
 }
 
 /// A revolve meridian end.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::MeridianEnd` variant of the same name"
@@ -254,9 +263,25 @@ pub(crate) enum MeridianEnd {
     Pi,
 }
 
+impl MeridianEnd {
+    /// The kernel end this mirrors.
+    ///
+    /// ONE mapping, two callers: the side vocabulary a selector
+    /// pattern takes, and the end [`meridian_vertex`] mints a name at.
+    /// A second copy would be a second answer to "which end is Seam".
+    fn to_kernel(self) -> s::MeridianEnd {
+        match self {
+            Self::Start => s::MeridianEnd::Start,
+            Self::End => s::MeridianEnd::End,
+            Self::Seam => s::MeridianEnd::Seam,
+            Self::Pi => s::MeridianEnd::Pi,
+        }
+    }
+}
+
 /// A split output half.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::SplitHalf` variant of the same name"
@@ -266,9 +291,24 @@ pub(crate) enum SplitHalf {
     Below,
 }
 
+impl SplitHalf {
+    /// The kernel half this mirrors.
+    ///
+    /// ONE mapping, two callers: the side vocabulary a selector
+    /// pattern takes, and the projection `PartSelect.split_half`
+    /// authors. A second copy would be a second answer to "which half
+    /// is Above".
+    pub(crate) fn to_kernel(self) -> s::SplitHalf {
+        match self {
+            Self::Above => s::SplitHalf::Above,
+            Self::Below => s::SplitHalf::Below,
+        }
+    }
+}
+
 /// Which support of a rim blend.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::RimSupport` variant of the same name"
@@ -300,12 +340,8 @@ impl SideArg {
         match self {
             Self::Cap(CapEnd::End) => s::Side::Cap(s::CapEnd::End),
             Self::Cap(CapEnd::Start) => s::Side::Cap(s::CapEnd::Start),
-            Self::Meridian(MeridianEnd::Start) => s::Side::Meridian(s::MeridianEnd::Start),
-            Self::Meridian(MeridianEnd::End) => s::Side::Meridian(s::MeridianEnd::End),
-            Self::Meridian(MeridianEnd::Seam) => s::Side::Meridian(s::MeridianEnd::Seam),
-            Self::Meridian(MeridianEnd::Pi) => s::Side::Meridian(s::MeridianEnd::Pi),
-            Self::Split(SplitHalf::Above) => s::Side::Split(s::SplitHalf::Above),
-            Self::Split(SplitHalf::Below) => s::Side::Split(s::SplitHalf::Below),
+            Self::Meridian(end) => s::Side::Meridian(end.to_kernel()),
+            Self::Split(half) => s::Side::Split(half.to_kernel()),
             Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
             Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }
@@ -314,8 +350,8 @@ impl SideArg {
 
 /// Which curve variant an edge's certified carrier is — the EXACT
 /// atom `GeomPred.curve_kind` matches on.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::CurveKind` variant of the same name"
@@ -340,8 +376,8 @@ impl CurveKind {
 
 /// Which surface variant a face is — `GeomPred.surface_kind` and both
 /// sides of `GeomPred.adjacent_kinds` match on it.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `geom_brep::SurfaceKind` variant of the same name"
@@ -354,6 +390,25 @@ pub(crate) enum SurfaceKind {
     Torus,
     Nurbs,
     Approx,
+}
+
+/// Crossing helper: the kernel kind as the Python mirror.
+///
+/// Exhaustive over the KERNEL enum with no wildcard arm, so a kernel
+/// kind this file does not mirror stops the build — the direction the
+/// tripwire module at the foot of this file asserts for every other
+/// mirrored enum, and which this one asserts by being called, exactly
+/// as [`entity_kind`] does.
+pub(crate) fn surface_kind(kind: KSurfaceKind) -> SurfaceKind {
+    match kind {
+        KSurfaceKind::Plane => SurfaceKind::Plane,
+        KSurfaceKind::Cylinder => SurfaceKind::Cylinder,
+        KSurfaceKind::Cone => SurfaceKind::Cone,
+        KSurfaceKind::Sphere => SurfaceKind::Sphere,
+        KSurfaceKind::Torus => SurfaceKind::Torus,
+        KSurfaceKind::Nurbs => SurfaceKind::Nurbs,
+        KSurfaceKind::Approx => SurfaceKind::Approx,
+    }
 }
 
 impl SurfaceKind {
@@ -375,8 +430,8 @@ impl SurfaceKind {
 /// bare float equality. A candidate whose margin lands INSIDE the band
 /// answers neither strict arm and REFUSES (`SelectRefusal`,
 /// `reason="in_band"`).
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::Cmp` variant of the same name"
@@ -789,12 +844,12 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
 )]
 mod growth_tripwire {
     use super::{
-        CapEnd, Cmp, CurveKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg,
-        SplitHalf, SurfaceKind, s,
+        CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, SplitHalf, s,
     };
 
-    // `EntityKind`'s tripwire is `super::entity_kind`, which is the
-    // same exhaustive match with a caller — a mirror that CROSSES
+    // `EntityKind`'s and `SurfaceKind`'s tripwires are
+    // `super::entity_kind` and `super::surface_kind`, which are the
+    // same exhaustive matches with a caller — a mirror that CROSSES
     // needs no dead twin to assert what the crossing already asserts.
 
     fn seg_tag(k: s::SegTag) -> SegTag {
@@ -838,6 +893,9 @@ mod growth_tripwire {
             s::SegTag::BandCross => SegTag::BandCross,
             s::SegTag::BandCut => SegTag::BandCut,
             s::SegTag::BandSlit => SegTag::BandSlit,
+            s::SegTag::Inner => SegTag::Inner,
+            s::SegTag::Rim => SegTag::Rim,
+            s::SegTag::HoleRim => SegTag::HoleRim,
             s::SegTag::Instance => SegTag::Instance,
             s::SegTag::InPart => SegTag::InPart,
         }
@@ -853,6 +911,7 @@ mod growth_tripwire {
             s::OpGroup::Fillet => OpGroup::Fillet,
             s::OpGroup::Pattern => OpGroup::Pattern,
             s::OpGroup::InstantiatePart => OpGroup::InstantiatePart,
+            s::OpGroup::Shell => OpGroup::Shell,
         }
     }
 
@@ -880,18 +939,6 @@ mod growth_tripwire {
         }
     }
 
-    fn surface_kind(k: KSurfaceKind) -> SurfaceKind {
-        match k {
-            KSurfaceKind::Plane => SurfaceKind::Plane,
-            KSurfaceKind::Cylinder => SurfaceKind::Cylinder,
-            KSurfaceKind::Cone => SurfaceKind::Cone,
-            KSurfaceKind::Sphere => SurfaceKind::Sphere,
-            KSurfaceKind::Torus => SurfaceKind::Torus,
-            KSurfaceKind::Nurbs => SurfaceKind::Nurbs,
-            KSurfaceKind::Approx => SurfaceKind::Approx,
-        }
-    }
-
     fn cmp(k: s::Cmp) -> Cmp {
         match k {
             s::Cmp::Approx => Cmp::Approx,
@@ -899,6 +946,87 @@ mod growth_tripwire {
             s::Cmp::Less => Cmp::Less,
         }
     }
+}
+
+// ---------------------------------------------------------------
+// Minting a revolve's role name: the five doors that ANSWER a name
+// rather than selecting one.
+//
+// `Evaluation.select` and the whole-body materializers answer names
+// FROM an evaluation. A selection that is AUTHORED — `Node.fillet`'s
+// frozen selection, `Node.shell`'s open list — is written before any
+// evaluation of the minting node exists, so its names are spelled;
+// these five spell them. Each mints the kernel's own `StableName`
+// through `pncad::select`'s builder and hands back `name_text`'s
+// output, so the answer is BYTE-IDENTICAL to what a materializer
+// would answer for the same entity: one alphabet, minted on either
+// side of the boundary.
+//
+// The text stays opaque either way. A caller composes a name by
+// naming a ROLE — the op's own vocabulary, `seg` and `vertex` indices
+// into the profile's canonical chain — never by assembling the
+// serialization, which is the representation-dependence `name_text`'s
+// contract refuses.
+//
+// `seg` and `vertex` index the OUTER loop's canonical chain, exactly
+// as the Rust builders do: a hole's band is not reachable through
+// these doors on either side.
+// ---------------------------------------------------------------
+
+/// **The `[0, pi)` band face swept from meridian segment `seg`** of
+/// the revolve at `node`, as the name TEXT the selections take.
+///
+/// `seg` indexes the outer loop's canonical chain. The kind is fixed
+/// at the role's own — a face — which is the field a hand-written
+/// name gets wrong silently until emission refuses it.
+#[pyfunction]
+pub(crate) fn band(py: Python<'_>, node: &NodeId, seg: u32) -> PyResult<String> {
+    name_text(py, &s::band(node.0, seg))
+}
+
+/// **The `[pi, 2pi)` band face swept from meridian segment `seg`**
+/// —
+/// [`band`]'s twin, where a full revolve emits a segment as two
+/// faces. Outer loop; a face, as [`band`] is.
+#[pyfunction]
+pub(crate) fn band_pi(py: Python<'_>, node: &NodeId, seg: u32) -> PyResult<String> {
+    name_text(py, &s::band_pi(node.0, seg))
+}
+
+/// **The latitude rim at meridian vertex `vertex`** — the edge
+/// between the bands of segments `vertex - 1` and `vertex`. Outer
+/// loop; an edge.
+#[pyfunction]
+pub(crate) fn band_rim(py: Python<'_>, node: &NodeId, vertex: u32) -> PyResult<String> {
+    name_text(py, &s::band_rim(node.0, vertex))
+}
+
+/// **The meridian vertex at `end`**: the copy of profile vertex
+/// `vertex` on a wedge cap plane (`MeridianEnd.Start`,
+/// `MeridianEnd.End`) on a partial revolve, or the surviving meridian
+/// vertex (`MeridianEnd.Seam`) on a full one. Outer loop; a vertex.
+#[pyfunction]
+pub(crate) fn meridian_vertex(
+    py: Python<'_>,
+    end: MeridianEnd,
+    node: &NodeId,
+    vertex: u32,
+) -> PyResult<String> {
+    name_text(py, &s::meridian_vertex(end.to_kernel(), node.0, vertex))
+}
+
+/// **The name a survivor of `node` takes**: the name `inner` it had
+/// in the target's table, wrapped — the single-operand pass-through a
+/// blend's shrunk support or a shell's outer wall wears one op later.
+///
+/// `inner` is a name TEXT like any other, and the kind is its own: a
+/// survivor is the same entity carried through one op, so the wrapper
+/// renames it without re-kinding it. Text that is not a name at all
+/// refuses here, the boundary `ValueError` every door reading a name
+/// raises.
+#[pyfunction]
+pub(crate) fn carried(py: Python<'_>, node: &NodeId, inner: &str) -> PyResult<String> {
+    name_text(py, &s::carried(node.0, name_from_text(inner)?))
 }
 
 /// Register the selector surface on the module.
@@ -917,5 +1045,10 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NamePat>()?;
     m.add_class::<Selector>()?;
     m.add_class::<GeomPred>()?;
+    m.add_function(wrap_pyfunction!(band, m)?)?;
+    m.add_function(wrap_pyfunction!(band_pi, m)?)?;
+    m.add_function(wrap_pyfunction!(band_rim, m)?)?;
+    m.add_function(wrap_pyfunction!(meridian_vertex, m)?)?;
+    m.add_function(wrap_pyfunction!(carried, m)?)?;
     Ok(())
 }

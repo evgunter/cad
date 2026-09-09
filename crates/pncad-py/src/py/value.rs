@@ -36,18 +36,33 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
-use crate::tags::{NODE_NOT_EVALUATED, export_error_tag, node_error_tag, step_import_error_tag};
+use crate::tags::{
+    NODE_NOT_EVALUATED, export_error_tag, node_error_tag, node_inner_kind_tag,
+    normalization_kind_tag, promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
+};
+use crate::validation;
 use pncad::document as d;
 use pncad::tolerance::Tol;
 use pncad::topo;
 
+/// The refusing ARM's word, as the exception carries it: the kernel
+/// refusal's own discriminant beside the carrier's, `None` where the
+/// refusal has no arms.
+fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
+    match node_inner_kind_tag(kind) {
+        Some(tag) => PyString::new(py, tag).unbind().into_any(),
+        None => py.None().into_any(),
+    }
+}
+
 /// Raise `EvaluationError` with a stable `reason` tag.
 ///
-/// `kind`, `through` and `finding` are ALWAYS present on the
-/// exception — `None` where the reason has no failing kind, no
-/// poisoning ancestor, or no refusal-menu payload — so stub-guided
-/// code can read them without an `AttributeError` trap — a stub that
-/// over-promises is worse than one that says `None`.
+/// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
+/// the exception — `None` where the reason has no failing kind, no
+/// arm under that kind, no poisoning ancestor, or no refusal-menu
+/// payload — so stub-guided code can read them without an
+/// `AttributeError` trap — a stub that over-promises is worse than one
+/// that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -63,6 +78,7 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
             ("reason", PyString::new(py, reason).unbind().into_any()),
             ("node", node),
             ("kind", py.None().into_any()),
+            ("inner_kind", py.None().into_any()),
             ("through", py.None().into_any()),
             ("finding", py.None().into_any()),
         ],
@@ -72,6 +88,11 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
 /// Raise `EvaluationError` for a node that ITSELF failed: the payload
 /// is the `NodeErrorKind`'s stable tag plus the node id; the message
 /// is the kernel error's own `Display` prose — never a `Debug` dump.
+///
+/// `kind` is the CARRIER's word — which door refused — and `inner_kind`
+/// is the arm of the kernel refusal that door holds, `None` where that
+/// refusal has no arms. Two enums, two discriminants, each projected
+/// where it lives.
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -107,6 +128,7 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
                     .unbind()
                     .into_any(),
             ),
+            ("inner_kind", inner_kind(py, &error.kind)),
             ("through", py.None().into_any()),
             ("finding", finding),
         ],
@@ -139,10 +161,12 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
                     .unbind()
                     .into_any(),
             ));
+            fields.push(("inner_kind", inner_kind(py, &error.kind)));
             format!("never ran — poisoned by failed ancestor: {error}")
         }
         None => {
             fields.push(("kind", py.None().into_any()));
+            fields.push(("inner_kind", py.None().into_any()));
             format!("never ran — poisoned through node {}", through.0.0)
         }
     };
@@ -154,7 +178,8 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
 /// Volume and area are `m³` and `m²` — dimensions OUTSIDE D6's closed
 /// `{Length, Angle, Count}` set, so they cross as plain floats in
 /// canonical units rather than as invented quantity types.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone, Copy)]
 pub(crate) struct MassProperties {
     /// Signed enclosed volume, m³.
     #[pyo3(get)]
@@ -306,7 +331,8 @@ impl Body {
     /// their seams; the SAME solids gathered by `product`, which
     /// declares nothing, arrive without and this gate reports the
     /// seam it finds. Raises `ValidationError` listing the failures,
-    /// with `door` and `failure_count` as on the other three rungs.
+    /// with `door`, `failure_count` and `findings` as on the other
+    /// three rungs.
     fn validate_pseudomanifold(&self, py: Python<'_>) -> PyResult<()> {
         let tol = Tol::witness();
         self.run_validator(
@@ -321,13 +347,17 @@ impl Body {
     /// Shared shape for the validator doors, which all return
     /// `Result<(), Vec<ValidationError>>`.
     ///
-    /// `ValidationError` has no curated tag mapping, so the exception
-    /// carries the failure COUNT as structured data and the findings
-    /// themselves as the human message — each through the enum's own
-    /// `Display`, one prose sentence with recourse per finding, joined
-    /// because a `Vec` has no rendering of its own. Per-variant tags
-    /// are the same mechanical work `crate::tags` does for edits,
-    /// deferred with the rest of the read-back surface.
+    /// The exception carries `door`, the failure COUNT, and one
+    /// [`ValidationFinding`] per failure, in the kernel's own
+    /// deterministic report order. The human message is unchanged: each
+    /// finding through the enum's own `Display`, one prose sentence with
+    /// recourse, joined because a `Vec` has no rendering of its own —
+    /// so the words are a branch a caller can take and the sentence is
+    /// still the diagnosis they read.
+    ///
+    /// ONE raise per call, whatever the count. `failure_count` is what
+    /// says the door found several, and splitting the raise would
+    /// report one of N failures where the join reports all of them.
     ///
     /// It raises through [`typed_err`] like every other door: the
     /// kernel words each tier-3′ census finding through `Display`, so
@@ -342,6 +372,11 @@ impl Body {
             return Ok(());
         };
         let count = failures.len().into_pyobject(py)?.unbind().into_any();
+        let findings: Vec<ValidationFinding> = failures
+            .iter()
+            .map(|failure| ValidationFinding(validation::project(failure)))
+            .collect();
+        let findings = findings.into_pyobject(py)?.unbind().into_any();
         Err(typed_err(
             py,
             ErrorClass::Validation,
@@ -357,8 +392,133 @@ impl Body {
             &[
                 ("door", PyString::new(py, door).unbind().into_any()),
                 ("failure_count", count),
+                ("findings", findings),
             ],
         ))
+    }
+}
+
+/// **ONE failure a validator found**, as words a caller branches on.
+///
+/// The value class behind `ValidationError.findings`, and **the single
+/// place on this surface where a refusal's discriminant crosses in a
+/// SEQUENCE rather than as a scalar attribute**. That is argued by this
+/// door's own shape and by nothing else: `validate*` is the one door
+/// that reports MANY refusals at once — `failure_count` has said so
+/// since it was bound — so one `variant` string could only name one of
+/// them. Everywhere else a refusal reports a single fault and its word
+/// is a plain attribute; read this as the exception it is, not as a
+/// second convention.
+///
+/// Frozen, constructed only by the binding, and compared by value: two
+/// findings that say the same thing are `==`.
+///
+/// `variant` is which `ValidationError` arm refused. The other five
+/// are its payload, `None` on an arm that carries none, so `getattr`
+/// never raises and a caller never has to branch on `variant` first:
+///
+/// * `subject_kind` — what a census refusal is ABOUT: `"entity"` (one
+///   carrier outside the certifiable inventory) or `"face_pair"` (a
+///   candidate contact). The two are two different repairs.
+/// * `entity_kind` — that entity's kind (`"face"`, `"edge"`,
+///   `"vertex"`, …); `None` for a pair, whose sides are faces.
+/// * `contact_kind` — which coincidence the tier-3′ census found
+///   (`"vertex_on_face"`, `"edge_edge_cross"`, …). The branch that
+///   matters: an `"edge_face_pierce"` is interpenetration and cannot
+///   be declared, while an `"edge_edge_overlap"` can be.
+/// * `stale_kind` — which declared record the census could not
+///   confirm (`"vertex_vertex"`, `"vertex_on_face"`, `"curve_locus"`,
+///   `"patch"`). The granularity is which record to withdraw or
+///   re-seat; withdrawing another one leaves the refusal standing.
+/// * `ring_contact_kind` — how a ring meets its face's own outer loop
+///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"edge_along_edge"`).
+///   The word says where the ring has to move: a shared position one
+///   vertex clears, or a shared arc no single move separates.
+///
+/// **No arena key crosses**, here as everywhere: a `Body` is an opaque
+/// handle, so WHICH face or vertex a finding names stays in the
+/// kernel's own prose on the message, and these words are what a
+/// caller acts on.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct ValidationFinding(validation::Finding);
+
+#[pymethods]
+impl ValidationFinding {
+    /// Which `ValidationError` arm refused.
+    #[getter]
+    fn variant(&self) -> &'static str {
+        self.0.variant
+    }
+
+    /// What a census refusal is about: `"entity"` or `"face_pair"`.
+    #[getter]
+    fn subject_kind(&self) -> Option<&'static str> {
+        self.0.subject_kind
+    }
+
+    /// The entity kind of an `"entity"` subject.
+    #[getter]
+    fn entity_kind(&self) -> Option<&'static str> {
+        self.0.entity_kind
+    }
+
+    /// Which coincidence the census found.
+    #[getter]
+    fn contact_kind(&self) -> Option<&'static str> {
+        self.0.contact_kind
+    }
+
+    /// Which declared record lost its witness.
+    #[getter]
+    fn stale_kind(&self) -> Option<&'static str> {
+        self.0.stale_kind
+    }
+
+    /// How a ring meets its face's own outer loop.
+    #[getter]
+    fn ring_contact_kind(&self) -> Option<&'static str> {
+        self.0.ring_contact_kind
+    }
+
+    fn __repr__(&self) -> String {
+        // Python's own spelling of an absent word, not Rust's: a repr
+        // a reader can paste back is the whole point of one.
+        fn word(value: Option<&str>) -> String {
+            value.map_or_else(|| "None".to_owned(), |word| format!("'{word}'"))
+        }
+        format!(
+            "ValidationFinding(variant='{}', subject_kind={}, \
+             entity_kind={}, contact_kind={}, stale_kind={}, \
+             ring_contact_kind={})",
+            self.0.variant,
+            word(self.0.subject_kind),
+            word(self.0.entity_kind),
+            word(self.0.contact_kind),
+            word(self.0.stale_kind),
+            word(self.0.ring_contact_kind)
+        )
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`]: the six words ARE the value,
+    /// so hashing them hashes exactly what equality compares.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::hash::DefaultHasher::new();
+        (
+            self.0.variant,
+            self.0.subject_kind,
+            self.0.entity_kind,
+            self.0.contact_kind,
+            self.0.stale_kind,
+            self.0.ring_contact_kind,
+        )
+            .hash(&mut hasher);
+        hasher.finish()
     }
 }
 
@@ -379,8 +539,19 @@ pub(crate) struct Datum {
     /// An in-plane axis in its frame's own 2-D coordinates — the
     /// origin then the direction, as authored. `None` for every other
     /// kind, whose numbers are all world numbers.
+    ///
+    /// The two halves cross differently because they ARE different
+    /// things. The origin is a POSITION — a distance from the frame's
+    /// own origin, measured in metres — so it crosses dimensioned, as
+    /// `origin` does and as `Node.datum_axis_in_plane` takes it. The
+    /// direction is dimensionless and crosses bare, which is the
+    /// placement vocabulary's rule: a bare float appears only where
+    /// the Rust side is itself a direction or a matrix entry. Being
+    /// written in a frame's coordinates rather than the world's
+    /// changes the DATUM a position is measured from, never its
+    /// dimension.
     #[pyo3(get)]
-    in_plane: Option<((f64, f64), (f64, f64))>,
+    in_plane: Option<((Length, Length), (f64, f64))>,
     /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
     /// for every other kind.
     ///
@@ -679,7 +850,13 @@ impl Value {
                     kind: "axis_in_plane",
                     origin: lengths(*origin),
                     direction: Some((v.x, v.y, v.z)),
-                    in_plane: Some(((plane_origin.x, plane_origin.y), (plane_dir.x, plane_dir.y))),
+                    in_plane: Some((
+                        (
+                            Length(pncad::quantity::Length::from_meters(plane_origin.x)),
+                            Length(pncad::quantity::Length::from_meters(plane_origin.y)),
+                        ),
+                        (plane_dir.x, plane_dir.y),
+                    )),
                     axes: None,
                 })
             }
@@ -704,6 +881,13 @@ impl Value {
     /// not a measure" and told a caller nothing about what to do.
     /// `Value.assertion` already carried its reason through; this door
     /// now does the same.
+    ///
+    /// The absence raises `MeasureUnavailableAt` and not
+    /// `EvaluationError`: it is the kernel's own typed reason, and it
+    /// carries the verb, the scalar this build ran at and the DOOR
+    /// that can answer, so the recourse is in the refusal rather than
+    /// in a reader's memory. `EvaluationError` is for a node that
+    /// FAILED, and this one did not.
     fn measure(&self, py: Python<'_>) -> PyResult<Measurement> {
         match &self.payload {
             d::ValuePayload::Measure { value, dim } => Ok(Measurement {
@@ -712,12 +896,9 @@ impl Value {
                 length: (*dim == d::Dimension::Length)
                     .then(|| Length(pncad::quantity::Length::from_meters(*value))),
             }),
-            d::ValuePayload::MeasureUnavailable { reason, .. } => Err(eval_err(
-                py,
-                format!("this measure has no value in this build: {reason}"),
-                "measure_unavailable",
-                self.node,
-            )),
+            d::ValuePayload::MeasureUnavailable { reason, .. } => {
+                Err(super::measure::measure_unavailable_at_err(py, reason))
+            }
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a measure", other.kind_name()),
@@ -785,6 +966,34 @@ pub(crate) struct Evaluation {
     /// answer confidently against the wrong recipe. Pairing the two
     /// here makes that unspellable.
     doc: d::ProfileDoc,
+    /// The document's gathered product, materialized on the first ask
+    /// and kept for every later one
+    /// ([`crate::product_memo`], which holds the whole of the reasoning).
+    ///
+    /// It lives HERE because a product is a pure function of the pair
+    /// above and the run's tolerance, and this object is that pair: it
+    /// is frozen, so nothing can move under the memo, and the doors
+    /// that want a product — `run_checks`, `assemble`, `product`,
+    /// `product_named` — keep their signatures and share one gather.
+    product: crate::product_memo::ProductMemo,
+}
+
+impl Evaluation {
+    /// The (document, evaluation) pair and the memo over it, as the
+    /// arguments [`crate::product_memo`]'s doors take.
+    pub(crate) fn gathered<T>(
+        &self,
+        f: impl FnOnce(&crate::product_memo::ProductMemo, &d::ProfileDoc, &d::Evaluation<f64>) -> T,
+    ) -> T {
+        f(&self.product, &self.doc, &self.inner)
+    }
+
+    /// The DI3 pairing gate: `doc` must be the document this
+    /// evaluation is of. `Err` carries the two ids the caller's own
+    /// refusal arm names.
+    pub(crate) fn paired_with(&self, doc: &super::doc::Doc) -> Result<(), d::Mispaired> {
+        crate::product_memo::ProductMemo::paired(&self.inner, doc.inner.id())
+    }
 }
 
 #[pymethods]
@@ -1036,6 +1245,36 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::vertex_position(&self.inner, node.0, &name)
             .map(lengths)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **What KIND of surface carries the face I selected?** — the
+    /// face's stored carrier tag, copied out.
+    ///
+    /// A tag READ, never a verdict: `SurfaceKind.Plane` comes back
+    /// because the body RECORDS a plane there, and "is this face
+    /// planar" is a comparison the caller makes against the answer.
+    /// No tolerance enters and nothing is decided — the same split
+    /// [`Self::face_frame`] keeps between a value and a predicate.
+    ///
+    /// It is the door [`Self::face_frame`] cannot be: a NURBS carrier
+    /// has no canonical frame and the frame door refuses it
+    /// (`no_canonical_frame`), while its kind is still readable here.
+    /// It is also how a caller checks a face BEFORE building a
+    /// `Node.datum_face_frame` on it, which refuses a non-planar
+    /// carrier at `evaluate`.
+    ///
+    /// Raises `ReadbackError` as [`Self::face_frame`] does, with
+    /// `wrong_kind` for an edge or vertex name.
+    fn face_carrier_kind(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::select::SurfaceKind> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::face_carrier_kind(&self.inner, node.0, &name)
+            .map(super::select::surface_kind)
             .map_err(|err| super::readback::readback_err(py, &err))
     }
 
@@ -1309,16 +1548,375 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
     typed_err(py, ErrorClass::Export, err.to_string(), &fields)
 }
 
+/// **A boundary-graph census**: what one region contributes to the
+/// body, in faces, edges and vertices.
+///
+/// Two of these ride every [`StructureNormalization`] — the counts the
+/// file states for the region, and the counts the mint left it with —
+/// and their difference is the mapping a reader needs to reconcile the
+/// file's numbers with the imported body's.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct FaceCensus {
+    /// Faces.
+    #[pyo3(get)]
+    faces: usize,
+    /// Edges.
+    #[pyo3(get)]
+    edges: usize,
+    /// Vertices.
+    #[pyo3(get)]
+    vertices: usize,
+}
+
+#[pymethods]
+impl FaceCensus {
+    fn __eq__(&self, other: &Self) -> bool {
+        (self.faces, self.edges, self.vertices) == (other.faces, other.edges, other.vertices)
+    }
+
+    /// Consistent with [`Self::__eq__`] by construction: it hashes the
+    /// same three counts the comparison reads.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (self.faces, self.edges, self.vertices).hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "FaceCensus(faces={}, edges={}, vertices={})",
+            self.faces, self.edges, self.vertices
+        )
+    }
+}
+
+/// **One re-minted boundary graph**, reported as data: the file's
+/// locus was fully explained and adopted, but its tessellation is not
+/// representable, so the kernel cut the same surface into its own
+/// faces, edges and vertices and says which.
+///
+/// Volume and validity are exact either way; what changed is only the
+/// cut. `file_census` and `kernel_census` are that change, counted.
+///
+/// `kind` is the stable word for what was re-minted, and the payload
+/// of the one arm that carries one arrives beside it, `None` on the
+/// other four: `promoted_to` is which analytic surface kind certified
+/// and `residual` is the certified deviation that let it. Present on
+/// every row, so a read never raises and a caller never has to branch
+/// on `kind` first.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct StructureNormalization(pncad::step_import::StructureNormalization);
+
+#[pymethods]
+impl StructureNormalization {
+    /// The `ADVANCED_FACE` entity instance the file states.
+    #[getter]
+    fn face(&self) -> u64 {
+        self.0.face
+    }
+
+    /// What was re-minted, as a stable word.
+    #[getter]
+    fn kind(&self) -> &'static str {
+        normalization_kind_tag(&self.0.kind)
+    }
+
+    /// Which analytic surface kind certified — on `surface_promotion`
+    /// alone.
+    #[getter]
+    fn promoted_to(&self) -> Option<&'static str> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::SurfacePromotion { to, .. } => {
+                Some(promoted_kind_tag(to))
+            }
+            _ => None,
+        }
+    }
+
+    /// The certified residual sup (metres): the patch's worst
+    /// deviation from the surface it was promoted to. On
+    /// `surface_promotion` alone.
+    #[getter]
+    fn residual(&self) -> Option<f64> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::SurfacePromotion { residual, .. } => {
+                Some(*residual)
+            }
+            _ => None,
+        }
+    }
+
+    /// The census the file states for the region.
+    #[getter]
+    fn file_census(&self) -> FaceCensus {
+        census(self.0.file_census)
+    }
+
+    /// The census as THIS mint left the region — a mint-event value,
+    /// not an at-rest one: a later normalization may split an edge the
+    /// region shares, and this record is not revised. The records'
+    /// deltas sum to the body's totals; per-face at-rest counts are the
+    /// body's to answer.
+    #[getter]
+    fn kernel_census(&self) -> FaceCensus {
+        census(self.0.kernel_census)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "StructureNormalization(face={}, kind={})",
+            self.0.face,
+            normalization_kind_tag(&self.0.kind)
+        )
+    }
+}
+
+/// **One promoted curve carrier**: the file stated a NURBS carrier
+/// whose deviation from an analytic curve certified at the import's
+/// tolerance, so the edge adopted on the analytic carrier.
+///
+/// It re-mints nothing — the boundary graph is untouched — which is
+/// why it carries no census where a [`StructureNormalization`] carries
+/// two, and why its key is a curve entity rather than a face.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct CurvePromotion(pncad::step_import::CurvePromotion);
+
+#[pymethods]
+impl CurvePromotion {
+    /// The curve entity instance the file states — the `EDGE_CURVE`'s
+    /// carrier, not an edge that uses it: one carrier may serve
+    /// several edges and the promotion is the carrier's.
+    #[getter]
+    fn curve(&self) -> u64 {
+        self.0.curve
+    }
+
+    /// The analytic kind that certified, as a stable word.
+    #[getter]
+    fn kind(&self) -> &'static str {
+        promoted_curve_kind_tag(&self.0.kind)
+    }
+
+    /// The certified residual sup (metres): the carrier's worst
+    /// deviation from the promoted curve over its whole domain.
+    #[getter]
+    fn residual(&self) -> f64 {
+        self.0.residual
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CurvePromotion(curve={}, kind={})",
+            self.0.curve,
+            promoted_curve_kind_tag(&self.0.kind)
+        )
+    }
+}
+
+/// **One materialized assembly instance** — what the file said about
+/// one solid of the imported body.
+///
+/// An assembly states N occurrences of M component representations,
+/// and import materializes each occurrence as its own solid; one of
+/// these travels with each, in `body.solids()` order. Flattening is
+/// the right evaluation product and it is not forgetting: this is the
+/// association a later import-as-assembly door rebuilds.
+///
+/// Every entity field names a real record in the file, or is `None`
+/// because the file states no assembly — a file with no assembly
+/// vocabulary still gets one row per solid, so a caller never has to
+/// ask whether the record exists.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct PlacedInstance(pncad::step_import::PlacedInstance);
+
+#[pymethods]
+impl PlacedInstance {
+    /// Which solid of the imported body this row describes, in
+    /// `Body`'s own solid order.
+    #[getter]
+    fn index(&self) -> usize {
+        self.0.index
+    }
+
+    /// The `MANIFOLD_SOLID_BREP` this instance is a copy of. Repeats
+    /// across one component's several occurrences: that repetition IS
+    /// the instancing.
+    #[getter]
+    fn solid(&self) -> u64 {
+        self.0.solid
+    }
+
+    /// The shape representation that names `solid`.
+    #[getter]
+    fn component(&self) -> u64 {
+        self.0.component
+    }
+
+    /// The `NEXT_ASSEMBLY_USAGE_OCCURRENCE` this instance is, where
+    /// the file links one.
+    #[getter]
+    fn occurrence(&self) -> Option<u64> {
+        self.0.occurrence
+    }
+
+    /// The `REPRESENTATION_RELATIONSHIP` complex stating the placement.
+    #[getter]
+    fn relationship(&self) -> Option<u64> {
+        self.0.relationship
+    }
+
+    /// The `ITEM_DEFINED_TRANSFORMATION` the placement was read from.
+    #[getter]
+    fn transform(&self) -> Option<u64> {
+        self.0.transform
+    }
+
+    /// The rigid map actually APPLIED to this copy, as the placement
+    /// value the rest of this surface uses.
+    ///
+    /// `None` is the identity — the file stated a placement that is
+    /// the identity at the import's tolerance, or stated none. It is
+    /// left as `None` rather than materialized: the record says
+    /// nothing moved, and an identity `Frame` here would read as a map
+    /// the file chose.
+    #[getter]
+    fn placement(&self) -> Option<super::place::Frame> {
+        self.0
+            .placement
+            .map(|a| super::place::Frame(d::Frame::from_affine(a)))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PlacedInstance(index={}, solid={}, component={})",
+            self.0.index, self.0.solid, self.0.component
+        )
+    }
+}
+
+fn census(c: pncad::step_import::FaceCensus) -> FaceCensus {
+    FaceCensus {
+        faces: c.faces,
+        edges: c.edges,
+        vertices: c.vertices,
+    }
+}
+
+/// **What a successful STEP import produced** — the body, the gate's
+/// own measurement of it, and the record of what the adoption changed
+/// about the file.
+///
+/// The body is a `Body` handle like any other and gains nothing from
+/// arriving this way; the report is what is new. `enclosure` is the
+/// certified `MassProperties` the import's own at-rest gate derived
+/// and decided the body's orientation invariant on, handed back rather
+/// than dropped — **not a second computation**. A caller that reads it
+/// measures the imported body ONCE; a caller that calls
+/// `report.body.mass_properties()` runs the certified quadrature a
+/// second time over the same body at the same band and gets the same
+/// four fields bit for bit.
+///
+/// The three record lists are the adoption's own report, "as data,
+/// never silently": `normalizations` is every boundary graph the
+/// kernel re-minted, `promotions` every NURBS curve carrier adopted as
+/// an analytic one, and `instances` the assembly record — one row per
+/// solid, kept whether or not the file states an assembly.
+#[pyclass(frozen, module = "pncad")]
+pub(crate) struct ImportReport {
+    /// The adopted body — Euler-built, certified, and tier-valid at
+    /// rest, checked before it was handed out.
+    #[pyo3(get)]
+    body: Body,
+    /// The at-rest gate's own enclosure of `body`.
+    #[pyo3(get)]
+    enclosure: MassProperties,
+    /// The import's input tolerance in metres: the file's declared
+    /// uncertainty, which is a separate quantity from the kernel's ε.
+    #[pyo3(get)]
+    eps_in: f64,
+    normalizations: Vec<StructureNormalization>,
+    promotions: Vec<CurvePromotion>,
+    instances: Vec<PlacedInstance>,
+}
+
+#[pymethods]
+impl ImportReport {
+    /// Every boundary graph the adoption re-minted, in resolution
+    /// order — empty for a file the kernel represents as stated.
+    #[getter]
+    fn normalizations(&self) -> Vec<StructureNormalization> {
+        self.normalizations.clone()
+    }
+
+    /// Every NURBS curve carrier adopted as an analytic curve, by
+    /// ascending curve entity id — empty for a file whose carriers are
+    /// all stated analytically or all stay NURBS.
+    #[getter]
+    fn promotions(&self) -> Vec<CurvePromotion> {
+        self.promotions.clone()
+    }
+
+    /// The assembly record: one row per solid of `body`, in its solid
+    /// order.
+    #[getter]
+    fn instances(&self) -> Vec<PlacedInstance> {
+        self.instances.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ImportReport(volume={} m^3, {} normalization(s), {} promotion(s), {} instance(s))",
+            self.enclosure.volume,
+            self.normalizations.len(),
+            self.promotions.len(),
+            self.instances.len()
+        )
+    }
+}
+
 /// Parse a STEP text with the kernel's own importer and adopt its
-/// solid as an opaque `Body` handle — the one-shot journey's round-trip
-/// oracle ("the exported file PARSES"), bound so the Python suite can
-/// assert it without reaching past the module.
+/// solid, answering the whole [`ImportReport`]: the body, the gate's
+/// own enclosure of it, and the record of what the adoption changed.
+///
+/// The report rather than the body alone is what makes the natural
+/// journey — import a file, then ask what it encloses — measure the
+/// solid once. The importer's gate has already run the certified
+/// quadrature to decide the body's orientation invariant, so
+/// `enclosure` is that measurement handed back and
+/// `body.mass_properties()` is a second one over the same body.
 #[pyfunction]
-pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
+pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> {
     let tol = Tol::witness();
     match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default(), tol)
     {
-        Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body::plain(Arc::new(body))),
+        Ok(pncad::step_import::StepImport::Solid {
+            body,
+            enclosure,
+            eps_in,
+            normalizations,
+            curve_promotions,
+            instances,
+        }) => Ok(ImportReport {
+            body: Body::plain(Arc::new(body)),
+            enclosure: MassProperties {
+                volume: enclosure.volume,
+                surface_area: enclosure.surface_area,
+                volume_pad: enclosure.volume_pad,
+                area_pad: enclosure.area_pad,
+            },
+            eps_in,
+            normalizations: normalizations
+                .into_iter()
+                .map(StructureNormalization)
+                .collect(),
+            promotions: curve_promotions.into_iter().map(CurvePromotion).collect(),
+            instances: instances.into_iter().map(PlacedInstance).collect(),
+        }),
         // Not a refusal variant: the import SUCCEEDED and produced
         // the other arm of `StepImport`, which this door does not
         // adopt. Its tag is the arm's name and shares the namespace
@@ -1328,26 +1926,49 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
             py,
             ErrorClass::StepImport,
             "the file parsed to a wireframe, not a solid",
-            &[(
-                "variant",
-                PyString::new(py, "wireframe").unbind().into_any(),
-            )],
+            &[
+                (
+                    "variant",
+                    PyString::new(py, "wireframe").unbind().into_any(),
+                ),
+                ("promoted_kind", py.None()),
+            ],
         )),
         // The tag is the importer's own, through `crate::tags`. Every
         // arm of `StepImportError` is reachable here, and the entity
         // id and line that would tell them apart live in the message
         // prose — so one literal for all twenty-one would make them
         // indistinguishable to a caller.
+        //
+        // `promoted_kind` is the one arm's payload discriminant,
+        // beside the tag rather than in place of it: the word
+        // `recognition_ambiguous` names the condition, and which
+        // analytic kind's estimator declined is the second question,
+        // with its own recourse. `None` on every other arm, which is
+        // this surface's every-attribute-always-present rule.
         Err(err) => Err(typed_err(
             py,
             ErrorClass::StepImport,
             err.to_string(),
-            &[(
-                "variant",
-                PyString::new(py, step_import_error_tag(&err))
-                    .unbind()
-                    .into_any(),
-            )],
+            &[
+                (
+                    "variant",
+                    PyString::new(py, step_import_error_tag(&err))
+                        .unbind()
+                        .into_any(),
+                ),
+                (
+                    "promoted_kind",
+                    match &err {
+                        pncad::step_import::StepImportError::RecognitionAmbiguous {
+                            kind, ..
+                        } => PyString::new(py, promoted_kind_tag(kind))
+                            .unbind()
+                            .into_any(),
+                        _ => py.None(),
+                    },
+                ),
+            ],
         )),
     }
 }
@@ -1521,6 +2142,7 @@ pub(crate) fn evaluate(
         inner,
         params: doc.inner.param_env::<f64>(),
         doc: doc.inner.clone(),
+        product: crate::product_memo::ProductMemo::default(),
     }
 }
 
@@ -1531,6 +2153,12 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Value>()?;
     m.add_class::<Body>()?;
     m.add_class::<MassProperties>()?;
+    m.add_class::<ImportReport>()?;
+    m.add_class::<StructureNormalization>()?;
+    m.add_class::<CurvePromotion>()?;
+    m.add_class::<PlacedInstance>()?;
+    m.add_class::<FaceCensus>()?;
+    m.add_class::<ValidationFinding>()?;
     m.add_class::<Datum>()?;
     m.add_class::<Measurement>()?;
     m.add_class::<Verdict>()?;

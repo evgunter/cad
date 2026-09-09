@@ -123,7 +123,14 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCross(_)
-        | RoleSeg::BandSlit(_) => SegOrigin::Minted,
+        | RoleSeg::BandSlit(_)
+        // A shell's cavity twin, rim and hole rim are new entities the
+        // op worked AGAINST a source: the twin is the source's inward
+        // offset, not the source, and a rim is the annulus the source
+        // face became.
+        | RoleSeg::Inner(_)
+        | RoleSeg::Rim(_)
+        | RoleSeg::HoleRim { .. } => SegOrigin::Minted,
 
         // A merged face has SEVERAL parents and is identical to none
         // of them, so there is no single operand entity to descend
@@ -235,7 +242,7 @@ mod tests {
     /// extrude's, and the walk says so.
     #[test]
     fn a_carried_face_belongs_to_the_operand_it_came_from() {
-        let carried = at(FILLET, RoleSeg::FromTarget(Box::new(cap())));
+        let carried = crate::names::carried(FILLET, cap());
         let it = attribute(&carried);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert_eq!(it.chain(), [FILLET, EXTRUDE].as_slice());

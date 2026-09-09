@@ -360,7 +360,22 @@ class TestEnumeratingAWholeNode(unittest.TestCase):
 
 
 class TestTheIndexRefusesTyped(unittest.TestCase):
-    """`NodePickError`, arm by arm."""
+    """`NodePickError`, arm by arm.
+
+    ONE arm is not here, and its absence is a fact about the arm
+    rather than about this class. `mesh_index` reports a tessellated
+    mesh whose triangles index outside their own position buffer — a
+    kernel bug, not anything a caller can author — so no test below
+    can provoke it. Its two words (`mesh_index` on `variant`,
+    `position_out_of_range` on `index_variant`) and its three numbers
+    (`patch`, `triangle`, `index`) are pinned in Rust, where the
+    payload can be constructed:
+    `src/tests.rs::picking_refusal_tags_are_stable` and
+    `every_pick_arm_projects_the_index_numbers_it_carries`. What the
+    rows below own is the other half of "present on every arm": that
+    the three attributes EXIST, and read `None`, on the arms a caller
+    can actually reach.
+    """
 
     def setUp(self):
         self.doc = Doc()
@@ -425,8 +440,27 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         ):
             err = self.refusal(call)
             with self.subTest(variant=err.variant):
-                for field in ("variant", "node", "through", "kind", "body"):
+                for field in (
+                    "variant",
+                    "node",
+                    "through",
+                    "kind",
+                    "body",
+                    "index_variant",
+                    "patch",
+                    "triangle",
+                    "index",
+                ):
                     self.assertTrue(hasattr(err, field), field)
+                # The index arm is the only one that carries these,
+                # and none of these three is that arm — so they read
+                # `None` rather than being absent, and a caller
+                # assembling a bug report needs no branch on
+                # `variant` to find that out.
+                self.assertIsNone(err.index_variant)
+                self.assertIsNone(err.patch)
+                self.assertIsNone(err.triangle)
+                self.assertIsNone(err.index)
 
     def test_the_refusal_is_a_pncad_error(self):
         err = self.refusal(lambda: NodePick.build(self.ev, self.cube, 9, DELTA))

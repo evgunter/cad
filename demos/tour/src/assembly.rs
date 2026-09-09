@@ -55,8 +55,9 @@
 //! - **#947 — the doubled recourse is CLOSED.** The pin-mismatch
 //!   recourse now reaches the author exactly once, from the store's
 //!   own `Display`; `update_door` is what holds that count down.
-//!   Two refusals still carry no recourse sentence at all
-//!   (`refusals`), filed as its own item.
+//!   All four refusals the walk prints end on a recourse sentence,
+//!   each asserted here against the library's own constant
+//!   (`refusals`).
 //! - **#948** — no parametric loop constructor (`rect`).
 //!
 //! The declared direction's frontier — a mated assembly's gate can
@@ -72,10 +73,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
-    InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, apply, assemble, content_pin, evaluate,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
+    CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
+    EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
+    MatePrimitive, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SitedRef, UNDER_RECOURSE, apply, assemble, content_pin, evaluate,
     inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
@@ -847,8 +849,8 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 /// printed with the recourse the library itself gave.
 ///
 /// Fail-loud is the design, so each of these is EVIDENCE: a refusal
-/// that stopped being typed, or stopped naming its subject, breaks
-/// this walk.
+/// that stopped being typed, stopped naming its subject, or stopped
+/// ending on its recourse breaks this walk.
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
@@ -874,6 +876,14 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     assert!(
         matches!(fault, MateFault::Under { .. }),
         "an under-determined tree mate is the UNDER refusal, got {fault:?}"
+    );
+    // Every one of the four ends on its own recourse sentence, and
+    // each is asserted against the library's constant rather than
+    // against re-typed prose. That is the ladder's exit criterion, met
+    // here where a user reads it.
+    assert!(
+        fault.to_string().contains(UNDER_RECOURSE),
+        "the refusal carries its recourse verbatim"
     );
     println!("   (1) under-determined: {fault}");
 
@@ -915,6 +925,10 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     assert!(
         matches!(fault, MateFault::Contradictory { .. }),
         "an empty coset intersection is the CONTRADICTORY refusal, got {fault:?}"
+    );
+    assert!(
+        fault.to_string().contains(CONTRADICTORY_RECOURSE),
+        "the refusal carries its recourse verbatim"
     );
     println!("   (2) contradictory: {fault}");
 
@@ -964,6 +978,10 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     assert!(
         matches!(err, AssemblyError::NoAtRestRecord { .. }),
         "the class table's mint half is what refuses, got {err}"
+    );
+    assert!(
+        err.to_string().contains(NO_AT_REST_RECORD_RECOURSE),
+        "the refusal carries its recourse verbatim"
     );
     println!("   (3) outside v1's at-rest vocabulary: {err}");
 
@@ -1620,54 +1638,4 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
         },
         bodies: vec![stand_body, layout_body],
     }]
-}
-
-/// The four AUTHORED documents of this scene, written into `dir` as a
-/// workspace and nothing more: the two parts, the flat-pack layout,
-/// and the mated stand — each pinning the version of the parts the
-/// store holds when this returns.
-///
-/// [`stops`] is the walk, and a walk MOVES the store: its update door
-/// resaves the shelf as a thicker board on purpose, so the state it
-/// leaves behind is a store whose assemblies pin a version that is no
-/// longer there. That is the right end state for a demo about the pin
-/// gate and the wrong one for a corpus, which is why this door exists
-/// beside it rather than inside it. Same authoring functions, so
-/// there is still exactly one place these documents are written.
-pub fn corpus(dir: &Path, tol: Tol) {
-    let (mut ws, parts) = workspace(dir, tol);
-    let (layout, _, _) = layout_doc(parts.post, parts.shelf, tol);
-    ws.create(&layout, tol).expect("the layout is stored");
-    let stand = stand_doc(
-        parts.post,
-        parts.shelf,
-        &parts.post_top,
-        &parts.shelf_bottom,
-        MatePrimitive::FrameCoincidence,
-        tol,
-    );
-    ws.create(&stand.doc, tol).expect("the stand is stored");
-
-    // A store names its files by IDENTITY, which is a hash — so a
-    // consumer that wants "the layout" needs the one thing the scan
-    // cannot tell it. The manifest is that and nothing else: the label
-    // each identity was derived from, beside the documents it names.
-    // Not a `.pncad`, so the scan ignores it.
-    let mut manifest = String::new();
-    for (label, id) in [
-        ("post", parts.post.id),
-        ("shelf", parts.shelf.id),
-        ("layout", layout.id()),
-        ("stand", stand.doc.id()),
-    ] {
-        manifest.push_str(&format!("{label} {}\n", id.hex()));
-    }
-    std::fs::write(dir.join("MANIFEST"), &manifest).expect("the manifest writes");
-
-    println!(
-        "assembly corpus → {} ({} document(s))",
-        dir.display(),
-        ws.documents().len()
-    );
-    print!("{manifest}");
 }

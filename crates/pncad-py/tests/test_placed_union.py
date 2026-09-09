@@ -310,11 +310,28 @@ class TestTheDieTool(unittest.TestCase):
         # pairwise tool this replaces spends the same seven upstream
         # and then six transforms, five unions and the subtract, so
         # the group's saving is the eleven it collapses into one.
-        # Which of the nine is the group is not asserted by counting
-        # kinds here (the document layer exposes no node-kind read
-        # door); it is settled outright by the byte pin below, whose
-        # text names every node's kind.
         self.assertEqual(len(doc), 9)
+
+        # The claim itself, counted BY KIND — the mirror of
+        # `crates/editor-core/tests/lib_placedunion.rs`'s
+        # `the_die_tool_is_one_node_and_still_cuts`, which counts
+        # `Node::PlacedUnion` / `Node::Boolean{Union}` /
+        # `Node::Transform` over `doc.order()` and asserts (1, 0, 0).
+        # The byte pin below still holds and its text still names
+        # every node's kind; it is no longer what settles this, and a
+        # structural claim no longer routes through the persistence
+        # door.
+        kinds = [doc.node_kind(n) for n in doc.order()]
+        self.assertEqual(
+            (
+                kinds.count("placed_union"),
+                kinds.count("boolean_union"),
+                kinds.count("transform"),
+            ),
+            (1, 0, 0),
+        )
+        self.assertEqual(doc.node_kind(tool), "placed_union")
+        self.assertEqual(doc.node_kind(pipped), "boolean_subtract")
 
         # An ordinary BODY out of the group — the property that lets a
         # boolean consume it at all.
@@ -546,6 +563,65 @@ class TestTheFrameValue(unittest.TestCase):
         with self.assertRaises(FrameError) as caught:
             Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
         self.assertEqual(caught.exception.variant, "degenerate_mirror_normal")
+
+    def test_an_exactly_zero_direction_carries_no_classifier_payload(self):
+        """A definite zero is not an escalation: the margin never
+        landed in the band, so there is nothing for the classifier to
+        report. Every attribute is present and `None`."""
+        with self.assertRaises(FrameError) as caught:
+            Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "degenerate_mirror_normal")
+        for absent in (
+            "inner_variant", "margin", "margin_low", "margin_high",
+            "zero", "escalate", "predicate", "field", "value",
+        ):
+            self.assertIsNone(getattr(refusal, absent), absent)
+
+    def test_an_in_band_direction_carries_the_margin_and_the_band(self):
+        """A direction SHORT of the coincidence threshold but not
+        exactly zero lands in the ambiguity band, and the refusal
+        reports what the classifier saw rather than making a caller
+        parse it out of the message.
+
+        The recourse is the message's own three levers — the payload
+        is diagnostic, and the escalation contract is that no sound
+        branch exists here."""
+        # A length inside the ambiguity band (eps, K*eps), derived
+        # from the process epsilon rather than hard-coded: the band's
+        # lower edge moves with the run's tolerance.
+        in_band = 1.5 * Doc().epsilon
+        with self.assertRaises(FrameError) as caught:
+            Frame.path_start_frame((0 * m, 0 * m, 0 * m), (in_band, 0.0, 0.0))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "degenerate_tangent")
+        self.assertIsNotNone(refusal.margin)
+        self.assertIsNotNone(refusal.zero)
+        self.assertIsNotNone(refusal.escalate)
+        self.assertLess(refusal.zero, refusal.escalate)
+        self.assertLess(refusal.margin, refusal.escalate)
+        # An f64 classification saw a VALUE, not an enclosure.
+        self.assertIsNone(refusal.margin_low)
+        self.assertIsNone(refusal.margin_high)
+        # The band arm's own payload is absent on a degenerate arm.
+        self.assertIsNone(refusal.inner_variant)
+        self.assertIsNone(refusal.field)
+        self.assertIsNone(refusal.value)
+
+    def test_a_short_aim_reports_the_same_pair(self):
+        """The third arm through a different door: `point_at`'s aim,
+        with the same attribute set on the same class."""
+        in_band = 1.5 * Doc().epsilon
+        with self.assertRaises(FrameError) as caught:
+            Frame.point_at(
+                (0 * m, 0 * m, 0 * m), (in_band * m, 0 * m, 0 * m), (0.0, 1.0, 0.0)
+            )
+        refusal = caught.exception
+        self.assertIn(
+            refusal.variant, ("degenerate_aim", "degenerate_roll_reference")
+        )
+        self.assertIsNotNone(refusal.zero)
+        self.assertIsNotNone(refusal.escalate)
 
 
 class TestTheCircularRule(unittest.TestCase):

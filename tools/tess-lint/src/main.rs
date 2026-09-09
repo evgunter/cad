@@ -27,10 +27,83 @@
 use tess_lint::{Cut, Kind, Observation, Rekey, Row, SceneTotals, compare, cut, parse, totals};
 
 /// The gate ran and the budget distribution moved.
+///
+/// **`tools/k-lint`'s `main.rs` spells this pair with the same two
+/// names and the same two values, and the two are NOT one item.**
+/// Separate cargo roots by design, so there is nothing to share; what
+/// is shared is the RULE about which voice an event leaves in, and
+/// that has one home (`tools/README.md`, `CC5`). A reader who moves
+/// one of these numbers is moving one instrument's exit codes and
+/// should say so.
 const EXIT_FINDINGS: i32 = 2;
 
 /// The lint could not run: no inputs, unreadable file, malformed CSV.
+/// Distinct from [`EXIT_FINDINGS`] on purpose — blurring the two would
+/// let a sweep-format drift read as a geometry finding, or vice versa.
+/// Every cross-column admission `tess_lint::parse` refuses leaves
+/// here (`tools/README.md`, `CC5`).
 const EXIT_HARNESS: i32 = 1;
+
+/// One line of the report's cell-total block: a CSV column's name,
+/// that column's sum over the sweep, and what it is FOR here.
+///
+/// **A row rather than three positional format arguments, because the
+/// NAME and the FIGURE have to be chosen together.** A report that
+/// prints a column's name beside a total that is not that column's
+/// sum is worse than one printing no name at all — it invites the
+/// join and then gets it wrong — and a hand-written argument list
+/// feeding anonymous `{:.0}` holes is how a transposition gets in
+/// unseen. Here a row carries its own accessor.
+struct CellTotal {
+    /// The CSV column this line is the sum of, printed as its name.
+    column: &'static str,
+    /// That column's sum, read from the fold rather than handed in
+    /// from an argument list beside it.
+    of: fn(&SceneTotals) -> f64,
+    /// What the column is FOR in this report. Not a definition.
+    gloss: &'static str,
+}
+
+/// The four cell totals the report prints, in printed order.
+///
+/// **The names are the join.** A phrase can be perfectly true of a
+/// column and still not say WHICH column it is, and the reader who
+/// then has to resolve it in `tess_meter` is the reader this block
+/// exists for — as is the reader of a document quoting these figures.
+/// The glosses say what a column is FOR in this report and are not
+/// definitions: those are `tess_meter::NurbsColumns`' field docs, one
+/// hop away through `tess_lint::Nurbs`.
+///
+/// `opt_cells` and `span_opt_cells` are BOTH "the cheapest split",
+/// and the qualifier is the whole of the difference between them, so
+/// the two glosses OPEN on the same clause and diverge at exactly
+/// that qualifier — printed on adjacent lines, with their figures in
+/// one eyeline. `tests/report_columns_pin.rs` holds the two
+/// qualifiers to their own columns; a gloss beside the wrong name
+/// puts the qualifier on the wrong figure, which is the mis-read this
+/// block exists to close rather than a wording preference.
+const CELL_TOTALS: [CellTotal; 4] = [
+    CellTotal {
+        column: "grid_cells",
+        of: |t| t.grid_cells,
+        gloss: "the grid the lane BUILT, sized per knot-span cell (TESS-SPAN)",
+    },
+    CellTotal {
+        column: "patch_cells",
+        of: |t| t.patch_cells,
+        gloss: "the whole-patch-sup counterfactual, at today's point selection",
+    },
+    CellTotal {
+        column: "opt_cells",
+        of: |t| t.opt_cells,
+        gloss: "the cheapest split, under the WHOLE-PATCH bound",
+    },
+    CellTotal {
+        column: "span_opt_cells",
+        of: |t| t.span_opt_cells,
+        gloss: "the cheapest split, PER CELL — the recoverable denominator",
+    },
+];
 
 /// Reads a sweep and the tree it was cut from, or exits in the
 /// harness voice.
@@ -282,10 +355,16 @@ fn main() {
     }
     if let (Some(held), Some(recoverable)) = (sweep.span_held(), sweep.recoverable()) {
         println!(
-            "  grid cells over all Hessian-sized faces: {:.0} used (per-knot-span-cell, \
-             TESS-SPAN); whole-patch counterfactual {:.0} ({held:.1}x held), {:.0} at the \
-             cheapest split per cell ({recoverable:.1}x still recoverable)",
-            sweep.grid_cells, sweep.patch_cells, sweep.span_opt_cells
+            "  cell totals over the {} Hessian-sized faces, one line per CSV column \
+             (tess_meter::NurbsColumns defines them):",
+            nurbs.len()
+        );
+        for t in CELL_TOTALS {
+            println!("    {:<14} {:>9.0}  {}", t.column, (t.of)(&sweep), t.gloss);
+        }
+        println!(
+            "  patch_cells / grid_cells = {held:.1}x held; \
+             grid_cells / span_opt_cells = {recoverable:.1}x still recoverable"
         );
         println!(
             "  every one of those grids satisfies the SAME per-triangle certificate the \
@@ -346,11 +425,13 @@ fn main() {
             println!("  … {} more scenes (--top {})", ranked.len() - top, top);
         }
         println!(
-            "\n  held = the whole-patch-sup counterfactual against the shipped per-cell grid \
-             (the TESS-SPAN gain);\n  split = what a cheaper split point per cell \
-             would still recover (a strip-shaped upper bound);\n  total = triangles against \
-             what their ATTAINED deviation needed (an estimate: a sampled sup,\n  extrapolated \
-             through deviation ~ h^2 — the others are counted grids)"
+            "\n  held = patch_cells / grid_cells — the whole-patch-sup counterfactual \
+             against the shipped per-cell grid (the TESS-SPAN gain);\n  split = \
+             grid_cells / span_opt_cells — what a cheaper split point per cell would still \
+             recover (a strip-shaped upper bound);\n  total = triangles against what their \
+             ATTAINED deviation needed — no pair of columns, so no formula here (an \
+             estimate: a sampled sup,\n  extrapolated through deviation ~ h^2 — the others \
+             are counted grids)"
         );
     }
 

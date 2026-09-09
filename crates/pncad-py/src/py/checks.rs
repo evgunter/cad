@@ -37,6 +37,7 @@
 //! nothing analogous, so its refusing position is UNREPRESENTABLE
 //! rather than merely undocumented, in Python exactly as in Rust.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use pyo3::exceptions::PyValueError;
@@ -53,8 +54,17 @@ use super::doc::{Doc, NodeId};
 use super::value::{Body, Evaluation};
 
 /// Which check a finding came from — the registry's closed set.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+// EVERY fieldless mirror in this crate carries these four options,
+// and this is the one place the reason is written down. A mirror is a
+// TAG: `eq`/`eq_int` make it comparable, and a comparable value that
+// does not hash is unusable as a set element or a dict key, because
+// Python leaves `__hash__` unset on any type that defines `__eq__`.
+// PyO3 spells `hash` as requiring `frozen` alongside `eq`, which a
+// fieldless mirror satisfies for nothing: it has no fields to mutate.
+// The hash is over the variant, so it agrees with the comparison by
+// construction — both read the same discriminant.
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::CheckId` variant of the same name"
@@ -66,8 +76,8 @@ pub(crate) enum CheckId {
 
 /// The certified/heuristic label (DS6): honesty of language and a
 /// default level, never a force cap.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::CheckKind` variant of the same name"
@@ -78,8 +88,8 @@ pub(crate) enum CheckKind {
 }
 
 /// A check's severity knob: off, warn, or refuse at the gate.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::Severity` variant of the same name"
@@ -92,8 +102,8 @@ pub(crate) enum Severity {
 
 /// The knob of a resident that may not refuse — `Severity` minus
 /// `Error`.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::Advisory` variant of the same name"
@@ -279,6 +289,15 @@ impl ChecksConfig {
 
 /// What one finding found, as a value with a stable `variant` tag and
 /// the arm's payload as attributes.
+///
+/// Every payload attribute is present on every arm, `None` where the
+/// arm does not carry it: `actual`, `expected`, `other_root`,
+/// `other_output`, `reason`, `inner_variant`.
+///
+/// The six read off ONE record, [`crate::check_payload`], whose
+/// match over the kernel enum is exhaustive with no wildcard: an
+/// evidence arm added there is a compile error rather than a finding
+/// every accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct CheckEvidence(pub(crate) d::CheckEvidence);
@@ -294,10 +313,7 @@ impl CheckEvidence {
     /// Components actually found, on `connectedness` alone.
     #[getter]
     fn actual(&self) -> Option<u32> {
-        match &self.0 {
-            d::CheckEvidence::Connectedness { actual, .. } => Some(*actual),
-            _ => None,
-        }
+        self.payload().actual
     }
 
     /// The expectation this subject was held to — on `connectedness`,
@@ -305,11 +321,7 @@ impl CheckEvidence {
     /// consumed.
     #[getter]
     fn expected(&self) -> Option<u32> {
-        match &self.0 {
-            d::CheckEvidence::Connectedness { expected, .. }
-            | d::CheckEvidence::StaleExpectation { expected } => Some(*expected),
-            _ => None,
-        }
+        self.payload().expected
     }
 
     /// The counterpart subject's root, on `not_separated` alone. The
@@ -317,19 +329,13 @@ impl CheckEvidence {
     /// order; this is the second.
     #[getter]
     fn other_root(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::CheckEvidence::NotSeparated { other_root, .. } => Some(NodeId(*other_root)),
-            _ => None,
-        }
+        self.payload().other_root.map(NodeId)
     }
 
     /// The counterpart subject's output index, on `not_separated`.
     #[getter]
     fn other_output(&self) -> Option<u32> {
-        match &self.0 {
-            d::CheckEvidence::NotSeparated { other_output, .. } => Some(*other_output),
-            _ => None,
-        }
+        self.payload().other_output
     }
 
     /// The underlying refusal's own prose, where the arm carries one:
@@ -338,13 +344,16 @@ impl CheckEvidence {
     /// kernel's own story, and `variant` is the branchable part.
     #[getter]
     fn reason(&self) -> Option<String> {
-        match &self.0 {
-            d::CheckEvidence::Escalated { source } | d::CheckEvidence::Unsupported { source } => {
-                Some(source.to_string())
-            }
-            d::CheckEvidence::SeparationUnavailable { reason, .. } => Some(reason.clone()),
-            _ => None,
-        }
+        self.payload().reason.map(Cow::into_owned)
+    }
+
+    /// The shell door's own refusal, as a branchable word, on
+    /// `escalated` and `unsupported`: `band`, `props`, `escalated` or
+    /// `zero_volume`. `reason` is the same refusal's sentence; this is
+    /// the part a caller matches on.
+    #[getter]
+    fn inner_variant(&self) -> Option<&'static str> {
+        self.payload().inner_variant
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -353,6 +362,19 @@ impl CheckEvidence {
 
     fn __repr__(&self) -> String {
         format!("CheckEvidence({:?})", check_evidence_tag(&self.0))
+    }
+}
+
+impl CheckEvidence {
+    /// This evidence's payload, read once per attribute.
+    ///
+    /// Every accessor above reads a field off THIS record rather than
+    /// matching the enum itself, so the arm table is written once —
+    /// exhaustively, with no wildcard, in `crate::check_payload` — and
+    /// an arm added kernel-side is a compile error there instead of
+    /// six attributes silently answering `None`.
+    fn payload(&self) -> crate::check_payload::CheckEvidencePayload<'_> {
+        crate::check_payload::check_payload(&self.0)
     }
 }
 
@@ -530,6 +552,13 @@ pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
 /// comes back as its own `stale_expectation` finding. A stale
 /// acknowledgment must not read as "checked and fine".
 ///
+/// **One gather per evaluation.** The document's product is a pure
+/// function of the (document, evaluation) pair `evaluation` captured
+/// at `evaluate` and the run's tolerance, so it is gathered on the
+/// first ask and shared with every other door that wants one
+/// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
+/// how a caller asks several questions for the price of one gather.
+///
 /// Raises `ChecksError`, typed, when the checks could not RUN at all.
 /// A check that ran and disagreed is a finding in the report and never
 /// an exception.
@@ -544,9 +573,27 @@ pub(crate) fn run_checks(
     let tol = Tol::witness();
     let default = d::ChecksConfig::default();
     let cfg = config.map_or(&default, |c| &c.0);
-    d::run_checks(&doc.inner, &evaluation.inner, cfg, tol)
+    // The pairing FIRST, because the answer may come from the memo and
+    // a memo reaches no gather to be refused by. Same refusal, same
+    // tag, one line earlier.
+    evaluation
+        .paired_with(doc)
+        .map_err(|m| mispaired_checks(py, m))?;
+    evaluation
+        .gathered(|memo, doc, ev| crate::product_memo::checks_report(memo, doc, ev, cfg, tol))
         .map(ChecksReport)
         .map_err(|err| checks_err(py, &err))
+}
+
+/// A mispaired `(doc, evaluation)` as this door's own refusal.
+fn mispaired_checks(py: Python<'_>, m: d::Mispaired) -> PyErr {
+    checks_err(
+        py,
+        &d::ChecksError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        },
+    )
 }
 
 /// **The registry's one refusing path.** Refuses iff `report` carries a
