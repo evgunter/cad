@@ -1775,7 +1775,7 @@ impl Node {
     /// data, and reversing it reverses the produced surface's
     /// v-direction. `v_degree` is the v-direction interpolation
     /// degree, a COUNT (structural material, D3), so it crosses as
-    /// `Expr::count` and not as a continuous literal.
+    /// `Expr.count` and not as a continuous literal.
     ///
     /// There is no placement argument, and that is the document
     /// design rather than a missing one: each section rides its OWN
