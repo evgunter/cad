@@ -24,11 +24,14 @@ from pncad import (
     DocEdit,
     DocRef,
     EditError,
+    PersistError,
+    StlError,
     EntityKind,
     EvaluationError,
     ValidationError,
     ValidationFinding,
     Frame,
+    FrameError,
     GeomPred,
     NamePat,
     Node,
@@ -63,6 +66,7 @@ from pncad import (
     deg,
     rad,
     evaluate,
+    load,
     m,
     mm,
     WrittenAngle,
@@ -630,3 +634,23 @@ try:
 except ValidationError as _frozen:
     _finding: ValidationFinding = _frozen.findings[0]
     _finding.variant = "something_else"  # ty: error
+
+
+# The three projected doors' payloads are OPTIONAL on every arm — the
+# whole point of "present on every arm, `None` where the arm does not
+# carry one" is that reading one as its bare type is a narrowing the
+# caller has not done.
+try:
+    load("id: 00000000000000000000000000000000\n{}")
+except PersistError as _persist:
+    _at_line: int = _persist.line  # ty: error
+
+try:
+    Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+except FrameError as _frame:
+    _margin: float = _frame.margin  # ty: error
+
+try:
+    product(doc, evaluate(doc)).tessellate(1 * mm).to_stl_binary(header="x" * 81)
+except StlError as _stl:
+    _header_bytes: int = _stl.len  # ty: error

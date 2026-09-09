@@ -54,3 +54,50 @@ kernel must never depend on demo tooling, and the corpus must never
 depend on the tour — so it is disclosed rather than shared, and it is
 a second reason a name BUILDER would earn its place: the two copies
 would at least say the names the same way.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+Five sites now hand-spell a revolve's role names field by field
+(`StableName { kind, node, path: vec![RoleSeg::Band(ProfileEdgeRef {
+loop_index: 0, segment })] }`) because the façade carries the
+VOCABULARY and the doors that ANSWER names, and nothing that MINTS one
+— and authoring a selection (a shell's open list, a fillet's frozen
+selection) is exactly where a name must be written before any
+evaluation exists to select against. What shape should the builders
+take?
+
+- **(A) Free functions beside the vocabulary in `pncad::select`** —
+  `band(node, seg)`, `band_pi(node, seg)`, `band_rim(node, vertex)`,
+  `meridian_vertex(end, node, vertex)`, and `carried(node, inner)` for
+  the `FromTarget` wrapper a survivor takes — each returning a
+  `StableName`, at the seat that already carries `SegPat::tag(…)` for
+  the matching direction. Mechanical afterwards; the five consumers
+  convert. Recommended.
+- **(B) A builder type or a method chain on the node id**
+  (`node.band(seg)`) — reads well at the call site, but puts an OO seam
+  on an id type and a second way to say what (A) says.
+- **(C) Leave hand-spelling** and document the shape; five copies stay
+  five.
+
+Recommendation: **(A)**. Small, in LIB's fence, and it is what the two
+duplicated vessel spellings (tour and corpus) would at least share.
+
+### Why (A) over (B), added 2026-09-09 after Ev asked
+
+Essentially less machinery. `RecipeNodeId` is editor-core's type, so
+`node.band(seg)` means an extension trait a caller imports (or a
+wrapper type), while (A) is free functions beside `SegPat::tag(…)`,
+which is how `pncad::select` already spells the matching direction.
+Both mint the same `StableName`, and neither can check that the node
+is a revolve before resolution. If (B)'s call-site reading is
+preferred, an extension trait in `pncad::select` is a fine shape.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2231)
+
+**(A).** Ev: "A is fine." Free functions beside the vocabulary,
+reached at `pncad::select` — `band`, `band_pi`, `band_rim`,
+`meridian_vertex`, `carried` — each returning a `StableName`.
+Mechanical afterwards: the builders and the conversion of the
+consumers that can reach them (the unit decides where the functions
+are DEFINED so that the corpus, which cannot depend on `pncad`, can
+share them too, and says so).

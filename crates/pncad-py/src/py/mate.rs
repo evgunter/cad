@@ -150,8 +150,8 @@ impl MateFrame {
 ///
 /// `Opposed` is what kills every π-flip ambiguity: the senses are
 /// AUTHORED, never inferred.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::AxisSense` variant of the same name"
@@ -178,8 +178,8 @@ impl AxisSense {
 }
 
 /// Which side of a mate a diagnostic is about.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::MateSide` variant of the same name"
@@ -254,11 +254,10 @@ impl MatePrimitive {
     /// branch on `variant` first.
     #[getter]
     fn offset(&self) -> Option<Length> {
+        use d::MatePrimitive as P;
         match self.0 {
-            d::MatePrimitive::PlanarRest { offset } => {
-                Some(Length(pncad::quantity::Length::from_meters(offset)))
-            }
-            _ => None,
+            P::PlanarRest { offset } => Some(Length(pncad::quantity::Length::from_meters(offset))),
+            P::FrameCoincidence | P::Coaxial | P::Clocking => None,
         }
     }
 
@@ -460,8 +459,8 @@ pub(crate) fn class_admission(
 // ---- The solve's read side ----
 
 /// What a mate did in the solve.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::MateRole` variant of the same name"
@@ -519,31 +518,40 @@ impl Subgroup {
     /// The plane's unit normal, for `planar`.
     #[getter]
     fn normal(&self) -> Option<(f64, f64, f64)> {
+        use d::Subgroup as S;
         match self.0 {
-            d::Subgroup::Planar { normal } => Some(direction(normal)),
-            _ => None,
+            S::Planar { normal } => Some(direction(normal)),
+            S::Se3
+            | S::Cylindrical { .. }
+            | S::Prismatic { .. }
+            | S::Revolute { .. }
+            | S::Trivial
+            | S::Empty => None,
         }
     }
 
     /// A point on the axis, for `cylindrical` and `revolute`.
     #[getter]
     fn point(&self) -> Option<(Length, Length, Length)> {
+        use d::Subgroup as S;
         match self.0 {
-            d::Subgroup::Cylindrical { point: p, .. } | d::Subgroup::Revolute { point: p, .. } => {
-                Some(point(p))
-            }
-            _ => None,
+            S::Cylindrical { point: p, .. } | S::Revolute { point: p, .. } => Some(point(p)),
+            // `planar` and `prismatic` are point-free on purpose, as
+            // the class doc says; the three remaining arms have no
+            // geometry to be based at.
+            S::Planar { .. } | S::Prismatic { .. } | S::Se3 | S::Trivial | S::Empty => None,
         }
     }
 
     /// The unit direction, for `cylindrical`, `prismatic`, `revolute`.
     #[getter]
     fn direction(&self) -> Option<(f64, f64, f64)> {
+        use d::Subgroup as S;
         match self.0 {
-            d::Subgroup::Cylindrical { direction: v, .. }
-            | d::Subgroup::Prismatic { direction: v }
-            | d::Subgroup::Revolute { direction: v, .. } => Some(direction(v)),
-            _ => None,
+            S::Cylindrical { direction: v, .. }
+            | S::Prismatic { direction: v }
+            | S::Revolute { direction: v, .. } => Some(direction(v)),
+            S::Se3 | S::Planar { .. } | S::Trivial | S::Empty => None,
         }
     }
 
@@ -559,9 +567,14 @@ impl Subgroup {
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `mate`, `side`, `head`, `placer`, `error`,
 /// `instance`, `parent`, `child`, `residual`, `held`, `added`,
-/// `predicate`, `clash`, `what`, `part`, `named`, `selected`. The
+/// `predicate`, `clash`, `part`, `named`, `selected`, `what`. The
 /// human message is the kernel's own prose, available as
 /// `str(fault)`.
+///
+/// The seventeen read off ONE record, [`crate::mate_payload`], whose
+/// match over the kernel enum is exhaustive with no wildcard: a fault
+/// arm added there is a compile error rather than a mate that every
+/// accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MateFault(pub(crate) d::MateFault);
@@ -581,52 +594,26 @@ impl MateFault {
     /// documents).
     #[getter]
     fn mate(&self) -> Option<NodeId> {
-        use d::MateFault as F;
-        match &self.0 {
-            F::Frame { mate, .. }
-            | F::ClassNotAdmitted { mate }
-            | F::TableLacks { mate, .. }
-            | F::Indeterminate { mate, .. }
-            | F::Under { mate, .. }
-            | F::DanglingHead { mate, .. }
-            | F::PlacerRefused { mate, .. }
-            | F::SelfMate { mate, .. }
-            | F::PartSelectsAnotherCopy { mate, .. }
-            | F::Unleverable { mate, .. } => Some(NodeId(*mate)),
-            F::Band { .. } | F::Contradictory { .. } | F::PosesOfAnotherDocument { .. } => None,
-        }
+        self.payload().mate.map(NodeId)
     }
 
     /// Which side of the mate refused.
     #[getter]
     fn side(&self) -> Option<MateSide> {
-        use d::MateFault as F;
-        match &self.0 {
-            F::Frame { side, .. }
-            | F::DanglingHead { side, .. }
-            | F::PlacerRefused { side, .. }
-            | F::PartSelectsAnotherCopy { side, .. } => Some(MateSide::from_kernel(*side)),
-            _ => None,
-        }
+        self.payload().side.map(MateSide::from_kernel)
     }
 
     /// The instantiate node a dangling reference head claims.
     #[getter]
     fn head(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::DanglingHead { head, .. } => Some(NodeId(*head)),
-            _ => None,
-        }
+        self.payload().head.map(NodeId)
     }
 
     /// The placer whose pose could not be derived — the pattern or
     /// the transform on the reference's chain that refused.
     #[getter]
     fn placer(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::PlacerRefused { placer, .. } => Some(NodeId(*placer)),
-            _ => None,
-        }
+        self.payload().placer.map(NodeId)
     }
 
     /// **The evaluation's own refusal for that placer**, as the tag
@@ -636,126 +623,85 @@ impl MateFault {
     /// mate that placed it. `str(fault)` carries its prose.
     #[getter]
     fn error(&self) -> Option<&'static str> {
-        match &self.0 {
-            d::MateFault::PlacerRefused { error, .. } => {
-                Some(crate::tags::node_error_tag(error.kind()))
-            }
-            _ => None,
-        }
+        self.payload().error
     }
 
     /// The instance a self-mate names twice.
     #[getter]
     fn instance(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::SelfMate { instance, .. } => Some(NodeId(*instance)),
-            _ => None,
-        }
+        self.payload().instance.map(NodeId)
     }
 
     /// The instance an under-determined tree mate extended FROM.
     #[getter]
     fn parent(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::Under { parent, .. } => Some(NodeId(*parent)),
-            _ => None,
-        }
+        self.payload().parent.map(NodeId)
     }
 
     /// The instance it failed to place.
     #[getter]
     fn child(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::Under { child, .. } => Some(NodeId(*child)),
-            _ => None,
-        }
+        self.payload().child.map(NodeId)
     }
 
     /// What survived an under-determined fold.
     #[getter]
     fn residual(&self) -> Option<Subgroup> {
-        match &self.0 {
-            d::MateFault::Under { residual, .. } => Some(Subgroup(*residual)),
-            _ => None,
-        }
+        self.payload().residual.map(Subgroup)
     }
 
     /// The mate already folded, for a contradictory pair.
     #[getter]
     fn held(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::Contradictory { held, .. } => Some(NodeId(*held)),
-            _ => None,
-        }
+        self.payload().held.map(NodeId)
     }
 
     /// The mate whose intersection died against it.
     #[getter]
     fn added(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::Contradictory { added, .. } => Some(NodeId(*added)),
-            _ => None,
-        }
+        self.payload().added.map(NodeId)
     }
 
     /// The predicate that decided against a contradictory pair.
     #[getter]
     fn predicate(&self) -> Option<&'static str> {
-        match &self.0 {
-            d::MateFault::Contradictory { predicate, .. } => Some(predicate),
-            _ => None,
-        }
+        self.payload().predicate
     }
 
     /// The measured clash: the margin that should have been zero and
     /// was not.
     #[getter]
     fn clash(&self) -> Option<Length> {
-        match &self.0 {
-            d::MateFault::Contradictory { clash, .. } => {
-                Some(Length(pncad::quantity::Length::from_meters(*clash)))
-            }
-            _ => None,
-        }
+        self.payload()
+            .clash
+            .map(|m| Length(pncad::quantity::Length::from_meters(m)))
     }
 
     /// The `Part` node whose index expression disagrees with the copy
     /// the reference's name names.
     #[getter]
     fn part(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::PartSelectsAnotherCopy { part, .. } => Some(NodeId(*part)),
-            _ => None,
-        }
+        self.payload().part.map(NodeId)
     }
 
     /// The copy that reference's NAME names — the authority on which
     /// copy a mate is about.
     #[getter]
     fn named(&self) -> Option<u32> {
-        match &self.0 {
-            d::MateFault::PartSelectsAnotherCopy { named, .. } => Some(*named),
-            _ => None,
-        }
+        self.payload().named
     }
 
     /// What the `Part`'s index expression evaluates to instead, at the
     /// document's own parameter bindings.
     #[getter]
     fn selected(&self) -> Option<i64> {
-        match &self.0 {
-            d::MateFault::PartSelectsAnotherCopy { selected, .. } => Some(*selected),
-            _ => None,
-        }
+        self.payload().selected
     }
 
     /// What the coset table was asked for, in its own words.
     #[getter]
     fn what(&self) -> Option<&'static str> {
-        match &self.0 {
-            d::MateFault::TableLacks { what, .. } => Some(what),
-            _ => None,
-        }
+        self.payload().what
     }
 
     fn __str__(&self) -> String {
@@ -764,6 +710,19 @@ impl MateFault {
 
     fn __repr__(&self) -> String {
         format!("MateFault({:?})", mate_fault_tag(&self.0))
+    }
+}
+
+impl MateFault {
+    /// This refusal's payload, read once per attribute.
+    ///
+    /// Every accessor above reads a field off THIS record rather than
+    /// matching the enum itself, so the arm table is written once —
+    /// exhaustively, with no wildcard, in `crate::mate_payload` — and
+    /// an arm added kernel-side is a compile error there instead of
+    /// seventeen attributes silently answering `None`.
+    fn payload(&self) -> crate::mate_payload::MateFaultPayload {
+        crate::mate_payload::mate_payload(&self.0)
     }
 }
 
@@ -969,18 +928,20 @@ impl ClusterMaintenance {
     /// The gauge that survived a join: the earlier of the two.
     #[getter]
     fn survived(&self) -> Option<NodeId> {
+        use d::ClusterMaintenance as M;
         match self.0 {
-            d::ClusterMaintenance::Join { survived, .. } => Some(NodeId(survived)),
-            _ => None,
+            M::Join { survived, .. } => Some(NodeId(survived)),
+            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
         }
     }
 
     /// The absorbed cluster's former gauge.
     #[getter]
     fn absorbed(&self) -> Option<NodeId> {
+        use d::ClusterMaintenance as M;
         match self.0 {
-            d::ClusterMaintenance::Join { absorbed, .. } => Some(NodeId(absorbed)),
-            _ => None,
+            M::Join { absorbed, .. } => Some(NodeId(absorbed)),
+            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
         }
     }
 
@@ -988,11 +949,12 @@ impl ClusterMaintenance {
     /// `None` when the row was absent (the identity).
     #[getter]
     fn absorbed_frame(&self) -> Option<Frame> {
+        use d::ClusterMaintenance as M;
         match self.0 {
-            d::ClusterMaintenance::Join {
+            M::Join {
                 absorbed_frame: f, ..
             } => f.map(Frame),
-            _ => None,
+            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
         }
     }
 
@@ -1002,7 +964,7 @@ impl ClusterMaintenance {
         use d::ClusterMaintenance as M;
         match self.0 {
             M::Split { from, .. } | M::GaugeRewrite { from, .. } => Some(NodeId(from)),
-            _ => None,
+            M::Join { .. } | M::Drop { .. } => None,
         }
     }
 
@@ -1012,7 +974,7 @@ impl ClusterMaintenance {
         use d::ClusterMaintenance as M;
         match self.0 {
             M::Split { to, .. } | M::GaugeRewrite { to, .. } => Some(NodeId(to)),
-            _ => None,
+            M::Join { .. } | M::Drop { .. } => None,
         }
     }
 
@@ -1025,16 +987,19 @@ impl ClusterMaintenance {
             M::Split { frame, .. } | M::GaugeRewrite { frame, .. } | M::Drop { frame, .. } => {
                 frame.map(Frame)
             }
-            _ => None,
+            // A join CONSUMES a frame rather than minting one, and
+            // names it `absorbed_frame`.
+            M::Join { .. } => None,
         }
     }
 
     /// The dead gauge whose record went with its last instance.
     #[getter]
     fn gauge(&self) -> Option<NodeId> {
+        use d::ClusterMaintenance as M;
         match self.0 {
-            d::ClusterMaintenance::Drop { gauge, .. } => Some(NodeId(gauge)),
-            _ => None,
+            M::Drop { gauge, .. } => Some(NodeId(gauge)),
+            M::Join { .. } | M::Split { .. } | M::GaugeRewrite { .. } => None,
         }
     }
 

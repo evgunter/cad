@@ -201,21 +201,350 @@ fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
     )
 }
 
-/// Raise `PersistError` carrying the refusal's stable tag.
+/// Raise `PersistError` carrying the refusal's stable tag and the
+/// arm's payload.
 ///
 /// One door for the whole persistence vocabulary, the pin doors in
 /// `crate::py::store` included: they run the same validator and the
 /// same canonical serializer, so their refusals are the words
 /// `Doc.save` and `load` already speak.
+///
+/// The machine payload is `variant` plus the fields, each present on
+/// every arm and `None` where that arm does not carry it, so
+/// `getattr` never raises and a caller reads the payload without
+/// first branching on `variant`. The tuple is positional and the
+/// match is exhaustive, so an arm added kernel-side arrives here as a
+/// compile error rather than as a silently unprojected payload.
+///
+/// Two names are shared by arms that carry one concept under
+/// different spellings, and the mapping is stated at the match:
+/// `detail` is the underlying reporter's own words (the serializer's,
+/// the JSON reader's, the deserializer's), and `document` is the
+/// document's recorded ε, whichever arm reports it.
+///
+/// Four arms carry a NESTED refusal — a profile-program fault, a
+/// distribution fault, a snapshot refusal, a replayed edit's own
+/// `EditError`. Each crosses as its word on `inner_variant`; the
+/// nested arm's own payload is the inner door's surface (a
+/// `DistributionFault` has its own exception class, and an
+/// `EditError` its own projection) and stays in the message here.
 pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
-    let tag = persist_error_tag(err);
+    use d::PersistError as E;
+
+    let none = || py.None();
+    // A field whose own construction failed degrades to `None` rather
+    // than replacing the kernel's refusal with a boundary one: the
+    // caller asked why the persistence door refused, and that answer
+    // must survive a failure to build one of its attributes.
+    let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    // `usize`'s and `f64`'s conversions are INFALLIBLE (their error
+    // type is `Infallible`), so these two degrade nowhere: the match
+    // is total.
+    let int = |n: usize| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let real = |x: f64| -> Py<PyAny> {
+        match x.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let node = |n: d::RecipeNodeId| obj(Py::new(py, NodeId(n)).map(|v| v.into_any()));
+    let dim = |d: d::Dimension| text(crate::errors::dimension_tag(d));
+    let word = |tag: &'static str| inner_variant(py, Some(tag));
+
+    let (
+        inner,
+        site,
+        which,
+        name,
+        unit,
+        declared,
+        detail,
+        found,
+        header,
+        snapshot,
+        line,
+        column,
+        index,
+        process,
+        document,
+    ) = match err {
+        // The site is a RECURSIVE descriptor (an edit's index wrapping
+        // the site inside that edit's payload), so it crosses as the
+        // kernel's own prose for where the float sits rather than as a
+        // field per rung.
+        E::NonFinite { site } => (
+            none(),
+            text(&site.to_string()),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::ProfileProgram { node: n, fault } => (
+            word(crate::tags::program_fault_tag(fault)),
+            none(),
+            node(*n),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::Distribution { name: p, fault } => (
+            word(crate::tags::distribution_fault_tag(fault)),
+            none(),
+            none(),
+            text(&p.0),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::DisplayUnit {
+            name: p,
+            unit: measures,
+            declared: was,
+        } => (
+            none(),
+            none(),
+            none(),
+            text(&p.0),
+            dim(*measures),
+            dim(*was),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // `message` here, `message` at the parse arm and `detail` at
+        // the unreadable one are one concept — the reporter's own
+        // words — and cross on one attribute.
+        E::Serialize { message } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(message),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::HeaderId { found: what } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(what),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::IdMismatch {
+            header: from_header,
+            snapshot: from_snapshot,
+        } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&from_header.hex()),
+            text(&from_snapshot.hex()),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::Parse {
+            line: l,
+            column: c,
+            message,
+        } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(message),
+            none(),
+            none(),
+            none(),
+            int(*l),
+            int(*c),
+            none(),
+            none(),
+            none(),
+        ),
+        E::Unreadable {
+            line: l,
+            column: c,
+            detail: what,
+        } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(what),
+            none(),
+            none(),
+            none(),
+            int(*l),
+            int(*c),
+            none(),
+            none(),
+            none(),
+        ),
+        E::Snapshot(inner) => (
+            word(crate::tags::snapshot_error_tag(inner)),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::EditReplay { index: at, error } => (
+            word(edit_error_tag(error)),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*at),
+            none(),
+            none(),
+        ),
+        E::ToleranceConflict {
+            process: committed,
+            document: recorded,
+        } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            real(*committed),
+            real(*recorded),
+        ),
+        // `value` IS the document's recorded ε — the same concept the
+        // conflict arm reports as `document` — so it crosses there.
+        E::ToleranceInvalid { value } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            real(*value),
+        ),
+    };
     typed_err(
         py,
         ErrorClass::Persist,
         // `PersistError` implements `Display`, so the human message is
-        // real prose; the machine payload is still the tag.
+        // real prose; the machine payload is the tag and the fields.
         err.to_string(),
-        &[("variant", PyString::new(py, tag).unbind().into_any())],
+        &[
+            ("variant", text(persist_error_tag(err))),
+            ("inner_variant", inner),
+            ("site", site),
+            ("node", which),
+            ("name", name),
+            ("unit", unit),
+            ("declared", declared),
+            ("detail", detail),
+            ("found", found),
+            ("header", header),
+            ("snapshot", snapshot),
+            ("line", line),
+            ("column", column),
+            ("index", index),
+            ("process", process),
+            ("document", document),
+        ],
     )
 }
 
@@ -362,7 +691,11 @@ impl Doc {
     /// internally, and [`Doc::declare_findings`] closes it for the
     /// declare doors by taking the kernel sugar's whole acceptance up
     /// here; a door reaching `d::apply` for any OTHER edit lands here
-    /// or is a bug the test names.
+    /// or is a bug the test names. The refactoring wrappers are the
+    /// one family that does not pass through: they never `apply` a
+    /// single edit, they project a kernel outcome whose document and
+    /// maintenance were already paired below this wrapper, and they
+    /// carry that pairing across whole.
     fn accept(&mut self, applied: d::Applied<d::ProfileProgram>) -> d::EditRecord {
         self.inner = applied.doc;
         self.maintenance = applied.maintenance;
@@ -495,6 +828,15 @@ impl Doc {
     /// fresh document — a document that has never applied an edit has
     /// no last edit to report about. A REFUSED edit leaves this
     /// untouched, exactly as it leaves the document untouched.
+    ///
+    /// **A document a refactoring minted reads that refactoring's own
+    /// record.** `SplitOutcome.remainder`, `SplitOutcome.part` and
+    /// `InlineOutcome.doc` are values produced by applying a whole
+    /// edit LIST, so each reports what ITS list did to the placement
+    /// registry — the joins a re-anchored mate performed, the splits
+    /// a departing cluster left. The document and that record cross
+    /// together, so a caller reading here after either door reads the
+    /// record the kernel has rather than an empty list.
     ///
     /// **The reading begins at the load boundary.** A `Doc` handed out
     /// by `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
@@ -860,8 +1202,8 @@ impl Doc {
 /// copy is forced; the obligation it owes the kernel is that every
 /// kernel operation has a member here, which
 /// [`_binds_every_kernel_operation`] is what enforces.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum BooleanOp {
     /// Fuse the operands.
     Union,
@@ -1383,6 +1725,11 @@ impl Node {
     /// sections different planes (`elevation=`, or `plane=` for
     /// anything else).
     ///
+    /// The degree crosses as a literal here and is the node's
+    /// `VDegree` slot — `DocEdit.bind_v_degree_param` is what makes it
+    /// a named, editable number, and `DocEdit.set_members` is what
+    /// rewrites the section list without re-authoring the node.
+    ///
     /// Nothing is pre-checked here. An empty or one-element list, a
     /// degree outside `1 ≤ d ≤ len − 1`, a section that is not a
     /// profile, sections whose loops do not correspond — every one of
@@ -1799,6 +2146,45 @@ impl Node {
                 op: op.to_document(),
                 a: a.0,
                 b: b.0,
+                declare: declare.map(|d| d.0),
+            },
+        }
+    }
+
+    /// **The n-ary union**: two or more member bodies folded into ONE
+    /// body, in the LIST's order (D9 — the fold order is the list's,
+    /// and the list is data).
+    ///
+    /// Not `Node.boolean`, which is the BINARY operation over two
+    /// named operand slots, and not `Node.placed_union`, whose
+    /// members are one prototype under a placement rule. Here every
+    /// member is authored on its own and the membership is a list, so
+    /// `DocEdit.set_members` can rewrite it on the live node — which
+    /// is the whole reason this node exists rather than a chain of
+    /// booleans, whose shape can only be re-authored.
+    ///
+    /// `declare` is the same optional coincidence-intent input
+    /// `Node.boolean` carries, consumed the same way one step further
+    /// in: the fold's steps are pairs, and a declared pair is fed at
+    /// the step its two members meet at. Without one, members that
+    /// merely TOUCH refuse (`EvaluationError`,
+    /// `kind == "undeclared_contact"`), exactly as a binary boolean's
+    /// operands do.
+    ///
+    /// Refuses at `Doc.insert`, of the list as stated: fewer than two
+    /// members (`too_few_members`, carrying the `count` it found), a
+    /// member repeated (`duplicate_input`, naming it), a member id the
+    /// document does not hold (`unresolved_input`), a `declare` input
+    /// that is not a `Node.declare` (`declare_input_not_declare`).
+    /// Whether a member is a BODY is not asked here — that is the
+    /// kernel's question at `evaluate`, as it is at every other
+    /// operand seat.
+    #[staticmethod]
+    #[pyo3(signature = (members, declare=None))]
+    fn union(members: Vec<NodeId>, declare: Option<NodeId>) -> Self {
+        Self {
+            inner: d::Node::Union {
+                members: members.iter().map(|m| m.0).collect(),
                 declare: declare.map(|d| d.0),
             },
         }
@@ -2527,9 +2913,11 @@ impl DocParamValue {
 /// GUI, the bindings, macro recording and headless tests.
 ///
 /// The exposed edits are `insert_node`, `delete_node`,
-/// `set_tolerance`, `set_doc_param`, and `bind_count_param` /
-/// `bind_instance_param`, the structural-slot edit narrowed to one
-/// named slot and a parameter reference. The remaining variants (continuous
+/// `set_members`, `set_tolerance`, the document-parameter pair
+/// (`set_doc_param` / `set_doc_param_value`), `set_roots`,
+/// `set_placement`, `update_reference`, and `bind_count_param` /
+/// `bind_instance_param` / `bind_v_degree_param`, the structural-slot
+/// edit narrowed to one named slot and a parameter reference. The remaining variants (continuous
 /// slot edits, re-witnessing, appearance, rebinds, expression paths)
 /// are mechanical additions once the surface they need is curated —
 /// each waits on an expression vocabulary, which is the reason the
@@ -2559,6 +2947,39 @@ impl DocEdit {
     fn delete_node(id: &NodeId) -> Self {
         Self {
             inner: d::DocEdit::DeleteNode { id: id.0 },
+        }
+    }
+
+    /// **Replace a node's whole LIST input** — a `Node.union`'s
+    /// members, a `Node.loft`'s sections — with the list stated in
+    /// full.
+    ///
+    /// The one edit that changes a live node's inputs, and it can be
+    /// that because it is unambiguous by construction: there is no
+    /// positional spelling and no per-entry arm, so nothing is
+    /// inferred about which of the old entries survived or moved.
+    /// Dropping one member is this edit without it plus a
+    /// `DocEdit.delete_node` of the orphan, one committed action. A
+    /// union's `declare` input is left as it was: a member-space pair
+    /// re-routes to the step its two members now meet at rather than
+    /// being invalidated by the rewrite.
+    ///
+    /// Every check `Doc.insert` makes of a node's inputs is remade
+    /// here, of the REWRITTEN node, so this edit cannot reach a state
+    /// an insert would have refused: `unresolved_input` for a member
+    /// the document does not hold, `duplicate_input` for a repeat,
+    /// `too_few_members` for a list under the node's floor (carrying
+    /// the `count` it found), and `would_cycle` for a member
+    /// downstream of the node itself — the one refusal an insert gets
+    /// for free and this edit does not. A node carrying no list at all
+    /// refuses `set_members_on_non_list`.
+    #[staticmethod]
+    fn set_members(node: &NodeId, members: Vec<NodeId>) -> Self {
+        Self {
+            inner: d::DocEdit::SetMembers {
+                node: node.0,
+                members: members.iter().map(|m| m.0).collect(),
+            },
         }
     }
 
@@ -2651,11 +3072,14 @@ impl DocEdit {
     /// dimension — each arrives as its own typed `EditError`.
     ///
     /// A door per slot, not a `slot=` argument: the structural slots
-    /// are the Count-dimensioned ones and there is more than one of
-    /// them (`Instance` is the other with a door —
-    /// [`DocEdit::bind_instance_param`]), so a shared door would cross
-    /// the slot vocabulary as an enum, which is exactly what the
-    /// bindings decline to do.
+    /// are the Count-dimensioned ones and there are four of them.
+    /// Three have doors — this one, `Instance`
+    /// ([`DocEdit::bind_instance_param`]) and `VDegree`
+    /// ([`DocEdit::bind_v_degree_param`]) — and `Stations` has none,
+    /// because its only node is the sweep and no Python constructor
+    /// mints one to aim an edit at. A shared door would cross the slot
+    /// vocabulary as an enum, which is exactly what the bindings
+    /// decline to do.
     #[staticmethod]
     fn bind_count_param(node: &NodeId, name: &ParamName) -> Self {
         Self {
@@ -2690,6 +3114,35 @@ impl DocEdit {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::Instance,
+                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+            },
+        }
+    }
+
+    /// Bind `node`'s STRUCTURAL v-degree slot to the document
+    /// parameter `name` — the edit that makes a loft's v-direction
+    /// interpolation degree a named, editable number.
+    ///
+    /// The third of the sibling doors, and the same narrow shape for
+    /// the same reason. A degree is neither a count of placements nor
+    /// an index into them: it says how the skin interpolates BETWEEN
+    /// the sections, so a document whose degree is a literal is a
+    /// re-authoring away from every other degree, and one bound here
+    /// moves under a single `set_doc_param` like any other named
+    /// number.
+    ///
+    /// Refuses typed on a node with no v-degree slot — from Python
+    /// that is every node but a `Node.loft` — and on an unknown or
+    /// wrongly dimensioned parameter. The kernel's rule on the VALUE
+    /// (`1 <= v_degree <= len(profiles) - 1`) is untouched by the
+    /// binding: a bound degree is checked at `evaluate`, where a
+    /// literal one is checked too.
+    #[staticmethod]
+    fn bind_v_degree_param(node: &NodeId, name: &ParamName) -> Self {
+        Self {
+            inner: d::DocEdit::SetStructuralParam {
+                node: node.0,
+                slot: d::SlotId::VDegree,
                 expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
             },
         }
