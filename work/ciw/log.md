@@ -1461,3 +1461,207 @@ checker itself, all killed.
 `nightly.yml`'s criterion comment said this calibrator "sets the precedent
 that those are not PR-gate rows" — false after this unit. Rewritten in place
 to point at `criterion-selftest-nightly-only`.
+
+## 2026-09-08 — unit 3 merged and closed; a pattern named
+
+PR 2124 (`d5aba033`). The selftest that ran nowhere runs in `discipline`;
+the demotion convention is prose in `implementer-discipline.md` §2 with
+its own lack of enforcement stated at the paragraph; and the class got
+**claim 4's second arm** rather than a claim 12.
+
+**Both MAJORs were in the check built to prevent them, and that is the
+finding worth keeping.** The first version of the arm treated a
+`local-scripts/` line as a caller — and every hosted job deletes that
+tree at checkout, so a selftest running in **no CI at all** passed it.
+Worse, a selftest case pinned that as correct (`_ok_case`). The second:
+a `for` loop over two scripts in one `run:` block red both with a false
+message, on a matcher that required path and flag on one physical line,
+in a file that already carries `_join_continuations` for exactly that.
+
+**This is the second unit in a row on this program to ship its own
+defect one level in and pin it with a selftest.** Unit 2's
+`_selftest_facade_premise` REQUIRED `bvh` out of the python-suite seed
+set, and `bvh` was the counterexample both reviews found. Here
+`_ok_case(selftest_run_locally)` asserted the hole. The shape is the
+same both times: a case written by asking *"does the checker do what I
+just built"* rather than *"does this shape survive the failure the unit
+exists to prevent"* — the lane's own words on the fix pass. It is not a
+lane defect; two different lanes did it, so it is a property of how these
+units are written, and the reviews are what caught it both times. Worth
+saying plainly rather than filing: the correctness lane is earning its
+place on units that build gating machinery, and this program should keep
+assigning it on that trigger rather than on a guess about complexity.
+
+**Verified by the orchestrator rather than taken from the report**,
+because the MAJORs were serious: dropping the hosted row while keeping
+the local one now reds with a message that says why local does not
+count, and the `for`-loop refactor is silent. Both re-run by hand on the
+merged head.
+
+**The fold decided itself.** Fixing MAJOR-1 means a caller is a workflow
+and nothing else, which deletes the `os.walk` of `local-scripts/` — and
+with it the contradiction against claim 11's population rule, which had
+landed in the same file two days earlier and argues the population must
+be git's index. What was left was claim 4's loop with one more question
+in it, so that is where it is written. No file in this repo now walks
+`local-scripts/` outside git's index.
+
+Where the lane went further than the review asked, with the trade stated:
+matching is over the whole `run:` block rather than a joined line,
+because joining continuations alone does not fix the `for`-loop repro.
+Coarser, under-reports rather than false-reds, three blind spots
+disclosed at the function — the right direction on `reachable`'s own
+posture, since a check that reds a correct change gets routed around.
+
+Residue: `work/ciw/criterion-selftest-nightly-only` — `criterion-emit.py
+--selftest` is invoked only from `nightly.yml`, so a PR that breaks it
+merges green. Same class, one step milder, and the `nightly.yml` comment
+that cited this calibrator as its precedent for nightly siting is
+rewritten, because that precedent moved today.
+
+## 2026-09-09 — unit 3's close-out was a day late, and unit 4 dispatched
+
+**The close-out of unit 3 sat unopened for a day.** PR 2124 merged
+2026-09-08; the branch carrying its two rows' dispositions was pushed and
+no PR was ever opened for it, so both sat at `review` with a merged PR
+until 2026-09-09 (PR 2260). That is the same staleness this program was
+found in on 2026-09-06, recurred at the hands of the orchestrator that
+fixed it, and the lesson is narrower than "be careful": **pushing a
+branch is not landing it, and this program's own board is the only thing
+that says which**. A row at `review` whose PR has merged is the shape to
+grep for at every session start, not just when taking a program over.
+
+## Unit 4 dispatched: the roots a `--workspace` check cannot reach
+
+`gui-wasm-build-is-not-gated-at-all` and the surviving half of
+`detached-demo-workspaces-are-gated-only-by-a-sampled-row`, on
+`ciw/unreachable-roots`. One shape twice: a cargo root that the check a
+careful lane actually runs cannot see.
+
+**Premises re-verified on today's tree** rather than inherited from the
+2026-09-06 slate, because `main` moved ~1730 commits in a day:
+
+- `ci.yml:2030` still carries `--exclude viewer` on the wasm row (the
+  citation has moved twice now: `:1646` when filed, `:1936` on 09-06,
+  `:2030` today — the finding is stable, the line number is not).
+- `Cargo.toml:22` still excludes `demos` from the workspace, so
+  `cargo clippy --workspace --all-targets` still cannot reach
+  `demos/tour` or `demos/wild`.
+
+**The `[ev]` shape question is settled in advance** (Ev, 2026-09-09, in
+chat): take the seed-keyed treatment, not a flat row. Ev's
+viewer-CI-posture ruling refuses a permanent per-PR bill for the
+eframe/wgpu graph on every kernel change; `clippy-all-features`
+(`ci.yml`) already does the seed-keyed thing and is the precedent to
+follow. A flat row would need Ev and this one does not.
+
+**Style review, plus a correctness reviewer if the unit builds a gate.**
+That is the trigger this program is now using — named on 2026-09-08 after
+two units in a row shipped their own defect one level in and pinned it
+with a selftest. If the deliverable is workflow rows only, style is
+enough; if it grows a check with a derived population, the second lane is
+automatic rather than a judgement I make late.
+
+## Unit 4 delivered: one row built, one finding that resolves to a sentence
+
+PR 2263, on `ciw/unreachable-roots`. The two halves went different ways
+and that is the unit's result rather than a shortfall in it.
+
+**The wasm half is a row.** `ci.yml`'s `fmt` job grows
+`wasm32 check (viewer app feature - the browser entry point)`,
+seed-keyed on `run_viewer_toolkit` beside the three toolkit rows that
+already read that axis, with its verdict printed in both branches of the
+step that already prints one. Mirrored in `ci-local.sh` as
+`wasm32 check (viewer app)`, unconditional there per that file's
+standing asymmetry.
+
+Reproduce-then-catch, on hosted CI and in that order:
+
+- run `34373755002` on `ff658559` — PR 1741's `E0599` planted back into
+  `run_web`, no new row: **green**, all 37 jobs, twelve `test (…)` and
+  five `k-lint (gate, …)`. The viewer axis was TRUE on that run, so the
+  app-feature clippy row ran `-D warnings` over the same crate and
+  passed. The gate was not narrow; it was blind at that target.
+- run `34375557117` on `121890d9` — same plant, row added: **red at
+  exactly one step**, `E0599: JsValue doesn't implement Display`,
+  `crates/viewer/src/app.rs:1990`.
+- the plant is then removed and the branch is green again.
+
+Cost when the key fires: the step is 53-57 s across four runs. No job
+delta is quoted — the `fmt` job read 342 s without the row and 307 s
+with it, because `rustdoc (gate)` in the same job moved 106-126 s over
+the same four runs. Nothing at all on the runs the axis turns off.
+
+**The demos half builds nothing, deliberately.** `ci-local.sh` already
+runs `demos/tour` and `demos/wild` fmt+clippy (`demos_hygiene`), and the
+hosted `k-lint` steps have run on every code-tier run since 1850. So the
+tooling was right on both sides and the gap was a habit: a lane runs
+`cargo clippy --workspace --all-targets`, which reaches none of the five
+excluded cargo roots. The fix is one bullet in §2 of
+`docs/prompts/implementer-discipline.md` naming those roots and the
+two-line version of the check. A row would have been a third gate over
+work two gates already do.
+
+## Unit 4 fix pass: the row was right, four of its neighbours' claims were not
+
+No MAJOR. The reviewer independently re-took the strong form of the
+demonstration from the step records — `clippy (viewer app feature)` ran
+`-D warnings` over that crate and passed while the plant was live — so
+the sentence that justifies the row holds.
+
+What the pass actually cost was **four premises the row falsified**, none
+of which the lane found: `ci.yml`'s "WHAT IS NOW UNGUARDED" paragraph
+(`pncad` is now conditionally guarded; fixed here), the `fmt` job header
+(its shared property has not been "workspace-wide and filter-blind" for
+two changes; restated here), `crates/viewer/README.md`'s "not CI-guarded"
+sentence (CHROME's and VIEW's; reported), and — found while checking the
+first — the repo's belief that
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` is required at all. At
+getrandom 0.3.4 the FEATURE alone selects the backend; the flag stays for
+recipe-parity with `serve-wasm.sh`, whose own comment is corrected here,
+but two viewer documents still assert it is load-bearing and are the
+owners' to fix.
+
+**A lesson this program should keep**: a row that compiles something
+nothing compiled before is a claim-falsifier, and its diff should be read
+as one. Every wrong sentence above was a *true* sentence about the tree
+before the row landed.
+
+Two counting defects, same shape. The discipline bullet named "five"
+cargo roots against a derivation of seven, and asserted a coverage
+uniformity that does not hold (`benches` clippy is nightly-only with no
+local mirror; `interval-transcendentals`' is filter-gated). Chasing it
+found "six" in five more places inside this program's fence, all stale
+since `tools/tess-meter` landed. Every one is now a pointer to
+`scripts/doc-gate.sh --print-roots` rather than a number. Filing a count
+is filing a thing that goes stale silently — the same lesson unit 1 took
+on its blind-spot list, and META's log now carries it too.
+
+## The gate went red under the fix pass, and it is not the unit
+
+Two consecutive runs on `ciw/unreachable-roots` failed at
+`install a software Vulkan adapter (lavapipe)` and the two render lanes'
+apt steps. **Not this branch.** `lib/loops`, which carries none of unit
+4's diff and whose `fmt` job has no such step, fails identically in runs
+`34383262029` and `34385213731`. The cause is a hash-sum mismatch on the
+runner image's `google-chrome` apt list, which makes `apt-get update`
+exit non-zero even though every package these steps need was fetched.
+`main` is blocked by it, not one PR.
+
+Filed as `work/ciw/apt-update-fails-on-the-runner-image-google-chrome-repo.md`
+with the four sites, the cross-branch table, and the reason the render
+lanes' existing three-attempt retry does not help. **Not taken in unit
+4**: it is four steps in two workflows and wants a lane that can verify
+against a red run rather than a green one.
+
+It cleared on its own about 55 minutes in — run `34388201501` is fully
+green, 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, the new wasm
+row and the lavapipe step among them — and the item says so, because a
+file arguing from a red run owes the reader the moment it went green.
+The item stays open: an outage indistinguishable from a real red, for an
+hour, on every branch at once, is worth removing whether or not this
+instance ended.
+
+Unit 4's own row is green at STEP level in both of those red runs
+(54.36 s, 54.89 s) and in the green one.
+

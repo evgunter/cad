@@ -29,11 +29,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
-use crate::py::doc::{NodeId, literal, name_from_text, name_text};
-use crate::py::quantity::Length;
+use crate::py::doc::{NodeId, name_from_text, name_text};
+use crate::py::expr::Expr;
 use crate::py::typed_err;
 use crate::tags::select_refusal_tag;
-use pncad::document as d;
 use pncad::prelude::SurfaceKind as KSurfaceKind;
 use pncad::select as s;
 
@@ -671,18 +670,25 @@ impl GeomPred {
     }
 
     /// DECIDED: the entity's distance to a datum node, compared
-    /// against a stated `Length` — signed against a datum plane
+    /// against a stated length `Expr` — signed against a datum plane
     /// (along its normal), unsigned to an axis or point. The datum is
     /// a node reference like every other input, which is what keeps
     /// the rule equivariant: move the datum with the part and the
     /// selection commutes.
+    ///
+    /// The value is not a node slot, so there is no slot dimension to
+    /// check it against here: a value of any other dimension is the
+    /// kernel's own refusal at `select_where`
+    /// (`SelectRefusal::NotALength`, reaching Python as
+    /// `SelectRefusal` with reason `not_a_length`), where the
+    /// predicate is prepared.
     #[staticmethod]
-    fn datum_distance(py: Python<'_>, datum: &NodeId, cmp: Cmp, value: Length) -> PyResult<Self> {
-        Ok(Self(s::GeomPred::DatumDistance {
+    fn datum_distance(datum: &NodeId, cmp: Cmp, value: &Expr) -> Self {
+        Self(s::GeomPred::DatumDistance {
             datum: datum.0,
             cmp: cmp.to_kernel(),
-            value: literal(py, value.0.meters(), d::Dimension::Length)?,
-        }))
+            value: value.0.clone(),
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -968,51 +974,68 @@ mod growth_tripwire {
 // serialization, which is the representation-dependence `name_text`'s
 // contract refuses.
 //
-// `seg` and `vertex` index the OUTER loop's canonical chain, exactly
-// as the Rust builders do: a hole's band is not reachable through
-// these doors on either side.
+// `loop_index` is the profile's canonical loop — 0 the outer loop,
+// then holes in description order — and `seg`/`vertex` index THAT
+// loop's canonical chain, exactly as the Rust builders take them: a
+// hole's band is reachable from either alphabet, at its own loop.
 // ---------------------------------------------------------------
 
-/// **The `[0, pi)` band face swept from meridian segment `seg`** of
-/// the revolve at `node`, as the name TEXT the selections take.
+/// **The `[0, pi)` band face swept from segment `seg` of profile loop
+/// `loop_index`** on the revolve at `node`, as the name TEXT the
+/// selections take.
 ///
-/// `seg` indexes the outer loop's canonical chain. The kind is fixed
-/// at the role's own — a face — which is the field a hand-written
-/// name gets wrong silently until emission refuses it.
+/// `loop_index` is 0 for the outer loop and 1.. for the holes, in the
+/// profile's description order; `seg` indexes that loop's canonical
+/// chain. The kind is fixed at the role's own — a face — which is the
+/// field a hand-written name gets wrong silently until emission
+/// refuses it.
 #[pyfunction]
-pub(crate) fn band(py: Python<'_>, node: &NodeId, seg: u32) -> PyResult<String> {
-    name_text(py, &s::band(node.0, seg))
+pub(crate) fn band(py: Python<'_>, node: &NodeId, loop_index: u32, seg: u32) -> PyResult<String> {
+    name_text(py, &s::band(node.0, loop_index, seg))
 }
 
-/// **The `[pi, 2pi)` band face swept from meridian segment `seg`**
-/// —
-/// [`band`]'s twin, where a full revolve emits a segment as two
-/// faces. Outer loop; a face, as [`band`] is.
+/// **The `[pi, 2pi)` band face swept from segment `seg` of loop
+/// `loop_index`** — [`band`]'s twin, where a full revolve emits a
+/// segment as two faces. A face, as [`band`] is.
 #[pyfunction]
-pub(crate) fn band_pi(py: Python<'_>, node: &NodeId, seg: u32) -> PyResult<String> {
-    name_text(py, &s::band_pi(node.0, seg))
+pub(crate) fn band_pi(
+    py: Python<'_>,
+    node: &NodeId,
+    loop_index: u32,
+    seg: u32,
+) -> PyResult<String> {
+    name_text(py, &s::band_pi(node.0, loop_index, seg))
 }
 
-/// **The latitude rim at meridian vertex `vertex`** — the edge
-/// between the bands of segments `vertex - 1` and `vertex`. Outer
-/// loop; an edge.
+/// **The latitude rim at vertex `vertex` of loop `loop_index`** — the
+/// edge between the bands of segments `vertex - 1` and `vertex` on
+/// that loop. An edge.
 #[pyfunction]
-pub(crate) fn band_rim(py: Python<'_>, node: &NodeId, vertex: u32) -> PyResult<String> {
-    name_text(py, &s::band_rim(node.0, vertex))
+pub(crate) fn band_rim(
+    py: Python<'_>,
+    node: &NodeId,
+    loop_index: u32,
+    vertex: u32,
+) -> PyResult<String> {
+    name_text(py, &s::band_rim(node.0, loop_index, vertex))
 }
 
-/// **The meridian vertex at `end`**: the copy of profile vertex
-/// `vertex` on a wedge cap plane (`MeridianEnd.Start`,
+/// **The meridian vertex at `end`**: the copy of vertex `vertex` of
+/// loop `loop_index` on a wedge cap plane (`MeridianEnd.Start`,
 /// `MeridianEnd.End`) on a partial revolve, or the surviving meridian
-/// vertex (`MeridianEnd.Seam`) on a full one. Outer loop; a vertex.
+/// vertex (`MeridianEnd.Seam`) on a full one. A vertex.
 #[pyfunction]
 pub(crate) fn meridian_vertex(
     py: Python<'_>,
     end: MeridianEnd,
     node: &NodeId,
+    loop_index: u32,
     vertex: u32,
 ) -> PyResult<String> {
-    name_text(py, &s::meridian_vertex(end.to_kernel(), node.0, vertex))
+    name_text(
+        py,
+        &s::meridian_vertex(end.to_kernel(), node.0, loop_index, vertex),
+    )
 }
 
 /// **The name a survivor of `node` takes**: the name `inner` it had

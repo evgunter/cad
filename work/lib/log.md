@@ -4809,3 +4809,171 @@ built. Orchestrator note: the first recommendation here was (A) with
 (F) as "presumably not wanted" on the item's own word; the measurement
 that settled it (no parameter reaches a mate) was one grep away and
 should have been in the first draft.
+
+**LIB-HASH-2 MERGED (2026-09-09, #2261; mechanical under the mirror
+rule Ev stated on `[ev]` #2233, no A/B row). The nine value classes
+that compared without hashing are unhashable BY DESIGN, and the roster
+says so.** All nine (`Alignment`, `MateFrame`, `MatePrimitive`,
+`AnalysisPolicy`, `CheckEvidence`, `CheckFinding`, `ChecksConfig`,
+`ChecksReport`, `FlushFinding`) mirror Rust types that derive
+`PartialEq` (`ChecksConfig` also `Eq`) and no `Hash`, so
+`test_hashability.py`'s nine `FILED` entries become stated reasons in
+the `Length`/`Angle` rows' voice — each naming its Rust type and
+derives, and each answering the reading that pulled the other way
+(the records "read like keys": the kernel never keys on them; the
+findings: reported in deterministic ORDER, never as a set, and their
+evidence bottoms out in floats; the config and report: a hashable
+aggregate over a collection is a cost the kernel has not paid). The
+`FILED` constant is gone with its last user; no class gained or lost a
+dunder (`crates/pncad-py/src/` diff empty). The roster's blind spot is
+stated at `UNHASHABLE`'s docstring: every reason names a derive list,
+a structurally checkable claim nothing in the suite checks (the census
+reads `pub use` LINES, never a `#[derive]`), so a kernel derive that
+changes silently falsifies the prose and only the two guards, which
+read `__hash__` off the class, stay true. **The two-way walk found the
+reverse direction populated**, and filed rather than decided it, one
+item per shape: `the-tag-mirrors-hash-over-kernel-enums-that-derive-no-hash`
+(the two-way table over 163 classes: 58 compare by value — 18 agree hashing, 13 agree not, 0 refuse to hash over a `Hash`-deriving type, 27 hash over types deriving none, of which 3 are the ruled carve-out, 2 the unit classes already filed and 22 new; LIB-HASH made 24 fieldless mirrors hashable — twelve over
+enums deriving `PartialEq, Eq` and no `Hash`, so under the mirror rule
+as a GENERAL rule they should not hash; the ruling that made them hash
+predates the rule); `the-value-records-hash-by-hand-over-kernel-types-that-derive-no-hash`
+(nine records with hand-written `__eq__`/`__hash__` over `Hash`-less
+Rust types — `Denotation`, `Distribution`, `DocParamValue`,
+`FaceCensus`, `Frame`, `McAssertion`, `McConfig`, `McMeasure`,
+`ValidationFinding` — a record's hash being a fold CHOICE, not a
+discriminant); and `sketchplane-compares-and-hashes-over-a-rust-type-that-derives-neither`
+(`SketchPlane` adds both `__eq__` and `__hash__` over a type deriving
+neither, bit-for-bit and internally consistent). With ZERO's
+`the-unit-classes-hash-over-a-partialeq-only-newtype`, that is one
+`[ev]` question — how far the mirror rule reaches: values only, or
+tags and hand-hashed records too — to be put as one PR. The item
+`pncad-py-value-classes-compare-without-hashing` is closed. No
+`variant`/`kind` value moved; the lane ran the pinned ruff for real.
+Orchestrator note: the lane was killed by a container restart while
+polling CI and resumed by message; nothing was lost. ~77 min, ~212k tokens.
+
+**LIB-SEATS MERGED (2026-09-09, #2264; mechanical under Ev's (H) on
+`node-slot-literals-erase-the-authored-notation`, `[ev]` #2233 item
+1, no A/B row). Every dimensioned slot door takes an `Expr` and
+nothing else, as the Rust slot does, and `Expr` gains its
+constructors.** `Expr.literal(Length | Angle | float)`,
+`Expr.written_length`, `Expr.written_angle` and `Expr.count(int)` —
+the kernel's four, mirrored, in `py/expr.rs`; the argument's own type
+is the literal's dimension, so there is no second fact to keep in
+step. The refusal MOVED and stayed typed: the `literal` helper left
+`py/doc.rs` for the constructor's own body, raising `LiteralError`
+with the kernel's tag and the offending number at `Expr.literal` /
+`written_*` instead of at fifteen node doors. **25 doors take an
+`Expr`** — the item's 18 plus seven its `literal(py, …)` pattern
+could not see (`Node.datum_frame`/`datum_point`, which landed after
+the item was written; the four count slots that minted through
+`Expr::count`; `Doc.sketch_frame`). The slot's dimension is READ, not
+restated: `doc.rs::slot_expr` checks the argument against
+`SlotId::dimension()`, the kernel's own table, and refuses with the
+kernel's own `EditError::SlotDimensionMismatch` — the value `apply`
+would raise for the same expression in the same slot — so the boundary
+carries no second vocabulary for one fault; `direction_expr` is the
+per-axis form over a `VectorSlot`. Two deviations stated:
+`GeomPred.datum_distance` has no door-side check (its comparand is not
+a node slot, and the kernel refuses a non-length at `select_where` —
+a pre-check would be the predicted refusal the crate forbids); and
+`Node.sketch_frame` converts `elevation`, the one authored number, not
+the rigid twelve-float `plane`. **~1,477 sites converted** (904 `written_length` + 72 `written_angle` in the written form against 460 `literal` + 41 `count` — the literal count dominated by dimensionless triples with no notation to lose; an AST rewrite over argument spans, 22 sites by hand) across 31
+test files, the guide's executed blocks and its four sub-pages, the
+README, `examples/bracket.py` and both ty fixtures, by Ev's note: a
+site that spells a unit keeps its notation
+(`Expr.written_length(WrittenLength.in_unit(25, mm))`), a computed
+quantity takes `Expr.literal`. The ty fixtures moved both ways: a bare
+`Length` at a slot is an ILLEGAL row, and the rows that used to draw a
+DIMENSION-mismatch diagnostic no longer can — one type at the seat
+makes the dimension a door check, not a type check — and say so. No
+helper, deliberately (Ev's note 1); the ergonomic cost is filed with
+its site counts as `expr-seat-costs-a-constructor-call-at-every-authored-number`,
+and a sibling the sweep found is filed rather than taken —
+`path-legs-erase-the-authored-notation-one-layer-down` (the path
+vocabulary records `f64` through `RecordedProgram` before any `Expr`
+exists, Rust's own shape and so a kernel question). Kernel untouched
+(`crates/editor-core`, `crates/quantity`: zero diff); no
+`variant`/`kind` value moved; the lane ran the pinned ruff for real.
+Orchestrator note: the brief estimated ~200 sites from the Node-door
+calls alone; the lane measured every seat and found ~976 — the
+estimate was the brief's, the count is the lane's. The lane was
+killed by a container restart mid-conversion and resumed by message
+with five files uncommitted; nothing was lost. ~77 min, ~342k tokens.
+
+## `[ev]` #2266 ruled (2026-09-09): the `Expr` seat's helper — (A)
+
+LIB-SEATS measured the (H) seat's cost — the written form at 55
+characters where `25 * mm` was 7, at 976 sites, with private
+shorthands already appearing in the corpus — and Ev's note on (H) had
+set the terms: a helper goes on both sides, mirrored, or not at all.
+**(A): `Expr::length_in(value, unit)` / `Expr::angle_in(value,
+unit)` in `editor-core`, each exactly `written_length(
+WrittenLength::in_unit(value, unit))`, and `Expr.length_in` /
+`Expr.angle_in` in Python** — one call at every authored number, the
+notation kept, no new type or seat. Mechanical unit LIB-HELPER
+(the ~976 written-form sites and the private shorthands convert).
+
+**LIB-LOOPS MERGED (2026-09-09, #2268; mechanical under Ev's (A) on
+`the-role-name-builders-reach-only-the-outer-profile-loop`, `[ev]`
+#2257, no A/B row). The four role-name builders take the loop index,
+on both sides.** `band(node, loop_index, seg)`, `band_pi(node,
+loop_index, seg)`, `band_rim(node, loop_index, vertex)`,
+`meridian_vertex(end, node, loop_index, vertex)` in
+`editor-core/names/role.rs` and the five Python doors at the same
+arity (`carried` unchanged). The parameter is spelled `loop_index`,
+not the brief's `loop`: `loop` is a Rust keyword, so the kernel
+builder would have taken `r#loop` while the stub declared `loop` —
+two spellings for one argument, and a keyword call that works on one
+side of the boundary only; `loop_index` is what `ProfileEdgeRef` and
+`ProfileVertexRef` already call the field the argument becomes. The
+rustdoc stops privileging a loop: one paragraph says the index is
+`ProfileEdgeRef::loop_index` (0 the outer loop, then holes in
+description order) and `seg`/`vertex` index THAT loop's chain; the
+Python doors, stub and guide say the same. Every Rust call site
+moved, all passing `0` (41 band-family calls over the tour, its
+document test, the corpus vessel and seven editor-core test files,
+plus the one `meridian_vertex`); the two hand-spelling sites
+converted at their real loop (`ring_r1_names_probe.rs`'s hole at loop
+1 and the wire outer's π-bands; `m4_pr3_names.rs`'s holed-ring block
+over its loop variable), with `ring_r1`'s `pv` helper deleted and
+`name1`/`pe` kept because `RoleSeg::Meridian` has no builder. The
+`role.rs` pins are DOUBLED, each builder at loop 1 and at loop 0: a
+builder that dropped the new argument and kept the outer loop would
+satisfy a pin written only at 0. `test_role_names.py` gained a third
+scene — a square section with a square hole, revolved a full turn —
+where the emitter mints two loops' worth of bands, rims and seam
+vertices and the doors answer those bytes at `loop_index` 1, compared
+as sets over each loop's four segments (which corner a loop's chain
+starts at is `crates/profile`'s business), plus `band(node, 0, 0) !=
+band(node, 1, 0)`. A two-argument call is an ILLEGAL ty row. No
+`StableName` byte moved; tour renders and the die corpus
+byte-identical; no `variant`/`kind` value moved; the lane ran the
+pinned ruff for real. Item closed. Orchestrator note: the brief
+spelled the parameter `loop`; the lane's `loop_index` is right and the
+brief was wrong. CI: two full runs on the lane head were red only on
+the three apt-outage rows (both render lanes and the gate job's lavapipe
+install) and, on the second run, one seed-varying pick search outside
+this fence (filed to DOCM as
+`random-integer-rays-search-trips-at-eps-1e-6-on-one-run`); the twelve
+test jobs and five k-lint unifications were green on both. ~94 min,
+~306k tokens.
+## `[ev]` #2265 ruled (2026-09-09): how far the mirror rule reaches — (A), case by case
+
+LIB-HASH-2's two-way walk found 24 Python classes hashing over Rust
+types that derive no `Hash`. Ev's refinement of (A): both sides
+always match; `Hash` is absent where Rust omits it for funnel reasons;
+elsewhere Rust may derive it, but no work is spent adding hashing
+where nothing plausibly keys. Measured first: nothing in the tree
+keys on any of the 24 (no kernel map keyed by them; the only Python
+key uses are the hashability pins), so each case was argued from
+shape, and Ev confirmed the reading. **Upward, one derive word,
+Python unchanged**: the twelve tag mirrors' enums, `McConfig`,
+`Denotation`, and `Hash` by symbol on the unit views and `UnitDef`.
+**Python drops `__hash__`, Rust unchanged**: `Frame`, `DocParamValue`,
+`Distribution`, `McMeasure`, `McAssertion`, `FaceCensus`,
+`ValidationFinding`. **`SketchPlane`**: no hash either side, and
+`impl PartialEq for SketchPlane` via `bit_eq` so Rust means the
+comparison Python answers. One mechanical unit across both sides,
+LIB-MIRROR, with the kernel derive touches announced on their
+programs' trackers.

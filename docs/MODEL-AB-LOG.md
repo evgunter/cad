@@ -241,8 +241,8 @@ amended:
      full-dual posture and draws from 2900 on, EVAL runs style reviews
      with a correctness arm where a unit moves what a document
      evaluates to, GATES and METER are infra-only and claim their bands
-     for bookkeeping; GATES closed 2026-09-08 with no row recorded,
-     its band staying allocated) · INSTR 3300–3399 (claimed 2026-09-08
+     for bookkeeping; GATES closed 2026-09-08 and METER 2026-09-08,
+     neither with a row recorded, both bands staying allocated) · INSTR 3300–3399 (claimed 2026-09-08
      in the commit that opened `work/instr/`, METER's successor for the
      instrument crates and the two documents they feed, per
      `docs/METER-EXIT-WALK.md` §4 as Ev ratified it that day; INSTR

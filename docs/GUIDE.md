@@ -123,13 +123,18 @@ $ PYTHONPATH=target/python-stage python3 crates/pncad-py/examples/bracket.py
 The same plate, in Python:
 
 ```python
-from pncad import Doc, Node, evaluate, mm
+from pncad import Doc, Expr, Node, WrittenLength, evaluate, mm
 
 doc = Doc()
 profile = doc.insert(
-    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+        (Expr.written_length(WrittenLength.in_unit(80, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+        (Expr.written_length(WrittenLength.in_unit(80, mm)), Expr.written_length(WrittenLength.in_unit(40, mm))),
+        (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(40, mm))),
+    ], plane=doc.sketch_frame())
 )
-plate = doc.insert(Node.extrude(profile, 8 * mm))
+plate = doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(8, mm))))
 body = evaluate(doc).value(plate).body()
 body.validate()
 assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
@@ -334,7 +339,7 @@ are one program:
 ```python
 import math
 
-from pncad import Doc, Node, Open, Start, evaluate, mm
+from pncad import Doc, Expr, Node, Open, Start, WrittenLength, evaluate, mm
 
 rounded = (
     Open.at((0 * mm, 0 * mm))
@@ -347,7 +352,7 @@ rounded = (
 )
 
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), 8 * mm))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Expr.written_length(WrittenLength.in_unit(8, mm))))
 ev = evaluate(doc)
 assert ev.succeeded(plate)
 
@@ -439,7 +444,7 @@ well-defined skewed sketch, not poison, and the kernel's geometric
 validation is what certifies a body at rest.
 
 ```python
-from pncad import Doc, Node, SketchPlane, evaluate, m
+from pncad import Doc, Expr, Node, SketchPlane, WrittenLength, evaluate, m
 
 doc = Doc()
 # An upright wall: a 2 x 3 sketch on the world yz-plane, extruded
@@ -448,18 +453,23 @@ wall = doc.insert(
     Node.extrude(
         doc.insert(
             Node.polygon(
-                [(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)],
+                [
+                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(2, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(2, m)), Expr.written_length(WrittenLength.in_unit(3, m))),
+                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(3, m))),
+                ],
                 plane=doc.sketch_frame(plane=SketchPlane.yz()),
             )
         ),
-        0.25 * m,
+        Expr.written_length(WrittenLength.in_unit(0.25, m)),
     )
 )
 assert abs(evaluate(doc).value(wall).body().mass_properties().volume - 1.5) < 1e-12
 
 # Naming the frame's plane twice is refused at the boundary.
 try:
-    doc.sketch_frame(elevation=1 * m, plane=SketchPlane.yz())
+    doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(1, m)), plane=SketchPlane.yz())
 except TypeError:
     pass
 else:
@@ -481,17 +491,17 @@ sections enclose 8.75 m³ rather than 9 — and `DocEdit.set_members`
 restates the section list whole.
 
 ```python
-from pncad import Doc, Node, evaluate, m
+from pncad import Doc, Expr, Node, WrittenLength, evaluate, m
 
 SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 
 doc = Doc()
 sections = [
-    doc.insert(Node.polygon([(x * m, y * m) for x, y in pts], plane=doc.sketch_frame(elevation=z * m)))
+    doc.insert(Node.polygon([(Expr.written_length(WrittenLength.in_unit(x, m)), Expr.written_length(WrittenLength.in_unit(y, m))) for x, y in pts], plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z, m)))))
     for pts, z in [(SQUARE, 0.0), (TRAPEZOID, 1.0), (SQUARE, 2.0)]
 ]
-prism = doc.insert(Node.loft(sections, 2))
+prism = doc.insert(Node.loft(sections, Expr.count(2)))
 
 # The degree-2 skin through sections at (0, 1/2, 1) is the quadratic
 # Lagrange interpolant: corner paths S + 4v(1-v)*D, z = 2v exactly,
@@ -505,7 +515,7 @@ assert props.volume_pad < 1e-6
 # The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
 # sections cannot carry degree 3, and nothing here pre-checks that —
 # it refuses at evaluation, where the kernel refuses.
-overdegree = doc.insert(Node.loft(sections, 3))
+overdegree = doc.insert(Node.loft(sections, Expr.count(3)))
 assert not evaluate(doc).succeeded(overdegree)
 ```
 
@@ -862,17 +872,22 @@ opaque kernel calls.
 The same bracket, the same numbers:
 
 ```python
-from pncad import BooleanOp, Doc, Node, evaluate, import_step, mm
+from pncad import BooleanOp, Doc, Expr, Node, evaluate, import_step, mm
 
 
 def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
-            [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
-            plane=doc.sketch_frame(elevation=z[0]),
+            [
+                (Expr.literal(x[0]), Expr.literal(y[0])),
+                (Expr.literal(x[1]), Expr.literal(y[0])),
+                (Expr.literal(x[1]), Expr.literal(y[1])),
+                (Expr.literal(x[0]), Expr.literal(y[1])),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z[0])),
         )
     )
-    return doc.insert(Node.extrude(profile, z[1] - z[0]))
+    return doc.insert(Node.extrude(profile, Expr.literal(z[1] - z[0])))
 
 
 doc = Doc()
@@ -929,13 +944,18 @@ the ladder's claims are checkable from Python — closure on INDICES,
 volume on the triangles:
 
 ```python
-from pncad import BooleanOp, Doc, Node, evaluate, m, mm
+from pncad import BooleanOp, Doc, Expr, Node, WrittenLength, evaluate, m, mm
 
 doc = Doc()
 profile = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(2, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(2, m)), Expr.written_length(WrittenLength.in_unit(3, m))),
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(3, m))),
+    ], plane=doc.sketch_frame())
 )
-block = doc.insert(Node.extrude(profile, 1 * m))
+block = doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(1, m))))
 body = evaluate(doc).value(block).body()
 body.validate()
 
@@ -1002,11 +1022,15 @@ runs that convergence.
 Python's document also persists and replays bit-identically:
 
 ```python
-from pncad import Doc, Node, evaluate, load, mm
+from pncad import Doc, Expr, Node, WrittenLength, evaluate, load, mm
 
 doc = Doc()
-profile = doc.insert(Node.polygon([(0 * mm, 0 * mm), (1 * mm, 0 * mm), (1 * mm, 1 * mm)], plane=doc.sketch_frame()))
-doc.insert(Node.extrude(profile, 1 * mm))
+profile = doc.insert(Node.polygon([
+    (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+    (Expr.written_length(WrittenLength.in_unit(1, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+    (Expr.written_length(WrittenLength.in_unit(1, mm)), Expr.written_length(WrittenLength.in_unit(1, mm))),
+], plane=doc.sketch_frame()))
+doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(1, mm))))
 
 text = doc.save()
 replayed = load(text).doc
@@ -1032,7 +1056,7 @@ at `insert`, not as a guess.
 ```python
 import math
 
-from pncad import Doc, EditError, Node, Open, Start, circle, evaluate, m
+from pncad import Doc, EditError, Expr, Node, Open, Start, WrittenLength, circle, evaluate, m
 
 # The tour's `plate` stop: a 6 x 3 slab, 0.6 deep, with two holes.
 outer = (
@@ -1046,7 +1070,7 @@ holes = [circle((-1.5 * m, 0 * m), 0.7 * m), circle((1.5 * m, 0 * m), 0.7 * m)]
 
 doc = Doc()
 sketch = doc.insert(Node.profile([outer, *holes], plane=doc.sketch_frame()))
-plate = doc.insert(Node.extrude(sketch, 0.6 * m))
+plate = doc.insert(Node.extrude(sketch, Expr.written_length(WrittenLength.in_unit(0.6, m))))
 
 body = evaluate(doc).value(plate).body()
 body.validate()
@@ -1094,22 +1118,27 @@ next section runs them.
 ```python
 import math
 
-from pncad import Doc, EvaluationError, Node, evaluate, m
+from pncad import Doc, EvaluationError, Expr, Node, WrittenLength, evaluate, m
 
 L, R = 1.0, 0.12
 
 doc = Doc()
 square = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(L, m)), Expr.written_length(WrittenLength.in_unit(L, m))),
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(L, m))),
+    ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(square, L * m))
+cube = doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(L, m))))
 
 # The twelve names, as of THIS evaluation. Stored into the recipe,
 # they are frozen: the repair path for a moved edge is a rebind, not
 # a re-query.
 edges = evaluate(doc).all_edges(cube)
 assert len(edges) == 12
-blank = doc.insert(Node.fillet(cube, R * m, edges))
+blank = doc.insert(Node.fillet(cube, Expr.written_length(WrittenLength.in_unit(R, m)), edges))
 
 # The tour's `diefillet` blank: a shrunk core, six slab faces, twelve
 # quarter-cylinders and eight sphere octants.
@@ -1125,7 +1154,7 @@ body.validate()
 assert abs(body.mass_properties().volume - want) < 1e-9 * want
 
 # An empty selection is refused by the node, not by the binding.
-empty = doc.insert(Node.fillet(cube, R * m, []))
+empty = doc.insert(Node.fillet(cube, Expr.written_length(WrittenLength.in_unit(R, m)), []))
 try:
     evaluate(doc).value(empty)
     raise AssertionError("an empty selection should not blend")
@@ -1159,8 +1188,24 @@ they match neither filter, so the refusal falls out of the geometry.
 import math
 
 from pncad import (
-    BooleanOp, Bulge, CurveKind, Doc, EntityKind, GeomPred, NamePat,
-    Node, Open, Selector, SketchPlane, Start, SurfaceKind, evaluate, m,
+    BooleanOp,
+    Bulge,
+    CurveKind,
+    Doc,
+    EntityKind,
+    Expr,
+    GeomPred,
+    NamePat,
+    Node,
+    Open,
+    Selector,
+    SketchPlane,
+    Start,
+    SurfaceKind,
+    WrittenAngle,
+    WrittenLength,
+    evaluate,
+    m,
     rad,
 )
 
@@ -1168,9 +1213,14 @@ R, H = 0.09, 0.05  # the pip ball's radius; how deep it dips in
 
 doc = Doc()
 square = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+    ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(square, 1 * m))
+cube = doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(1, m))))
 
 # A ball, revolved as two quarter arcs, sunk H into the top face.
 half = (
@@ -1186,10 +1236,24 @@ frame = doc.sketch_frame(
 # coordinates: the frame's v is world +z, so the pole axis is its +y
 # through (0, 0). A revolve takes this and not a `datum_axis` — an
 # axis written in the frame cannot leave the plane it turns.
-axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
-ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, (2 * math.pi) * rad))
+axis = doc.insert(Node.datum_axis_in_plane(frame, (
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+), (
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
+ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, Expr.written_angle(WrittenAngle.in_unit(2 * math.pi, rad))))
 pip = doc.insert(
-    Node.transform(ball, (0.5 * m, 0.5 * m, (1.0 + R - H) * m), (0.0, 0.0, 1.0), 0 * rad)
+    Node.transform(ball, (
+        Expr.written_length(WrittenLength.in_unit(0.5, m)),
+        Expr.written_length(WrittenLength.in_unit(0.5, m)),
+        Expr.written_length(WrittenLength.in_unit(1.0 + R - H, m)),
+    ), (
+        Expr.literal(0.0),
+        Expr.literal(0.0),
+        Expr.literal(1.0),
+    ), Expr.written_angle(WrittenAngle.in_unit(0, rad)))
 )
 pipped = doc.insert(Node.boolean(BooleanOp.Subtract, cube, pip))
 
@@ -1211,7 +1275,7 @@ meridians = ev.select_where(
 assert len(meridians) == 2 and len(ev.all_edges(pipped)) == 16
 
 # One fillet takes both selections — stored, frozen, never re-queried.
-blended = doc.insert(Node.fillet(pipped, 0.05 * m, straight + rims))
+blended = doc.insert(Node.fillet(pipped, Expr.written_length(WrittenLength.in_unit(0.05, m)), straight + rims))
 body = evaluate(doc).value(blended).body()
 body.validate()
 ```
@@ -1234,21 +1298,26 @@ are the chamfer's own words (`chamfer_selection_empty`), not the
 fillet's: one ladder, but the tag says which verb asked.
 
 ```python
-from pncad import Doc, EvaluationError, Node, evaluate, m
+from pncad import Doc, EvaluationError, Expr, Node, WrittenLength, evaluate, m
 
 L, D = 1.0, 0.12
 
 doc = Doc()
 square = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(L, m)), Expr.written_length(WrittenLength.in_unit(L, m))),
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(L, m))),
+    ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(square, L * m))
+cube = doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(L, m))))
 
 # The same twelve names the fillet step stored, carried unread.
 edges = evaluate(doc).all_edges(cube)
 assert len(edges) == 12
-flat = doc.insert(Node.chamfer(cube, D * m, edges))
-round_ = doc.insert(Node.fillet(cube, D * m, edges))
+flat = doc.insert(Node.chamfer(cube, Expr.written_length(WrittenLength.in_unit(D, m)), edges))
+round_ = doc.insert(Node.fillet(cube, Expr.written_length(WrittenLength.in_unit(D, m)), edges))
 
 # A cube of side L set back by d is the cube less twelve edge wedges
 # and eight corner patches, which integrates to a closed form.
@@ -1270,7 +1339,7 @@ assert (
 assert len(ev.all_faces(flat)) == 26
 
 # An empty selection is refused by the node, in the chamfer's own word.
-nothing = doc.insert(Node.chamfer(cube, D * m, []))
+nothing = doc.insert(Node.chamfer(cube, Expr.written_length(WrittenLength.in_unit(D, m)), []))
 try:
     evaluate(doc).value(nothing)
     raise AssertionError("an empty selection should not chamfer")
@@ -1302,18 +1371,26 @@ an arc leaves an open elbow of annular section.
 ```python
 import math
 
-from pncad import Doc, Node, TubeWindow, evaluate, m, rad
+from pncad import Doc, Expr, Node, TubeWindow, WrittenAngle, WrittenLength, evaluate, m, rad
 
 R, OUTER, WALL = 2.0, 0.5, 0.125
 T0, T1 = 0.0, 1.5
 
 doc = Doc()
 # The spine: centre at the origin, section turning about +z.
-spine = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+spine = doc.insert(Node.datum_axis((
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+    Expr.written_length(WrittenLength.in_unit(0, m)),
+), (
+    Expr.literal(0.0),
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
 
 # The solid ring. Pappus meters it: V = 2 pi^2 R r^2.
 ring = doc.insert(
-    Node.tube(spine, (1.0, 0.0, 0.0), R * m, TubeWindow.full(), OUTER * m)
+    Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(R, m)), TubeWindow.full(), Expr.written_length(WrittenLength.in_unit(OUTER, m)))
 )
 solid = evaluate(doc).value(ring).body()
 solid.validate()
@@ -1323,7 +1400,7 @@ assert abs(solid.mass_properties().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-
 inner = OUTER - WALL
 torus = doc.insert(
     Node.hollow_tube(
-        spine, (1.0, 0.0, 0.0), R * m, TubeWindow.full(), OUTER * m, WALL * m
+        spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(R, m)), TubeWindow.full(), Expr.written_length(WrittenLength.in_unit(OUTER, m)), Expr.written_length(WrittenLength.in_unit(WALL, m))
     )
 )
 walled = evaluate(doc).value(torus).body()
@@ -1336,11 +1413,11 @@ assert abs(walled.mass_properties().volume - want) < 1e-9
 elbow = doc.insert(
     Node.hollow_tube(
         spine,
-        (1.0, 0.0, 0.0),
-        R * m,
-        TubeWindow.arc(T0 * rad, T1 * rad),
-        OUTER * m,
-        WALL * m,
+        (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
+        Expr.written_length(WrittenLength.in_unit(R, m)),
+        TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(T0, rad)), Expr.written_angle(WrittenAngle.in_unit(T1, rad))),
+        Expr.written_length(WrittenLength.in_unit(OUTER, m)),
+        Expr.written_length(WrittenLength.in_unit(WALL, m)),
     )
 )
 annulus = math.pi * (OUTER**2 - inner**2)
@@ -1352,7 +1429,7 @@ assert abs(body.mass_properties().volume - (T1 - T0) * R * annulus) < 1e-9
 # is exactly the bore, which is only true if each node reached its own
 # kernel door.
 open_ring = doc.insert(
-    Node.tube(spine, (1.0, 0.0, 0.0), R * m, TubeWindow.arc(T0 * rad, T1 * rad), OUTER * m)
+    Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(R, m)), TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(T0, rad)), Expr.written_angle(WrittenAngle.in_unit(T1, rad))), Expr.written_length(WrittenLength.in_unit(OUTER, m)))
 )
 ev = evaluate(doc)
 bore = (T1 - T0) * R * math.pi * inner**2
@@ -1387,24 +1464,41 @@ partial-chart gate) rather than silently opening both.
 
 ```python
 from pncad import (
-    CapEnd, Doc, EntityKind, EvaluationError, NamePat, Node,
-    OpGroup, SegPat, SegTag, Selector, evaluate, m,
+    CapEnd,
+    Doc,
+    EntityKind,
+    EvaluationError,
+    Expr,
+    NamePat,
+    Node,
+    OpGroup,
+    SegPat,
+    SegTag,
+    Selector,
+    WrittenLength,
+    evaluate,
+    m,
 )
 
 L, T = 1.0, 0.125
 
 doc = Doc()
 square = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(L, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(L, m)), Expr.written_length(WrittenLength.in_unit(L, m))),
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(L, m))),
+    ], plane=doc.sketch_frame())
 )
-box = doc.insert(Node.extrude(square, L * m))
+box = doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(L, m))))
 
 # The top, by ROLE: the extrude's end cap. One name, carried to the
 # door unread.
 faces = NamePat.of_kind(EntityKind.Face)
 top = evaluate(doc).select(box, Selector.of(faces.seg(SegPat.tag(SegTag.Cap).side(CapEnd.End))))
 assert len(top) == 1
-cup = doc.insert(Node.shell(box, T * m, top))
+cup = doc.insert(Node.shell(box, Expr.written_length(WrittenLength.in_unit(T, m)), top))
 
 # The cavity is (L-2T) x (L-2T) x (L-T): the opened top loses no wall.
 body = evaluate(doc).value(cup).body()
@@ -1422,7 +1516,7 @@ assert len(ev.select(cup, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))) 
 assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))) == 5
 
 # A wall that is not a wall is the kernel's refusal, not the binding's.
-flat = doc.insert(Node.shell(box, 0 * m, top))
+flat = doc.insert(Node.shell(box, Expr.written_length(WrittenLength.in_unit(0, m)), top))
 try:
     evaluate(doc).value(flat)
     raise AssertionError("a zero wall should not hollow")
@@ -1439,26 +1533,44 @@ is a name you would have to hand-write — the serialized form, field by
 field, with no compiler and no door checking any of it.
 
 So a revolve's roles have MINTING doors, the same five `pncad::select`
-gives Rust: `band(node, seg)` and `band_pi(node, seg)` are the two
-halves of the face swept from meridian segment `seg`, `band_rim(node,
-vertex)` is the latitude rim standing at a meridian vertex,
-`meridian_vertex(end, node, vertex)` is that vertex itself, and
-`carried(node, inner)` is the name a survivor of `node` wears one op
-later. Each answers the SAME opaque text a materializer answers for
-that entity, so a selection authored this way and one selected off an
-evaluation are the same bytes.
+gives Rust: `band(node, loop_index, seg)` and `band_pi(node,
+loop_index, seg)` are the two halves of the face swept from meridian
+segment `seg`, `band_rim(node, loop_index, vertex)` is the latitude
+rim standing at a meridian vertex, `meridian_vertex(end, node,
+loop_index, vertex)` is that vertex itself, and `carried(node, inner)`
+is the name a survivor of `node` wears one op later. Each answers the
+SAME opaque text a materializer answers for that entity, so a
+selection authored this way and one selected off an evaluation are the
+same bytes.
 
-`seg` and `vertex` index the profile's canonical chain, on the OUTER
-loop: a hole's band is not reachable this way from either language.
-And the text is still never read or assembled — you name a ROLE, and
-the door does the rest.
+`loop_index` names the profile loop — 0 the outer one, then the holes
+in the order the profile describes them — and `seg` and `vertex` index
+that loop's canonical chain, so a hole's band is spelled exactly like
+the outer one at its own loop. And the text is still never read or
+assembled — you name a ROLE, and the door does the rest.
 
 ```python
 import math
 
 from pncad import (
-    Doc, EntityKind, NamePat, Node, Open, SegPat, SegTag, Selector,
-    Start, band, band_rim, carried, evaluate, m, rad,
+    Doc,
+    EntityKind,
+    Expr,
+    NamePat,
+    Node,
+    Open,
+    SegPat,
+    SegTag,
+    Selector,
+    Start,
+    WrittenAngle,
+    WrittenLength,
+    band,
+    band_rim,
+    carried,
+    evaluate,
+    m,
+    rad,
 )
 
 RI, RO, H, T = 1.0, 2.0, 1.0, 0.125
@@ -1475,15 +1587,22 @@ section = (
 ring = doc.insert(
     Node.revolve(
         doc.insert(Node.profile(section, plane=frame)),
-        doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0))),
-        2 * math.pi * rad,
+        doc.insert(Node.datum_axis_in_plane(frame, (
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        ))),
+        Expr.written_angle(WrittenAngle.in_unit(2 * math.pi, rad)),
     )
 )
 
 # Segment 2 is the top annulus and vertex 2 the rim standing on it —
-# read off the profile as written, with nothing evaluated yet.
-cup = doc.insert(Node.shell(ring, T * m, [band(ring, 2)]))
-rolled = doc.insert(Node.fillet(ring, T * m, [band_rim(ring, 2), band_rim(ring, 3)]))
+# read off the profile as written, with nothing evaluated yet. The
+# section has one loop, so every name below is on loop 0.
+cup = doc.insert(Node.shell(ring, Expr.written_length(WrittenLength.in_unit(T, m)), [band(ring, 0, 2)]))
+rolled = doc.insert(Node.fillet(ring, Expr.written_length(WrittenLength.in_unit(T, m)), [band_rim(ring, 0, 2), band_rim(ring, 0, 3)]))
 
 ev = evaluate(doc)
 ev.value(cup).body().validate()
@@ -1493,7 +1612,7 @@ ev.value(rolled).body().validate()
 # survived the hollowing wear exactly `carried` of what they were.
 faces = NamePat.of_kind(EntityKind.Face)
 survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
-assert sorted(survivors) == sorted(carried(cup, band(ring, s)) for s in (0, 1, 3))
+assert sorted(survivors) == sorted(carried(cup, band(ring, 0, s)) for s in (0, 1, 3))
 ```
 
 ## 3. Parametric models

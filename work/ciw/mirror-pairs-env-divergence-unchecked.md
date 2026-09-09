@@ -72,3 +72,44 @@ reviewer noted that the checker's scope line implied env parity would
 need a vocabulary invented for it, when `check-cache-prime-parity.py`
 already does that kind of comparison. The scope line was corrected in
 that PR and the gap filed here rather than widened into claim 10.
+
+## A measured instance, and the population count this item asked for (2026-09-09, PR 2263)
+
+CIW unit 4 added a mirrored pair whose hosted half is
+
+```
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check -p viewer --features app --target wasm32-unknown-unknown
+```
+
+(`.github/workflows/ci.yml`, `fmt / wasm32 check (viewer app feature -
+the browser entry point)`) and whose local half is `wasm_check_viewer`
+in `local-scripts/ci-local.sh`, carrying the same prefix. **The checker
+passed that pair and read none of the prefix.**
+
+**The mechanism, cited.** `scripts/check-ci-mirror-parity.py:1304`:
+
+```python
+rest = toks[toks.index("cargo") + 1:]
+```
+
+Everything before the `cargo` token is discarded, so claim 10 compares
+`--features app` on both sides — and cannot see an env prefix on either.
+Drop the prefix from one half, or change `wasm_js` to a different
+backend name on one half, and the pair stays green. The class is every
+`RUSTFLAGS=` / `CARGO_*=` / `env VAR=` prefix in either half, not this
+one variable.
+
+**Population, since this item says to count it before building
+anything.** It is not one. `local-scripts/ci-local.sh` alone carries
+env-prefixed cargo invocations at `:780`, `:783`, `:806`
+(`CARGO_TARGET_DIR` + `RUSTFLAGS="--cfg nightly_suite"`), `:929`
+(`RUSTFLAGS="-C target-cpu=x86-64-v3" CAD_FUZZ_EFFORT="8"`) and `:1150`
+(this pair). The hosted half sets its equivalents both as prefixes
+(`ci.yml:2172`) and as `env:` blocks, which are two spellings claim 10
+would have to read as one thing. That is the vocabulary problem this
+item already names, with a concrete list to size it against.
+
+**Deliberately not built here.** CIW unit 4 is a wasm row; widening
+claim 10 is this item's own unit. Recorded here so the next lane starts
+from an instance rather than from a hypothetical.
+
