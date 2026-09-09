@@ -236,6 +236,10 @@ are CHROME's and VIEW's and are **reported, not edited**.
   on the owner's slate, carrying the flip as its close condition. The
   row's own comment names that file, so the debt is readable from the
   code as well as from the tracker.
+- `work/ciw/apt-update-fails-on-the-runner-image-google-chrome-repo.md`
+  — the repo-wide apt failure that reds this PR's last two runs and
+  every other branch's, disclosed here because it is what a reader of
+  those runs will hit first.
 - `work/ciw/mirror-pairs-env-divergence-unchecked.md` — this row's
   `RUSTFLAGS` prefix is invisible to `check-ci-mirror-parity.py`
   (`:1304` discards every token before `cargo`), so the parity pass this

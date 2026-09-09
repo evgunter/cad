@@ -1637,3 +1637,24 @@ since `tools/tess-meter` landed. Every one is now a pointer to
 is filing a thing that goes stale silently — the same lesson unit 1 took
 on its blind-spot list, and META's log now carries it too.
 
+## The gate went red under the fix pass, and it is not the unit
+
+Two consecutive runs on `ciw/unreachable-roots` failed at
+`install a software Vulkan adapter (lavapipe)` and the two render lanes'
+apt steps. **Not this branch.** `lib/loops`, which carries none of unit
+4's diff and whose `fmt` job has no such step, fails identically in runs
+`34383262029` and `34385213731`. The cause is a hash-sum mismatch on the
+runner image's `google-chrome` apt list, which makes `apt-get update`
+exit non-zero even though every package these steps need was fetched.
+`main` is blocked by it, not one PR.
+
+Filed as `work/ciw/apt-update-fails-on-the-runner-image-google-chrome-repo.md`
+with the four sites, the cross-branch table, and the reason the render
+lanes' existing three-attempt retry does not help. **Not taken in unit
+4**: it is four steps in two workflows and wants a lane that can verify
+against a red run rather than a green one.
+
+Unit 4's own row is green at STEP level in both of those red runs
+(54.36 s, 54.89 s), and its last fully green code-tier run is
+`34379812965`.
+
