@@ -301,3 +301,40 @@ step and not only a matcher.
 Class 3 is the one that constrains the fix: any mechanical repointer
 built for this row will match transcripts, and a repointer that edits
 them is worse than no repointer.
+
+## Two rows found wrong and deliberately left as written (#2272, 2026-09-09)
+
+#2272 enumerated every `app.rs:NNN` citation in `work/view/` and read
+each at its base line (`1d29a8eeb`). Two OPEN rows were wrong for
+reasons the sweep could not repair, and both are recorded here rather
+than repointed — **not because a sweep may leave a row it found, but
+because these two are the shapes this item already says a repointer
+must be able to leave alone.**
+
+| File | What it cites | What is actually there | Disposition |
+|---|---|---|---|
+| `free-move-drag-dissolved-by-open.md:53-55` | *"`frame::supersession_notice` already renders it, `app.rs:785`"* | **the symbol does not exist**: `frame::supersession_notice` has zero definitions anywhere in the tree, and its only occurrence anywhere under `crates/` was a doc comment at `crates/viewer/src/session/op.rs:742`, which #2272 corrects in the same PR as this row (`doc-comments-name-symbols-that-do-not-exist`). `app.rs:785` at `1d29a8eeb` was `match index.scene_focused(…)` inside `sync_scene`; at #2272's head it is `let Some(index) = self.picks.index() else {`. The real renderer is `frame::Withdrawal::superseded` (`frame.rs:699`) through `Withdrawal::notice` (`frame.rs:714`), reached at `app.rs:932-935` | **left as written.** Repointing a wrong SYMBOL makes it more dangerous, not less — this item's own class-3 argument, and the `save-is-not-gesture-guarded` case above: a citation that resolves reads as checked |
+| `new-document-owes-the-reframe-open-gets.md:18,20` | `app.rs:778` for `let opened = matches!(op, SessionOp::Open(_));`, and `:794-798` for the `None if opened` arm it quotes | both name the wrong subject at the base and at head. `let opened` was `app.rs:918` at `1d29a8eeb` and is `:925` at #2272's head; `app.rs:778` at base was `let Some(index) = self.picks.index() else {`. The quoted `None if opened` block was `945-948` at base and is `952-955` at head; `794-798` at base was `sync_scene`'s `Ok(mesh)` arm | **left as written.** The row is outside #2272's own diff, which is this item's class-2 case: *a citation sweep scoped to a PR's own diff cannot converge*. The correct numbers are in this row, so the next touch of that file re-points from a record rather than a re-derivation |
+
+### What this member adds
+
+The first is a **fourth** class the line-number sweep cannot fix, and
+it is not any of the three above: a citation whose FILE and LINE are
+repairable but whose **named symbol has never existed**. Class 1 is a
+subject that is gone; this is a subject that was never there. The two
+look identical to a matcher and come apart under a reader, and the
+disposition is the same for a different reason — class 1 cannot be
+repaired without guessing what the author meant, this one *can* be
+repaired and must not be, because repairing the number leaves a
+sentence naming a symbol that does not exist and now points somewhere
+real.
+
+The second is the one that says why this section exists at all. #2272
+found both, judged both correctly, and wrote neither down: its PR body
+said only that *"most were already stale"*. `docs/prompts/implementer-
+discipline.md` §6 is explicit that a residue disclosed inside a
+program's own fence owes a file in the same PR, and that a PR-body
+sentence is not one. This item is the file, and *"only `work/view/*` is
+this program's to fix, and its own citations are corrected as they are
+touched"* (`:40-41` above) is the clause that makes it this item and
+not another.

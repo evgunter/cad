@@ -739,7 +739,8 @@ pub struct OpOutcome {
     /// `DisplayState::probing` and from the typed refusal the next
     /// gesture op gives it.
     ///
-    /// The chrome renders this through `frame::supersession_notice`.
+    /// The chrome renders this through
+    /// [`crate::frame::Withdrawal::superseded`].
     pub superseded: Vec<Withdrawn>,
     /// Instances whose HIDE this operation's document transition
     /// dropped, each with the `display::display_check` fault that
