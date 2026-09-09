@@ -2,11 +2,12 @@
 id: LIB-SWEEP
 kind: unit
 title: the payload-rung sweep as a committed script over all four curated lists
-status: review
+status: closed
 opened: 2026-09-09
 branch: lib/sweep
 refs: [payload-rung-sweep-is-prose-and-a-third-run-disagrees, cross-list-payload-rungs-under-document-only-carriers]
 pr: 2245
+closed: 2026-09-09
 ---
 
 

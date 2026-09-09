@@ -4149,3 +4149,47 @@ return shape, (B) on the handle). Item 3
 its value classes bound as LIB's build, `analysis.rs` joining the
 census's read list — "no real hurry", so it queues behind the
 mechanical units. Items 1+2 dispatch as one unit (LIB-IMPORT-REPORT).
+
+**LIB-SWEEP MERGED (2026-09-09, #2245; mechanical under the 08-29
+ruling, no A/B row). The payload-rung sweep is a committed script,
+`scripts/payload-rung-sweep.py`, run by both halves of CI rather than
+re-derived from prose.** It reads ALL FOUR curated façade lists
+(`document`, `select`, `prelude`, `profile`) and reports which list
+each side of a row is on, which splits what a three-list run
+flattened: UNCURATED (on no list) from CROSS-LIST (curated, on no
+list that carries its carrier). Four counts, a deterministic narrowed
+table with `file:line`, `--json`, `--lists` to reproduce an earlier
+run's definition, `--check` pinning the narrowed NAMES against two
+disposition tables held as data with each argument's home
+(`DISPOSITIONS`, `CROSS_LIST_DISPOSITIONS`) in both directions, and a
+`--selftest` fixture battery; blind spots (a)–(i) indexed in the
+docstring and stated beside the code that has each ((a), (f), (g)
+CLOSED; (e) narrowed to macro-minted names; (b), (c), (d), (h) open;
+(i) new — registry dependencies are outside the path closure). The
+CI row sits in `discipline` on both halves under a `HOSTED MIRROR`
+marker. **The drift, bounded**: `curated` settles INCLUDING CUR5's
+unexplained 525 (CUR5 read the façade's whole source directory, not
+the three lists — 536 there today vs 413 over three lists, the same
+gap); `declared` is monotone with the tree; `narrowed` reconciles
+EXACTLY (CUR7's 16 names minus the six it settled = the ten the
+four-list run reports; the three-list run adds only `Step`, which is
+curated BESIDE its carrier on `profile.rs` and so is not a rung there
+— CUR7's prelude non-carriage stands); `raw` does NOT settle and is
+bounded instead (121 as specified; 146/160/185/188 with each closed
+blind spot re-opened; the reported 115 and 208 lie outside that
+interval, so the difference is what an implementation counted as one
+hit, which no artefact records). The refusal filter is a NAME test
+(`*Error`/`*Refusal`/`*Fault`), measured against a `Display` test
+that does not separate refusals from five carried discriminants —
+the lane's stated deviation from the brief's argued list
+(`LeverRefusal`, `MintRefusal` dropped by the filter, not by a row).
+Uncurated column at the merge base: no new row. Cross-list column:
+four rows over two names, filed as
+`cross-list-payload-rungs-under-document-only-carriers` (`EntityKind`
+and `SplitHalf`, on `select`+`prelude`, ride document-only carriers;
+the `NamingError` precedent on `select.rs:57` argues one way, the
+document list's own payload rule the other — a curation act either
+way, and it settles whether a payload owes its carrier's list or the
+vocabulary's), pinned in the script so a third such name reds CI.
+Orchestrator note: this is the resolver option (D) on `[ev]` #2230
+item 2 would reuse. Also measured by the lane: the selftest discriminates — nine mutants of the scan each red the battery; two runs byte-identical. ~92 min, ~208k tokens.
