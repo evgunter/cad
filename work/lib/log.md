@@ -4809,3 +4809,45 @@ built. Orchestrator note: the first recommendation here was (A) with
 (F) as "presumably not wanted" on the item's own word; the measurement
 that settled it (no parameter reaches a mate) was one grep away and
 should have been in the first draft.
+
+**LIB-HASH-2 MERGED (2026-09-09, #2261; mechanical under the mirror
+rule Ev stated on `[ev]` #2233, no A/B row). The nine value classes
+that compared without hashing are unhashable BY DESIGN, and the roster
+says so.** All nine (`Alignment`, `MateFrame`, `MatePrimitive`,
+`AnalysisPolicy`, `CheckEvidence`, `CheckFinding`, `ChecksConfig`,
+`ChecksReport`, `FlushFinding`) mirror Rust types that derive
+`PartialEq` (`ChecksConfig` also `Eq`) and no `Hash`, so
+`test_hashability.py`'s nine `FILED` entries become stated reasons in
+the `Length`/`Angle` rows' voice — each naming its Rust type and
+derives, and each answering the reading that pulled the other way
+(the records "read like keys": the kernel never keys on them; the
+findings: reported in deterministic ORDER, never as a set, and their
+evidence bottoms out in floats; the config and report: a hashable
+aggregate over a collection is a cost the kernel has not paid). The
+`FILED` constant is gone with its last user; no class gained or lost a
+dunder (`crates/pncad-py/src/` diff empty). The roster's blind spot is
+stated at `UNHASHABLE`'s docstring: every reason names a derive list,
+a structurally checkable claim nothing in the suite checks (the census
+reads `pub use` LINES, never a `#[derive]`), so a kernel derive that
+changes silently falsifies the prose and only the two guards, which
+read `__hash__` off the class, stay true. **The two-way walk found the
+reverse direction populated**, and filed rather than decided it, one
+item per shape: `the-tag-mirrors-hash-over-kernel-enums-that-derive-no-hash`
+(the two-way table over 163 classes: 58 compare by value — 18 agree hashing, 13 agree not, 0 refuse to hash over a `Hash`-deriving type, 27 hash over types deriving none, of which 3 are the ruled carve-out, 2 the unit classes already filed and 22 new; LIB-HASH made 24 fieldless mirrors hashable — twelve over
+enums deriving `PartialEq, Eq` and no `Hash`, so under the mirror rule
+as a GENERAL rule they should not hash; the ruling that made them hash
+predates the rule); `the-value-records-hash-by-hand-over-kernel-types-that-derive-no-hash`
+(nine records with hand-written `__eq__`/`__hash__` over `Hash`-less
+Rust types — `Denotation`, `Distribution`, `DocParamValue`,
+`FaceCensus`, `Frame`, `McAssertion`, `McConfig`, `McMeasure`,
+`ValidationFinding` — a record's hash being a fold CHOICE, not a
+discriminant); and `sketchplane-compares-and-hashes-over-a-rust-type-that-derives-neither`
+(`SketchPlane` adds both `__eq__` and `__hash__` over a type deriving
+neither, bit-for-bit and internally consistent). With ZERO's
+`the-unit-classes-hash-over-a-partialeq-only-newtype`, that is one
+`[ev]` question — how far the mirror rule reaches: values only, or
+tags and hand-hashed records too — to be put as one PR. The item
+`pncad-py-value-classes-compare-without-hashing` is closed. No
+`variant`/`kind` value moved; the lane ran the pinned ruff for real.
+Orchestrator note: the lane was killed by a container restart while
+polling CI and resumed by message; nothing was lost. ~77 min, ~212k tokens.

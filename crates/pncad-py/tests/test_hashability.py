@@ -57,21 +57,29 @@ def enum_mirrors():
     return mirrors
 
 
-#: The item holding the classes below that are undecided rather than
-#: deliberate.
-#:
-#: Written WITHOUT its `.md` suffix, and that is load-bearing: a `.md`
-#: string literal in a python file under `crates/` is a page
-#: `scripts/ci-filter.py` has to resolve to a repo path before it can
-#: decide the change tier, and it fails closed on one it cannot. This
-#: is prose naming a tracker item, not a page any suite reads.
-FILED = "undecided — work/lib/pncad-py-value-classes-compare-without-hashing"
-
 #: The classes that compare without hashing, each with WHY. A class
 #: that lands here without a line is a defect, not a decision, which is
 #: what `TestNothingComparesWithoutHashing` is for.
 #:
 #: Read the values as prose; nothing parses them.
+#:
+#: THE RULE EVERY ENTRY BELOW APPLIES: a Python value class mirrors its
+#: Rust type's derives, and the kernel omits `Hash` on values in favour
+#: of the funnel — so a Rust type deriving `PartialEq` and no `Hash`
+#: gets a Python class that compares and does not hash. Several classes
+#: read like keys anyway; the reason says why the mirror answers that.
+#:
+#: AND WHY THIS IS STILL A HAND-WRITTEN STRING, not a fact derived from
+#: the Rust side. Every reason below names a derive list, which is
+#: exactly the kind of claim a reader could check structurally — but
+#: nothing here can: the binding census (`test_binding_census.py`)
+#: reads the façade's `pub use` LINES, so it sees a type's name and
+#: never its `#[derive(...)]` attribute, and no other reader in this
+#: suite opens a `.rs` file at all. So a derive list that changes in
+#: the kernel silently falsifies the prose beside it, and only the two
+#: guards below — which read `__hash__` off the class, not the Rust
+#: source — stay true. That is the roster's blind spot, stated so its
+#: silence is not read as coverage.
 UNHASHABLE = {
     "Expr": "by design: equality is an IEEE comparison of the literals "
     "inside, so `0.0` and `-0.0` are equal trees whose bits are not "
@@ -83,15 +91,50 @@ UNHASHABLE = {
     "`WrittenLength`, which folds `-0.0` and hashes",
     "Angle": "by design: `Length`'s reason, for the angle newtype; "
     "`WrittenAngle` is the authored record that keys",
-    "Alignment": FILED,
-    "AnalysisPolicy": FILED,
-    "CheckEvidence": FILED,
-    "CheckFinding": FILED,
-    "ChecksConfig": FILED,
-    "ChecksReport": FILED,
-    "FlushFinding": FILED,
-    "MateFrame": FILED,
-    "MatePrimitive": FILED,
+    "Alignment": "by design: `editor_core::Alignment` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. "
+    "The datum reads like a key — \"which alignments did this assembly "
+    "use\" is a set — but the kernel never keys on one: it solves poses "
+    "from alignments and tallies nothing by them, so a Python `set` of "
+    "them is a decision the kernel has not made",
+    "AnalysisPolicy": "by design: `editor_core::AnalysisPolicy` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
+    "policy is an argument to one run (E2: request configuration, never "
+    "a global), not a key the kernel tallies by",
+    "CheckEvidence": "by design: `editor_core::CheckEvidence` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. It "
+    "is the payload of a finding and carries `f64` measurements, so a "
+    "hash would have to answer the float question `Expr` answered "
+    "before it could exist at all",
+    "CheckFinding": "by design: `editor_core::CheckFinding` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. "
+    "Findings read like keys — deduplicating them across runs is the "
+    "natural want — but the kernel reports them in a deterministic "
+    "ORDER rather than a set, and never keys on one; its evidence "
+    "bottoms out in floats besides",
+    "ChecksConfig": "by design: `editor_core::ChecksConfig` derives "
+    "`PartialEq` and `Eq` and no `Hash`, and this class mirrors its "
+    "derives. It is a per-run argument holding a `BTreeMap` of "
+    "acknowledgments; a hashable aggregate over a collection is a "
+    "decision with a cost, and the kernel has not made it",
+    "ChecksReport": "by design: `editor_core::ChecksReport` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
+    "report holds the run's findings in order; hashing an aggregate "
+    "over a list is the same undecided cost, one rung up",
+    "FlushFinding": "by design: `editor_core::FlushFinding` (the "
+    "document seat's `topo::flush::FlushFinding<(StableName, "
+    "StableName)>`) derives `PartialEq` and no `Hash`, and this class "
+    "mirrors its derives. `CheckFinding`'s reason, for the contact "
+    "verifier's findings",
+    "MateFrame": "by design: `editor_core::MateFrame` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
+    "frame is a pose datum the solver consumes, not a key it tallies "
+    "by; and it bottoms out in `f64`, so a hash would owe `Expr`'s "
+    "float answer",
+    "MatePrimitive": "by design: `editor_core::MatePrimitive` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. "
+    "The primitive names which coset of SE(3) a mate pins, and the "
+    "kernel MATCHES on it rather than keying by it",
 }
 
 
