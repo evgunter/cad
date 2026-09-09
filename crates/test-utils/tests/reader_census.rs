@@ -167,7 +167,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
-        disposition: Unconverted("Track E, issue #763 — `code_without_comments`, line-based"),
+        disposition: Shared, // the facade boundary guards, code and literal views
     },
     Entry {
         path: "crates/profile/tests/all.rs",
@@ -664,7 +664,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 5;
+const UNCONVERTED_TODAY: usize = 4;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what

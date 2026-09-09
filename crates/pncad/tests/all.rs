@@ -8,10 +8,8 @@
 //! `tests/all.rs` mounts its suites with `#[path]` and carries
 //! `every_suite_file_is_aggregated`, which checks that set against the
 //! directory on every run. This `tests/` directory holds ONE `.rs`
-//! file — this one — so there is no set to check; and the row could not
-//! live here anyway, because it reads `test_utils::source` and the
-//! guard at the bottom of this file admits no `use` root but the
-//! façade. What keeps that sentence TRUE is not this paragraph:
+//! file — this one — so there is no set to check. What keeps that
+//! sentence TRUE is not this paragraph:
 //! `crates/bvh/tests/aggregator_headers.rs`'s
 //! `a_non_aggregating_tests_directory_holds_one_suite_file` reds if a
 //! second suite is ever dropped in beside this one, where
@@ -36,9 +34,10 @@
 //! What enforces the pin instead is the guard test at the bottom of
 //! this file: it reads THIS FILE'S OWN SOURCE at compile time and
 //! fails if any kernel crate is named outside a `pncad::` path, or if
-//! any `use` statement has a root other than the façade or the
-//! standard library. That is a source-level check executed as a test,
-//! not a link-level impossibility — honest about its own strength.
+//! any `use` statement has a root other than the façade, the standard
+//! library, or the shared source reader every guard in this file reads
+//! through. That is a source-level check executed as a test, not a
+//! link-level impossibility — honest about its own strength.
 //!
 //! The remaining tests are compile-level pins: functions that
 //! destructure each cross-crate payload and hand it to a monomorphic
@@ -47,9 +46,15 @@
 
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
-// The ONLY import root permitted in this file.
+// The ONLY import roots permitted in this file: the façade, and the
+// shared Rust reader the source-scanning guards below read source
+// through. `test_utils` is a dev-dependency and no kernel crate — it
+// carries no geometry, so naming it says nothing about what a consumer
+// of this façade can reach — and the guard's own allow-list is where
+// that claim is stated and enforced.
 use pncad::prelude::*;
 use pncad::tolerance::Tol;
+use test_utils::source::{ItemBody, balanced_end, code_and_literals, code_only, item_body};
 
 /// Consumes a value without executing anything — the sink that makes
 /// each payload's type appear in a signature.
@@ -1355,43 +1360,27 @@ fn a_boolean_result_validates_at_tier_3_prime() {
 /// more machinery than a one-file invariant deserves, and a text scan
 /// errs toward false ALARM rather than false confidence — the safe
 /// direction for a guard whose whole job is to not overpromise.
-/// Strips `//` comments so the guard judges CODE, not prose — the
-/// docs above quote the original leak by its real name on purpose,
-/// and documentation naming a thing is not code reaching for it.
-fn code_without_comments(src: &str) -> String {
-    // Written as code points, not character literals: this function's
-    // own source is part of what the guard scans, and a literal quote
-    // here would corrupt the string-state tracking below.
-    const DQUOTE: u8 = 0x22;
-    const BACKSLASH: u8 = 0x5c;
-    const SLASH: u8 = 0x2f;
-
-    let mut out = String::with_capacity(src.len());
-    for line in src.lines() {
-        let b = line.as_bytes();
-        let (mut i, mut in_str, mut cut) = (0usize, false, b.len());
-        while i < b.len() {
-            match b[i] {
-                BACKSLASH if in_str => i += 1,
-                DQUOTE => in_str = !in_str,
-                SLASH if !in_str && b.get(i + 1) == Some(&SLASH) => {
-                    cut = i;
-                    break;
-                }
-                _ => {}
-            }
-            i += 1;
-        }
-        out.push_str(&line[..cut]);
-        out.push('\n'); // preserved, so reported line numbers stay true
-    }
-    out
-}
-
+/// Comments are blanked so the guard judges CODE, not prose — the docs
+/// above quote the original leak by its real name on purpose, and
+/// documentation naming a thing is not code reaching for it.
+///
+/// **Two views, and the difference decides two different questions.**
+/// [`code_and_literals`] keeps string literals, which is what the
+/// kernel-path scan wants: a needle spelled contiguously in a literal
+/// here is indistinguishable from one spelled in code, and reading it
+/// as a violation errs toward false ALARM — the safe direction for a
+/// guard, and the reason the selftests below assemble their kernel
+/// names at runtime. [`code_only`] blanks literals too, which is what
+/// the `use`-root scan wants: a `use` inside a literal is a snippet a
+/// selftest built, not an import this file makes, and reading it as
+/// one errs toward false CONFIDENCE about a root the file never
+/// names.
 #[test]
 fn this_file_reaches_the_kernel_only_through_pncad() {
     const FACADE: &str = "pncad";
-    let src = code_without_comments(include_str!("all.rs"));
+    let text = include_str!("all.rs");
+    let code = code_only(text);
+    let src = code_and_literals(text);
     let src: &str = &src;
     // The re-exported crates, plus the one deliberately left interior.
     const KERNEL: [&str; 12] = [
@@ -1411,18 +1400,17 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 
     let mut violations: Vec<String> = Vec::new();
 
-    // Check 1: every `use` statement's root is the façade or std.
-    for (n, line) in src.lines().enumerate() {
-        let t = line.trim_start();
-        let Some(rest) = t.strip_prefix("use ") else {
-            continue;
-        };
-        let root: String = rest
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
-        if !matches!(root.as_str(), "pncad" | "std" | "core" | "alloc") {
-            violations.push(format!("line {}: `use {root}` — not the façade", n + 1));
+    // Check 1: every `use` STATEMENT's root is the façade, the
+    // standard library, or the shared source reader — the one
+    // non-façade root this file names, and no kernel crate. Read as
+    // statements over the literal-blanked view: see
+    // [`use_statement_roots`] for both halves of why.
+    for (n, root) in use_statement_roots(&code) {
+        if !matches!(
+            root.as_str(),
+            "pncad" | "std" | "core" | "alloc" | "test_utils"
+        ) {
+            violations.push(format!("line {n}: `use {root}` — not the façade"));
         }
     }
 
@@ -1470,6 +1458,63 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 /// The 1-based line the byte offset `at` falls on in `code`.
 fn line_of(code: &str, at: usize) -> usize {
     code[..at].matches('\n').count() + 1
+}
+
+/// Every `use` STATEMENT in a blanked view: the line it opens on, and
+/// the crate root it names.
+///
+/// **Statements, not lines**, for [`pub_use_statements`]'s reason one
+/// keyword over: a `use` whose root sits on a continuation line is not
+/// a `use` a line-local reader sees at all, and the root is the whole
+/// subject of the check that reads this.
+///
+/// **The view must be [`code_only`]**, and that is the second half.
+/// The needle is `use `, which this file spells inside string literals
+/// — the reader selftests build synthetic import snippets — so a
+/// literal-keeping view reads a snippet's root as this file's own and
+/// reports a violation the file never committed. Blanking literals is
+/// what makes the reader's own fixtures invisible to it.
+///
+/// A `use` is a statement opener only where nothing but whitespace,
+/// the end of the previous statement, a block boundary or a visibility
+/// stands before it — so `pub use` is one and a `use` inside a path is
+/// not.
+fn use_statement_roots(code: &str) -> Vec<(usize, String)> {
+    let mut out = Vec::new();
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("use") {
+        let at = from + off;
+        from = at + "use".len();
+        // A whole word, not the tail of `reuse` and not the head of
+        // `used`.
+        let word = code[..at]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+            && code[from..]
+                .chars()
+                .next()
+                .is_none_or(|c| !(c.is_alphanumeric() || c == '_'));
+        let opener = {
+            let before = code[..at].trim_end();
+            before.is_empty()
+                || before.ends_with(';')
+                || before.ends_with('{')
+                || before.ends_with('}')
+                || before.ends_with("pub")
+                || before.ends_with(')')
+        };
+        if !(word && opener) {
+            continue;
+        }
+        let root: String = code[from..]
+            .trim_start()
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        out.push((line_of(code, at), root));
+    }
+    out
 }
 
 /// Every `pub use` STATEMENT in already-comment-stripped `code`: the
@@ -1610,7 +1655,7 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in FACADE_SOURCES {
-        let code = code_without_comments(src);
+        let code = code_and_literals(src);
         for (n, stmt) in pub_use_statements(&code) {
             if stmt.contains(&module_reexport) {
                 violations.push(format!(
@@ -1705,7 +1750,7 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
 
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in FACADE_SOURCES {
-        let code = code_without_comments(src);
+        let code = code_and_literals(src);
         for (n, stmt) in pub_use_statements(&code) {
             if stmt.contains(&module_reexport) {
                 violations.push(format!(
@@ -1755,7 +1800,7 @@ fn the_boundary_readers_read_across_line_breaks() {
     // kernel path here would be its own first match.
     let layer = ["editor", "core"].join("_");
     let list = format!("// prose about it\npub use {layer}::{{\n    Doc,\n    EntityRef,\n}};\n");
-    let code = code_without_comments(&list);
+    let code = code_and_literals(&list);
     let stmts = pub_use_statements(&code);
     assert_eq!(
         stmts.len(),
@@ -4302,18 +4347,20 @@ const NOT_CARRIED: [&str; 84] = [
 /// spelled document-layer name, and the guard would pass while the
 /// name was uncarried.
 ///
-/// Comments are stripped first, so prose naming a type is not read as
-/// an export. A statement with no `::` (a whole-crate `pub use foo;`)
-/// introduces the crate name itself and belongs to no root.
+/// **Every scanner in this family takes a BLANKED view**, never raw
+/// source: comments and literals are erased once by the caller, so
+/// prose naming a type is not read as an export and two scanners over
+/// one file cannot disagree about what the file says. A statement with
+/// no `::` (a whole-crate `pub use foo;`) introduces the crate name
+/// itself and belongs to no root.
 ///
 /// A leading `::` is stripped before the root is read: the façade
 /// spells one of its layers with the absolute prefix, because that
 /// file's own module shadows the crate name.
-fn pub_use_names(src: &str, root: &str) -> std::collections::BTreeSet<String> {
-    let code = code_without_comments(src);
+fn pub_use_names(code: &str, root: &str) -> std::collections::BTreeSet<String> {
     let prefix = format!("{root}::");
     let mut names = std::collections::BTreeSet::new();
-    let mut rest: &str = &code;
+    let mut rest: &str = code;
     while let Some(at) = rest.find("pub use ") {
         rest = &rest[at + "pub use ".len()..];
         let Some(end) = rest.find(';') else { break };
@@ -4341,10 +4388,9 @@ fn pub_use_names(src: &str, root: &str) -> std::collections::BTreeSet<String> {
 /// Every name a `pub use` statement introduces, with no root
 /// restriction — the form for reading a crate's OWN `lib.rs`, where
 /// each statement's root is one of that crate's modules.
-fn module_pub_use_names(src: &str) -> std::collections::BTreeSet<String> {
-    let code = code_without_comments(src);
+fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
     let mut names = std::collections::BTreeSet::new();
-    let mut rest: &str = &code;
+    let mut rest: &str = code;
     while let Some(at) = rest.find("pub use ") {
         rest = &rest[at + "pub use ".len()..];
         let Some(end) = rest.find(';') else { break };
@@ -4431,7 +4477,7 @@ fn every_document_layer_root_export_is_carried_or_listed() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../editor-core/src/lib.rs");
     let src = std::fs::read_to_string(&kernel_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", kernel_lib.display()));
-    let exported = module_pub_use_names(&src);
+    let exported = module_pub_use_names(&code_and_literals(&src));
     assert_layer_root_exports_are_carried_or_listed(
         "editor_core",
         "the document layer",
@@ -4478,7 +4524,7 @@ fn assert_layer_root_exports_are_carried_or_listed(
     // a statement in this same scan.
     let mut carried = std::collections::BTreeSet::new();
     for (_, facade_src) in FACADE_SOURCES {
-        carried.append(&mut pub_use_names(facade_src, layer));
+        carried.append(&mut pub_use_names(&code_and_literals(facade_src), layer));
     }
 
     let uncarried: Vec<&str> = exported
@@ -4531,34 +4577,51 @@ fn assert_layer_root_exports_are_carried_or_listed(
 /// demanded a carrier statement for six sentences no build outside
 /// `profile/tests/` compiles.
 ///
-/// Line-based and deliberately shallow: it drops the attribute line,
-/// then the item it gates, up to the statement's terminator. That is
-/// exactly the shape both roots use.
-fn code_without_cfg_gated(src: &str) -> String {
-    let mut out = String::new();
-    let mut lines = src.lines();
-    while let Some(line) = lines.next() {
-        if !line.trim_start().starts_with("#[cfg(") {
-            out.push_str(line);
-            out.push('\n');
-            continue;
-        }
-        let mut depth: i32 = 0;
-        for gated in lines.by_ref() {
-            for c in gated.chars() {
-                match c {
-                    '{' | '(' | '[' => depth += 1,
-                    '}' | ')' | ']' => depth -= 1,
-                    _ => {}
-                }
-            }
-            let trimmed = gated.trim_end();
-            if depth <= 0 && (trimmed.ends_with(';') || trimmed.ends_with('}')) {
-                break;
-            }
-        }
+/// Takes a BLANKED view and answers one with the gated spans blanked
+/// too: the attribute from its `#`, through its own bracket list
+/// however that wraps, and on through the item it gates to that item's
+/// terminator. Blanked rather than deleted, so every line and column
+/// in the answer is still the line and column of the original.
+///
+/// The attribute's extent is [`balanced_end`] over its `[`, and the
+/// item's is [`item_body`], so neither a wrapped `#[cfg(…)]` list nor
+/// a wrapped item head can hide a gate — the shape a line test cannot
+/// see, and the reason a gated item used to survive into the view
+/// whole.
+fn code_without_cfg_gated(code: &str) -> String {
+    let mut gated: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("#[cfg(") {
+        let at = from + off;
+        // The `[`, one byte past the `#`.
+        let Some(close) = balanced_end(code, at + 1) else {
+            break;
+        };
+        let end = match item_body(code, close + 1) {
+            ItemBody::Body(body) => body.end,
+            ItemBody::Declaration(semi) => semi + 1,
+            // A head with no terminator is broken text, not an item;
+            // stop rather than blank to end of file.
+            ItemBody::Unterminated => break,
+        };
+        gated.push(at..end);
+        from = end;
     }
-    out
+    // Byte for byte, so a multi-byte character inside a gated item is
+    // never half-erased, and newline for newline, so the answer's line
+    // structure is the original's.
+    let blanked: Vec<u8> = code
+        .bytes()
+        .enumerate()
+        .map(|(at, b)| {
+            if b != b'\n' && gated.iter().any(|g| g.contains(&at)) {
+                b' '
+            } else {
+                b
+            }
+        })
+        .collect();
+    String::from_utf8(blanked).expect("blanking never splits a character")
 }
 
 /// Every `pub` item a crate root DECLARES rather than re-exports:
@@ -4566,7 +4629,11 @@ fn code_without_cfg_gated(src: &str) -> String {
 /// plus the `pub mod` declarations, written at column 0.
 ///
 /// Column 0 is the whole scope rule — an item inside a `mod` block in
-/// the same file is indented, and is not a root export.
+/// the same file is indented, and is not a root export. It is a rule
+/// about where the DECLARATION opens, not about where its name is
+/// written, so the keyword and the name are read as tokens across
+/// whatever whitespace separates them: `pub struct` on one line and
+/// its name on the next is one declaration and is counted.
 ///
 /// [`module_pub_use_names`] alone misses all of these. For the
 /// document layer that costs nothing today, which is why its guard
@@ -4578,32 +4645,111 @@ fn code_without_cfg_gated(src: &str) -> String {
 /// five of the types the façade carries and one it deliberately does
 /// not — so for that layer the same omission would be a hole, and
 /// this closes it.
-fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
-    let code = code_without_comments(src);
+fn root_declared_pub_names(code: &str) -> std::collections::BTreeSet<String> {
+    /// The identifier at the head of `text`, and what follows it.
+    fn token(text: &str) -> (String, &str) {
+        let text = text.trim_start();
+        let word: String = text
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        (word.clone(), &text[word.len()..])
+    }
+
     let mut names = std::collections::BTreeSet::new();
-    for line in code.lines() {
-        let Some(rest) = line.strip_prefix("pub ") else {
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("pub") {
+        let at = from + off;
+        from = at + "pub".len();
+        // Column 0, and a whole word: `pub` opening the line is the
+        // scope rule, and `republish` is not the keyword.
+        if at != 0 && code.as_bytes()[at - 1] != b'\n' {
             continue;
-        };
-        let Some((keyword, tail)) = rest.split_once(' ') else {
-            continue;
-        };
+        }
+        // `pub(crate)` reads no keyword here and is skipped, exactly as
+        // a visibility narrower than the root's surface should be.
+        let (keyword, tail) = token(&code[from..]);
         if !matches!(
-            keyword,
+            keyword.as_str(),
             "mod" | "struct" | "enum" | "fn" | "trait" | "type" | "const" | "static" | "union"
         ) {
             continue;
         }
-        let name: String = tail
-            .trim_start()
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
+        let (name, _) = token(tail);
         if !name.is_empty() {
             names.insert(name);
         }
     }
     names
+}
+
+/// **The three readers that used to read a statement through a LINE,
+/// each on the shape it used to miss.**
+///
+/// Every one of them is a NEGATIVE-claim reader — it answers "no
+/// violation", "no such export", "nothing gated here" — so a shape it
+/// cannot see is a false GREEN and not a false alarm. That is why each
+/// row below builds the wrapped spelling rather than trusting that
+/// rustfmt will never write one.
+#[test]
+fn the_root_readers_read_statements_not_lines() {
+    // (1) The U1 guard's `use` scan, on a root that wrapped to the
+    // next line. Assembled at runtime for the reason every needle in
+    // this file is.
+    let wrapped_use = format!("use\n    {}::Deserialize;\n", "serde");
+    assert_eq!(
+        use_statement_roots(&code_only(&wrapped_use)),
+        vec![(1, "serde".to_string())],
+        "a `use` whose root is on a continuation line is one statement, \
+         reported at the line it opens on"
+    );
+    // The other half of that conversion: the literal-blanked view is
+    // what keeps this file's own fixtures out of the guard's answer.
+    let quoted = format!("let snippet = \"use {}::Deserialize;\";\n", "serde");
+    assert!(
+        use_statement_roots(&code_only(&quoted)).is_empty(),
+        "a `use` inside a string literal is a fixture, not an import"
+    );
+
+    // (2) `root_declared_pub_names`, on a declaration whose NAME
+    // wrapped away from its keyword.
+    let wrapped_decl = "pub struct\n    Wrapped;\npub fn plain() {}\n";
+    let names = root_declared_pub_names(&code_and_literals(wrapped_decl));
+    assert!(
+        names.contains("Wrapped") && names.contains("plain"),
+        "a name on a continuation line is still the declaration's: {names:?}"
+    );
+    let nested = "mod inner {\n    pub struct Interior;\n}\n";
+    assert!(
+        root_declared_pub_names(&code_and_literals(nested)).is_empty(),
+        "column 0 is still the whole scope rule"
+    );
+
+    // (3) `code_without_cfg_gated`. The LINE was this reader's unit,
+    // so an attribute sharing its line with the item it gates took
+    // the item AFTER it as well — a root export silently absent from
+    // the view a completeness guard then passes over.
+    let inline_gate = "#[cfg(feature = \"x\")] pub struct Gated;\npub struct Kept;\n";
+    let view = code_without_cfg_gated(&code_and_literals(inline_gate));
+    let names = root_declared_pub_names(&view);
+    assert!(
+        !names.contains("Gated") && names.contains("Kept"),
+        "the gate ends where its ITEM ends, not where its line does: {names:?}"
+    );
+    // And the shape whose list wrapped, which the attribute's own
+    // brackets now decide rather than a line test.
+    let wrapped_gate = "#[cfg(\n    feature = \"x\"\n)]\npub struct Gated;\npub struct Kept;\n";
+    let view = code_without_cfg_gated(&code_and_literals(wrapped_gate));
+    let names = root_declared_pub_names(&view);
+    assert!(
+        !names.contains("Gated") && names.contains("Kept"),
+        "a wrapped `#[cfg(…)]` gates exactly the item under it: {names:?}"
+    );
+    assert_eq!(
+        view.lines().count(),
+        wrapped_gate.lines().count(),
+        "blanked rather than deleted, so every line is where it was"
+    );
 }
 
 /// The profile layer's interior: root exports the façade's curated
@@ -4660,9 +4806,9 @@ fn every_profile_layer_root_export_is_carried_or_listed() {
     let layer_lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../profile/src/lib.rs");
     let src = std::fs::read_to_string(&layer_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", layer_lib.display()));
-    let src = code_without_cfg_gated(&src);
-    let mut exported = module_pub_use_names(&src);
-    exported.append(&mut root_declared_pub_names(&src));
+    let code = code_without_cfg_gated(&code_and_literals(&src));
+    let mut exported = module_pub_use_names(&code);
+    exported.append(&mut root_declared_pub_names(&code));
 
     assert_layer_root_exports_are_carried_or_listed(
         "profile",
@@ -4685,10 +4831,9 @@ const PER_NAME_GUARDED: [&str; 2] = ["editor_core", "profile"];
 /// Every crate the façade re-exports WHOLE at its root — `pub use
 /// foo;`, no path and no brace list — so every name that crate's root
 /// exports is nameable one hop past the façade by construction.
-fn whole_crate_re_exports(src: &str) -> std::collections::BTreeSet<String> {
-    let code = code_without_comments(src);
+fn whole_crate_re_exports(code: &str) -> std::collections::BTreeSet<String> {
     let mut names = std::collections::BTreeSet::new();
-    let mut rest: &str = &code;
+    let mut rest: &str = code;
     while let Some(at) = rest.find("pub use ") {
         rest = &rest[at + "pub use ".len()..];
         let Some(end) = rest.find(';') else { break };
@@ -4766,7 +4911,7 @@ fn every_facade_layer_is_whole_re_exported_or_per_name_guarded() {
         .iter()
         .find(|(name, _)| *name == "lib.rs")
         .unwrap_or_else(|| panic!("FACADE_SOURCES no longer lists the façade root"));
-    let whole = whole_crate_re_exports(root_src);
+    let whole = whole_crate_re_exports(&code_and_literals(root_src));
 
     let unclassified: Vec<&str> = layers
         .iter()
@@ -4827,7 +4972,7 @@ fn every_facade_layer_is_whole_re_exported_or_per_name_guarded() {
 /// scan can honestly assert; the rest is the per-function rustdoc.
 #[test]
 fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
-    let code = code_without_comments(include_str!("../src/authoring.rs"));
+    let code = code_and_literals(include_str!("../src/authoring.rs"));
     let mut seams: Vec<&str> = Vec::new();
     let mut chaining: Vec<&str> = Vec::new();
     let mut current: Option<&str> = None;
@@ -4906,7 +5051,7 @@ fn tour_sources() -> Vec<(String, String)> {
         }
         let text = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
-        out.push((name, code_without_comments(&text)));
+        out.push((name, code_and_literals(&text)));
     }
     out.sort();
     assert!(
