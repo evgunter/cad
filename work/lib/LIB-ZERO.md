@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-09
 branch: lib/zero
 refs: [the-quantity-boundary-compares-and-hashes-as-if-poison-and-signed-zero-cannot-arrive]
+pr: 2259
 ---
 
 
