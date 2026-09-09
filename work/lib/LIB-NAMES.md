@@ -2,11 +2,12 @@
 id: LIB-NAMES
 kind: unit
 title: builders mint a revolve's role names, reached at pncad::select
-status: review
+status: closed
 opened: 2026-09-09
 branch: lib/names
 refs: [no-facade-door-mints-a-revolves-role-names]
 pr: 2248
+closed: 2026-09-09
 ---
 
 
