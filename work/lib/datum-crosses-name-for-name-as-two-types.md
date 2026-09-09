@@ -4,7 +4,6 @@ kind: issue
 title: the census accounts `Datum` name-for-name across two different types, so a whole authoring arm hid behind it
 status: open
 opened: 2026-09-06
-needs_ev: true
 ---
 
 
@@ -129,3 +128,16 @@ reader's reach, as they are for the payload sweep.
 
 Recommendation revised: **(D)** over (A); under (D) the list (A)
 proposes is unnecessary.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2230)
+
+**(D).** Ev: "D sounds good!" Rule 1's name match stays, but a match
+accounts MEMBERS, not the type: when a curated Rust name resolves to
+an enum (or a struct), the same-spelled Python namesake accounts only
+the arms (or pub fields) it actually spells — an arm as a class
+attribute or as a snake-cased constructor/property — and every other
+arm needs its own `BOUND_AS` or `NOT_BOUND` row. The resolver is the
+one `scripts/payload-rung-sweep.py` (LIB-SWEEP) commits. Mechanical
+afterwards: the census rule, the declaration reader, and the one-time
+backfill of per-arm rows (`Node`, `DocEdit`, `Datum` the big three;
+the unit's first step is the count). (A)'s list is unnecessary.
