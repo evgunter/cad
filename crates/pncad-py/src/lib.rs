@@ -26,6 +26,11 @@
 //! that line are ordinary Rust that the default workspace build
 //! compiles and tests.
 
+// One check finding's evidence as Python reads its attributes off
+// it: exhaustive over the kernel enum, Python-independent so the
+// default build compiles the drift alarm and can construct the arms
+// no authoring door reaches.
+pub mod check_payload;
 pub mod edit_payload;
 pub mod errors;
 pub mod identity;

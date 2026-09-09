@@ -2569,6 +2569,78 @@ fn check_registry_tags_are_stable() {
     );
 }
 
+/// **Every constructible `CheckEvidence` arm's payload, built and
+/// read.**
+///
+/// The arm table, executable. `crate::check_payload::check_payload`
+/// is the projection `CheckEvidence`'s five Python attributes are
+/// read off, and this pin says what each arm puts on the wire: the
+/// exact set it CARRIES, in publication order, with the rest `None`.
+///
+/// **Four of the six arms are built here.** `Escalated` and
+/// `Unsupported` hold the shell door's refusal, whose type the
+/// `pncad` façade does not re-export, so this crate cannot name a
+/// value to put in them; their `reason` is the same rendering
+/// `SeparationUnavailable`'s is, which IS pinned below. That costs
+/// the table its totality and nothing else — `check_payload`'s match
+/// is exhaustive with no wildcard, so an arm that reached Python
+/// unprojected would not compile.
+///
+/// Three of the four are unreachable from Python entirely (the shell
+/// door escalating on a gathered subject, the box builder refusing
+/// over the whole product), so this is where their projection is
+/// pinned at all: `tests/test_checks.py` reads the other three.
+#[test]
+fn every_check_evidence_arm_projects_the_payload_it_carries() {
+    use crate::check_payload::check_payload;
+    use crate::tags::check_evidence_tag;
+    use pncad::document::{CheckEvidence as E, RecipeNodeId};
+
+    let carries = |evidence: &E, want: &[&str]| {
+        assert_eq!(
+            check_payload(evidence).present(),
+            want,
+            "the payload `{}` puts on the wire has moved",
+            check_evidence_tag(evidence)
+        );
+    };
+
+    carries(
+        &E::Connectedness {
+            actual: 2,
+            expected: 1,
+        },
+        &["actual", "expected"],
+    );
+    carries(&E::StaleExpectation { expected: 1 }, &["expected"]);
+    carries(
+        &E::NotSeparated {
+            other_root: RecipeNodeId(4),
+            other_output: 2,
+        },
+        &["other_root", "other_output"],
+    );
+    let unavailable = E::SeparationUnavailable {
+        kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
+        reason: "boxes refused".into(),
+    };
+    carries(&unavailable, &["reason"]);
+
+    // The numbers and the sentence themselves, not just which fields
+    // are set: the counterpart names the root it names, and the
+    // separation arm's prose crosses as the kernel wrote it.
+    let pair = check_payload(&E::NotSeparated {
+        other_root: RecipeNodeId(4),
+        other_output: 2,
+    });
+    assert_eq!(pair.other_root, Some(RecipeNodeId(4)));
+    assert_eq!(pair.other_output, Some(2));
+    assert_eq!(
+        check_payload(&unavailable).reason.as_deref(),
+        Some("boxes refused")
+    );
+}
+
 /// **The tier-3′ census findings read as prose, and that is a KERNEL
 /// rendering, not a binding one.**
 ///
