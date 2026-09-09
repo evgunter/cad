@@ -1070,6 +1070,7 @@ class Length:
     def __le__(self, other: Length) -> bool: ...
     def __gt__(self, other: Length) -> bool: ...
     def __ge__(self, other: Length) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class Angle:
@@ -1089,6 +1090,7 @@ class Angle:
     def __le__(self, other: Angle) -> bool: ...
     def __gt__(self, other: Angle) -> bool: ...
     def __ge__(self, other: Angle) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class Count:
@@ -1101,6 +1103,7 @@ class Count:
     def __init__(self, value: int) -> None: ...
     @property
     def value(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class LengthUnit:
@@ -3675,6 +3678,8 @@ class FaceCensus:
     def edges(self) -> int: ...
     @property
     def vertices(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class StructureNormalization:
     """One re-minted boundary graph, reported as data: the file's locus
@@ -4610,6 +4615,8 @@ class MateFrame:
         perpendicular — the refusal the solve would meet, reachable
         BEFORE authoring the mate that carries it."""
 
+    def __eq__(self, other: object) -> bool: ...
+
 class AxisSense:
     """Which way the two sides' axes point at each other. `Opposed` is
     what kills every pi-flip ambiguity: the senses are AUTHORED, never
@@ -4657,6 +4664,8 @@ class MatePrimitive:
     def offset(self) -> Optional[Length]:
         """The planar rest's standoff, `None` for the others."""
 
+    def __eq__(self, other: object) -> bool: ...
+
 class Alignment:
     """The alignment datum: which frames coincide, at which axis
     sense, with which clocking rider.
@@ -4697,6 +4706,7 @@ class Alignment:
         `mate_datum_too_small_to_lever` fault. An alignment that names
         NO scale at all is not this case — it borrows the session box's
         scale and answers with a number."""
+    def __eq__(self, other: object) -> bool: ...
 
 class ClassAdmission:
     """How far a contact class gets in v1, as a value BOTH enforcing
@@ -4737,6 +4747,15 @@ vocabulary refuses with."""
 
 UNDER_RECOURSE: Final[str]
 """The recourse an under-determined tree mate's refusal ends on."""
+
+CONTRADICTORY_RECOURSE: Final[str]
+"""The recourse a mate contradiction's refusal ends on — one sentence
+for both shapes it renders, a pair of mates and a mate contradicting
+itself."""
+
+NO_AT_REST_RECORD_RECOURSE: Final[str]
+"""The recourse the at-rest gate's `NoAtRestRecord` refusal ends on:
+`Rest` is the one class v1 mints and verifies at rest."""
 
 class MateRole:
     """What a mate did in the solve: `Determining` (a tree mate — it
