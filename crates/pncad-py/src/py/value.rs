@@ -412,7 +412,7 @@ impl Body {
 /// Frozen, constructed only by the binding, and compared by value: two
 /// findings that say the same thing are `==`.
 ///
-/// `variant` is which `ValidationError` arm refused. The other three
+/// `variant` is which `ValidationError` arm refused. The other five
 /// are its payload, `None` on an arm that carries none, so `getattr`
 /// never raises and a caller never has to branch on `variant` first:
 ///
@@ -425,6 +425,14 @@ impl Body {
 ///   (`"vertex_on_face"`, `"edge_edge_cross"`, …). The branch that
 ///   matters: an `"edge_face_pierce"` is interpenetration and cannot
 ///   be declared, while an `"edge_edge_overlap"` can be.
+/// * `stale_kind` — which declared record the census could not
+///   confirm (`"vertex_vertex"`, `"vertex_on_face"`, `"curve_locus"`,
+///   `"patch"`). The granularity is which record to withdraw or
+///   re-seat; withdrawing another one leaves the refusal standing.
+/// * `ring_contact_kind` — how a ring meets its face's own outer loop
+///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"edge_along_edge"`).
+///   The word says where the ring has to move: a shared position one
+///   vertex clears, or a shared arc no single move separates.
 ///
 /// **No arena key crosses**, here as everywhere: a `Body` is an opaque
 /// handle, so WHICH face or vertex a finding names stays in the
@@ -460,6 +468,18 @@ impl ValidationFinding {
         self.0.contact_kind
     }
 
+    /// Which declared record lost its witness.
+    #[getter]
+    fn stale_kind(&self) -> Option<&'static str> {
+        self.0.stale_kind
+    }
+
+    /// How a ring meets its face's own outer loop.
+    #[getter]
+    fn ring_contact_kind(&self) -> Option<&'static str> {
+        self.0.ring_contact_kind
+    }
+
     fn __repr__(&self) -> String {
         // Python's own spelling of an absent word, not Rust's: a repr
         // a reader can paste back is the whole point of one.
@@ -468,11 +488,14 @@ impl ValidationFinding {
         }
         format!(
             "ValidationFinding(variant='{}', subject_kind={}, \
-             entity_kind={}, contact_kind={})",
+             entity_kind={}, contact_kind={}, stale_kind={}, \
+             ring_contact_kind={})",
             self.0.variant,
             word(self.0.subject_kind),
             word(self.0.entity_kind),
-            word(self.0.contact_kind)
+            word(self.0.contact_kind),
+            word(self.0.stale_kind),
+            word(self.0.ring_contact_kind)
         )
     }
 
@@ -480,7 +503,7 @@ impl ValidationFinding {
         self.0 == other.0
     }
 
-    /// Consistent with [`Self::__eq__`]: the four words ARE the value,
+    /// Consistent with [`Self::__eq__`]: the six words ARE the value,
     /// so hashing them hashes exactly what equality compares.
     fn __hash__(&self) -> u64 {
         use std::hash::{Hash, Hasher};
@@ -490,6 +513,8 @@ impl ValidationFinding {
             self.0.subject_kind,
             self.0.entity_kind,
             self.0.contact_kind,
+            self.0.stale_kind,
+            self.0.ring_contact_kind,
         )
             .hash(&mut hasher);
         hasher.finish()

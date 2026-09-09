@@ -2,9 +2,10 @@
 id: two-validation-payload-discriminants-still-uncrossed
 kind: issue
 title: two ValidationError payload discriminants still cross as prose only
-status: open
+status: closed
 opened: 2026-09-08
-refs: [LIB-FINDINGS]
+closed: 2026-09-09
+refs: [LIB-FINDINGS, LIB-DISCRIMINANTS]
 ---
 
 Disclosed by LIB-FINDINGS, which crossed the two payloads Ev's
@@ -103,3 +104,26 @@ else. Mechanical afterwards: two exhaustive maps, two attributes,
 census rows moving with the measurement; the bifurcation arm
 (`witness-bifurcation-arm-has-no-inner-word`) crosses under the same
 rule the day the M6 solver constructs it.
+
+## Closed (2026-09-09, LIB-DISCRIMINANTS)
+
+Both discriminants cross. `ValidationFinding.stale_kind` is
+`StaleDeclaration`'s four words (`vertex_vertex`, `vertex_on_face`,
+`curve_locus`, `patch`) and `.ring_contact_kind` is `RingContact`'s
+three (`vertex_vertex`, `vertex_on_edge`, `edge_along_edge`), each
+minted by an exhaustive map in `crates/pncad-py/src/tags.rs` with no
+wildcard and `None` on every arm that carries no such payload. The
+decision this file asked about is answered as the ruling directed:
+one attribute per payload TYPE, not one shared word whose meaning
+depends on `variant`; the projection stops at the discriminant,
+because both payloads' fields are arena keys and no key crosses.
+
+Both census rows moved from `INTERIOR` to `BOUND_AS` with the
+measurement stated at the entry. No Python scene reaches either arm —
+a stale record needs a declaration parted from its witness, which no
+Python door hands out, and a ring on its outer loop needs raw Euler
+surgery — so the seven words are pinned per arm in Rust by
+construction and `tests/test_validate.py` names the gap as the doors'.
+
+`witness-bifurcation-arm-has-no-inner-word` stays open under the same
+rule, waiting on the M6 solver constructing the arm.
