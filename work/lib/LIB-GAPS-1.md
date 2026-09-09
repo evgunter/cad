@@ -2,11 +2,12 @@
 id: LIB-GAPS-1
 kind: unit
 title: two datum constructors and the mesh boundary polylines
-status: review
+status: closed
 branch: lib/gaps-1
 opened: 2026-09-09
 refs: [two-datum-arms-have-no-node-constructor, mesh-boundary-polylines-have-no-python-door]
 pr: 2250
+closed: 2026-09-09
 ---
 
 Three doors the binding census's member rule found on its first run,
