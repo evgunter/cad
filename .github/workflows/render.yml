@@ -807,18 +807,7 @@ jobs:
         # same reason — a smaller package list is not a different
         # failure mode, just a shorter one.
         timeout-minutes: 6
-        run: |
-          set -uo pipefail
-          for attempt in 1 2 3; do
-            if timeout -k 10 120 sudo apt-get update -qq \
-               && timeout -k 10 120 sudo apt-get install -y -qq python3-venv; then
-              exit 0
-            fi
-            echo "::warning::python3-venv: apt attempt ${attempt} failed or hung; retrying"
-            sleep $((attempt * 5))
-          done
-          echo "::error title=python3-venv unavailable::apt failed or hung on three attempts. Upstream/mirror problem — re-run the lane."
-          exit 1
+        run: scripts/apt-install.sh python3-venv
       - name: render (demos/render-wild.sh)
         if: ${{ env.WILD_WANTED == 'true' }}
         run: demos/render-wild.sh
@@ -1096,27 +1085,25 @@ jobs:
       # The retry itself is the same lever, for the same stated reason,
       # as .github/actions/install-nextest: one host's bad minute must
       # not be a whole-gate failure.
+      # THE FIRST GUARD AND THE RETRY NOW LIVE IN scripts/apt-install.sh,
+      # which every apt row in this repo goes through; `timeout-minutes`
+      # stays here because only the step can carry it. That script also
+      # narrows what `apt-get update` is allowed to fail on down to
+      # Ubuntu's own archive, which is a DIFFERENT failure from the hang
+      # this paragraph is about — a third-party list the runner image
+      # ships can publish an index that disagrees with its own Release
+      # file, and `update` then exits non-zero having fetched every index
+      # these packages actually come from.
       # ONE INSTALL FOR BOTH LANES since the merge — and note that the two
       # wedges above happened on two separate runners, so a merged job has
       # one exposure to this where the matrix had two.
       - name: renderer system deps (software GL + Xvfb + venv)
         timeout-minutes: 8
         run: |
-          set -uo pipefail
-          for attempt in 1 2 3; do
-            # -k: apt ignores TERM mid-transaction often enough to matter.
-            if timeout -k 10 120 sudo apt-get update -qq \
-               && timeout -k 10 240 sudo apt-get install -y -qq \
-                 xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libglu1-mesa \
-                 libxrender1 libxcursor1 libxinerama1 libxft2 libfontconfig1 \
-                 python3-venv; then
-              exit 0
-            fi
-            echo "::warning::renderer system deps: apt attempt ${attempt} failed or hung; retrying"
-            sleep $((attempt * 5))
-          done
-          echo "::error title=renderer system deps unavailable::apt failed or hung on three attempts. This is an upstream/mirror problem, not a repo one — re-run the lane."
-          exit 1
+          scripts/apt-install.sh \
+            xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libglu1-mesa \
+            libxrender1 libxcursor1 libxinerama1 libxft2 libfontconfig1 \
+            python3-venv
 
       # render.sh builds its own pinned venv (numpy/matplotlib) on first
       # run, stages every scene, publishes only a whole pass, strips the

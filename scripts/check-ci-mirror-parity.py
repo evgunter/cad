@@ -225,6 +225,19 @@ MIRROR_EXEMPT = {
         "substitution) and claim 11 below reconciles them against the same "
         "block, so they are copies something checks",
     ),
+    "scripts/apt-install.sh": (
+        "hosted",
+        "the apt preamble. What it narrows is the RUNNER IMAGE's source "
+        "lists — third-party lists this repo never asked for, whose broken "
+        "index makes `apt-get update` exit non-zero after fetching every "
+        "index the job's packages actually come from. A developer box has no "
+        "such image and its /etc/apt is the developer's; ci-local.sh installs "
+        "nothing and instead REFUSES when a prereq is absent (its admesh row "
+        "says so at its own key), which is the right local act and leaves "
+        "this script with no local caller. The half that is not one-sided is "
+        "its `--selftest`, which ci.yml's tier-blind `mirror` job runs: it "
+        "needs no root and no archive, so a developer runs it directly",
+    ),
     "scripts/criterion-emit.py": (
         "hosted",
         "the criterion benchmark lane's history writer. The lane is hosted-only "
