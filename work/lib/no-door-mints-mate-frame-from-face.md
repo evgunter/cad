@@ -80,6 +80,13 @@ struct and a new advisory check, which is a second unit, not a
 refinement of the first; **(C)** leave it: the mitigation (model each
 part from the datum it mates on) stays the documented answer.
 
-**4. Whose.** The Home line names S-MATE, which has no tracker
-directory today; LIB can take (A) as a mechanical unit in this wave,
-or hand it to the solver's program. Recommendation: LIB takes (A).
+**4. Whose.** The Home line names S-MATE, which has exited; its
+residue program is MSOLVE (`work/msolve/`, paths `mate.rs` and
+`mate/*`, and it says the census-attribution consumer in
+`assembly.rs` stays DOCM's). The kernel half of (A) is one function
+in `mate.rs`, in MSOLVE's paths; the façade and Python halves are
+LIB's. Recommendation: LIB takes (A) as one mechanical unit and
+announces the `mate.rs` touch on MSOLVE's tracker, the way lanes
+announce seams today — or, if you would rather keep `mate.rs` edits
+with MSOLVE, LIB takes only the façade and Python halves once MSOLVE
+lands the kernel door.
