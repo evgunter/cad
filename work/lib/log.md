@@ -4772,3 +4772,19 @@ computed quantity. Mechanical unit LIB-SEATS. Orchestrator note: the
 lesson of this thread is the one `memories/` already states — measure
 the Rust shape first and propose its mirror; every revision here was a
 step back toward that.
+
+## `[ev]` #2257 ruled (2026-09-09): the role-name builders take the loop — (A)
+
+Ev asked why the four builders fix `loop_index: 0`; the answer was
+scope, not design — the ruled two-argument shape came from the
+thirteen hand-spelling sites, all outer-loop, and LIB-NAMES kept a
+ruled signature rather than widen it. With nothing about the outer
+loop earning the shortcut on its merits, **(A): the symmetric
+signature — `band(node, loop, seg)` and its three siblings take the
+loop index as an argument beside the segment, the outer loop `0` as
+`ProfileEdgeRef` spells it**; every current call passes `0`; the
+thirteen Rust sites and the five Python doors move to the new arity
+under the same byte-equality pins. Mechanical unit LIB-LOOPS.
+Orchestrator note: I recommended parking (D); Ev chose symmetry over
+the convenience, which is the surface's own rule — a builder that
+privileges one loop is a second way to spell the vocabulary.

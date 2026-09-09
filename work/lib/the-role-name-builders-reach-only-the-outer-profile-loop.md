@@ -5,7 +5,6 @@ title: the role-name builders reach only the outer profile loop, so a hole's ban
 status: open
 opened: 2026-09-09
 refs: [no-facade-door-mints-a-revolves-role-names]
-needs_ev: true
 ---
 
 
@@ -82,3 +81,15 @@ consumer wants the other loops, (C) keeps it while opening the rest,
 and (A) is the symmetric signature at the cost of the thirteen sites
 and the five Python doors moving to three arguments with `0` in the
 middle at every current call.
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2257): (A)
+
+The symmetric signature: `band(node, loop, seg)`, `band_pi(node, loop,
+seg)`, `band_rim(node, loop, vertex)`, `meridian_vertex(end, node,
+loop, vertex)` — the loop index is an argument like the segment, and
+the outer loop is `0` the way `ProfileEdgeRef` spells it, with no
+loop privileged by the builders. Every current call passes `0`; the
+thirteen converted Rust sites and the five Python doors move to the
+new arity, the Python pins stay byte-equal against the kernel's own
+names, and a hole's band is reachable from both alphabets. Mechanical
+unit LIB-LOOPS.
