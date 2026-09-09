@@ -2,7 +2,8 @@
 id: the-quantity-boundary-compares-and-hashes-as-if-poison-and-signed-zero-cannot-arrive
 kind: issue
 title: the quantity boundary compares and hashes as if poison and signed zero cannot arrive
-status: open
+status: closed
+closed: 2026-09-09
 opened: 2026-09-03
 refs: [1668]
 ---
@@ -192,3 +193,12 @@ the newtypes implement no `Hash`, and the two join
 funnel refuses non-finite at the doors where a value enters recipe
 data, so the boundary type does not re-decide it. Mechanical unit
 LIB-ZERO.
+
+## Closed (2026-09-09, LIB-ZERO, #2259)
+
+`Length` and `Angle` compare as the derived `PartialEq`/`PartialOrd`
+(IEEE; a NaN operand answers `False` to every relation but `!=`) and
+no longer hash, with the reason on `test_hashability.py`'s roster; the
+`Written` pair keeps its hashes as the ruling states; the unit classes
+are filed separately (`the-unit-classes-hash-over-a-partialeq-only-newtype`).
+See `work/lib/LIB-ZERO.md`.

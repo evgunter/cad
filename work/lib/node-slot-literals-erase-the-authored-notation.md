@@ -4,7 +4,6 @@ kind: issue
 title: node-slot literals record the canonical row, whatever unit the caller wrote
 status: open
 opened: 2026-09-08
-needs_ev: true
 ---
 
 
@@ -225,3 +224,19 @@ union, one type at the seat, the `Length` shortcut goes, and the ~200
 sites become `Expr.literal(...)` (mechanical; the guide blocks
 re-execute). Recommendation: **(H)** if the shortcut is not worth a
 union, which is the call the rest of this surface's mirroring makes.
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2233): (H)
+
+Each dimensioned slot door takes an `Expr` and nothing else, as the
+Rust slot does; `Expr` gains Rust's constructors — `Expr.literal`,
+`Expr.written_length`, `Expr.written_angle`. No union at the seat; the
+bare-`Length` shortcut goes and the existing sites convert. Ev's two
+notes, binding on the unit: (1) if the seat wants to be more
+ergonomic, add helper functions on BOTH the Rust and Python sides,
+mirrored, rather than a Python-only convenience; (2) the natural
+translation of a site that spells a unit — `Node.extrude(profile,
+25 * mm)` — is a WRITTEN length, not a canonical literal: the author
+wrote millimetres, so the conversion keeps the notation
+(`Expr.written_length(...)`) wherever the source spells a unit, and
+falls back to `Expr.literal(...)` only for a computed quantity with no
+written form. Mechanical unit LIB-SEATS.
