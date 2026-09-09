@@ -734,7 +734,7 @@ except EditError as edit_refusal:
 
 # The one refusal on this surface whose discriminant is a SEQUENCE.
 # `findings` is a list, its length is `failure_count`, and each entry's
-# `variant` is a plain `str` while its three payload words are optional
+# `variant` is a plain `str` while its five payload words are optional
 # — the shape a caller reads without narrowing on `variant` first.
 try:
     gathered.validate_pseudomanifold()
@@ -747,8 +747,14 @@ except ValidationError as validation_refusal:
     about: str | None = first_finding.subject_kind
     carrier: str | None = first_finding.entity_kind
     coincidence: str | None = first_finding.contact_kind
+    unwitnessed: str | None = first_finding.stale_kind
+    where_the_ring_meets: str | None = first_finding.ring_contact_kind
     if coincidence is not None:
         declarable: str = coincidence
+    if unwitnessed is not None:
+        withdraw: str = unwitnessed
+    if where_the_ring_meets is not None:
+        move_the_ring: str = where_the_ring_meets
 
 
 # The three doors LIB-DOORS-2 projected, typed. Every payload

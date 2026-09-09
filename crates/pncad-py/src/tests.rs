@@ -2750,6 +2750,8 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             subject_kind: Some("entity"),
             entity_kind: Some("edge"),
             contact_kind: None,
+            stale_kind: None,
+            ring_contact_kind: None,
         }
     );
 
@@ -2766,6 +2768,8 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             subject_kind: Some("face_pair"),
             entity_kind: None,
             contact_kind: None,
+            stale_kind: None,
+            ring_contact_kind: None,
         }
     );
 
@@ -2785,7 +2789,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
     );
 
     // The one fieldless arm, and the shape of every arm that carries
-    // no census payload: the variant alone, three `None`s beside it,
+    // no payload at all: the variant alone, five `None`s beside it,
     // so `getattr` never raises on a finding a caller did not expect.
     assert_eq!(
         project(&ValidationError::NegativeVolume),
@@ -2794,7 +2798,143 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             subject_kind: None,
             entity_kind: None,
             contact_kind: None,
+            stale_kind: None,
+            ring_contact_kind: None,
         }
+    );
+}
+
+/// **Every `StaleDeclaration` arm's word, built and read.**
+///
+/// The arm table for `stale_kind`, executable. Each arm names the
+/// GRANULARITY of the record the tier-3′ census could not confirm,
+/// which is the recourse — withdraw or re-seat THAT record — so the
+/// pin is one row per arm rather than a spot check.
+///
+/// **None of the four is reachable from Python**, and the reason is
+/// the same for all four: a stale record is a declaration the
+/// geometry stopped backing, and every door that hands Python a body
+/// with declarations attached mints those declarations from the
+/// geometry it is looking at (`Value.body`) or gates them before it
+/// answers (`assemble`, whose gate refuses on exactly this census).
+/// A Python caller cannot edit a `ContactRecords`, so it cannot part
+/// a record from its witness; the kernel's own suites do it by
+/// tampering with the record set directly. This is therefore where
+/// the projection is pinned at all.
+#[test]
+fn every_stale_declaration_arm_projects_the_payload_it_carries() {
+    use crate::validation::project;
+    use pncad::topo::{StaleDeclaration, ValidationError};
+
+    let word = |declaration: StaleDeclaration| {
+        project(&ValidationError::StaleContactDeclaration { declaration }).stale_kind
+    };
+
+    assert_eq!(
+        word(StaleDeclaration::VertexVertex {
+            a: VertexKey::default(),
+            b: VertexKey::default(),
+        }),
+        Some("vertex_vertex")
+    );
+    assert_eq!(
+        word(StaleDeclaration::VertexOnFace {
+            vertex: VertexKey::default(),
+            face: FaceKey::default(),
+        }),
+        Some("vertex_on_face")
+    );
+    assert_eq!(
+        word(StaleDeclaration::CurveLocus {
+            face_a: FaceKey::default(),
+            face_b: FaceKey::default(),
+            witness: Default::default(),
+        }),
+        Some("curve_locus")
+    );
+    assert_eq!(
+        word(StaleDeclaration::Patch {
+            face_a: FaceKey::default(),
+            face_b: FaceKey::default(),
+        }),
+        Some("patch")
+    );
+
+    // The word rides the arm that carries the record and no other:
+    // the contradiction arm is the OTHER direction of the same
+    // certification diff and carries a declaration that IS witnessed,
+    // by counter-evidence.
+    assert_eq!(project(&ValidationError::NegativeVolume).stale_kind, None);
+}
+
+/// **Every `RingContact` arm's word, built and read.**
+///
+/// The arm table for `ring_contact_kind`, executable. The three arms
+/// are three different repairs — a shared position one vertex move
+/// clears, a ring vertex standing on an outer edge's interior, and a
+/// shared arc no single move separates — so each is pinned by name.
+///
+/// **None of the three is reachable from Python.** A ring meeting its
+/// own face's outer loop is minted by raw Euler surgery on a body
+/// (the shell verb's suites glue a lifted counterpart chart on with
+/// `kfmrh` to build one); every Python door answers a body its own
+/// producer already validated, and the binding exposes no Euler
+/// operator to build one with. So the three words are pinned here,
+/// and `tests/test_validate.py` says the gap is the DOORS' rather
+/// than the projection's.
+#[test]
+fn every_ring_contact_arm_projects_the_payload_it_carries() {
+    use crate::validation::project;
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+    use pncad::topo::{RingContact, ValidationError};
+
+    let word = |contact: RingContact| {
+        project(&ValidationError::RingMeetsOuter {
+            face: FaceKey::default(),
+            ring: Default::default(),
+            contact,
+        })
+        .ring_contact_kind
+    };
+
+    assert_eq!(
+        word(RingContact::Vertex {
+            ring_vertex: VertexKey::default(),
+            outer_vertex: VertexKey::default(),
+        }),
+        Some("vertex_vertex")
+    );
+    assert_eq!(
+        word(RingContact::VertexOnEdge {
+            ring_vertex: VertexKey::default(),
+            outer_edge: Default::default(),
+        }),
+        Some("vertex_on_edge")
+    );
+    assert_eq!(
+        word(RingContact::Edge {
+            ring_edge: Default::default(),
+            outer_edge: Default::default(),
+        }),
+        Some("edge_along_edge")
+    );
+
+    // The escalated sibling carries a margin, not a shape: it is a
+    // ring contact that could not be decided, so there is no way the
+    // ring meets the loop to name, and the arm's own word is the
+    // whole answer.
+    assert_eq!(
+        project(&ValidationError::RingContactEscalated {
+            face: FaceKey::default(),
+            ring: Default::default(),
+            source: Indeterminate {
+                margin: MarginDiag::Value(5e-9),
+                band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
+                predicate: Some("ring_contact"),
+            },
+        })
+        .ring_contact_kind,
+        None
     );
 }
 
@@ -3661,6 +3801,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "ring_contact_tag",
+        values: &["edge_along_edge", "vertex_on_edge", "vertex_vertex"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "root_fault_tag",
         values: &[
             "root_ancestor",
@@ -3833,6 +3978,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "reduce"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "stale_declaration_tag",
+        values: &["curve_locus", "patch", "vertex_on_face", "vertex_vertex"],
         delegates: &[],
     },
     TagEntry {

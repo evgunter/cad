@@ -83,8 +83,8 @@ use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanError, CensusContact, CensusSubject, EntityId, ShellError, TransformError,
-    ValidationError,
+    BooleanError, CensusContact, CensusSubject, EntityId, RingContact, ShellError,
+    StaleDeclaration, TransformError, ValidationError,
 };
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -2217,5 +2217,49 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
         CensusContact::EdgeEdgeOverlap { .. } => "edge_edge_overlap",
         CensusContact::EdgeFaceOverlap { .. } => "edge_face_overlap",
         CensusContact::ConformalPatch { .. } => "conformal_patch",
+    }
+}
+
+/// The stable tag for WHICH declared record lost its witness — the
+/// granularity of the declaration the tier-3′ census could not
+/// confirm.
+///
+/// The word decides which record a caller withdraws or re-seats. A
+/// `vertex_vertex` or `vertex_on_face` record names entities, so the
+/// repair is at those entities; a `curve_locus` record was certified
+/// by a witness EDGE whose locus is gone, and a `patch` record by a
+/// trim overlap in a shared chart. Withdrawing the wrong granularity
+/// leaves the refusal standing, which is what a caller reading only
+/// `stale_contact_declaration` cannot avoid.
+///
+/// The record's KEYS stay in the kernel's own prose on the joined
+/// message: no arena key crosses to a surface that holds names.
+pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
+    match declaration {
+        StaleDeclaration::VertexVertex { .. } => "vertex_vertex",
+        StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::CurveLocus { .. } => "curve_locus",
+        StaleDeclaration::Patch { .. } => "patch",
+    }
+}
+
+/// The stable tag for HOW a ring meets its face's own outer loop.
+///
+/// The word decides where the ring has to move: a `vertex_vertex`
+/// contact is one shared position and a nudge of one vertex clears
+/// it, a `vertex_on_edge` contact puts a ring vertex on the interior
+/// of an outer edge, and an `edge_along_edge` contact shares a
+/// positive-length arc — the two loops run together rather than
+/// touching, and no single vertex move separates them.
+///
+/// The words are the census vocabulary's where the shape is the same
+/// one ([`census_contact_tag`]), because a caller reading two contact
+/// words off one finding should not have to learn two spellings for
+/// one coincidence.
+pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
+    match contact {
+        RingContact::Vertex { .. } => "vertex_vertex",
+        RingContact::VertexOnEdge { .. } => "vertex_on_edge",
+        RingContact::Edge { .. } => "edge_along_edge",
     }
 }

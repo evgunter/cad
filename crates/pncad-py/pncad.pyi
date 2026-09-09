@@ -226,7 +226,7 @@ class ValidationFinding:
     Two that say the same thing compare equal and hash equal.
 
     `variant` is which validator arm refused (`undeclared_contact`,
-    `census_undecidable`, `negative_volume`, …). The other three are
+    `census_undecidable`, `negative_volume`, …). The other five are
     that arm's payload and are `None` on an arm that carries none, so
     reading one never raises `AttributeError`:
 
@@ -243,6 +243,15 @@ class ValidationFinding:
       …). The branch that matters: an `edge_face_pierce` is
       interpenetration and cannot be declared, while an
       `edge_edge_overlap` can be.
+    - `stale_kind` — which declared record the tier-3′ census could
+      not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
+      `"curve_locus"`, `"patch"`). The granularity IS the recourse:
+      it says which record to withdraw or re-seat, and withdrawing
+      another one leaves the refusal standing.
+    - `ring_contact_kind` — how a ring meets its face's own outer loop
+      (`"vertex_vertex"`, `"vertex_on_edge"`, `"edge_along_edge"`).
+      The word says where the ring has to move: a shared position one
+      vertex clears, or a shared arc no single vertex move separates.
 
     No arena key crosses. A `Body` is an opaque handle, so WHICH face
     or vertex a finding names stays in the kernel's own prose on the
@@ -257,6 +266,10 @@ class ValidationFinding:
     def entity_kind(self) -> Optional[str]: ...
     @property
     def contact_kind(self) -> Optional[str]: ...
+    @property
+    def stale_kind(self) -> Optional[str]: ...
+    @property
+    def ring_contact_kind(self) -> Optional[str]: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 

@@ -19,17 +19,23 @@
 //! carries nothing to fill it — the "no `getattr` trap" rule the
 //! projected doors already keep.
 
-use pncad::topo::{CensusContact, CensusSubject, EntityId, ValidationError};
+use pncad::topo::{
+    CensusContact, CensusSubject, EntityId, RingContact, StaleDeclaration, ValidationError,
+};
 
-use crate::tags::{census_contact_tag, census_subject_tag, entity_id_tag, validation_error_tag};
+use crate::tags::{
+    census_contact_tag, census_subject_tag, entity_id_tag, ring_contact_tag, stale_declaration_tag,
+    validation_error_tag,
+};
 
 /// One validator finding, as words.
 ///
 /// The arena KEYS are not here and cannot be: Python holds an opaque
 /// `Body` handle and no key crosses it. What crosses is the
 /// discriminant a caller acts on — which arm refused, what it was
-/// about, which coincidence it found — and the kernel's own `Display`
-/// prose on the joined message carries the rest.
+/// about, which coincidence it found, which declaration went
+/// unwitnessed, how a ring meets its outer loop — and the kernel's own
+/// `Display` prose on the joined message carries the rest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Finding {
     /// Which `ValidationError` arm refused.
@@ -44,6 +50,12 @@ pub struct Finding {
     /// Which coincidence the tier-3′ census found. `None` on every arm
     /// that reports no census contact.
     pub contact_kind: Option<&'static str>,
+    /// Which declared record lost its witness. `None` on every arm
+    /// that reports no unconfirmed declaration.
+    pub stale_kind: Option<&'static str>,
+    /// How a ring meets its face's own outer loop. `None` on every
+    /// arm that reports no ring contact.
+    pub ring_contact_kind: Option<&'static str>,
 }
 
 /// Read one kernel finding into the words Python receives.
@@ -54,6 +66,8 @@ pub fn project(err: &ValidationError) -> Finding {
         subject_kind: subject.map(census_subject_tag),
         entity_kind: subject.and_then(subject_entity).map(entity_id_tag),
         contact_kind: census_contact(err).map(census_contact_tag),
+        stale_kind: stale_declaration(err).map(stale_declaration_tag),
+        ring_contact_kind: ring_contact(err).map(ring_contact_tag),
     }
 }
 
@@ -88,6 +102,28 @@ fn subject_entity(subject: &CensusSubject) -> Option<&EntityId> {
 fn census_contact(err: &ValidationError) -> Option<&CensusContact> {
     match err {
         ValidationError::UndeclaredContact { contact, .. } => Some(contact),
+        _ => None,
+    }
+}
+
+/// The unconfirmed declaration an arm carries, if it carries one.
+///
+/// [`census_subject`]'s reading, at a third payload.
+fn stale_declaration(err: &ValidationError) -> Option<&StaleDeclaration> {
+    match err {
+        ValidationError::StaleContactDeclaration { declaration } => Some(declaration),
+        _ => None,
+    }
+}
+
+/// The ring-vs-outer contact an arm carries, if it carries one.
+///
+/// The escalated sibling (`RingContactEscalated`) carries no contact
+/// to name: an undecidable separation is a margin, not a shape, so
+/// this answers `None` there and the finding's word is the arm's.
+fn ring_contact(err: &ValidationError) -> Option<&RingContact> {
+    match err {
+        ValidationError::RingMeetsOuter { contact, .. } => Some(contact),
         _ => None,
     }
 }
