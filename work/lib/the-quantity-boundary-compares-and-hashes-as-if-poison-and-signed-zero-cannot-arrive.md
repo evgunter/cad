@@ -5,7 +5,6 @@ title: the quantity boundary compares and hashes as if poison and signed zero ca
 status: open
 opened: 2026-09-03
 refs: [1668]
-needs_ev: true
 ---
 
 Banked at LIB-B-FORMAT. Found by BINDING the display formatter: it is
@@ -180,3 +179,16 @@ newtypes go on `tests/test_hashability.py`'s `UNHASHABLE` roster with
 that reason. Cost, stated: `{1 * m}` stops working; nothing in the
 suite does it today, and a caller who wants a key has
 `WrittenLength`. Recommendation revised: **(B′)**.
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2233): (B′)
+
+The Python `Length` and `Angle` mirror the Rust newtypes' derives.
+`==`, `!=`, `<`, `<=`, `>`, `>=` answer as Rust's `PartialEq`/
+`PartialOrd` do — IEEE: a non-finite quantity compares `False` on
+every relation (no `ValueError`, typed or bare), and `-0.0 * m ==
+0.0 * m` stays `True`. `__hash__` is removed from both classes, as
+the newtypes implement no `Hash`, and the two join
+`test_hashability.py`'s `UNHASHABLE` roster with that reason: the
+funnel refuses non-finite at the doors where a value enters recipe
+data, so the boundary type does not re-decide it. Mechanical unit
+LIB-ZERO.
