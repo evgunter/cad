@@ -2,9 +2,11 @@
 id: apt-update-fails-on-the-runner-image-google-chrome-repo
 kind: issue
 title: apt-get update fails repo-wide on the runner image's google-chrome list, and it reds four steps in two workflows
-status: dispatched
+status: review
 opened: 2026-09-09
 branch: ciw/apt-preamble
+pr: 2277
+refs: [apt-preamble-bypass-is-unguarded]
 ---
 
 Found by CIW unit 4's fix pass (PR 2263) when two consecutive runs went
@@ -118,3 +120,32 @@ fix wants a lane that can watch a real failure. Filed rather than
 drive-by-fixed, and the unit's own row is green at STEP level in both
 red runs above (54.36 s and 54.89 s).
 
+
+## Disposition (PR 2277)
+
+The first shape, with the hazard closed rather than named. All five apt
+call sites in `.github/workflows/` — the four above plus
+`nightly.yml`'s `install admesh`, which the sweep found and this file did
+not name — go through `scripts/apt-install.sh`. It sets every source
+list under `/etc/apt/sources.list.d/` whose URIs are not on an Ubuntu
+archive host aside, runs `update` and `install` behind the render lanes'
+`timeout` and three-attempt retry, and **restores every file it moved on
+any exit**. The scrub therefore lasts one apt transaction, not the job:
+a later step that legitimately needs a third-party list finds it where
+the image left it. A package only a foreign list carries still fails, and
+the error names the lists it set aside so the cause is readable.
+
+**Verified against a constructed red, not a healthy mirror.** The script's
+`--selftest` — run by `ci.yml`'s tier-blind `mirror` job on every PR at
+every tier — builds two `file://` repositories, one publishing a Release
+file whose stated SHA256 for `Packages.gz` is not that file's, and
+asserts that an unnarrowed `apt-get update` over the pair exits non-zero
+with `Hash Sum mismatch` while the same update through the script exits
+0, that the retained repository's package is still visible afterwards,
+and that every set-aside file is back. The same condition was planted in
+a real `/etc/apt/sources.list.d/` as a `google-chrome.list` beside four
+genuine third-party lists: today's preamble exits 100, the script exits
+0 and installs.
+
+Residue: nothing stops a new step spelling its own preamble inline again
+— `work/ciw/apt-preamble-bypass-is-unguarded.md`.

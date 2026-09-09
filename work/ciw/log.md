@@ -1749,3 +1749,29 @@ happen. That is also what half of its ITEMS are about — a demoted row
 nobody reads, a selftest nothing invokes, a residue disclosed and not
 filed. Worth noticing that the orchestrator keeps producing the defect
 class its own program exists to close.
+
+**The apt preamble (PR 2277).** Five call sites, not four: the sweep
+found `nightly.yml`'s `install admesh` sharing the shape. All five now
+run `scripts/apt-install.sh`, which narrows `apt-get update` to Ubuntu's
+own archive for the duration of one transaction and puts the image's
+third-party lists back on exit — so the hazard the shape carries (a list
+a later step needs, silently dropped) is closed rather than declared.
+
+**The verification is the interesting part.** The mirror recovered before
+the lane started, so the red could not be waited for; it was
+CONSTRUCTED, twice. Once as a `--selftest` that builds a repository whose
+Release file disagrees with its own index and asserts the unnarrowed
+update dies on it — sited in the tier-blind `mirror` job, so it re-runs
+on every PR rather than being a claim in a merged PR body. Once end to
+end, planting that same condition as a `google-chrome.list` in a real
+`/etc/apt/sources.list.d/`: today's preamble exits 100, the script exits
+0. The program's own recurring defect class is "a thing that was going to
+happen anyway, with nothing scheduled to make it happen", and a one-off
+demonstration in a PR body is exactly that; a selftest is the version
+with something scheduled.
+
+One residue filed rather than left in the PR body: nothing keeps the
+sixth call site from being written inline
+(`work/ciw/apt-preamble-bypass-is-unguarded.md`). The parity checker
+reads workflows for INVOCATIONS, and a step that invokes no script is
+outside its claims by construction.
