@@ -68,11 +68,7 @@ fn cup_names(blank: RecipeNodeId, shell: RecipeNodeId) -> [StableName; 3] {
             EntityKind::Face,
             RoleSeg::Inner(Box::new(cup::bottom(blank))),
         ),
-        shelled(
-            shell,
-            EntityKind::Face,
-            RoleSeg::FromTarget(Box::new(fixture::fname(blank, fixture::wall(0)))),
-        ),
+        editor_core::carried(shell, fixture::fname(blank, fixture::wall(0))),
     ]
 }
 
@@ -210,11 +206,7 @@ fn the_rim_inner_and_outer_names_resolve() {
     }
     // The designated face's own name is gone: what a selector says for
     // the mouth is `Rim(top)`, never `FromTarget(top)`.
-    let carried_top = shelled(
-        shell,
-        EntityKind::Face,
-        RoleSeg::FromTarget(Box::new(cup::top(blank))),
-    );
+    let carried_top = editor_core::carried(shell, cup::top(blank));
     assert!(
         table.lookup(&carried_top).is_none(),
         "the opened face's own name must vanish"
@@ -342,7 +334,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let rim = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(vessel::band(pot, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(Box::new(editor_core::band(pot, vessel::SEG_MOUTH))),
     );
     assert!(
         matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
@@ -351,7 +343,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let other = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(vessel::band_pi(pot, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(Box::new(editor_core::band_pi(pot, vessel::SEG_MOUTH))),
     );
     assert!(
         table.lookup(&other).is_none(),
@@ -372,8 +364,8 @@ fn the_designation_order_moves_the_rim_and_the_content_key() {
     let a = vessel::document();
     let b = vessel::document_with_open(|pot| {
         [
-            vessel::band_pi(pot, vessel::SEG_MOUTH),
-            vessel::band(pot, vessel::SEG_MOUTH),
+            editor_core::band_pi(pot, vessel::SEG_MOUTH),
+            editor_core::band(pot, vessel::SEG_MOUTH),
         ]
     });
     let (sa, sb) = (a.result.unwrap(), b.result.unwrap());
@@ -388,7 +380,7 @@ fn the_designation_order_moves_the_rim_and_the_content_key() {
     let rim_pi = shelled(
         sb,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(vessel::band_pi(pot, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(Box::new(editor_core::band_pi(pot, vessel::SEG_MOUTH))),
     );
     assert!(
         matches!(
@@ -494,8 +486,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // completes no chart on the author's behalf.
     let v = vessel::document_with_open(|pot| {
         [
-            vessel::band(pot, vessel::SEG_MOUTH),
-            vessel::band(pot, vessel::SEG_BELLY),
+            editor_core::band(pot, vessel::SEG_MOUTH),
+            editor_core::band(pot, vessel::SEG_BELLY),
         ]
     });
     // Replace the two-name designation by the single half: the door
@@ -510,7 +502,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
         Node::shell(
             pot,
             fixture::len(vessel::WALL),
-            vec![vessel::band(pot, vessel::SEG_MOUTH)],
+            vec![editor_core::band(pot, vessel::SEG_MOUTH)],
         ),
     );
     let e = refusal(&doc, n);

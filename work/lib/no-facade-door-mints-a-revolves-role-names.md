@@ -2,8 +2,9 @@
 id: no-facade-door-mints-a-revolves-role-names
 kind: issue
 title: no facade door mints a revolve's role names, so every consumer hand-spells the StableName
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-09
 ---
 
 
@@ -101,3 +102,15 @@ Mechanical afterwards: the builders and the conversion of the
 consumers that can reach them (the unit decides where the functions
 are DEFINED so that the corpus, which cannot depend on `pncad`, can
 share them too, and says so).
+
+## Closed (2026-09-09, LIB-NAMES)
+
+`band`, `band_pi`, `band_rim`, `meridian_vertex` and `carried` are
+free functions returning a `StableName`, defined beside the vocabulary
+in `crates/editor-core/src/names/role.rs` and reached at
+`pncad::select`; thirteen hand-spelling sites in eight files converted
+(the tour's five private helpers and the corpus's two `pub` ones
+deleted), five pins one per builder, tour renders and die corpus
+byte-identical. Residues: `the-role-name-builders-reach-only-the-outer-profile-loop`
+and `pncad-py-has-no-door-that-mints-a-revolves-role-names`. See
+`work/lib/LIB-NAMES.md`.

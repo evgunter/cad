@@ -1164,13 +1164,15 @@ FAMILIES: dict[str, str] = {
     # it closed at LIB-B-READBACK, LIB-B-CHECKS, LIB-B-CANCEL,
     # LIB-B-FACE-FRAME, LIB-B-PART, LIB-B-NOTATION and
     # LIB-B-DISTRIBUTIONS. Every family the LIB residual register's
-    # category B enumerated is closed, and none of the three below
+    # category B enumerated is closed, and none of the four below
     # comes from that register.
     #
-    # THESE THREE ARE THE MEMBER RULE'S OWN FINDINGS. Each is a member
-    # of a curated type Python spells identically, so the name match
-    # accounted it and no roster here could report it until members
-    # were counted. `test_every_gap_entry_names_a_defined_id` reads
+    # THREE OF THEM ARE THE MEMBER RULE'S OWN FINDINGS. Each is a
+    # member of a curated type Python spells identically, so the name
+    # match accounted it and no roster here could report it until
+    # members were counted. The fourth is a debt created rather than
+    # found: five names curated into `pncad::select` with no Python
+    # spelling at all. `test_every_gap_entry_names_a_defined_id` reads
     # this map in both directions: no entry may cite a key that is not
     # here, and no key here may go uncited.
     "B-DATUM-DOORS": (
@@ -1190,6 +1192,14 @@ FAMILIES: dict[str, str] = {
         "Python consumer holds positions, triangles and patches and "
         "cannot draw an edge. Closing it answers the polylines beside "
         "`Mesh.patch`."
+    ),
+    "B-NAME-BUILDERS": (
+        "minting a revolve's role name in one call — `band`, "
+        "`band_pi`, `band_rim`, `meridian_vertex` and `carried` answer "
+        "a `StableName` in Rust. Closing it delivers the same five in "
+        "Python, answering the name TEXT `Node.fillet`'s selection and "
+        "`Node.shell`'s open list already take, so a caller who must "
+        "AUTHOR a selection stops hand-writing the serialized JSON."
     ),
 }
 
@@ -2470,6 +2480,19 @@ NOT_BOUND = {
     # the second argument crossed by being CAPTURED rather than by
     # already having a spelling; `BOUND_AS` says how, and
     # `tests/test_validate.py` is the positive form.
+    # --- gap: minting a revolve's role name (census-owned) --------
+    # The Rust façade answers each of these in one call; Python speaks
+    # names as TEXT and authors both selections the doors exist for
+    # (`Node.fillet`'s frozen selection, `Node.shell`'s open list), so
+    # a Python author with no evaluation to select against writes the
+    # serialized name by hand. That is the debt, and it is a NEW one:
+    # these five names were curated into `pncad::select` before any
+    # Python spelling existed for them.
+    "band": f"{GAP}: B-NAME-BUILDERS the [0, pi) band face of a meridian segment",
+    "band_pi": f"{GAP}: B-NAME-BUILDERS the [pi, 2pi) band face, the wire case's twin",
+    "band_rim": f"{GAP}: B-NAME-BUILDERS the latitude rim at a meridian vertex",
+    "carried": f"{GAP}: B-NAME-BUILDERS the name a single-operand survivor takes",
+    "meridian_vertex": f"{GAP}: B-NAME-BUILDERS the meridian vertex at one end",
 }
 
 
