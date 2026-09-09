@@ -1,9 +1,11 @@
 ---
 id: detached-demo-workspaces-are-gated-only-by-a-sampled-row
 kind: issue
-title: demos/tour and demos/wild are detached workspaces, invisible to workspace-wide clippy and gated only by a sampled k-lint row
-status: open
+title: demos/tour and demos/wild are detached workspaces, so the clippy a lane runs before pushing cannot see them and CI is the first thing that tells them
+status: review
 opened: 2026-09-04
+branch: ciw/unreachable-roots
+pr: 2263
 ---
 
 
@@ -124,3 +126,54 @@ filed, and a real one.
 
 Its sibling `gui-wasm-build-is-not-gated-at-all` is NOT improved by 1850 —
 that one is an `--exclude`, not a draw.
+
+## Disposition (2026-09-09, PR 2263): nothing built, and why
+
+**No new row, no new mechanism.** The question this unit was told to
+answer first was whether the local gate already covers these roots. It
+does: `local-scripts/ci-local.sh`'s `demos_hygiene` runs
+`cargo fmt --check && cargo clippy --all-targets -- -D warnings` in
+`demos/tour` and again in `demos/wild`, wired as
+`run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"`. Hosted runs the
+same two steps on every code-tier run since 1850 (the 2026-09-06 re-read
+above). Both gates are right; a third would have been a gate over work
+two gates already do, and the k-lint rows would still be the ones that
+fired first.
+
+**So the gap is a habit, and it gets a sentence.** A lane's own check is
+`cargo clippy --workspace --all-targets`, and `--workspace` reaches
+nothing under the roots `Cargo.toml:22` excludes. That is not something
+a careful lane would think to check, which is the argument this item's
+sibling makes for calling it infrastructure rather than discipline —
+except that here the infrastructure is already correct and only the
+lane's model of it is wrong. §2 of
+`docs/prompts/implementer-discipline.md` now carries a bullet saying so,
+naming `demos/tour` and `demos/wild` as ordinary users of the public
+API, and giving the two-line version of the check.
+
+**The bullet's own first draft was the defect one level up**, and the
+fix pass caught it. It said "the hosted gate and `ci-local.sh` both
+cover every root", which is false for two of them: `benches` gets
+rustfmt in the PR gate and its only clippy is `nightly.yml`'s, with no
+local mirror at all, and `interval-transcendentals`' clippy runs only
+when the filter buys `interval-backend`. It also said "five" roots where
+`scripts/doc-gate.sh --print-roots` derives seven. **The bullet now
+carries no count and tells the reader to run that derivation** — and the
+same staleness turned out to sit in five places inside CIW's own fence
+(`ci.yml`'s cache-scope paragraph, `ci-local.sh`'s rustdoc note, and
+three lines of `scripts/doc-gate.sh`, one of them a selftest failure
+message), every one of which had said "six" since before
+`tools/tess-meter` landed. All five are fixed in this PR, by deletion of
+the number rather than by correction of it. A sentence written to fix a
+lane's model of coverage, which is itself wrong about coverage, is worse
+than no sentence.
+
+**Disposition (3) of the three listed above, then**, and (1) and (2) are
+moot: (2) landed with 1850 and (1) has nothing left to disambiguate,
+because the rows are no longer sampled.
+
+**Announced to META**, whose fence `docs/prompts/*` is. The edit is a
+§2 run-fact — what a local command does and does not compile — which is
+the standing clause CIW writes under; it is one bullet in the
+"When you do run locally" list and changes no rule.
+

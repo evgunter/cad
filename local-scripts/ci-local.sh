@@ -1122,6 +1122,37 @@ wasm_check() {
          --features interval --target wasm32-unknown-unknown
 }
 
+# The browser entry point, which the row above cannot reach: it excludes
+# `viewer`, and every other viewer row in this file builds the HOST
+# target, where `cfg(target_family = "wasm")` is compiled out. So without
+# this row `viewer::app::run_web` and the `WebStartupError` arms around
+# it are source no check in either half compiles — the hole PR 1741's
+# `E0599` went through green.
+#
+# `--features app` is the load-bearing half: `run_web` lives behind that
+# non-default feature, so a default-features wasm check of this crate
+# passes over the defect.
+#
+# THE RUSTFLAGS ARE NOT LOAD-BEARING AND ARE KEPT ANYWAY. At the
+# `getrandom` this tree pins, the `wasm_js` FEATURE alone selects the
+# backend — viewer's `cfg(target_arch = "wasm32")` stanza — and this row
+# was verified green with the cfg dropped. (No version literal here on
+# purpose: read `Cargo.lock`, and read that crate's `src/backends.rs`
+# before believing either this comment or its diagnostic.) It stays because the row's subject
+# is the build serve-wasm.sh performs, and because getrandom's own
+# diagnostic still asserts the flag is required, so the day that arm
+# changes back this row must not be what discovers it. Scoped to the
+# command, never exported: RUSTFLAGS silently replaces any
+# .cargo/config.toml rustflags.
+#
+# UNCONDITIONAL HERE, SEED-KEYED HOSTED — this file's standing asymmetry,
+# argued at the toolkit rows in the dispatch list below.
+wasm_check_viewer() {
+  rustup target add wasm32-unknown-unknown \
+    && RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
+         cargo check -p viewer --features app --target wasm32-unknown-unknown
+}
+
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
 # and cheap; the cargo rows are already package-scoped by $SCOPE).
 # shellcheck disable=SC2086
@@ -1260,7 +1291,8 @@ run_row "clippy (pncad-py, python)"    cargo clippy -p pncad-py --features pytho
 #
 # NO `--pr`, AND NO `--scope`, FOR THE SAME REASON. Hosted, the `fmt`
 # job runs the WORKSPACE pass alone and scopes it to the change closure;
-# the six cargo roots the workspace excludes and the
+# the cargo roots the workspace excludes (derived, never counted here —
+# `scripts/doc-gate.sh --print-roots`) and the
 # --no-default-features re-read of every root with a not(feature) half
 # are nightly.yml's `rustdoc (gate, every root)`, ungated, once a day.
 # This half runs all three passes over every root on every invocation,
@@ -1275,6 +1307,8 @@ rustdoc_gate() {
 run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
+# HOSTED MIRROR: fmt / wasm32 check (viewer app feature - the browser entry point)
+run_row "wasm32 check (viewer app)"    wasm_check_viewer
 # ε battery {default, 1e-6, 1e-12} (Ev's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Over the default archive;
