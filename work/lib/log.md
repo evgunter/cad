@@ -4740,6 +4740,38 @@ The ITEM stays open until `[ev]` #2233 merges (it is on that branch);
 this unit closes with its ruling recorded there. Orchestrator note: the
 brief over-read the ruling on the Written pair; the lane read the
 ruling's own words and was right to. ~53 min, ~167k tokens.
+## `[ev]` #2233 ruled (2026-09-09): dimensioned seats at the Python boundary
+
+Two items, one theme — what a `Length`/`Angle` seat at the Python
+boundary owes — and both rulings came out of Ev pushing on the
+mirror. **Item 2 (`the-quantity-boundary-compares-and-hashes-as-if-
+poison-and-signed-zero-cannot-arrive`): (B′)** — the Python `Length`
+and `Angle` mirror the Rust newtypes' derives (`PartialEq, PartialOrd`,
+no `Hash`): IEEE comparisons with no raise on poison, no `__hash__`;
+the kernel omits hash and total order on values in favour of the
+funnel, so the boundary type does not re-decide it. Landed as LIB-ZERO
+(#2259) before this PR merged; the item is closed with it. **Item 1
+(`node-slot-literals-erase-the-authored-notation`): (H)**, reached
+through five revisions — (A) a `Length | WrittenLength` union at each
+slot; (D) the Python `Length` carrying its written unit, withdrawn
+because it broke the mirror; (E) `Length | Expr` with `Expr` gaining
+Rust's constructors, after Ev asked whether Rust has the union (it
+does not: the slot's type IS `Expr`) and whether Python has an `Expr`
+(it does, minted only by `parse_expr`); (G) a named union alias at the
+seat, after Ev asked whether a union could replace `Expr` (at the seat
+yes; the class no — Rust's tree enum is crate-private, and a Python
+union of node kinds would be wider than the kernel); and (H) when Ev
+asked why a union at all rather than `Expr.from_length`: the union
+existed only to keep the bare-`Length` spelling at ~200 sites. **(H):
+each dimensioned slot door takes an `Expr` and nothing else, as the
+Rust slot does, and `Expr` gains `literal`/`written_length`/
+`written_angle`**; helpers for ergonomics, if wanted, go on BOTH sides
+mirrored; and a site that spells a unit (`25 * mm`) converts to the
+WRITTEN form, keeping the notation, with `Expr.literal` only for a
+computed quantity. Mechanical unit LIB-SEATS. Orchestrator note: the
+lesson of this thread is the one `memories/` already states — measure
+the Rust shape first and propose its mirror; every revision here was a
+step back toward that.
 
 ## `[ev]` #2256 ruled (2026-09-09): a mate frame from a face — (F), now
 
