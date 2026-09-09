@@ -532,8 +532,14 @@ class TestTheFrameValue(unittest.TestCase):
         minus = Frame.translation((-0.0 * m, 0 * m, 0 * m))
         self.assertEqual(zero, Frame.translation((0 * m, 0 * m, 0 * m)))
         self.assertNotEqual(zero, minus)
-        self.assertEqual(hash(zero), hash(Frame.translation((0 * m, 0 * m, 0 * m))))
-        self.assertEqual(len({zero, minus}), 2)
+
+    def test_a_frame_compares_and_does_not_hash(self):
+        """`editor_core::Frame` derives `PartialEq` and no `Hash`, and
+        this class mirrors its derives: a pose is a datum the solver
+        consumes, not a key, so `__hash__` is `None`."""
+        self.assertIsNone(Frame.__hash__)
+        with self.assertRaises(TypeError):
+            {Frame.translation((0 * m, 0 * m, 0 * m))}
 
     def test_a_placement_and_a_transform_agree_bit_for_bit(self):
         """The D9 promise the group-versus-chain equality rests on:

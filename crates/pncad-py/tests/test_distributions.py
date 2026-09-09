@@ -163,14 +163,19 @@ class TestTheFourForms(unittest.TestCase):
 
     def test_the_two_spellings_of_zero_are_one_offset(self):
         """`Distribution`'s equality is IEEE on its offsets, so `-0.0`
-        and `0.0` are the same offset — and the hash folds through the
-        kernel's own `fold_signed_zeros`, so it cannot split what
-        equality calls the same."""
+        and `0.0` are the same offset."""
         a = Distribution.band(-0.0 * mm, 0.0 * mm)
         b = Distribution.band(0.0 * mm, -0.0 * mm)
         self.assertEqual(a, b)
-        self.assertEqual(hash(a), hash(b))
-        self.assertEqual(len({a, b}), 1)
+
+    def test_a_distribution_is_a_magnitude_and_not_a_key(self):
+        """The kernel's `Distribution` derives `PartialEq` and no
+        `Hash`, and this class mirrors its derives: `__hash__` is
+        `None`, so Python itself refuses the set the annotation is not
+        for. `DocParam` is the authored record that keys."""
+        self.assertIsNone(Distribution.__hash__)
+        with self.assertRaises(TypeError):
+            {Distribution.band(-0.0 * mm, 0.0 * mm)}
 
     def test_the_dimension_is_part_of_the_value(self):
         """A Length band and a Scalar band of the same numbers are
