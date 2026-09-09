@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-08
 branch: lib/wildcards
 refs: [payload-accessor-wildcards-remain-in-checks-and-assembly]
+pr: 2243
 ---
 
 The last two payload-accessor wildcards in `crates/pncad-py`, under
