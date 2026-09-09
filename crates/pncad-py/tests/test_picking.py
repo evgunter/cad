@@ -39,8 +39,6 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
-    WrittenAngle,
-    WrittenLength,
     deg,
     evaluate,
     m,
@@ -59,10 +57,10 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
     return doc.insert(
         Node.polygon(
             [
-                (Expr.written_length(WrittenLength.in_unit(x + 0.0, m)), Expr.written_length(WrittenLength.in_unit(y + 0.0, m))),
-                (Expr.written_length(WrittenLength.in_unit(x + side, m)), Expr.written_length(WrittenLength.in_unit(y + 0.0, m))),
-                (Expr.written_length(WrittenLength.in_unit(x + side, m)), Expr.written_length(WrittenLength.in_unit(y + side, m))),
-                (Expr.written_length(WrittenLength.in_unit(x + 0.0, m)), Expr.written_length(WrittenLength.in_unit(y + side, m))),
+                (Expr.length_in(x + 0.0, m), Expr.length_in(y + 0.0, m)),
+                (Expr.length_in(x + side, m), Expr.length_in(y + 0.0, m)),
+                (Expr.length_in(x + side, m), Expr.length_in(y + side, m)),
+                (Expr.length_in(x + 0.0, m), Expr.length_in(y + side, m)),
             ],
             plane=doc.sketch_frame(),
         )
@@ -71,7 +69,7 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
 
 def unit_cube(doc, at=(0.0, 0.0)):
     """A 1 m cube on the ground plane — z from 0 to 1."""
-    return doc.insert(Node.extrude(square(doc, at=at), Expr.written_length(WrittenLength.in_unit(1, m))))
+    return doc.insert(Node.extrude(square(doc, at=at), Expr.length_in(1, m)))
 
 
 def straight_down(x=0.5, y=0.5, z=3.0, scale=1.0):
@@ -227,14 +225,14 @@ class TestNearestAndTheTieBreak(unittest.TestCase):
         lower = unit_cube(doc)
         upper = doc.insert(
             Node.transform(lower, (
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(2, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(1.0),
-            ), Expr.written_angle(WrittenAngle.in_unit(0, deg)))
+            ), Expr.angle_in(0, deg))
         )
         ev = evaluate(doc)
         picks = [
@@ -256,7 +254,7 @@ class TestNearestAndTheTieBreak(unittest.TestCase):
         # other way when the list is reversed.
         doc = Doc()
         first = unit_cube(doc)
-        second = doc.insert(Node.extrude(square(doc), Expr.written_length(WrittenLength.in_unit(1, m))))
+        second = doc.insert(Node.extrude(square(doc), Expr.length_in(1, m)))
         ev = evaluate(doc)
         a = NodePick.build(ev, first, 0, DELTA)
         b = NodePick.build(ev, second, 0, DELTA)
@@ -355,9 +353,9 @@ class TestEnumeratingAWholeNode(unittest.TestCase):
         cube = unit_cube(doc)
         knife = doc.insert(
             Node.datum_plane((
-                Expr.written_length(WrittenLength.in_unit(0.5, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.length_in(0.5, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
             ), (
                 Expr.literal(1.0),
                 Expr.literal(0.0),
@@ -410,9 +408,9 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         doc = Doc()
         datum = doc.insert(
             Node.datum_plane((
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
@@ -458,9 +456,9 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         doc = Doc()
         datum = doc.insert(
             Node.datum_plane((
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
@@ -517,14 +515,14 @@ class TestThePickRefusesTyped(unittest.TestCase):
         before = evaluate(doc)
         later_node = doc.insert(
             Node.transform(cube, (
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(2, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(1.0),
-            ), Expr.written_angle(WrittenAngle.in_unit(0, deg)))
+            ), Expr.angle_in(0, deg))
         )
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
@@ -544,14 +542,14 @@ class TestThePickRefusesTyped(unittest.TestCase):
         before = evaluate(doc)
         later_node = doc.insert(
             Node.transform(cube, (
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(2, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(1.0),
-            ), Expr.written_angle(WrittenAngle.in_unit(0, deg)))
+            ), Expr.angle_in(0, deg))
         )
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)

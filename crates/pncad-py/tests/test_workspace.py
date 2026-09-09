@@ -36,7 +36,6 @@ from pncad import (
     PersistError,
     Workspace,
     WorkspaceError,
-    WrittenLength,
     canonical_bytes,
     content_pin,
     evaluate,
@@ -52,12 +51,12 @@ def box(doc, width, depth, height):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                (Expr.literal(width), Expr.written_length(WrittenLength.in_unit(0, m))),
+                (Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(width), Expr.length_in(0, m)),
                 (Expr.literal(width), Expr.literal(depth)),
-                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.literal(depth)),
+                (Expr.length_in(0, m), Expr.literal(depth)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0, m))),
+            plane=doc.sketch_frame(elevation=Expr.length_in(0, m)),
         )
     )
     return doc.insert(Node.extrude(profile, Expr.literal(height)))

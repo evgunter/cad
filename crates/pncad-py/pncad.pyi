@@ -2331,8 +2331,8 @@ class Expr:
     a literal, a literal that remembers its notation, and a parsed
     tree, and a slot is given a number through
     `Expr.literal(25 * mm)` (canonical `0.025 m`) or
-    `Expr.written_length(WrittenLength.in_unit(25.0, mm))` (`25 mm`,
-    the notation kept).
+    `Expr.length_in(25.0, mm)` (`25 mm`, the notation kept — the one
+    call for `Expr.written_length(WrittenLength.in_unit(25.0, mm))`).
 
     `dimension` says what it measures and is the fact that decides
     which evaluator answers. `text` is the source it reads back as —
@@ -2366,6 +2366,19 @@ class Expr:
     @staticmethod
     def written_angle(written: WrittenAngle) -> Expr:
         """`Expr.written_length`'s mirror for an authored angle."""
+    @staticmethod
+    def length_in(value: float, unit: LengthUnit) -> Expr:
+        """A length authored as `value` in `unit`, in ONE call —
+        exactly `Expr.written_length(WrittenLength.in_unit(value,
+        unit))`, with the same stored notation and the same
+        `LiteralError` for a non-finite value.
+
+        The spelling for an authored number; `Expr.written_length`
+        stays the door for a `WrittenLength` already in hand."""
+    @staticmethod
+    def angle_in(value: float, unit: AngleUnit) -> Expr:
+        """`Expr.length_in`'s mirror — exactly
+        `Expr.written_angle(WrittenAngle.in_unit(value, unit))`."""
     @staticmethod
     def count(value: int) -> Expr:
         """A `Count` literal — the exact integer a structural slot

@@ -60,7 +60,9 @@
 //! integer a structural slot takes. They are the four kernel
 //! constructors a Rust author reaches for, mirrored — and since every
 //! dimensioned slot door takes an `Expr`, they are how a slot is
-//! given a number at all.
+//! given a number at all. `Expr.length_in` and `Expr.angle_in` are
+//! the kernel's sugar over the written pair, mirrored too: one call
+//! at an authored number, and exactly the composition they spell.
 
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString};
@@ -122,7 +124,8 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 /// value.
 ///
 /// Built by `Doc.parse_expr` or by one of the four literal
-/// constructors below: the dimension checker runs at CONSTRUCTION, so
+/// constructors below (or `length_in` / `angle_in`, the composition
+/// of two of them): the dimension checker runs at CONSTRUCTION, so
 /// an ill-dimensioned tree does not exist to be handed around, and
 /// every door runs those checks on the way in.
 ///
@@ -210,6 +213,33 @@ impl Expr {
         d::Expr::written_angle(written.0)
             .map(Self)
             .map_err(|err| literal_err(py, written.0.radians(), &err))
+    }
+
+    /// A length authored as `value` in `unit`, in ONE call — exactly
+    /// `Expr.written_length(WrittenLength.in_unit(value, unit))`
+    /// (`Expr::length_in`).
+    ///
+    /// Sugar over the two doors and nothing besides: the same stored
+    /// notation, the same `LiteralError` for a non-finite value, no
+    /// type of its own. It is what an authoring caller holding a
+    /// number and a unit writes at every authored length;
+    /// [`Self::written_length`] stays the door for a `WrittenLength`
+    /// already in hand.
+    #[staticmethod]
+    fn length_in(py: Python<'_>, value: f64, unit: &super::quantity::LengthUnit) -> PyResult<Self> {
+        d::Expr::length_in(value, unit.0)
+            .map(Self)
+            .map_err(|err| literal_err(py, value, &err))
+    }
+
+    /// An angle authored as `value` in `unit`, in one call —
+    /// [`Self::length_in`]'s mirror, exactly
+    /// `Expr.written_angle(WrittenAngle.in_unit(value, unit))`.
+    #[staticmethod]
+    fn angle_in(py: Python<'_>, value: f64, unit: &super::quantity::AngleUnit) -> PyResult<Self> {
+        d::Expr::angle_in(value, unit.0)
+            .map(Self)
+            .map_err(|err| literal_err(py, value, &err))
     }
 
     /// A `Count` literal — an exact integer, and the door every

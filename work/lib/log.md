@@ -5012,3 +5012,34 @@ CI on the head: all 36 jobs green including every render lane (the
 check that would have caught a render move had "a derive changes no
 output" been wrong). Four items closed. No `variant`/`kind` value
 moved; the lane ran the pinned ruff for real. ~59 min, ~247k tokens.
+
+**LIB-HELPER MERGED (2026-09-09, #2269; mechanical under Ev's (A) on
+`expr-seat-costs-a-constructor-call-at-every-authored-number`, `[ev]`
+#2266, no A/B row). One composition, mirrored on both sides.**
+`Expr::length_in(value, unit)` and `Expr::angle_in(value, unit)` in
+`editor-core`'s `expr.rs` beside `written_length`/`written_angle`,
+each exactly `Self::written_length(WrittenLength::in_unit(value,
+unit))` (and the angle twin) — one line, no refusal of their own, no
+type of their own, the rustdoc naming both halves; `Expr.length_in`
+and `Expr.angle_in` as static methods in `py/expr.rs`, refusing
+through the same `LiteralError` path, declared in the stub, pinned
+name-for-name, accounted by the census under rule 1 with no roster
+edit. 974 sites converted by a scanner over the exact call shape with
+balanced-paren capture — 29 test modules, both ty fixtures, the
+README, the guide and its four sub-pages — plus the three Rust sites
+that spelled the composition by hand (the tour's `ring.rs` closure and
+revolve, `diefillet.rs`'s `ang`). The private shorthands are gone
+(`_wm` in two files, 19 calls inlined; the `_0M`/`_1M` pair in three);
+`SQUARE` stays where it names a fixture rather than a spelling. Stale
+imports pruned with the sites (`WrittenLength`/`WrittenAngle` left 36
+modules' import lists and 39 executed blocks; both types stay bound
+and curated). Pins: the helper equals the two calls for both
+dimensions, the saved file reads `"unit": "mm"` through it, a NaN
+length and an infinite angle raise `LiteralError` `non_finite`; in
+Rust, `bit_eq` against the hand composition plus both refusals. The
+guide's §1.3 says what the helper is and when to reach for it. Kernel
+diff: the two functions and their doc. No `variant`/`kind` value
+moved; the lane ran the pinned ruff for real. Item closed.
+Orchestrator note: the lane pushed nothing for its first fifty minutes
+while it measured and built; a check-in read it as alive from its
+running shells and left it, which was right. Two findings reported, not fixed: `written_length`'s rustdoc cites a test that does not exist (filed as `written-length-rustdoc-cites-a-test-that-does-not-exist`), and `expr.rs` is a fourth kernel file in no program's `paths:` (added to `three-kernel-files-sit-in-no-programs-paths`). ~140 min, ~217k tokens.

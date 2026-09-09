@@ -46,7 +46,6 @@ from pncad import (
     EvaluationError,
     Expr,
     Node,
-    WrittenLength,
     evaluate,
     m,
 )
@@ -335,11 +334,11 @@ class TestCancelingARunUnderWay(unittest.TestCase):
                 doc.insert(
                     Node.polygon(
                         [
-                            (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                            (Expr.length_in(0, m), Expr.length_in(0, m)),
+                            (Expr.length_in(1, m), Expr.length_in(0, m)),
+                            (Expr.length_in(1, m), Expr.length_in(1, m)),
                         ],
-                        plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0, m))),
+                        plane=doc.sketch_frame(elevation=Expr.length_in(0, m)),
                     )
                 )
                 outcome.append(None)

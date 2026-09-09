@@ -123,7 +123,6 @@ from pncad import (
     PatternKind,
     SegTag,
     Workspace,
-    WrittenLength,
     assemble,
     content_pin,
     evaluate,
@@ -287,7 +286,7 @@ class TestBenchLayout(BenchWorkspace):
                             Expr.literal(0.0),
                             Expr.literal(1.0),
                             Expr.literal(0.0),
-                        ), Expr.written_length(WrittenLength.in_unit(SHELF_LENGTH, m))),
+                        ), Expr.length_in(SHELF_LENGTH, m)),
                     )
                 )
                 shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
@@ -734,9 +733,9 @@ class TestAssemblyRefusals(BenchWorkspace):
             Node.transform(
                 shelf_i,
                 (
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
-                    Expr.written_length(WrittenLength.in_unit(0.25, m)),
+                    Expr.length_in(0, m),
+                    Expr.length_in(0, m),
+                    Expr.length_in(0.25, m),
                 ),
                 (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
                 Expr.literal(0.0 * pncad.rad),
@@ -781,9 +780,9 @@ class TestAssemblyRefusals(BenchWorkspace):
             Node.transform(
                 shelf_i,
                 (
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
-                    Expr.written_length(WrittenLength.in_unit(0.25, m)),
+                    Expr.length_in(0, m),
+                    Expr.length_in(0, m),
+                    Expr.length_in(0.25, m),
                 ),
                 (Expr.literal(1e200), Expr.literal(0.0), Expr.literal(0.0)),
                 Expr.literal(0.5 * pncad.rad),
@@ -887,9 +886,9 @@ class TestAssemblyRefusals(BenchWorkspace):
             Node.transform(
                 shelf_i,
                 (
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
-                    Expr.written_length(WrittenLength.in_unit(0, m)),
-                    Expr.written_length(WrittenLength.in_unit(0.25, m)),
+                    Expr.length_in(0, m),
+                    Expr.length_in(0, m),
+                    Expr.length_in(0.25, m),
                 ),
                 (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
                 Expr.literal(0.0 * pncad.rad),
@@ -903,7 +902,7 @@ class TestAssemblyRefusals(BenchWorkspace):
                     Expr.literal(1.0),
                     Expr.literal(0.0),
                     Expr.literal(0.0),
-                ), Expr.written_length(WrittenLength.in_unit(2.0 * SHELF_LENGTH, m)))
+                ), Expr.length_in(2.0 * SHELF_LENGTH, m))
             )
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
@@ -1374,11 +1373,11 @@ class TestRefactorings(BenchWorkspace):
     def test_inline_of_a_node_that_is_not_an_instance_refuses(self):
         doc = Doc("plain")
         profile = doc.insert(Node.polygon([
-            (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+            (Expr.length_in(0, m), Expr.length_in(0, m)),
+            (Expr.length_in(1, m), Expr.length_in(0, m)),
+            (Expr.length_in(1, m), Expr.length_in(1, m)),
         ], plane=doc.sketch_frame()))
-        body = doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(1, m))))
+        body = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
         with self.assertRaises(pncad.InlineError) as caught:
             pncad.inline(doc, body, self.ws)
         self.assertEqual(caught.exception.variant, "not_an_instance")
@@ -1421,9 +1420,9 @@ class TestProductRoots(BenchWorkspace):
     def test_a_document_with_no_body_root_has_no_product(self):
         doc = Doc("datum-only")
         doc.insert(Node.datum_plane((
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
-            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
         ), (
             Expr.literal(0.0),
             Expr.literal(0.0),
