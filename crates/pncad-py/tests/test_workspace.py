@@ -29,12 +29,14 @@ import unittest
 import pncad
 from pncad import (
     ContentPin,
-    DocRef,
     Doc,
+    DocRef,
+    Expr,
     Node,
     PersistError,
     Workspace,
     WorkspaceError,
+    WrittenLength,
     canonical_bytes,
     content_pin,
     evaluate,
@@ -49,11 +51,16 @@ def box(doc, width, depth, height):
     content whose pin can move when the content does."""
     profile = doc.insert(
         Node.polygon(
-            [(0 * m, 0 * m), (width, 0 * m), (width, depth), (0 * m, depth)],
-            plane=doc.sketch_frame(elevation=0 * m),
+            [
+                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                (Expr.literal(width), Expr.written_length(WrittenLength.in_unit(0, m))),
+                (Expr.literal(width), Expr.literal(depth)),
+                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.literal(depth)),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0, m))),
         )
     )
-    return doc.insert(Node.extrude(profile, height))
+    return doc.insert(Node.extrude(profile, Expr.literal(height)))
 
 
 class StoreCase(unittest.TestCase):

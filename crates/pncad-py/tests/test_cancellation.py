@@ -44,7 +44,9 @@ from pncad import (
     CancelToken,
     Doc,
     EvaluationError,
+    Expr,
     Node,
+    WrittenLength,
     evaluate,
     m,
 )
@@ -57,11 +59,16 @@ def slab(doc, x, y, z):
     z0, z1 = z
     profile = doc.insert(
         Node.polygon(
-            [(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-            plane=doc.sketch_frame(elevation=z0),
+            [
+                (Expr.literal(x0), Expr.literal(y0)),
+                (Expr.literal(x1), Expr.literal(y0)),
+                (Expr.literal(x1), Expr.literal(y1)),
+                (Expr.literal(x0), Expr.literal(y1)),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, z1 - z0))
+    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
 
 def stack(count):
@@ -327,8 +334,12 @@ class TestCancelingARunUnderWay(unittest.TestCase):
             try:
                 doc.insert(
                     Node.polygon(
-                        [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)],
-                        plane=doc.sketch_frame(elevation=0 * m),
+                        [
+                            (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                        ],
+                        plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(0, m))),
                     )
                 )
                 outcome.append(None)

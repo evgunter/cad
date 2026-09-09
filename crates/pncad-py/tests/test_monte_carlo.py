@@ -38,11 +38,13 @@ from pncad import (
     Doc,
     DocEdit,
     DocParam,
+    Expr,
+    McConfig,
     MeasureExpr,
     MeasurePrimitive,
-    McConfig,
     Node,
     ParamName,
+    WrittenLength,
     analyzed_box,
     deg,
     evaluate,
@@ -52,7 +54,9 @@ from pncad import (
     sample_offset,
 )
 
-SQUARE = [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)]
+_0M = Expr.written_length(WrittenLength.in_unit(0, m))
+_1M = Expr.written_length(WrittenLength.in_unit(1, m))
+SQUARE = [(_0M, _0M), (_1M, _0M), (_1M, _1M), (_0M, _1M)]
 
 #: The declared height of the slab every scene below extrudes, in
 #: metres, and the standard deviation of the annotation hung on it.
@@ -88,7 +92,7 @@ def slab(doc, distribution=None, nominal=NOMINAL):
         )
     )
     outline = doc.insert(Node.polygon(SQUARE, plane=doc.sketch_frame()))
-    prism = doc.insert(Node.extrude(outline, nominal * m))
+    prism = doc.insert(Node.extrude(outline, Expr.written_length(WrittenLength.in_unit(nominal, m))))
     doc.apply(DocEdit.set_param(prism, "distance", doc.parse_expr("h")))
     return prism
 

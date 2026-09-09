@@ -30,7 +30,7 @@ import inspect
 import unittest
 
 import pncad
-from pncad import Doc, Node, SurfaceKind, evaluate, m
+from pncad import Doc, Expr, Node, SurfaceKind, WrittenLength, evaluate, m
 
 
 def enum_mirrors():
@@ -196,11 +196,16 @@ class TestEveryMirrorIsAKey(unittest.TestCase):
         doc = Doc()
         square = doc.insert(
             Node.polygon(
-                [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)],
+                [
+                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                ],
                 plane=doc.sketch_frame(),
             )
         )
-        plate = doc.insert(Node.extrude(square, 1 * m))
+        plate = doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(1, m))))
         ev = evaluate(doc)
         tally = {}
         for face in ev.all_faces(plate):

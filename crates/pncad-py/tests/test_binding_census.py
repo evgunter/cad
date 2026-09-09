@@ -1681,10 +1681,13 @@ FAMILIES: dict[str, str] = {
 #: What closing it bound: `WrittenLength` / `WrittenAngle`,
 #: `DocParam.written_length` / `written_angle`, `DocParam.unit`,
 #: `Doc.params`, and equality and hashing on `LengthUnit` /
-#: `AngleUnit`. `Expr::written_length` needed nothing:
+#: `AngleUnit`. `Expr::written_length` needed nothing THERE:
 #: `Doc.parse_expr("25 mm")` already reaches `literal_with_unit` and
-#: `Expr.text` reads the notation back. The positive form is
-#: `tests/test_notation.py`.
+#: `Expr.text` reads the notation back. It is bound now all the same
+#: — `Expr.written_length`, beside `literal`, `written_angle` and
+#: `count` — because a node SLOT takes an `Expr` and a caller
+#: authoring one through the typed doors has no string to parse. The
+#: positive form is `tests/test_notation.py`.
 #: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
 #: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
 #: `EvalError` — and closing it moved NINE, because the three could

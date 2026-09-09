@@ -29,11 +29,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
-use crate::py::doc::{NodeId, literal, name_from_text, name_text};
-use crate::py::quantity::Length;
+use crate::py::doc::{NodeId, name_from_text, name_text};
+use crate::py::expr::Expr;
 use crate::py::typed_err;
 use crate::tags::select_refusal_tag;
-use pncad::document as d;
 use pncad::prelude::SurfaceKind as KSurfaceKind;
 use pncad::select as s;
 
@@ -671,18 +670,25 @@ impl GeomPred {
     }
 
     /// DECIDED: the entity's distance to a datum node, compared
-    /// against a stated `Length` — signed against a datum plane
+    /// against a stated length `Expr` — signed against a datum plane
     /// (along its normal), unsigned to an axis or point. The datum is
     /// a node reference like every other input, which is what keeps
     /// the rule equivariant: move the datum with the part and the
     /// selection commutes.
+    ///
+    /// The value is not a node slot, so there is no slot dimension to
+    /// check it against here: a value of any other dimension is the
+    /// kernel's own refusal at `select_where`
+    /// (`SelectRefusal::NotALength`, reaching Python as
+    /// `SelectRefusal` with reason `not_a_length`), where the
+    /// predicate is prepared.
     #[staticmethod]
-    fn datum_distance(py: Python<'_>, datum: &NodeId, cmp: Cmp, value: Length) -> PyResult<Self> {
-        Ok(Self(s::GeomPred::DatumDistance {
+    fn datum_distance(datum: &NodeId, cmp: Cmp, value: &Expr) -> Self {
+        Self(s::GeomPred::DatumDistance {
             datum: datum.0,
             cmp: cmp.to_kernel(),
-            value: literal(py, value.0.meters(), d::Dimension::Length)?,
-        }))
+            value: value.0.clone(),
+        })
     }
 
     fn __repr__(&self) -> String {

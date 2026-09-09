@@ -105,7 +105,7 @@ from bench_scene import (
     SHELF_VOLUME,
     STAND_SEATS,
 )
-from pncad import CapEnd, DocEdit, DocRef, Node, SegTag, Workspace, evaluate, m, mm
+from pncad import CapEnd, DocEdit, DocRef, Expr, Node, SegTag, Workspace, WrittenLength, evaluate, m, mm
 
 TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
@@ -423,7 +423,7 @@ class TestTheMemoIsObservable(CorpusCase):
         first = evaluate(post)
         frame, profile, extrude = first.order()
         post.apply(DocEdit.delete_node(extrude))
-        post.insert(Node.extrude(profile, 2 * POST_HEIGHT * m))
+        post.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(2 * POST_HEIGHT, m))))
         again = evaluate(post, prior=first)
         # TWO reused: the post's sketch frame and the section drawn on
         # it are what the deleted extrude consumed, and neither moved.
