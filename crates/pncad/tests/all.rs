@@ -4705,8 +4705,10 @@ fn root_declared_pub_names(code: &str) -> std::collections::BTreeSet<String> {
     while let Some(off) = code[from..].find("pub") {
         let at = from + off;
         from = at + "pub".len();
-        // Column 0, and a whole word: `pub` opening the line is the
-        // scope rule, and `republish` is not the keyword.
+        // Column 0 is the scope rule, and it is the whole test this
+        // site has to make: `republish` at column 0 puts its `pub`
+        // mid-word, so the byte before is not a newline, and
+        // `publish` at column 0 reads `lish` where a keyword must be.
         if at != 0 && code.as_bytes()[at - 1] != b'\n' {
             continue;
         }
