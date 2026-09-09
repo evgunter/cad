@@ -241,17 +241,22 @@ node should not hide the state of every other node. So `evaluate` is
 *total* — it always returns, and each node carries its own outcome.
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Node, evaluate, mm
+from pncad import BooleanOp, Doc, EvaluationError, Expr, Node, WrittenLength, evaluate, mm
 
 
 def slab(doc, z0, z1):
     profile = doc.insert(
         Node.polygon(
-            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
-            plane=doc.sketch_frame(elevation=z0),
+            [
+                (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+                (Expr.written_length(WrittenLength.in_unit(10, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+                (Expr.written_length(WrittenLength.in_unit(10, mm)), Expr.written_length(WrittenLength.in_unit(10, mm))),
+                (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(10, mm))),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, z1 - z0))
+    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
 
 # The same undeclared coincidence as section 3, now inside a document.
@@ -284,19 +289,32 @@ author the undeclared boolean, read the typed menu, declare, succeed:
 
 ```python
 from pncad import (
-    BooleanOp, ContactClass, Doc, EvaluationError, Node, PlaneRelation,
-    evaluate, mm,
+    BooleanOp,
+    ContactClass,
+    Doc,
+    EvaluationError,
+    Expr,
+    Node,
+    PlaneRelation,
+    WrittenLength,
+    evaluate,
+    mm,
 )
 
 
 def slab(doc, z0, z1):
     profile = doc.insert(
         Node.polygon(
-            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
-            plane=doc.sketch_frame(elevation=z0),
+            [
+                (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+                (Expr.written_length(WrittenLength.in_unit(10, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+                (Expr.written_length(WrittenLength.in_unit(10, mm)), Expr.written_length(WrittenLength.in_unit(10, mm))),
+                (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(10, mm))),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, z1 - z0))
+    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
 
 doc = Doc()
@@ -340,7 +358,7 @@ A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Node, evaluate, mm
+from pncad import BooleanOp, Doc, EvaluationError, Expr, Node, WrittenLength, evaluate, mm
 
 doc = Doc()
 
@@ -348,11 +366,16 @@ doc = Doc()
 def slab(z0, z1):
     profile = doc.insert(
         Node.polygon(
-            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
-            plane=doc.sketch_frame(elevation=z0),
+            [
+                (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+                (Expr.written_length(WrittenLength.in_unit(10, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+                (Expr.written_length(WrittenLength.in_unit(10, mm)), Expr.written_length(WrittenLength.in_unit(10, mm))),
+                (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(10, mm))),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, z1 - z0))
+    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
 
 lower = slab(0 * mm, 10 * mm)
@@ -385,7 +408,7 @@ said which refusal it holds.
 ```python
 import math
 
-from pncad import Doc, EvaluationError, Node, Open, Start, evaluate, m, rad
+from pncad import Doc, EvaluationError, Expr, Node, Open, Start, WrittenLength, evaluate, m, rad
 
 
 def revolved(x0, angle):
@@ -398,8 +421,14 @@ def revolved(x0, angle):
         .line_to((x0 * m, 1 * m))
         .line_to(Start)
     )
-    axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
-    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), axis, angle))
+    axis = doc.insert(Node.datum_axis_in_plane(frame, (
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+        Expr.written_length(WrittenLength.in_unit(0, m)),
+    ), (
+        Expr.literal(0.0),
+        Expr.literal(1.0),
+    )))
+    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), axis, Expr.literal(angle)))
     try:
         evaluate(doc).value(node)
         raise AssertionError("expected a typed refusal")
@@ -458,7 +487,7 @@ The Python boundary refuses before a bad value ever reaches the
 kernel. Dimensions are checked by construction:
 
 ```python
-from pncad import DimensionError, LiteralError, Node, PncadError, deg, mm
+from pncad import DimensionError, Expr, LiteralError, Node, PncadError, WrittenLength, deg, mm
 
 try:
     25 * mm + 90 * deg
@@ -475,7 +504,7 @@ except DimensionError as err:
 
 # Non-finite values are refused where they enter, not where they explode.
 try:
-    Node.extrude(None, float("nan") * mm)
+    Node.extrude(None, Expr.written_length(WrittenLength.in_unit(float("nan"), mm)))
     raise AssertionError("expected a typed refusal")
 except (LiteralError, TypeError) as err:
     if isinstance(err, LiteralError):
@@ -505,13 +534,18 @@ and the STL writers refuse a name or header they cannot write AT THE
 CALL rather than emitting a file that no reader can parse.
 
 ```python
-from pncad import Doc, Node, PncadError, StlError, TessellateError, evaluate, m, mm
+from pncad import Doc, Expr, Node, PncadError, StlError, TessellateError, WrittenLength, evaluate, m, mm
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+        (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+        (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+    ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(sketch, 1 * m))
+cube = doc.insert(Node.extrude(sketch, Expr.written_length(WrittenLength.in_unit(1, m))))
 body = evaluate(doc).value(cube).body()
 
 # Refused, never clamped. `value` is the budget that was rejected.

@@ -47,8 +47,10 @@ from pncad import (
     ChecksError,
     Doc,
     DocRef,
+    Expr,
     Node,
     Severity,
+    WrittenLength,
     enforce_checks,
     evaluate,
     m,
@@ -64,15 +66,15 @@ def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0):
     profile = doc.insert(
         Node.polygon(
             [
-                (x0 * m, y0 * m),
-                (x1 * m, y0 * m),
-                (x1 * m, y1 * m),
-                (x0 * m, y1 * m),
+                (Expr.written_length(WrittenLength.in_unit(x0, m)), Expr.written_length(WrittenLength.in_unit(y0, m))),
+                (Expr.written_length(WrittenLength.in_unit(x1, m)), Expr.written_length(WrittenLength.in_unit(y0, m))),
+                (Expr.written_length(WrittenLength.in_unit(x1, m)), Expr.written_length(WrittenLength.in_unit(y1, m))),
+                (Expr.written_length(WrittenLength.in_unit(x0, m)), Expr.written_length(WrittenLength.in_unit(y1, m))),
             ],
-            plane=doc.sketch_frame(elevation=z0 * m),
+            plane=doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(z0, m))),
         )
     )
-    return doc.insert(Node.extrude(profile, (z1 - z0) * m))
+    return doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(z1 - z0, m))))
 
 
 def disjoint_union():

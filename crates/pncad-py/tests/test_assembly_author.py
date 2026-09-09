@@ -114,6 +114,7 @@ from pncad import (
     Doc,
     DocEdit,
     DocRef,
+    Expr,
     Frame,
     MateFrame,
     MatePrimitive,
@@ -122,6 +123,7 @@ from pncad import (
     PatternKind,
     SegTag,
     Workspace,
+    WrittenLength,
     assemble,
     content_pin,
     evaluate,
@@ -280,8 +282,12 @@ class TestBenchLayout(BenchWorkspace):
                 family = doc.insert(
                     posts(
                         post_i,
-                        PATTERN_COUNT,
-                        PatternKind.linear((0.0, 1.0, 0.0), SHELF_LENGTH * m),
+                        Expr.count(PATTERN_COUNT),
+                        PatternKind.linear((
+                            Expr.literal(0.0),
+                            Expr.literal(1.0),
+                            Expr.literal(0.0),
+                        ), Expr.written_length(WrittenLength.in_unit(SHELF_LENGTH, m))),
                     )
                 )
                 shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
@@ -471,11 +477,16 @@ class TestBenchStand(BenchWorkspace):
             """A box, inserted through the same `insert` door."""
             profile = doc.insert(
                 Node.polygon(
-                    [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
-                    plane=doc.sketch_frame(elevation=z[0]),
+                    [
+                        (Expr.literal(x[0]), Expr.literal(y[0])),
+                        (Expr.literal(x[1]), Expr.literal(y[0])),
+                        (Expr.literal(x[1]), Expr.literal(y[1])),
+                        (Expr.literal(x[0]), Expr.literal(y[1])),
+                    ],
+                    plane=doc.sketch_frame(elevation=Expr.literal(z[0])),
                 )
             )
-            return doc.insert(Node.extrude(profile, z[1] - z[0]))
+            return doc.insert(Node.extrude(profile, Expr.literal(z[1] - z[0])))
 
         # `insert` again, on an edit that moves no mate graph: the
         # record is now EMPTY, not the join still standing from before.
@@ -722,9 +733,13 @@ class TestAssemblyRefusals(BenchWorkspace):
         lifted = doc.insert(
             Node.transform(
                 shelf_i,
-                (0 * m, 0 * m, 0.25 * m),
-                (0.0, 0.0, 1.0),
-                0.0 * pncad.rad,
+                (
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0.25, m)),
+                ),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
             )
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
@@ -765,9 +780,13 @@ class TestAssemblyRefusals(BenchWorkspace):
         lifted = doc.insert(
             Node.transform(
                 shelf_i,
-                (0 * m, 0 * m, 0.25 * m),
-                (1e200, 0.0, 0.0),
-                0.5 * pncad.rad,
+                (
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0.25, m)),
+                ),
+                (Expr.literal(1e200), Expr.literal(0.0), Expr.literal(0.0)),
+                Expr.literal(0.5 * pncad.rad),
             )
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
@@ -867,16 +886,24 @@ class TestAssemblyRefusals(BenchWorkspace):
         lifted = doc.insert(
             Node.transform(
                 shelf_i,
-                (0 * m, 0 * m, 0.25 * m),
-                (0.0, 0.0, 1.0),
-                0.0 * pncad.rad,
+                (
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0, m)),
+                    Expr.written_length(WrittenLength.in_unit(0.25, m)),
+                ),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
             )
         )
         # Two copies, the second clear of the post and of the first:
         # the row is about the copy the mate names.
         family = doc.insert(
             Node.placed_union(
-                lifted, 2, PatternKind.linear((1.0, 0.0, 0.0), 2.0 * SHELF_LENGTH * m)
+                lifted, Expr.count(2), PatternKind.linear((
+                    Expr.literal(1.0),
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                ), Expr.written_length(WrittenLength.in_unit(2.0 * SHELF_LENGTH, m)))
             )
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
@@ -1346,8 +1373,12 @@ class TestRefactorings(BenchWorkspace):
 
     def test_inline_of_a_node_that_is_not_an_instance_refuses(self):
         doc = Doc("plain")
-        profile = doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)], plane=doc.sketch_frame()))
-        body = doc.insert(Node.extrude(profile, 1 * m))
+        profile = doc.insert(Node.polygon([
+            (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
+            (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+        ], plane=doc.sketch_frame()))
+        body = doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(1, m))))
         with self.assertRaises(pncad.InlineError) as caught:
             pncad.inline(doc, body, self.ws)
         self.assertEqual(caught.exception.variant, "not_an_instance")
@@ -1389,7 +1420,15 @@ class TestProductRoots(BenchWorkspace):
 
     def test_a_document_with_no_body_root_has_no_product(self):
         doc = Doc("datum-only")
-        doc.insert(Node.datum_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+        doc.insert(Node.datum_plane((
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+            Expr.written_length(WrittenLength.in_unit(0, m)),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
         with self.assertRaises(pncad.ProductError) as caught:
             product(doc, evaluate(doc))
         self.assertEqual(caught.exception.variant, "no_body_roots")

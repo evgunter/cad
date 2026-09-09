@@ -33,13 +33,18 @@ dual-number lanes are not bound.
 ## A first model
 
 ```python
-from pncad import Doc, Node, evaluate, mm
+from pncad import Doc, Expr, Node, WrittenLength, evaluate, mm
 
 doc = Doc()
 profile = doc.insert(
-    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+        (Expr.written_length(WrittenLength.in_unit(80, mm)), Expr.written_length(WrittenLength.in_unit(0, mm))),
+        (Expr.written_length(WrittenLength.in_unit(80, mm)), Expr.written_length(WrittenLength.in_unit(40, mm))),
+        (Expr.written_length(WrittenLength.in_unit(0, mm)), Expr.written_length(WrittenLength.in_unit(40, mm))),
+    ], plane=doc.sketch_frame())
 )
-plate = doc.insert(Node.extrude(profile, 8 * mm))
+plate = doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(8, mm))))
 
 body = evaluate(doc).value(plate).body()
 body.validate()
@@ -50,7 +55,7 @@ Rounds and arcs are the PATHS lattice, where each state of the tip is
 its own class exposing only its legal continuations:
 
 ```python
-from pncad import Doc, Node, Open, Start, evaluate, mm
+from pncad import Doc, Expr, Node, Open, Start, WrittenLength, evaluate, mm
 
 rounded = (
     Open.at((0 * mm, 0 * mm))
@@ -62,7 +67,7 @@ rounded = (
     .line_to(Start)
 )
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), 8 * mm))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Expr.written_length(WrittenLength.in_unit(8, mm))))
 assert evaluate(doc).succeeded(plate)
 ```
 
