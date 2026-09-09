@@ -20,20 +20,24 @@
 //!   triangles, and [`Mesh::triangles`] is those same patches
 //!   concatenated in the fixed order the STL writers walk.
 //!
+//! The per-edge boundary polylines cross in that same index alphabet
+//! ([`Mesh::boundaries`]): the surface is drawn from the triangles and
+//! the MODEL's edges from these, which is what a wireframe or a
+//! hidden-line view is made of.
+//!
 //! What does NOT cross is the mesh's back-references. `FacePatch::face`,
 //! `BoundaryPolyline::edge` and the two vertex back-references are
 //! arena keys (`FaceKey`, `EdgeKey`, `VertexKey`), and keeping those
 //! unnameable is what the whole curation is for — so a patch is
-//! addressable by INDEX here and the per-edge boundary polylines,
-//! whose only content beside indices is those keys, are not bound at
-//! all.
+//! addressable by INDEX here, and a polyline is a run of position
+//! indices with nothing else in it.
 //!
 //! **The door from a patch to a `StableName` is the honest shape, and
-//! since LIB-B-PICKING it exists on both sides**: `NodePick`'s
-//! `patch_names` / `boundary_names` (`py/pick.rs`) answer one name per
-//! patch and per polyline, in mesh order, with the key never leaving
-//! the kernel. That is what makes a patch INDEX a usable handle rather
-//! than a dead end — it is the argument of `NodePick`, not of this
+//! it exists on both sides**: `NodePick`'s `patch_names` /
+//! `boundary_names` (`py/pick.rs`) answer one name per patch and per
+//! polyline, in mesh order, with the key never leaving the kernel.
+//! That is what makes a patch or a polyline INDEX a usable handle
+//! rather than a dead end — it is the argument of `NodePick`, not of this
 //! module, because only a value that owns its pairing may invert a
 //! key at all.
 //!
@@ -346,6 +350,37 @@ impl Mesh {
     #[getter]
     fn triangle_count(&self) -> usize {
         self.inner.patches.iter().map(|p| p.triangles.len()).sum()
+    }
+
+    /// **Every edge's chord polyline**, as index sequences into
+    /// `positions`, in the kernel's edge order — the alphabet
+    /// `triangles` speaks, one polyline per model edge.
+    ///
+    /// This is what a wireframe or a hidden-line view is drawn from:
+    /// the surface is the triangles, the MODEL's edges are these. Each
+    /// polyline runs in its edge's intrinsic direction and carries at
+    /// least two indices; consecutive pairs are the segments. An edge
+    /// that closes on itself repeats its single vertex index at both
+    /// ends, so a closed edge is `line[0] == line[-1]` — decided on
+    /// indices, never on coordinates, exactly as watertightness is.
+    ///
+    /// The polylines are answered whole rather than one at a time,
+    /// because unlike a patch there is no concatenated spelling for
+    /// them to be separable FROM: a run of indices means nothing once
+    /// it is joined to the next edge's. Their POSITION in this list is
+    /// the handle `NodePick.boundary_names` inverts, entry for entry,
+    /// the way patch order pairs with `NodePick.patch_names`.
+    ///
+    /// The polyline's source edge and its two vertices are arena keys
+    /// and stay in the kernel, which is why this is indices and not a
+    /// value class: there would be nothing else in it.
+    #[getter]
+    fn boundaries(&self) -> Vec<Vec<u32>> {
+        self.inner
+            .boundaries
+            .iter()
+            .map(|line| line.points.clone())
+            .collect()
     }
 
     /// One face's triangles, by patch index — the addressability the

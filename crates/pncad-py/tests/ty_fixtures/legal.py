@@ -211,6 +211,22 @@ turned: NodeId = doc.insert(
     )
 )
 
+# The two datum arms whose constructors complete the six. A point is a
+# position and nothing else; a frame is an origin and two direction
+# triples, orthonormalized at evaluation, and it is a plane node a
+# profile may name.
+here: NodeId = doc.insert(Node.datum_point((0 * m, 0 * m, 2 * m)))
+near_here: GeomPred = GeomPred.datum_distance(here, Cmp.Less, 1 * m)
+authored_frame: NodeId = doc.insert(
+    Node.datum_frame((0 * m, 0 * m, 2 * m), (1.0, 0.0, 0.0), (0.0, 1.0, 1.0))
+)
+leaning: NodeId = doc.insert(
+    Node.extrude(
+        doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=authored_frame)),
+        1 * m,
+    )
+)
+
 # A datum read back. `origin` is a POSITION and carries `Length`s;
 # `direction` and `axes` are dimensionless and are bare. `in_plane` is
 # the one that is BOTH — its first pair is a position and carries
@@ -556,6 +572,10 @@ from_here: tuple[Length, Length, Length] = aimed.origin
 along: tuple[float, float, float] = aimed.direction
 struck: PickHit | None = seamed.pick_face([index], aimed)
 drawn: Mesh = index.mesh
+# The model's edges, in the position-index alphabet the triangles
+# speak — one polyline per edge, paired entry for entry with
+# `boundary_names` below.
+wireframe: list[list[int]] = drawn.boundaries
 paired_with: NodeId = index.node
 which_body: int = index.body
 # The per-slot inversion: a name, or the loud arm as a VALUE in the

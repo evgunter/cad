@@ -2,8 +2,10 @@
 id: mesh-boundary-polylines-have-no-python-door
 kind: issue
 title: Mesh::boundaries has no Python door
-status: open
+status: closed
 opened: 2026-09-09
+closed: 2026-09-09
+parent: LIB-GAPS-1
 ---
 
 
@@ -37,3 +39,28 @@ opaque-vertex-index alphabet `Mesh.triangles` speaks, so no new type
 is needed — and the `MEMBERS_NOT_BOUND` row moving to
 `MEMBERS_BOUND_AS`, which empties `B-MESH-BOUNDARIES` out of
 `FAMILIES`.
+
+## Closed (2026-09-09, LIB-GAPS-1)
+
+`Mesh.boundaries` answers `list[list[int]]` — one polyline of position
+indices per model edge, in the kernel's edge order, in the same opaque
+alphabet `Mesh.triangles` speaks. A Python consumer holding a `Mesh`
+can now draw the model's edges, which is what a wireframe or a
+hidden-line view is made of.
+
+No value class: `BoundaryPolyline`'s three other fields are arena keys
+the curation keeps unnameable, so a class would carry the indices and
+nothing else. The inversion a drawing consumer wants is already on the
+other side — `NodePick.boundary_names` answers one name per polyline in
+this same order, entry for entry.
+
+The polylines are answered whole rather than one at a time as
+`Mesh.patch` is, because there is no concatenated spelling for them to
+be separable FROM: a run of indices means nothing joined to the next
+edge's.
+
+The `MEMBERS_NOT_BOUND` row is GONE rather than moved: the member rule
+accounts a bare-`pub` field by a same-named attribute on the Python
+namesake, and `Mesh.boundaries` is that spelling, so a roster row for
+it is stale by `test_the_member_rosters_decay`. `B-MESH-BOUNDARIES`
+left `FAMILIES` with it.
