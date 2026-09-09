@@ -791,7 +791,7 @@ def check(result: dict) -> int:
 
 # --- the fixture battery ---------------------------------------------------
 
-# A scratch tree with the whole shape in miniature: a façade whose four lists
+# A scratch tree with the whole shape in miniature: a façade whose five lists
 # curate names from two crates, one of which declares a type the other declares
 # too. Every filter and every category the sweep draws has a witness here, and
 # the counts below are asserted rather than printed, so a change to any of them

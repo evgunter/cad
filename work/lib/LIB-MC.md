@@ -87,10 +87,17 @@ census reads.
   dispositioned: `PairingViolation` argued (`NOT_CARRIED`, the analysis
   lane's interior residue), `KProbe` filed as
   `kprobe-is-a-rung-under-drive-config-on-the-analysis-list`, and four
-  cross-list rows over three names filed onto the existing
-  `cross-list-payload-rungs-under-document-only-carriers`, whose table
-  and closing question this PR widens — they are that item's question
-  with the two lists swapped.
+  cross-list rows over three names ARGUED under the rule LIB-CUR8
+  ratified while this branch was open — a payload whose vocabulary a
+  curated list owns is spelled once on THAT list and the carrier's
+  list points at it. `Dimension`, `Distribution` and
+  `MeasureUnavailableAt` are the document layer's vocabulary under
+  analysis-list carriers, which is that rule with the two lists
+  swapped, and it is the clearest case the rule has:
+  `crates/pncad/src/analysis.rs`'s own head says the split is the
+  DESIGN's, document state against what is derived from it. The
+  ratified prose in `document.rs` and `select.rs` said "the four
+  curated lists" and now says the rule without the count.
 - **Prose.** `py/analysis.rs`'s header gained the advisory lane and
   lost its stale `crates/pncad/src/analysis.rs:NN` citations;
   `docs/GUIDE.md`'s distributions rung gained the fourth door as a
