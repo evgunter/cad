@@ -301,3 +301,24 @@ step and not only a matcher.
 Class 3 is the one that constrains the fix: any mechanical repointer
 built for this row will match transcripts, and a repointer that edits
 them is worse than no repointer.
+
+## The general case is not this row's, and is sized elsewhere
+
+`work/code-quality/doc-line-citations-rot-silently` (opened 2026-08-31,
+from SEAT-1's dual review) already owns the tree-wide class: any doc
+outside `docs/DESIGN.md` citing code by line number. It also already
+proposes the repair this row's sweeps kept arriving at independently —
+a symbol-anchored form where the line number adds nothing — and the
+disposition rule that keeps a sweep off narrative entries, whose
+staleness is ordinary history.
+
+So **what stays here is the split residue this row is named for**; the
+general case belongs there. `work/issues/tracker-file-line-citations-measured`
+hands that row the sizing this program's three sweeps produced (1,508
+citations in open rows, 96% already naming their subject beside the
+number), routed rather than written across the fence.
+
+And the urgency is lower than the sweeps made it look: a drifted line
+number is recovered with `git blame` on the citing file, which gives
+the hash the citation was true at (Ev, 2026-09-09). The cost is a
+lookup, not a wrong answer.
