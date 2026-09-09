@@ -67,7 +67,6 @@ from pncad import (
     MeasureUnavailable,
     Node,
     ParamName,
-    WrittenLength,
     analyzed_box,
     deg,
     load,
@@ -652,15 +651,15 @@ class TestTheAnnotationDoesNotMoveGeometry(unittest.TestCase):
         profile = doc.insert(
             Node.polygon(
                 [
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(1, m), Expr.length_in(0, m)),
+                    (Expr.length_in(1, m), Expr.length_in(1, m)),
+                    (Expr.length_in(0, m), Expr.length_in(1, m)),
                 ],
                 plane=doc.sketch_frame(),
             )
         )
-        return doc, doc.insert(Node.extrude(profile, Expr.written_length(WrittenLength.in_unit(2, m))))
+        return doc, doc.insert(Node.extrude(profile, Expr.length_in(2, m)))
 
     def test_the_solid_is_the_same_annotated_or_not(self):
         plain_doc, plain_solid = self.build(DocParam.length(2 * m))

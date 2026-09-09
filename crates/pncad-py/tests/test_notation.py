@@ -40,6 +40,12 @@ vocabulary over: every dimensioned slot takes an `Expr`, and
 `TestANodeSlotRecordsTheAuthoredNotation` is the pair of bytes, and
 it is the same measurement as `test_the_saved_row_names_the_authored_
 unit` with a node in place of a parameter.
+
+ONE CALL AT AN AUTHORED NUMBER. `Expr.length_in(25, mm)` is sugar for
+`Expr.written_length(WrittenLength.in_unit(25, mm))` and nothing else,
+which is what `TestTheOneCallIsTheComposition` holds: the same
+expression, the same bytes in the file, and the same typed refusal.
+The two doors underneath stay, for a `WrittenLength` already in hand.
 """
 
 import json
@@ -404,7 +410,7 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
 
     def test_the_written_door_records_the_unit_the_author_wrote(self):
         doc = Doc()
-        written = Expr.written_length(WrittenLength.in_unit(25, mm))
+        written = Expr.length_in(25, mm)
         doc.insert(Node.extrude(self.square(doc), written))
         self.assertEqual(self.distance_of(doc)["unit"], "mm")
         self.assertEqual(self.distance_of(doc)["value"], 0.025)
@@ -437,7 +443,7 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
                 Expr.literal(2),
                 PatternKind.linear(
                     (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                    Expr.written_length(WrittenLength.in_unit(5, mm)),
+                    Expr.length_in(5, mm),
                 ),
             )
         self.assertEqual(raised.exception.variant, "slot_dimension_mismatch")
@@ -448,7 +454,7 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
         at the door rather than restated, so the refusal an insert
         would raise arrives at authoring with the same words."""
         doc = Doc()
-        turn = Expr.written_angle(WrittenAngle.in_unit(90, deg))
+        turn = Expr.angle_in(90, deg)
         with self.assertRaises(EditError) as raised:
             Node.extrude(self.square(doc), turn)
         refusal = raised.exception
@@ -456,6 +462,52 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
         self.assertEqual(refusal.slot, "distance")
         self.assertEqual(refusal.expected, "length")
         self.assertEqual(refusal.found, "angle")
+
+
+class TestTheOneCallIsTheComposition(unittest.TestCase):
+    """`Expr.length_in` and `Expr.angle_in` are their composition and
+    add nothing: the same expression, the same recorded notation, the
+    same refusal."""
+
+    def test_the_length_helper_equals_the_two_calls(self):
+        self.assertEqual(
+            Expr.length_in(25, mm),
+            Expr.written_length(WrittenLength.in_unit(25, mm)),
+        )
+
+    def test_the_angle_helper_equals_the_two_calls(self):
+        self.assertEqual(
+            Expr.angle_in(90, deg),
+            Expr.written_angle(WrittenAngle.in_unit(90, deg)),
+        )
+
+    def test_the_helper_records_the_notation_in_the_file(self):
+        """The same bytes `test_the_written_door_records_the_unit_the_
+        author_wrote` reads, reached through the one call."""
+        doc = Doc()
+        doc.apply(DocEdit.set_doc_param(WIDTH, DocParam.length(25 * mm)))
+        square = [
+            (Expr.length_in(0, mm), Expr.length_in(0, mm)),
+            (Expr.length_in(10, mm), Expr.length_in(0, mm)),
+            (Expr.length_in(10, mm), Expr.length_in(10, mm)),
+            (Expr.length_in(0, mm), Expr.length_in(10, mm)),
+        ]
+        profile = doc.insert(Node.polygon(square, plane=doc.sketch_frame()))
+        doc.insert(Node.extrude(profile, Expr.length_in(25, mm)))
+        extrudes = [n["Extrude"] for n in saved_nodes(doc).values() if "Extrude" in n]
+        self.assertEqual(len(extrudes), 1)
+        stored = extrudes[0]["distance"]["Literal"]
+        self.assertEqual(stored["unit"], "mm")
+        self.assertEqual(stored["value"], 0.025)
+
+    def test_a_non_finite_value_refuses_through_the_helper(self):
+        """`written_length`'s own refusal, typed, at the one call."""
+        with self.assertRaises(LiteralError) as raised:
+            Expr.length_in(float("nan"), mm)
+        self.assertEqual(raised.exception.kind, "non_finite")
+        with self.assertRaises(LiteralError) as raised:
+            Expr.angle_in(float("inf"), deg)
+        self.assertEqual(raised.exception.kind, "non_finite")
 
 
 if __name__ == "__main__":

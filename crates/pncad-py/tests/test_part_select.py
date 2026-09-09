@@ -52,8 +52,6 @@ from pncad import (
     PatternKind,
     PlaneRelation,
     SplitHalf,
-    WrittenAngle,
-    WrittenLength,
     evaluate,
     m,
     rad,
@@ -76,23 +74,23 @@ def box(doc, half=BOX_HALF, height=BOX_H):
     square = doc.insert(
         Node.polygon(
             [
-                (Expr.written_length(WrittenLength.in_unit(-half, m)), Expr.written_length(WrittenLength.in_unit(-half, m))),
-                (Expr.written_length(WrittenLength.in_unit(half, m)), Expr.written_length(WrittenLength.in_unit(-half, m))),
-                (Expr.written_length(WrittenLength.in_unit(half, m)), Expr.written_length(WrittenLength.in_unit(half, m))),
-                (Expr.written_length(WrittenLength.in_unit(-half, m)), Expr.written_length(WrittenLength.in_unit(half, m))),
+                (Expr.length_in(-half, m), Expr.length_in(-half, m)),
+                (Expr.length_in(half, m), Expr.length_in(-half, m)),
+                (Expr.length_in(half, m), Expr.length_in(half, m)),
+                (Expr.length_in(-half, m), Expr.length_in(half, m)),
             ],
             plane=doc.sketch_frame(),
         )
     )
-    return doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(height, m))))
+    return doc.insert(Node.extrude(square, Expr.length_in(height, m)))
 
 
 def split_at(doc, target, z=CUT_Z):
     """`target` cut by a horizontal plane at height `z`."""
     tool = doc.insert(Node.datum_plane((
-        Expr.written_length(WrittenLength.in_unit(0, m)),
-        Expr.written_length(WrittenLength.in_unit(0, m)),
-        Expr.written_length(WrittenLength.in_unit(z, m)),
+        Expr.length_in(0, m),
+        Expr.length_in(0, m),
+        Expr.length_in(z, m),
     ), (
         Expr.literal(0.0),
         Expr.literal(0.0),
@@ -108,7 +106,7 @@ def pattern_of(doc, prototype, count=COUNT, pitch=PITCH):
             Expr.literal(1.0),
             Expr.literal(0.0),
             Expr.literal(0.0),
-        ), Expr.written_length(WrittenLength.in_unit(pitch, m))))
+        ), Expr.length_in(pitch, m)))
     )
 
 
@@ -264,14 +262,14 @@ class TestTheInstanceIsTheInstance(unittest.TestCase):
         middle = doc.insert(Node.part(family, PartSelect.instance(Expr.count(1))))
         lifted = doc.insert(
             Node.transform(middle, (
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(2, m)),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(1.0),
-            ), Expr.written_angle(WrittenAngle.in_unit(0, rad)))
+            ), Expr.angle_in(0, rad))
         )
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(lifted))

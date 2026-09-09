@@ -34,7 +34,6 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
-    WrittenLength,
     evaluate,
     m,
 )
@@ -56,15 +55,15 @@ def blank(doc, side, h):
     square = doc.insert(
         Node.polygon(
             [
-                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                (Expr.written_length(WrittenLength.in_unit(side, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                (Expr.written_length(WrittenLength.in_unit(side, m)), Expr.written_length(WrittenLength.in_unit(side, m))),
-                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(side, m))),
+                (Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.length_in(side, m), Expr.length_in(0, m)),
+                (Expr.length_in(side, m), Expr.length_in(side, m)),
+                (Expr.length_in(0, m), Expr.length_in(side, m)),
             ],
             plane=doc.sketch_frame(),
         )
     )
-    return doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(h, m))))
+    return doc.insert(Node.extrude(square, Expr.length_in(h, m)))
 
 
 def top_of(doc, box):
@@ -81,7 +80,7 @@ def top_of(doc, box):
 
 def cup(doc, side=L, h=H, t=T):
     box = blank(doc, side, h)
-    return box, doc.insert(Node.shell(box, Expr.written_length(WrittenLength.in_unit(t, m)), [top_of(doc, box)]))
+    return box, doc.insert(Node.shell(box, Expr.length_in(t, m), [top_of(doc, box)]))
 
 
 def mass(doc, node):
@@ -104,7 +103,7 @@ class TestCup(unittest.TestCase):
     def test_an_empty_open_list_is_the_sealed_hollow(self):
         doc = Doc()
         box = blank(doc, L, H)
-        sealed = doc.insert(Node.shell(box, Expr.written_length(WrittenLength.in_unit(T, m)), []))
+        sealed = doc.insert(Node.shell(box, Expr.length_in(T, m), []))
         body = evaluate(doc).value(sealed).body()
         body.validate()
         inner = L - 2 * T
@@ -203,16 +202,16 @@ class TestRefusals(unittest.TestCase):
         five = pentagon.insert(
             Node.polygon(
                 [
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                    (Expr.written_length(WrittenLength.in_unit(1.5, m)), Expr.written_length(WrittenLength.in_unit(0.5, m))),
-                    (Expr.written_length(WrittenLength.in_unit(1, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
-                    (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(1, m))),
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(1, m), Expr.length_in(0, m)),
+                    (Expr.length_in(1.5, m), Expr.length_in(0.5, m)),
+                    (Expr.length_in(1, m), Expr.length_in(1, m)),
+                    (Expr.length_in(0, m), Expr.length_in(1, m)),
                 ],
                 plane=pentagon.sketch_frame(),
             )
         )
-        prism = pentagon.insert(Node.extrude(five, Expr.written_length(WrittenLength.in_unit(H, m))))
+        prism = pentagon.insert(Node.extrude(five, Expr.length_in(H, m)))
         walls = evaluate(pentagon).select(
             prism,
             Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Lateral))),
@@ -224,20 +223,20 @@ class TestRefusals(unittest.TestCase):
             len(set(walls) - set(evaluate(doc).all_faces(box))), 1, "one wall the box lacks"
         )
         ghost = sorted(set(walls) - set(evaluate(doc).all_faces(box)))[0]
-        node = doc.insert(Node.shell(box, Expr.written_length(WrittenLength.in_unit(T, m)), [ghost]))
+        node = doc.insert(Node.shell(box, Expr.length_in(T, m), [ghost]))
         self.assertEqual(self.refusal(doc, node).kind, "shell_open_resolve")
 
     def test_an_edge_in_the_open_list_refuses_typed(self):
         doc = Doc()
         box = blank(doc, L, H)
         edge = evaluate(doc).all_edges(box)[0]
-        node = doc.insert(Node.shell(box, Expr.written_length(WrittenLength.in_unit(T, m)), [edge]))
+        node = doc.insert(Node.shell(box, Expr.length_in(T, m), [edge]))
         self.assertEqual(self.refusal(doc, node).kind, "shell_open_kind")
 
     def test_a_non_positive_wall_is_the_kernels_refusal(self):
         doc = Doc()
         box = blank(doc, L, H)
-        node = doc.insert(Node.shell(box, Expr.written_length(WrittenLength.in_unit(-0.125, m)), [top_of(doc, box)]))
+        node = doc.insert(Node.shell(box, Expr.length_in(-0.125, m), [top_of(doc, box)]))
         refusal = self.refusal(doc, node)
         self.assertEqual(refusal.kind, "shell")
         self.assertIn("not certifiably positive", str(refusal))
@@ -246,7 +245,7 @@ class TestRefusals(unittest.TestCase):
         doc = Doc()
         box = blank(doc, L, H)
         with self.assertRaises(ValueError):
-            Node.shell(box, Expr.written_length(WrittenLength.in_unit(T, m)), ["the top face"])
+            Node.shell(box, Expr.length_in(T, m), ["the top face"])
 
     def test_the_designation_order_is_kept_and_a_repeat_keeps_its_first(self):
         doc = Doc()
@@ -267,7 +266,7 @@ class TestRefusals(unittest.TestCase):
             (backward, [bottom, top]),
             (doubled, [top, bottom, top]),
         ):
-            target.insert(Node.shell(blank(target, L, H), Expr.written_length(WrittenLength.in_unit(T, m)), order))
+            target.insert(Node.shell(blank(target, L, H), Expr.length_in(T, m), order))
         # Order is meaning, so the two orders are two documents; a
         # repeat keeps its first occurrence, so the doubled list is the
         # forward one bit for bit.

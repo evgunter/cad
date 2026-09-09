@@ -129,7 +129,7 @@ doc = Doc()
 solid: NodeId = doc.insert(
     Node.extrude(
         doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame())),
-        Expr.written_length(WrittenLength.in_unit(1, m)),
+        Expr.length_in(1, m),
     )
 )
 
@@ -145,7 +145,7 @@ Node.fillet(solid, 1 * mm, [])  # ty: error
 
 # A fillet selection is NAMES — the text a materializer answered with,
 # never node ids.
-Node.fillet(solid, Expr.written_length(WrittenLength.in_unit(1, m)), [solid])  # ty: error
+Node.fillet(solid, Expr.length_in(1, m), [solid])  # ty: error
 
 # A blend radius is an `Expr`, not a bare number.
 Node.fillet(solid, 1.0, [])  # ty: error
@@ -153,19 +153,19 @@ Node.fillet(solid, 1.0, [])  # ty: error
 # The chamfer's setback is an `Expr` as well, and its selection is
 # names — the twin holds the same two lines.
 Node.chamfer(solid, 1.0, [])  # ty: error
-Node.chamfer(solid, Expr.written_length(WrittenLength.in_unit(1, m)), [solid])  # ty: error
+Node.chamfer(solid, Expr.length_in(1, m), [solid])  # ty: error
 
 # The shell's wall is an `Expr` too, and its open list is names as text.
 Node.shell(solid, 1.0, [])  # ty: error
-Node.shell(solid, Expr.written_length(WrittenLength.in_unit(0.01, m)), [solid])  # ty: error
+Node.shell(solid, Expr.length_in(0.01, m), [solid])  # ty: error
 
 # A tube's radii are `Expr`s, its window is a `TubeWindow` and never a
 # pair of raw angles, and the hollow kind's WALL IS REQUIRED — the
 # three ways a caller reaches for the shape this vocabulary refuses to
 # have.
-Node.tube(solid, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), 0.2, TubeWindow.full(), Expr.written_length(WrittenLength.in_unit(0.05, m)))  # ty: error
-Node.tube(solid, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(0.2, m)), (0 * rad, 1 * rad), Expr.written_length(WrittenLength.in_unit(0.05, m)))  # ty: error
-Node.hollow_tube(solid, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(0.2, m)), TubeWindow.full(), Expr.written_length(WrittenLength.in_unit(0.05, m)))  # ty: error
+Node.tube(solid, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), 0.2, TubeWindow.full(), Expr.length_in(0.05, m))  # ty: error
+Node.tube(solid, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.2, m), (0 * rad, 1 * rad), Expr.length_in(0.05, m))  # ty: error
+Node.hollow_tube(solid, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.2, m), TubeWindow.full(), Expr.length_in(0.05, m))  # ty: error
 
 # Every one of a transform's slots is an `Expr` — the translation, the
 # axis and the angle alike — so a quantity handed over raw is refused
@@ -206,7 +206,7 @@ GeomPred.datum_distance(solid, Cmp.Approx, 1.0)  # ty: error
 GeomPred.datum_distance(solid, Cmp.Approx, 90 * deg)  # ty: error
 
 # The comparison is the trilean value, not a string spelling of one.
-GeomPred.datum_distance(solid, ">", Expr.written_length(WrittenLength.in_unit(1, m)))  # ty: error
+GeomPred.datum_distance(solid, ">", Expr.length_in(1, m))  # ty: error
 
 # A selector unions NAME patterns; a segment pattern is not one, and
 # `tag`/`group`/`side` take their own vocabularies.
@@ -257,7 +257,7 @@ Node.placed_union_at(solid, [(0 * m, 0 * m, 0 * m)])  # ty: error
 Frame.translation((0 * m, 0 * m, 0 * m)).origin = (1 * m, 0 * m, 0 * m)  # ty: error
 
 # The count is the STRUCTURAL slot's own expression, not a Length.
-Node.placed_union(solid, 5 * m, PatternKind.linear((Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(0.5, m))))  # ty: error
+Node.placed_union(solid, 5 * m, PatternKind.linear((Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.5, m)))  # ty: error
 
 # The narrowed count edit takes a ParamName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
@@ -276,7 +276,7 @@ Node.part(solid, SplitHalf.Below)  # ty: error
 # An index is a count `Expr` — never a dimensioned quantity, and the
 # pattern's count is the same rule.
 PartSelect.instance(2 * m)  # ty: error
-Node.pattern(solid, 5 * m, PatternKind.linear((Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(0.5, m))))  # ty: error
+Node.pattern(solid, 5 * m, PatternKind.linear((Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.5, m)))  # ty: error
 
 # The instance edit is `bind_count_param`'s sibling, not its keyword
 # argument: the slot is named by the door, so there is no `slot=` to
@@ -472,7 +472,7 @@ Node.datum_face_frame(solid, "a face", 1 * m)  # ty: error
 
 # The face is opaque TEXT, never the `NodeId` that minted it — the
 # same confusion the read doors refuse, on the authoring side.
-Node.datum_face_frame(solid, solid, Expr.written_angle(WrittenAngle.in_unit(0, rad)))  # ty: error
+Node.datum_face_frame(solid, solid, Expr.angle_in(0, rad))  # ty: error
 
 # There is no default spin: which way a sketch faces on a face is an
 # authoring decision, and the door does not choose one.
@@ -553,7 +553,7 @@ verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: err
 # invite the same confusion, because `Node` and `NodeId` are two types
 # one sentence apart: the constructor value is not a handle onto an
 # inserted node, and the word that comes back is not the node.
-doc.node_kind(Node.extrude(solid, Expr.written_length(WrittenLength.in_unit(1, m))))  # ty: error
+doc.node_kind(Node.extrude(solid, Expr.length_in(1, m)))  # ty: error
 which: Node = doc.node_kind(solid)  # ty: error
 
 # A structural count is FIXED under any error analysis, so the count

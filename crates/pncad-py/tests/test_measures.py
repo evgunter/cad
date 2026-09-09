@@ -57,8 +57,6 @@ from pncad import (
     ParamName,
     Selector,
     SurfaceKind,
-    WrittenAngle,
-    WrittenLength,
     circle,
     evaluate,
     load,
@@ -67,16 +65,19 @@ from pncad import (
     rad,
 )
 
-_0M = Expr.written_length(WrittenLength.in_unit(0, m))
-_1M = Expr.written_length(WrittenLength.in_unit(1, m))
-SQUARE = [(_0M, _0M), (_1M, _0M), (_1M, _1M), (_0M, _1M)]
+SQUARE = [
+    (Expr.length_in(0, m), Expr.length_in(0, m)),
+    (Expr.length_in(1, m), Expr.length_in(0, m)),
+    (Expr.length_in(1, m), Expr.length_in(1, m)),
+    (Expr.length_in(0, m), Expr.length_in(1, m)),
+]
 
 
 def slab(doc, elevation, height=1.0):
     """A 1 m x 1 m x `height` prism whose base sits at `elevation`."""
-    plane = doc.sketch_frame(elevation=Expr.written_length(WrittenLength.in_unit(elevation, m)))
+    plane = doc.sketch_frame(elevation=Expr.length_in(elevation, m))
     outline = doc.insert(Node.polygon(SQUARE, plane=plane))
-    return doc.insert(Node.extrude(outline, Expr.written_length(WrittenLength.in_unit(height, m))))
+    return doc.insert(Node.extrude(outline, Expr.length_in(height, m)))
 
 
 def cylinder(doc, centre_x, radius, height=0.5):
@@ -84,7 +85,7 @@ def cylinder(doc, centre_x, radius, height=0.5):
     outline = doc.insert(
         Node.profile(circle((centre_x * m, 0 * m), radius * m), doc.sketch_frame())
     )
-    return doc.insert(Node.extrude(outline, Expr.written_length(WrittenLength.in_unit(height, m))))
+    return doc.insert(Node.extrude(outline, Expr.length_in(height, m)))
 
 
 def wall(ev, node):
@@ -387,14 +388,14 @@ class TestTheClosedForms(unittest.TestCase):
         prism = slab(doc, 0.0)
         moved = doc.insert(
             Node.transform(prism, (
-                Expr.written_length(WrittenLength.in_unit(travel, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
-                Expr.written_length(WrittenLength.in_unit(0, m)),
+                Expr.length_in(travel, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
             ), (
                 Expr.literal(0.0),
                 Expr.literal(0.0),
                 Expr.literal(1.0),
-            ), Expr.written_angle(WrittenAngle.in_unit(0, rad)))
+            ), Expr.angle_in(0, rad))
         )
         ev = evaluate(doc)
         corner = sorted(ev.all_vertices(moved))[0]

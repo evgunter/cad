@@ -462,3 +462,41 @@ fn a_display_unit_is_accepted_exactly_on_its_own_dimension() {
         "every other dimension refuses"
     );
 }
+
+/// `Expr::length_in` and `Expr::angle_in` ARE the composition they
+/// document — same stored bits, same display unit, same refusal — so
+/// the sugar cannot drift from the two doors underneath it.
+#[test]
+fn the_authored_helpers_are_exactly_the_composition() {
+    let sugar = Expr::length_in(25.0, quantity::MM).unwrap();
+    let spelled =
+        Expr::written_length(quantity::WrittenLength::in_unit(25.0, quantity::MM)).unwrap();
+    assert!(
+        sugar.bit_eq(&spelled),
+        "the length helper is the composition"
+    );
+    assert_eq!(sugar.display_unit().unwrap().symbol(), "mm");
+    assert_eq!(
+        sugar.literal_value().unwrap().to_bits(),
+        0.025_f64.to_bits()
+    );
+
+    let sugar = Expr::angle_in(90.0, quantity::DEG).unwrap();
+    let spelled =
+        Expr::written_angle(quantity::WrittenAngle::in_unit(90.0, quantity::DEG)).unwrap();
+    assert!(
+        sugar.bit_eq(&spelled),
+        "the angle helper is the composition"
+    );
+    assert_eq!(sugar.display_unit().unwrap().symbol(), "deg");
+
+    // The refusal is `written_length`'s, reached through the sugar.
+    assert_eq!(
+        Expr::length_in(f64::NAN, quantity::MM),
+        Err(DimensionError::NonFiniteLiteral)
+    );
+    assert_eq!(
+        Expr::angle_in(f64::INFINITY, quantity::DEG),
+        Err(DimensionError::NonFiniteLiteral)
+    );
+}

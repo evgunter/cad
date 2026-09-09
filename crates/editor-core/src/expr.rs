@@ -697,6 +697,39 @@ impl Expr {
         Self::literal_with_unit(written.radians(), Dimension::Angle, written.unit().def())
     }
 
+    /// A continuous literal from a length authored as `value` in
+    /// `unit` — exactly
+    /// `Expr::written_length(WrittenLength::in_unit(value, unit))`,
+    /// the composition an authoring caller holding a number and a unit
+    /// writes at every authored length.
+    ///
+    /// Sugar over [`Expr::written_length`] and
+    /// [`quantity::WrittenLength::in_unit`], and nothing besides: it
+    /// stores the notation the same way, refuses exactly what
+    /// `written_length` refuses, and mints no type of its own. The two
+    /// halves stay the doors — reach for them when the
+    /// [`quantity::WrittenLength`] is already in hand.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn length_in(value: f64, unit: quantity::LengthUnit) -> Result<Self, DimensionError> {
+        Self::written_length(quantity::WrittenLength::in_unit(value, unit))
+    }
+
+    /// A continuous literal from an angle authored as `value` in
+    /// `unit` — [`Expr::length_in`]'s mirror, exactly
+    /// `Expr::written_angle(WrittenAngle::in_unit(value, unit))`, and
+    /// everything that door's docs say holds here with an
+    /// [`quantity::AngleUnit`].
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn angle_in(value: f64, unit: quantity::AngleUnit) -> Result<Self, DimensionError> {
+        Self::written_angle(quantity::WrittenAngle::in_unit(value, unit))
+    }
+
     /// The display unit of a LITERAL expression — `None` for every
     /// other kind, because only a literal is WRITTEN. A literal always
     /// has one ([`Lit`]). The formatter's read side (§4g).

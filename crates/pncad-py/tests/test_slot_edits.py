@@ -31,7 +31,6 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
-    WrittenLength,
     evaluate,
     m,
 )
@@ -46,15 +45,15 @@ def blank(doc, side=L, height=H):
     square = doc.insert(
         Node.polygon(
             [
-                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                (Expr.written_length(WrittenLength.in_unit(side, m)), Expr.written_length(WrittenLength.in_unit(0, m))),
-                (Expr.written_length(WrittenLength.in_unit(side, m)), Expr.written_length(WrittenLength.in_unit(side, m))),
-                (Expr.written_length(WrittenLength.in_unit(0, m)), Expr.written_length(WrittenLength.in_unit(side, m))),
+                (Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.length_in(side, m), Expr.length_in(0, m)),
+                (Expr.length_in(side, m), Expr.length_in(side, m)),
+                (Expr.length_in(0, m), Expr.length_in(side, m)),
             ],
             plane=doc.sketch_frame(),
         )
     )
-    return doc.insert(Node.extrude(square, Expr.written_length(WrittenLength.in_unit(height, m))))
+    return doc.insert(Node.extrude(square, Expr.length_in(height, m)))
 
 
 FACES = NamePat.of_kind(EntityKind.Face)
@@ -86,7 +85,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
 
     def cup(self, doc):
         box = blank(doc)
-        return box, doc.insert(Node.shell(box, Expr.written_length(WrittenLength.in_unit(T, m)), [top_of(doc, box)]))
+        return box, doc.insert(Node.shell(box, Expr.length_in(T, m), [top_of(doc, box)]))
 
     def test_a_minted_literal_moves_and_the_body_follows(self):
         """The constructors take numbers, so a node arrives holding
@@ -174,7 +173,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
                 Expr.literal(1.0),
                 Expr.literal(0.0),
                 Expr.literal(0.0),
-            ), Expr.written_length(WrittenLength.in_unit(2, m))))
+            ), Expr.length_in(2, m)))
         )
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.set_param(pattern, "count", doc.parse_expr("4")))
@@ -238,7 +237,7 @@ class TestTheNameRepair(unittest.TestCase):
         references that name, which is what a repair rewrites."""
         box = blank(doc)
         top = top_of(doc, box)
-        return box, top, doc.insert(Node.shell(box, Expr.written_length(WrittenLength.in_unit(T, m)), [top]))
+        return box, top, doc.insert(Node.shell(box, Expr.length_in(T, m), [top]))
 
     def test_the_repair_rewrites_the_site_and_the_body_follows(self):
         """A shell's open list is a name-carrying payload, so saying
