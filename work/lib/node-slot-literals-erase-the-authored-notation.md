@@ -188,3 +188,25 @@ three `Expr` constructors become unnecessary (the written form enters
 the union directly) and may be added later purely as mirrors.
 
 Recommendation: **(G)**.
+
+### Whether `Expr` itself could be a union of its node kinds, asked 2026-09-09
+
+It could be spelled so — the stub already carries unions of small
+classes for path legs (`_PointLeg = Bulge[_Pt] | Via[_Pt] |
+Center[_Pt]`), and ty checks recursive aliases — but the mirror
+argument goes the other way, measured: Rust's `Expr` is an opaque
+struct (`pub struct Expr { dim: Dimension, kind: ExprKind }`,
+`crates/editor-core/src/expr.rs:235`) whose tree enum `ExprKind`
+(`Literal`, `CountLiteral`, `Param`, `Add`, `Sub`, `Neg`, `Mul`, `Div`,
+`Sin`, `Cos`, `Tan`, `Atan2`, `Min`, `Max`, `CountToScalar`) is
+`pub(crate)`. A Rust consumer cannot match on it; it builds through
+constructors and reads `dim()`, `params()` and the text. The one-class
+Python `Expr` with `dimension`/`text`/`params`/`literal_value` is that
+public shape, and a union of node classes would publish a tree the
+kernel keeps closed — the one place the Python surface would be wider
+than Rust. Not while the tree is crate-private; if the tree should
+open (a consumer walking or rewriting expressions structurally, which
+nothing does today), that is a kernel decision first and the Python
+union follows as its mirror, in the path-leg idiom — a separate item.
+Orthogonal to the seat: (G) takes `Length | WrittenLength | Expr`
+whatever `Expr`'s own spelling.
