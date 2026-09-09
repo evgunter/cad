@@ -190,11 +190,14 @@ class TestTheEstimateIsTheAuthoring(unittest.TestCase):
         """An unannotated parameter is FIXED, so every draw is the
         nominal and the estimator says so exactly."""
         doc, box, _measure, _a = scene()
-        row = monte_carlo(doc, box, McConfig(samples=16)).measures[0]
+        report = monte_carlo(doc, box, McConfig(samples=16))
+        row = report.measures[0]
         self.assertEqual(row.mean, NOMINAL)
         self.assertEqual(row.sigma, 0.0)
         self.assertEqual(row.min, row.max)
-        self.assertEqual(row.outside_box if False else 0.0, 0.0)
+        # A fixed axis is not varied at all, so no draw can be outside
+        # a box it was never moved within.
+        self.assertEqual(report.outside_box, 0.0)
 
     def test_the_tail_outside_the_box_is_the_normals_own(self):
         """The default policy asks for ±3σ, so a normal leaves its two
