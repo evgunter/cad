@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-09
 branch: lib/small-2
 refs: [two-refusals-carry-no-recourse-sentence, pncad-py-stub-omits-eq-on-three-mate-classes, facade-guard-file-keeps-two-line-local-readers]
+pr: 2254
 ---
 
 
