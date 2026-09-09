@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-09
 branch: lib/hash-2
 refs: [pncad-py-value-classes-compare-without-hashing]
+pr: 2261
 ---
 
 
@@ -80,7 +81,7 @@ about the 58 classes that compare BY VALUE.
 | `Count` | `quantity::Count` | PartialEq, Eq, PartialOrd, Ord, Hash | yes | agree |
 | `CurveKind` | `editor_core::CurveKind` | PartialEq, Eq, Hash, PartialOrd, Ord | yes | agree |
 | `Denotation` | `editor_core::Denotation` | PartialEq, Eq | yes | Python hashes, Rust does not |
-| `Distribution` | `editor_core::Distribution (plus the dimension the offsets were written in)` | PartialEq | yes | Python hashes, Rust does not |
+| `Distribution` | `editor_core::Distribution` (plus the dimension the offsets were written in) | PartialEq | yes | Python hashes, Rust does not |
 | `DocParam` | `editor_core::DocParam` | PartialEq | yes | Python hashes, Rust does not |
 | `DocParamValue` | `editor_core::DocParamValue` | PartialEq | yes | Python hashes, Rust does not |
 | `DocRef` | `editor_core::DocRef` | PartialEq, Eq, Hash, PartialOrd, Ord | yes | agree |
@@ -105,14 +106,14 @@ about the 58 classes that compare BY VALUE.
 | `NodeId` | `editor_core::RecipeNodeId` | PartialEq, Eq, Hash, PartialOrd, Ord | yes | agree |
 | `OpGroup` | `editor_core::OpGroup` | PartialEq, Eq, Hash, PartialOrd, Ord | yes | agree |
 | `ParamName` | `editor_core::ParamName` | PartialEq, Eq, Hash, PartialOrd, Ord | yes | agree |
-| `PlaneRelation` | `topo::CarrierRelation (`plane_eq` re-exports it as `PlaneRelation`)` | PartialEq, Eq | yes | Python hashes, Rust does not |
+| `PlaneRelation` | `topo::CarrierRelation` (`plane_eq` re-exports it as `PlaneRelation`) | PartialEq, Eq | yes | Python hashes, Rust does not |
 | `RimSupport` | `editor_core::RimSupport` | PartialEq, Eq, Hash, PartialOrd, Ord | yes | agree |
 | `SegTag` | `editor_core::SegTag` | PartialEq, Eq, Hash, PartialOrd, Ord | yes | agree |
 | `Severity` | `editor_core::Severity` | PartialEq, Eq | yes | Python hashes, Rust does not |
 | `SketchPlane` | `pncad::profile::SketchPlane<f64>` | (none of PartialEq/Eq/Hash) | yes | Python hashes, Rust does not |
 | `SplitHalf` | `editor_core::SplitHalf` | PartialEq, Eq, Hash, PartialOrd, Ord | yes | agree |
 | `SurfaceKind` | `geom_brep::SurfaceKind` | PartialEq, Eq | yes | Python hashes, Rust does not |
-| `ValidationFinding` | `the binding's own `validation::Finding` projection` | PartialEq, Eq | yes | Python hashes, Rust does not |
+| `ValidationFinding` | the binding's own `validation::Finding` projection | PartialEq, Eq | yes | Python hashes, Rust does not |
 | `WrittenAngle` | `quantity::WrittenAngle` | PartialEq | yes | Python hashes, Rust does not |
 | `WrittenLength` | `quantity::WrittenLength` | PartialEq | yes | Python hashes, Rust does not |
 
