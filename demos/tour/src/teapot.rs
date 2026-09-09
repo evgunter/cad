@@ -653,7 +653,7 @@ fn build_doc(tol: Tol) -> Recipe {
     // disc is two half-discs on one plane; the kernel's rim surgery
     // lifts a chart as a whole and the document names both halves,
     // the `Band` half first — which is the half that carries the rim.
-    let mouth = vec![band(bellied, SEG_MOUTH), band_pi(bellied, SEG_MOUTH)];
+    let mouth = vec![band(bellied, 0, SEG_MOUTH), band_pi(bellied, 0, SEG_MOUTH)];
     let pot = insert(&mut doc, Node::shell(bellied, len(WALL), Vec::new()), tol);
     let cup = insert(&mut doc, Node::shell(bellied, len(WALL), mouth), tol);
 
@@ -687,7 +687,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Node::fillet(
             plain_lid,
             len(ROLL),
-            vec![band_rim(plain_lid, LID_RIMS[0].0)],
+            vec![band_rim(plain_lid, 0, LID_RIMS[0].0)],
         ),
         tol,
     );
@@ -697,8 +697,8 @@ fn build_doc(tol: Tol) -> Recipe {
             first,
             len(ROLL),
             vec![
-                carried(first, band_rim(plain_lid, LID_RIMS[1].0)),
-                carried(first, band_rim(plain_lid, LID_RIMS[2].0)),
+                carried(first, band_rim(plain_lid, 0, LID_RIMS[1].0)),
+                carried(first, band_rim(plain_lid, 0, LID_RIMS[2].0)),
             ],
         ),
         tol,
@@ -902,7 +902,7 @@ fn rim_circle(
     body: &Body<f64>,
     vertex: u32,
 ) -> (f64, f64) {
-    let want = band_rim(node, vertex);
+    let want = band_rim(node, 0, vertex);
     let carried: Vec<(f64, f64)> = query::all_edges(body)
         .into_iter()
         .filter(|&k| edge_name(ev, node, 0, k).ok() == Some(&want))
@@ -927,8 +927,12 @@ fn rim_circle(
     let [(station, radius)] = carried[..] else {
         panic!("the rim's name denotes exactly one edge, got {carried:?}");
     };
-    let p = vertex_position(ev, node, &meridian_vertex(MeridianEnd::Seam, node, vertex))
-        .expect("the meridian vertex's name denotes a vertex");
+    let p = vertex_position(
+        ev,
+        node,
+        &meridian_vertex(MeridianEnd::Seam, node, 0, vertex),
+    )
+    .expect("the meridian vertex's name denotes a vertex");
     assert!(
         (p.y - station).abs() < 1e-12 && (p.x.hypot(p.z) - radius).abs() < 1e-12,
         "the meridian vertex {p:?} does not stand on the circle its own rim carries \
@@ -1131,7 +1135,7 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
                 what,
                 insert(
                     &mut doc,
-                    Node::fillet(lid, len(ROLL), vec![band_rim(lid, v)]),
+                    Node::fillet(lid, len(ROLL), vec![band_rim(lid, 0, v)]),
                     tol,
                 ),
             )
@@ -1144,7 +1148,10 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
         Node::fillet(
             lid,
             len(ROLL),
-            LID_RIMS.iter().map(|&(v, ..)| band_rim(lid, v)).collect(),
+            LID_RIMS
+                .iter()
+                .map(|&(v, ..)| band_rim(lid, 0, v))
+                .collect(),
         ),
         tol,
     );
@@ -1213,7 +1220,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // THE MOUTH, BY NAME. Two half-discs on ONE plane — the two names
     // the shell node was authored with, asserted to denote exactly
     // that: two planar faces, both on the mouth's own station.
-    let mouth = [band(r.bellied, SEG_MOUTH), band_pi(r.bellied, SEG_MOUTH)];
+    let mouth = [
+        band(r.bellied, 0, SEG_MOUTH),
+        band_pi(r.bellied, 0, SEG_MOUTH),
+    ];
     for name in &mouth {
         assert_eq!(
             face_carrier_kind(&ev, r.bellied, name).expect("the mouth half is named"),
@@ -1618,13 +1628,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // translation and would be 0 with the turn deleted. These two
     // stand off that axis and one of them stands a whole spout-length
     // up it, so both residuals are about the turn.
-    let tip_unplaced = face_frame(&ev, r.spout_body, &band(r.spout_body, SEG_SPOUT_TIP))
+    let tip_unplaced = face_frame(&ev, r.spout_body, &band(r.spout_body, 0, SEG_SPOUT_TIP))
         .expect("the tip annulus, before the placement");
-    let unplaced = face_frame(&ev, r.spout_body, &band(r.spout_body, SEG_SPOUT_ROOT))
+    let unplaced = face_frame(&ev, r.spout_body, &band(r.spout_body, 0, SEG_SPOUT_ROOT))
         .expect("the root annulus, before the placement");
-    let tip_placed = face_frame(&ev, r.spout, &band(r.spout_body, SEG_SPOUT_TIP))
+    let tip_placed = face_frame(&ev, r.spout, &band(r.spout_body, 0, SEG_SPOUT_TIP))
         .expect("the tip annulus, after it");
-    let placed = face_frame(&ev, r.spout, &band(r.spout_body, SEG_SPOUT_ROOT))
+    let placed = face_frame(&ev, r.spout, &band(r.spout_body, 0, SEG_SPOUT_ROOT))
         .expect("the root annulus, after it");
     // The EXACT image of that face's own frame under the placement the
     // authored direction states — the 3-4-5 turn written as the matrix

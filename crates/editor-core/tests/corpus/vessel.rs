@@ -142,5 +142,5 @@ pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDo
 
 /// The vessel's corpus document: the mouth's `Band` half named first.
 pub fn document() -> CorpusDoc {
-    document_with_open(|pot| [band(pot, SEG_MOUTH), band_pi(pot, SEG_MOUTH)])
+    document_with_open(|pot| [band(pot, 0, SEG_MOUTH), band_pi(pot, 0, SEG_MOUTH)])
 }

@@ -4913,3 +4913,67 @@ WrittenLength::in_unit(value, unit))`, and `Expr.length_in` /
 `Expr.angle_in` in Python** — one call at every authored number, the
 notation kept, no new type or seat. Mechanical unit LIB-HELPER
 (the ~976 written-form sites and the private shorthands convert).
+
+**LIB-LOOPS MERGED (2026-09-09, #2268; mechanical under Ev's (A) on
+`the-role-name-builders-reach-only-the-outer-profile-loop`, `[ev]`
+#2257, no A/B row). The four role-name builders take the loop index,
+on both sides.** `band(node, loop_index, seg)`, `band_pi(node,
+loop_index, seg)`, `band_rim(node, loop_index, vertex)`,
+`meridian_vertex(end, node, loop_index, vertex)` in
+`editor-core/names/role.rs` and the five Python doors at the same
+arity (`carried` unchanged). The parameter is spelled `loop_index`,
+not the brief's `loop`: `loop` is a Rust keyword, so the kernel
+builder would have taken `r#loop` while the stub declared `loop` —
+two spellings for one argument, and a keyword call that works on one
+side of the boundary only; `loop_index` is what `ProfileEdgeRef` and
+`ProfileVertexRef` already call the field the argument becomes. The
+rustdoc stops privileging a loop: one paragraph says the index is
+`ProfileEdgeRef::loop_index` (0 the outer loop, then holes in
+description order) and `seg`/`vertex` index THAT loop's chain; the
+Python doors, stub and guide say the same. Every Rust call site
+moved, all passing `0` (41 band-family calls over the tour, its
+document test, the corpus vessel and seven editor-core test files,
+plus the one `meridian_vertex`); the two hand-spelling sites
+converted at their real loop (`ring_r1_names_probe.rs`'s hole at loop
+1 and the wire outer's π-bands; `m4_pr3_names.rs`'s holed-ring block
+over its loop variable), with `ring_r1`'s `pv` helper deleted and
+`name1`/`pe` kept because `RoleSeg::Meridian` has no builder. The
+`role.rs` pins are DOUBLED, each builder at loop 1 and at loop 0: a
+builder that dropped the new argument and kept the outer loop would
+satisfy a pin written only at 0. `test_role_names.py` gained a third
+scene — a square section with a square hole, revolved a full turn —
+where the emitter mints two loops' worth of bands, rims and seam
+vertices and the doors answer those bytes at `loop_index` 1, compared
+as sets over each loop's four segments (which corner a loop's chain
+starts at is `crates/profile`'s business), plus `band(node, 0, 0) !=
+band(node, 1, 0)`. A two-argument call is an ILLEGAL ty row. No
+`StableName` byte moved; tour renders and the die corpus
+byte-identical; no `variant`/`kind` value moved; the lane ran the
+pinned ruff for real. Item closed. Orchestrator note: the brief
+spelled the parameter `loop`; the lane's `loop_index` is right and the
+brief was wrong. CI: two full runs on the lane head were red only on
+the three apt-outage rows (both render lanes and the gate job's lavapipe
+install) and, on the second run, one seed-varying pick search outside
+this fence (filed to DOCM as
+`random-integer-rays-search-trips-at-eps-1e-6-on-one-run`); the twelve
+test jobs and five k-lint unifications were green on both. ~94 min,
+~306k tokens.
+## `[ev]` #2265 ruled (2026-09-09): how far the mirror rule reaches — (A), case by case
+
+LIB-HASH-2's two-way walk found 24 Python classes hashing over Rust
+types that derive no `Hash`. Ev's refinement of (A): both sides
+always match; `Hash` is absent where Rust omits it for funnel reasons;
+elsewhere Rust may derive it, but no work is spent adding hashing
+where nothing plausibly keys. Measured first: nothing in the tree
+keys on any of the 24 (no kernel map keyed by them; the only Python
+key uses are the hashability pins), so each case was argued from
+shape, and Ev confirmed the reading. **Upward, one derive word,
+Python unchanged**: the twelve tag mirrors' enums, `McConfig`,
+`Denotation`, and `Hash` by symbol on the unit views and `UnitDef`.
+**Python drops `__hash__`, Rust unchanged**: `Frame`, `DocParamValue`,
+`Distribution`, `McMeasure`, `McAssertion`, `FaceCensus`,
+`ValidationFinding`. **`SketchPlane`**: no hash either side, and
+`impl PartialEq for SketchPlane` via `bit_eq` so Rust means the
+comparison Python answers. One mechanical unit across both sides,
+LIB-MIRROR, with the kernel derive touches announced on their
+programs' trackers.

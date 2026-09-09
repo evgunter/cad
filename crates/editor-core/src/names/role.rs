@@ -666,9 +666,8 @@ pub enum RoleSeg {
     },
 }
 
-/// **The `[0, π)` band face swept from meridian segment `seg`** of
-/// the revolve at `node` — [`RoleSeg::Band`], on the profile's OUTER
-/// loop.
+/// **The `[0, π)` band face swept from segment `seg` of profile loop
+/// `loop_index`** on the revolve at `node` — [`RoleSeg::Band`].
 ///
 /// This and its four siblings are the MINTING direction of the
 /// vocabulary [`SegPat::tag`](crate::SegPat::tag) matches in. A
@@ -680,67 +679,68 @@ pub enum RoleSeg {
 /// the [`EntityKind`] its role always denotes, which is the field a
 /// hand-spelled name gets wrong silently until emission refuses it.
 ///
-/// `seg` indexes the outer loop's canonical chain (`loop_index: 0`).
-/// A hole's band takes [`RoleSeg::Band`] with the loop it is in.
+/// The loop index is [`ProfileEdgeRef::loop_index`] and spells what
+/// that field spells: 0 = outer, then holes in description order. No
+/// loop is privileged by these builders — a hole's band is `band` at
+/// its own loop, and `seg` indexes THAT loop's canonical chain.
 #[must_use]
-pub fn band(node: RecipeNodeId, seg: u32) -> StableName {
+pub fn band(node: RecipeNodeId, loop_index: u32, seg: u32) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
         path: vec![RoleSeg::Band(ProfileEdgeRef {
-            loop_index: 0,
+            loop_index,
             segment: seg,
         })],
     }
 }
 
-/// **The `[π, 2π)` band face swept from meridian segment `seg`** —
-/// [`band`]'s twin in the wire case, where a full revolve emits every
-/// profile segment as two faces ([`RoleSeg::BandPi`]). Outer loop;
-/// [`EntityKind::Face`], as [`band`] is.
+/// **The `[π, 2π)` band face swept from segment `seg` of loop
+/// `loop_index`** — [`band`]'s twin in the wire case, where a full
+/// revolve emits every profile segment as two faces
+/// ([`RoleSeg::BandPi`]). [`EntityKind::Face`], as [`band`] is.
 #[must_use]
-pub fn band_pi(node: RecipeNodeId, seg: u32) -> StableName {
+pub fn band_pi(node: RecipeNodeId, loop_index: u32, seg: u32) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
         path: vec![RoleSeg::BandPi(ProfileEdgeRef {
-            loop_index: 0,
+            loop_index,
             segment: seg,
         })],
     }
 }
 
-/// **The latitude rim at meridian vertex `vertex`** —
+/// **The latitude rim at vertex `vertex` of loop `loop_index`** —
 /// [`RoleSeg::BandRim`], the edge between the bands of segments
-/// `vertex − 1` and `vertex`. Outer loop; an [`EntityKind::Edge`].
+/// `vertex − 1` and `vertex` on that loop. An [`EntityKind::Edge`].
 #[must_use]
-pub fn band_rim(node: RecipeNodeId, vertex: u32) -> StableName {
+pub fn band_rim(node: RecipeNodeId, loop_index: u32, vertex: u32) -> StableName {
     StableName {
         kind: EntityKind::Edge,
         node,
-        path: vec![RoleSeg::BandRim(ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        })],
+        path: vec![RoleSeg::BandRim(ProfileVertexRef { loop_index, vertex })],
     }
 }
 
 /// **The meridian vertex at `end`** — [`RoleSeg::MeridianVertex`]:
-/// the copy of profile vertex `vertex` on a wedge cap plane
-/// ([`MeridianEnd::Start`], [`MeridianEnd::End`]) on a partial
+/// the copy of vertex `vertex` of loop `loop_index` on a wedge cap
+/// plane ([`MeridianEnd::Start`], [`MeridianEnd::End`]) on a partial
 /// revolve, or the surviving meridian vertex ([`MeridianEnd::Seam`])
-/// on a full one. Outer loop; an [`EntityKind::Vertex`].
+/// on a full one. An [`EntityKind::Vertex`].
 #[must_use]
-pub fn meridian_vertex(end: MeridianEnd, node: RecipeNodeId, vertex: u32) -> StableName {
+pub fn meridian_vertex(
+    end: MeridianEnd,
+    node: RecipeNodeId,
+    loop_index: u32,
+    vertex: u32,
+) -> StableName {
     StableName {
         kind: EntityKind::Vertex,
         node,
         path: vec![RoleSeg::MeridianVertex(
             end,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex,
-            },
+            ProfileVertexRef { loop_index, vertex },
         )],
     }
 }
@@ -934,11 +934,25 @@ mod tests {
     /// Five pins, one per builder, each written the long way — the
     /// spelling they replace at their consumers — so a builder cannot
     /// drift from the vocabulary without this file disagreeing with
-    /// itself.
+    /// itself. The four that take a loop are pinned on a HOLE's loop
+    /// (1) and again on the outer loop (0), because a builder that
+    /// dropped its loop argument and kept the outer loop would satisfy
+    /// a pin written only at 0.
     #[test]
     fn band_mints_the_hand_spelled_face() {
         assert_eq!(
-            band(N, 3),
+            band(N, 1, 3),
+            StableName {
+                kind: EntityKind::Face,
+                node: N,
+                path: vec![RoleSeg::Band(ProfileEdgeRef {
+                    loop_index: 1,
+                    segment: 3,
+                })],
+            }
+        );
+        assert_eq!(
+            band(N, 0, 3),
             StableName {
                 kind: EntityKind::Face,
                 node: N,
@@ -953,7 +967,18 @@ mod tests {
     #[test]
     fn band_pi_mints_the_hand_spelled_face() {
         assert_eq!(
-            band_pi(N, 3),
+            band_pi(N, 1, 3),
+            StableName {
+                kind: EntityKind::Face,
+                node: N,
+                path: vec![RoleSeg::BandPi(ProfileEdgeRef {
+                    loop_index: 1,
+                    segment: 3,
+                })],
+            }
+        );
+        assert_eq!(
+            band_pi(N, 0, 3),
             StableName {
                 kind: EntityKind::Face,
                 node: N,
@@ -968,7 +993,18 @@ mod tests {
     #[test]
     fn band_rim_mints_the_hand_spelled_edge() {
         assert_eq!(
-            band_rim(N, 2),
+            band_rim(N, 1, 2),
+            StableName {
+                kind: EntityKind::Edge,
+                node: N,
+                path: vec![RoleSeg::BandRim(ProfileVertexRef {
+                    loop_index: 1,
+                    vertex: 2,
+                })],
+            }
+        );
+        assert_eq!(
+            band_rim(N, 0, 2),
             StableName {
                 kind: EntityKind::Edge,
                 node: N,
@@ -983,7 +1019,21 @@ mod tests {
     #[test]
     fn meridian_vertex_mints_the_hand_spelled_vertex() {
         assert_eq!(
-            meridian_vertex(MeridianEnd::Seam, N, 2),
+            meridian_vertex(MeridianEnd::Seam, N, 1, 2),
+            StableName {
+                kind: EntityKind::Vertex,
+                node: N,
+                path: vec![RoleSeg::MeridianVertex(
+                    MeridianEnd::Seam,
+                    ProfileVertexRef {
+                        loop_index: 1,
+                        vertex: 2,
+                    },
+                )],
+            }
+        );
+        assert_eq!(
+            meridian_vertex(MeridianEnd::Seam, N, 0, 2),
             StableName {
                 kind: EntityKind::Vertex,
                 node: N,
@@ -1003,7 +1053,7 @@ mod tests {
     /// wraps an edge and asserts the wrapper is an edge.
     #[test]
     fn carried_mints_the_hand_spelled_wrapper_and_keeps_the_kind() {
-        let inner = band_rim(N, 2);
+        let inner = band_rim(N, 0, 2);
         let outer = RecipeNodeId(9);
         assert_eq!(
             carried(outer, inner.clone()),

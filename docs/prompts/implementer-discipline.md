@@ -137,6 +137,28 @@ When you do run locally:
   artefacts into its branch history — unfixable under merge-only rules except
   by abandoning the branch and re-landing the diff (CERT-M2, 2026-09-02). Read
   `git status` before every `git add`; never add with `-A` unattended.
+- **`--workspace` is not every cargo root, and the roots outside it are
+  not covered uniformly.** `Cargo.toml` `exclude`s `benches`, `demos`,
+  `tools` and `interval-transcendentals`, so
+  `cargo clippy --workspace --all-targets` — the natural check before a
+  push — compiles nothing under them. **Do not carry a count in your
+  head**, this bullet's included: `scripts/doc-gate.sh --print-roots`
+  derives the list, and a root has landed before with every prose count
+  in the repo left saying the old number. Two of those roots,
+  `demos/tour` and `demos/wild`, are ordinary consumers of the public
+  API, so a signature change breaks them the way it breaks a user: two
+  lanes in one hour changed a return type, re-spelled every caller
+  `--workspace` could see, and learned from CI that `demos/tour/tests/`
+  was still red. Those two and the `tools/*` roots are fmt+clippy'd on
+  every code-tier run and by `local-scripts/ci-local.sh`, so the gate
+  catches you even when your own check does not. **The other two are
+  weaker than that**: `benches` gets rustfmt in the PR gate and its only
+  clippy is a `nightly.yml` row with no local mirror, and
+  `interval-transcendentals`' clippy runs only when the change filter
+  buys that job. A green PR is not a claim about either. The cheap
+  version when you are not running the local gate is
+  `(cd demos/tour && cargo clippy --all-targets -- -D warnings)` and the
+  same in `demos/wild`.
 - **A build is not a test.** `cargo build` cannot see a broken
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.

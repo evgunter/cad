@@ -906,7 +906,9 @@ gate() {
 
   # `--pr` STOPS HERE, AND THE SUCCESS LINE SAYS WHAT IT DID NOT READ.
   #
-  # Passes 2 and 3 — the six cargo roots the workspace excludes, and the
+  # Passes 2 and 3 — the cargo roots the workspace excludes (this script's
+  # own `--print-roots` is the list; no count is written down, because the
+  # ones that were went stale the day `tools/tess-meter` landed), and the
   # --no-default-features re-read of every root carrying a not(feature)
   # half — are the nightly's, ungated, once a day. The soundness argument
   # is the one docs/CI-MINUTES-2026-08.md §*What is NOT sampled* licenses:
@@ -1373,7 +1375,7 @@ gate_selftest_prints_roots() {
 interval-transcendentals
 outside'
   if [ "$out" != "$want" ]; then
-    printf 'SELFTEST FAILED: --print-roots did not print the derived root set — the hosted cache scopes itself to this list, so a short one is six cargo roots compiling from nothing with every gate green.\nwanted:\n%s\ngot:\n%s\n' \
+    printf 'SELFTEST FAILED: --print-roots did not print the derived root set — the hosted cache scopes itself to this list, so a short one is every excluded cargo root compiling from nothing with every gate green.\nwanted:\n%s\ngot:\n%s\n' \
       "$want" "$out" >&2
     exit 1
   fi
@@ -1471,7 +1473,7 @@ gate_selftest() {
   # --print-roots, ON THE SAME DERIVATION. The hosted cache's scope is
   # whatever this prints, so a mode that printed a bare `.` — a reader
   # that failed quietly, a `dirname` that lost the outside roots — would
-  # put the `fmt` job back to compiling six cargo roots from nothing on
+  # put the `fmt` job back to compiling every excluded root from nothing on
   # every run, with every gate still green. Both directions are checked:
   # the exact set on a clean fixture, and a diagnosis rather than a short
   # list when a reader cannot answer.

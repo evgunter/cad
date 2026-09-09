@@ -16,18 +16,21 @@ that agreed on shape and not on bytes would author a selection that
 resolves to nothing, which is exactly the failure a hand-written name
 has.
 
-THE OUTER-LOOP LIMIT, restated because these doors inherit it: `seg`
-and `vertex` index the OUTER loop's canonical chain
-(`work/lib/the-role-name-builders-reach-only-the-outer-profile-loop.md`
-carries it on the Rust side). A hole's band is reachable from neither
-alphabet, and no scene here has one.
+EVERY DOOR TAKES ITS LOOP. `loop_index` is the profile's canonical
+loop — 0 the outer one, then the holes in the order the profile
+describes them — and `seg`/`vertex` index THAT loop's canonical chain.
+No loop is privileged, which is why the third scene below has a hole
+and names its bands the same way the first scene names the outer
+ones.
 
-The two scenes are the two shapes a full revolve takes. A profile that
-CLEARS the axis sweeps to one face per meridian segment, so its bands
-stand alone and its latitude rims are whole circles. A profile that
-TOUCHES the axis sweeps to a pole, and the kernel splits every band
-into its `[0, pi)` and `[pi, 2pi)` halves — which is what `band_pi`
-exists for, and why the second scene is here at all.
+The first two scenes are the two shapes a full revolve takes. A
+profile that CLEARS the axis sweeps to one face per meridian segment,
+so its bands stand alone and its latitude rims are whole circles. A
+profile that TOUCHES the axis sweeps to a pole, and the kernel splits
+every band into its `[0, pi)` and `[pi, 2pi)` halves — which is what
+`band_pi` exists for, and why the second scene is here at all. The
+third carries a HOLE, so the emitter mints a second loop's worth of
+bands, rims and meridian vertices at `loop_index` 1.
 """
 
 import math
@@ -66,6 +69,9 @@ RI, RO, H = 1.0, 2.0, 1.0
 # The frustum: a trapezoid whose fourth segment lies ON the axis, so
 # the body has a pole and every band is split at pi.
 R_BASE, R_TOP, H_F = 1.0, 0.5, 1.0
+# The holed ring: the same square section with a square HOLE cut in
+# it, so the profile has two loops and the revolve two shells.
+HI, HO, HB, HT = 1.25, 1.75, 0.25, 0.75
 # The wall and the roll, both dyadic.
 T, ROLL = 0.125, 0.125
 
@@ -112,6 +118,35 @@ def frustum(doc):
     return doc.insert(Node.revolve(profile, axis_of(doc, frame), Expr.written_angle(WrittenAngle.in_unit(2 * math.pi, rad))))
 
 
+def holed_ring(doc):
+    """The ring's square section with a square hole cut in it: loop 0
+    is the outer boundary, loop 1 the hole, and the revolve of a
+    lamina-with-hole is one body of two square-torus shells."""
+    frame = doc.sketch_frame()
+    outer = (
+        Open.at((RI * m, 0 * m))
+        .line_to((RO * m, 0 * m))
+        .line_to((RO * m, H * m))
+        .line_to((RI * m, H * m))
+        .line_to(Start)
+    )
+    hole = (
+        Open.at((HI * m, HB * m))
+        .line_to((HO * m, HB * m))
+        .line_to((HO * m, HT * m))
+        .line_to((HI * m, HT * m))
+        .line_to(Start)
+    )
+    profile = doc.insert(Node.profile([outer, hole], plane=frame))
+    return doc.insert(
+        Node.revolve(
+            profile,
+            axis_of(doc, frame),
+            Expr.written_angle(WrittenAngle.in_unit(2 * math.pi, rad)),
+        )
+    )
+
+
 def of_role(ev, node, kind, tag, side=None):
     """What the kernel minted for one role, in the canonical order
     `select` answers in."""
@@ -131,27 +166,27 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         ev = evaluate(doc)
         bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
         self.assertEqual(len(bands), 4, "one band per meridian segment")
-        self.assertEqual(bands, [band(node, seg) for seg in range(4)])
+        self.assertEqual(bands, [band(node, 0, seg) for seg in range(4)])
         # No pole, so no `[pi, 2pi)` half exists to name.
         self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
         # A rim per meridian vertex, and a seam vertex under each.
         rims = of_role(ev, node, EntityKind.Edge, SegTag.BandRim)
-        self.assertEqual(rims, [band_rim(node, v) for v in range(4)])
+        self.assertEqual(rims, [band_rim(node, 0, v) for v in range(4)])
         seam = of_role(
             ev, node, EntityKind.Vertex, SegTag.MeridianVertex, MeridianEnd.Seam
         )
         self.assertEqual(
-            seam, [meridian_vertex(MeridianEnd.Seam, node, v) for v in range(4)]
+            seam, [meridian_vertex(MeridianEnd.Seam, node, 0, v) for v in range(4)]
         )
         # The names denote what the door says they denote: `band` 2 is
         # the top annulus, and rim 2 the circle standing on it.
         self.assertEqual(
-            ev.face_carrier_kind(node, band(node, 2)), SurfaceKind.Plane
+            ev.face_carrier_kind(node, band(node, 0, 2)), SurfaceKind.Plane
         )
         self.assertEqual(
-            ev.face_frame(node, band(node, 2)).origin[1].meters, H
+            ev.face_frame(node, band(node, 0, 2)).origin[1].meters, H
         )
-        self.assertEqual(ev.edge_frame(node, band_rim(node, 2)).origin[1].meters, H)
+        self.assertEqual(ev.edge_frame(node, band_rim(node, 0, 2)).origin[1].meters, H)
 
     def test_band_pi_is_the_half_a_pole_splits_off(self):
         doc = Doc()
@@ -161,18 +196,79 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         halves = of_role(ev, node, EntityKind.Face, SegTag.BandPi)
         self.assertEqual(len(bands), 3, "the fourth segment lies on the axis")
         self.assertEqual(len(halves), 3, "and each band has its pi half")
-        self.assertEqual(bands, [band(node, seg) for seg in range(3)])
-        self.assertEqual(halves, [band_pi(node, seg) for seg in range(3)])
+        self.assertEqual(bands, [band(node, 0, seg) for seg in range(3)])
+        self.assertEqual(halves, [band_pi(node, 0, seg) for seg in range(3)])
         # A door answering the other door's text would pass every
         # count above; these are two roles and two texts.
-        self.assertNotEqual(band(node, 0), band_pi(node, 0))
+        self.assertNotEqual(band(node, 0, 0), band_pi(node, 0, 0))
+
+    def test_a_holes_bands_are_named_at_its_own_loop(self):
+        """The claim the outer-loop signature could not make: the
+        emitter mints a hole's band, rim and meridian vertex at
+        `loop_index` 1, and the door answers those bytes for the same
+        arguments. Compared as SETS over the loop's four segments,
+        because which corner the canonical chain starts at is the
+        profile crate's business and not this file's."""
+        doc = Doc()
+        node = holed_ring(doc)
+        ev = evaluate(doc)
+        bands = of_role(ev, node, EntityKind.Face, SegTag.Band)
+        self.assertEqual(len(bands), 8, "four meridian segments per loop")
+        self.assertEqual(
+            set(bands), {band(node, lp, s) for lp in (0, 1) for s in range(4)}
+        )
+        rims = of_role(ev, node, EntityKind.Edge, SegTag.BandRim)
+        self.assertEqual(
+            set(rims), {band_rim(node, lp, v) for lp in (0, 1) for v in range(4)}
+        )
+        seam = of_role(
+            ev, node, EntityKind.Vertex, SegTag.MeridianVertex, MeridianEnd.Seam
+        )
+        self.assertEqual(
+            set(seam),
+            {meridian_vertex(MeridianEnd.Seam, node, lp, v) for lp in (0, 1) for v in range(4)},
+        )
+        # Neither loop clears into a pole, so nothing is split at pi
+        # and no `band_pi` name exists on either loop.
+        self.assertEqual(of_role(ev, node, EntityKind.Face, SegTag.BandPi), [])
+        # The loop index is READ, not decoration: the same segment on
+        # the two loops is two names.
+        self.assertNotEqual(band(node, 0, 0), band(node, 1, 0))
+        # And the names denote faces of the shape the section has:
+        # two horizontal segments sweep to annuli and two vertical
+        # ones to cylinders, on each loop.
+        for lp in (0, 1):
+            kinds = [
+                ev.face_carrier_kind(node, band(node, lp, s)) for s in range(4)
+            ]
+            self.assertEqual(kinds.count(SurfaceKind.Plane), 2)
+            self.assertEqual(kinds.count(SurfaceKind.Cylinder), 2)
+        # Pappus over the section the revolve swept: the outer square
+        # less the hole, each at its own centroid radius. Every
+        # dimension is dyadic; the closed form sums pi's rounding in a
+        # different order than the kernel accumulates in.
+        outer_area, hole_area = (RO - RI) * H, (HO - HI) * (HT - HB)
+        want = 2 * math.pi * (
+            outer_area * (RI + RO) / 2 - hole_area * (HI + HO) / 2
+        )
+        body = ev.value(node).body()
+        body.validate()
+        self.assertAlmostEqual(
+            body.mass_properties().volume, want, delta=1e-12 * want
+        )
 
     def test_carried_is_the_name_a_survivor_of_the_next_op_wears(self):
         doc = Doc()
         node = ring(doc)
         # The top annulus opened: the other three bands survive the
         # hollowing, and each wears its own name under the shell.
-        hollow = doc.insert(Node.shell(node, Expr.written_length(WrittenLength.in_unit(T, m)), [band(node, 2)]))
+        hollow = doc.insert(
+            Node.shell(
+                node,
+                Expr.written_length(WrittenLength.in_unit(T, m)),
+                [band(node, 0, 2)],
+            )
+        )
         ev = evaluate(doc)
         survivors = ev.select(
             hollow,
@@ -182,11 +278,11 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         )
         self.assertEqual(
             sorted(survivors),
-            sorted(carried(hollow, band(node, seg)) for seg in (0, 1, 3)),
+            sorted(carried(hollow, band(node, 0, seg)) for seg in (0, 1, 3)),
         )
         # The kind is the inner name's, never re-decided: a carried
         # face resolves as a face.
-        self.assertEqual(ev.resolve(carried(hollow, band(node, 0))).status, "resolved")
+        self.assertEqual(ev.resolve(carried(hollow, band(node, 0, 0))).status, "resolved")
 
     def test_text_that_is_not_a_name_refuses_at_the_boundary(self):
         doc = Doc()
@@ -206,7 +302,13 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         node = ring(doc)
         # Authored against the recipe alone — nothing is evaluated
         # until the assertion below.
-        hollow = doc.insert(Node.shell(node, Expr.written_length(WrittenLength.in_unit(T, m)), [band(node, 2)]))
+        hollow = doc.insert(
+            Node.shell(
+                node,
+                Expr.written_length(WrittenLength.in_unit(T, m)),
+                [band(node, 0, 2)],
+            )
+        )
         ev = evaluate(doc)
         body = ev.value(hollow).body()
         body.validate()
@@ -227,13 +329,17 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         faces = NamePat.of_kind(EntityKind.Face)
         rim = ev.select(hollow, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))
         self.assertEqual(len(rim), 1)
-        self.assertIn(band(node, 2), rim[0], "the rim wears the opened face's name")
+        self.assertIn(band(node, 0, 2), rim[0], "the rim wears the opened face's name")
 
     def test_a_fillet_on_rims_named_before_the_revolve_ran(self):
         doc = Doc()
         node = ring(doc)
         rolled = doc.insert(
-            Node.fillet(node, Expr.written_length(WrittenLength.in_unit(ROLL, m)), [band_rim(node, 2), band_rim(node, 3)])
+            Node.fillet(
+                node,
+                Expr.written_length(WrittenLength.in_unit(ROLL, m)),
+                [band_rim(node, 0, 2), band_rim(node, 0, 3)],
+            )
         )
         ev = evaluate(doc)
         body = ev.value(rolled).body()
