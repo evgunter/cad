@@ -55,7 +55,7 @@ log() { printf 'apt-install: %s\n' "$*"; }
 # `sudo` in CI, nothing when the caller already owns the directory (--selftest
 # runs against a scratch tree as an ordinary user).
 sudo_if_needed() {
-  if [ -w "$SOURCES_DIR" ] && [ "${CAD_APT_SUDO:-auto}" != "always" ]; then
+  if [ -w "$SOURCES_DIR" ]; then
     "$@"
   else
     sudo "$@"
@@ -144,7 +144,6 @@ main() {
       if apt_install "$@"; then
         return 0
       fi
-      foreign_note
     fi
     echo "::warning::apt-install: attempt ${attempt} failed or hung; retrying"
     sleep $((attempt * 5))
