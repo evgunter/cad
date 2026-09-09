@@ -64,3 +64,21 @@ own helpers. Four shapes:
   least machinery and the ruled signature was chosen for exactly the
   calls that exist. If a door is wanted now, (C) is the pick — the
   only one that keeps every existing call as it is.
+
+### Why the builders fix `loop_index: 0`, added 2026-09-09 after Ev asked
+
+Scope, not design. The `[ev]` question on 2231 offered the builders in
+the shape the hand-spelling sites had — two arguments — because every
+one of the thirteen sites spelled `loop_index: 0`: the tour, the
+corpus and the tests all name the outer loop's faces, and the builders
+were the common factor of the calls that existed. Ev ruled (A) at that
+spelling and LIB-NAMES kept it rather than widen a ruled signature on
+its own, filing this residue. Nothing about the outer loop earns the
+shortcut on its merits: `ProfileEdgeRef` is `{ loop_index, segment }`,
+loop 0 the outer loop and holes in description order, and a hole's
+band is the same `RoleSeg::Band` with its loop's index. So the four
+builders are "the outer-loop convenience"; (D) parks that until a
+consumer wants the other loops, (C) keeps it while opening the rest,
+and (A) is the symmetric signature at the cost of the thirteen sites
+and the five Python doors moving to three arguments with `0` in the
+middle at every current call.
