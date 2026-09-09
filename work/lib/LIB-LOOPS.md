@@ -2,11 +2,12 @@
 id: LIB-LOOPS
 kind: unit
 title: the role-name builders take the loop index: the symmetric signature on both sides, with a hole scene pinned
-status: review
+status: closed
 branch: lib/loops
 opened: 2026-09-09
 refs: [the-role-name-builders-reach-only-the-outer-profile-loop]
 pr: 2268
+closed: 2026-09-09
 ---
 
 
