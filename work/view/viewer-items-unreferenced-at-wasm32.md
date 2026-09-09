@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-09
 closed: 2026-09-09
 branch: view/wasm-dead-items
+pr: 2272
 ---
 
 Found by CIW unit 4 (PR 2263) while adding the first CI row that
