@@ -6,6 +6,7 @@ status: review
 branch: lib/discriminants
 opened: 2026-09-09
 refs: [two-validation-payload-discriminants-still-uncrossed]
+pr: 2246
 ---
 
 Ev's ruling (A) on `two-validation-payload-discriminants-still-uncrossed`,
