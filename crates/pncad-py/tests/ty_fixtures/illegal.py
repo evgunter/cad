@@ -268,6 +268,20 @@ Node.pattern(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  # ty: 
 name: ParamName = ParamName("which")
 DocEdit.bind_count_param(solid, name, slot="instance")  # ty: error
 
+# LIB-EDITS. The CONTINUOUS slot edit takes the slot's word and an
+# EXPRESSION, which is a dimension-checked tree `Doc.parse_expr`
+# builds — never a bare number and never a dimensioned quantity, both
+# of which would smuggle a second way of saying what a slot holds.
+DocEdit.set_param(solid, "distance", 1 * m)  # ty: error
+DocEdit.set_param(solid, "distance", 1.0)  # ty: error
+# And the word is TEXT: a slot is a name, so there is no slot type to
+# pass and an index is not one either.
+DocEdit.set_param(solid, 0, doc.parse_expr("1 m"))  # ty: error
+
+# The name repair takes two NAMES — opaque text, as every other
+# name-taking door on this surface does. A node is not one.
+DocEdit.rebind(solid, solid)  # ty: error
+
 # A reference is (identity, pin) in that order and neither is the
 # other's type: an id is the canonical hex TEXT, a pin is a value.
 DocRef(content_pin(doc), doc.id)  # ty: error

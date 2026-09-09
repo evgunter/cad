@@ -2,8 +2,9 @@
 id: five-doc-edit-arms-have-no-python-door
 kind: issue
 title: five DocEdit arms have no Python constructor
-status: open
+status: closed
 opened: 2026-09-09
+closed: 2026-09-09
 ---
 
 
@@ -48,3 +49,35 @@ the five `MEMBERS_NOT_BOUND` rows moving to `MEMBERS_BOUND_AS` —
 which empties `B-DOC-EDITS` out of `FAMILIES`. Sizing is a brief's
 job: the five are one family because they are one enum's unbuilt
 arms, not because one unit must take all five.
+
+## Closed
+
+Closed at LIB-EDITS with TWO of the five arms bound and the other
+three re-filed, each under the reason it is not a missing constructor.
+
+`DocEdit.set_param` and `DocEdit.rebind` exist, take the address a
+refusal answers with (a slot's WORD, a name's TEXT), and are exercised
+one row per tag in `crates/pncad-py/tests/test_slot_edits.py`. Both
+rows left `MEMBERS_NOT_BOUND` entirely rather than moving to
+`MEMBERS_BOUND_AS`, because Python spells both namesake for namesake
+and rule 1 accounts a member the stub spells.
+
+The item's premise held for three of the five and not for two:
+
+- `ReWitness` / `ReWitnessBulk` — the sentence the item wrote for the
+  appearance four is theirs too. `WitnessDatum` and
+  `BranchCertification` are not on `crates/pncad/src/document.rs`'s
+  curated list, and `pncad-py` depends on `pncad` alone, so there is
+  no type for a constructor to take.
+  `work/lib/the-witness-edits-need-a-facade-type.md`.
+- `SetExpression` — the constructor is mechanical and the payload IS
+  curated; what blocks it is its own refusal.
+  `EditError::PathOffTree`'s `Display` renders the address through
+  `Debug`, and the binding's prose gate is a `debug_assert` live under
+  release, so the door would panic where it must refuse. Observed by
+  writing the door and provoking it.
+  `work/lib/the-expression-path-edit-cannot-refuse-as-prose.md`.
+
+`B-DOC-EDITS` therefore stays in the census's `FAMILIES` with three
+rows and a charter that says what each needs before a constructor is
+the work.
