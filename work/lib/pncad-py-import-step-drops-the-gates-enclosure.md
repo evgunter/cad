@@ -4,7 +4,6 @@ kind: issue
 title: pncad-py's import_step drops the gate's enclosure, so a Python import-then-measure pays two certified quadratures
 status: open
 opened: 2026-09-03
-needs_ev: true
 ---
 
 
@@ -76,3 +75,13 @@ choice is about what a `Body` handle IS:
 Recommendation: **(A)**; if you prefer the journey to be free without
 the caller touching a report, (B) is the smaller change to write and
 the larger one to explain.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2232)
+
+**(A).** Ev, after the premise was corrected (both (A) and (B) change
+binding code — (A) at the door's return shape, (B) on the `Body`
+handle): "yes definitely A over B." `import_step` answers an
+`ImportReport` (the sibling's value class) with `.body` and
+`.enclosure` (`MassProperties`) beside the record rows; `Body` stays
+a pure handle and `mass_properties` keeps its one meaning. Dispatches
+with the sibling as one unit (LIB-IMPORT-REPORT).

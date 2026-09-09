@@ -4134,3 +4134,18 @@ and ruled **(A)**; the unit (LIB-NAMES) dispatches when a slot frees.
 Orchestrator note: item 1 is the second time today a filed design
 question dissolved on a closer read of the tree (the seat existed);
 the lesson for the filer is to grep for the seat before asking.
+
+**`[ev]` PR 2232 RULED (2026-09-09, Ev): (A), (A), (A) — what a
+curated door owes on its SUCCESS side.** Item 1
+(`a-successful-step-imports-own-report-is-uncurated`): carry
+`StepImport` and its record vocabulary at the façade under the reach
+clause, and give Python an `ImportReport` value class beside the
+body. Item 2 (`pncad-py-import-step-drops-the-gates-enclosure`): the
+report carries `.body` and `.enclosure`; `Body` stays a pure handle —
+ruled after Ev asked whether (A) was test-only and (B) not, and the
+premise was corrected (both change binding code; (A) at the door's
+return shape, (B) on the handle). Item 3
+(`advisory-monte-carlo-lane-has-no-python-door`): `monte_carlo` and
+its value classes bound as LIB's build, `analysis.rs` joining the
+census's read list — "no real hurry", so it queues behind the
+mechanical units. Items 1+2 dispatch as one unit (LIB-IMPORT-REPORT).
