@@ -26,7 +26,7 @@ compiler — the same defect one directory over". It is already there.
 - `crates/viewer/tests/chrome_labels.rs:64` —
   `for pane in [Pane::Viewport, Pane::Features, Pane::Properties,
   Pane::View]`, asserting each has a tile. `Pane`
-  (`crates/viewer/src/app.rs:259`) has exactly those four variants. A
+  (`crates/viewer/src/app.rs:268`) has exactly those four variants. A
   fifth pane added with no tile leaves this row green.
 - `crates/viewer/tests/review_gui0_r2.rs:303` — `buttons = [Primary,
   Secondary, Middle]`, the whole of `PointerButton`

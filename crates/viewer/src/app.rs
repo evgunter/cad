@@ -111,6 +111,13 @@ fn prefs_store() -> Store {
 /// PLACEHOLDER until Q9 settles a real one. It is not the crate name
 /// — the crate, the binary and the canvas element stay `viewer`, and
 /// only what a user reads says `pncad`.
+///
+/// **Native only**, `cfg`-ed to match its one reader: [`run`] hands it
+/// to `eframe::run_native` as the window's name, and a browser has no
+/// window to name — the page's `<title>` is what a user reads there,
+/// and `run_web` — absent from this configuration, so named rather
+/// than linked — is handed a canvas rather than a title.
+#[cfg(not(target_family = "wasm"))]
 const WINDOW_TITLE: &str = "pncad";
 
 /// What the toolbar calls a document with no path of its own.
@@ -1063,6 +1070,20 @@ impl ViewerApp {
     /// comes back at a diff where nothing looks wrong. Insurance whose
     /// premium is one call is not worth removing because the claim has
     /// not been made.
+    ///
+    /// **Native only**, `cfg`-ed to match both of its callers. The
+    /// unranked traffic this door exists for is a file dialog's
+    /// verdict, and the browser build has no file dialog to take a
+    /// verdict from: [`pick_open`] and [`pick_save`] are absent there,
+    /// so the two arms above are `cfg`-ed away with them. The refusal
+    /// the browser does raise on those controls is raised EARLIER and
+    /// said elsewhere — [`frame::chooser_backend`] answers
+    /// [`frame::ChooserBackend::Absent`], which disables both buttons
+    /// and shows [`frame::NO_CHOOSER_BACKEND`] as their reason, the
+    /// same sentence [`frame::dialog_status`]'s `Show` arm carries. So
+    /// nothing goes unsaid on wasm for want of this door; the target
+    /// simply asks no question it could answer.
+    #[cfg(not(target_family = "wasm"))]
     fn deliver_status(&mut self, update: StatusUpdate) {
         frame::deliver(&mut self.notices, &mut self.status, update);
     }

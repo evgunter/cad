@@ -6626,3 +6626,82 @@ ratified kinds and red. The sentence now carries the exception and the
 rule that produces it. **A universal in prose owes the sweep rule that
 produces its population** — the same obligation §5 puts on a scope
 sentence in a PR.
+
+## 2026-09-09 — the two wasm dead items are `cfg`, and the refusal that IS unsaid is somewhere else
+
+`viewer-items-unreferenced-at-wasm32` closed. CIW's PR 2263 added the
+first CI row compiling this crate for `wasm32-unknown-unknown` and
+found `WINDOW_TITLE` and `ViewerApp::deliver_status` unreferenced
+there; the row is `cargo check` and not `-D warnings` because of them,
+which made it the one viewer row in the workflow that cannot fail on a
+warning.
+
+**Both took shape (1) — `#[cfg(not(target_family = "wasm"))]` on the
+item — but only after shape (2) was run down.** The item declined to
+choose, and the reason to choose carefully is that shape (2) is a live
+defect and shape (1) buries it: if the browser build ought to be
+delivering status for a refusal it swallows, the `cfg` makes the
+silence permanent. Three findings settle it for `deliver_status`. The
+dialog verdict it carries cannot occur on wasm, because the browser
+links no dialog to return from. The refusal wasm *does* raise on those
+controls is raised earlier and already said, through
+`.on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)` — the same const
+string `dialog_status`'s `Show` arm would put on the line, so #1125's
+posture is met on the hover route, not the status route, and the same
+is true on a desktop with no zenity and no portal. And the status-line
+sentence is unreachable on every target anyway: one `self.chooser` copy
+both gates the button and feeds `dialog_status`, so every reachable
+verdict at both sites is `Keep`.
+
+**Shape (2) is real in this crate, and the sweep found it one control
+over.** The sweep rule was every `cfg(…target_family = "wasm"…)` site
+under `crates/viewer/src` — 35 by that spelling — asked whether the
+browser takes a different arm, whether the difference is a refusal, and
+whether anything says so. The preferences store is one: on wasm
+`Store` is `prefs::Absent`, `remember_theme` returns early on
+`!store.usable()`, and the palette picker is an ordinary enabled
+`ComboBox`. So a browser user picks a theme, it applies, the tab
+reloads, and the default is back with nothing having said why — against
+`prefs.rs:318-321`'s *"disabled with a reason, never offered and then
+silently ineffective"* and `app.rs:88-91`'s *"the Save control disables
+itself"*, which names a control that does not exist. Filed as
+`wasm-theme-choice-is-offered-and-silently-not-kept`. It gives
+`deliver_status` no wasm caller — `remember_theme` reports through
+`notices.push`, and the repair is chrome — which is why the two
+questions came apart.
+
+**The flip is proved and not made.** `.github/workflows/ci.yml` is
+CIW's and is untouched; the exact edit and its evidence went to the
+orchestrator to route. Both spellings run clean at the wasm target on
+the closing tree, and the negative control is what makes that evidence:
+the same clippy command on the unfixed tree exits 101 with those two
+warnings as errors and nothing else, which is also the enumeration rule
+behind *exactly two* — the compiler's reachability verdict over the
+compiled configuration, not a grep. `--all-targets` is not available at
+that target and never was: `crates/viewer/tests/` reaches
+`ThreadEvaluator`, which is host-only.
+
+**A second residue, disclosed with its number.** A rustdoc pass at the
+browser target was already red at `1d29a8eeb` with nine unresolved
+intra-doc links — doc comments compiled at both targets linking
+host-only items, including `run_web`'s own doc linking `run`, which is
+unresolvable in the only configuration that compiles the item it
+documents. Nothing runs that pass, so nothing held the number. This PR
+makes it ten, deliberately: `apply_status`'s doc links
+`ViewerApp::deliver_status`, and de-linking a working host link to hold
+a count nothing reads would make the host docs worse for no reader.
+Filed as `viewer-docs-do-not-build-at-wasm32` with both shapes.
+
+**Citation sweep.** Every `app.rs:NNN` in `work/view/` was enumerated
+and each read at its base line; a pure 21-line insertion shifts every
+citation at or after 114. Most were already stale — the split's residue,
+which `stale-file-citations-after-the-split` holds — and a citation
+already wrong is not one this change falsified. Re-derived by finding
+the subject by name on the closing tree, in the three OPEN rows where
+the base line really was the subject: `to_f32` (`cursor-projection-is-
+f32-…`), `enum Pane` (`viewer-suites-hold-hand-written-complete-
+variant-lists`), and `ViewerApp`'s declaration, `sync_scene`'s six
+writes, the `None if opened` arm and its door comment
+(`viewerapp-document-derived-state-has-no-boundary`). Closed rows and
+this log's own past entries were left alone: both are records of what
+was true when written, not guards.
