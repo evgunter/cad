@@ -141,3 +141,24 @@ assumed what the kernel does not promise.
 - **(C) Leave both**, and document the raise.
 
 Recommendation: **(A)**.
+
+### Where it happens, and the class — added 2026-09-09 after Ev asked
+
+Not a test: it is the runtime meaning of `==`, `<` and `hash()` on a
+Python `Length`/`Angle` — `crates/pncad-py/src/py/quantity.rs`'s
+`continuous_quantity!` macro routes all six comparisons through one
+`partial_cmp` and hashes raw bits. The tests pin it as it stands.
+
+The class is confined to the binding (the kernel is deliberate: IEEE
+`PartialEq`, bits only in `bit_eq`). Twelve hand-written `__hash__`
+sites over floats exist at the boundary; `fold_zero`
+(`quantity.rs:465`) is used by `WrittenLength`, `WrittenAngle` and
+`DocParam`, and four sites still hash raw bits — one on purpose (a
+sketch plane whose `__eq__` also compares bits). **(A) as the class**:
+one shared fold-then-bits hash for every class whose `__eq__` is
+IEEE, bit-hash only where `__eq__` is bit-eq, and a row in the
+module-enumerated `tests/test_hashability.py` asserting, for every
+float-constructible class, that the `-0.0` and `0.0` forms hash equal
+whenever they compare equal; plus the one macro arm so `==` on NaN
+answers `False`. Ordering on a non-finite quantity keeps refusing,
+typed.

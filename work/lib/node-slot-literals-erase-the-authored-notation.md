@@ -100,3 +100,28 @@ door. Which seat?
 
 Recommendation: **(A)**; it is the shape `DocParam` already has
 (`Doc.set_doc_param` takes either), so the lattice stays one lattice.
+
+### (D), added 2026-09-09 after Ev objected to the elision between dimensioned input and bare kernel numbers
+
+Measured first: a literal's `display_unit` IS presentation metadata
+under D7 — it round-trips through persistence and feeds the
+formatter, and never enters `bit_eq`, `literal_bits` or any
+content/naming key (`crates/editor-core/src/expr.rs`,
+`literal_with_unit`'s doc). Kernel numbers are bare canonical; user
+input is dimensioned; the unit is how it displays. Nothing else on
+that front needs fixing.
+
+The elision is at construction: Python's `25 * mm` — a dimensioned
+user input — forgets the `mm`, which is why (A) needs a second type
+at every slot to carry it back in. **(D): the Python `Length`/`Angle`
+carries the unit it was written in as presentation metadata**, as
+`Expr` does — ignored by `==`/hash, dropped by arithmetic (a sum has
+no written unit and falls back to canonical), and read by every
+existing door, which records it through `Expr::literal_with_unit`
+when present and canonically otherwise. `Node.extrude(profile,
+25 * mm)` then reads back `25 mm` with no new seat, no second type at
+slots, no signature change on fifteen doors. Binding-only; the kernel
+`Length` newtype is untouched; `WrittenLength` stays as the explicit
+parameter form (retirement, if any, is a separate question).
+
+Recommendation revised: **(D)** over (A).
