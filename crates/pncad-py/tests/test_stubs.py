@@ -477,13 +477,15 @@ class TestStubClassDrift(unittest.TestCase):
         interning its variants this exemption fails instead of
         covering for it.
         """
-        undeclared, aliased = [], []
+        undeclared, aliased, compared, exempt = [], [], 0, 0
         for name, node in sorted(stub_classes().items()):
             cls = getattr(pncad, name, None)
             if not isinstance(cls, type) or "__eq__" not in vars(cls):
                 continue
+            compared += 1
             members = stub_enum_member_names(node)
             if members:
+                exempt += len(members)
                 aliased += [
                     f"{name}.{member}"
                     for member in sorted(members)
@@ -492,6 +494,17 @@ class TestStubClassDrift(unittest.TestCase):
                 continue
             if "__eq__" not in stub_class_dunders(node):
                 undeclared.append(name)
+        # TWO EMPTY LISTS ARE A PASS, so the reach is pinned as well:
+        # a walk that found no comparing class, or no mirror member to
+        # check the exemption on, would report success having asked
+        # nothing. Floors with room for churn — a rise needs no
+        # permission, a DROP through one is the signal.
+        self.assertGreater(
+            compared, 40, "the scan found almost no class carrying its own `__eq__`"
+        )
+        self.assertGreater(
+            exempt, 80, "the mirror exemption is checked on almost no member"
+        )
         self.assertEqual(
             aliased,
             [],
