@@ -499,16 +499,17 @@ pub use topo::{
 // DISCRIMINANT, and every discriminant these refusals name is
 // spellable from this list.
 //
-// Two of the four now cross to Python as well, and this list is what
-// made that spellable. `ValidationError.findings` carries one word per
-// failure — the arm, plus `CensusContact` as `contact_kind` and
-// `CensusSubject` as `subject_kind` with the entity's kind beside it —
-// so the asymmetry these entries were written under, a Rust caller
-// matching the arm while a Python caller read the sentence, is closed
-// for the two payloads a caller acts on. `StaleDeclaration` and
-// `RingContact` are still Rust-side only. The sequence is the one on
-// this surface: `validate*` is the one door that reports many refusals
-// at once, and `failure_count` says so.
+// All four cross to Python as well, and this list is what made that
+// spellable. `ValidationError.findings` carries one word per failure —
+// the arm, plus `CensusContact` as `contact_kind`, `CensusSubject` as
+// `subject_kind` with the entity's kind beside it, `StaleDeclaration`
+// as `stale_kind` and `RingContact` as `ring_contact_kind` — so the
+// asymmetry these entries were written under, a Rust caller matching
+// the arm while a Python caller read the sentence, is closed for every
+// payload discriminant this refusal carries. One attribute per
+// concept, `None` on every arm that carries none. The sequence is the
+// one on this surface: `validate*` is the one door that reports many
+// refusals at once, and `failure_count` says so.
 pub use topo::{
     CensusContact, CensusSubject, RingContact, StaleDeclaration, ValidationError, validate,
     validate_closed, validate_geometric, validate_pseudomanifold,

@@ -821,12 +821,39 @@ BOUND_AS = {
     # What still has no Python spelling is the arm's FIELDS — which
     # vertex, which face — and that is the payload question rather
     # than this one: no arena key crosses to a surface that holds
-    # names. The two remaining `ValidationError` payload
-    # discriminants, `StaleDeclaration` and `RingContact`, stay
-    # `INTERIOR` below and are filed as
-    # `work/lib/two-validation-payload-discriminants-still-uncrossed.md`.
+    # names.
+    #
+    # EVERY payload DISCRIMINANT of this door now crosses, and the
+    # four entries here are that rule rather than a pair. The two
+    # below joined the two above under the ruling that generalised
+    # them: a discriminant a caller can act on crosses as an attribute
+    # of its own, named per type, `None` on every other arm — one word
+    # per concept, never one word meaning different things under
+    # different `variant`s. `StaleDeclaration` is
+    # `stale_contact_declaration`'s and says WHICH record lost its
+    # witness, which is which record to withdraw; `RingContact` is
+    # `ring_meets_outer`'s and says HOW the ring meets the outer loop,
+    # which is where the ring has to move. Neither payload's FIELDS
+    # cross — both are arena keys — so the projection stops at the
+    # discriminant, as it does at the two above.
+    #
+    # THE MEASUREMENT for the second pair. Both were `INTERIOR` with
+    # the argument that the ruling had named two types and these were
+    # not them. `ValidationFinding.stale_kind` and
+    # `.ring_contact_kind` are those two rows moved: each is minted by
+    # an exhaustive match in `src/tags.rs` beside the other two, so a
+    # kernel arm added to either enum stops the bindings compiling.
+    # No Python scene reaches either arm — a stale record needs a
+    # declaration parted from its witness and no door hands one out, a
+    # ring on its outer loop needs raw Euler surgery — so the words
+    # are pinned per arm in `src/tests.rs` and named as unreachable in
+    # `tests/test_validate.py`. Crossing them is still the move: the
+    # attribute is the contract, and a caller reads it the day a door
+    # produces one.
     "CensusContact": "ValidationFinding.contact_kind",
     "CensusSubject": "ValidationFinding.subject_kind",
+    "RingContact": "ValidationFinding.ring_contact_kind",
+    "StaleDeclaration": "ValidationFinding.stale_kind",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
     # accounted by rule 1; these two are the family's shape entries,
@@ -2092,22 +2119,10 @@ NOT_BOUND = {
     # `Evaluation.select` rather than by key. A key bundle has nothing
     # to project to a surface that holds names and never keys.
     "RevolvedKind": INTERIOR,
-    # `ValidationError::RingMeetsOuter`'s payload (LIB-CUR4). The
-    # `ring_meets_outer` arm crosses as a `ValidationFinding.variant`
-    # now; WHICH way the ring meets the loop does not, and the two
-    # census payloads that do are the ruling's named pair rather than
-    # every payload of every arm. Filed as
-    # `work/lib/two-validation-payload-discriminants-still-uncrossed.md`.
-    "RingContact": INTERIOR,
     # `BlendError::UnsupportedCorner`'s second field, the policy
     # `CornerConfig::policy` assigns (LIB-CUR4).
     "RunOutPolicy": INTERIOR,
     "SegmentKind": INTERIOR,
-    # `ValidationError::StaleContactDeclaration`'s payload (LIB-CUR4).
-    # `stale_contact_declaration` crosses as a variant word; WHICH
-    # record lost its witness does not. `RingContact`'s note above
-    # carries the argument and the file for both.
-    "StaleDeclaration": INTERIOR,
     "StepArg": INTERIOR,
     "Surface": INTERIOR,
     "ValidatedLoop": INTERIOR,

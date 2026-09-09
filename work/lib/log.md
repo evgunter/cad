@@ -4193,3 +4193,36 @@ way, and it settles whether a payload owes its carrier's list or the
 vocabulary's), pinned in the script so a third such name reds CI.
 Orchestrator note: this is the resolver option (D) on `[ev]` #2230
 item 2 would reuse. Also measured by the lane: the selftest discriminates — nine mutants of the scan each red the battery; two runs byte-identical. ~92 min, ~208k tokens.
+
+**LIB-DISCRIMINANTS MERGED (2026-09-09, #2246; mechanical under the
+08-29 ruling, no A/B row). The first unit under Ev's (A) on
+`two-validation-payload-discriminants-still-uncrossed` (ruled this
+morning on `[ev]` #2230): `ValidationFinding` carries `stale_kind`
+(`StaleDeclaration`, four arms — which declared record lost its
+witness, which is which record to withdraw or re-seat) and
+`ring_contact_kind` (`RingContact`, three arms — how a ring meets its
+face's outer loop, which is where the ring has to move), each from an
+exhaustive tag map with no wildcard, `None` on every other arm; the
+arena-key FIELDS do not cross, so the projection stops at the
+discriminant as everywhere else.** `ring_contact_tag` reuses the
+census vocabulary's spellings where the shape is the same
+(`vertex_vertex`, `vertex_on_edge`, `edge_along_edge`), so a caller
+reading two contact words off one finding learns one spelling; the
+escalated sibling (`RingContactEscalated`) answers `None` — an
+undecidable separation is a margin, not a shape. Reachability, the
+part worth recording: NO arm of either enum is reachable from
+Python — a stale record needs a declaration parted from its witness
+and every door mints declarations from the geometry it looks at or
+gates them; a ring on its own outer loop needs raw Euler surgery the
+binding does not expose — so all seven words are pinned per arm in
+Rust with the reason, and `test_validate.py` says the gap is the
+DOORS' rather than the projection's; crossing them is still the move,
+because the attribute is the contract a caller reads the day a door
+produces one. Census: both rows from `INTERIOR` to `BOUND_AS` with
+the measurement, and the door's four payload discriminants are now
+the RULE rather than a pair. `witness-bifurcation-arm-has-no-inner-word`
+gains its `## Progress` line: the rule applies, the arm waits on the
+M6 solver constructing it. Stub, class docstring, `__repr__`/`__eq__`/
+`__hash__` over six words, ty fixture. No shipped `variant`/
+`contact_kind`/`subject_kind` value moved; the lane ran the pinned
+ruff for real. The lane's stated deviation: the two extractors keep `census_contact`'s extract-licence `_ => None` (the brief asked for that AND for arms named — over 71 arms the worked example wins; the classifying site `validation_error_tag` is the exhaustive one). ~72 min, ~207k tokens.
