@@ -4951,4 +4951,10 @@ band(node, 1, 0)`. A two-argument call is an ILLEGAL ty row. No
 byte-identical; no `variant`/`kind` value moved; the lane ran the
 pinned ruff for real. Item closed. Orchestrator note: the brief
 spelled the parameter `loop`; the lane's `loop_index` is right and the
-brief was wrong. FIGURES.
+brief was wrong. CI: two full runs on the lane head were red only on
+the three apt-outage rows (both render lanes and the gate job's lavapipe
+install) and, on the second run, one seed-varying pick search outside
+this fence (filed to DOCM as
+`random-integer-rays-search-trips-at-eps-1e-6-on-one-run`); the twelve
+test jobs and five k-lint unifications were green on both. ~94 min,
+~306k tokens.
