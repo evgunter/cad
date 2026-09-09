@@ -1654,7 +1654,14 @@ lanes' existing three-attempt retry does not help. **Not taken in unit
 4**: it is four steps in two workflows and wants a lane that can verify
 against a red run rather than a green one.
 
+It cleared on its own about 55 minutes in — run `34388201501` is fully
+green, 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, the new wasm
+row and the lavapipe step among them — and the item says so, because a
+file arguing from a red run owes the reader the moment it went green.
+The item stays open: an outage indistinguishable from a real red, for an
+hour, on every branch at once, is worth removing whether or not this
+instance ended.
+
 Unit 4's own row is green at STEP level in both of those red runs
-(54.36 s, 54.89 s), and its last fully green code-tier run is
-`34379812965`.
+(54.36 s, 54.89 s) and in the green one.
 

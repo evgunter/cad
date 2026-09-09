@@ -44,9 +44,9 @@ irrelevant to all of them.
   These already carry a **three-attempt retry loop**, and it does not
   help: the loop re-fetches the same inconsistent index seconds apart,
   and its own error text — *"This is an upstream/mirror problem, not a
-  repo one — re-run the lane"* — is advice that does not work while the
-  index stays inconsistent. Two of this lane's runs, twenty minutes
-  apart, hit it identically.
+  repo one — re-run the lane"* — is right about the cause and expensive
+  as advice: two of this lane's runs, twenty minutes apart, hit it
+  identically, and a third an hour later did not.
 
 ## Not one branch's problem — measured
 
@@ -62,12 +62,28 @@ no such step — and fails at exactly the same three steps. The last green
 run on either branch predates 17:29Z; every run after it is red the same
 way. **`main` is being blocked by this, not one PR.**
 
+## It cleared, and that is recorded here rather than quietly dropped
+
+Run `34388201501` at 18:23Z is green: the mirror recovered on its own,
+about 55 minutes after the first red. **So a re-run did eventually work,
+and the sentence above about the workflow's advice is too strong** — it
+is corrected here rather than left standing, because this file's whole
+subject is a red run that means something other than what it says.
+
+That does not close the item. The window swallowed **four runs across
+two branches**, the in-step retry (three attempts over ~15 s) covered
+none of it, and nothing distinguishes "wait 55 minutes" from "this
+mirror is broken for the day" while it is happening. An outage that is
+indistinguishable from a real red, for an hour, on every branch at once,
+is the thing to fix — not the fact that it ended.
+
 ## Why this is worth a file rather than a re-run
 
-The retry loop was written for a transient mirror hiccup and this is not
-one: a hash-sum mismatch on a third-party list persists until the
-publisher fixes its own index, which can be hours. What the loop buys is
-15 seconds. Three things follow, and the third is the one that matters:
+The retry loop was written for a transient mirror hiccup and this is a
+longer one: a hash-sum mismatch on a third-party list persists until the
+publisher fixes its own index, which here took the better part of an
+hour. What the loop buys is 15 seconds. Three things follow, and the
+third is the one that matters:
 
 1. The gate is **red for a reason no diff can fix**, so every lane on
    the repo either waits or learns to read a red run as "probably not
