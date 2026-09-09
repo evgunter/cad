@@ -659,6 +659,31 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertIsNone(fault.residual.point)
         self.assertIn(pncad.UNDER_RECOURSE, str(fault))
 
+    def test_two_seats_at_different_heights_on_one_pair_contradict(self):
+        """The tour's second refusal, from Python. Two mates on ONE
+        pair intersect their cosets exactly, so two rests 10 mm apart
+        meet nowhere and the solve refuses naming both mates, the
+        predicate that decided, and the measured clash — ending on the
+        recourse, which is the repair rather than the diagnosis."""
+        doc, (post_a, shelf_i, _), (mate_1, _) = TestBenchStand.stand(self)
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        lower = (SEAT_A[0], SEAT_A[1], SEAT_A[2] - 0.01)
+        clash = doc.insert(
+            Node.mate(
+                post_a,
+                a_top,
+                shelf_i,
+                s_bottom,
+                ContactClass.Rest,
+                seat(POST_SEAT, lower),
+            )
+        )
+        poses = solve_document(doc)
+        fault = poses.fault(clash) or poses.fault(mate_1)
+        self.assertEqual(fault.variant, "mate_contradictory")
+        self.assertIn(pncad.CONTRADICTORY_RECOURSE, str(fault))
+
     def stand_planar(self):
         return TestBenchStand.stand(self, MatePrimitive.planar_rest(0 * m))
 
@@ -809,6 +834,11 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(caught.exception.variant, "no_at_rest_record")
         self.assertEqual(caught.exception.mate, mate_1)
         self.assertEqual(caught.exception.class_, ContactClass.Tangent)
+        # And it says what to do about it: `Rest` is the one class v1
+        # carries all the way to the gate.
+        self.assertIn(
+            pncad.NO_AT_REST_RECORD_RECOURSE, str(caught.exception)
+        )
 
     def test_the_admission_table_says_so_before_the_edit_lands(self):
         rest = pncad.class_admission(ContactClass.Rest)

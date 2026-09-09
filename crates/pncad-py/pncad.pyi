@@ -4572,6 +4572,15 @@ vocabulary refuses with."""
 UNDER_RECOURSE: Final[str]
 """The recourse an under-determined tree mate's refusal ends on."""
 
+CONTRADICTORY_RECOURSE: Final[str]
+"""The recourse a mate contradiction's refusal ends on — one sentence
+for both shapes it renders, a pair of mates and a mate contradicting
+itself."""
+
+NO_AT_REST_RECORD_RECOURSE: Final[str]
+"""The recourse the at-rest gate's `NoAtRestRecord` refusal ends on:
+`Rest` is the one class v1 mints and verifies at rest."""
+
 class MateRole:
     """What a mate did in the solve: `Determining` (a tree mate — it
     placed its child), `Declaring` (it solved nothing and is carried

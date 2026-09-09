@@ -1029,5 +1029,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
     m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;
     m.add("UNDER_RECOURSE", d::UNDER_RECOURSE)?;
+    m.add("CONTRADICTORY_RECOURSE", d::CONTRADICTORY_RECOURSE)?;
+    m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
     Ok(())
 }

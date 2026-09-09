@@ -243,11 +243,13 @@ pub use editor_core::{
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
-// solve places (`Member` is its answer).
+// solve places (`Member` is its answer). `UNDER_RECOURSE` and
+// `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
+// own refusals end on.
 pub use editor_core::{
-    Alignment, AxisSense, ClusterMaintenance, MateFault, MateFrame, MatePrimitive, MateRole,
-    MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, member_of,
-    reading_edges, relative_freedom_components, solve_document,
+    Alignment, AxisSense, CONTRADICTORY_RECOURSE, ClusterMaintenance, MateFault, MateFrame,
+    MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,
+    gauge_of, member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
@@ -284,10 +286,14 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // own or a part's — and `CarriedDeclarations` is what an instantiated
 // value carries up. `AssemblyError::CarriedMintRefusal` is the
 // outermost gate's refusal over an inner mate that could not be minted
-// at all.
+// at all. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence the
+// `NoAtRestRecord` arm ends on, carried for the reason
+// `UNDER_RECOURSE` is: a caller asserting that a refusal reaches its
+// recourse must not do it by re-typing the sentence.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
+    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef, Relation, Route, assemble,
+    assemble_gathered,
 };
 
 // Split and inline: the first-class

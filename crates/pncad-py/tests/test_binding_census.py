@@ -1284,13 +1284,21 @@ FAMILIES: dict[str, str] = {
 #:
 #:   `UNDER_RECOURSE` and `CLASS_DEFERRAL` left this bullet at
 #:   LIB-G18b and are bound top-level, on `PIN_MISMATCH_RECOURSE`'s
-#:   precedent: an assembly author's two most-hit refusals are an
+#:   precedent: an assembly author's most-hit refusals are an
 #:   under-determined mate and a class outside v1, and a test that
 #:   wants to say "the refusal ends on its recourse" must not do it by
 #:   re-typing the sentence. `CLASS_DEFERRAL` is also what
 #:   `ClassAdmission.why` answers for the `not_admitted` arm, from the
 #:   table rather than restated — so the constant and the door agree
 #:   by construction.
+#:
+#:   `CONTRADICTORY_RECOURSE` and `NO_AT_REST_RECORD_RECOURSE` are
+#:   bound for the same reason and complete the set: the four typed
+#:   refusals an assembly author meets — under-determined, in
+#:   contradiction, outside the at-rest vocabulary, and pinned to a
+#:   version the store no longer holds — each end on a named sentence,
+#:   and binding two of the four would leave the other two assertable
+#:   only by re-typing prose.
 #: - *Structures Python's authoring surface replaces with its own.*
 #:   `Applied` and `EditRecord` are `apply`'s pair, and `Doc.apply`
 #:   mutates in place and answers `Optional[NodeId]`, so there is no
