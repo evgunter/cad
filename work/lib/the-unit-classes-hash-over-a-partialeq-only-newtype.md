@@ -62,3 +62,14 @@ in that file — `crates/quantity/src/written.rs:71,80` derive
 (`crates/pncad-py/src/py/quantity.rs:564` and `:628`, both through `fold_zero` at `:468`). They
 are NOT this row: (B′) names them and keeps their hashes, because
 they are recipe data past the funnel and already fold the zero.
+
+## Question for Ev (2026-09-09, LIB orchestrator; `[ev]` PR)
+
+Asked as one question with three siblings — the full text is on `the-tag-mirrors-hash-over-kernel-enums-that-derive-no-hash`. For this item under the recommended (A): a unit is a table row and a key, the Rust omission is a derive list nobody needed, and the repair is upward on `crates/quantity` (`Eq, Hash` on the three views and `UnitDef`); Python moves nothing and `test_a_unit_is_usable_as_a_dict_key` stays a door. Under (B): `LengthUnit`/`AngleUnit` lose `__hash__` and that pin is deleted.
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2265): (A), case by case
+
+The unit views and `UnitDef` gain `Hash` upward in `crates/quantity`,
+by symbol — the seal makes the symbol determine the row, so the hash
+agrees with the derived `PartialEq` — and Python keeps its hashes and
+the dict-key pin. Mechanical unit LIB-MIRROR.

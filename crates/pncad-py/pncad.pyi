@@ -3631,31 +3631,34 @@ class GeomPred:
 # either side of the boundary. The text stays opaque — a caller
 # composes by naming a ROLE, never by assembling the serialization.
 
-def band(node: NodeId, seg: int) -> str:
-    """The `[0, pi)` band face swept from meridian segment `seg` of
-    the revolve at `node`.
+def band(node: NodeId, loop_index: int, seg: int) -> str:
+    """The `[0, pi)` band face swept from segment `seg` of profile
+    loop `loop_index` on the revolve at `node`.
 
-    `seg` indexes the OUTER loop's canonical chain; a hole's band is
-    not reachable through this door. The kind is fixed at the role's
-    own — a face — which is the field a hand-written name gets wrong
-    silently until emission refuses it."""
+    `loop_index` is 0 for the outer loop and 1.. for the holes, in the
+    profile's description order; `seg` indexes that loop's canonical
+    chain, so a hole's band is reachable here at its own loop. The
+    kind is fixed at the role's own — a face — which is the field a
+    hand-written name gets wrong silently until emission refuses
+    it."""
 
-def band_pi(node: NodeId, seg: int) -> str:
-    """The `[pi, 2pi)` band face swept from meridian segment `seg` —
-    `band`'s twin, where a full revolve emits a segment as two faces.
-    Outer loop; a face, as `band` is."""
+def band_pi(node: NodeId, loop_index: int, seg: int) -> str:
+    """The `[pi, 2pi)` band face swept from segment `seg` of loop
+    `loop_index` — `band`'s twin, where a full revolve emits a segment
+    as two faces. A face, as `band` is."""
 
-def band_rim(node: NodeId, vertex: int) -> str:
-    """The latitude rim at meridian vertex `vertex` — the edge between
-    the bands of segments `vertex - 1` and `vertex`. Outer loop; an
-    edge."""
+def band_rim(node: NodeId, loop_index: int, vertex: int) -> str:
+    """The latitude rim at vertex `vertex` of loop `loop_index` — the
+    edge between the bands of segments `vertex - 1` and `vertex` on
+    that loop. An edge."""
 
-def meridian_vertex(end: MeridianEnd, node: NodeId, vertex: int) -> str:
-    """The meridian vertex at `end`: the copy of profile vertex
-    `vertex` on a wedge cap plane (`MeridianEnd.Start`,
+def meridian_vertex(
+    end: MeridianEnd, node: NodeId, loop_index: int, vertex: int
+) -> str:
+    """The meridian vertex at `end`: the copy of vertex `vertex` of
+    loop `loop_index` on a wedge cap plane (`MeridianEnd.Start`,
     `MeridianEnd.End`) on a partial revolve, or the surviving meridian
-    vertex (`MeridianEnd.Seam`) on a full one. Outer loop; a
-    vertex."""
+    vertex (`MeridianEnd.Seam`) on a full one. A vertex."""
 
 def carried(node: NodeId, inner: str) -> str:
     """The name a survivor of `node` takes: the name `inner` it had in

@@ -61,3 +61,16 @@ either these types gain `Eq, Hash` in the kernel (the reading
 one that costs Python nothing), or the nine classes lose their
 `__hash__` and join `UNHASHABLE` with the nine LIB-HASH-2 wrote
 reasons for. Nothing here is being decided by a lane.
+
+## Question for Ev (2026-09-09, LIB orchestrator; `[ev]` PR)
+
+Asked as one question with three siblings — the full text with options and the recommendation is on `the-tag-mirrors-hash-over-kernel-enums-that-derive-no-hash`. For this item under the recommended (A): the float-free records (`Denotation`, `FaceCensus`, `McConfig`) get `Eq, Hash` upward in the kernel and Python moves nothing; the five that bottom out in `f64` keep their hand-written hashes as the (B′) carve-out generalised (recipe data folding the zero through the kernel's own fold); `ValidationFinding` mirrors the binding's own projection and stays as it is. Under (B): all nine lose `__hash__`.
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2265): (A), case by case
+
+`McConfig` and `Denotation` gain `Eq, Hash` upward in the kernel
+(exact fields; a memo key and a set), Python unchanged. `Frame`,
+`DocParamValue`, `Distribution`, `McMeasure`, `McAssertion` (the
+float-bearing five), `FaceCensus` and `ValidationFinding` lose their
+Python `__hash__` and join `UNHASHABLE` with the mirror reason, Rust
+unchanged. Mechanical unit LIB-MIRROR.

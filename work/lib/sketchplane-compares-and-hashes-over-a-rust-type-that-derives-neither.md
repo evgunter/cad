@@ -54,3 +54,14 @@ Three readings, none ruled on:
 Filed rather than fixed for that reason: it is the only row in the
 cell where applying the rule mechanically would change what a
 comparison ANSWERS, not just whether a value can be a key.
+
+## Question for Ev (2026-09-09, LIB orchestrator; `[ev]` PR)
+
+Asked as one question with three siblings — the full text is on `the-tag-mirrors-hash-over-kernel-enums-that-derive-no-hash`. For this item under the recommended (A): the Python pair stays (bit equality and a bit hash, internally consistent, the one deliberate boundary invention), with an upward option for `profile` to make `bit_eq` its `PartialEq/Eq/Hash` if that program wants the mirror exact. Under (B): `SketchPlane` compares by identity in Python — the only row where the rule changes what `==` answers.
+
+## Ruled (2026-09-09, Ev on `[ev]` PR #2265): (A), case by case
+
+No hash on either side: the Python `__hash__` goes. The comparison
+stays and Rust comes to mean it — `impl PartialEq for SketchPlane` in
+`profile` delegating to `bit_eq`, so `==` keeps its bit-for-bit
+answer on both sides. Mechanical unit LIB-MIRROR.

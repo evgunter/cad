@@ -2,9 +2,10 @@
 id: the-role-name-builders-reach-only-the-outer-profile-loop
 kind: issue
 title: the role-name builders reach only the outer profile loop, so a hole's band is still hand-spelled
-status: open
+status: closed
 opened: 2026-09-09
 refs: [no-facade-door-mints-a-revolves-role-names]
+closed: 2026-09-09
 ---
 
 
@@ -93,3 +94,15 @@ thirteen converted Rust sites and the five Python doors move to the
 new arity, the Python pins stay byte-equal against the kernel's own
 names, and a hole's band is reachable from both alphabets. Mechanical
 unit LIB-LOOPS.
+
+## Closed (2026-09-09, LIB-LOOPS)
+
+(A) is built. `band`, `band_pi`, `band_rim` and `meridian_vertex` take
+`loop_index` between the node and the index, on both sides of the
+Python boundary; every existing call passes `0`; the two kernel tests
+that hand-spelled a hole's band call the builders at loop 1 and at the
+loop variable; and `crates/pncad-py/tests/test_role_names.py` revolves
+a profile WITH A HOLE and compares the doors' answers at loop 1 to the
+names the kernel's emitter minted, byte for byte. No `StableName`
+bytes moved: the tour's 1502 output files and the committed die corpus
+regenerate identically.
