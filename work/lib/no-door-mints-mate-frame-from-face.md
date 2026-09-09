@@ -90,3 +90,31 @@ announces the `mate.rs` touch on MSOLVE's tracker, the way lanes
 announce seams today — or, if you would rather keep `mate.rs` edits
 with MSOLVE, LIB takes only the façade and Python halves once MSOLVE
 lands the kernel door.
+
+### (F), added 2026-09-09 after Ev asked whether materializing stores logically duplicate numbers
+
+It does: a frozen frame is three vectors the evaluation can re-derive
+from the face, stored as if authored. Measured: the duplicate exists
+today, typed by hand (the tour's `POST_SEAT`), so (A) moves its source
+to a door and neither adds nor removes it; `face_pose` is EXACT — a
+plane/cylinder/cone/sphere/torus frame read straight off the surface's
+parameters, no tolerance, and a NURBS face refuses
+(`ReadbackError::NoCanonicalFrame`); and `solve_document(doc, tol)`
+takes the document alone — no evaluated body enters the solve, which
+is what "the frames are authored data" means in practice.
+
+**(F): the alignment stores the face's `StableName`** — as a fillet
+stores `selection: Vec<StableName>` — **and the frame is derived at
+evaluation.** No duplicate, and the drift the issue was filed about is
+fixed rather than reported: edit the post and the mate follows the
+face. The cost is the solve's INPUTS, not its numerics: `solve_document`
+would take, or run, the mated parts' evaluations, so a solve depends on
+every upstream node of each part. That revises A11's "nothing here
+reads geometry" (`crates/editor-core/src/mate.rs` module docs) — a
+DESIGN.md conversation and MSOLVE's kernel, not a mechanical unit.
+
+Recommendation, conditional: **(F)** as the direction if the duplicate
+is the objection and A11 can be revised to "the document plus its
+parts' evaluations", with LIB taking the façade and Python halves over
+whatever the kernel then stores; **(A)** if A11 stays as ratified. Not
+(B): frozen numbers plus the name stores both and buys only a report.
