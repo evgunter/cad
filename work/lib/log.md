@@ -4616,3 +4616,44 @@ ratified prose in `document.rs`/`select.rs` now states the rule
 without a list count. GUIDE's distributions rung gained the fourth
 door. No shipped `variant` value moved; the lane ran the pinned ruff
 for real. Orchestrator note: the lane reported "~5 h 45 m" of wall clock, which is not what the clock shows — launched 06:45Z, reported 08:10Z, so ~85 min, most of it the hosted CI run; the figure below is the measured one. ~85 min, ~629k tokens.
+
+**LIB-SMALL-2 MERGED (2026-09-09, #2254; mechanical under the 08-29
+ruling, no A/B row). Three small closes.** (1) The two refusals that
+carried no recourse end on one: `CONTRADICTORY_RECOURSE` and
+`NO_AT_REST_RECORD_RECOURSE` beside `UNDER_RECOURSE` in `mate.rs`,
+carried through `pncad::document` and bound top-level in Python on
+`UNDER_RECOURSE`'s precedent, so no test re-types the prose. One
+sentence covers both shapes the contradiction arm renders (a pair of
+mates, and a mate contradicting itself through its own rider — "delete
+one of the two" is false of the second); the arm's four exits (empty
+set, levered, finite, non-finite) fall through to one recourse write,
+and `display_contract.rs` asserts it on each. The rung is named in v1
+vocabulary rather than by a roadmap id (`Rest` is the one class v1
+mints and verifies at rest; a curved contact verified at rest is
+outside v1 and not built). The tour's refusal walk asserts all four
+recourses against the library's constants and its output was
+regenerated through its own door. (2) The stub declares `__eq__`
+where the compiled class carries one, and a guard reads it off the
+class's OWN `__dict__` — the direction `hasattr` cannot reach. The
+`module_class_names` underscore filter stays, argued at its site
+(`__eq__` is the one comparison dunder whose presence in the own dict
+is evidence). The fieldless mirrors are exempt and the exemption is
+CHECKED per member (two accesses answer the same object), with reach
+floors so two empty lists are not a pass. It found SEVEN, not the
+item's three: `Length`, `Angle`, `Count` compare through
+`__richcmp__` and `FaceCensus` had a `fn __eq__` the item's sweep
+missed — the item's own declared blind spot. (3) `crates/pncad/tests/
+all.rs` reads Rust through `test_utils::source`: `code_without_comments`
+deleted, the U1 guard's check 1 reads `use` STATEMENTS off `code_only`
+(check 2 stays on the literal-keeping view — a kernel path in a literal
+is the false-alarm direction), `root_declared_pub_names` and
+`code_without_cfg_gated` read tokens and balanced extents across line
+breaks; `test-utils` becomes the façade's one dev-dependency, admitted
+as a `use` root at the allow-list and argued in `Cargo.toml`. The item's
+stated blind spot for reader 3 was not the real one: a `#[cfg]`
+sharing its line with the item it gates made the line unit swallow the
+NEXT declaration — a false GREEN — and that is the selftest's fixture.
+`reader_census.rs`: `Shared`, `UNCONVERTED_TODAY` 5→4. Not taken:
+`north-star-audit-verb-list-names-arc-continue` (BOOL-10 #2135 still
+in review). Three items closed. No shipped `variant`/`kind` value
+moved; the lane ran the pinned ruff for real. Orchestrator note: the stub now declares `__eq__` on `Length` and `Angle`; the pending [ev] ruling on #2233 (B′) would remove their `__hash__`, which this guard does not touch, so the two do not collide. ~80 min, ~387k tokens.
