@@ -23,6 +23,22 @@
 //! beside the worked examples; most of the authoring types here are
 //! also in [`crate::prelude`], which draws from this list so there is
 //! ONE curated surface rather than two that can drift.
+//!
+//! **Which list a PAYLOAD owes.** A payload rides with its carrier so
+//! a consumer can match the variant AND name what it caught: that is
+//! the rule the `VerbKind`/`Arity` stanza below states, and it places
+//! every payload whose only home is the refusal holding it. It does
+//! NOT place a payload that belongs to a vocabulary one of the four
+//! curated lists already owns — the naming roles are
+//! [`crate::select`]'s, the profile layer's are [`crate::profile`]'s
+//! — because the four lists are ONE surface cut into rooms rather
+//! than four self-sufficient exports. So such a payload is spelled
+//! ONCE, on the list that owns its vocabulary, and the carrier's list
+//! points at it. The cost is stated rather than hidden: a consumer
+//! importing this module alone matches the arm and needs a second
+//! `use` to name what it holds — one import, never a second crate.
+//! The cost the other way is the same name on two lists, which is two
+//! things that can drift.
 
 // The recipe and its edits. `Applied` is `apply`'s return (the new
 // document plus its `EditRecord`) — re-exported so a caller can STORE
@@ -335,6 +351,24 @@ pub use editor_core::{
     ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks, run_checks_on,
     subject_body,
 };
+/// The shell door's typed refusal, which two `CheckEvidence` arms
+/// carry — by the payload rule this list states at `VerbKind`.
+///
+/// [`CheckEvidence::Escalated`] and [`CheckEvidence::Unsupported`] are
+/// two different findings about the SAME thing: the component count
+/// for this subject is unknowable, because a shell's orientation read
+/// escalated or because a face of it is outside the flux inventory.
+/// Which shell, and which of the four ways the door refused, is
+/// `source` — and a consumer that could match the arm and not name its
+/// type read that only out of the message prose.
+///
+/// It is `topo`'s rather than the document layer's, like
+/// [`crate::select`]'s `ContactFinding`: the check registry inherits
+/// the props lane's refusal unaltered rather than restating it. Its
+/// own rungs are already reachable — [`crate::prelude`] carries
+/// `BandError` and `Indeterminate`, and the shell key and the mass-
+/// properties refusal are one module hop away at `pncad::topo::…`.
+pub use topo::ShellClassifyError;
 
 // The profile description node type and its document alias.
 pub use editor_core::{

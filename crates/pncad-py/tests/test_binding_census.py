@@ -832,13 +832,23 @@ BOUND_AS = {
     # is unchanged; what has changed is the sentence about bound
     # exceptions, and this row moves with it.
     #
-    # `MarginDiag` — the payload's own field type — is still not a
-    # curated name and so still not an entry here. The binding reads
-    # its three arms through `pncad::geom_core`, one module hop below
-    # the prelude, which is the fallback `prelude.rs` names; whether
-    # the carriage decision itself should move is
-    # `work/lib/margin-diag-non-curation-was-measured-on-a-count-that-moved.md`.
+    # `MarginDiag` — the payload's own field type — is a curated name
+    # too, on the same list and for the same crossing: its own row is
+    # below, `different-shape`, because its discriminant arrives as
+    # which of these attributes is set rather than as a word.
     "Indeterminate": "FrameError.margin",
+    # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
+    # beside the two `CheckEvidence` arms that carry it, and its
+    # discriminant is the word those arms publish: `band`, `props`,
+    # `escalated` or `zero_volume`. `CheckEvidence.reason` is the same
+    # refusal's sentence — the kernel's own prose — and this is the
+    # branchable half beside it, so a caller stops substring-matching
+    # the sentence to learn which shell refusal escalated the count.
+    #
+    # Its own fields do not cross: which shell, and the mass-properties
+    # failure under `props`, are the shell door's vocabulary and this
+    # entry claims the discriminant and nothing more.
+    "ShellClassifyError": "CheckEvidence.inner_variant",
     # THE TIER-3′ CENSUS VOCABULARY, at the one door on this surface
     # whose discriminant crosses in a SEQUENCE.
     #
@@ -1866,6 +1876,22 @@ NOT_BOUND = {
     "GeomRef": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
+    # WHAT THE CLASSIFIER SAW, curated at the prelude beside the
+    # `Indeterminate` that holds it — and a discriminant that crosses
+    # as WHICH ATTRIBUTE IS SET rather than as a word.
+    #
+    # THE MEASUREMENT. The frame constructors' degenerate arm carries
+    # an `Option<Indeterminate>` and the binding forks on this type's
+    # three arms to publish it: `margin` for a value,
+    # `margin_low`/`margin_high` for an enclosure, and neither for a
+    # poisoned margin, in every case beside the band's `zero` and
+    # `escalate`. So all three arms reach a Python caller and each is
+    # distinguishable from the other two — which is what makes the
+    # carriage a carriage — but the shape they arrive in is the
+    # attribute set of the refusal, not a tag on it. A `margin_diag`
+    # word beside them would publish one fact twice, the
+    # `frame_error_tag` rule at the arm one rung up.
+    "MarginDiag": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.

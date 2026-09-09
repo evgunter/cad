@@ -30,15 +30,19 @@
 //!
 //! # What is not here
 //!
-//! A NESTED REFUSAL is not flattened. `Escalated` and `Unsupported`
-//! each hold the shell door's own typed refusal and
+//! A NESTED REFUSAL is not flattened into its FIELDS. `Escalated` and
+//! `Unsupported` each hold the shell door's own typed refusal and
 //! `SeparationUnavailable` the boolean class beside its sentence;
-//! those belong to those types' own vocabularies, and what crosses
-//! here is the prose they render, as `reason`.
+//! which shell, and which face, belong to those types' own
+//! vocabularies. What crosses here is the word a caller branches on —
+//! `inner_variant`, the shell refusal's own discriminant — and the
+//! prose those types render, as `reason`.
 
 use std::borrow::Cow;
 
 use pncad::document::{CheckEvidence, RecipeNodeId};
+
+use crate::tags::shell_classify_error_tag;
 
 /// What one [`CheckEvidence`] arm carries, every field present.
 ///
@@ -59,6 +63,10 @@ pub struct CheckEvidencePayload<'a> {
     pub other_output: Option<u32>,
     /// The underlying refusal's own prose, where the arm holds one.
     pub reason: Option<Cow<'a, str>>,
+    /// **The shell door's own refusal**, as the branchable word
+    /// ([`crate::tags::shell_classify_error_tag`]) — which of its four
+    /// ways it refused, on the two arms that carry one.
+    pub inner_variant: Option<&'static str>,
 }
 
 impl CheckEvidencePayload<'_> {
@@ -68,13 +76,14 @@ impl CheckEvidencePayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`CheckEvidence`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 5] {
+    pub fn presence(&self) -> [(&'static str, bool); 6] {
         let Self {
             actual,
             expected,
             other_root,
             other_output,
             reason,
+            inner_variant,
         } = self;
         [
             ("actual", actual.is_some()),
@@ -82,6 +91,7 @@ impl CheckEvidencePayload<'_> {
             ("other_root", other_root.is_some()),
             ("other_output", other_output.is_some()),
             ("reason", reason.is_some()),
+            ("inner_variant", inner_variant.is_some()),
         ]
     }
 
@@ -101,6 +111,7 @@ impl CheckEvidencePayload<'_> {
         other_root: None,
         other_output: None,
         reason: None,
+        inner_variant: None,
     };
 }
 
@@ -131,11 +142,14 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
             other_output: Some(*other_output),
             ..none
         },
-        // The shell door's refusal is another type's vocabulary; what
-        // crosses is the sentence it renders.
+        // The shell door's refusal is another type's vocabulary, so
+        // its arms cross as that vocabulary's own word beside the
+        // sentence it renders — the tag is what a caller branches on,
+        // the prose is what it reads.
         CheckEvidence::Escalated { source } | CheckEvidence::Unsupported { source } => {
             CheckEvidencePayload {
                 reason: Some(Cow::Owned(source.to_string())),
+                inner_variant: Some(shell_classify_error_tag(source)),
                 ..none
             }
         }

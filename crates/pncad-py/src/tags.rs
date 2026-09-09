@@ -63,7 +63,8 @@ use pncad::document::{
     Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
     MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, NodeErrorKind, ParseError,
     PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
-    RefusedRef, Relation, RootFault, SlotId, SnapshotError, SplitError, UpdateError,
+    RefusedRef, Relation, RootFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
+    UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -2110,6 +2111,30 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::StaleExpectation { .. } => "stale_expectation",
         CheckEvidence::NotSeparated { .. } => "not_separated",
         CheckEvidence::SeparationUnavailable { .. } => "separation_unavailable",
+    }
+}
+
+/// The stable tag for the shell door's own refusal — the inner arm of
+/// [`CheckEvidence::Escalated`] and [`CheckEvidence::Unsupported`].
+///
+/// The carrier's word says which finding the registry made: the count
+/// is unknowable because a shell would not classify (`escalated`), or
+/// because a face of the subject is outside the flux inventory
+/// (`unsupported`). This one says which of the shell door's four ways
+/// it refused, so a caller reads it instead of substring-matching the
+/// sentence: the run's tolerance formed no band, a face refused in the
+/// props inventory, the sign read escalated in-band, or the signed
+/// volume is definitely zero and there is no side to classify to.
+///
+/// `band` is the same word [`checks_error_tag`] mints for the
+/// registry's own band refusal, one namespace up, and means the same
+/// thing at both: the tolerance would not form a band.
+pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
+    match err {
+        ShellClassifyError::Band { .. } => "band",
+        ShellClassifyError::Props { .. } => "props",
+        ShellClassifyError::Escalated { .. } => "escalated",
+        ShellClassifyError::ZeroVolume { .. } => "zero_volume",
     }
 }
 

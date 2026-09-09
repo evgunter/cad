@@ -131,7 +131,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
     "MappedCurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
-    "MarginDiag": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     "MetaValue": ("argued", "NOT_CARRIED, the metadata family; crates/pncad/src/document.rs "
                             "says why the value tree stays out"),
     "ParamValue": ("argued", "NOT_CARRIED, a curated face of a different shape "
@@ -146,8 +145,12 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
 # one: not "can a caller name this at all" but "can a caller name it through
 # the door it arrived by".
 CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
-    "EntityKind": ("filed", "work/lib/cross-list-payload-rungs-under-document-only-carriers.md"),
-    "SplitHalf": ("filed", "work/lib/cross-list-payload-rungs-under-document-only-carriers.md"),
+    "EntityKind": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
+                             "crates/pncad/src/select.rs; the general rule is at the "
+                             "payload-rule header of crates/pncad/src/document.rs"),
+    "SplitHalf": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
+                            "crates/pncad/src/select.rs; the general rule is at the "
+                            "payload-rule header of crates/pncad/src/document.rs"),
 }
 
 
