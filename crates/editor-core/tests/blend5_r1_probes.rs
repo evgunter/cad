@@ -167,7 +167,7 @@ fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
 /// The mouth rim filleted, and the fillet node's id.
 fn filleted(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = lantern(mouth, top);
-    let rim = editor_core::band_rim(revolve, 3);
+    let rim = editor_core::band_rim(revolve, 0, 3);
     insert(
         doc,
         Node::Fillet {
