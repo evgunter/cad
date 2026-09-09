@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-09
 branch: lib/names
 refs: [no-facade-door-mints-a-revolves-role-names]
+pr: 2248
 ---
 
 
