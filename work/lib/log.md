@@ -4958,3 +4958,22 @@ this fence (filed to DOCM as
 `random-integer-rays-search-trips-at-eps-1e-6-on-one-run`); the twelve
 test jobs and five k-lint unifications were green on both. ~94 min,
 ~306k tokens.
+## `[ev]` #2265 ruled (2026-09-09): how far the mirror rule reaches — (A), case by case
+
+LIB-HASH-2's two-way walk found 24 Python classes hashing over Rust
+types that derive no `Hash`. Ev's refinement of (A): both sides
+always match; `Hash` is absent where Rust omits it for funnel reasons;
+elsewhere Rust may derive it, but no work is spent adding hashing
+where nothing plausibly keys. Measured first: nothing in the tree
+keys on any of the 24 (no kernel map keyed by them; the only Python
+key uses are the hashability pins), so each case was argued from
+shape, and Ev confirmed the reading. **Upward, one derive word,
+Python unchanged**: the twelve tag mirrors' enums, `McConfig`,
+`Denotation`, and `Hash` by symbol on the unit views and `UnitDef`.
+**Python drops `__hash__`, Rust unchanged**: `Frame`, `DocParamValue`,
+`Distribution`, `McMeasure`, `McAssertion`, `FaceCensus`,
+`ValidationFinding`. **`SketchPlane`**: no hash either side, and
+`impl PartialEq for SketchPlane` via `bit_eq` so Rust means the
+comparison Python answers. One mechanical unit across both sides,
+LIB-MIRROR, with the kernel derive touches announced on their
+programs' trackers.
