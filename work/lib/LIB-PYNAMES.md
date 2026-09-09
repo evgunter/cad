@@ -6,6 +6,7 @@ status: review
 branch: lib/pynames
 opened: 2026-09-09
 refs: [pncad-py-has-no-door-that-mints-a-revolves-role-names]
+pr: 2252
 ---
 
 
