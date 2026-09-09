@@ -414,3 +414,7 @@ sign-off of the declared-split arc form and the PATHS text; it merges
 main again after this landing (its granted `lift.rs` regions sit
 below BOOL-9's edits, adjacent at one line). Then BOOL-4/5/6/7, BOOL-Q,
 and the findings this window filed.
+
+## Announced from LIB (2026-09-09): a derive word on `ArcSide`, `ArcSweep` and `CarrierRelation`, and `SketchPlane<f64>`'s `==`
+
+LIB-MIRROR (PR #2271) adds `Hash` to `profile::ArcSide` (`path/verbs.rs:148`), `profile::ArcSweep` (`sugar.rs:38`) and `topo::CarrierRelation` (`boolean/carrier_eq.rs:64`), and spells `SketchPlane<f64>`'s existing `bit_eq` as `impl PartialEq` (`profile/src/lib.rs:701`) with a row in `profile/tests/sketch_plane.rs`, so the Python mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; no behaviour and no comparison answer changes.

@@ -48,7 +48,7 @@ use crate::product;
 
 /// The closed set of checks. A new check = a new variant; every match
 /// over this enum is a site the compiler then walks you to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CheckId {
     /// The connectedness check (I1(0b)): a body at rest with more (or
     /// fewer) disconnected components than expected. Components are
@@ -125,7 +125,7 @@ impl fmt::Display for CheckId {
 /// about the evaluated geometry; a heuristic finding is a judgment
 /// that can be wrong in both directions and must never be dressed as
 /// the former.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CheckKind {
     /// The finding is a theorem (the connectedness count).
     Certified,
@@ -138,7 +138,7 @@ pub enum CheckKind {
 /// body — positions differ only in what is *accepted*: `Off` skips
 /// visibly, `Warn` and `Error` produce identical findings, and `Error`
 /// additionally refuses at [`enforce_checks`] (nowhere else).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Severity {
     /// The check does not run; it is listed in
     /// [`ChecksReport::skipped`].
@@ -158,7 +158,7 @@ pub enum Severity {
 /// comment asking callers not to use it: the check registry is a
 /// public API, and "cannot be spelled" is the only form of that rule
 /// a caller cannot get wrong.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Advisory {
     /// The check does not run; it is listed in
     /// [`ChecksReport::skipped`].

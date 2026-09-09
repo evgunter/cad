@@ -472,19 +472,6 @@ impl Distribution {
         self.dim == other.dim && self.inner == other.inner
     }
 
-    /// Consistent with [`Self::__eq__`], through the kernel's own
-    /// fold: `Distribution::fold_signed_zeros` is the ONE statement of
-    /// the `-0.0` normalization a hash must apply wherever the
-    /// equality it mirrors is IEEE, and `DocParam.__hash__` folds
-    /// through the same door.
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::hash::DefaultHasher::new();
-        format!("{:?}", self.dim).hash(&mut h);
-        format!("{:?}", self.inner.fold_signed_zeros()).hash(&mut h);
-        h.finish()
-    }
-
     fn __repr__(&self) -> String {
         format!(
             "Distribution({} {:?} {})",
@@ -923,23 +910,6 @@ impl McMeasure {
         self.0 == other.0
     }
 
-    /// Consistent with [`Self::__eq__`], which is the kernel's
-    /// `PartialEq` — IEEE on the statistics, so the two spellings of
-    /// zero are one value and the hash folds them together. A row
-    /// nothing could sample carries `NaN`, which equals nothing
-    /// including itself, so no pair the contract is about reaches
-    /// this.
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::hash::DefaultHasher::new();
-        self.0.node.0.hash(&mut h);
-        for v in [self.0.mean, self.0.sigma, self.0.min, self.0.max] {
-            super::doc::fold_zero(v).to_bits().hash(&mut h);
-        }
-        (self.0.measured, self.0.unmeasured).hash(&mut h);
-        h.finish()
-    }
-
     fn __repr__(&self) -> String {
         format!(
             "McMeasure(node={}, mean={}, sigma={}, measured={}, unmeasured={})",
@@ -993,21 +963,6 @@ impl McAssertion {
 
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
-    }
-
-    /// Consistent with [`Self::__eq__`]: three counts and a node, all
-    /// of them exact.
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::hash::DefaultHasher::new();
-        (
-            self.0.node.0,
-            self.0.holds,
-            self.0.violated,
-            self.0.unevaluated,
-        )
-            .hash(&mut h);
-        h.finish()
     }
 
     fn __repr__(&self) -> String {

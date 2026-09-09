@@ -271,7 +271,6 @@ class ValidationFinding:
     @property
     def ring_contact_kind(self) -> Optional[str]: ...
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
 class ValidationError(PncadError):
     """A body failed a validator, or mass properties could not be taken.
@@ -1586,11 +1585,12 @@ class SketchPlane:
     @property
     def normal(self) -> tuple[float, float, float]: ...
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
-    # Equality is BIT-exact — Rust's `SketchPlane::bit_eq`, crossing
-    # unchanged. A sketch plane carries no epsilon, so `-0.0` keeps its
-    # own identity rather than being folded into `0.0`.
+    # Equality is BIT-exact — Rust's `SketchPlane`, whose `==` IS
+    # `bit_eq`, crossing unchanged. A sketch plane carries no epsilon,
+    # so `-0.0` keeps its own identity rather than being folded into
+    # `0.0`. No `__hash__`: the Rust type derives none either, and a
+    # plane is a placement to compare, not a key to tally by.
 
 class Frame:
     """An ABSOLUTE placement: a linear part and a translation.
@@ -1668,11 +1668,12 @@ class Frame:
     @property
     def determinant(self) -> float: ...
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
     # Equality is BIT-exact — Rust's `Frame::bit_eq`, crossing
     # unchanged: a frame carries no epsilon, so `-0.0` keeps its own
-    # identity rather than being folded into `0.0`.
+    # identity rather than being folded into `0.0`. No `__hash__`: the
+    # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
+    # class mirrors its derives.
 
 class PatternKind:
     """A pattern's replication rule: how a prototype's placements are
@@ -2471,12 +2472,11 @@ class Distribution:
         truncated law's own spread is a derived number and a different
         question."""
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
     # Equality is IEEE on the offsets and the dimension is part of the
-    # value, exactly as it is for DocParam; the hash folds `-0.0`
-    # through the kernel's own fold so it cannot split what equality
-    # calls the same.
+    # value, exactly as it is for DocParam. No `__hash__`: the kernel's
+    # `Distribution` derives `PartialEq` and no `Hash`, and this class
+    # mirrors its derives.
 
 DEFAULT_QUANTILE_MASS: Final[float]
 
@@ -2632,7 +2632,6 @@ class McMeasure:
     @property
     def unmeasured(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
 class McAssertion:
     """One assertion node's empirical summary.
@@ -2655,7 +2654,6 @@ class McAssertion:
         """`violated / (holds + violated)`, or None when no sample
         decided this assertion."""
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
 class McReport:
     """The E11.1 advisory report: every number an ESTIMATE, with the
@@ -2792,7 +2790,6 @@ class DocParamValue:
     @staticmethod
     def count(value: int) -> DocParamValue: ...
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
 class DocEdit:
     """A single edit — the one edit vocabulary the GUI, the bindings and
@@ -3731,7 +3728,6 @@ class FaceCensus:
     @property
     def vertices(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
 class StructureNormalization:
     """One re-minted boundary graph, reported as data: the file's locus
