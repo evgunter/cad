@@ -162,3 +162,21 @@ float-constructible class, that the `-0.0` and `0.0` forms hash equal
 whenever they compare equal; plus the one macro arm so `==` on NaN
 answers `False`. Ordering on a non-finite quantity keeps refusing,
 typed.
+
+### (B′), added 2026-09-09 after Ev noted the kernel omits these in favour of the funnel
+
+Correct: Rust `Length`/`Angle` derive `PartialEq` and `PartialOrd`
+and NOT `Hash` or `Ord` (`crates/quantity/src/lib.rs:89-95`), and
+non-finite is refused at the funnel (`Expr::literal`'s door), never
+by the newtype. The faithful mirror is **(B′)**: `==` and the four
+orderings answer IEEE exactly as Rust's `PartialOrd` does (every
+comparison on NaN is `False`; nothing raises — (B)'s answer), and
+`__hash__` is REMOVED from `Length`/`Angle`, because Rust has none
+and a quantity is a magnitude, not a key — which dissolves the
+`-0.0`/NaN hash question for the newtypes instead of folding it.
+`DocParam`, `WrittenLength` and `WrittenAngle` keep their hashes
+(recipe data past the funnel; they already fold the zero). The two
+newtypes go on `tests/test_hashability.py`'s `UNHASHABLE` roster with
+that reason. Cost, stated: `{1 * m}` stops working; nothing in the
+suite does it today, and a caller who wants a key has
+`WrittenLength`. Recommendation revised: **(B′)**.

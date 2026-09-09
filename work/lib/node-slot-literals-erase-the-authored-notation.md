@@ -125,3 +125,14 @@ slots, no signature change on fifteen doors. Binding-only; the kernel
 parameter form (retirement, if any, is a separate question).
 
 Recommendation revised: **(D)** over (A).
+
+### (D) withdrawn, 2026-09-09 — it breaks the mirror
+
+Ev: "aren't the python types supposed to closely mirror rust ones?"
+They are, and (D) would not. Rust's `Length`/`Angle` are bare `f64`
+newtypes (`Copy, PartialEq, PartialOrd`; `crates/quantity/src/lib.rs:89`)
+and a Rust author who wants the notation kept writes a `WrittenLength`
+and hands it to `Expr::written_length` — `demos/tour/src/ring.rs:190`
+does exactly that. Python already mirrors both types, so the mirror of
+"a Rust door takes an `Expr` built from either" is **(A)**: each slot
+door accepts `Length | WrittenLength`. Recommendation: **(A)**.
