@@ -250,7 +250,7 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
     family = doc.insert(
         posts(
             post_i,
-            PATTERN_COUNT,
+            Expr.count(PATTERN_COUNT),
             PatternKind.linear((Expr.literal(0.0), Expr.literal(1.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(PATTERN_SPACING, m))),
         )
     )

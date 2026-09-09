@@ -282,7 +282,7 @@ class TestBenchLayout(BenchWorkspace):
                 family = doc.insert(
                     posts(
                         post_i,
-                        PATTERN_COUNT,
+                        Expr.count(PATTERN_COUNT),
                         PatternKind.linear((
                             Expr.literal(0.0),
                             Expr.literal(1.0),

@@ -3663,7 +3663,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
         """Row 26: the windowed hollow tube, an open elbow of annular
         section."""
         doc = Doc()
-        spine = self.spine(doc, (0.0, 1.0, 0.0))
+        spine = self.spine(doc, (Expr.literal(0.0), Expr.literal(1.0), Expr.literal(0.0)))
         elbow = doc.insert(
             Node.hollow_tube(
                 spine,
@@ -3694,7 +3694,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
         kernel door — a single door with a mode flag could pass a
         volume row on either node alone, but not this one."""
         doc = Doc()
-        spine = self.spine(doc, (0.0, 1.0, 0.0))
+        spine = self.spine(doc, (Expr.literal(0.0), Expr.literal(1.0), Expr.literal(0.0)))
         window = TubeWindow.arc(Expr.written_angle(WrittenAngle.in_unit(self.T0, rad)), Expr.written_angle(WrittenAngle.in_unit(self.T1, rad)))
         solid = doc.insert(
             Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.written_length(WrittenLength.in_unit(self.R, m)), window, Expr.written_length(WrittenLength.in_unit(self.OUTER, m)))
@@ -3766,7 +3766,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
         narrowing what it PRODUCES, and that is the same flow every
         other body node offers."""
         doc = Doc()
-        spine = self.spine(doc, (0.0, 1.0, 0.0))
+        spine = self.spine(doc, (Expr.literal(0.0), Expr.literal(1.0), Expr.literal(0.0)))
         elbow = doc.insert(
             Node.hollow_tube(
                 spine,
