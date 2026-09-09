@@ -4,6 +4,7 @@ kind: issue
 title: pncad-py: twelve fieldless tag mirrors hash over kernel enums that derive PartialEq and Eq and no Hash
 status: open
 opened: 2026-09-09
+needs_ev: true
 ---
 
 
@@ -76,3 +77,13 @@ If that last reading is the right one, the repair is UPWARD — add
 at all. If it is not, twelve mirrors lose `hash` and join
 `UNHASHABLE`, and `TestEveryMirrorIsAKey` stops being a claim about
 every mirror. Either way it is one decision, not twelve.
+
+## Question for Ev (2026-09-09, LIB orchestrator; `[ev]` PR) — how far the mirror rule reaches
+
+One question over four items (this one, `the-value-records-hash-by-hand-over-kernel-types-that-derive-no-hash`, `sketchplane-compares-and-hashes-over-a-rust-type-that-derives-neither`, `the-unit-classes-hash-over-a-partialeq-only-newtype`). Your (B′) ruling on `[ev]` #2233 stated a rule — a Python value class mirrors its Rust type's derives; the kernel omits `Hash` on values in favour of the funnel — and gave its reason: a quantity is a MAGNITUDE, not a key. LIB-HASH-2's two-way walk over the 163 classes the module exposes found the reverse direction populated: 27 Python classes hash over Rust types that derive no `Hash` (3 are the ruled carve-out — `DocParam`, `WrittenLength`, `WrittenAngle` — and 24 are these four items: 12 fieldless tag mirrors, 9 hand-hashed records, `SketchPlane`, and the 2 unit views). Nothing refuses to hash over a `Hash`-deriving type. Three readings:
+
+- **(A) The rule is about magnitudes, and the derive lists are corrected UPWARD where a type is a key.** A tag, a unit row and a payload-free record are keys — `test_hashability.py` opens on that premise and pins the mirror surface through one set and one dict — and the Rust omission beside them reads as a `#[derive]` list nobody needed (`Severity` omits `Hash` beside eleven siblings that derive it), not a statement. So Python moves nothing; LIB files one upward item per kernel program to add `Eq, Hash` where the type is a key (the 12 enums; `quantity`'s three unit views and `UnitDef`; the float-free records `Denotation`, `FaceCensus`, `McConfig`), and the mirror becomes exact from the Rust side. Records that bottom out in `f64` (`Distribution`, `DocParamValue`, `Frame`, `McAssertion`, `McMeasure`) are the (B′) carve-out generalised — recipe data folding the zero through the kernel's own fold — and keep their hashes as `WrittenLength` does; `SketchPlane`, whose Rust type declares no comparison at all, keeps its bit-equality pair as the one deliberate boundary invention (or gains `PartialEq/Eq/Hash` through `bit_eq` in `profile`, upward, if that program wants it). **Recommended.**
+- **(B) The rule reaches every class.** 22 classes lose `__hash__` and join `UNHASHABLE`; `TestEveryMirrorIsAKey` stops being a claim about every mirror; `SketchPlane` compares by identity — the one row where the rule changes what a comparison ANSWERS, not whether a value keys. Mechanical, and it deletes the folds five records already do through the kernel.
+- **(C) Split by kind**: tags and units keep hashing as keys; the nine records lose it; `SketchPlane` decided on its own. Two rules where (A) has one.
+
+Recommendation: **(A)**. It is the reading under which (B′) and LIB-HASH's ruling (2016–2020: the mirrors carry `hash`) are both right, and it puts the repair where the drift is — in derive lists the kernel never needed to think about — rather than un-keying doors that are pinned as keys.

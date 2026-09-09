@@ -4,6 +4,7 @@ kind: issue
 title: pncad-py: SketchPlane compares and hashes over a Rust type that derives neither PartialEq nor Hash
 status: open
 opened: 2026-09-09
+needs_ev: true
 ---
 
 
@@ -54,3 +55,7 @@ Three readings, none ruled on:
 Filed rather than fixed for that reason: it is the only row in the
 cell where applying the rule mechanically would change what a
 comparison ANSWERS, not just whether a value can be a key.
+
+## Question for Ev (2026-09-09, LIB orchestrator; `[ev]` PR)
+
+Asked as one question with three siblings — the full text is on `the-tag-mirrors-hash-over-kernel-enums-that-derive-no-hash`. For this item under the recommended (A): the Python pair stays (bit equality and a bit hash, internally consistent, the one deliberate boundary invention), with an upward option for `profile` to make `bit_eq` its `PartialEq/Eq/Hash` if that program wants the mirror exact. Under (B): `SketchPlane` compares by identity in Python — the only row where the rule changes what `==` answers.
