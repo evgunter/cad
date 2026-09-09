@@ -4226,3 +4226,44 @@ M6 solver constructing it. Stub, class docstring, `__repr__`/`__eq__`/
 `__hash__` over six words, ty fixture. No shipped `variant`/
 `contact_kind`/`subject_kind` value moved; the lane ran the pinned
 ruff for real. The lane's stated deviation: the two extractors keep `census_contact`'s extract-licence `_ => None` (the brief asked for that AND for arms named — over 71 arms the worked example wins; the classifying site `validation_error_tag` is the exhaustive one). ~72 min, ~207k tokens.
+
+**LIB-MEMBERS MERGED (2026-09-09, #2247; mechanical under the 08-29
+ruling, no A/B row). Ev's (D) on `datum-crosses-name-for-name-as-two-types`
+executed: the binding census's rule 1 keeps its name match, but a
+match accounts MEMBERS, not the type.** A curated name that resolves
+— through `scripts/payload-rung-sweep.py`'s resolver, SHARED by path
+rather than re-implemented (the script gains `declared_members`, the
+second reader on the same declarations, with selftest rows and two
+fixture types; its own report unchanged) — to a `pub enum` or `pub
+struct` accounts only the members its Python namesake spells (an arm
+as a class attribute, or snake-cased as a constructor/property/
+method; a bare-`pub` field as a same-named attribute); every other
+member owes a row in `MEMBERS_BOUND_AS` or `MEMBERS_NOT_BOUND`, and a
+member with neither fails the census naming itself. A second pair of
+tables, not `Type::Member` keys in `BOUND_AS`, because every check
+over that roster reads its keys as curated names. **The count, taken
+first**: 104 matched declarations, 616 members, 420 over 60 types
+needing rows — and `Node`/`DocEdit`/`Datum`, the expected bulk, are 18
+of the 420; the refusal enums whose arms cross as tag WORDS dominate
+(`ValidationError` 71, `EditError` 58, `PathError` 30, …), and the
+rule admits no exception, so they got rows (385 `BOUND_AS`, 35
+`NOT_BOUND`) — recorded as the measurement the ruling's cost estimate
+lacked, not used to narrow the rule. What the first run FOUND, which
+is the whole point: a SECOND same-spelled-different-type pair
+(`pncad.pyi`'s `DimensionError` is the quantity boundary's refusal;
+the curated one is editor-core's document-layer refusal, crossing at
+`ParseError.kind`); and three real gaps chartered as census families
+and filed — `two-datum-arms-have-no-node-constructor`
+(`Datum::Point`/`Frame`: a Python author builds four of six datum
+kinds), `five-doc-edit-arms-have-no-python-door` (`SetParam`,
+`SetExpression`, `Rebind`, `ReWitness`, `ReWitnessBulk`),
+`mesh-boundary-polylines-have-no-python-door` (`Mesh::boundaries`
+unread; a wireframe cannot be drawn). Blind spots stated at rule 1: a
+coincidental snake-case match (four of `Evaluation`'s ten fields are
+accounted that way against a different Python type); the resolver's
+alias/generic arms (b)/(d) and crate-not-module (h); a tuple struct's
+unnamed fields. Falsifier: `Node.extrude` removed from a stub surface
+in-file fails the rule; `Datum::FaceFrame`'s row removed fails naming
+it. No stub change, no new binding; the lane ran the pinned ruff for
+real. Orchestrator note: the three gap families are the next
+mechanical wave's obvious members. ~66 min, ~296k tokens.

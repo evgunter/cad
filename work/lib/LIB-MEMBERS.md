@@ -2,11 +2,12 @@
 id: LIB-MEMBERS
 kind: unit
 title: the census's name match accounts members, not the type
-status: review
+status: closed
 opened: 2026-09-09
 branch: lib/members
 refs: [datum-crosses-name-for-name-as-two-types]
 pr: 2247
+closed: 2026-09-09
 ---
 
 
