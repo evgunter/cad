@@ -5,6 +5,7 @@ title: the role-name builders reach only the outer profile loop, so a hole's ban
 status: open
 opened: 2026-09-09
 refs: [no-facade-door-mints-a-revolves-role-names]
+needs_ev: true
 ---
 
 
@@ -33,3 +34,33 @@ implicit conversion that invents a field).
 
 Not urgent: no consumer outside those two test files names a hole's
 band, and the vocabulary itself stays reachable for the ones that do.
+
+## Question for Ev (2026-09-09, LIB orchestrator; `[ev]` PR)
+
+The four builders you ruled take a bare `u32` and fix `loop_index: 0`
+(`crates/editor-core/src/names/role.rs:686`), and every shipped
+consumer converts at that signature — LIB-NAMES converted thirteen
+sites and LIB-PYNAMES bound the same five doors in Python. A profile
+with holes names its inner loops' bands the same way, at
+`loop_index: 1..n`, and the only callers that want one today are two
+kernel test files that already spell the `StableName` through their
+own helpers. Four shapes:
+
+- **(A) A loop parameter on all four**: `band(node, loop, seg)` —
+  two anonymous integers at every call site, and thirteen converted
+  sites plus the five Python doors move again.
+- **(B) A locator argument**: `band(node, ProfileEdgeRef { loop_index,
+  segment })` — un-shortens the outer-loop call the builders exist
+  for, at every site.
+- **(C) `impl Into<ProfileEdgeRef>` with `From<u32>` meaning the outer
+  loop** — one door, no site moves, at the cost of an implicit
+  conversion that invents `loop_index: 0` where nothing says so; the
+  Python doors would take `int | tuple[int, int]` to mirror it.
+- **(D) Leave it and park the item** until a consumer outside a test
+  file names a hole's band: the vocabulary stays reachable (the
+  `StableName` struct spells it in Rust today; Python has no
+  struct-spelling door and would gain the need with the consumer), no
+  signature moves, nothing is invented. Recommended: it is the
+  least machinery and the ruled signature was chosen for exactly the
+  calls that exist. If a door is wanted now, (C) is the pick — the
+  only one that keeps every existing call as it is.
