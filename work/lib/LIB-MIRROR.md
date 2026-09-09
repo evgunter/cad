@@ -2,11 +2,12 @@
 id: LIB-MIRROR
 kind: unit
 title: the derives match on both sides: twelve tags, McConfig, Denotation and the units gain Hash upward; seven records and SketchPlane stop hashing in Python; SketchPlane gains PartialEq via bit_eq
-status: review
+status: closed
 opened: 2026-09-09
 branch: lib/mirror
 pr: 2271
 refs: [the-tag-mirrors-hash-over-kernel-enums-that-derive-no-hash, the-value-records-hash-by-hand-over-kernel-types-that-derive-no-hash, sketchplane-compares-and-hashes-over-a-rust-type-that-derives-neither, the-unit-classes-hash-over-a-partialeq-only-newtype]
+closed: 2026-09-09
 ---
 
 

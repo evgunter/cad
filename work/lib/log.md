@@ -4977,3 +4977,38 @@ Python unchanged**: the twelve tag mirrors' enums, `McConfig`,
 comparison Python answers. One mechanical unit across both sides,
 LIB-MIRROR, with the kernel derive touches announced on their
 programs' trackers.
+
+**LIB-MIRROR MERGED (2026-09-09, #2271; mechanical under Ev's (A)
+case by case on `[ev]` #2265, no A/B row). The derives match on both
+sides.** Upward, fourteen derive words, Python unchanged: `Hash` on the
+twelve tag mirrors' kernel enums (`CheckId` keeping `PartialOrd, Ord`,
+`CheckKind`, `Severity`, `Advisory`, `MateSide`, `AxisSense`,
+`MateRole`, `ArcSide`, `ArcSweep`, `FlushRung`, `CarrierRelation`,
+`SurfaceKind`) and on the two float-free records `McConfig` and
+`Denotation`, each at the line the items' tables cited; the brief's
+STOP (a field that does not derive `Hash`) never fired.
+`crates/quantity`: `Hash` by symbol on `UnitDef`, `LengthUnit` and
+`AngleUnit`, with `Eq` beside each (derived on the views, by hand on
+`UnitDef`, whose derived `PartialEq` reads an `f64` factor that is a
+finite literal on every sealed row) — `Hash` without `Eq` is no map
+key, so the deviation is the ruling's own claim made spellable; the
+test walks every `UNITS` row against `unit_by_symbol` and keys a map by
+the two views. Eight Python `__hash__`es removed — `Frame`,
+`DocParamValue`, `Distribution`, `McMeasure`, `McAssertion`,
+`FaceCensus`, `ValidationFinding`, `SketchPlane` — with the folds they
+alone carried; `fold_zero` and `Distribution::fold_signed_zeros` stay
+for `DocParam`, the (B′) carve-out; eight stub lines gone; eight
+`UNHASHABLE` rows in the roster's voice (21 entries). `impl PartialEq
+for SketchPlane<f64>` delegating to `bit_eq` (not `<T>`: `bit_eq` is
+`f64`-only), pinned over four planes including `-0.0` vs `0.0`. The
+two-way cells after: A 18→34, B 13→21, C 0, D 27→3 — cell D exactly
+the carve-out, cell B exactly the roster. `ScalarUnit` deliberately
+left (no Python mirror, one inhabitant — the case the refinement
+excludes). Six programs told with one dated line each (`bool`,
+`curved`, `docm`, `fix`, `msolve`, `tcost`); three touched kernel
+files are in NO program's `paths:` — `mc.rs`, `names/interrogate.rs`,
+`topo/flush.rs` — filed as `three-kernel-files-sit-in-no-programs-paths`.
+CI on the head: all 36 jobs green including every render lane (the
+check that would have caught a render move had "a derive changes no
+output" been wrong). Four items closed. No `variant`/`kind` value
+moved; the lane ran the pinned ruff for real. ~59 min, ~247k tokens.
