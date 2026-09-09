@@ -77,6 +77,12 @@ UNHASHABLE = {
     "inside, so `0.0` and `-0.0` are equal trees whose bits are not "
     "(stated on the stub)",
     "MeasureExpr": "by design: `Expr`'s reason, for `Expr`'s trees",
+    "Length": "by design: the Rust newtype derives `PartialEq` and "
+    "`PartialOrd` and no `Hash`, and this class mirrors its derives — "
+    "a magnitude is not a key. The authored record that keys is "
+    "`WrittenLength`, which folds `-0.0` and hashes",
+    "Angle": "by design: `Length`'s reason, for the angle newtype; "
+    "`WrittenAngle` is the authored record that keys",
     "Alignment": FILED,
     "AnalysisPolicy": FILED,
     "CheckEvidence": FILED,

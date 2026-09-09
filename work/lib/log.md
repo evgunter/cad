@@ -4657,3 +4657,86 @@ NEXT declaration — a false GREEN — and that is the selftest's fixture.
 `north-star-audit-verb-list-names-arc-continue` (BOOL-10 #2135 still
 in review). Three items closed. No shipped `variant`/`kind` value
 moved; the lane ran the pinned ruff for real. Orchestrator note: the stub now declares `__eq__` on `Length` and `Angle`; the pending [ev] ruling on #2233 (B′) would remove their `__hash__`, which this guard does not touch, so the two do not collide. ~80 min, ~387k tokens.
+
+**LIB-MATE-PAYLOAD MERGED (2026-09-09, #2258; mechanical under (A)
+on `pncad-py-seven-doors-lack-field-projection`, no A/B row). The
+six `MateFault` fields that did not cross now do, and the arm table
+pins 13/13.** Fourteen attributes, 17→31, in the record's order:
+`expected_document`/`found_document` (the `str` a `Doc.id` answers),
+`inner_variant`, `margin`/`margin_low`/`margin_high`, `zero`/
+`escalate`, `field`/`value`, `lever_tilt`/`lever_arm`, `extent`/
+`floor`; `presence()` stays exhaustive with no `..`. The frame door's
+vocabulary is REUSED, not re-spelled: the classifier's fork (a value,
+an enclosure's two bounds, or nothing for a poisoned margin) is one
+helper, `escalation.rs`, sited outside `py` so it compiles and is
+tested under every feature, and both `frame_err` and the mate record
+call it — two doors forking separately would be two spellings of one
+fact. `predicate` is SHARED between `Contradictory` and
+`Indeterminate` ("the predicate that decided" and "the one that could
+not" are one concept asked of two outcomes; the arm says which), said
+in the rustdoc and the stub. `inner_variant` is ONE level in
+(`frame_error_tag` for `Frame`, `band_error_tag` for `Band`,
+`lever_refusal_tag` for `Unleverable`; `Indeterminate` carries a
+struct and has no inner word — its shape is which margin attribute is
+set, CUR8's `different-shape` measurement). Quantities: margins,
+`lever_arm`, `extent`, `floor` are `Length`, `lever_tilt` an `Angle`;
+`zero`/`escalate`/`value` stay plain reals because that is what the
+frame door already answers for them (a band's thresholds are in
+whatever its predicate measures, and dimensioning them here would
+decide a question that door left open). The one curation:
+`LeverRefusal` re-exported from `editor-core` and curated at
+`pncad::document` beside `MateFault` under the cross-list rule (its
+only home is the refusal holding it, so it rides its carrier), with
+`lever_refusal_tag` (one literal, exhaustive so a second arm is a
+compile error) and its inventory row; census `BOUND_AS`
+`MateFault.inner_variant`. The arm table builds sixteen values over
+the thirteen arms (each `MarginDiag` and `BandError` arm executed)
+and reads every field of each; the "nine of thirteen" docstring is
+gone. Python rows reach each attribute by authoring the mistake (the
+levered and unlevered clash, the mispaired solve, the too-small
+datum, the in-band frame); four attributes have no Python row that
+CARRIES them because no f64 solve produces an enclosure and the
+tolerance witness cannot fail to form a band — stated, the Rust
+table owns that half. No new door, no kernel behaviour change beyond
+the re-export and the curation; no shipped `variant`/`inner_variant`
+value moved; the lane ran the pinned ruff for real. Orchestrator note: the falsification was run the way the brief asked — `floor` blanked on the `Unleverable` arm turned the pin red, reverted green — and the mid-flight merge of SMALL-2 conflicted in the two re-export stanzas (both lanes added names to them), resolved by union and re-verified. ~73 min, ~284k tokens.
+
+**LIB-ZERO MERGED (2026-09-09, #2259; mechanical under Ev's (B′) on
+`the-quantity-boundary-compares-and-hashes-as-if-poison-and-signed-zero-cannot-arrive`,
+`[ev]` #2233 item 2, no A/B row). The Python `Length` and `Angle`
+mirror the newtypes' derives.** `continuous_quantity!`'s
+`__richcmp__` answers on the canonical floats exactly as the derived
+`PartialEq`/`PartialOrd` do — IEEE: a NaN operand answers `False` to
+every relation but `!=`, `±inf` orders normally, `-0.0 * m == 0.0 * m`
+— and the bare `ValueError` arm and its history-telling comment are
+gone, replaced by the invariant (the newtypes refuse no float; the
+funnel refuses non-finite where a value enters recipe data, so the
+boundary type does not re-decide it). `__hash__` is removed from the
+macro with no replacement: PyO3 puts `__hash__ = None` in the class
+dict for a class that defines the comparisons and no hash, verified on
+the compiled module rather than assumed, so `{1 * m}` raises Python's
+own `TypeError`. The invariant is stated on the two `#[pyclass]` docs
+and the stub stanzas (the two stub `__hash__` lines go; `__eq__` stays
+for the drift guard); neither GUIDE nor the README taught the subject.
+`Length` and `Angle` join `test_hashability.py`'s `UNHASHABLE` with the
+ruling's reason; the nine `FILED` entries (LIB-HASH-2) are untouched.
+The mirror table over all seven classes in the file: `Count` matches
+its `Eq/Ord/Hash` derives exactly (left); `WrittenLength`/`WrittenAngle`
+hash over `PartialEq`-only newtypes and are LEFT because the ruling as
+posed names them as keeping their hashes (recipe data past the funnel,
+folding the zero) — a deviation from the brief, which had read the
+rule as reaching them, stated; `LengthUnit`/`AngleUnit` have the same
+more-than-the-derives shape and were FILED rather than decided
+(`the-unit-classes-hash-over-a-partialeq-only-newtype`: a unit is a
+table row, the seal makes the symbol determine the row, and
+`test_notation.py` pins a unit as a dict key on purpose — if the rule
+reaches them the repair is upward on `crates/quantity`). Pins moved and
+listed: the "raises today" row becomes an eighteen-answer truth table
+on a NaN operand plus `±inf` rows; the signed-zero row keeps the
+`format`/`==` relationship and loses its hash line; three rows added.
+Kernel untouched (`crates/quantity` and every other crate: zero diff);
+no `variant`/`kind` value moved; the lane ran the pinned ruff for real.
+The ITEM stays open until `[ev]` #2233 merges (it is on that branch);
+this unit closes with its ruling recorded there. Orchestrator note: the
+brief over-read the ruling on the Written pair; the lane read the
+ruling's own words and was right to. ~53 min, ~167k tokens.
