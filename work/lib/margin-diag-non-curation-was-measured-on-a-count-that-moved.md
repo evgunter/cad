@@ -2,7 +2,8 @@
 id: margin-diag-non-curation-was-measured-on-a-count-that-moved
 kind: issue
 title: MarginDiag's and BandField's non-curation was measured on a count the frame door has now moved
-status: open
+status: closed
+closed: 2026-09-09
 opened: 2026-09-08
 ---
 
@@ -62,3 +63,25 @@ contract says not to branch on.
 Nothing is broken and nothing is unreachable: `pncad::geom_core` is a
 whole-crate re-export, so every one of these names is already
 spellable by a Rust consumer, one module below the prelude.
+
+## Closed
+
+Re-measured at LIB-CUR8. **`MarginDiag` is CARRIED** on the prelude
+beside `Indeterminate`: the trigger the paragraph named has fired — a
+door projects the escalation's own shape, and
+`crates/pncad-py/src/py/place.rs::frame_err` forks on the three arms
+to publish it — so the discriminant is read at a boundary and varies.
+Reading which arm it is is not recovering the sign the classifier
+refused: a value says tightening eps may help, an enclosure says a
+certified bracket straddles, a poisoned margin is the one arm none of
+`COINCIDENCE_RECOURSE`'s three levers answers. The carriage's own
+falsifier is written beside it.
+
+**`BandField` is NOT carried**, argued anew on the new count in
+`crates/pncad/src/prelude.rs`: the discriminant is read at a boundary
+now and is still not variable, because every producer reaching that
+crossing is `Band::linear` and its `zero` check cannot fire under
+`Tol`'s invariant. The two arms `band_field_tag` maps are an
+exhaustive match's drift alarm, not two reachable facts. Falsifier: a
+kernel caller of `Band::angular_at`, or a door taking a band's
+thresholds from its caller.

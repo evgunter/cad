@@ -601,16 +601,19 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 /// set it CARRIES, in publication order, with the rest `None`.
 ///
 /// **Nine of the thirteen arms are built here.** The other four —
-/// `Frame`, `Band`, `Indeterminate` and `Unleverable` — each hold a
-/// nested refusal whose TYPE the `pncad` façade does not re-export
-/// (`FrameError`, `BandField`, `MarginDiag`, `LeverRefusal`), so this
-/// crate cannot name a value to put in them. That costs the table its
-/// totality and nothing else: those four are exactly the arms whose
-/// payload is the nested refusal, which the projection does not
-/// flatten, and totality of the PROJECTION is a different guarantee
-/// and a stronger one — `mate_payload`'s match is exhaustive with no
-/// wildcard, so an arm that reached Python unprojected would not
-/// compile.
+/// `Frame`, `Band`, `Indeterminate` and `Unleverable` — are exactly
+/// the arms whose payload is a nested refusal, which the projection
+/// does not flatten, so building one would add nothing to the wire.
+/// Three of the four types are nameable from here — `FrameError` and
+/// `BandField` one module hop below the curated lists at
+/// `pncad::geom_core`, `MarginDiag` on the prelude — and
+/// `LeverRefusal` is lifted to no crate root at all, so `Unleverable`
+/// cannot be built here whatever this table wants. That costs the
+/// table its totality and nothing else: totality of the PROJECTION is
+/// a different guarantee and a stronger one — `mate_payload`'s match
+/// is exhaustive with no wildcard, so an arm that reached Python
+/// unprojected would not compile. Filling the four is
+/// `work/lib/mate-fault-arms-carry-payload-that-does-not-cross.md`.
 #[test]
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
@@ -2562,20 +2565,22 @@ fn a_labelled_document_is_the_same_part_every_time() {
 
 /// The registry's two tag namespaces are pinned, and stated honestly:
 /// this constructs every arm the curated surface can BUILD and asserts
-/// its tag. Two arms of each map carry kernel internals with no public
-/// constructor — [`ChecksError::Band`]'s `BandError`, and the shell
-/// door's refusal behind `Escalated`/`Unsupported` — so their tags are
+/// its tag. ONE arm still carries a kernel internal with no public
+/// constructor — [`ChecksError::Band`]'s `BandError` — so its tag is
 /// covered by the exhaustive match alone, which is the real alarm
 /// here: neither enum is `#[non_exhaustive]`, so a kernel arm added
-/// without a tag stops this crate compiling.
+/// without a tag stops this crate compiling. The shell door's refusal
+/// behind `Escalated`/`Unsupported` is no longer one of them:
+/// `pncad::document` carries the type, so both arms are built and the
+/// refusal's own word is asserted beside them.
 ///
 /// What the pin adds over the match is the STRINGS. A tag is the
 /// branchable half of a typed refusal, so renaming one is a surface
 /// break the compiler cannot see.
 #[test]
 fn check_registry_tags_are_stable() {
-    use crate::tags::{check_evidence_tag, checks_error_tag};
-    use pncad::document::{CheckEvidence, ChecksError, RecipeNodeId};
+    use crate::tags::{check_evidence_tag, checks_error_tag, shell_classify_error_tag};
+    use pncad::document::{CheckEvidence, ChecksError, RecipeNodeId, ShellClassifyError};
 
     assert_eq!(
         checks_error_tag(&ChecksError::Root {
@@ -2615,6 +2620,23 @@ fn check_registry_tags_are_stable() {
         }),
         "separation_unavailable"
     );
+
+    let refused = ShellClassifyError::ZeroVolume {
+        shell: pncad::topo::ShellKey::default(),
+    };
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::Escalated {
+            source: refused.clone()
+        }),
+        "escalated"
+    );
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::Unsupported {
+            source: refused.clone()
+        }),
+        "unsupported"
+    );
+    assert_eq!(shell_classify_error_tag(&refused), "zero_volume");
 }
 
 /// **Every constructible `CheckEvidence` arm's payload, built and
@@ -2625,16 +2647,13 @@ fn check_registry_tags_are_stable() {
 /// read off, and this pin says what each arm puts on the wire: the
 /// exact set it CARRIES, in publication order, with the rest `None`.
 ///
-/// **Four of the six arms are built here.** `Escalated` and
-/// `Unsupported` hold the shell door's refusal, whose type the
-/// `pncad` façade does not re-export, so this crate cannot name a
-/// value to put in them; their `reason` is the same rendering
-/// `SeparationUnavailable`'s is, which IS pinned below. That costs
-/// the table its totality and nothing else — `check_payload`'s match
-/// is exhaustive with no wildcard, so an arm that reached Python
-/// unprojected would not compile.
+/// **All six arms are built here.** `Escalated` and `Unsupported`
+/// hold the shell door's refusal, which `pncad::document` carries
+/// beside the evidence that rides it, so a value can be named and the
+/// table is total: each of those two carries the refusal's own word
+/// beside the sentence it renders.
 ///
-/// Three of the four are unreachable from Python entirely (the shell
+/// Three of the six are unreachable from Python entirely (the shell
 /// door escalating on a gathered subject, the box builder refusing
 /// over the whole product), so this is where their projection is
 /// pinned at all: `tests/test_checks.py` reads the other three.
@@ -2673,6 +2692,28 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         reason: "boxes refused".into(),
     };
     carries(&unavailable, &["reason"]);
+
+    // The two arms that hold another door's refusal: its sentence and
+    // its own word, which is the half a caller branches on.
+    let refused = pncad::document::ShellClassifyError::ZeroVolume {
+        shell: pncad::topo::ShellKey::default(),
+    };
+    carries(
+        &E::Escalated {
+            source: refused.clone(),
+        },
+        &["reason", "inner_variant"],
+    );
+    carries(
+        &E::Unsupported {
+            source: refused.clone(),
+        },
+        &["reason", "inner_variant"],
+    );
+    assert_eq!(
+        check_payload(&E::Escalated { source: refused }).inner_variant,
+        Some("zero_volume")
+    );
 
     // The numbers and the sentence themselves, not just which fields
     // are set: the counterpart names the root it names, and the
@@ -3954,6 +3995,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unclassified",
             "unreadable",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "shell_classify_error_tag",
+        values: &["band", "escalated", "props", "zero_volume"],
         delegates: &[],
     },
     TagEntry {

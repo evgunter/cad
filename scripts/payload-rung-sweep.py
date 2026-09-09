@@ -142,7 +142,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
     "MappedCurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
-    "MarginDiag": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     "MetaValue": ("argued", "NOT_CARRIED, the metadata family; crates/pncad/src/document.rs "
                             "says why the value tree stays out"),
     "PairingViolation": ("argued", "NOT_CARRIED, the analysis lane's interior residue "
@@ -159,25 +158,29 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
 # one: not "can a caller name this at all" but "can a caller name it through
 # the door it arrived by".
 CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
-    "EntityKind": ("filed", "work/lib/cross-list-payload-rungs-under-document-only-carriers.md"),
-    "SplitHalf": ("filed", "work/lib/cross-list-payload-rungs-under-document-only-carriers.md"),
-    # The same question with the two lists swapped: a payload curated on
-    # `document` under a carrier curated only on `analysis`. The analysis
-    # lane's own head states why the two lists are separate — a distribution
-    # is document state its doors author and persist, everything on the
-    # analysis list is DERIVED from it — so the split is the design's and the
-    # question is whether a payload owes its carrier's list or the list of the
-    # module that owns the vocabulary. That is the filed item's general
-    # question, and these rows are its second half.
-    "Dimension": ("filed", "work/lib/cross-list-payload-rungs-under-document-only-carriers.md"),
-    "Distribution": (
-        "filed",
-        "work/lib/cross-list-payload-rungs-under-document-only-carriers.md",
-    ),
-    "MeasureUnavailableAt": (
-        "filed",
-        "work/lib/cross-list-payload-rungs-under-document-only-carriers.md",
-    ),
+    "EntityKind": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
+                             "crates/pncad/src/select.rs; the general rule is at the "
+                             "payload-rule header of crates/pncad/src/document.rs"),
+    "SplitHalf": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
+                            "crates/pncad/src/select.rs; the general rule is at the "
+                            "payload-rule header of crates/pncad/src/document.rs"),
+    # The same rule with the two lists swapped, and it decides these the same
+    # way: the payload's vocabulary is the DOCUMENT layer's, so it is spelled
+    # once on `document` and the analysis list points at it. That split is the
+    # design's rather than the façade's — `crates/pncad/src/analysis.rs`'s own
+    # head says a distribution is document state its doors author and persist,
+    # while everything on the analysis list is DERIVED from it and never
+    # stored — so the analysis lane is the clearest case the rule has.
+    "Dimension": ("argued", "the parameter vocabulary is `document`'s and is spelled "
+                            "once; the general rule is at the payload-rule header of "
+                            "crates/pncad/src/document.rs"),
+    "Distribution": ("argued", "the parameter vocabulary is `document`'s and is spelled "
+                               "once; the general rule is at the payload-rule header of "
+                               "crates/pncad/src/document.rs"),
+    "MeasureUnavailableAt": ("argued", "the measurement vocabulary is `document`'s and is "
+                                       "spelled once; the general rule is at the "
+                                       "payload-rule header of "
+                                       "crates/pncad/src/document.rs"),
 }
 
 

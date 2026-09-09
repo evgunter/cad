@@ -2,7 +2,8 @@
 id: cross-list-payload-rungs-under-document-only-carriers
 kind: issue
 title: two select-list payloads ride document-only carriers, which the four-list sweep can now see
-status: open
+status: closed
+closed: 2026-09-09
 opened: 2026-09-09
 refs: [LIB-SWEEP, payload-rung-sweep-is-prose-and-a-third-run-disagrees]
 ---
@@ -58,12 +59,29 @@ So the two readings are:
 Which reading holds, and it is a curation act either way — a list
 moves, or an argument is written where the two lists meet. Deciding it
 also settles the general question, because the cross-list column is
-the whole of it: whether a payload owes its carrier's list, or the
-list of the module that owns the vocabulary. It has to be answered for
-both directions at once — the naming vocabulary under a document
-carrier, and the document vocabulary under an analysis carrier —
-because a rule that answered one and not the other is not a rule.
+new and this is the whole of it: whether a payload owes its carrier's
+list, or the list of the module that owns the vocabulary.
 
-Until it is decided the five names are pinned in
+Until it is decided the two names are pinned in
 `CROSS_LIST_DISPOSITIONS` in the script, pointed at this file, so a
-NEW cross-list name reds CI rather than joining them silently.
+THIRD cross-list name reds CI rather than joining them silently.
+
+## Closed
+
+Decided at LIB-CUR8: **reading 1 holds.** The `NamingError`
+precedent generalises, and the general question the cross-list column
+opened is settled with it — a payload whose vocabulary one of the four
+curated lists owns lives on THAT list, spelled once, and the carrier's
+list points at it; a payload whose only home is the refusal holding it
+rides its carrier, which is `crate::document`'s `VerbKind` rule. The
+four lists are one surface cut into rooms, not four self-sufficient
+exports, so the cost is explicit and accepted: a consumer of
+`pncad::document` alone needs a second `use` to name what such an arm
+holds — one import, never a second crate — against the cost the other
+way, which is the same name on two lists.
+
+`EntityKind` and `SplitHalf` stay on `select`+`prelude`. The
+disposition sentence is beside the precedent
+(`crates/pncad/src/select.rs`) and the general rule at the
+payload-rule paragraph of `crates/pncad/src/document.rs`'s module
+header; `CROSS_LIST_DISPOSITIONS` names both homes.

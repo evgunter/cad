@@ -5320,9 +5320,12 @@ class CheckEvidence:
 
     `connectedness` (`actual`, `expected`) — the count disagreed,
     compared exactly, with no epsilon anywhere in it. `escalated` /
-    `unsupported` (`reason`) — a shell's orientation read could not be
-    decided at this tolerance, so the count is UNKNOWABLE and says so
-    rather than guessing. `stale_expectation` (`expected`) — an
+    `unsupported` (`reason`, `inner_variant`) — a shell's orientation
+    read could not be decided at this tolerance, or a face is outside
+    the flux inventory, so the count is UNKNOWABLE and says so rather
+    than guessing; `inner_variant` is which of the shell door's four
+    refusals it was (`band`, `props`, `escalated`, `zero_volume`).
+    `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,
     which is a fact about the CERTIFICATE and never a claim that the
@@ -5342,6 +5345,8 @@ class CheckEvidence:
     def other_output(self) -> Optional[int]: ...
     @property
     def reason(self) -> Optional[str]: ...
+    @property
+    def inner_variant(self) -> Optional[str]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class CheckFinding:

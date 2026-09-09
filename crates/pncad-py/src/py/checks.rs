@@ -292,9 +292,9 @@ impl ChecksConfig {
 ///
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `actual`, `expected`, `other_root`,
-/// `other_output`, `reason`.
+/// `other_output`, `reason`, `inner_variant`.
 ///
-/// The five read off ONE record, [`crate::check_payload`], whose
+/// The six read off ONE record, [`crate::check_payload`], whose
 /// match over the kernel enum is exhaustive with no wildcard: an
 /// evidence arm added there is a compile error rather than a finding
 /// every accessor here silently answers `None` about.
@@ -347,6 +347,15 @@ impl CheckEvidence {
         self.payload().reason.map(Cow::into_owned)
     }
 
+    /// The shell door's own refusal, as a branchable word, on
+    /// `escalated` and `unsupported`: `band`, `props`, `escalated` or
+    /// `zero_volume`. `reason` is the same refusal's sentence; this is
+    /// the part a caller matches on.
+    #[getter]
+    fn inner_variant(&self) -> Option<&'static str> {
+        self.payload().inner_variant
+    }
+
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -363,7 +372,7 @@ impl CheckEvidence {
     /// matching the enum itself, so the arm table is written once —
     /// exhaustively, with no wildcard, in `crate::check_payload` — and
     /// an arm added kernel-side is a compile error there instead of
-    /// five attributes silently answering `None`.
+    /// six attributes silently answering `None`.
     fn payload(&self) -> crate::check_payload::CheckEvidencePayload<'_> {
         crate::check_payload::check_payload(&self.0)
     }
