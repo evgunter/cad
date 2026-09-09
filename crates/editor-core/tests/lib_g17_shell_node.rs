@@ -334,7 +334,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let rim = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(editor_core::band(pot, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(Box::new(editor_core::band(pot, 0, vessel::SEG_MOUTH))),
     );
     assert!(
         matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
@@ -343,7 +343,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let other = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(editor_core::band_pi(pot, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(Box::new(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH))),
     );
     assert!(
         table.lookup(&other).is_none(),
@@ -364,8 +364,8 @@ fn the_designation_order_moves_the_rim_and_the_content_key() {
     let a = vessel::document();
     let b = vessel::document_with_open(|pot| {
         [
-            editor_core::band_pi(pot, vessel::SEG_MOUTH),
-            editor_core::band(pot, vessel::SEG_MOUTH),
+            editor_core::band_pi(pot, 0, vessel::SEG_MOUTH),
+            editor_core::band(pot, 0, vessel::SEG_MOUTH),
         ]
     });
     let (sa, sb) = (a.result.unwrap(), b.result.unwrap());
@@ -380,7 +380,7 @@ fn the_designation_order_moves_the_rim_and_the_content_key() {
     let rim_pi = shelled(
         sb,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(editor_core::band_pi(pot, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(Box::new(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH))),
     );
     assert!(
         matches!(
@@ -486,8 +486,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // completes no chart on the author's behalf.
     let v = vessel::document_with_open(|pot| {
         [
-            editor_core::band(pot, vessel::SEG_MOUTH),
-            editor_core::band(pot, vessel::SEG_BELLY),
+            editor_core::band(pot, 0, vessel::SEG_MOUTH),
+            editor_core::band(pot, 0, vessel::SEG_BELLY),
         ]
     });
     // Replace the two-name designation by the single half: the door
@@ -502,7 +502,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
         Node::shell(
             pot,
             fixture::len(vessel::WALL),
-            vec![editor_core::band(pot, vessel::SEG_MOUTH)],
+            vec![editor_core::band(pot, 0, vessel::SEG_MOUTH)],
         ),
     );
     let e = refusal(&doc, n);

@@ -89,7 +89,7 @@ fn pr_profile() -> Vec<(f64, f64)> {
 /// Fillet the latitude rim at profile vertex `v` of the given lantern.
 fn filleted(profile_pts: Vec<(f64, f64)>, v: u32) -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = lantern_with(profile_pts);
-    let rim = editor_core::band_rim(revolve, v);
+    let rim = editor_core::band_rim(revolve, 0, v);
     insert(
         doc,
         Node::Fillet {

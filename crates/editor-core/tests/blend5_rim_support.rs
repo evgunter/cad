@@ -102,7 +102,7 @@ fn lantern() -> (ProfileDoc, RecipeNodeId) {
 /// The lantern with its mouth rim filleted, and the fillet node's id.
 fn filleted_mouth() -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = lantern();
-    let mouth = editor_core::band_rim(revolve, MOUTH);
+    let mouth = editor_core::band_rim(revolve, 0, MOUTH);
     insert(
         doc,
         Node::Fillet {
@@ -251,7 +251,7 @@ fn the_host_is_the_planar_support_wherever_the_rim_has_one() {
     let (doc, revolve) = lantern();
     // The lip disk meets the upper cone at profile vertex 3: a
     // plane–cone rim, one planar side.
-    let lip = editor_core::band_rim(revolve, 3);
+    let lip = editor_core::band_rim(revolve, 0, 3);
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {

@@ -461,7 +461,7 @@ fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Expr) -> (ProfileDoc, Reci
             angle: ang(std::f64::consts::TAU),
         },
     );
-    let mouth = editor_core::band_rim(revolve, 2);
+    let mouth = editor_core::band_rim(revolve, 0, 2);
     insert(
         doc,
         Node::Fillet {

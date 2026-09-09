@@ -1011,10 +1011,13 @@ _revolved: NodeId = _names_doc.insert(
         Expr.written_angle(WrittenAngle.in_unit(360, deg)),
     )
 )
-minted_band: str = band(_revolved, 0)
-minted_half: str = band_pi(_revolved, 0)
-minted_rim: str = band_rim(_revolved, 1)
-minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, 1)
+minted_band: str = band(_revolved, 0, 0)
+minted_half: str = band_pi(_revolved, 0, 0)
+minted_rim: str = band_rim(_revolved, 0, 1)
+minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, 0, 1)
+# A hole's loop is spelled the same way: the loop index is an argument
+# like the segment, and no loop is privileged.
+minted_hole_band: str = band(_revolved, 1, 0)
 minted_survivor: str = carried(_revolved, minted_band)
 _blended: NodeId = _names_doc.insert(
     Node.fillet(_revolved, Expr.written_length(WrittenLength.in_unit(0.1, m)), [minted_rim])
