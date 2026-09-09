@@ -56,7 +56,7 @@ census reads.
   mispairing to make, which is why it crosses free where `tail_mass`
   and `box_mass` cross as methods on the box.
 - **Census.** `crates/pncad/src/analysis.rs` joined `FACADE_FILES`.
-  Curated names went 425 -> 486: the file introduces 63, of which two
+  Curated names went 427 -> 488: the file introduces 63, of which two
   (`AssertionVerdict`, `UnevaluatedReason`) were already curated on
   another list, so 61 are new. All 63 accounted: 16 by rule 1 (the
   seven already bound plus the nine this unit binds), 6 in `BOUND_AS`
