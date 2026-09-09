@@ -2,8 +2,9 @@
 id: the-value-records-hash-by-hand-over-kernel-types-that-derive-no-hash
 kind: issue
 title: pncad-py: nine value records hash by hand over kernel types that derive no Hash
-status: open
+status: closed
 opened: 2026-09-09
+closed: 2026-09-09
 ---
 
 
@@ -74,3 +75,15 @@ Asked as one question with three siblings — the full text with options and the
 float-bearing five), `FaceCensus` and `ValidationFinding` lose their
 Python `__hash__` and join `UNHASHABLE` with the mirror reason, Rust
 unchanged. Mechanical unit LIB-MIRROR.
+
+## Closed (2026-09-09, LIB-MIRROR, PR #2271)
+
+`McConfig` and `Denotation` gained `Hash` upward (both already derived
+`Eq`, and every field of each derives `Hash`), Python unchanged. The
+other seven — `Frame`, `DocParamValue`, `Distribution`, `McMeasure`,
+`McAssertion`, `FaceCensus`, `ValidationFinding` — lost their Python
+`__hash__` and their stub lines, and each joined `UNHASHABLE` with a
+reason naming its Rust type and the derives it mirrors. The folds
+those hashes carried are not lost: `fold_zero` and
+`Distribution::fold_signed_zeros` are still the `-0.0` normalization
+`DocParam.__hash__` applies.

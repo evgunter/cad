@@ -2,8 +2,9 @@
 id: the-tag-mirrors-hash-over-kernel-enums-that-derive-no-hash
 kind: issue
 title: pncad-py: twelve fieldless tag mirrors hash over kernel enums that derive PartialEq and Eq and no Hash
-status: open
+status: closed
 opened: 2026-09-09
+closed: 2026-09-09
 ---
 
 
@@ -122,3 +123,12 @@ each — `Advisory`, `ArcSide`, `ArcSweep`, `AxisSense`, `CheckId`,
 (Python's `PlaneRelation`), `Severity`, `SurfaceKind`), the Python
 mirrors unchanged. Mechanical unit LIB-MIRROR, one unit across both
 sides for all four items.
+
+## Closed (2026-09-09, LIB-MIRROR, PR #2271)
+
+The twelve kernel enums gained `Hash`, one derive word each, at
+exactly the `file:line` the table above cites; the Python mirrors did
+not move and `TestEveryMirrorIsAKey` still tallies the whole mirror
+surface. The twelve are now in cell A beside the twelve that were
+already there, so the enum tag surface is uniform: twenty-four mirrors
+over twenty-four `Hash`-deriving enums.

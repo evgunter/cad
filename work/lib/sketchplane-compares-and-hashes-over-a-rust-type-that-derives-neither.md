@@ -2,8 +2,9 @@
 id: sketchplane-compares-and-hashes-over-a-rust-type-that-derives-neither
 kind: issue
 title: pncad-py: SketchPlane compares and hashes over a Rust type that derives neither PartialEq nor Hash
-status: open
+status: closed
 opened: 2026-09-09
+closed: 2026-09-09
 ---
 
 
@@ -65,3 +66,13 @@ No hash on either side: the Python `__hash__` goes. The comparison
 stays and Rust comes to mean it — `impl PartialEq for SketchPlane` in
 `profile` delegating to `bit_eq`, so `==` keeps its bit-for-bit
 answer on both sides. Mechanical unit LIB-MIRROR.
+
+## Closed (2026-09-09, LIB-MIRROR, PR #2271)
+
+No hash on either side: the Python `__hash__` is gone. The comparison
+stays and Rust now means it — `impl PartialEq for SketchPlane<f64>` in
+`crates/profile/src/lib.rs` delegates to `bit_eq`, so `==` answers
+bit-for-bit in both languages and `-0.0` keeps its own identity in
+both. `f64` only, because `bit_eq` is `f64`-only. The row in
+`crates/profile/tests/sketch_plane.rs` holds `==` against `bit_eq`
+over every ordered pair of four planes.

@@ -2,8 +2,9 @@
 id: the-unit-classes-hash-over-a-partialeq-only-newtype
 kind: issue
 title: pncad-py: LengthUnit and AngleUnit hash over Rust views that derive PartialEq only
-status: open
+status: closed
 opened: 2026-09-09
+closed: 2026-09-09
 ---
 
 
@@ -73,3 +74,16 @@ The unit views and `UnitDef` gain `Hash` upward in `crates/quantity`,
 by symbol — the seal makes the symbol determine the row, so the hash
 agrees with the derived `PartialEq` — and Python keeps its hashes and
 the dict-key pin. Mechanical unit LIB-MIRROR.
+
+## Closed (2026-09-09, LIB-MIRROR, PR #2271)
+
+`UnitDef`, `LengthUnit` and `AngleUnit` gained a hand-written `Hash`
+over the row's symbol, with `Eq` beside each — derived on the two
+views, by hand on `UnitDef`, whose derived comparison reads an `f64`
+factor that is a finite literal on every row the seal admits. The seal
+is the whole argument and it is stated in the impl's doc: the symbol
+determines the row, so the hash agrees with the derived `PartialEq`.
+Python moved nothing; `test_a_unit_is_usable_as_a_dict_key` and the
+census's paired equality-and-hashing line stand as they were.
+`ScalarUnit`, the third view, is deliberately left: no Python mirror,
+one inhabitant, nothing that plausibly keys.
