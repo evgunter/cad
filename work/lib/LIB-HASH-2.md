@@ -2,11 +2,12 @@
 id: LIB-HASH-2
 kind: unit
 title: the nine value classes are unhashable by design under the mirror rule, with the two-way derives table
-status: review
+status: closed
 opened: 2026-09-09
 branch: lib/hash-2
 refs: [pncad-py-value-classes-compare-without-hashing]
 pr: 2261
+closed: 2026-09-09
 ---
 
 
