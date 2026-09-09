@@ -1933,7 +1933,8 @@ class Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
-        `open` is face names as TEXT, IN THE ORDER GIVEN: a chart's
+        `open` is face names as TEXT — materialized or minted — IN
+        THE ORDER GIVEN: a chart's
         rim is its FIRST designated face, so name first the face that
         should carry the rim's identity. A repeat keeps its first
         occurrence; an EMPTY list is the SEALED hollow, which is legal.
@@ -2031,7 +2032,9 @@ class Node:
         """Constant-radius blends on named edges of `target`.
 
         `selection` is edge names as TEXT — the strings
-        `Evaluation.all_edges` answers with. The set FREEZES at
+        `Evaluation.all_edges` answers with, or the ones a role-name
+        door mints (`band_rim` and its four siblings) for a node no
+        evaluation has reached yet. The set FREEZES at
         authoring time; an empty one, an unresolvable name, or an edge
         the roller cannot enter refuses typed at `evaluate`. `radius`
         mints a literal in the node's `radius` slot, moved by
@@ -3385,6 +3388,53 @@ class GeomPred:
         stated `Length` — signed to a datum plane, unsigned to an axis
         or point. The datum is a node reference like every other
         input, which keeps the rule equivariant."""
+
+
+# Minting a revolve's role name: the five doors that ANSWER a name
+# rather than selecting one. `select` answers names FROM an
+# evaluation; a selection that is AUTHORED — `Node.fillet`'s frozen
+# selection, `Node.shell`'s open list — is written before any
+# evaluation of the minting node exists, so its names are spelled,
+# and these spell them. The answer is the SAME text a materializer
+# answers for that entity, byte for byte: one alphabet, minted on
+# either side of the boundary. The text stays opaque — a caller
+# composes by naming a ROLE, never by assembling the serialization.
+
+def band(node: NodeId, seg: int) -> str:
+    """The `[0, pi)` band face swept from meridian segment `seg` of
+    the revolve at `node`.
+
+    `seg` indexes the OUTER loop's canonical chain; a hole's band is
+    not reachable through this door. The kind is fixed at the role's
+    own — a face — which is the field a hand-written name gets wrong
+    silently until emission refuses it."""
+
+def band_pi(node: NodeId, seg: int) -> str:
+    """The `[pi, 2pi)` band face swept from meridian segment `seg` —
+    `band`'s twin, where a full revolve emits a segment as two faces.
+    Outer loop; a face, as `band` is."""
+
+def band_rim(node: NodeId, vertex: int) -> str:
+    """The latitude rim at meridian vertex `vertex` — the edge between
+    the bands of segments `vertex - 1` and `vertex`. Outer loop; an
+    edge."""
+
+def meridian_vertex(end: MeridianEnd, node: NodeId, vertex: int) -> str:
+    """The meridian vertex at `end`: the copy of profile vertex
+    `vertex` on a wedge cap plane (`MeridianEnd.Start`,
+    `MeridianEnd.End`) on a partial revolve, or the surviving meridian
+    vertex (`MeridianEnd.Seam`) on a full one. Outer loop; a
+    vertex."""
+
+def carried(node: NodeId, inner: str) -> str:
+    """The name a survivor of `node` takes: the name `inner` it had in
+    the target's table, wrapped — the single-operand pass-through a
+    blend's shrunk support or a shell's outer wall wears one op later.
+
+    `inner` is a name text like any other, and the kind is its own: a
+    survivor is the same entity carried through one op, so the wrapper
+    renames it without re-kinding it. Text that is not a name at all
+    raises `ValueError`."""
 
 # --- values -----------------------------------------------------------
 

@@ -1162,16 +1162,14 @@ FAMILIES: dict[str, str] = {
     # THE MAP WAS EMPTY ONCE, and it could be again: every family the
     # LIB residual register's category B enumerated is closed
     # (B-READBACK, B-CHECKS, B-CANCEL, B-FACE-FRAME, B-PART,
-    # B-NOTATION, B-DISTRIBUTIONS, B-MEASURES), and neither of the two
-    # below comes from that register.
+    # B-NOTATION, B-DISTRIBUTIONS, B-MEASURES), and the one below does
+    # not come from that register either.
     #
-    # ONE OF THEM IS A MEMBER-RULE FINDING: a member of a curated type
+    # THE ONE LEFT IS A MEMBER-RULE FINDING: a member of a curated type
     # Python spells identically, so the name match accounted it and no
     # roster here could report it until members were counted. The
     # rule's other two findings closed at LIB-GAPS-1, which bound
     # `Node.datum_point`, `Node.datum_frame` and `Mesh.boundaries`.
-    # The second is a debt created rather than found: five names
-    # curated into `pncad::select` with no Python spelling at all.
     # `test_every_gap_entry_names_a_defined_id` reads this map in both
     # directions: no entry may cite a key that is not here, and no key
     # here may go uncited.
@@ -1181,14 +1179,6 @@ FAMILIES: dict[str, str] = {
         "needs a curated payload for the witness pair and a prose "
         "rendering for the path refusal, then one constructor per arm "
         "and one test row per tag each can raise."
-    ),
-    "B-NAME-BUILDERS": (
-        "minting a revolve's role name in one call — `band`, "
-        "`band_pi`, `band_rim`, `meridian_vertex` and `carried` answer "
-        "a `StableName` in Rust. Closing it delivers the same five in "
-        "Python, answering the name TEXT `Node.fillet`'s selection and "
-        "`Node.shell`'s open list already take, so a caller who must "
-        "AUTHOR a selection stops hand-writing the serialized JSON."
     ),
 }
 
@@ -2469,19 +2459,16 @@ NOT_BOUND = {
     # the second argument crossed by being CAPTURED rather than by
     # already having a spelling; `BOUND_AS` says how, and
     # `tests/test_validate.py` is the positive form.
-    # --- gap: minting a revolve's role name (census-owned) --------
-    # The Rust façade answers each of these in one call; Python speaks
-    # names as TEXT and authors both selections the doors exist for
-    # (`Node.fillet`'s frozen selection, `Node.shell`'s open list), so
-    # a Python author with no evaluation to select against writes the
-    # serialized name by hand. That is the debt, and it is a NEW one:
-    # these five names were curated into `pncad::select` before any
-    # Python spelling existed for them.
-    "band": f"{GAP}: B-NAME-BUILDERS the [0, pi) band face of a meridian segment",
-    "band_pi": f"{GAP}: B-NAME-BUILDERS the [pi, 2pi) band face, the wire case's twin",
-    "band_rim": f"{GAP}: B-NAME-BUILDERS the latitude rim at a meridian vertex",
-    "carried": f"{GAP}: B-NAME-BUILDERS the name a single-operand survivor takes",
-    "meridian_vertex": f"{GAP}: B-NAME-BUILDERS the meridian vertex at one end",
+    # B-NAME-BUILDERS IS GONE FROM THIS ROSTER, closed at LIB-PYNAMES,
+    # and the id is gone from `FAMILIES` with it. All five names left
+    # and none needed a `BOUND_AS`: `pncad.pyi` declares `band`,
+    # `band_pi`, `band_rim`, `meridian_vertex` and `carried` at those
+    # exact spellings, so rule 1 accounts them. It is B-FORMAT's case
+    # with one difference worth the line: the family was chartered
+    # over a door's ANSWER rather than its argument — the name TEXT
+    # `Node.fillet` and `Node.shell` already took — so nothing else
+    # moved with them and nothing behind them was undercounted.
+    # `tests/test_role_names.py` is the positive form.
 }
 
 
