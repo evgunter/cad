@@ -6,6 +6,7 @@ status: review
 branch: lib/seats
 opened: 2026-09-09
 refs: [node-slot-literals-erase-the-authored-notation]
+pr: 2264
 ---
 
 Closes `node-slot-literals-erase-the-authored-notation` under Ev's
