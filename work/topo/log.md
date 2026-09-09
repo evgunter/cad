@@ -516,3 +516,23 @@ launders a stale operand row — is filed for TOPO as
 `producer-closing-mint-is-a-convention-with-thirteen-copies`, with
 `revert-does-not-mirror-plane-chart-images` beside it from the same
 diagnosis. Signed (SHELL orchestrator).
+
+## Announced seam from SHELL (2026-09-08): `mint_pcurves_of` and two registry rows with SHELL-10
+
+SHELL-10 (PR #2229) narrows the two simultaneous offset doors to
+their scope. In TOPO's files it adds `pcurves::mint_pcurves_of(body,
+faces, tol)` — the whole-body pass restricted to the named faces,
+sharing a private `mint_faces` with `mint_pcurves` (which keeps its
+opening `clear()`, the only thing that drops rows on dead half-edge
+keys; the subset pass does not, stated in its doc and pinned by both
+reviewers' rows) — a `staleness_posture::DECLARED` row for it with
+the guard's needle reading either spelling, and a
+`review_m1_pr5_internal::ALLOWED` tier-1 row; `lib.rs` exports the
+new door. No action asked. Two findings for TOPO from the same unit:
+`attach-postconditions-validate-the-whole-body-and-panic` (the
+setters' whole-body postcondition, a panic under the release
+profile — both reviewers' by execution) and, from the unit's own §3
+STOP, that tier 1 has no per-shell entry (five of thirteen passes are
+arena-global by construction), kept on SHELL's
+`doors-still-read-the-whole-body-for-tier1` as a closure-check
+limitation rather than filed here. Signed (SHELL orchestrator).

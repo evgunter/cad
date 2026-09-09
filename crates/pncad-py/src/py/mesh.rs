@@ -143,14 +143,153 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     typed_err(py, ErrorClass::Tessellate, err.to_string(), &fields)
 }
 
-/// Raise `StlError` with the writer's own message and a stable
-/// `variant`.
-fn stl_err(py: Python<'_>, variant: &str, message: String) -> PyErr {
+/// Everything that can refuse a `to_stl_*` call, as ONE value.
+///
+/// Four refusals share the `StlError` exception class because they
+/// refuse the same CALL — the writers' own, the two validated option
+/// newtypes' (which are this call's keyword arguments), and the
+/// boundary's own non-UTF-8 residue. Naming them together is what
+/// lets the projection below be a single exhaustive match instead of
+/// four, so an arm added to any of the three kernel enums arrives
+/// here as a compile error.
+enum StlRefusal<'a> {
+    /// The writers' refusal: the mesh and the sink.
+    Write(&'a stl::StlError),
+    /// The `solid <name>` name the ASCII writer was handed.
+    Name(&'a stl::SolidNameError),
+    /// The 80-byte header the binary writer was handed.
+    Header(&'a stl::BinaryHeaderError),
+    /// The ASCII writer emitted bytes that are not UTF-8. Not a
+    /// kernel arm: the writer emits ASCII by construction, so this is
+    /// a kernel defect surfaced rather than lossily replaced, and it
+    /// is spelled here because the caller sees it on this class.
+    NotUtf8(&'a std::string::FromUtf8Error),
+}
+
+/// Raise `StlError` with the refusing party's own message, a stable
+/// `variant`, and the arm's payload.
+///
+/// Every attribute is present on every arm and `None` where that arm
+/// does not carry it, so `getattr` never raises and a caller reads
+/// the payload without first branching on `variant`.
+///
+/// `detail` is one concept under two spellings — the underlying
+/// reporter's own words, whether that reporter is the output sink or
+/// the UTF-8 decoder — and crosses on one name.
+fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
+    use StlRefusal as R;
+    use stl::{BinaryHeaderError as H, SolidNameError as N, StlError as W};
+
+    let none = || py.None();
+    // A field whose own construction failed degrades to `None` rather
+    // than replacing the export's refusal with a boundary one.
+    let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    // `u64`'s conversion is INFALLIBLE (its error type is
+    // `Infallible`), so this one degrades nowhere: the match is total.
+    let int = |n: u64| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+
+    let (variant, message, triangle, index, count, character, len, detail) = match refusal {
+        R::Write(err @ W::DegenerateTriangle { triangle: t }) => (
+            stl_error_tag(err),
+            err.to_string(),
+            obj((t[0], t[1], t[2])
+                .into_pyobject(py)
+                .map(|v| v.into_any().unbind())),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        R::Write(err @ W::IndexOutOfRange { index: i }) => (
+            stl_error_tag(err),
+            err.to_string(),
+            none(),
+            int(u64::from(*i)),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        R::Write(err @ W::TooManyTriangles { count: c }) => (
+            stl_error_tag(err),
+            err.to_string(),
+            none(),
+            none(),
+            int(*c as u64),
+            none(),
+            none(),
+            none(),
+        ),
+        R::Write(err @ W::Io(source)) => (
+            stl_error_tag(err),
+            err.to_string(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&source.to_string()),
+        ),
+        R::Name(err @ N::Unrepresentable { character: c }) => (
+            solid_name_error_tag(err),
+            err.to_string(),
+            none(),
+            none(),
+            none(),
+            text(&c.to_string()),
+            none(),
+            none(),
+        ),
+        R::Header(err @ H::TooLong { len: bytes }) => (
+            binary_header_error_tag(err),
+            err.to_string(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*bytes as u64),
+            none(),
+        ),
+        R::Header(err @ H::SniffsAscii) => (
+            binary_header_error_tag(err),
+            err.to_string(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        R::NotUtf8(source) => (
+            "not_utf8",
+            format!("stl export: the ASCII writer emitted non-UTF-8 bytes: {source}"),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&source.to_string()),
+        ),
+    };
     typed_err(
         py,
         ErrorClass::StlExport,
         message,
-        &[("variant", PyString::new(py, variant).unbind().into_any())],
+        &[
+            ("variant", text(variant)),
+            ("triangle", triangle),
+            ("index", index),
+            ("count", count),
+            ("character", character),
+            ("len", len),
+            ("detail", detail),
+        ],
     )
 }
 
@@ -231,26 +370,20 @@ impl Mesh {
     /// sanitized into a file no parser can read.
     #[pyo3(signature = (solid_name=""))]
     fn to_stl_ascii(&self, py: Python<'_>, solid_name: &str) -> PyResult<String> {
-        let name = stl::SolidName::new(solid_name)
-            .map_err(|err| stl_err(py, solid_name_error_tag(&err), err.to_string()))?;
+        let name =
+            stl::SolidName::new(solid_name).map_err(|err| stl_err(py, StlRefusal::Name(&err)))?;
         let mut out = Vec::new();
         stl::write_ascii(
             &self.inner,
             &stl::AsciiOptions { solid_name: name },
             &mut out,
         )
-        .map_err(|err| stl_err(py, stl_error_tag(&err), err.to_string()))?;
+        .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
         // The writer emits ASCII by construction (the name is
         // validated printable-ASCII and the numbers are formatted), so
         // a decode failure here would be a kernel defect, surfaced
         // rather than lossily replaced.
-        String::from_utf8(out).map_err(|err| {
-            stl_err(
-                py,
-                "not_utf8",
-                format!("stl export: the ASCII writer emitted non-UTF-8 bytes: {err}"),
-            )
-        })
+        String::from_utf8(out).map_err(|err| stl_err(py, StlRefusal::NotUtf8(&err)))
     }
 
     /// Write binary STL and answer the bytes.
@@ -262,11 +395,11 @@ impl Mesh {
     /// written.
     #[pyo3(signature = (header=""))]
     fn to_stl_binary<'py>(&self, py: Python<'py>, header: &str) -> PyResult<Bound<'py, PyBytes>> {
-        let header = stl::BinaryHeader::new(header)
-            .map_err(|err| stl_err(py, binary_header_error_tag(&err), err.to_string()))?;
+        let header =
+            stl::BinaryHeader::new(header).map_err(|err| stl_err(py, StlRefusal::Header(&err)))?;
         let mut out = Vec::new();
         stl::write_binary(&self.inner, &stl::BinaryOptions { header }, &mut out)
-            .map_err(|err| stl_err(py, stl_error_tag(&err), err.to_string()))?;
+            .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
         Ok(PyBytes::new(py, &out))
     }
 

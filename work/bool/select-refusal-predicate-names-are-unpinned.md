@@ -57,3 +57,10 @@ through the datum-distance selector and the flush detector inside the
 no-interpreter tests, or a sweep of `topo`'s predicate-constant
 namespace three crates away. That is the K-name-space job, which is
 why it is an issue rather than a rider.
+
+## Re-homed (2026-09-08, LIB orchestrator)
+
+Moved from `work/lib/` to `work/bool/`: the predicate constants live in `crates/topo/src/boolean/{plane_eq,carrier_eq}.rs` and `crates/editor-core/src/names/{geompred,flush}.rs` — the K name-space job the file names; the pin site in `crates/pncad-py/src/tests.rs` is LIB's and follows the constants. Id, body and header
+are unchanged; the directory is the claim (`work/README.md`). LIB's
+half — the Python/façade rows that move when this closes — is named in
+the body and stays LIB's to execute once the kernel side lands.

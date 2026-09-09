@@ -392,9 +392,48 @@ class EvalError(PncadError):
     count: Optional[int]
 
 class PersistError(PncadError):
-    """A save or load the persistence doors refused."""
+    """A save or load the persistence doors refused.
+
+    `variant` is the refusing arm's tag — `non_finite`,
+    `profile_program`, `distribution`, `display_unit`, `serialize`,
+    `header_id`, `id_mismatch`, `parse`, `unreadable`, `snapshot`,
+    `edit_replay`, `tolerance_conflict` or `tolerance_invalid`.
+
+    Four arms wrap a refusal of their own, and its word rides beside
+    the carrier's on `inner_variant`: a profile-program fault, a
+    distribution fault, a snapshot invariant, or the `EditError` a
+    replayed edit raised. The nested refusal's own payload is the
+    inner door's surface and stays in the message.
+
+    Two names are shared by arms that carry one concept under
+    different spellings: `detail` is the underlying reporter's own
+    words (the serializer's, the JSON reader's, the deserializer's),
+    and `document` is the document's recorded epsilon, whether the arm
+    reports it beside the process's or alone.
+
+    `site` is where a non-finite float sits, as the kernel's own prose
+    — the descriptor nests an edit's index around the site inside that
+    edit, so it crosses as one sentence rather than a field per rung.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
 
     variant: str
+    inner_variant: Optional[str]
+    site: Optional[str]
+    node: Optional[NodeId]
+    name: Optional[str]
+    unit: Optional[str]
+    declared: Optional[str]
+    detail: Optional[str]
+    found: Optional[str]
+    header: Optional[str]
+    snapshot: Optional[str]
+    line: Optional[int]
+    column: Optional[int]
+    index: Optional[int]
+    process: Optional[float]
+    document: Optional[float]
 
 class ExportError(PncadError):
     """The document-layer export door refused.
@@ -439,9 +478,26 @@ class StlError(PncadError):
     `solid_name_unrepresentable`, `binary_header_too_long` or
     `binary_header_sniffs_ascii` from the two validated option values
     — which are keyword arguments here, so they refuse the same call
-    and share this class and its tag namespace."""
+    and share this class and its tag namespace.
+
+    The arm's payload rides beside it: `triangle` (the offending
+    facet's three position indices), `index` (a position index out of
+    range), `count` (a triangle count binary STL cannot number),
+    `character` (the character the `solid <name>` grammar does not
+    admit), `len` (the header's byte length), and `detail` — the
+    underlying reporter's own words, whether that reporter is the
+    output sink or the UTF-8 decoder.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
 
     variant: str
+    triangle: Optional[tuple[int, int, int]]
+    index: Optional[int]
+    count: Optional[int]
+    character: Optional[str]
+    len: Optional[int]
+    detail: Optional[str]
 
 class StepImportError(PncadError):
     """A STEP text the importer refused, or one that parsed to a
@@ -704,10 +760,14 @@ class NodePickError(PncadError):
     door whose invariant broke — the pick INDEX's, not the
     tessellator's and not the evaluation's — and `index_variant`
     carries the payload's own discriminant beside it,
-    `position_out_of_range` today. The offending patch, triangle and
-    position index are in the message: they describe a mesh that
-    violates its own invariant, which is a bug report rather than
-    something to branch on.
+    `position_out_of_range` today. Its three numbers come with it:
+    `patch` and `triangle` are the offending triangle's position in
+    the mesh value, and `index` the position it referenced outside the
+    buffer. They describe a mesh that violates its own invariant — a
+    bug report rather than something to branch on — and they are
+    attributes rather than prose because that is what a bug report is
+    assembled from. The payload's type is not raisable and so has no
+    door of its own to carry them.
 
     Every field is present on every arm, `None` where that arm does not
     carry it."""
@@ -718,6 +778,9 @@ class NodePickError(PncadError):
     kind: Optional[EntityKind]
     body: Optional[int]
     index_variant: Optional[str]
+    patch: Optional[int]
+    triangle: Optional[int]
+    index: Optional[int]
 
 class ChecksError(PncadError):
     """The advisory-check registry could not RUN.
@@ -755,9 +818,41 @@ class FrameError(PncadError):
 
     `variant` is `degenerate_aim`, `degenerate_tangent`,
     `degenerate_roll_reference`, `degenerate_reference_ladder`,
-    `degenerate_mirror_normal`, or `band`."""
+    `degenerate_mirror_normal`, or `band`. WHICH input was degenerate
+    is that word and nothing else: the tag is minted per input, so
+    there is no second attribute spelling the same fact.
+
+    A degenerate refusal carries the classifier's payload when the
+    margin landed in the ambiguity band, and carries none of it when
+    the margin was a definite zero: `margin` is the in-band value,
+    `margin_low` / `margin_high` the enclosure's bounds where the
+    classifier saw an enclosure rather than a value, `zero` and
+    `escalate` the band it was classified against, and `predicate`
+    the decision's name where the kernel attached one. A poisoned
+    margin carries the band and no number. This is diagnostic data:
+    the escalation contract is that no sound branch exists here, so
+    the recourse is the message's own three levers — declare the
+    coincidence, move the geometry, or lower the tolerance.
+
+    `band` wraps a band-construction refusal, whose word rides on
+    `inner_variant` (`invalid_value`, `invalid_lever_arm`, `empty`)
+    with `field` (`zero` or `escalate`) and `value` beside it; a band
+    that could not be formed reports its attempted thresholds on the
+    same `zero` / `escalate` pair.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
 
     variant: str
+    inner_variant: Optional[str]
+    margin: Optional[float]
+    margin_low: Optional[float]
+    margin_high: Optional[float]
+    zero: Optional[float]
+    escalate: Optional[float]
+    predicate: Optional[str]
+    field: Optional[str]
+    value: Optional[float]
 
 class IdentityError(PncadError):
     """A document identity could not be minted. Identity is never
@@ -1905,6 +2000,25 @@ class Node:
         are the same face."""
 
     @staticmethod
+    def union(members: list[NodeId], declare: Optional[NodeId] = None) -> Node:
+        """The N-ARY union: two or more member bodies folded into ONE
+        body, in the LIST's order.
+
+        Not `boolean`, which is the binary operation over two named
+        operand slots, and not `placed_union`, whose members are one
+        prototype under a placement rule: here the members are
+        authored independently and the membership is a list, which
+        `DocEdit.set_members` rewrites on the live node. `declare` is
+        the same optional coincidence input `boolean` takes, fed at
+        the fold step its two members meet at; without one, members
+        that merely TOUCH refuse (`undeclared_contact`).
+
+        Refuses at `Doc.insert` on the list as stated: `too_few_members`
+        (with the `count` found), `duplicate_input`,
+        `unresolved_input`, `declare_input_not_declare`. Whether a
+        member is a BODY is the kernel's question at `evaluate`."""
+
+    @staticmethod
     def declare(findings: list[FlushFinding]) -> Node:
         """The `Declare` node built from INSPECTED findings; its
         inserted id feeds `Node.boolean`'s `declare=`. Nothing here
@@ -2403,6 +2517,23 @@ class DocEdit:
     @staticmethod
     def delete_node(id: NodeId) -> DocEdit: ...
     @staticmethod
+    def set_members(node: NodeId, members: list[NodeId]) -> DocEdit:
+        """Replace a node's whole LIST input — a `Node.union`'s
+        members, a `Node.loft`'s sections — with the list stated in
+        full.
+
+        The one edit that changes a live node's inputs: no positional
+        spelling and no per-entry arm, so nothing is inferred about
+        which old entry survived. Dropping a member is this edit
+        without it plus `delete_node` of the orphan; a union's
+        `declare` input is left as it was.
+
+        Every input check `Doc.insert` makes is remade of the
+        REWRITTEN node — `unresolved_input`, `duplicate_input`,
+        `too_few_members`, `would_cycle` — and a node carrying no list
+        refuses `set_members_on_non_list`."""
+
+    @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
     def set_doc_param(name: ParamName, value: DocParam) -> DocEdit:
@@ -2431,7 +2562,6 @@ class DocEdit:
         parameter carried, with no refusal. Refuses typed on an
         undeclared name (`doc_param_not_declared`) and on a kind
         mismatch (`doc_param_value_kind_mismatch`)."""
-    @staticmethod
     @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
         """Set the document's ordered PRODUCT ROOTS outright.
@@ -2495,6 +2625,21 @@ class DocEdit:
         crossing. Refuses on a node with no instance slot — every node
         but a Part selecting an instance — and on an unknown or wrongly
         dimensioned parameter."""
+
+    @staticmethod
+    def bind_v_degree_param(node: NodeId, name: ParamName) -> DocEdit:
+        """Bind `node`'s STRUCTURAL v-degree slot to the document
+        parameter `name` — a loft's v-direction interpolation degree
+        as a named, editable number.
+
+        The third sibling, and the same narrow shape: a degree is
+        neither a count of placements nor an index into them, it says
+        how the skin interpolates BETWEEN sections. Refuses on a node
+        with no v-degree slot — from Python, every node but a
+        `Node.loft` — and on an unknown or wrongly dimensioned
+        parameter. The kernel's rule on the VALUE
+        (`1 <= v_degree <= len(profiles) - 1`) is checked at
+        `evaluate`, bound or literal alike."""
 
 class Doc:
     """A parametric document: the recipe, not the geometry."""
@@ -3246,16 +3391,17 @@ class Datum:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
     @property
-    def in_plane(self) -> Optional[tuple[tuple[float, float], tuple[float, float]]]:
+    def in_plane(self) -> Optional[tuple[tuple[Length, Length], tuple[float, float]]]:
         """An in-plane axis in its frame's own 2-D coordinates — the
         origin then the direction, as authored. `None` for every other
         kind, whose numbers are all world numbers.
 
-        The ORIGIN half crosses as bare floats in canonical metres,
-        where `Node.datum_axis_in_plane` writes it as
-        `tuple[Length, Length]`. That asymmetry between the write door
-        and this read door is recorded, not intended:
-        `work/lib/datum-in-plane-reads-back-a-length-pair-bare.md`."""
+        The halves cross differently because they are different
+        things. The ORIGIN is a position, so it carries `Length`s —
+        the same shape `Node.datum_axis_in_plane` writes it in and the
+        same shape `Datum.origin` reads back. The DIRECTION is
+        dimensionless and stays bare. Frame-local is a change of
+        datum, not of dimension."""
 
     @property
     def axes(
@@ -3425,6 +3571,7 @@ class Denotation:
     @property
     def candidates(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class Resolution:
     """A stored name's standing in one evaluation — what
