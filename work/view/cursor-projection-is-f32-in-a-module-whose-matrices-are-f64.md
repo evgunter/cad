@@ -43,7 +43,7 @@ cannot feed from its own doors.
 
 The `f64` → `f32` 4×4 matrix cast is written out four times:
 
-- `crates/viewer/src/app.rs:1833` — `to_f32`, `pub(crate)`, so no test
+- `crates/viewer/src/app.rs:1843` — `to_f32`, `pub(crate)`, so no test
   can reach it;
 - `crates/viewer/tests/review_gui2_r1.rs:251`;
 - `crates/viewer/tests/review_gui2_r2.rs:484`;

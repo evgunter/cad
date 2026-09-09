@@ -6671,8 +6671,9 @@ itself"*, which names a control that does not exist. Filed as
 questions came apart.
 
 **The flip is proved and not made.** `.github/workflows/ci.yml` is
-CIW's and is untouched; the exact edit and its evidence went to the
-orchestrator to route. Both spellings run clean at the wasm target on
+CIW's and is untouched; **no YAML was written here** — what went to the
+orchestrator to route is the evidence that the flip would pass, and the
+two candidate commands it would have to hold, not a diff. Both spellings run clean at the wasm target on
 the closing tree, and the negative control is what makes that evidence:
 the same clippy command on the unfixed tree exits 101 with those two
 warnings as errors and nothing else, which is also the enumeration rule
@@ -6705,3 +6706,91 @@ writes, the `None if opened` arm and its door comment
 (`viewerapp-document-derived-state-has-no-boundary`). Closed rows and
 this log's own past entries were left alone: both are records of what
 was true when written, not guards.
+
+## 2026-09-09 — #2272's fix pass: the wasm framing was half a class, and one dead symbol in `src/` was the cause of a tracker row
+
+The style review returned mergeable with no MAJOR. Four fixes, and
+three of them are the same mistake seen from three distances.
+
+**A target is not a class.** `wasm-theme-choice-is-offered-and-silently-
+not-kept` was filed as a browser defect — *"the one target where the
+store is known unusable"*. It is not: `remember_theme`'s guard reads
+`store.usable()`, which is a property of the store's STATE, and the
+native `FileStore` answers `false` too whenever `frame::prefs_path()`
+returns `None`, which it does when neither `XDG_CONFIG_HOME` nor `HOME`
+is set — a rule `frame.rs:1703-1706` states in the imperative and this
+path breaks. The item is re-framed around `usable()`; the reason it
+matters is that a fix keyed on `target_family` would have repaired the
+browser and shipped the desktop instance untouched.
+
+**And one level down, the refusal written for exactly that environment
+is dead.** `FileStore::save`'s pathless arm (`prefs.rs:407-413`) says
+*"no config directory in this environment"*; `store.save` has one call
+site in `src/` (`app.rs:1022`) and the `usable()` guard returns before
+it under precisely the condition that arm fires. No test reaches it
+either — the suite only builds `FileStore` through `at`. So the crate
+holds a typed sentence for a case it answers by returning quietly, and
+the guard and the refusal are one decision, not two.
+
+**A doc comment in `src/` was the source of a wrong tracker citation,
+and the sweep found the symptom.** `session/op.rs:742` said the chrome
+renders supersessions through `frame::supersession_notice`. **That
+symbol has never existed.** The real path is
+`frame::Withdrawal::superseded` through `Withdrawal::notice`, reached
+at `app.rs:932-935`. Fifteen occurrences of the dead name are in
+`work/view/*.md`, four in still-open items — including the
+`free-move-drag-dissolved-by-open.md:53-55` citation that
+`stale-file-citations-after-the-split` had already, correctly, decided
+not to repoint. The tracker learned the name from the code.
+
+The rule that makes it invisible: **`scripts/doc-gate.sh` fails only on
+BRACKETED intra-doc links**, so a bare `` `frame::foo` `` code span in a
+doc comment is prose to rustdoc and to the gate. Swept
+`crates/viewer/src` for the shape — 19 spans over 12 names for
+`frame::`/`session::`, 132 over 97 admitting every module prefix —
+restricting the definition check to this crate's own modules, which is
+what makes "not defined here" mean "does not exist". **Exactly two dead
+names, both `frame::`**: the one fixed, and `frame::dropped_hide_notice`
+thirteen lines below it. Filed as
+`doc-comments-name-symbols-that-do-not-exist`; the fixed one is now
+bracketed, so rustdoc holds it. The blind spot that bites is plain `//`
+comments — `app.rs:939` carries the same dead name and rustdoc can
+never reach it however it is written.
+
+**§Q6 on an unguarded reachability claim: write the reason, at the
+claim.** `deliver_status`'s doc says no `Show` reaches it at either call
+site. Nothing holds that: the one row over the arm exercises
+`dialog_status` as a pure function and stays green through any chrome
+change, and the door exists precisely because the `add_enabled` gate
+might be loosened. The paragraph now says so and names what a reader
+who loosens the gate must re-check. **No guard was invented for it** —
+Q6's third option is a written reason, and the honest answer here is
+that a guard would cost more than the arm.
+
+**What went to Ev rather than being answered.** Whether the status
+route was SUPPOSED to fire for an absent chooser, or whether
+`add_enabled` quietly took its job, is not decidable from the tree:
+every line is consistent with both readings and the difference is what
+#1125 intended. Filed as a `ruling`,
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser`, with
+`needs_ev: true` and no answer in it.
+
+**Two citations found wrong, left alone, and now written down.** The
+PR's sweep found `free-move-drag-dissolved-by-open.md:53-55` (a symbol
+that does not exist) and `new-document-owes-the-reframe-open-gets.md:18,
+20` (right subjects, wrong lines, at base and at head), judged both
+correctly, and recorded neither anywhere a later reader could find. A
+PR body is not a slate (§6). Both are rows in
+`stale-file-citations-after-the-split` now, with the base and head
+locations derived, and the first of them is a FOURTH class that item's
+line-number sweep cannot fix: a citation whose file and line are
+repairable but whose named symbol never existed. Class 1 is a subject
+that is gone; this is a subject that was never there, and repairing the
+number would leave a false sentence pointing somewhere real.
+
+**Operational.** The §Q6 paragraph is a ten-line insert at `app.rs:1065`,
+so every `app.rs` citation at or after it moved by +10 — including four
+this branch had already re-derived once. Re-derived again after the
+last edit, by finding each subject by name. That is the second time in
+one PR that the LAST edit invalidated an earlier sweep; the instrument
+is fine, the discipline is to run it last.

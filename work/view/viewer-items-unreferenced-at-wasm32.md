@@ -23,8 +23,8 @@ At `--target wasm32-unknown-unknown --features app`, two items in
   first argument in `run` (`app.rs:1887`), and `run` is
   `#[cfg(not(target_family = "wasm"))]`. The browser build's title is
   the page's, so there is nothing for the constant to do there.
-- `ViewerApp::deliver_status` (`app.rs:1087`). Its two call sites
-  (`:1240`, `:1257`) are both inside `#[cfg(not(target_family =
+- `ViewerApp::deliver_status` (`app.rs:1097`). Its two call sites
+  (`:1250`, `:1267`) are both inside `#[cfg(not(target_family =
   "wasm"))]` blocks — the Open…/Save… arms, which are compiled out on
   wasm because the browser build links no file dialog (#1125's posture:
   the control still shows, disabled, with its reason). It arrived with

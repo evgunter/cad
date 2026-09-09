@@ -1062,6 +1062,16 @@ impl ViewerApp {
     /// belt to that disabling's braces, and `frame::chooser_backend`
     /// can only be confident about `Absent`.
     ///
+    /// **Nothing holds that reading mechanically, and no cheap guard
+    /// would.** The one row over the arm,
+    /// `an_empty_dialog_is_loud_only_under_a_confidently_absent_backend`
+    /// in `tests/frame_policy.rs`, exercises `dialog_status` as a pure
+    /// function and stays green through any change to the chrome that
+    /// feeds it. So whoever loosens the `add_enabled(chooser.usable(),
+    /// …)` gate on the two buttons, or routes a second policy through
+    /// this door, has to re-read this paragraph: on that day nothing
+    /// else goes red.
+    ///
     /// **The door is still the right one, and that is the point of
     /// saying the traffic is empty.** The alternative is
     /// `apply_status`, which is correct for exactly as long as the

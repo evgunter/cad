@@ -34,7 +34,7 @@ cited on THIS tree, not on `1d29a8eeb`:
 | `app.rs:532` | `ThreadEvaluator` | `evalseam.rs:453` |
 | `app.rs:552` | `StartupError::Worker` | `app.rs:495` |
 | `app.rs:573` | `StartupError::Worker` | `app.rs:495` |
-| `app.rs:1032` | `ViewerApp::deliver_status` | `app.rs:1086` (the tenth) |
+| `app.rs:1032` | `ViewerApp::deliver_status` | `app.rs:1096` (the tenth) |
 | `app.rs:1957` | `run` | `app.rs:1852` |
 | `app.rs:1962` | `run` | `app.rs:1852` |
 | `evalseam.rs:18` | `ThreadEvaluator` | `evalseam.rs:453` |
