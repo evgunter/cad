@@ -4,6 +4,7 @@ kind: issue
 title: the Expr seat spells a written length in 55 characters, at 976 sites
 status: open
 opened: 2026-09-09
+needs_ev: true
 refs: [node-slot-literals-erase-the-authored-notation]
 ---
 
@@ -60,3 +61,33 @@ that with `Expr::written_length`, and its name.
 
 Not decided here, and deliberately not built at LIB-SEATS: a Python
 convenience alone is the thing the ruling refused.
+
+## Question for Ev (2026-09-09, LIB orchestrator; `[ev]` PR)
+
+Your note on (H) set the terms: a helper, if the seat wants one, goes
+on BOTH sides, mirrored, never as a Python-only convenience. LIB-SEATS
+built the seat and no helper, and measured the cost above: 55
+characters where `25 * mm` was 7, at 976 written-form sites, and the
+pressure already showing as private `_wm(value)` shorthands in two
+test files and module constants in three. Is the mirrored helper
+wanted, and what is it?
+
+- **(A) One composition, mirrored: `Expr::length_in(25.0, MM)` /
+  `Expr::angle_in(90.0, DEG)` in `editor-core` beside
+  `Expr::written_length`, and `Expr.length_in(25, mm)` /
+  `Expr.angle_in(90, deg)` in Python** — each exactly
+  `written_length(WrittenLength::in_unit(v, unit))`, refusing through
+  the same `DimensionError`; no new type, no new seat, one call at
+  every authored number, the notation kept. The Rust door is honest on
+  its own: the tour spells that composition by hand at
+  `demos/tour/src/ring.rs:190` and `diefillet.rs:78`. Recommended;
+  mechanical afterwards (the ~976 sites and the two private
+  shorthands convert to it).
+- **(B) Leave it.** The corpus keeps its private shorthands; the cost
+  is recorded and accepted.
+- **(C) A `quantity`-side sugar only** (`written(25.0, MM)` minting a
+  `WrittenLength`) — shortens one of the two calls and leaves the
+  other, so the site is still two calls.
+
+Recommendation: **(A)**; names are yours to change (`length_in` /
+`angle_in` mirror `WrittenLength::in_unit`'s own verb).
