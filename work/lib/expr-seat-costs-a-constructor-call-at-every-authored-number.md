@@ -2,9 +2,10 @@
 id: expr-seat-costs-a-constructor-call-at-every-authored-number
 kind: issue
 title: the Expr seat spells a written length in 55 characters, at 976 sites
-status: open
+status: closed
 opened: 2026-09-09
-refs: [node-slot-literals-erase-the-authored-notation]
+closed: 2026-09-09
+refs: [node-slot-literals-erase-the-authored-notation, LIB-HELPER]
 ---
 
 
@@ -101,3 +102,23 @@ through the same `DimensionError`; `Expr.length_in(value, unit)` and
 `Expr.angle_in(value, unit)` in Python, the mirrors. No new type, no
 new seat. The written-form sites and the corpus's private shorthands
 convert to the one call. Mechanical unit LIB-HELPER.
+
+## Closed (2026-09-09, LIB-HELPER)
+
+Built as ruled. `Expr::length_in(value, unit)` and
+`Expr::angle_in(value, unit)` sit beside `written_length` /
+`written_angle` in `crates/editor-core/src/expr.rs`, each exactly the
+composition and refusing through the same `DimensionError`;
+`Expr.length_in` / `Expr.angle_in` mirror them in
+`crates/pncad-py/src/py/expr.rs` through the same `LiteralError` path.
+No new type and no new seat: `crates/quantity` has zero diff and the
+written pair is unchanged.
+
+974 written-form sites converted to the one call across the tests,
+both ty fixtures, the README and the guide, plus the tour's three
+hand-spelled Rust compositions. The private shorthands this row
+recorded as the pressure are gone with them: `_wm(value)` in
+`test_north_star.py` and `test_resolve.py`, and the `_0M` / `_1M` pair
+behind `SQUARE` in `test_monte_carlo.py`, `test_face_frame.py` and
+`test_measures.py`. `SQUARE` itself stays — it names the unit square
+its assertions refer to, which is a fixture and not a spelling.
