@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-09
 branch: lib/sweep
 refs: [payload-rung-sweep-is-prose-and-a-third-run-disagrees, cross-list-payload-rungs-under-document-only-carriers]
+pr: 2245
 ---
 
 
