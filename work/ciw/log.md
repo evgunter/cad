@@ -1775,3 +1775,13 @@ sixth call site from being written inline
 (`work/ciw/apt-preamble-bypass-is-unguarded.md`). The parity checker
 reads workflows for INVOCATIONS, and a step that invokes no script is
 outside its claims by construction.
+
+**And a second residue from the same unit, which the discipline names and
+the token refuses.** `nightly.yml`'s admesh row changed with the other
+four, and `workflow_dispatch` on `nightly.yml` answers 403 for a lane's
+token — the same refusal this program already recorded for
+`rerun-failed-jobs`. So the rule that a nightly-only row is verified AT
+the change has no remedy available to the lane it binds
+(`work/ciw/nightly-rows-cannot-be-dispatched-by-a-lane.md`). Stated as a
+gap rather than argued away: the row is the same one-liner as four rows
+that did execute, and that is not the row running.

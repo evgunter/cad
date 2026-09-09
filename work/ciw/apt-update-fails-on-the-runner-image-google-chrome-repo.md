@@ -6,7 +6,7 @@ status: review
 opened: 2026-09-09
 branch: ciw/apt-preamble
 pr: 2277
-refs: [apt-preamble-bypass-is-unguarded]
+refs: [apt-preamble-bypass-is-unguarded, nightly-rows-cannot-be-dispatched-by-a-lane]
 ---
 
 Found by CIW unit 4's fix pass (PR 2263) when two consecutive runs went
@@ -147,5 +147,16 @@ a real `/etc/apt/sources.list.d/` as a `google-chrome.list` beside four
 genuine third-party lists: today's preamble exits 100, the script exits
 0 and installs.
 
-Residue: nothing stops a new step spelling its own preamble inline again
-— `work/ciw/apt-preamble-bypass-is-unguarded.md`.
+Hosted run 34417694481 is green, and green at STEP level where it
+matters: `apt preamble selftest` succeeded (it RAN — the `mirror` job
+carries no `if:`), `install a software Vulkan adapter (lavapipe)` and the
+`viewer app-feature rows (chrome + gpu pipeline smoke)` that depends on
+its adapter both succeeded, and both render lanes' installs succeeded.
+Two steps are NOT covered by it: `oracle-certify`'s `m4 for the gmp
+build`, whose job is gated on `run_interval_oracle` and did not run, and
+`nightly.yml`'s `install admesh`, which no PR run executes.
+
+Residue, two files: nothing stops a new step spelling its own preamble
+inline again (`work/ciw/apt-preamble-bypass-is-unguarded.md`), and a lane
+token gets 403 on `workflow_dispatch`, so the nightly row landed
+unverified (`work/ciw/nightly-rows-cannot-be-dispatched-by-a-lane.md`).
