@@ -626,7 +626,7 @@ fn unit(v: Vec3<f64>) -> Vec3<f64> {
 /// world one pixel of this window spans.
 ///
 /// The one place the camera and the pane's pixel size become
-/// `datums::View`, so the module below stays a value over two numbers
+/// [`crate::datums::View`], so the module below stays a value over two numbers
 /// rather than a borrow of the renderer. The scale is the vertical
 /// field of view over the vertical pixel count — one pixel's angular
 /// share — which at one metre from the eye is that many metres.
