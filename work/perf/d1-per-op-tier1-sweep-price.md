@@ -2,9 +2,9 @@
 id: d1-per-op-tier1-sweep-price
 kind: ruling
 title: D1's per-op whole-body tier-1 postcondition - keep it, narrow it to a declared-delta check, or make it once-per-door
-status: open
+status: closed
 opened: 2026-09-10
-needs_ev: true
+closed: 2026-09-10
 ---
 
 ## The question
@@ -88,3 +88,16 @@ per-op checks on. Option 2 is the only one that weakens what is
 checked; option 4 alone leaves dev and CI paying the same term and is
 argued against by the stanza's own rationale. Option 1 is the honest
 floor if the surgery scope is judged not worth its clarity cost.
+
+## Ruled (Ev, PR 2305, 2026-09-10)
+
+Option 3, as recommended: the whole-body tier-1 sweep runs **once per
+public door** rather than after every Euler operator inside it; an
+operator called directly still sweeps; the failing operator inside a
+door is recovered on failure (replay from the door's operator sequence,
+or a scalpel feature that restores per-op checking — the unit chooses
+and says why), never paid on success. The attach setters
+(`attach.rs:93,332`) join the same rule. Ev: "this change sounds
+great!" The clause's text in `docs/DESIGN.md` D1/D9 and `euler.rs`'s
+module docs is revised by the unit that lands the change (present
+tense only), which is `PERF-4`.
