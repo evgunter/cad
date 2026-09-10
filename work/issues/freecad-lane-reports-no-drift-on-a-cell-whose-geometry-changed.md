@@ -2,8 +2,9 @@
 id: freecad-lane-reports-no-drift-on-a-cell-whose-geometry-changed
 kind: issue
 title: the freecad lane reports no drift on the teapot, whose geometry changed
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-09-10
 ---
 
 
@@ -99,3 +100,49 @@ from a correct cell, on the contact sheet a reader looks at first.
 `demos/renders/teapot.png` and `demos/renders-freecad/teapot.png` side
 by side. The spout is curved and faceted in one and straight and round
 in the other.
+
+
+---
+
+## RETRACTED — the premise was false, and the lane was fine
+
+Everything above describes a defect that does not exist. `render(freecad)`
+re-baselined `demos/renders-freecad/teapot.png` in the very next run:
+
+```
+426cddc9  2026-09-10 04:54:44  render(freecad): re-baseline committed cells
+```
+
+That is seven minutes after this file was written. The committed cell now
+draws the canal, octagonal bore and all, and matches its kernel twin.
+
+**What I actually observed** was one run (`34437624311`) whose freecad lane
+reported `matches this render` while the cell was still the old one. That
+observation stands as a fact about that run. Everything I built on it —
+that the lane could not see the change, that a silent no-drift had shipped
+a stale cell, that the neutral drift checks were the only thing standing in
+the way — was inference from a pipeline I caught between cycles, and it was
+wrong.
+
+**Why the run said `matches` and the next one did not** is not established
+here, and this file no longer claims it matters. The plausible reading is
+an ordering effect between the scene-inputs artefact and the lane that
+consumes it, which resolves itself on the following run. Nothing was ever
+committed wrong, and no reader of the montage saw a stale teapot for longer
+than fifteen minutes.
+
+**The mistake worth keeping, since it is the second of its kind.** The
+withdrawn PR #2290 made the same error one step earlier — it claimed the
+renders needed a manual dispatch because the slow lane had not committed
+yet — and its own withdrawal note said: *"a slow lane mid-flight looks
+exactly like a lane that does nothing. Check whether the job is still
+running before concluding it declined to act."* This file then took that
+advice too literally: I confirmed that one run's job had finished and
+treated that as the pipeline having settled. It had not. A render cell's
+freshness is only meaningful once the whole pipeline has QUIESCED — the
+next merge to main runs the lanes again — so a single run is never enough
+to conclude a cell is stuck.
+
+Left closed rather than deleted: the file is the record of the error, and
+the montage lanes are exactly where a future reader is most likely to
+repeat it.
