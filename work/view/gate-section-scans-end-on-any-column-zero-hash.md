@@ -2,8 +2,10 @@
 id: gate-section-scans-end-on-any-column-zero-hash
 kind: issue
 title: the two README section scans end at any column-zero # so a Rust attribute or shebang inside a fenced block truncates the section, and the diagnosis blames the anchor
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-10
+pr: 2282
 ---
 
 Found by the style review of #2172, which hit it while attacking the
@@ -63,3 +65,68 @@ it fails against the unfixed reader.
 tracking is the right repair rather than, say, requiring a heading to
 be followed by a space.
 
+## Closed (2026-09-10)
+
+**The citations above are true of the tree this was filed against**
+(`:501`, `:536`); the repair moved both. Today's locations are given
+below and were re-derived by finding each subject, never by shifting a
+number.
+
+**Fixed, in one helper, and wider than the item asked for.**
+
+`FENCE_AWK` (`scripts/gates/viewer-vocab-declared-once.sh:541-614`,
+the helper's argument; `md_fenced` at `:615`) is prepended to BOTH
+README readers the way `gate_record_awk` prepends `gate_record_split`
+to its callers, so the two cannot answer *"is this line markdown
+structure"* differently. `readme_kinds` (`:719`) and `readme_table`
+(`:757`) each ask it of EVERY rule they have, not only of the
+section-end test at `:726` and `:763`.
+
+**Wider than "only `^#`", deliberately.** A `|` line inside a fence
+was being read as a roster row, which is the same defect with the
+other sentinel: a worked example of a table row, written in a fence
+below the real table, reds with *"row `GHOSTS` says `ghosts` declares
+a hand-written list"* about a list nobody wrote. A helper that is
+right for headings and wrong for the roster would be exactly the
+divergence it exists to prevent.
+
+**The rule is CommonMark's and not a toggle.** Open on three or more
+backticks or tildes indented at most three spaces; close only on the
+same character, at least as long, with nothing but whitespace after.
+A bare toggle lets a ``` line close a `~~~` block and hands the rest
+of it back to the heading rule — the repaired defect re-minted by the
+cheaper spelling of the repair, so that case is planted.
+
+**Both halves of the mechanism were reproduced against the unfixed
+reader before any edit**, and every new case owes the same: five
+planters at `:1326-1376`, five rows at `:1660-1669`, each run against
+the file at `104f1445b` and against this one.
+
+| case | before | after |
+|---|---|---|
+| fenced `#[derive(Debug)]` above the anchor | RED — *"no line … begins "Three kinds of list stay hand-written""* | GREEN |
+| fenced `#!/bin/sh` + `# a comment` below the list | RED — *"carries no "#### The lists that stay hand-written" heading"* | GREEN |
+| backtick line inside a tilde fence | RED — same missing-anchor red | GREEN |
+| worked table row written inside a fence | RED — *"row `GHOSTS` says `ghosts` declares"* | GREEN |
+| closed fence, decoy roster outside the section | RED — same missing-anchor red | GREEN |
+
+**Disclosed rather than fixed, and stated at the helper:** `md_fenced`
+is a fence tracker, not a markdown parser. Indented (four-space) code
+blocks, HTML blocks and block quotes are not modelled, so a `#` at
+column zero inside one of those still ends the section. Four-space
+indentation cannot put a `#` at column zero by construction, and
+neither of the other two has ever appeared in this section. **Not
+scheduled, deliberately**: the residue's failure is the same loud red
+this repair just removed, so it announces itself rather than going
+quiet, and it has no file because there is nothing waiting to be done
+— an item would be a row nobody can act on until someone writes a
+block quote into a Rust README.
+
+**Found on the way, and out of fence:** `mawk` 1.3.4 aborts its regex
+compiler on an interval followed DIRECTLY by `(`
+(`REcompile() - panic: values still on machine stack`), which is
+exactly the natural spelling of *"three or more backticks or tildes"*.
+`gawk` compiles it. The derivation and the portable spelling are at
+`:567-587`; reported in #2282 rather than filed, because whether
+`lib.sh`'s conventions block should carry the rule for the other gates
+is GATES' call.

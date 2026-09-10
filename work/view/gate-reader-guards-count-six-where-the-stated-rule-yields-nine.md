@@ -2,8 +2,10 @@
 id: gate-reader-guards-count-six-where-the-stated-rule-yields-nine
 kind: issue
 title: the vocab gate's header says its reader rule yields six, but six is the count of guards and the rule it states counts stages, of which there are nine
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-10
+pr: 2282
 ---
 
 Found by the style review of #2172 while re-deriving the reader
@@ -66,3 +68,77 @@ killing that specific stage and expecting its own name in the error.
 `sure` on the arithmetic and on the three misdiagnoses. `likely` that
 per-stage guards are worth the shell contortion at all four sites.
 
+## Closed (2026-09-10)
+
+**The citations above are true of the tree this was filed against**
+(`:386-395`, `:451-456`); the repair moved both. Today's locations are
+given below and were re-derived by finding each subject, never by
+shifting a number.
+
+**The repair, not the disclosure.** The guards went per-stage and the
+count became nine honestly. Every stage is now wrapped in its own
+brace group — the shape `const_hits` argued for alone at
+`scripts/gates/viewer-vocab-declared-once.sh:530` — so the status a
+guard reads is that stage's own: `viewer_sources` (`:514`),
+`const_items` (`:525`), `readme_kinds` (`:719`), `table_rows`
+(`:778`). The header states the rule at `:409`, produces the nine at
+`:423` and argues the shape at `:442`.
+
+**The arithmetic in this file is right and was re-derived, not taken.**
+Five process substitutions in `gate()`: `find`+`sort`, kinds
+`awk`+`sed`, table `awk`, rows `sed`, and `gate_rust_code`+`ITEM_AWK`+
+`HIT_AWK` — nine, the same nine this file names. `printf` is excluded
+for the reason given here and for one more now argued at `:455-463`: it is
+a bash BUILTIN, so nothing on PATH can shadow it away.
+
+**Two corrections to the consequence half, both reproduced against the
+unfixed gate before any edit.**
+
+- *"a dead rows `sed` reported as the row reader"* is **not a
+  misdiagnosis**. `table_rows` is `printf | sed` and `printf` is not a
+  reader by this file's own rule, so that guard already covered
+  exactly one reader stage and *the row reader* IS that `sed`. Two of
+  the three named consequences are real; this one is not.
+- *"a dead kinds `sed` reported as the kinds reader"* is real but is
+  not a WRONG name — it is **one name covering two stages**, so a CI
+  log could not say which of the `awk` and the `sed` died. It is now
+  *the kinds scanner* and *the kinds bullet extractor*.
+- **One this file's enumeration missed**, and it is the same shape as
+  its `sort` case: a dead `gate_rust_code` drew **two** diagnoses —
+  `lib.sh`'s own correct *the shared Rust reader* AND this file's *the
+  const-item reader*, for a stage this file does not own. Splitting
+  `const_items` leaves that stage to its own guard.
+
+**Every newly split guard owes a case, and the cases were run both
+ways** (rows at `:1613-1627`):
+
+| case | before | after |
+|---|---|---|
+| `sort` dead | RED — got *the source enumerator over*, wanted *the source sorter over* | GREEN |
+| `awk` dead | RED — got *the kinds reader over*, wanted *the kinds scanner over* | GREEN |
+| kinds `sed` dead (consumes, then exits) | RED — got *the kinds reader over*, wanted *the kinds bullet extractor over* | GREEN |
+| `gate_rust_code`'s `awk` dead | GREEN | GREEN |
+| `ITEM_AWK` dead (consumes, then exits) | GREEN | GREEN |
+
+**The last two are green on both sides and are declared as such rather
+than counted as evidence**, at `:474-483` as well as here. The
+`gate_rust_code` split REMOVED a wrong second name, and
+`gate_selftest_case` and its broken-tool twin match a substring with no
+way to assert a string is ABSENT — so a removal is invisible to them.
+That is the affordance half of
+`work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names`,
+restated at this gate rather than filed a second time; `lib.sh` is out
+of fence and was read, called and not edited. The `ITEM_AWK` case is
+new coverage of a stage that previously had none: before this PR the
+only case asserting *the const-item reader* actually killed
+`gate_rust_code`, which is the defect this item names, sitting inside
+the self-test that was supposed to hold it.
+
+**Disclosed rather than fixed:** stages 5 (the table reader) and 6
+(the row reader) have no case. Each is the only reader in its
+substitution, so its guard was already on its own stage and a case
+would be green before and after — coverage, not a control. Named at
+`:466-472` so a later reader derives the population from the rule
+rather than counting the rows. **Not scheduled and needing no file**:
+there is no defect behind it, only an absence of a case that could not
+prove anything.

@@ -6929,3 +6929,119 @@ route is empty everywhere.
 is a `#[cfg(test)]` helper, not the production renderer, and the
 contract clause in `stale-file-citations-after-the-split` is at `:40-41`,
 not `:47-49`. Both were mine, both stated in briefs, both caught.
+
+## 2026-09-10 — `view/gate-readers`: the vocab gate's two reader defects (#2282)
+
+Two filed items, both pre-existing, both found by the style review of
+#2172, both against `scripts/gates/viewer-vocab-declared-once.sh`:
+`gate-section-scans-end-on-any-column-zero-hash` and
+`gate-reader-guards-count-six-where-the-stated-rule-yields-nine`. One
+pass over one file, not one defect.
+
+**The population count re-derived: nine, and the same nine.** The
+item's enumeration was a reviewer's and unchecked. Deriving it from the
+stated rule against the file at `104f1445b` — every stage of every
+pipeline inside a process substitution — gives five substitutions and
+nine stages: `find`+`sort`; kinds `awk`+`sed`; table `awk`; rows `sed`;
+`gate_rust_code`+`ITEM_AWK`+`HIT_AWK`. The item's exclusion of `printf`
+holds, and now has a second argument at the site: it is a bash BUILTIN,
+so nothing on PATH can shadow it away.
+
+**Where the item was wrong is its CONSEQUENCE half, in both
+directions**, and this is the half worth keeping. It names three
+misdiagnoses. Two are real, one is not, and one it does not name is:
+
+- a dead `sort` reported as *the source enumerator* — real, and a
+  genuine wrong name;
+- a dead kinds `sed` reported as *the kinds reader* — real, but not a
+  WRONG name: one name covering two stages, so a CI log could not say
+  which died;
+- a dead rows `sed` reported as *the row reader* — **not a defect**.
+  `table_rows` is `printf | sed`, `printf` is not a reader by the
+  gate's own rule, so that guard already covered exactly one reader
+  stage and *the row reader* IS that `sed`;
+- **the one it missed**, and it is the same shape as its `sort` case: a
+  dead `gate_rust_code` drew TWO diagnoses — `lib.sh`'s own correct
+  *the shared Rust reader* AND this file's *the const-item reader*, for
+  a stage this file does not own.
+
+An item's enumeration is a claim like its options are (#2172's lesson,
+one column over): the arithmetic was right and three of the four
+consequences it asserts came out differently when reproduced. All four
+were reproduced by hand before any edit.
+
+**The repair, not the disclosure**, at every site: nine stages, eight
+guards in this file plus `lib.sh`'s own, each brace-grouped so the
+status it reads is that stage's own. That is the shape `const_hits`
+argued for alone and the rest of the file has now been brought to.
+
+**Item 1 fixed wider than it asked for, deliberately.** One
+`FENCE_AWK`/`md_fenced` helper prepended to both README readers the way
+`gate_record_awk` prepends `gate_record_split`, and both readers ask it
+of EVERY rule they have rather than only of `^#` — because a `|` line
+inside a fence was being read as a roster row, which is the same defect
+with the other sentinel. The rule is CommonMark's and not a toggle: a
+bare toggle lets a ``` line close a `~~~` block and hands the rest back
+to the heading rule, which is the repaired defect re-minted by the
+cheaper spelling of the repair, so that case is planted.
+
+**The negative-control table.** Control = the file at `104f1445b` with
+the new planters spliced in verbatim and a one-case dispatcher in place
+of `gate_selftest`, so the only difference between columns is the
+reader.
+
+| case | before | after |
+|---|---|---|
+| fenced `#[derive(Debug)]` above the anchor | RED — *"no line … begins "Three kinds of list stay hand-written""* | GREEN |
+| fenced `#!/bin/sh` + `# a comment` below the list | RED — *"carries no "#### The lists that stay hand-written" heading"* | GREEN |
+| backtick line inside a tilde fence | RED — same missing-anchor red | GREEN |
+| worked table row written inside a fence | RED — *"row `GHOSTS` says `ghosts` declares"* | GREEN |
+| closed fence, decoy roster outside the section | RED — same missing-anchor red | GREEN |
+| `sort` dead | RED — got *the source enumerator over* | GREEN |
+| `awk` dead | RED — got *the kinds reader over* | GREEN |
+| kinds `sed` dead (consumes, then exits) | RED — got *the kinds reader over* | GREEN |
+| `gate_rust_code`'s `awk` dead | GREEN | GREEN |
+| `ITEM_AWK` dead (consumes, then exits) | GREEN | GREEN |
+
+**Eight of ten are controls; the last two are declared coverage and not
+evidence**, in the file as well as in the PR. The `gate_rust_code`
+split REMOVED a wrong second name, and `gate_selftest_case` and its
+broken-tool twin match a substring with no way to assert a string is
+ABSENT — so a removal cannot be observed. That is the AFFORDANCE half
+of `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names`,
+restated at this gate rather than filed a second time; `lib.sh` was
+read, called and not edited. Worth recording what the harness CAN do,
+since the item is read as saying otherwise: it matches a substring of
+the whole output and `--also` requires several, which is enough to
+assert a reader's name and is what three of the controls above use. The
+gap is absence, not identity.
+
+**The `ITEM_AWK` case is the sharpest single finding.** Before this PR
+the only case asserting *the const-item reader* actually killed
+`gate_rust_code` — a different stage. The defect the item describes was
+sitting inside the self-test written to hold it, with a `want` string
+that was itself an instance of it.
+
+**Operational, and out of fence: `mawk` 1.3.4 aborts its regex compiler
+on an interval followed DIRECTLY by `(`.**
+`REcompile() - panic: values still on machine stack`. The boundary was
+derived, not guessed: `/^ {0,3}(a)/` and `/^a{2}(b)/` panic;
+`/^ {0,3}-(a)/` and `/^(a){2}/` compile. `gawk` 5.2.1 compiles all
+four. The natural spelling of *"three or more backticks or tildes"* is
+exactly that shape, so the first draft took the gate down under mawk
+with `exit 100` while staying green under gawk — and since the box's
+`awk` is gawk now and the hosted runner's is too, nothing on either
+lane would have shown it. This is a sibling of the directory's
+*no backslash, use `[(]`* rule
+(`loop-boundary-discards.sh:222-234`, `lib.sh:230-235`) and belongs
+beside it; reported in #2282 rather than filed, because whether
+`lib.sh`'s conventions block carries it is GATES' call. Two incidentals
+worth having: the failure surfaced as *"the kinds scanner over
+crates/viewer/README.md exited 100"* — this unit's own repair naming
+the right stage on its first real use — and the plan's note that the
+box's `awk` moved to gawk is exactly why the mawk run had to be done by
+hand rather than assumed.
+
+**`crates/viewer/README.md` was not touched.** The gate passes the real
+tree unchanged, same `4 ratified … 3 kinds` line as before, under both
+awks.
