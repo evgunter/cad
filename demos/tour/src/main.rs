@@ -51,6 +51,8 @@ mod klein;
 mod letterforms;
 mod lily;
 mod mate7a_r2_probes;
+mod mcplate;
+mod plate;
 #[cfg(feature = "probe")]
 mod probe;
 mod projectbox;
@@ -927,6 +929,23 @@ fn main() {
     // STL and STEP the same run wrote.
     let work = std::path::Path::new(&outdir).join("assembly");
     walk_tour(&mut run, &work, tol);
+
+    // The Monte-Carlo density cell (`mcplate`). It writes a PICTURE
+    // rather than a body, so it sits here beside the uv lane's own
+    // output rather than inside `walk_tour`'s stop list: there is no
+    // `Stop` for it to be, no STL, no camera, and no renderer — the
+    // geometry is 2-D and the tour draws it itself.
+    println!("\n-- the MC density plate (E11.1: the population an advisory number summarizes) --");
+    let mc_dir = std::path::Path::new(&outdir).join("mc");
+    std::fs::create_dir_all(&mc_dir).expect("create the mc dir");
+    let svg = mcplate::narration(tol);
+    let mc_path = mc_dir.join("plate-density.svg");
+    std::fs::write(&mc_path, &svg).expect("write the density sheet");
+    println!(
+        "   wrote {} ({} bytes) — compose with demos/render-mc.sh",
+        mc_path.display(),
+        svg.len()
+    );
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");

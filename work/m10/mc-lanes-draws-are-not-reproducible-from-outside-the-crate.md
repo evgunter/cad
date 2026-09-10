@@ -74,3 +74,17 @@ so; if they do not, the difference is the finding and the cell says
 that instead. What it cannot work around is half 1 — without a public
 `unit()` the replay is a different population, so the picture would be
 "samples from the same laws" rather than "this run's samples".
+
+
+**Residue after `mc::sample_offsets` landed.** Two halves are left and
+both are named rather than folded into a "closed":
+
+* the GATING half above is untouched — `ParamBox`/`BoxAxis` are still
+  `interval`-only in the façade while `monte_carlo` is not, so the
+  lane's own replay path stays unreachable on a default build;
+* `sample_offsets` is a Rust door and is **not bound in Python**, so a
+  `pncad-py` consumer is still where every consumer was: able to ask
+  for the summary and not for a member of the population. The demo
+  that motivated the door is a Rust tour cell, so nothing forced the
+  binding yet; the moment a Python row wants to draw or inspect one
+  sample, it will.

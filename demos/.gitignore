@@ -1,8 +1,10 @@
 # Demo-local build/venv/output artifacts. Only the tour/wild sources,
-# render scripts, the rendered PNGs under renders*/ and the UV lane's
-# SVG sheet (renders-uv/montage-uv.svg — text, so it diffs) are
-# tracked. The UV lane's per-face cells live under out/uv/ and are not:
-# there are ~1000 of them, and the sheet is the artifact worth keeping.
+# render scripts, the rendered PNGs under renders*/ and the two
+# renderer-free lanes' SVG sheets (renders-uv/montage-uv.svg and
+# renders-mc/plate-density.svg — text, so they diff) are tracked. The
+# UV lane's per-face cells live under out/uv/ and are not: there are
+# ~1000 of them, and the sheet is the artifact worth keeping. The MC
+# lane's own out/mc/ is the same story with one file.
 # (`out/` matches at any depth, so demos/wild/out/ is covered too.)
 tour/target/
 wild/target/
