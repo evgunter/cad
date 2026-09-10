@@ -99,8 +99,8 @@
 //! # The line: news, ranked
 //!
 //! Every sentence on the line is something that HAPPENED — an action
-//! the document refused, a pick a tool declined, a dialog that could
-//! not open — and which of a frame's news SHOULD win is
+//! the document refused, a pick a tool declined, a placement a later
+//! edit withdrew — and which of a frame's news SHOULD win is
 //! [`frame_status`]'s ranking. What stops it being the news is an
 //! event about its subject: a camera verdict goes on the next camera
 //! event, what the cursor said on the next cursor move, and what the
@@ -372,12 +372,15 @@ pub enum StatusUpdate {
 /// spelled as a decision, and `Expire` is a RETIREMENT, which must
 /// reach the field directly because a notice cannot un-say anything.
 ///
-/// **This is the door for a policy that may or may not have
-/// something to say** — [`fold_status`] and [`dialog_status`] are both
-/// that shape. A writer that already knows it has a [`Message`] pushes
-/// onto `notices` itself; a writer that assigns the field has no way
-/// to say "I have nothing to add", which is the defect [`apply`]'s
-/// docs describe and this door removes for the policies.
+/// **This is the door for a policy that may or may not have something
+/// to say**, and [`fold_status`] is the only one there is: its refusal
+/// is news and its clean arm retires the camera sentence. Read off
+/// `deliver`'s callers rather than off the shape — there is one
+/// production call site, `pane::viewport::land`. A writer that already
+/// knows it has a [`Message`] pushes onto `notices` itself; a writer
+/// that assigns the field has no way to say "I have nothing to add",
+/// which is the defect [`apply`]'s docs describe and this door removes
+/// for the policies.
 ///
 /// **Every arm is written out**, and a wildcard for the three
 /// non-`Show` ones would defeat the whole door: it would route a
@@ -1732,34 +1735,18 @@ pub fn running_under_wsl() -> bool {
     std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some()
 }
 
-/// What the disabled dialog controls say, and what the status line
-/// says should a dialog somehow be attempted anyway: the confident
-/// half of the #1097 finding, with the dialog-free workaround.
+/// **What the disabled dialog controls say**, and the only thing that
+/// says it: the confident half of the #1097 finding, with the
+/// dialog-free workaround.
+///
+/// A missing backend is held state, so the disabled control carrying
+/// this as its `on_disabled_hover_text` is the read and there is no
+/// status-line route beside it. The argument, its sweep rule and Ev's
+/// ruling live in `crates/viewer/README.md`, under *"A missing
+/// file-chooser backend is not on the line at all"*.
 pub const NO_CHOOSER_BACKEND: &str = "no file chooser backend — install zenity or \
      xdg-desktop-portal; a document path can also be passed on the \
      command line";
-
-/// The status line after a file dialog returns.
-///
-/// A chosen path leaves the line alone — the `Open`/`Save` batch it
-/// feeds owns the verdict through [`batch_status`]. An empty-handed
-/// dialog under a plausibly-present backend is read as a genuine
-/// cancel and stays QUIET (a cancel should not nag); under
-/// [`ChooserBackend::Absent`] it is the loud arm — belt to the
-/// chrome's braces, which should have disabled the control before any
-/// click could reach here.
-pub fn dialog_status(backend: ChooserBackend, chose: bool) -> StatusUpdate {
-    match (chose, backend.usable()) {
-        (true, _) | (false, true) => StatusUpdate::Keep,
-        // The document the user asked for is the subject: they aimed
-        // Open or Save at it and this is what came back, so the next
-        // act the document accepts is what makes it stale.
-        (false, false) => StatusUpdate::Show(Message::new(
-            Subject::Document,
-            NO_CHOOSER_BACKEND.to_owned(),
-        )),
-    }
-}
 
 /// Whether a folded event stream actually moved the camera.
 ///
@@ -2164,12 +2151,23 @@ mod tests {
         assert_eq!(status, None, "and sweeps the line whatever it held");
 
         // `Keep` is the absence of news spelled as a decision: neither
-        // route is taken.
-        let mut notices = Vec::new();
+        // route is taken, and a `deliver` call that answers `Keep` is a
+        // no-op on BOTH sides. `notices` starts non-empty so the
+        // assertion can fail for a `Keep` that sweeps the frame's news
+        // as well as for one that adds to it — an empty vector cannot
+        // tell "did not push" from "cleared what was there".
+        let mut notices = vec![Message::new(
+            Subject::Document,
+            "news from earlier this frame",
+        )];
         let mut status = Some(held.clone());
+        let before = notices.clone();
         deliver(&mut notices, &mut status, StatusUpdate::Keep);
-        assert!(notices.is_empty());
-        assert_eq!(status, Some(held));
+        assert_eq!(
+            notices, before,
+            "a Keep neither adds to the frame nor sweeps it"
+        );
+        assert_eq!(status, Some(held), "and leaves the field exactly as it was");
     }
 
     /// A fold the camera refused: a dolly by zero, which is not a
