@@ -373,8 +373,19 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             let vol = pncad::topo::mass_properties(&body, tol)
                 .expect("volume")
                 .volume;
+            // Literal, not `format!` into a leaked `&'static str`:
+            // the roster scan in `crates/pncad/tests/all.rs` reads
+            // every tour stop's NAME out of this source, and a name it
+            // cannot resolve statically is a stop the north-star audit
+            // never has to carry a row for. `heatsink` next door has
+            // the same shape for the same reason.
+            let name: &'static str = match n {
+                6 => "impeller6",
+                8 => "impeller8",
+                _ => "impeller12",
+            };
             Stop {
-                name: Box::leak(format!("impeller{n}").into_boxed_str()),
+                name,
                 caption: caption.clone(),
                 montage: *n == COUNTS[2],
                 story: "ONE recipe document: a 24-gon hub, one blade, and a \
@@ -413,11 +424,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     azim: -55.0,
                     up: 'z',
                 },
-                bodies: vec![SceneBody::plain(
-                    Box::leak(format!("impeller{n}").into_boxed_str()),
-                    [0.66, 0.58, 0.44],
-                    body,
-                )],
+                bodies: vec![SceneBody::plain(name, [0.66, 0.58, 0.44], body)],
             }
         })
         .collect()
