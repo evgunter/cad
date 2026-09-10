@@ -360,18 +360,13 @@ pub(crate) fn tessellate_curved(
     // pole corner are one set; the full-2π seam was the half held off
     // by [`pole_columns`]' arithmetic instead of by a check, in the
     // lane that actually has seams. What decided it was the price,
-    // measured on the tour corpus rather than estimated: the widening
-    // is free on a face the walk identifies nothing on (the census
-    // does not run), and costs +5% to +12% of `tessellate` on the
-    // donut, whose two torus patches carried a 212-id seam over 178k
-    // triangles each at the finest δ under the sizing of the day
-    // (one step for both chart directions; today's per-direction
-    // steps size the same patches ~20x smaller, and the census's
-    // share of a smaller patch was not re-measured). (That range is the review's
-    // independent in-binary reproduction, which is the tighter of the
-    // two measurements; this lane's own rounds put the same three rows
-    // at +8% to +13%. Both are inside the box's noise for anything
-    // smaller, which is why only the donut rows are quoted.) That is at or under the price already paid for
+    // measured rather than estimated: the widening is free on a face
+    // the walk identifies nothing on (the census does not run), and on
+    // the donut — two torus patches, each carrying a seam of `nv + 1`
+    // identified ids, 648 to 16 080 triangles over δ = 0.1 to 0.004 —
+    // the census is 2.2 % to 2.7 % of `tessellate` (dev profile with
+    // this crate at opt-level 2; median of four warm rounds, whose
+    // spread is under 2 %). That is under the price already paid for
     // the pole half, and it buys the case a mechanical check.
     #[cfg(debug_assertions)]
     {

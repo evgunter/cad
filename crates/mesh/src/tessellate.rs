@@ -202,21 +202,17 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     // emits NO triangles, its chord segments are used by no face, and
     // `check_mesh` passes the empty patch — the oblique lens with
     // debug assertions off; this census is what sees it): it was the
-    // first candidate and it was MEASURED against
-    // this one, both switched into one binary on the tour corpus, at
-    // all three ε rows and the byte instrument's three deltas.
+    // first candidate and it was MEASURED against this one.
     //
     // THE PRICE ARGUMENT IS NARROWER THAN IT LOOKS, and is stated at
-    // its real width. On the sub-millisecond rows the same-binary
-    // spread between rounds runs to ~98%, which swamps both columns;
-    // there `check_mesh` measures CHEAPER than the census below on
-    // several rows, and that is not evidence for it any more than
-    // against it. The rows that decide are the donut's, where the
-    // spread is 4-12% and the meshes were 7k-178k triangles per patch
-    // under the torus sizing of the day (~20x fewer since the
-    // per-direction steps; the pair was not re-measured):
-    // `check_mesh` +24% to +33% of `tessellate`, this census −8% to
-    // +1%. That gap is the price argument, and it is the whole of it.
+    // its real width. On sub-millisecond bodies the round-to-round
+    // spread swamps both columns, and a reading there is not evidence
+    // either way. The rows that decide are the donut's — 648 to
+    // 16 080 triangles over δ = 0.1 to 0.004, dev profile with this
+    // crate at opt-level 2, median of four warm rounds whose spread
+    // is under 2 %: `check_mesh` costs 7 % to 8 % of `tessellate`,
+    // this census 0.1 % to 0.4 %. That gap is the price argument, and
+    // it is the whole of it.
     //
     // The rest is FOOTPRINT, which does not depend on the clock:
     // `check_mesh` censuses every edge of every patch — overwhelmingly
