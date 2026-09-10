@@ -1898,3 +1898,33 @@ first thing the lane must settle.
 derived population, in a checker that is now ~2850 lines and has taken a
 new claim in each of the last three units. Accumulation is a live
 concern and the brief says so.
+
+
+## 2026-09-10 — unit 5 delivered: the environment a pair runs under, in claim 10
+
+PR 2295. The lane widened claim 10 rather than minting claim 13, and
+settled the two-spellings question the brief flagged: a prefix and an
+`env:` block are normalised into one map per half before anything is
+compared, because the tree contains a pair that writes the same fact in
+all three spellings at once (`oracle-certify`: job block, step block,
+one local prefix). A prefix-only reader would have red that correct pair
+— and the fix for a false red is an exemption, which is how the table
+becomes a place to put things.
+
+**The accumulation answer was one table, not a fifth.** `FLAG_EXEMPT`
+is now `PAIR_EXEMPT`, keyed `(pair, token)` over flags and variables
+alike, since the expiry arms are the same sentences for both. Its new
+`both` side fixes a latent bug: claim 10 already told the reader to
+"declare the pair in FLAG_EXEMPT with the reason it differs", and doing
+so produced the *expired* error.
+
+**The selftest lesson held, and was paid for once.** The lane published
+a mutant table — nine ways to break the arm, each mapped to the row that
+catches it — and the first pass showed *hosted inline prefixes not read*
+SURVIVING with the selftest green: no case had planted a prefix on the
+hosted half, which is precisely the shape the arm exists for. One row
+added, mutant killed.
+
+Residue filed in the same PR (`mirror-pairs-context-beyond-env`): three
+mirrored pairs carry a `working-directory:` against a local `cd`, and
+nothing compares them.

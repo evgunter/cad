@@ -2,7 +2,8 @@
 id: mirror-pairs-env-divergence-unchecked
 kind: issue
 title: no check compares the env a mirrored CI pair runs under, so a deliberate divergence and a dropped variable look the same
-status: dispatched
+status: review
+pr: 2295
 opened: 2026-09-04
 refs: [mirror-parity-never-compares-flags, 1759, 1739]
 branch: ciw/mirror-env-parity
@@ -114,3 +115,37 @@ item already names, with a concrete list to size it against.
 claim 10 is this item's own unit. Recorded here so the next lane starts
 from an instance rather than from a hypothetical.
 
+
+
+## Disposition (2026-09-10, PR 2295)
+
+Claim 10 widened, not a claim 13: same pair enumeration, same
+`marker_row` closure, same OPAQUE rule, same exemption table, one token
+class further out.
+
+**The two spellings are read as one fact.** Hosted's environment is its
+job-level `env:`, then its step-level `env:`, then any inline prefix on
+its `run:` line — GitHub's precedence — normalised to `NAME -> value`
+against the local half's prefixes, with YAML's optional quotes stripped
+and `${{ … }}` / `$VAR` values OPAQUE on the flag arm's own rule. The
+tree forces this rather than merely favouring it: `oracle-certify /
+certify against the oracle` sets `RUSTFLAGS` in a JOB block and
+`CAD_FUZZ_EFFORT` in a STEP block against one local prefix carrying
+both, so a prefix-only reader would have red a correct pair and been
+paid off with an exemption.
+
+**Scope.** `SEMANTIC_ENV` = `RUSTFLAGS`, `RUSTDOCFLAGS`, `CAD_*`. The
+throughput knobs the local half is ratified not to mirror are out BY
+NAME at the table, not by exemption. Extent is the pair, not a shared
+cargo subcommand, so render rows that run no cargo are read.
+
+**`FLAG_EXEMPT` -> `PAIR_EXEMPT`**, keyed `(pair, token)` over both
+classes with a third side value `both` — which the flag arm's own error
+text had already invited without having.
+
+**Population re-measured:** six pairs, ten `(pair, variable)` facts.
+Three gated agreements, seven declared.
+
+**Residue**, filed as `mirror-pairs-context-beyond-env`: the working
+directory (three pairs, measured), a `uses:`-only pair (zero today, a
+refusal rather than a comparison) and names outside `SEMANTIC_ENV`.
