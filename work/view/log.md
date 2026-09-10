@@ -7054,3 +7054,37 @@ hand rather than assumed.
 **`crates/viewer/README.md` was not touched.** The gate passes the real
 tree unchanged, same `4 ratified … 3 kinds` line as before, under both
 awks.
+
+**The §5 sweep, and it found one sibling.** Both defects are classes,
+so the shape was swept rather than the symbol: every gate that scans a
+markdown section, and every `|| status=$?` / `|| reader_failed` sitting
+on a multi-stage pipeline. **One hit outside the unit's file**, and it
+is VIEW's own: `scripts/gates/viewer-module-kinds.sh:220-227`'s
+`readme_table_modules` has BOTH — `:223`'s bare `^#` region end and
+`:224`'s `inside && /^\|/`, plus two unguarded reader stages inside two
+process substitutions (`:270`, `:277`) in a gate that has **no reader
+guard apparatus at all**. Filed as
+`module-kinds-table-scan-repeats-both-vocab-gate-reader-defects`, a
+file rather than a sentence in a merged PR body.
+
+**Two things the sweep learned that reading the vocab gate would not
+have taught.** First, the callers there red on an EMPTY roster
+(`:271-274`, `:278-282`) but never on a SHORT one, so defect 1 has a
+worse direction at that gate than at this one: a fence part-way down a
+table truncates the region, the rows below vanish, and the gate goes on
+printing OK while enforcing its rule over fewer modules than the README
+lists. Second, that same empty check means defect 2 there is a
+MISDIAGNOSIS rather than a false green — a dead reader reds with *"the
+heading was renamed or the table was reshaped"* about a README that is
+fine. Both stated in the item, because *"the same defect next door"* is
+the claim a reader would otherwise assume and it is not true in either
+direction.
+
+**What the sweep could not match**, stated because a blind spot left
+unstated is not a negative result: it is a grep over one line at a
+time, so a section scan whose `^#` rule is spelled across two awk rules,
+or built by string concatenation before `awk` sees it, would not appear;
+and it covers `scripts/gates/*.sh` only, so a markdown section scan
+anywhere else under `scripts/` is outside it. The three `lib.sh` hits it
+did return are single-stage pipelines and not this class — checked by
+reading each, not by filtering on the path.
