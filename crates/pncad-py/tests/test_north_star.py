@@ -2541,16 +2541,29 @@ class TestTeapot(unittest.TestCase):
     #: which is what keeps every section's centroid ON the spine, and
     #: a centred section is what makes the bend volume-neutral.
     SPOUT_BORE: ClassVar[float] = 3.0 / 4.0
-    #: How many sections the skin is fitted through, and how many arcs
-    #: each section's circle is authored as. FOUR arcs, not a plain
-    #: `circle`: a `circle` loop is two segments, so each lateral wall
-    #: would span a semicircle — two rational Béziers joined at an
-    #: interior knot of multiplicity = degree, which is a C0 crease the
-    #: tessellator refuses by name. `work/mesh`'s
-    #: `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`
-    #: carries the finding; `circle_split` is the door.
+    #: How many sections the skin is fitted through.
     SPOUT_STATIONS: ClassVar[int] = 7
-    SPOUT_ARCS: ClassVar[int] = 4
+    #: And how many SIDES each section has, because the sections are
+    #: regular POLYGONS and not circles. The Rust scene's `SPOUT_SIDES`
+    #: carries the whole measurement; the short of it is that a circle
+    #: is RATIONAL, so lofted circular sections make rational walls, a
+    #: rational wall is a quadrature face whose certified enclosure is
+    #: chased to a width derived from eps, and at eps = 1e-12 that
+    #: chase runs out of budget and `mass_properties` REFUSES, typed.
+    #: Four times the arcs per section bought eighteen times the
+    #: resolution and was still short. A polygon's sides are STRAIGHT,
+    #: so these walls are POLYNOMIAL and the polynomial lane has an
+    #: exact per-span shortcut the rational lane has none of.
+    #:
+    #: The circle was ruled out at a SECOND door first, filed as
+    #: `work/mesh`'s
+    #: `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`:
+    #: a plain `circle` loop is two segments, so each lateral wall
+    #: would span a semicircle — two rational Beziers joined at an
+    #: interior knot of multiplicity = degree, a C0 crease the
+    #: tessellator refuses by name. `circle_split` clears that one and
+    #: then meets this one.
+    SPOUT_SIDES: ClassVar[int] = 8
     #: The spout's total bend, root tangent to tip tangent.
     SPOUT_BEND: ClassVar[float] = math.pi / 4
     SPOUT_ROOT: ClassVar[tuple] = (-1.0 / 32.0, 3.0 / 64.0, 0.0)
@@ -2618,6 +2631,20 @@ class TestTeapot(unittest.TestCase):
     @staticmethod
     def annulus(ro, ri):
         return math.pi * (ro * ro - ri * ri)
+
+    @classmethod
+    def ngon_shape(cls):
+        """The unit regular `SPOUT_SIDES`-gon's three shape constants:
+        area, perimeter and apothem, each a closed form of the side
+        count. They stand exactly where pi stood while the sections
+        were circles."""
+        n = cls.SPOUT_SIDES
+        half = math.pi / n
+        return (
+            n * math.sin(half) * math.cos(half),
+            2 * n * math.sin(half),
+            math.cos(half),
+        )
 
 
     def placed(self, p):
@@ -2736,19 +2763,37 @@ class TestTeapot(unittest.TestCase):
 
     def spout_loft(self, doc, frames):
         """The canal: one `Node.loft` through annular sections, each
-        one FOUR arcs so no lateral wall carries a C0 crease."""
-        profiles = []
-        for plane, outer in frames:
-            def arcs(radius):
-                return circle_split((0 * m, 0 * m), radius * m, self.SPOUT_ARCS, 0 * rad)
+        loop a regular `SPOUT_SIDES`-gon.
 
-            profiles.append(
-                doc.insert(
-                    Node.profile(
-                        [arcs(outer), arcs(outer * self.SPOUT_BORE)], plane=plane
-                    )
+        Authored through the PATH builder rather than through a polygon
+        door, and that is a small finding of its own: `Node.polygon` is
+        a whole-PROFILE shortcut over one loop, so a section that needs
+        TWO loops — a wall and its bore — cannot reach it and goes back
+        to `Open.at(...).line_to(...)`. The Rust scene reaches
+        `LoopProgram::polygon` because there a polygon is a LOOP
+        program and composes into a multi-loop profile; the binding's
+        shortcut sits one level up, where it does not compose.
+        """
+
+        def ngon(radius):
+            pts = [
+                (
+                    radius * math.cos(math.tau * k / self.SPOUT_SIDES) * m,
+                    radius * math.sin(math.tau * k / self.SPOUT_SIDES) * m,
                 )
+                for k in range(self.SPOUT_SIDES)
+            ]
+            path = Open.at(pts[0])
+            for pt in pts[1:]:
+                path = path.line_to(pt)
+            return path.line_to(Start)
+
+        profiles = [
+            doc.insert(
+                Node.profile([ngon(outer), ngon(outer * self.SPOUT_BORE)], plane=plane)
             )
+            for plane, outer in frames
+        ]
         return doc.insert(Node.loft(profiles, Expr.count(3)))
 
     def mouth_segment(self, ev, node, bands):
@@ -3140,39 +3185,96 @@ class TestTeapot(unittest.TestCase):
         # is the STRAIGHTENED tube. The same cancellation runs over the
         # lateral area.
         #
-        # So what this comparison measures is the LOFT FIT, and it is
-        # asserted at bounds a decade looser than every other body on
-        # this page — 2.7e-6 on the volume and 3.3e-5 on the area, a
-        # factor of twelve apart because a volume integrates the
-        # surface's position and an area integrates its metric.
+        # The section is a regular POLYGON, so the three shape
+        # constants stand where pi used to: `A*r^2` for a section,
+        # `P*r` for its perimeter, and the apothem for how far a wall
+        # leans out over the taper. Every one is a closed form of the
+        # side count, so nothing here is fitted.
         bore = self.SPOUT_BORE
-        v_spout = (1 - bore * bore) * self.frustum_volume(
-            self.SPOUT_R0, self.SPOUT_R1, self.SPOUT_LEN
-        )
-        a_spout = (
-            self.frustum_lateral(self.SPOUT_R0, self.SPOUT_R1, self.SPOUT_LEN)
-            + self.frustum_lateral(
-                bore * self.SPOUT_R0, bore * self.SPOUT_R1, self.SPOUT_LEN
+        ngon_area, ngon_perim, ngon_apothem = self.ngon_shape()
+        hollow = 1 - bore * bore
+        v_spout = (
+            hollow
+            * ngon_area
+            * self.SPOUT_LEN
+            * (
+                self.SPOUT_R0 * self.SPOUT_R0
+                + self.SPOUT_R0 * self.SPOUT_R1
+                + self.SPOUT_R1 * self.SPOUT_R1
             )
-            + self.annulus(self.SPOUT_R0, bore * self.SPOUT_R0)
-            + self.annulus(self.SPOUT_R1, bore * self.SPOUT_R1)
+            / 3.0
+        )
+
+        def lateral(r0, r1):
+            """One wall of the prismatoid is a trapezoid: parallel
+            sides `P*r0/2` and `P*r1/2` over the whole side count, and
+            a slant that leans out by the apothem's share of the
+            taper."""
+            return (
+                0.5
+                * ngon_perim
+                * (r0 + r1)
+                * math.hypot(self.SPOUT_LEN, (r0 - r1) * ngon_apothem)
+            )
+
+        a_spout = (
+            lateral(self.SPOUT_R0, self.SPOUT_R1)
+            + lateral(bore * self.SPOUT_R0, bore * self.SPOUT_R1)
+            + hollow
+            * ngon_area
+            * (self.SPOUT_R0 * self.SPOUT_R0 + self.SPOUT_R1 * self.SPOUT_R1)
         )
         placed = ev.value(spout).body()
         placed.validate()
         props = placed.mass_properties()
+
+        # **And what the comparison can then measure is NOT the same on
+        # the two readings, which is the scene's newest finding.** Both
+        # come off the same polynomial patches through the same lane,
+        # and their certified pads are six orders apart: the volume's
+        # is 2.4e-13 of the answer and the area's is 1.08e-2 of it. A
+        # volume is a flux integral of a LINEAR field, so on a
+        # polynomial patch the integrand is a polynomial and the exact
+        # per-span shortcut applies; an area integrates `|Xu x Xv|`, a
+        # SQUARE ROOT, which is polynomial on no patch however
+        # polynomial the patch. The polygon bought the volume an
+        # exactness it could not buy the area.
+        #
+        # So the VOLUME resolves the loft fit — its gap is six orders
+        # ABOVE its pad, leaving the arithmetic no room to be
+        # responsible for it — and is held to a fixed bound. Measured
+        # 2.30e-6, where every other body on this page is at 1e-12.
         self.assertLess(
-            abs(props.volume - v_spout) / v_spout, 1e-4, "the canal's V vs the fit"
+            abs(props.volume - v_spout) / v_spout, 1e-5, "the canal's V vs the loft fit"
         )
-        self.assertLess(
-            abs(props.surface_area - a_spout) / a_spout,
-            1e-3,
-            "the canal's A vs the fit",
-        )
-        # And the kernel says the same thing in its own units: these
-        # walls are RATIONAL, so they are quadrature faces and the
-        # answer is an ENCLOSURE, where every analytic body on this
-        # page publishes a pad of exactly 0.
+        # Neither pad is vacuous: an ANALYTIC body publishes exactly 0,
+        # so both rows below would be free on the pot next door.
         self.assertGreater(props.volume_pad, 0.0, "a fitted skin publishes a pad")
+        self.assertGreater(props.area_pad, 0.0, "on both readings")
+        self.assertLess(
+            props.volume_pad * 1e3,
+            abs(props.volume - v_spout),
+            "the volume gap reads as the SKIN only while the kernel's own certified "
+            "enclosure is far below it",
+        )
+        # The AREA cannot resolve it, and saying so is the honest row.
+        # Its gap is six hundred times INSIDE its pad, so the
+        # certificate already admits every bit of it and there is
+        # nothing to attribute to the skin. The only true statement is
+        # that the closed form lies in the bracket — and that the
+        # bracket is far too wide to see a fit through, asserted
+        # POSITIVELY so that the day the area quadrature gets sharp
+        # this reds and the row gets to claim more.
+        a_gap = abs(props.surface_area - a_spout)
+        self.assertLessEqual(
+            a_gap, props.area_pad, "the canal's A is inside the certified enclosure"
+        )
+        self.assertLess(
+            a_gap * 100.0,
+            props.area_pad,
+            "the area's enclosure is no longer far wider than the gap — it may now "
+            "resolve the loft fit, and this row should say so rather than declining to",
+        )
 
         # The handle by Pappus on its own disc.
         sweep = 2 * (math.pi / 2 + self.HANDLE_OVER)

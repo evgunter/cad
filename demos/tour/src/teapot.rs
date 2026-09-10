@@ -213,16 +213,62 @@
 //!    scene used before the spout bent. The same cancellation runs
 //!    over the lateral area, where `∮(1 − κ r cosθ) dθ = 2π`.
 //!
-//!    So the closed form survives the bend, and what the assertion
-//!    actually measures is the LOFT FIT: a cubic skin through
+//!    So the closed form survives the bend, and what the comparison
+//!    can then measure is the LOFT FIT: a cubic skin through
 //!    [`SPOUT_STATIONS`] stations against the swept tube it
-//!    interpolates. The scene asserts it at `1e-4` where its pot and
-//!    lid are asserted at `1e-12`, and the note carries what the fit
-//!    really costs. The kernel says the same thing in its own units:
-//!    these walls are RATIONAL, so they are quadrature faces and
-//!    `mass_properties` publishes an enclosure rather than a number,
-//!    where every analytic body on this page publishes a pad of
-//!    exactly 0.
+//!    interpolates. **On the volume it measures exactly that, at
+//!    2.30e-6, where this scene's pot and lid are asserted at 1e-12.
+//!    On the area it cannot, and the scene says so instead of
+//!    pretending otherwise** — see below.
+//!
+//!    **The sections are POLYGONS, which is the newest finding on this
+//!    page, and the tour's own ε sweep is what found it.** The first
+//!    authoring used circles and could not be WEIGHED at ε = 1e-12 at
+//!    all: a circle is rational, so its lofted walls are rational
+//!    patches, a rational patch is a quadrature face whose certified
+//!    enclosure is chased to a width derived from ε, and that chase
+//!    ran out of budget — `mass_properties` refused, typed, naming the
+//!    face and the width it reached. Four times the arcs per section
+//!    bought eighteen times the resolution and was still short, with
+//!    the returns collapsing, so the arc count was never the binding
+//!    constraint; [`SPOUT_SIDES`] carries the measurement. A polygon's
+//!    sides are STRAIGHT, so these walls are POLYNOMIAL and the
+//!    polynomial lane has an exact per-span shortcut the rational lane
+//!    has none of — which is also why `twisted_tube` next door can be
+//!    a loft and be a solid at every ε: its sections are squares.
+//!
+//!    **And then the two readings that came back are different KINDS
+//!    of number, six orders apart, off the same patches through the
+//!    same lane.** The volume's certified pad is 1.18e-17 — 2.4e-13 of
+//!    the answer, f64 noise — because a volume is `∮ F·n dA` over a
+//!    LINEAR field, so on a polynomial patch the integrand is a
+//!    polynomial and the exact shortcut applies. The area's is 2.65e-4
+//!    — 1.08e-2 of the answer, one percent — because an area is
+//!    `∬ |X_u × X_v|`, and that norm is a SQUARE ROOT: not polynomial
+//!    on any patch, however polynomial the patch. The polygon bought
+//!    the volume an exactness it could not buy the area.
+//!
+//!    So the scene makes two different claims and only where each is
+//!    earned. The VOLUME's gap is six orders above its pad, which
+//!    leaves the arithmetic no room to be responsible for it, so it
+//!    reads as the skin and is held to a fixed [`SPOUT_SKIN_FIT_V`].
+//!    The AREA's gap is six hundred times INSIDE its pad, so the
+//!    kernel's certificate already admits every bit of it and there is
+//!    nothing to attribute: the only true statement is that the closed
+//!    form lies in the bracket, and that the bracket is far too wide to
+//!    see a fit through. There is no `SPOUT_SKIN_FIT_A` for that
+//!    reason, and the "too wide" half is asserted POSITIVELY, so the
+//!    day the area quadrature gets sharp this reds and the scene gets
+//!    to say the fit is visible on the area too.
+//!
+//!    The circle was ruled out TWICE, at two different doors, and the
+//!    first is filed as `work/mesh`'s
+//!    `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`:
+//!    a plain `LoopProgram::Circle` is two segments, so each lateral
+//!    wall spans a semicircle — two rational Béziers joined at an
+//!    interior knot of multiplicity = degree, a C⁰ crease the
+//!    TESSELLATOR refuses by name, three steps after the authoring
+//!    that caused it.
 //! 6. **The lid's roll takes ONE kernel call and TWO document
 //!    requests, and the difference is the NAME emitter.**
 //!    `fillet_edges` rolls all three rims in one request. The same
@@ -388,10 +434,78 @@ const SPOUT_R1: f64 = 3.0 / 256.0;
 const SPOUT_BORE: f64 = 3.0 / 4.0;
 /// How many sections the spout's skin is fitted through.
 const SPOUT_STATIONS: usize = 7;
-/// How many ARCS each section's circle is authored as. Four, and it
-/// is not a style choice — see [`spout_loft`], where the tessellator's
-/// own refusal is quoted.
-const SPOUT_ARCS: u32 = 4;
+/// **How many SIDES each section has — and the section is a POLYGON
+/// rather than a circle, which is the scene's sharpest measured
+/// finding and not a convenience.**
+///
+/// A circle is RATIONAL. Its lofted walls therefore go down
+/// `props`'s rational quadrature lane, which has no exact per-span
+/// shortcut — the midpoint rule's O(h²) is the whole convergence
+/// story there — and at the tightest tolerance the tour runs
+/// (ε = 1e-12) that lane cannot certify a face of this size AT ANY
+/// BUDGET. The engine says so before paying for it: it proves after
+/// round 0 that even its last round (1024 pieces per axis) falls
+/// short, and refuses `QuadratureBudget` with the bound it would have
+/// reached. Without a volume, tier 3's `+V` invariant has nothing to
+/// check, so the BODY does not validate.
+///
+/// Measured across three circular authorings, against a target of
+/// 1.024e-9:
+///
+/// | arcs per section | last round's width |
+/// |---|---|
+/// | 4 | 2.53e-8 |
+/// | 8 | 3.97e-9 |
+/// | 16 | 1.39e-9 |
+///
+/// Four times the arcs bought eighteen times the resolution and it is
+/// STILL short, with the returns collapsing (6.4× then 2.85×) — so
+/// the arc count is not the binding constraint and no amount of it
+/// would be.
+///
+/// A POLYGON's sides are straight, so its lofted walls are
+/// POLYNOMIAL and take the integral lane, which does have that
+/// shortcut. That is why `twisted_tube` next door can be a loft and be
+/// a solid at every ε: its sections are squares. This canal is the
+/// same trade at eight sides instead of four — round enough to read as
+/// a spout at cell scale, and certifiable at every tolerance the tour
+/// runs.
+///
+/// The circle was ruled out TWICE, at two different doors, and the
+/// first one is filed as
+/// `work/mesh/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`:
+/// a plain `LoopProgram::Circle` is two segments, so each lateral wall
+/// spans a semicircle — two rational Béziers joined at an interior
+/// knot of multiplicity = degree, a C⁰ crease the TESSELLATOR refuses
+/// by name. `CircleSplit(4)` clears that door and then meets this one.
+const SPOUT_SIDES: usize = 8;
+/// **How far the canal's VOLUME may sit from the straightened tube's
+/// closed form**, relative. It is a bound on the LOFT SKIN and on
+/// nothing else, and everything that licenses reading it that way is
+/// what [`SPOUT_SIDES`] bought.
+///
+/// The oracle is exact for the ideal swept tube — the bend is
+/// volume-neutral, argued at the assertion site. The kernel certifies
+/// its own integration of this body's VOLUME to a pad of 1.18e-17, or
+/// 2.4e-13 of the answer, which is f64 noise and nothing else: a
+/// volume is `∮ F·n dA` for a linear field, so on a POLYNOMIAL patch
+/// the integrand is a polynomial and the polynomial lane's per-span
+/// shortcut is exact. So a disagreement six orders ABOVE that pad is
+/// not the arithmetic and cannot be. What is left is the cubic skin
+/// through [`SPOUT_STATIONS`] stations departing from the tube it
+/// interpolates, and this is the one number on this page that measures
+/// that departure.
+///
+/// It does not move with ε — a station's frame and a section's
+/// vertices are arithmetic on the constants above and never consult a
+/// tolerance, and the tour's own sweep is what says so, bit for bit at
+/// 1e-6, at the default and at 1e-12. A FIXED bound is the honest one
+/// here for exactly that reason, where on the rational authoring,
+/// whose gap WAS the quadrature's chased width, it was not.
+///
+/// Measured: **2.30e-6**. There is deliberately no companion constant
+/// for the area; see the assertion site for why there cannot be one.
+const SPOUT_SKIN_FIT_V: f64 = 1e-5;
 /// **The spout's total bend**, root tangent to tip tangent: half a
 /// right angle. The canal leaves the belly on [`SPOUT_DIR`] and
 /// arrives pointing that much further up, which is the shape a spout
@@ -644,6 +758,35 @@ fn spout_frames(doc: &mut Doc<ProfileProgram>, tol: Tol) -> Vec<(RecipeNodeId, f
         .collect()
 }
 
+/// A regular [`SPOUT_SIDES`]-gon of circumradius `r`, centred on the
+/// section frame's origin — which is what keeps the section's centroid
+/// ON the spine, and a centred section is what makes the bend
+/// volume-neutral.
+fn ngon(r: f64) -> LoopProgram {
+    let pts: Vec<(f64, f64)> = (0..SPOUT_SIDES)
+        .map(|k| {
+            #[allow(clippy::cast_precision_loss)]
+            let a = TAU * k as f64 / SPOUT_SIDES as f64;
+            let (s, c) = a.sin_cos();
+            (r * c, r * s)
+        })
+        .collect();
+    LoopProgram::polygon(pts).expect("a regular polygon's corners are finite and distinct")
+}
+
+/// The unit regular [`SPOUT_SIDES`]-gon's three shape constants:
+/// area, perimeter and apothem, all at circumradius 1. Every closed
+/// form the canal is held to is one of these times a radius.
+fn ngon_shape() -> (f64, f64, f64) {
+    #[allow(clippy::cast_precision_loss)]
+    let n = SPOUT_SIDES as f64;
+    (
+        0.5 * n * (TAU / n).sin(),
+        2.0 * n * (PI / n).sin(),
+        (PI / n).cos(),
+    )
+}
+
 /// **The spout, as one `Node::Loft` through those sections.**
 ///
 /// Two loops per section — the outer arc chain and the bore, the bore
@@ -656,39 +799,15 @@ fn spout_loft(
     frames: &[(RecipeNodeId, f64)],
     tol: Tol,
 ) -> RecipeNodeId {
-    // **`CircleSplit(4)`, not `Circle`, and the reason is a LIBRARY
-    // FINDING measured on this scene** (`memories/demo-purpose.md`:
-    // the awkwardness is the finding, never worked around silently).
-    //
-    // A plain `Circle` loop is TWO segments, so each lateral wall of
-    // the loft spans a SEMICIRCLE — and a semicircle is not one
-    // rational Bézier: the kernel joins two of them at an interior
-    // knot of multiplicity = degree, which is a C⁰ crease in the
-    // wall's own u direction. The tessellator refuses exactly that,
-    // typed and with the remedy in the payload:
-    //
-    //   UnsupportedNurbsFace { note: "NURBS direction with a C⁰ crease
-    //   (interior multiplicity = degree) — the interpolation Taylor
-    //   bound needs C¹; split the face at the crease" }
-    //
-    // So a lofted round section is unmeshable through the `Circle`
-    // door and meshable through this one, and the difference is four
-    // quarter arcs instead of two half ones. `CircleSplit` is the
-    // grammar's own declared-subdivision carrier rather than a
-    // workaround — but that a scene has to KNOW to reach for it, and
-    // learns so from a tessellation refusal three steps downstream of
-    // the loop it authored, is the finding. `twisted_tube` never met
-    // it because a square's sides are separate segments already.
+    // **A POLYGON and not a circle, and [`SPOUT_SIDES`] carries the
+    // measurement that chose it.** Straight sides make the lofted
+    // walls POLYNOMIAL, which is what lets `props` certify them at
+    // every tolerance the tour runs; a circle is rational and its
+    // walls cannot be certified at the tightest one at any budget.
     let profiles = frames
         .iter()
         .map(|&(plane, outer)| {
-            let arcs = |radius: f64| LoopProgram::CircleSplit {
-                centre: lpt(0.0, 0.0),
-                radius: len(radius),
-                n: SPOUT_ARCS,
-                phase: ang(0.0),
-            };
-            let loops = vec![arcs(outer), arcs(outer * SPOUT_BORE)];
+            let loops = vec![ngon(outer), ngon(outer * SPOUT_BORE)];
             insert(doc, Node::Profile(ProfileProgram { plane, loops }), tol)
         })
         .collect();
@@ -1935,65 +2054,174 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // gates on it.
     let (sin_t, cos_t) = spout_turn().sin_cos();
     let spout = body_at(&ev, r.spout);
-    let spout_props = pncad::topo::mass_properties(&spout, tol).expect("the spout's props");
 
-    // **The closed form a BENT tube still has, and what the loft costs
-    // against it.**
+    // **The closed form a BENT tube still has, and what it costs to
+    // ask for it on a fitted skin.**
     //
-    // There is no elementary volume for a fitted skin through seven
+    // There is no elementary volume for a cubic skin through seven
     // annuli. There IS one for the thing that skin approximates, and
     // it is the same frustum difference this scene used before the
     // spout bent: **a bend about a spine through the sections' own
     // centres is volume-neutral.** The tube's volume element is
-    // `(1 − κ·x) dA ds` with `x` measured toward the curvature centre,
-    // and `∫x dA` over a centred section is zero — so the curvature
-    // term integrates away and what is left is `∫A ds`, which is the
-    // STRAIGHTENED tube's volume. The same cancellation runs over the
-    // lateral area, where `∮(1 − κ r cosθ) dθ = 2π`.
+    // `(1 − κ·x) dA ds` with `x` toward the curvature centre, and
+    // `∫x dA` over a centred section is zero — so the curvature term
+    // integrates away and what is left is `∫A ds`, the STRAIGHTENED
+    // tube's volume. The same cancellation runs over the lateral area,
+    // where `∮(1 − κ r cosθ) dθ = 2π`. So the oracle is the straight
+    // frustum, said in the canal's own three numbers: outer radii
+    // `R0 → R1`, a bore that is `SPOUT_BORE` of each, and the SPINE
+    // LENGTH as the height.
     //
-    // So the oracle is the straight frustum, said in the canal's own
-    // three numbers: outer radii `R0 → R1`, a bore that is
-    // `SPOUT_BORE` of each, and the SPINE LENGTH as the height.
+    // The section is a regular polygon, so the three shape constants
+    // stand where π used to: `A·r²` for a section, `P·r` for its
+    // perimeter, and the apothem for how far a wall leans out over the
+    // taper. Every one of them is a closed form of `SPOUT_SIDES`, so
+    // nothing here is fitted.
+    let (ngon_area, ngon_perim, ngon_apothem) = ngon_shape();
+    let hollow = SPOUT_BORE.mul_add(-SPOUT_BORE, 1.0);
+    let v_spout = hollow
+        * ngon_area
+        * SPOUT_LEN
+        * SPOUT_R1.mul_add(SPOUT_R1, SPOUT_R0.mul_add(SPOUT_R0 + SPOUT_R1, 0.0))
+        / 3.0;
+    // One wall of the prismatoid is a trapezoid: parallel sides
+    // `P·r₀/2` and `P·r₁/2` over the whole side count, and a slant
+    // that leans out by the apothem's share of the taper.
+    let lateral =
+        |r0: f64, r1: f64| 0.5 * ngon_perim * (r0 + r1) * SPOUT_LEN.hypot((r0 - r1) * ngon_apothem);
+    let a_spout = lateral(SPOUT_R0, SPOUT_R1)
+        + lateral(SPOUT_BORE * SPOUT_R0, SPOUT_BORE * SPOUT_R1)
+        + hollow * ngon_area * SPOUT_R0.mul_add(SPOUT_R0, SPOUT_R1 * SPOUT_R1);
+
+    // **AND HERE IS THE SCENE'S NEWEST FINDING, which the tour's own
+    // eps sweep is what found — twice, at two different doors.**
     //
-    // What the assertion is really measuring, therefore, is **the loft
-    // FIT** — the gap between a cubic skin through seven stations and
-    // the swept tube it interpolates. That gap is a reading this scene
-    // owes, and it is in the note.
-    let v_spout =
-        SPOUT_BORE.mul_add(-SPOUT_BORE, 1.0) * frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN);
-    let a_spout = frustum_lateral(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
-        + frustum_lateral(SPOUT_BORE * SPOUT_R0, SPOUT_BORE * SPOUT_R1, SPOUT_LEN)
-        + annulus(SPOUT_R0, SPOUT_BORE * SPOUT_R0)
-        + annulus(SPOUT_R1, SPOUT_BORE * SPOUT_R1);
-    let v_fit = ((spout_props.volume - v_spout) / v_spout).abs();
-    let a_fit = ((spout_props.surface_area - a_spout) / a_spout).abs();
-    // LOOSER bounds than the analytic scenes on this page carry, and
-    // the looseness is the subject rather than a concession — these
-    // are the fit's own price, with a decade of headroom over what it
-    // actually costs, so a fit that got worse would red. Asserted
-    // AFTER the placement, as the frustum's was, so the rigid map is
-    // part of the receipt.
+    // The first authoring of this canal had CIRCULAR sections, and it
+    // could not be weighed at all at eps = 1e-12. A circle is
+    // RATIONAL, so its lofted walls are rational patches; a rational
+    // patch is a QUADRATURE face whose certified enclosure is chased
+    // down to a width derived from eps; and that chase ran out of
+    // budget and `mass_properties` REFUSED, typed, naming the face and
+    // the width it reached. [`SPOUT_SIDES`] carries the measurement
+    // that says no amount of arcs would have fixed it, and why.
     //
-    // **TWO bounds, an order of magnitude apart, because the two
-    // readings are not equally sensitive to the same skin.** Measured
-    // here: 2.7e-6 on the volume and 3.3e-5 on the area, a factor of
-    // twelve. A volume is an integral of the surface's POSITION and an
-    // area is an integral of its metric, so a skin that rides close to
-    // the swept tube can still stretch against it — the same reason a
-    // chordal mesh under-reports volume by far less than it
-    // under-reports area. Reported, not explained away: the note
-    // carries both figures.
-    assert!(
-        v_fit < 1e-4,
-        "the canal's V = {} vs the straightened frustum's {v_spout} ({v_fit:e} relative)",
-        spout_props.volume
+    // A polygon's sides are STRAIGHT, so these walls are POLYNOMIAL,
+    // and the polynomial lane has an exact per-span shortcut the
+    // rational lane has none of. The reading below therefore exists at
+    // every tolerance the tour runs at.
+    //
+    // **And then the two readings it hands back turn out to be
+    // different KINDS of number, which is the part this scene did not
+    // expect and now measures.** Both come off the same polynomial
+    // patches through the same lane, and their certified pads are six
+    // orders apart:
+    //
+    // | reading | pad | relative to the answer |
+    // |---|---|---|
+    // | volume | 1.18e-17 | 2.4e-13 |
+    // | area   | 2.65e-4  | 1.08e-2 |
+    //
+    // The integrands are what differ. A volume is `∮ F·n dA` over a
+    // LINEAR field, so on a polynomial patch the integrand is a
+    // polynomial and the exact per-span shortcut applies — the pad is
+    // f64 noise. An area is `∬ |X_u × X_v| du dv`, and that norm is a
+    // SQUARE ROOT: not a polynomial on any patch, however polynomial
+    // the patch. So the area can only ever be BRACKETED, and the
+    // polygon bought the volume exactness it could not buy the area.
+    //
+    // Which splits the comparison below into two claims that are not
+    // the same claim, and the scene makes each one only where it is
+    // earned:
+    //
+    // * **the VOLUME resolves the skin.** The gap is 1.14e-10, six
+    //   orders above a pad of 1.18e-17, so the arithmetic has no room
+    //   to be responsible for it and what is left is the cubic skin
+    //   departing from the tube it interpolates. Held to
+    //   [`SPOUT_SKIN_FIT_V`], and separately held to be far above the
+    //   pad, because the second is what licenses reading the first as
+    //   a fact about geometry.
+    // * **the AREA cannot, and saying so is the honest row.** Its gap
+    //   is 4.31e-7 and its pad is 2.65e-4 — the gap is six hundred
+    //   times INSIDE the enclosure, so the kernel's own certificate
+    //   already admits every bit of it. There is nothing here to
+    //   attribute to the skin: the only true statement is that the
+    //   closed form lies inside the bracket, and that the bracket is
+    //   far too wide to see a fit through. Both halves are asserted,
+    //   the second one positively, so that the day the area quadrature
+    //   gets sharp this row REDS and the scene gets to say the fit is
+    //   visible on the area too.
+    let sp = pncad::topo::mass_properties(&spout, tol).expect(
+        "polygonal sections put the canal's walls in the POLYNOMIAL lane, where the \
+         quadrature has an exact per-span shortcut — so unlike the rational authoring \
+         this reading exists at every eps the tour runs at",
     );
+    let v_gap = (sp.volume - v_spout).abs();
+    let a_gap = (sp.surface_area - a_spout).abs();
+    // Neither pad is vacuous, and saying so is what keeps both rows
+    // claims: an ANALYTIC body publishes exactly 0, so every
+    // comparison below would be free on the pot next door.
     assert!(
-        a_fit < 1e-3,
-        "the canal's A = {} vs the straightened frustum's {a_spout} ({a_fit:e} relative)",
-        spout_props.surface_area
+        sp.volume_pad > 0.0 && sp.area_pad > 0.0,
+        "a fitted skin is still a quadrature face and publishes a nonzero pad; got \
+         {:e} and {:e}",
+        sp.volume_pad,
+        sp.area_pad
     );
-    let spout_pad = spout_props.volume_pad;
+    // VOLUME, half one: the skin fits.
+    assert!(
+        v_gap <= SPOUT_SKIN_FIT_V * v_spout,
+        "the canal's V = {} vs the straightened tube's {v_spout}: gap {v_gap:e} m^3, \
+         {:e} relative, outside {SPOUT_SKIN_FIT_V:e}",
+        sp.volume,
+        v_gap / v_spout
+    );
+    // VOLUME, half two: and the gap is the SKIN, because the kernel's
+    // own certificate leaves the arithmetic no room to be responsible
+    // for it. A thousand is not a tuned number — the measured ratio is
+    // six orders, and this asserts only that the two are not the same
+    // size.
+    assert!(
+        sp.volume_pad * 1e3 < v_gap,
+        "the volume gap reads as the loft skin only while the kernel's own certified \
+         enclosure is far below it; got a pad of {:e} against a gap of {v_gap:e}",
+        sp.volume_pad
+    );
+    // AREA, half one: the closed form is inside the bracket. This is
+    // the SAME shape of claim the volume made before the sections
+    // became polygons, and here it is still the only one available.
+    assert!(
+        a_gap <= sp.area_pad,
+        "the canal's A = {} vs the straightened tube's {a_spout}: gap {a_gap:e} m^2, \
+         OUTSIDE the certified enclosure's own half-width {:e}",
+        sp.surface_area,
+        sp.area_pad
+    );
+    // AREA, half two: and the bracket is too wide to see a fit
+    // through, which is why there is no `SPOUT_SKIN_FIT_A`. Asserted
+    // positively so it cannot rot: if the area quadrature ever gets
+    // within a factor of a hundred of the gap, this reds.
+    assert!(
+        a_gap * 100.0 < sp.area_pad,
+        "the area's enclosure is no longer far wider than the gap ({a_gap:e} against a \
+         half-width of {:e}) — the area may now resolve the loft fit, and this scene \
+         should say so rather than declining to",
+        sp.area_pad
+    );
+    let spout_reading = format!(
+        "V = {:.12} m^3 against the straightened tube's {v_spout:.12} — a gap of {:e} \
+         relative, against a certified pad of {:e} m^3 that is {:e} relative, so the gap \
+         is the SKIN and not the integral; A = {:.12} against {a_spout:.12}, a gap of \
+         {:e} relative sitting {:.0}x INSIDE a pad of {:e} m^2, which resolves nothing \
+         about the fit and is said rather than dressed up",
+        sp.volume,
+        v_gap / v_spout,
+        sp.volume_pad,
+        sp.volume_pad / v_spout,
+        sp.surface_area,
+        a_gap / a_spout,
+        sp.area_pad / a_gap,
+        sp.area_pad
+    );
     let spout_bend_deg = SPOUT_BEND.to_degrees();
 
     // ---- the handle ----
@@ -2295,20 +2523,35 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              curvature term of the volume element weighs the section's first moment and \
              a centred section's is zero. The same cancellation runs over the lateral \
              area. So the oracle is the STRAIGHTENED tube — outer radii R0 → R1, a bore \
-             {SPOUT_BORE} of each, the spine length as the height — and what the \
-             comparison then measures is the LOFT FIT: a cubic skin through \
-             {SPOUT_STATIONS} stations against the swept tube it interpolates, \
-             {v_fit:e} relative on the volume and {a_fit:e} on the area — a factor of \
-             twelve between them, because a volume integrates the surface's POSITION \
-             and an area integrates its metric, so a skin can ride close and still \
-             stretch. That is the price of the shape, measured rather than assumed, and \
-             it is why this scene's spout is asserted at 1e-4 and 1e-3 where its pot \
-             and lid are asserted at 1e-12: those are closed-form solids of revolution \
-             and this is a fit. The \
-             kernel says so too, in its own units — the canal's walls are rational, so \
-             they are quadrature faces and `mass_properties` publishes an enclosure of \
-             half-width {spout_pad:e} m^3 rather than a number, where every analytic \
-             body on this page publishes 0. The handle checks by \
+             {SPOUT_BORE} of each, the spine length as the height — and the canal is \
+             held to it — and HOW it is held is the scene's newest finding, found by the \
+             tour's own eps sweep: {spout_reading}. THE SECTIONS ARE POLYGONS AND NOT \
+             CIRCLES. A circle is RATIONAL, so lofted circular sections make rational \
+             walls; a rational wall is a QUADRATURE face whose certified enclosure is \
+             chased down to a width derived from eps; and at eps = 1e-12 that chase ran \
+             out of budget and mass_properties REFUSED TYPED, naming the face and the \
+             width it reached. Four times the arcs per section bought eighteen times the \
+             resolution and was STILL short, with the returns collapsing, so the arc \
+             count was never the binding constraint. A POLYGON's sides are straight, so \
+             these walls are POLYNOMIAL, and the polynomial lane has an exact per-span \
+             shortcut the rational lane has none of — which is also why `twisted_tube` \
+             next door can be a loft and be a solid at every eps: its sections are \
+             squares. AND THEN THE TWO READINGS CAME BACK DIFFERENT KINDS OF NUMBER, six \
+             orders apart, off the same patches through the same lane: the volume's \
+             certified pad is 2.4e-13 of the answer and the area's is 1.08e-2 of it. A \
+             volume is a flux integral of a LINEAR field, so on a polynomial patch the \
+             integrand is a polynomial and the shortcut is exact; an area integrates \
+             |Xu x Xv|, a SQUARE ROOT, which is polynomial on no patch however \
+             polynomial the patch. So the polygon bought the volume an exactness it \
+             could not buy the area, and the scene makes two different claims. The \
+             VOLUME's gap sits six orders ABOVE its pad, leaving the arithmetic no room \
+             to be responsible for it, so it reads as the loft's cubic skin through \
+             {SPOUT_STATIONS} stations departing from the tube it interpolates — the one \
+             number on this page that measures that. The AREA's gap sits six hundred \
+             times INSIDE its pad, so the certificate already admits every bit of it and \
+             there is NOTHING to attribute to the skin; the scene says that rather than \
+             dressing the number up, and asserts the TOO-WIDE half positively so that \
+             the day the area quadrature gets sharp this row reds. The handle checks by \
              Pappus on its own disc. The document says a placement in AXIS-ANGLE and the \
              3-4-5 turn is not a binary-exact angle, so what that costs is MEASURED off \
              the PLACED BODY: the TIP cap, a whole spine-length off the turn's fixed \
