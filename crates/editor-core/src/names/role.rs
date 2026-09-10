@@ -31,7 +31,198 @@
 //! exactly these identities, which is what makes sweep naming a
 //! mechanical zip.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+
 use crate::node::RecipeNodeId;
+
+/// **The handle a role segment holds its argument [`StableName`] by**:
+/// a shared, immutable name plus one word of ORDER CACHE.
+///
+/// # Why the name is shared
+///
+/// A role path is a derivation, so a survivor's name embeds its
+/// operand's name, which embeds ITS operand's, as deep as the chain
+/// runs. Held by value that costs one allocation per level of descent
+/// on every copy, and a boolean step copies every surviving name.
+/// Held here it is one refcount bump: a survivor's argument IS the
+/// operand table's name, not a transcription of it, so cloning a name
+/// costs its own path and nothing below it.
+///
+/// # Why it carries a stamp
+///
+/// The [`Ord`] a name table keys on is structural, and a structural
+/// compare of two names of one chain walks to the level where they
+/// first differ — the bottom, for two survivors of the same descent.
+/// The stamp is the escape: [`NameTable::seal_order`] walks a finished
+/// table in its own key order and writes each name's POSITION in it,
+/// under an epoch identifying that walk. Two names stamped by ONE walk
+/// compare by position in O(1), and the answer is the structural one
+/// because the walk enumerated a structurally-ordered map. Two names
+/// from different walks, or either one unstamped, fall back to the
+/// structural compare.
+///
+/// So the stamp is a cache and never a decision: [`NameRef`]'s order
+/// IS [`StableName`]'s order, at every pair, and no output can depend
+/// on whether a name happened to be stamped (D9).
+///
+/// [`NameTable::seal_order`]: super::table::NameTable::seal_order
+#[derive(Clone)]
+pub struct NameRef(Arc<Held>);
+
+/// The shared payload: the name, and its cached position in the table
+/// that sealed it.
+struct Held {
+    name: StableName,
+    /// `0` while unstamped; otherwise `(epoch << 32) | (position + 1)`
+    /// — the `+ 1` keeps a stamped position 0 distinguishable from
+    /// "unstamped" without a second word.
+    stamp: AtomicU64,
+}
+
+/// The source of sealing epochs. Monotone and process-wide: an epoch
+/// identifies ONE walk over ONE table, which is what makes "same
+/// epoch" mean "positions from one structurally-ordered enumeration".
+static EPOCH: AtomicU32 = AtomicU32::new(1);
+
+/// A fresh sealing epoch (never `0`, which spells "unstamped").
+pub(super) fn next_epoch() -> u32 {
+    let e = EPOCH.fetch_add(1, Ordering::Relaxed);
+    if e == 0 {
+        EPOCH.fetch_add(1, Ordering::Relaxed)
+    } else {
+        e
+    }
+}
+
+impl NameRef {
+    /// Shares `name`.
+    #[must_use]
+    pub fn new(name: StableName) -> Self {
+        Self(Arc::new(Held {
+            name,
+            stamp: AtomicU64::new(0),
+        }))
+    }
+
+    /// The name itself.
+    #[must_use]
+    pub fn name(&self) -> &StableName {
+        &self.0.name
+    }
+
+    /// Records this name's `position` in the `epoch` walk, unless it
+    /// already carries a stamp.
+    ///
+    /// Stamp-once is what keeps the invariant true when one name is
+    /// shared by two tables: it keeps the positions of the walk that
+    /// claimed it first, and the other table's rows simply compare
+    /// structurally against it.
+    pub(super) fn stamp(&self, epoch: u32, position: u32) {
+        let packed = (u64::from(epoch) << 32) | (u64::from(position) + 1);
+        let _ = self
+            .0
+            .stamp
+            .compare_exchange(0, packed, Ordering::Relaxed, Ordering::Relaxed);
+    }
+}
+
+impl core::ops::Deref for NameRef {
+    type Target = StableName;
+
+    fn deref(&self) -> &StableName {
+        &self.0.name
+    }
+}
+
+impl AsRef<StableName> for NameRef {
+    fn as_ref(&self) -> &StableName {
+        &self.0.name
+    }
+}
+
+// The table looks a bare name up in a map keyed by handles, so the
+// handle borrows as the name it holds. `Ord`, `Eq` and `Hash` agree
+// with the name's own on every pair (the stamp is a cache), which is
+// exactly `Borrow`'s contract.
+impl core::borrow::Borrow<StableName> for NameRef {
+    fn borrow(&self) -> &StableName {
+        &self.0.name
+    }
+}
+
+impl From<StableName> for NameRef {
+    fn from(name: StableName) -> Self {
+        Self::new(name)
+    }
+}
+
+// The rendering a `NameRef` gave: the name, with no wrapper of
+// its own. Name digests are taken over this text.
+impl core::fmt::Debug for NameRef {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.name.fmt(f)
+    }
+}
+
+impl core::fmt::Display for NameRef {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.name.fmt(f)
+    }
+}
+
+impl PartialEq for NameRef {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || self.0.name == other.0.name
+    }
+}
+
+impl Eq for NameRef {}
+
+impl core::hash::Hash for NameRef {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.0.name.hash(state);
+    }
+}
+
+impl Ord for NameRef {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        if Arc::ptr_eq(&self.0, &other.0) {
+            return core::cmp::Ordering::Equal;
+        }
+        let (a, b) = (
+            self.0.stamp.load(Ordering::Relaxed),
+            other.0.stamp.load(Ordering::Relaxed),
+        );
+        // One walk stamped both, so their positions ARE their
+        // structural order. A zero stamp has epoch 0, which no walk
+        // ever uses, so this arm cannot fire on an unstamped pair.
+        if a != 0 && (a >> 32) == (b >> 32) {
+            return (a as u32).cmp(&(b as u32));
+        }
+        self.0.name.cmp(&other.0.name)
+    }
+}
+
+impl PartialOrd for NameRef {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// Structurally, exactly as the boxed name serialized: the handle is a
+// runtime sharing decision and has no wire form of its own (F3).
+impl serde::Serialize for NameRef {
+    fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        self.0.name.serialize(ser)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for NameRef {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        StableName::deserialize(de).map(Self::new)
+    }
+}
 
 /// Entity kinds a [`StableName`] can denote (N1: bodies are
 /// first-class alongside faces/edges/vertices, Q-h).
@@ -393,9 +584,9 @@ pub enum RoleSeg {
     // ---- Booleans ----
     /// An entity surviving from operand A (argument: its name in the
     /// A operand's table).
-    FromA(Box<StableName>),
+    FromA(NameRef),
     /// An entity surviving from operand B.
-    FromB(Box<StableName>),
+    FromB(NameRef),
     /// **An entity surviving from one MEMBER of an n-ary union**
     /// ([`crate::Node::Union`]; DM4 as amended): which member, and
     /// which entity of it.
@@ -451,16 +642,16 @@ pub enum RoleSeg {
         /// union, and the identity that makes the name position-free.
         member: RecipeNodeId,
         /// The entity's name in that member's own table.
-        of: Box<StableName>,
+        of: NameRef,
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
     /// and a B-operand entity (edges: face × face; vertices:
     /// edge × face / face × edge), by their operand names.
     Seam {
         /// The A-side crossing entity's name.
-        a: Box<StableName>,
+        a: NameRef,
         /// The B-side crossing entity's name.
-        b: Box<StableName>,
+        b: NameRef,
     },
     /// An F7 merged face: the sorted, FLAT set of constituent names
     /// retires into this name (N3; canonical order = name order). A
@@ -500,7 +691,7 @@ pub enum RoleSeg {
         /// Which output half.
         side: SplitHalf,
         /// The operand face the section boundary runs across.
-        face: Box<StableName>,
+        face: NameRef,
     },
     /// A fragment of an operand entity carved by the split: faces cut
     /// by the section, edges crossing the plane. The side IS the N2
@@ -511,7 +702,7 @@ pub enum RoleSeg {
         /// Which output half holds this fragment.
         side: SplitHalf,
         /// The operand entity's name.
-        parent: Box<StableName>,
+        parent: NameRef,
     },
     /// A crossing vertex minted where the tool plane crossed an
     /// operand edge (argument: the operand edge's name; each half
@@ -520,7 +711,7 @@ pub enum RoleSeg {
         /// Which output half holds this copy.
         side: SplitHalf,
         /// The operand edge the plane crossed.
-        edge: Box<StableName>,
+        edge: NameRef,
     },
     /// A per-half copy of an operand vertex the tool plane passed
     /// THROUGH (review R2): both halves keep a coincident copy, so
@@ -532,7 +723,7 @@ pub enum RoleSeg {
         /// Which output half holds this copy.
         side: SplitHalf,
         /// The operand vertex the plane passed through.
-        of: Box<StableName>,
+        of: NameRef,
     },
 
     // ---- Fillet (M6-5: the composition surgery's vocabulary) ----
@@ -548,36 +739,36 @@ pub enum RoleSeg {
     /// single-operand analogue of [`RoleSeg::FromA`], shared by every
     /// single-operand verb whose survivors keep their operand keys;
     /// which verb carried the entity is the minting node's business.
-    FromTarget(Box<StableName>),
+    FromTarget(NameRef),
     /// The blend face rounding a source edge.
-    BlendFace(Box<StableName>),
+    BlendFace(NameRef),
     /// The octant (sphere patch) rounding a source vertex.
-    CornerFace(Box<StableName>),
+    CornerFace(NameRef),
     /// A trimline: where a blend meets ONE of its two supports. Both
     /// arguments are needed — one source edge yields two trimlines,
     /// discriminated by which support they lie in.
     TrimEdge {
         /// The source edge being blended.
-        edge: Box<StableName>,
+        edge: NameRef,
         /// The support face the trimline lies in.
-        support: Box<StableName>,
+        support: NameRef,
     },
     /// A blend foot: where a support's two trimlines meet, retracted
     /// from a source corner vertex. One source vertex yields one foot
     /// per incident support.
     FootVertex {
         /// The source corner vertex.
-        vertex: Box<StableName>,
+        vertex: NameRef,
         /// The support face the foot lies in.
-        support: Box<StableName>,
+        support: NameRef,
     },
     /// A corner arc: where an octant meets one of its three incident
     /// blends.
     CornerArc {
         /// The source corner vertex the octant rounds.
-        vertex: Box<StableName>,
+        vertex: NameRef,
         /// The source edge whose blend the arc bounds.
-        edge: Box<StableName>,
+        edge: NameRef,
     },
     /// The torus band face rounding a CLOSED chain (argument: the
     /// chain's source edges as a sorted set — a rim is a cycle with no
@@ -588,7 +779,7 @@ pub enum RoleSeg {
     /// side).
     BandTrim {
         /// The source rim edge this arc replaces.
-        edge: Box<StableName>,
+        edge: NameRef,
         /// Which support the arc lies on.
         support: RimSupport,
     },
@@ -596,18 +787,18 @@ pub enum RoleSeg {
     /// rim vertex. (Named by role, not kind: a rim between two curved
     /// walls has no planar support and still mints one — pinned by
     /// `blend5_r1_probes`.)
-    BandFoot(Box<StableName>),
+    BandFoot(NameRef),
     /// The vertex where the band's MATE-side trimline crossed a source
     /// edge running off the rim (on a ladder rim, a cap meridian).
-    BandCross(Box<StableName>),
+    BandCross(NameRef),
     /// The surviving piece of a source edge the band's trimline cut
     /// (the shortened meridian).
-    BandCut(Box<StableName>),
+    BandCut(NameRef),
     /// A band's SLIT: the double-traversed torus meridian that keeps
     /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
     /// representation). Argument: the source edge whose severed piece
     /// became it.
-    BandSlit(Box<StableName>),
+    BandSlit(NameRef),
 
     // ---- Shell (the hollowing verb's vocabulary) ----
     //
@@ -624,18 +815,18 @@ pub enum RoleSeg {
     /// boundary's twins survive as the rim's ring and are named here,
     /// as twins of the boundary edges — a ring is a cycle of twins, not
     /// a role of its own.
-    Inner(Box<StableName>),
+    Inner(NameRef),
     /// **The annular rim a designated chart became**, named for the
     /// FIRST face designated on that chart — the face the chart's
     /// members merged onto, whose own name vanishes with the merge.
     /// `Rim(mouth)` is what a selector says for "the mouth's rim".
-    Rim(Box<StableName>),
+    Rim(NameRef),
     /// **The promoted rim of a designated face's HOLE**: the annulus
     /// between a hole's boundary and its cavity twin, one per hole, in
     /// the kernel's pairing order.
     HoleRim {
         /// The first designated face of the chart the hole is in.
-        of: Box<StableName>,
+        of: NameRef,
         /// The hole's index in the kernel's pairing order.
         hole: u32,
     },
@@ -652,7 +843,7 @@ pub enum RoleSeg {
     /// [`RoleSeg::Instance`] carries a pattern's.
     InPart {
         /// The entity's name inside the referenced document's product.
-        of: Box<StableName>,
+        of: NameRef,
     },
 
     // ---- Pattern ----
@@ -662,7 +853,7 @@ pub enum RoleSeg {
         /// The structural instance index.
         i: u32,
         /// The master entity this instance copy corresponds to.
-        of: Box<StableName>,
+        of: NameRef,
     },
 }
 
@@ -758,7 +949,7 @@ pub fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
     StableName {
         kind: inner.kind,
         node,
-        path: vec![RoleSeg::FromTarget(Box::new(inner))],
+        path: vec![RoleSeg::FromTarget(NameRef::new(inner))],
     }
 }
 
@@ -922,8 +1113,8 @@ pub(crate) use never_in_a_boolean_table;
 #[cfg(test)]
 mod tests {
     use super::{
-        EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName, band,
-        band_pi, band_rim, carried, meridian_vertex,
+        EntityKind, MeridianEnd, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName,
+        band, band_pi, band_rim, carried, meridian_vertex,
     };
     use crate::node::RecipeNodeId;
 
@@ -1060,7 +1251,7 @@ mod tests {
             StableName {
                 kind: EntityKind::Edge,
                 node: outer,
-                path: vec![RoleSeg::FromTarget(Box::new(inner))],
+                path: vec![RoleSeg::FromTarget(NameRef::new(inner))],
             }
         );
     }

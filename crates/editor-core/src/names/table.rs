@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 use topo::{EdgeKey, FaceKey, VertexKey};
 
-use super::role::{EntityKind, StableName};
+use super::role::{EntityKind, NameRef, StableName, next_epoch};
 
 /// One named entity: which output body of the node, and what in it.
 /// (`body` indexes the node's output bodies — 0 for single-body ops; a
@@ -64,11 +64,44 @@ pub enum Entry {
 
 /// The per-node name table (N4). Part of the node's value: memo reuse
 /// transfers it with the geometry (the content key is the proof).
+///
+/// Both directions hold the SAME [`NameRef`] per row — one shared
+/// name, two indexes into it — so a downstream op that wraps an
+/// operand's name wraps the very handle this table sealed rather than
+/// a copy of it, and [`NameTable::seal_order`]'s stamp reaches every
+/// reader of that name.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NameTable {
-    forward: BTreeMap<StableName, Entry>,
-    reverse: BTreeMap<EntityRef, StableName>,
+    forward: BTreeMap<NameRef, Entry>,
+    reverse: BTreeMap<EntityRef, NameRef>,
+    sealed: Sealed,
 }
+
+/// Whether [`NameTable::seal_order`] has already walked this table.
+///
+/// Interior mutability because sealing is a CACHE write over a shared
+/// table: an operand table is read through `&NameTable` and the stamp
+/// it writes changes no answer, only the cost of asking.
+#[derive(Debug, Default)]
+struct Sealed(core::sync::atomic::AtomicBool);
+
+impl Clone for Sealed {
+    fn clone(&self) -> Self {
+        Self(core::sync::atomic::AtomicBool::new(
+            self.0.load(core::sync::atomic::Ordering::Relaxed),
+        ))
+    }
+}
+
+// A cache flag is not part of the value: two tables with the same rows
+// are the same table whether or not either has been sealed.
+impl PartialEq for Sealed {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for Sealed {}
 
 /// A duplicate-name insertion outside the tie path (the
 /// no-silent-aliasing bug, typed).
@@ -84,44 +117,102 @@ impl NameTable {
         Self::default()
     }
 
-    /// Inserts a unique name ↔ entity row. Kind agreement between the
-    /// name and the key is the caller's contract, checked here.
+    /// **Caches this table's key order onto its names** — the walk
+    /// [`NameRef`]'s stamp is for.
     ///
-    /// # Errors
+    /// Every row is stamped with its POSITION in this walk, under one
+    /// fresh epoch. Two names of one epoch therefore compare by
+    /// position, and the answer is the structural one because the walk
+    /// enumerated a structurally-ordered map; a name already stamped by
+    /// an earlier walk keeps that stamp and compares structurally
+    /// against this table's rows.
     ///
-    /// [`DuplicateName`] if the name is already present (aliasing), or
-    /// (same type, same loudness) if the ENTITY is already named or
-    /// the kinds disagree — all three are emission bugs, never valid
-    /// states.
-    pub fn insert(&mut self, name: StableName, ent: EntityRef) -> Result<(), DuplicateName> {
-        let dup = || DuplicateName {
-            name: Box::new(name.clone()),
-        };
-        if name.kind != ent.key.kind()
-            || self.forward.contains_key(&name)
-            || self.reverse.contains_key(&ent)
-        {
-            return Err(dup());
+    /// Called by [`super::defer::upstream_name`], the one door every
+    /// emitter reads an operand's names through, so a table is sealed
+    /// when it is first used as an operand and never while it is being
+    /// built. A row inserted after a seal is simply unstamped and
+    /// compares structurally.
+    pub(super) fn seal_order(&self) {
+        use core::sync::atomic::Ordering::Relaxed;
+        if self.sealed.0.swap(true, Relaxed) {
+            return;
         }
-        self.reverse.insert(ent, name.clone());
-        self.forward.insert(name, Entry::Unique(ent));
-        Ok(())
+        let epoch = next_epoch();
+        for (i, (name, _)) in self.forward.iter().enumerate() {
+            // `u32` is the position's width and the table's row count
+            // is far below it; a table that somehow exceeded it would
+            // wrap two rows onto one position, so the seal simply
+            // stops instead.
+            let Ok(position) = u32::try_from(i) else {
+                return;
+            };
+            name.stamp(epoch, position);
+        }
     }
 
-    /// Records an N2 tie: one name, ≥ 2 candidates (deduplicated,
-    /// sorted). Every candidate gets the name in the reverse map.
+    /// The shared handle naming `ent` — [`NameTable::name_of`]'s hot
+    /// twin, for a caller that is about to EMBED the name in a
+    /// downstream one and wants the operand table's own handle rather
+    /// than a copy.
+    pub(super) fn name_ref_of(&self, ent: &EntityRef) -> Option<&NameRef> {
+        self.reverse.get(ent)
+    }
+
+    /// [`NameTable::lookup`] by handle: the same answer, reached
+    /// through [`NameRef`]'s order cache instead of a structural walk.
+    pub(super) fn entry_of(&self, name: &NameRef) -> Option<&Entry> {
+        self.forward.get(name)
+    }
+
+    /// [`NameTable::insert`] by handle — the door that preserves
+    /// sharing: the row keeps the handle it was given rather than
+    /// re-sharing an equal name under a second one.
     ///
     /// # Errors
     ///
-    /// [`DuplicateName`] under the same collisions as
-    /// [`NameTable::insert`], or if fewer than 2 candidates remain.
-    pub fn insert_tied(
+    /// [`NameTable::insert`]'s own.
+    pub(super) fn insert_ref(
         &mut self,
-        name: StableName,
+        name: NameRef,
+        ent: EntityRef,
+    ) -> Result<(), DuplicateName> {
+        use std::collections::btree_map::Entry as Slot;
+        // Each direction is searched ONCE: the vacant slot the
+        // collision check lands on is the slot the row is written into.
+        if name.kind != ent.key.kind() {
+            return Err(DuplicateName {
+                name: Box::new((*name).clone()),
+            });
+        }
+        let Slot::Vacant(rev) = self.reverse.entry(ent) else {
+            return Err(DuplicateName {
+                name: Box::new((*name).clone()),
+            });
+        };
+        match self.forward.entry(name) {
+            Slot::Occupied(held) => Err(DuplicateName {
+                name: Box::new((**held.key()).clone()),
+            }),
+            Slot::Vacant(slot) => {
+                rev.insert(slot.key().clone());
+                slot.insert(Entry::Unique(ent));
+                Ok(())
+            }
+        }
+    }
+
+    /// [`NameTable::insert_tied`] by handle.
+    ///
+    /// # Errors
+    ///
+    /// [`NameTable::insert_tied`]'s own.
+    pub(super) fn insert_tied_ref(
+        &mut self,
+        name: NameRef,
         mut ents: Vec<EntityRef>,
     ) -> Result<(), DuplicateName> {
         let dup = || DuplicateName {
-            name: Box::new(name.clone()),
+            name: Box::new((*name).clone()),
         };
         ents.sort_unstable();
         ents.dedup();
@@ -140,6 +231,34 @@ impl NameTable {
         Ok(())
     }
 
+    /// Inserts a unique name ↔ entity row. Kind agreement between the
+    /// name and the key is the caller's contract, checked here.
+    ///
+    /// # Errors
+    ///
+    /// [`DuplicateName`] if the name is already present (aliasing), or
+    /// (same type, same loudness) if the ENTITY is already named or
+    /// the kinds disagree — all three are emission bugs, never valid
+    /// states.
+    pub fn insert(&mut self, name: StableName, ent: EntityRef) -> Result<(), DuplicateName> {
+        self.insert_ref(NameRef::new(name), ent)
+    }
+
+    /// Records an N2 tie: one name, ≥ 2 candidates (deduplicated,
+    /// sorted). Every candidate gets the name in the reverse map.
+    ///
+    /// # Errors
+    ///
+    /// [`DuplicateName`] under the same collisions as
+    /// [`NameTable::insert`], or if fewer than 2 candidates remain.
+    pub fn insert_tied(
+        &mut self,
+        name: StableName,
+        ents: Vec<EntityRef>,
+    ) -> Result<(), DuplicateName> {
+        self.insert_tied_ref(NameRef::new(name), ents)
+    }
+
     /// Resolves a name (PR 4 builds the typed failure ladder on this).
     pub fn lookup(&self, name: &StableName) -> Option<&Entry> {
         self.forward.get(name)
@@ -147,7 +266,7 @@ impl NameTable {
 
     /// The name of an entity (hit-testing reads this direction).
     pub fn name_of(&self, ent: &EntityRef) -> Option<&StableName> {
-        self.reverse.get(ent)
+        self.reverse.get(ent).map(|n| &**n)
     }
 
     /// Whether `name` is tie-marked.
@@ -167,7 +286,7 @@ impl NameTable {
 
     /// Iterates rows in name order (deterministic).
     pub fn iter(&self) -> impl Iterator<Item = (&StableName, &Entry)> {
-        self.forward.iter()
+        self.forward.iter().map(|(n, e)| (&**n, e))
     }
 
     /// **The table of ONE output body, as a single-body table**: the
@@ -205,7 +324,7 @@ impl NameTable {
             match entry {
                 Entry::Unique(e) => {
                     if e.body == body {
-                        out.insert(name.clone(), rekey(e))?;
+                        out.insert_ref(name.clone(), rekey(e))?;
                     }
                 }
                 Entry::Tied(es) => {

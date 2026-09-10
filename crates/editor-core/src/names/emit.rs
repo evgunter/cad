@@ -17,7 +17,7 @@ use std::sync::Arc;
 use geom_core::Indeterminate;
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::role::{EntityKind, StableName};
+use super::role::{EntityKind, NameRef, StableName};
 use super::table::{DuplicateName, EntityKey, EntityRef, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -217,7 +217,7 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
                 node,
                 path: vec![super::role::RoleSeg::Instance {
                     i: ju,
-                    of: Box::new(name.clone()),
+                    of: NameRef::new(name.clone()),
                 }],
             };
             match entry {
@@ -279,7 +279,7 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                 node,
                 path: vec![super::role::RoleSeg::Instance {
                     i: iu,
-                    of: Box::new(name.clone()),
+                    of: NameRef::new(name.clone()),
                 }],
             };
             // The prototype is ONE body — a placed union fuses what
@@ -344,7 +344,7 @@ pub(crate) fn name_in_part<T: geom_core::Real>(
             kind: name.kind,
             node,
             path: vec![super::role::RoleSeg::InPart {
-                of: Box::new(name.clone()),
+                of: NameRef::new(name.clone()),
             }],
         };
         // The part's table is the PRODUCT's: one body, index 0. A row
@@ -720,7 +720,7 @@ mod pattern_tests {
                     node,
                     path: vec![RoleSeg::Instance {
                         i: iu,
-                        of: Box::new(name.clone()),
+                        of: name.clone().into(),
                     }],
                 };
                 assert_eq!(t.lookup(&wrapped), Some(&Entry::Unique(ent(iu, e.key))));
@@ -813,7 +813,7 @@ mod pattern_tests {
                     node,
                     path: vec![RoleSeg::Instance {
                         i: ju,
-                        of: Box::new(name.clone()),
+                        of: name.clone().into(),
                     }],
                 };
                 let flat = ju * u32::try_from(per).unwrap() + e.body;

@@ -389,17 +389,17 @@ fn p6_rebinding_the_designation_moves_the_rim() {
     let rim_bottom = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(cup::bottom(blank))),
+        RoleSeg::Rim(cup::bottom(blank).into()),
     );
     let rim_top = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(cup::top(blank))),
+        RoleSeg::Rim(cup::top(blank).into()),
     );
     let inner_top = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Inner(Box::new(cup::top(blank))),
+        RoleSeg::Inner(cup::top(blank).into()),
     );
     assert!(matches!(t.lookup(&rim_bottom), Some(Entry::Unique(_))));
     assert!(t.lookup(&rim_top).is_none());
@@ -462,7 +462,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
             shell,
             EntityKind::Face,
             RoleSeg::HoleRim {
-                of: Box::new(cup::top(blank)),
+                of: cup::top(blank).into(),
                 hole: 0,
             },
         ),

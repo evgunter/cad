@@ -194,7 +194,7 @@ fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
         kind: local.kind,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(local.clone()),
+            of: local.clone().into(),
         }],
     }
 }

@@ -44,7 +44,7 @@
 use std::sync::Arc;
 
 use crate::names::emit::{NamingError, check_total};
-use crate::names::role::{Qualifier, RoleSeg, StableName, never_in_a_boolean_table};
+use crate::names::role::{NameRef, Qualifier, RoleSeg, StableName, never_in_a_boolean_table};
 use crate::names::table::{Entry, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -67,7 +67,7 @@ pub(crate) fn member_view(
             node: union,
             path: vec![RoleSeg::FromMember {
                 member,
-                of: Box::new(name.clone()),
+                of: NameRef::new(name.clone()),
             }],
         };
         match entry {
@@ -185,8 +185,8 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             let (x, y) = (collapse(node, a)?, collapse(node, b)?);
             let (a, b) = if x <= y { (x, y) } else { (y, x) };
             vec![RoleSeg::Seam {
-                a: Box::new(a),
-                b: Box::new(b),
+                a: NameRef::new(a),
+                b: NameRef::new(b),
             }]
         }
         // An F7 merged face: its constituents are result-face names in
@@ -297,17 +297,17 @@ mod tests {
             union,
             vec![RoleSeg::FromMember {
                 member: RecipeNodeId(m),
-                of: Box::new(face(RecipeNodeId(m), vec![RoleSeg::Cap(CapEnd::Start)])),
+                of: face(RecipeNodeId(m), vec![RoleSeg::Cap(CapEnd::Start)]).into(),
             }],
         )
     }
 
     fn from_a(union: RecipeNodeId, inner: StableName) -> StableName {
-        face(union, vec![RoleSeg::FromA(Box::new(inner))])
+        face(union, vec![RoleSeg::FromA(inner.into())])
     }
 
     fn from_b(union: RecipeNodeId, inner: StableName) -> StableName {
-        face(union, vec![RoleSeg::FromB(Box::new(inner))])
+        face(union, vec![RoleSeg::FromB(inner.into())])
     }
 
     #[test]
