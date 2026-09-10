@@ -28,6 +28,9 @@
 //! from the crate, so the row is a second statement of the bound, not
 //! a tautology over one.
 
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use crate::common::{axis_y, dist_to_surface, eps, p2, validated};
 use core::f64::consts::{FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
@@ -162,6 +165,13 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
         }
     }
     assert_eq!(torus_patches, 2, "{label}: two half-tube faces");
+    // The reading behind the assertions, for the record a failure or a
+    // re-derivation reads (nextest replays it on failure).
+    println!(
+        "{label}: worst certificate {:.3} of delta, {} torus triangles",
+        worst / delta,
+        4 * nu * nv
+    );
     // Claim 2: at least a quarter of δ is spent on the worst cell.
     assert!(
         worst >= 0.25 * delta,

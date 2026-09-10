@@ -190,12 +190,26 @@ fn receipts(body: &topo::Body<f64>) -> Vec<FaceReceipt> {
 /// side: zero ulps apart). The mesh is the unsplit donut's up to the
 /// seam column, which is chorded per sub-edge: every position the two
 /// meshes do not share lies on the seam minor circle, and both are
-/// watertight.
+/// watertight. The split column carries the split vertex, which the
+/// unsplit column carries only when its chord schedule happens to
+/// sample that parameter (an even chord count halved lands on it
+/// bitwise — the same `t0 + span·f` the split evaluates), so the
+/// position count is the unsplit's plus one or plus zero, and which
+/// one is read off the unsplit mesh rather than assumed.
 #[test]
 fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
     let tol = Tol::witness();
     let base = donut();
-    let (body, _) = split_seam_donut(&[0.5]);
+    let (body, (t0, t1)) = split_seam_donut(&[0.5]);
+    let split_point = {
+        let (_, edge) = base.edges().next().unwrap();
+        let curve = base
+            .get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap();
+        curve.carrier().eval(t0 + 0.5 * (t1 - t0))
+    };
     let mp0 = topo::mass_properties(&base, tol).expect("the unsplit donut measures");
     let mp = topo::mass_properties(&body, tol).expect("the split-seam donut measures");
     assert_eq!(
@@ -262,9 +276,21 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
         a.len(),
         b.len()
     );
-    // The split column carries the split vertex, which the unsplit
-    // column need not: one extra position, on the seam.
-    assert_eq!(m.positions.len(), m0.positions.len() + 1);
+    // The split column carries the split vertex; the unsplit column
+    // carries it iff its schedule sampled the split parameter.
+    let sampled_unsplit = a
+        .binary_search(&[
+            split_point.x.to_bits(),
+            split_point.y.to_bits(),
+            split_point.z.to_bits(),
+        ])
+        .is_ok();
+    assert_eq!(
+        m.positions.len(),
+        m0.positions.len() + usize::from(!sampled_unsplit),
+        "the split adds the split vertex and nothing else (unsplit schedule sampled it: \
+         {sampled_unsplit})"
+    );
 }
 
 /// **The fold's premise, pinned.** The pieces of a split edge partition
