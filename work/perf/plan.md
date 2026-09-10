@@ -9,8 +9,11 @@ standing register of *unbuilt* performance work.
 **This is a plan, not a record.** Delivered items are deleted rather
 than annotated, and expired claims are corrected in place rather than
 struck through — git and the PR descriptions are the history. Last
-resurveyed against `main` on **2026-08-26**; every claim below was
-re-checked at its cited `file:line` on that date.
+resurveyed against `main` on **2026-09-10**: every `file:line` below
+was re-checked by a static lane on that date, and the three seats in
+§1.1 were measured by three lanes whose harnesses live on
+`perf/explore-gui`, `perf/explore-kernel` and `perf/explore-dev`
+(`work/perf/log.md` carries each lane's entry).
 
 **Reading rule.** Claims here expire. The citations are deliberately
 precise so that re-checking one before acting on it costs nothing —
@@ -18,14 +21,56 @@ do that, especially before quoting a cost as current.
 
 ## 1. What "interactive" demands
 
-### 1.1 Assumed workload (stated, not ratified)
+### 1.1 Measured workload (2026-09-10)
 
-Nothing here has been measured against the shipped v1 GUI
-(`crates/viewer`); these are the standard interactive-CAD envelope,
-assumed not measured: **~16 ms**/frame (camera, hover, selection);
-**~50–150 ms** per gesture preview (drag a dimension → new solid);
-**~1 s** per committed edit; background for the rest. Scale per
-Band 4: hundreds of features, thousands of faces.
+Three seats, measured on a 4-vCPU box in the profile each seat runs.
+Every figure is a median of ≥3; cross-run spread is ±5–8 %.
+
+**The GUI seat** (`crates/viewer`, release as shipped — the workspace's
+`[profile.release]` keeps `debug-assertions = true`). On every document
+whose committed edit lags, evaluation is noise and **the pick index is
+83–97 % of the edit→picture wait**, rebuilt from scratch on every edit
+whether one face moved or all of them:
+
+| document | triangles | evaluate (memo) | index build | edit→picture |
+|---|---:|---:|---:|---:|
+| `die` | 348 | 7.9 ms | 1.7 ms | 14 ms |
+| `die_composed_tour` | 974 526 | 88 ms | 1231 ms | 1375 ms |
+| `gallery_ring` | 995 348 | 0.3 ms | 1517 ms | 1566 ms |
+| `tube_ring` | 1 002 528 | 0.1 ms | 2130 ms | 2192 ms |
+
+The index build splits ≈55/45 between `mesh::tessellate` and the
+triangle BVH plus id map. On arrival (not per edit) the display
+budget's probe tessellation adds 0.2–4.1 s of frozen window. The real
+app under Xvfb lands a typed edit on `gallery_ring` in 3.5 s median,
+the remainder being software rasterisation. Nothing is input-gated;
+the edit door itself is 0.01–0.47 ms. 24 of the 29 corpus documents
+draw under 5 000 triangles and finish an edit in under 15 ms.
+
+**The kernel-API seat** (Rust through `demos/`, Python through
+`pncad-py`; release both ways). With the shipped profile's debug
+assertions, D1's per-operator tier-1 sweep is 45–72 % of a rebuild
+(`die` 80 vs 36 ms; `demos/wild` 226 vs 54 ms; `demos/tour` 9.5 vs
+7.0 s). With them off, `die`'s 36 ms is 55–60 % naming emission on the
+boolean chain, quadratic in chain depth (`StableName` as a boxed
+`BTreeMap` key). `assemble`'s tier-3′ census over the aggregate is
+quadratic in solids (1.3 s at 161). Tessellation is 71 % of the tour
+and 100 % of the ring rows; a NURBS-walled body's mass properties and
+tier 3 are each a full certified quadrature (~160 ms). Python pays
+nothing extra to evaluate (`prior=` is wired: 89 → 7.2 ms on a tail
+edit; a memo-hit run is 0.29 ms) and ~22 % of a tessellation again to
+read the mesh back as `Length` objects.
+
+**The developer seat** (CI's dev/test profile). D1's per-op sweep is
+5.7 % of test execution wall across the six kernel binaries and 31 %
+of editor-core's. The largest single row is one `#[test]` in
+`geom-brep` running a 70-cell sweep serially (46 s, the binary's whole
+wall). The interval lane is 2.47× wall, 96 % of the delta in two M10
+driver rows. CI wall is compile, not runtime.
+
+Scale per Band 4 — hundreds of features, thousands of faces — is
+still ahead of the corpus, which is a vocabulary corpus; the measured
+documents above are the largest it has.
 
 ### 1.2 The four latency lanes
 
@@ -39,14 +84,14 @@ GPU-shaped (§3).
 **Per-edit preview (the critical path).** An edit mid-recipe means:
 re-evaluate the changed node's downstream cone, re-run the booleans
 under it, re-tessellate the faces that moved. The DAG memo that makes
-the first of those cheap **exists and works** —
-`editor_core::evaluate`'s `prior` argument (`eval/mod.rs:1004`) reuses
-every node whose content key matches. It is reachable from Rust and
-**not** from Python: `pncad-py`'s binding hard-codes
-`prior = None` and `EvalOptions::default()`
-(`crates/pncad-py/src/py/value.rs:751-760`), so the whole
-memo/parallel apparatus is invisible to the binding that most needs
-it. That gap is §2.3's cheapest open item.
+the first of those cheap exists and works — `editor_core::evaluate`'s
+`prior` argument (`eval/mod.rs:2249`) reuses every node whose content
+key matches, from Rust and from Python (`pncad-py/src/py/value.rs:2098`).
+It is worthless where the recomputed cone is the document (one wide
+union, `die_composed_tour`, `heat_sink`) — a fact about those
+documents, not a defect. **The third step does not exist**: the
+viewer's pick index re-tessellates every root on every edit (§1.1),
+and that is the preview lane's whole cost on a large document.
 
 **Per-commit (~1 s budget).** Tier-1/2/3 validation, certified-δ
 tessellation, mass properties. This lane carries most of the open
@@ -73,49 +118,44 @@ interval-vs-f64 runtime read off a low-opt CI leg is flattered.
 
 ### 1.3 Open cost centers
 
-Ranked by (payoff × confidence) ÷ effort. All re-verified 2026-08-26;
-none has been fixed. Sources are `docs/PERF-SCAN-2026-08.md`'s
-findings, whose numbering is kept so the two docs cross-reference.
+Ranked by measured user-visible wait ÷ effort, with clarity as a hard
+filter (a fix that makes the code harder to read or refactor is not a
+fix here). All re-verified 2026-09-10; measured shares are from §1.1's
+lanes. "Stop" means work that need not happen at all; "faster" means
+the same work with a better algorithm. Each open row has an item file
+in `work/perf/` or the program named.
 
-| Cost center | Where | Shape | Lane | Ref |
+| Cost center | Where | Measured | Kind | Ref |
 |---|---|---|---|---|
-| Whole-body pcurve re-mint per operation | `topo/src/pcurves.rs:995` — `body.pcurves.clear()` then every face re-walked | chain of N booleans on a growing body ⇒ quadratic | commit | 7 |
-| CDT insertion on nested near-cocircular loops | `mesh` — a planar face with a hole | quadratic; near-linear otherwise | export | 7b |
-| Boolean gate validates tier 1 twice | `topo/src/boolean/ops.rs:1395` — `validate` then `validate_closed`, each running `tier1` | 2× a 13-pass arena sweep, in release | commit | 4 |
-| Kill-direction Euler ops are O(arena) | `topo/src/body.rs:417,440,485` — three full-arena `.values().any()` orphan scans per kill; `description_surfaces` allocates a `Vec` per curve | zip killing n seams ⇒ O(n·N) | build | 9 |
-| `merge_group` rescans the edge arena per kill | `topo/src/merge_faces.rs:755` — `loop { for edge in self.edges() … break }` | O(kills × E) | commit | 11 |
-| Boolean `join` is O(n³) | `boolean/join.rs:282` loops `find_match`, itself O(open²) over slot pairs (`:520`) | plus a `Vec` alloc per slot scan | commit | 13 |
-| `graft_solid` is O(E²) | `boolean/combine.rs:411` — `.find(\|(_, e)\| e.curve == k)` inside the per-curve loop | missing inverse map | commit | 14 |
-| `StableName` nests one `Box` per boolean | `editor-core/src/names/role.rs:290-382` | O(chain²) on a long boolean chain | commit | 15 |
-| Tier-3 runs twice on the product path | `editor-core/src/product.rs:410` and `:445` | duplicated over the same entities | commit | 16 |
-| Tier-1 pass 13 is quadratic in null scaffolds | `topo/src/validate.rs:3876-3890` — per null-scaffold curve, a full edge-arena `filter().count()` | worst exactly mid-boolean | commit | 5 |
-| Per-op debug full-body tier-1 | `topo/src/euler.rs:60-72` — D1's **ratified** postcondition clause | body construction Θ(ops × N) in every debug/CI row; **measured 2026-08-27 at 6.5× on an extrude build and 5.2× on the two-brick boolean**, and free on validation, mass props and tessellation | CI/dev | 5 |
-| `point_in_loop` re-decides loop-intrinsic facts per query | `topo/src/splitting/containment.rs:238` | per-query work that is per-loop | commit | 8 |
-| `geom-core` has 2 `#[inline]` attributes total | `crates/geom-core/src/` | cross-crate call overhead on the hottest scalars | CI/dev | 17 |
+| Pick index re-tessellates every root on every edit | `viewer/src/pickcache.rs:266,285`, `pickindex.rs:742`, `editor-core/src/resolve/pick.rs:354` | 83–97 % of the edit wait on a large document | stop | `index-rebuilds-every-root-on-every-edit` |
+| Torus chart sized off one step in both directions | `mesh/src/sizing.rs:448`, consumer `curved.rs:1030` | ~65× the triangles the chord asks for on a torus (110–145× naive cells measured across four decades of δ); it is why the ring documents are million-triangle documents | stop | `work/mesh/torus-grid-step-one-step-both-directions` |
+| Display budget's probe can exceed the picture it sizes | `viewer/src/scene.rs:952` | 0.2–4.1 s frozen on open | stop | `fit-delta-probe-can-exceed-the-picture-it-sizes` |
+| D1 per-op whole-body tier 1, shipped in release | `topo/src/euler.rs:62`, `:2405`; `attach.rs:93,332` | 45–72 % of a rebuild in the shipped release profile; 31 % of editor-core's suite | stop (ratified — `[ev]`) | `d1-per-op-tier1-sweep-price` |
+| `StableName` is a boxed `BTreeMap` key | `editor-core/src/names/role.rs:396`, `table.rs:69,96-107`, `emit_topo.rs:518-524` | ~40 % of `die`'s rebuild, quadratic in chain depth | faster | `stablename-key-is-quadratic-on-a-boolean-chain` |
+| `assemble`'s aggregate tier-3′ census | `editor-core/src/product.rs:650` | n^1.96 in solids; 1.3 s at 161 | faster | `assemble-aggregate-census-is-quadratic-in-solids` |
+| Gate then measure pays two certified quadratures | `demos/tour/src/main.rs:402,423`; the Python pair | ~half of the tour's 2.2–2.7 s of mass props | stop | `gate-then-measure-pays-two-quadratures` |
+| Tier 3's +V check refines to the reporting target | `topo/src/validate.rs` (`validate_geometric_certified`), `geom-brep/src/props/quad.rs:113` | a false refusal at ε = 1e-12, not CPU | stop | `tier3-plus-v-needs-a-sign-and-pays-for-a-precision` |
+| Tessellation is serial per face; mass props serial per face | `mesh/src/tessellate.rs:106`, props | up to ~4× on a 4-core box, on top of the rows above | faster (D9 idioms 1 and 2) | §2.2 |
+| Whole-body pcurve re-mint per operation | `topo/src/pcurves.rs:1340` via `splitting/mod.rs:650`, `shell.rs:1704`, `transform.rs:650`; the narrowed door `mint_pcurves_of` exists at `:1392` | 0.1 % of `die`, 12 % of `die_composed_tour` | stop | `topo/producer-closing-mint-is-a-convention-with-thirteen-copies` |
+| Boolean gate validates tier 1 twice | `topo/src/boolean/ops.rs:1423-1426` | ~2.5 % of `die` | stop | plan finding 4 |
+| The arena-scan family | `body.rs:427,450,495`; `merge_faces.rs:1634`; `join.rs:282,520,539`; `combine.rs:415-419`; `validate.rs:5385-5390`; `containment.rs:238,246` | jointly ≤ 17 % of `die`, none separable at corpus size | faster | plan findings 5, 8, 9, 11, 13, 14 |
+| Tier 3's per-face `Approx` grid | `PropsQuadLane::recertify_approx` | fixture blocked (no shell body carries an `Approx` face yet) | — | `tier3-approx-regrid-per-face-cost` |
+| Python mesh egress as `Length` objects | `pncad-py/src/py/mesh.rs:325,339` | ~22 % of a tessellation again | faster | `python-mesh-egress-builds-length-objects` |
+| CDT on nested near-cocircular loops | `mesh` | not reached by any corpus document | faster | §2.1 |
+| `geom-core` has 2 `#[inline]` attributes | `geom-core/src/ring_interval.rs:87,93` | unmeasured; gated on moving a criterion row past its noise floor | faster | §2.3 |
 
-Two entries need their constraint stated rather than a fix assumed:
+Two constraints stated rather than a fix assumed:
 
-- **The per-op debug validate is D1, not an oversight.** `euler.rs`'s
-  module docs call it "D1's ratified clause". Making it cheaper is a
-  design change (a declared-delta check without the full tier-1
-  sweep, say), so it goes through DESIGN.md, not through a
-  performance PR. It now has a price: turning debug assertions on
-  costs **6.5×** on `kernel/build/extrude` and **5.2×** on
-  `kernel/boolean/two_bricks`, and nothing measurable on the other four
-  rows — the first measurement of this clause, taken by building
-  `benches/` both ways (`benches/Cargo.toml` records it). Two
-  consequences. It lands squarely on the topology-surgery rows, which
-  is why the benchmark profile turns it OFF: a 5× constant on exactly
-  the scenarios the arena-scan family below is meant to move would
-  round a real algorithmic win away. And it means every debug and CI
-  row in this repository pays it — which is a fact about the cost of
-  the gate, not an argument about D1.
-- **The pcurve re-mint is under active surgery.** `PCURVE-PLAN.md`'s
-  P-1 rewrites the edge-description vocabulary that `mint_pcurves`
-  serves. Narrowing the re-mint to the faces a boolean actually
-  touched is not on P-1's slate, and doing it *before* P-1 lands
-  means doing it twice — but it should be **on the PCURVE slate**,
-  not floating here, because that program owns the code.
+- **The per-op debug validate is D1, not an oversight.** Making it
+  cheaper is a design change; the question is in front of Ev as
+  `[ev]` PR 2305 with the price above, recommending once-per-door
+  with replay localization.
+- **The torus sizing formula is an audited reference.** TESS-BUDGET's
+  baseline was verified "exactly against the torus grid step", so
+  changing it is a deliberate re-cut under `docs/TESS-BUDGET.md`'s
+  procedure, and the per-direction sagitta is not a rigorous bound for
+  a doubly-curved chart — the unit owes the derivation, not the
+  formula the issue sketches.
 
 ## 2. CPU-first roadmap
 
@@ -269,12 +309,14 @@ Euler-op sequences stay serial — each op mutates shared arenas, and
 they are cheap; full-DAG rebuild is solved by memoization, not by
 parallelizing surgery.
 
-**State: one target built, and it is switched off.** `rayon` is a
-dependency of `editor-core` alone and `eval/mod.rs:1083` is the only
-`par_iter` in the workspace. It is D9-clean as written (indexed map
-into per-node slots), but `EvalOptions::default()` sets
-`parallel: false` (`:983`) and every shipping caller takes the
-default; `parallel: true` appears once, in a test.
+**State.** `rayon` is a dependency of `editor-core` alone; `par_iter`
+lives at `eval/mod.rs:2380` (behind `EvalOptions::parallel`, default
+`false` at `:2080`), `drive.rs:1184` (behind `DriveConfig::parallel`,
+default `false` at `:361`), `stackup.rs:513,1831` and `mc.rs:473`
+(default `true` at `mc.rs:94`). Neither `mesh` nor `bvh` names rayon.
+The M10 driver's map gives 3.66× on one row solo and regresses a
+saturated test binary by 6 % — a binary's floor is its longest serial
+row, so turning it on is a per-row decision, not a global one.
 
 Tempering expectation for whoever turns it on: the scheduler is
 level-synchronous and the expensive corpus documents are *chains*
@@ -300,13 +342,6 @@ exercised — not as a fix for the corpus timings.
 
 ### 2.3 Micro level (profile-gated; mostly "not yet")
 
-- **Reach memoization and parallelism from the Python binding.**
-  `pncad-py`'s `evaluate` hard-codes `prior = None` and
-  `EvalOptions::default()` (`py/value.rs:751-760`). Threading a prior
-  `Evaluation` and an options object through is small, and it is the
-  difference between the binding rebuilding the whole document on
-  every edit and rebuilding the edited cone. Cheapest item in this
-  document.
 - **Opt-level is now a measured, moving setting — do not hard-code a
   belief about it.** The `[profile.dev.package]` opt-2 overrides for
   `spade` and `mesh` are in `Cargo.toml:246-249` and stand. What has
@@ -507,73 +542,57 @@ developer run to re-check what CI checks better. The shape instead:
 
 ## 5. What to do next
 
-**The benchmark harness was this document's blocking item from the
-start, and it landed on 2026-08-27.** What follows is ordered against
-what it now says.
+The dispatch order, from §1.3. Units are cut one at a time from the
+top; every kernel unit runs the full v6 dual; measurement-only,
+demo-only and test-only units record no A/B row.
 
-1. **Read the criterion trend before optimizing anything.** The harness
-   landed 2026-08-27 (`benches/`, the nightly's `criterion benchmarks
-   (reporting)` job, `docs/perf-data/criterion/`), which is what opened
-   §2.3's gate. The first readings, on a 4-core box, are the numbers
-   this document had lacked until then:
+**Block PERF-B1** (three kernel units, drawn as one protocol block):
 
-   | row | median |
-   |---|---|
-   | `tessellate/washer/1e-4` | 10.5 ms |
-   | `tessellate/washer/1e-6` | 690 ms |
-   | `kernel/validate/tier23_washer` | 24 µs |
-   | `kernel/mass_props/washer` | 1.7 µs |
-   | `kernel/build/extrude` | 24 µs |
-   | `kernel/boolean/two_bricks` | 130 µs |
+1. **Torus chart sizing** — derive a doubly-curved chord bound per
+   direction, replace the single step, re-cut the tess-budget baseline
+   deliberately. Cuts the triangle count of every torus-bearing
+   document before anything caches it; the tour's tessellation and
+   the ring rows follow.
+2. **`StableName` keying** — intern or hash-key the naming table so an
+   insert is O(1) in chain depth; every emitted and persisted name
+   byte-identical.
+3. **Per-face patches in local ids** — `mesh::tessellate` emits each
+   face's patch in local ids and assigns bases in an arena-order fold;
+   bit-identical mesh. The prerequisite of both the per-face memo and
+   the parallel map, so it lands first and alone.
 
-   **What that table settles, and what it does not.** Tessellation is
-   two to four orders of magnitude above every other row, and §2.1's δ
-   sweep shows its cost growing as ~n^1.85 in triangle count on a
-   near-cocircular body — so the CDT quadratic is measured, and the
-   `spade` `HashSet` fix that must precede bulk loading is the next
-   unit of work there. It does **not** discharge that item's written
-   trigger, which asks for the *corpus* showing dominance rather than
-   one synthetic body at an export tolerance; §2.1 says what would.
-   The other four rows are microseconds, which prices the arena-scan
-   family honestly: they are complexity fixes for bodies far larger
-   than these, and item 2 below does not wait on the harness precisely
-   because these scenarios are too small to show them.
+**Beside the block, low-risk (single review, no row):**
 
-2. **The arena-scan family** (§2.1) — findings 9, 11, 13, 14, and
-   pass 13. Local, D9-neutral, justified by complexity argument
-   rather than by wall-clock, so they do not wait on item 1. Land
-   them one per PR with the complexity claim in the PR description.
+- The display budget's probe never larger than the picture (viewer).
+- Gate-then-measure takes the certificate it already computed (tour,
+  Python surface).
+- `budget_faces.rs` split into rows nextest can spread (test-only).
+- `gathers_on_this_thread` compiles without debug assertions
+  (test-only plus one `cfg`).
 
-3. **Reach the memo from Python** (§2.3) — smallest diff in this
-   document, largest change in what the binding's users experience.
+**Block PERF-B2**, after B1 and Ev's D1 ruling:
 
-4. **Boolean gate double tier-1 and product-path double tier-3**
-   (findings 4, 16) — XS/S, in release, on the commit lane.
+- The per-face patch memo across index builds (viewer + `mesh` door).
+- Parallel per-face tessellation (idiom 1) and per-face mass-property
+  fluxes (idiom 2).
+- Tier 3's +V check with a sign-sufficient door.
+- `assemble`'s aggregate census behind the BVH pre-filter.
+- D1 once-per-door, if ruled.
 
-**On the trigger list:** CDT bulk loading — its quadratic is measured
-now (§2.1's sweep), its trigger is not yet met, and the corpus reading
-that would meet it is the cheap next step; the `spade` `HashSet` fix
-precedes adoption either way. SSI
-seeding on the BVH: its own module says "when profiling asks for it",
-and the harness does not benchmark SSI, so that trigger needs a row
-before it can fire. Per-face tessellation parallelism (§2.2) — the
-tessellation rows above are the case for it.
+**On the trigger list, unchanged:** CDT bulk loading (the corpus does
+not reach the quadratic; the `spade` `HashSet` fix precedes adoption
+either way); SSI seeding on the BVH; the arena-scan family (complexity
+argument stands, corpus does not size it — land them when a body large
+enough to show them exists, one per PR with the complexity claim).
 
-**The GUI side owns** everything in §3.1. v1 shipped wgpu rendering
-and ID-buffer picking on the kernel's deliverables (meshes with
-back-refs, cancelable evaluation service, BVH); LOD and the
-preview-tessellation experiment are still unbuilt there.
-
-**M10 owns** the parallel subdivision driver (idiom 1 over sub-boxes)
-and interval-lane throughput work if certification wall-times demand
-it.
+**Owed to the measurement record:** a curved-body row in `benches/`
+(criterion's six rows are planar microseconds where curved bodies are
+100+ ms, so they do not predict the kernel-API seat).
 
 **Premature, named to stay dead until their triggers:** any GPU work;
 SIMD/SoA/PGO/LTO; parallelizing Euler sequences; benchmark *gates*
-(as opposed to the trend — the lane is reporting-only and Q-P4 is why);
-micro-tuning validators or mass props beyond the specific findings
-above. Mass props at 1.7 µs and validation at 24 µs are now measured,
-which makes "premature" a fact about those two rather than a posture.
+(the lane is reporting-only and Q-P4 is why); micro-tuning validators
+beyond the rows above.
 
 ## 6. Settled, not re-litigated
 
