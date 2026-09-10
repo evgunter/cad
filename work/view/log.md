@@ -7356,3 +7356,97 @@ row moved and the other did not. **The rule this pays for is
 `plan.md`'s**: green CI on an old head is not a merge criterion when
 the diff's SUBJECT moved under it, and "the inputs are byte-identical"
 was a true argument that stopped being true.
+
+## 2026-09-10 — `view/wasm-docs`: the nine were not one population, and two of them were dead everywhere
+
+`viewer-docs-do-not-build-at-wasm32` offered two shapes over nine
+broken intra-doc links at `wasm32-unknown-unknown` and asked which. The
+answer is **neither, whole**: seven are the rule and two were a defect
+on any posture, and the split is not a compromise between the shapes —
+the two halves are decided by opposite arguments.
+
+**Re-derived first, because the row states its sites as measurements of
+the tree and `crates/viewer/src` has moved.** The row's own command at
+`ac4a69dd5` printed nine errors whose `-->` lines matched the filed
+table cell for cell, with `evalseam.rs:453`, `app.rs:495` and
+`app.rs:1796` all resolving to the `cfg` they are cited for, and
+`scripts/doc-gate.sh:555` and `:638` still saying what the row cites
+them for. Nothing had drifted.
+
+**The seven are ruled host-only**, in `crates/viewer/README.md`'s GQ6.
+The argument is the row's own about the tenth link — *de-linking a
+working host link to hold a count nothing reads would have made the
+host docs worse for no reader* — and the point is that it is a ratio,
+not a fact about the tenth: a live link on a page CI builds and a
+person reads, against a lint in a configuration whose docs no row has
+ever built. That ratio is identical for all seven. `evalseam`'s module
+doc forces it rather than merely permitting it, because its subject IS
+that one of the seam's two arms is host-only and it cannot name that
+arm without linking it — so a gate here would make the docs worse every
+day rather than once.
+
+**The universal owes its sweep rule, and the rule ranges over the
+pass's own output.** GQ6 does not carry a count and does not carry a
+list. It carries the command, and the instruction to read the `cfg` on
+the item each error's doc comment is ATTACHED to — a different question
+from the `cfg` on the item it links. Attached at both targets:
+permitted. Attached to a wasm-only item: a defect. Deliberately not a
+grep over `cfg` attributes, because rustdoc's resolver at the target is
+what decides absence and a re-export, a glob import or a feature moves
+an item across with no `cfg` at the link's own site. The count lives in
+exactly one place, the closed row, dated to the tree it was taken on.
+
+**The two `run` links were measured, not argued.** Host build:
+`doc/viewer/app/fn.run.html` exists, `fn.run_web.html` does not. At
+`wasm32-unknown-unknown`: the reverse. So `[`run`]` inside `run_web`'s
+doc resolved in **no** configuration — the only page that renders it is
+the one where the target is absent — and had been dead for its whole
+life with nothing able to see it. The ratio that saves the seven has no
+reader on either side here, and a bracket no configuration checks
+spells a checked claim that is not one. The repair was already in the
+file, in the other direction: `WINDOW_TITLE` (`app.rs:115`) names
+`run_web` rather than linking it, *"absent from this configuration, so
+named rather than linked"*. Both sites are bare spans now, changed
+within the line, so `app.rs` kept its 1,956 lines and no citation
+anywhere shifted.
+
+**The census, run because the README grew.** The insertion is at
+`:1428` and the highest README line cited anywhere in `work/`, `docs/`
+or `crates/` is `:1079`, so zero citations moved. `app.rs` shifted
+nothing by construction. The one other copy of the nine was
+`doc-comments-name-symbols-that-do-not-exist:97`; it now points at the
+GQ6 ruling instead of at a number, which is durable where the count is
+not — that row outlives this program's directory and the README
+outlives both.
+
+**The fence, and what it settled rather than blocked.** Shape (1)'s
+durable half is a CI row and `.github/workflows/ci.yml` is CIW's, so it
+was never available whole here. It is also not worth asking for, and
+the paragraph above is why: the request would have been for a gate over
+a browser-docs page nobody publishes, priced in permanent damage to the
+pages that are published. No §6 report.
+
+**Disclosed and scheduled, not disclosed and dropped**:
+`wasm-only-doc-comments-are-checked-by-nothing`. The ruling's stated
+cost is that a doc comment on a wasm-only item is rendered by no pass
+this repo runs, so nothing resolves its links — and the two repairs
+above are that class's only known instances, found only because a row
+ran the pass by hand. That file also carries **the third shape the row
+did not offer and the tree does**:
+`#[cfg_attr(target_family = "wasm", allow(rustdoc::broken_intra_doc_links))]`
+on the four items bearing the seven links greens the browser pass
+without weakening the host pass, because the `allow` is conditional,
+and a row could then hold exactly the unchecked class. Refused on
+price — a per-site tax forever on a crate that mints host-only links by
+construction — but costed in writing so a successor argues with the
+costing rather than re-deriving it. *An item's own menu of options is a
+claim like any other*, and this menu was short by one.
+
+**Verification.** Nine before, seven after, both quoted verbatim in the
+PR. `scripts/doc-gate.sh --selftest` and `--pr --scope '-p viewer'`
+green, `cargo fmt --check` clean, `viewer-module-kinds` and
+`viewer-vocab-declared-once` green over the edited README, clippy green
+at the host and at `wasm32-unknown-unknown` at `-D warnings`, and
+`tests/all.rs` 508/0. The one red is `gpu::tests::every_pass_builds_on_a_real_device`,
+which refuses for want of a WGPU adapter on this box and is the row CI
+installs lavapipe for; hosted is the verification of record.

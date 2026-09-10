@@ -1425,6 +1425,59 @@ setting only the flag fails the build, which is why the feature is
 declared here so the flag is all a builder has to remember
 (`local-scripts/serve-wasm.sh`). The browser lane itself is deferred.
 
+**The viewer's rustdoc is a HOST artifact, and a doc comment may link an
+item the browser build does not have.** `scripts/doc-gate.sh` builds this
+crate's docs at the host target only, so every page anyone reads is a
+host page. A doc comment compiled at both targets may therefore link an
+item `cfg(not(target_family = "wasm"))` keeps out of the browser build.
+`evalseam`'s module doc is the case that forces the rule rather than
+merely permitting it: its whole subject is that the seam has two arms
+and that one of them is host-only, and it cannot name that arm without
+linking it. De-linking such a site to clean a page nobody builds spends
+a live link on the reader who exists to buy a lint in a configuration
+that has no reader.
+
+**The population this permits, and the one exception to it, are
+produced by a rule rather than kept as a list.** Take the reading at the
+browser target —
+
+```
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
+RUSTDOCFLAGS='-D warnings -A rustdoc::private_intra_doc_links' \
+cargo doc --no-deps --document-private-items \
+  -p viewer --features app --target wasm32-unknown-unknown
+```
+
+— and for each `rustdoc::broken_intra_doc_links` it prints, read the
+`cfg` on the item the doc comment is ATTACHED to, which is a different
+question from the `cfg` on the item it links.
+
+- **Attached to an item that compiles at both targets — permitted.**
+  The error is this rule's stated cost, not a defect.
+- **Attached to an item that is itself `cfg(target_family = "wasm")` —
+  a defect, and the repair is to de-link.** Such a link resolves in NO
+  configuration: the host never renders the doc, because the item is
+  absent there, and the browser renders it with the linked item absent.
+  Bracketing spells a checked claim that nothing anywhere checks, so
+  name the item instead — which is what `WINDOW_TITLE`'s doc already
+  does in the other direction, *"`run_web` — absent from this
+  configuration, so named rather than linked"*.
+
+The rule ranges over that pass's own output and not over a grep for
+`cfg`, because rustdoc's resolver at the target is what decides whether
+an item is absent and an attribute grep is not: a re-export, a glob
+import or a feature moves an item in or out with no `cfg` at the link's
+own site.
+
+**Nothing runs the browser pass**, so its errors are a reading taken by
+hand and not a gate. Gating it would tax every future host-only link
+with a de-link or an `allow`, in a crate whose architecture is one seam
+with two arms and which therefore mints such links by construction. The
+cost is stated where it falls: a doc comment on a wasm-only item is
+checked by no configuration at all, and
+`work/view/wasm-only-doc-comments-are-checked-by-nothing.md` owns that
+blind spot.
+
 ## Banked post-v1
 
 GUI-5, the threaded web lane, and GUI-6, the history graph: a

@@ -94,9 +94,10 @@ Two shapes, and they are not exclusive:
   Cheap, mechanical, and it converts an unchecked claim into a checked
   one rather than merely correcting today's instance. Note that a name
   in a *cfg-gated* configuration cannot always be linked — see
-  `viewer-docs-do-not-build-at-wasm32`, where nine such links are
-  already unresolvable at the browser target — so this is not
-  unconditional.
+  `crates/viewer/README.md`'s GQ6 ruling, which permits a both-target
+  doc comment to link a host-only item and refuses the bracket only
+  where the doc comment's OWN item is wasm-only, because that link
+  resolves in no configuration — so this is not unconditional.
 - **Check the rest by rule.** The residue after bracketing is
   categories 1–3 above, and a gate for them is the `<file>.rs:<line>`
   gate `stale-file-citations-after-the-split` asks for, aimed at

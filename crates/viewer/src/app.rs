@@ -1898,12 +1898,12 @@ impl core::error::Error for WebStartupError {}
 
 /// Run the application on the `<canvas>` carrying `canvas_id`.
 ///
-/// The browser counterpart of [`run`], and deliberately the whole of
+/// The browser counterpart of `run`, and deliberately the whole of
 /// the difference between the two platforms' entry points: everything
 /// downstream — the session, the panes, the camera, the input map —
 /// is the same code the native build runs.
 ///
-/// **No `open` parameter, unlike [`run`].** There is no path to hand
+/// **No `open` parameter, unlike `run`.** There is no path to hand
 /// it: the browser build links no file dialog and has no filesystem
 /// to name, so it opens on the built-in startup document and stays
 /// there. That is the spike's stated scope, not an oversight —
