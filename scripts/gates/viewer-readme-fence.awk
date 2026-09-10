@@ -1,8 +1,11 @@
 # viewer-readme-fence.awk — the CommonMark fence tracker both viewer
 # gates read `crates/viewer/README.md` through. It is awk source, not a
-# gate: `viewer-vocab-declared-once.sh` and `viewer-module-kinds.sh`
-# each load it into `$FENCE_AWK` and prepend it to their own awk
-# programs, the way `lib.sh` prepends its own record splitter.
+# gate: its callers each load it into `$FENCE_AWK` and prepend it to
+# their own awk programs, the way `lib.sh` prepends its own record
+# splitter. WHO THE CALLERS ARE is a sweep rather than a list kept
+# here, because a list of filenames in prose is the hand-kept
+# cross-reference both callers have a check against carrying:
+# `grep -l viewer-readme-fence.awk scripts/gates/*.sh`.
 #
 # THIS TEXT IS PART OF EVERY PROGRAM IT IS PREPENDED TO, comments
 # included, and a caller's self-test kills one awk stage by matching a
@@ -54,12 +57,25 @@
 # previous line END a block* gets it backwards: an OPENING delimiter
 # starts a block, so the line under it is content, while a CLOSING
 # delimiter ends one, so the line under it BEGINS a paragraph.
-# `viewer-vocab-declared-once.sh`'s `opens` is such a predicate and
-# reads `fence == "close"`; `viewer-module-kinds.sh` asks the other
-# direction of the same distinction — a table body ENDED by an opening
-# delimiter is a table a fenced block interrupts, and its rows below
-# the fence are not the roster. A boolean answered both of those wrong,
-# and shipped a false GREEN over an unratified fourth kind.
+# One caller's `opens` predicate — `viewer-vocab-declared-once.sh`,
+# named here because the ARGUMENT is about that reader and not about
+# who happens to load this file — is such a predicate, reads
+# `fence == "close"`, and is the ONLY reader in this repo that needs
+# more than the boolean: a boolean answered it wrong in both directions
+# at once and shipped a false GREEN over an unratified fourth kind.
+#
+# WHICH IS NOT EVERY CALLER, and the distinction is worth drawing here
+# because "the third answer is load-bearing" reads as being about the
+# tracker rather than about one predicate. `viewer-module-kinds.sh`
+# tests `fence == "open"` where a table body ends — true as a predicate,
+# since a table body cannot be read inside a fence and the only
+# delimiter that can end one is the delimiter that opens it — but
+# `close` and `inside` are unreachable at that rule, so `fence != ""`
+# decides identically and that gate's self-test cannot tell the two
+# apart. Checked by mutation, both ways: `fence != ""` leaves it green
+# on its fixtures and on the real tree, and returning `open` where this
+# function returns `close` leaves it green while reddening the vocab
+# gate. That self-test is what holds the third answer; no other does.
 #
 # NO `(` IMMEDIATELY AFTER AN INTERVAL, and this is the same class as
 # this directory's no-backslash rule: a spelling one awk accepts and

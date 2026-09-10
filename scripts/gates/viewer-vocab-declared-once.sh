@@ -561,6 +561,20 @@ const_hits() {
 # besides.
 VIEWER_FENCE_AWK=$GATE_REPO_ROOT/scripts/gates/viewer-readme-fence.awk
 
+# THIS LOADER IS THE SECOND COPY OF ITSELF, disclosed rather than
+# shared, and the reason it cannot be shared is one level down from the
+# reason the tracker can. The tracker has ONE home because it is awk
+# source; a loader is SHELL, and the only shared shell homes are
+# `lib.sh` — code-quality's, read and called here and never edited —
+# and a second `.sh` in this directory, which `gate-roster.sh` reads as
+# a gate that runs nowhere (`viewer-readme-fence.awk`'s header argues
+# that at length). So this function, `VIEWER_FENCE_AWK` and
+# `selftest_fence_load` are spelled twice, here and in the directory's
+# other viewer gate. What they can diverge about is bounded by what
+# they are — a path, an existence test and a message — and the part
+# where two readers disagreeing would be a defect nothing catches, the
+# tracker, is not duplicated at all.
+#
 # THE LOAD IS A READ AND IT IS GUARDED, for `reader_failed`'s reason
 # one layer down: a tracker that is not there leaves `FENCE_AWK` empty,
 # every `md_fence` call becomes a call to an undefined function, and
@@ -570,7 +584,7 @@ VIEWER_FENCE_AWK=$GATE_REPO_ROOT/scripts/gates/viewer-readme-fence.awk
 # is this gate's own code and lives outside every fixture root.
 load_fence_awk() {
   if [ ! -f "$1" ]; then
-    gate_error "$(gate_name): $1 does not exist — that file IS the markdown fence tracker this gate reads $README through, shared with viewer-module-kinds.sh, and without it a fenced \`#\` ends a section and a fenced table row joins a roster. Restore it, or spell the tracker back into this gate deliberately"
+    gate_error "$(gate_name): $1 does not exist — that file IS the markdown fence tracker this gate reads $README through, shared with this directory's other viewer gate, and without it a fenced \`#\` ends a section and a fenced table row joins a roster. Restore it, or spell the tracker back into this gate deliberately"
     return 1
   fi
   printf '%s\n' "$(<"$1")"

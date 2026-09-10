@@ -16,7 +16,7 @@ gate has never had. Different repairs, different controls.
 
 ## The gap
 
-`scripts/gates/viewer-module-kinds.sh:220-227`'s `readme_table_modules`
+`scripts/gates/viewer-module-kinds.sh:220-227` (at `09b0ef5a8`; that function is gone, see Closed below)'s `readme_table_modules`
 is `awk … | sed …` — two stages, both reading `$README`, both inside a
 process substitution (`mapfile … < <(readme_table_modules …)` at `:270`
 and `:277`), so both exit statuses are discarded. **The gate has no
@@ -80,11 +80,15 @@ inferred.
 
 ## Closed (2026-09-10)
 
-`reader_failed`/`abort_if_reader_failed` at
-`scripts/gates/viewer-module-kinds.sh:234-254`, and the population they
-cover is stated at `:189-233` rather than left to a count: **fifteen
-stages**, of which twelve are guarded here and three diagnose
-themselves in `lib.sh`.
+`reader_failed` at `scripts/gates/viewer-module-kinds.sh:291-296` and
+`abort_if_reader_failed` at `:305-311`, over the population stated at
+`:236-268` rather than left to a count: **twelve stages**, with the
+rule that produces them written beside the list — every stage on PATH
+whose status this file must read for itself. The `gate_grep`,
+`gate_rust_code` and `gate_record_awk` sites that diagnose themselves
+in `lib.sh` are named there as excluded rather than left looking like
+an oversight; the first version of this list said fifteen and certified
+a population it did not produce.
 
 **The item names two stages and the gate has twelve.** Its arm could
 only see `readme_table_modules`, so it missed the module enumerator's

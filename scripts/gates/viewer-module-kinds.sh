@@ -42,9 +42,10 @@
 # rather than in a document they may not open, and a new module cannot
 # be added without answering the question.
 #
-# WHAT IS DERIVED AND WHAT IS WRITTEN DOWN. Only two things in this
-# file are hand-kept, and both are checked against the tree on every
-# pass. Everything else is READ from the documents it enforces:
+# WHAT IS DERIVED AND WHAT IS WRITTEN DOWN. Four things in this file
+# are hand-kept and three of them are checked against a document on
+# every pass; the fourth is named below with what bounds it instead.
+# Everything else is READ from the documents it enforces:
 #
 #   * the DRIVER ROSTER is the README's `### The drivers` table;
 #   * the VOCABULARY roster is the README's two vocabulary tables;
@@ -66,9 +67,23 @@
 #     `crate::app::…` reds — and which modules those are is read off
 #     the same tables rather than carved out by hand.
 #
-# The two hand-kept things: FORBIDDEN_TYPE_NAMES (two names, cross-checked
-# against the README's own rule text by check 6) and VOCAB_EXCEPTIONS
-# (below).
+# THE HAND-KEPT FOUR, and the rule that produces this list is
+# `grep -nE '^[A-Z_]+=' $0` read by hand against what each name is held
+# to:
+#
+#   * FORBIDDEN_TYPE_NAMES — two names, cross-checked against the
+#     README's own rule text by check 6;
+#   * VOCAB_EXCEPTIONS (below) — held to the tree site by site by
+#     check 8, which is also what retires an entry;
+#   * TABLE_FIRST_COLUMN and CITED_SECTION — held to the README by the
+#     table reader and by check 6b respectively;
+#   * VIEWER_FENCE_AWK — a PATH, held only by its own existence test.
+#     A path is not a cross-reference into a document's prose, which is
+#     the class check 6b exists to refuse: it cannot go stale silently,
+#     because the load fails loudly the moment it is wrong. No gate
+#     names the other gate by filename any more — the callers of the
+#     tracker are `grep -l viewer-readme-fence.awk scripts/gates/*.sh`,
+#     which is the sweep rule rather than a list to keep.
 #
 # THE EXCEPTION LIST IS EMPTY, AND IT RETIRED THE WAY IT WAS BUILT TO.
 # It held two entries — `pick.rs|DocSession|2` and
@@ -129,12 +144,17 @@
 #     the derived set: `Cargo.toml:244` makes it an unconditional
 #     dependency, present in the default build, so a vocabulary naming
 #     it compiles and breaks no rule this file enforces.
-#   * A MARKDOWN BLOCK THE FENCE TRACKER DOES NOT MODEL. The README
-#     readers below know fenced code blocks and nothing else, so a
-#     column-zero `#` inside an HTML block or a block quote still ends
-#     a section — four-space indentation cannot put one at column zero,
-#     and neither of the other two has appeared in a scanned region.
-#     `viewer-readme-fence.awk` states the same residue at the tracker.
+#   * A MARKDOWN BLOCK NEITHER THE FENCE TRACKER NOR THE INDENT STRIP
+#     MODELS. The README reader below knows fenced code blocks and the
+#     one-to-three-space indent, and nothing else, so a `#` inside an
+#     HTML block or a block quote still ends a section, and a SETEXT
+#     heading — a line of `===` or `---` under a paragraph — is not read
+#     as a heading at all, so a section underlined that way does not end
+#     where a renderer ends it. None of the three has ever appeared in a
+#     scanned region; the sweeps are `grep -n '^<' `, `grep -n '^>' ` and
+#     `grep -nE '^(=+|-+)$' ` over `crates/viewer/README.md`, and the
+#     third is why the `|---|---|` delimiter test requires a `|`.
+#     `viewer-readme-fence.awk` states the tracker's half of this.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -148,22 +168,43 @@ GATE_SCAN_NOUN='viewer module'
 # scopes a README region by `^#` and reads its roster off `^|` lines,
 # and inside a fenced code block neither is markdown structure:
 # `#[derive(Debug)]` and `#!/bin/sh` are content, and a worked example
-# of a table row is content too. `viewer-vocab-declared-once.sh` reads
-# the same README through the same tracker, and two readers answering
-# "is this line markdown structure" differently is a divergence nothing
-# would catch — so it is ONE file both gates load rather than a copy
-# each. Its header carries the CommonMark rule, the three answers and
-# the `mawk` constraint.
+# of a table row is content too. It is not the only gate reading this
+# README that way, and two readers answering "is this line markdown
+# structure" differently is a divergence nothing would catch — so the
+# tracker is ONE file its callers load rather than a copy each, and who
+# those callers are is `grep -l viewer-readme-fence.awk
+# scripts/gates/*.sh` rather than a name kept here. Its header carries
+# the CommonMark rule, the indent boundary, the three answers and the
+# `mawk` constraint.
 #
 # EVERY LIVE INTERVAL IN THIS FILE IS CLEAR OF THE `mawk` SPELLING the
 # tracker's header forbids — no `(` immediately after an interval, on
 # pain of `REcompile() - panic` and a reader that decided nothing. The
 # sweep rule is `grep -nE '[{][0-9]+,[0-9]*[}]' $0` read by hand rather
-# than a count carried in prose, and this gate's own awk and sed
-# programs carry NO interval at all: the only hits are in the paragraph
-# above, which forbids the spelling.
+# than a count carried in prose. It returns FOUR lines and exactly ONE
+# of them is live: the table reader's `sub(/^ {0,3}/, "", line)`, whose
+# interval is followed by `/`. The other three are comments about that
+# strip — this sentence, the reader's own paragraph and one planter's.
+# The fatal adjacency — a closing brace of an interval with an opening
+# parenthesis immediately after it — is written down once, in the
+# sidecar's header, which is where its sweep lives too; spelling it a
+# second time here would put it in the file that claims not to hold it.
 VIEWER_FENCE_AWK=$GATE_REPO_ROOT/scripts/gates/viewer-readme-fence.awk
 
+# THIS LOADER IS THE SECOND COPY OF ITSELF, disclosed rather than
+# shared, and the reason it cannot be shared is one level down from the
+# reason the tracker can. The tracker has ONE home because it is awk
+# source; a loader is SHELL, and the only shared shell homes are
+# `lib.sh` — code-quality's, read and called here and never edited —
+# and a second `.sh` in this directory, which `gate-roster.sh` reads as
+# a gate that runs nowhere (`viewer-readme-fence.awk`'s header argues
+# that at length). So this function, `VIEWER_FENCE_AWK` and
+# `selftest_fence_load` are spelled twice, here and in the directory's
+# other viewer gate. What they can diverge about is bounded by what
+# they are — a path, an existence test and a message — and the part
+# where two readers disagreeing would be a defect nothing catches, the
+# tracker, is not duplicated at all.
+#
 # THE LOAD IS A READ AND IT IS GUARDED, for `reader_failed`'s reason
 # one layer down: a tracker that is not there leaves `FENCE_AWK` empty,
 # every `md_fence` call becomes a call to an undefined function, and
@@ -173,7 +214,7 @@ VIEWER_FENCE_AWK=$GATE_REPO_ROOT/scripts/gates/viewer-readme-fence.awk
 # this gate's own code and lives outside every fixture root.
 load_fence_awk() {
   if [ ! -f "$1" ]; then
-    gate_error "$(gate_name): $1 does not exist — that file IS the markdown fence tracker this gate reads $README through, shared with viewer-vocab-declared-once.sh, and without it a fenced \`#\` ends a section and a fenced table row joins a roster. Restore it, or spell the tracker back into this gate deliberately"
+    gate_error "$(gate_name): $1 does not exist — that file IS the markdown fence tracker this gate reads $README through, shared with this directory's other viewer gate, and without it a fenced \`#\` ends a section and a fenced table row joins a roster. Restore it, or spell the tracker back into this gate deliberately"
     return 1
   fi
   printf '%s\n' "$(<"$1")"
@@ -192,7 +233,14 @@ FENCE_AWK=$(load_fence_awk "$VIEWER_FENCE_AWK") || exit 1
 # *"no modules under crates/viewer/src besides lib.rs and bin/"* about a
 # tree holding forty-five.
 #
-# THE STAGES, and this list is the population a case is owed for:
+# TWELVE STAGES THIS FILE GUARDS, which is NOT every reader stage in it.
+# The rule that produces the list is *every stage on PATH whose status
+# this file must read for itself* — so `gate_grep`, `gate_rust_code` and
+# `gate_record_awk` are here only where a guard of this file's own sits
+# beside them, and their other twelve call sites
+# (`grep -n 'gate_grep\|gate_rust_code' $0`, read by hand) are absent
+# because each diagnoses ITSELF in `lib.sh` and no case here is owed for
+# one. A case IS owed for every row below:
 #
 #   `mapfile … < <(viewer_modules)`
 #     1. the module enumerator        `find "$SRC"`
@@ -203,18 +251,21 @@ FENCE_AWK=$(load_fence_awk "$VIEWER_FENCE_AWK") || exit 1
 #   `mapfile … < <(table_rows …)`
 #     5. the table row reader         `sed -nE …`
 #   `kind_of` (in `$(…)`)
-#     6. the kind reader              `gate_grep` (guarded in `lib.sh`)
-#     7. the kind extractor           `sed -E …`
+#     6. the kind extractor           `sed -E …`, under a `gate_grep`
+#        that diagnoses itself
 #   `mapfile … < <(app_only_crates)`
-#     8. the manifest feature reader  `awk … "$MANIFEST"`
-#     9. the dep extractor            `sed -nE …`
-#    10. the dep speller              `tr`
-#    11. the dep sorter               `sort -u`
+#     7. the manifest feature reader  `awk … "$MANIFEST"`
+#     8. the dep extractor            `sed -nE …`
+#     9. the dep speller              `tr`
+#    10. the dep sorter               `sort -u`
 #   `hits=$(…)`
-#    12. the shared Rust reader       `gate_rust_code` (guarded in `lib.sh`)
-#    13. the union filter             `gate_grep` (guarded in `lib.sh`)
-#    14. the hit deduplicator         `gate_record_awk`
-#    15. the hit sorter               `sort`
+#    11. the hit deduplicator         `gate_record_awk`
+#    12. the hit sorter               `sort`
+#
+# The two stages that FEED that union — `gate_rust_code | gate_grep`,
+# in `lines_hits=$(…)` and `tree_hits=$(…)` one line above it — are the
+# self-diagnosing kind and are named here only so a reader does not
+# take their absence for an oversight.
 #
 # A GUARD IS ON A STAGE AND NEVER ON A PIPELINE. `pipefail` reports the
 # RIGHTMOST non-zero stage, so a guard written `a | b || reader_failed
@@ -365,47 +416,100 @@ viewer_modules() {
 # under it" — three answers a bare row count folds into one, and this
 # gate reds identically on all three today.
 #
-# THE TABLE IS THE FIRST CONTIGUOUS RUN OF `^|` LINES under the
+# COLUMN ZERO IS NOT WHERE MARKDOWN PUTS A ROW, and this reader learned
+# it the expensive way: its first version anchored every rule at `^`,
+# and a row indented TWO SPACES — which every renderer draws as a row of
+# the table — was seen by no rule at all. Indenting
+# `crates/viewer/README.md`'s last `session::probe` row dropped that
+# module out of the roster with the gate at exit 0 and its OK line
+# `cmp`-identical to the clean run: the silent short roster this reader
+# was rewritten to remove, re-minted inside the rewrite.
+# `work/view/plan.md` carries the rule from #2172 — *a `^`-anchored
+# pattern over markdown is a claim about column zero that markdown does
+# not make* — and it is the same boundary one sentinel over.
+#
+# SO THE INDENT IS STRIPPED ONCE, and every rule reads the stripped
+# line. CommonMark allows a heading, a table row and a table's
+# delimiter row up to THREE spaces in and makes FOUR a code block, so
+# `sub(/^ {0,3}/, "", line)` encodes the boundary exactly rather than
+# approximating it with `[[:space:]]*`: a four-space line keeps one
+# space and matches no rule, and a leading TAB advances to column four
+# and keeps its tab. Both sides are planted, and all six positions were
+# settled with `markdown-it-py` 4.2.0 in CommonMark mode with tables
+# on — the header, the delimiter row and a body row each accept one to
+# three spaces, and four spaces on the delimiter row leaves no table at
+# all. One call per line, before any rule, because a rule ending in
+# `next` would skip a normaliser placed after it — `md_fence`'s own
+# convention, one line up.
+#
+# THE TABLE IS THE FIRST CONTIGUOUS RUN OF TABLE LINES under the
 # heading, which is what a renderer draws and what the old scan did
 # not: that one collected every `^|` line between the heading and the
 # next heading, so a `|` line in the section's prose below the table —
 # or a second table — joined the roster, and the rows were read as one
 # table nothing draws as one.
 #
-# EVERY TABLE LINE IN THE SECTION IS ACCOUNTED FOR, which is the half
-# that makes the length check possible at all. A `^|` line after the
-# table has ended comes back as `!stray <line>`, so the section's own
-# table lines are an INDEPENDENT count to hold the roster against:
-# each is the header, the separator, a row of the roster, or a line the
-# caller reds on. Without it a fence with a blank line above it ends
-# the table silently and the rows below it are simply not the roster —
-# reproduced on the real tree, where four of six vocabulary rows
-# vanished and the OK line came back byte-identical.
+# EVERY TABLE LINE IN THE SECTION IS ACCOUNTED FOR, and what produces
+# that population is the strip above plus the two markers below: a line
+# is a table line when its first character after at most three spaces
+# is `|`. Under that rule each one is the header, the delimiter, a row
+# of the roster, or a line the caller reds on — which is what lets the
+# roster's length be held against the table's own. A `|` line after the
+# table has ended comes back as `!stray <line>`; without it a fence
+# with a blank line above it ends the table silently and the rows below
+# are simply not the roster, reproduced on the real tree where four of
+# six vocabulary rows vanished and the OK line came back identical.
 #
-# ENDING AT A FENCE IS ITS OWN ANSWER, and it is the whole of the
-# silent half of this reader's old defect. A fenced block opening
-# inside the table body ends the table there: markdown agrees, so the
-# rows below the fence are not the roster and no renderer shows them as
-# one — but the callers red only on an EMPTY roster and never on a
-# SHORT one, so the region simply narrowed and the gate went on
-# printing OK over fewer modules than the README lists. Reproduced
-# before the repair, on the real tree: a `rust` fence four rows into
+# ENDING AT A FENCE IS ITS OWN ANSWER, and it is the other half of that
+# silence. A fenced block opening inside the table body ends the table
+# there: markdown agrees, so the rows below the fence are not the
+# roster and no renderer shows them as one — but the callers red only
+# on an EMPTY roster and never on a SHORT one, so the region narrowed
+# and the gate went on printing OK over fewer modules than the README
+# lists. Reproduced before the repair: a `rust` fence four rows into
 # `### The session's vocabularies` left the cross-check covering two of
-# six vocabularies with the OK line byte-identical. `!fence` is that
-# narrowing made loud, and it needs the tracker's THIRD answer — a
-# CLOSING delimiter cannot end a table body, because a table body
-# cannot be read inside a fence in the first place.
+# six vocabularies with the OK line byte-identical.
+#
+# THE OTHER SIDE OF THE BOUNDARY IS ITS OWN ANSWER TOO, `!indent`, and
+# it is there because being RIGHT about a four-space line is not the
+# same as being loud about it. A line the author wrote as a row and
+# indented four spaces or a tab is a code block, so dropping it from
+# the roster is the correct read — and if it is the table's LAST row,
+# nothing follows it to become a `!stray`, the roster is one shorter
+# and every other figure is unchanged. That is the silent shortening
+# again, arriving from the README's side rather than the reader's, so
+# the record is emitted without `next`: the line is reported AND still
+# not read as a row. A fenced one is not reported, because inside a
+# fence it is content. No line in this README matches it today — the
+# sweep is `grep -nE '^[[:space:]]+[|]' crates/viewer/README.md`, which
+# returns nothing over the whole page, not merely over the three
+# scanned sections.
+#
+# THE FENCE TEST HERE ASKS FOR `open` AND DOES NOT NEED THE TRACKER'S
+# THIRD ANSWER, which is worth saying because the opposite reads as
+# obvious. `close` and `inside` are both unreachable at that rule: a
+# table body cannot be read inside a fence, so the only delimiter that
+# can end one is the delimiter that opens it. `fence != ""` decides
+# identically here and this gate's self-test cannot tell the two apart
+# — checked by mutation. The third answer is load-bearing for
+# `viewer-vocab-declared-once.sh`'s `opens`, whose question is *did the
+# previous line END a block*, and that gate's self-test is what holds
+# it. `open` is written here because it is the true predicate — the
+# table ran into a block that OPENS — and not because a boolean would
+# fail.
 readme_table_block() {
   awk -v want="$1" "$FENCE_AWK"'
     { fence = md_fence($0); fenced = (fence != "") }
-    !fenced && $0 == want { insec = 1; intable = 0; done = 0; print "@"; next }
+    { line = $0; sub(/^ {0,3}/, "", line) }
+    !fenced && line == want { insec = 1; intable = 0; done = 0; print "@"; next }
     !insec { next }
-    !fenced && /^#/ { insec = 0; next }
-    done && !fenced && /^\|/ { print "!stray " $0; next }
+    !fenced && line ~ /^#/ { insec = 0; next }
+    !fenced && line !~ /^[|]/ && $0 ~ /^[[:space:]]+[|]/ { print "!indent " $0 }
+    done && !fenced && line ~ /^[|]/ { print "!stray " line; next }
     done { next }
-    intable && !fenced && /^\|/ { print; next }
+    intable && !fenced && line ~ /^[|]/ { print line; next }
     intable { if (fence == "open") { print "!fence" } intable = 0; done = 1; next }
-    !fenced && /^\|/ { intable = 1; print; next }
+    !fenced && line ~ /^[|]/ { intable = 1; print line; next }
   ' "$README" || reader_failed "table reader over $README" "$?"
 }
 
@@ -436,7 +540,7 @@ table_rows() {
 TABLE_ROSTER=()
 read_table_roster() {
   local what=$1 heading=$2 line
-  local -a block=() lines=() rows=() strays=()
+  local -a block=() lines=() rows=() strays=() indented=()
   local anchors=0 fence_cut=false
   TABLE_ROSTER=()
   mapfile -t block < <(readme_table_block "$heading")
@@ -446,6 +550,7 @@ read_table_roster() {
       '@') anchors=$((anchors + 1)) ;;
       '!fence') fence_cut=true ;;
       '!stray '*) strays+=("${line#!stray }") ;;
+      '!indent '*) indented+=("${line#!indent }") ;;
       *) lines+=("$line") ;;
     esac
   done
@@ -455,6 +560,13 @@ read_table_roster() {
   fi
   if [ "$anchors" -ne 1 ]; then
     gate_error "$(gate_name): $README carries $anchors \"$heading\" headings, and this gate would read the table under whichever one it met last. One heading, one roster — delete the duplicate, or give the second section a heading of its own"
+    return 1
+  fi
+  # ASKED BEFORE THE TABLE'S OWN SHAPE, because a row the author
+  # indented out of the table changes what every check below is looking
+  # at — including which line is the header.
+  if [ "${#indented[@]}" -ne 0 ]; then
+    gate_error "$(gate_name): $README's \"$heading\" section carries ${#indented[@]} line(s) indented FOUR or more spaces that would otherwise be table rows, the first being \`${indented[0]}\`. Markdown draws four spaces as a code block and three as a row, so this line is not part of the table for this gate OR for any renderer — and if it is the last row, nothing else changes and $what silently covers one module fewer. Unindent it to at most three spaces, or move it out of the table"
     return 1
   fi
   if [ "$fence_cut" = true ]; then
@@ -851,7 +963,13 @@ gate() {
     exit 1
   fi
 
-  gate_ok "every module under $SRC declares a kind, ${#driver[@]} drivers match $README's own table, ${#scanned[@]} vocabularies name none of ${#FORBIDDEN_TYPE_NAMES[@]} driver types, ${#path_mods[@]} driver module paths or ${#crates_list[@]} \`app\`-only crates read from $MANIFEST (${#VOCAB_EXCEPTIONS[@]} recorded exceptions, each still live at exactly its recorded site count), and the README's tables agree with the modules they name"
+  # THE README-DERIVED COUNTS ARE ON THE LINE, and that is the reason
+  # they are: every other figure here is read off the tree or the
+  # manifest, so a roster that came back SHORT left this line
+  # byte-identical to a clean run and no reader of a log could see it.
+  # These two move when the rosters do. They gate nothing — the checks
+  # above do — they make a narrowing visible where it does not gate.
+  gate_ok "every module under $SRC declares a kind, ${#driver[@]} drivers match $README's own table of ${#driver_rows[@]} rows, ${#scanned[@]} vocabularies name none of ${#FORBIDDEN_TYPE_NAMES[@]} driver types, ${#path_mods[@]} driver module paths or ${#crates_list[@]} \`app\`-only crates read from $MANIFEST (${#VOCAB_EXCEPTIONS[@]} recorded exceptions, each still live at exactly its recorded site count), and the README's ${#vocab_rows[@]} tabulated vocabularies agree with the modules they name"
 }
 
 # This gate's subject is one crate's src tree plus its README and
@@ -1267,6 +1385,41 @@ plant_the_driver_heading_twice() {
   sed -i 's%^### The drivers$%&\n\nProse.\n\n### The drivers%' "$1/$README"
 }
 
+# THE INDENT BOUNDARY, both sides, and the silent half is the FIRST of
+# them. A row indented one to three spaces is a row every renderer
+# draws, and the reader that anchored at column zero saw none of them —
+# so this case plants a GHOST module there: if the row is read the gate
+# reds naming a module the tree does not hold, and if it is not read the
+# gate is green over a roster one shorter than the table. Nothing else
+# can observe the difference, because every other figure the gate prints
+# is derived from the tree.
+plant_an_indented_ghost_row() {
+  sed -i 's%^| `session::select` | what is selected |$%&\n  | `session::retired` | gone |%' \
+    "$1/$README"
+}
+
+# FOUR SPACES IS A CODE BLOCK, so this row is correctly NOT read — and
+# being right about it is not the same as being loud about it, which is
+# what `!indent` is for. It plants a REAL module's row rather than a
+# ghost, so a reader widened to `[[:space:]]*` would read it and go
+# green: this case is what keeps that widening out.
+plant_a_four_space_row() {
+  sed -i 's%^| `drafts` | in-flight form state |$%    &%' "$1/$README"
+}
+
+# A LEADING TAB ADVANCES TO COLUMN FOUR, so it is the same answer by a
+# different spelling and the `{0,3}` strip must not touch it.
+plant_a_tab_indented_row() {
+  sed -i 's%^| `drafts` | in-flight form state |$%\t&%' "$1/$README"
+}
+
+# A HEADING TAKES THE SAME THREE SPACES, and the strip is what makes
+# this green rather than "carries no heading" about a heading that is
+# there and indented.
+pass_a_three_space_indented_heading() {
+  sed -i 's%^### The drivers$%   &%' "$1/$README"
+}
+
 # --- WHAT MARKDOWN DRAWS AS CODE -------------------------------------
 #
 # Every one of these is content a renderer draws inside a code block,
@@ -1516,6 +1669,12 @@ gate_selftest() {
   gate_selftest_case "and this gate would read the table under whichever" \
     plant_the_driver_heading_twice
 
+  # THE INDENT BOUNDARY, both sides. The first was a live silent
+  # shortening in this reader's own first version; the other three keep
+  # the boundary from being widened to `[[:space:]]*`.
+  gate_selftest_case "is not a module in the tree" plant_an_indented_ghost_row
+  gate_selftest_case "indented FOUR or more spaces" plant_a_four_space_row
+  gate_selftest_case "indented FOUR or more spaces" plant_a_tab_indented_row
   # A DEAD READER IS NOT AN EMPTY DOCUMENT — the population and the rule
   # that produces it are stated once, above `reader_failed`, and not
   # restated here. Each row below kills ONE stage and wants that stage
@@ -1588,6 +1747,8 @@ exec "$GATE_REAL_TOOL" "$@" < "$f"' plant_type_use DocSession
     pass_a_tilde_fence_holding_a_backtick_line
   gate_selftest_passes "a closed fence, after which the section still ends" \
     pass_a_fence_closes_so_the_section_still_ends
+  gate_selftest_passes "a section heading indented three spaces" \
+    pass_a_three_space_indented_heading
 
   printf '%s selftest OK: every forbidden name has its own fixture, and the fixture LIST is derived from the same two documents the matcher is — one case per driver type, one per `dep:` in %s'"'"'s `app` feature, and five per driver module path — an ISOLATING fixture for each of the three spellings the matcher has (aliased bare import, `self::`-qualified segment, wrapped use tree, one-line use tree) plus the realistic child path that trips two arms at once, so deleting any one arm turns this self-test red. The clean fixture proves lib.rs and bin/ are excluded on purpose, and four cases leave the gate nothing to decide over — the src tree gone, a tree holding only lib.rs and bin/, every module declaring itself a driver, and a driver roster whose every entry hosts a vocabulary — each of which the gate REFUSES rather than reporting green over an empty set. The exception list is EMPTY since #1883 hoisted the last two reads, so every arm that needs an entry to aim at supplies its own: four over an entry the fixture honours (a SIXTH site, a lost site, a different forbidden name in the same file, a header that denies the exception), two more over an entry whose path CARRIES A COLON — its two sites counted as two, and a third one red — and two over one it deliberately does not — an entry naming a file outside the tree and one naming a module the tree writes as a driver, which are the two bounds on the list itself. A seventh, a module writing ITSELF a permission, needs no entry — and every driver-name case above is a vocabulary naming a driver with no exemption in force at all. The README arms fire on a ghost driver row, a demoted driver, either table heading renamed, a ghost vocabulary row, a driver listed as a vocabulary, and the rule text losing a type name; the manifest arm fires when the `app` feature can no longer be read. Prose, string literals, an import under `session::`, an innocent nested use tree and a default-feature dependency stay green; and the gate stays RED, with a diagnosis, when `grep` itself cannot run. The README'"'"'s table is read as the table a RENDERER draws — the first contiguous run of `|` lines under the heading, its header and separator asserted by position — and eight rows fire on the ways that can be false: a fenced block opening inside the table body, a row cut off from it by a blank line, a second table under one heading, the separator gone, the columns reordered, a row whose module cell is not a backticked module, a heading with no table under it, and one heading written twice. Four more stay QUIET where markdown draws code rather than structure: a column-zero `#[derive]` and a worked table row inside a fence, a backtick line inside a tilde fence that does not close it, and a fence whose close still lets the section end. Twelve rows kill ONE reader stage each and want that stage by name — outright, mid-scan, and after consuming its input — and two direct rows hold the shared fence tracker'"'"'s load in both of its answers\n' \
     "$(gate_name)" "$MANIFEST"

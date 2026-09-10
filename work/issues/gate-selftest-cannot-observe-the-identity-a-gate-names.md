@@ -15,14 +15,14 @@ every diagnosis had become garbage.
 
 ## The gap
 
-`scripts/gates/lib.sh:1421-1445`'s `gate_selftest_case` matches one
+`scripts/gates/lib.sh:1798-1829`'s `gate_selftest_case` matches one
 substring of the gate's output and asserts a `gate_error` framing. That
 is enough for a gate whose product is a verdict. It is not enough for a
 gate whose whole product is **a `file:line` and an identifier** — the
 identifier is exactly what a reader acts on, and nothing in the harness
 can assert it.
 
-`scripts/gates/viewer-vocab-declared-once.sh:611-625` — `:1528-1597`
+`scripts/gates/viewer-vocab-declared-once.sh:611-625` — `:1548-1617`
 on this tree, see the correction below — is the worked
 example: twelve `gate_selftest_case` rows, every one matching on a
 name-independent fragment of the message, so twelve green cases are
@@ -51,7 +51,8 @@ written**, and the reason matters more than the figures.
 
 | this file said | at `origin/main` |
 |---|---|
-| the cases are at `viewer-vocab-declared-once.sh:611-625` | `:930-973` at that tree (`:611` is inside the hit-diagnosis loop); **`:1528-1597` and 27 rows** after #2282 and `view/module-kinds` moved and grew them — a citation into a self-test's case list moves whenever anyone adds a case, which is what makes this the wrong half of the file to cite by line |
+| `gate_selftest_case` is at `lib.sh:1421-1445` | `:1798-1829` — a THIRD stale citation in this row, corrected 2026-09-10 by the `view/module-kinds` lane while it was in the file; `lib.sh` was not in that branch's diff, so this one had simply never been re-read |
+| the cases are at `viewer-vocab-declared-once.sh:611-625` | `:930-973` at that tree (`:611` is inside the hit-diagnosis loop); **`:1548-1617`, 27 rows** after #2282 and `view/module-kinds` moved and grew them (that PR's first re-derivation said `:1528-1597`, which opens on a blank line and holds 23 of the 27) — a citation into a self-test's case list moves whenever anyone adds a case, and re-deriving it as a span rather than by finding its first and last member is how the same row goes stale a third time |
 | twelve `gate_selftest_case` rows | **20** |
 | *"every one matching on a name-independent fragment"* | false — **4** assert a `const` identifier by name (`declares \`const ALL\``, and its siblings), and on a broader reading of "identifier" the lane counts 11 |
 
