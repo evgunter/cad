@@ -372,10 +372,13 @@ pub struct ViewerApp {
     /// application rather than in the document (`crate::theme`), so
     /// switching it can never touch what a file says.
     ///
-    /// Nothing persists it yet: it is chosen at startup and may be
-    /// changed in-session, and a viewer reopened forgets. The
-    /// preferences file that will remember it is its own piece of
-    /// work; this field is what it will write into.
+    /// **It is persisted where the store can keep it.**
+    /// [`Self::remember_theme`] writes it on every switch and
+    /// `Prefs::resolve_theme` reads it back at startup, so a viewer
+    /// reopened remembers. Where the store keeps nothing the switch
+    /// still applies to the screen and only the memory is lost, which
+    /// the toolbar says beside the picker rather than leaving a reader
+    /// to discover next session.
     theme: Theme,
     tree: Tree<Pane>,
     /// Whether the user has resized a tile themselves. From the first
@@ -1006,11 +1009,14 @@ impl ViewerApp {
 
     /// Write the current theme choice to the preferences store.
     ///
-    /// **Best-effort, and it reports.** A store that cannot be
-    /// written is worth one line in the status area and nothing more:
-    /// the theme is already applied on screen, so a failure here
-    /// costs the next session's memory of it, never this session's
-    /// work. Refusing the switch because it could not be recorded
+    /// **Best-effort, and it reports.** A write that FAILED — a store
+    /// with somewhere to write that could not — is worth one line in
+    /// the status area and nothing more: the theme is already applied
+    /// on screen, so a failure here costs the next session's memory of
+    /// it, never this session's work. A store that can never be
+    /// written is not that case and is not reported here at all; it is
+    /// a standing fact the toolbar badges, per the guard below.
+    /// Refusing the switch because it could not be recorded
     /// would be the worse trade.
     ///
     /// The whole document is rewritten rather than patched, so every

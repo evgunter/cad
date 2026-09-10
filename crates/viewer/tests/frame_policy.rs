@@ -580,6 +580,58 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
     );
 }
 
+/// **The two populations `crates/viewer/README.md` certifies, counted
+/// from the sources rather than by hand.**
+///
+/// Both are universals with a sweep rule written at the claim, and a
+/// rule with a hand-written number beside it is a measurement: §Q6
+/// says it owes a guard, a scheduled re-measure, or a written reason
+/// it can have neither. The completeness ARGUMENT — `Badge`'s fields
+/// and constructors private to `frame`, `ViewerApp::store` private to
+/// `app` — says the population is closed; it says nothing about the
+/// count staying right, and the store count shipped WRONG (it said
+/// four, counting `store.load()` on the local binding in the
+/// constructor, which is not a read of the field). This row is that
+/// guard.
+///
+/// **It runs the stated rule, not a proxy for it.** The badge rule
+/// ranges over what a function RETURNS, so the scan is over return
+/// types and takes multi-line headers (the #2055 lesson); the store
+/// rule ranges over reads of the FIELD, so the scan is over
+/// `self.store`, which is the only spelling a field read has.
+#[test]
+fn the_readme_counts_its_two_populations_correctly() {
+    let dir = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"));
+    let readme = std::fs::read_to_string(dir.join("README.md")).expect("the crate README");
+
+    // Every `frame` door that yields a badge, by return type. `Badge`
+    // has no public constructor, so this is the whole family.
+    let frame = test_utils::source::code_only(
+        &std::fs::read_to_string(dir.join("src/frame.rs")).expect("frame.rs"),
+    );
+    let badge_doors = frame.matches("-> Option<Badge>").count()
+        + frame.matches("-> Badge").count()
+        + frame.matches("-> Vec<Badge>").count()
+        + frame.matches("-> [Badge").count();
+    assert_eq!(badge_doors, 8, "the badge family");
+    assert!(
+        readme.contains("`frame` function returning `Option<Badge>`** — eight"),
+        "the README states the badge population as a word and it must be the counted one"
+    );
+
+    // Every read of `ViewerApp`'s store field. The field is private to
+    // `app`, so this file is the whole population.
+    let app = test_utils::source::code_only(
+        &std::fs::read_to_string(dir.join("src/app.rs")).expect("app.rs"),
+    );
+    let store_reads = app.matches("self.store").count();
+    assert_eq!(store_reads, 3, "reads of ViewerApp::store");
+    assert!(
+        readme.contains("only `PrefsStore` value — three"),
+        "and the README states that population as a word too"
+    );
+}
+
 /// **Every badge's silence is a row now**, which is the whole reason
 /// the family became a vocabulary: the checks badge's "only when there
 /// are findings" rule used to be an `&&` inside a `ui` closure, where

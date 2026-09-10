@@ -34,7 +34,7 @@ compiler — the same defect one directory over". It is already there.
   consistency fuzz. A fourth button is silently never fuzzed.
 - `crates/viewer/tests/frame_policy.rs:506-508` — one
   `frame::cursor_status` call per `IdStep`
-  (`crates/viewer/src/frame.rs:1813`), all three, written out. The
+  (`crates/viewer/src/frame.rs:1812`), all three, written out. The
   weakest of the three: it is a list of calls rather than a list of
   variants, but the row's claim is still about the whole vocabulary and
   a fourth step would not be asked.

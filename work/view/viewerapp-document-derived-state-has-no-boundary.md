@@ -18,17 +18,17 @@ below — and the second one is a different defect, which is this row.
 
 A census is a walk whose correctness argument is that its list IS the
 value's fields, so the population comes from the declaration and a
-destructure can hold it there. `ViewerApp` (`crates/viewer/src/app.rs:288-474`)
+destructure can hold it there. `ViewerApp` (`crates/viewer/src/app.rs:288-477`)
 has **32** fields, and neither block claims to cover them:
 
-- `crates/viewer/src/app.rs:806-813`, inside `sync_scene`'s `Ok(mesh)`
+- `crates/viewer/src/app.rs:809-816`, inside `sync_scene`'s `Ok(mesh)`
   arm, writes six — `scene_generation`, `scene_display`, `scene_focus`,
   `scene`, `revision`, `scene_fault`. Its own comment states the
   population: *"Marked current ONLY on success"*. These are the outputs
   of one rebuild and the key it is current for; a 33rd field
   (`theme`, say) has no claim on the block, and no pattern over
   `ViewerApp` could say which fields do. Ordinary bookkeeping.
-- `crates/viewer/src/app.rs:960-963`, the `None if opened` arm of
+- `crates/viewer/src/app.rs:963-966`, the `None if opened` arm of
   `perform_batch`, writes three — `fit_on_scene = true`,
   `fit_delta_on_scene = true`, `budget_delta = None`. Also not a
   census, and for the same reason: most of `ViewerApp` (`theme`,
@@ -63,7 +63,7 @@ lacks is the boundary — the `Derived` move, one layer up.
 The cheap half is a sentence: the two `fit_*` intentions and
 `budget_delta` are what a replaced document invalidates, said at the
 declaration rather than only at the door (the door's comment,
-`app.rs:946-951`, carries the argument and the declarations do not).
+`app.rs:957-962`, carries the argument and the declarations do not).
 The real fix is the `Derived` one, and it is entangled with
 `new-document-owes-the-reframe-open-gets` and `the-picture-key-never-became-a-type`,
 which are open on neighbouring halves of the same state.

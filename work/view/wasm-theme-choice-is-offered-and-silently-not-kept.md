@@ -192,12 +192,21 @@ statement*. The second, and the guard's statement is the badge.
 
 Neither `save` could simply drop its refusal — a store that keeps
 nothing has no honest `Ok(())` — so what went is the two refusals as
-INDEPENDENT PROSE. The condition is now worded once, by the party that
-knows it: `prefs::Unusable`, handed back by `PrefsStore::unusable`
-(which replaces `usable() -> bool`). The chrome renders those words;
-`Unusable::refusal` renders the same words as a `StoreError` for a
-caller that saves without asking. Two hand-written refusals for an
-unspoken condition became zero, and one value the reader actually sees.
+INDEPENDENT PROSE. The condition is stated by the party that knows it:
+`prefs::Unusable`, handed back by `PrefsStore::unusable` (which
+replaces `usable() -> bool`). The chrome renders those words;
+`Unusable::refusal` renders them as a `StoreError` for a caller that
+saves without asking. Two hand-written refusals for an unspoken
+condition became zero, and one value the reader actually sees.
+
+**What is mechanically held is that the two renderings cannot
+DIVERGE**, not that the condition has one spelling: the suite asserts
+the badge's words and the refusal's words are equal, so a second
+hand-written spelling reds the moment it says something different and
+stays green while it says the same thing. That limit was measured — an
+identical literal written back at `Absent::save` is green across the
+whole suite — rather than assumed, and this section said the stronger
+thing before it was.
 
 `ViewerApp::remember_theme` keeps its early return and it is now
 load-bearing rather than silent: it exists so a whole-run fact does not
@@ -215,10 +224,16 @@ only `Absent`'s were asserted, and by a test no caller matched).
 
 Every read keys on `store.unusable()`. The population is every read of
 `app::ViewerApp::store`, a private field of the crate's only
-`PrefsStore` value — four, all in `app.rs`: `load` at the constructor,
-the guard, the badge, and the `save` the guard fronts. Complete because
-the field is private and `prefs_store()` has one caller. `README.md`
-carries that sweep rule beside the chooser's.
+`PrefsStore` value — **three**, all in `app.rs`: the guard, the badge,
+and the `save` the guard fronts. `store.load()` in the constructor is
+NOT one — it reads the local binding, before the struct literal that
+makes the field exist — and this section said four until a reviewer ran
+the rule it states: the rule ranged over the field and the count ranged
+over the name. Complete because the field is private and
+`prefs_store()` has one caller. `README.md` carries the sweep rule
+beside the chooser's, and `frame_policy.rs`'s
+`the_readme_counts_its_two_populations_correctly` now holds this count
+and the badge family's, so neither is a hand-written number again.
 
 ### The two false doc claims
 
@@ -229,14 +244,25 @@ decides which store answers and never whether it can keep anything.
 
 ### Disclosed rather than fixed
 
-**The door is asserted; the wiring is not.** Four mutations of
-`frame::prefs_badge` and of the two stores each turn the suite red (the
-PR lists them). Nothing reaches `app.rs`'s guard or the `draw_badge`
-call beside the picker, because `ViewerApp` cannot be built in
-`crates/viewer/tests` — the same boundary
-`hover-route-for-an-absent-chooser-has-no-test` names for the chooser
-tooltip, now with a second instance. Filed as
-`the-guard-that-decides-whether-a-preference-is-kept-has-no-test`.
+**The door is asserted; the wiring is not.** Mutations of
+`frame::prefs_badge` and of the two stores each turn the suite red, and
+so do four mutations of the README-count guard (the PR lists them all).
+Nothing reaches `app.rs`'s guard or the `draw_badge` call beside the
+picker, because `ViewerApp` cannot be built in `crates/viewer/tests`;
+deleting either line leaves the suite green at 511, which a reviewer
+checked by deleting both. Filed as
+`the-guard-that-decides-whether-a-preference-is-kept-has-no-test`. The
+badge draw is `hover-route-for-an-absent-chooser-has-no-test`'s shape
+exactly and one toolbar harness closes both; the guard is the half that
+harness would not reach, because `remember_theme` is private.
+
+**Two findings this close did not take**, each its own file rather than
+a sentence here: `frame::ChooserBackend::usable` still answers the
+question this unit re-shaped, as a bare `bool` with its reason in a
+const away from the value —
+`environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
+— and `work/view/stale-file-citations-after-the-split` keeps the
+citations this diff moved that were already wrong before it.
 
 ### One correction to the item
 

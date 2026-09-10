@@ -52,8 +52,8 @@ become a bracketed link.)
 | Site | Names | Disposition |
 |---|---|---|
 | `crates/viewer/src/session/op.rs:742-743` | `frame::supersession_notice` (at `243915f26`) | **fixed in #2272**, to `[`crate::frame::Withdrawal::superseded`]` — bracketed, so rustdoc now holds it |
-| `crates/viewer/src/session/op.rs:756` | `frame::dropped_hide_notice` | open. The real renderer is `crate::frame::Withdrawal::dropped_hide` (`frame.rs:707`), reached at `app.rs:940-943` |
-| `crates/viewer/src/app.rs:947` | `frame::dropped_hide_notice` | open, and **outside the rule above** — see the blind spot |
+| `crates/viewer/src/session/op.rs:756` | `frame::dropped_hide_notice` | open. The real renderer is `crate::frame::Withdrawal::dropped_hide` (`frame.rs:713`), reached at `app.rs:951-954` |
+| `crates/viewer/src/app.rs:950` | `frame::dropped_hide_notice` | open, and **outside the rule above** — see the blind spot |
 
 The sibling at `session/op.rs:756` sits thirteen lines below the one #2272
 fixed, in the doc for the neighbouring field, and was left there
@@ -62,7 +62,7 @@ this file's, not that PR's.
 
 ## What the rule could not match
 
-1. **Plain `//` comments.** `app.rs:947` is one — same dead name, same
+1. **Plain `//` comments.** `app.rs:950` is one — same dead name, same
    defect, invisible to a doc-comment rule *and* to rustdoc even if it
    were bracketed, because rustdoc never reads a non-doc comment. This
    is the blind spot that actually bites: it means a bracketing

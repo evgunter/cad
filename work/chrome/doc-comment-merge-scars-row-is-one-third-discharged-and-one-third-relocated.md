@@ -11,7 +11,7 @@ Reached VIEW as a citation report from #2278's census — four `app.rs`
 line numbers its diff had shifted. **That report was wrong, and
 re-deriving it by subject rather than by delta is what produced this
 row.** The numbers were never right on `main`: `perform_batch` sat at
-`app.rs:907` before that diff as well as after, and `:1722` held an
+`app.rs:918` before that diff as well as after, and `:1722` held an
 unrelated comment about clipped rows in both trees. What the row
 actually needs is not four new numbers.
 
@@ -29,11 +29,11 @@ each moved differently since, and that is what has gone unrecorded.
 The title is *"Three doc-comment merge scars in viewer/src/app.rs leave
 apply_status undocumented"*. Both halves of that bullet are fixed:
 
-- `remember_theme`'s doc block opens at `crates/viewer/src/app.rs:1007`
+- `remember_theme`'s doc block opens at `crates/viewer/src/app.rs:1010`
   with `/// Write the current theme choice to the preferences store.` —
   its own summary. The three lines describing `apply_status` that the
   row quotes are gone.
-- `apply_status` at `:1042` **has a doc comment**, `:1027-1041`, and a
+- `apply_status` at `:1065` **has a doc comment**, `:1050-1064`, and a
   substantial one: *"This application's door onto [`frame::apply`], for
   the verdict the ranking has ALREADY WEIGHED"*, with a second paragraph
   on why it is not the one place a `StatusUpdate` becomes the field.
@@ -59,16 +59,16 @@ doc-comment merge scars in viewer/src/app.rs"* covers two.
 
 ## Bullet 2 is live, exactly as described
 
-`app.rs:895` is the stranded pre-batch summary
+`app.rs:906` is the stranded pre-batch summary
 `/// Perform one operation and record what it refused.` sitting
-immediately above `:896-897`'s real one, *"Perform one frame's whole
+immediately above `:907-908`'s real one, *"Perform one frame's whole
 batch of operations, keeping the refusal worth showing."* The row's
 reading of it holds: the paragraph below argues this is NOT one
 assignment per op, so the stranded line says the opposite of what the
 doc argues.
 
 **Worth saying how nearly this was missed.** Reading a window that
-started at `:896` shows a clean single summary and reads as discharged;
+started at `:907` shows a clean single summary and reads as discharged;
 the defect is one line above it. The row survived a check that would
 have closed it wrongly, and the reason is that a window is not a
 subject either.

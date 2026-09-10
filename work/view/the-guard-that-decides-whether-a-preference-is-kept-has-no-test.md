@@ -30,19 +30,27 @@ and one on a `&mut ViewerApp`, and `ViewerApp` cannot be constructed in
 the suite: it needs an `eframe` render state. So a lane could delete
 either line and every gate this repo runs would stay green.
 
-## Why this is not the chooser row over again
+## What one harness would and would not close
 
 `hover-route-for-an-absent-chooser-has-no-test` names the same boundary
 for `frame::NO_CHOOSER_BACKEND`'s tooltip, and its shape (2) — *whether
 `egui`'s test harness can build a context, draw the toolbar and read a
-control* — is the same uncosted question. **What is new is that the
-population is now two and the two differ in kind.** The chooser's
-untested step is a const reaching a tooltip. This one has a step the
-chooser's does not: a `bool`-shaped CONTROL-FLOW decision in
-`remember_theme` that is not a widget at all, and which nothing about a
-toolbar harness would necessarily reach. A fix that answers the chooser
-row could leave this half open, so the two are costed together or the
-cheaper one is mistaken for both.
+control* — is the same uncosted question.
+
+**The badge draw is that row's shape exactly**, and a harness that
+closes the chooser row closes this half with it: a value reaching a
+toolbar widget, unreachable only because `ViewerApp` cannot be built.
+Nothing here argues otherwise, and an earlier draft of this row did.
+
+**The guard is genuinely different, but not because it is "not a
+widget".** The obstacle is that `remember_theme` is a PRIVATE method:
+even a test that could build a `ViewerApp` could not call it, and
+would have to drive `update()` and simulate a picker change to reach
+it — or the method's visibility would have to change, which is a
+design question rather than a harness one. So the honest statement is
+*a toolbar harness closes the chooser row and half of this one; the
+guard needs a driven `update()` or a visibility change*, and that is
+why this is two files rather than one and rather than three.
 
 **Not a reachability question.** Both builds that reach it are ordinary:
 the browser, and a desktop viewer launched with neither

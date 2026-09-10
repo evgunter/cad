@@ -22,8 +22,8 @@ adds in the same PR is `core::fmt`
 (`crates/viewer/src/pickcache.rs:170-171`). Across
 `crates/viewer/src/`, `core::fmt::` appears 68 times and `std::fmt::`
 14 — and 6 of those 14 are the three walks in `session.rs`. Outside
-`session.rs` the only `std::fmt` sites are `prefs.rs:98`, `:132`,
-`:304` and `drafts.rs:390`; every other `fmt` impl in the crate,
+`session.rs` the only `std::fmt` sites are `prefs.rs:106`, `:140`,
+`:322` and `drafts.rs:390`; every other `fmt` impl in the crate,
 32 `Display`s included, is `core::fmt`.
 
 Nothing decides between them for a crate that is not `no_std`, so this

@@ -340,10 +340,25 @@ impl std::error::Error for StoreError {}
 /// consults — `crate::frame::prefs_badge` is that read's one home in
 /// the chrome.
 ///
-/// **It is the only place the condition is worded.** The chrome shows
-/// these words, and [`Self::refusal`] renders the same words for a
-/// caller that asks such a store to save anyway, so the two cannot
-/// drift apart.
+/// **What is held is that the two renderings cannot DIVERGE**, not
+/// that the condition has one spelling. The chrome shows these words
+/// and [`Self::refusal`] renders them for a caller that asks such a
+/// store to save anyway; `tests/prefs.rs`'s
+/// `the_words_a_store_shows_and_the_words_it_refuses_with_are_one`
+/// asserts the two are EQUAL, so a second, hand-written spelling reds
+/// the moment it says something different — and stays green while it
+/// says the same thing. Re-introducing an identical literal at a
+/// `save` is not caught; that limit was measured rather than assumed.
+/// **The words are a `String` and not a `&'static str`**, which costs
+/// this type `Copy` and costs an allocation per frame in a build that
+/// keeps nothing. The reason is what the field IS: the backing store's
+/// own words, exactly as [`StoreError::because`] is, and a store need
+/// not know them statically — a browser store refused by a privacy
+/// mode is handed a message. [`crate::frame::ChooserBackend`] is
+/// `Copy` over the same shape of fact and is NOT the precedent here,
+/// because it is a probe over a closed three-value vocabulary whose
+/// reason is a const the value never carries; that a store carries its
+/// own is the whole of this type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unusable {
     /// The backing store's own words for why it can hold nothing.
@@ -352,7 +367,11 @@ pub struct Unusable {
 
 /// **Destructured rather than field-read**, for [`StoreError`]'s
 /// reason: a field added to [`Unusable`] is E0027 here rather than
-/// going unsaid in the value's only public face.
+/// being silently dropped from the sentence a reader sees.
+/// [`Unusable::refusal`] destructures for the same reason, so a second
+/// field breaks BOTH renderings rather than one — a guard over
+/// `Display` alone would leave the refusal quietly saying less than
+/// the badge, which is the divergence this type exists to prevent.
 impl std::fmt::Display for Unusable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let Self { because } = self;
@@ -374,9 +393,21 @@ impl Unusable {
     /// condition the read already states.
     #[must_use]
     pub fn refusal(&self) -> StoreError {
+        let Self { because } = self;
         StoreError {
             doing: "save preferences",
-            because: self.because.clone(),
+            because: because.clone(),
+        }
+    }
+
+    /// This standing fact, from the store's own words.
+    ///
+    /// The one constructor, so a store that keeps nothing states a
+    /// reason rather than repeating a shape.
+    #[must_use]
+    pub fn new(because: impl Into<String>) -> Self {
+        Self {
+            because: because.into(),
         }
     }
 }
@@ -402,14 +433,12 @@ impl Unusable {
 pub struct Absent;
 
 impl Absent {
-    /// Why this store keeps nothing — **its one spelling**, read by
-    /// the chrome through [`PrefsStore::unusable`] and rendered into a
+    /// Why this store keeps nothing, in its own words — read by the
+    /// chrome through [`PrefsStore::unusable`] and rendered into a
     /// refusal by [`Unusable::refusal`] for a caller that saves
     /// without asking.
     fn keeps_nothing() -> Unusable {
-        Unusable {
-            because: "this build has nowhere to keep them".to_owned(),
-        }
+        Unusable::new("this build has nowhere to keep them")
     }
 }
 
@@ -473,12 +502,14 @@ pub mod file {
             self.path.as_deref()
         }
 
-        /// Why a pathless store keeps nothing — **its one spelling**,
-        /// for [`super::Absent::keeps_nothing`]'s reason.
+        /// Why a store with no path keeps nothing, in its own words.
+        ///
+        /// A store states its own reason and nothing else states it:
+        /// [`super::PrefsStore::unusable`] hands it to the chrome and
+        /// [`Unusable::refusal`] renders it for a caller that saves
+        /// without asking.
         fn keeps_nothing() -> Unusable {
-            Unusable {
-                because: "no config directory in this environment".to_owned(),
-            }
+            Unusable::new("no config directory in this environment")
         }
     }
 

@@ -42,7 +42,7 @@ substance has a live structural symptom the closure does not mention:
 `op_for`/`op_under` return `SessionOp`, so `pickindex` imports
 `crate::session` (`pickindex.rs:81`), and that import is one leg of the
 ring `pickcache → pickindex → session → pickcache` that
-`crates/viewer/README.md:848-858` documents as held open on purpose. A
+`crates/viewer/README.md:857-867` documents as held open on purpose. A
 module that were only "the index" would not name `session` at all. The
 finding is closed on the ground that a type may have methods; the thing
 it named is the ring, and the ring is still there.

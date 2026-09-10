@@ -19,7 +19,7 @@ one door that MINTS a declaration.
 Where it stands:
 
 - The form holds `new_param_dimension` and `new_param_value` and no
-  unit at all (`crates/viewer/src/app.rs:372-380`, the form at `add_param_ui`,
+  unit at all (`crates/viewer/src/app.rs:364-372`, the form at `add_param_ui`,
   `:3001-3041`).
 - Create mints through `props::doc_param`
   (`crates/viewer/src/app.rs:3075`), which routes every continuous

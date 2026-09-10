@@ -15,7 +15,7 @@ reach it* — found in a second module.
 
 ## What happens
 
-`crates/viewer/src/app.rs:786` computes
+`crates/viewer/src/app.rs:778` computes
 `let opened = matches!(op, SessionOp::Open(_));` and uses it at
 `:794-798`:
 

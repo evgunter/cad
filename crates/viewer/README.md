@@ -720,19 +720,26 @@ applies the theme to the screen on the frame it is chosen and loses
 only the memory of it, so disabling it would cost a reader the half
 that works to protect the half that does not.
 
-**The condition is worded once**, as `prefs::Unusable`, and the store
-that cannot keep anything is the party that words it. The chrome
-renders those words and `Unusable::refusal` renders the same words for
-a caller that saves without asking, so the two cannot drift; the crate
-carried two hand-written refusals for this condition and no sentence
-for the reader before that. **The sweep rule is over the FIELD, not
-over the string or the target**: the population is every read of
-`app::ViewerApp::store`, this crate's only value of a `PrefsStore`
-type — four, all in `app.rs`, `store.load()` at the constructor,
-`store.unusable()` at the guard in `remember_theme` and at the badge
-beside the picker, and the `store.save` that guard stands in front of.
-It is complete because the field is private to `app` and `prefs_store`
-has that one caller. **Nothing here keys on `target_family`**: the
+**The store is the party that words the condition**, as
+`prefs::Unusable`, and the chrome renders its words rather than
+composing its own; the crate carried two hand-written refusals for
+this condition and no sentence for the reader before that. What is
+mechanically held is that the two renderings cannot **diverge** —
+`Unusable::refusal` and the badge are asserted equal — and not that
+the condition has a single spelling: an identical literal written back
+at a `save` is green, which was measured rather than assumed.
+**The sweep rule is over the FIELD, not over the string, the name or
+the target**: the population is every read of `app::ViewerApp::store`,
+this crate's only `PrefsStore` value — three, all in `app.rs`:
+`store.unusable()` at the guard in `remember_theme` and again at the
+badge beside the picker, and the `store.save` that guard stands in
+front of. `store.load()` in the constructor is not one of them — it
+reads the LOCAL binding, before the struct literal that makes the
+field exist — and counting it is how this sentence first said four.
+The population is complete because the field is private to `app` and
+`prefs_store` has that one caller, and the count is held by
+`frame_policy.rs`'s `the_readme_counts_its_two_populations_correctly`
+rather than by this sentence. **Nothing here keys on `target_family`**: the
 `cfg` alias at `app.rs` decides only which store answers, both answers
 can be `Some`, and a browser build given a `web_sys::Storage` store
 would leave the class on its own.
@@ -753,7 +760,9 @@ one's SILENCE is a row a test can write. **The population is every
 ranges over the property rather than over the `_badge` naming
 convention it happens to agree with today; it is complete because
 `Badge`'s fields and its three constructors are private to `frame`, so
-no badge can be built anywhere else. A door answers
+no badge can be built anywhere else. The count is held by
+`frame_policy.rs`'s `the_readme_counts_its_two_populations_correctly`,
+which scans the return types rather than the names. A door answers
 the subject from the refusal TYPE it was handed, and where one seam's
 refusal arrives as two types both name one constant, so its two
 channels move together. `app::draw_badge` is the single draw; what a
