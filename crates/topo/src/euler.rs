@@ -1158,6 +1158,16 @@ impl ArenaDelta {
     };
 }
 
+/// PERF-DEV INSTRUMENTATION (lane perf/explore-dev, NOT for main).
+/// `PERF_DEV_D1_OFF=1` in the environment drops the per-op tier-1 sweep
+/// of the D1 postcondition (and nothing else) so its price can be read
+/// against an otherwise identical build. Read once per process.
+#[cfg(debug_assertions)]
+fn perf_dev_d1_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("PERF_DEV_D1_OFF").is_some())
+}
+
 #[cfg(debug_assertions)]
 impl ArenaCounts {
     /// The counts shifted by an op's arena delta. Components are
@@ -2403,11 +2413,17 @@ impl<T: Decide> Body<T> {
             "{op} postcondition: arena deltas do not match the op's declared \
              arena delta (kernel bug)",
         );
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "{op} postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        // PERF-DEV INSTRUMENTATION (lane perf/explore-dev, NOT for main):
+        // D1's per-op tier-1 sweep, isolated behind a process-once env
+        // switch so the lane can price this ONE clause under an otherwise
+        // identical debug-assertions posture. Restore before any PR.
+        if !perf_dev_d1_off() {
+            debug_assert_eq!(
+                crate::validate::validate(self),
+                Ok(()),
+                "{op} postcondition: result is not tier-1 valid (kernel bug)",
+            );
+        }
     }
 }
 

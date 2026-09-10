@@ -351,7 +351,9 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
 // one-gather-per-landing invariant. Thread-local rather than global: a
 // witness two tests running in one process can both read is a witness
 // neither can trust.
-#[cfg(debug_assertions)]
+// PERF-DEV INSTRUMENTATION (lane perf/explore-dev, NOT for main): the cfg
+// gate is dropped so the workspace still COMPILES with debug-assertions
+// off (see the report; editor-core's test target does not, on main).
 thread_local! {
     static GATHERS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
@@ -372,7 +374,6 @@ thread_local! {
 ///
 /// It counts, and a caller reads a DIFFERENCE across the operation it
 /// is asking about; the absolute value means nothing.
-#[cfg(debug_assertions)]
 #[must_use]
 pub fn gathers_on_this_thread() -> u64 {
     GATHERS.with(std::cell::Cell::get)
@@ -538,7 +539,6 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
-    #[cfg(debug_assertions)]
     GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
     // The pairing door (DI3), before the first root is read: this
     // gather is a statement about `doc`, and an evaluation of another
