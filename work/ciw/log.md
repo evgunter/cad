@@ -2037,10 +2037,11 @@ splits every shell body under `.github/workflows/` and every tracked
 `*.sh`/`*.bash` into the commands it runs — respecting quotes, comments,
 escapes, line continuations and heredoc bodies — and requires each
 `PIPESTATUS` read to sit on the command immediately after a pipeline. On
-this tree it reports **7 reads across 83 files, all correct**: `ci.yml`
-`:666`, `:3081`, `:3572`, `:3607`, `:3617`, `:4781` and `render.yml`
-`:1183`. The tombstone comment at `ci.yml:4746` is prose and is not
-counted, which is one of the guard's own mutant rows.
+this tree it reports **7 reads across 87 files, all correct**: `ci.yml`
+`:666`, `:3106`, `:3597`, `:3632`, `:3642`, `:4806` and `render.yml`
+`:1183` — numbered on this branch's head, which inserts 25 lines into
+`ci.yml` above them. The tombstone comment at `ci.yml:4771` is prose and
+is not counted, which is one of the guard's own mutant rows.
 
 **The guard is the property, not the incident.** It does not look for
 `status=$?`; it looks for *any* intervening command, so an `echo`, a
@@ -2050,11 +2051,15 @@ Twenty-two `--selftest` rows name the failure each must catch, and the
 historical defect re-injected into the real `ci.yml` reds at the right
 line.
 
-**It is a new script, not a claim in `check-ci-mirror-parity.py`.** That
-checker's subject is which rows exist in the two halves and in what gate
-mode; this one's subject is the shell inside a row, which the parity
-checker's own header says is outside it. The 3998-line file gains one
-`TIER_BLIND` membership line and nothing else.
+**It is a new script, not a claim in `check-ci-mirror-parity.py`.** The
+first draft argued that on subject — the shell inside a row being outside
+that checker — and that is FALSE: its claim 10 already reads argv out of
+`run:` bodies, and its header marks the boundary at exactly that point.
+The real reason is size and blast radius. The file is 4004 lines and has
+taken a claim in each of the last four units; every claim shares one
+tokenizer, so a change made for this property can move any other claim's
+answer. A separate script fails alone. It gains one `TIER_BLIND`
+membership entry and nothing else.
 
 **And it is not shellcheck's job — measured, not assumed.** shellcheck
 0.9.0 reports *nothing at all* on the five-line reproduction. It does

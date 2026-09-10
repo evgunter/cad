@@ -1030,6 +1030,16 @@ jobs:
       # for the sibling `$?` reads and no `PIPESTATUS` equivalent), and
       # nothing in this repo runs shellcheck anyway —
       # `work/ciw/shellcheck-is-not-run.md` carries that residue.
+      #
+      # AND A SEPARATE SCRIPT RATHER THAN A CLAIM IN THE STEP ABOVE, for
+      # blast radius rather than subject: `check-ci-mirror-parity.py`'s
+      # claim 10 DOES read shell out of `run:` bodies, so the subject is
+      # not foreign to it — but every one of its claims shares one
+      # tokenizer, and a change made for this property could move any
+      # other claim's answer. This reader is its own file so it fails
+      # alone, and its own shell splitter is written against the CMD_BREAK
+      # comment there, which records meeting the `&`-in-a-redirection
+      # defect twice.
       - name: status capture (PIPESTATUS is read before anything rewrites it)
         run: |
           python3 scripts/check-status-capture.py --selftest

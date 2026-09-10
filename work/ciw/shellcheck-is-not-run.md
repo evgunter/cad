@@ -33,18 +33,31 @@ twelve `# noqa` markers it found, five of which had already decayed.
 
 Measured on shellcheck 0.9.0 over `local-scripts/*.sh scripts/*.sh
 scripts/gates/*.sh demos/*.sh`, 2026-09-10: **496 findings — 7 errors,
-36 warnings, 453 notes.** All 7 errors are SC1087 (`$var[idx]` inside a
-string) in `scripts/gates/gate-roster.sh` and
-`scripts/gates/panic-free-macro-bodies.sh`, which are GATES' files, not
-CIW's. The note tier is dominated by SC2086 word-splitting, which this
-tree does deliberately in places and already suppresses at eleven sites.
+36 warnings, 453 notes.**
 
-So the row is not "turn shellcheck on" — a 496-finding gate is not
-landable as one commit. It is a severity selection with a stated
-rationale, in the shape `ruff.toml` already models for Python: an
-`--severity` floor or an explicit enable/disable list, each entry
-carrying its reason, plus the reconciliation that makes the linted
-population derived rather than assumed.
+The distribution is what decides the shape of the row, and it is not
+what a first glance suggests. The note tier is **SC2317 (264,
+"unreachable command") and SC2016 (168, "expressions do not expand in
+single quotes")** — two codes that between them are 87% of every
+finding. SC2086 word-splitting, the code this tree already suppresses at
+eleven sites, is **10**. So the cost is concentrated in two codes with
+one decision each, not spread thin across the tree.
+
+**The 7 errors are all false positives, and were verified as such before
+anything was routed anywhere.** All seven are SC1087 over
+`$esc[[:space:]]` in `scripts/gates/gate-roster.sh` (`:160`, `:164`,
+`:279`, `:284`, `:288`, `:292`) and
+`scripts/gates/panic-free-macro-bodies.sh:143`. shellcheck reads the
+`[` as an array subscript on `$esc`; it is a POSIX character class
+inside a `grep -E` pattern, `[` cannot be part of an identifier, so the
+class survives literally and the greps match as intended. The code is
+correct and belongs to GATES, not to CIW.
+
+They matter to this item for one reason: **they are exactly the findings
+a `--severity=error` floor would hit first**, so the naive enablement row
+opens with seven phantom to-dos in another program's files. Any severity
+selection has to start by disposing of them — a `# shellcheck disable`
+with the reason at each site, or an explicitly excluded code.
 
 ## The specific hole this leaves open
 

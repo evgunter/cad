@@ -96,22 +96,28 @@ gate that would have said so could not fail.
 **The sweep is empty and the guard is built.**
 
 1. **Sweep — no hits.** `scripts/check-status-capture.py`, added by this
-   unit, is the instrument: 7 `PIPESTATUS` reads across 83 shell files
-   and workflows, every one taken on the command immediately after its
-   pipeline. `ci.yml` `:666`, `:3081`, `:3572`, `:3607`, `:3617`,
-   `:4781`; `render.yml` `:1183`. The tombstone at `ci.yml:4746` is a
-   comment and is correctly not counted.
+   unit, is the instrument: 7 `PIPESTATUS` reads across 87 shell files,
+   workflows and composite actions, every one taken on the command
+   immediately after its pipeline. Line numbers ON THIS BRANCH'S HEAD,
+   which inserts 25 lines into `ci.yml` above them: `ci.yml` `:666`,
+   `:3106`, `:3597`, `:3632`, `:3642`, `:4806`; `render.yml` `:1183`.
+   (On `main` they are `:3081`, `:3572`, `:3607`, `:3617`, `:4781`.)
+   The tombstone at `ci.yml:4771-4777` is a comment and is correctly not
+   counted.
 
-2. **A mirror check cannot see this class, and does not gain an arm for
-   it.** `scripts/check-ci-mirror-parity.py`'s subject is which rows the
-   two halves name and in what gate mode; the shell inside a row is
-   outside it by its own header. The guard is a separate script, sited
-   in the `mirror` job (no `if:`, and its inputs include `local-scripts/`,
-   which classifies TIER=docs) and mirrored in `ci-local.sh`'s tier-blind
-   rows. The parity checker gains one `TIER_BLIND` membership entry.
+2. **A mirror check does not gain an arm for it.** Not because the shell
+   inside a `run:` is outside `scripts/check-ci-mirror-parity.py` — it is
+   not: that file's claim 10 already reads argv out of `run:` bodies, and
+   its own header marks that boundary ("CLAIM 10 IS WHERE THE ROSTER
+   STOPS AND THE COMMANDS START"). The reason is size and blast radius.
+   That file is 4004 lines and has taken a claim in each of the last four
+   units; every one of its claims shares one tokenizer, so a change made
+   for this property can move the answer of any other. A separate script
+   fails alone. It gains one `TIER_BLIND` membership entry (6 lines with
+   its comment) and nothing else.
 
 3. **The local half's `klint_gate` is unchanged**, as asked. `ci-local.sh`
-   gains only the mirror row for the new check.
+   gains only the mirror row for the new check (7 lines).
 
 Residue: `shellcheck-is-not-run` — nothing runs a shell linter, so the
 sibling `$?` class (SC2319/SC2320, which shellcheck *does* catch and this
