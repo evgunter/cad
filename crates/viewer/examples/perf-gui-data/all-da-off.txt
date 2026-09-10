@@ -1,0 +1,556 @@
+# perf-gui stage timings — release profile
+# reps = 3, tol = witness, budget δ chosen by scene::fit_delta
+# die: landing = Landed
+# die: landing = Landed
+# die: landing = Landed
+
+## die — 84 nodes, δ = 1.000e-4 m, 348 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 28.00 | 18.1 |
+| eval: edit WITH prior (memo) | 2.98 | 16.6 |
+| eval: edit WITHOUT prior | 27.76 | 15.9 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.34 | 4.1 |
+| land: gather + checks registry + A5 badge | 2.91 | 17.3 |
+|   of which: product_recorded (the gather) | 2.08 | 5.3 |
+|   of which: run_checks_on (advisory registry) | 0.03 | 40.6 |
+| fit_delta: probe tessellation (open only) | 0.35 | 7.0 |
+| INDEX build total (tessellate + BVH + id map) | 1.07 | 5.3 |
+|   of which: mesh::tessellate (whole model) | 0.34 | 14.1 |
+| scene: scene_focused (GPU vertex assembly) | 0.01 | 64.0 |
+| == EDIT→PICTURE TOTAL == | 7.30 | 0.0 |
+# corner_table: landing = Landed
+# corner_table: landing = Landed
+# corner_table: landing = Landed
+
+## corner_table — 23 nodes, δ = 1.000e-4 m, 76 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 2.91 | 5.2 |
+| eval: edit WITH prior (memo) | 2.56 | 3.2 |
+| eval: edit WITHOUT prior | 2.79 | 2.0 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.05 | 1.5 |
+| land: gather + checks registry + A5 badge | 0.26 | 7.8 |
+|   of which: product_recorded (the gather) | 0.23 | 25.5 |
+|   of which: run_checks_on (advisory registry) | 0.01 | 49.0 |
+| fit_delta: probe tessellation (open only) | 0.08 | 32.4 |
+| INDEX build total (tessellate + BVH + id map) | 0.13 | 3.7 |
+|   of which: mesh::tessellate (whole model) | 0.07 | 15.0 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 87.1 |
+| == EDIT→PICTURE TOTAL == | 3.00 | 0.0 |
+# heat_sink: landing = Landed
+# heat_sink: landing = Landed
+# heat_sink: landing = Landed
+
+## heat_sink — 17 nodes, δ = 1.000e-4 m, 152 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 2.50 | 1.9 |
+| eval: edit WITH prior (memo) | 2.29 | 2.8 |
+| eval: edit WITHOUT prior | 2.27 | 0.7 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.06 | 3.1 |
+| land: gather + checks registry + A5 badge | 0.85 | 0.7 |
+|   of which: product_recorded (the gather) | 0.75 | 3.5 |
+|   of which: run_checks_on (advisory registry) | 0.03 | 21.8 |
+| fit_delta: probe tessellation (open only) | 0.16 | 7.8 |
+| INDEX build total (tessellate + BVH + id map) | 0.36 | 14.8 |
+|   of which: mesh::tessellate (whole model) | 0.15 | 8.9 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 81.6 |
+| == EDIT→PICTURE TOTAL == | 3.56 | 0.0 |
+# crossing_slots: landing = Landed
+# crossing_slots: landing = Landed
+# crossing_slots: landing = Landed
+
+## crossing_slots — 12 nodes, δ = 1.000e-4 m, 60 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 1.84 | 1.1 |
+| eval: edit WITH prior (memo) | 1.70 | 4.3 |
+| eval: edit WITHOUT prior | 1.72 | 1.6 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.03 | 4.7 |
+| land: gather + checks registry + A5 badge | 0.22 | 8.4 |
+|   of which: product_recorded (the gather) | 0.18 | 2.2 |
+|   of which: run_checks_on (advisory registry) | 0.01 | 59.9 |
+| fit_delta: probe tessellation (open only) | 0.06 | 56.5 |
+| INDEX build total (tessellate + BVH + id map) | 0.11 | 6.7 |
+|   of which: mesh::tessellate (whole model) | 0.06 | 10.7 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 79.6 |
+| == EDIT→PICTURE TOTAL == | 2.07 | 0.0 |
+# nested_islands_105: landing = Landed
+# nested_islands_105: landing = Landed
+# nested_islands_105: landing = Landed
+
+## nested_islands_105 — 15 nodes, δ = 1.000e-4 m, 60 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 2.43 | 14.2 |
+| eval: edit WITH prior (memo) | 0.58 | 16.0 |
+| eval: edit WITHOUT prior | 1.56 | 2.3 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.04 | 2.1 |
+| land: gather + checks registry + A5 badge | 0.25 | 2.7 |
+|   of which: product_recorded (the gather) | 0.19 | 3.1 |
+|   of which: run_checks_on (advisory registry) | 0.01 | 52.6 |
+| fit_delta: probe tessellation (open only) | 0.05 | 27.2 |
+| INDEX build total (tessellate + BVH + id map) | 0.12 | 12.5 |
+|   of which: mesh::tessellate (whole model) | 0.05 | 12.3 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 83.4 |
+| == EDIT→PICTURE TOTAL == | 0.99 | 0.0 |
+# nested_islands_106_depth1: landing = Landed
+# nested_islands_106_depth1: landing = Landed
+# nested_islands_106_depth1: landing = Landed
+
+## nested_islands_106_depth1 — 15 nodes, δ = 1.000e-4 m, 32 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 2.18 | 1.3 |
+| eval: edit WITH prior (memo) | 1.08 | 1.3 |
+| eval: edit WITHOUT prior | 2.19 | 2.1 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.03 | 2.4 |
+| land: gather + checks registry + A5 badge | 0.12 | 12.2 |
+|   of which: product_recorded (the gather) | 0.10 | 5.4 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 93.5 |
+| fit_delta: probe tessellation (open only) | 0.03 | 48.3 |
+| INDEX build total (tessellate + BVH + id map) | 0.06 | 10.4 |
+|   of which: mesh::tessellate (whole model) | 0.03 | 11.1 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 86.6 |
+| == EDIT→PICTURE TOTAL == | 1.28 | 0.0 |
+# nested_islands_106_depth2: landing = Landed
+# nested_islands_106_depth2: landing = Landed
+# nested_islands_106_depth2: landing = Landed
+
+## nested_islands_106_depth2 — 19 nodes, δ = 1.000e-4 m, 44 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 3.76 | 2.4 |
+| eval: edit WITH prior (memo) | 2.58 | 1.1 |
+| eval: edit WITHOUT prior | 3.78 | 0.9 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.04 | 2.3 |
+| land: gather + checks registry + A5 badge | 0.21 | 11.6 |
+|   of which: product_recorded (the gather) | 0.16 | 12.8 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 138.2 |
+| fit_delta: probe tessellation (open only) | 0.04 | 39.4 |
+| INDEX build total (tessellate + BVH + id map) | 0.10 | 12.9 |
+|   of which: mesh::tessellate (whole model) | 0.04 | 18.0 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 108.5 |
+| == EDIT→PICTURE TOTAL == | 2.94 | 0.0 |
+# declared_tangency: landing = Landed
+# declared_tangency: landing = Landed
+# declared_tangency: landing = Landed
+
+## declared_tangency — 6 nodes, δ = 1.000e-4 m, 488 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.14 | 31.0 |
+| eval: edit WITH prior (memo) | 0.07 | 7.4 |
+| eval: edit WITHOUT prior | 0.13 | 13.9 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 142.3 |
+| land: gather + checks registry + A5 badge | 0.22 | 13.6 |
+|   of which: product_recorded (the gather) | 0.23 | 12.1 |
+|   of which: run_checks_on (advisory registry) | 0.02 | 57.3 |
+| fit_delta: probe tessellation (open only) | 0.30 | 13.5 |
+| INDEX build total (tessellate + BVH + id map) | 0.78 | 3.6 |
+|   of which: mesh::tessellate (whole model) | 0.68 | 1.9 |
+| scene: scene_focused (GPU vertex assembly) | 0.01 | 19.2 |
+| == EDIT→PICTURE TOTAL == | 1.09 | 0.0 |
+# kitchen_sink: landing = Landed
+# kitchen_sink: landing = Landed
+# kitchen_sink: landing = Landed
+
+## kitchen_sink — 19 nodes, δ = 1.000e-4 m, 916 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 1.31 | 5.7 |
+| eval: edit WITH prior (memo) | 0.20 | 4.0 |
+| eval: edit WITHOUT prior | 1.16 | 5.5 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.08 | 21.6 |
+| land: gather + checks registry + A5 badge | 0.87 | 2.5 |
+|   of which: product_recorded (the gather) | 0.79 | 1.8 |
+|   of which: run_checks_on (advisory registry) | 0.05 | 47.6 |
+| fit_delta: probe tessellation (open only) | 0.45 | 9.4 |
+| INDEX build total (tessellate + BVH + id map) | 1.43 | 1.9 |
+|   of which: mesh::tessellate (whole model) | 1.14 | 1.0 |
+| scene: scene_focused (GPU vertex assembly) | 0.01 | 18.3 |
+| == EDIT→PICTURE TOTAL == | 2.59 | 0.0 |
+# cut_cylinder: landing = Landed
+# cut_cylinder: landing = Landed
+# cut_cylinder: landing = Landed
+
+## cut_cylinder — 5 nodes, δ = 1.000e-4 m, 32932 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.15 | 52.0 |
+| eval: edit WITH prior (memo) | 0.09 | 30.4 |
+| eval: edit WITHOUT prior | 0.11 | 17.3 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.02 | 39.6 |
+| land: gather + checks registry + A5 badge | 10.36 | 0.4 |
+|   of which: product_recorded (the gather) | 6.91 | 0.4 |
+|   of which: run_checks_on (advisory registry) | 3.43 | 3.2 |
+| fit_delta: probe tessellation (open only) | 3.72 | 1.3 |
+| INDEX build total (tessellate + BVH + id map) | 38.73 | 1.1 |
+|   of which: mesh::tessellate (whole model) | 28.11 | 0.9 |
+| scene: scene_focused (GPU vertex assembly) | 0.57 | 56.5 |
+| == EDIT→PICTURE TOTAL == | 49.76 | 0.0 |
+# measured_web: landing = Landed
+# measured_web: landing = Landed
+# measured_web: landing = Landed
+
+## measured_web — 9 nodes, δ = 1.000e-4 m, 12 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.12 | 77.4 |
+| eval: edit WITH prior (memo) | 0.05 | 12.6 |
+| eval: edit WITHOUT prior | 0.10 | 10.1 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 109.4 |
+| land: gather + checks registry + A5 badge | 0.04 | 4.9 |
+|   of which: product_recorded (the gather) | 0.03 | 25.5 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 161.3 |
+| fit_delta: probe tessellation (open only) | 0.01 | 64.2 |
+| INDEX build total (tessellate + BVH + id map) | 0.02 | 18.2 |
+|   of which: mesh::tessellate (whole model) | 0.01 | 4.4 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 159.9 |
+| == EDIT→PICTURE TOTAL == | 0.11 | 0.0 |
+# boss_union: landing = Landed
+# boss_union: landing = Landed
+# boss_union: landing = Landed
+
+## boss_union — 7 nodes, δ = 1.000e-4 m, 756 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.58 | 12.8 |
+| eval: edit WITH prior (memo) | 0.39 | 4.6 |
+| eval: edit WITHOUT prior | 0.44 | 5.6 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 19.3 |
+| land: gather + checks registry + A5 badge | 0.11 | 17.9 |
+|   of which: product_recorded (the gather) | 0.10 | 21.1 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 116.3 |
+| fit_delta: probe tessellation (open only) | 0.40 | 9.2 |
+| INDEX build total (tessellate + BVH + id map) | 1.18 | 1.5 |
+|   of which: mesh::tessellate (whole model) | 1.02 | 7.6 |
+| scene: scene_focused (GPU vertex assembly) | 0.01 | 303.5 |
+| == EDIT→PICTURE TOTAL == | 1.69 | 0.0 |
+# die_fillet: landing = Landed
+# die_fillet: landing = Landed
+# die_fillet: landing = Landed
+
+## die_fillet — 4 nodes, δ = 1.000e-4 m, 16716 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.46 | 19.9 |
+| eval: edit WITH prior (memo) | 0.47 | 2.3 |
+| eval: edit WITHOUT prior | 0.47 | 5.3 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.02 | 12.9 |
+| land: gather + checks registry + A5 badge | 0.36 | 11.0 |
+|   of which: product_recorded (the gather) | 0.30 | 5.9 |
+|   of which: run_checks_on (advisory registry) | 0.01 | 43.0 |
+| fit_delta: probe tessellation (open only) | 1.05 | 6.4 |
+| INDEX build total (tessellate + BVH + id map) | 12.80 | 1.3 |
+|   of which: mesh::tessellate (whole model) | 7.62 | 1.2 |
+| scene: scene_focused (GPU vertex assembly) | 0.25 | 12.0 |
+| == EDIT→PICTURE TOTAL == | 13.91 | 0.0 |
+# die_chamfer: landing = Landed
+# die_chamfer: landing = Landed
+# die_chamfer: landing = Landed
+
+## die_chamfer — 4 nodes, δ = 1.000e-4 m, 44 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.34 | 9.6 |
+| eval: edit WITH prior (memo) | 0.32 | 5.3 |
+| eval: edit WITHOUT prior | 0.33 | 5.4 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.02 | 15.6 |
+| land: gather + checks registry + A5 badge | 0.19 | 10.1 |
+|   of which: product_recorded (the gather) | 0.15 | 1.5 |
+|   of which: run_checks_on (advisory registry) | 0.01 | 44.7 |
+| fit_delta: probe tessellation (open only) | 0.05 | 17.6 |
+| INDEX build total (tessellate + BVH + id map) | 0.09 | 9.6 |
+|   of which: mesh::tessellate (whole model) | 0.05 | 19.7 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 102.5 |
+| == EDIT→PICTURE TOTAL == | 0.61 | 0.0 |
+# die_pips: landing = Landed
+# die_pips: landing = Landed
+# die_pips: landing = Landed
+
+## die_pips — 9 nodes, δ = 1.000e-4 m, 4002 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.43 | 23.3 |
+| eval: edit WITH prior (memo) | 0.27 | 6.2 |
+| eval: edit WITHOUT prior | 0.32 | 10.4 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 14.9 |
+| land: gather + checks registry + A5 badge | 0.08 | 2.8 |
+|   of which: product_recorded (the gather) | 0.09 | 24.6 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 100.0 |
+| fit_delta: probe tessellation (open only) | 0.26 | 15.6 |
+| INDEX build total (tessellate + BVH + id map) | 2.72 | 0.9 |
+|   of which: mesh::tessellate (whole model) | 1.77 | 0.8 |
+| scene: scene_focused (GPU vertex assembly) | 0.05 | 10.3 |
+| == EDIT→PICTURE TOTAL == | 3.14 | 0.0 |
+# heat_sink_fins: landing = Landed
+# heat_sink_fins: landing = Landed
+# heat_sink_fins: landing = Landed
+
+## heat_sink_fins — 4 nodes, δ = 1.000e-4 m, 60 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.24 | 10.2 |
+| eval: edit WITH prior (memo) | 0.21 | 4.7 |
+| eval: edit WITHOUT prior | 0.22 | 10.1 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 29.5 |
+| land: gather + checks registry + A5 badge | 0.19 | 10.0 |
+|   of which: product_recorded (the gather) | 0.20 | 9.7 |
+|   of which: run_checks_on (advisory registry) | 0.01 | 41.0 |
+| fit_delta: probe tessellation (open only) | 0.08 | 12.9 |
+| INDEX build total (tessellate + BVH + id map) | 0.10 | 3.8 |
+|   of which: mesh::tessellate (whole model) | 0.06 | 4.8 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 73.4 |
+| == EDIT→PICTURE TOTAL == | 0.52 | 0.0 |
+# die_tool: landing = Landed
+# die_tool: landing = Landed
+# die_tool: landing = Landed
+
+## die_tool — 9 nodes, δ = 1.000e-4 m, 25236 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 1.39 | 0.8 |
+| eval: edit WITH prior (memo) | 1.18 | 1.6 |
+| eval: edit WITHOUT prior | 1.30 | 1.2 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.02 | 6.4 |
+| land: gather + checks registry + A5 badge | 0.22 | 6.7 |
+|   of which: product_recorded (the gather) | 0.20 | 11.9 |
+|   of which: run_checks_on (advisory registry) | 0.01 | 44.7 |
+| fit_delta: probe tessellation (open only) | 1.56 | 2.1 |
+| INDEX build total (tessellate + BVH + id map) | 18.53 | 1.4 |
+|   of which: mesh::tessellate (whole model) | 10.82 | 1.0 |
+| scene: scene_focused (GPU vertex assembly) | 0.40 | 35.3 |
+| == EDIT→PICTURE TOTAL == | 20.35 | 0.0 |
+# face_sketch: landing = Landed
+# face_sketch: landing = Landed
+# face_sketch: landing = Landed
+
+## face_sketch — 6 nodes, δ = 1.000e-4 m, 12 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.08 | 52.9 |
+| eval: edit WITH prior (memo) | 0.08 | 6.2 |
+| eval: edit WITHOUT prior | 0.07 | 17.4 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 44.0 |
+| land: gather + checks registry + A5 badge | 0.04 | 4.2 |
+|   of which: product_recorded (the gather) | 0.03 | 22.1 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 146.9 |
+| fit_delta: probe tessellation (open only) | 0.01 | 54.8 |
+| INDEX build total (tessellate + BVH + id map) | 0.02 | 23.2 |
+|   of which: mesh::tessellate (whole model) | 0.01 | 4.9 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 176.3 |
+| == EDIT→PICTURE TOTAL == | 0.15 | 0.0 |
+# part_select: landing = Landed
+# part_select: landing = Landed
+# part_select: landing = Landed
+
+## part_select — 12 nodes, δ = 1.000e-4 m, 32 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.68 | 6.4 |
+| eval: edit WITH prior (memo) | 0.43 | 7.1 |
+| eval: edit WITHOUT prior | 0.57 | 3.8 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.02 | 7.9 |
+| land: gather + checks registry + A5 badge | 0.17 | 4.1 |
+|   of which: product_recorded (the gather) | 0.17 | 7.6 |
+|   of which: run_checks_on (advisory registry) | 0.01 | 62.9 |
+| fit_delta: probe tessellation (open only) | 0.04 | 21.9 |
+| INDEX build total (tessellate + BVH + id map) | 0.06 | 6.9 |
+|   of which: mesh::tessellate (whole model) | 0.03 | 8.1 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 136.4 |
+| == EDIT→PICTURE TOTAL == | 0.69 | 0.0 |
+
+## loft_prism — SKIPPED (bump is not SetParam)
+# die_composed: landing = Landed
+# die_composed: landing = Landed
+# die_composed: landing = Landed
+
+## die_composed — 10 nodes, δ = 1.000e-4 m, 148404 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 1.07 | 5.7 |
+| eval: edit WITH prior (memo) | 0.95 | 2.4 |
+| eval: edit WITHOUT prior | 1.05 | 1.5 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.04 | 7.4 |
+| land: gather + checks registry + A5 badge | 0.48 | 1.0 |
+|   of which: product_recorded (the gather) | 0.41 | 3.6 |
+|   of which: run_checks_on (advisory registry) | 0.02 | 39.9 |
+| fit_delta: probe tessellation (open only) | 12.49 | 1.0 |
+| INDEX build total (tessellate + BVH + id map) | 147.48 | 1.5 |
+|   of which: mesh::tessellate (whole model) | 77.42 | 2.8 |
+| scene: scene_focused (GPU vertex assembly) | 2.92 | 8.0 |
+| == EDIT→PICTURE TOTAL == | 151.87 | 0.0 |
+# die_composed_tour: landing = Landed
+# die_composed_tour: landing = Landed
+# die_composed_tour: landing = Landed
+
+## die_composed_tour — 32 nodes, δ = 2.276e-4 m, 974526 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 19.75 | 2.5 |
+| eval: edit WITH prior (memo) | 19.03 | 0.9 |
+| eval: edit WITHOUT prior | 19.39 | 0.3 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.14 | 4.8 |
+| land: gather + checks registry + A5 badge | 1.79 | 2.2 |
+|   of which: product_recorded (the gather) | 1.63 | 2.5 |
+|   of which: run_checks_on (advisory registry) | 0.07 | 18.1 |
+| fit_delta: probe tessellation (open only) | 177.29 | 1.2 |
+| INDEX build total (tessellate + BVH + id map) | 1020.84 | 2.8 |
+|   of which: mesh::tessellate (whole model) | 473.93 | 0.4 |
+| scene: scene_focused (GPU vertex assembly) | 52.78 | 8.6 |
+| == EDIT→PICTURE TOTAL == | 1094.58 | 0.0 |
+# plate_param: landing = Landed
+# plate_param: landing = Landed
+# plate_param: landing = Landed
+
+## plate_param — 7 nodes, δ = 1.000e-4 m, 1308 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.77 | 26.0 |
+| eval: edit WITH prior (memo) | 0.58 | 7.6 |
+| eval: edit WITHOUT prior | 0.71 | 7.1 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.02 | 25.7 |
+| land: gather + checks registry + A5 badge | 0.19 | 13.2 |
+|   of which: product_recorded (the gather) | 0.17 | 15.5 |
+|   of which: run_checks_on (advisory registry) | 0.01 | 78.2 |
+| fit_delta: probe tessellation (open only) | 0.73 | 4.1 |
+| INDEX build total (tessellate + BVH + id map) | 2.54 | 1.7 |
+|   of which: mesh::tessellate (whole model) | 2.18 | 1.3 |
+| scene: scene_focused (GPU vertex assembly) | 0.02 | 196.1 |
+| == EDIT→PICTURE TOTAL == | 3.36 | 0.0 |
+# kiss_carry: landing = Landed
+# kiss_carry: landing = Landed
+# kiss_carry: landing = Landed
+
+## kiss_carry — 12 nodes, δ = 1.000e-4 m, 48 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.74 | 10.1 |
+| eval: edit WITH prior (memo) | 0.47 | 6.9 |
+| eval: edit WITHOUT prior | 0.79 | 8.2 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.03 | 6.6 |
+| land: gather + checks registry + A5 badge | 0.19 | 11.0 |
+|   of which: product_recorded (the gather) | 0.17 | 15.0 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 69.7 |
+| fit_delta: probe tessellation (open only) | 0.04 | 30.6 |
+| INDEX build total (tessellate + BVH + id map) | 0.08 | 11.5 |
+|   of which: mesh::tessellate (whole model) | 0.05 | 25.7 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 94.6 |
+| == EDIT→PICTURE TOTAL == | 0.77 | 0.0 |
+# tube_ring: landing = Landed
+# tube_ring: landing = Landed
+# tube_ring: landing = Landed
+
+## tube_ring — 2 nodes, δ = 1.658e-3 m, 1002528 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.04 | 74.8 |
+| eval: edit WITH prior (memo) | 0.04 | 20.6 |
+| eval: edit WITHOUT prior | 0.03 | 3.6 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.00 | 167.2 |
+| land: gather + checks registry + A5 badge | 0.03 | 13.2 |
+|   of which: product_recorded (the gather) | 0.03 | 33.6 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 205.8 |
+| fit_delta: probe tessellation (open only) | 2053.19 | 1.1 |
+| INDEX build total (tessellate + BVH + id map) | 1886.75 | 2.3 |
+|   of which: mesh::tessellate (whole model) | 1184.07 | 1.6 |
+| scene: scene_focused (GPU vertex assembly) | 63.00 | 8.0 |
+| == EDIT→PICTURE TOTAL == | 1949.82 | 0.0 |
+# tube_arc: landing = Landed
+# tube_arc: landing = Landed
+# tube_arc: landing = Landed
+
+## tube_arc — 2 nodes, δ = 4.546e-4 m, 999092 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.06 | 146.2 |
+| eval: edit WITH prior (memo) | 0.04 | 9.5 |
+| eval: edit WITHOUT prior | 0.04 | 2.9 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 193.7 |
+| land: gather + checks registry + A5 badge | 0.05 | 4.4 |
+|   of which: product_recorded (the gather) | 0.04 | 23.7 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 316.3 |
+| fit_delta: probe tessellation (open only) | 383.28 | 11.1 |
+| INDEX build total (tessellate + BVH + id map) | 1679.05 | 10.5 |
+|   of which: mesh::tessellate (whole model) | 943.83 | 3.1 |
+| scene: scene_focused (GPU vertex assembly) | 60.29 | 7.7 |
+| == EDIT→PICTURE TOTAL == | 1739.44 | 0.0 |
+# hollow_tube_elbow: landing = Landed
+# hollow_tube_elbow: landing = Landed
+# hollow_tube_elbow: landing = Landed
+
+## hollow_tube_elbow — 2 nodes, δ = 6.268e-4 m, 1000688 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.10 | 67.2 |
+| eval: edit WITH prior (memo) | 0.10 | 13.1 |
+| eval: edit WITHOUT prior | 0.09 | 4.1 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 165.6 |
+| land: gather + checks registry + A5 badge | 0.10 | 11.8 |
+|   of which: product_recorded (the gather) | 0.11 | 2.9 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 233.4 |
+| fit_delta: probe tessellation (open only) | 548.27 | 12.4 |
+| INDEX build total (tessellate + BVH + id map) | 1276.46 | 0.5 |
+|   of which: mesh::tessellate (whole model) | 655.42 | 3.0 |
+| scene: scene_focused (GPU vertex assembly) | 43.51 | 11.2 |
+| == EDIT→PICTURE TOTAL == | 1320.17 | 0.0 |
+# hollow_tube_ring: landing = Landed
+# hollow_tube_ring: landing = Landed
+# hollow_tube_ring: landing = Landed
+
+## hollow_tube_ring — 2 nodes, δ = 2.669e-3 m, 1000056 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.10 | 79.4 |
+| eval: edit WITH prior (memo) | 0.10 | 26.1 |
+| eval: edit WITHOUT prior | 0.08 | 2.3 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 121.3 |
+| land: gather + checks registry + A5 badge | 0.06 | 18.7 |
+|   of which: product_recorded (the gather) | 0.05 | 16.0 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 198.9 |
+| fit_delta: probe tessellation (open only) | 3884.68 | 9.5 |
+| INDEX build total (tessellate + BVH + id map) | 1768.59 | 2.7 |
+|   of which: mesh::tessellate (whole model) | 869.12 | 9.9 |
+| scene: scene_focused (GPU vertex assembly) | 54.61 | 8.2 |
+| == EDIT→PICTURE TOTAL == | 1823.37 | 0.0 |
+# gallery_ring: landing = Landed
+# gallery_ring: landing = Landed
+# gallery_ring: landing = Landed
+
+## gallery_ring — 4 nodes, δ = 3.888e-4 m, 995348 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.17 | 63.9 |
+| eval: edit WITH prior (memo) | 0.10 | 16.2 |
+| eval: edit WITHOUT prior | 0.09 | 1.8 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 131.2 |
+| land: gather + checks registry + A5 badge | 0.13 | 21.8 |
+|   of which: product_recorded (the gather) | 0.09 | 10.6 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 203.9 |
+| fit_delta: probe tessellation (open only) | 349.77 | 0.7 |
+| INDEX build total (tessellate + BVH + id map) | 1418.95 | 1.5 |
+|   of which: mesh::tessellate (whole model) | 733.48 | 0.5 |
+| scene: scene_focused (GPU vertex assembly) | 49.79 | 9.0 |
+| == EDIT→PICTURE TOTAL == | 1468.97 | 0.0 |
+# startup_plate: landing = Landed
+# startup_plate: landing = Landed
+# startup_plate: landing = Landed
+
+## startup_plate — 3 nodes, δ = 1.000e-4 m, 160 triangles
+| stage | median ms | ± % |
+|---|---:|---:|
+| eval: full, no prior (open) | 0.09 | 117.5 |
+| eval: edit WITH prior (memo) | 0.07 | 5.9 |
+| eval: edit WITHOUT prior | 0.07 | 13.1 |
+| edit door: SetSlotExpression (parse+apply+history+submit) | 0.01 | 89.6 |
+| land: gather + checks registry + A5 badge | 0.06 | 8.9 |
+|   of which: product_recorded (the gather) | 0.07 | 13.8 |
+|   of which: run_checks_on (advisory registry) | 0.00 | 254.4 |
+| fit_delta: probe tessellation (open only) | 0.10 | 33.5 |
+| INDEX build total (tessellate + BVH + id map) | 0.28 | 20.0 |
+|   of which: mesh::tessellate (whole model) | 0.24 | 4.3 |
+| scene: scene_focused (GPU vertex assembly) | 0.00 | 112.8 |
+| == EDIT→PICTURE TOTAL == | 0.43 | 0.0 |
+EXIT=0
