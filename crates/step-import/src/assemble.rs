@@ -834,7 +834,15 @@ fn assemble_solid(
 /// built into a body of its own and the copies are grafted (`lib.rs`).
 pub(crate) fn build_one_solid(solid: &SolidSpec, tol: Tol) -> Result<Body<f64>, StepImportError> {
     let mut body = Body::new();
+    // The import IS a door: it runs the operator sequence a foreign
+    // file describes, and D1's whole-body tier-1 postcondition is paid
+    // once over the finished solid rather than once per operator
+    // (`topo::surgery`). A body of n faces costs one sweep here where
+    // it used to cost one per mint. `body` is a local, so a refusal
+    // part-way drops the scope with it.
+    body.enter_surgery();
     assemble_solid(&mut body, solid, tol)?;
     topo::mint_pcurves(&mut body, tol).map_err(|source| StepImportError::Pcurves { source })?;
+    body.leave_surgery_and_sweep();
     Ok(body)
 }
