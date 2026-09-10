@@ -203,3 +203,13 @@ the middle column.
   declared-junction guard is inside mesh's 0.72 s debug-assert bill;
   `demos/tour` builds release with debug assertions on and was not
   measured.
+
+## `[ev]` opened on D1's price (2026-09-10)
+
+Ruling `d1-per-op-tier1-sweep-price` (`needs_ev`), branch
+`perf/ev-d1-price` off main carrying only the ruling item; the same
+file sits on this branch, edits after Ev's answer go on the `[ev]`
+branch. Recommendation put to Ev: keep the clause (option 1); take
+"once per public door with replay localization" (option 3) only if
+editor-core's suite wall is worth a surgery scope in `topo`. Waits for
+sign-off; not self-merged.
