@@ -7357,6 +7357,253 @@ row moved and the other did not. **The rule this pays for is
 the diff's SUBJECT moved under it, and "the inputs are byte-identical"
 was a true argument that stopped being true.
 
+## 2026-09-10 — `view/module-kinds`: the sibling gate's two defects, and the one that was genuinely silent
+
+Both rows split off #2282's §5 sweep, closed separately in one PR:
+`module-kinds-table-scan-ends-at-any-column-zero-hash` (`md_fence` plus
+a length check) and `module-kinds-gate-has-no-reader-guards` (apparatus
+`scripts/gates/viewer-module-kinds.sh` never had). **Every claim below
+was reproduced on a copy of the real tree before anything was edited**,
+which is how three of them came out different from the rows.
+
+**The fence question went to a SIDECAR, and the deciding fact is
+`gate-roster.sh`.** The row says reuse `md_fence` rather than re-derive
+it, and the honest options were `lib.sh` (out of fence), a shared
+helper both viewer gates source, or a second copy. The middle one is
+blocked in the spelling everyone would reach for:
+`gate-roster.sh:139` derives the gate roster from `scripts/gates/*.sh`
+and excludes exactly ONE member by name (`NOT_A_GATE=lib.sh`), so a
+second sourced `.sh` fragment there reads as a gate that runs nowhere
+and must be wired into both CI halves — and teaching that roster about
+it means editing code-quality's file. `scripts/gates/viewer-readme-fence.awk`
+is invisible to that glob, to `local-scripts/ci-local.sh:380`'s loop
+and to `check-ci-mirror-parity.py`'s `SCRIPT_RE` (which matches `.sh`
+and `.py` only), while `scripts/**` still widens the CI tier the same
+way. So: **one copy of the tracker, no duplication to disclose**, and
+`viewer-vocab-declared-once.sh` now loads it too. Both gates' loaders
+are guarded and both self-tests call the load DIRECTLY, because no
+`--root` tree can express a tracker that lives outside every fixture.
+
+**A prepended comment is part of every program it is prepended to.**
+The sidecar's header first said the tracker is loaded *"the way
+`lib.sh` prepends `gate_record_split`"*, and the vocab gate's
+const-item shim keys on exactly that string — so the kinds scanner died
+instead and the case failed naming the wrong stage. Loud, not silent,
+and the sidecar now says so at the site. A shared awk file is shared
+TEXT, not just shared code.
+
+**Three things the rows got wrong, all three read off the tree.**
+
+- **The driver table's truncation is not silent.** Check 3 holds that
+  roster against the tree in BOTH directions, so a fence four rows into
+  `### The drivers` reds — as a misdiagnosis naming the seven modules
+  the table lists BELOW the fence. Only the vocabulary tables have
+  the quiet direction, because check 4 is one-directional: the same
+  fence in `### The session's vocabularies` left the cross-check
+  covering **2 of 6** and printed OK with a **byte-identical** line.
+- **The unguarded population is twelve stages, not two.** The item's
+  arm could only see `readme_table_modules`. The gate also has
+  `find | sed | sort`, `awk | sed | tr | sort`, the kind extractor's
+  `sed`, and the hit union's deduplicator and `sort`. A dead `sed`
+  reported *"no modules under crates/viewer/src … besides lib.rs and
+  bin/"* about a tree holding forty-five — a second live misdiagnosis
+  the item does not name.
+- **A status the shell KEEPS still buys no diagnosis.** Three stages
+  sit in `$(…)`, so errexit ends the gate — with no gate name, no
+  `::error::` framing and nothing said about what was undecided. Their
+  base-side cases fail as *"exited non-zero WITHOUT a gate_error
+  diagnosis"*, which is `lib.sh`'s S157 second half, and it is why they
+  are guarded rather than left to `pipefail`.
+
+**What the length check can honestly check is argued at the reader**
+(`readme_table_block`'s header and `read_table_roster`'s two blocks),
+and the short of it is that nothing in the gate knows how long the table
+is SUPPOSED to be. `!stray` and not the fence tracker is what closes the
+silent half.
+
+**The control table.** Control = the gate at `09b0ef5a8` with the new
+planters and a one-case dispatcher spliced in verbatim, in a tree
+holding only `lib.sh`, the sidecar and the real manifest, so the only
+difference between the columns is the reader. **All 27 fail on base**
+and pass here — twenty-six because the base reader answers wrongly,
+and one (the table row reader) because its shim keys on a program only
+the new reader has, so on base nothing dies and the gate passes.
+
+| case | base | head |
+|---|---|---|
+| a fence opening inside the table body | GREEN over an OVER-inclusive roster — the base reader has no fence rule, so it reads all six rows where `markdown_it` draws one | RED — *"is INTERRUPTED by a fenced code block"* |
+| a row below a blank line | RED, wrong message | RED — *"table line(s) BELOW the table"* |
+| a second table in the section | RED, wrong message | RED — same |
+| the `\|---\|---\|` separator gone | GREEN | RED |
+| the header columns reordered | GREEN | RED |
+| a row whose module cell is not backticked | GREEN | RED |
+| the table gone, the heading kept | RED, wrong message | RED — *"no table follows it"* |
+| a header and a separator and no rows | RED, wrong message | RED — *"no rows under them"* |
+| the heading twice | GREEN | RED |
+| the driver heading renamed | RED, wrong message | RED — *"carries no … heading"* |
+| a vocabulary heading renamed | RED, wrong message | RED — same |
+| a fenced `#[derive]` above the table | RED (false) | GREEN |
+| a worked table row inside a fence | RED (false) | GREEN |
+| a backtick line inside a tilde fence | RED (false) | GREEN |
+| a closed fence, section still ends | RED (false) | GREEN |
+| `find` (module enumerator) | RED, wrong message | RED — names the stage |
+| `sed` (module path trimmer) | RED, wrong message | RED — names the stage |
+| `sort` (module sorter) | RED, wrong message | RED — names the stage |
+| `awk` (table reader) | RED, wrong message | RED — names the stage |
+| `sed` (table row reader) | GREEN — no stage on base carries that program | RED — names the stage |
+| `sed` (kind extractor) | RED, NO diagnosis | RED — names the stage |
+| `awk` (manifest feature reader) | RED, wrong message | RED — names the stage |
+| `sed` (dep extractor) | RED, wrong message | RED — names the stage |
+| `tr` (dep speller) | RED, wrong message | RED — names the stage |
+| `sort` (dep sorter) | RED, wrong message | RED — names the stage |
+| `awk` (hit deduplicator) | RED, NO diagnosis | RED — names the stage |
+| `sort` (hit sorter) | RED, NO diagnosis | RED — names the stage |
+
+**`crates/viewer/README.md` is untouched**, and it was checked rather
+than assumed: each of the three scanned sections holds exactly ONE
+contiguous run of `|` lines and no stray table line, so the contiguity
+rule and the `!stray` answer are both green over the page as written.
+
+**The census of the shifted bands.** No open row cites into
+`viewer-module-kinds.sh`; the three that do
+(`a-new-hand-written-all-table-meets-no-gate:33` → `:10-18`,
+`pick-rename-left-two-live-sites…:95` → `:74`,
+`pick-and-parts…:103` → `:156-159`) are all CLOSED, and the first two
+are above the diff and unmoved anyway. In
+`viewer-vocab-declared-once.sh` two open rows cite in:
+`gate-rust-reader-splits-an-array-type-at-its-semicolon:65,88` →
+`:139-153`, unmoved and re-read; and
+`gate-selftest-cannot-observe-the-identity-a-gate-names`, whose
+correction table already said `:930-973` — stale AGAIN since #2282, and
+now `:1528-1597` over 27 rows. Corrected there with the reason, which
+is that **a citation into a self-test's case list moves whenever anyone
+adds a case**: it is the wrong half of a gate to cite by line, and this
+is the second correction that row has needed in two days.
+
+**Fix pass, same day: a hand-written test for a diagnosis matched ONE
+of `gate_error`'s two spellings.** The first CI run red at
+*"SELFTEST FAILED: load_fence_awk … failed without a gate_error
+diagnosis"* — with the diagnosis printed two lines above it, in the
+`::error::` form. `lib.sh:77-83` writes `ERROR: ` locally and
+`::error::` under Actions, so `selftest_fence_load`'s own `case`
+matched on a developer's box and could not match on the runner. Both
+gates now call `gate_selftest_assert_diagnosed`, which is the one place
+that knows both spellings and is what every other case in this
+directory already goes through. **The class**: a self-test that
+re-implements a check `lib.sh` already owns is a check that agrees with
+it only by accident, and the environment where it disagrees is the one
+nobody runs by hand. Re-verified under `GITHUB_ACTIONS=true` as well as
+without it, and that is now the way to run a gate self-test before
+pushing one.
+
+## 2026-09-10 — `view/module-kinds` fix pass: the reader re-minted the defect it was written to remove
+
+**The lead finding is the row's own headline, inside the unit that
+closes it.** `readme_table_block` anchored every rule at `^`, so a table
+row indented one to three spaces — a row every renderer draws — was seen
+by no rule. Indenting `crates/viewer/README.md:326`'s `session::probe`
+row by two spaces dropped that module out of the vocabulary roster with
+the gate at **exit 0 and its whole output `cmp`-identical** to the clean
+run. That is the silent short roster
+`module-kinds-table-scan-ends-at-any-column-zero-hash` was filed for.
+
+**The rule was already written down and this program earned it.**
+`plan.md`: *a `^`-anchored pattern over markdown is a claim about column
+zero that markdown does not make* — #2172, whose new reader escaped its
+paragraph on `/^- /` and read three kinds where a two-space-indented
+bullet renders as a fourth. Same reader family, same boundary, one
+sentinel over: `^|` for `^- `. **A rule this program has paid for is not
+a rule this program applies**, and the gap is that the rule was learned
+about BULLETS and filed as being about bullets; nothing in it said
+*every anchored pattern in every markdown reader here*.
+
+**The repair is one strip, not a widened pattern.** `sub(/^ {0,3}/, "",
+line)` once per line, before any rule, and every rule reads the stripped
+line — heading match, `^#` region end and every `^|` test at once. Four
+spaces keeps one space and matches nothing; a tab keeps its tab. Settled
+with `markdown-it-py` 4.2.0 in CommonMark mode with tables on, over all
+six positions rather than the one that broke: **the header, the delimiter
+row and a body row each accept one to three spaces**, four spaces on the
+header is a code block, and four on the DELIMITER leaves no table at all.
+
+**Being right about four spaces is not being loud about it**, which is
+the residue the strip alone leaves and `!indent` closes. A row the author
+indented four spaces is correctly not read — and if it is the table's
+last row, nothing follows it to become a `!stray`, so the roster is one
+shorter and every other figure is unchanged. The reader now reports the
+line and still does not read it as a row. Sweep:
+`grep -nE '^[[:space:]]+[|]' crates/viewer/README.md` returns nothing
+over the whole page.
+
+**The OK line carries two README-derived counts now.** Every other
+figure on it is tree- or manifest-derived, which is exactly *why* a
+narrowed roster came back byte-identical; `${#driver_rows[@]}` and
+`${#vocab_rows[@]}` cost nothing and make a narrowing visible in a log
+even where it does not gate. It is not the fix and does not pretend to
+be — it is what makes the next one of these findable.
+
+| case | at `b37a67fb2` | here |
+|---|---|---|
+| a ghost row indented two spaces | **GREEN** — the row is invisible, the roster is one short | RED — *"is not a module in the tree"* |
+| a real row indented four spaces | **GREEN** — one shorter, silently | RED — *"indented FOUR or more spaces"* |
+| a real row indented with a TAB | **GREEN** — same | RED — same |
+| a section heading indented three spaces | RED (false) — *"carries no heading"* | GREEN |
+
+The ghost is what makes the first case observable at all: with the row
+read the gate reds naming a module the tree does not hold, and with it
+unread the gate is green — and no figure the gate prints could tell the
+two apart before this pass. The other three are the upper side of the
+boundary and are what keeps it from being widened to `[[:space:]]*`.
+The original 27 rows were re-run against this head unchanged.
+
+**Three claims of mine that were false, and one was false in three
+places.** *"It needs the tracker's THIRD answer"* is not true at this
+gate: `close` and `inside` are unreachable where a table body ends, so
+`fence != ""` decides identically — mutated and confirmed green on the
+fixtures and on the real tree, while returning `open` where `md_fence`
+returns `close` reds the VOCAB gate's self-test and not this one. The
+third answer is load-bearing for `opens` and for nothing else, and the
+sidecar now says which caller holds it. The receipt *"red against four
+modules"* over a 3-of-10 roster was arithmetically impossible: re-run,
+it is **seven** — 10 − 3 — and a receipt is a citation. And the control
+table's first row gave the opposite reason: the base reader has no fence
+rule at all, so its error there is over-INCLUSION, six rows where
+`markdown_it` draws one.
+
+**The duplication I told the orchestrator did not exist.** True of the
+tracker, false of what loads it: `load_fence_awk`, `VIEWER_FENCE_AWK`
+and `selftest_fence_load` are spelled twice, the last byte-identically.
+It is irreducible in fence — the tracker has one home because it is
+AWK, while a loader is SHELL, and the only shared shell homes are
+`lib.sh` (code-quality's) and a second `.sh` here, which `gate-roster.sh`
+reads as a gate that runs nowhere. So it is **disclosed at both sites**
+with that reason and with what bounds it: a path, an existence test and
+a message. **"One copy of the tracker" was a true sentence doing the
+work of a false one** — the claim a reader takes from it is that nothing
+about the tracker is duplicated.
+
+**Two prose claims corrected while they were being read.** The
+*"only two things in this file are hand-kept"* sentence was already off
+by one before this unit and this unit added two more; it is now four,
+with the rule that produces them (`grep -nE '^[A-Z_]+=' $0`) and with
+`VIEWER_FENCE_AWK` marked as the one held by nothing but its own
+existence test — a path cannot rot silently, which is what makes it not
+check 6b's class. And the FIFTEEN STAGES census certified a population
+it did not produce: at least nine more `gate_grep`/`gate_rust_code`
+stages exist, and it sited `gate_rust_code` under the wrong assignment.
+It is now TWELVE with its rule stated — *every stage on PATH whose
+status this file must read for itself* — and the self-diagnosing ones
+named so their absence does not read as an oversight.
+
+**Also unstated and now listed**: setext headings are a fourth
+structure the reader does not model (`grep -nE '^(=+|-+)$'` over the
+README: nothing), alongside HTML blocks and block quotes.
+
+**The `unsure` the reviewer left dissolved rather than being fixed.**
+`!row` is asked before `!stray`, so indenting a table's FIRST data row
+used to red about a table having no rows when it had two. With the
+strip, a one-to-three-space row IS a row and the case cannot arise; a
+four-space one is reported by `!indent`, which is asked before both.
 ## 2026-09-10 — `view/wasm-docs`: the repo had already answered this one axis over
 
 `viewer-docs-do-not-build-at-wasm32` offered two shapes over nine broken

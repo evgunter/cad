@@ -2,8 +2,12 @@
 id: module-kinds-gate-has-no-reader-guards
 kind: issue
 title: viewer-module-kinds.sh has no reader-guard apparatus at all: two unguarded reader stages in two process substitutions, whose death reds telling the author the README heading was renamed
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-09-10
+pr: 2287
+branch: view/module-kinds
+refs: [gate-roster-and-probe-census-have-no-reader-guards]
 ---
 
 Found by the §5 sweep for #2282. **Split from a combined row** whose
@@ -13,7 +17,7 @@ gate has never had. Different repairs, different controls.
 
 ## The gap
 
-`scripts/gates/viewer-module-kinds.sh:220-227`'s `readme_table_modules`
+`scripts/gates/viewer-module-kinds.sh:220-227` (at `09b0ef5a8`; that function is gone, see Closed below)'s `readme_table_modules`
 is `awk … | sed …` — two stages, both reading `$README`, both inside a
 process substitution (`mapfile … < <(readme_table_modules …)` at `:270`
 and `:277`), so both exit statuses are discarded. **The gate has no
@@ -65,8 +69,9 @@ read each — the population is larger: `scripts/gates/gate-roster.sh`
 `scripts/gates/probe-suite-census.sh` are filed on **code-quality's**
 slate as `gate-roster-and-probe-census-have-no-reader-guards`, since
 `scripts/gates/*` returned to code-quality when the `gates` program
-closed. Named in prose rather than in `refs:` because that item is not
-on `main` yet and the reference would not resolve.
+closed. It was named in prose when this row was filed, because it was
+not on `main` and the reference would not have resolved; it landed
+2026-09-10 and is in `refs:` now.
 
 ## Confidence
 
@@ -74,3 +79,41 @@ on `main` yet and the reference would not resolve.
 misdiagnosis-not-green reading — all read off the file rather than
 inferred.
 
+
+## Closed (2026-09-10)
+
+`reader_failed` at `scripts/gates/viewer-module-kinds.sh:293-298` and
+`abort_if_reader_failed` at `:307-313`, over the population stated at
+`:236-270` rather than left to a count: **twelve stages**, with the
+rule that produces them written beside the list — every stage on PATH
+whose status this file must read for itself. The `gate_grep`,
+`gate_rust_code` and `gate_record_awk` sites that diagnose themselves
+in `lib.sh` are named there as excluded rather than left looking like
+an oversight; the first version of this list said fifteen and certified
+a population it did not produce.
+
+**The item names two stages and the gate has twelve.** Its arm could
+only see `readme_table_modules`, so it missed the module enumerator's
+three (`find | sed | sort`), the manifest reader's four (`awk | sed |
+tr | sort`), the kind extractor's `sed`, and the hit union's
+deduplicator and `sort`. Two live misdiagnoses were reproduced on the
+real tree before the repair: a dead `awk` reported *"Either the heading
+was renamed or the table was reshaped"* about a README that is fine —
+the item's own example — and a dead `sed` reported *"no modules under
+crates/viewer/src … besides lib.rs and bin/"* about a tree holding
+forty-five, which the item does not mention.
+
+**A third mode the item does not name: a status the shell KEEPS still
+buys no diagnosis.** Three stages sit in `$(…)` rather than in a
+process substitution, so errexit does end the gate on them — with no
+gate name, no `::error::` framing and nothing said about what was left
+undecided. Their cases show it: on the base reader those three fail as
+*"the gate exited non-zero WITHOUT a gate_error diagnosis"*, which is
+`lib.sh`'s S157 second half exactly.
+
+Twelve cases, one per guarded stage, each wanting its own stage by
+name, and each run against the base reader with the same shims: twelve
+red there, twelve green here. The right-hand stages use a shim that
+CONSUMES its input before exiting, per the item; the two `sort` stages
+that carry no distinguishing argument are told apart by what they are
+READING, which is the one thing that differs between them.

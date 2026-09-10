@@ -535,129 +535,61 @@ const_hits() {
     { awk "$HIT_AWK" || reader_failed "hit classifier over $SRC" "$?"; }
 }
 
-# A COLUMN-ZERO `#` INSIDE A FENCED BLOCK IS NOT A HEADING, and this is
-# the one answer both README readers need. Each of them scopes itself to
-# `$SECTION` and ends that section at any `^#`, on the assumption that
-# such a line is a markdown heading. Inside a fenced code block it is
-# not: `#[derive(Debug)]`, `#!/bin/sh` and `# a comment` are ordinary
-# content, and a fence carrying one TRUNCATED the section there —
-# everything after it, the announcing paragraph and the roster table
-# included, went invisible. The scanned region is ~150 lines of prose
-# about how a Rust macro projects a vocabulary, so a fenced Rust example
-# carrying an attribute is exactly what gets written into it.
+# THE FENCE TRACKER IS SHARED AND LOADED, NOT SPELLED HERE.
+# `crates/viewer/README.md`'s sections are scoped by `^#` and its
+# rosters are `^|` lines, and inside a fenced code block neither is
+# markdown structure: `#[derive(Debug)]` and `#!/bin/sh` are content,
+# and a worked example of a table row is content too. Both README
+# readers below therefore ask `md_fence` of EVERY rule they have rather
+# than only of `^#`, and `readme_kinds`'s `opens` asks for its THIRD
+# answer — the tracker and every argument about it live in the sidecar
+# named below, which is where a reader of either gate is sent.
 #
-# THE DIAGNOSIS IS THE COST, not the count: a truncated section reds
-# about the ANCHOR, so an author is told to restore a sentence that is
-# two lines below the fence and was never removed. A gate whose repair
-# points at the wrong edit is the class `reader_failed` below exists
-# for, met in the README half.
+# ONE FILE, NOT A COPY EACH. `viewer-module-kinds.sh` reads the same
+# README through the same tracker, and two readers answering "is this
+# line markdown structure" differently is a divergence nothing would
+# catch — the reason this file prepends ONE helper to its own two
+# programs, one level up.
 #
-# ONE HELPER, NOT TWO COPIES, for the reason this file already splits
-# `readme_table` from `readme_kinds` on the `@` sentinel: two readers
-# answering "is this line markdown structure" differently is a
-# divergence nothing would catch. It is prepended to both programs the
-# way `gate_record_awk` prepends `gate_record_split` to its callers.
+# EVERY LIVE INTERVAL IN THIS FILE IS CLEAR OF THE `mawk` SPELLING the
+# sidecar forbids — no `(` immediately after an interval, on pain of
+# `REcompile() - panic` and a reader that decided nothing. The sweep
+# rule is `grep -nE '[{][0-9]+,[0-9]*[}]' $0` read by hand rather than
+# a count carried in prose: it returns THREE LINES carrying THREE
+# intervals, all in `readme_kinds` — two bullet patterns and the `sed`
+# extractor — each followed by `- ` or `- \*\*`, and `sed` is not `awk`
+# besides.
+VIEWER_FENCE_AWK=$GATE_REPO_ROOT/scripts/gates/viewer-readme-fence.awk
+
+# THIS LOADER IS THE SECOND COPY OF ITSELF, disclosed rather than
+# shared, and the reason it cannot be shared is one level down from the
+# reason the tracker can. The tracker has ONE home because it is awk
+# source; a loader is SHELL, and the only shared shell homes are
+# `lib.sh` — code-quality's, read and called here and never edited —
+# and a second `.sh` in this directory, which `gate-roster.sh` reads as
+# a gate that runs nowhere (`viewer-readme-fence.awk`'s header argues
+# that at length). So this function, `VIEWER_FENCE_AWK` and
+# `selftest_fence_load` are spelled twice, here and in the directory's
+# other viewer gate. What they can diverge about is bounded by what
+# they are — a path, an existence test and a message — and the part
+# where two readers disagreeing would be a defect nothing catches, the
+# tracker, is not duplicated at all.
 #
-# NO `(` IMMEDIATELY AFTER AN INTERVAL, and this is the same class as
-# this directory's no-backslash rule: a spelling one awk accepts and
-# the other dies on. `mawk` 1.3.4 aborts its regex compiler outright —
-# `REcompile() - panic: values still on machine stack` — when an
-# interval is followed DIRECTLY by an opening parenthesis. The boundary
-# is exactly that adjacency, derived rather than guessed: `/^ {0,3}(a)/`
-# and `/^a{2}(b)/` both panic, while `/^ {0,3}-(a)/` and `/^(a){2}/`
-# compile. So both the natural spelling of "three or more"
-# (``` /^ {0,3}(`{3,}|~{3,})/ ```) and the plainer
-# ``` /^ {0,3}(```|~~~)/ ``` take the gate down with an exit 100 and a
-# reader that decided nothing — reported honestly by the guard below,
-# which is the only reason it was a diagnosis rather than a mystery.
-# `gawk` compiles all of them happily, so the hosted runner would never
-# have shown it. Two anchored alternatives carry no group at all, and
-# three literal characters are all the TEST needs: the counting loop
-# below measures the run, which is what the close has to compare
-# against anyway.
-#
-# EVERY LIVE INTERVAL IN THIS FILE IS CLEAR OF IT, and the sweep rule
-# is `grep -nE '[{][0-9]+,[0-9]*[}]' $0` read by hand rather than a
-# count carried in prose. It returns FIVE LINES carrying SIX
-# intervals, and the two counts differ because `md_fence`'s backtick and
-# tilde tests share a line: three in `md_fence` (those two, plus its
-# `sub`) and three in `readme_kinds` (two bullet patterns and the `sed`
-# extractor). None of the six puts `(` next to the `}` — the `md_fence`
-# three are followed by a literal backtick or tilde, the bullet patterns
-# by `- `, and the `sed` one by `- \*\*` (and `sed` is not `awk`
-# besides). The only occurrence of the fatal spelling in the whole file
-# is inside this paragraph, which forbids it. Derived under
-# `gawk` 5.2.1 and `mawk` 1.3.4, both green over this file's fixtures
-# and over the real tree.
-#
-# THE RULE IS COMMONMARK's AND NOT A TOGGLE, because a toggle is wrong
-# in a way that is quiet. A fence opens on three or more backticks or
-# tildes indented at most three spaces; it closes only on the SAME
-# character, at least as long, with nothing but whitespace after it. A
-# bare toggle would let a ``` line inside a ~~~ block close it and hand
-# the rest of the block back to the heading rule — so the tilde case is
-# planted below. Two further CommonMark rules are encoded here because
-# each is a way to be wrong and silent: a backtick fence whose info
-# string contains a backtick is NOT a fence (it is ordinary text), and
-# a fence-shaped line inside a fence that does not close it is content.
-#
-# THREE ANSWERS AND NOT A BOOLEAN, and the third one is load-bearing.
-# `md_fence` returns `open`, `inside`, `close` or the empty string, and
-# a caller that only wants "is this line markdown structure" tests
-# `!= ""`: a delimiter is not structure either — a ``` line is not a
-# heading, not a table row and not a bullet — so both readers ask that
-# of EVERY rule they have rather than only of `^#`.
-#
-# ONE PREDICATE NEEDS MORE THAN THAT, and asking the boolean everywhere
-# was necessary and not sufficient. `readme_kinds`'s `opens` asks *did
-# the previous line END a block*, so that a line beginning a paragraph
-# can be told from a lazy continuation. An OPENING delimiter starts a
-# block, so the line under it is content and the boolean is right. A
-# CLOSING delimiter ENDS one, so the line under it BEGINS a paragraph —
-# and the boolean gets that backwards. CommonMark agrees: `fence` then
-# `paragraph_open`, with no blank line between them.
-#
-# BOTH DIRECTIONS WERE LIVE ON ONE ANSWER, one blank line apart, and
-# both are planted below. A second announcement directly under a
-# closing fence was not read as opening a paragraph, so it was not
-# counted: the gate printed OK over a duplicate announcement AND an
-# unratified fourth kind bulleted beneath it — exit 0 over the two
-# things this gate exists to refuse. The anchor itself directly under a
-# closing fence reds on the missing paragraph, which is the very
-# misdiagnosis the fence work was filed to remove.
-#
-# WHAT IT DOES NOT DO. It is a fence tracker, not a markdown parser:
-# indented (four-space) code blocks, HTML blocks and block quotes are
-# not modelled, so a `#` at column zero inside one of those still ends
-# the section. Four-space indentation cannot put a `#` at column zero
-# by construction, and neither of the other two has ever appeared in
-# this section; a reader who adds one meets the same red this repair
-# just removed, which is the residue and is stated rather than implied.
-FENCE_AWK='
-function md_fence(line,   s, ch, n, rest) {
-  if (line ~ /^ {0,3}```/ || line ~ /^ {0,3}~~~/) {
-    s = line
-    sub(/^ {0,3}/, "", s)
-    ch = substr(s, 1, 1)
-    n = 0
-    while (substr(s, n + 1, 1) == ch) n++
-    rest = substr(s, n + 1)
-    if (FENCE_CHAR == "") {
-      if (ch == "`" && index(rest, "`") > 0) return ""
-      FENCE_CHAR = ch
-      FENCE_LEN = n
-      return "open"
-    }
-    if (ch == FENCE_CHAR && n >= FENCE_LEN && rest ~ /^[[:space:]]*$/) {
-      FENCE_CHAR = ""
-      FENCE_LEN = 0
-      return "close"
-    }
-    return "inside"
-  }
-  return (FENCE_CHAR != "") ? "inside" : ""
+# THE LOAD IS A READ AND IT IS GUARDED, for `reader_failed`'s reason
+# one layer down: a tracker that is not there leaves `FENCE_AWK` empty,
+# every `md_fence` call becomes a call to an undefined function, and
+# awk's exit-2 syntax error reaches a CI reader with no gate name on
+# it and nothing said about what was not decided. The self-test calls
+# this DIRECTLY, because no planted tree can express it — the tracker
+# is this gate's own code and lives outside every fixture root.
+load_fence_awk() {
+  if [ ! -f "$1" ]; then
+    gate_error "$(gate_name): $1 does not exist — that file IS the markdown fence tracker this gate reads $README through, shared with this directory's other viewer gate, and without it a fenced \`#\` ends a section and a fenced table row joins a roster. Restore it, or spell the tracker back into this gate deliberately"
+    return 1
+  fi
+  printf '%s\n' "$(<"$1")"
 }
-'
+FENCE_AWK=$(load_fence_awk "$VIEWER_FENCE_AWK") || exit 1
 
 # The ratified kinds, as `@` (the anchor paragraph was found) followed
 # by one line per bolded bullet of the list it announces: `- **A
@@ -1566,6 +1498,38 @@ pass_the_anchor_quoted_inside_a_paragraph() {
 # count from outside, which is what `KIND_COUNT` exists to prevent.
 # What can be shown is the predicate the guard is made of — the guard
 # is one `case` over exactly this call — in all three of its answers.
+# THE TRACKER'S OWN LOAD, AS A DIRECT CALL, and for `selftest_anchor_
+# pair`'s reason: every case above plants a TREE and runs this file over
+# it, while `viewer-readme-fence.awk` sits beside this file and outside
+# every fixture root, so no `--root` can express a tracker that is gone.
+# What can be shown is the predicate the load is made of, in both of its
+# answers — the real path yields the function, a path that is not there
+# yields a gate_error and a non-zero status rather than an empty
+# `FENCE_AWK` and awk's own syntax error.
+selftest_fence_load() {
+  local want=$1 path=$2 got=0 out=
+  out=$(load_fence_awk "$path" 2>&1) || got=$?
+  if [ "$got" != "$want" ]; then
+    printf 'SELFTEST FAILED: load_fence_awk "%s" returned %s, wanted %s\n%s\n' \
+      "$path" "$got" "$want" "$out" >&2
+    exit 1
+  fi
+  # `gate_selftest_assert_diagnosed`, NOT a case of this function's own:
+  # `gate_error` writes `ERROR: ` locally and `::error::` under Actions,
+  # so a hand-written test for one spelling passes on a developer's box
+  # and fails on the runner. `lib.sh` knows both and is the one place
+  # that should.
+  if [ "$want" = 0 ]; then
+    case "$out" in
+      *"function md_fence"*) ;;
+      *) printf 'SELFTEST FAILED: load_fence_awk "%s" succeeded without yielding the tracker:\n%s\n' "$path" "$out" >&2
+         exit 1 ;;
+    esac
+  else
+    gate_selftest_assert_diagnosed "load_fence_awk over $path" "$out"
+  fi
+}
+
 selftest_anchor_pair() {
   local want=$1 anchor=$2 count=$3 got=0
   anchor_states_count "$anchor" "$count" || got=$?
@@ -1727,6 +1691,9 @@ exec "$GATE_REAL_TOOL" "$@"' plant_named_all
   selftest_anchor_pair 1 'Four kinds of list stay hand-written' 3
   selftest_anchor_pair 1 'Three kinds of list stay hand-written' 4
   selftest_anchor_pair 2 'Ten kinds of list stay hand-written' 10
+  # THE SHARED TRACKER'S LOAD, both answers.
+  selftest_fence_load 0 "$VIEWER_FENCE_AWK"
+  selftest_fence_load 1 "$VIEWER_FENCE_AWK.no-such-file"
   # THE COUNT IS THE `gate_selftest_passes` ROWS ABOVE, one per near
   # miss, so a reader can produce the population rather than trust the
   # number: `grep -c '^  gate_selftest_passes ' $0`. The constant-pair
