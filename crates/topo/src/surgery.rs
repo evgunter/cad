@@ -26,11 +26,18 @@
 //! - [`Surgery::sweep_and_close`] closes it and, at the outermost
 //!   level, runs the tier-1 sweep. This is the door's postcondition.
 //! - [`Surgery::close_already_checked`] closes it and sweeps nothing,
-//!   for a door that runs its own whole-body check of tier 1 or
-//!   stronger after the scope — [`fn@crate::validate_closed`], or the
-//!   operators' own `assert_euler_postcondition`. It is not an
-//!   escape hatch: `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
-//!   requires such a door to carry that check in its own body.
+//!   for a door whose own trailing check is a **debug assertion** at
+//!   tier 1 or stronger — `debug_assert_eq!(validate_closed(&body),
+//!   Ok(()))`. It is not an escape hatch, and the qualifier is the
+//!   whole of it: a TYPED gate is not that check. A door that ends
+//!   `validate_closed(&work).map_err(…)?` turns a tier-1 failure into
+//!   an error return, and before this rule existed that same failure
+//!   panicked out of the operator that caused it. Such a door closes
+//!   with [`Surgery::sweep_and_close`], which keeps the split the door
+//!   already had: a kernel bug panics, a tier-2 refusal returns typed.
+//!   `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
+//!   requires a non-sweeping close to carry that debug assertion in
+//!   the door's own body.
 //!
 //! Dropping the guard closes the scope and sweeps nothing, which is
 //! what an `Err` returned mid-sequence does. **The sweep is never in
@@ -202,7 +209,10 @@ impl<T: Real> Body<T> {
     }
 
     /// Closes a scope opened by [`Body::enter_surgery`]. Sweeps
-    /// nothing: the door runs its own whole-body check after it.
+    /// nothing — the guardless spelling of
+    /// [`Surgery::close_already_checked`], with that method's
+    /// obligation: the door's own trailing check is a debug assertion
+    /// at tier 1 or stronger, not a typed gate.
     pub fn leave_surgery(&self) {
         #[cfg(debug_assertions)]
         let _ = self.surgery.close();
@@ -253,15 +263,19 @@ impl<T: Real> Surgery<'_, T> {
         }
     }
 
-    /// **Closes the scope without sweeping**, for a door that runs its
-    /// own whole-body check — [`fn@crate::validate_closed`], a tier-2
-    /// or stronger gate, or the operators' own
-    /// `assert_euler_postcondition` — AFTER this point.
+    /// **Closes the scope without sweeping**, for a door whose own
+    /// trailing check is a DEBUG ASSERTION at tier 1 or stronger —
+    /// `debug_assert_eq!(validate_closed(&body), Ok(()))` — placed
+    /// after this point.
     ///
-    /// Tier 2 subsumes tier 1, so a door that already pays a stronger
-    /// sweep must not pay a weaker one beside it. What makes this
-    /// honest rather than an escape hatch is that the closure-property
-    /// walk requires the check to be present in the door's own body.
+    /// Tier 2 subsumes tier 1, so a door that already asserts a
+    /// stronger sweep must not assert a weaker one beside it. **A
+    /// typed gate is not that check**: a door ending
+    /// `validate_closed(&work).map_err(…)?` answers a kernel bug with
+    /// an error return, where the operators it composes used to panic,
+    /// so such a door closes with [`Surgery::sweep_and_close`]
+    /// instead. The closure-property walk requires the debug assertion
+    /// to be present in the door's own body.
     pub fn close_already_checked(self) {}
 }
 
@@ -287,5 +301,244 @@ impl<T: Real> core::ops::Deref for Surgery<'_, T> {
 impl<T: Real> core::ops::DerefMut for Surgery<'_, T> {
     fn deref_mut(&mut self) -> &mut Body<T> {
         self.body
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Test-support code: panicking is a test's failure mechanism (L5).
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::{Point3, Tol};
+
+    use crate::Body;
+    use crate::entity::HalfEdgeKey;
+    use crate::euler::MevSite;
+
+    /// A cube, built through the operators, tier-1 valid.
+    fn cube() -> Body<f64> {
+        crate::splitting::reassembly::quad_prism(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            1.0,
+            Tol::witness(),
+        )
+    }
+
+    /// **Corruption tier 1 rejects and no operator's precondition can
+    /// see**: a second copy of a face's surface, referenced by
+    /// nothing. Tier 1's orphan-geometry pass reports it; every key in
+    /// the body still resolves, every loop still closes, so an
+    /// operator run afterwards plans and mutates exactly as it would
+    /// on a sound body. That is what makes it the right plant for this
+    /// question — the operator does not refuse, it simply no longer
+    /// looks.
+    fn plant_an_orphan_surface(body: &mut Body<f64>) {
+        let face = body.faces().next().unwrap().0;
+        let key = body.get_face(face).unwrap().surface;
+        let copy = body.get_surface(key).unwrap().clone();
+        let _ = body.add_surface(copy);
+        assert!(
+            crate::validate::validate(body).is_err(),
+            "the plant is a tier-1 error"
+        );
+    }
+
+    /// A half-edge of the body, for a strut `mev` (an empty fan run).
+    fn a_half_edge(body: &Body<f64>) -> HalfEdgeKey {
+        body.half_edges().next().unwrap().0
+    }
+
+    /// The message of the panic `f` raises, captured through a panic
+    /// HOOK rather than by downcasting `catch_unwind`'s payload — the
+    /// `bit-identity punning` gate bans `Any` downcasts outside
+    /// `geom_core::bit_identity`, test code included. The hook is
+    /// process-global, so it is restored immediately and a foreign or
+    /// empty capture fails the caller's assertion loudly rather than
+    /// passing quietly.
+    fn panic_message(f: impl FnOnce() + std::panic::UnwindSafe) -> String {
+        let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let sink = std::sync::Arc::clone(&captured);
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            if let Ok(mut slot) = sink.lock() {
+                *slot = info.to_string();
+            }
+        }));
+        let outcome = std::panic::catch_unwind(f);
+        std::panic::set_hook(previous);
+        assert!(outcome.is_err(), "expected a panic and got none");
+        let message = captured.lock().map(|slot| slot.clone()).unwrap_or_default();
+        assert!(!message.is_empty(), "the hook captured no message");
+        message
+    }
+
+    /// **A corruption planted MID-SEQUENCE is caught when the door
+    /// closes** — and the operator that ran after it did not catch it,
+    /// which is the whole of what this unit changed.
+    ///
+    /// The scope stands in for a composing door: the body is corrupted
+    /// raw underneath it, an operator runs and returns `Ok` without
+    /// re-deriving anything, and the close fires.
+    ///
+    /// **The same row is the scalpel's.** Built with
+    /// `--features topo/per-op-postcondition` the sweep runs after
+    /// every operator again, so the panic comes from the OPERATOR and
+    /// carries its name — which is how a door-level failure is
+    /// localized to the operator without a replay. The two arms are
+    /// the two builds, and each names what it expects to see.
+    #[test]
+    fn a_corruption_planted_mid_sequence_is_caught_when_the_door_closes() {
+        let message = panic_message(|| {
+            let mut body = cube();
+            let mut door = body.begin_surgery();
+            let he = a_half_edge(&door);
+            plant_an_orphan_surface(&mut door);
+            door.mev_line(
+                MevSite::Fan { he1: he, he2: he },
+                Point3::new(0.5, 0.5, 2.0),
+                Tol::witness(),
+            )
+            .expect("mev's preconditions cannot see this corruption");
+            door.sweep_and_close();
+        });
+        if cfg!(feature = "per-op-postcondition") {
+            assert!(
+                message.contains("mev postcondition: result is not tier-1 valid"),
+                "the scalpel is on, so the OPERATOR after the plant should have fired and \
+                 named itself: {message}"
+            );
+        } else {
+            assert!(
+                message.contains("door postcondition: result is not tier-1 valid"),
+                "the door's close is what catches a mid-sequence plant; nothing inside the \
+                 scope re-derives the body: {message}"
+            );
+        }
+    }
+
+    /// **An operator a consumer calls directly is itself a door**, and
+    /// sweeps at its end exactly as it did before this unit. No scope
+    /// is open, so nothing has undertaken to check the body later.
+    #[test]
+    fn an_operator_called_directly_still_sweeps() {
+        let message = panic_message(|| {
+            let mut body = cube();
+            let he = a_half_edge(&body);
+            plant_an_orphan_surface(&mut body);
+            let _ = body.mev_line(
+                MevSite::Fan { he1: he, he2: he },
+                Point3::new(0.5, 0.5, 2.0),
+                Tol::witness(),
+            );
+        });
+        assert!(
+            message.contains("mev postcondition: result is not tier-1 valid"),
+            "a directly-called operator is a door and sweeps: {message}"
+        );
+    }
+
+    /// **A nested door sweeps nothing; the OUTER door is the
+    /// observable boundary.** The inner close runs at depth 2 and
+    /// passes over a corrupt body; the outer close, at depth 1, fires.
+    #[test]
+    fn only_the_outermost_close_sweeps() {
+        let mut body = cube();
+        let mut outer = body.begin_surgery();
+        {
+            let mut inner = outer.begin_surgery();
+            plant_an_orphan_surface(&mut inner);
+            // Passes: the outer door has undertaken to check.
+            inner.sweep_and_close();
+        }
+        assert_eq!(outer.open_surgery_scopes(), 1);
+        let message = panic_message(std::panic::AssertUnwindSafe(move || {
+            outer.sweep_and_close();
+        }));
+        assert!(
+            message.contains("door postcondition: result is not tier-1 valid"),
+            "the outermost close is the one that sweeps: {message}"
+        );
+    }
+
+    /// **A door leaves no scope open, by either path.** A scope a door
+    /// forgot to close silences every later operator on that body —
+    /// the failure this mechanism can have that nothing else would
+    /// notice.
+    #[test]
+    fn every_door_returns_with_its_scopes_closed() {
+        let tol = Tol::witness();
+        let body = cube();
+        assert_eq!(body.open_surgery_scopes(), 0, "a fresh build");
+
+        // The Ok path of a composite.
+        let mut ok = body.clone();
+        ok.merge_coplanar_faces_declared(&[], tol)
+            .expect("a prism merges nothing and refuses nothing");
+        assert_eq!(ok.open_surgery_scopes(), 0, "after a composite returned Ok");
+
+        // The Err path of the same composite: a declared surface key
+        // that does not resolve is refused after the entry gate.
+        let mut err = body.clone();
+        let bogus = [(
+            crate::geometry::SurfaceKey::default(),
+            crate::geometry::SurfaceKey::default(),
+        )];
+        assert!(err.merge_coplanar_faces_declared(&bogus, tol).is_err());
+        assert_eq!(
+            err.open_surgery_scopes(),
+            0,
+            "after a composite returned Err"
+        );
+
+        // And the guard's own contract: dropping it closes the scope.
+        let mut dropped = body.clone();
+        {
+            let scope = dropped.begin_surgery();
+            assert_eq!(scope.open_surgery_scopes(), 1);
+        }
+        assert_eq!(
+            dropped.open_surgery_scopes(),
+            0,
+            "after the guard was dropped"
+        );
+    }
+
+    /// **A clone starts outside every scope.** A body nobody has
+    /// undertaken to sweep must not inherit somebody else's promise;
+    /// the doors that stage a mutation into a clone open their own
+    /// scope on the clone.
+    #[test]
+    fn a_clone_is_outside_the_original_scope() {
+        let mut body = cube();
+        let scope = body.begin_surgery();
+        assert_eq!(scope.open_surgery_scopes(), 1);
+        let twin: Body<f64> = scope.clone();
+        assert_eq!(twin.open_surgery_scopes(), 0);
+        scope.sweep_and_close();
+    }
+
+    /// **The depth is `#[cfg(debug_assertions)]`, read back out of the
+    /// source.** That attribute is the whole of the claim that a
+    /// release `Body`'s layout is the one it had before this module
+    /// existed — nothing at runtime in a debug build can observe the
+    /// release struct — so what a bug could break here is the
+    /// attribute, and this is what reads it.
+    #[test]
+    fn the_surgery_depth_is_declared_debug_only() {
+        let src = crate::source_walk::src_root().join("body.rs");
+        let text = std::fs::read_to_string(&src).expect("a readable body.rs");
+        let code = test_utils::source::code_only(&text);
+        let field = code
+            .find("surgery: crate::surgery::SurgeryDepth")
+            .expect("`Body`'s surgery depth field is declared in body.rs");
+        // Everything since the previous field's terminating comma:
+        // this field's attributes and its visibility keyword.
+        let declaration = code[..field].rsplit(',').next().unwrap_or_default();
+        assert!(
+            declaration.contains("#[cfg(debug_assertions)]"),
+            "the surgery depth field is no longer gated on `debug_assertions` — a release \
+             `Body` would carry it, and this unit's claim that the release layout is \
+             untouched would be false"
+        );
     }
 }

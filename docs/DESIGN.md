@@ -109,9 +109,20 @@ over a scalar type `T` (default `f64`); topology stays concrete (Q1).
   closed set of primitives that provably preserve the Euler–Poincaré
   invariant. Each operator debug-asserts its postcondition — a per-call
   instance of the soundness theorem, never a semantic gate on
-  intermediate states. "Exclusively" is realized: the operator set is
-  the only public construction path; raw insertion is crate-internal
-  test scaffolding.
+  intermediate states. The postcondition has two halves and they are
+  paid at different rates: the operator's declared arena delta is O(1)
+  and is checked at **every call**, while the whole-body tier-1
+  re-derivation is O(body) and is checked **once per public door**, at
+  the door's end, over the state the caller will see
+  (`work/perf/d1-per-op-tier1-sweep-price`, Ev, PR 2305). An operator a
+  consumer calls directly is itself a door and sweeps there; one inside
+  a composing door's surgery scope leaves the sweep to that door. The
+  guarantee is unchanged — every public mutation path preserves tier 1,
+  checked at every observable boundary — and an opt-in
+  `topo/per-op-postcondition` feature restores the per-operator sweep
+  to name the operator behind a door-level failure. "Exclusively" is
+  realized: the operator set is the only public construction path; raw
+  insertion is crate-internal test scaffolding.
 - **A `Body` is never authoritative.** It is the materialized evaluation
   of a construction (an operator sequence; above the kernel, a recipe)
   at some scalar `T`, coherent iff bit-identical replay reproduces it
@@ -177,7 +188,9 @@ layer is dropped; arena keys are the stable O(1) handles. The uniform
 per-op contract: **atomic** (typed-error preconditions fully resolve
 before an infallible mutation phase; a failed op consumes no key
 slots), **deterministic minting order** (documented per op — D9
-lineage replay), and a **debug-asserted tier-1 postcondition**.
+lineage replay), and a **debug-asserted postcondition** — the declared
+arena delta at every call, the whole-body tier-1 re-derivation once per
+public door (D1).
 Association convention: **the given/first half-edge's side is the new
 or affected thing** — `mef`'s `he1` side becomes the new face's outer
 loop, `kemr`'s `he1` side becomes the ring, `kef` kills the given
@@ -794,13 +807,19 @@ topology change is stated, not emergent.
   a supported outcome. The two halves are separate rules over disjoint
   state classes. Every traversal is bounded: never a hang.
   The closure property behind the first half: every public mutation
-  path preserves tier 1 — the Euler operators by the soundness theorem,
-  the non-operator structural mutators by declaring the same debug
-  postcondition or by being composed of operators that do, the
-  attach/metadata setters by re-certifying under their own tier-1
-  assertion. The claim is that property, not a count of doors;
+  path preserves tier 1, **checked at every observable boundary** —
+  the Euler operators by the soundness theorem, the non-operator
+  structural mutators by declaring the same debug postcondition, or by
+  opening a surgery scope and closing it with that check, or by being
+  composed of doors that do; the attach/metadata setters by
+  re-certifying under the same assertion. Where the check runs is the
+  door rather than the operator (D1, and
+  `work/perf/d1-per-op-tier1-sweep-price`, Ev, PR 2305); what is
+  checked is unchanged. The claim is that property, not a count of
+  doors;
   `topo`'s `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
-  checks it against the real surface. **The one door outside the
+  checks it against the real surface — both spellings, and a scope
+  opened and never closed fails there by name. **The one door outside the
   property is `instance`'s graft**, a raw transplant: a `JoinDesync`
   raised mid-transplant leaves the destination partially written and
   *spent, never resumable*, so a caller that discards the `Err` and

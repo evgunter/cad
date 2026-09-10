@@ -1217,7 +1217,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     let cavity_faces: Vec<FaceKey> = cavity.faces().map(|(k, _)| k).collect();
     let cavity_edges: Vec<EdgeKey> = cavity.edges().map(|(k, _)| k).collect();
     let cavity_vertices: Vec<VertexKey> = cavity.vertices().map(|(k, _)| k).collect();
-    cavity.leave_surgery();
+    cavity.leave_surgery_and_sweep();
     let mut out = body.clone();
     // The result is built under one surgery scope too — see the
     // cavity's, and the closing tier-3 validation is this door's own
@@ -1715,7 +1715,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
 
     // ---- One validation. ----
-    out.leave_surgery();
+    out.leave_surgery_and_sweep();
     validate_geometric(&out, tol).map_err(|errors| ShellError::NotValid { errors })?;
     Ok(Shelled { body: out, naming })
 }

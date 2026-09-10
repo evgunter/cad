@@ -1277,7 +1277,7 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
             })?;
     }
     mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
-    work.close_already_checked();
+    work.sweep_and_close();
     validate_closed(&staged).map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
 
     *body = staged;

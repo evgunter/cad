@@ -253,29 +253,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "calls `merge_coplanar_faces_declared` with no declarations",
     ),
     (
-        "merge_coplanar_faces_declared",
-        "gates on `validate_closed` at entry and mutates only through `ring_move`/`kef`",
-    ),
-    (
-        "replace_faces_offset",
-        "mutates a clone only through `set_face_surface`/`set_edge_curve` (both asserting) \
-         and one point re-write, and gates the clone on `validate_closed` before adopting it",
-    ),
-    (
         "replace_face_offset",
         "the one-face spelling of `replace_faces_offset`, which it calls",
-    ),
-    (
-        "offset_planes_together",
-        "mutates a clone only through `set_face_surface`/`set_edge_curve` (both asserting) \
-         and one point re-write per vertex, and gates the clone on `validate_closed` before \
-         adopting it",
-    ),
-    (
-        "offset_charts_together",
-        "the axial spelling of `offset_planes_together`, with the same mutation surface: a \
-         clone written only through `set_face_surface`/`set_edge_curve` (both asserting) and \
-         one point re-write per vertex, gated on `validate_closed` before it is adopted",
     ),
     // ---- Setters carrying their own tier-1 debug_assert. ----
     (
@@ -291,6 +270,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "reads the edge's own certified curve and writes it back through `set_edge_curve`          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints          verbatim",
     ),
     // ---- Writes fields tier 1 does not constrain. ----
+    (
+        "begin_surgery",
+        "opens a debug-only surgery scope (`crate::surgery`). The depth is not an arena \
+         and tier 1 does not see it; what asserts is the close, in the door that opened it",
+    ),
     ("set_face_sense", "writes one `bool`; sense is tier 3's"),
     ("set_surface_source", "GeomSource metadata, no arena key"),
     ("set_curve_source", "GeomSource metadata, no arena key"),
@@ -380,30 +364,82 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// and a planted door whose body only *mentioned* the call in a
 /// comment was counted as asserting it, in both this guard and the
 /// pcurve one, both green.
+///
+/// **There are two needles, because there are two spellings of the
+/// same claim.** Since D1's postcondition became once-per-door
+/// (`work/perf/d1-per-op-tier1-sweep-price`, Ev, PR 2305), a door
+/// either ends with the per-operator assertion — an operator a
+/// consumer calls directly — or opens a surgery scope
+/// ([`crate::surgery`]) and closes it, which is the same claim made
+/// once over the door's whole sequence. A door that opens a scope and
+/// closes NOTHING is neither, and it is worse than a door that never
+/// asserted: it silences every operator that touches that body from
+/// then on. That case is a failure here, named separately, and
+/// [`crate::source_walk::SurgeryPosture`] is what reads it.
 
 #[test]
 fn every_public_mutation_path_preserves_tier1() {
+    use crate::source_walk::SurgeryPosture;
+
     let mut asserting: Vec<String> = Vec::new();
+    let mut scoped: Vec<String> = Vec::new();
     let mut listed: Vec<String> = Vec::new();
     let mut unlisted: Vec<String> = Vec::new();
+    let mut left_open: Vec<String> = Vec::new();
+    let mut unbacked: Vec<String> = Vec::new();
 
     for door in crate::source_walk::mutation_doors() {
-        if door.code_contains("assert_euler_postcondition(") {
-            asserting.push(door.site());
-        } else if ALLOWED.iter().any(|(n, _)| *n == door.name) {
-            listed.push(door.name);
-        } else {
-            unlisted.push(door.site());
+        match door.surgery_posture() {
+            SurgeryPosture::LeftOpen => left_open.push(door.site()),
+            SurgeryPosture::ClosedWithSweep => scoped.push(door.site()),
+            SurgeryPosture::ClosedUnderOwnAssertion => {
+                // The non-sweeping close claims a debug assertion of
+                // tier 1 or stronger in this same body. Read it back.
+                if !(door.code_contains("debug_assert")
+                    && (door.code_contains("validate_closed(")
+                        || door.code_contains("validate_geometric(")
+                        || door.code_contains("validate(")))
+                {
+                    unbacked.push(door.site());
+                }
+                scoped.push(door.site());
+            }
+            SurgeryPosture::NoScope => {
+                if door.code_contains("assert_euler_postcondition(") {
+                    asserting.push(door.site());
+                } else if ALLOWED.iter().any(|(n, _)| *n == door.name) {
+                    listed.push(door.name);
+                } else {
+                    unlisted.push(door.site());
+                }
+            }
         }
     }
 
     assert!(
+        left_open.is_empty(),
+        "public mutation path(s) that open a surgery scope and never close it: \
+         {left_open:?}. Every operator run on that body afterwards skips D1's tier-1 \
+         postcondition and nothing at runtime says so. Close it — \
+         `Surgery::sweep_and_close` / `Body::leave_surgery_and_sweep` is the door's \
+         postcondition, `close_already_checked` / `leave_surgery` the spelling for a door \
+         that debug-asserts a stronger tier itself.",
+    );
+    assert!(
+        unbacked.is_empty(),
+        "public mutation path(s) that close a surgery scope WITHOUT the sweep and carry no \
+         whole-body debug assertion of their own: {unbacked:?}. That close claims the door \
+         asserts tier 1 or stronger itself; a typed `validate_closed(...).map_err(...)` \
+         gate is not that claim — it answers a kernel bug with an error return where the \
+         operators used to panic. Use the sweeping close.",
+    );
+    assert!(
         unlisted.is_empty(),
         "public mutation path(s) that neither declare the tier-1 debug postcondition nor \
-         appear on this test's allowlist: {unlisted:?}. Either call \
-         `assert_euler_postcondition` at the end of the door, or add it above WITH the \
-         reason tier 1 survives it — and if the reason is that it does not, that is a \
-         finding, not an entry.",
+         open a surgery scope nor appear on this test's allowlist: {unlisted:?}. Either \
+         call `assert_euler_postcondition` at the end of the door, open a surgery scope \
+         and close it with the sweep, or add it above WITH the reason tier 1 survives it \
+         — and if the reason is that it does not, that is a finding, not an entry.",
     );
     // The allowlist rots in the other direction too.
     for (name, _) in ALLOWED {
@@ -425,10 +461,25 @@ fn every_public_mutation_path_preserves_tier1() {
         "`mev` no longer reads as declaring the tier-1 postcondition. Either the operator \
          stopped asserting — a finding — or the source read lost the call.",
     );
+    // The second needle's own pin, for the same reason: a lexing gap
+    // that erased `sweep_and_close(` from every scoped door would move
+    // them all to `unlisted` and red — but one that erased
+    // `begin_surgery(` too would move them to `asserting`/`unlisted`
+    // silently. This names a door the walk must see as scoped.
+    assert!(
+        scoped
+            .iter()
+            .any(|s| s.ends_with("::merge_coplanar_faces_declared")),
+        "`merge_coplanar_faces_declared` no longer reads as opening and closing a surgery \
+         scope. Either the door stopped scoping — a finding, it composes tens of ring \
+         surgeries — or the source read lost the calls.",
+    );
     println!(
-        "[mutation surface] {} public door(s): {} assert tier 1, {} allowlisted",
-        asserting.len() + listed.len(),
+        "[mutation surface] {} public door(s): {} assert tier 1 per call, {} sweep once \
+         per door, {} allowlisted",
+        asserting.len() + scoped.len() + listed.len(),
         asserting.len(),
+        scoped.len(),
         listed.len(),
     );
 }

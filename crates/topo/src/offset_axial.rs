@@ -646,7 +646,7 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
     // Tier 2 over the WHOLE clone, deliberately, and one of the four
     // reads that stay linear in the body (`Scope`'s docs carry the
     // account and the reason for each).
-    work.close_already_checked();
+    work.sweep_and_close();
     if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }

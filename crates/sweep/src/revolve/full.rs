@@ -296,7 +296,7 @@ fn build_lamina<T: Decide>(
         rims_c[s.canonical_vertex] = swept.rims[j];
         mer_c[s.canonical_segment] = Some(he_edge(&body, hes[j])?);
     }
-    body.leave_surgery();
+    body.leave_surgery_and_sweep();
     Ok(Revolved {
         body,
         solid: seed.solid,
@@ -635,7 +635,7 @@ fn build_wire<T: Decide>(
     let mut poles_c = vec![None; n];
     poles_c[segs[wvert(0)].canonical_vertex] = Some(pole_near);
     poles_c[segs[wvert(k)].canonical_vertex] = Some(pole_far);
-    body.leave_surgery();
+    body.leave_surgery_and_sweep();
     Ok(Revolved {
         body,
         solid: seed.solid,

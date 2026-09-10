@@ -1064,7 +1064,7 @@ impl<T: Decide> Body<T> {
                     // tier-2 gate below is what certifies its result.
                     let mut surgery = work.begin_surgery();
                     let group = surgery.merge_group(rep, &rest, tol)?;
-                    surgery.close_already_checked();
+                    surgery.sweep_and_close();
                     outcome.groups.push(group);
                 }
                 GroupRegime::RecordsASkip => {
@@ -1073,10 +1073,19 @@ impl<T: Decide> Body<T> {
                     // adopted only if its trial validates, so a
                     // recorded skip leaves `work` exactly as it was.
                     let staged = {
+                        // The sweep is the SUCCESS path's. A refusal
+                        // here is the trial's own — the group is
+                        // recorded as skipped and the trial thrown
+                        // away — and the state a refusal leaves
+                        // behind was never this door's to certify.
                         let mut surgery = trial.begin_surgery();
-                        let merged = surgery.merge_group(rep, &rest, tol);
-                        surgery.close_already_checked();
-                        merged
+                        match surgery.merge_group(rep, &rest, tol) {
+                            Ok(group) => {
+                                surgery.sweep_and_close();
+                                Ok(group)
+                            }
+                            Err(error) => Err(error),
+                        }
                     }
                     .and_then(|group| match validate_closed(&trial) {
                         Ok(()) => Ok(group),

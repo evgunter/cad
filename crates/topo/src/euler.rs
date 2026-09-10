@@ -61,29 +61,49 @@
 //!   [`Provenance::Mef`]).
 //! - **Debug postconditions** (D1's ratified clause): under
 //!   `cfg(debug_assertions)`, each successful op asserts that the arena
-//!   count deltas match the `ArenaDelta` it declares and that the whole
-//!   body still passes tier-1 [`crate::validate::validate`]. On
-//!   tier-1-valid input
+//!   count deltas match the `ArenaDelta` it declares, and the whole
+//!   body is re-derived against tier-1
+//!   [`crate::validate::validate`] **once per public door** — at the
+//!   end of the door, over the state the caller will see (Ev's ruling
+//!   on `work/perf/d1-per-op-tier1-sweep-price`, PR 2305). The delta
+//!   check is O(1) and is the op's own declared contract, so it runs
+//!   at every call; the sweep is O(body), and a door running n
+//!   operators pays it once rather than n times. Which of the two an
+//!   op is depends on where it is called: **an operator a consumer
+//!   calls directly is itself a door and sweeps at its end**, and one
+//!   called inside a composing door's surgery scope
+//!   ([`crate::surgery`]) does not, because that door has undertaken
+//!   to. On tier-1-valid input
 //!   a firing postcondition is a kernel bug by definition (the per-call
 //!   instance of the ch. 9 soundness theorem failing against our
 //!   transcription). Raw insertion is crate-internal since PR 5's
 //!   builder demotion, so a body is reachable only through the public
 //!   mutation paths, and the property those paths owe is that each
-//!   **preserves tier 1**: the Euler operators with their chord/line
-//!   sugar, and the non-operator structural mutators
+//!   **preserves tier 1, checked at every observable boundary**: the
+//!   Euler operators with their chord/line sugar, and the non-operator
+//!   structural mutators
 //!   ([`Body::ring_move`], [`Body::split_edge`], [`Body::movefac`],
 //!   [`Body::merge_coplanar_faces`]) declare the same debug
-//!   postcondition or are composed of operators that do; the
-//!   attach/metadata setters re-certify under their own tier-1
+//!   postcondition, or open a surgery scope and close it with the
+//!   sweep, or are composed of doors that do; the
+//!   attach/metadata setters re-certify under the same tier-1
 //!   assertion ([`Body::set_face_surface`], [`Body::set_edge_curve`])
 //!   or write fields tier 1 does not constrain. **The closure property
 //!   is the claim; a count of the doors is not** — an enumeration
 //!   frozen into this sentence is what rots as doors are added, and
 //!   `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
 //!   checks the property against the real surface rather than against
-//!   this list. `ring_move`'s case is the least obvious of the
-//!   asserting doors: it re-glues the per-shell component partition,
-//!   and the separating-curve argument lives in its docs.
+//!   this list, both spellings included, and a scope opened and never
+//!   closed fails there by name. `ring_move`'s case is the least
+//!   obvious of the asserting doors: it re-glues the per-shell
+//!   component partition, and the separating-curve argument lives in
+//!   its docs.
+//!
+//!   **Localizing a door-level failure.** A door-level panic names the
+//!   door, not the operator inside it that broke tier 1. Rebuild with
+//!   `--features topo/per-op-postcondition` and the sweep runs after
+//!   every operator again — surgery scopes ignored — so the message
+//!   names the operator. Opt-in, never default-on.
 //!
 //!   **The exception, and it is a real one.**
 //!   [`crate::instance`]'s grafts are a **raw transplant**, not an

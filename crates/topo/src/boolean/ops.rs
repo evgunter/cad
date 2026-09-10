@@ -524,8 +524,8 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     red.a.enter_surgery();
     red.b.enter_surgery();
     let connected = bool_connect(&mut red, a, b, band, tol);
-    red.a.leave_surgery();
-    red.b.leave_surgery();
+    red.a.leave_surgery_and_sweep();
+    red.b.leave_surgery_and_sweep();
     let connected = match connected {
         Ok(c) => c,
         Err(
@@ -600,7 +600,7 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // untouched bit-identically.
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
-    body.leave_surgery();
+    body.leave_surgery_and_sweep();
     gate(&body)?;
     volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
