@@ -890,10 +890,11 @@ class Carrier:
     verdict asserted per route, is what makes each arm load-bearing.
     """
 
-    __slots__ = ("label", "offset", "rel", "root", "wrap")
+    __slots__ = ("label", "name", "offset", "rel", "root", "wrap")
 
     def __init__(self, tmp, name, label, rel, wrap, offset):
         self.root = os.path.join(tmp, name)
+        self.name = name
         self.label = label
         self.rel = rel
         self.wrap = wrap
@@ -910,6 +911,13 @@ class Carrier:
     def plant(self, body: str) -> None:
         _write(self.root, self.rel, self.wrap(body))
         _add(self.root, self.rel)
+
+
+# The routes the selftest must carry, by name. Asserted rather than counted:
+# a carrier dropped, renamed or duplicated has to red BY NAME, and the branch
+# row below reaches only the two `shell_files` branches — never `wf`, which is
+# the route `ci.yml` itself is.
+ROUTE_NAMES = ("shebang", "suffix", "wf")
 
 
 def _carriers(tmp: str) -> list[Carrier]:
@@ -984,6 +992,16 @@ def selftest() -> int:
                     print(f"    {where}: {outcome}  {detail}")
             else:
                 print(f"  ok  ({want:5})  {name}")
+
+        # The carrier set is the set `ROUTE_NAMES` names — no route silently
+        # dropped, leaving a shorter run reported under the same "as
+        # specified".
+        names = tuple(sorted(c.name for c in carriers))
+        if names != ROUTE_NAMES:
+            bad += 1
+            print(f"SELFTEST FAIL: the carriers are {names}, not {ROUTE_NAMES}")
+        else:
+            print("  ok  (green)  every route in `ROUTE_NAMES` has a carrier")
 
         # Both branches of `shell_files` have a carrier, and each is in the
         # population by ITS branch alone: a fixture carrying a suffix AND a
@@ -1064,7 +1082,7 @@ def selftest() -> int:
         print(f"\n{bad} selftest row(s) failed.")
         return 1
     print(f"\nselftest: {len(MUTANTS)} mutants x {len(routes)} routes "
-          f"({'; '.join(routes)}), each asserted on its own tree, plus 5 "
+          f"({'; '.join(routes)}), each asserted on its own tree, plus 6 "
           "population and refusal rows — all as specified.")
     return 0
 

@@ -2115,3 +2115,22 @@ inject that failure, and do not trust the row until you have watched it
 red. A carrier built for convenience — a shebang, so the fixture "looks
 like a script" — is a fixture written against the instance rather than
 the branch it exists to pin.
+
+### Third pass: the route COUNT was printed, not asserted
+
+The blind spot the second pass disclosed was narrower and sharper than
+disclosed. Deleting either `shell_files` carrier already red — the
+branch-coverage row catches both. Deleting the **workflow** carrier did
+not: it is not a `shell_files` branch, so that row cannot reach it, and
+the run went green at `43 mutants x 3 routes … all as specified` while
+specifying one route fewer than the header claims. The route that
+disappeared silently was the one `ci.yml` itself is.
+
+`ROUTE_NAMES` now pins the carrier set by NAME rather than by arithmetic,
+so a route dropped, renamed or duplicated reds saying which. Deleting
+`wf` reds `the carriers are ('shebang', 'suffix'), not ('shebang',
+'suffix', 'wf')`; so does a rename; a duplicate dies on the tree it would
+have shared, loudly but as a traceback rather than a named row.
+
+The shape is the unit's own: **a fact printed in a log is not a fact
+anything reds on.**
