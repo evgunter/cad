@@ -4881,7 +4881,7 @@ jobs:
   # a local half — `scene-inputs` does and is cited, `montage` says why it
   # cannot. One reason written here would have to be true of both, and the
   # FreeCAD one is true of `montage` alone: the local half already runs the
-  # renderer-free lanes' work through `uv sheet drift (demos)`.
+  # renderer-free lanes' work through `sheet drift (demos: uv + mc)`.
   renders:
     name: render lanes
     needs: filter

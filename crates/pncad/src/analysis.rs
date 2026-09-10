@@ -105,7 +105,7 @@ pub use editor_core::{AssertionVerdict, Certified, UnevaluatedReason, WINDOW_TIG
 /// advisory lane.
 pub use editor_core::mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
-    monte_carlo,
+    monte_carlo, sample_offsets,
 };
 
 /// The E10/E11.6 reporting layer.
