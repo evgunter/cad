@@ -5,6 +5,8 @@ title: viewer-module-kinds.sh has no reader-guard apparatus at all: two unguarde
 status: closed
 opened: 2026-09-10
 closed: 2026-09-10
+pr: 2287
+branch: view/module-kinds
 ---
 
 Found by the §5 sweep for #2282. **Split from a combined row** whose

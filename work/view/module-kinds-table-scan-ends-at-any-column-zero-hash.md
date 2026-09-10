@@ -5,6 +5,8 @@ title: viewer-module-kinds.sh's README table scan ends at any column-zero # and 
 status: closed
 opened: 2026-09-10
 closed: 2026-09-10
+pr: 2287
+branch: view/module-kinds
 ---
 
 Found by the §5 sweep for #2282, which fixed this class in
