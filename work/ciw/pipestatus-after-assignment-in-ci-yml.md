@@ -2,10 +2,11 @@
 id: pipestatus-after-assignment-in-ci-yml
 kind: issue
 title: a status capture that cannot fail: PIPESTATUS read after the assignment that clobbers it
-status: review
+status: closed
 opened: 2026-09-04
 branch: ciw/pipestatus-sweep
 pr: 2298
+closed: 2026-09-10
 ---
 
 **Filed by M10-7 (PR 1725) for CIW, whose territory `.github/` is.** One
