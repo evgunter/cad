@@ -5,6 +5,8 @@ title: a wasm32 rustdoc pass over viewer is red with seven intra-doc links, rule
 status: closed
 opened: 2026-09-09
 closed: 2026-09-10
+pr: 2288
+branch: view/wasm-docs
 ---
 
 
