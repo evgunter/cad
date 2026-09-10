@@ -21,6 +21,7 @@ pub mod dual;
 pub mod interval;
 pub mod k_stats;
 pub mod linalg;
+pub mod perf_probe;
 pub mod predicate;
 pub mod real;
 pub mod ring_interval;

@@ -1863,6 +1863,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("boolean.reduce_sweep");
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
     verify_declared_contacts(a_operand, b_operand, decls, band)?;

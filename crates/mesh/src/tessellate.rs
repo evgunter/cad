@@ -41,6 +41,8 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// not its own UV rectangle, empty loops, dangling keys, resolution
 /// overflow, certificate failure, CDT insertion failure.
 pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("mesh.tessellate");
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }

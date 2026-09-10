@@ -436,6 +436,7 @@ dependencies = [
 name = "stl"
 version = "0.0.0"
 dependencies = [
+ "geom-core",
  "mesh",
 ]
 

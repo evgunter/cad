@@ -96,6 +96,10 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+# PERF LANE (perf/explore-kernel, never merged): the export lanes the
+# exploration harness times (`examples/perf_kernel.rs`).
+stl = { path = "../stl" }
+step-export = { path = "../step-export" }
 # `profile` again, with `test-support` ON. The crate is an ordinary
 # dependency above; naming it a second time here adds the feature for
 # TEST builds only — cargo unions the two entries for this package's

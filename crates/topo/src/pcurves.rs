@@ -1328,6 +1328,8 @@ pub fn mint_pcurves<T: PcurveFittedLane>(
     body: &mut Body<T>,
     tol: Tol,
 ) -> Result<(), PcurveMintError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("pcurves.mint_whole_body");
     let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     // Start from empty. A body reaching this pass may have been carved
     // from a scratch clone that inherited rows for half-edges the
@@ -1394,6 +1396,8 @@ pub fn mint_pcurves_of<T: PcurveFittedLane>(
     faces: &[FaceKey],
     tol: Tol,
 ) -> Result<usize, PcurveMintError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("pcurves.mint_subset");
     let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     for &face in faces {
         clear_face_caches(body, face);

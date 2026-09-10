@@ -168,6 +168,8 @@ fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
 
 /// Import + tessellate + export one cell; returns its manifest entry.
 fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let perf_t0 = std::time::Instant::now();
     let name = cell.name;
     let text = fixture_text(cell.fixture);
     let import = import_step(&text, &ImportOptions::default(), tol).unwrap_or_else(|e| {
@@ -265,6 +267,10 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     // INPUT, never written into `outdir`, so there is no file for a
     // renderer to open -- `null` is the fact. And nothing in this
     // corpus is about an interior, so every cell is opaque.
+    println!(
+        "PERF cell\t{name}\t{:.1} ms",
+        perf_t0.elapsed().as_secs_f64() * 1e3
+    );
     format!(
         "  {{\"name\": \"{name}\", \"caption\": \"{}\", \"montage\": true, \"view\": \
          {{\"elev\": {}, \"azim\": {}, \"up\": \"{}\"}}, \"bodies\": \
@@ -281,6 +287,9 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
 }
 
 fn main() {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    pncad::geom_core::perf_probe::enable(true);
+    let perf_main = std::time::Instant::now();
     // The montage is an entry point: it mints the run's tolerance
     // witness once and hands it to every corpus body it builds.
     let tol = Tol::witness();
@@ -364,5 +373,18 @@ fn main() {
     match pncad::tolerance::committed_report() {
         Some(report) => println!("{report}"),
         None => println!("tolerance: never committed (no predicate ran)"),
+    }
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let mut perf_rows = pncad::geom_core::perf_probe::take();
+    perf_rows.sort_by(|a, b| b.1.cmp(&a.1));
+    println!(
+        "PERF total_run\t{:.1} ms",
+        perf_main.elapsed().as_secs_f64() * 1e3
+    );
+    for (stage, nanos, calls) in perf_rows {
+        println!(
+            "PERF stage\t{stage}\t{:.1} ms\tx{calls}",
+            nanos as f64 / 1e6
+        );
     }
 }

@@ -40,6 +40,8 @@ pub fn write_binary(
     options: &BinaryOptions,
     out: &mut impl Write,
 ) -> Result<(), StlError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("stl.write_binary");
     let facets = facets(mesh)?;
     let count = u32::try_from(facets.len()).map_err(|_| StlError::TooManyTriangles {
         count: facets.len(),

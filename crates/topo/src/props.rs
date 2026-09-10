@@ -191,6 +191,8 @@ pub fn mass_properties<T: PropsQuadLane>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("topo.mass_properties");
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     mass_properties_with(body, band, tol)
 }

@@ -2742,6 +2742,8 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
 ) -> (Vec<ValidationError>, Check7Certificate<T>) {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("validate.tier3_local");
     let mut marks = slotmap::SecondaryMap::new();
     tier3_local_checks_marked(
         body,
@@ -4667,6 +4669,8 @@ fn edge_adjacent_faces<T: Real>(
 
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).
 fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("validate.tier1");
     let mut errors = Vec::new();
 
     // Reference/ownership counters, filled by pass 1 and consumed by the

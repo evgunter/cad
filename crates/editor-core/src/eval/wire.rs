@@ -2828,10 +2828,13 @@ fn wire_boolean<
     };
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
-    match (verb.build)(op, kernel_decls)
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let perf_run = geom_core::perf_probe::Span::start("wire.boolean.run_pair");
+    let ran = (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
-        .map_err(|err| refusal_menu(&a_table, &b_table, err))?
-    {
+        .map_err(|err| refusal_menu(&a_table, &b_table, err))?;
+    drop(perf_run);
+    match ran {
         verbs::PairOut::Empty => Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
             names::empty(),
@@ -2848,6 +2851,8 @@ fn wire_boolean<
                 contacts,
                 naming,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
+            // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+            let perf_emit = geom_core::perf_probe::Span::start("wire.boolean.name_emitter");
             let table = (verb.emitter)(
                 id,
                 &out.body,
@@ -2865,10 +2870,13 @@ fn wire_boolean<
                 tol,
             )
             .map_err(NodeErrorKind::Naming)?;
+            drop(perf_emit);
             let mut body = out.body;
             // Seam chords / minted descriptions get THIS node's
             // sources; everything carried keeps its own (D1).
+            let perf_stamp = geom_core::perf_probe::Span::start("wire.boolean.stamp_minted");
             stamp_minted(&mut body, id);
+            drop(perf_stamp);
             Ok(OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
                     body: Arc::new(body),

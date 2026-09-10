@@ -470,6 +470,8 @@ pub fn step_string(
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, StepExportError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("step_export.step_string");
     writer::write_document(body, options, tol)
 }
 

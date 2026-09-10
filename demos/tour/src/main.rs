@@ -576,6 +576,7 @@ fn run_stop(
     dumps: &mut Vec<uvdump::FaceDump>,
     tol: Tol,
 ) {
+    let perf_t0 = std::time::Instant::now();
     println!("\n== {} ==", stop.name);
     println!("   {}", stop.story);
     println!("   built by: {}", stop.ops);
@@ -588,6 +589,16 @@ fn run_stop(
         .map(|sb| run_body(sb, stop.delta, outdir, dumps, tol))
         .collect();
     manifest.push_str(&scene_json(stop, &bodies));
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged):
+    // this stop's tessellation + export wall clock (its geometry was
+    // built by the group constructor, timed there).
+    println!(
+        "PERF stop_emit\t{}\t{:.1} ms\t{} bod(y|ies)\tdelta={}",
+        stop.name,
+        perf_t0.elapsed().as_secs_f64() * 1e3,
+        stop.bodies.len(),
+        stop.delta
+    );
 }
 
 /// One scene's manifest entry (hand-rolled JSON — fixed schema, no
@@ -661,30 +672,44 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// other documents, and the seam it crosses is a workspace on disk —
 /// so the contract grew a path. Recorded rather than hidden: the tour
 /// harness assumed single-document scenes.
+/// PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged): times
+/// one scene group's CONSTRUCTION (the kernel work) apart from its
+/// per-stop tessellation and export.
+fn perf_group<F: FnOnce() -> Vec<Stop>>(name: &str, f: F) -> Vec<Stop> {
+    let t0 = std::time::Instant::now();
+    let stops = f();
+    println!(
+        "PERF group_build\t{name}\t{:.1} ms\t{} stop(s)",
+        t0.elapsed().as_secs_f64() * 1e3,
+        stops.len()
+    );
+    stops
+}
+
 fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
-    for stop in bodies::stops(tol) {
+    for stop in perf_group("bodies", || bodies::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
-    for stop in rocker::stops(tol) {
+    for stop in perf_group("rocker", || rocker::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the die (M5 PR 12: rolling-ball fillets, and the pips) --");
-    for stop in diefillet::stops(tol) {
+    for stop in perf_group("diefillet", || diefillet::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the same die, one verb over (VERBS: chamfer_edges at d == r) --");
-    for stop in diechamfer::stops(tol) {
+    for stop in perf_group("diechamfer", || diechamfer::stops(tol)) {
         visit(&stop);
     }
 
     println!(
         "\n-- the fairy lantern (Calochortus pulchellus): a plant, at the kernel's frontier --"
     );
-    for stop in lily::stops(tol) {
+    for stop in perf_group("lily", || lily::stops(tol)) {
         visit(&stop);
     }
     lily::wall_probes::<f64>(tol);
@@ -693,38 +718,38 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         "\n-- the same bud, rounded (VERBS-ARMS-2: three CURVED support pairs in one \
          fillet call) --"
     );
-    for stop in bud::stops(tol) {
+    for stop in perf_group("bud", || bud::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
-    for stop in klein::stops(tol) {
+    for stop in perf_group("klein", || klein::stops(tol)) {
         visit(&stop);
     }
     klein::wall_probes::<f64>(tol);
 
     println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
-    for stop in curvedcut::stops(tol) {
+    for stop in perf_group("curvedcut", || curvedcut::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
-    for stop in bossplate::stops(tol) {
+    for stop in perf_group("bossplate", || bossplate::stops(tol)) {
         visit(&stop);
     }
 
     skinned::narration(tol);
-    for stop in skinned::stops(tol) {
+    for stop in perf_group("skinned", || skinned::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the tube door (M6-3 Leg F: a torus from its INTENT parameters) --");
-    for stop in tube::stops(tol) {
+    for stop in perf_group("tube", || tube::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the one-call hollow ring (VERBS-RING: a holed profile, fully revolved) --");
-    for stop in ring::stops(tol) {
+    for stop in perf_group("ring", || ring::stops(tol)) {
         visit(&stop);
     }
 
@@ -732,7 +757,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         "\n-- the tube door with a WALL (VERBS-TUBEWALL: an open elbow, then a torus \
          shell) --"
     );
-    for stop in tubewall::stops(tol) {
+    for stop in perf_group("tubewall", || tubewall::stops(tol)) {
         visit(&stop);
     }
 
@@ -740,7 +765,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         "\n-- the teapot (VERBS-TEAPOT: shell's designated demo — a shelled pot, a \
          lifted lid, and the two unions that refuse) --"
     );
-    for stop in teapot::stops(tol) {
+    for stop in perf_group("teapot", || teapot::stops(tol)) {
         visit(&stop);
     }
 
@@ -748,33 +773,33 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         "\n-- the torus-walled vessel (TORAX #1494 + C5ARMS PR-1 #1577: a donut band \
          in the wall, hollowed and opened) --"
     );
-    for stop in torusvessel::stops(tol) {
+    for stop in perf_group("torusvessel", || torusvessel::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the five-wall sleeve (SHELL: every analytic kind offset in ONE call) --");
-    for stop in fivewall::stops(tol) {
+    for stop in perf_group("fivewall", || fivewall::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
-    for stop in bool_bodies::stops(tol) {
+    for stop in perf_group("bool_bodies", || bool_bodies::stops(tol)) {
         visit(&stop);
     }
     bool_bodies::voidbox_narration(tol);
 
     println!("\n-- silhouettes (the first `intersect` in the tour) --");
-    for stop in letterforms::stops(tol) {
+    for stop in perf_group("letterforms", || letterforms::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- A x Z (#93's acceptance case, building since #108) --");
-    for stop in az::stops(tol) {
+    for stop in perf_group("az", || az::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the cross-lap joint (#90's boolean-of-boolean, made visible) --");
-    for stop in crosslap::stops(tol) {
+    for stop in perf_group("crosslap", || crosslap::stops(tol)) {
         visit(&stop);
     }
 
@@ -782,7 +807,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         "\n-- the two-peg plate (a declared CYLINDRICAL Rest: plate ∪ pegs \
          mated to plate ∖ bores) --"
     );
-    for stop in twopeg::stops(tol) {
+    for stop in perf_group("twopeg", || twopeg::stops(tol)) {
         visit(&stop);
     }
 
@@ -790,12 +815,12 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     visit(&projectbox::stop(tol));
 
     println!("\n-- the impeller (the recipe layer's CIRCULAR rule: one parameter, two slots) --");
-    for stop in impeller::stops(tol) {
+    for stop in perf_group("impeller", || impeller::stops(tol)) {
         visit(&stop);
     }
 
     println!("\n-- the heat sink (the M4 recipe layer: edit, recompute, stable names) --");
-    for stop in heatsink::stops(tol) {
+    for stop in perf_group("heatsink", || heatsink::stops(tol)) {
         visit(&stop);
     }
 
@@ -824,12 +849,15 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
          split/inline, the update door) --"
     );
-    for stop in assembly::stops(work, tol) {
+    for stop in perf_group("assembly", || assembly::stops(work, tol)) {
         visit(&stop);
     }
 }
 
 fn main() {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    pncad::geom_core::perf_probe::enable(true);
+    let perf_main = std::time::Instant::now();
     // The tour is an entry point: it mints the run's tolerance witness
     // once, here, and hands it to every scene it walks.
     let tol = Tol::witness();
@@ -974,6 +1002,20 @@ fn main() {
          + uv.json — sheet with demos/render-uv.sh",
         dumps.len()
     );
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged):
+    // the whole run's stage totals (nested spans are INCLUSIVE).
+    let mut perf_rows = pncad::geom_core::perf_probe::take();
+    perf_rows.sort_by(|a, b| b.1.cmp(&a.1));
+    println!(
+        "PERF total_run\t{:.1} ms",
+        perf_main.elapsed().as_secs_f64() * 1e3
+    );
+    for (stage, nanos, calls) in perf_rows {
+        println!(
+            "PERF stage\t{stage}\t{:.1} ms\tx{calls}",
+            nanos as f64 / 1e6
+        );
+    }
     // The uv lane's own claims, MEASURED on this run rather than
     // pinned in prose beside the code that computes them. Every number
     // the module documents about the corpus is here: how many charts

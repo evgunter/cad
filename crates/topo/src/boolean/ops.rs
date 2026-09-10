@@ -392,6 +392,8 @@ pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("boolean.total");
     // The curved ∖/∩ front door, NARROWED FROM WHOLESALE TO PER-CLASS
     // (M5 S12; C12.1 — retire per class, never wholesale; M5 S13
     // retires the SPHERE row).
@@ -1421,7 +1423,14 @@ pub(super) fn remap_carried<T: Real>(
 /// an at-rest posture with the PR 3 description gap — see the
 /// acceptance suite's documented posture).
 pub(super) fn gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
-    validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged):
+    // the two halves of the gate timed apart, because the first is a
+    // strict prefix of the second (finding 4).
+    {
+        let _perf = geom_core::perf_probe::Span::start("boolean.gate.validate");
+        validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
+    }
+    let _perf = geom_core::perf_probe::Span::start("boolean.gate.validate_closed");
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     Ok(())
 }

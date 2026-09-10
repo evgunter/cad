@@ -2391,7 +2391,19 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
+            // PERF LANE INSTRUMENTATION (perf/explore-kernel, never
+            // merged): per-node wall clock attributed to the node kind.
+            let perf_t0 = geom_core::perf_probe::armed().then(std::time::Instant::now);
             let step = eval_node(doc, &env, id, &nodes, prior, &op_env, tol);
+            if let Some(t0) = perf_t0 {
+                let nanos = t0.elapsed().as_nanos();
+                let kind = doc.node(id).map_or("Missing", perf_node_kind);
+                if step.reused {
+                    geom_core::perf_probe::add("node.reused", nanos);
+                } else {
+                    geom_core::perf_probe::add(kind, nanos);
+                }
+            }
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
@@ -2567,6 +2579,36 @@ where
 struct NodeStep<T: Decide> {
     result: NodeResult<T>,
     reused: bool,
+}
+
+/// PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged): the
+/// node's kind as a probe stage name.
+fn perf_node_kind(node: &crate::Node<ProfileProgram>) -> &'static str {
+    match node {
+        crate::Node::Datum(_) => "Datum",
+        crate::Node::Profile(_) => "Profile",
+        crate::Node::Extrude { .. } => "Extrude",
+        crate::Node::Revolve { .. } => "Revolve",
+        crate::Node::Fillet { .. } => "Fillet",
+        crate::Node::Chamfer { .. } => "Chamfer",
+        crate::Node::Shell { .. } => "Shell",
+        crate::Node::Tube { .. } => "Tube",
+        crate::Node::HollowTube { .. } => "HollowTube",
+        crate::Node::Split { .. } => "Split",
+        crate::Node::Boolean { .. } => "Boolean",
+        crate::Node::Union { .. } => "Union",
+        crate::Node::Transform { .. } => "Transform",
+        crate::Node::Pattern { .. } => "Pattern",
+        crate::Node::Part { .. } => "Part",
+        crate::Node::PlacedUnion { .. } => "PlacedUnion",
+        crate::Node::Loft { .. } => "Loft",
+        crate::Node::Sweep { .. } => "Sweep",
+        crate::Node::Declare { .. } => "Declare",
+        crate::Node::Mate { .. } => "Mate",
+        crate::Node::Measure { .. } => "Measure",
+        crate::Node::Assertion { .. } => "Assertion",
+        crate::Node::InstantiatePart { .. } => "InstantiatePart",
+    }
 }
 
 fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut usize) {

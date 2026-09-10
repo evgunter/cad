@@ -37,6 +37,8 @@ pub fn write_ascii(
     options: &AsciiOptions,
     out: &mut impl Write,
 ) -> Result<(), StlError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("stl.write_ascii");
     let name = options.solid_name.as_str();
     let facets = facets(mesh)?;
     writeln!(out, "solid {name}")?;

@@ -253,6 +253,8 @@ pub(super) fn setopfinish<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<FinishOut<T>, BooleanError> {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged).
+    let _perf = geom_core::perf_probe::Span::start("boolean.setopfinish");
     let desync = |what| BooleanError::JoinDesync { what };
 
     // ---- Promotion, both solids (F9 roles as data). ----

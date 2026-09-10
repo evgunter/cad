@@ -28,6 +28,8 @@ probe = ["mesh/probe"]
 # triangles; back-reference keys are dropped) — deliberately the sole
 # dependency: STL is the end of the display pipeline.
 mesh = { path = "../mesh" }
+# PERF LANE (perf/explore-kernel, never merged): the stage probe.
+geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
 # The shared Rust reader for this crate's source-text guards.
