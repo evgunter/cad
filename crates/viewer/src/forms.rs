@@ -81,7 +81,7 @@ vocabulary! {
     /// it needs a frame PICK before it has coordinates, which is not
     /// what this form collects. So the mirror is deliberately partial
     /// in one direction — every kind here lowers to a spec
-    /// (`pane::create`'s match is exhaustive over this enum), and not
+    /// ([`crate::pane::create`]'s match is exhaustive over this enum), and not
     /// every spec has a kind here.
     ///
     /// **Declared in FORM order**, which is the order [`DatumKind::ALL`]
@@ -412,11 +412,11 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// two a user drags to move the same kind of number. It is not the
 /// creation forms' answer: those hold canonical drafts and pick their
 /// tick from the four constants by hand at each field
-/// (`widgets::named_field` and its callers). The RULE has one home,
+/// ([`crate::widgets::named_field`] and its callers). The RULE has one home,
 /// this module, which holds the four constants and [`drag_tick`]
 /// beside this type; what is still open is those hand-picked call
-/// sites, which sit in `widgets`, `pane::create` and
-/// `pane::properties` (`work/chrome/drag-tick-has-three-homes.md`).
+/// sites, which sit in `widgets`, [`crate::pane::create`] and
+/// [`crate::pane::properties`] (`work/chrome/drag-tick-has-three-homes.md`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldWriting {
     /// The unit the field shows and authors in — [`props::rendering_unit`]'s

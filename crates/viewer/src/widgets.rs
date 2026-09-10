@@ -121,7 +121,7 @@ pub(crate) fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [
 ///
 /// The draft behind it is CANONICAL (metres, radians) and the field
 /// is what that value looks like written in `unit` — the property
-/// panel's own rule (`props::in_written` / `props::from_written`, the
+/// panel's own rule ([`crate::props::in_written`] / [`crate::props::from_written`], the
 /// text door's one multiply), applied to the forms so a number typed
 /// into a form and the same number typed into a panel field mean the
 /// same thing.
@@ -443,7 +443,7 @@ pub(crate) fn path_step_fields(
 /// **The creation forms' written-unit picker.**
 ///
 /// The panel's picker as a form control: the same options
-/// (`props::unit_options`, read off the closed unit table) and the
+/// ([`crate::props::unit_options`], read off the closed unit table) and the
 /// same rule about what the label beside a field may say. There is no
 /// "nothing chosen" state to fall back from — a form is always
 /// authoring in some notation, and says which. **The unit is the picker's
