@@ -7356,3 +7356,144 @@ row moved and the other did not. **The rule this pays for is
 `plan.md`'s**: green CI on an old head is not a merge criterion when
 the diff's SUBJECT moved under it, and "the inputs are byte-identical"
 was a true argument that stopped being true.
+
+## 2026-09-10 — `view/module-kinds`: the sibling gate's two defects, and the one that was genuinely silent
+
+Both rows split off #2282's §5 sweep, closed separately in one PR:
+`module-kinds-table-scan-ends-at-any-column-zero-hash` (`md_fence` plus
+a length check) and `module-kinds-gate-has-no-reader-guards` (apparatus
+`scripts/gates/viewer-module-kinds.sh` never had). **Every claim below
+was reproduced on a copy of the real tree before anything was edited**,
+which is how three of them came out different from the rows.
+
+**The fence question went to a SIDECAR, and the deciding fact is
+`gate-roster.sh`.** The row says reuse `md_fence` rather than re-derive
+it, and the honest options were `lib.sh` (out of fence), a shared
+helper both viewer gates source, or a second copy. The middle one is
+blocked in the spelling everyone would reach for:
+`gate-roster.sh:139` derives the gate roster from `scripts/gates/*.sh`
+and excludes exactly ONE member by name (`NOT_A_GATE=lib.sh`), so a
+second sourced `.sh` fragment there reads as a gate that runs nowhere
+and must be wired into both CI halves — and teaching that roster about
+it means editing code-quality's file. `scripts/gates/viewer-readme-fence.awk`
+is invisible to that glob, to `local-scripts/ci-local.sh:380`'s loop
+and to `check-ci-mirror-parity.py`'s `SCRIPT_RE` (which matches `.sh`
+and `.py` only), while `scripts/**` still widens the CI tier the same
+way. So: **one copy of the tracker, no duplication to disclose**, and
+`viewer-vocab-declared-once.sh` now loads it too. Both gates' loaders
+are guarded and both self-tests call the load DIRECTLY, because no
+`--root` tree can express a tracker that lives outside every fixture.
+
+**A prepended comment is part of every program it is prepended to.**
+The sidecar's header first said the tracker is loaded *"the way
+`lib.sh` prepends `gate_record_split`"*, and the vocab gate's
+const-item shim keys on exactly that string — so the kinds scanner died
+instead and the case failed naming the wrong stage. Loud, not silent,
+and the sidecar now says so at the site. A shared awk file is shared
+TEXT, not just shared code.
+
+**Three things the rows got wrong, all three read off the tree.**
+
+- **The driver table's truncation is not silent.** Check 3 holds that
+  roster against the tree in BOTH directions, so a fence four rows into
+  `### The drivers` reds — as a misdiagnosis naming four modules the
+  table lists three lines further down. Only the vocabulary tables have
+  the quiet direction, because check 4 is one-directional: the same
+  fence in `### The session's vocabularies` left the cross-check
+  covering **2 of 6** and printed OK with a **byte-identical** line.
+- **The unguarded population is twelve stages, not two.** The item's
+  arm could only see `readme_table_modules`. The gate also has
+  `find | sed | sort`, `awk | sed | tr | sort`, the kind extractor's
+  `sed`, and the hit union's deduplicator and `sort`. A dead `sed`
+  reported *"no modules under crates/viewer/src … besides lib.rs and
+  bin/"* about a tree holding forty-five — a second live misdiagnosis
+  the item does not name.
+- **A status the shell KEEPS still buys no diagnosis.** Three stages
+  sit in `$(…)`, so errexit ends the gate — with no gate name, no
+  `::error::` framing and nothing said about what was undecided. Their
+  base-side cases fail as *"exited non-zero WITHOUT a gate_error
+  diagnosis"*, which is `lib.sh`'s S157 second half, and it is why they
+  are guarded rather than left to `pipefail`.
+
+**What the length check can honestly check, said at the site.** Nothing
+in the gate knows how long the table is SUPPOSED to be, and two counts
+derived from one read cannot catch a read that stopped early; a
+hand-kept count would be a third hand-kept thing in a gate whose thesis
+is that the README is the roster. What IS checkable is that every table
+line in the section is accounted for — the roster is the first
+contiguous run of `|` lines under the heading (what a renderer draws),
+header and separator asserted by position, a line under them that does
+not read as a row returned as `!row` instead of dropped, and a `|` line
+further down the section returned as `!stray`. **`!stray` is what
+closes the silent half**, not the fence tracker: a fence with a BLANK
+LINE above it ends the table legally, and the rows below it are then
+simply not the roster — which is the shape the reproduction used and
+the shape `md_fence` alone leaves quiet. `!fence` covers the other
+shape and needs the tracker's third answer to tell an open from a
+close.
+
+**The control table.** Control = the gate at `09b0ef5a8` with the new
+planters and a one-case dispatcher spliced in verbatim, in a tree
+holding only `lib.sh`, the sidecar and the real manifest, so the only
+difference between the columns is the reader. **All 27 fail on base**
+and pass here — twenty-six because the base reader answers wrongly,
+and one (the table row reader) because its shim keys on a program only
+the new reader has, so on base nothing dies and the gate passes.
+
+| case | base | head |
+|---|---|---|
+| a fence opening inside the table body | GREEN over a roster cut in half | RED — *"is INTERRUPTED by a fenced code block"* |
+| a row below a blank line | RED, wrong message | RED — *"table line(s) BELOW the table"* |
+| a second table in the section | RED, wrong message | RED — same |
+| the `\|---\|---\|` separator gone | GREEN | RED |
+| the header columns reordered | GREEN | RED |
+| a row whose module cell is not backticked | GREEN | RED |
+| the table gone, the heading kept | RED, wrong message | RED — *"no table follows it"* |
+| a header and a separator and no rows | RED, wrong message | RED — *"no rows under them"* |
+| the heading twice | GREEN | RED |
+| the driver heading renamed | RED, wrong message | RED — *"carries no … heading"* |
+| a vocabulary heading renamed | RED, wrong message | RED — same |
+| a fenced `#[derive]` above the table | RED (false) | GREEN |
+| a worked table row inside a fence | RED (false) | GREEN |
+| a backtick line inside a tilde fence | RED (false) | GREEN |
+| a closed fence, section still ends | RED (false) | GREEN |
+| `find` (module enumerator) | RED, wrong message | RED — names the stage |
+| `sed` (module path trimmer) | RED, wrong message | RED — names the stage |
+| `sort` (module sorter) | RED, wrong message | RED — names the stage |
+| `awk` (table reader) | RED, wrong message | RED — names the stage |
+| `sed` (table row reader) | GREEN — no stage on base carries that program | RED — names the stage |
+| `sed` (kind extractor) | RED, NO diagnosis | RED — names the stage |
+| `awk` (manifest feature reader) | RED, wrong message | RED — names the stage |
+| `sed` (dep extractor) | RED, wrong message | RED — names the stage |
+| `tr` (dep speller) | RED, wrong message | RED — names the stage |
+| `sort` (dep sorter) | RED, wrong message | RED — names the stage |
+| `awk` (hit deduplicator) | RED, NO diagnosis | RED — names the stage |
+| `sort` (hit sorter) | RED, NO diagnosis | RED — names the stage |
+
+The two `sort` stages that carry no distinguishing argument are told
+apart by what they are READING — module paths against `file:line:`
+records — because three sorts run in one pass and only one has `-u`.
+Right-hand shims CONSUME their input before exiting, per the row: a
+stub that dies at once SIGPIPEs the upstream stage and the diagnosis
+names the wrong reader, which is the very defect being fixed.
+
+**`crates/viewer/README.md` is untouched**, and it was checked rather
+than assumed: each of the three scanned sections holds exactly ONE
+contiguous run of `|` lines and no stray table line, so the contiguity
+rule and the `!stray` answer are both green over the page as written.
+
+**The census of the shifted bands.** No open row cites into
+`viewer-module-kinds.sh`; the three that do
+(`a-new-hand-written-all-table-meets-no-gate:33` → `:10-18`,
+`pick-rename-left-two-live-sites…:95` → `:74`,
+`pick-and-parts…:103` → `:156-159`) are all CLOSED, and the first two
+are above the diff and unmoved anyway. In
+`viewer-vocab-declared-once.sh` two open rows cite in:
+`gate-rust-reader-splits-an-array-type-at-its-semicolon:65,88` →
+`:139-153`, unmoved and re-read; and
+`gate-selftest-cannot-observe-the-identity-a-gate-names`, whose
+correction table already said `:930-973` — stale AGAIN since #2282, and
+now `:1528-1597` over 27 rows. Corrected there with the reason, which
+is that **a citation into a self-test's case list moves whenever anyone
+adds a case**: it is the wrong half of a gate to cite by line, and this
+is the second correction that row has needed in two days.

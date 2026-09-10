@@ -2,8 +2,9 @@
 id: module-kinds-gate-has-no-reader-guards
 kind: issue
 title: viewer-module-kinds.sh has no reader-guard apparatus at all: two unguarded reader stages in two process substitutions, whose death reds telling the author the README heading was renamed
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-09-10
 ---
 
 Found by the §5 sweep for #2282. **Split from a combined row** whose
@@ -74,3 +75,37 @@ on `main` yet and the reference would not resolve.
 misdiagnosis-not-green reading — all read off the file rather than
 inferred.
 
+
+## Closed (2026-09-10)
+
+`reader_failed`/`abort_if_reader_failed` at
+`scripts/gates/viewer-module-kinds.sh:234-254`, and the population they
+cover is stated at `:189-233` rather than left to a count: **fifteen
+stages**, of which twelve are guarded here and three diagnose
+themselves in `lib.sh`.
+
+**The item names two stages and the gate has twelve.** Its arm could
+only see `readme_table_modules`, so it missed the module enumerator's
+three (`find | sed | sort`), the manifest reader's four (`awk | sed |
+tr | sort`), the kind extractor's `sed`, and the hit union's
+deduplicator and `sort`. Two live misdiagnoses were reproduced on the
+real tree before the repair: a dead `awk` reported *"Either the heading
+was renamed or the table was reshaped"* about a README that is fine —
+the item's own example — and a dead `sed` reported *"no modules under
+crates/viewer/src … besides lib.rs and bin/"* about a tree holding
+forty-five, which the item does not mention.
+
+**A third mode the item does not name: a status the shell KEEPS still
+buys no diagnosis.** Three stages sit in `$(…)` rather than in a
+process substitution, so errexit does end the gate on them — with no
+gate name, no `::error::` framing and nothing said about what was left
+undecided. Their cases show it: on the base reader those three fail as
+*"the gate exited non-zero WITHOUT a gate_error diagnosis"*, which is
+`lib.sh`'s S157 second half exactly.
+
+Twelve cases, one per guarded stage, each wanting its own stage by
+name, and each run against the base reader with the same shims: twelve
+red there, twelve green here. The right-hand stages use a shim that
+CONSUMES its input before exiting, per the item; the two `sort` stages
+that carry no distinguishing argument are told apart by what they are
+READING, which is the one thing that differs between them.

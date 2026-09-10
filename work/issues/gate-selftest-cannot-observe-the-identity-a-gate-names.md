@@ -22,7 +22,8 @@ gate whose whole product is **a `file:line` and an identifier** — the
 identifier is exactly what a reader acts on, and nothing in the harness
 can assert it.
 
-`scripts/gates/viewer-vocab-declared-once.sh:611-625` is the worked
+`scripts/gates/viewer-vocab-declared-once.sh:611-625` — `:1528-1597`
+on this tree, see the correction below — is the worked
 example: twelve `gate_selftest_case` rows, every one matching on a
 name-independent fragment of the message, so twelve green cases are
 compatible with every name in every diagnosis being wrong.
@@ -50,7 +51,7 @@ written**, and the reason matters more than the figures.
 
 | this file said | at `origin/main` |
 |---|---|
-| the cases are at `viewer-vocab-declared-once.sh:611-625` | `:930-973` (`:611` is inside the hit-diagnosis loop) |
+| the cases are at `viewer-vocab-declared-once.sh:611-625` | `:930-973` at that tree (`:611` is inside the hit-diagnosis loop); **`:1528-1597` and 27 rows** after #2282 and `view/module-kinds` moved and grew them — a citation into a self-test's case list moves whenever anyone adds a case, which is what makes this the wrong half of the file to cite by line |
 | twelve `gate_selftest_case` rows | **20** |
 | *"every one matching on a name-independent fragment"* | false — **4** assert a `const` identifier by name (`declares \`const ALL\``, and its siblings), and on a broader reading of "identifier" the lane counts 11 |
 
