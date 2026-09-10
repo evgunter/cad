@@ -433,7 +433,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
     // The corpus the census is over.
-    assert_eq!(all.len(), 1391, "rows in the committed baseline");
+    assert_eq!(all.len(), 1599, "rows in the committed baseline");
     assert_eq!(sized.len(), 72, "of them sized");
     let sized_scenes = {
         let mut s: Vec<&str> = sized.iter().map(|r| r.scene.as_str()).collect();
@@ -463,9 +463,21 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // …and the same count over every row, which is what the
     // restriction to sized rows is worth: three orders of magnitude,
     // and not one of them reaches a rule.
+    //
+    // This figure is dominated by ARITHMETIC rather than by geometry,
+    // and `impeller` is the clearest case of why. A planar row carries
+    // no trim box and no divisions, so every identity column but
+    // `chart` reads empty on it — which makes ALL of one scene's
+    // planar rows one group, contributing `C(n, 2)` by construction.
+    // The impeller's three stops are planar throughout (56, 66 and 86
+    // faces), and 1540 + 2145 + 3655 = 7340 is exactly what they added
+    // when they landed. A number that grows quadratically in a scene's
+    // face count is not a budget reading and was never used as one;
+    // what it measures is the size of the hole the sized-row census
+    // above sits inside.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 22_383, "pairs across every row");
-    assert_eq!(all_scenes.len(), 75, "scenes carrying one, corpus-wide");
+    assert_eq!(all_pairs, 29_723, "pairs across every row");
+    assert_eq!(all_scenes.len(), 78, "scenes carrying one, corpus-wide");
 }
 
 /// The other half of the paragraph: WHICH identity entries actually
@@ -592,7 +604,7 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
     // scenes carrying an indistinguishable pair among ALL rows. They
     // agree only because every scene currently carries one, and a
     // re-cut can end that without either assertion being wrong.
-    assert_eq!(scenes.len(), 75, "scenes in the committed baseline");
+    assert_eq!(scenes.len(), 78, "scenes in the committed baseline");
     assert_eq!(
         gating,
         [
@@ -839,7 +851,7 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 1_646_830, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 1_647_626, "triangles over the whole sweep");
     assert_eq!(
         t.nurbs_triangles, 188_908,
         "triangles the Hessian-sized faces carry"
