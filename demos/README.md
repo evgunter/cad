@@ -216,8 +216,11 @@ and local CI emulator.
 per scene plus `montage.png`); `demos/renders-freecad/*.png` (tracked —
 the montage cells plus `montage-freecad.png`);
 `demos/renders-wild/*.png` (tracked); `demos/renders-uv/montage-uv.svg`
-(tracked); and — only under `render.sh --matplotlib` —
-`demos/renders-preview/renders/*.png` (gitignored).
+and `demos/renders-mc/plate-density.svg` (both tracked, both text); and
+— only under `render.sh --matplotlib` —
+`demos/renders-preview/renders/*.png` (gitignored). The MC lane's own
+input is `demos/out/mc/plate-density.svg` (untracked), written by the
+tour itself.
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
 published to the lane directory only once it is complete. The staging
@@ -513,9 +516,10 @@ Consequences worth stating:
   not fail on it: `render.yml`'s uv lane re-baselines the committed sheet
   and reports the difference as a neutral check, so the hosted `uv sheet
   drift (demos)` row was retired in 2026-08. What survives is
-  `ci-local.sh`'s `uv sheet drift (demos)`, which regenerates the sheet
-  and diffs it and DOES fail — because a developer box cannot re-baseline
-  itself, and there being told is the whole point. A failure there is
+  `ci-local.sh`'s `sheet drift (demos: uv + mc)`, which regenerates this
+  sheet and the MC lane's from ONE tour run and diffs both, and DOES
+  fail — because a developer box cannot re-baseline itself, and there
+  being told is the whole point. A failure there is
   either an uncommitted regeneration or a D9 determinism finding.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
@@ -577,6 +581,62 @@ shaded 3-D, and a chart domain is not a picture of the part. The parked
 SVG lanes that *would* draw the part — a projected-edge wireframe, and
 drawing-grade hidden-line removal — are filed as LONGTERM-IDEAS I4(a) and
 I4(b).
+
+## The MC density lane (`render-mc.sh`)
+
+**`renders-mc/plate-density.svg` — the population an advisory number is
+a summary of.** The fourth lane, and the second renderer-free one: the
+tour writes the sheet and `render-mc.sh` only publishes it. No compose
+step, because the cell is one sheet with two panels rather than a grid.
+
+The subject is the same two-hole plate the tolerance cell narrates
+(`demos/tour/src/plate.rs` holds the document; `tolerance.rs` runs the
+certified and advisory lanes over it and `mcplate.rs` draws it), and the
+subject is the trade E11 names:
+
+* the **certified** lane answers over a box, exactly, and says nothing
+  outside it. On this plate the widest box that certifies whole is
+  `7.81e-7` of the study — about `2e-5` of one pixel at the zoom
+  panel's scale. **A picture cannot show it, and that is the finding
+  rather than a drawing problem.**
+* the **advisory** lane draws from the whole distribution, tail
+  included, and reports a mean, a spread and two extremes. Those four
+  numbers summarize 512 built plates, and 512 built plates are
+  something a picture can show exactly.
+
+Two panels, one centre, two scales: the part at 51 px/mm, where the
+±0.05 mm study is 5 px wide and the cloud is a slightly thick line; and
+the 0.6 mm web at 294 px/mm, where the same 512 samples are 73 px of
+visible density. The zoom ratio is readable off the sheet — each panel
+carries its own scale bar — rather than only stated in the caption.
+
+* **Every circle is a `Surface::Cylinder` read off a body the kernel
+  built** — its `origin` and its `radius`, at the sample that built it.
+  Not the parameter that produced it, and not a polygonal
+  approximation: an SVG `<circle>` IS the stored circle, so the
+  drawing is a readback in `fivewall`'s sense. It is also what keeps
+  the file small — 512 samples cost 1024 elements and about 100 KB.
+* **It is this run's samples, and the tour checks that rather than
+  claiming it.** Each draw comes from `mc::sample_offsets(analyzed,
+  config, i)`; the cell then summarizes its own replay's web readings
+  and requires the mean, the spread and both extremes to equal
+  `monte_carlo`'s BIT FOR BIT. A mismatch fails the tour rather than
+  shipping a picture of a different population.
+* **Why SVG, and why no renderer.** Ev's constraint was latency: an
+  overlay worth having only if drawing it costs seconds. A 3-D render
+  of 512 bodies is minutes — the two montage lanes import one STL per
+  body through an external renderer. This geometry is already 2-D, so
+  the same three reasons the uv lane gives apply: text diffs, an
+  unchanged re-run is byte-identical, and there is no second renderer
+  for a provenance guard to tell apart. The replay itself is about a
+  second for the whole 512.
+* **A diff here means the DRAWS moved.** The seed is recorded
+  (`mc::DEFAULT_SEED`) and printed on the sheet, so a change is an
+  intended study change or a determinism finding, never noise.
+  `render.yml` re-baselines the lane and reports neutral, exactly as it
+  does for uv; `ci-local.sh`'s `sheet drift (demos: uv + mc)` row fails
+  on a developer box, where being told is the point. One tour run gates
+  both sheets.
 
 ## The stops
 

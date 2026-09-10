@@ -147,222 +147,10 @@ use pncad::analysis::{
     StackupRefusal, analyzed_box, assertion_at, drive, leaf_histogram, monte_carlo,
     render_sensitivity, stackup,
 };
-use pncad::document::{
-    AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId, EvalOptions,
-    Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, UnitSym, apply, evaluate,
-};
+use pncad::document::{ProfileDoc, RecipeNodeId};
 use pncad::geom_core::Tol;
-use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
 
-/// The nominal hole spacing, in metres (3.1 mm).
-const SPACING: f64 = 3.1e-3;
-/// The nominal hole radius, in metres (1.25 mm).
-const RADIUS: f64 = 1.25e-3;
-/// The nominal web: `SPACING − 2·RADIUS` = 0.6 mm.
-const WEB: f64 = SPACING - 2.0 * RADIUS;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
-
-fn param(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
-}
-
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
-    *doc = applied.doc;
-    applied.record.minted.expect("an insert mints an id")
-}
-
-fn declare(doc: &mut ProfileDoc, n: &str, value: f64, distribution: Distribution, tol: Tol) {
-    let applied = apply(
-        doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value,
-                display_unit: UnitSym::canonical_for(Dimension::Length),
-                distribution: Some(distribution),
-            },
-        },
-        tol,
-    )
-    .expect("the parameter applies");
-    *doc = applied.doc;
-}
-
-/// The plate, its two holes, the web measure and the assertion — the
-/// worked example, authored the way a user would.
-///
-/// The two tolerances are passed separately rather than scaled from
-/// one number: their RATIO is what decides whether the RSS and the
-/// certified worst case disagree, so it is a modelling choice and not a
-/// scale.
-fn plate(
-    spacing_half_width: f64,
-    radius_sigma: f64,
-    bound: f64,
-    tol: Tol,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-tolerance"), tol);
-    // The hole spacing: a UNIFORM tolerance, the machinist's ±.
-    declare(
-        &mut doc,
-        "half_spacing",
-        SPACING / 2.0,
-        Distribution::Uniform {
-            lo: -spacing_half_width,
-            hi: spacing_half_width,
-        },
-        tol,
-    );
-    // The two radii: INDEPENDENT normals. Independent because they are
-    // two names (PL6), which is what makes the RSS's root-sum-square
-    // differ from the worst case's linear sum — the whole subject of
-    // stop 2.
-    for n in ["hole_a_r", "hole_b_r"] {
-        declare(
-            &mut doc,
-            n,
-            RADIUS,
-            Distribution::Normal {
-                sigma: radius_sigma,
-            },
-            tol,
-        );
-    }
-
-    let plane = insert(
-        &mut doc,
-        Node::Datum(pncad::document::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
-    // The plate itself is a literal rectangle: the study is about the
-    // holes, and a parameter nothing measures would be noise in the
-    // stackup's per-parameter table.
-    let plate_profile = insert(
-        &mut doc,
-        Node::Profile(ProfileProgram {
-            plane,
-            loops: vec![
-                LoopProgram::polygon([
-                    (-4.0e-3, -2.0e-3),
-                    (4.0e-3, -2.0e-3),
-                    (4.0e-3, 2.0e-3),
-                    (-4.0e-3, 2.0e-3),
-                ])
-                .expect("finite plate corners"),
-            ],
-        }),
-        tol,
-    );
-    let _plate = insert(
-        &mut doc,
-        Node::Extrude {
-            profile: plate_profile,
-            distance: len(1.0e-3),
-        },
-        tol,
-    );
-
-    let hole = |doc: &mut ProfileDoc, centre: Expr, radius: &str, tol| {
-        let profile = insert(
-            doc,
-            Node::Profile(ProfileProgram {
-                plane,
-                loops: vec![LoopProgram::Circle {
-                    centre: [centre, len(0.0)],
-                    radius: param(radius),
-                }],
-            }),
-            tol,
-        );
-        insert(
-            doc,
-            Node::Extrude {
-                profile,
-                distance: len(1.0e-3),
-            },
-            tol,
-        )
-    };
-    let hole_a = hole(
-        &mut doc,
-        Expr::sub(len(0.0), param("half_spacing")).expect("a length"),
-        "hole_a_r",
-        tol,
-    );
-    let hole_b = hole(&mut doc, param("half_spacing"), "hole_b_r", tol);
-
-    // The wall names come from the SELECTION door, the way a user gets
-    // them: evaluate what is built so far, then ask each hole for its
-    // cylindrical face.
-    let ev: Evaluation<f64> = evaluate(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let wall = |node: RecipeNodeId| {
-        let mut faces = select_where(
-            &ev,
-            node,
-            &Selector::of(NamePat::of_kind(EntityKind::Face)),
-            &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                pncad::geom_brep::SurfaceKind::Cylinder,
-            ))],
-            &doc.param_env::<f64>(),
-            tol,
-        )
-        .expect("the surface-kind atom is exact");
-        faces.sort();
-        assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
-        SitedRef::new(node, faces.remove(0))
-    };
-
-    // web = distance(wall_a, wall_b) − r_a − r_b. The distance between
-    // two parallel cylinder faces is their AXIS distance (the closed
-    // form's own contract), so the subtraction of the radii is the
-    // author's arithmetic and not a hidden convention.
-    let radius_of = |n: &str| MeasureExpr::value(param(n));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),
-    )
-    .expect("Length − Length");
-    // The two references are read BEFORE the insert borrows the
-    // document mutably — the borrow checker's way of saying that a
-    // measure's references are resolved against a document that
-    // already exists, which is exactly the E3 contract.
-    let refs = vec![wall(hole_a), wall(hole_b)];
-    let measure = insert(
-        &mut doc,
-        Node::measure(web, refs).expect("both indices in range"),
-        tol,
-    );
-    let assertion = insert(
-        &mut doc,
-        Node::Assertion {
-            measure,
-            bound: len(bound),
-            dir: AssertionDir::AtLeast,
-        },
-        tol,
-    );
-    (doc, measure, assertion)
-}
+use crate::plate::{Plate, WEB, plate};
 
 /// **Stop 1's leaf budget, and why it is not the default.**
 ///
@@ -391,7 +179,7 @@ pub fn narration(tol: Tol) {
 /// spacing, σ = 0.01 mm on each radius.
 fn real_study(tol: Tol) {
     let bound = WEB - 1.0e-4;
-    let (doc, measure, _assertion) = plate(5.0e-5, 1.0e-5, bound, tol);
+    let Plate { doc, measure, .. } = plate(5.0e-5, 1.0e-5, bound, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     println!(
         "   the real study: web nominal {:.4} mm, asserted >= {:.4} mm, over ±0.05 mm of \
@@ -507,7 +295,12 @@ fn certified_study(tol: Tol) {
          {rss3:e} m — a factor of {:.2}. The bound is placed between them.",
         worst / rss3
     );
-    let (doc, measure, assertion) = plate(spacing_half_width, radius_sigma, bound, tol);
+    let Plate {
+        doc,
+        measure,
+        assertion,
+        ..
+    } = plate(spacing_half_width, radius_sigma, bound, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("the nominal builds");
     println!("{}", indent(&verdict.render(&analyzed)));
@@ -780,7 +573,7 @@ mod tests {
         // Stop 1: the real study certifies nothing, and the refusal
         // carries the answer.
         let bound = WEB - 1.0e-4;
-        let (doc, measure, _) = plate(5.0e-5, 1.0e-5, bound, tol);
+        let Plate { doc, measure, .. } = plate(5.0e-5, 1.0e-5, bound, tol);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
         assert!(
@@ -809,7 +602,12 @@ mod tests {
         let worst = 2.0 * half_width + 2.0 * (3.0 * sigma);
         let rss3 = 3.0 * ((2.0 * half_width / 3.0_f64.sqrt()).powi(2) + 2.0 * sigma.powi(2)).sqrt();
         let bound = WEB - 0.5 * (worst + rss3);
-        let (doc, measure, assertion) = plate(half_width, sigma, bound, tol);
+        let Plate {
+            doc,
+            measure,
+            assertion,
+            ..
+        } = plate(half_width, sigma, bound, tol);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let verdict =
             drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("the nominal builds");

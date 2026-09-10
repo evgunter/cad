@@ -7067,3 +7067,292 @@ now one of its two subjects does not exist at all. The row is CIW's, the
 closed item says CIW will take the edit on request, and it is filed as
 `work/ciw/wasm-row-warning-debt-comment-names-a-closed-item-and-a-deleted-symbol.md`,
 which names this deletion at `:48-51`. Reported, not edited.
+
+## 2026-09-10 — `view/gate-readers`: the vocab gate's two reader defects (#2282)
+
+Two filed items, both pre-existing, both found by the style review of
+#2172, both against `scripts/gates/viewer-vocab-declared-once.sh`:
+`gate-section-scans-end-on-any-column-zero-hash` and
+`gate-reader-guards-count-six-where-the-stated-rule-yields-nine`. One
+pass over one file, not one defect.
+
+**The population count re-derived: nine, and the same nine.** The
+item's enumeration was a reviewer's and unchecked. Deriving it from the
+stated rule against the file at `104f1445b` — every stage of every
+pipeline inside a process substitution — gives five substitutions and
+nine stages: `find`+`sort`; kinds `awk`+`sed`; table `awk`; rows `sed`;
+`gate_rust_code`+`ITEM_AWK`+`HIT_AWK`. The item's exclusion of `printf`
+holds, and now has a second argument at the site: it is a bash BUILTIN,
+so nothing on PATH can shadow it away.
+
+**Where the item was wrong is its CONSEQUENCE half, in both
+directions**, and this is the half worth keeping. It names three
+misdiagnoses. Two are real, one is not, and one it does not name is:
+
+- a dead `sort` reported as *the source enumerator* — real, and a
+  genuine wrong name;
+- a dead kinds `sed` reported as *the kinds reader* — real, but not a
+  WRONG name: one name covering two stages, so a CI log could not say
+  which died;
+- a dead rows `sed` reported as *the row reader* — **not a defect**.
+  `table_rows` is `printf | sed`, `printf` is not a reader by the
+  gate's own rule, so that guard already covered exactly one reader
+  stage and *the row reader* IS that `sed`;
+- **the one it missed**, and it is the same shape as its `sort` case: a
+  dead `gate_rust_code` drew TWO diagnoses — `lib.sh`'s own correct
+  *the shared Rust reader* AND this file's *the const-item reader*, for
+  a stage this file does not own.
+
+An item's enumeration is a claim like its options are (#2172's lesson,
+one column over): the arithmetic was right and three of the four
+consequences it asserts came out differently when reproduced. All four
+were reproduced by hand before any edit.
+
+**The repair, not the disclosure**, at every site: nine stages, eight
+guards in this file plus `lib.sh`'s own, each brace-grouped so the
+status it reads is that stage's own. That is the shape `const_hits`
+argued for alone and the rest of the file has now been brought to.
+
+**Item 1 fixed wider than it asked for, deliberately.** One
+`FENCE_AWK`/`md_fenced` helper prepended to both README readers the way
+`gate_record_awk` prepends `gate_record_split`, and both readers ask it
+of EVERY rule they have rather than only of `^#` — because a `|` line
+inside a fence was being read as a roster row, which is the same defect
+with the other sentinel. The rule is CommonMark's and not a toggle: a
+bare toggle lets a ``` line close a `~~~` block and hands the rest back
+to the heading rule, which is the repaired defect re-minted by the
+cheaper spelling of the repair, so that case is planted.
+
+**The defect was LATENT on the real tree, not firing**, and the item's
+*"live rather than theoretical"* heading does not say so. All fourteen
+fence lines in `crates/viewer/README.md` are at `:3-262` and the section
+opens at `:930`, so every one of them is above the scanned region — the
+defect was one fenced example inside the section away. The tracker runs
+over all fourteen every pass regardless, and they balance; an unclosed
+one would leave the section heading itself fenced and red the gate,
+which is why the closed-fence case is planted rather than argued.
+
+**The negative-control table.** Control = the file at `104f1445b` with
+the new planters spliced in verbatim and a one-case dispatcher in place
+of `gate_selftest`, so the only difference between columns is the
+reader.
+
+| case | before | after |
+|---|---|---|
+| fenced `#[derive(Debug)]` above the anchor | RED — *"no line … begins "Three kinds of list stay hand-written""* | GREEN |
+| fenced `#!/bin/sh` + `# a comment` below the list | RED — *"carries no "#### The lists that stay hand-written" heading"* | GREEN |
+| backtick line inside a tilde fence | RED — same missing-anchor red | GREEN |
+| worked table row written inside a fence | RED — *"row `GHOSTS` says `ghosts` declares"* | GREEN |
+| closed fence, decoy roster outside the section | RED — same missing-anchor red | GREEN |
+| `sort` dead | RED — got *the source enumerator over* | GREEN |
+| `awk` dead | RED — got *the kinds reader over* | GREEN |
+| kinds `sed` dead (consumes, then exits) | RED — got *the kinds reader over* | GREEN |
+| `gate_rust_code`'s `awk` dead | GREEN | GREEN |
+| `ITEM_AWK` dead (consumes, then exits) | GREEN | GREEN |
+
+**Eight of ten are controls; the last two are declared coverage and not
+evidence**, in the file as well as in the PR. The `gate_rust_code`
+split REMOVED a wrong second name, and `gate_selftest_case` and its
+broken-tool twin match a substring with no way to assert a string is
+ABSENT — so a removal cannot be observed. That is the AFFORDANCE half
+of `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names`,
+restated at this gate rather than filed a second time; `lib.sh` was
+read, called and not edited. Worth recording what the harness CAN do,
+since the item is read as saying otherwise: it matches a substring of
+the whole output and `--also` requires several, which is enough to
+assert a reader's name and is what three of the controls above use. The
+gap is absence, not identity.
+
+**The `ITEM_AWK` case is the sharpest single finding.** Before this PR
+the only case asserting *the const-item reader* actually killed
+`gate_rust_code` — a different stage. The defect the item describes was
+sitting inside the self-test written to hold it, with a `want` string
+that was itself an instance of it.
+
+**Operational, and out of fence: `mawk` 1.3.4 aborts its regex compiler
+on an interval followed DIRECTLY by `(`.**
+`REcompile() - panic: values still on machine stack`. The boundary was
+derived, not guessed: `/^ {0,3}(a)/` and `/^a{2}(b)/` panic;
+`/^ {0,3}-(a)/` and `/^(a){2}/` compile. `gawk` 5.2.1 compiles all
+four. The natural spelling of *"three or more backticks or tildes"* is
+exactly that shape, so the first draft took the gate down under mawk
+with `exit 100` while staying green under gawk — and since the box's
+`awk` is gawk now and the hosted runner's is too, nothing on either
+lane would have shown it. This is a sibling of the directory's
+*no backslash, use `[(]`* rule
+(`loop-boundary-discards.sh:222-234`, `lib.sh:230-235`) and belongs
+beside it; reported in #2282 rather than filed, because whether
+`lib.sh`'s conventions block carries it is GATES' call. Two incidentals
+worth having: the failure surfaced as *"the kinds scanner over
+crates/viewer/README.md exited 100"* — this unit's own repair naming
+the right stage on its first real use — and the plan's note that the
+box's `awk` moved to gawk is exactly why the mawk run had to be done by
+hand rather than assumed.
+
+**`crates/viewer/README.md` was not touched.** The gate passes the real
+tree unchanged, same `4 ratified … 3 kinds` line as before, under both
+awks.
+
+**The §5 sweep, and it found one sibling.** Both defects are classes,
+so the shape was swept rather than the symbol: every gate that scans a
+markdown section, and every `|| status=$?` / `|| reader_failed` sitting
+on a multi-stage pipeline. **One hit outside the unit's file**, and it
+is VIEW's own: `scripts/gates/viewer-module-kinds.sh:220-227`'s
+`readme_table_modules` has BOTH — `:223`'s bare `^#` region end and
+`:224`'s `inside && /^\|/`, plus two unguarded reader stages inside two
+process substitutions (`:270`, `:277`) in a gate that has **no reader
+guard apparatus at all**. Filed as
+`module-kinds-table-scan-repeats-both-vocab-gate-reader-defects`, a
+file rather than a sentence in a merged PR body.
+
+**Two things the sweep learned that reading the vocab gate would not
+have taught.** First, the callers there red on an EMPTY roster
+(`:271-274`, `:278-282`) but never on a SHORT one, so defect 1 has a
+worse direction at that gate than at this one: a fence part-way down a
+table truncates the region, the rows below vanish, and the gate goes on
+printing OK while enforcing its rule over fewer modules than the README
+lists. Second, that same empty check means defect 2 there is a
+MISDIAGNOSIS rather than a false green — a dead reader reds with *"the
+heading was renamed or the table was reshaped"* about a README that is
+fine. Both stated in the item, because *"the same defect next door"* is
+the claim a reader would otherwise assume and it is not true in either
+direction.
+
+**What the sweep could not match**, stated because a blind spot left
+unstated is not a negative result: it is a grep over one line at a
+time, so a section scan whose `^#` rule is spelled across two awk rules,
+or built by string concatenation before `awk` sees it, would not appear;
+and it covers `scripts/gates/*.sh` only, so a markdown section scan
+anywhere else under `scripts/` is outside it. The three `lib.sh` hits it
+did return are single-stage pipelines and not this class — checked by
+reading each, not by filtering on the path.
+
+## 2026-09-10 — `view/gate-readers` fix pass: the fence repair had left a FALSE GREEN open
+
+The review of #2282 found, and the orchestrator reproduced, a **false
+green over an unratified fourth kind**. Reproduced here again before
+anything was edited, both directions, plus the control that separates
+them.
+
+**A boolean fence answer is the wrong answer for one predicate, and
+"ask it of every rule" is what made that look closed.** `readme_kinds`'s
+`opens` does not ask *is this line markdown structure*; it asks *did the
+previous line END a block*. An OPENING delimiter starts one, so the line
+under it is content and the boolean is right. A CLOSING delimiter ENDS
+one, so the line under it BEGINS a paragraph — and the boolean has that
+backwards. `markdown-it-py` 4.2.0 in CommonMark mode emits `fence` then
+`paragraph_open` for both plants, so markdown draws them as paragraphs
+and the gate did not.
+
+**Both directions were live on that one answer, one blank line apart.**
+A second announcement DIRECTLY under a closing fence was not counted as
+an announcement, so the gate found one anchor, read three kinds under it
+and printed `OK`, exit 0, over a duplicate announcement AND an
+unratified fourth kind bulleted beneath it. The same plant with a single
+blank line between fence and announcement reds correctly. The other
+direction is the anchor itself under a closing fence, which reds with
+*"the paragraph … is gone"* — the exact misdiagnosis the fence work was
+filed to remove.
+
+**The repair:** `md_fenced` became `md_fence` and returns `open`,
+`inside`, `close` or `""`. Callers wanting *is this markdown structure*
+test `!= ""`; `opens` additionally counts `close` as ending a block. The
+RENAME is the point — a contract change that a caller can miss is a
+contract change that will be missed.
+
+**Neither direction was a regression**, and the controls say so by
+running against three trees rather than two:
+
+| case | base `104f1445b` | first repair `7e70be4d3` | now |
+|---|---|---|---|
+| second announcement under a closing fence | RED — *"PASSED on a planted violation"* | RED — same | GREEN |
+| the anchor directly under a closing fence | RED — *"the paragraph … is gone"* | RED — same | GREEN |
+| the other ten rows | unchanged | unchanged | unchanged |
+
+**The lesson, and it is not "add a case".** The header claimed both
+readers *"ask this question of every rule they have"*, and that sentence
+was TRUE and still insufficient — every rule got the answer, and one
+rule needed a different question. **A helper that answers one question
+well invites callers to assume it answers theirs**, so the thing to
+check is not whether every caller consults it but whether any caller's
+question is a different one. The three-answer return makes that
+structural: `close` cannot be spelled as `!fenced` by accident.
+
+**Three corrections to the last entry's own claims**, all from the
+review and all confirmed here:
+
+- *"their guards were already on their own stage"* was **false for stage
+  6**: base `table_rows` was `printf | sed || status=$?`, a guard on a
+  two-stage pipeline, which this unit moved into a brace group. The
+  conclusion survives and the reason does not — the true reason no case
+  is owed is that neither guard's NAME changed, and a case can only
+  assert a name is PRESENT.
+- The mawk paragraph said *"the other interval in this file"*. The
+  sweep rule `grep -nE '[{][0-9]+,[0-9]*[}]' $0` returns **five lines
+  carrying six intervals**; the paragraph now states the rule and both
+  counts, which differ because two share a line. A universal without its
+  sweep rule, in the paragraph whose whole job is to let a successor
+  re-derive the hazard.
+- A citation named the helper's argument as `:541-614`, which is the
+  comment prose plus the assignment line; the argument is the function.
+
+**The sweep's arm 2 was shaped like the symptom, and that is what let a
+live false green sit unopened elsewhere.** `|| status=$?` /
+`|| reader_failed` can only match a pipeline that **already has a
+guard**, so it structurally cannot see one with none — which is exactly
+the population with the worse direction. The right arm is the rule the
+gate itself states: *every stage inside a process substitution whose
+exit status the shell discards*, i.e. `grep -n '< <('` and read each.
+Arm 1 was genuinely class-shaped and the reviewer's wider re-run (all of
+`scripts/` and `local-scripts/`, `.sh` and `.py`) returned the same
+single hit, which discharges the blind spot the last entry named.
+Re-running arm 2 on the right rule is the orchestrator's, already done
+and filed on **code-quality's** slate as
+`gate-roster-and-probe-census-have-no-reader-guards` —
+`scripts/gates/*` returned to code-quality when the `gates` program
+closed. Named in prose and not in `refs:`, because it is not on `main`
+yet and the reference would not resolve.
+
+**The sibling row split in two**, on the test *can half of it be
+closed?* — `module-kinds-table-scan-ends-at-any-column-zero-hash` is
+`md_fence` plus a length check; `module-kinds-gate-has-no-reader-guards`
+is apparatus that gate has never had. Different repairs, different
+controls, and a row that can only be half-closed is what one-file-one-item
+protects against.
+
+**Trims, and what was kept.** The pipefail-blames-the-wrong-reader
+argument had grown to three wordings; it now has one home in the header
+and `viewer_sources` keeps only its local fact (the ORDER is a read, so
+`sort` earns a guard). The reproduction narrative in `THE ANCHOR MADE IT
+WORSE` and the stage-7 narrative both became invariants — comments state
+the invariant, not the history, and the history is in this log. The
+self-test's re-enumeration of the nine now points at the one home and
+keeps only the technique a reader cannot derive: killing a right-hand
+stage needs a shim that CONSUMES and then exits, or SIGPIPE names the
+wrong reader. **Kept in full deliberately**: the mawk paragraph, whose
+four probe regexes are the only record in the tree of why a spelling is
+forbidden.
+
+**Left alone, with the reason:** `md_fence` mutates `FENCE_CHAR` and
+must be called once per line, held by convention. Caching on `NR` would
+enforce it but adds state across four return paths in the file's most
+delicate function; judged not free, and the single call site is the
+first rule of each program where it is visible.
+
+**Re-derived after merging `origin/main` at `d268d319b`, because #2278
+moved this unit's SUBJECT.** That PR rewrote the absent-chooser
+paragraph inside `### Closed vocabularies are declared once` — the
+region this gate's readers scan — so the green above was taken on a
+tree without it and the entry's own numbers were measurements of a
+tree that had moved. Re-measured on the merged tree: **fourteen fence
+lines, still `:3-262`, still seven balanced pairs, still none inside
+any scanned region**, and the gate's verdict byte-identical. What DID
+move is the section, `:930` → **`:958`**, carrying its anchor to
+**`:1048`**; `gate-section-scans-…` is corrected, and this note is the
+append-only half so the two cannot be read against each other. The
+`### The drivers` region `module-kinds-table-scan-…` measures is
+unchanged at `:290` — #2278's edit sits below it — which is why one
+row moved and the other did not. **The rule this pays for is
+`plan.md`'s**: green CI on an old head is not a merge criterion when
+the diff's SUBJECT moved under it, and "the inputs are byte-identical"
+was a true argument that stopped being true.

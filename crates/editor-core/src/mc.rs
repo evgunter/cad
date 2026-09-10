@@ -372,17 +372,7 @@ pub fn monte_carlo(
     // happens: a band refuses the whole run, and refusing it here
     // rather than at the first draw keeps the refusal a property of the
     // document instead of a property of which parameter came first.
-    let laws: Vec<(ParamName, crate::distribution::Distribution)> = analyzed
-        .varying()
-        .map(|(name, p)| {
-            p.distribution.map(|d| (name.clone(), d)).ok_or_else(|| {
-                MeasureUnavailable::BandHasNoMeasure {
-                    param: name.clone(),
-                }
-            })
-        })
-        .collect::<Result<_, _>>()
-        .map_err(McRefusal::BandHasNoMeasure)?;
+    let laws = laws_of(analyzed)?;
     for (name, dist) in &laws {
         sample_offset(name, dist, 0.5).map_err(McRefusal::BandHasNoMeasure)?;
     }
@@ -409,6 +399,13 @@ pub fn monte_carlo(
             // a refusal here is a kernel bug rather than a document
             // fault — and it is announced as one rather than silently
             // sampling the nominal.
+            //
+            // This is the loop [`sample_offsets`] hands out, and the
+            // two are held equal by a test rather than by this comment
+            // (`m10_6_mc_draws.rs`): the draw ORDER is what makes a
+            // sample the sample it is, so a door that re-derived it
+            // beside this one would be a second stream the moment
+            // either changed.
             let Ok(offset) = sample_offset(name, dist, rng.unit()) else {
                 unreachable!(
                     "every law was proved sampleable before the run, yet {} refused",
@@ -624,10 +621,75 @@ impl Rng {
         x.wrapping_mul(0x2545_f491_4f6c_dd1d)
     }
 
-    /// Uniform in `[0, 1)` from the top 53 bits.
-    fn unit(&mut self) -> f64 {
+    /// Uniform in `[0, 1)` from the top 53 bits — the value the lane
+    /// feeds [`sample_offset`], and so the one a consumer reproducing a
+    /// draw needs. Public since `work/m10`'s
+    /// `mc-lanes-draws-are-not-reproducible-from-outside-the-crate`:
+    /// [`next_u64`](Self::next_u64) alone left a caller transcribing
+    /// `(x >> 11) as f64 * 2^-53`, which is exactly the third copy of
+    /// this generator's arithmetic that [`sample_stream`]'s own doc
+    /// argues against.
+    pub fn unit(&mut self) -> f64 {
         (self.next_u64() >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0)
     }
+}
+
+/// The varying parameters' laws, in the order the draw consumes them.
+///
+/// One spelling, called by [`monte_carlo`] and by [`sample_offsets`],
+/// because the ORDER is what makes sample `i` the sample it is: two
+/// derivations of this list are two streams as soon as either moves.
+fn laws_of(
+    analyzed: &AnalyzedBox,
+) -> Result<Vec<(ParamName, crate::distribution::Distribution)>, McRefusal> {
+    analyzed
+        .varying()
+        .map(|(name, p)| {
+            p.distribution.map(|d| (name.clone(), d)).ok_or_else(|| {
+                MeasureUnavailable::BandHasNoMeasure {
+                    param: name.clone(),
+                }
+            })
+        })
+        .collect::<Result<_, _>>()
+        .map_err(McRefusal::BandHasNoMeasure)
+}
+
+/// **Sample `index`'s parameter offsets** — one member of the
+/// population [`monte_carlo`] summarizes, handed out.
+///
+/// The report says what the mean and the spread are; this says what
+/// was drawn. A consumer that wants to LOOK at a sample — evaluate the
+/// document there, tessellate it, draw it — needs the draw itself, and
+/// before this door the only way to one was to re-transcribe
+/// `xorshift64*` and its `[0, 1)` reduction outside this crate. The
+/// offsets are keyed by parameter name and are offsets FROM THE
+/// NOMINAL, the same quantity [`crate::analysis::sample_offset`]
+/// returns and the same one a `ParamBox` axis carries.
+///
+/// It is `index` rather than a range on purpose: a sample's draw is a
+/// function of its index and never of the order the samples ran in
+/// (the module header's D9 argument), so a caller may ask for sample
+/// 400 without asking for the 400 before it.
+///
+/// # Errors
+///
+/// [`McRefusal::BandHasNoMeasure`] when a varying parameter carries a
+/// band — the same refusal, for the same reason, that would stop the
+/// whole run.
+pub fn sample_offsets(
+    analyzed: &AnalyzedBox,
+    config: &McConfig,
+    index: usize,
+) -> Result<std::collections::BTreeMap<ParamName, f64>, McRefusal> {
+    let laws = laws_of(analyzed)?;
+    let mut rng = Rng::for_sample(config.seed, index);
+    let mut out = std::collections::BTreeMap::new();
+    for (name, dist) in &laws {
+        let offset = sample_offset(name, dist, rng.unit()).map_err(McRefusal::BandHasNoMeasure)?;
+        out.insert(name.clone(), offset);
+    }
+    Ok(out)
 }
 
 /// **One sample's stream**, exposed for the cross-copy equality row
