@@ -420,7 +420,7 @@ impl Unusable {
 /// silently dropped.
 ///
 /// **Annotated, not disabled**, and that is where this parts company
-/// with `frame::chooser_backend`'s posture for Open…/Save As…. A file
+/// with [`crate::frame::chooser_backend`]'s posture for Open…/Save As…. A file
 /// dialog with no backend can do nothing at all, so the control is
 /// disabled with a reason. The palette picker still works: the theme
 /// applies to the screen on the frame it is chosen and only the

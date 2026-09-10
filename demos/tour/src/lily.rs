@@ -3075,9 +3075,11 @@ mod review_probes {
     /// stored, not which torus they describe, so the tessellator sees
     /// the same surface and splits it the same way. The two SWEPT
     /// blade rows are the other half of the finding: a swept skin over
-    /// a 4-vertex section costs three orders of magnitude less than a
-    /// torus tube at the same δ, because the torus lane spends its
-    /// budget on the RING and not on the tube.
+    /// a 4-vertex section and a torus tube at the same δ cost within a
+    /// factor of two of each other (828 against 454 at 2e-3), because
+    /// `mesh::sizing::torus_grid_steps` sizes the tube's direction by
+    /// the tube's radius and the ring's by the ring's — a torus spends
+    /// the chord budget per curvature, not per feature size.
     ///
     /// The LOFTED bodies are deliberately absent from this table. A
     /// loft's wall count and knot structure follow the section list
@@ -3091,9 +3093,9 @@ mod review_probes {
         use pncad::mesh::validate::{signed_volume, triangle_count};
         let ps = pieces();
         let table = [
-            ("lily_stem", 5e-3, 31_612usize),
-            ("lily_stem", 2e-3, 76_436),
-            ("lily_arch", 2e-3, 136_076),
+            ("lily_stem", 5e-3, 392usize),
+            ("lily_stem", 2e-3, 828),
+            ("lily_arch", 2e-3, 2_960),
             ("lily_lantern", 5e-3, 1_084),
             ("lily_lantern", 2e-3, 2_560),
             // RE-DERIVED, not preserved (issue 1006's Q2 ruling): the

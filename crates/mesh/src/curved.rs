@@ -119,8 +119,10 @@
 //! certificate stays tight; a single-column patch takes no rows —
 //! the decision is at [`grid_counts`]'s cone arm, issue 685);
 //! sphere — hu = hv = φ(δ_s, r); torus —
-//! hu = hv = √(δ_s/(3(R+2r))) (matching the boundary chord
-//! tightening in [`crate::chords`]).
+//! `(hu, hv)` = [`crate::sizing::torus_grid_steps`], one step per chart
+//! direction from the doubly-curved chord bound that function derives
+//! (matching the boundary chord tightening in [`crate::chords`], which
+//! sizes a rim edge against `hu` and a meridian against `hv`).
 
 use std::collections::HashMap;
 
@@ -131,7 +133,7 @@ use topo::props::LoopEdgesError;
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
 use crate::cert;
-use crate::sizing::{Eps, SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_step};
+use crate::sizing::{Eps, SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_steps};
 use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
 
@@ -358,15 +360,13 @@ pub(crate) fn tessellate_curved(
     // pole corner are one set; the full-2π seam was the half held off
     // by [`pole_columns`]' arithmetic instead of by a check, in the
     // lane that actually has seams. What decided it was the price,
-    // measured on the tour corpus rather than estimated: the widening
-    // is free on a face the walk identifies nothing on (the census
-    // does not run), and costs +5% to +12% of `tessellate` on the
-    // donut, whose two torus patches carry a 212-id seam over 178k
-    // triangles each at the finest δ. (That range is the review's
-    // independent in-binary reproduction, which is the tighter of the
-    // two measurements; this lane's own rounds put the same three rows
-    // at +8% to +13%. Both are inside the box's noise for anything
-    // smaller, which is why only the donut rows are quoted.) That is at or under the price already paid for
+    // measured rather than estimated: the widening is free on a face
+    // the walk identifies nothing on (the census does not run), and on
+    // the donut — two torus patches, each carrying a seam of `nv + 1`
+    // identified ids, 648 to 16 080 triangles over δ = 0.1 to 0.004 —
+    // the census is 2.2 % to 2.7 % of `tessellate` (dev profile with
+    // this crate at opt-level 2; median of four warm rounds, whose
+    // spread is under 2 %). That is under the price already paid for
     // the pole half, and it buys the case a mechanical check.
     #[cfg(debug_assertions)]
     {
@@ -795,8 +795,8 @@ fn require_swept_rectangle(
 /// Only pole faces with `nu == 2` re-size, and a full revolve is never
 /// one: [`sagitta_step`] hard-caps at
 /// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches and
-/// [`torus_grid_step`] is capped against the same value here, so a
-/// `2*pi` span gives `nu >= 8`.
+/// [`torus_grid_steps`]' azimuth step is capped against the same value
+/// here, so a `2*pi` span gives `nu >= 8`.
 ///
 /// **That arithmetic is VERIFIED and it is NOT the seam case's whole
 /// argument** (issue 897, and the distinction is the finding). Verified:
@@ -814,10 +814,10 @@ fn require_swept_rectangle(
 ///
 /// * **Torus** — the seam arm where the bound is fully protective. The
 ///   donut's two patches carry a seam on both meridians and size
-///   `nu x nv` = 85x43 up to 422x211, i.e. 3 528 up to **88 410**
-///   interior grid vertices per patch. Eight columns is a floor on a
-///   set with tens of thousands of members, and the two seam entries
-///   are separated by every one of them.
+///   `nu x nv` = 27x6 up to 134x30 over the corpus's deltas, i.e. 130
+///   up to **3 857** interior grid vertices per patch. Eight columns
+///   is a floor on a set with hundreds to thousands of members, and
+///   the two seam entries are separated by every one of them.
 /// * **Cone and sphere, seam-carrying and pole-free** — protective
 ///   exactly when `nv >= 2`. The `band_0.1` body's cone walls run
 ///   `nv` = 1 to 7 at the same deltas, so this arm is on both sides of
@@ -1027,8 +1027,11 @@ fn grid_counts(
         }
         ChartKind::Torus { major, minor } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a torus");
-            let h = cap_angular(torus_grid_step(delta_s, major, minor));
-            Ok((ceil_count(uspan, h)?, ceil_count(vspan, h)?))
+            let (hu, hv) = torus_grid_steps(delta_s, major, minor);
+            Ok((
+                ceil_count(uspan, cap_angular(hu))?,
+                ceil_count(vspan, cap_angular(hv))?,
+            ))
         }
     }
 }
