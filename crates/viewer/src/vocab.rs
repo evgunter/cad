@@ -47,7 +47,7 @@
 //! # What it does not cover
 //!
 //! A table mirroring an enum declared in ANOTHER crate
-//! (`forms::BOOLEAN_OPS`, `forms::MATE_PRIMITIVES` — plain code spans
+//! ([`crate::forms::BOOLEAN_OPS`], [`crate::forms::MATE_PRIMITIVES`] — plain code spans
 //! and not links, because `forms` is behind the `app` feature and a
 //! link to it does not resolve in a default-feature build) cannot use
 //! this, because the declaration it would have to be projected from is

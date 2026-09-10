@@ -7858,3 +7858,87 @@ generalises past readers, because this same unit registered a new badge
 in a README count and a new store read in another. The receipt to run
 is the workspace suite as CI runs it, and a report names the COMMAND as
 well as the number.
+
+## `view/dead-symbols` — the doc-comment dead-name class, closed (2026-09-10)
+
+`doc-comments-name-symbols-that-do-not-exist`, closed in place. The
+item's two figures both reproduce exactly at the SHA it states them at
+— 19 spans / 12 names / 2 undefined with `<mod>` restricted to
+`frame`/`session`, and 132 / 97 unrestricted — and the unrestricted
+one needed its wording pinned before it would: *"every module prefix
+is admitted"* means every **module-shaped** (lowercase) prefix. Admit
+type-qualified prefixes as well and it is 284/197; restrict to this
+crate's own modules and it is 66/49. Only the middle reading gives
+132/97, so that is what the sentence means.
+
+**The whole decidable set was taken, not the two names.** 64 spans
+over 47 names at the merge base — every unbracketed `<own-mod>::<path>`
+span in a doc comment under `crates/viewer/src` — are now
+`[`crate::…`]` links, and the population is 0. The item scoped its own
+decidability argument to 12 names; it applies to all 49, and blind
+spot 5's *"85 of the 97"* should read 48.
+
+**The ruling's test was answered from rustdoc's output, not from an
+attribute grep.** `crates/viewer/README.md`'s *Rustdoc posture: the
+host pass is the gate* asks whether the HOST pass renders a page for
+the item the doc comment sits on. The host pass renders a page for
+every module holding one of the 64 sites, and renders
+`enum.StartupError.html` and `fn.run.html` and **no** page for
+`WebStartupError` or `run_web` — the trap exactly as the ruling
+describes it. It did not fire, and the reason is population rather
+than judgement: `WebStartupError`'s five variant doc comments carry no
+`<mod>::<path>` span, so the rule never selected them. The receipt is
+the browser pass, which reads **7 unresolved links over 4
+identifiers** after the diff — the README's dated population,
+unchanged. 64 new links, zero new browser-pass errors.
+
+**A third dead name, and the bracketing found it.** `frame.rs:216`
+named `pane::viewport::viewport_ui`; bracketed, the host pass reded.
+`viewport_ui` is an inherent method on `ViewerBehavior`, an `app`
+item merely written in `pane/viewport.rs:58`, so the module path names
+nothing. The item's own rule could never have found it — the leaf IS
+declared under `crates/viewer/src`, so a declaration regex resolves it
+and it reads as live. Only a resolver that checks the PATH sees it,
+and bracketing borrows rustdoc's. That is candidate 1's argument
+demonstrated rather than asserted.
+
+**The item's central claim is wrong, and correcting it strengthens
+the case.** The title said the two names *"have never existed"*, and
+`stale-file-citations-after-the-split` built a claimed **fourth**
+citation class on it — *a subject that was never there*, distinct from
+class 1, *a subject that is gone*. `git log -S` over `crates/` refutes
+it: `supersession_notice` and `dropped_hide_notice` were both `pub
+fn`s in `frame.rs` from `6877a40ff` until `4db112ada` — **#1957**,
+which replaced them with the `Withdrawal` vocabulary, rewrote the call
+sites and left every prose mention behind. The fourth class does not
+exist. `four-badges-five-spellings.md:107` turns out to be the proof
+rather than the oddity: it cites `frame.rs:232`, and `6877a40ff` puts
+`supersession_notice` at exactly `frame.rs:232`. An invented name is
+one author's slip; a deleted one is a rename that outran its prose,
+and a bracketed link would have reded #1957 on its own branch.
+
+**A dated sentence is not a stale citation.** The tracker count also
+reproduces exactly — 15 occurrences across 8 items, 4 in open rows —
+and three of the four were repaired. The fourth,
+`frame-module-…-no-holds-row.md:76`, is dated *"(#1886, 2026-09-05)"*
+and all three names it uses were real on that date, so it is left as
+written because it is TRUE. Believing the *"never existed"* claim, the
+honest move would have been to correct it, and correcting it would
+have falsified a true record. The class is *present-tense claim*, not
+*dead name*.
+
+**No line shifts, deliberately.** 58 insertions against 58 deletions
+across 16 source files; every edit is within-line and every file's
+line count is unchanged, so no citation into any of them moved and the
+band census does not arise. The one fix that wanted a second comment
+line fits in 72 characters against a file whose comments already run
+to 89; taking the extra line would have shifted every `app.rs`
+citation below 950 to buy nothing.
+
+**Residue filed rather than disclosed:**
+`comment-symbol-names-outside-rustdocs-reach-have-no-gate`. Rustdoc
+reads `///` and `//!` and nothing else, so the same dead name at
+`app.rs:950` — a plain `//` comment — could only be corrected by hand
+and is held by nothing afterwards. 26 plain-`//` own-module names under
+`crates/viewer/src`, every one live today, and zero split-span ones: a
+clean population with no gate holding it clean.

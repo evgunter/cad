@@ -18,7 +18,7 @@ public surface covers eight unrelated things:
 
 1. the status-line vocabulary and its ranking — `StatusUpdate`,
    `apply`, `acts`, `batch_status`, `frame_status`, `fold_status`,
-   `NOTICE_SEPARATOR`, `supersession_notice`;
+   `NOTICE_SEPARATOR`, `Withdrawal`;
 2. the toolbar badge for the landed product — `product_badge`;
 3. draft/offer chrome — `creation_offer`, `retype_draft`;
 4. the file-chooser backend probe — `ChooserBackend`,
