@@ -479,8 +479,11 @@ jobs:
       seeds: ${{ steps.classify.outputs.SEEDS }}
       # Whether this run compiles the GUI toolkit graph (eframe + wgpu +
       # naga + winit). SEED-keyed per Ev's viewer-CI-posture ruling
-      # (docs/GUI-LOG.md, 2026-08-27) — the argument is at
-      # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
+      # (2026-08-27), which was recorded in the closed GUI program's log;
+      # that log left the tracker with the program's directory in
+      # DOC-LEDGER sweep 5 and reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`.
+      # The argument is at `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
       # WHERE THE THREE VALUES ABOVE CAME FROM — `unsampled` for a dimension
       # that runs whole, which since 2026-09-04 is what all three do unless
@@ -1805,13 +1808,21 @@ jobs:
       # two findings into one. `!cancelled()` rather than `always()` so
       # a cancelled run still stops here.
       # `--skip-viewer-toolkit` when the change filter's seeds do not buy
-      # the GUI toolkit rows (Ev's viewer-CI-posture ruling,
-      # docs/GUI-LOG.md 2026-08-27). It takes `viewer` out of the
+      # the GUI toolkit rows (Ev's viewer-CI-posture ruling, 2026-08-27,
+      # in the closed GUI program's log, which left the tracker with that
+      # program's directory in DOC-LEDGER sweep 5 and reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
+      # It takes `viewer` out of the
       # --all-features pass and puts it back at DEFAULT features, so its
       # renderer-free modules are gated on every run and only the
       # `app`-gated ones — the ones that drag ~140 eframe/wgpu crates
       # into a rustdoc pass — are skipped. The verdict is printed by the
       # step below, never left to be inferred from a green job name.
+      # THE RULING'S SECOND CLAUSE TRAVELS WITH THE SKIP, so it is named
+      # here too: what this pass stops documenting is re-taken ungated,
+      # once a day, by nightly.yml's `rustdoc (viewer, all features)` row
+      # in the `viewer-toolkit` job. A row that takes the skip without the
+      # re-take is not applying the ruling — it is giving the coverage up.
       - name: rustdoc (gate)
         if: '!cancelled()'
         run: |
@@ -2118,7 +2129,11 @@ jobs:
       # `viewer` is excluded for the SAME reason `pncad` is — it depends
       # on `pncad`, so a leg that excludes the façade cannot include a
       # crate sitting on top of it. GUI-5 owns the real wasm lane for
-      # the GUI (docs/GUI-PLAN.md's unit list); this guard's subject is
+      # the GUI (the closed GUI program's unit list, which left the
+      # tracker with that program's directory in DOC-LEDGER sweep 5 and
+      # reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/plan.md`);
+      # this guard's subject is
       # the kernel plus `editor-core`, and it stays that. What the
       # exclusion leaves uncompiled is picked up by the seed-keyed viewer
       # row below rather than by widening this one.
@@ -2275,7 +2290,11 @@ jobs:
       # `viewer`'s `app` feature (eframe + wgpu + naga + winit) is ~140
       # crates that no other row in this workflow needs. It is not a
       # default feature, and per Ev's viewer-CI-posture ruling
-      # (docs/GUI-LOG.md, 2026-08-27) the rows that compile it run only
+      # (2026-08-27, in the closed GUI program's log, which left the
+      # tracker with that program's directory in DOC-LEDGER sweep 5 and
+      # reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`)
+      # the rows that compile it run only
       # when the change filter's SEEDS intersect {viewer, pncad, bvh} —
       # seed-keyed, NOT closure-keyed, because `pncad` re-exports the
       # kernel and is therefore in nearly every change's closure while

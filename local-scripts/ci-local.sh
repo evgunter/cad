@@ -1199,7 +1199,10 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 #
 # UNCONDITIONAL HERE, GATED HOSTED: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
-# (Ev's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27). This half is
+# (Ev's viewer-CI-posture ruling, 2026-08-27, in the closed GUI program's
+# log, which left the tracker with that program's directory in DOC-LEDGER
+# sweep 5 and reads at
+# `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`). This half is
 # not billed by anyone's minute — it is billed in one developer's wall
 # clock, on a run they chose to make — and it runs every point of every
 # dimension. Skipping work here would buy nothing

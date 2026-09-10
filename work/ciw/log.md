@@ -2009,8 +2009,8 @@ of them.
 **Pre-dispatch reading, and it reshapes the unit.** The one instance was
 fixed in PR 1725; a grep for the defect shape (`PIPESTATUS[0]` read after
 an assignment) finds hits **only inside the tombstone comment** at
-`ci.yml:4746-4752`. The live reads at `:666`, `:3081`, `:3572`, `:3607`
-and `:3617` do not follow an assignment.
+`ci.yml`'s k-lint driver step. The other live reads do not follow an
+assignment.
 
 So the sweep may well come back empty, and the discipline doc is explicit
 that this is a real outcome: *a pattern with no hits recorded is a claim;
@@ -2040,10 +2040,10 @@ splits every shell body under `.github/workflows/` and every tracked
 escapes, line continuations and heredoc bodies — and requires each
 `PIPESTATUS` read to sit on the command immediately after a pipeline. On
 this tree it reports **7 reads across 87 files, all correct**: `ci.yml`
-`:666`, `:3116`, `:3607`, `:3642`, `:3652`, `:4816` and `render.yml`
-`:1183` — numbered on this branch's head, which inserts 35 lines into
-`ci.yml` above them. The tombstone comment at `ci.yml:4778` is prose and
-is not counted, which is one of the guard's own mutant rows.
+`:669`, `:3135`, `:3626`, `:3661`, `:3671`, `:4835` and `render.yml`
+`:1183` — re-derived on the head that merges unit 7, which moved every
+one of them. The tombstone comment at `ci.yml:4797-4820` is prose and is
+not counted, which is one of the guard's own mutant rows.
 
 **The guard is the property, not the incident.** It does not look for
 `status=$?`; it looks for *any* intervening command, so an `echo`, a
@@ -2134,3 +2134,43 @@ have shared, loudly but as a traceback rather than a named row.
 
 The shape is the unit's own: **a fact printed in a log is not a fact
 anything reds on.**
+
+## Unit 7 — citations that do not resolve (2026-09-10, `ciw/citations`)
+
+Both items closed; seven comments rewritten; nothing rewritten in
+`crates/**`, `scripts/ci-filter.py` or `docs/`.
+
+**Part A.** The item's twelve-across-nine holds on today's tree (26 raw
+`git grep -o "GUI-LOG.md"` hits less the item's own 10, `STATUS.md`'s 1
+and the ledger's 3). Six were CIW's and are fixed; the sweep was widened
+by one string to `GUI-PLAN.md`, which added a seventh
+(`ci.yml:2086`). Two sites route out — `scripts/ci-filter.py` ×2 to
+S-TCOST, the sweep-5 rename note and `MODEL-AB-LOG.md` to META — and
+both now have a file on the owning slate.
+
+**The third class the item left unswept turned out to be the whole
+sweep.** All five sweep-5 programs were renamed out of `docs/` before
+their directories were deleted, and four of the five under a spelling
+that is not the directory name (`S-BLEND`, `GAUTH`, `PCURVE`, `S-QA`).
+Ten spellings, 51 citations before this unit, 44 after. The ledger's
+Inbound-references paragraph says these "resolve here as before"; they
+do not, and that sentence is what tells a reader not to check.
+
+**Part B closed without a line of code.** Every site in it belongs to a
+sibling that already holds the class: seven are `private_intra_doc_links`
+that `scripts/doc-gate.sh:555` deliberately allows, and the eighth
+(`crate::report`) is a feature-gated link read at the wrong feature
+setting — the second such in one item, after `SweepStrategy::Idealized`,
+and both are already inside `doc-gate-two-unread-axes`'s counted
+`editor-core ×7`. Nothing re-filed there.
+
+The sibling's population was stale by ~3.4x — 82 on 2026-08-15, **278 on
+today's tree** (292 at `--all-features`, which is what the gate documents
+under). Corrected in place with the command and the date. Option 1 is
+unaffected and is stronger at 278 than at 82.
+
+Two method notes worth keeping, both costing an orchestrator a wrong
+number in this session alone: **a `-D warnings` rustdoc run reports a
+floor, not a population** — it aborts at the first crate that fails — and
+**a rustdoc reading is meaningless without its feature selection named**,
+because every "dead link" in this item was alive under the gate's.

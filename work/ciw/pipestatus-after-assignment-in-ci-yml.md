@@ -99,11 +99,11 @@ gate that would have said so could not fail.
    unit, is the instrument: 7 `PIPESTATUS` reads across 87 shell files,
    workflows and composite actions, every one taken on the command
    immediately after its pipeline. Line numbers ON THIS BRANCH'S HEAD,
-   which inserts 35 lines into `ci.yml` above them: `ci.yml` `:666`,
-   `:3116`, `:3607`, `:3642`, `:3652`, `:4816`; `render.yml` `:1183`.
-   (On `main` they are `:3081`, `:3572`, `:3607`, `:3617`, `:4781`.)
-   The tombstone at `ci.yml:4778-4799` is a comment and is correctly not
-   counted.
+   which inserts 35 lines into `ci.yml` above the last of them: `ci.yml`
+   `:669`, `:3135`, `:3626`, `:3661`, `:3671`, `:4835`; `render.yml`
+   `:1183`. (On `main` at this merge they are `:669`, `:3100`, `:3591`,
+   `:3626`, `:3636`, `:4800`.) The tombstone at `ci.yml:4797-4820` is a
+   comment and is correctly not counted.
 
 2. **A mirror check does not gain an arm for it.** Not because the shell
    inside a `run:` is outside `scripts/check-ci-mirror-parity.py` — it is
