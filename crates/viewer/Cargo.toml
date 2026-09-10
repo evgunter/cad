@@ -199,6 +199,15 @@ wasm-bindgen-futures = { version = "0.4.76", optional = true }
 # memories/test-suite-cost.md) — used by the R2 review consumer suite.
 test-utils = { path = "../test-utils" }
 
+# PERF-GUI EXPLORATION LANE ONLY (branch perf/explore-gui, never main):
+# `examples/perf_gui_stages.rs` includes `editor-core`'s corpus test
+# tree by path, and that tree names these two crates directly.
+geom-core = { path = "../geom-core" }
+topo = { path = "../topo" }
+geom-brep = { path = "../geom-brep" }
+profile = { path = "../profile", features = ["test-support"] }
+serde_json = { workspace = true }
+
 # --- the colourblind check's oracle (tests/theme.rs) ---
 #
 # DEV-only, and that is what makes a 0.1.0 acceptable here. Neither
