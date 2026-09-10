@@ -1928,3 +1928,27 @@ added, mutant killed.
 Residue filed in the same PR (`mirror-pairs-context-beyond-env`): three
 mirrored pairs carry a `working-directory:` against a local `cd`, and
 nothing compares them.
+
+
+## 2026-09-10 — unit 5 fix pass: an empty map is not a reading
+
+The review returned three MAJORs and they were one behaviour:
+`env_prefixes` read as EMPTY whatever it could not classify, against
+this file's own standing rule that an unreadable input is a refusal.
+Every instance followed from a walk anchored at token 0 — a one-line
+function's `{`, a loop's `do`, an `env NAME=v` wrapper. The fix moved
+the anchor to the command word and made everything still unattributable
+Bail; the three instances were then consequences rather than cases.
+
+**The lesson the program keeps paying for held again**: the lane's own
+selftest had nine rows and the review found seven mutants that survived
+them. The gap was always the same kind — a case planted on ONE half, a
+value with no inner quotes, a row whose argv sits in a function. The
+answer was a row per mutant and a table published with the PR; 25 of 25
+now die.
+
+**Also caught by both lanes, and worth remembering as a shape**: the
+advice in an error message is part of the contract. Claim 10 told the
+reader to declare a pair with side `both`, and the table refused it —
+the same invited-then-refused defect the PR body describes fixing, one
+token class over, in the same diff.

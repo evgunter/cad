@@ -149,3 +149,36 @@ Three gated agreements, seven declared.
 **Residue**, filed as `mirror-pairs-context-beyond-env`: the working
 directory (three pairs, measured), a `uses:`-only pair (zero today, a
 refusal rather than a comparison) and names outside `SEMANTIC_ENV`.
+
+
+## Fix pass (2026-09-10, PR 2295, review round 1)
+
+Three MAJORs, one root cause: **`env_prefixes` read as an EMPTY MAP
+whatever it could not classify**, and an empty map is what a half that
+sets nothing looks like. Fixed at the behaviour, not at the three
+instances.
+
+The prefix walk now starts at the COMMAND WORD rather than at token 0
+— it steps over `{`, `do`, `then` and their siblings, and through
+`env`/`exec`/`timeout` wrappers, so a one-line shell function
+(`f() { NAME=v cargo …; }`, three live pairs), a loop body and
+`env NAME=v cargo` are read. Everything it still cannot attribute
+REFUSES: an assignment after the command word, a standing or exported
+one, a `$GITHUB_ENV` write in any step of the cited job, and a pair
+cited at a `uses:` step. The one shape it declines to refuse is a
+`${{ … }}` expression standing where a prefix would — ci.yml's two
+archived-test rows are written that way — so that half is reported
+INCOMPLETE and no one-sided verdict is passed against it.
+
+**Workflow-level `env:` joined the ladder**, which now runs workflow <
+job < step < inline prefix, with a selftest row per rung.
+
+**The recursive defect, caught by both review lanes:** claim 10's
+different-values error told the reader to declare side `both`, and the
+fixture builder refused exactly that entry for a flag — the
+invited-then-refused shape this PR describes fixing, re-created one
+class over. `both` is now legal for a value-taking flag, refused for a
+valueless one, and `selftest_both_is_reachable` asserts both directions.
+
+**24 -> 25 mutants killed**, including the seven the review named. The
+25th (`uses:`-only) needed its own row after it survived the first pass.
