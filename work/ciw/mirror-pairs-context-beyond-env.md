@@ -27,13 +27,15 @@ the rest of it is compared by nothing:
    rustfmt (benches — its own cargo root)`. Two cargo roots the
    workspace excludes, which is exactly the population where a wrong
    directory runs a different check under the same row name.
-2. **`with:` inputs to a shared action.** A pair whose hosted half is a
-   `uses:` step has no `run:` at all, so claim 10 reads nothing on that
-   side and its behaviour is decided in a `with:` block. **The
-   population is zero today** — measured over every marker: no mirrored
-   pair cites a `uses:`-only step — so this is a shape to refuse, not a
-   comparison to write. A `Bail` costs a line; a comparison costs a
-   vocabulary.
+2. **~~`with:` inputs to a shared action.~~ CLOSED IN THE SAME PR**, and
+   the asymmetry that left it here for an afternoon is worth recording:
+   two other zero-population shapes (`$GITHUB_ENV`, a standing shell
+   assignment) got a one-line `Bail` while this one got an issue file,
+   on no principle either could state. A `uses:` step's behaviour is its
+   `with:` inputs; claim 10 compares argv and environment and would read
+   such a pair as agreeing about nothing. It now refuses, like its two
+   siblings — a `Bail` costs a line, and the day someone cites an action
+   step the gate says so instead of passing.
 3. **A semantics-bearing variable outside `SEMANTIC_ENV`.** The
    allowlist is `RUSTFLAGS`, `RUSTDOCFLAGS` and the `CAD_` namespace,
    argued at the table. A name outside it — `RUST_MIN_STACK`,
@@ -46,14 +48,14 @@ It is the same shape as `mirror-pairs-env-divergence-unchecked`, one
 axis further out, and that item's argument holds unchanged: a roster
 claim cannot say whether two paired rows run the same check, and neither
 can a claim that stops at argv and environment. (1) is measured and
-live; (2) and (3) are populations, not instances.
+live; (3) is a population, not an instance, and (2) is closed.
 
 The counter-argument to writing all three at once, and the reason this
 is an item rather than a diff: `scripts/check-ci-mirror-parity.py` is
 ~3000 lines and has taken a claim or an arm in each of the last four
 units. Every review lane this quarter has flagged its growth. (1) is
-cheap and has a live subject; (2) and (3) may be better answered by
-saying at the claim what is out of scope than by widening it again.
+cheap and has a live subject; (3) may be better answered by saying at
+the claim what is out of scope than by widening it again.
 
 ## Provenance
 
