@@ -276,7 +276,6 @@ pub mod transform;
 pub mod validate;
 
 pub use body::Body;
-pub use surgery::Surgery;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
     BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
@@ -291,6 +290,7 @@ pub use boolean::{
     point_in_solid, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
     union_with,
 };
+pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
