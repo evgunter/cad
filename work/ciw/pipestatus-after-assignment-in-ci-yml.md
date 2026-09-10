@@ -2,9 +2,10 @@
 id: pipestatus-after-assignment-in-ci-yml
 kind: issue
 title: a status capture that cannot fail: PIPESTATUS read after the assignment that clobbers it
-status: dispatched
+status: review
 opened: 2026-09-04
 branch: ciw/pipestatus-sweep
+pr: 2298
 ---
 
 **Filed by M10-7 (PR 1725) for CIW, whose territory `.github/` is.** One
@@ -89,3 +90,30 @@ gate that would have said so could not fail.
    `local-scripts/ci-local.sh`'s `klint_gate` does not `tee`, so its
    plain `$?` is exact. A comment saying so is in place, so that the two
    halves' asymmetry is a decision rather than drift.
+
+## Disposition (2026-09-10)
+
+**The sweep is empty and the guard is built.**
+
+1. **Sweep — no hits.** `scripts/check-status-capture.py`, added by this
+   unit, is the instrument: 7 `PIPESTATUS` reads across 83 shell files
+   and workflows, every one taken on the command immediately after its
+   pipeline. `ci.yml` `:666`, `:3081`, `:3572`, `:3607`, `:3617`,
+   `:4781`; `render.yml` `:1183`. The tombstone at `ci.yml:4746` is a
+   comment and is correctly not counted.
+
+2. **A mirror check cannot see this class, and does not gain an arm for
+   it.** `scripts/check-ci-mirror-parity.py`'s subject is which rows the
+   two halves name and in what gate mode; the shell inside a row is
+   outside it by its own header. The guard is a separate script, sited
+   in the `mirror` job (no `if:`, and its inputs include `local-scripts/`,
+   which classifies TIER=docs) and mirrored in `ci-local.sh`'s tier-blind
+   rows. The parity checker gains one `TIER_BLIND` membership entry.
+
+3. **The local half's `klint_gate` is unchanged**, as asked. `ci-local.sh`
+   gains only the mirror row for the new check.
+
+Residue: `shellcheck-is-not-run` — nothing runs a shell linter, so the
+sibling `$?` class (SC2319/SC2320, which shellcheck *does* catch and this
+guard deliberately does not) is unguarded, and ~20 `# shellcheck disable=`
+markers are unverifiable claims.

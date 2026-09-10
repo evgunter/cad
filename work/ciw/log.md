@@ -2026,3 +2026,39 @@ an unstated absence.
 
 **Style review**, unless the guard grows a derived population, in which
 case the correctness lane attaches by the standing trigger.
+
+## 2026-09-10 — unit 6 in review: the sweep is empty, the guard is built
+
+`pipestatus-after-assignment-in-ci-yml` -> PR 2298, `status: review`.
+
+**The sweep came back empty, as the dispatch expected, and the receipt
+is the instrument rather than a grep.** `scripts/check-status-capture.py`
+splits every shell body under `.github/workflows/` and every tracked
+`*.sh`/`*.bash` into the commands it runs — respecting quotes, comments,
+escapes, line continuations and heredoc bodies — and requires each
+`PIPESTATUS` read to sit on the command immediately after a pipeline. On
+this tree it reports **7 reads across 83 files, all correct**: `ci.yml`
+`:666`, `:3081`, `:3572`, `:3607`, `:3617`, `:4781` and `render.yml`
+`:1183`. The tombstone comment at `ci.yml:4746` is prose and is not
+counted, which is one of the guard's own mutant rows.
+
+**The guard is the property, not the incident.** It does not look for
+`status=$?`; it looks for *any* intervening command, so an `echo`, a
+`[[ … ]]`, a `let`, a `local`, a function call, a `then`, or nothing at
+all all red — and the index is not read, so `[1]` and `[@]` are covered.
+Twenty-two `--selftest` rows name the failure each must catch, and the
+historical defect re-injected into the real `ci.yml` reds at the right
+line.
+
+**It is a new script, not a claim in `check-ci-mirror-parity.py`.** That
+checker's subject is which rows exist in the two halves and in what gate
+mode; this one's subject is the shell inside a row, which the parity
+checker's own header says is outside it. The 3998-line file gains one
+`TIER_BLIND` membership line and nothing else.
+
+**And it is not shellcheck's job — measured, not assumed.** shellcheck
+0.9.0 reports *nothing at all* on the five-line reproduction. It does
+carry SC2319/SC2320 for the sibling `$?` shapes, and nothing in this repo
+runs shellcheck at all; both facts are the residue
+`shellcheck-is-not-run`, filed in the same PR with the 496-finding
+measurement that says why turning it on is its own unit.
