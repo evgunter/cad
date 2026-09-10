@@ -2,9 +2,10 @@
 id: was-the-status-route-supposed-to-fire-for-an-absent-chooser
 kind: ruling
 title: was the dialog status route supposed to fire for an absent chooser, or did the add_enabled gate quietly take its job
-status: open
+status: closed
 opened: 2026-09-09
-needs_ev: true
+closed: 2026-09-09
+pr: 2275
 refs: [ranked-and-unranked-verdicts-are-one-type, 2272]
 ---
 
@@ -132,3 +133,35 @@ machine" deserves a real one.
 `ranked-and-unranked-verdicts-are-one-type` is the neighbouring row: a
 `Message` that cannot be ranked because nothing raises it is the same
 shape as a verdict whose door is carried only by prose.
+
+## Closed — Ev ruled (c), 2026-09-09
+
+> **"(c) is right!"** — PR 2275, 2026-09-09.
+
+So: **an absent chooser is badge-shaped by the provenance rule, and
+`dialog_status`'s `Show` arm is a `Message` carrying it on the outcome
+channel.** The arm is misclassified, not merely unreachable, and no
+correct version of that sentence belongs on the status line. (a) had the
+outcome right and the reason wrong; (b) would have put a badge-shaped
+fact on the outcome channel deliberately.
+
+**The surface stays the hover text.** The ruling was put with a
+conditional attached — *if* hover text is judged too weak for a
+whole-run environmental fact, give it a real badge — and Ev ratified (c)
+without asking for one. (c)'s own argument is that a disabled control
+with its reason on hover **is** a read of held state a reader consults,
+which is what the rule asks for. So no badge is built here; if one is
+ever wanted it is a new row, not a residue of this one.
+
+**What the build is**, carried by its own unit rather than this row:
+delete the `Show` arm, which makes `dialog_status` total on `Keep` and
+probably deletes the function; that removes both `deliver_status` call
+sites, which likely deletes `deliver_status` and with it the
+`#[cfg(not(target_family = "wasm"))]` #2272 put on it, and the paragraph
+at `crates/viewer/src/app.rs:1056-1073` that defends the arm. Whatever
+`frame::deliver` retains as callers decides whether that goes too.
+`frame::NO_CHOOSER_BACKEND` stays — the hover text is its reader.
+`tests/frame_policy.rs`'s `an_empty_dialog_is_loud_only_under_a_confidently_absent_backend`
+loses its subject and goes with it, so the test count moves against the
+merge base for a stated reason.
+
