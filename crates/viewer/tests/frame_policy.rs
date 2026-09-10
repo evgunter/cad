@@ -752,38 +752,6 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
 }
 
 #[test]
-fn an_empty_dialog_is_loud_only_under_a_confidently_absent_backend() {
-    use frame::ChooserBackend;
-    // Confident absence: the loud arm, naming the remedy and the
-    // dialog-free workaround. (The chrome disables the controls before
-    // any click can reach this; the policy stays honest regardless.)
-    let StatusUpdate::Show(message) = frame::dialog_status(ChooserBackend::Absent, false) else {
-        panic!("an empty-handed dialog with no backend reaches the status line");
-    };
-    assert_eq!(message.text(), frame::NO_CHOOSER_BACKEND);
-    assert!(message.text().contains("zenity"));
-    assert!(message.text().contains("xdg-desktop-portal"));
-    assert!(message.text().contains("command line"));
-    // A plausibly-present backend reads `None` as a genuine cancel,
-    // which should not nag.
-    for backend in [
-        ChooserBackend::ZenityPresent,
-        ChooserBackend::PortalPossible,
-    ] {
-        assert_eq!(frame::dialog_status(backend, false), StatusUpdate::Keep);
-    }
-    // A chosen path is never this policy's business: the Open/Save
-    // batch it feeds owns the line through `batch_status`.
-    for backend in [
-        ChooserBackend::ZenityPresent,
-        ChooserBackend::PortalPossible,
-        ChooserBackend::Absent,
-    ] {
-        assert_eq!(frame::dialog_status(backend, true), StatusUpdate::Keep);
-    }
-}
-
-#[test]
 fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
     // The other half of the same defect: the event stream now carries
     // cursor events, so "the stream was non-empty" stopped meaning "the

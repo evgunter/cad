@@ -12,8 +12,9 @@ concern's worth of surface and had no rule to write it against.
 
 ## What is in there
 
-`crates/viewer/src/frame.rs` is 984 lines and its public surface covers
-eight unrelated things:
+`crates/viewer/src/frame.rs` is **2,537 lines** on this tree (`wc -l`;
+the growth ledger below is where the 984 it was filed at lives) and its
+public surface covers eight unrelated things:
 
 1. the status-line vocabulary and its ranking — `StatusUpdate`,
    `apply`, `acts`, `batch_status`, `frame_status`, `fold_status`,
@@ -21,8 +22,7 @@ eight unrelated things:
 2. the toolbar badge for the landed product — `product_badge`;
 3. draft/offer chrome — `creation_offer`, `retype_draft`;
 4. the file-chooser backend probe — `ChooserBackend`,
-   `chooser_backend`, `chooser_backend_of`, `NO_CHOOSER_BACKEND`,
-   `dialog_status`;
+   `chooser_backend`, `chooser_backend_of`, `NO_CHOOSER_BACKEND`;
 5. the XDG preferences path — `prefs_path`, `prefs_path_in`;
 6. WSL detection — `running_under_wsl`;
 7. camera-fold bookkeeping — `folded_moved`;
@@ -147,6 +147,19 @@ unit in a row to grow the file and the first not to write the row at
 all: the count above stops at #1957 because the two units since simply
 did not add to it, which is the accumulation this item names arriving
 in the ledger kept to watch for it.
+
+## The ledger's first fall, and it is one line (2026-09-09)
+
+2,538 before the ruling on
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser` was
+built, **2,537** after. The unit deleted `dialog_status` whole — Ev
+ruled its `Show` arm misclassified rather than merely unreachable — and
+concern 4 above lost a member without losing the concern. **A ledger
+that finally moves the other way by ONE line is this item's argument,
+not its answer**: the growth between #2026 and here is unrecorded
+because the intervening units did not write the row, so 2,475 → 2,538
+is the honest gap and the fall out of it is noise. The eight concerns
+are still eight and the module is still unsplit.
 
 **What #2026 added, and to which concern.** Concern 1, the status-line
 vocabulary — already the largest — gained a second DOOR (`frame::deliver`

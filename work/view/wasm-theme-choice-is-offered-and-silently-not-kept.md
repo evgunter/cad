@@ -9,7 +9,7 @@ opened: 2026-09-09
 
 Found by `viewer-items-unreferenced-at-wasm32`'s lane while asking that
 item's shape-(2) question — *does the browser build swallow a refusal it
-ought to say?* The answer for `deliver_status` is no. The answer for the
+ought to say?* The answer for `deliver_status` (since deleted) is no. The answer for the
 preferences store is **yes**, and the browser is one instance of it
 rather than its subject.
 
@@ -113,11 +113,15 @@ Two doc claims in this crate assert the opposite, in as many words:
   chooser does where no portal exists."*
 
 The file chooser really does do this, and does it target-blind:
-`chooser_backend()` answers `Absent` on wasm and `chooser_backend_of`
-decides it from the environment elsewhere (`frame.rs:1600-1619`),
-`add_enabled(chooser.usable(), …)` disables Open…/Save As…, and
+`chooser_backend()` answers `Absent` on wasm and delegates to
+`chooser_backend_of` for the environment elsewhere
+(`frame.rs:1601-1620`), `add_enabled(chooser.usable(), …)` disables
+Open…/Save As…, and
 `.on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)` shows the reason
-(`app.rs:1230-1231`, `:1254-1255`). That is #1125's posture, and it is
+(`app.rs:1179-1180`, `:1198-1199`) — which since the ruling on
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser` is the
+chooser's WHOLE surface, the status route beside it having been deleted
+as misclassified. That is #1125's posture, and it is
 stated over a *predicate*, not over a `cfg`. The theme picker is the
 same shape with the braces missing, and `app.rs:88-91` names a *"Save
 control"* that does not exist — nothing in the chrome is disabled by

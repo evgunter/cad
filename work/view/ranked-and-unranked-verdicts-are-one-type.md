@@ -86,9 +86,19 @@ ranked role entirely and the field-writing door to take the new type)
 - What happens to `apply`'s public surface: it is called from
   `app::ViewerApp::apply_status` and from `pane::viewport`'s cursor
   path, and the second of those is exactly the site this item is about.
-- Whether `frame::deliver`'s `Clear` arm survives the change.
-  `dialog_status` and `fold_status` never answer `Clear`; only
-  `batch_status` does, and `batch_status` is the ranking's input.
+- Whether `frame::deliver`'s `Clear` arm survives the change. **No
+  policy that reaches `deliver` answers `Clear` at all now**:
+  `fold_status` is the only one that does reach it — `deliver`'s single
+  call site is `pane::viewport`'s `land` — and it answers `Show` or
+  `Expire`; `dialog_status`, the other policy of that shape, is deleted
+  (the ruling
+  `was-the-status-route-supposed-to-fire-for-an-absent-chooser`). Only
+  `batch_status` answers `Clear`, and `batch_status` is the ranking's
+  input, so it reaches the field through `apply_status` and never
+  through this door. `deliver`'s own header argues the arm stays
+  regardless — a wildcard there would route a variant added later to
+  the field by default — and that argument is about the compiler
+  carrying the rule, not about the arm having a producer.
 
 Sequence after `frame-module-has-eight-concerns-and-no-holds-row`'s
 split question is answered, or independently of it — the two touch the
