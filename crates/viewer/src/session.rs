@@ -408,7 +408,7 @@ struct LandedRun {
     /// path that must not pay one, so a change that made
     /// [`DocSession::landed_body`] gather, or that stopped `land`
     /// keeping the body, reds there. It does NOT see the doors:
-    /// restoring `scene::fit_delta`'s or `scene::scene_of_body`'s old
+    /// restoring [`crate::scene::fit_delta`]'s or [`crate::scene::scene_of_body`]'s old
     /// pair-taking signatures reds nothing, because those gathers
     /// would run inside `scene` where no row counts. Re-measure before
     /// changing the shape; do not trust the figures to have stayed
@@ -713,7 +713,7 @@ impl DocSession {
     /// succeeded and the A5 gate consumed the body in refusing
     /// ([`LandedRun::body`] carries that case). A caller that needs a
     /// body in the third case gathers one for itself and pays for it
-    /// where the payment is visible — `scene::product_of_evaluation`
+    /// where the payment is visible — [`crate::scene::product_of_evaluation`]
     /// is that door.
     pub fn landed_body(&self) -> Option<&Body<f64>> {
         Some(self.derived.landed.as_ref()?.body.as_ref()?)
@@ -856,7 +856,7 @@ impl DocSession {
 
     /// The property rows as the panel LAYS THEM OUT — [`Self::slot_rows`]
     /// folded so that the three components of a 3-vector arrive as one
-    /// group (`props::group_rows`).
+    /// group ([`crate::props::group_rows`]).
     ///
     /// A second door rather than a replacement because the two answer
     /// different questions: a test asserting what a node's slots are

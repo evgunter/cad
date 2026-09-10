@@ -7858,3 +7858,125 @@ generalises past readers, because this same unit registered a new badge
 in a README count and a new store read in another. The receipt to run
 is the workspace suite as CI runs it, and a report names the COMMAND as
 well as the number.
+
+## `view/dead-symbols` — the doc-comment dead-name class, closed (2026-09-10)
+
+`doc-comments-name-symbols-that-do-not-exist`, closed in place. The
+item's two figures both reproduce exactly at the SHA it states them at
+— 19 spans / 12 names / 2 undefined with `<mod>` restricted to
+`frame`/`session`, and 132 / 97 unrestricted — and the unrestricted
+one needed its wording pinned before it would: *"every module prefix
+is admitted"* means every **module-shaped** (lowercase) prefix. Admit
+type-qualified prefixes as well and it is 284/197; restrict to this
+crate's own modules and it is 66/49. Only the middle reading gives
+132/97, so that is what the sentence means.
+
+**The whole decidable set was taken, not the two names.** 64 spans
+over 47 names at the merge base — every unbracketed `<own-mod>::<path>`
+span in a doc comment under `crates/viewer/src`. 44 are now
+`[`crate::…`]` links; 20 are named rather than linked, and the
+undefined count is **0**. The item scoped its own decidability
+argument to 12 names; it applies to all 49, and blind spot 5's
+*"85 of the 97"* should read 48.
+
+**The ruling's test came back wrong at 20 sites, and the gate is what
+said so.** `crates/viewer/README.md`'s *Rustdoc posture: the host pass
+is the gate* asks whether the HOST pass renders a page for the item the
+doc comment sits on. Asked that way all 64 answer *it does*, and the
+`--all-features` host pass agreed at zero errors — then
+`scripts/doc-gate.sh` reded on **13**, because it documents `viewer` a
+second time at DEFAULT features under `--skip-viewer-toolkit`, also at
+`-D warnings`, where `app`/`forms`/`pane` do not exist. Chasing that
+also turned up **7 spans inside `#[cfg(test)]` modules**, which no pass
+renders, so bracketing them is inert. **That one is this lane's own
+mis-reading and not a gap**: `cargo doc` does not set `cfg(test)`, so
+the page is absent and the ruling's literal answer is *it does not* —
+the remedy taken. The reason all 64 first answered *it does* is that
+the question was asked of the MODULE rather than of the ITEM the doc
+comment sits on, which is not what the ruling says. **One** gap
+survives, the feature axis, filed as
+`rustdoc-posture-test-names-one-axis-of-three` rather than edited into
+ratified text that merged this morning. A row is better for being one
+finding than three.
+
+**The trap never fired, for reasons of population**, and the receipt
+for the whole disposition is the browser pass: **7 unresolved links
+over 4 identifiers** after the diff — the README's dated population,
+unchanged. 44 new links, zero new browser-pass errors.
+
+**A third dead name, and the bracketing found it.** `frame.rs:216`
+named `pane::viewport::viewport_ui`; bracketed, the host pass reded.
+`viewport_ui` is an inherent method on `ViewerBehavior`, an `app`
+item merely written in `pane/viewport.rs:58`, so the module path names
+nothing. The item's own rule could never have found it — the leaf IS
+declared under `crates/viewer/src`, so a declaration regex resolves it
+and it reads as live. Only a resolver that checks the PATH sees it,
+and bracketing borrows rustdoc's. That is candidate 1's argument
+demonstrated rather than asserted.
+
+**The item's central claim is wrong, and correcting it strengthens
+the case.** The title said the two names *"have never existed"*, and
+`stale-file-citations-after-the-split` built a claimed **fourth**
+citation class on it — *a subject that was never there*, distinct from
+class 1, *a subject that is gone*. `git log -S` over `crates/` refutes
+it: `supersession_notice` and `dropped_hide_notice` were both `pub
+fn`s in `frame.rs` from `6877a40ff` until `4db112ada` — **#1957**,
+which replaced them with the `Withdrawal` vocabulary, rewrote the call
+sites and left every prose mention behind. The fourth class does not
+exist. `four-badges-five-spellings.md:107` turns out to be the proof
+rather than the oddity: it cites `frame.rs:232`, and `6877a40ff` puts
+`supersession_notice` at exactly `frame.rs:232`. An invented name is
+one author's slip; a deleted one is a rename that outran its prose,
+and a bracketed link would have reded #1957 on its own branch.
+
+**A dated sentence is not a stale citation.** The tracker count also
+reproduces exactly — 15 occurrences across 8 items, 4 in open rows —
+and three of the four were repaired. The fourth,
+`frame-module-…-no-holds-row.md:76`, is dated *"(#1886, 2026-09-05)"*
+and all three names it uses were real on that date, so it is left as
+written because it is TRUE. Believing the *"never existed"* claim, the
+honest move would have been to correct it, and correcting it would
+have falsified a true record. The class is *present-tense claim*, not
+*dead name*.
+
+**No line shifts, and the receipt is `origin/main...HEAD`: 11 files,
++40/-40.** Every edit within-line, every file's line count identical to
+the merge base. The figure to quote is that one — an earlier draft said
+58/58 across 16 files, which is the first commit alone and was partly
+reverted by the second; a receipt is a citation and gets no exemption.
+The unconditional argument is better than either: **every changed line
+under `crates/viewer/src` is a comment line**, zero non-comment lines,
+so the diff cannot move a compile result at any target or feature set.
+
+**The disposition is durable in a tracker file and nowhere else, and
+that is a defect this lane created.** Eleven of the thirteen
+feature-axis sites now carry a bare span with nothing saying it is
+deliberate — `frame.rs:6,85,216,385,554,1766,1802`, `pickindex.rs:12,13`,
+`props.rs:40`, `tree.rs:278` — in a crate whose `theme.rs:9-12`,
+`vocab.rs:51-52` and `forms.rs:18-20` all explain exactly this choice
+in prose. The sharpest is `pickindex.rs:12-13`, where a bracketed
+`[`crate::marks`]` and a bare `pane::viewport` sit in one sentence and
+a reader repairing the "inconsistency" reds the gate. Not fixed here:
+the note adds lines, and `frame.rs`/`pickindex.rs`/`props.rs`/`tree.rs`
+carry **155** `file:line` citations between them, so it costs a census
+and is its own unit —
+`named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites`.
+
+**The revision the ruling wants is EXISTENTIAL, and getting that
+quantifier wrong is how this lane nearly shipped a rule against its own
+diff.** The first draft proposed *"every rustdoc pass that runs at
+`-D warnings` renders a page … and can resolve the target"*, one line
+after claiming it changed no disposition. It changes 25 of them: only
+**19** of the 44 links are in modules the default-features pass renders
+at all, and the other 25 sit in `app`, `forms`, `pane` and `widgets`,
+which it never renders. A link checked by ONE pass is a checked claim;
+demanding every pass check it forbids linking anything feature-gated.
+The row now proposes *some* pass, and says why.
+
+**Three residues filed rather than disclosed**, the two above and
+`comment-symbol-names-outside-rustdocs-reach-have-no-gate`. Rustdoc
+reads `///` and `//!` and nothing else, so the same dead name at
+`app.rs:950` — a plain `//` comment — could only be corrected by hand
+and is held by nothing afterwards. 26 plain-`//` own-module names under
+`crates/viewer/src`, every one live today, and zero split-span ones: a
+clean population with no gate holding it clean.
