@@ -8,7 +8,12 @@
 //! COSTS, and the answer for the tour's own gallery ring at the δ the
 //! application starts on was four million triangles — tens of seconds
 //! of tessellation and index build with the window frozen, still
-//! showing the previous document.
+//! showing the previous document. (That count was the torus sizing of
+//! the day, one step for both chart directions; under
+//! `mesh::sizing::torus_grid_steps` the same ring at the same δ is
+//! ~1.6·10⁵ triangles and inside the budget, which the third row
+//! holds. The budget's own rows therefore ask for a δ the ring still
+//! exceeds it at.)
 //!
 //! These rows are that gap. Triangle counts are deterministic (D9:
 //! byte-identical mesh for identical `(body, chordal)`), so the cost
@@ -24,10 +29,18 @@ use viewer::scene::{self, DisplayTolerance, TRIANGLE_BUDGET};
 use viewer::session::DocSession;
 
 /// The δ the application starts on (`app::INITIAL_DELTA`, which is
-/// `cfg`-gated behind the `app` feature and so is restated here — the
-/// row below fails loudly if the two ever disagree about the number
-/// that matters, because it asserts the ring is over budget AT this δ).
+/// `cfg`-gated behind the `app` feature and so is restated here; the
+/// rows below say what the gallery ring and the startup plate cost AT
+/// this δ, so a change to the number that matters moves them).
 const INITIAL_DELTA: f64 = 1.0e-4;
+
+/// A request the gallery ring exceeds the budget at: a decade finer
+/// than the starting δ, where the ring's ~1.6·10⁵ triangles at 0.1 mm
+/// become ~1.6·10⁶ (the 1/δ law `fit_delta` solves). The budget rows
+/// need a document that is actually over budget, and since the torus
+/// sizing spends its chord bound without slack the ring is not one at
+/// the starting δ any more.
+const OVER_BUDGET_DELTA: f64 = 1.0e-5;
 
 /// The tour's gallery ring, as the committed fixture.
 fn gallery_ring(tol: Tol) -> DocSession {
@@ -69,11 +82,11 @@ fn delta(value: f64) -> DisplayTolerance {
 
 /// **The row the defect would have failed.**
 ///
-/// At the application's starting δ the ring asks for far more than the
-/// budget, so the fit must move δ; and what it moves to must be inside
-/// the budget, which is the whole claim. Both halves matter: a fit
-/// that never coarsened would leave the freeze, and a fit that
-/// coarsened without bound would answer a cube.
+/// At a δ the ring asks for far more than the budget at, the fit must
+/// move δ; and what it moves to must be inside the budget, which is
+/// the whole claim. Both halves matter: a fit that never coarsened
+/// would leave the freeze, and a fit that coarsened without bound
+/// would answer a cube.
 #[test]
 fn the_gallery_ring_is_drawn_inside_the_budget() {
     let tol = Tol::witness();
@@ -82,12 +95,12 @@ fn the_gallery_ring_is_drawn_inside_the_budget() {
     // fits on, asked for the same way (`DocSession::landed_body`), so
     // this row costs the gather the landing already paid and no other.
     let body = session.landed_body().expect("the ring gathers");
-    let requested = delta(INITIAL_DELTA);
+    let requested = delta(OVER_BUDGET_DELTA);
     let fitted = scene::fit_delta(body, requested, tol).expect("the ring fits");
 
-    let over = fitted
-        .requested_cost
-        .expect("the ring at the startup δ is over budget — that is this row's premise");
+    let over = fitted.requested_cost.expect(
+        "the ring at a decade under the startup δ is over budget — that is this row's premise",
+    );
     assert!(
         over > TRIANGLE_BUDGET,
         "the requested δ was reported as costing {over}, which is not over the \
@@ -118,6 +131,32 @@ fn the_gallery_ring_is_drawn_inside_the_budget() {
         ratio < 1.1,
         "the drawn picture is {triangles} triangles, {ratio:.3}× the budget — \
          the 1/δ prediction has drifted further than its measured few percent"
+    );
+}
+
+/// **The ring at the δ the application starts on is INSIDE the
+/// budget, and is drawn as asked** — the display-side statement of
+/// the torus chart sizing: `mesh::sizing::torus_grid_steps` spends the
+/// doubly-curved chord bound with no slack in its constant, and what
+/// that buys the viewer is the gallery ring opening at 0.1 mm rather
+/// than at whatever the budget could afford. A count back over a
+/// quarter of the budget here is the old constant coming back (it put
+/// the ring at 4·10⁶), not noise.
+#[test]
+fn the_gallery_ring_at_the_starting_delta_is_inside_the_budget() {
+    let tol = Tol::witness();
+    let session = gallery_ring(tol);
+    let body = session.landed_body().expect("the ring gathers");
+    let requested = delta(INITIAL_DELTA);
+    let fitted = scene::fit_delta(body, requested, tol).expect("the ring fits");
+    assert_eq!(fitted.delta, requested, "the ring is drawn as asked");
+    assert_eq!(fitted.requested_cost, None, "nothing was over budget");
+    let mesh = scene::scene_of_body(body, requested, tol).expect("the ring draws at 0.1 mm");
+    let triangles = mesh.stats().triangles;
+    assert!(
+        triangles < TRIANGLE_BUDGET / 4,
+        "the ring at the starting δ is {triangles} triangles — over a quarter of the \
+         {TRIANGLE_BUDGET} budget, which is the torus sizing gone loose again"
     );
 }
 
@@ -159,13 +198,13 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
     let tol = Tol::witness();
     let session = gallery_ring(tol);
     let body = session.landed_body().expect("the ring gathers");
-    let fitted = scene::fit_delta(body, delta(INITIAL_DELTA), tol).expect("fits");
+    let fitted = scene::fit_delta(body, delta(OVER_BUDGET_DELTA), tol).expect("fits");
     let wording = fitted
         .wording()
         .expect("a coarsened picture has a sentence");
     for needle in [
         &format!("{:.3}", fitted.delta.get() * 1.0e3),
-        &format!("{:.3}", INITIAL_DELTA * 1.0e3),
+        &format!("{:.3}", OVER_BUDGET_DELTA * 1.0e3),
         &TRIANGLE_BUDGET.to_string(),
         &"not a cap".to_owned(),
     ] {

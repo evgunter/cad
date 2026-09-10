@@ -773,11 +773,12 @@ pub fn scene_of_body(
 /// δ is a chord tolerance in metres, and nothing about an absolute
 /// length knows how big a model is or how curved. The application
 /// starts at 0.1 mm, which is a fine picture of the startup plate and
-/// a 4·10⁶-triangle picture of the tour's `hollowring` (a torus of
-/// R = 0.30 m) — 13 s of tessellation and index build with the window
-/// frozen, still showing the previous document, which is what "Open
-/// does nothing" looked like. A budget is what stops an absolute δ
-/// from asking for a picture nobody can wait for.
+/// was a 4·10⁶-triangle picture of the tour's `hollowring` (a torus of
+/// R = 0.30 m) under the torus sizing of the day — 13 s of
+/// tessellation and index build with the window frozen, still showing
+/// the previous document, which is what "Open does nothing" looked
+/// like. A budget is what stops an absolute δ from asking for a
+/// picture nobody can wait for.
 ///
 /// # Why one million
 ///
@@ -789,20 +790,25 @@ pub fn scene_of_body(
 ///   triangle per pixel for a body filling the pane: past it the
 ///   tessellation is finer than the display can resolve, and the
 ///   detail is paid for and thrown away.
-/// - **The corpus, by eye.** At this budget both curved gallery
-///   documents draw at δ ≈ 0.2–0.4 mm. Measured on the tour's own
-///   scenes, the fillet corners of `diefillet` read clean there and
-///   visibly band one doubling coarser, so it is also the first
-///   budget that keeps the demo documents looking right.
+/// - **The corpus, by eye.** Under the torus sizing of the day both
+///   curved gallery documents drew at δ ≈ 0.2–0.4 mm at this budget.
+///   Measured on the tour's own scenes, the fillet corners of
+///   `diefillet` read clean there and visibly band one doubling
+///   coarser, so it is also the first budget that keeps the demo
+///   documents looking right when it does bind. (Since
+///   `mesh::sizing::torus_grid_steps` the gallery ring is inside the
+///   budget at the starting 0.1 mm and is drawn as asked —
+///   `tests/display_budget.rs` holds both facts.)
 ///
 /// **The consequence worth stating**: if this number ever has to be
 /// RAISED to make something look right, the fault is upstream in the
 /// sizing, not here — a budget cannot buy detail the tessellator is
-/// spending elsewhere. The ring's 4·10⁶ triangles at 0.1 mm are about
-/// 65× what the per-direction sagitta asks for
-/// (`mesh::sizing::torus_grid_step` sizes both chart directions off
-/// one conservative step); that is TESS-BUDGET's question, and this
-/// constant is a safety net under it, never its answer.
+/// spending elsewhere. The ring at 0.1 mm is ~1.6·10⁵ triangles, which
+/// is `mesh::sizing::torus_grid_steps`' doubly-curved chord bound spent
+/// with no slack in its constant (2.9× the per-direction sagitta, and
+/// that factor is proved necessary, not chosen); what remains is
+/// TESS-BUDGET's question, and this constant is a safety net under it,
+/// never its answer.
 pub const TRIANGLE_BUDGET: usize = 1_000_000;
 
 /// How much coarser than the requested δ the cost probe runs.
@@ -906,8 +912,11 @@ impl FittedDelta {
 /// whose SIGN is the safe one: the law describes curved faces, planar
 /// ones stop subdividing and are therefore over-counted from a coarse
 /// probe, so the fit errs coarse ([`FittedDelta::predicted`] carries
-/// the measurements). Drawn against a 10⁶ budget the two curved
-/// gallery documents land at 998 576 and 974 526 triangles.
+/// the measurements). Drawn against a 10⁶ budget under the torus
+/// sizing of the day, the two curved gallery documents landed at
+/// 998 576 and 974 526 triangles; the ring is no longer budget-bound
+/// at the starting δ, and `tests/display_budget.rs` asks the budget
+/// rows at a δ it still is.
 ///
 /// # What it costs, and what it costs on a document that fits
 ///

@@ -212,7 +212,9 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     // there `check_mesh` measures CHEAPER than the census below on
     // several rows, and that is not evidence for it any more than
     // against it. The rows that decide are the donut's, where the
-    // spread is 4-12% and the meshes are 7k-178k triangles per patch:
+    // spread is 4-12% and the meshes were 7k-178k triangles per patch
+    // under the torus sizing of the day (~20x fewer since the
+    // per-direction steps; the pair was not re-measured):
     // `check_mesh` +24% to +33% of `tessellate`, this census −8% to
     // +1%. That gap is the price argument, and it is the whole of it.
     //
