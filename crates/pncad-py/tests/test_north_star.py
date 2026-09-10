@@ -53,6 +53,7 @@ from pncad import (
     TubeWindow,
     Via,
     circle,
+    CapEnd,
     circle_split,
     deg,
     evaluate,
@@ -2536,7 +2537,35 @@ class TestTeapot(unittest.TestCase):
     SPOUT_LEN: ClassVar[float] = 8.0 / 64.0
     SPOUT_R0: ClassVar[float] = 6.0 / 256.0
     SPOUT_R1: ClassVar[float] = 3.0 / 256.0
-    SPOUT_WALL: ClassVar[float] = 1.0 / 256.0
+    #: The bore as a FRACTION of the outer radius, at every station —
+    #: which is what keeps every section's centroid ON the spine, and
+    #: a centred section is what makes the bend volume-neutral.
+    SPOUT_BORE: ClassVar[float] = 3.0 / 4.0
+    #: How many sections the skin is fitted through.
+    SPOUT_STATIONS: ClassVar[int] = 7
+    #: And how many SIDES each section has, because the sections are
+    #: regular POLYGONS and not circles. The Rust scene's `SPOUT_SIDES`
+    #: carries the whole measurement; the short of it is that a circle
+    #: is RATIONAL, so lofted circular sections make rational walls, a
+    #: rational wall is a quadrature face whose certified enclosure is
+    #: chased to a width derived from eps, and at eps = 1e-12 that
+    #: chase runs out of budget and `mass_properties` REFUSES, typed.
+    #: Four times the arcs per section bought eighteen times the
+    #: resolution and was still short. A polygon's sides are STRAIGHT,
+    #: so these walls are POLYNOMIAL and the polynomial lane has an
+    #: exact per-span shortcut the rational lane has none of.
+    #:
+    #: The circle was ruled out at a SECOND door first, filed as
+    #: `work/mesh`'s
+    #: `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`:
+    #: a plain `circle` loop is two segments, so each lateral wall
+    #: would span a semicircle — two rational Beziers joined at an
+    #: interior knot of multiplicity = degree, a C0 crease the
+    #: tessellator refuses by name. `circle_split` clears that one and
+    #: then meets this one.
+    SPOUT_SIDES: ClassVar[int] = 8
+    #: The spout's total bend, root tangent to tip tangent.
+    SPOUT_BEND: ClassVar[float] = math.pi / 4
     SPOUT_ROOT: ClassVar[tuple] = (-1.0 / 32.0, 3.0 / 64.0, 0.0)
     SPOUT_DIR: ClassVar[tuple] = (-0.8, 0.6, 0.0)
     HANDLE_R: ClassVar[float] = 6.0 / 256.0
@@ -2603,10 +2632,20 @@ class TestTeapot(unittest.TestCase):
     def annulus(ro, ri):
         return math.pi * (ro * ro - ri * ri)
 
-    #: The spout meridian's tip annulus, in program order (root
-    #: annulus, outer cone, TIP annulus, bore) — the face the
-    #: placement's rotation MOVES.
-    SEG_SPOUT_TIP: ClassVar[int] = 2
+    @classmethod
+    def ngon_shape(cls):
+        """The unit regular `SPOUT_SIDES`-gon's three shape constants:
+        area, perimeter and apothem, each a closed form of the side
+        count. They stand exactly where pi stood while the sections
+        were circles."""
+        n = cls.SPOUT_SIDES
+        half = math.pi / n
+        return (
+            n * math.sin(half) * math.cos(half),
+            2 * n * math.sin(half),
+            math.cos(half),
+        )
+
 
     def placed(self, p):
         """`p` under the placement the authored DIRECTION states: the
@@ -2619,6 +2658,16 @@ class TestTeapot(unittest.TestCase):
         return tuple(
             c0[i] * p[0] + c1[i] * p[1] + c2[i] * p[2] + self.SPOUT_ROOT[i]
             for i in range(3)
+        )
+
+    def placed_direction(self, d):
+        """`placed` without the translation — a DIRECTION's image under
+        the same turn, which is what a face normal takes."""
+        c0 = (self.SPOUT_DIR[1], -self.SPOUT_DIR[0], 0.0)
+        c1 = self.SPOUT_DIR
+        c2 = (0.0, 0.0, 1.0)
+        return tuple(
+            c0[i] * d[0] + c1[i] * d[1] + c2[i] * d[2] for i in range(3)
         )
 
     def dome_foot_band_station(self):
@@ -2681,16 +2730,71 @@ class TestTeapot(unittest.TestCase):
             .line_to(Start)
         )
 
-    def spout_meridian(self):
-        """An annular trapezoid — a cone frustum with a cone frustum
-        bored out of it, one wall thick."""
-        return (
-            Open.at(((self.SPOUT_R0 - self.SPOUT_WALL) * m, 0 * m))
-            .line_to((self.SPOUT_R0 * m, 0 * m))
-            .line_to((self.SPOUT_R1 * m, self.SPOUT_LEN * m))
-            .line_to(((self.SPOUT_R1 - self.SPOUT_WALL) * m, self.SPOUT_LEN * m))
-            .line_to(Start)
-        )
+    def spout_frames(self, doc):
+        """The spout's spine, as section PLANES in its own frame: it
+        leaves the origin along +y and bends toward +x through
+        SPOUT_BEND, on a circular arc of radius `SPOUT_LEN /
+        SPOUT_BEND` so the stations are equally spaced along it.
+
+        Each frame's normal is the tangent EXACTLY: a frame's normal is
+        `u x v`, and with `u = +z` and `v = (cos a, -sin a, 0)` that
+        cross product is `(sin a, cos a, 0)`. Returned with each
+        station's outer radius.
+        """
+        r_spine = self.SPOUT_LEN / self.SPOUT_BEND
+        out = []
+        for i in range(self.SPOUT_STATIONS):
+            t = i / (self.SPOUT_STATIONS - 1)
+            a = t * self.SPOUT_BEND
+            sa, ca = math.sin(a), math.cos(a)
+            plane = doc.insert(
+                Node.datum_frame(
+                    (
+                        Expr.length_in(r_spine * (1 - ca), m),
+                        Expr.length_in(r_spine * sa, m),
+                        Expr.length_in(0.0, m),
+                    ),
+                    (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                    (Expr.literal(ca), Expr.literal(-sa), Expr.literal(0.0)),
+                )
+            )
+            out.append((plane, self.SPOUT_R0 * (1 - t) + self.SPOUT_R1 * t))
+        return out
+
+    def spout_loft(self, doc, frames):
+        """The canal: one `Node.loft` through annular sections, each
+        loop a regular `SPOUT_SIDES`-gon.
+
+        Authored through the PATH builder rather than through a polygon
+        door, and that is a small finding of its own: `Node.polygon` is
+        a whole-PROFILE shortcut over one loop, so a section that needs
+        TWO loops — a wall and its bore — cannot reach it and goes back
+        to `Open.at(...).line_to(...)`. The Rust scene reaches
+        `LoopProgram::polygon` because there a polygon is a LOOP
+        program and composes into a multi-loop profile; the binding's
+        shortcut sits one level up, where it does not compose.
+        """
+
+        def ngon(radius):
+            pts = [
+                (
+                    radius * math.cos(math.tau * k / self.SPOUT_SIDES) * m,
+                    radius * math.sin(math.tau * k / self.SPOUT_SIDES) * m,
+                )
+                for k in range(self.SPOUT_SIDES)
+            ]
+            path = Open.at(pts[0])
+            for pt in pts[1:]:
+                path = path.line_to(pt)
+            return path.line_to(Start)
+
+        profiles = [
+            doc.insert(
+                Node.profile([ngon(outer), ngon(outer * self.SPOUT_BORE)], plane=plane)
+            )
+            for plane, outer in frames
+        ]
+        return doc.insert(Node.loft(profiles, Expr.count(3)))
 
     def mouth_segment(self, ev, node, bands):
         """The mouth disc's index among the revolve's `Band` faces,
@@ -2784,7 +2888,7 @@ class TestTeapot(unittest.TestCase):
         # is the rotation about +z whose cosine and sine ARE the
         # direction's own components.
         turn = math.atan2(-self.SPOUT_DIR[0], self.SPOUT_DIR[1])
-        spout_body = fully_revolved(doc, frame, axis, self.spout_meridian())
+        spout_body = self.spout_loft(doc, self.spout_frames(doc))
         spout = doc.insert(
             Node.transform(
                 spout_body,
@@ -2994,20 +3098,26 @@ class TestTeapot(unittest.TestCase):
 
         # WHERE the placement PUT it, measured off the placed body —
         # not re-derived from the same trigonometry the placement used,
-        # and not read at a point the rotation fixes. The subject is
-        # the spout meridian's own tip annulus, named at the revolve
-        # that minted it and read at the TRANSFORM (a transform
-        # contributes no role segment, so a carried name read there is
-        # the placed face), against the exact image under the matrix
-        # whose columns are the authored direction's own components.
-        # Delete the `Node.transform` and this goes red on both counts.
-        bands = ev.select(
-            spout_body,
-            Selector.of(
-                NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Band))
-            ),
-        )
-        tip = bands[self.SEG_SPOUT_TIP]
+        # and not read at a point the rotation fixes. A loft names its
+        # two ends `Cap(Start)` and `Cap(End)` outright, which is a
+        # better handle than a segment index: the name asks for the end
+        # rather than for a position in a meridian a re-order could
+        # move. Both are annuli, because the sections are. Read at the
+        # TRANSFORM (a transform contributes no role segment, so a
+        # carried name read there is the placed face).
+        def one_cap(end):
+            found = ev.select(
+                spout_body,
+                Selector.of(
+                    NamePat.of_kind(EntityKind.Face).seg(
+                        SegPat.tag(SegTag.Cap).side(end)
+                    )
+                ),
+            )
+            self.assertEqual(len(found), 1, "a loft has exactly one cap per end")
+            return found[0]
+
+        root, tip = one_cap(CapEnd.Start), one_cap(CapEnd.End)
         before = ev.face_frame(spout_body, tip).origin
         after = ev.face_frame(spout, tip)
         exact = self.placed(tuple(c.meters for c in before))
@@ -3015,15 +3125,47 @@ class TestTeapot(unittest.TestCase):
             self.assertAlmostEqual(
                 got.meters, want, delta=1e-15, msg=f"the placed tip annulus's {axis}"
             )
-        # It stands OFF the turn's fixed axis, so that residual is
-        # about the ROTATION and not only about the translation.
+        # POSITION evidence is the TIP's alone, and that is a change the
+        # shape forced. The root cap is the section at station 0, whose
+        # frame origin is the spine's start — and the spout is built
+        # with that start AT its own origin, which is ON the rotation's
+        # fixed axis, where `R*0 + t = t` for any angle whatsoever. So
+        # the tip is asserted off-axis and the root carries ORIENTATION
+        # evidence instead: a translation cannot rotate a normal.
         self.assertGreater(math.hypot(before[0].meters, before[1].meters), 1e-3)
-        # And it FACES the way the direction says.
+        root_before = ev.face_frame(spout_body, root).origin
+        self.assertLess(
+            math.hypot(*(c.meters for c in root_before)),
+            1e-15,
+            "`Cap(Start)` is station 0, at the spout's own origin",
+        )
+        # The ROOT section's normal is the tangent at station 0, which
+        # the sketch frames put on the spout's own +v — so its image is
+        # SPOUT_DIR.
         self.assertAlmostEqual(
-            abs(sum(a * b for a, b in zip(after.axis, self.SPOUT_DIR, strict=True))),
+            abs(
+                sum(
+                    a * b
+                    for a, b in zip(
+                        ev.face_frame(spout, root).axis, self.SPOUT_DIR, strict=True
+                    )
+                )
+            ),
             1.0,
             delta=1e-15,
-            msg="the placed tip annulus's normal is SPOUT_DIR",
+            msg="the placed root annulus's normal is SPOUT_DIR",
+        )
+        # And the TIP's normal measures the BEND as well as the turn:
+        # it is the tangent at SPOUT_BEND, so its image is a direction
+        # neither the placement nor the spine determines alone.
+        tip_exact = self.placed_direction(
+            (math.sin(self.SPOUT_BEND), math.cos(self.SPOUT_BEND), 0.0)
+        )
+        self.assertAlmostEqual(
+            abs(sum(a * b for a, b in zip(after.axis, tip_exact, strict=True))),
+            1.0,
+            delta=1e-15,
+            msg="the placed tip annulus's normal is the bend under the turn",
         )
         # The angle's cosine and sine are a libm's answer, so they are
         # REPORTED and not asserted: on this platform they come back
@@ -3032,26 +3174,107 @@ class TestTeapot(unittest.TestCase):
         turn = math.atan2(-self.SPOUT_DIR[0], self.SPOUT_DIR[1])
         print(f"      spout turn: cos {math.cos(turn)!r}, sin {math.sin(turn)!r}")
 
-        v_spout = self.frustum_volume(
-            self.SPOUT_R0, self.SPOUT_R1, self.SPOUT_LEN
-        ) - self.frustum_volume(
-            self.SPOUT_R0 - self.SPOUT_WALL, self.SPOUT_R1 - self.SPOUT_WALL, self.SPOUT_LEN
-        )
-        a_spout = (
-            self.frustum_lateral(self.SPOUT_R0, self.SPOUT_R1, self.SPOUT_LEN)
-            + self.frustum_lateral(
-                self.SPOUT_R0 - self.SPOUT_WALL,
-                self.SPOUT_R1 - self.SPOUT_WALL,
-                self.SPOUT_LEN,
+        # **The closed form a BENT tube still has.** A fitted skin
+        # through seven annuli has no elementary volume; the tube it
+        # approximates does, and it is the same frustum difference this
+        # scene used before the spout bent — because a bend about a
+        # spine through the sections' own CENTRES is volume-neutral.
+        # The volume element is `(1 - k*x) dA ds` with `x` toward the
+        # curvature centre, and a centred section's first moment is
+        # zero, so the curvature term integrates away and what is left
+        # is the STRAIGHTENED tube. The same cancellation runs over the
+        # lateral area.
+        #
+        # The section is a regular POLYGON, so the three shape
+        # constants stand where pi used to: `A*r^2` for a section,
+        # `P*r` for its perimeter, and the apothem for how far a wall
+        # leans out over the taper. Every one is a closed form of the
+        # side count, so nothing here is fitted.
+        bore = self.SPOUT_BORE
+        ngon_area, ngon_perim, ngon_apothem = self.ngon_shape()
+        hollow = 1 - bore * bore
+        v_spout = (
+            hollow
+            * ngon_area
+            * self.SPOUT_LEN
+            * (
+                self.SPOUT_R0 * self.SPOUT_R0
+                + self.SPOUT_R0 * self.SPOUT_R1
+                + self.SPOUT_R1 * self.SPOUT_R1
             )
-            + self.annulus(self.SPOUT_R0, self.SPOUT_R0 - self.SPOUT_WALL)
-            + self.annulus(self.SPOUT_R1, self.SPOUT_R1 - self.SPOUT_WALL)
+            / 3.0
+        )
+
+        def lateral(r0, r1):
+            """One wall of the prismatoid is a trapezoid: parallel
+            sides `P*r0/2` and `P*r1/2` over the whole side count, and
+            a slant that leans out by the apothem's share of the
+            taper."""
+            return (
+                0.5
+                * ngon_perim
+                * (r0 + r1)
+                * math.hypot(self.SPOUT_LEN, (r0 - r1) * ngon_apothem)
+            )
+
+        a_spout = (
+            lateral(self.SPOUT_R0, self.SPOUT_R1)
+            + lateral(bore * self.SPOUT_R0, bore * self.SPOUT_R1)
+            + hollow
+            * ngon_area
+            * (self.SPOUT_R0 * self.SPOUT_R0 + self.SPOUT_R1 * self.SPOUT_R1)
         )
         placed = ev.value(spout).body()
         placed.validate()
         props = placed.mass_properties()
-        self.close(props.volume, v_spout, "spout V")
-        self.close(props.surface_area, a_spout, "spout A")
+
+        # **And what the comparison can then measure is NOT the same on
+        # the two readings, which is the scene's newest finding.** Both
+        # come off the same polynomial patches through the same lane,
+        # and their certified pads are TEN orders apart: the volume's
+        # is 2.4e-13 of the answer and the area's is 1.08e-2 of it. A
+        # volume is a flux integral of a LINEAR field, so on a
+        # polynomial patch the integrand is a polynomial and the exact
+        # per-span shortcut applies; an area integrates `|Xu x Xv|`, a
+        # SQUARE ROOT, which is polynomial on no patch however
+        # polynomial the patch. The polygon bought the volume an
+        # exactness it could not buy the area.
+        #
+        # So the VOLUME resolves the loft fit — its gap is seven orders
+        # ABOVE its pad, leaving the arithmetic no room to be
+        # responsible for it — and is held to a fixed bound. Measured
+        # 2.30e-6, where every other body on this page is at 1e-12.
+        self.assertLess(
+            abs(props.volume - v_spout) / v_spout, 1e-5, "the canal's V vs the loft fit"
+        )
+        # Neither pad is vacuous: an ANALYTIC body publishes exactly 0,
+        # so both rows below would be free on the pot next door.
+        self.assertGreater(props.volume_pad, 0.0, "a fitted skin publishes a pad")
+        self.assertGreater(props.area_pad, 0.0, "on both readings")
+        self.assertLess(
+            props.volume_pad * 1e3,
+            abs(props.volume - v_spout),
+            "the volume gap reads as the SKIN only while the kernel's own certified "
+            "enclosure is far below it",
+        )
+        # The AREA cannot resolve it, and saying so is the honest row.
+        # Its gap is six hundred times INSIDE its pad, so the
+        # certificate already admits every bit of it and there is
+        # nothing to attribute to the skin. The only true statement is
+        # that the closed form lies in the bracket — and that the
+        # bracket is far too wide to see a fit through, asserted
+        # POSITIVELY so that the day the area quadrature gets sharp
+        # this reds and the row gets to claim more.
+        a_gap = abs(props.surface_area - a_spout)
+        self.assertLessEqual(
+            a_gap, props.area_pad, "the canal's A is inside the certified enclosure"
+        )
+        self.assertLess(
+            a_gap * 100.0,
+            props.area_pad,
+            "the area's enclosure is no longer far wider than the gap — it may now "
+            "resolve the loft fit, and this row should say so rather than declining to",
+        )
 
         # The handle by Pappus on its own disc.
         sweep = 2 * (math.pi / 2 + self.HANDLE_OVER)
@@ -3069,32 +3292,50 @@ class TestTeapot(unittest.TestCase):
         doc = Doc()
         *_rest, joins = self.teapot(doc)
         ev = evaluate(doc)
-        # handle union vessel is torus x sphere; spout union vessel is
-        # cone x PLANE — and note what the second one names: not the
-        # belly wall the spout actually pierces. The gate is pair-scoped
-        # and box-conservative, so it reports the first pair whose boxes
-        # MAY meet (the scene's wall-7 lesson).
-        for node, pair in zip(
-            joins, [("torus", "sphere"), ("cone", "plane")], strict=True
-        ):
-            self.assertFalse(ev.succeeded(node))
-            with self.assertRaises(EvaluationError) as caught:
-                ev.value(node)
-            refusal = caught.exception
-            self.assertEqual(refusal.kind, "boolean")
-            text = str(refusal)
-            # The GERM-PAIR sentence, whole. `assertIn("(plane)")`
-            # would match any parenthesised word in ~800 characters of
-            # recourse prose; this is the clause that names the pair
-            # with no seam lane, and it names it in order.
-            self.assertIn(f"no seam lane for the ({pair[0]}, {pair[1]}) germ pair", text)
-            # And the pair-scoped sentence above it, which is where the
-            # wall-7 lesson lives: the face the gate NAMED is the first
-            # whose box may meet, not the wall the spout pierces.
-            self.assertRegex(
-                text,
-                rf"is a {pair[0]} and its box MAY INTERSECT face \S+ \({pair[1]}\)",
-            )
+        # **TWO DIFFERENT RUNGS of the operand gate, and the second one
+        # moved when the spout became a canal.**
+        handle_join, spout_join = joins
+
+        # handle union vessel: the PAIR rung — a germ pair (torus x
+        # sphere) with no wired arm. Note what it NAMES rather than
+        # what causes it: the gate is pair-scoped and box-conservative,
+        # so it reports the first pair whose boxes MAY meet (the
+        # scene's wall-7 lesson).
+        self.assertFalse(ev.succeeded(handle_join))
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(handle_join)
+        refusal = caught.exception
+        self.assertEqual(refusal.kind, "boolean")
+        text = str(refusal)
+        # The GERM-PAIR sentence, whole. `assertIn("(sphere)")` would
+        # match any parenthesised word in ~800 characters of recourse
+        # prose; this is the clause that names the pair with no seam
+        # lane, and it names it in order.
+        self.assertIn("no seam lane for the (torus, sphere) germ pair", text)
+        self.assertRegex(
+            text, r"is a torus and its box MAY INTERSECT face \S+ \(sphere\)"
+        )
+
+        # spout union vessel: PAST the pair rung, because a loft's
+        # walls are Nurbs and that arm exists — and dead one door in,
+        # on an EDGE of the spout whose carrier is rung 3. Rung-3 edges
+        # are what the curved zip MINTS, not what it consumes, so the
+        # canal's own seams are what stop the join. Making the spout
+        # the shape a potter draws did not make it joinable; it moved
+        # the refusal off a pair nobody modelled and onto the body's
+        # own edges.
+        self.assertFalse(ev.succeeded(spout_join))
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(spout_join)
+        refusal = caught.exception
+        self.assertEqual(refusal.kind, "boolean")
+        text = str(refusal)
+        self.assertRegex(
+            text, r"edge \S+ of operand B has a rung-3 \(Nurbs\) carrier"
+        )
+        # NOT the pair rung any more, and this is the half that would
+        # go quietly wrong if it were only asserted positively.
+        self.assertNotIn("germ pair", text)
 
 
 class TestTorusvessel(unittest.TestCase):
