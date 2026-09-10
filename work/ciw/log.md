@@ -1810,3 +1810,61 @@ generally — no path built from a possibly-empty variable is ever a `mv`,
 `mkdir` or redirection target — rather than a second guard beside the first;
 the narrow spelling is exactly what let the second instance survive a fix
 pass whose subject was the first.
+
+## 2026-09-10 — the apt preamble merged and closed, and what its reviews cost to find
+
+PR 2277 (`7b554d30`). Five sites, one script, a constructed failure that
+re-runs on every PR. The unit is worth reading for what the review pair
+found rather than for the fix.
+
+**The first version of the fix was worse than the outage.** On a failed
+`mktemp -d` it re-rooted every third-party source list at `/`, exited 0,
+and logged "restored on exit". The outage it replaced at least turned a
+job red.
+
+**And the guard did not generalise, in the same diff.** `selftest_main`
+had the identical unguarded `mktemp -d` forty lines down. This
+orchestrator found it while verifying the MAJOR fix by hand — and the
+finding escalated on contact: the battery writes its stub `apt-get` to
+`$t/bin/apt-get`, so an empty `$t` made that `/bin/apt-get` and
+**replaced this box's real `apt-get` with a shell stub**. Restored from
+the `.deb`, verified ELF and functional. So the class was never "writes
+junk to `/`"; it was "destroys an unrelated executable", and neither
+review nor this orchestrator's own severity call had reasoned that far.
+
+The lesson is in the header now as an invariant rather than a note about
+one call site. It is the same failure the last three units made from the
+other side: **a guard written against the incident rather than the
+property**, exactly as their selftests were written against the
+behaviour rather than the claim. Fix and test, same defect, opposite
+ends.
+
+**This unit broke that streak on the test side**, and deliberately: 31
+rows against 5, every row written by naming the failure it must catch,
+14 mutations injected and 14 killed, with the mutant table in the PR body
+instead of an assertion that the rows are good. The row that had been
+missing is the one that pins the headline — a narrowed update over a
+broken OWN archive, which fails and must still restore. Every earlier
+row observed a `return 0`.
+
+**A finding the review could only get from a hosted log**: the runner's
+real foreign set is `google-chrome.sources` (deb822) and
+`microsoft-prod.list` — not the `.list` the fixture and the PR prose
+assumed. The production classifier handled deb822 correctly, so it was
+never a live defect, but the evidence had been built on a file shape the
+image does not ship, and a mutation restricting the scrub to `*.list`
+would have broken the runner while the battery stayed green.
+
+**Process, twice.** Both reviewers ended a turn with a background waiter
+armed and delivered nothing until nudged — and that one is this
+orchestrator's brief, which asked for `SIGINT`/`SIGTERM` probes behind
+120 s timeouts without saying how to run them. The rule now: **a probe
+that cannot finish inside one foreground call is shortened or dropped,
+and a dropped probe stated as dropped is a complete finding.** The
+reviewer controls the stub; the property under test was the trap, not
+the duration.
+
+Two of this orchestrator's own dispatch premises were also wrong and the
+lanes corrected both: "`set -e` mid-script" (the script has none, which
+is precisely why the MAJOR was silent) and the non-`actions/*` `uses:`
+inventory. A brief is a hypothesis; these were asserted as facts.
