@@ -1719,3 +1719,94 @@ sites have no retry — and `rerun-failed-jobs` answers 403 for a lane's
 token, so a lane cannot even re-run past it. Units 5-7 (mirror parity
 past argv, the PIPESTATUS sweep, the doc citations) are all cheaper to
 delay than an hour of everyone's red runs.
+
+## 2026-09-09 — the apt preamble dispatched, and a wake-up habit corrected
+
+`apt-update-fails-on-the-runner-image-google-chrome-repo` on
+`ciw/apt-preamble`, ahead of units 5-7 for the reason in the previous
+entry: it reds every branch at once and no diff can fix it.
+
+**An orchestrator process defect, recorded because it recurred.** Unit
+4's close-out PR (2270) went green and this orchestrator did not merge
+it, because the turn ended with *"I'll merge it when green"* and **no
+watcher armed**. Ev noticed. This is the same shape as the close-out that
+sat unopened for a day on 2026-09-08 — a PR whose next step depends on an
+event nobody is listening for — and `memories/agent-lane-operations.md`
+says the same thing about lanes: *"lost wake-on-completion events are
+endemic"*, and the discipline doc's *"a hosted CI wait is the same case,
+not an exception"*.
+
+The fix is mechanical, not resolve: **when a turn ends with a PR waiting
+on CI, arm the wake in that same turn** — `subscribe_pr_activity` on the
+PR, which delivers check-suite rollups into this session, or a foreground
+poll before the turn ends. Earlier in this program's run the poll was
+armed every time and it worked; the habit lapsed exactly when the PRs
+became routine.
+
+Both of this program's process defects so far have the same shape: a
+thing that was going to happen anyway, with nothing scheduled to make it
+happen. That is also what half of its ITEMS are about — a demoted row
+nobody reads, a selftest nothing invokes, a residue disclosed and not
+filed. Worth noticing that the orchestrator keeps producing the defect
+class its own program exists to close.
+
+**The apt preamble (PR 2277).** Five call sites, not four: the sweep
+found `nightly.yml`'s `install admesh` sharing the shape. All five now
+run `scripts/apt-install.sh`, which narrows `apt-get update` to Ubuntu's
+own archive for the duration of one transaction and puts the image's
+third-party lists back on exit — so the hazard the shape carries (a list
+a later step needs, silently dropped) is closed rather than declared.
+
+**The verification is the interesting part.** The mirror recovered before
+the lane started, so the red could not be waited for; it was
+CONSTRUCTED, twice. Once as a `--selftest` that builds a repository whose
+Release file disagrees with its own index and asserts the unnarrowed
+update dies on it — sited in the tier-blind `mirror` job, so it re-runs
+on every PR rather than being a claim in a merged PR body. Once end to
+end, planting that same condition as a `google-chrome.list` in a real
+`/etc/apt/sources.list.d/`: today's preamble exits 100, the script exits
+0. The program's own recurring defect class is "a thing that was going to
+happen anyway, with nothing scheduled to make it happen", and a one-off
+demonstration in a PR body is exactly that; a selftest is the version
+with something scheduled.
+
+One residue filed rather than left in the PR body: nothing keeps the
+sixth call site from being written inline
+(`work/ciw/apt-preamble-bypass-is-unguarded.md`). The parity checker
+reads workflows for INVOCATIONS, and a step that invokes no script is
+outside its claims by construction.
+
+**And a second residue from the same unit, which the discipline names and
+the token refuses.** `nightly.yml`'s admesh row changed with the other
+four, and `workflow_dispatch` on `nightly.yml` answers 403 for a lane's
+token — the same refusal this program already recorded for
+`rerun-failed-jobs`. So the rule that a nightly-only row is verified AT
+the change has no remedy available to the lane it binds
+(`work/ciw/nightly-rows-cannot-be-dispatched-by-a-lane.md`). Stated as a
+gap rather than argued away: the row is the same one-liner as four rows
+that did execute, and that is not the row running.
+
+**The fix pass, and what it says about how selftests get written here.** The
+review found one MAJOR (an unguarded `mktemp -d` whose empty result made the
+`mv` target `/$name` — the image's lists to the filesystem root, nothing
+restored, exit 0 over a log saying "restored on exit") and eleven mutations
+the first selftest battery did not catch. The lane's battery had five rows and
+every one of them observed a successful run, so the property the unit is
+ABOUT — restores on any exit — had nothing pinning it. The reviewer's note
+that this was the third unit in a row with that shape is the useful part: the
+repair is not a longer battery but a different order of writing, name the
+failure first and check the row reds when it is injected. The rewritten
+battery is 31 rows and a 14-mutant harness that all 14 die under.
+
+**A postscript worth more than the bug.** The `mktemp` guard was written
+into the production half and the identical unguarded call was left in the
+selftest harness forty lines below it, in the same diff — and the lane's own
+fix note claimed the guard caught the class, which was true of the half it
+had read. What that cost was not fixture litter: the harness writes a stub
+`apt-get` to `$t/bin/apt-get`, so an empty `$t` wrote it to `/bin/apt-get`
+and a review run on the shared box replaced the real binary. Restored from
+the archive's own `.deb`. The repair in the file is the invariant stated
+generally — no path built from a possibly-empty variable is ever a `mv`,
+`mkdir` or redirection target — rather than a second guard beside the first;
+the narrow spelling is exactly what let the second instance survive a fix
+pass whose subject was the first.

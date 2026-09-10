@@ -222,7 +222,8 @@ jobs:
       # External STL verification (M2 PR 7): admesh 0.98.4 is
       # apt-packaged; the check script accepts NO repair as success.
       - name: install admesh
-        run: sudo apt-get update && sudo apt-get install -y admesh
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh admesh
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # The example pre-flights our own validators (tier 1–3 incl. the

@@ -670,11 +670,39 @@ deciding what retires it. That is
 one**, and the difference is what the count turns on. A retirement has
 nothing to say and must NOT be ranked: `frame::cursor_status` returns
 only `Keep` or `Expire`, so it can never put a sentence on the line and
-was never one of these writers, and `frame::dialog_status`'s one
-`Show` arm is unreachable behind a disabled button at both of its call
-sites. `frame::deliver` is the door that splits the two: news to the
-notices, retirement to the field; `frame::apply` stays the door a
-retirement belongs at.
+was never one of these writers. `frame::deliver` is the door that
+splits the two: news to the notices, retirement to the field;
+`frame::apply` stays the door a retirement belongs at.
+
+**A missing file-chooser backend is not on the line at all**, and the
+provenance rule above is why rather than a reachability accident. It is
+probed once at startup and true for the whole run, so it is held state
+a reader consults — and the read is the disabled Open…/Save As…
+control with `frame::NO_CHOOSER_BACKEND` as its
+`on_disabled_hover_text`. A status route beside it once carried the
+same sentence as a `frame::Message` with `Subject::Document`, i.e. on
+the OUTCOME channel; no click could reach it, because one copy of
+`ViewerApp::chooser` both gated the button and fed the policy. Ev ruled
+the arm MISCLASSIFIED rather than merely unreachable (2026-09-09): a
+whole-run environmental fact has no correct sentence on a line that
+carries one frame's news, so the arm and its policy are gone and the
+hover text is the whole surface. An empty-handed dialog under a
+plausibly-present backend is a genuine cancel and was always silent.
+**The sweep rule is over the FACT, not over the string.** A rule
+ranging over readers of `frame::NO_CHOOSER_BACKEND` would leave the
+universal above green while a future route built its own `Message` from
+`chooser.usable()` — so the population is *every read of
+`ViewerApp::chooser`, this crate's only value of type
+`frame::ChooserBackend`*: one, `app.rs:1172`, consumed at `:1174` and
+`:1193` as `add_enabled(chooser.usable(), …)` with
+`frame::NO_CHOOSER_BACKEND` as the disabled reason and nowhere else. No
+reader builds a `Message`, a `Badge` or a notice from it. What the rule
+cannot see is a route that re-probes the environment instead of reading
+the field — `frame::chooser_backend()` has one caller (`app.rs:688`,
+the constructor), which is the fact that makes the field the whole
+population rather than a sample. **This is the argument's one full
+copy**: `frame::NO_CHOOSER_BACKEND`'s own doc and the toolbar comment
+at the two controls point here rather than restating it.
 
 **The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
 (`Advisory` for a report, `Actionable` for a verdict a reader may need

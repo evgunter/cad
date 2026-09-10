@@ -1029,8 +1029,8 @@ impl ViewerApp {
     /// `frame::frame_status`'s answer here rather than assigning the
     /// field. Its one live caller, and deliberately so — a `Show` that
     /// has been through the ranking must reach the field, and handing
-    /// it to [`ViewerApp::deliver_status`] instead would loop it back
-    /// onto `notices` to be ranked a second time.
+    /// it to [`frame::deliver`] instead would loop it back onto
+    /// `notices` to be ranked a second time.
     ///
     /// **Not the one place a [`StatusUpdate`] becomes the field** —
     /// that is `frame::apply`, which `pane::viewport` reaches directly
@@ -1041,61 +1041,6 @@ impl ViewerApp {
     /// `&mut self` shorthand, nothing more.
     fn apply_status(&mut self, update: StatusUpdate) {
         frame::apply(&mut self.status, update);
-    }
-
-    /// The `&mut self` shorthand onto [`frame::deliver`], for a policy
-    /// whose verdict has NOT been through the ranking.
-    ///
-    /// [`ViewerApp::apply_status`] is for the ranked verdict — what
-    /// [`frame::frame_status`] already weighed — and applying an
-    /// unranked `Show` there is the defect this door exists to stop: a
-    /// sentence written straight to the field on a frame whose batch
-    /// then clears it, before the toolbar that would have painted it
-    /// runs again.
-    ///
-    /// **No `Show` reaches this today, at either call site.** Both are
-    /// `frame::dialog_status`, and its `Show` arm is
-    /// `(chose: false, usable: false)` while the Open… and Save As…
-    /// buttons are `add_enabled(chooser.usable(), …)` over one copy of
-    /// `self.chooser` — so a click implies usable and every reachable
-    /// verdict here is `Keep`. The arm is latent, not dead: it is the
-    /// belt to that disabling's braces, and `frame::chooser_backend`
-    /// can only be confident about `Absent`.
-    ///
-    /// **Nothing holds that reading mechanically, and no cheap guard
-    /// would.** The one row over the arm,
-    /// `an_empty_dialog_is_loud_only_under_a_confidently_absent_backend`
-    /// in `tests/frame_policy.rs`, exercises `dialog_status` as a pure
-    /// function and stays green through any change to the chrome that
-    /// feeds it. So whoever loosens the `add_enabled(chooser.usable(),
-    /// …)` gate on the two buttons, or routes a second policy through
-    /// this door, has to re-read this paragraph: on that day nothing
-    /// else goes red.
-    ///
-    /// **The door is still the right one, and that is the point of
-    /// saying the traffic is empty.** The alternative is
-    /// `apply_status`, which is correct for exactly as long as the
-    /// guard above holds — and the day the guard is loosened, or a
-    /// second policy with a `Show` arm is routed here, the defect
-    /// comes back at a diff where nothing looks wrong. Insurance whose
-    /// premium is one call is not worth removing because the claim has
-    /// not been made.
-    ///
-    /// **Native only**, `cfg`-ed to match both of its callers. The
-    /// unranked traffic this door exists for is a file dialog's
-    /// verdict, and the browser build has no file dialog to take a
-    /// verdict from: [`pick_open`] and [`pick_save`] are absent there,
-    /// so the two arms above are `cfg`-ed away with them. The refusal
-    /// the browser does raise on those controls is raised EARLIER and
-    /// said elsewhere — [`frame::chooser_backend`] answers
-    /// [`frame::ChooserBackend::Absent`], which disables both buttons
-    /// and shows [`frame::NO_CHOOSER_BACKEND`] as their reason, the
-    /// same sentence [`frame::dialog_status`]'s `Show` arm carries. So
-    /// nothing goes unsaid on wasm for want of this door; the target
-    /// simply asks no question it could answer.
-    #[cfg(not(target_family = "wasm"))]
-    fn deliver_status(&mut self, update: StatusUpdate) {
-        frame::deliver(&mut self.notices, &mut self.status, update);
     }
 
     /// **The advisory-check findings, in a window a reader can keep
@@ -1184,16 +1129,6 @@ impl eframe::App for ViewerApp {
                 // they cannot see in their own title bar.
                 ui.label(document_name(self.session.path()));
                 ui.separator();
-                // The chooser-backend verdict, probed once at startup:
-                // with confidently NO backend (no zenity, no session
-                // bus) the dialogs are disabled UP FRONT with the
-                // reason as their tooltip — a dead click is exactly
-                // the silent failure #1097 reported. Under a
-                // plausibly-present backend, a dialog handing back
-                // `None` is read as a genuine cancel and stays quiet;
-                // `frame::dialog_status` is that rule as a policy
-                // value, and its loud arm is the belt to this
-                // disabling's braces.
                 // The New… control (GAUTH-1): one name field, because
                 // the document id is derived from the name — see
                 // `SessionOp::NewDocument`. The field is a draft; the
@@ -1225,6 +1160,15 @@ impl eframe::App for ViewerApp {
                         }
                     }
                 }
+                // With confidently NO backend the dialogs are disabled
+                // UP FRONT with the reason as their tooltip, because a
+                // dead click is exactly the silent failure #1097
+                // reported. **That tooltip is the whole surface** —
+                // why it is the only one is the viewer README's, under
+                // *"A missing file-chooser backend is not on the line
+                // at all"*. Under a plausibly-present backend a dialog
+                // handing back `None` is a genuine cancel, which says
+                // nothing.
                 let chooser = self.chooser;
                 if ui
                     .add_enabled(chooser.usable(), egui::Button::new("Open…"))
@@ -1241,13 +1185,8 @@ impl eframe::App for ViewerApp {
                     // the #1125 posture: a door that cannot open says
                     // so, it does not vanish.
                     #[cfg(not(target_family = "wasm"))]
-                    {
-                        let path = pick_open();
-                        let update = frame::dialog_status(chooser, path.is_some());
-                        if let Some(path) = path {
-                            ops.push(SessionOp::Open(path));
-                        }
-                        self.deliver_status(update);
+                    if let Some(path) = pick_open() {
+                        ops.push(SessionOp::Open(path));
                     }
                 }
                 if ui
@@ -1258,13 +1197,8 @@ impl eframe::App for ViewerApp {
                     // Unreachable on wasm, for the reason the Open…
                     // arm above states.
                     #[cfg(not(target_family = "wasm"))]
-                    {
-                        let path = pick_save(self.session.path());
-                        let update = frame::dialog_status(chooser, path.is_some());
-                        if let Some(path) = path {
-                            ops.push(SessionOp::Save(path));
-                        }
-                        self.deliver_status(update);
+                    if let Some(path) = pick_save(self.session.path()) {
+                        ops.push(SessionOp::Save(path));
                     }
                 }
                 ui.separator();
