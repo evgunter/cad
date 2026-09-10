@@ -803,22 +803,12 @@ jobs:
       # is the renderer's dependency, not the generator's.
       - name: venv deps
         if: ${{ env.WILD_WANTED == 'true' }}
-        # Same guard as the montage lanes' bigger install below, for the
-        # same reason — a smaller package list is not a different
-        # failure mode, just a shorter one.
-        timeout-minutes: 6
-        run: |
-          set -uo pipefail
-          for attempt in 1 2 3; do
-            if timeout -k 10 120 sudo apt-get update -qq \
-               && timeout -k 10 120 sudo apt-get install -y -qq python3-venv; then
-              exit 0
-            fi
-            echo "::warning::python3-venv: apt attempt ${attempt} failed or hung; retrying"
-            sleep $((attempt * 5))
-          done
-          echo "::error title=python3-venv unavailable::apt failed or hung on three attempts. Upstream/mirror problem — re-run the lane."
-          exit 1
+        # Same bound as the montage lanes' bigger install below, and it is the
+        # script's bound rather than this list's: a shorter one would not admit
+        # a single retry of a hung call, which is the whole point of the inner
+        # `timeout`. scripts/apt-install.sh's header does that arithmetic.
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh python3-venv
       - name: render (demos/render-wild.sh)
         if: ${{ env.WILD_WANTED == 'true' }}
         run: demos/render-wild.sh
@@ -1087,36 +1077,22 @@ jobs:
       # JOB's budget reporting nothing, and a run nobody can cancel
       # blocks the lane's own re-baseline for hours.
       #
-      # THE TWO GUARDS DO DIFFERENT JOBS, and both are needed:
-      #   * `timeout` around each apt call kills a HUNG attempt so the
-      #     retry can happen at all — a hang never returns, so a bare
-      #     retry loop would sit in the first attempt forever;
-      #   * `timeout-minutes` on the step is the outer bound, so three
-      #     bad attempts still fail in minutes rather than tens of them.
-      # The retry itself is the same lever, for the same stated reason,
-      # as .github/actions/install-nextest: one host's bad minute must
-      # not be a whole-gate failure.
+      # THE INNER GUARD, THE RETRY AND THE ARGUMENT FOR BOTH now live in
+      # scripts/apt-install.sh, which every apt row in this repo goes
+      # through, and they are stated there ONCE — this step keeps only the
+      # `timeout-minutes` a step alone can carry, at the value that
+      # header derives. `exec` so a cancel or that bound reaches the
+      # process holding the restore trap.
       # ONE INSTALL FOR BOTH LANES since the merge — and note that the two
       # wedges above happened on two separate runners, so a merged job has
       # one exposure to this where the matrix had two.
       - name: renderer system deps (software GL + Xvfb + venv)
         timeout-minutes: 8
         run: |
-          set -uo pipefail
-          for attempt in 1 2 3; do
-            # -k: apt ignores TERM mid-transaction often enough to matter.
-            if timeout -k 10 120 sudo apt-get update -qq \
-               && timeout -k 10 240 sudo apt-get install -y -qq \
-                 xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libglu1-mesa \
-                 libxrender1 libxcursor1 libxinerama1 libxft2 libfontconfig1 \
-                 python3-venv; then
-              exit 0
-            fi
-            echo "::warning::renderer system deps: apt attempt ${attempt} failed or hung; retrying"
-            sleep $((attempt * 5))
-          done
-          echo "::error title=renderer system deps unavailable::apt failed or hung on three attempts. This is an upstream/mirror problem, not a repo one — re-run the lane."
-          exit 1
+          exec scripts/apt-install.sh \
+            xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libglu1-mesa \
+            libxrender1 libxcursor1 libxinerama1 libxft2 libfontconfig1 \
+            python3-venv
 
       # render.sh builds its own pinned venv (numpy/matplotlib) on first
       # run, stages every scene, publishes only a whole pass, strips the

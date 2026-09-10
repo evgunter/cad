@@ -432,6 +432,46 @@ shard is not a FIXED shard. `1/2` was slow on #2026/#2046 and `2/2` on
 #2055's final run; nextest moves the heavy tests between runs. One
 shard carries the tier, not a particular one.
 
+**A diff that shifts a file owns the citations that shift broke.** #2278
+deleted 61 lines of `app.rs` and grew two `frame.rs` doc comments by one
+line each, re-derived every citation in the five rows it edited, and
+left every citation in every row it did not — five confirmed wrong by its
+style review, one of them (`cursor-projection-is-f32-…:46`) landing 61
+lines off onto a test body, on this program's own slate. The
+re-derivation obligation as it was written scoped itself to rows the
+branch touches, which is the wrong population: the population is every
+open row citing into the bands the diff moved. So a unit that shifts
+line numbers owes the **census** of those bands, not a sample, and owes
+it in its own PR. The alternative is what happened for a week — a
+general item absorbing damage particular branches did, which is how
+`stale-file-citations-after-the-split` reached four classes without
+fixing one.
+
+**An unsubstituted matrix placeholder in a job name means the matrix
+never expanded, so that row is not the row it appears to be.** #2282's
+lane read a run as green on sixteen successes including the three
+wide-tier rows, then caught that its own push had cancelled seven jobs
+before expansion: the names still read `test (eps = ${{ matrix.eps }},
+${{ matrix.shard }}/2)` and two such rows stood where twelve belong. A
+skipped matrix job legitimately shows the placeholder too, so the
+placeholder alone is not the tell — **the count is**. Read the twelve
+`test (…)` and five `k-lint (gate, …)` rows explicitly, and treat
+`gate ok` as the verdict rather than a tally: it is the summarising job
+that asserts every other job reached a terminal state, so it reds or
+stays pending precisely when a narrowed matrix would otherwise read as a
+pass. `neutral` is a passing conclusion, not a failure —
+`render drift (…)` is a check run posted by the rebaseline action and
+designed to be neutral (`ci.yml:4964-4976`).
+
+**A receipt is a citation and gets no exemption.** #2278's log entry
+offered two perturbations as evidence and named the wrong line for one
+of them: a multi-line `assert_eq!` panics where the invocation STARTS,
+not at its closing `);`, so the receipt said `frame.rs:2170` where the
+macro opens at `:2167`. The perturbation was real and the proof stands;
+what was wrong was the evidence's own address. A receipt wrong about its
+own file is worse than no receipt, because it is offered as the thing a
+successor would re-run.
+
 **Twelve units on main. The wave produced nineteen new items** — ten
 from the sweep and its review, nine from `const-all` and its review —
 every one a file rather than a sentence in a merged PR body.

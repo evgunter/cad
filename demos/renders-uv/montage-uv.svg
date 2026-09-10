@@ -2,7 +2,7 @@
 <rect x="0" y="0" width="1556" height="7195" fill="#ffffff"/>
 <text x="18" y="40" font-family="sans-serif" font-size="19" font-weight="bold" fill="#111">UV trim loops — a face is a bounded patch of an UNBOUNDED surface; this is that boundary, drawn in the surface’s own chart</text>
 <text x="18" y="59" font-family="sans-serif" font-size="12" fill="#555">Kernel-only lane: no camera, no projection, no silhouettes, no external renderer. Compare renders/montage.png (our tessellation) and renders-freecad/montage-freecad.png (OCC’s).</text>
-<text x="18" y="76" font-family="monospace" font-size="11" fill="#555">81 cell(s) = one representative per (body, chart) + every failed walk; 346 further curved and 954 planar face(s) not shown (all 1381 are in out/uv/)</text>
+<text x="18" y="76" font-family="monospace" font-size="11" fill="#555">82 cell(s) = one representative per (body, chart) + every failed walk; 353 further curved and 956 planar face(s) not shown (all 1391 are in out/uv/)</text>
 <line x1="18" y1="92" x2="40" y2="92" stroke="#1f4e79" stroke-width="2.4"/><text x="46" y="96" font-family="monospace" font-size="10.5" fill="#444">harmonic — the closed-form chart image</text>
 <line x1="418" y1="92" x2="440" y2="92" stroke="#b03060" stroke-width="2.4" stroke-dasharray="5 3"/><text x="446" y="96" font-family="monospace" font-size="10.5" fill="#444">the chart’s periodic seam (u = k·2π)</text>
 <line x1="18" y1="107" x2="40" y2="107" stroke="#1b7a3d" stroke-width="2.4"/><text x="46" y="111" font-family="monospace" font-size="10.5" fill="#444">isoline — the exact u/v-const image (NURBS walls)</text>
@@ -1999,6 +1999,30 @@
 
 <g transform="translate(18, 6509)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
+<text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">twisted_tube  ·  face 2</text>
+<text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
+<rect x="54" y="48" width="312" height="224" fill="#fbfbfb" stroke="#d0d0d0" stroke-width="1"/>
+<path fill-rule="evenodd" fill="#dbe9f6" stroke="none" d="M349.29,60.00L70.71,60.00L70.71,260.00L349.29,260.00Z"/>
+<path fill="none" stroke="#1b7a3d" stroke-width="1.6" d="M349.29,60.00L70.71,60.00"/>
+<polygon fill="#1b7a3d" points="205.00,60.00 212.00,57.20 212.00,62.80"/>
+<path fill="none" stroke="#1b7a3d" stroke-width="1.6" d="M70.71,60.00L70.71,260.00"/>
+<polygon fill="#1b7a3d" points="70.71,165.00 67.91,158.00 73.51,158.00"/>
+<path fill="none" stroke="#1b7a3d" stroke-width="1.6" d="M70.71,260.00L349.29,260.00"/>
+<polygon fill="#1b7a3d" points="215.00,260.00 208.00,262.80 208.00,257.20"/>
+<path fill="none" stroke="#1b7a3d" stroke-width="1.6" d="M349.29,260.00L349.29,60.00"/>
+<polygon fill="#1b7a3d" points="349.29,155.00 352.09,162.00 346.49,162.00"/>
+<circle cx="349.29" cy="60.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<circle cx="70.71" cy="60.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<circle cx="70.71" cy="260.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<circle cx="349.29" cy="260.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="54" y="286" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [0.00000, 1.00000] </text>
+<text x="54" y="298" font-family="monospace" font-size="9.5" fill="#444">v &#8712; [0.00000, 1.00000] </text>
+<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding CCW = sense(+n)  A=1.0000   closure gap 0.0e0 m</text>
+<text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
+</g>
+
+<g transform="translate(398, 6509)">
+<rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">twopeg_apart_p  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
 <rect x="54" y="48" width="312" height="224" fill="#fbfbfb" stroke="#d0d0d0" stroke-width="1"/>
@@ -2023,7 +2047,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 6509)">
+<g transform="translate(778, 6509)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">twopeg_apart_q  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 0 cached, harmonic</text>
@@ -2049,7 +2073,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 6509)">
+<g transform="translate(1158, 6509)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">vase  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -2075,7 +2099,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 6509)">
+<g transform="translate(18, 6843)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">vase  ·  face 4</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -2101,7 +2125,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 6843)">
+<g transform="translate(398, 6843)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">vase  ·  face 3</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
