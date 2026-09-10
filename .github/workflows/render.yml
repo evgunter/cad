@@ -123,7 +123,7 @@
 # succeeded — so a wedge is still a wedge and is never re-reported as
 # drift.
 #
-# ALL FOUR LANES, INCLUDING UV. The uv sheet was briefly held back —
+# ALL FIVE LANES, INCLUDING UV AND MC. The uv sheet was briefly held back —
 # ci.yml had its own `uv sheet drift (demos)` row, and a self-
 # re-baselining lane looked like it would undercut it. It would not
 # have: the two fired on the same condition and read the SAME cached
@@ -131,7 +131,9 @@
 # duplicate signal, and keeping both would have made every intended
 # sheet change report red there and neutral here. uv is also the same
 # CATEGORY as wild — renderer-free, text, byte-reproducible on any box
-# — so there was no principled line to draw between them. That ci.yml
+# — so there was no principled line to draw between them. The MC
+# density sheet joined later on exactly the same terms and needs no
+# separate argument: same producer, same format, same reproducibility. That ci.yml
 # row is retired and the obligation lives here; its local mirror in
 # local-scripts/ci-local.sh stays, because a developer box cannot
 # re-baseline itself and a failing check is the right shape there.
@@ -146,7 +148,7 @@ on:
         required: false
         type: choice
         default: all
-        options: [all, kernel, freecad, uv, wild]
+        options: [all, kernel, freecad, uv, mc, wild]
       scene_timeout:
         description: "FreeCAD per-scene wall-clock budget, seconds"
         required: false
@@ -550,6 +552,7 @@ jobs:
       # condition spelled two ways in two jobs.
       TOUR_WANTED: ${{ inputs.lanes != 'wild' }}
       UV_WANTED: ${{ contains(fromJSON('["all","uv"]'), inputs.lanes) }}
+      MC_WANTED: ${{ contains(fromJSON('["all","mc"]'), inputs.lanes) }}
       WILD_WANTED: ${{ contains(fromJSON('["all","wild"]'), inputs.lanes) }}
       # ONE TARGET DIRECTORY FOR BOTH CARGO ROOTS — see the header. It is the
       # workspace's own `./target`, which is also the one directory
@@ -782,6 +785,48 @@ jobs:
           # On a pull_request `github.sha` is the MERGE commit; a check
           # posted there never shows on the PR. ci.yml passes the PR's
           # head sha explicitly.
+          report_sha: ${{ inputs.report_sha }}
+          token: ${{ github.token }}
+
+      # ---- the MC density sheet: the tour writes it, this only
+      # publishes it. Renderer-free for the same reason the uv lane is
+      # — the geometry is already 2-D — and there is no compose step
+      # because the cell is one sheet rather than a grid of them.
+      - name: publish (demos/render-mc.sh)
+        if: ${{ env.MC_WANTED == 'true' }}
+        run: demos/render-mc.sh
+      - uses: actions/upload-artifact@v4
+        if: ${{ env.MC_WANTED == 'true' }}
+        with:
+          name: renders-mc
+          path: demos/renders-mc/**
+          retention-days: 14
+      # Byte-reproducible off-box like the uv sheet, and with one extra
+      # thing worth saying: the cell's content is a Monte-Carlo run, so
+      # a diff here means the DRAWS moved. The seed is recorded
+      # (`mc::DEFAULT_SEED`) and the sheet prints it, so that is either
+      # an intended study change or a determinism finding — never noise.
+      - name: sheet drift vs the committed lane (informational)
+        if: ${{ always() && env.MC_WANTED == 'true' }}
+        run: |
+          {
+            echo "### MC lane — hosted vs committed"
+            echo
+            echo "Renderer-free, text, and seeded: an empty diff is the"
+            echo "expected result. A diff is an intended study change or a"
+            echo "determinism finding — re-baselined by the step below."
+            echo
+            echo '```'
+            git status --porcelain -- demos/renders-mc/ || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: re-baseline committed lane (mc)
+        if: ${{ env.MC_WANTED == 'true' }}
+        uses: ./.github/actions/rebaseline-lane
+        with:
+          lane: mc
+          dir: demos/renders-mc
+          push_to: ${{ env.PUSH_TARGET }}
           report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
 

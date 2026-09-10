@@ -135,7 +135,7 @@ pub use mate::{
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
-    monte_carlo,
+    monte_carlo, sample_offsets,
 };
 pub use measure::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,

@@ -1212,10 +1212,10 @@ FAMILIES: dict[str, str] = {
     # THE MAP WAS EMPTY ONCE, and it could be again: every family the
     # LIB residual register's category B enumerated is closed
     # (B-READBACK, B-CHECKS, B-CANCEL, B-FACE-FRAME, B-PART,
-    # B-NOTATION, B-DISTRIBUTIONS, B-MEASURES), and the one below does
-    # not come from that register either.
+    # B-NOTATION, B-DISTRIBUTIONS, B-MEASURES), and neither of the two
+    # below comes from that register either.
     #
-    # THE ONE LEFT IS A MEMBER-RULE FINDING: a member of a curated type
+    # THE FIRST IS A MEMBER-RULE FINDING: a member of a curated type
     # Python spells identically, so the name match accounted it and no
     # roster here could report it until members were counted. The
     # rule's other two findings closed at LIB-GAPS-1, which bound
@@ -1229,6 +1229,25 @@ FAMILIES: dict[str, str] = {
         "needs a curated payload for the witness pair and a prose "
         "rendering for the path refusal, then one constructor per arm "
         "and one test row per tag each can raise."
+    ),
+    # THE SECOND ARRIVED WITH THE DOOR ITSELF. `mc::sample_offsets`
+    # was added on the Rust side because a tour cell needed to LOOK at
+    # a sample rather than read a summary over all of them
+    # (`work/m10/mc-lanes-draws-are-not-reproducible-from-outside-the-crate`);
+    # nothing forced the binding at the same time, because the cell
+    # that motivated it is a Rust one. A Python consumer is therefore
+    # exactly where every consumer was before the door existed: able
+    # to ask `monte_carlo` for the mean and not for a member of the
+    # population it is a mean of.
+    "B-MC-DRAWS": (
+        "the MC lane's per-sample draws — `mc::sample_offsets`, which "
+        "hands out one member of the population `monte_carlo` "
+        "summarizes. Closing it needs the offsets crossing as "
+        "`dict[str, float]` keyed by parameter name (`McConfig` and "
+        "`analyzed_box` are bound already), and one Python row doing "
+        "what `m10_6_mc_draws.rs` does on the Rust side: rebuild the "
+        "run's four summaries out of the draws and hold them to the "
+        "report's."
     ),
 }
 
@@ -2306,6 +2325,15 @@ NOT_BOUND = {
     # cannot succeed would move a name out of this list without
     # moving anything a caller can do.
     "sweep_body": f"{GAP}: G2 sweep (wire_sweep banked on U4/LQ3)",
+    # --- gap: the MC lane's draws ---------------------------------
+    # UNLIKE the entry above, this one is not blocked on anything:
+    # `mc::sample_offsets` exists, succeeds, and returns a map a
+    # `dict[str, float]` says exactly. It is here because the demo
+    # that needed it is a Rust tour cell, so nothing has yet asked
+    # Python the question the door answers. `monte_carlo` IS bound, so
+    # what a Python caller can currently get is the summary and not a
+    # member of the population it summarizes.
+    "sample_offsets": f"{GAP}: B-MC-DRAWS one sample's draws, behind `monte_carlo`'s summary",
     # --- gap: parameter distributions and the analysis lane -------
     # --- the measurement authoring vocabulary, closed --------------
     # `SitedRef` is bound where a reference is AUTHORED — `Node.mate`

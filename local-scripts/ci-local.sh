@@ -525,13 +525,24 @@ manifest_selftest() {
 # composed from the tour output already on that runner's disk rather than from
 # an artifact round trip. What this row does not reproduce is their
 # re-baseline, which is the sentence above.
+#
+# BOTH RENDERER-FREE LANES, ONE ROW. The MC density sheet
+# (`demos/render-mc.sh`) is the same category as the uv sheet in every
+# respect this row cares about — renderer-free, text, byte-reproducible
+# on any box — and it comes out of the SAME tour run, which is the
+# expensive half. Splitting it into a second row would run the tour
+# twice to gate two files written by one pass.
+#
 # HOSTED MIRROR: scene-inputs / demo tour (STL + STEP + UV SVGs + scenes.json)
 # HOSTED MIRROR: scene-inputs / compose (demos/render-uv.sh)
+# HOSTED MIRROR: scene-inputs / publish (demos/render-mc.sh)
 uv_sheet_drift() {
   (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
     CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
     demos/render-uv.sh >/dev/null && \
-    git diff --exit-code --stat HEAD -- demos/renders-uv/
+    CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
+    demos/render-mc.sh >/dev/null && \
+    git diff --exit-code --stat HEAD -- demos/renders-uv/ demos/renders-mc/
 }
 
 # HOSTED MIRROR: watertight / admesh check (watertight/manifold, no repair accepted)
@@ -1361,7 +1372,7 @@ run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" orac
 # has one machine; hosted runs them in parallel because it has five.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "demos tour suite (#99 ε pin + probes)" demos_eps_pin
-run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
+run_row_if "$RUN_K_LINT" "sheet drift (demos: uv + mc)"     uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "probe test targets (type-check)"  probe_targets
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
