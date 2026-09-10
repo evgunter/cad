@@ -29,8 +29,11 @@
 //! plane cuts the sphere in its circumcircle, exact); cone —
 //! `cos α · ρ_maxᵀ · (1 − cos(Δu/2))` (perpendicular distance to the
 //! generator ray at each point's azimuth; triangle-local max radius, so
-//! apex fans certify tightly); torus — `(3/4)(R + 2r)·L_uv²` (linear
-//! interpolation against the closed-form Hessian bound `R + 2r`);
+//! apex fans certify tightly); torus — `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8`
+//! over the triangle's UV extents (linear interpolation against the
+//! closed-form second-partial sups `A = R + r·max cos φ`,
+//! `B = r·max |sin φ|`, `C = r` over the triangle's own φ range — the
+//! doubly-curved bound `sizing::torus_grid_steps` derives and inverts);
 //! described NURBS (M7, the trimmed-NURBS lane) — the
 //! same interpolation derivation against a **hull-derived** Hessian
 //! bound (second-derivative control nets by knot differencing, sup by
