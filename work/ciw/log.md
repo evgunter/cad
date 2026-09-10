@@ -1868,3 +1868,33 @@ Two of this orchestrator's own dispatch premises were also wrong and the
 lanes corrected both: "`set -e` mid-script" (the script has none, which
 is precisely why the MAJOR was silent) and the non-`actions/*` `uses:`
 inventory. A brief is a hypothesis; these were asserted as facts.
+
+## 2026-09-10 — unit 5 dispatched: mirror parity past argv
+
+`mirror-pairs-env-divergence-unchecked` on `ciw/mirror-env-parity`.
+
+**It starts from an instance rather than a hypothetical**, which is what
+the last unit bought it: `check-ci-mirror-parity.py:1304` slices
+`toks[toks.index("cargo") + 1:]`, so unit 4's mirrored wasm pair passed
+claim 10 with the checker reading none of its
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` prefix — the one flag
+that pair's own comment called load-bearing. Verified still true on
+today's `main`.
+
+**The item's own gate is already answered.** It said to count the
+population first and close if the answer is one. It is not one:
+`ci-local.sh` alone has env-prefixed cargo invocations at `:780`,
+`:783`, `:806`, `:929` and `:1150`, and the hosted half spells its
+equivalents both as prefixes and as `env:` blocks. So the unit is
+authorised by its own clause.
+
+**The difficulty is the two spellings, not the parsing.** A prefix and
+an `env:` block are the same fact written two ways, and a claim that
+reads one and not the other would pass exactly the divergence it was
+built to catch. That is the vocabulary problem the item names and the
+first thing the lane must settle.
+
+**Both lanes**, by the trigger: this widens a gating claim over a
+derived population, in a checker that is now ~2850 lines and has taken a
+new claim in each of the last three units. Accumulation is a live
+concern and the brief says so.

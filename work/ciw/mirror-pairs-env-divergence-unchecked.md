@@ -2,9 +2,10 @@
 id: mirror-pairs-env-divergence-unchecked
 kind: issue
 title: no check compares the env a mirrored CI pair runs under, so a deliberate divergence and a dropped variable look the same
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [mirror-parity-never-compares-flags, 1759, 1739]
+branch: ciw/mirror-env-parity
 ---
 
 
