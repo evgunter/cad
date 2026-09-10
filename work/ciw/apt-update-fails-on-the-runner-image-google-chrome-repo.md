@@ -2,11 +2,12 @@
 id: apt-update-fails-on-the-runner-image-google-chrome-repo
 kind: issue
 title: apt-get update fails repo-wide on the runner image's google-chrome list, and it reds four steps in two workflows
-status: review
+status: closed
 opened: 2026-09-09
 branch: ciw/apt-preamble
 pr: 2277
 refs: [apt-preamble-bypass-is-unguarded, nightly-rows-cannot-be-dispatched-by-a-lane]
+closed: 2026-09-10
 ---
 
 Found by CIW unit 4's fix pass (PR 2263) when two consecutive runs went
@@ -197,3 +198,59 @@ Residue, two files: nothing stops a new step spelling its own preamble
 inline again (`work/ciw/apt-preamble-bypass-is-unguarded.md`), and a lane
 token gets 403 on `workflow_dispatch`, so the nightly row landed
 unverified (`work/ciw/nightly-rows-cannot-be-dispatched-by-a-lane.md`).
+
+## Closed 2026-09-10
+
+PR 2277. One preamble, `scripts/apt-install.sh`, at all five sites (the
+sweep found a fifth the item missed: `nightly.yml`'s `install admesh`).
+It sets aside every `sources.list.d` entry whose URIs are not on an
+Ubuntu archive host, runs `update` + `install`, and restores every file
+on any exit — so the narrowing lasts one apt transaction rather than the
+job, which is the hazard the shape had to close rather than merely
+declare.
+
+The constructed failure is the deliverable as much as the fix: the
+mirror had recovered, so the outage was **rebuilt** — a repository whose
+`Release` states a SHA256 its `Packages.gz` does not have, reproducing
+the same two `E:` lines and exit 100 the runner served. That fixture is
+now `--selftest`, sited in `ci.yml`'s tier-blind `mirror` job, so it
+re-runs on every PR at every tier instead of being a claim in a merged
+PR body. That siting is why a script beat a composite action.
+
+`-o APT::Get::List-Cleanup=0` is passed in production, because without
+it the narrowed `update` deletes the cached indexes of every set-aside
+repo — measured, docker's candidate falling back to the installed
+version — which made "one transaction" false. The selftest asserts the
+option two ways rather than setting it.
+
+### What the reviews found, and it was not small
+
+**A MAJOR that was worse than the outage it fixed.** With `mktemp -d`
+failing (full disk, unwritable `TMPDIR`) `HELD_DIR` was empty, nothing
+aborted — the script has no `set -e` — and the move loop re-rooted every
+foreign list at `/`, exit 0, log claiming restoration. Fixed by making
+`hold_path` the only producer of a `mv` destination.
+
+**The same bug then survived forty lines away**, in `selftest_main`'s own
+`mktemp -d`, and the orchestrator hit it while verifying the fix: the
+battery writes its stub `apt-get` to `$t/bin/apt-get`, so an empty `$t`
+made that **`/bin/apt-get`** and replaced this box's real binary with a
+shell stub. Restored from the `.deb` and verified. **The defect's true
+shape was never "litters `/`" — it was "destroys an unrelated
+executable"**, and nobody reasoned that far, including at grading.
+
+The header now states the invariant rather than the incident: *no path
+built from a possibly-empty variable is ever a `mv`, `mkdir` or
+redirection target*. The first guard was written as "guard the mktemp
+that bit us", which is exactly why its twin survived in the same diff.
+
+Also fixed: `exec` at all five sites, because the runner signals the step
+shell and not the script, so the trap never fired on a cancel; a missing
+package no longer retries three times and blames the mirror; a
+commented-out foreign URI no longer makes an Ubuntu file foreign; and
+`venv deps`' 6-minute bound, which could never admit a retry, so its
+inner `timeout` was decoration.
+
+Residues, each its own file: `apt-preamble-bypass-is-unguarded` (nothing
+stops a sixth site being written inline) and
+`nightly-rows-cannot-be-dispatched-by-a-lane`.
