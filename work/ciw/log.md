@@ -2001,3 +2001,43 @@ on an unrelated pip read-timeout, so it merged `origin/main` (owed
 anyway) to get a fresh run. That is the third 403 of this class this
 week, and `nightly-rows-cannot-be-dispatched-by-a-lane` now carries all
 of them.
+
+## Unit 7 — citations that do not resolve (2026-09-10, `ciw/citations`)
+
+Both items closed; seven comments rewritten; nothing rewritten in
+`crates/**`, `scripts/ci-filter.py` or `docs/`.
+
+**Part A.** The item's twelve-across-nine holds on today's tree (26 raw
+`git grep -o "GUI-LOG.md"` hits less the item's own 10, `STATUS.md`'s 1
+and the ledger's 3). Six were CIW's and are fixed; the sweep was widened
+by one string to `GUI-PLAN.md`, which added a seventh
+(`ci.yml:2086`). Two sites route out — `scripts/ci-filter.py` ×2 to
+S-TCOST, the sweep-5 rename note and `MODEL-AB-LOG.md` to META — and
+both now have a file on the owning slate.
+
+**The third class the item left unswept turned out to be the whole
+sweep.** All five sweep-5 programs were renamed out of `docs/` before
+their directories were deleted, and four of the five under a spelling
+that is not the directory name (`S-BLEND`, `GAUTH`, `PCURVE`, `S-QA`).
+Ten spellings, 51 citations before this unit, 44 after. The ledger's
+Inbound-references paragraph says these "resolve here as before"; they
+do not, and that sentence is what tells a reader not to check.
+
+**Part B closed without a line of code.** Every site in it belongs to a
+sibling that already holds the class: seven are `private_intra_doc_links`
+that `scripts/doc-gate.sh:555` deliberately allows, and the eighth
+(`crate::report`) is a feature-gated link read at the wrong feature
+setting — the second such in one item, after `SweepStrategy::Idealized`,
+and both are already inside `doc-gate-two-unread-axes`'s counted
+`editor-core ×7`. Nothing re-filed there.
+
+The sibling's population was stale by ~3.4x — 82 on 2026-08-15, **278 on
+today's tree** (292 at `--all-features`, which is what the gate documents
+under). Corrected in place with the command and the date. Option 1 is
+unaffected and is stronger at 278 than at 82.
+
+Two method notes worth keeping, both costing an orchestrator a wrong
+number in this session alone: **a `-D warnings` rustdoc run reports a
+floor, not a population** — it aborts at the first crate that fails — and
+**a rustdoc reading is meaningless without its feature selection named**,
+because every "dead link" in this item was alive under the gate's.
