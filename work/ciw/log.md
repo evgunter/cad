@@ -2069,3 +2069,49 @@ carry SC2319/SC2320 for the sibling `$?` shapes, and nothing in this repo
 runs shellcheck at all; both facts are the residue
 `shellcheck-is-not-run`, filed in the same PR with the 496-finding
 measurement that says why turning it on is its own unit.
+
+## Unit 6, second fix pass — the carriers were OR'd, so no row could name a route
+
+The claim above that the guard's routes were each load-bearing was
+**false, and it was reported without being injected**. On a pristine tree
+at `7e49567b0`, `SHELL_SUFFIXES = (".zsh",)` — the mutant the PR body
+named as newly dead — left every row green and the selftest at exit 0.
+Two independent causes:
+
+- **The verdict was aggregate.** Each mutant was planted into ONE tree
+  holding every carrier at once, and `RED if failures else GREEN` over
+  that tree answers "did SOME route red". Replacing the whole shell arm
+  of `check_tree` with `for rel in []: pass` cost exactly two rows.
+- **The one `*.sh` fixture carried a shebang**, so it rode the shebang
+  branch of `shell_files` and the suffix branch had no fixture at all.
+  That branch is not decoration: `demos/hosted-render-guard.sh` and
+  `local-scripts/hosted-ci-guard.sh` open with `# shellcheck shell=bash`
+  and are in the population by suffix alone.
+
+Fixed by evaluating **each route on a tree of its own**, with the verdict
+and the violation's `path:line` asserted per route and the route named in
+the failure. The routes are now direct, workflow `run: |`, a tracked
+`*.sh` with no shebang, and a tracked shebang file with no suffix — the
+last folded in from what was a standalone population row, so both
+branches of `shell_files` have a fixture that fails when that branch
+alone is removed. A further row asserts the carrier set still covers one
+branch each, which reds if a fixture regains the convenience shebang that
+caused this.
+
+The row count in the closing line and the PR body is re-derived rather
+than carried: **43 mutants x 4 routes, plus 5 population and refusal
+rows**. (The earlier entry's "twenty-two rows" is superseded twice over.)
+
+Five mutants, each applied alone to a clean tree, all now die:
+`SHELL_SUFFIXES = (".zsh",)`, `SHELL_SUFFIXES = ()`, a never-matching
+`SHEBANG_RE`, the `check_tree` shell arm emptied, and a never-matching
+`BLOCK_SCALAR` (which kills the workflow route alone, so the same
+aggregation bug is not hiding on that side). Each names the route it
+broke and leaves the other three red.
+
+**The lesson is the one units 1-5 closed on, missed inside the unit that
+wrote it down**: write the row by naming the failure it must catch,
+inject that failure, and do not trust the row until you have watched it
+red. A carrier built for convenience — a shebang, so the fixture "looks
+like a script" — is a fixture written against the instance rather than
+the branch it exists to pin.

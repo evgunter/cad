@@ -580,9 +580,12 @@ def check_tree(root: str) -> tuple[list[str], int, int]:
 
 # --------------------------------------------------------------------------
 # The mutant table. Every row names the failure it must catch; each is run
-# through THREE carriers — the body directly, a tracked `*.sh` file, and a
-# workflow `run: |` block — because a row that only ever reaches the parser
-# through one of them leaves the others deletable with nothing red.
+# through every route a body reaches the parser by — the body directly, a
+# workflow `run: |` block, a tracked `*.sh` with no shebang, and a tracked
+# shebang file with no suffix — and its verdict is asserted PER ROUTE, on a
+# tree holding that route alone. A row that only ever reaches the parser
+# through one of them leaves the others deletable with nothing red, and one
+# tree holding all of them at once cannot tell which route answered.
 # --------------------------------------------------------------------------
 
 GREEN, RED, BAIL = "green", "red", "bail"
@@ -856,50 +859,123 @@ MUTANTS: tuple[tuple[str, str, str, tuple[int, ...]], ...] = (
 )
 
 
-def _carriers(tmp: str, body: str) -> list[tuple[str, str]]:
-    """The same body, reached by each route the population covers."""
-    wf = os.path.join(tmp, ".github", "workflows")
-    os.makedirs(wf, exist_ok=True)
+_WF_STUB = "jobs:\n  a:\n    steps:\n      - run: true\n"
+
+
+def _write(root: str, rel: str, text: str) -> None:
+    full = os.path.join(root, rel)
+    os.makedirs(os.path.dirname(full), exist_ok=True)
+    with open(full, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+def _add(root: str, *rels: str) -> None:
+    subprocess.run(["git", "add", "-f", "--", *rels], cwd=root, check=True)
+
+
+def _as_workflow(body: str) -> str:
     indented = "\n".join("          " + ln for ln in body.split("\n"))
-    with open(os.path.join(wf, "ci.yml"), "w", encoding="utf-8") as fh:
-        fh.write(
-            "jobs:\n  a:\n    steps:\n      - name: s\n        run: |\n"
-            f"{indented}\n        env:\n          FOO: bar\n"
-        )
-    with open(os.path.join(tmp, "t.sh"), "w", encoding="utf-8") as fh:
-        fh.write("#!/usr/bin/env bash\n" + body)
-    return [("workflow `run: |`", "ci.yml"), ("tracked *.sh", "t.sh")]
+    return (
+        "jobs:\n  a:\n    steps:\n      - name: s\n        run: |\n"
+        f"{indented}\n        env:\n          FOO: bar\n"
+    )
 
 
-def _tree_outcome(tmp: str) -> tuple[str, list[str]]:
+class Carrier:
+    """One route a shell body reaches the parser by, in a tree of its own.
+
+    A tree holding every route at once answers only "did SOME route red",
+    which is true while any one of them still works: the arms that did not
+    read the body are deletable with nothing red. One tree per route, and a
+    verdict asserted per route, is what makes each arm load-bearing.
+    """
+
+    __slots__ = ("label", "offset", "rel", "root", "wrap")
+
+    def __init__(self, tmp, name, label, rel, wrap, offset):
+        self.root = os.path.join(tmp, name)
+        self.label = label
+        self.rel = rel
+        self.wrap = wrap
+        self.offset = offset
+        os.makedirs(self.root)
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        if rel != ".github/workflows/ci.yml":
+            # `yaml_files` refuses a tree with no workflow at all, so every
+            # tree carries one; only this carrier's own route holds the body.
+            _write(self.root, ".github/workflows/ci.yml", _WF_STUB)
+        _write(self.root, self.rel, self.wrap("true\n"))
+        _add(self.root, ".github", self.rel)
+
+    def plant(self, body: str) -> None:
+        _write(self.root, self.rel, self.wrap(body))
+        _add(self.root, self.rel)
+
+
+def _carriers(tmp: str) -> list[Carrier]:
+    """Every route `check_tree` reads a body by, one fixture each.
+
+    The two shell routes are separate branches of `shell_files` and each has
+    live members: `demos/hosted-render-guard.sh` and
+    `local-scripts/hosted-ci-guard.sh` open with `# shellcheck shell=bash`
+    and are in the population by SUFFIX alone, while
+    `local-scripts/hooks/pre-push` has a shebang and no suffix. A fixture
+    carrying both marks pins neither branch.
+    """
+    return [
+        Carrier(tmp, "wf", "workflow `run: |`",
+                ".github/workflows/ci.yml", _as_workflow, 5),
+        Carrier(tmp, "suffix", "tracked `*.sh`, no shebang", "t.sh",
+                lambda b: "# shellcheck shell=bash\n" + b, 1),
+        Carrier(tmp, "shebang", "tracked shebang file, no suffix",
+                "hooks/pre-push", lambda b: "#!/bin/bash\n" + b, 1),
+    ]
+
+
+def _tree_outcome(root: str) -> tuple[str, list[str]]:
     try:
-        failures, _files, _reads = check_tree(tmp)
+        failures, _files, _reads = check_tree(root)
     except Bail:
         return BAIL, []
     return (RED if failures else GREEN), failures
 
 
+def _sites(failures: list[str]) -> list[str]:
+    """The `path:line` each failure names, dropping its prose."""
+    return [f.split(": ", 1)[0] for f in failures]
+
+
 def selftest() -> int:
     bad = 0
     with tempfile.TemporaryDirectory() as tmp:
-        subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
+        carriers = _carriers(tmp)
+        routes = ["direct"] + [c.label for c in carriers]
         for name, body, want, lines in MUTANTS:
-            results = []
+            results: list[tuple[str, str, list[str]]] = []
             try:
                 got = violations(body)
-                results.append(("direct", RED if got else GREEN, got))
+                results.append(("direct", RED if got else GREEN,
+                                [str(ln) for ln, _ in got]))
             except Bail:
-                results.append(("direct", BAIL, []))
                 got = []
+                results.append(("direct", BAIL, []))
             if results[0][1] == want and want != BAIL:
                 got_lines = tuple(ln for ln, _ in got)
                 if lines and got_lines != lines:
                     bad += 1
                     print(f"SELFTEST FAIL: {name}\n  lines {got_lines} != {lines}")
-            _carriers(tmp, body)
-            subprocess.run(["git", "add", "-f", "t.sh", ".github"], cwd=tmp, check=True)
-            outcome, failures = _tree_outcome(tmp)
-            results.append(("carriers", outcome, failures))
+
+            for car in carriers:
+                car.plant(body)
+                outcome, failures = _tree_outcome(car.root)
+                sites = _sites(failures)
+                if outcome == want == RED:
+                    # The same violations the direct route found, at this
+                    # carrier's own path, shifted by its preamble.
+                    expect = [f"{car.rel}:{ln + car.offset}" for ln, _ in got]
+                    if sites != expect:
+                        outcome = f"red, but not at {expect}"
+                results.append((car.label, outcome, sites))
 
             if any(r[1] != want for r in results):
                 bad += 1
@@ -909,17 +985,36 @@ def selftest() -> int:
             else:
                 print(f"  ok  ({want:5})  {name}")
 
+        # Both branches of `shell_files` have a carrier, and each is in the
+        # population by ITS branch alone: a fixture carrying a suffix AND a
+        # shebang pins neither, which is how the suffix arm was deletable
+        # with every row still green.
+        preamble = {c.label: c.wrap("").encode() for c in carriers}
+        by_suffix = [c.label for c in carriers if c.rel.endswith(SHELL_SUFFIXES)
+                     and not SHEBANG_RE.match(preamble[c.label])]
+        by_shebang = [c.label for c in carriers
+                      if not c.rel.endswith(SHELL_SUFFIXES)
+                      and SHEBANG_RE.match(preamble[c.label])]
+        if len(by_suffix) != 1 or len(by_shebang) != 1:
+            bad += 1
+            print("SELFTEST FAIL: shell_files' branches are not pinned one "
+                  f"each; by suffix {by_suffix}, by shebang {by_shebang}")
+        else:
+            print("  ok  (green)  each branch of `shell_files` has a carrier "
+                  "of its own")
+
+        pop = os.path.join(tmp, "pop")
+        wf = os.path.join(pop, ".github", "workflows")
+        os.makedirs(wf)
+        subprocess.run(["git", "init", "-q"], cwd=pop, check=True)
+
         # The inline `run: cmd` scalar is its own route into the parser.
-        wf = os.path.join(tmp, ".github", "workflows")
-        os.remove(os.path.join(tmp, "t.sh"))
-        subprocess.run(["git", "rm", "-q", "--cached", "t.sh"], cwd=tmp, check=True)
-        with open(os.path.join(wf, "ci.yml"), "w", encoding="utf-8") as fh:
-            fh.write(
-                "jobs:\n  a:\n    steps:\n"
-                "      - run: cmd | tee f || s=$?; s=${PIPESTATUS[0]:-$s}\n"
-                "      - run: cmd | tee g\n"
-            )
-        outcome, failures = _tree_outcome(tmp)
+        _write(pop, ".github/workflows/ci.yml",
+               "jobs:\n  a:\n    steps:\n"
+               "      - run: cmd | tee f || s=$?; s=${PIPESTATUS[0]:-$s}\n"
+               "      - run: cmd | tee g\n")
+        _add(pop, ".github")
+        outcome, failures = _tree_outcome(pop)
         if outcome != RED or len(failures) != 1:
             bad += 1
             print(f"SELFTEST FAIL: inline `run:` scalar, got {outcome} {failures}")
@@ -928,47 +1023,27 @@ def selftest() -> int:
 
         # A composite action's `run:` is the same CI, by a path the workflow
         # glob does not reach.
-        act = os.path.join(tmp, ".github", "actions", "helper")
-        os.makedirs(act, exist_ok=True)
-        with open(os.path.join(wf, "ci.yml"), "w", encoding="utf-8") as fh:
-            fh.write("jobs:\n  a:\n    steps:\n      - run: true\n")
-        with open(os.path.join(act, "action.yml"), "w", encoding="utf-8") as fh:
-            fh.write(
-                "runs:\n  using: composite\n  steps:\n    - run: |\n"
-                "        cmd | tee f || s=$?\n"
-                "        s=${PIPESTATUS[0]:-$s}\n"
-            )
-        subprocess.run(["git", "add", "-f", ".github"], cwd=tmp, check=True)
-        outcome, failures = _tree_outcome(tmp)
+        _write(pop, ".github/workflows/ci.yml", _WF_STUB)
+        _write(pop, ".github/actions/helper/action.yml",
+               "runs:\n  using: composite\n  steps:\n    - run: |\n"
+               "        cmd | tee f || s=$?\n"
+               "        s=${PIPESTATUS[0]:-$s}\n")
+        _add(pop, ".github")
+        outcome, failures = _tree_outcome(pop)
         if outcome != RED or "actions/helper/action.yml" not in failures[0]:
             bad += 1
             print(f"SELFTEST FAIL: composite action, got {outcome} {failures}")
         else:
             print("  ok  (red  )  the defect in a composite action's `run:`")
 
-        # A shebang file with no suffix is in the population.
-        hook = os.path.join(tmp, "hooks")
-        os.makedirs(hook, exist_ok=True)
-        with open(os.path.join(act, "action.yml"), "w", encoding="utf-8") as fh:
-            fh.write("runs:\n  using: composite\n  steps:\n    - run: true\n")
-        with open(os.path.join(hook, "pre-push"), "w", encoding="utf-8") as fh:
-            fh.write("#!/bin/bash\ncmd | tee f || s=$?\ns=${PIPESTATUS[0]:-$s}\n")
-        subprocess.run(
-            ["git", "add", "-f", "hooks", ".github"], cwd=tmp, check=True
-        )
-        outcome, failures = _tree_outcome(tmp)
-        if outcome != RED or "hooks/pre-push" not in failures[0]:
-            bad += 1
-            print(f"SELFTEST FAIL: shebang file, got {outcome} {failures}")
-        else:
-            print("  ok  (red  )  the defect in a suffixless file with a shebang")
-
         # The census counts reads, so a reads counter stuck at 0 is caught.
-        with open(os.path.join(hook, "pre-push"), "w", encoding="utf-8") as fh:
-            fh.write("#!/bin/bash\ncmd | tee f\ns=${PIPESTATUS[0]}\nb | c\n"
-                     "n=${#PIPESTATUS[@]}\n")
-        subprocess.run(["git", "add", "-f", "hooks"], cwd=tmp, check=True)
-        failures, _files, reads = check_tree(tmp)
+        _write(pop, ".github/actions/helper/action.yml",
+               "runs:\n  using: composite\n  steps:\n    - run: true\n")
+        _write(pop, "hooks/pre-push",
+               "#!/bin/bash\ncmd | tee f\ns=${PIPESTATUS[0]}\nb | c\n"
+               "n=${#PIPESTATUS[@]}\n")
+        _add(pop, ".github", "hooks")
+        failures, _files, reads = check_tree(pop)
         if failures or reads != 2:
             bad += 1
             print(f"SELFTEST FAIL: census, {reads} read(s), failures {failures}")
@@ -978,7 +1053,7 @@ def selftest() -> int:
         # An unreadable `run:` shape fails rather than passing.
         with open(os.path.join(wf, "ci.yml"), "a", encoding="utf-8") as fh:
             fh.write("      - run: >\n          folded\n")
-        outcome, _ = _tree_outcome(tmp)
+        outcome, _ = _tree_outcome(pop)
         if outcome != BAIL:
             bad += 1
             print("SELFTEST FAIL: a folded `run: >` scalar was read as agreement")
@@ -988,8 +1063,9 @@ def selftest() -> int:
     if bad:
         print(f"\n{bad} selftest row(s) failed.")
         return 1
-    print(f"\nselftest: {len(MUTANTS)} mutants x 3 carriers, plus 6 population "
-          "and refusal rows — all as specified.")
+    print(f"\nselftest: {len(MUTANTS)} mutants x {len(routes)} routes "
+          f"({'; '.join(routes)}), each asserted on its own tree, plus 5 "
+          "population and refusal rows — all as specified.")
     return 0
 
 
