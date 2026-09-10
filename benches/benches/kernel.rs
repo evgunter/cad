@@ -4,9 +4,10 @@
 //!
 //! PERF-PLAN §2.3 gates every micro-optimization on a measurement that
 //! did not exist, which made the gate a deadlock rather than a
-//! deferral. These six benchmarks (the washer is tessellated at two
-//! chordal tolerances, so five scenarios are six rows) are the first
-//! per-kernel wall-clock numbers this repository has had.
+//! deferral. These benchmarks (the washer and the torus are each
+//! tessellated at two chordal tolerances, so five scenarios are eight
+//! rows) are the first per-kernel wall-clock numbers this repository
+//! has had.
 //!
 //! **Reporting, never gating** — `memories/perf-measurement-lane.md`.
 //! No CI row fails on a millisecond here. The lane's product is the
@@ -43,6 +44,12 @@
 //!   the row a `spade` bulk-load adoption (§2.1) would have to move.
 //!   Two tolerances because the finding is about the QUADRATIC: the
 //!   1e-4 -> 1e-6 ratio is the shape, not either number alone.
+//! * `tessellate/torus/*` — the doubly-curved chart, whose grid is
+//!   sized by `mesh::sizing::torus_grid_steps` from a two-direction
+//!   chord bound: the row that moves when that bound's constant moves.
+//!   The body is the tour's `hollowring` outer wall and 1e-4 is the
+//!   viewer's δ, so the row is the ring document's own tessellation
+//!   cost; 1e-3 gives the 1/δ shape.
 //! * `validate/tier23_washer` — the commit lane's validation ladder on a
 //!   revolved body (findings 4, 5, 16).
 //! * `mass_props/washer` — per-face flux quadrature; §2.2's canonical
@@ -125,9 +132,33 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     .body
 }
 
-/// The two tessellation rows. Own group, own sample count: at ~0.7 s an
-/// iteration the 1e-6 row is the whole lane's wall clock, and criterion
-/// warns rather than overrunning if the budget is short.
+/// A solid torus: the tour's `hollowring` outer wall (R = 0.30 m,
+/// r = 0.07 m) as one revolved circle — the doubly-curved chart, sized
+/// by `mesh::sizing::torus_grid_steps`, whose cost is the torus rows'
+/// subject. 1e-4 is the viewer's δ = 0.1 mm.
+fn torus() -> Body<f64> {
+    let circle = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(0.30, -0.07), 1.0),
+        ProfileVertex::new(p2(0.30, 0.07), 1.0),
+    ]);
+    let profile = validated(SketchPlane::<f64>::xy(), vec![circle], Tol::witness())
+        .expect("the torus profile validates");
+    revolve(
+        &profile,
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: v2(0.0, 1.0),
+        },
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .expect("the torus revolves")
+    .body
+}
+
+/// The tessellation rows. Own group, own sample count: at ~0.7 s an
+/// iteration the washer's 1e-6 row is most of the lane's wall clock,
+/// and criterion warns rather than overrunning if the budget is short.
 fn tessellation(c: &mut Criterion) {
     let body = washer();
     let mut group = c.benchmark_group("tessellate");
@@ -138,6 +169,16 @@ fn tessellation(c: &mut Criterion) {
             b.iter(|| {
                 tessellate(black_box(&body), black_box(delta), Tol::witness())
                     .expect("the washer tessellates")
+            });
+        });
+    }
+    let body = torus();
+    for (delta, measure) in [(1e-3_f64, 3), (1e-4_f64, 9)] {
+        group.measurement_time(Duration::from_secs(measure));
+        group.bench_function(format!("torus/{delta:e}"), |b| {
+            b.iter(|| {
+                tessellate(black_box(&body), black_box(delta), Tol::witness())
+                    .expect("the torus tessellates")
             });
         });
     }
