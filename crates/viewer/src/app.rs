@@ -570,10 +570,10 @@ fn evaluator() -> Result<Box<dyn crate::evalseam::EvalService>, StartupError> {
 ///
 /// # Errors
 ///
-/// [`StartupError::Worker`] if the OS refuses the thread. A viewer
-/// whose index seam never started would draw its opening picture and
-/// then refuse every pick on every document forever, which is a
-/// failure to meet at startup rather than to discover by clicking.
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. A viewer whose index seam never started would draw
+/// its opening picture and refuse every pick on every document
+/// forever — a failure to meet at startup, not to discover by clicking.
 fn indexer() -> Result<Box<dyn crate::evalseam::IndexService>, StartupError> {
     #[cfg(not(target_family = "wasm"))]
     {

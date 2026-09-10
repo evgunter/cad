@@ -1,7 +1,7 @@
 ---
 id: viewer-docs-do-not-build-at-wasm32
 kind: issue
-title: a wasm32 rustdoc pass over viewer is red with seven intra-doc links, ruled host-only, and nothing runs it
+title: a wasm32 rustdoc pass over viewer is red by construction on host-only links, and nothing runs it
 status: closed
 opened: 2026-09-09
 closed: 2026-09-10
@@ -88,71 +88,83 @@ without a row, which is the `-D warnings` argument
 
 ## Closed (2026-09-10)
 
-**Neither shape whole: the honest answer is a split, and the two halves
-fall on opposite sides for opposite reasons.**
+**Neither shape whole, and the shape that wins was already ruled one
+axis over.** `scripts/doc-gate.sh:243-262` records the isomorphic
+problem on the FEATURE axis: with F off, every link into F-gated code is
+unresolvable BY CONSTRUCTION, and the answer is to allow
+`rustdoc::broken_intra_doc_links` for that pass only
+(`RUSTDOC_LINTS_INERT`, `:559`), with the cost stated at the site as the
+cost of the widening, the population enumerated complete, and line
+numbers deliberately not carried. The target axis is the same claim with
+`target_family` for `feature`, so it gets the same answer:
+`crates/viewer/README.md`'s **Rustdoc posture** ruling. Shape (2)'s
+instinct was right and its ARGUMENT was wrong — the point is not that
+the browser docs have no reader, it is that the lint cannot tell *this
+link is broken* from *this link's target is in the other half*.
 
-**Shape (2) for the seven.** `crates/viewer/README.md`'s GQ6 now rules
-the viewer's rustdoc a host artifact and permits a doc comment compiled
-at both targets to link an item the browser build does not have. The
-argument is this row's own, about the tenth link, taken to its limit:
-de-linking a working host link to hold a count nothing reads makes the
-host docs worse for no reader, and that argument does not stop at the
-tenth because it is about a ratio rather than about a site. On one side
-is a live link on a page CI builds and a person reads; on the other is a
-lint in a configuration whose docs no row has ever built. The ratio is
-the same for all seven. `evalseam`'s module doc is the case that forces
-it rather than merely permitting it: its whole subject is that the seam
-has two arms and one is host-only, so it cannot name the arm it is about
-without linking it, and a gate on this pass would forbid that
-permanently — the gate making the docs worse every day rather than once.
+**The seven are a cost, not a defect, and the gate is the host pass.**
+It runs at `-D warnings` and holds every page it renders, which also
+covers the case no by-construction argument reaches: a link resolving at
+NEITHER target reds on a host page.
 
-**And the fence made (1) unavailable as a whole answer anyway.** Its
-durable half is a CI row and `.github/workflows/ci.yml` is CIW's. This
-lane could have shipped nine edits plus a §6 request; it is not worth
-doing, and the paragraph above is why — the request would have asked
-CIW to gate a browser-docs page nobody publishes, at a standing cost to
-the pages that are published.
+**Shape (1) for two, and not as a concession.** `app.rs`'s two `run`
+links sat in `run_web`'s doc. Measured: the host build with
+`--features app` renders `app/fn.run.html` and **no**
+`app/fn.run_web.html`; at `wasm32-unknown-unknown` it is the reverse. So
+that link resolved on no page any pass renders — a plain dead link, not
+a target-posture question. Repaired by following the crate's own
+convention in the other direction, `WINDOW_TITLE`'s
+*"absent from this configuration, so named rather than linked"*. Both
+edits are within the line, so `app.rs` is 1,956 lines before and after
+and no citation shifted.
 
-**Shape (1) for two, and NOT as a concession.** `app.rs:1901` and
-`app.rs:1906` both named `run` from inside `run_web`'s doc. Measured
-rather than argued: in the host build `doc/viewer/app/fn.run.html`
-exists and `fn.run_web.html` does not; at `wasm32-unknown-unknown` it is
-the other way round. So that link resolved in **no** configuration
-whatever — the only page that renders it is the one where the target is
-absent. That is not a target-posture question at all, it is a plain dead
-link, and the ratio that saves the seven does not apply: there is no
-reader on either side, and a bracket that no configuration checks spells
-a checked claim that is not one. The repair follows a convention the
-crate already had, in the other direction: `WINDOW_TITLE`'s doc
-(`app.rs:115`) names `run_web` rather than linking it, *"absent from
-this configuration, so named rather than linked"*. Both sites are now
-bare spans; `app.rs`'s line count did not change, so no citation
-anywhere shifted.
+**The classifier this row's first close shipped was a proxy, and it is
+replaced.** It said to read the `cfg` on the item the doc comment is
+attached to. `WebStartupError` is `cfg(target_family = "wasm")` and its
+five variant doc comments carry **no `cfg` of their own**, so that test
+reads them as unconditional and calls their brackets permitted when they
+are the defect class — #2278's shape again, a rule ranging over a proxy
+where the claim ranges over a fact. The test is now page existence in
+rustdoc's own output, which is the same reason this row already gave for
+ranging over the pass's output rather than over attributes, applied to
+both halves of the rule instead of one. It also dissolves the missing
+third case: `app.rs:41` sits on `pub mod app`, `cfg(feature = "app")` at
+`lib.rs:82`, which is neither of the two cases the old rule named and is
+decided correctly by asking whether the host pass renders its page.
 
-**Verified, before and after, with this row's own command.** Nine
-errors at `ac4a69dd5`, whose nine `-->` lines matched the filed table
-exactly and whose every third-column citation resolved; seven after,
-matching the table above. `scripts/doc-gate.sh:555` and `:638` both
-still say what this row cites them for. The second half of that script's
-pass shape — the `--bins --examples` invocation — adds no site the
-command misses, and cannot: `crates/viewer/src/bin/viewer.rs` contains
-zero intra-doc links.
+**Where the population lives now.** The README owns it, dated, by
+identifier and file, with **no line numbers**, per doc-gate's own stated
+reason. The table above is the finding-time reading at `ac4a69dd5` and is
+kept as that rather than as a second live copy — the same way doc-gate
+records the reading it superseded. The row's title carries no count,
+because `work/STATUS.md` renders titles and a re-measure should not have
+to edit one.
+
+**Verified, before and after.** Nine errors at `ac4a69dd5`, whose nine
+`-->` lines matched the filed table cell for cell and whose every
+third-column citation resolved; seven after. `scripts/doc-gate.sh:555`
+and `:638` still say what this row cites them for.
+
+**And the `--bins --examples` claim in `## What` above is wrong, twice.**
+That half of doc-gate's pass shape does not merely add no link site — at
+`wasm32-unknown-unknown` it does not COMPILE: `error[E0432]: unresolved
+import viewer::evalseam::ThreadEvaluator` at
+`crates/viewer/examples/r1_e2e.rs:19:37`, in one of two files under
+`crates/viewer/examples/` that this row never mentions. With the link
+lint denied it aborts at four sites, not seven, because the private-`fn`
+sites are not reached; with the lint allowed the lib-only pass is clean
+and this half is the only red. The conclusion that it adds no site
+survives; the reason given for it — `bin/viewer.rs` has no intra-doc
+links — was an argument about the wrong half, and "cannot" was too
+strong.
 
 **Disclosed rather than fixed, and scheduled**:
-`work/view/wasm-only-doc-comments-are-checked-by-nothing.md`. The
-ruling's stated cost is that a doc comment on a wasm-only item is now
-rendered by no pass this repo runs, so nothing resolves its links — the
-two links repaired above were in exactly that class and had been dead
-for their whole lives with no checker able to see them. That file also
-carries the third shape this row did not offer and the tree does:
-`#[cfg_attr(target_family = "wasm", allow(rustdoc::broken_intra_doc_links))]`
-on the four items bearing the seven links makes the browser pass green
-without weakening the host pass, at the price of a per-site tax forever.
-It was costed and refused; the file records the costing so a successor
-argues with it rather than re-deriving it.
+`work/view/wasm-only-doc-comments-are-checked-by-nothing.md`, which now
+carries the priced intermediate as its recommended shape.
 
-**What this row got wrong, for the record.** Only its framing, and
-mildly: the two shapes were offered as alternatives over one population,
-and the population is not homogeneous — two of the nine were a defect on
-any posture and seven were not. Everything measurable in it was right at
-the SHA it named and still right at close.
+**What this row got wrong, for the record.** Its framing offered two
+shapes over one population when the population is not homogeneous. More
+than that, both shapes were reasoned from scratch: the repo had already
+answered this question on the feature axis, and neither the row nor its
+first close cited it. Everything measurable in the row was right at the
+SHA it named except the `--bins --examples` sentence above.

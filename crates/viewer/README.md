@@ -1425,58 +1425,66 @@ setting only the flag fails the build, which is why the feature is
 declared here so the flag is all a builder has to remember
 (`local-scripts/serve-wasm.sh`). The browser lane itself is deferred.
 
-**The viewer's rustdoc is a HOST artifact, and a doc comment may link an
-item the browser build does not have.** `scripts/doc-gate.sh` builds this
-crate's docs at the host target only, so every page anyone reads is a
-host page. A doc comment compiled at both targets may therefore link an
-item `cfg(not(target_family = "wasm"))` keeps out of the browser build.
-`evalseam`'s module doc is the case that forces the rule rather than
-merely permitting it: its whole subject is that the seam has two arms
-and that one of them is host-only, and it cannot name that arm without
-linking it. De-linking such a site to clean a page nobody builds spends
-a live link on the reader who exists to buy a lint in a configuration
-that has no reader.
+### Rustdoc posture: the host pass is the gate
 
-**The population this permits, and the one exception to it, are
-produced by a rule rather than kept as a list.** Take the reading at the
-browser target —
+**At the browser target every link into host-only code is unresolvable
+BY CONSTRUCTION, so a lint that cannot tell that from a broken link is
+the wrong instrument for a browser pass.** This is the shape
+`scripts/doc-gate.sh` already records one axis over, on features: with F
+off, every link into F-gated code is unresolvable by construction, and
+the answer there is to allow `rustdoc::broken_intra_doc_links` for that
+pass ONLY — stated at the site as the cost of the widening rather than a
+tidiness flag (`RUSTDOC_LINTS_INERT`). The target axis gets the same
+answer for the same reason, and the reason is not that the browser docs
+do not matter: it is that the lint cannot tell *this link is broken*
+from *this link's target is in the other half*.
 
-```
-RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
-RUSTDOCFLAGS='-D warnings -A rustdoc::private_intra_doc_links' \
-cargo doc --no-deps --document-private-items \
-  -p viewer --features app --target wasm32-unknown-unknown
-```
+**So the gate is the HOST pass**, at `-D warnings`, which CI runs. It
+holds every page it renders — including the case no by-construction
+argument covers: a link that resolves at NEITHER target is broken on a
+host page and reds there.
 
-— and for each `rustdoc::broken_intra_doc_links` it prints, read the
-`cfg` on the item the doc comment is ATTACHED to, which is a different
-question from the `cfg` on the item it links.
-
-- **Attached to an item that compiles at both targets — permitted.**
-  The error is this rule's stated cost, not a defect.
-- **Attached to an item that is itself `cfg(target_family = "wasm")` —
-  a defect, and the repair is to de-link.** Such a link resolves in NO
-  configuration: the host never renders the doc, because the item is
-  absent there, and the browser renders it with the linked item absent.
-  Bracketing spells a checked claim that nothing anywhere checks, so
-  name the item instead — which is what `WINDOW_TITLE`'s doc already
-  does in the other direction, *"`run_web` — absent from this
-  configuration, so named rather than linked"*.
-
-The rule ranges over that pass's own output and not over a grep for
-`cfg`, because rustdoc's resolver at the target is what decides whether
-an item is absent and an attribute grep is not: a re-export, a glob
-import or a feature moves an item in or out with no `cfg` at the link's
-own site.
-
-**Nothing runs the browser pass**, so its errors are a reading taken by
-hand and not a gate. Gating it would tax every future host-only link
-with a de-link or an `allow`, in a crate whose architecture is one seam
-with two arms and which therefore mints such links by construction. The
-cost is stated where it falls: a doc comment on a wasm-only item is
-checked by no configuration at all, and
+**A browser pass, if one is ever run, allows that one lint.** None is
+run today, and the feature axis is better off here than this one:
+doc-gate's pass 3 at least COMPILES the half it widens to, where
+wasm-only items get no doc build at all.
 `work/view/wasm-only-doc-comments-are-checked-by-nothing.md` owns that
-blind spot.
+gap.
+
+**The population, dated and by name.** Read 2026-09-10 with the lint
+denied: **seven sites over four identifiers in two files**, and an
+identifier is a link SPELLING, so `ThreadEvaluator` and
+`crate::evalseam::ThreadEvaluator` count apart. `evalseam.rs`:
+`ThreadEvaluator` ×2, `ThreadIndexer` ×1. `app.rs`: `ThreadEvaluator`
+×1, `crate::evalseam::ThreadEvaluator` ×1, `StartupError::Worker` ×2.
+The enumeration is COMPLETE rather than illustrative, and it is a
+reading of the tree rather than a property of it. **Line numbers are
+deliberately not carried**: doc-gate's header gives the reason and has a
+drifted citation to show for it, and this crate has spent four such
+findings in a day.
+
+**The one shape that is a DEFECT rather than a cost, and how to decide
+it without an attribute grep.** Ask whether the host pass renders a page
+for the item the doc comment sits on:
+
+- **It does** — the host pass holds that link, and a browser-pass error
+  on it is by construction. Permitted.
+- **It does not** — the item is absent at the host, so the browser pass
+  is that link's ONLY reader and it has to resolve there. A bracket
+  resolving at neither target spells a checked claim nothing anywhere
+  checks; name the item instead, as `WINDOW_TITLE`'s doc does in the
+  other direction (*"`run_web` — absent from this configuration, so
+  named rather than linked"*).
+
+The test is page existence in rustdoc's own output and **not** the `cfg`
+on the item, because the two come apart inside this very file:
+`WebStartupError` is `cfg(target_family = "wasm")` and its variant doc
+comments carry no `cfg` of their own, so an attribute test reads them as
+unconditional and reaches the wrong bullet. It is not a test on the
+LINKED item's `cfg` either, and it needs no special case for the `app`
+feature: `mod app` is `cfg(feature = "app")`, and the host pass
+documents this crate WITH that feature, so its page exists and its links
+are held.
 
 ## Banked post-v1
 
