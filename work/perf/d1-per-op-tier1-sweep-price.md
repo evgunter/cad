@@ -45,6 +45,14 @@ documents whose edit lags it is not the wait (the index build is,
 `index-rebuilds-every-root-on-every-edit`); on node-heavy documents it
 is the whole of the wait.
 
+The kernel-API seat pays it in the shipped release binary (PERF kernel
+lane, `perf/explore-kernel`, release both ways, 4 vCPU): `die` 78–82 ms
+with assertions on vs 35–37 ms off — tier 1 fires 1470 times for 37 ms,
+46 % of the rebuild; `die_composed_tour` 90–95 vs 26 ms (1704 firings,
+65 %); every corpus row 2.2–5.5×; `demos/wild` 226 → 54 ms (72 % is
+tier 1); `demos/tour` 9.5 → 7.0 s. Per node that is ~17 operator
+sweeps, where one door-level sweep would do.
+
 CI wall is unaffected in practice: test jobs run a prebuilt nextest
 archive at 46–74 s per shard, so this is 2–4 s per shard against an
 11-minute compile critical path.
@@ -70,4 +78,13 @@ archive at 46–74 s per shard, so this is 2–4 s per shard against an
    stanza's own rationale ("the profile that would meet real parts is
    the one profile checking nothing") argues against this alone.
 
-Recommendation goes in the `[ev]` PR.
+## Recommendation
+
+Option 3. It removes the ops × N term that every seat pays — the
+kernel-API user in release, the developer in editor-core's suite — and
+keeps whole-body tier 1 at every observable boundary, with the failing
+op recovered on failure by replaying the door's operator sequence with
+per-op checks on. Option 2 is the only one that weakens what is
+checked; option 4 alone leaves dev and CI paying the same term and is
+argued against by the stanza's own rationale. Option 1 is the honest
+floor if the surgery scope is judged not worth its clarity cost.
