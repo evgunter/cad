@@ -1353,14 +1353,20 @@ selftest_fence_load() {
       "$path" "$got" "$want" "$out" >&2
     exit 1
   fi
-  case "$want:$out" in
-    0:*"function md_fence"*) ;;
-    0:*) printf 'SELFTEST FAILED: load_fence_awk "%s" succeeded without yielding the tracker:\n%s\n' "$path" "$out" >&2
+  # `gate_selftest_assert_diagnosed`, NOT a case of this function's own:
+  # `gate_error` writes `ERROR: ` locally and `::error::` under Actions,
+  # so a hand-written test for one spelling passes on a developer's box
+  # and fails on the runner. `lib.sh` knows both and is the one place
+  # that should.
+  if [ "$want" = 0 ]; then
+    case "$out" in
+      *"function md_fence"*) ;;
+      *) printf 'SELFTEST FAILED: load_fence_awk "%s" succeeded without yielding the tracker:\n%s\n' "$path" "$out" >&2
          exit 1 ;;
-    *"ERROR: "*) ;;
-    *) printf 'SELFTEST FAILED: load_fence_awk "%s" failed without a gate_error diagnosis:\n%s\n' "$path" "$out" >&2
-       exit 1 ;;
-  esac
+    esac
+  else
+    gate_selftest_assert_diagnosed "load_fence_awk over $path" "$out"
+  fi
 }
 
 gate_selftest() {

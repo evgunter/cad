@@ -7497,3 +7497,19 @@ now `:1528-1597` over 27 rows. Corrected there with the reason, which
 is that **a citation into a self-test's case list moves whenever anyone
 adds a case**: it is the wrong half of a gate to cite by line, and this
 is the second correction that row has needed in two days.
+
+**Fix pass, same day: a hand-written test for a diagnosis matched ONE
+of `gate_error`'s two spellings.** The first CI run red at
+*"SELFTEST FAILED: load_fence_awk … failed without a gate_error
+diagnosis"* — with the diagnosis printed two lines above it, in the
+`::error::` form. `lib.sh:77-83` writes `ERROR: ` locally and
+`::error::` under Actions, so `selftest_fence_load`'s own `case`
+matched on a developer's box and could not match on the runner. Both
+gates now call `gate_selftest_assert_diagnosed`, which is the one place
+that knows both spellings and is what every other case in this
+directory already goes through. **The class**: a self-test that
+re-implements a check `lib.sh` already owns is a check that agrees with
+it only by accident, and the environment where it disagrees is the one
+nobody runs by hand. Re-verified under `GITHUB_ACTIONS=true` as well as
+without it, and that is now the way to run a gate self-test before
+pushing one.
