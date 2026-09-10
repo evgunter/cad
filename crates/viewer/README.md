@@ -1451,9 +1451,21 @@ wasm-only items get no doc build at all.
 `work/view/wasm-only-doc-comments-are-checked-by-nothing.md` owns that
 gap.
 
-**The population, dated and by name.** Read 2026-09-10 with the lint
-denied: **seven sites over four identifiers in two files**, and an
-identifier is a link SPELLING, so `ThreadEvaluator` and
+**The population, dated and by name — with the instrument that takes
+it, which belongs HERE.** A reading whose command is not named cannot be
+re-taken, and the precedent keeps its pass in the same file as its
+enumeration for that reason:
+
+```sh
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
+RUSTDOCFLAGS='-D warnings -A rustdoc::private_intra_doc_links' \
+cargo doc --no-deps --document-private-items \
+  -p viewer --features app --target wasm32-unknown-unknown
+```
+
+Read 2026-09-10 with that lint set: **seven sites over four identifiers
+in two files**, and an identifier is a link SPELLING, so
+`ThreadEvaluator` and
 `crate::evalseam::ThreadEvaluator` count apart. `evalseam.rs`:
 `ThreadEvaluator` ×2, `ThreadIndexer` ×1. `app.rs`: `ThreadEvaluator`
 ×1, `crate::evalseam::ThreadEvaluator` ×1, `StartupError::Worker` ×2.
@@ -1465,7 +1477,9 @@ findings in a day.
 
 **The one shape that is a DEFECT rather than a cost, and how to decide
 it without an attribute grep.** Ask whether the host pass renders a page
-for the item the doc comment sits on:
+for the item the doc comment sits on — the same `cargo doc` without
+`--target`, then look for the page under `doc/viewer/`; it is there or
+it is not:
 
 - **It does** — the host pass holds that link, and a browser-pass error
   on it is by construction. Permitted.
