@@ -237,10 +237,12 @@ FENCE_AWK=$(load_fence_awk "$VIEWER_FENCE_AWK") || exit 1
 # The rule that produces the list is *every stage on PATH whose status
 # this file must read for itself* — so `gate_grep`, `gate_rust_code` and
 # `gate_record_awk` are here only where a guard of this file's own sits
-# beside them, and their other twelve call sites
-# (`grep -n 'gate_grep\|gate_rust_code' $0`, read by hand) are absent
-# because each diagnoses ITSELF in `lib.sh` and no case here is owed for
-# one. A case IS owed for every row below:
+# beside them, and their other call sites — the rule is
+# `grep -nE 'gate_grep|gate_rust_code|gate_record_awk' $0` with the
+# comment lines dropped, read by hand, and no count is carried here
+# because it moves whenever a filter is added — are absent because each
+# diagnoses ITSELF in `lib.sh` and no case here is owed for one. A case
+# IS owed for every row below:
 #
 #   `mapfile … < <(viewer_modules)`
 #     1. the module enumerator        `find "$SRC"`

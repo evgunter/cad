@@ -79,7 +79,7 @@ latency — all read off the file and the README rather than inferred.
 
 ## Closed (2026-09-10)
 
-`scripts/gates/viewer-module-kinds.sh:500-514`'s `readme_table_block`
+`scripts/gates/viewer-module-kinds.sh:502-516`'s `readme_table_block`
 replaces `readme_table_modules`, and the fence tracker it asks is the
 one `viewer-vocab-declared-once.sh` already used, now
 `scripts/gates/viewer-readme-fence.awk` — one file both viewer gates
@@ -113,7 +113,7 @@ its header and delimiter rows are asserted by position, a line under
 them that does not read as a row comes back as `!row` rather than being
 dropped, a table line further down the section comes back as `!stray`,
 and a line indented out of the table comes back as `!indent`. A fence
-opening inside the table body is its own answer, `!fence` (`:511`), and
+opening inside the table body is its own answer, `!fence` (`:513`), and
 between them the markers red on both fence shapes — the one with no
 blank line above it and the one with, which is the shape a fence tracker
 alone leaves silent and the shape the reproduction above used.
@@ -136,8 +136,8 @@ and its header, and its delimiter row — up to THREE spaces in, so a
 two-space-indented row was read by no rule: `session::probe` dropped out
 of the roster at exit 0 with the output `cmp`-identical to a clean run.
 That is `plan.md`'s #2172 rule, one sentinel over. The strip
-(`sub(/^ {0,3}/, "", line)`, `:503`) fixes it for the heading rule and
-the `^#` region end at the same time, `!indent` (`:507`) reports the
+(`sub(/^ {0,3}/, "", line)`, `:505`) fixes it for the heading rule and
+the `^#` region end at the same time, `!indent` (`:509`) reports the
 four-space side rather than being quietly right about it, and the OK
 line now carries the two README-derived counts that would have made the
 original narrowing visible in a log. Four more cases, all four controls

@@ -82,9 +82,9 @@ inferred.
 
 ## Closed (2026-09-10)
 
-`reader_failed` at `scripts/gates/viewer-module-kinds.sh:291-296` and
-`abort_if_reader_failed` at `:305-311`, over the population stated at
-`:236-268` rather than left to a count: **twelve stages**, with the
+`reader_failed` at `scripts/gates/viewer-module-kinds.sh:293-298` and
+`abort_if_reader_failed` at `:307-313`, over the population stated at
+`:236-270` rather than left to a count: **twelve stages**, with the
 rule that produces them written beside the list — every stage on PATH
 whose status this file must read for itself. The `gate_grep`,
 `gate_rust_code` and `gate_record_awk` sites that diagnose themselves
