@@ -808,6 +808,7 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | `profile-embed-lift-has-two-homes-anchor-and-loft` | 2026-09-08 | Profile<f64> -> Profile<T> is written twice, editor-core's anchor::embed_profile and sweep's loft::end_profile, and the home is a lift on the profile types |
 | `wire-expected-phrases-spell-family-words-as-literals` | 2026-09-08 | wire.rs's operand refusals spell family words as string literals in expected: beside the family consts kind_name and node_value_kind share |
 | `tracker-file-line-citations-measured` | 2026-09-09 | the tracker's file:line citations, measured: 1,508 in open rows across 22 programs, and 96% already name their subject beside the number |
+| `freecad-lane-reports-no-drift-on-a-cell-whose-geometry-changed` | 2026-09-10 | the freecad lane reports no drift on the teapot, whose geometry changed |
 
 ## Blocked
 
