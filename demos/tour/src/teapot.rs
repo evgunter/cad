@@ -22,8 +22,12 @@
 //!   mouth: an exploded view. No mate is authored and none is implied
 //!   — declared contact is M9's territory, and a scene that faked one
 //!   here would be claiming a certification nothing issued.
-//! - **the spout** — a cone-frustum tube, built about its own axis and
-//!   placed by `Node::Transform`.
+//! - **the spout** — a CANAL: seven annular sections standing on the
+//!   tangent frames of a circular arc, skinned by ONE `Node::Loft`,
+//!   built about its own spine and placed by `Node::Transform`. It
+//!   bends, it tapers, and its wall thins with it, so no revolve
+//!   reaches it at any axis. That is finding 5, and the shape and the
+//!   finding moved together.
 //! - **the handle** — one `Node::Tube` window, its two roots
 //!   driven through the belly wall — 11.2 mm past it, measured, which
 //!   is what makes the union a real request and is also why a teapot
@@ -126,40 +130,99 @@
 //!    scene is where a PART met it while trying to be a part: the pot
 //!    touches the axis at both ends, so nothing on it is a candidate
 //!    and the lid had to be bored to have one.
-//! 4. **The teapot is four solids because the operand gate has no arm
-//!    for either join.** handle ∪ pot is torus × cylinder; spout ∪ pot
-//!    is cone × plane. Both refuse `CurvedPairUnsupported`, pinned in
-//!    walls 2 and 3 with the payload carried verbatim into the panel's
-//!    note. Read what the second one NAMES: the spout's outer cone
-//!    against a PLANE of the pot — not the belly wall the spout
-//!    actually pierces. The gate is pair-scoped and box-conservative,
-//!    so it reports the first pair whose boxes MAY meet, and a reader
-//!    who took the refusal's text for the cause would be reading the
-//!    wrong pair (the wall-7 lesson). The schedule is the banked
-//!    germ-chord lanes and #1057's two C5 arms. **Both refusals now
-//!    arrive through the DOCUMENT**: each join is a `Node::Boolean`
-//!    that lowers to the same kernel `union` and fails at `evaluate`,
-//!    and what the note quotes is that node's own carried refusal
-//!    rather than a second measurement of it.
+//! 4. **The teapot is four solids because the operand gate refuses
+//!    both joins — at TWO DIFFERENT RUNGS of it, and the second one
+//!    moved when the spout became a canal.**
 //!
-//!    What is the SAME across that change is the face, the operand and
-//!    the two kinds — not the payload's bits. An arena KEY moves when
-//!    the model is re-authored, and wall 3's did: the same physical
+//!    handle ∪ pot is torus × SPHERE — the belly is a spherical
+//!    zone — so `CurvedPairUnsupported`, a FACE-KIND pair with no
+//!    wired arm, pinned in wall 2.
+//!
+//!    spout ∪ pot used to be the same shape of refusal — cone × plane
+//!    — and it is not any more. A loft's walls are `Nurbs`, and the
+//!    pair gate has an arm for `Nurbs`, so the request now gets PAST
+//!    the pair rung and dies one door in: `CurvedEdgeUnsupported`, on
+//!    an EDGE of operand B. That variant's own words are the finding —
+//!    *"rung-3 edges are what the curved zip MINTS, not what it
+//!    consumes"* — so what stops this join is no longer a missing
+//!    face-kind arm but the canal's own seams: a NURBS-carried edge
+//!    cannot be an INPUT to a boolean at all. Making the spout the
+//!    shape a potter draws did not make it joinable; it moved the
+//!    refusal from a pair the model does not care about onto the
+//!    body's own edges, which is a narrower and more useful frontier.
+//!    Wall 3 pins the new variant and the note carries the payload.
+//!
+//!    Read wall 2's refusal for what it NAMES rather than what it
+//!    causes: the gate is pair-scoped and box-conservative, so it
+//!    reports the first pair whose boxes MAY meet, and a reader who
+//!    took the text for the cause would be reading the wrong pair (the
+//!    wall-7 lesson). The schedule is the banked germ-chord lanes and
+//!    #1057's two C5 arms. **Both refusals arrive through the
+//!    DOCUMENT**: each join is a `Node::Boolean` that lowers to the
+//!    same kernel `union` and fails at `evaluate`, and what the note
+//!    quotes is that node's own carried refusal rather than a second
+//!    measurement of it.
+//!
+//!    Neither wall's probe ever pinned an arena KEY, and that is why
+//!    both survived a re-authoring that moved one: the same physical
 //!    face, the mouth-rim annulus at `y = 1/8`, was `FaceKey(1v1)`
-//!    when the cup came from a plane scan and is `FaceKey(2v1)` now
-//!    that it comes from the document. Neither wall's probe ever
-//!    pinned a key — both match on `operand`, `kind` and `other_kind`,
-//!    which is the pair the gate is about — and that is why the change
-//!    is invisible to them and why the note renders the pair rather
-//!    than the struct.
-//! 5. **A spout the shape of a spout is not authorable at all.** What
-//!    a potter draws is a swept curved section — a canal or a loft
-//!    along a bent spine. `sweep_body` cannot round the U-turn a real
-//!    spout takes and there is no variable-section sweep, so the shape
-//!    on screen is a straight cone frustum tilted into place: a spout
-//!    the way a lathe would make one. Recorded as a register note
-//!    rather than worked around, because a hand-built stand-in would
-//!    be evidence about this file and not about the library.
+//!    when the cup came from a plane scan and became `FaceKey(2v1)`
+//!    once it came from the document. Wall 2 matches on `operand`,
+//!    `kind` and `other_kind`; wall 3 now matches on `operand` alone,
+//!    because the variant it pins carries no kinds — the edge key it
+//!    does carry is exactly the sort of value a probe must not pin.
+//! 5. **A spout the shape of a spout IS authorable — and this row was
+//!    half wrong when it was written.** It used to read: *"there is no
+//!    variable-section sweep, so the shape on screen is a straight
+//!    cone frustum tilted into place: a spout the way a lathe would
+//!    make one."* Both halves are re-measured here.
+//!
+//!    **The false half.** `Node::Loft` takes its sections as profile
+//!    NODES, so each one carries its own sketch plane, and a
+//!    `ProfileProgram` carries a LIST of loops — which is a variable
+//!    section, an annular one, placed anywhere. That is exactly the
+//!    door "no variable-section sweep" said did not exist, and it has
+//!    been bound since LIB-PYG23A. The spout below is seven annuli on
+//!    the tangent frames of a circular arc, skinned in ONE node: a
+//!    canal that bends through half a right angle, tapers to half its
+//!    root radius, and thins as it goes — reachable by no revolve
+//!    about any axis, and by no extrude.
+//!
+//!    **The true half, narrowed to what it is.** `sweep_body` still
+//!    cannot round a U-turn — `wire_sweep` refuses unconditionally and
+//!    that door is banked (`SWEEP_FRONTIER`, U4/LQ3) — so a spout that
+//!    turns back on itself is still out of reach, and a loft of enough
+//!    sections is an approximation of that rather than the thing.
+//!
+//!    **What the loft costs instead, and it is a different debt.** The
+//!    SPINE IS NOT IN THE DOCUMENT. `spout_frames` computes seven
+//!    frames from [`SPOUT_BEND`] and writes their components as
+//!    literals, so a reader of the saved document sees seven
+//!    placements and no arc, and changing the bend means re-deriving
+//!    all seven rather than editing one number. That is
+//!    `twisted_tube`'s own star one scene over, and a spine datum a
+//!    loft could read its placements off is what would close it.
+//!
+//!    **What the shape cost in EVIDENCE, said out loud.** Less than it
+//!    looks, and the reason is worth having: **a bend about a spine
+//!    through the sections' own centres is volume-neutral.** The
+//!    tube's volume element is `(1 − κ·x) dA ds` with `x` toward the
+//!    curvature centre, and `∫x dA` over a centred section is zero, so
+//!    the curvature term integrates away and what is left is the
+//!    STRAIGHTENED tube's volume — the same frustum difference this
+//!    scene used before the spout bent. The same cancellation runs
+//!    over the lateral area, where `∮(1 − κ r cosθ) dθ = 2π`.
+//!
+//!    So the closed form survives the bend, and what the assertion
+//!    actually measures is the LOFT FIT: a cubic skin through
+//!    [`SPOUT_STATIONS`] stations against the swept tube it
+//!    interpolates. The scene asserts it at `1e-4` where its pot and
+//!    lid are asserted at `1e-12`, and the note carries what the fit
+//!    really costs. The kernel says the same thing in its own units:
+//!    these walls are RATIONAL, so they are quadrature faces and
+//!    `mass_properties` publishes an enclosure rather than a number,
+//!    where every analytic body on this page publishes a pad of
+//!    exactly 0.
 //! 6. **The lid's roll takes ONE kernel call and TWO document
 //!    requests, and the difference is the NAME emitter.**
 //!    `fillet_edges` rolls all three rims in one request. The same
@@ -199,7 +262,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, PI, TAU};
+use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 
 use pncad::document::{
     BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr,
@@ -210,7 +273,9 @@ use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::query;
-use pncad::prelude::{EntityKind, MeridianEnd, NamePat, SegPat, SegTag, Selector, StableName};
+use pncad::prelude::{
+    CapEnd, EntityKind, MeridianEnd, NamePat, SegPat, SegTag, Selector, StableName,
+};
 use pncad::profile::ArcSweep;
 use pncad::select::{
     band, band_pi, band_rim, carried, edge_name, face_carrier_kind, face_frame, meridian_vertex,
@@ -304,13 +369,34 @@ const ROLL: f64 = 2.0 / 256.0;
 // The spout and the handle.
 // ---------------------------------------------------------------------
 
-/// The spout's length along its own axis.
+/// The spout's length ALONG ITS SPINE — an arc now, not an axis.
 const SPOUT_LEN: f64 = 8.0 / 64.0;
 /// The spout's outer radius at the root, and at the tip.
 const SPOUT_R0: f64 = 6.0 / 256.0;
 const SPOUT_R1: f64 = 3.0 / 256.0;
-/// The spout's wall.
-const SPOUT_WALL: f64 = 1.0 / 256.0;
+/// **The bore, as a FRACTION of the outer radius, at every station**
+/// — so the wall thins with the spout instead of holding one
+/// thickness, which is what a pulled spout does and what a lathe
+/// cannot do.
+///
+/// Load-bearing rather than decorative: a section that scales
+/// UNIFORMLY keeps its centroid on the spine, and a centred section is
+/// what makes the bend volume-neutral — which is what leaves the
+/// straightened frustum as this canal's closed form. A wall of
+/// constant absolute thickness would move the centroid off the spine
+/// as the section shrank, and the closed form would go with it.
+const SPOUT_BORE: f64 = 3.0 / 4.0;
+/// How many sections the spout's skin is fitted through.
+const SPOUT_STATIONS: usize = 7;
+/// How many ARCS each section's circle is authored as. Four, and it
+/// is not a style choice — see [`spout_loft`], where the tessellator's
+/// own refusal is quoted.
+const SPOUT_ARCS: u32 = 4;
+/// **The spout's total bend**, root tangent to tip tangent: half a
+/// right angle. The canal leaves the belly on [`SPOUT_DIR`] and
+/// arrives pointing that much further up, which is the shape a spout
+/// has and the shape a revolve does not reach.
+const SPOUT_BEND: f64 = FRAC_PI_4;
 /// The spout's root, inside the belly.
 const SPOUT_ROOT: Point3<f64> = Point3 {
     x: -1.0 / 32.0,
@@ -438,12 +524,6 @@ fn vessel_meridian() -> LoopProgram {
     ])
 }
 
-/// The spout meridian's own segment indices, in program order: the
-/// root annulus, the outer cone, the TIP annulus, the bore.
-const SEG_SPOUT_ROOT: u32 = 0;
-/// The tip annulus's segment — the face the placement's rotation moves.
-const SEG_SPOUT_TIP: u32 = 2;
-
 /// The mouth disc's segment index in [`vessel_meridian`]'s program
 /// order — base disc, foot, belly, MOUTH, axis chord.
 const SEG_MOUTH: u32 = 3;
@@ -523,16 +603,103 @@ const LID_RIMS: [(u32, f64, f64, &str); 3] = [
     (4, R_KNOB, Y_TOP, "the knob's top (cylinder x plane)"),
 ];
 
-/// **The spout's meridian**: an annular trapezoid — a cone frustum
-/// with a cone frustum bored out of it, one wall thick.
-fn spout_meridian() -> LoopProgram {
-    LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(SPOUT_R0 - SPOUT_WALL, 0.0)),
-        line_to(SPOUT_R0, 0.0),
-        line_to(SPOUT_R1, SPOUT_LEN),
-        line_to(SPOUT_R1 - SPOUT_WALL, SPOUT_LEN),
-        ProgramStep::LineTo(ProgramTarget::Start),
-    ])
+/// **The spout's spine, as a list of section PLANES** — built in the
+/// spout's own frame, where the canal leaves the origin along `+y` and
+/// bends toward `+x` through [`SPOUT_BEND`]. The placement below
+/// carries `+y` onto [`SPOUT_DIR`], so the root arrives on the 3-4-5
+/// direction and the tip a half right angle further up.
+///
+/// The spine is a circular ARC of radius `SPOUT_LEN / SPOUT_BEND`, so
+/// the stations are equally spaced along it by construction rather
+/// than by a resampling step.
+///
+/// **Each frame's normal is the spine's tangent, exactly.** A
+/// `Datum::Frame`'s normal is `u × v`; with `u = +z` and
+/// `v = (cos a, −sin a, 0)` that cross product is `(sin a, cos a, 0)`,
+/// which IS the tangent at station `a`. So a section is perpendicular
+/// to the spine because of what the frame says, not because a fitting
+/// step made it nearly so.
+///
+/// Returned with each station's OUTER radius, because the two lofts
+/// below share these frames: the canal and its solid twin are the same
+/// spine and the same sections, differing in one loop.
+fn spout_frames(doc: &mut Doc<ProfileProgram>, tol: Tol) -> Vec<(RecipeNodeId, f64)> {
+    let r_spine = SPOUT_LEN / SPOUT_BEND;
+    (0..SPOUT_STATIONS)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let t = i as f64 / (SPOUT_STATIONS - 1) as f64;
+            let (sa, ca) = (t * SPOUT_BEND).sin_cos();
+            let plane = insert(
+                doc,
+                Node::Datum(Datum::Frame {
+                    origin: [len(r_spine * (1.0 - ca)), len(r_spine * sa), len(0.0)],
+                    u: [scl(0.0), scl(0.0), scl(1.0)],
+                    v: [scl(ca), scl(-sa), scl(0.0)],
+                }),
+                tol,
+            );
+            (plane, SPOUT_R1.mul_add(t, SPOUT_R0 * (1.0 - t)))
+        })
+        .collect()
+}
+
+/// **The spout, as one `Node::Loft` through those sections.**
+///
+/// Two loops per section — the outer arc chain and the bore, the bore
+/// a fixed FRACTION of the outer at every station. That is what makes
+/// the closed form below available at all: a section that scales
+/// uniformly keeps its centroid on the spine, and a centred section is
+/// what makes a bend volume-neutral.
+fn spout_loft(
+    doc: &mut Doc<ProfileProgram>,
+    frames: &[(RecipeNodeId, f64)],
+    tol: Tol,
+) -> RecipeNodeId {
+    // **`CircleSplit(4)`, not `Circle`, and the reason is a LIBRARY
+    // FINDING measured on this scene** (`memories/demo-purpose.md`:
+    // the awkwardness is the finding, never worked around silently).
+    //
+    // A plain `Circle` loop is TWO segments, so each lateral wall of
+    // the loft spans a SEMICIRCLE — and a semicircle is not one
+    // rational Bézier: the kernel joins two of them at an interior
+    // knot of multiplicity = degree, which is a C⁰ crease in the
+    // wall's own u direction. The tessellator refuses exactly that,
+    // typed and with the remedy in the payload:
+    //
+    //   UnsupportedNurbsFace { note: "NURBS direction with a C⁰ crease
+    //   (interior multiplicity = degree) — the interpolation Taylor
+    //   bound needs C¹; split the face at the crease" }
+    //
+    // So a lofted round section is unmeshable through the `Circle`
+    // door and meshable through this one, and the difference is four
+    // quarter arcs instead of two half ones. `CircleSplit` is the
+    // grammar's own declared-subdivision carrier rather than a
+    // workaround — but that a scene has to KNOW to reach for it, and
+    // learns so from a tessellation refusal three steps downstream of
+    // the loop it authored, is the finding. `twisted_tube` never met
+    // it because a square's sides are separate segments already.
+    let profiles = frames
+        .iter()
+        .map(|&(plane, outer)| {
+            let arcs = |radius: f64| LoopProgram::CircleSplit {
+                centre: lpt(0.0, 0.0),
+                radius: len(radius),
+                n: SPOUT_ARCS,
+                phase: ang(0.0),
+            };
+            let loops = vec![arcs(outer), arcs(outer * SPOUT_BORE)];
+            insert(doc, Node::Profile(ProfileProgram { plane, loops }), tol)
+        })
+        .collect();
+    insert(
+        doc,
+        Node::Loft {
+            profiles,
+            v_degree: Expr::count(3),
+        },
+        tol,
+    )
 }
 
 /// **The turn that takes the spout's own `+y` axis onto
@@ -704,8 +871,12 @@ fn build_doc(tol: Tol) -> Recipe {
         tol,
     );
 
-    // ---- the spout: built about its own axis, then placed ----
-    let spout_body = revolved(&mut doc, plane, axis, spout_meridian(), tol);
+    // ---- the spout: a CANAL lofted about its own bent spine, then
+    // placed. The placement is unchanged from when this was a revolved
+    // frustum, and that is deliberate: the shape moved and the
+    // isometry receipt below did not have to.
+    let frames = spout_frames(&mut doc, tol);
+    let spout_body = spout_loft(&mut doc, &frames, tol);
     let spout = insert(
         &mut doc,
         Node::Transform {
@@ -1628,14 +1799,38 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // translation and would be 0 with the turn deleted. These two
     // stand off that axis and one of them stands a whole spout-length
     // up it, so both residuals are about the turn.
-    let tip_unplaced = face_frame(&ev, r.spout_body, &band(r.spout_body, 0, SEG_SPOUT_TIP))
-        .expect("the tip annulus, before the placement");
-    let unplaced = face_frame(&ev, r.spout_body, &band(r.spout_body, 0, SEG_SPOUT_ROOT))
-        .expect("the root annulus, before the placement");
-    let tip_placed = face_frame(&ev, r.spout, &band(r.spout_body, 0, SEG_SPOUT_TIP))
-        .expect("the tip annulus, after it");
-    let placed = face_frame(&ev, r.spout, &band(r.spout_body, 0, SEG_SPOUT_ROOT))
-        .expect("the root annulus, after it");
+    //
+    // The two subjects are the loft's own CAPS, which is a better
+    // handle than the frustum's meridian bands were: a loft names its
+    // two ends `Cap(Start)` and `Cap(End)` outright, so the name asks
+    // for the end rather than for a segment index that a re-ordered
+    // meridian could move under it. Both are annuli, because the
+    // sections are.
+    let one_cap = |node: RecipeNodeId, end: CapEnd| -> StableName {
+        let mut found = faces_where(&ev, node, SegPat::tag(SegTag::Cap).side(end));
+        assert_eq!(
+            found.len(),
+            1,
+            "a loft has exactly one {end:?} cap; got {found:?}"
+        );
+        found.remove(0)
+    };
+    let root_name = one_cap(r.spout_body, CapEnd::Start);
+    let tip_name = one_cap(r.spout_body, CapEnd::End);
+    let tip_unplaced =
+        face_frame(&ev, r.spout_body, &tip_name).expect("the tip annulus, before the placement");
+    let unplaced =
+        face_frame(&ev, r.spout_body, &root_name).expect("the root annulus, before the placement");
+    let tip_placed = face_frame(&ev, r.spout, &tip_name).expect("the tip annulus, after it");
+    let placed = face_frame(&ev, r.spout, &root_name).expect("the root annulus, after it");
+    // WHICH cap is the root is read rather than assumed: the spout is
+    // built with station 0 AT its own origin, so the root cap is the
+    // one standing there and the tip cap is a whole spine-length away.
+    assert!(
+        Vec3::new(unplaced.origin.x, unplaced.origin.y, unplaced.origin.z).norm() <= 1e-15,
+        "`Cap(Start)` is station 0, which sits at the spout's own origin; it is at {:?}",
+        unplaced.origin
+    );
     // The EXACT image of that face's own frame under the placement the
     // authored direction states — the 3-4-5 turn written as the matrix
     // whose columns are the direction's own components, which is what
@@ -1668,33 +1863,51 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          {tip_exact:?} ({tip_residual:e} m away)",
         tip_placed.origin
     );
-    // Both subjects stand OFF the rotation's fixed set (the +z axis
-    // through the world origin), so both residuals are about the turn
-    // and neither is the `R·0 + t = t` identity a point on that axis
-    // would give for any angle at all.
-    for (what, o) in [("root", unplaced.origin), ("tip", tip_unplaced.origin)] {
-        assert!(
-            o.x.hypot(o.y) > 1e-3,
-            "the {what} annulus stands at {o:?}, on the rotation's own fixed axis — a \
-             residual read there measures the translation and not the turn"
-        );
-    }
-    // A BOUND rather than a bit, and the bound is the argument: the
-    // angle's cosine and sine are a libm's answer, so an equality here
-    // would gate this scene on one platform's last ulp (the reason
-    // this workspace routes `erf` through the `libm` crate). What is
-    // observed goes in the note; what is ASSERTED is that the placed
-    // face stands where the direction says to within a ulp of the
-    // spout's own scale.
+    // **WHERE THE EVIDENCE COMES FROM MOVED WITH THE SHAPE, and the
+    // guard that used to hold both subjects is why.** A point on the
+    // rotation's fixed set — the `+z` axis through the world origin —
+    // maps to `R·0 + t = t` for ANY angle, so a residual read there
+    // measures the translation and says nothing about the turn. The
+    // frustum's root BAND stood off that axis; the loft's root CAP is
+    // the section at station 0, whose frame origin is the spine's own
+    // start, and the spout is built with that start AT its origin. So
+    // the root cap is exactly the degenerate subject the guard was
+    // written to exclude, and the receipt is re-cut rather than the
+    // guard weakened:
+    //
+    //   * POSITION evidence comes from the TIP cap alone, which stands
+    //     a whole spine-length off the axis;
+    //   * ORIENTATION evidence comes from BOTH caps' normals, and a
+    //     translation cannot rotate a normal — so the root cap still
+    //     carries turn evidence, of a kind its position could not.
+    let off_axis = tip_unplaced.origin.x.hypot(tip_unplaced.origin.y);
+    assert!(
+        off_axis > 1e-3,
+        "the tip annulus stands at {:?}, on the rotation's own fixed axis — a residual \
+         read there measures the translation and not the turn",
+        tip_unplaced.origin
+    );
+    // The root cap's residual is still asserted, and it is now about
+    // the TRANSLATION: `turn(0) + t` is `t`, so this says the placed
+    // root sits exactly on SPOUT_ROOT.
+    //
+    // A BOUND rather than a bit, on both residuals, and the bound is
+    // the argument: the angle's cosine and sine are a libm's answer,
+    // so an equality here would gate this scene on one platform's last
+    // ulp (the reason this workspace routes `erf` through the `libm`
+    // crate). What is observed goes in the note; what is ASSERTED is
+    // that the placed face stands where the direction says to within a
+    // ulp of the spout's own scale.
     assert!(
         root_residual <= 1e-15,
         "the placed root annulus stands at {:?}; the direction's own matrix puts it at \
          {root_exact:?} ({root_residual:e} m away)",
         placed.origin
     );
-    // And it FACES the way the direction says: the placed chart's axis
-    // is the image of the unplaced one, which for this annulus is the
-    // sketch's own +v carried onto SPOUT_DIR.
+    // And it FACES the way the direction says: the root section's
+    // normal is the spine's tangent at station 0, which the sketch
+    // frames put on the spout's own `+v` — so its image is SPOUT_DIR,
+    // and a rotation is the only thing that could have put it there.
     let axis_cross = placed.axis.cross(SPOUT_DIR).norm();
     let axis_dot = placed.axis.dot(SPOUT_DIR).abs();
     assert!(
@@ -1703,30 +1916,85 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          cross {axis_cross:e}, |dot| {axis_dot}",
         placed.axis
     );
+    // **The TIP's normal measures the BEND as well as the turn.** The
+    // tip section's normal is the tangent at [`SPOUT_BEND`], so its
+    // image under the placement is a direction neither the placement
+    // nor the spine determines alone — which is what makes this the
+    // one reading on the sheet that would move if either did.
+    let (sb, cb) = SPOUT_BEND.sin_cos();
+    let tip_axis_exact = turn(Vec3::new(sb, cb, 0.0));
+    let tip_cross = tip_placed.axis.cross(tip_axis_exact).norm();
+    let tip_dot = tip_placed.axis.dot(tip_axis_exact).abs();
+    assert!(
+        tip_cross <= 1e-15 && (tip_dot - 1.0).abs() <= 1e-15,
+        "the placed tip annulus's normal is {:?}, and the bend and the turn together put \
+         it at {tip_axis_exact:?}: cross {tip_cross:e}, |dot| {tip_dot}",
+        tip_placed.axis
+    );
     // The observed turn, REPORTED — the note quotes it and nothing
     // gates on it.
     let (sin_t, cos_t) = spout_turn().sin_cos();
     let spout = body_at(&ev, r.spout);
-    let v_spout = frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
-        - frustum_volume(SPOUT_R0 - SPOUT_WALL, SPOUT_R1 - SPOUT_WALL, SPOUT_LEN);
-    let a_spout = frustum_lateral(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
-        + frustum_lateral(SPOUT_R0 - SPOUT_WALL, SPOUT_R1 - SPOUT_WALL, SPOUT_LEN)
-        + annulus(SPOUT_R0, SPOUT_R0 - SPOUT_WALL)
-        + annulus(SPOUT_R1, SPOUT_R1 - SPOUT_WALL);
     let spout_props = pncad::topo::mass_properties(&spout, tol).expect("the spout's props");
-    // Asserted AFTER the placement, which is the point: the closed
-    // forms are stated in the spout's OWN frame, so the rigid map is
-    // what has to have left them alone.
+
+    // **The closed form a BENT tube still has, and what the loft costs
+    // against it.**
+    //
+    // There is no elementary volume for a fitted skin through seven
+    // annuli. There IS one for the thing that skin approximates, and
+    // it is the same frustum difference this scene used before the
+    // spout bent: **a bend about a spine through the sections' own
+    // centres is volume-neutral.** The tube's volume element is
+    // `(1 − κ·x) dA ds` with `x` measured toward the curvature centre,
+    // and `∫x dA` over a centred section is zero — so the curvature
+    // term integrates away and what is left is `∫A ds`, which is the
+    // STRAIGHTENED tube's volume. The same cancellation runs over the
+    // lateral area, where `∮(1 − κ r cosθ) dθ = 2π`.
+    //
+    // So the oracle is the straight frustum, said in the canal's own
+    // three numbers: outer radii `R0 → R1`, a bore that is
+    // `SPOUT_BORE` of each, and the SPINE LENGTH as the height.
+    //
+    // What the assertion is really measuring, therefore, is **the loft
+    // FIT** — the gap between a cubic skin through seven stations and
+    // the swept tube it interpolates. That gap is a reading this scene
+    // owes, and it is in the note.
+    let v_spout =
+        SPOUT_BORE.mul_add(-SPOUT_BORE, 1.0) * frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN);
+    let a_spout = frustum_lateral(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
+        + frustum_lateral(SPOUT_BORE * SPOUT_R0, SPOUT_BORE * SPOUT_R1, SPOUT_LEN)
+        + annulus(SPOUT_R0, SPOUT_BORE * SPOUT_R0)
+        + annulus(SPOUT_R1, SPOUT_BORE * SPOUT_R1);
+    let v_fit = ((spout_props.volume - v_spout) / v_spout).abs();
+    let a_fit = ((spout_props.surface_area - a_spout) / a_spout).abs();
+    // LOOSER bounds than the analytic scenes on this page carry, and
+    // the looseness is the subject rather than a concession — these
+    // are the fit's own price, with a decade of headroom over what it
+    // actually costs, so a fit that got worse would red. Asserted
+    // AFTER the placement, as the frustum's was, so the rigid map is
+    // part of the receipt.
+    //
+    // **TWO bounds, an order of magnitude apart, because the two
+    // readings are not equally sensitive to the same skin.** Measured
+    // here: 2.7e-6 on the volume and 3.3e-5 on the area, a factor of
+    // twelve. A volume is an integral of the surface's POSITION and an
+    // area is an integral of its metric, so a skin that rides close to
+    // the swept tube can still stretch against it — the same reason a
+    // chordal mesh under-reports volume by far less than it
+    // under-reports area. Reported, not explained away: the note
+    // carries both figures.
     assert!(
-        ((spout_props.volume - v_spout) / v_spout).abs() < 1e-12,
-        "spout V = {} vs the frustum difference {v_spout}",
+        v_fit < 1e-4,
+        "the canal's V = {} vs the straightened frustum's {v_spout} ({v_fit:e} relative)",
         spout_props.volume
     );
     assert!(
-        ((spout_props.surface_area - a_spout) / a_spout).abs() < 1e-12,
-        "spout A = {} vs the closed form {a_spout}",
+        a_fit < 1e-3,
+        "the canal's A = {} vs the straightened frustum's {a_spout} ({a_fit:e} relative)",
         spout_props.surface_area
     );
+    let spout_pad = spout_props.volume_pad;
+    let spout_bend_deg = SPOUT_BEND.to_degrees();
 
     // ---- the handle ----
     let sweep = 2.0 * (FRAC_PI_2 + HANDLE_OVER);
@@ -1874,25 +2142,34 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          inside the cavity, which is fine for a refused request and wrong for a joined one",
     );
 
-    // WALL 3 — the spout joined to the pot. A DIFFERENT pair, and it
-    // is not the pair the model cares about: the gate is pair-scoped
-    // and box-conservative, so the faces it names are the first whose
-    // boxes MAY meet — here the spout's outer cone against a PLANE of
-    // the pot, not the belly wall the spout actually pierces.
+    // WALL 3 — the spout joined to the pot, and it is a DIFFERENT RUNG
+    // of the gate from wall 2 now that the spout is a canal.
+    //
+    // The frustum's walls were cones, so this used to die where wall 2
+    // dies: `CurvedPairUnsupported`, on a face-kind pair with no arm.
+    // A loft's walls are `Nurbs` and the pair gate HAS an arm for
+    // `Nurbs`, so the request gets past that rung and dies one door in,
+    // on an EDGE of operand B — the canal's own seams, whose carriers
+    // are rung 3. The variant's own doc is the finding: *"rung-3 edges
+    // are what the curved zip MINTS, not what it consumes."*
+    //
+    // The predicate matches on the OPERAND alone, deliberately. This
+    // variant carries an `EdgeKey`, and an arena key moves whenever the
+    // model is re-authored (wall 3's face key already did once); a
+    // probe that pinned one would red on a rename. What is pinned is
+    // the class and the side: operand B, the spout, is where the
+    // unconsumable carrier is.
     let spout_refusal = describe_join(&ev, r.spout_union);
     crate::walls::wall(
         "teapot",
         3,
-        "join the spout to the vessel (union; the root disc wholly inside the belly)",
+        "join the CANAL to the vessel (union; the root disc wholly inside the belly)",
         join_outcome(&ev, r.spout_union),
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
+                BooleanError::CurvedEdgeUnsupported {
                     operand: Operand::B,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -1921,7 +2198,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "ONE recipe document: Profile -> Revolve -> Node::Shell(t = 7.8125 mm, the \
               mouth's two half-discs BY NAME) for the vessel; Profile -> Revolve -> \
               Node::Fillet twice (the flange rim, then the dome foot + the knob top, all \
-              by name) for the lid; Profile -> Revolve -> Node::Transform for the spout; \
+              by name) for the lid; Datum::Frame x{SPOUT_STATIONS} -> Profile(2 circle loops) \
+              x{SPOUT_STATIONS} -> Node::Loft(v_degree 3) -> Node::Transform for the \
+              spout, with the same frames lofted a second time WITHOUT the bore as its \
+              volume's denominator; \
               Datum::Axis -> Node::Tube for the handle. Two walls pinned: both unions, \
               as Node::Boolean(Union) nodes that refuse at evaluate",
         delta: DELTA,
@@ -2005,38 +2285,69 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              meridian vertex, where the pot's axis-touching profile mints the half-wall \
              pair the mouth is named as. NO MATE IS AUTHORED — the lid renders {LIFT} m above the mouth and \
              the two bodies are strangers to the kernel; declared contact is M9's. THE \
-             SPOUT AND THE HANDLE. Both build and both check against closed forms — the \
-             spout as a difference of cone frusta, asserted AFTER `Node::Transform` \
-             placed it, so the map's isometry is part of the receipt; the handle by \
+             SPOUT AND THE HANDLE. The spout is a CANAL — {SPOUT_STATIONS} annular \
+             sections standing on the tangent frames of a circular arc, skinned by ONE \
+             `Node::Loft`, bending {spout_bend_deg:.0} degrees and tapering to half its root radius, so \
+             no revolve reaches it at any axis and no extrude does either. A fitted skin has no \
+             elementary volume, but the tube it approximates does, and it is the SAME \
+             frustum difference this scene used before the spout bent: a bend about a \
+             spine through the sections' own centres is VOLUME-NEUTRAL, because the \
+             curvature term of the volume element weighs the section's first moment and \
+             a centred section's is zero. The same cancellation runs over the lateral \
+             area. So the oracle is the STRAIGHTENED tube — outer radii R0 → R1, a bore \
+             {SPOUT_BORE} of each, the spine length as the height — and what the \
+             comparison then measures is the LOFT FIT: a cubic skin through \
+             {SPOUT_STATIONS} stations against the swept tube it interpolates, \
+             {v_fit:e} relative on the volume and {a_fit:e} on the area — a factor of \
+             twelve between them, because a volume integrates the surface's POSITION \
+             and an area integrates its metric, so a skin can ride close and still \
+             stretch. That is the price of the shape, measured rather than assumed, and \
+             it is why this scene's spout is asserted at 1e-4 and 1e-3 where its pot \
+             and lid are asserted at 1e-12: those are closed-form solids of revolution \
+             and this is a fit. The \
+             kernel says so too, in its own units — the canal's walls are rational, so \
+             they are quadrature faces and `mass_properties` publishes an enclosure of \
+             half-width {spout_pad:e} m^3 rather than a number, where every analytic \
+             body on this page publishes 0. The handle checks by \
              Pappus on its own disc. The document says a placement in AXIS-ANGLE and the \
              3-4-5 turn is not a binary-exact angle, so what that costs is MEASURED off \
-             the PLACED BODY: the root annulus — the spout meridian's own segment-0 \
-             band, named at the revolve and read at the transform — stands \
-             {root_residual:e} m from where the direction's own matrix puts it and its \
-             chart faces SPOUT_DIR to a cross of {axis_cross:e}, and the TIP annulus \
-             one spout-length up stands {tip_residual:e} m from its own exact image. \
-             Both subjects sit OFF the turn's fixed axis, which is what keeps either \
-             residual a measurement of the ROTATION rather than of the translation. On THIS platform the \
+             the PLACED BODY: the TIP cap, a whole spine-length off the turn's fixed \
+             axis, stands {tip_residual:e} m from its own exact image and its normal \
+             agrees with the bend and the turn together to a cross of {tip_cross:e}; the \
+             ROOT cap stands {root_residual:e} m from where the direction's own matrix \
+             puts it and faces SPOUT_DIR to a cross of {axis_cross:e}. The two carry \
+             different halves ON PURPOSE: the root cap sits exactly ON the rotation's \
+             fixed axis, where a position residual would measure the translation and \
+             nothing else — so position evidence is the tip's, while orientation \
+             evidence is both caps', because a translation cannot rotate a normal. On THIS platform the \
              angle's cosine and sine come back as {cos_t} and {sin_t}, which are the \
              direction's components bit for bit; that is reported and not asserted, \
-             because a bitwise pin here would gate the scene on one libm's last ulp. Neither JOINS. handle ∪ vessel: {handle_refusal}. \
-             spout ∪ vessel: {spout_refusal}. Both are the pair-scoped operand gate \
-             naming a germ PAIR with no wired arm, and note what the second one names — \
-             the spout's outer CONE against a PLANE of the pot, not the belly wall the \
-             spout actually pierces: box overlap is a MAY, and the gate reports the \
-             first pair whose boxes may meet. The schedule is the banked germ-chord \
+             because a bitwise pin here would gate the scene on one libm's last ulp. Neither JOINS, and they refuse at TWO \
+             DIFFERENT RUNGS of the operand gate. handle ∪ vessel: {handle_refusal} — \
+             the pair-scoped rung, a germ PAIR (torus × sphere) with no wired arm, and \
+             note that a pair the gate NAMES need not be the pair the model cares about: \
+             box overlap is a MAY, so it reports the first pair whose boxes may meet. \
+             spout ∪ vessel: {spout_refusal} — and THIS one moved when the spout became \
+             a canal. A loft's walls are Nurbs and the pair rung HAS a Nurbs arm, so the \
+             request now gets past it and dies one door in, on an EDGE of the spout: \
+             rung-3 carriers are what the curved zip MINTS, not what it consumes, so the \
+             canal's own seams are what stop the join. The shape a potter draws did not \
+             become joinable; the refusal moved off a pair nobody modelled and onto the \
+             body's own edges. The schedule is the banked germ-chord \
              lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \
              ARRIVE THROUGH THE DOCUMENT: each union is a `Node::Boolean` that lowers \
              to the same kernel `union` and fails at `evaluate`, so what is quoted here \
-             is the evaluation's own carried refusal. SAME FACE, operand and kinds as \
-             the kernel-direct scene raised — not the same payload bits: an arena key \
-             moves when a model is re-authored, and wall 3's did (the mouth-rim annulus \
-             at y = 1/8 was FaceKey(1v1) off the plane scan and is FaceKey(2v1) off the \
-             document), which is invisible to both probes because neither ever pinned a \
-             key. A lofted or \
-             canal-swept spout — the shape a potter would draw — is not authorable at \
-             all; the register carries that as a note and this scene does not hack \
-             around it",
+             is the evaluation's own carried refusal. NEITHER PROBE PINS AN ARENA KEY, which is \
+             why both survived a re-authoring that moved one — the mouth-rim annulus at \
+             y = 1/8 was FaceKey(1v1) off the plane scan and is FaceKey(2v1) off the \
+             document. Wall 2 matches on operand and the two kinds; wall 3 matches on \
+             the OPERAND alone, because the variant it now pins carries no kinds and the \
+             edge key it does carry is exactly the sort of value a probe must not pin. The lofted canal above \
+             is what a potter would draw and it IS authorable; what is not is the \
+             U-turn a sweep would round (`wire_sweep` refuses unconditionally, U4/LQ3 \
+             banked) and, one level down, the SPINE ITSELF — the loft's placements are \
+             {SPOUT_STATIONS} literal frames this file derives, so the saved document carries no \
+             arc and moving the bend re-derives all seven",
             props.volume,
             props.surface_area,
             voids[0].volume,
