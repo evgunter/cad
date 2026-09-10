@@ -153,3 +153,53 @@ Ranking consequence: the two GUI units are (1) incremental
 re-tessellation keyed on face bit-content, with the torus-sizing item
 upstream of it (fewer triangles before caching any), and (2) the probe
 δ. Both "stop doing this".
+
+## Developer lane reported (2026-09-10) — D1's price, and one test row
+
+Branch `perf/explore-dev`; CI's exact dev/test profile (opt-level 1,
+line-tables-only, debug-assertions ON — no CI knob turns them off), 4
+vCPU under the build-slot mutex, nextest execution wall per binary
+(build excluded), 4 reps. Only `assert_euler_postcondition`'s tier-1
+arm (`crates/topo/src/euler.rs:2405`, 26 call sites) was switched for
+the middle column.
+
+| binary | on (CI) | D1 sweep off | all debug-asserts off | D1 share |
+|---|---:|---:|---:|---:|
+| editor-core | 10.85 s | 7.47 | 6.59 | **31 %** |
+| sweep | 10.63 | 10.16 | 9.72 | 4.4 % |
+| topo | 3.86 | 3.55 | 3.52 | 7.9 % |
+| mesh | 4.46 | 4.42 | 3.74 | nil |
+| geom-brep | 46.4 (±5 %) | 46.2 | 45.1 | nil |
+| six binaries | 76.2 | 71.9 | 68.7 | **5.7 %** |
+
+- **The D1 clause costs 5.7 % of test execution and it is one crate's
+  bill**: 78 % of it is editor-core, where every corpus row rebuilds
+  documents through the Euler doors. Free on mesh and geom-brep,
+  confirming the plan against the suite. The benches' 6.5×/5.2× and
+  this 5.7 % are both true — surgery-only rows versus rows a developer
+  waits on. Same family, unmeasured alone: the whole-body tier-1 sweep
+  after `set_face_surface`/`set_edge_curve` (`attach.rs:93,332`),
+  bounded by the residual (≤0.9 s in editor-core).
+- **`crates/geom-brep/tests/budget_faces.rs:22` is one `#[test]` that
+  is the whole geom-brep binary's 46 s wall**: a 2 × 7 × 5 = 70-cell
+  `fit_offset_at` sweep in one row, three cores idle. Added 2026-09-08,
+  after S-TCOST's census; no gate marker, runs on every code-tier run.
+  Splitting it per base or per δ saves ~30 s of every geom-brep run,
+  local and hosted — the largest developer item found.
+- **Interval lane is 2.47× wall and 96 % of the delta is editor-core**:
+  two M10 driver rows (`m10_3_r2_probes_interval.rs:638`, 93 cpu-s;
+  `m10_3_r1_probes_interval.rs:450`, 85 cpu-s). `DriveConfig::default()`
+  has `parallel: false` (`drive.rs:361`); the indexed map at `:1182`
+  gives 3.66× on one row solo, but over the saturated binary it
+  regresses 6 % — the binary's floor is its longest serial row. M10 /
+  S-TCOST ground; recorded, not claimed.
+- **Nobody can turn debug assertions off today**: `docm5_subject.rs`
+  calls `gathers_on_this_thread`, which is `#[cfg(debug_assertions)]`
+  (`product.rs:375`), so the assertions-off build fails with 12 ×
+  E0425. Filed.
+- **CI wall is compile, not runtime**: test jobs run a prebuilt nextest
+  archive at 46–74 s per shard; a D1-shaped win is 2–4 s per shard.
+- Minor, logged not filed: `mesh/src/walk.rs:826`'s O(junctions²)
+  declared-junction guard is inside mesh's 0.72 s debug-assert bill;
+  `demos/tour` builds release with debug assertions on and was not
+  measured.
