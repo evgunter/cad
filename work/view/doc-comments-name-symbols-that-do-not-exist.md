@@ -142,9 +142,14 @@ regex miss resolved by hand.
 
 | Reading | at `243915f26` | at `5ace0e9eb` | after this PR |
 |---|---|---|---|
-| `<mod>` ∈ {`frame`, `session`} | 19 spans / 12 names / 2 undefined | 16 / 10 / 1 | 0 / 0 / 0 |
-| `<mod>` ∈ this crate's own modules | 66 / 49 / 3 | 64 / 47 / 2 | 0 / 0 / 0 |
-| every module-shaped (lowercase) prefix | 132 / 97 | 132 / 96 | 68 / 49 |
+| `<mod>` ∈ {`frame`, `session`} | 19 spans / 12 names / 2 undefined | 16 / 10 / 1 | 4 / 3 / **0** |
+| `<mod>` ∈ this crate's own modules | 66 / 49 / 3 | 64 / 47 / 2 | 20 / 12 / **0** |
+| every module-shaped (lowercase) prefix | 132 / 97 | 132 / 96 | 88 / 61 |
+
+The `undefined` column is the one that matters and it is **0**: no doc
+comment under `crates/viewer/src` names an own-module symbol that does
+not exist. The 20 spans that remain unbracketed are not a shortfall —
+they are the sites where the ruling below says a bracket must NOT go.
 
 **Both figures this item states reproduce exactly** — 19/12 with the
 two-module restriction, and 132/97 unrestricted. The unrestricted one
@@ -194,35 +199,55 @@ took the whole 49 because of it.
 
 ### What was bracketed, and what was named instead
 
-**All 64 own-module spans (47 names) became `[`crate::…`]` links, and
-the ruling's test was applied at every one.** The test is
-`crates/viewer/README.md`'s **Rustdoc posture: the host pass is the
-gate** — does the HOST pass render a page for the item the doc comment
-sits on? — and it was answered from rustdoc's own output rather than
-from an attribute grep:
+**44 of the 64 spans became `[`crate::…`]` links and 20 were named
+instead**, with `crates/viewer/README.md`'s **Rustdoc posture: the host
+pass is the gate** applied per site and answered from rustdoc's own
+output rather than from an attribute grep.
 
-- Every module holding one of the 64 sites has a page under
-  `doc/viewer/` in the host pass (`cargo doc --no-deps
-  --document-private-items -p viewer --all-features`). `mod app` is
-  `cfg(feature = "app")` and the host pass documents that feature, so
-  its page exists and its links are held. **So all 64 are the "it
-  does" bullet: bracket freely.**
-- **The trap's protected sites are outside this population.** The same
-  host pass renders `enum.StartupError.html` and `fn.run.html` and no
-  page for `WebStartupError` or `run_web`, exactly as the ruling
-  describes. `WebStartupError`'s five variant doc comments carry no
-  `<mod>::<path>` code span at all, so the rule never selected them
-  and nothing in this diff brackets a host-absent item. The trap was
-  live and did not fire; the reason it did not is population, not
-  judgement, and it would have fired had one of those variants named a
-  module path.
+**The first answer was wrong, and the gate said so.** Asking the
+ruling's question as written — does the HOST pass render a page for the
+item the doc comment sits on? — all 64 came back *it does*, and the
+`--all-features` host pass agreed at zero errors. `scripts/doc-gate.sh`
+then reded on **13 of them**, because it documents `viewer` a second
+time at DEFAULT features under `--skip-viewer-toolkit`, also at
+`-D warnings`. `app`, `forms` and `pane` are `cfg(feature = "app")`,
+so a link from a renderer-free module into any of them resolves at
+`--all-features` and nowhere else. The 13 are in `props.rs`,
+`tree.rs`, `vocab.rs`, `pickindex.rs` and `frame.rs`.
+
+Chasing that down surfaced a third case the same test decides: **7
+spans sit inside `#[cfg(test)]` modules** (`frame.rs`'s `mod tests`,
+`pane/viewport.rs`'s), which NO pass renders, so a bracket there is
+inert — never read, never checked, never red. That is the ruling's own
+*"a bracket resolving at neither target spells a checked claim nothing
+anywhere checks"*, reached by a route it does not name.
+
+So the page-existence test is right and its quantifier is not: it is
+stated over the item, and two of the three ways a page goes missing
+here are about the **target** and about **which passes run**. Filed as
+`rustdoc-posture-test-names-one-axis-of-three` rather than edited into
+the README, because that is ratified text and it merged this morning.
+
+**Per site, with the test applied:**
+
+- **44 bracketed** — item and target both present in both passes that
+  run at `-D warnings`.
+- **13 named** — item present in both passes, target absent at default
+  features. The ruling's *"it does not"* remedy on the feature axis.
+- **7 named** — item inside `#[cfg(test)]`, rendered by neither pass.
+- **The trap's own sites were never in the population.** The host pass
+  renders `enum.StartupError.html` and `fn.run.html` and **no** page
+  for `WebStartupError` or `run_web`, exactly as the ruling describes.
+  `WebStartupError`'s five variant doc comments carry no
+  `<mod>::<path>` span at all, so the rule never selected them. The
+  trap was live and did not fire, and the reason is population rather
+  than judgement — it would have fired had one variant named a module
+  path.
 - **Receipt, not inference:** the browser pass reads **7 unresolved
   links over 4 identifiers** after this diff — `ThreadEvaluator` ×3,
   `StartupError::Worker` ×2, `crate::evalseam::ThreadEvaluator` ×1,
-  `ThreadIndexer` ×1 — which is the README's dated population
-  unchanged. 64 new links added **zero** browser-pass errors, so the
-  per-site answers above are confirmed by the target the ruling says
-  is the only reader for the other bullet.
+  `ThreadIndexer` ×1 — the README's dated population, unchanged. 44 new
+  links added **zero** browser-pass errors.
 
 **Named rather than linked: `app.rs:950`**, and it is the point of the
 class. The same dead name sat in a plain `//` comment there. Rustdoc
@@ -238,8 +263,11 @@ which is the residue, filed as
 rustdoc read it and the host pass reded: `viewport_ui` is an inherent
 method on `ViewerBehavior` — an `app` item — that is merely *written*
 in `pane/viewport.rs:58`, so the module path names nothing. Corrected
-to `crate::app::ViewerBehavior::viewport_ui`, which is how `frame.rs:6`
-already spells it and which resolves.
+to `app::ViewerBehavior::viewport_ui`, which is how `frame.rs:6`
+already spells it. It ships **named rather than linked**, because
+`frame.rs` is documented at default features where `app` is absent —
+one of the 13 above. The bracket was the instrument that found it, not
+the fix that ships.
 
 This is the argument for candidate 1 in one site. The rule in this
 item could not have found it: `viewport_ui` **is** declared under
@@ -288,6 +316,9 @@ file that does grow is `stale-file-citations-after-the-split.md`,
 whose own citations were re-read after the last edit.
 
 ### Residue
+
+Two files, not one. `rustdoc-posture-test-names-one-axis-of-three`
+carries the ruling gap above.
 
 `comment-symbol-names-outside-rustdocs-reach-have-no-gate` — blind
 spots 1–3, filed as its own file rather than disclosed here, with the

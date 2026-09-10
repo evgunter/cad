@@ -9,8 +9,8 @@
 //! [`crate::marks`], which takes a built index as an argument, reads
 //! it through the public doors below only, and answers *what should
 //! be lit* for a different set of consumers (`gpu`, `blend`,
-//! `datums`, `app`, and [`crate::pane::viewport`] alongside the cursor paths,
-//! which are [`crate::pane::viewport`]'s alone).
+//! `datums`, `app`, and `pane::viewport` alongside the cursor paths,
+//! which are `pane::viewport`'s alone).
 //!
 //! # What is under the cursor
 //!

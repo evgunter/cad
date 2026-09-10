@@ -7873,24 +7873,37 @@ crate's own modules and it is 66/49. Only the middle reading gives
 
 **The whole decidable set was taken, not the two names.** 64 spans
 over 47 names at the merge base — every unbracketed `<own-mod>::<path>`
-span in a doc comment under `crates/viewer/src` — are now
-`[`crate::…`]` links, and the population is 0. The item scoped its own
-decidability argument to 12 names; it applies to all 49, and blind
-spot 5's *"85 of the 97"* should read 48.
+span in a doc comment under `crates/viewer/src`. 44 are now
+`[`crate::…`]` links; 20 are named rather than linked, and the
+undefined count is **0**. The item scoped its own decidability
+argument to 12 names; it applies to all 49, and blind spot 5's
+*"85 of the 97"* should read 48.
 
-**The ruling's test was answered from rustdoc's output, not from an
-attribute grep.** `crates/viewer/README.md`'s *Rustdoc posture: the
-host pass is the gate* asks whether the HOST pass renders a page for
-the item the doc comment sits on. The host pass renders a page for
-every module holding one of the 64 sites, and renders
-`enum.StartupError.html` and `fn.run.html` and **no** page for
-`WebStartupError` or `run_web` — the trap exactly as the ruling
-describes it. It did not fire, and the reason is population rather
-than judgement: `WebStartupError`'s five variant doc comments carry no
-`<mod>::<path>` span, so the rule never selected them. The receipt is
-the browser pass, which reads **7 unresolved links over 4
-identifiers** after the diff — the README's dated population,
-unchanged. 64 new links, zero new browser-pass errors.
+**The ruling's test came back wrong at 20 sites, and the gate is what
+said so.** `crates/viewer/README.md`'s *Rustdoc posture: the host pass
+is the gate* asks whether the HOST pass renders a page for the item the
+doc comment sits on. Asked that way all 64 answer *it does*, and the
+`--all-features` host pass agreed at zero errors — then
+`scripts/doc-gate.sh` reded on **13**, because it documents `viewer` a
+second time at DEFAULT features under `--skip-viewer-toolkit`, also at
+`-D warnings`, where `app`/`forms`/`pane` do not exist. Chasing that
+found a third case: **7 spans inside `#[cfg(test)]` modules**, which no
+pass renders, so bracketing them is inert — a checked claim nothing
+checks, which is the ruling's own words reached by a route it does not
+name. The test is right and its quantifier is not: it is stated over
+the ITEM, and two of the three ways a page goes missing here are about
+the TARGET and about which passes run. Filed as
+`rustdoc-posture-test-names-one-axis-of-three` rather than edited into
+ratified text that merged this morning.
+
+**The trap itself never fired, and the reason is population.** The host
+pass renders `enum.StartupError.html` and `fn.run.html` and **no** page
+for `WebStartupError` or `run_web`, exactly as described;
+`WebStartupError`'s five variant doc comments carry no `<mod>::<path>`
+span, so the rule never selected them. The receipt for the whole
+disposition is the browser pass: **7 unresolved links over 4
+identifiers** after the diff — the README's dated population, unchanged.
+44 new links, zero new browser-pass errors.
 
 **A third dead name, and the bracketing found it.** `frame.rs:216`
 named `pane::viewport::viewport_ui`; bracketed, the host pass reded.
@@ -7935,7 +7948,7 @@ line fits in 72 characters against a file whose comments already run
 to 89; taking the extra line would have shifted every `app.rs`
 citation below 950 to buy nothing.
 
-**Residue filed rather than disclosed:**
+**Two residues filed rather than disclosed**, the ruling gap above and
 `comment-symbol-names-outside-rustdocs-reach-have-no-gate`. Rustdoc
 reads `///` and `//!` and nothing else, so the same dead name at
 `app.rs:950` — a plain `//` comment — could only be corrected by hand

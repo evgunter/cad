@@ -275,7 +275,7 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
 /// was.
 ///
 /// Named rather than composed inside a render pass, so the wording has
-/// one home and can be asserted on ([`crate::app::indeterminate_wording`]'s
+/// one home and can be asserted on (`app::indeterminate_wording`'s
 /// rule). Honest for BOTH of [`RowStatus::Poisoned`]'s producers
 /// because both point at a row this same tree badges `Failed`, where
 /// the payload's own words are read once instead of once per row the

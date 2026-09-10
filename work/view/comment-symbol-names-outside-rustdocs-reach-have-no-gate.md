@@ -8,11 +8,15 @@ opened: 2026-09-10
 
 
 Filed by `doc-comments-name-symbols-that-do-not-exist` as it closed.
-That item bracketed every unbracketed `<own-mod>::<name>` code span in
-a **doc** comment under `crates/viewer/src` — 64 spans over 47 names,
-now 0 — so rustdoc and `scripts/doc-gate.sh` hold all of them. This is
-what that pass provably cannot reach, and it is the residue named in
-that item's blind spots 1–3.
+That item took every unbracketed `<own-mod>::<name>` code span in a
+**doc** comment under `crates/viewer/src` — 64 spans over 47 names —
+and bracketed the 44 that a rustdoc pass running at `-D warnings` can
+actually check, so rustdoc and `scripts/doc-gate.sh` hold those. The
+other 20 are named rather than linked because no such pass renders
+them (`rustdoc-posture-test-names-one-axis-of-three`), which makes
+them unchecked for the same reason this item's subject is, one axis
+over. This file is what that pass provably cannot reach: the residue
+named in that item's blind spots 1–3.
 
 ## Why bracketing cannot close it
 

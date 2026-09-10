@@ -3,7 +3,7 @@
 //!
 //! # Why these live here and not in the frame loop
 //!
-//! Three decisions used to sit inside [`crate::app::ViewerBehavior::viewport_ui`]
+//! Three decisions used to sit inside `app::ViewerBehavior::viewport_ui`
 //! and `ViewerApp::perform_batch`: when a batch of operations clears the
 //! status line, when the id pass is asked a question, and when the two
 //! picking paths are reported as disagreeing. All three are invariants,
@@ -82,7 +82,7 @@
 //!
 //! That is not the same as saying nobody keeps a badge alive. The
 //! state a badge reads may itself be bookkept by hand: `ViewerApp`
-//! clears `scene_fault` where a rebuild lands and [`crate::pane::viewport`]
+//! clears `scene_fault` where a rebuild lands and `pane::viewport`
 //! clears `projection_fault` where a matrix forms, which is the same
 //! work spelled as an assignment about the SEAM instead of a verdict
 //! about the chrome. [`index_badge`] needs none, because the pick
@@ -213,7 +213,7 @@ pub enum Subject {
     /// needs no issuer: it is read from the camera, so a camera that
     /// projects is a camera whose badge is gone. This `Expire` never
     /// reached the projection sentence in any case, because both
-    /// `land` calls run earlier in the same [`crate::app::ViewerBehavior::viewport_ui`]
+    /// `land` calls run earlier in the same `app::ViewerBehavior::viewport_ui`
     /// that writes it.
     Camera,
     /// **The cursor and what lies under it** — retired by the next
@@ -382,7 +382,7 @@ pub enum StatusUpdate {
 /// to say**, and [`fold_status`] is the only one there is: its refusal
 /// is news and its clean arm retires the camera sentence. Read off
 /// `deliver`'s callers rather than off the shape — there is one
-/// production call site, [`crate::pane::viewport::land`]. A writer that already
+/// production call site, `pane::viewport::land`. A writer that already
 /// knows it has a [`Message`] pushes onto `notices` itself; a writer
 /// that assigns the field has no way to say "I have nothing to add",
 /// which is the defect [`apply`]'s docs describe and this door removes
@@ -551,7 +551,7 @@ pub fn frame_status(
 /// document transition, so `Document` was the only subject on the
 /// list. The sweep that routed every writer through the ranking put
 /// four more on it: [`Subject::Camera`] ([`fold_status`]'s refused
-/// fold, delivered at [`crate::pane::viewport::land`]), [`Subject::Cursor`]
+/// fold, delivered at `pane::viewport::land`), [`Subject::Cursor`]
 /// ([`Disagreement::notice`]), [`Subject::Display`] (the pick index's
 /// refused click and the δ field's two doors, through
 /// [`PICK_INDEX_SEAM`] and [`SCENE_SEAM`]) and [`Subject::Preferences`]
@@ -1763,7 +1763,7 @@ pub fn prefs_path_in(
 /// Whether this process runs inside WSL, read off the environment
 /// markers WSL itself sets for every process (`WSL_DISTRO_NAME`,
 /// `WSL_INTEROP`). Either suffices; both are checked because WSL1
-/// and WSL2 differ in which they guarantee. Consumed by [`crate::app::run`],
+/// and WSL2 differ in which they guarantee. Consumed by `app::run`,
 /// which prefers the X11 backend under WSL (WSLg's Wayland RAIL shell
 /// breaks horizontal resizing — #1097, confirmed).
 ///
@@ -1799,7 +1799,7 @@ pub const NO_CHOOSER_BACKEND: &str = "no file chooser backend — install zenity
 /// the pointer was inside the viewport. [`fold_status`] closed that at
 /// the other end, so the guard is now near-redundant behaviourally —
 /// it saves one call and a `Camera` copy. It is kept because
-/// [`crate::pane::viewport::land`] is documented as the one place a camera MOVE
+/// `pane::viewport::land` is documented as the one place a camera MOVE
 /// becomes application state, and calling it on frames where nothing
 /// moved makes that sentence false and hands any writer later added to
 /// it per-frame behaviour nobody asked for.
@@ -1998,7 +1998,7 @@ pub fn disagreement(
 /// built by hand — `frame` is a vocabulary, so it is read and tested
 /// with no session and no window in existence
 /// (`crates/viewer/README.md`). The other half, where a real fold meets
-/// a real landing, is [`crate::pane::viewport`]'s: that is the driver, and the
+/// a real landing, is `pane::viewport`'s: that is the driver, and the
 /// rows that need one live there.
 #[cfg(test)]
 mod tests {
@@ -2230,11 +2230,11 @@ mod tests {
     /// Two claims, and the second is about `apply` and NOT about the
     /// camera. No production caller composes them any more: a refused
     /// fold reaches the line through [`deliver`], which sends it to the
-    /// frame's notices, and [`crate::pane::viewport`]'s
+    /// frame's notices, and `pane::viewport`'s
     /// `landing_a_refused_fold_is_news_and_joins_the_frames_notices`
     /// is the row on that live path. What survives here is `apply`'s
     /// contract, which the sweep did not change and which
-    /// [`crate::app::ViewerApp::apply_status`]'s ranked traffic still depends
+    /// `app::ViewerApp::apply_status`'s ranked traffic still depends
     /// on: a `Show` handed to `apply` overwrites whatever was held,
     /// whoever hands it over.
     #[test]

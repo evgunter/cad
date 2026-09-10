@@ -522,7 +522,7 @@ mod tests {
     /// removed: `perform_batch` runs after the panes have drawn, so a
     /// sentence written straight to the field was erased by the same
     /// frame's accepted batch before the toolbar painted it. Going
-    /// through `notices` puts it in [`crate::frame::frame_status`]'s rank 2,
+    /// through `notices` puts it in `frame::frame_status`'s rank 2,
     /// where the batch's verdict can no longer outrank it.
     ///
     /// The older sentence on the line is left ALONE — a notice adds to
@@ -559,13 +559,13 @@ mod tests {
     /// **The refusal is put on the line by the RANKING, not by hand.**
     ///
     /// The two frames are composed the way the frame loop composes
-    /// them: `land` on the first, then [`crate::frame::frame_status`] over the
-    /// notices it produced and [`crate::frame::apply`] for the verdict — which
+    /// them: `land` on the first, then `frame::frame_status` over the
+    /// notices it produced and `frame::apply` for the verdict — which
     /// is `perform_batch`'s own pair, with an empty batch because
     /// navigating acts on nothing. Reaching into `notices` for the
     /// message would assert the retirement against a sentence this row
     /// placed rather than one the frame landed, and the subject is
-    /// exactly what the ranking decides: [`crate::frame::joined_subject`]
+    /// exactly what the ranking decides: `frame::joined_subject`
     /// answers `Document` for two notices that disagree, and the
     /// `Expire(Camera)` below would then retire nothing. One notice is
     /// the case where the two answers coincide, and that coincidence
