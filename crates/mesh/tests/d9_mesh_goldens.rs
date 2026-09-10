@@ -13,7 +13,10 @@
 //! **A moved digest is not a re-cut.** It says the mesh a body produces
 //! changed. Decide whether the new mesh is right; if it is, move the
 //! constant in the same change that moved the mesh and say in the PR
-//! which bodies moved and why.
+//! which bodies moved and why. The way to tell a mesh change from a
+//! renumbering is to run this row on the tree WITHOUT the change and
+//! on the tree with it — the constants are one tree's reading, and the
+//! comparison is between trees.
 //!
 //! **Corpus coverage**, one line per lane the dispatch in
 //! `tessellate` can take:
@@ -262,7 +265,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ),
     ("cone", [0xc8ac_e3fb_a915_38fa, 0x6376_0636_4757_7532]),
     ("cone_wedge", [0x2a10_1aee_9f5a_1b91, 0x83f2_5aac_9243_68ce]),
-    ("donut", [0x5b3b_d1e0_a446_ece8, 0x1586_5c02_2ecb_72cd]),
+    ("donut", [0x7673_a909_57aa_a0f3, 0xe549_2aa4_78a6_d185]),
     ("washer", [0xb5e6_4707_7081_1521, 0xd261_a4a3_e2d2_f19d]),
     (
         "tilted_above",

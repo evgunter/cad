@@ -115,6 +115,8 @@ mod mesh8r1_probes;
 mod mesh8r2_probes;
 #[path = "newell_probes.rs"]
 mod newell_probes;
+#[path = "perf1_torus_sizing.rs"]
+mod perf1_torus_sizing;
 #[path = "prisms.rs"]
 mod prisms;
 #[path = "probe_review.rs"]
