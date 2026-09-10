@@ -852,7 +852,7 @@ const QUAD2_HULL_BLOCKS: usize = 8;
 /// [`QUAD2_MAX_ROUNDS`], the count bounds the rounds a face PAYS for:
 /// a face the last round provably cannot certify is refused after
 /// round 0 ([`last_round_refuses`]).
-const QUAD2_RATIONAL_MAX_ROUNDS: usize = 7;
+const QUAD2_RATIONAL_MAX_ROUNDS: usize = 8;
 /// Cells per axis of BOTH patch lanes' area pass (fixed, D9). The
 /// shared [`area_midpoint_taylor`] rule is O(h), so the resolution sets
 /// the area's honest width directly.
