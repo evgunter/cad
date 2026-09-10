@@ -238,7 +238,7 @@
 //!    a loft and be a solid at every ε: its sections are squares.
 //!
 //!    **And then the two readings that came back are different KINDS
-//!    of number, six orders apart, off the same patches through the
+//!    of number, TEN orders apart, off the same patches through the
 //!    same lane.** The volume's certified pad is 1.18e-17 — 2.4e-13 of
 //!    the answer, f64 noise — because a volume is `∮ F·n dA` over a
 //!    LINEAR field, so on a polynomial patch the integrand is a
@@ -249,7 +249,7 @@
 //!    the volume an exactness it could not buy the area.
 //!
 //!    So the scene makes two different claims and only where each is
-//!    earned. The VOLUME's gap is six orders above its pad, which
+//!    earned. The VOLUME's gap is seven orders above its pad, which
 //!    leaves the arithmetic no room to be responsible for it, so it
 //!    reads as the skin and is held to a fixed [`SPOUT_SKIN_FIT_V`].
 //!    The AREA's gap is six hundred times INSIDE its pad, so the
@@ -490,7 +490,7 @@ const SPOUT_SIDES: usize = 8;
 /// 2.4e-13 of the answer, which is f64 noise and nothing else: a
 /// volume is `∮ F·n dA` for a linear field, so on a POLYNOMIAL patch
 /// the integrand is a polynomial and the polynomial lane's per-span
-/// shortcut is exact. So a disagreement six orders ABOVE that pad is
+/// shortcut is exact. So a disagreement seven orders ABOVE that pad is
 /// not the arithmetic and cannot be. What is left is the cubic skin
 /// through [`SPOUT_STATIONS`] stations departing from the tube it
 /// interpolates, and this is the one number on this page that measures
@@ -2113,13 +2113,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // **And then the two readings it hands back turn out to be
     // different KINDS of number, which is the part this scene did not
     // expect and now measures.** Both come off the same polynomial
-    // patches through the same lane, and their certified pads are six
+    // patches through the same lane, and their certified pads are TEN
     // orders apart:
     //
     // | reading | pad | relative to the answer |
     // |---|---|---|
     // | volume | 1.18e-17 | 2.4e-13 |
     // | area   | 2.65e-4  | 1.08e-2 |
+    //
+    // Ten orders of magnitude, read relative to their own answers.
     //
     // The integrands are what differ. A volume is `∮ F·n dA` over a
     // LINEAR field, so on a polynomial patch the integrand is a
@@ -2133,8 +2135,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // the same claim, and the scene makes each one only where it is
     // earned:
     //
-    // * **the VOLUME resolves the skin.** The gap is 1.14e-10, six
-    //   orders above a pad of 1.18e-17, so the arithmetic has no room
+    // * **the VOLUME resolves the skin.** The gap is 1.14e-10, ten
+    //   MILLION times a pad of 1.18e-17, so the arithmetic has no room
     //   to be responsible for it and what is left is the cubic skin
     //   departing from the tube it interpolates. Held to
     //   [`SPOUT_SKIN_FIT_V`], and separately held to be far above the
@@ -2178,7 +2180,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // VOLUME, half two: and the gap is the SKIN, because the kernel's
     // own certificate leaves the arithmetic no room to be responsible
     // for it. A thousand is not a tuned number — the measured ratio is
-    // six orders, and this asserts only that the two are not the same
+    // ten million, and this asserts only that the two are not the same
     // size.
     assert!(
         sp.volume_pad * 1e3 < v_gap,
@@ -2536,15 +2538,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              these walls are POLYNOMIAL, and the polynomial lane has an exact per-span \
              shortcut the rational lane has none of — which is also why `twisted_tube` \
              next door can be a loft and be a solid at every eps: its sections are \
-             squares. AND THEN THE TWO READINGS CAME BACK DIFFERENT KINDS OF NUMBER, six \
-             orders apart, off the same patches through the same lane: the volume's \
+             squares. AND THEN THE TWO READINGS CAME BACK DIFFERENT KINDS OF NUMBER, TEN \
+             orders apart relative to their own answers, off the same patches through \
+             the same lane: the volume's \
              certified pad is 2.4e-13 of the answer and the area's is 1.08e-2 of it. A \
              volume is a flux integral of a LINEAR field, so on a polynomial patch the \
              integrand is a polynomial and the shortcut is exact; an area integrates \
              |Xu x Xv|, a SQUARE ROOT, which is polynomial on no patch however \
              polynomial the patch. So the polygon bought the volume an exactness it \
              could not buy the area, and the scene makes two different claims. The \
-             VOLUME's gap sits six orders ABOVE its pad, leaving the arithmetic no room \
+             VOLUME's gap sits SEVEN orders ABOVE its pad, leaving the arithmetic no room \
              to be responsible for it, so it reads as the loft's cubic skin through \
              {SPOUT_STATIONS} stations departing from the tube it interpolates — the one \
              number on this page that measures that. The AREA's gap sits six hundred \

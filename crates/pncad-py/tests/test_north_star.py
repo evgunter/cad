@@ -3231,7 +3231,7 @@ class TestTeapot(unittest.TestCase):
         # **And what the comparison can then measure is NOT the same on
         # the two readings, which is the scene's newest finding.** Both
         # come off the same polynomial patches through the same lane,
-        # and their certified pads are six orders apart: the volume's
+        # and their certified pads are TEN orders apart: the volume's
         # is 2.4e-13 of the answer and the area's is 1.08e-2 of it. A
         # volume is a flux integral of a LINEAR field, so on a
         # polynomial patch the integrand is a polynomial and the exact
@@ -3240,7 +3240,7 @@ class TestTeapot(unittest.TestCase):
         # polynomial the patch. The polygon bought the volume an
         # exactness it could not buy the area.
         #
-        # So the VOLUME resolves the loft fit — its gap is six orders
+        # So the VOLUME resolves the loft fit — its gap is seven orders
         # ABOVE its pad, leaving the arithmetic no room to be
         # responsible for it — and is held to a fixed bound. Measured
         # 2.30e-6, where every other body on this page is at 1e-12.
