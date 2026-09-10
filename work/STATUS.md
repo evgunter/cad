@@ -651,7 +651,7 @@ area `kernel`; prefix `msolve/`; tag `(MSOLVE orchestrator)`; ab_band `2600-2699
 
 ## `perf` — PERF — the performance work still owed
 
-area `kernel`.
+area `kernel`; prefix `perf/`; tag `(PERF orchestrator)`; ab_band `3400-3499`.
 
 | item | kind | status | title | blocked on | PR |
 |---|---|---|---|---|---|
