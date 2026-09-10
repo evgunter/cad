@@ -1894,17 +1894,22 @@ jobs:
       #
       # Mirror: local-scripts/ci-local.sh's toolkit rows.
       #
-      # THROUGH scripts/apt-install.sh, like every other apt row in this
-      # repo: `apt-get update` reports one status for every source list the
-      # runner image ships, and this step needs Ubuntu's archive and nothing
-      # else. The script's header states what it narrows, and that the
-      # narrowing lasts one transaction rather than the job.
+      # THROUGH scripts/apt-install.sh, which is where the whole argument
+      # lives — what it narrows, why, the two timeout guards and the
+      # arithmetic between them. `exec` so the runner's cancel and this
+      # step's `timeout-minutes` reach the process holding the restore
+      # trap, rather than a step shell that dies leaving the script
+      # orphaned. `timeout-minutes: 8` is the bound that script's header
+      # derives; every one of its callers sets the same one.
       - name: install a software Vulkan adapter (lavapipe)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
         timeout-minutes: 8
-        run: |
-          scripts/apt-install.sh --no-install-recommends mesa-vulkan-drivers vulkan-tools
-          vulkaninfo --summary
+        run: exec scripts/apt-install.sh --no-install-recommends mesa-vulkan-drivers vulkan-tools
+      # Its own step because the install `exec`s: this prints WHICH adapter
+      # the row below will land on, before that row runs.
+      - name: name the Vulkan adapter this row will use
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: vulkaninfo --summary
       - name: install cargo-nextest (pinned, official prebuilt)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
         uses: ./.github/actions/install-nextest
@@ -3794,11 +3799,11 @@ jobs:
           grep -q fma /proc/cpuinfo || { echo "NO FMA"; exit 1; }
       # gmp-mpfr-sys needs a C toolchain plus m4; ubuntu-latest carries
       # build-essential but m4 is worth asserting rather than assuming.
-      # Through scripts/apt-install.sh: Ubuntu's archive is the only source
-      # this needs, and the image's third-party lists are not asked about.
+      # Through scripts/apt-install.sh, `exec`'d, at that script's bound —
+      # see its header for both.
       - name: m4 for the gmp build
         timeout-minutes: 8
-        run: scripts/apt-install.sh m4
+        run: exec scripts/apt-install.sh m4
       # Depth is nearly free on this lane and that is the whole reason to
       # spend it. The build above is a fixed ~234s; the cases are ~7s at
       # effort 1 (measured hosted, #480) and scale linearly — 8.2x measured

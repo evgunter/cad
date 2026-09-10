@@ -1,7 +1,7 @@
 ---
 id: nightly-rows-cannot-be-dispatched-by-a-lane
 kind: issue
-title: a lane token gets 403 on workflow_dispatch, so a nightly-only row lands unverified
+title: no agent here can workflow_dispatch, so a nightly-only row lands unverified
 status: open
 opened: 2026-09-09
 ---
@@ -19,15 +19,24 @@ rather than the job name, and name the run id in the PR body."* The
 precedent it cites is `c5263958` — unbalanced quotes in a demoted row
 that never ran at all, caught only because a person read a log.
 
-A lane cannot do that here. `POST
+**No agent here can do that.** `POST
 /repos/evgunter/cad/actions/workflows/nightly.yml/dispatches` answers
-**403 Resource not accessible by integration** for a lane's token, the
-same class of refusal
+**403 Resource not accessible by integration** — for the implementer
+lane's token AND for the CIW orchestrator's, tried independently. It is
+the integration-token class, the same refusal
 `work/ciw/apt-update-fails-on-the-runner-image-google-chrome-repo.md`
-records for `rerun-failed-jobs`. So the discipline's own remedy is
-unavailable to the lane the discipline binds, and every nightly-only row
-this program touches reaches its first execution unattended, hours later,
-with nobody reading.
+records for `rerun-failed-jobs`, and not a lane limitation something
+further up the chain can route around. So the discipline's own remedy is
+unavailable to everyone it binds, and every nightly-only row this program
+touches reaches its first execution unattended, hours later, with nobody
+reading.
+
+The dispatch would be safe if it could be made: all four of `nightly.yml`'s
+write paths guard on `inputs.ref == '' && github.ref == 'refs/heads/main'`,
+so a dispatch naming a ref runs the rows and commits nothing (confirmed by
+the orchestrator, 2026-09-10). Ev has the option; it has been recommended
+against for this unit, because `scripts/apt-install.sh admesh` is the same
+one-liner as `scripts/apt-install.sh m4`.
 
 ## Why it is not just PR 2277's problem
 
@@ -37,12 +46,14 @@ it will fail the same way. The gap is in the token, not in the diff.
 
 ## Shapes
 
-Either the lane token gains `actions: write` on this repo (which also
-returns `rerun-failed-jobs`, and that is a separate cost/benefit — a lane
-that can re-run past a flake can also re-run past a finding), or the
-orchestrator dispatches on the lane's behalf and reports the run id into
-the PR, or the discipline gains a sentence saying what a lane does when
-it cannot dispatch. The first two are process; the third is META's.
+Either the integration token gains `actions: write` on this repo (which
+also returns `rerun-failed-jobs`, and that is a separate cost/benefit — an
+agent that can re-run past a flake can also re-run past a finding), or Ev
+dispatches when a nightly row changes, or the discipline gains a sentence
+saying what an agent does when it cannot dispatch. The second is a request
+on Ev's channel; the third is META's. **What is NOT a shape is "the
+orchestrator does it for the lane"** — that was tried and got the same
+403.
 
 ## What PR 2277 did instead, stated so it is not mistaken for verification
 
