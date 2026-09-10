@@ -252,7 +252,7 @@ impl PickCache {
     /// Ask the seam for an index of a landed evaluation at `delta`, at
     /// most one attempt per (generation, δ).
     ///
-    /// **δ is built at, verbatim.** `scene::TRIANGLE_BUDGET` chooses
+    /// **δ is built at, verbatim.** [`crate::scene::TRIANGLE_BUDGET`] chooses
     /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
     /// that is the whole of the budget's authority: once a δ is in
     /// force it is the value someone asked for, and a cache that

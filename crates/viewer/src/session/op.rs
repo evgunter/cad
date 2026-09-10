@@ -726,7 +726,7 @@ pub struct OpOutcome {
     ///
     /// Each entry carries the [`crate::display::DisplayFault`] that
     /// discarded it, straight from the predicate that decided
-    /// (`display::free_move_check`), so the chrome can say WHY the
+    /// ([`crate::display::free_move_check`]), so the chrome can say WHY the
     /// placement went — the mates to delete, the fuse, or the
     /// instance being gone — instead of naming an id and stopping.
     ///
@@ -743,7 +743,7 @@ pub struct OpOutcome {
     /// [`crate::frame::Withdrawal::superseded`].
     pub superseded: Vec<Withdrawn>,
     /// Instances whose HIDE this operation's document transition
-    /// dropped, each with the `display::display_check` fault that
+    /// dropped, each with the [`crate::display::display_check`] fault that
     /// dropped it.
     ///
     /// **Not a supersession, and a separate field for that reason.**
@@ -753,7 +753,7 @@ pub struct OpOutcome {
     /// where the cause is a fuse the instance the user took out of the
     /// picture is back in it. `crate::display::PruneReport` carries
     /// the argument; the chrome renders this through
-    /// `frame::dropped_hide_notice`.
+    /// [`crate::frame::Withdrawal::dropped_hide`].
     pub dropped_hides: Vec<Withdrawn>,
 }
 
