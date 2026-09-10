@@ -9,9 +9,9 @@ opened: 2026-09-09
 
 Found by `viewer-items-unreferenced-at-wasm32`'s lane while asking that
 item's shape-(2) question — *does the browser build swallow a refusal it
-ought to say?* The answer for `deliver_status` (since deleted) is no. The answer for the
-preferences store is **yes**, and the browser is one instance of it
-rather than its subject.
+ought to say?* The answer for `deliver_status` (since deleted) is no.
+The answer for the preferences store is **yes**, and the browser is one
+instance of it rather than its subject.
 
 **The file name still says `wasm`** because ids are stable
 (`work/README.md`); the subject below is not the target.

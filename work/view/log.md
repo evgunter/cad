@@ -6794,3 +6794,83 @@ this branch had already re-derived once. Re-derived again after the
 last edit, by finding each subject by name. That is the second time in
 one PR that the LAST edit invalidated an earlier sweep; the instrument
 is fine, the discipline is to run it last.
+
+## 2026-09-10 — the absent chooser was in the wrong CHANNEL, and `Keep` had to be proved a no-op first (#2278)
+
+Ev ruled **(c)** on #2275 — *"(c) is right!"* — so `frame::dialog_status`
+is deleted whole, `ViewerApp::deliver_status` with it (no callers left),
+and #2272's `#[cfg(not(target_family = "wasm"))]` and the fifty-line
+paragraph defending the arm's latency go with them. `app.rs` 2,022 →
+1,961. The surface stays the hover text: Ev ratified (c) without asking
+for a badge, and (c)'s own argument is that a disabled control with its
+reason on hover already IS a read of held state.
+
+**The deletion rested on a claim nobody had checked, and checking it is
+the whole unit.** Every reachable verdict at both call sites was `Keep`
+— that is what made the arm unreachable — so removing the calls is
+behaviour-preserving *if and only if* `frame::deliver(…, Keep)` does
+nothing. Not "obviously": if `Keep` touched `status`, or reset or
+preserved anything a later frame reads, this would be a rewrite wearing
+a deletion's clothes. Settled three ways rather than assumed. The
+compiler argument is airtight — `deliver`'s `Keep` arm is
+`apply(status, Keep)` and does not name `notices` at all, and `apply`'s
+`Keep` arm is `{}` — but a compiler argument is not a demonstration, so
+it was demonstrated too.
+
+**And the demonstration found that the existing row could not have
+caught the interesting failure.**
+`deliver_sends_news_to_the_notices_and_retirements_to_the_field`'s
+`Keep` block started from `notices = Vec::new()` and asserted
+`notices.is_empty()`. That is green for a `Keep` that does nothing AND
+green for a `Keep` that SWEEPS the frame's news — an empty vector cannot
+tell "did not push" from "cleared what was there" — and a sweep is
+exactly the behaviour whose absence the deletion depends on. The block
+now starts non-empty and asserts against a snapshot. Two perturbations
+prove the new assertion falsifiable in both directions: `Keep` made
+`notices.clear()` reds `frame.rs:2170` where the old assertion stayed
+green, and `apply`'s `Keep` made `*status = None` reds `:2171`. This is
+#2148's rule again — **asserted-somewhere is not asserted-here, and only
+a MUTATION tells them apart** — met before the deletion rather than
+after it.
+
+**A deletion falsifies sentences about structure, and two of the four it
+falsified were not on the dispatch's list.** The sweep rule was an
+unfiltered grep for the three deleted names plus a prose pass for the
+phrasings that describe the route without naming it (*belt to*,
+*braces*, *loud arm*, and `dialog` inside the viewer README and
+`frame.rs`); its blind spot is a description sharing no token with any
+of those. Beyond the six sites the dispatch named it found
+`frame.rs:102`, where the module header's examples of what goes on the
+line included *"a dialog that could not open"* — a sentence nothing in
+the crate can now produce — and, in the tracker,
+`viewer-suites-hold-hand-written-complete-variant-lists`, whose FOURTH
+instance was the deleted test's three-`ChooserBackend` loop. That row
+now says three and says why: **the member was removed, not repaired.**
+`ChooserBackend` still has three variants and still has no `ALL`.
+
+**The `frame.rs` growth ledger falls for the first time, and it falls by
+one line.** 2,538 → 2,537. Written into
+`frame-module-has-eight-concerns-and-no-holds-row` with the honest
+caveat rather than as a win: 2,475 → 2,538 is unrecorded because the
+units between #2026 and here did not write the row, so the fall is
+noise inside a gap nobody measured. That file also asserted *"is 984
+lines"* in the present tense at its own head, contradicted by the
+ledger four paragraphs below it; re-derived by `wc -l`, and it was the
+file's only present-tense copy.
+
+**The row that predicted the delete miscited its own span.** The ruling
+names the defending paragraph as `app.rs:1056-1073` in two places; the
+deleted item and its doc ran `:1046-1095`, so the cited range was the
+doc's middle rather than the item. Nothing turned on it, and it is
+recorded in the row because **re-derive means find the SUBJECT** applies
+to a prediction as much as to a citation — and this is the first time it
+has caught the predicting row instead of the lane.
+
+**§6, across the fence and staying there.** `.github/workflows/ci.yml`'s
+wasm row says in the present tense that the crate carries two dead-code
+warnings, `WINDOW_TITLE` and `ViewerApp::deliver_status`, and that
+`-D warnings` would red on them. #2272 `cfg`-ed both and proved the flip
+clean, so the comment named a resolved state before this branch existed;
+now one of its two subjects does not exist at all. The row is CIW's, the
+closed item says CIW will take the edit on request, and the orchestrator
+is filing it on their slate. Reported, not edited.

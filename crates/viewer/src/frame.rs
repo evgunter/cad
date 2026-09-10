@@ -372,13 +372,13 @@ pub enum StatusUpdate {
 /// spelled as a decision, and `Expire` is a RETIREMENT, which must
 /// reach the field directly because a notice cannot un-say anything.
 ///
-/// **This is the door for a policy that may or may not have
-/// something to say** — [`fold_status`] is that shape: its refusal is
-/// news and its clean arm retires the camera sentence. A writer that
-/// already knows it has a [`Message`] pushes onto `notices` itself; a
-/// writer that assigns the field has no way
-/// to say "I have nothing to add", which is the defect [`apply`]'s
-/// docs describe and this door removes for the policies.
+/// **This is the door for a policy that may or may not have something
+/// to say** — [`fold_status`] is that shape: its refusal is news and
+/// its clean arm retires the camera sentence. A writer that already
+/// knows it has a [`Message`] pushes onto `notices` itself; a writer
+/// that assigns the field has no way to say "I have nothing to add",
+/// which is the defect [`apply`]'s docs describe and this door removes
+/// for the policies.
 ///
 /// **Every arm is written out**, and a wildcard for the three
 /// non-`Show` ones would defeat the whole door: it would route a

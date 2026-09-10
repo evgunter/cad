@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-09
 closed: 2026-09-09
 pr: 2275
-refs: [ranked-and-unranked-verdicts-are-one-type, 2272]
+refs: [ranked-and-unranked-verdicts-are-one-type, 2272, 2278]
 ---
 
 
@@ -165,3 +165,16 @@ at `crates/viewer/src/app.rs:1056-1073` that defends the arm. Whatever
 loses its subject and goes with it, so the test count moves against the
 merge base for a stated reason.
 
+**The build landed at #2278, and every step above held.** `dialog_status`
+went whole, both call sites with it, `deliver_status` and #2272's `cfg`
+with them; `frame::deliver` kept its one caller (`pane/viewport.rs:48`),
+`NO_CHOOSER_BACKEND` kept its two (`on_disabled_hover_text` on Open… and
+on Save As…), and the `frame_policy.rs` row went for want of a subject —
+`crates/viewer/src/app.rs` 2,022 → 1,961 lines and `#[test]` under
+`crates/viewer` **539 → 538**, the one deletion and nothing else. The
+`Keep` no-op the deletion rests on was proved before anything was cut,
+three ways. One thing this row got wrong about its own tree: it names the
+defending paragraph as `app.rs:1056-1073` twice above, where the deleted
+item and its doc ran `:1046-1095` — the cited span was the doc's middle,
+not the item — which is this program's re-derive rule biting the row that
+predicted a delete rather than the lane that made it.
