@@ -87,4 +87,9 @@ both are named rather than folded into a "closed":
   for the summary and not for a member of the population. The demo
   that motivated the door is a Rust tour cell, so nothing forced the
   binding yet; the moment a Python row wants to draw or inspect one
-  sample, it will.
+  sample, it will. The binding census caught this on the first CI run
+  and is where the debt now lives: `B-MC-DRAWS` in
+  `crates/pncad-py/tests/test_binding_census.py`'s `FAMILIES`, with
+  the charter saying what closing it delivers. That is the gate
+  working — a curated façade name may be bound or dispositioned, and
+  nothing else.
