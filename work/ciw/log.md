@@ -2174,3 +2174,55 @@ number in this session alone: **a `-D warnings` rustdoc run reports a
 floor, not a population** — it aborts at the first crate that fails — and
 **a rustdoc reading is meaningless without its feature selection named**,
 because every "dead link" in this item was alive under the gate's.
+
+## Unit 6 third pass, and merged — the route set is pinned by name
+
+The second pass's own disclosure was that "deleting a whole carrier entry
+still leaves the selftest green with fewer routes; the closing line
+prints the routes it ran, so the drop is visible in the log rather than
+asserted". Measured, that turned out to be **narrower and worse than
+described**: deleting the `suffix` or `shebang` carrier already red — the
+branch-coverage row catches both — but deleting the **workflow** carrier
+went green at exit 0, printing
+
+```
+selftest: 43 mutants x 3 routes (direct; tracked `*.sh`, no shebang;
+tracked shebang file, no suffix), each asserted on its own tree, plus 5
+population and refusal rows — all as specified.
+```
+
+"all as specified", one route fewer than the header specifies, and the
+route dropped is the one `ci.yml` itself is. The branch-coverage row
+reaches only the two `shell_files` branches, and the workflow route is
+not one of them.
+
+Fixed by `ROUTE_NAMES`, asserted against the carrier set: a route
+dropped, renamed or duplicated reds **by name** rather than by
+arithmetic. Rows 5 → 6. One residue stated rather than fixed: a
+DUPLICATED carrier dies as a `FileExistsError` traceback from the tree it
+would have shared, not as a named row — loud, so it cannot pass
+silently, but not a clean message.
+
+**Three passes, and the same sentence each time.** Pass 1 asserted a
+tree's aggregate verdict; pass 2 asserted branch coverage but not the
+route set; both were reported as done without the failing case being
+injected. That is instances **seven and eight** of the program's
+signature defect, inside the unit whose subject is a gate that cannot
+fail — and pass 1's was reported to the orchestrator in the words "your
+`SHELL_SUFFIXES = (\".zsh\",)` mutant now dies", which it did not.
+
+**What actually caught all three was injection by the orchestrator, on a
+pristine worktree, of the exact mutant the report named.** Not review.
+The practice units 1-5 closed on is now load-bearing rather than
+advisory: *do not trust a row until you have watched it red*, and a lane
+report that a row reds is not that.
+
+Merged as `50ac576d3` on run **34510036107** (head `52ddfe1e0`,
+success). Unit 7 landed first, which moved every `PIPESTATUS` read this
+unit cites; the citations were re-derived on the merged head rather than
+carried — `ci.yml:669, :3135, :3626, :3661, :3671, :4835` and
+`render.yml:1183` — and each was re-checked by the orchestrator to land
+exactly on a read. The historical defect re-injected at `ci.yml:4835`
+reds with the site and the clobbering line named, exit 1.
+
+**The second slate is now complete**: units 1-7 all merged.
