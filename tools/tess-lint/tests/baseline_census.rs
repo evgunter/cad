@@ -433,8 +433,8 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
     // The corpus the census is over.
-    assert_eq!(all.len(), 1605, "rows in the committed baseline");
-    assert_eq!(sized.len(), 80, "of them sized");
+    assert_eq!(all.len(), 1613, "rows in the committed baseline");
+    assert_eq!(sized.len(), 88, "of them sized");
     let sized_scenes = {
         let mut s: Vec<&str> = sized.iter().map(|r| r.scene.as_str()).collect();
         s.sort_unstable();
@@ -446,8 +446,8 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // The census over the SIZED rows — the one that matters, because
     // an unsized swap costs rule 2 nothing.
     let (pairs, in_pairs, scenes) = census(&sized);
-    assert_eq!(pairs, 11, "indistinguishable pairs among the sized rows");
-    assert_eq!(in_pairs, 22, "sized rows sitting in such a pair");
+    assert_eq!(pairs, 19, "indistinguishable pairs among the sized rows");
+    assert_eq!(in_pairs, 30, "sized rows sitting in such a pair");
     assert_eq!(
         scenes,
         [
@@ -477,7 +477,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // what it measures is the size of the hole the sized-row census
     // above sits inside.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 29_726, "pairs across every row");
+    assert_eq!(all_pairs, 29_734, "pairs across every row");
     assert_eq!(all_scenes.len(), 78, "scenes carrying one, corpus-wide");
 }
 
@@ -724,10 +724,51 @@ fn an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline() {
         "swapping these pairs — rows no IDENTITY_COLUMNS entry separates — is no \
          longer invisible to the gate: {visible:#?}"
     );
-    assert!(
-        drifted.is_empty(),
-        "these pairs no longer read one recoverable slack: {drifted:#?}. The swap \
-         still costs the gate nothing, but the margin that made it free has gone"
+    // **THE SECOND ALARM FIRED TOO, and what it caught is worth more
+    // than the emptiness it replaced.** It was written as `is_empty`
+    // — every indistinguishable pair reading ONE recoverable slack —
+    // and the teapot's canal broke it when its sections became
+    // POLYGONS. The pin is POSITIVE for the same reason the name one
+    // below is: an empty assertion that has been broken once says
+    // nothing about what broke it.
+    //
+    // Four pairs, and they are all the SAME shape of pair: face 6 and
+    // face 9 are two of the spout's outer walls, faces 10 and 13 two
+    // of its BORE walls, and the four cross-loop combinations are
+    // exactly the list. Every identity column agrees across them —
+    // `nurbs`, the unit trim box, 2 x 201 divisions — while the rows
+    // carry 733 triangles against 658 and 322 grid cells against 250.
+    // So the CSV cannot tell a wall from the bore it encloses, and
+    // the two are not the same amount of work.
+    //
+    // WHY THE POLYGON DID THAT, which is the finding and not an
+    // accident of a re-cut: with circular sections the outer and inner
+    // walls had different CURVATURE, so the sizing lane gave them
+    // different divisions and `nu`/`nv` separated them. Flat walls
+    // scale without changing shape — the bore is three quarters of the
+    // wall and just as straight across — so both read `nu = 2`, and
+    // the only column left that separates them is `name`, whose
+    // `Lateral{loop_index}` says which loop a wall came from. That is
+    // the same handover the name census below records, arriving on the
+    // same scene from the other side.
+    //
+    // The first assertion above still passes, which is the part that
+    // matters for rule 2: a swap is still INVISIBLE to the gate. What
+    // has gone is the margin that made it free, exactly as this
+    // assertion's doc says it would — sub-tolerance drift reaching
+    // this one alone.
+    assert_eq!(
+        drifted,
+        [
+            "teapot/teapotspout faces 6/10: grid_cells/span_opt_cells 322/317 against 250/238",
+            "teapot/teapotspout faces 6/13: grid_cells/span_opt_cells 322/317 against 250/238",
+            "teapot/teapotspout faces 9/10: grid_cells/span_opt_cells 322/317 against 250/238",
+            "teapot/teapotspout faces 9/13: grid_cells/span_opt_cells 322/317 against 250/238",
+        ],
+        "the pairs whose two recoverable slacks differ. The swap still costs the gate \
+         nothing — the assertion above is what says so — but the margin that made it \
+         free has gone on these. A pair ARRIVING here is another place the identity \
+         columns stopped tracking the work; a pair LEAVING is that margin coming back"
     );
 }
 
@@ -765,11 +806,23 @@ fn the_name_column_separates_pairs_in_exactly_this_scene() {
     // today, and it reds again the day a SECOND scene joins, which is
     // the next moment worth a look.
     //
-    // Four pairs, and they are congruent quarter-arc walls of a
-    // `Node::Loft`: same `nurbs` chart, same trim box, same divisions —
-    // every `IDENTITY_COLUMNS` entry agrees — and `Lateral{loop,
-    // segment}` tells each pair apart. `name` is not an identity
-    // column, which is what makes this the `C15` case and not a re-key.
+    // Twelve pairs now, where the circular authoring gave four, and
+    // the growth is the whole point: they are congruent flat walls of
+    // a `Node::Loft` through POLYGONAL sections — same `nurbs` chart,
+    // same unit trim box, same 2 x 201 divisions, every
+    // `IDENTITY_COLUMNS` entry agreeing — and `Lateral{loop, segment}`
+    // is the only thing that tells them apart. `name` is not an
+    // identity column, which is what makes this the `C15` case and not
+    // a re-key.
+    //
+    // What the polygon added is pairs that cross the two LOOPS: faces
+    // 6/10, 6/13, 9/10 and 9/13 put an outer wall and a bore wall in
+    // one group. A curved wall and a curved bore had different
+    // curvature and so different divisions; flat ones scale without
+    // changing shape, so the CSV stopped being able to say which loop
+    // a wall came from. The swap census above catches the same four
+    // from the other side, where they are the pairs whose recoverable
+    // slacks stopped agreeing.
     //
     // Re-keying rule 4 over the rows that carry a name is INSTR's own
     // unit and NOT the demo PR's:
@@ -777,10 +830,18 @@ fn the_name_column_separates_pairs_in_exactly_this_scene() {
     assert_eq!(
         separated,
         [
-            "teapot/teapotspout faces 2/3",
-            "teapot/teapotspout faces 4/5",
-            "teapot/teapotspout faces 6/7",
-            "teapot/teapotspout faces 8/9",
+            "teapot/teapotspout faces 2/5",
+            "teapot/teapotspout faces 3/4",
+            "teapot/teapotspout faces 6/9",
+            "teapot/teapotspout faces 6/10",
+            "teapot/teapotspout faces 6/13",
+            "teapot/teapotspout faces 7/8",
+            "teapot/teapotspout faces 9/10",
+            "teapot/teapotspout faces 9/13",
+            "teapot/teapotspout faces 10/13",
+            "teapot/teapotspout faces 11/12",
+            "teapot/teapotspout faces 14/17",
+            "teapot/teapotspout faces 15/16",
         ],
         "the pairs `name` separates and no IDENTITY_COLUMNS entry does. A pair \
          ARRIVING here is C15 becoming dischargeable somewhere new; a pair \
@@ -875,9 +936,9 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 1_715_220, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 1_653_556, "triangles over the whole sweep");
     assert_eq!(
-        t.nurbs_triangles, 259_678,
+        t.nurbs_triangles, 198_770,
         "triangles the Hessian-sized faces carry"
     );
 
@@ -887,14 +948,14 @@ fn the_committed_baseline_sizes_this_much() {
     // retired schedule's own (`NurbsColumns::nu` says so); the other
     // two are the optima the same certificates still admit
     // (whole-patch bound / per cell).
-    assert_eq!(t.grid_cells, 87_481.0, "grid cells the lane built");
-    assert_eq!(t.patch_cells, 147_957.0, "the whole-patch counterfactual");
+    assert_eq!(t.grid_cells, 60_413.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 131_957.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 126_705.0,
+        t.opt_cells, 109_205.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 75_954.0,
+        t.span_opt_cells, 58_050.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -902,11 +963,11 @@ fn the_committed_baseline_sizes_this_much() {
     let held = t.span_held().expect("the sweep has Hessian-sized faces");
     let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
     assert!(
-        (held - 1.6913).abs() < 5e-4,
+        (held - 2.1842).abs() < 5e-4,
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.1518).abs() < 5e-4,
+        (recoverable - 1.0407).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }
