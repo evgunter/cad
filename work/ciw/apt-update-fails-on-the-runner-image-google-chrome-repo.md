@@ -156,6 +156,28 @@ Two steps are NOT covered by it: `oracle-certify`'s `m4 for the gmp
 build`, whose job is gated on `run_interval_oracle` and did not run, and
 `nightly.yml`'s `install admesh`, which no PR run executes.
 
+**Fix pass (review of PR 2277).** One MAJOR, found by both reviewer lanes
+and reproduced: an unguarded `mktemp -d` made the `mv` destination `/$name`,
+so an absent `TMPDIR` or a full disk moved the image's source lists to the
+filesystem root, restored none of them, and exited 0 while logging "restored
+on exit" — the silently-disarmed condition the design exists to prevent,
+reached by a path it had not considered. `hold_path` is now the only producer
+of a destination and refuses an unusable holding directory, so that case
+degrades to NOT NARROWING, loudly. Three more: the narrowed update passes
+`APT::Get::List-Cleanup=0`, without which restoring a set-aside list restored
+the file and not its cached indexes (measured: docker 2 -> 0 -> 2); a package
+apt cannot find fails at once with apt's own status instead of being retried
+three times and annotated as a mirror outage; and comments are stripped before
+URIs are read. Every caller now `exec`s the script, so a cancel or a
+`timeout-minutes` expiry reaches the process holding the restore trap, and
+every caller sits at `timeout-minutes: 8` — the bound the script's header
+derives, below which the inner `timeout` cannot buy a retry.
+
+The selftest grew from five rows to 31, each written against a named mutation:
+14 injected failures, 14 killed, including the eleven the review found
+surviving the first battery. Run 34423995419 is green with `apt preamble
+selftest` and all four executable install rows green at STEP level.
+
 Residue, two files: nothing stops a new step spelling its own preamble
 inline again (`work/ciw/apt-preamble-bypass-is-unguarded.md`), and a lane
 token gets 403 on `workflow_dispatch`, so the nightly row landed

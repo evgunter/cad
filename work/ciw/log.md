@@ -1785,3 +1785,15 @@ the change has no remedy available to the lane it binds
 (`work/ciw/nightly-rows-cannot-be-dispatched-by-a-lane.md`). Stated as a
 gap rather than argued away: the row is the same one-liner as four rows
 that did execute, and that is not the row running.
+
+**The fix pass, and what it says about how selftests get written here.** The
+review found one MAJOR (an unguarded `mktemp -d` whose empty result made the
+`mv` target `/$name` — the image's lists to the filesystem root, nothing
+restored, exit 0 over a log saying "restored on exit") and eleven mutations
+the first selftest battery did not catch. The lane's battery had five rows and
+every one of them observed a successful run, so the property the unit is
+ABOUT — restores on any exit — had nothing pinning it. The reviewer's note
+that this was the third unit in a row with that shape is the useful part: the
+repair is not a longer battery but a different order of writing, name the
+failure first and check the row reds when it is injected. The rewritten
+battery is 31 rows and a 14-mutant harness that all 14 die under.
