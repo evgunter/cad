@@ -2,10 +2,11 @@
 id: gui-wasm-build-is-not-gated-at-all
 kind: issue
 title: the GUI's wasm32 build is gated by nothing: ci.yml's wasm row excludes viewer, and default features exclude the app feature where the wasm code lives
-status: review
+status: closed
 opened: 2026-09-04
 branch: ciw/unreachable-roots
 pr: 2263
+closed: 2026-09-09
 ---
 
 
@@ -247,3 +248,35 @@ are CHROME's and VIEW's and are **reported, not edited**.
   prefix. Recorded there as a measured instance with the population
   count that item asked for; deliberately not built here.
 
+
+## Closed 2026-09-09
+
+PR 2263. `ci.yml`'s `fmt` job carries `wasm32 check (viewer app feature)`
+— `cargo check -p viewer --features app --target wasm32-unknown-unknown`,
+seed-keyed on `run_viewer_toolkit` per Ev's viewer-CI-posture ruling and
+mirrored in `local-scripts/ci-local.sh`. A flat row would have made every
+kernel change pay the eframe/wgpu graph, which is what that ruling
+declined; `clippy-all-features` was the precedent followed.
+
+**Demonstrated on hosted CI in both directions, in that order.** PR
+1741's original `E0599` was replanted and run WITHOUT the row (run
+34373755002): green — and the viewer axis was TRUE, so
+`clippy (viewer app feature)` ran `-D warnings` over the same crate and
+passed. That is the finding sharpened: not a narrow gate, but nothing in
+the workflow building that target at all. With the row (run
+34375557117): one step red, `JsValue doesn't implement Display`. Plant
+removed, green again. The bin target was verified separately by a local
+`E0308` plant — stated as local rather than folded into the hosted claim.
+
+**A claim this unit made and then falsified itself**: the
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` prefix is NOT required at
+the pinned getrandom — its final wasm32 arm takes `cfg(feature =
+"wasm_js")`, and the `compile_error!` saying otherwise sits in that arm's
+ELSE. Verified green with the cfg dropped. The flag stays because
+`serve-wasm.sh` sets it and the row must not drift off it; three
+documents that assert it is load-bearing were corrected or reported.
+
+Residues, each its own file: `work/view/viewer-items-unreferenced-at-wasm32`
+(the two dead-code warnings that are why this row is `check` and not
+`-D warnings`, with the flip as its close condition), and the parity
+blindness recorded on `mirror-pairs-env-divergence-unchecked`.

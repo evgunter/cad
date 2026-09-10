@@ -1665,3 +1665,57 @@ instance ended.
 Unit 4's own row is green at STEP level in both of those red runs
 (54.36 s, 54.89 s) and in the green one.
 
+
+## 2026-09-09 — unit 4 merged and closed; the slate re-ordered around a live flake
+
+PR 2263 (`1d29a8ee`). The wasm row exists and is demonstrated in both
+directions on hosted CI; the demos half built nothing, which was the
+right answer and is recorded as such.
+
+**Two claims this program made and then had to withdraw, both caught
+inside the unit rather than after it.**
+
+The lane's own: `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` was
+asserted "required, not decoration" in the first PR body, and is not
+required at the pinned getrandom — the final wasm32 arm takes
+`cfg(feature = "wasm_js")` and the `compile_error!` claiming otherwise
+sits in that arm's ELSE. Verified green with the cfg dropped. The flag
+stays for a different and true reason (`serve-wasm.sh` sets it; the row
+must not drift off it), and three documents asserting the false reason
+were corrected or reported. **This orchestrator repeated the false claim
+to Ev before the check happened**, which is the cost of relaying a lane's
+mechanism sentence without asking what would falsify it.
+
+And a smaller one: the fix-pass brief called `tools/tess-meter` "a
+seventh root your five does not name". The lane's five said `tools/*`, so
+it was named. The count was wrong (seven, not five) and the fix stands,
+but the criticism was imprecise and the lane said so rather than
+absorbing it.
+
+**The reviewer's best finding belonged to a later unit and was not built
+here.** `check-ci-mirror-parity.py:1304` slices `toks[toks.index("cargo")
++ 1:]`, discarding every env prefix, so the parity pass this PR cites
+proves the `--features` value matches and nothing about the flag the row
+depends on. Recorded on `mirror-pairs-env-divergence-unchecked` as its
+measured instance, with the population counted (five in `ci-local.sh`
+alone, plus hosted prefixes and `env:` blocks as two spellings of one
+thing) — which also answers that item's own "count the population first"
+clause before its unit opens.
+
+**A live flake, found by the lane's own red runs and confirmed not to be
+its diff.** `apt-get update` on the runner image exits non-zero on a
+`google-chrome` list whose `Packages.gz` hash disagrees with its Release
+file, although every needed package is fetched. Four sites across two
+workflows; **the two in `ci.yml` carry no retry at all**. `lib/loops`,
+carrying none of this diff, died at the same steps in the same window
+(runs 34383262029, 34385213731). It cleared about 55 minutes later, which
+disproved the lane's first-draft claim that re-running does not help —
+corrected at the site rather than left standing.
+`work/ciw/apt-update-fails-on-the-runner-image-google-chrome-repo`.
+
+**It jumps the queue.** It reds other programs' PRs, it is
+indistinguishable from a real failure while it lasts, and two of its four
+sites have no retry — and `rerun-failed-jobs` answers 403 for a lane's
+token, so a lane cannot even re-run past it. Units 5-7 (mirror parity
+past argv, the PIPESTATUS sweep, the doc citations) are all cheaper to
+delay than an hour of everyone's red runs.
