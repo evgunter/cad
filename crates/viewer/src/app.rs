@@ -86,9 +86,17 @@ pub use crate::forms::FieldWriting;
 /// One `cfg` alias rather than a trait object: there is exactly one
 /// store per target, chosen at compile time, and a `Box<dyn>` would
 /// buy a choice nothing makes. The browser's arm is [`prefs::Absent`]
-/// until a `web_sys::Storage` store is written — it reports, and the
-/// Save control disables itself, exactly as the file chooser does
-/// where no portal exists.
+/// until a `web_sys::Storage` store is written.
+///
+/// **The `cfg` decides which store answers, never whether it can keep
+/// anything.** Both arms can answer [`prefs::PrefsStore::unusable`]
+/// with `Some`: `Absent` always does, and the native `FileStore` does
+/// in an environment that names no config directory, which is
+/// [`frame::prefs_path`]'s `None`. So everything the chrome does about
+/// a store that keeps nothing keys on that read and not on the target
+/// — which is what makes the browser and a desktop launched from a
+/// stripped environment one case, and what leaves a future
+/// `web_sys::Storage` store out of the case on its own.
 #[cfg(not(target_family = "wasm"))]
 type Store = prefs::file::FileStore;
 #[cfg(target_family = "wasm")]
@@ -364,10 +372,13 @@ pub struct ViewerApp {
     /// application rather than in the document (`crate::theme`), so
     /// switching it can never touch what a file says.
     ///
-    /// Nothing persists it yet: it is chosen at startup and may be
-    /// changed in-session, and a viewer reopened forgets. The
-    /// preferences file that will remember it is its own piece of
-    /// work; this field is what it will write into.
+    /// **It is persisted where the store can keep it.**
+    /// [`Self::remember_theme`] writes it on every switch and
+    /// `Prefs::resolve_theme` reads it back at startup, so a viewer
+    /// reopened remembers. Where the store keeps nothing the switch
+    /// still applies to the screen and only the memory is lost, which
+    /// the toolbar says beside the picker rather than leaving a reader
+    /// to discover next session.
     theme: Theme,
     tree: Tree<Pane>,
     /// Whether the user has resized a tile themselves. From the first
@@ -998,11 +1009,14 @@ impl ViewerApp {
 
     /// Write the current theme choice to the preferences store.
     ///
-    /// **Best-effort, and it reports.** A store that cannot be
-    /// written is worth one line in the status area and nothing more:
-    /// the theme is already applied on screen, so a failure here
-    /// costs the next session's memory of it, never this session's
-    /// work. Refusing the switch because it could not be recorded
+    /// **Best-effort, and it reports.** A write that FAILED — a store
+    /// with somewhere to write that could not — is worth one line in
+    /// the status area and nothing more: the theme is already applied
+    /// on screen, so a failure here costs the next session's memory of
+    /// it, never this session's work. A store that can never be
+    /// written is not that case and is not reported here at all; it is
+    /// a standing fact the toolbar badges, per the guard below.
+    /// Refusing the switch because it could not be recorded
     /// would be the worse trade.
     ///
     /// The whole document is rewritten rather than patched, so every
@@ -1012,7 +1026,16 @@ impl ViewerApp {
     /// is the price of a hand-written renderer that keeps its
     /// comments, and such a key was already reported on load.
     fn remember_theme(&mut self) {
-        if !self.store.usable() {
+        // **A store that keeps nothing is not asked**, and what it
+        // would have said is already said: `frame::prefs_badge` reads
+        // the same value on the toolbar beside the picker, for as long
+        // as it is true. Asking anyway would hand back
+        // `prefs::Unusable::refusal` — the same sentence, once per
+        // switch, on the channel that carries one frame's news, which
+        // is the misclassification Ev ruled on for the absent file
+        // chooser. Nothing is discarded here because nothing is
+        // attempted.
+        if self.store.unusable().is_some() {
             return;
         }
         let prefs = Prefs {
@@ -1357,6 +1380,18 @@ impl eframe::App for ViewerApp {
                             ui.selectable_value(&mut chosen, *theme, theme.name);
                         }
                     });
+                // **Beside the picker, not in the badge row above**:
+                // it is the only badge that is about a control rather
+                // than about the document or the picture, and a
+                // reader deciding whether a choice will survive the
+                // session needs it where the choice is made. It is
+                // drawn whether or not anything has been picked yet,
+                // because a standing fact is worth knowing BEFORE the
+                // choice, and it is drawn once because it is a read
+                // rather than an answer to the switch.
+                if let Some(badge) = frame::prefs_badge(self.store.unusable().as_ref()) {
+                    draw_badge(ui, &self.theme, &badge);
+                }
                 if let Some(status) = &self.status {
                     ui.separator();
                     ui.label(status.text());
