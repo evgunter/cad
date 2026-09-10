@@ -6627,6 +6627,73 @@ rule that produces it. **A universal in prose owes the sweep rule that
 produces its population** — the same obligation §5 puts on a scope
 sentence in a PR.
 
+## 2026-09-08, orchestrator: #2172 merged, and a gate that failed its own thesis
+
+**#2172 is on main** (`2679a9451`), twenty-fourth unit, 37 jobs green.
+It closes `vocab-gate-counts-bullets-across-a-whole-prose-section`:
+the #2106 gate read every `- **` between its section heading and the
+next heading of any level — 149 lines of prose — so the constraint it
+actually imposed was *never write a bulleted list in this section*, and
+its error told the author they had added a **ratified kind** they had
+not. #2143's author had already paid for it, writing a whole README
+rewrite with no bulleted list to keep the gate green.
+
+**The review found the gate failing its own thesis.** A bullet indented
+two or three spaces renders — to CommonMark and therefore to every
+reader of the page — as an item of the announced list. The new reader
+escaped its paragraph state on `/^- /`, column zero only, and swallowed
+anything indented as a continuation. So a fourth ratified kind, visible
+to every human, read as three and printed `OK`, exit 0: **the exact
+defect this gate exists to prevent, inside the gate written to prevent
+it.** A `^`-anchored pattern over markdown is a claim about column zero
+that markdown does not make.
+
+**And the hold the change was argued on was not a hold.** The unit put
+the count word inside `KIND_ANCHOR` on the ground that the section
+could otherwise say "Four kinds…" over three bullets unread. The
+reviewer did not argue with that; it took the resulting red's OWN
+second suggested repair — change `KIND_ANCHOR` to match — and got
+**green, exit 0**, with the `OK` line printing `3 kinds read from
+"Four kinds of list stay hand-written"`. The count word bought one
+extra edit, and the error message named that edit. **A guard whose
+diagnosis offers a way around it is a speed bump, and the only way to
+learn that is to follow the repair the tool prints.**
+
+Both are closed, and both were verified here rather than taken on
+report: the indented bullet now exits 1 listing `"A fourth kind"` among
+the bullets read, and the `Four kinds…` state is now unreachable rather
+than merely diagnosed — a green line that contradicts itself is read by
+nobody, so it gets a guard, not a message.
+
+**The fix pass went past its brief three ways.** It settled the indent
+boundary with a CommonMark parser per position rather than reasoning
+about it (two and three spaces are items; four after the anchor line is
+a lazy continuation; four after a blank is an indented code block) and
+checked the regex under both gawk and mawk. It found a paired case
+nobody had named — the anchor now matches only where it OPENS a
+paragraph, which is the renderer's own lazy-continuation rule. And it
+caught a defect of its own: the new guard was first a bare call under
+`set -e` and killed the gate before its own `gate_error` could print.
+**A guard that dies before its own diagnosis is worse than no guard.**
+
+**The orchestrator's filed figures were wrong, and the diagnosis is
+better than "wrong".** The item said `crates/viewer/README.md:907-1037`,
+131 lines; the region was 114 lines at the tree it was written against
+and 149 at the branch's base. The reviewer found where 131 came from:
+`447124324`, one commit earlier, where `907-1037` inclusive *is* 131.
+**The figures were a blend of two trees.** The orchestrator's numbers
+get re-derived like anyone's.
+
+**Residue, filed rather than absorbed**:
+`gate-section-scans-end-on-any-column-zero-hash` (both README scans end
+at any column-0 `#`, so a Rust attribute inside a fence truncates the
+section and the anchor then reports a sentence that is visibly present
+as gone) and
+`gate-reader-guards-count-six-where-the-stated-rule-yields-nine` (the
+header's number counts guards where its own rule counts stages, leaving
+three diagnoses able to name the wrong reader — the
+misdiagnosis-by-`pipefail` that same file argues against elsewhere).
+
 ## 2026-09-09 — the two wasm dead items are `cfg`, and the refusal that IS unsaid is somewhere else
 
 `viewer-items-unreferenced-at-wasm32` closed. CIW's PR 2263 added the
@@ -6794,6 +6861,74 @@ this branch had already re-derived once. Re-derived again after the
 last edit, by finding each subject by name. That is the second time in
 one PR that the LAST edit invalidated an earlier sweep; the instrument
 is fine, the discipline is to run it last.
+
+## 2026-09-09, orchestrator: #2272 merged, and the question it left standing
+
+**#2272 is on main** (`47bfaedae`), twenty-fifth unit, 37 jobs green.
+It closes `viewer-items-unreferenced-at-wasm32`, CIW's §6 report from
+PR 2263: two items in `app.rs` were unreferenced at
+`wasm32-unknown-unknown --features app`, and were the only reason that
+CI row cannot deny warnings.
+
+**The unit was the choice, not the edit.** The item offered two shapes
+and declined between them — `#[cfg]` the items, matching every user, or
+find the wasm caller that was lost, in which case the warning is the
+symptom of a live defect. **Shape (1) for both**, and the review agreed,
+but narrowed the ground it rests on: of the three the PR argued, only
+one carries it. A single `self.chooser` copy both gates the button
+(`add_enabled(chooser.usable(), …)`) and feeds the verdict
+(`frame::dialog_status`), so `Show` requires a click on a widget built
+`enabled = false`. The reviewer closed that by reading egui 0.36.1
+rather than assuming it: pointer, keyboard and AccessKit click routes
+are each `if enabled &&`-gated, so the button cannot report a click.
+
+**Asking what would have shown the OTHER shape is what found the real
+defect**, one control over. The store's `usable()` guard makes
+`remember_theme` return early, so the palette picker is offered,
+applies, and its persistence is silently ineffective — against two
+prose claims that say the opposite, one naming a "Save control" that
+does not exist anywhere in the chrome. The fix pass then re-framed that
+finding off the target and onto the guard: `FileStore::usable` is
+`path.is_some()` and `frame::prefs_path()` returns `None` with neither
+`XDG_CONFIG_HOME` nor `HOME`, so **the native build takes the identical
+silent return**. A `target_family` fix would have repaired the browser
+and shipped the other half untouched. Filed as
+`wasm-theme-choice-is-offered-and-silently-not-kept`, now framed on the
+guard.
+
+**A dead symbol in `src/` was the cause of a wrong citation in
+`work/`.** `session/op.rs` named `frame::supersession_notice`, which
+has zero definitions; the real renderer is `frame::Withdrawal::superseded`.
+The tracker sweep had found the symptom and not the cause, and
+`doc-gate.sh` could not see it because the span was unbracketed. Fixed
+bracketed, so the name is held rather than merely correct today, and
+the class filed as `doc-comments-name-symbols-that-do-not-exist` —
+19 spans over 12 names for `frame`/`session`, exactly two dead, the
+second thirteen lines below the one repaired.
+
+**A fourth class for `stale-file-citations-after-the-split`**: class 1
+is a citation whose subject is GONE; this is one whose subject was
+NEVER THERE. Repairing the number leaves a false sentence pointing at
+something real, which is worse than a visibly broken one.
+
+**What stays open, and it is Ev's**:
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser`. Ground 3
+proves `dialog_status`'s `Show` arm has **zero production reachability
+on any target** — its only reader is a unit test on the pure function.
+That sentence was written for #1097, a WSL box where Open silently did
+nothing. Everyone in this chain read "it can never fire" as
+reassurance; it may instead be the finding, with `add_enabled` having
+quietly taken the status route's job. Pressing the PR's second ground
+points the same way: a disabled button's hover text is neither of the
+two channels `crates/viewer/README.md`'s provenance rule enumerates,
+and by that rule's own test it is badge-shaped — so "the same const
+string" was never the substitute it reads as. Harmless only because the
+route is empty everywhere.
+
+**Corrections to the orchestrator, both from lanes**: `superseded_text`
+is a `#[cfg(test)]` helper, not the production renderer, and the
+contract clause in `stale-file-citations-after-the-split` is at `:40-41`,
+not `:47-49`. Both were mine, both stated in briefs, both caught.
 
 ## 2026-09-10 — the absent chooser was in the wrong CHANNEL, and `Keep` had to be proved a no-op first (#2278)
 

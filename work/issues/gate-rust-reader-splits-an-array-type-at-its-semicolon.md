@@ -82,3 +82,12 @@ that way.
 So a `--items` mode added to `gate_rust_code` owes the same anchor. A
 fix that removes the workaround without it re-opens a defect that was
 found once, at the cost of finding it again.
+
+## Citation correction, 2026-09-08
+
+This file cited `scripts/gates/viewer-vocab-declared-once.sh:139-153`
+for the workaround reader's header. That is the wrong passage — at
+`origin/main` those lines are the roster-fidelity paragraph. **The
+header is at `:212`**, re-derived by finding its subject (`THE ITEM
+READER, AND IT IS A WORKAROUND`) rather than by shifting a number.
+
