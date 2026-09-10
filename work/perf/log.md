@@ -213,3 +213,56 @@ branch. Recommendation put to Ev: keep the clause (option 1); take
 "once per public door with replay localization" (option 3) only if
 editor-core's suite wall is worth a surgery scope in `topo`. Waits for
 sign-off; not self-merged.
+
+## Kernel lane reported (2026-09-10) — the kernel-API seat
+
+Branch `perf/explore-kernel` (stage spans in `geom-core`, corpus, demo
+and Python harnesses). Release, both ways: `da_on` is the shipped
+`[profile.release] debug-assertions = true` every user runs; `da_off`
+is what `benches/` measures. 4 vCPU under the mutex, medians of 5,
+cross-round spread ±5–8 %.
+
+- **D1's per-op sweep is the kernel-API user's wait.** `die` 78–82 ms
+  `da_on` vs 35–37 ms `da_off` (tier 1 fires 1470× for 37 ms, 46 %);
+  `die_composed_tour` 90–95 vs 26 (tier 1 1704× for 60 ms, 65 %);
+  every corpus row 2.2–5.5×; `demos/wild` 226 → 54 ms (72 % tier 1);
+  `demos/tour` 9.5 → 7.0 s. Folded into `[ev]` #2305.
+- **`StableName` keying is quadratic and measured**: `wire.boolean.
+  name_emitter` is 21.4 of `die`'s 36 ms `da_off` (55–60 % of boolean
+  time, ~40 % of the rebuild); per-step 0.061 → 2.451 ms along the
+  21-chain. `StableName` is a recursively boxed value used as a
+  `BTreeMap` key (`names/role.rs:396`, `names/emit_topo.rs:518-524`,
+  `names/table.rs:69,96-107`), so each insert is O(depth) compares plus
+  a deep clone. Filed.
+- **`assemble`'s tier-3′ census over the aggregate is quadratic**:
+  heat sink at 10/40/160 fins → 11 ms / 80 ms / 1.3 s (n^1.96); the
+  gather is 23 ms at 161 solids in release (the closed LIB issue's
+  250–372 ms was dev profile). `run_checks` is linear. Filed.
+- **Curved-face grid density**: on a torus the grid is 110–145× the
+  naive chordal-sagitta cell count at every δ, correct 1/δ scaling,
+  constant ~11× per direction — the analytic-surface sibling of
+  `mesh/torus-grid-step-one-step-both-directions`, which it confirms
+  from a second direction. Tessellation is 71 % of the tour
+  (`lily` 2.5 s, 15 bodies at 2 mm) and 100 % of the ring rows.
+- **Mass properties / tier 3 on NURBS-walled bodies**: 160 ms and 157
+  ms on `loft_prism` — tier 3 IS a full certified quadrature; the tour
+  pays 2.2–2.7 s over 193 mass-props calls; and callers that gate then
+  measure pay it twice although `validate_geometric_certificate`
+  exists to hand the gate's certificate back (`demos/tour/src/main.rs:
+  402,423`, the Python `validate_geometric()` + `mass_properties()`
+  pair). Filed. Per-face parallel fluxes (idiom 2) is the "faster" half.
+- **Python**: `prior=` buys 12× on a tail edit (89 → 7.2 ms); a
+  memo-hit evaluate is 0.29 ms; the seat's own cost is mesh egress —
+  `positions`/`triangles` build per-vertex tuples and `Length` objects
+  (`pncad-py/src/py/mesh.rs:325,339`), 51 + 41 ms on a 333 k-triangle
+  mesh (~22 % of its tessellation). Filed, low.
+- **Small on the corpus, plan rank not supported**: boolean gate double
+  tier 1 ≈ 2.5 % of `die` `da_off`; whole-body pcurve re-mint 0.1 % of
+  `die`, 12 % of `die_composed_tour`, 0.2 % of the tour; the arena-scan
+  family jointly ≤ 17 % and not separable. CDT bulk-load's trigger is
+  still unmet — no corpus document reaches the holed-planar quadratic.
+- **The memo is worthless where the DAG is one wide node**
+  (`die_composed_tour`, `heat_sink`): the recomputed cone is the
+  document. Not a defect; a fact about those documents.
+- Criterion's six rows do not predict this seat (planar microseconds
+  where curved bodies are 100+ ms) — a curved row is owed there.
