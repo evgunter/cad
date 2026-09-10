@@ -137,10 +137,9 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 /// by `mesh::sizing::torus_grid_steps`, whose cost is the torus rows'
 /// subject. 1e-4 is the viewer's δ = 0.1 mm.
 fn torus() -> Body<f64> {
-    let circle = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.30, -0.07), 1.0),
-        ProfileVertex::new(p2(0.30, 0.07), 1.0),
-    ]);
+    let circle = pncad::profile::circle(p2(0.30, 0.0), 0.07, Tol::witness())
+        .expect("a positive section radius")
+        .into();
     let profile = validated(SketchPlane::<f64>::xy(), vec![circle], Tol::witness())
         .expect("the torus profile validates");
     revolve(
