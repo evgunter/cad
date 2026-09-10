@@ -300,6 +300,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/viewer/tests/frame_policy.rs",
+        disposition: Shared, // the README's badge-door and store-read counts, code view
+    },
+    Entry {
         path: "crates/viewer/tests/landing_gathers.rs",
         disposition: Shared, // the gather counter's three gated sites, code view
     },
