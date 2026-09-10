@@ -1868,3 +1868,87 @@ Two of this orchestrator's own dispatch premises were also wrong and the
 lanes corrected both: "`set -e` mid-script" (the script has none, which
 is precisely why the MAJOR was silent) and the non-`actions/*` `uses:`
 inventory. A brief is a hypothesis; these were asserted as facts.
+
+## 2026-09-10 — unit 5 dispatched: mirror parity past argv
+
+`mirror-pairs-env-divergence-unchecked` on `ciw/mirror-env-parity`.
+
+**It starts from an instance rather than a hypothetical**, which is what
+the last unit bought it: `check-ci-mirror-parity.py:1304` slices
+`toks[toks.index("cargo") + 1:]`, so unit 4's mirrored wasm pair passed
+claim 10 with the checker reading none of its
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` prefix — the one flag
+that pair's own comment called load-bearing. Verified still true on
+today's `main`.
+
+**The item's own gate is already answered.** It said to count the
+population first and close if the answer is one. It is not one:
+`ci-local.sh` alone has env-prefixed cargo invocations at `:780`,
+`:783`, `:806`, `:929` and `:1150`, and the hosted half spells its
+equivalents both as prefixes and as `env:` blocks. So the unit is
+authorised by its own clause.
+
+**The difficulty is the two spellings, not the parsing.** A prefix and
+an `env:` block are the same fact written two ways, and a claim that
+reads one and not the other would pass exactly the divergence it was
+built to catch. That is the vocabulary problem the item names and the
+first thing the lane must settle.
+
+**Both lanes**, by the trigger: this widens a gating claim over a
+derived population, in a checker that is now ~2850 lines and has taken a
+new claim in each of the last three units. Accumulation is a live
+concern and the brief says so.
+
+
+## 2026-09-10 — unit 5 delivered: the environment a pair runs under, in claim 10
+
+PR 2295. The lane widened claim 10 rather than minting claim 13, and
+settled the two-spellings question the brief flagged: a prefix and an
+`env:` block are normalised into one map per half before anything is
+compared, because the tree contains a pair that writes the same fact in
+all three spellings at once (`oracle-certify`: job block, step block,
+one local prefix). A prefix-only reader would have red that correct pair
+— and the fix for a false red is an exemption, which is how the table
+becomes a place to put things.
+
+**The accumulation answer was one table, not a fifth.** `FLAG_EXEMPT`
+is now `PAIR_EXEMPT`, keyed `(pair, token)` over flags and variables
+alike, since the expiry arms are the same sentences for both. Its new
+`both` side fixes a latent bug: claim 10 already told the reader to
+"declare the pair in FLAG_EXEMPT with the reason it differs", and doing
+so produced the *expired* error.
+
+**The selftest lesson held, and was paid for once.** The lane published
+a mutant table — nine ways to break the arm, each mapped to the row that
+catches it — and the first pass showed *hosted inline prefixes not read*
+SURVIVING with the selftest green: no case had planted a prefix on the
+hosted half, which is precisely the shape the arm exists for. One row
+added, mutant killed.
+
+Residue filed in the same PR (`mirror-pairs-context-beyond-env`): three
+mirrored pairs carry a `working-directory:` against a local `cd`, and
+nothing compares them.
+
+
+## 2026-09-10 — unit 5 fix pass: an empty map is not a reading
+
+The review returned three MAJORs and they were one behaviour:
+`env_prefixes` read as EMPTY whatever it could not classify, against
+this file's own standing rule that an unreadable input is a refusal.
+Every instance followed from a walk anchored at token 0 — a one-line
+function's `{`, a loop's `do`, an `env NAME=v` wrapper. The fix moved
+the anchor to the command word and made everything still unattributable
+Bail; the three instances were then consequences rather than cases.
+
+**The lesson the program keeps paying for held again**: the lane's own
+selftest had nine rows and the review found seven mutants that survived
+them. The gap was always the same kind — a case planted on ONE half, a
+value with no inner quotes, a row whose argv sits in a function. The
+answer was a row per mutant and a table published with the PR; 25 of 25
+now die.
+
+**Also caught by both lanes, and worth remembering as a shape**: the
+advice in an error message is part of the contract. Claim 10 told the
+reader to declare a pair with side `both`, and the table refused it —
+the same invited-then-refused defect the PR body describes fixing, one
+token class over, in the same diff.

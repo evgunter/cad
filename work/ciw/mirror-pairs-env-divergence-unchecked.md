@@ -2,9 +2,11 @@
 id: mirror-pairs-env-divergence-unchecked
 kind: issue
 title: no check compares the env a mirrored CI pair runs under, so a deliberate divergence and a dropped variable look the same
-status: open
+status: review
+pr: 2295
 opened: 2026-09-04
 refs: [mirror-parity-never-compares-flags, 1759, 1739]
+branch: ciw/mirror-env-parity
 ---
 
 
@@ -113,3 +115,70 @@ item already names, with a concrete list to size it against.
 claim 10 is this item's own unit. Recorded here so the next lane starts
 from an instance rather than from a hypothetical.
 
+
+
+## Disposition (2026-09-10, PR 2295)
+
+Claim 10 widened, not a claim 13: same pair enumeration, same
+`marker_row` closure, same OPAQUE rule, same exemption table, one token
+class further out.
+
+**The two spellings are read as one fact.** Hosted's environment is its
+job-level `env:`, then its step-level `env:`, then any inline prefix on
+its `run:` line — GitHub's precedence — normalised to `NAME -> value`
+against the local half's prefixes, with YAML's optional quotes stripped
+and `${{ … }}` / `$VAR` values OPAQUE on the flag arm's own rule. The
+tree forces this rather than merely favouring it: `oracle-certify /
+certify against the oracle` sets `RUSTFLAGS` in a JOB block and
+`CAD_FUZZ_EFFORT` in a STEP block against one local prefix carrying
+both, so a prefix-only reader would have red a correct pair and been
+paid off with an exemption.
+
+**Scope.** `SEMANTIC_ENV` = `RUSTFLAGS`, `RUSTDOCFLAGS`, `CAD_*`. The
+throughput knobs the local half is ratified not to mirror are out BY
+NAME at the table, not by exemption. Extent is the pair, not a shared
+cargo subcommand, so render rows that run no cargo are read.
+
+**`FLAG_EXEMPT` -> `PAIR_EXEMPT`**, keyed `(pair, token)` over both
+classes with a third side value `both` — which the flag arm's own error
+text had already invited without having.
+
+**Population re-measured:** six pairs, ten `(pair, variable)` facts.
+Three gated agreements, seven declared.
+
+**Residue**, filed as `mirror-pairs-context-beyond-env`: the working
+directory (three pairs, measured), a `uses:`-only pair (zero today, a
+refusal rather than a comparison) and names outside `SEMANTIC_ENV`.
+
+
+## Fix pass (2026-09-10, PR 2295, review round 1)
+
+Three MAJORs, one root cause: **`env_prefixes` read as an EMPTY MAP
+whatever it could not classify**, and an empty map is what a half that
+sets nothing looks like. Fixed at the behaviour, not at the three
+instances.
+
+The prefix walk now starts at the COMMAND WORD rather than at token 0
+— it steps over `{`, `do`, `then` and their siblings, and through
+`env`/`exec`/`timeout` wrappers, so a one-line shell function
+(`f() { NAME=v cargo …; }`, three live pairs), a loop body and
+`env NAME=v cargo` are read. Everything it still cannot attribute
+REFUSES: an assignment after the command word, a standing or exported
+one, a `$GITHUB_ENV` write in any step of the cited job, and a pair
+cited at a `uses:` step. The one shape it declines to refuse is a
+`${{ … }}` expression standing where a prefix would — ci.yml's two
+archived-test rows are written that way — so that half is reported
+INCOMPLETE and no one-sided verdict is passed against it.
+
+**Workflow-level `env:` joined the ladder**, which now runs workflow <
+job < step < inline prefix, with a selftest row per rung.
+
+**The recursive defect, caught by both review lanes:** claim 10's
+different-values error told the reader to declare side `both`, and the
+fixture builder refused exactly that entry for a flag — the
+invited-then-refused shape this PR describes fixing, re-created one
+class over. `both` is now legal for a value-taking flag, refused for a
+valueless one, and `selftest_both_is_reachable` asserts both directions.
+
+**24 -> 25 mutants killed**, including the seven the review named. The
+25th (`uses:`-only) needed its own row after it survived the first pass.
