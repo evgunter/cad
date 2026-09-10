@@ -18,8 +18,8 @@ governs how the gaps get treated:
 > library — never quietly work around it, and never contort the demo
 > to hide it.
 
-**Result: 40 of the 46 tour stops are authorable through Python
-today** — 36 outright, and 4 more only with a caveat the row states:
+**Result: 41 of the 47 tour stops are authorable through Python
+today** — 36 outright, and 5 more only with a caveat the row states:
 each re-authors by hand what the scene says structurally. 6 are
 blocked by a missing door.
 
@@ -354,6 +354,7 @@ this page grades BODIES against the bound surface.
 | 44 | `torusvessel` | **YES** | — | **LIB-TEAPOT.** The same five nodes the vessel corpus uses — frame, in-plane axis, profile, revolve, shell — with `arc_to` about a centre the axis does not pass through, so the wall is a TORUS and the body is `teapot`'s retired wall 1 said as a part. `TestTorusvessel` in `tests/test_north_star.py` authors it and holds it to the scene's own closed form at two thicknesses (the boundary moved inward by `t` is a foot cylinder, a torus band and a neck, so the wall is one form evaluated twice and differenced), plus the operand's 14 faces and the sealed hollow's 28/52/28. The hollow is `Node.shell` with an EMPTY open list. The torus arm (#1494) widened what `shell` reaches; this row is the document asking for it |
 | 45 | `torusvesselcup` | NO | G17 | the same body one verb later, and the ONLY row G17 still holds. Row 44 next door flipped at LIB-TEAPOT — it is this vessel without the merge — so what is left here is not the shell half at all but the SECOND door: `Body::merge_coplanar_faces`, which this scene calls as its second step and which no document node binds. The merge is a REPAIR rather than a construction, so binding it is a separate question from G17's; it stays this row's named secondary rather than a gap of its own, and the row now measures exactly that residue |
 | 46 | `fivewall` | YES\* | — | every door the scene needs is bound and named: the PATHS meridian with `Center` arcs, `revolve`, `Node.shell` with an open list EMPTY (the sealed sleeve) and NON-empty (the cup — row 45's residue is the merge, not the opening), and `Node.Transform` for the rigid lift that sets the two side by side. What the star marks is row 40's sense: no Python row executes it yet. The scene's own claim — that each wall's offset is a face of its OWN kind, read out of the stored surfaces — is a readback over `Surface`, so a Python row would need the surface accessors as well as the doors |
+| 47 | `twisted_tube` | YES\* | — | NOT row 20's blocker: that row is a SWEEP and waits on `SWEEP_FRONTIER`; this one is a LOFT, and `Node::Loft` has been bound since LIB-PYG23A. Its sections are profile NODES, so each one's placement is its own sketch plane — non-xy planes bound with the same unit — and a `ProfileProgram` carries a list of loops, so the annular section is sayable too. The star is the legend's own sense: the SPINE is not in the document. `loft_body`'s frames are derived here by evaluating a `NurbsCurve3` interpolant and reading its tangent at each station, and through the document those frames would cross as literal numbers — so the body transfers and the point of the scene, which is that the sections follow a curve with torsion, does not. No Python row executes it either |
 
 **YES** = the exact body is reproducible with the bound surface.
 **YES\*** = the exact body is reproducible, but only by hand-authoring
