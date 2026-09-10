@@ -6930,6 +6930,144 @@ is a `#[cfg(test)]` helper, not the production renderer, and the
 contract clause in `stale-file-citations-after-the-split` is at `:40-41`,
 not `:47-49`. Both were mine, both stated in briefs, both caught.
 
+## 2026-09-10 — the absent chooser was in the wrong CHANNEL, and `Keep` had to be proved a no-op first (#2278)
+
+Ev ruled **(c)** on #2275 — *"(c) is right!"* — so `frame::dialog_status`
+is deleted whole, `ViewerApp::deliver_status` with it (no callers left),
+and #2272's `#[cfg(not(target_family = "wasm"))]` and the fifty-line
+paragraph defending the arm's latency go with them. `app.rs` 2,022 →
+1,956. The surface stays the hover text: Ev ratified (c) without asking
+for a badge, and (c)'s own argument is that a disabled control with its
+reason on hover already IS a read of held state.
+
+**The deletion rested on a claim nobody had checked, and checking it is
+the whole unit.** Every reachable verdict at both call sites was `Keep`
+— that is what made the arm unreachable — so removing the calls is
+behaviour-preserving *if and only if* `frame::deliver(…, Keep)` does
+nothing. Not "obviously": if `Keep` touched `status`, or reset or
+preserved anything a later frame reads, this would be a rewrite wearing
+a deletion's clothes. Settled three ways rather than assumed. The
+compiler argument is airtight — `deliver`'s `Keep` arm is
+`apply(status, Keep)` and does not name `notices` at all, and `apply`'s
+`Keep` arm is `{}` — but a compiler argument is not a demonstration, so
+it was demonstrated too.
+
+**And the demonstration found that the existing row could not have
+caught the interesting failure.**
+`deliver_sends_news_to_the_notices_and_retirements_to_the_field`'s
+`Keep` block started from `notices = Vec::new()` and asserted
+`notices.is_empty()`. That is green for a `Keep` that does nothing AND
+green for a `Keep` that SWEEPS the frame's news — an empty vector cannot
+tell "did not push" from "cleared what was there" — and a sweep is
+exactly the behaviour whose absence the deletion depends on. The block
+now starts non-empty and asserts against a snapshot. Two perturbations
+prove the new assertion falsifiable in both directions: `Keep` made
+`notices.clear()` reds `frame.rs:2166` where the old assertion stayed
+green, and `apply`'s `Keep` made `*status = None` reds `:2170`. This is
+#2148's rule again — **asserted-somewhere is not asserted-here, and only
+a MUTATION tells them apart** — met before the deletion rather than
+after it.
+
+**A deletion falsifies sentences about structure, and two of the four it
+falsified were not on the dispatch's list.** The sweep rule was an
+unfiltered grep for the three deleted names plus a prose pass for the
+phrasings that describe the route without naming it (*belt to*,
+*braces*, *loud arm*, and `dialog` inside the viewer README and
+`frame.rs`); its blind spot is a description sharing no token with any
+of those. Beyond the six sites the dispatch named it found
+`frame.rs:102`, where the module header's examples of what goes on the
+line included *"a dialog that could not open"* — a sentence nothing in
+the crate can now produce — and, in the tracker,
+`viewer-suites-hold-hand-written-complete-variant-lists`, whose FOURTH
+instance was the deleted test's three-`ChooserBackend` loop. That row
+now says three and says why: **the member was removed, not repaired.**
+`ChooserBackend` still has three variants and still has no `ALL`.
+
+**The `frame.rs` growth ledger falls for the first time, by one line**;
+the entry and its caveat are in
+`frame-module-has-eight-concerns-and-no-holds-row` and are not repeated
+here. What is only here: that file also asserted *"is 984 lines"* in the
+present tense at its own head, contradicted by its own ledger four
+paragraphs below — and it was the file's ONLY present-tense copy, which
+is what made re-deriving it a whole-file fix rather than #2148's
+half-fix.
+
+**A correction this lane wrote and then had to withdraw.** The first
+draft of the record above accused the ruling row of misciting its own
+defending paragraph, comparing its `app.rs:1056-1073` against the
+deleted item's `:1046-1099`. Those are two spans of two subjects: read
+on `origin/main`, `:1056-1073` is exactly the two paragraphs the row
+names. **A re-derivation that compares two different subjects invents a
+defect**, which is the same failure as shifting a number by a delta and
+is easier to commit under a rule that says to look for one.
+
+**A diff that shifts a file is the diff that broke the citations in
+it, and this one shifted two.** `frame.rs` moves +1 below ~line 382 and
+−12 below ~1767; `app.rs` moves −61 below 1046. The census: **101
+citations into `app.rs`, `frame.rs` or `frame_policy.rs` across every
+OPEN row in `work/*/`** — 50 unmoved, 30 moved, 21 pointing at a line
+that is gone or past the file's end. Method: build an exact old→new
+line map per file with `difflib.SequenceMatcher` over the `origin/main`
+and head versions, then map every `file:line` a regex finds in an open
+row. **Eleven were mine to fix and are fixed** — the five the review
+named plus `frame-module`'s concern span, `wasm-theme`'s four, and
+`stale-file-citations`' two live derivations. What the method cannot
+see: a citation written as prose (*"the arm at the top of `deliver`"*),
+a range whose END line is stale while its start is not, a citation into
+a file this diff did not touch, and — the one that produced a false
+positive on every row this branch had already re-derived — it cannot
+tell a number written against `origin/main` from one written against
+this head, so nine hits had to be read back by hand before being
+dismissed.
+
+**And the census had to be run TWICE, which is this program's own rule
+arriving on schedule.** The first pass fixed eleven citations; the fix
+pass then shortened three doc comments and lengthened one, moving
+`frame.rs` by +2 below line ~382 and `app.rs` by −5 below 1172 — so
+every number the first pass had just derived was wrong again. *The last
+edit invalidates the earlier sweep* is written in `plan.md` twice, and
+it still cost a second full derivation here. The instrument that closed
+it: find each subject BY REGEX ON ITS OWN TEXT at head, print the line,
+and read all 31 back — never map a delta, and never derive before the
+prose is final. Final: `frame.rs` 2,538 → **2,536**, `app.rs`
+2,022 → **1,956**, `#[test]` 539 → **538**.
+
+**Two of the thirty are not arithmetic and are not this diff's.**
+`chrome/drag-tick-has-three-homes.md:19-22` says the drag tick is
+answered in three places in `crates/viewer/src/app.rs` and cites
+`app.rs:1093-1099` and four constants at `:1056`-`:1079`; `drag_tick`
+and all four constants are in `crates/viewer/src/forms.rs` (`:391`,
+`:354`), so `app.rs` holds none of them and the row was pointing at the
+wrong FILE before this branch existed. `prune-report-rows-are-nine-
+copies-of-one-assertion.md:21` cites `frame_policy.rs:963` for a
+15-line `outcome.superseded` block; on `origin/main` that line is `);`
+inside a hover-midpoint closure and the block is near `:1893`. Both
+left as written — the first is CHROME's, and the second is one entry of
+a nine-site census whose other eight are unverified, so fixing it alone
+is the half-fix this program has a rule against.
+
+**Nothing asserts `NO_CHOOSER_BACKEND`'s wording now, and the answer is
+a row rather than a test.** The deleted suite carried
+`contains("zenity" / "xdg-desktop-portal" / "command line")`. Restoring
+them would read as coverage for `README.md:35-46`'s promise — that a
+person sees three remedies in a tooltip — while covering none of it: a
+`const &str` is fixed at compile time, and the untested step is the
+const REACHING a tooltip, which `chrome_labels.rs`'s own header says
+this crate cannot test (*"not testable without a window"*). A test that
+looks like it holds a claim it does not hold is worse than a stated
+gap. Filed as `hover-route-for-an-absent-chooser-has-no-test`, with two
+candidate shapes and neither costed.
+
+**§6, across the fence and staying there.** `.github/workflows/ci.yml`'s
+wasm row says in the present tense that the crate carries two dead-code
+warnings, `WINDOW_TITLE` and `ViewerApp::deliver_status`, and that
+`-D warnings` would red on them. #2272 `cfg`-ed both and proved the flip
+clean, so the comment named a resolved state before this branch existed;
+now one of its two subjects does not exist at all. The row is CIW's, the
+closed item says CIW will take the edit on request, and it is filed as
+`work/ciw/wasm-row-warning-debt-comment-names-a-closed-item-and-a-deleted-symbol.md`,
+which names this deletion at `:48-51`. Reported, not edited.
+
 ## 2026-09-10 — `view/gate-readers`: the vocab gate's two reader defects (#2282)
 
 Two filed items, both pre-existing, both found by the style review of
@@ -7200,3 +7338,21 @@ must be called once per line, held by convention. Caching on `NR` would
 enforce it but adds state across four return paths in the file's most
 delicate function; judged not free, and the single call site is the
 first rule of each program where it is visible.
+
+**Re-derived after merging `origin/main` at `d268d319b`, because #2278
+moved this unit's SUBJECT.** That PR rewrote the absent-chooser
+paragraph inside `### Closed vocabularies are declared once` — the
+region this gate's readers scan — so the green above was taken on a
+tree without it and the entry's own numbers were measurements of a
+tree that had moved. Re-measured on the merged tree: **fourteen fence
+lines, still `:3-262`, still seven balanced pairs, still none inside
+any scanned region**, and the gate's verdict byte-identical. What DID
+move is the section, `:930` → **`:958`**, carrying its anchor to
+**`:1048`**; `gate-section-scans-…` is corrected, and this note is the
+append-only half so the two cannot be read against each other. The
+`### The drivers` region `module-kinds-table-scan-…` measures is
+unchanged at `:290` — #2278's edit sits below it — which is why one
+row moved and the other did not. **The rule this pays for is
+`plan.md`'s**: green CI on an old head is not a merge criterion when
+the diff's SUBJECT moved under it, and "the inputs are byte-identical"
+was a true argument that stopped being true.

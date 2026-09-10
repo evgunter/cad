@@ -100,8 +100,9 @@ cheaper spelling of the repair, so that case is planted.
 **Where the real tree actually stood, stated because the item's *"live
 rather than theoretical"* heading leaves it ambiguous.** All fourteen
 fence lines in `crates/viewer/README.md` sit ABOVE the section
-(`:3-262`; the section opens at `:930`), so the defect was **latent, not
-firing** — one fenced example inside the section away. The tracker is
+(`:3-262`; the section opens at `:958` and its anchor at `:1048`), so
+the defect was **latent, not firing** — one fenced example inside the
+section away. The tracker is
 nonetheless exercised over all fourteen on every pass, and they balance:
 an unclosed one would leave the section heading itself fenced and red
 the gate — checked by deleting `:262` and watching the missing-anchor
