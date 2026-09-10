@@ -433,7 +433,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
     // The corpus the census is over.
-    assert_eq!(all.len(), 1353, "rows in the committed baseline");
+    assert_eq!(all.len(), 1381, "rows in the committed baseline");
     assert_eq!(sized.len(), 64, "of them sized");
     let sized_scenes = {
         let mut s: Vec<&str> = sized.iter().map(|r| r.scene.as_str()).collect();
@@ -464,8 +464,8 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // restriction to sized rows is worth: three orders of magnitude,
     // and not one of them reaches a rule.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 22_352, "pairs across every row");
-    assert_eq!(all_scenes.len(), 72, "scenes carrying one, corpus-wide");
+    assert_eq!(all_pairs, 22_382, "pairs across every row");
+    assert_eq!(all_scenes.len(), 74, "scenes carrying one, corpus-wide");
 }
 
 /// The other half of the paragraph: WHICH identity entries actually
@@ -587,12 +587,12 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
         .into_iter()
         .collect();
 
-    // 72 twice in this file, and NOT one figure asserted twice: this
-    // is every scene of the corpus, where the pair census's 72 is the
+    // 74 twice in this file, and NOT one figure asserted twice: this
+    // is every scene of the corpus, where the pair census's 74 is the
     // scenes carrying an indistinguishable pair among ALL rows. They
     // agree only because every scene currently carries one, and a
     // re-cut can end that without either assertion being wrong.
-    assert_eq!(scenes.len(), 72, "scenes in the committed baseline");
+    assert_eq!(scenes.len(), 74, "scenes in the committed baseline");
     assert_eq!(
         gating,
         [
@@ -610,7 +610,7 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
             "twisted_duct_shadow_z/twisted_duct_shadow_z",
         ],
         "the scenes carrying a sized face, where a re-key is a FINDING; \
-         in every other scene of the 72 it is a NOTE"
+         in every other scene of the 74 it is a NOTE"
     );
 
     // The SCENE-level spelling of "carries a sized face", which cannot
@@ -838,7 +838,7 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 1_552_822, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 1_622_576, "triangles over the whole sweep");
     assert_eq!(
         t.nurbs_triangles, 164_710,
         "triangles the Hessian-sized faces carry"

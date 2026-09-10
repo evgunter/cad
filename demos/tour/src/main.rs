@@ -44,6 +44,7 @@ mod curvedcut;
 mod cutaway;
 mod diechamfer;
 mod diefillet;
+mod fivewall;
 mod gallery;
 mod heatsink;
 mod klein;
@@ -745,6 +746,11 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
          in the wall, hollowed and opened) --"
     );
     for stop in torusvessel::stops(tol) {
+        visit(&stop);
+    }
+
+    println!("\n-- the five-wall sleeve (SHELL: every analytic kind offset in ONE call) --");
+    for stop in fivewall::stops(tol) {
         visit(&stop);
     }
 
