@@ -409,33 +409,78 @@ BEGIN { FS = "|" }
 # WHICH COMMANDS ARE READERS, AS A RULE AND NOT AS A LIST. A reader is
 # any command that reads this gate's SUBJECT — the tree under `$SRC` or
 # `$README` — and whose exit status the shell DISCARDS, which here means
-# every stage of every pipeline inside a process substitution. The rule
-# yields six, and each has a guard below:
-#
-#   1. the source enumerator   `find … | sort`
-#   2. the const-item reader   `gate_rust_code … | awk "$ITEM_AWK"`
-#   3. the hit classifier      `awk "$HIT_AWK"`
-#   4. the kinds reader        `awk … | sed -nE …`
-#   5. the table reader        `awk …`
-#   6. the row reader          `printf … | sed -nE …`
-#
-# STAGES, not pipelines, is the load-bearing half of the rule, and it is
-# where the sentence this block used to make was FALSE: the hit
+# every stage of every pipeline inside a process substitution. STAGES,
+# not pipelines, is the load-bearing half of the rule: the hit
 # classifier is the stage AFTER `const_items`, in the same process
-# substitution, and it had no guard at all. It survived an immediate
-# death only by SIGPIPE upstream, which reds naming the wrong reader; a
-# classifier that consumes its input and THEN fails produces no SIGPIPE,
-# and the gate then printed one "delete this row, its list is gone" per
-# ratified row — or, with no data rows in the table, `OK` and exit 0
-# over two planted breaches. Both were reproduced before this guard
-# existed.
+# substitution, and it once had no guard at all. It survived an
+# immediate death only by SIGPIPE upstream, which reds naming the wrong
+# reader; a classifier that consumes its input and THEN fails produces
+# no SIGPIPE, and the gate then printed one "delete this row, its list
+# is gone" per ratified row — or, with no data rows in the table, `OK`
+# and exit 0 over two planted breaches. Both were reproduced before that
+# guard existed.
 #
-# What is NOT a reader, by the same rule: `module_path`, `const_name`
+# THE RULE YIELDS NINE, and each stage has a guard that names IT. There
+# are five process substitutions in `gate()` and this is every stage of
+# every one of them:
+#
+#   `mapfile … < <(viewer_sources)`
+#     1. the source enumerator        `find`
+#     2. the source sorter            `sort`
+#   `mapfile … < <(readme_kinds)`
+#     3. the kinds scanner            `awk … "$README"`
+#     4. the kinds bullet extractor   `sed -nE …`
+#   `mapfile … < <(readme_table)`
+#     5. the table reader             `awk … "$README"`
+#   `mapfile … < <(table_rows …)`
+#     6. the row reader               `sed -nE …`
+#   `mapfile … < <(const_hits …)`
+#     7. the shared Rust reader       `gate_rust_code` (guarded in `lib.sh`)
+#     8. the const-item reader        `gate_record_awk "$ITEM_AWK"`
+#     9. the hit classifier           `awk "$HIT_AWK"`
+#
+# A GUARD IS ON A STAGE AND NEVER ON A PIPELINE, which is the shape
+# `const_hits` argued for first and the rest of this file has now been
+# brought to. `pipefail` reports the RIGHTMOST non-zero stage, so a
+# guard written `a | b || reader_failed "a"` diagnoses a dead `b` as a
+# dead `a` — a message naming a repair to something that is fine. That
+# was live at three sites and every one was reproduced: a dead `sort`
+# was reported as *the source enumerator*, a dead kinds `sed` as *the
+# kinds reader* (one name covering two stages, so the log could not say
+# which died), and a dead `gate_rust_code` drew a SECOND diagnosis
+# naming *the const-item reader* on top of `lib.sh`'s own correct one.
+# Each stage is now wrapped in its own brace group, so the status the
+# guard reads is that stage's own.
+#
+# WHAT IS NOT A READER, by the same rule. `module_path`, `const_name`
 # and `contains` are pure parameter expansion and `printf`, so they
 # invoke nothing that can be missing and read nothing but their own
-# arguments. `$(gate_name)` is the same. A command whose status the
-# shell KEEPS is not one either — errexit and `pipefail` already end the
-# gate on it.
+# arguments; `$(gate_name)` is the same. `table_rows`'s leading `printf`
+# is a stage and still not a reader: it is a bash BUILTIN — nothing on
+# PATH can shadow it away — and what it reads is the argument list the
+# caller already holds, not `$README`. Guarding it would name a stage
+# that cannot die of the thing these guards exist for. A command whose
+# status the shell KEEPS is not one either — errexit and `pipefail`
+# already end the gate on it.
+#
+# SEVEN OF THE NINE HAVE A CASE, and the two that do not are named
+# rather than left to a count: stage 5 (the table reader) and stage 6
+# (the row reader). The reason is NOT that they were already
+# stage-guarded — stage 6's guard sat on a two-stage `printf | sed`
+# pipeline and moved into a brace group here, as the block above
+# `table_rows` says. It is that neither guard's NAME changed, and a case
+# can only assert that a name is PRESENT: `the table reader over` and
+# `the row reader over` are what both revisions print, so a case for
+# either is green on both sides — coverage, not a control. The
+# population above is what a later lane should read, not the number of
+# rows below.
+#
+# A CASE CAN ASSERT A NAME IS PRESENT AND NEVER THAT ONE IS ABSENT, so
+# a repair whose effect is to REMOVE a wrong name has no case that can
+# see it (`work/issues/gate-selftest-cannot-observe-the-identity-a-gate-
+# names`). Stage 7's is such a repair, so its case is coverage rather
+# than a control; stages 2 and 4 gained names that did not exist before,
+# so theirs are controls.
 reader_failed() {
   # THE TEXT IS `lib.sh`'s, and it is one text for every reader in this
   # directory that could not run: a reader of a CI log met the same
@@ -459,20 +504,24 @@ abort_if_reader_failed() {
   fi
 }
 
+# THE ORDER IS A READ AND NOT A COSMETIC, which is why `sort` carries a
+# guard of its own rather than riding the enumerator's: it is what makes
+# the scan, the hit list and the count the gate prints the same on every
+# box.
 viewer_sources() {
-  local status=0
-  find "$SRC" -type f -name '*.rs' | sort || status=$?
-  if [ "$status" -ne 0 ]; then
-    reader_failed "source enumerator over $SRC" "$status"
-  fi
+  { find "$SRC" -type f -name '*.rs' || reader_failed "source enumerator over $SRC" "$?"; } |
+    { sort || reader_failed "source sorter over $SRC" "$?"; }
 }
 
+# `gate_rust_code` DIAGNOSES ITSELF, in `lib.sh`, as "the shared Rust
+# reader" — so a guard on this pipeline spoke for a stage it does not
+# own: a dead code view drew that correct refusal AND this one, and a
+# reader of the log met two names for one death. The brace group leaves
+# stage 7 to its own guard and makes this one speak only for the item
+# reader, which is the stage this file wrote.
 const_items() {
-  local status=0
-  gate_rust_code "$@" | gate_record_awk "$ITEM_AWK" || status=$?
-  if [ "$status" -ne 0 ]; then
-    reader_failed "const-item reader over $SRC" "$status"
-  fi
+  gate_rust_code "$@" |
+    { gate_record_awk "$ITEM_AWK" || reader_failed "const-item reader over $SRC" "$?"; }
 }
 
 # THE CLASSIFIER'S OWN STATUS, NOT THE PIPELINE'S, and the brace group
@@ -485,6 +534,130 @@ const_hits() {
   const_items "$@" |
     { awk "$HIT_AWK" || reader_failed "hit classifier over $SRC" "$?"; }
 }
+
+# A COLUMN-ZERO `#` INSIDE A FENCED BLOCK IS NOT A HEADING, and this is
+# the one answer both README readers need. Each of them scopes itself to
+# `$SECTION` and ends that section at any `^#`, on the assumption that
+# such a line is a markdown heading. Inside a fenced code block it is
+# not: `#[derive(Debug)]`, `#!/bin/sh` and `# a comment` are ordinary
+# content, and a fence carrying one TRUNCATED the section there —
+# everything after it, the announcing paragraph and the roster table
+# included, went invisible. The scanned region is ~150 lines of prose
+# about how a Rust macro projects a vocabulary, so a fenced Rust example
+# carrying an attribute is exactly what gets written into it.
+#
+# THE DIAGNOSIS IS THE COST, not the count: a truncated section reds
+# about the ANCHOR, so an author is told to restore a sentence that is
+# two lines below the fence and was never removed. A gate whose repair
+# points at the wrong edit is the class `reader_failed` below exists
+# for, met in the README half.
+#
+# ONE HELPER, NOT TWO COPIES, for the reason this file already splits
+# `readme_table` from `readme_kinds` on the `@` sentinel: two readers
+# answering "is this line markdown structure" differently is a
+# divergence nothing would catch. It is prepended to both programs the
+# way `gate_record_awk` prepends `gate_record_split` to its callers.
+#
+# NO `(` IMMEDIATELY AFTER AN INTERVAL, and this is the same class as
+# this directory's no-backslash rule: a spelling one awk accepts and
+# the other dies on. `mawk` 1.3.4 aborts its regex compiler outright —
+# `REcompile() - panic: values still on machine stack` — when an
+# interval is followed DIRECTLY by an opening parenthesis. The boundary
+# is exactly that adjacency, derived rather than guessed: `/^ {0,3}(a)/`
+# and `/^a{2}(b)/` both panic, while `/^ {0,3}-(a)/` and `/^(a){2}/`
+# compile. So both the natural spelling of "three or more"
+# (``` /^ {0,3}(`{3,}|~{3,})/ ```) and the plainer
+# ``` /^ {0,3}(```|~~~)/ ``` take the gate down with an exit 100 and a
+# reader that decided nothing — reported honestly by the guard below,
+# which is the only reason it was a diagnosis rather than a mystery.
+# `gawk` compiles all of them happily, so the hosted runner would never
+# have shown it. Two anchored alternatives carry no group at all, and
+# three literal characters are all the TEST needs: the counting loop
+# below measures the run, which is what the close has to compare
+# against anyway.
+#
+# EVERY LIVE INTERVAL IN THIS FILE IS CLEAR OF IT, and the sweep rule
+# is `grep -nE '[{][0-9]+,[0-9]*[}]' $0` read by hand rather than a
+# count carried in prose. It returns FIVE LINES carrying SIX
+# intervals, and the two counts differ because `md_fence`'s backtick and
+# tilde tests share a line: three in `md_fence` (those two, plus its
+# `sub`) and three in `readme_kinds` (two bullet patterns and the `sed`
+# extractor). None of the six puts `(` next to the `}` — the `md_fence`
+# three are followed by a literal backtick or tilde, the bullet patterns
+# by `- `, and the `sed` one by `- \*\*` (and `sed` is not `awk`
+# besides). The only occurrence of the fatal spelling in the whole file
+# is inside this paragraph, which forbids it. Derived under
+# `gawk` 5.2.1 and `mawk` 1.3.4, both green over this file's fixtures
+# and over the real tree.
+#
+# THE RULE IS COMMONMARK's AND NOT A TOGGLE, because a toggle is wrong
+# in a way that is quiet. A fence opens on three or more backticks or
+# tildes indented at most three spaces; it closes only on the SAME
+# character, at least as long, with nothing but whitespace after it. A
+# bare toggle would let a ``` line inside a ~~~ block close it and hand
+# the rest of the block back to the heading rule — so the tilde case is
+# planted below. Two further CommonMark rules are encoded here because
+# each is a way to be wrong and silent: a backtick fence whose info
+# string contains a backtick is NOT a fence (it is ordinary text), and
+# a fence-shaped line inside a fence that does not close it is content.
+#
+# THREE ANSWERS AND NOT A BOOLEAN, and the third one is load-bearing.
+# `md_fence` returns `open`, `inside`, `close` or the empty string, and
+# a caller that only wants "is this line markdown structure" tests
+# `!= ""`: a delimiter is not structure either — a ``` line is not a
+# heading, not a table row and not a bullet — so both readers ask that
+# of EVERY rule they have rather than only of `^#`.
+#
+# ONE PREDICATE NEEDS MORE THAN THAT, and asking the boolean everywhere
+# was necessary and not sufficient. `readme_kinds`'s `opens` asks *did
+# the previous line END a block*, so that a line beginning a paragraph
+# can be told from a lazy continuation. An OPENING delimiter starts a
+# block, so the line under it is content and the boolean is right. A
+# CLOSING delimiter ENDS one, so the line under it BEGINS a paragraph —
+# and the boolean gets that backwards. CommonMark agrees: `fence` then
+# `paragraph_open`, with no blank line between them.
+#
+# BOTH DIRECTIONS WERE LIVE ON ONE ANSWER, one blank line apart, and
+# both are planted below. A second announcement directly under a
+# closing fence was not read as opening a paragraph, so it was not
+# counted: the gate printed OK over a duplicate announcement AND an
+# unratified fourth kind bulleted beneath it — exit 0 over the two
+# things this gate exists to refuse. The anchor itself directly under a
+# closing fence reds on the missing paragraph, which is the very
+# misdiagnosis the fence work was filed to remove.
+#
+# WHAT IT DOES NOT DO. It is a fence tracker, not a markdown parser:
+# indented (four-space) code blocks, HTML blocks and block quotes are
+# not modelled, so a `#` at column zero inside one of those still ends
+# the section. Four-space indentation cannot put a `#` at column zero
+# by construction, and neither of the other two has ever appeared in
+# this section; a reader who adds one meets the same red this repair
+# just removed, which is the residue and is stated rather than implied.
+FENCE_AWK='
+function md_fence(line,   s, ch, n, rest) {
+  if (line ~ /^ {0,3}```/ || line ~ /^ {0,3}~~~/) {
+    s = line
+    sub(/^ {0,3}/, "", s)
+    ch = substr(s, 1, 1)
+    n = 0
+    while (substr(s, n + 1, 1) == ch) n++
+    rest = substr(s, n + 1)
+    if (FENCE_CHAR == "") {
+      if (ch == "`" && index(rest, "`") > 0) return ""
+      FENCE_CHAR = ch
+      FENCE_LEN = n
+      return "open"
+    }
+    if (ch == FENCE_CHAR && n >= FENCE_LEN && rest ~ /^[[:space:]]*$/) {
+      FENCE_CHAR = ""
+      FENCE_LEN = 0
+      return "close"
+    }
+    return "inside"
+  }
+  return (FENCE_CHAR != "") ? "inside" : ""
+}
+'
 
 # The ratified kinds, as `@` (the anchor paragraph was found) followed
 # by one line per bolded bullet of the list it announces: `- **A
@@ -566,25 +739,27 @@ const_hits() {
 # any other rule runs, because a rule that ends in `next` would skip a
 # recorder placed after it.
 readme_kinds() {
-  local status=0
-  awk -v sec="$SECTION" -v anchor="$KIND_ANCHOR" '
-    BEGIN { opens = 1 }
-    { prevopens = opens; opens = ($0 ~ /^[[:space:]]*$/ || $0 ~ /^#/) }
-    $0 == sec { insec = 1; st = 0; next }
-    insec && /^#/ { insec = 0; st = 0; next }
-    insec && prevopens && index($0, anchor) == 1 { print "@"; st = 1; next }
-    st == 1 && /^[[:space:]]*$/ { st = 2; next }
-    st == 1 && /^ {0,3}- / { st = 2 }
-    st == 1 { next }
-    st == 2 && /^ {0,3}- \*\*/ { print; next }
-    st == 2 && /^[[:space:]]*$/ { next }
-    st == 2 && /^([[:space:]]|- )/ { next }
-    st == 2 { st = 0 }
-  ' "$README" |
-    sed -nE -e 's/^ {0,3}- \*\*(.+)\*\*.*/\1/p' -e '/^@$/p' || status=$?
-  if [ "$status" -ne 0 ]; then
-    reader_failed "kinds reader over $README" "$status"
-  fi
+  {
+    awk -v sec="$SECTION" -v anchor="$KIND_ANCHOR" "$FENCE_AWK"'
+      BEGIN { opens = 1 }
+      { fence = md_fence($0); fenced = (fence != "") }
+      { prevopens = opens
+        opens = (fence == "close" || (fence == "" && ($0 ~ /^[[:space:]]*$/ || $0 ~ /^#/))) }
+      !fenced && $0 == sec { insec = 1; st = 0; next }
+      insec && !fenced && /^#/ { insec = 0; st = 0; next }
+      insec && !fenced && prevopens && index($0, anchor) == 1 { print "@"; st = 1; next }
+      st == 1 && !fenced && /^[[:space:]]*$/ { st = 2; next }
+      st == 1 && !fenced && /^ {0,3}- / { st = 2 }
+      st == 1 { next }
+      st == 2 && !fenced && /^ {0,3}- \*\*/ { print; next }
+      st == 2 && !fenced && /^[[:space:]]*$/ { next }
+      st == 2 && !fenced && /^([[:space:]]|- )/ { next }
+      st == 2 { st = 0 }
+    ' "$README" || reader_failed "kinds scanner over $README" "$?"
+  } | {
+    sed -nE -e 's/^ {0,3}- \*\*(.+)\*\*.*/\1/p' -e '/^@$/p' \
+      || reader_failed "kinds bullet extractor over $README" "$?"
+  }
 }
 
 # The roster table, as `@` (the heading was found) followed by every
@@ -603,30 +778,30 @@ readme_kinds() {
 # a heading of level three or shallower and the table heading is looked
 # for only inside it.
 readme_table() {
-  local status=0
-  awk -v sec="$SECTION" -v want="$TABLE" '
-    $0 == sec { insec = 1; next }
-    insec && $0 == want { inside = 1; print "@"; next }
-    insec && /^####/ { inside = 0; next }
-    insec && /^#/ { insec = 0; inside = 0; next }
-    inside && /^\|/ { print }
-  ' "$README" || status=$?
-  if [ "$status" -ne 0 ]; then
-    reader_failed "table reader over $README" "$status"
-  fi
+  awk -v sec="$SECTION" -v want="$TABLE" "$FENCE_AWK"'
+    { fenced = (md_fence($0) != "") }
+    !fenced && $0 == sec { insec = 1; next }
+    insec && !fenced && $0 == want { inside = 1; print "@"; next }
+    insec && !fenced && /^####/ { inside = 0; next }
+    insec && !fenced && /^#/ { insec = 0; inside = 0; next }
+    inside && !fenced && /^\|/ { print }
+  ' "$README" || reader_failed "table reader over $README" "$?"
 }
 
 # One `LIST|MODULE|KIND` per data row. A prose line inside the table is
 # not one, which is what requiring two backticked cells buys; the header
 # and separator rows are asserted by the caller and dropped by position,
 # so this pattern is not what keeps them out.
+# THE GUARD IS ON THE `sed`, NOT ON THE PIPELINE, and the leading
+# `printf` is deliberately unguarded: it is a bash BUILTIN reading the
+# argument list this function was handed, so it is a stage of a
+# pipeline in a process substitution and still not a READER by the rule
+# above — nothing on PATH can shadow it and it never opens `$README`.
+# One reader, one guard, and the name it carries is the stage it is on.
 table_rows() {
-  local status=0
   printf '%s\n' ${1:+"$@"} |
-    sed -nE 's/^\|[[:space:]]*`([A-Za-z0-9_:]+)`[[:space:]]*\|[[:space:]]*`([A-Za-z0-9_:]+)`[[:space:]]*\|[[:space:]]*(.+[^[:space:]])[[:space:]]*\|[[:space:]]*$/\1|\2|\3/p' || status=$?
-  if [ "$status" -ne 0 ]; then
-    reader_failed "row reader over $README" "$status"
-  fi
+    { sed -nE 's/^\|[[:space:]]*`([A-Za-z0-9_:]+)`[[:space:]]*\|[[:space:]]*`([A-Za-z0-9_:]+)`[[:space:]]*\|[[:space:]]*(.+[^[:space:]])[[:space:]]*\|[[:space:]]*$/\1|\2|\3/p' \
+        || reader_failed "row reader over $README" "$?"; }
 }
 
 # `session::select` is `session/select.rs`; `forms` is `forms.rs` — the
@@ -1171,6 +1346,93 @@ plant_an_indented_fourth_kind_in_the_list() {
     "$1/crates/viewer/README.md"
 }
 
+# A FENCED CODE BLOCK IS NOT MARKDOWN STRUCTURE, and these are the
+# spellings a column-zero-`#` reader was WRONG AND LOUD about. Each
+# planted line renders to every human as code and was read as a heading
+# that ENDS the section, so the half of the page below it went
+# invisible: the first of these red claiming the announcing paragraph
+# was gone, with that paragraph two lines below the fence, and the
+# second claiming the roster table has no heading. Both were reproduced
+# against the unfixed reader before the helper existed.
+pass_a_fence_carrying_a_rust_attribute_above_the_anchor() {
+  sed -i 's%^Prose\.$%Prose, with an example:\n\n```rust\n#[derive(Debug)]\npub enum Kind { A }\n```%' \
+    "$1/crates/viewer/README.md"
+}
+
+pass_a_fence_carrying_a_shebang_below_the_list() {
+  sed -i 's%^More prose\.$%More prose, with a script:\n\n```sh\n#!/bin/sh\n# a comment\necho hi\n```%' \
+    "$1/crates/viewer/README.md"
+}
+
+# THE CLOSE IS CHARACTER-AWARE, and a bare toggle is what this refuses.
+# A ``` line inside a ~~~ block does NOT close it in CommonMark, so a
+# toggle would hand the `#[derive]` two lines down back to the heading
+# rule and end the section there — the repaired defect, re-minted by the
+# cheaper spelling of the repair.
+pass_a_tilde_fence_holding_a_backtick_line() {
+  sed -i 's%^Prose\.$%Prose, with a tilde fence:\n\n~~~\n```\n#[derive(Debug)]\n~~~%' \
+    "$1/crates/viewer/README.md"
+}
+
+# THE ROSTER IS STRUCTURE TOO, so the fence has to hold for `^|` and not
+# only for `^#`. A worked example of a row, written in a fence below the
+# real table, is inside the section and inside `inside` — read as a
+# roster row it reds with "row `GHOSTS` says `ghosts` declares", which
+# is a diagnosis about a list nobody claimed exists.
+pass_a_fenced_table_row_below_the_roster() {
+  sed -i 's%^### Something else$%An example of a row, which is not a row:\n\n```\n| `GHOSTS` | `ghosts` | A deliberately partial list |\n```\n\n### Something else%' \
+    "$1/crates/viewer/README.md"
+}
+
+# A FENCE THAT OPENS ALSO CLOSES, which is the other side of the repair
+# and the direction a fix could be wrong in silently. The decoy roster
+# below `### Something else` is OUTSIDE the section, so it is read only
+# if the fence above swallowed the heading that ends it — and a fence
+# that never closes hides the REAL table too. Either way this reds; it
+# is green only when the fence opens and closes exactly where markdown
+# says it does.
+pass_a_fence_closes_so_the_section_still_ends() {
+  local md=$1/crates/viewer/README.md
+  sed -i 's%^Prose\.$%Prose, with a fenced example:\n\n```sh\n# a comment\n```%' "$md"
+  printf '\n%s\n\n%s\n%s\n| `GHOSTS` | `ghosts` | A deliberately partial list |\n' \
+    "$TABLE" "$TABLE_HEADER" "$TABLE_SEPARATOR" >> "$md"
+}
+
+# A CLOSING FENCE ENDS A BLOCK, so the line under it OPENS one, and this
+# is the pair a BOOLEAN fence answer got wrong in both directions at
+# once. `md_fence` reports a delimiter as "not markdown structure",
+# which is right for every rule that asks *is this a heading, a bullet,
+# a row* and WRONG for `opens`, whose question is *did the previous line
+# end a block*. An opening delimiter starts one, so the next line is
+# content; a closing delimiter ENDS one, so the next line begins a
+# paragraph — and CommonMark agrees, emitting `fence` then
+# `paragraph_open` with no blank line between them.
+#
+# THE FALSE GREEN IS THE WORSE HALF and it is planted first. A second
+# announcement sitting DIRECTLY under a closing fence was not read as
+# opening a paragraph, so it was not counted as an announcement: the
+# gate found one anchor, read three kinds under it and printed OK over a
+# duplicate announcement AND the unratified fourth kind bulleted beneath
+# it. Exit 0 over exactly what this gate exists to refuse.
+plant_a_second_anchor_under_a_closing_fence() {
+  local md=$1/crates/viewer/README.md
+  sed -i 's%^Prose\.$%```sh\necho hi\n```\nThree kinds of list stay hand-written, and here is a fourth.\n\n- **A fourth kind** that nobody ratified.\n\nProse.%' "$md"
+}
+
+# THE FALSE RED IS THE SAME DEFECT, and it is the misdiagnosis this
+# gate's fence work was filed to remove: the announcing paragraph
+# DIRECTLY under a closing fence read as a lazy continuation of nothing,
+# so the gate said the paragraph was gone about a sentence one line
+# below the fence.
+pass_the_anchor_directly_under_a_closing_fence() {
+  local md=$1/crates/viewer/README.md
+  # The blank line under `Prose.` goes first, so the anchor ends up
+  # DIRECTLY under the closing fence that replaces it —
+  # `pass_no_blank_line_before_the_list`'s idiom, for the same reason.
+  sed -i '/^Prose\.$/{n;/^$/d}' "$md"
+  sed -i 's%^Prose\.$%```sh\necho hi\n```%' "$md"
+}
+
 plant_readme_gone() { rm -f "$1/crates/viewer/README.md"; }
 
 plant_src_gone() { rm -rf "$1/crates/viewer/src"; }
@@ -1380,31 +1642,36 @@ gate_selftest() {
     plant_an_indented_fourth_kind_interrupting_the_paragraph
   gate_selftest_case "under \"$KIND_ANCHOR\" in $README are 4" \
     plant_an_indented_fourth_kind_in_the_list
+  # A CLOSING FENCE ENDS A BLOCK. Both directions, because one boolean
+  # answer was wrong in both: the false GREEN over a second announcement
+  # and an unratified fourth kind, and the false RED at the anchor
+  # itself. The near-miss half is with the other passing rows below.
+  gate_selftest_case 'announces the ratified kinds more than once' \
+    plant_a_second_anchor_under_a_closing_fence
   gate_selftest_case "which is not one the" plant_row_of_an_unratified_kind
   gate_selftest_case 'row `GHOSTS` says `ghosts` declares' plant_row_with_no_list
   gate_selftest_case 'more than one row for `kinds`' plant_two_rows_for_one_list
-  # A DEAD READER IS NOT AN EMPTY DOCUMENT. Six commands read this gate's
-  # subject with their status discarded across a process substitution
-  # (the block above `reader_failed` states the rule and enumerates
-  # them), so a fold to "no rows" would report the README as empty, or
-  # the tree as clean, instead of the reader as dead. Three cases, one
-  # per way a reader can die:
-  #
-  #   * OUTRIGHT, before anything is read — the kinds reader, first in;
-  #   * MID-SCAN, for the SHARED RUST READER only — the deepest reader,
-  #     past two that must succeed first, with a breach planted so a
-  #     green there could only come from a scan that did not happen;
-  #   * AFTER CONSUMING ITS INPUT, for the HIT CLASSIFIER — the stage
-  #     that decides what a hit IS, and the one that had no guard. It
-  #     consumes and then exits, so nothing upstream sees SIGPIPE and
-  #     nothing else fails: the only thing that can red is its own
-  #     status being read. With the roster empty and two breaches
-  #     planted, an unguarded classifier printed `OK` and exited 0.
-  gate_selftest_without_tool awk "the kinds reader over"
+  # A DEAD READER IS NOT AN EMPTY DOCUMENT — the population and its rule
+  # are stated once, above `reader_failed`, and not restated here. Each
+  # row below kills ONE stage and wants that stage by name. Three ways
+  # a reader can die, and the third is the one with a technique:
+  # killing the RIGHT-HAND stage of a pipeline needs a shim that
+  # CONSUMES its input and then exits, because a stub that dies at once
+  # takes the upstream stage down with SIGPIPE and the diagnosis names
+  # the wrong reader. Each such shim keys on a fragment of its own
+  # stage's program text so it kills that stage and no other.
+  gate_selftest_without_tool awk "the kinds scanner over"
   gate_selftest_without_tool find "the source enumerator over"
-  gate_selftest_with_broken_tool awk "the const-item reader over" \
+  gate_selftest_without_tool sort "the source sorter over"
+  gate_selftest_with_broken_tool awk "the shared Rust reader" \
     'case "$*" in *SKIPTEST*) exit 9 ;; esac
 exec "$GATE_REAL_TOOL" "$@"' plant_named_all
+  gate_selftest_with_broken_tool awk "the const-item reader over" \
+    'case "$*" in *gate_record_split*) cat > /dev/null; exit 9 ;; esac
+exec "$GATE_REAL_TOOL" "$@"' plant_named_all
+  gate_selftest_with_broken_tool sed "the kinds bullet extractor over" \
+    'case "$*" in *"@"*) cat > /dev/null; exit 9 ;; esac
+exec "$GATE_REAL_TOOL" "$@"'
   gate_selftest_with_broken_tool awk "the hit classifier over" \
     'case "$*" in *unnamed*) cat > /dev/null; exit 9 ;; esac
 exec "$GATE_REAL_TOOL" "$@"' plant_named_all
@@ -1437,6 +1704,21 @@ exec "$GATE_REAL_TOOL" "$@"' plant_named_all
     pass_a_tab_indented_marker
   gate_selftest_passes "the announcing sentence QUOTED inside a paragraph" \
     pass_the_anchor_quoted_inside_a_paragraph
+  # A FENCED `#` IS NOT A HEADING, in every direction the section can be
+  # cut by one. The first two are the reported defect; the last three
+  # are the ways a repair could be wrong and quiet.
+  gate_selftest_passes "a fenced Rust attribute at column zero above the anchor" \
+    pass_a_fence_carrying_a_rust_attribute_above_the_anchor
+  gate_selftest_passes "a fenced shebang and comment below the kind list" \
+    pass_a_fence_carrying_a_shebang_below_the_list
+  gate_selftest_passes "a backtick line inside a tilde fence, which does not close it" \
+    pass_a_tilde_fence_holding_a_backtick_line
+  gate_selftest_passes "a worked table row written inside a fence" \
+    pass_a_fenced_table_row_below_the_roster
+  gate_selftest_passes "a closed fence, after which the section still ends" \
+    pass_a_fence_closes_so_the_section_still_ends
+  gate_selftest_passes "the announcing paragraph DIRECTLY under a closing fence" \
+    pass_the_anchor_directly_under_a_closing_fence
   # THE TWO CONSTANTS, which no fixture can vary. The middle row is the
   # green this gate used to have: `KIND_ANCHOR` moved to "Four" on the
   # missing-anchor red's own advice, `KIND_COUNT` left at 3, and a
@@ -1449,8 +1731,10 @@ exec "$GATE_REAL_TOOL" "$@"' plant_named_all
   # miss, so a reader can produce the population rather than trust the
   # number: `grep -c '^  gate_selftest_passes ' $0`. The constant-pair
   # rows are not among them and are counted separately, because they
-  # call a predicate rather than run the gate over a tree.
-  printf '%s selftest OK: passes a clean fixture and sixteen near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a list in a file whose PATH carries a colon — named whole, at its own line, in the diagnosis — on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong — its heading, its table, its kind bullets and the paragraph that announces them, including a bullet indented one to three spaces, which every renderer draws as a ratified kind — and on a reader that could not run: outright, mid-scan, and after consuming its input. Four direct rows hold the two copies of the count in this file against each other\n' "$(gate_name)"
+  # call a predicate rather than run the gate over a tree. The SEVEN
+  # dead-reader rows are its counterpart for the other population, and
+  # they are produced the same way: `grep -cE '^  gate_selftest_(without|with_broken)_tool ' $0`.
+  printf '%s selftest OK: passes a clean fixture and twenty-two near misses, fires on both arms and both keywords (one-line, multi-line, nested, and under a const generic), on a list in a file whose PATH carries a colon — named whole, at its own line, in the diagnosis — on a ratified name in an unratified module and on a second list under one row, on every way the README half can go wrong — its heading, its table, its kind bullets and the paragraph that announces them, including a bullet indented one to three spaces, which every renderer draws as a ratified kind — and stays quiet where markdown draws CODE rather than structure: a column-zero `#` and a table row inside a fence, a tilde fence a backtick line does not close, and a fence whose close still lets the section end. Seven rows kill ONE reader stage each and want that stage by name: outright, mid-scan, and after consuming its input. Four direct rows hold the two copies of the count in this file against each other\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
