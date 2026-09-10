@@ -78,17 +78,17 @@ shifting a number.
 **The repair, not the disclosure.** The guards went per-stage and the
 count became nine honestly. Every stage is now wrapped in its own
 brace group — the shape `const_hits` argued for alone at
-`scripts/gates/viewer-vocab-declared-once.sh:530` — so the status a
-guard reads is that stage's own: `viewer_sources` (`:514`),
-`const_items` (`:525`), `readme_kinds` (`:719`), `table_rows`
-(`:778`). The header states the rule at `:409`, produces the nine at
+`scripts/gates/viewer-vocab-declared-once.sh:527` — so the status a
+guard reads is that stage's own: `viewer_sources` (`:511`),
+`const_items` (`:522`), `readme_kinds` (`:741`), `table_rows`
+(`:801`). The header states the rule at `:409`, produces the nine at
 `:423` and argues the shape at `:442`.
 
 **The arithmetic in this file is right and was re-derived, not taken.**
 Five process substitutions in `gate()`: `find`+`sort`, kinds
 `awk`+`sed`, table `awk`, rows `sed`, and `gate_rust_code`+`ITEM_AWK`+
 `HIT_AWK` — nine, the same nine this file names. `printf` is excluded
-for the reason given here and for one more now argued at `:455-463`: it is
+for the reason given here and for one more now argued at `:455-464`: it is
 a bash BUILTIN, so nothing on PATH can shadow it away.
 
 **Two corrections to the consequence half, both reproduced against the
@@ -110,7 +110,7 @@ unfixed gate before any edit.**
   `const_items` leaves that stage to its own guard.
 
 **Every newly split guard owes a case, and the cases were run both
-ways** (rows at `:1613-1627`):
+ways** (rows at `:1663-1677`):
 
 | case | before | after |
 |---|---|---|
@@ -121,7 +121,7 @@ ways** (rows at `:1613-1627`):
 | `ITEM_AWK` dead (consumes, then exits) | GREEN | GREEN |
 
 **The last two are green on both sides and are declared as such rather
-than counted as evidence**, at `:474-483` as well as here. The
+than counted as evidence**, at `:478-483` as well as here. The
 `gate_rust_code` split REMOVED a wrong second name, and
 `gate_selftest_case` and its broken-tool twin match a substring with no
 way to assert a string is ABSENT — so a removal is invisible to them.
@@ -135,10 +135,15 @@ only case asserting *the const-item reader* actually killed
 the self-test that was supposed to hold it.
 
 **Disclosed rather than fixed:** stages 5 (the table reader) and 6
-(the row reader) have no case. Each is the only reader in its
-substitution, so its guard was already on its own stage and a case
-would be green before and after — coverage, not a control. Named at
-`:466-472` so a later reader derives the population from the rule
+(the row reader) have no case, and the reason is **not** that they were
+already stage-guarded. Stage 5's `awk` was the only reader in its
+substitution, but stage 6's guard sat on a two-stage `printf | sed`
+pipeline and was moved into a brace group by this unit like the others.
+The reason a case is not owed is that neither guard's NAME changed, and
+a case can only assert a name is PRESENT — `the table reader over` and
+`the row reader over` are what both revisions print, so a case for
+either is green on both sides: coverage, not a control. Named at
+`:466-476` so a later reader derives the population from the rule
 rather than counting the rows. **Not scheduled and needing no file**:
 there is no defect behind it, only an absence of a case that could not
 prove anything.

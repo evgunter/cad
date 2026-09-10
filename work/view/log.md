@@ -7088,3 +7088,115 @@ and it covers `scripts/gates/*.sh` only, so a markdown section scan
 anywhere else under `scripts/` is outside it. The three `lib.sh` hits it
 did return are single-stage pipelines and not this class — checked by
 reading each, not by filtering on the path.
+
+## 2026-09-10 — `view/gate-readers` fix pass: the fence repair had left a FALSE GREEN open
+
+The review of #2282 found, and the orchestrator reproduced, a **false
+green over an unratified fourth kind**. Reproduced here again before
+anything was edited, both directions, plus the control that separates
+them.
+
+**A boolean fence answer is the wrong answer for one predicate, and
+"ask it of every rule" is what made that look closed.** `readme_kinds`'s
+`opens` does not ask *is this line markdown structure*; it asks *did the
+previous line END a block*. An OPENING delimiter starts one, so the line
+under it is content and the boolean is right. A CLOSING delimiter ENDS
+one, so the line under it BEGINS a paragraph — and the boolean has that
+backwards. `markdown-it-py` 4.2.0 in CommonMark mode emits `fence` then
+`paragraph_open` for both plants, so markdown draws them as paragraphs
+and the gate did not.
+
+**Both directions were live on that one answer, one blank line apart.**
+A second announcement DIRECTLY under a closing fence was not counted as
+an announcement, so the gate found one anchor, read three kinds under it
+and printed `OK`, exit 0, over a duplicate announcement AND an
+unratified fourth kind bulleted beneath it. The same plant with a single
+blank line between fence and announcement reds correctly. The other
+direction is the anchor itself under a closing fence, which reds with
+*"the paragraph … is gone"* — the exact misdiagnosis the fence work was
+filed to remove.
+
+**The repair:** `md_fenced` became `md_fence` and returns `open`,
+`inside`, `close` or `""`. Callers wanting *is this markdown structure*
+test `!= ""`; `opens` additionally counts `close` as ending a block. The
+RENAME is the point — a contract change that a caller can miss is a
+contract change that will be missed.
+
+**Neither direction was a regression**, and the controls say so by
+running against three trees rather than two:
+
+| case | base `104f1445b` | first repair `7e70be4d3` | now |
+|---|---|---|---|
+| second announcement under a closing fence | RED — *"PASSED on a planted violation"* | RED — same | GREEN |
+| the anchor directly under a closing fence | RED — *"the paragraph … is gone"* | RED — same | GREEN |
+| the other ten rows | unchanged | unchanged | unchanged |
+
+**The lesson, and it is not "add a case".** The header claimed both
+readers *"ask this question of every rule they have"*, and that sentence
+was TRUE and still insufficient — every rule got the answer, and one
+rule needed a different question. **A helper that answers one question
+well invites callers to assume it answers theirs**, so the thing to
+check is not whether every caller consults it but whether any caller's
+question is a different one. The three-answer return makes that
+structural: `close` cannot be spelled as `!fenced` by accident.
+
+**Three corrections to the last entry's own claims**, all from the
+review and all confirmed here:
+
+- *"their guards were already on their own stage"* was **false for stage
+  6**: base `table_rows` was `printf | sed || status=$?`, a guard on a
+  two-stage pipeline, which this unit moved into a brace group. The
+  conclusion survives and the reason does not — the true reason no case
+  is owed is that neither guard's NAME changed, and a case can only
+  assert a name is PRESENT.
+- The mawk paragraph said *"the other interval in this file"*. The
+  sweep rule `grep -nE '[{][0-9]+,[0-9]*[}]' $0` returns **five lines
+  carrying six intervals**; the paragraph now states the rule and both
+  counts, which differ because two share a line. A universal without its
+  sweep rule, in the paragraph whose whole job is to let a successor
+  re-derive the hazard.
+- A citation named the helper's argument as `:541-614`, which is the
+  comment prose plus the assignment line; the argument is the function.
+
+**The sweep's arm 2 was shaped like the symptom, and that is what let a
+live false green sit unopened elsewhere.** `|| status=$?` /
+`|| reader_failed` can only match a pipeline that **already has a
+guard**, so it structurally cannot see one with none — which is exactly
+the population with the worse direction. The right arm is the rule the
+gate itself states: *every stage inside a process substitution whose
+exit status the shell discards*, i.e. `grep -n '< <('` and read each.
+Arm 1 was genuinely class-shaped and the reviewer's wider re-run (all of
+`scripts/` and `local-scripts/`, `.sh` and `.py`) returned the same
+single hit, which discharges the blind spot the last entry named.
+Re-running arm 2 on the right rule is the orchestrator's, already done
+and filed on **code-quality's** slate as
+`gate-roster-and-probe-census-have-no-reader-guards` —
+`scripts/gates/*` returned to code-quality when the `gates` program
+closed. Named in prose and not in `refs:`, because it is not on `main`
+yet and the reference would not resolve.
+
+**The sibling row split in two**, on the test *can half of it be
+closed?* — `module-kinds-table-scan-ends-at-any-column-zero-hash` is
+`md_fence` plus a length check; `module-kinds-gate-has-no-reader-guards`
+is apparatus that gate has never had. Different repairs, different
+controls, and a row that can only be half-closed is what one-file-one-item
+protects against.
+
+**Trims, and what was kept.** The pipefail-blames-the-wrong-reader
+argument had grown to three wordings; it now has one home in the header
+and `viewer_sources` keeps only its local fact (the ORDER is a read, so
+`sort` earns a guard). The reproduction narrative in `THE ANCHOR MADE IT
+WORSE` and the stage-7 narrative both became invariants — comments state
+the invariant, not the history, and the history is in this log. The
+self-test's re-enumeration of the nine now points at the one home and
+keeps only the technique a reader cannot derive: killing a right-hand
+stage needs a shim that CONSUMES and then exits, or SIGPIPE names the
+wrong reader. **Kept in full deliberately**: the mawk paragraph, whose
+four probe regexes are the only record in the tree of why a spelling is
+forbidden.
+
+**Left alone, with the reason:** `md_fence` mutates `FENCE_CHAR` and
+must be called once per line, held by convention. Caching on `NR` would
+enforce it but adds state across four return paths in the file's most
+delicate function; judged not free, and the single call site is the
+first rule of each program where it is visible.
