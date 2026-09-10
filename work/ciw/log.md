@@ -2030,6 +2030,8 @@ case the correctness lane attaches by the standing trigger.
 ## 2026-09-10 — unit 6 in review: the sweep is empty, the guard is built
 
 `pipestatus-after-assignment-in-ci-yml` -> PR 2298, `status: review`.
+Verified on hosted run 34500237390 (head `59031a6dd`), green at STEP
+level in `mirror`.
 
 **The sweep came back empty, as the dispatch expected, and the receipt
 is the instrument rather than a grep.** `scripts/check-status-capture.py`
