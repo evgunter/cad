@@ -7,6 +7,7 @@ opened: 2026-09-04
 closed: 2026-09-10
 branch: ciw/citations
 refs: [rustdoc-gate-private-intra-doc-links, doc-gate-two-unread-axes]
+pr: 2299
 ---
 
 Found by DOCM-1 (PR #1829) running `RUSTDOCFLAGS="-D warnings" cargo doc
