@@ -1052,6 +1052,21 @@ jobs:
       # no toolchain — stdlib python against temp fixtures.
       - name: pin reader selftest (ci.yml's env block is read, not guessed)
         run: scripts/ci-pin.py --selftest
+      # THE APT PREAMBLE'S SELFTEST, and the reason it is a selftest at all:
+      # the mirror whose broken index reddened four runs across two branches
+      # recovered on its own, so the failure this script exists for cannot be
+      # reproduced by waiting for it. The selftest CONSTRUCTS it — two
+      # `file://` repositories, one publishing an index its own Release file
+      # disagrees with — and asserts that an unnarrowed `apt-get update` dies
+      # on it while the script's does not. A run against a healthy mirror
+      # proves nothing about that case, which is what makes this row, and not
+      # the four install steps, the evidence.
+      #
+      # Sited here for the same reason as the two rows above: the job carries
+      # no `if:`, and this needs no toolchain and no root — apt is pointed at
+      # a scratch tree with `-o Dir::*` and touches no system file.
+      - name: apt preamble selftest (the narrowed update survives a bad index)
+        run: scripts/apt-install.sh --selftest
       # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
       # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
       # the same reason as every row above. Stdlib python and git; the
@@ -1878,12 +1893,23 @@ jobs:
       # NAME in the archive legs' PASS list instead.
       #
       # Mirror: local-scripts/ci-local.sh's toolkit rows.
+      #
+      # THROUGH scripts/apt-install.sh, which is where the whole argument
+      # lives — what it narrows, why, the two timeout guards and the
+      # arithmetic between them. `exec` so the runner's cancel and this
+      # step's `timeout-minutes` reach the process holding the restore
+      # trap, rather than a step shell that dies leaving the script
+      # orphaned. `timeout-minutes: 8` is the bound that script's header
+      # derives; every one of its callers sets the same one.
       - name: install a software Vulkan adapter (lavapipe)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools
-          vulkaninfo --summary
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh --no-install-recommends mesa-vulkan-drivers vulkan-tools
+      # Its own step because the install `exec`s: this prints WHICH adapter
+      # the row below will land on, before that row runs.
+      - name: name the Vulkan adapter this row will use
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: vulkaninfo --summary
       - name: install cargo-nextest (pinned, official prebuilt)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
         uses: ./.github/actions/install-nextest
@@ -3773,8 +3799,11 @@ jobs:
           grep -q fma /proc/cpuinfo || { echo "NO FMA"; exit 1; }
       # gmp-mpfr-sys needs a C toolchain plus m4; ubuntu-latest carries
       # build-essential but m4 is worth asserting rather than assuming.
+      # Through scripts/apt-install.sh, `exec`'d, at that script's bound —
+      # see its header for both.
       - name: m4 for the gmp build
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq m4
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh m4
       # Depth is nearly free on this lane and that is the whole reason to
       # spend it. The build above is a fixed ~234s; the cases are ~7s at
       # effort 1 (measured hosted, #480) and scale linearly — 8.2x measured
