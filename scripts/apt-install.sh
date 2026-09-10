@@ -25,6 +25,16 @@
 #     exists and is writable — so a `mktemp -d` that failed, or a `TMPDIR`
 #     that is not there, degrades to NOT NARROWING rather than to moving the
 #     image's lists to `/` and reporting success.
+#
+#     THE INVARIANT IS NOT "guard the mktemp that bit us". It is: NO PATH
+#     BUILT FROM A POSSIBLY-EMPTY VARIABLE IS EVER A `mv`, `mkdir` OR
+#     redirection TARGET — an empty prefix does not fail, it silently
+#     re-roots the whole operation at `/`. Written the narrow way, the guard
+#     went into `set_aside_foreign_sources` and the identical shape survived
+#     in `selftest_main`'s own scratch directory, in the same diff. Both are
+#     guarded now; a third such variable owes the same check at its
+#     assignment, and there is no degraded mode to fall back on unless the
+#     caller has one.
 #   * `APT::Get::List-Cleanup=0` on the update. Apt's default is to delete the
 #     cached indexes of every repository not in the sources it was just run
 #     over, so a narrowed update with cleanup on would leave the set-aside
@@ -341,7 +351,18 @@ selftest_check() { # <name> <want> <got>
 
 selftest_main() {
   local t out rc
-  SELFTEST_TMP="$(mktemp -d)"
+  # THE SAME RULE AS `hold_path`, and it is here because the first version of
+  # this file obeyed it in the production half and broke it forty lines down:
+  # an unguarded `mktemp -d` returns empty, `$t/own` becomes `/own`, and the
+  # battery writes eighteen fixture entries to the filesystem root. Unlike the
+  # production half there is no useful degraded mode — a selftest with nowhere
+  # to build its repositories has nothing to assert — so this fails loudly.
+  SELFTEST_TMP="$(mktemp -d 2>/dev/null)" || SELFTEST_TMP=""
+  if [ -z "$SELFTEST_TMP" ] || [ ! -d "$SELFTEST_TMP" ] || [ ! -w "$SELFTEST_TMP" ]; then
+    echo "apt-install --selftest: no usable scratch directory (TMPDIR=${TMPDIR:-/tmp})." \
+         "Refusing to run rather than building fixtures at /." >&2
+    return 2
+  fi
   t="$SELFTEST_TMP"
   trap 'rm -rf "$SELFTEST_TMP"' EXIT
   selftest_repo "$t/own" ownpkg 0
