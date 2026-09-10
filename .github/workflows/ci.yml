@@ -1012,6 +1012,41 @@ jobs:
         run: |
           python3 scripts/check-ci-mirror-parity.py --selftest
           python3 scripts/check-ci-mirror-parity.py
+      # A GATE THAT CANNOT FAIL. `PIPESTATUS` names the last pipeline the
+      # shell ran, and EVERY command rewrites it — including the assignment
+      # on the line above the read. A step spelled `... | tee … ||
+      # status=$?` and then `status=${PIPESTATUS[0]:-$status}` reports
+      # success whatever the pipeline said, because the `:-` default never
+      # fires on the assignment's own `0`; the `driver K-telemetry lint`
+      # step below spent eight commits in exactly that state, green over a
+      # lint that was refusing every file it was handed. The failure is
+      # silent by construction: nothing goes red, so no later run finds it.
+      #
+      # SITED HERE, in the job with no `if:`, because its inputs are every
+      # workflow file and every tracked shell script — `local-scripts/`
+      # included, a tree that classifies TIER=docs and that every hosted
+      # job but this one deletes at checkout. Under `if: run_build` the
+      # change class that can break it is the class that would skip it.
+      #
+      # NOT SHELLCHECK'S JOB, measured rather than assumed: shellcheck
+      # 0.9.0 says nothing at all about this shape (it has SC2319/SC2320
+      # for the sibling `$?` reads and no `PIPESTATUS` equivalent), and
+      # nothing in this repo runs shellcheck anyway —
+      # `work/ciw/shellcheck-is-not-run.md` carries that residue.
+      #
+      # AND A SEPARATE SCRIPT RATHER THAN A CLAIM IN THE STEP ABOVE, for
+      # blast radius rather than subject: `check-ci-mirror-parity.py`'s
+      # claim 10 DOES read shell out of `run:` bodies, so the subject is
+      # not foreign to it — but every one of its claims shares one
+      # tokenizer, and a change made for this property could move any
+      # other claim's answer. This reader is its own file so it fails
+      # alone, and its own shell splitter is written against the CMD_BREAK
+      # comment there, which records meeting the `&`-in-a-redirection
+      # defect twice.
+      - name: status capture (PIPESTATUS is read before anything rewrites it)
+        run: |
+          python3 scripts/check-status-capture.py --selftest
+          python3 scripts/check-status-capture.py
       # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
       # its own rather than by association. `scripts/ci-filter.py` decides
       # whether every `if: run_build` job below runs at all, and its `docs`

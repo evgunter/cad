@@ -2002,6 +2002,139 @@ anyway) to get a fresh run. That is the third 403 of this class this
 week, and `nightly-rows-cannot-be-dispatched-by-a-lane` now carries all
 of them.
 
+## 2026-09-10 — unit 6 dispatched: the PIPESTATUS sweep
+
+`pipestatus-after-assignment-in-ci-yml` on `ciw/pipestatus-sweep`.
+
+**Pre-dispatch reading, and it reshapes the unit.** The one instance was
+fixed in PR 1725; a grep for the defect shape (`PIPESTATUS[0]` read after
+an assignment) finds hits **only inside the tombstone comment** at
+`ci.yml`'s k-lint driver step. The other live reads do not follow an
+assignment.
+
+So the sweep may well come back empty, and the discipline doc is explicit
+that this is a real outcome: *a pattern with no hits recorded is a claim;
+a hit list is a receipt*. The brief says to produce the receipt and not
+to manufacture work if there is nothing to fix.
+
+**Which makes the guard the deliverable, not the sweep.** A defect that
+disarms a gate silently, was fixed once, and can return by being retyped
+is exactly the shape this program has spent the week on. The brief asks
+for a mechanical guard so the shape cannot come back — and, if a guard is
+not worth its cost, for that argument in writing at the site rather than
+an unstated absence.
+
+**Style review**, unless the guard grows a derived population, in which
+case the correctness lane attaches by the standing trigger.
+
+## 2026-09-10 — unit 6 in review: the sweep is empty, the guard is built
+
+`pipestatus-after-assignment-in-ci-yml` -> PR 2298, `status: review`.
+Verified on hosted run 34500237390 (head `59031a6dd`), green at STEP
+level in `mirror`.
+
+**The sweep came back empty, as the dispatch expected, and the receipt
+is the instrument rather than a grep.** `scripts/check-status-capture.py`
+splits every shell body under `.github/workflows/` and every tracked
+`*.sh`/`*.bash` into the commands it runs — respecting quotes, comments,
+escapes, line continuations and heredoc bodies — and requires each
+`PIPESTATUS` read to sit on the command immediately after a pipeline. On
+this tree it reports **7 reads across 87 files, all correct**: `ci.yml`
+`:669`, `:3135`, `:3626`, `:3661`, `:3671`, `:4835` and `render.yml`
+`:1183` — re-derived on the head that merges unit 7, which moved every
+one of them. The tombstone comment at `ci.yml:4797-4820` is prose and is
+not counted, which is one of the guard's own mutant rows.
+
+**The guard is the property, not the incident.** It does not look for
+`status=$?`; it looks for *any* intervening command, so an `echo`, a
+`[[ … ]]`, a `let`, a `local`, a function call, a `then`, or nothing at
+all all red — and the index is not read, so `[1]` and `[@]` are covered.
+Twenty-two `--selftest` rows name the failure each must catch, and the
+historical defect re-injected into the real `ci.yml` reds at the right
+line.
+
+**It is a new script, not a claim in `check-ci-mirror-parity.py`.** The
+first draft argued that on subject — the shell inside a row being outside
+that checker — and that is FALSE: its claim 10 already reads argv out of
+`run:` bodies, and its header marks the boundary at exactly that point.
+The real reason is size and blast radius. The file is 4004 lines and has
+taken a claim in each of the last four units; every claim shares one
+tokenizer, so a change made for this property can move any other claim's
+answer. A separate script fails alone. It gains one `TIER_BLIND`
+membership entry and nothing else.
+
+**And it is not shellcheck's job — measured, not assumed.** shellcheck
+0.9.0 reports *nothing at all* on the five-line reproduction. It does
+carry SC2319/SC2320 for the sibling `$?` shapes, and nothing in this repo
+runs shellcheck at all; both facts are the residue
+`shellcheck-is-not-run`, filed in the same PR with the 496-finding
+measurement that says why turning it on is its own unit.
+
+## Unit 6, second fix pass — the carriers were OR'd, so no row could name a route
+
+The claim above that the guard's routes were each load-bearing was
+**false, and it was reported without being injected**. On a pristine tree
+at `7e49567b0`, `SHELL_SUFFIXES = (".zsh",)` — the mutant the PR body
+named as newly dead — left every row green and the selftest at exit 0.
+Two independent causes:
+
+- **The verdict was aggregate.** Each mutant was planted into ONE tree
+  holding every carrier at once, and `RED if failures else GREEN` over
+  that tree answers "did SOME route red". Replacing the whole shell arm
+  of `check_tree` with `for rel in []: pass` cost exactly two rows.
+- **The one `*.sh` fixture carried a shebang**, so it rode the shebang
+  branch of `shell_files` and the suffix branch had no fixture at all.
+  That branch is not decoration: `demos/hosted-render-guard.sh` and
+  `local-scripts/hosted-ci-guard.sh` open with `# shellcheck shell=bash`
+  and are in the population by suffix alone.
+
+Fixed by evaluating **each route on a tree of its own**, with the verdict
+and the violation's `path:line` asserted per route and the route named in
+the failure. The routes are now direct, workflow `run: |`, a tracked
+`*.sh` with no shebang, and a tracked shebang file with no suffix — the
+last folded in from what was a standalone population row, so both
+branches of `shell_files` have a fixture that fails when that branch
+alone is removed. A further row asserts the carrier set still covers one
+branch each, which reds if a fixture regains the convenience shebang that
+caused this.
+
+The row count in the closing line and the PR body is re-derived rather
+than carried: **43 mutants x 4 routes, plus 5 population and refusal
+rows**. (The earlier entry's "twenty-two rows" is superseded twice over.)
+
+Five mutants, each applied alone to a clean tree, all now die:
+`SHELL_SUFFIXES = (".zsh",)`, `SHELL_SUFFIXES = ()`, a never-matching
+`SHEBANG_RE`, the `check_tree` shell arm emptied, and a never-matching
+`BLOCK_SCALAR` (which kills the workflow route alone, so the same
+aggregation bug is not hiding on that side). Each names the route it
+broke and leaves the other three red.
+
+**The lesson is the one units 1-5 closed on, missed inside the unit that
+wrote it down**: write the row by naming the failure it must catch,
+inject that failure, and do not trust the row until you have watched it
+red. A carrier built for convenience — a shebang, so the fixture "looks
+like a script" — is a fixture written against the instance rather than
+the branch it exists to pin.
+
+### Third pass: the route COUNT was printed, not asserted
+
+The blind spot the second pass disclosed was narrower and sharper than
+disclosed. Deleting either `shell_files` carrier already red — the
+branch-coverage row catches both. Deleting the **workflow** carrier did
+not: it is not a `shell_files` branch, so that row cannot reach it, and
+the run went green at `43 mutants x 3 routes … all as specified` while
+specifying one route fewer than the header claims. The route that
+disappeared silently was the one `ci.yml` itself is.
+
+`ROUTE_NAMES` now pins the carrier set by NAME rather than by arithmetic,
+so a route dropped, renamed or duplicated reds saying which. Deleting
+`wf` reds `the carriers are ('shebang', 'suffix'), not ('shebang',
+'suffix', 'wf')`; so does a rename; a duplicate dies on the tree it would
+have shared, loudly but as a traceback rather than a named row.
+
+The shape is the unit's own: **a fact printed in a log is not a fact
+anything reds on.**
+
 ## Unit 7 — citations that do not resolve (2026-09-10, `ciw/citations`)
 
 Both items closed; seven comments rewritten; nothing rewritten in
