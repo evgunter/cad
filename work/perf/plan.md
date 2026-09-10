@@ -128,7 +128,6 @@ in `work/perf/` or the program named.
 | Cost center | Where | Measured | Kind | Ref |
 |---|---|---|---|---|
 | Pick index re-tessellates every root on every edit | `viewer/src/pickcache.rs:266,285`, `pickindex.rs:742`, `editor-core/src/resolve/pick.rs:354` | 83–97 % of the edit wait on a large document | stop | `index-rebuilds-every-root-on-every-edit` |
-| Torus chart sized off one step in both directions | `mesh/src/sizing.rs:448`, consumer `curved.rs:1030` | ~65× the triangles the chord asks for on a torus (110–145× naive cells measured across four decades of δ); it is why the ring documents are million-triangle documents | stop | `work/mesh/torus-grid-step-one-step-both-directions` |
 | Display budget's probe can exceed the picture it sizes | `viewer/src/scene.rs:952` | 0.2–4.1 s frozen on open | stop | `fit-delta-probe-can-exceed-the-picture-it-sizes` |
 | D1 per-op whole-body tier 1, shipped in release | `topo/src/euler.rs:62`, `:2405`; `attach.rs:93,332` | 45–72 % of a rebuild in the shipped release profile; 31 % of editor-core's suite | stop (ratified — `[ev]`) | `d1-per-op-tier1-sweep-price` |
 | `StableName` is a boxed `BTreeMap` key | `editor-core/src/names/role.rs:396`, `table.rs:69,96-107`, `emit_topo.rs:518-524` | ~40 % of `die`'s rebuild, quadratic in chain depth | faster | `stablename-key-is-quadratic-on-a-boolean-chain` |
@@ -150,12 +149,6 @@ Two constraints stated rather than a fix assumed:
   cheaper is a design change; the question is in front of Ev as
   `[ev]` PR 2305 with the price above, recommending once-per-door
   with replay localization.
-- **The torus sizing formula is an audited reference.** TESS-BUDGET's
-  baseline was verified "exactly against the torus grid step", so
-  changing it is a deliberate re-cut under `docs/TESS-BUDGET.md`'s
-  procedure, and the per-direction sagitta is not a rigorous bound for
-  a doubly-curved chart — the unit owes the derivation, not the
-  formula the issue sketches.
 
 ## 2. CPU-first roadmap
 
@@ -548,11 +541,13 @@ demo-only and test-only units record no A/B row.
 
 **Block PERF-B1** (three kernel units, drawn as one protocol block):
 
-1. **Torus chart sizing** — derive a doubly-curved chord bound per
-   direction, replace the single step, re-cut the tess-budget baseline
-   deliberately. Cuts the triangle count of every torus-bearing
-   document before anything caches it; the tour's tessellation and
-   the ring rows follow.
+1. **Torus chart sizing** — landed (PR 2307): `torus_grid_steps`
+   with the proved `(AΔu² + 2BΔuΔv + CΔv²)/8` bound and the closed-form
+   split; `hollowring` 3.98 M → 165 k triangles at 0.1 mm, the torus
+   bench rows −95 %, the tour ~10 → ~7.3 s. Residue on the slate:
+   `torus-sizing-reads-no-phi-window`; out-of-fence findings filed as
+   `nurbs-cert-spends-the-bound-twice` and
+   `sphere-sizing-margin-is-the-coupling-factor`.
 2. **`StableName` keying** — intern or hash-key the naming table so an
    insert is O(1) in chain depth; every emitted and persisted name
    byte-identical.

@@ -298,3 +298,24 @@ M–L / structural (slot 0); slots 1 and 2 are the per-face patch memo
 and the +V sign-certified door, cut after PERF-3 lands and drawn
 here now so the block is a triple.
 Draw: `/dev/urandom` byte **181** (< 252), 181 mod 3 = 1 ⇒ fable position 1. **Slot 0 PERF-4 = OPUS.**
+
+## PERF-1 merged (2026-09-10, PR 2307)
+
+Dual: R1 (opus) APPROVE-WITH-FIXES 0/5/10, rubric 4/4/2; R2 (fable)
+APPROVE-WITH-FIXES 0/4/3, rubric 4/4/3; both attacked the bound
+independently (60 000 and 4 764 triangles, worst ratio 0.99994 and
+0.99959 — tight) and both found the same real defect: `cert_torus`'s
+`A = R + r cos_max` was a sup only for R ≥ r (a spindle-torus probe
+under-certified 3.5×). Fix pass (union, 12 items) landed on
+`bd831cded`, CI green; state-sync closed the unit and the claimed
+torus item. Measured: `hollowring` 3 984 276 → 164 940 triangles at
+the viewer's δ; `tessellate/torus/1e-3` 178 → 8.5 ms, `/1e-4` 1.95 s →
+79 ms; tour wall 10.1 → 7.3 s; tess-budget sweep 1 653 556 → 299 066
+triangles, NURBS rows byte-identical. Main's render lanes re-baseline
+the torus scenes post-merge. Method note: R1 took the express lane for
+its test runs under mutex starvation (its own choice under the same
+brief; not an orchestrator grant, so the pair stands). Residue filed:
+`torus-sizing-reads-no-phi-window`. Reviewer class findings carried
+forward: the exact-torus-distance sampler is spelled in four places
+(test side), and history-narrating comments around triangle counts
+are a class — swept in the fix pass with the hit list in the PR body.
