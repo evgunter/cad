@@ -7825,3 +7825,36 @@ recorded as a limit rather than a proof — an identical literal written
 back at `Absent::save`, which the equality assertion cannot see. Two
 deletions were also run and stayed green at 511: the guard line and
 the badge draw, which is the disclosure that has its own file.
+
+**The guard that holds a count is itself a source reader, and it
+arrived without registering.** `gate ok` went red on three jobs — the
+`1/2` shard at all three eps values, so deterministic rather than
+eps-dependent — on one row:
+`test-utils::reader_census::every_site_that_reads_rust_source_is_in_the_ledger`.
+`the_readme_counts_its_two_populations_correctly` reads `src/frame.rs`
+and `src/app.rs` through `test_utils::source::code_only`, and that file
+keeps one line per site that does. Registered as
+`crates/viewer/tests/frame_policy.rs`, `Shared`, *"the README's
+badge-door and store-read counts, code view"*, in the ledger's sort.
+The census's header names three honest dispositions and this is the
+first of them; the third — a new hand-rolled reader — is the one it
+refuses, and the shared lexer was used from the start.
+
+**Announced, not silent.** `crates/test-utils/*` is S-TCOST's and
+`crates/viewer/tests/*` is S-TCOST's and Track W's by declaration. The
+act is sanctioned rather than a crossing on two clauses read here
+rather than inherited: CIW's `keep_out` scopes S-TCOST's claim there to
+*"the Shared ledger row's AUDIT"*, and TOPO's says D261 converts *"its
+own census entries"* — so a program registering its own arriving reader
+is the mechanism working, and the audit of that row stays S-TCOST's.
+The line is one `Shared` entry and touches nothing else in the file.
+
+**Running the crate's own suite is not running the suite**, and this is
+the rule the wave earned. `cargo test -p viewer --features app --test
+all` came back 511/0/1 and was never going to see this: the row that
+fired lives in another crate's test binary. **A guard that reaches
+outside its crate is held by a row outside it too** — and the shape
+generalises past readers, because this same unit registered a new badge
+in a README count and a new store read in another. The receipt to run
+is the workspace suite as CI runs it, and a report names the COMMAND as
+well as the number.
