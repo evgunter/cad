@@ -60,3 +60,46 @@ says so already: *"C15 sits on this slate because the census that
 detects it is here rather than because the scene is; no lane here edits
 a scene."* The canal is only the first body in the corpus that made the
 two columns overlap.
+
+
+**Update: the same scene, re-authored, made the case sharper and
+bigger.** The canal's sections became regular OCTAGONS (a circle is
+rational, and at ε = 1e-12 the rational quadrature lane refused the
+body's mass properties outright), and the separated-pair census went
+from four pairs to twelve:
+
+```
+teapot/teapotspout faces 2/5, 3/4, 7/8, 11/12, 14/17, 15/16
+teapot/teapotspout faces 6/9, 10/13
+teapot/teapotspout faces 6/10, 6/13, 9/10, 9/13     <- NEW IN KIND
+```
+
+The first two lines are more of what was already here: congruent walls
+within one loop. **The third line is a different claim.** Faces 6 and 9
+are OUTER walls; faces 10 and 13 are BORE walls. Every identity column
+agrees across them — `nurbs`, the unit trim box, 2 × 201 divisions —
+while the rows carry 733 triangles against 658 and 322 grid cells
+against 250. So the CSV can no longer say which LOOP a wall came from,
+and the two loops are not the same amount of work.
+
+Why the re-authoring did that, which is the part worth keeping: a
+curved wall and a curved bore have different CURVATURE, so the sizing
+lane gave them different divisions and `nu`/`nv` separated them. Flat
+walls scale without changing shape — the bore is three quarters of the
+wall and just as straight across — so both read `nu = 2` and the only
+column left that separates them is `name`.
+
+**And this is where the SECOND census assertion fired.** Those four
+cross-loop pairs are exactly the ones whose two recoverable slacks
+stopped agreeing (322/317 against 250/238), which is the sub-tolerance
+early warning `an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline`
+exists to give. The swap is still INVISIBLE to the gate — that
+assertion still passes, so rule 2 is unaffected — but the margin that
+made it free has gone on these four. Both pins are positive now and
+name these lists, so each keeps saying something.
+
+For the unit itself this changes no requirement and adds one test case
+worth having: a scene where the named rows the re-key would cover
+include pairs whose UNDERLYING work differs, not merely pairs that are
+congruent. A re-key that keys those four apart changes what the gate
+compares, where keying congruent walls apart does not.
