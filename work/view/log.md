@@ -7669,3 +7669,192 @@ unchanged. Seven errors after, quoted in the PR; `doc-gate.sh
 README-parsing gates green, clippy green at host and wasm32 at
 `-D warnings`, `tests/all.rs` 508/0. The one local red is the WGPU
 adapter row, green hosted.
+
+## 2026-09-10 — `view/theme-store`: the theme picker says what it keeps
+
+`wasm-theme-choice-is-offered-and-silently-not-kept` closed. A user
+picked a theme, it applied, the session ended and the default came
+back; `ViewerApp::remember_theme` returned early on
+`!self.store.usable()` and said nothing, and the reporting arm below
+that guard was reachable only from the `save` the guard had skipped.
+
+**The channel was decided by the ratified rule and not by taste.**
+`store.usable()` is settled when the store is built — either arm of the
+`cfg` can answer false — and answers the same on every frame after, so
+the sentence exists on a frame where nobody acted. That is provenance's
+own visible test, and Ev's ruling on
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser` supplies
+the negative half: a whole-run environmental fact has no correct
+sentence on a line carrying one frame's news. So `frame::prefs_badge`,
+`Subject::Preferences`, `Tone::Advisory`, `Affordance::Read`, drawn
+beside the picker rather than in the badge run above it, because it is
+the only badge about a CONTROL. It is drawn from the first frame, which
+is a better reading of *once and not on every switch* than the item's
+own: a reader learns it before spending a choice, not after.
+
+**Annotated, not disabled**, which is where this parts company with the
+chooser it was filed against: a dialog with no backend can do nothing;
+the picker applies the theme and loses only the memory.
+
+**The fork on the two dead refusals went the second way, and what went
+was the refusals as independent prose.** Neither `save` could drop its
+refusal — a store that keeps nothing has no honest `Ok(())` — so the
+condition is stated by the party that knows it. `usable() -> bool`
+became `unusable() -> Option<Unusable>`; the chrome renders those words
+and `Unusable::refusal` renders them for a caller that saves without
+asking. Two hand-written refusals for an unspoken condition became zero
+and one value a reader sees. **What that buys is that the two
+renderings cannot DIVERGE, not that the condition has one spelling** —
+the suite asserts them equal, so a second spelling reds when it says
+something different and is green while it says the same thing, which
+was measured rather than assumed. The guard stays and is now
+load-bearing rather than silent — it keeps a whole-run fact off the
+outcome channel — and it says so where it stands.
+
+**A bool could not have carried this.** With `usable() -> bool` the only
+party that knew WHY was the store and the only party with a person to
+tell was the caller, so any sentence a reader saw had to be composed
+where the reason was not. That is the same shape as the census failure
+this program keeps meeting from the other end.
+
+**Mutation, not reading.** Four perturbations of the doors, each red:
+`FileStore` claiming it is usable (2 rows), `Absent::save` re-wording
+its refusal (2 rows), the badge's subject and tone (2 rows), and the
+badge speaking for a store that is fine (1 row). What is NOT held is
+the wiring —
+`ViewerApp` cannot be built in the suite, so the guard and the draw are
+read by eye. Said plainly rather than implied, and filed as
+`the-guard-that-decides-whether-a-preference-is-kept-has-no-test`,
+which is `hover-route-for-an-absent-chooser-has-no-test`'s boundary
+with a second instance that differs in kind: a control-flow decision, not
+a tooltip.
+
+**Both universals carry their sweep rule.** The badge family's
+population is every `frame` fn returning `Option<Badge>` — eight —
+which ranges over the property rather than the `_badge` naming
+convention it agrees with today, and is complete because `Badge`'s
+fields and its three constructors are private to `frame`. The store's
+is every read of `app::ViewerApp::store`, a private field — **three**,
+all in `app.rs` — complete because `prefs_store()` has one caller.
+That said four until a reviewer ran it: `store.load()` in the
+constructor reads the LOCAL binding, before the struct literal that
+makes the field exist, so a rule ranging over the field had a count
+ranging over the name. Both numbers are now held by a `#[test]` that
+re-derives them from the sources and reads the README's word, rather
+than by the sentences that state them. Neither rule ranges over
+`target_family`, which is the half-fix the item predicted.
+
+**Census of the shifted bands — the first one was wrong, and wrong in
+the way the rule exists to catch.** The entry that stood here claimed
+*"every `file:line` in `work/` landing at or past those lines was
+enumerated"*. The pattern behind it required a full `crates/viewer/...`
+path, so it could not see a bare `frame.rs:1747-1749` or a backtick
+continuation `` `:1194` `` — the two spellings this tracker actually
+uses most. It found 19 citations; the population is **122**. A sentence
+that certifies a population it does not produce tells the next reader
+to stop looking, which is the whole of why the rule is written.
+
+The corrected rule: a file token naming any of the six changed files
+(bare or fully qualified), plus every backtick-quoted `:NNN`
+continuation attributed to the last file token on the line, over every
+live row as it stood at the merge base. **Its own blind spot, stated:**
+a bare `frame.rs` or `prefs.rs` is ambiguous across crates and only the
+sentence disambiguates it — eight hits in two rows are `geom-core`'s
+`linalg/frame.rs` and `src/camera.rs`, caught by reading and not by the
+pattern.
+
+**122 citations, 25 rows, disposed as:**
+
+| n | rows | disposition |
+|---|---|---|
+| 33 | 13 | **repointed** — the subject was at the base line, so my diff moved it |
+| 34 | 11 | left: **already wrong at the base line**, and repointing manufactures a fresher wrong number |
+| 26 | 1 | this unit's own closed row, left as written and naming its SHA |
+| 18 | 1 | `stale-file-citations-after-the-split`, left whole |
+| 8 | 2 | another crate's file — the pattern's blind spot |
+| 3 | 3 | unmoved (the band's edge) |
+
+**Text identity and subject are two different questions and only one
+instrument answers each.** The first entry offered *"checked by TEXT
+IDENTITY at the new line rather than by trusting a delta"* as the
+stronger check. It is not stronger, it is orthogonal: identity at the
+new line proves the MAPPING is right, and says nothing about whether
+the citation was ever right. Five of the first pass's nineteen passed
+identity at both endpoints and landed on text that is not the row's
+subject, because they were broken before this branch existed. The
+instrument that catches those is #2083's — read the line and ask
+whether the subject is there — and it has to be run at the BASE line,
+which is where the row was written. Both are run now, in that order,
+and the five are reverted to the numbers they had.
+
+**`stale-file-citations-after-the-split` is left whole, deliberately.**
+Every number in it is either a stale citation quoted as evidence
+(*"what it cites"*) or a correction qualified by a named SHA (*"is
+`:925` at #2272's head"*). Repointing the first kind destroys the
+evidence; repointing the second makes the record false. Half-fixing a
+file whose numbers are half evidence and half record is the
+contradicts-itself defect one level up, so its re-derivation is that
+row's own work.
+
+**Past EOF, and not this diff's.** 31 citations in 11 live rows name
+`app.rs` beyond its 1,985 lines, spanning `work/chrome/`, `work/ciw/`,
+`work/code-quality/`, `work/fix/`, `work/issues/` and `work/view/`.
+They were already past EOF at the merge base — that file has been 1,985
+lines since the split — and they are that row's population. The first
+entry said *"seven, in five rows across `work/chrome/` and
+`work/fix/`"*, which was the same pattern's blind spot again.
+
+**Verification.** fmt clean; clippy `-p viewer --features app
+--all-targets` green; wasm32 clippy green at `-D warnings` (the hosted
+row still runs as `cargo check`); `doc-gate.sh` OK; both
+README-parsing gates green — module kinds 10/10 and 9 tabulated
+vocabularies, vocab declared-once 4 ratified; `no-ambient-env` OK;
+`work.py lint` clean. **`tests/all.rs` 511/0/1 against 508 at the
+merge base** — three new rows, two on the stores and one holding the
+README's two counts — and the count is checked against this branch's
+own base rather than against a number in a brief. The one local red is
+`gpu::…every_pass_builds_on_a_real_device`, which wants a WGPU adapter
+this box has none of and is green hosted.
+
+**Ten mutations, all red.** Four on the doors (a store claiming it is
+usable; `Absent::save` re-wording its refusal; the badge's subject and
+tone; the badge speaking for a healthy store), four on the new count
+guard (the README's word wrong in either population, a ninth badge
+door, a fourth field read), and — the one that came back GREEN and is
+recorded as a limit rather than a proof — an identical literal written
+back at `Absent::save`, which the equality assertion cannot see. Two
+deletions were also run and stayed green at 511: the guard line and
+the badge draw, which is the disclosure that has its own file.
+
+**The guard that holds a count is itself a source reader, and it
+arrived without registering.** `gate ok` went red on three jobs — the
+`1/2` shard at all three eps values, so deterministic rather than
+eps-dependent — on one row:
+`test-utils::reader_census::every_site_that_reads_rust_source_is_in_the_ledger`.
+`the_readme_counts_its_two_populations_correctly` reads `src/frame.rs`
+and `src/app.rs` through `test_utils::source::code_only`, and that file
+keeps one line per site that does. Registered as
+`crates/viewer/tests/frame_policy.rs`, `Shared`, *"the README's
+badge-door and store-read counts, code view"*, in the ledger's sort.
+The census's header names three honest dispositions and this is the
+first of them; the third — a new hand-rolled reader — is the one it
+refuses, and the shared lexer was used from the start.
+
+**Announced, not silent.** `crates/test-utils/*` is S-TCOST's and
+`crates/viewer/tests/*` is S-TCOST's and Track W's by declaration. The
+act is sanctioned rather than a crossing on two clauses read here
+rather than inherited: CIW's `keep_out` scopes S-TCOST's claim there to
+*"the Shared ledger row's AUDIT"*, and TOPO's says D261 converts *"its
+own census entries"* — so a program registering its own arriving reader
+is the mechanism working, and the audit of that row stays S-TCOST's.
+The line is one `Shared` entry and touches nothing else in the file.
+
+**Running the crate's own suite is not running the suite**, and this is
+the rule the wave earned. `cargo test -p viewer --features app --test
+all` came back 511/0/1 and was never going to see this: the row that
+fired lives in another crate's test binary. **A guard that reaches
+outside its crate is held by a row outside it too** — and the shape
+generalises past readers, because this same unit registered a new badge
+in a README count and a new store read in another. The receipt to run
+is the workspace suite as CI runs it, and a report names the COMMAND as
+well as the number.
