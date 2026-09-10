@@ -5049,3 +5049,16 @@ arms equally (not a relaxation): the pair runs beside three PERF
 implementer lanes on one 4-vCPU box under the width-1 build mutex. The
 block PERF-B1 draw record (slot arms) stays branch-side on
 `perf/orchestrator` until the block concludes.
+
+## PERF-1 review ordinal fixed at dispatch (2026-09-10)
+
+PERF-1 (`work/perf/PERF-1.md`, PR #2307 open — frozen head `a5df346d5`):
+**ordinal 3401** (PERF band). Protocol v6 dual: draw = `/dev/urandom`
+byte **166**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method as for
+PERF-3 above: concurrent same-head on frozen `a5df346d5`, briefs
+stored with sha256 before dispatch (865e1d5277eb3ccd… r1 / 6b8a24ad58aec847… r2 —
+identical modulo lane names, verified by diff), isolation in both
+briefs, neither reviewer sees the other's report; the same shared-box
+note applies to both arms (the pair runs beside PERF-3's dual and two
+implementer lanes under the width-1 mutex). Block PERF-B1's draw record
+stays branch-side until the block concludes.
