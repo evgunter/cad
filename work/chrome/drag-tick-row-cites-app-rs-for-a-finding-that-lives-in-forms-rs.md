@@ -48,8 +48,9 @@ moved the whole subject to `forms.rs` and the row was not re-pointed.
 **The row's own reproduction command returns nothing.** Its third home
 is *"the creation forms, by hand"*, evidenced as
 `rg '_DRAG_SPEED,' crates/viewer/src/app.rs` — *"41 lines, of which
-~30 are a hand-picked argument"*. That command now matches **zero** lines. A
-reader who runs it concludes the finding is stale and closes the row.
+~30 are a hand-picked argument"*. That command now matches **zero**
+lines. A reader who runs it concludes the finding is stale and closes
+the row.
 
 The call sites are all still there, in four files and not one:
 `pane/create.rs` (22), `widgets.rs` (17), `forms.rs` (4),
