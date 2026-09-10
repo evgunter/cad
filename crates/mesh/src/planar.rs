@@ -270,10 +270,7 @@ pub(crate) fn tessellate_planar(
 
     Ok(Patch {
         interior: Vec::new(),
-        triangles: triangulate_chart(fk, &loops, &polygons)?
-            .into_iter()
-            .map(|t| t.map(PatchVertex::Shared))
-            .collect(),
+        triangles: triangulate_chart(fk, &loops, &polygons)?,
     })
 }
 
@@ -400,14 +397,17 @@ fn triangulate_chart(
     fk: FaceKey,
     loops: &[Vec<u32>],
     polygons: &[Vec<[f64; 2]>],
-) -> Result<Vec<[u32; 3]>, TessellateError> {
+) -> Result<Vec<[PatchVertex; 3]>, TessellateError> {
     // CDT: every loop's points first, then the boundary constraints.
     // The two passes must not interleave: inserting a vertex that lands
     // exactly on an existing constraint edge splits it, which would
     // invalidate the crossing bookkeeping built below.
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
         ConstrainedDelaunayTriangulation::new();
-    let mut meta: Vec<u32> = Vec::new(); // handle index -> mesh id
+    // handle index -> the patch corner. Every entry is `Shared`: this
+    // lane inserts only boundary points, and the assert below is what
+    // keeps that true.
+    let mut meta: Vec<PatchVertex> = Vec::new();
     let mut handles: Vec<Vec<FixedVertexHandle>> = Vec::new();
     for (ids, poly) in loops.iter().zip(polygons) {
         let mut hs = Vec::with_capacity(ids.len());
@@ -422,7 +422,7 @@ fn triangulate_chart(
                 .insert(mitigate_underflow(SpadePoint::new(u, v)))
                 .map_err(|_| TessellateError::Triangulation { face: fk })?;
             if h.index() == meta.len() {
-                meta.push(id);
+                meta.push(PatchVertex::Shared(id));
             }
             hs.push(h);
         }
@@ -661,7 +661,7 @@ pub(crate) fn shoelace2(poly: &[[f64; 2]]) -> f64 {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{shoelace2, triangulate_chart};
+    use super::{PatchVertex, shoelace2, triangulate_chart};
     use topo::FaceKey;
 
     /// Face `19v3` of the issue-#111 A×Z intersect (A's left inner-leg
@@ -695,6 +695,24 @@ mod tests {
     fn chart(bits: &[(u64, u64)]) -> Vec<[f64; 2]> {
         bits.iter()
             .map(|&(u, v)| [f64::from_bits(u), f64::from_bits(v)])
+            .collect()
+    }
+
+    /// The mesh ids of a patch this lane emitted.
+    ///
+    /// Total by the lane's own contract — a planar patch mints no
+    /// interior points — and the `unreachable!` is where that contract
+    /// is checked rather than assumed.
+    fn shared_ids(tris: Vec<[PatchVertex; 3]>) -> Vec<[u32; 3]> {
+        tris.into_iter()
+            .map(|t| {
+                t.map(|v| match v {
+                    PatchVertex::Shared(id) => id,
+                    PatchVertex::Local(i) => {
+                        unreachable!("the planar lane minted interior point {i}")
+                    }
+                })
+            })
             .collect()
     }
 
@@ -744,8 +762,10 @@ mod tests {
     fn issue111_needle_on_the_az_leg_carrier_is_not_emitted() {
         let poly = chart(&FACE_19V3);
         let loops = vec![FACE_19V3_IDS.to_vec()];
-        let tris = triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
-            .expect("face 19v3 triangulates");
+        let tris = shared_ids(
+            triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
+                .expect("face 19v3 triangulates"),
+        );
 
         // The exterior needle the old centroid test kept.
         assert!(
@@ -955,8 +975,10 @@ mod tests {
         ];
         let ids = vec![0_u32, 1, 2, 3, 4, 5, 4];
         let loops = vec![ids];
-        let tris = triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
-            .expect("slit square triangulates");
+        let tris = shared_ids(
+            triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
+                .expect("slit square triangulates"),
+        );
         let total: f64 = tris
             .iter()
             .map(|&t| {

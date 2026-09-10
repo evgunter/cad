@@ -304,8 +304,8 @@ pub(crate) fn tessellate_curved(
     let (uspan, vspan) = (u1 - u0, v1 - v0);
     // The face's OWN points, numbered from zero: a grid point takes the
     // next local index, and takes it only if the CDT did not dedupe it
-    // onto a vertex already inserted — the same one-id-per-kept-point
-    // rule the shared arena carried when this lane pushed into it.
+    // onto a vertex already inserted. One index per point KEPT, so the
+    // indices are exactly `0..interior.len()`.
     let mut interior: Vec<Point3<f64>> = Vec::new();
     for j in 1..nv {
         #[allow(clippy::cast_precision_loss)]
@@ -370,29 +370,28 @@ pub(crate) fn tessellate_curved(
     // used once with the neighbouring face supplying the other use.
     // Four uses is the #678 signature.
     //
-    // IDENTIFIED, not pole-incident, and that is a DECIDED widening
-    // (issue 897) rather than the definition it always had.
-    // [`identified_ids`] carries why a seam double-traversal and a
-    // pole corner are one set; the full-2π seam was the half held off
-    // by [`pole_columns`]' arithmetic instead of by a check, in the
-    // lane that actually has seams. What decided it was the price,
-    // measured on the tour corpus rather than estimated: the widening
-    // is free on a face the walk identifies nothing on (the census
-    // does not run), and costs +5% to +12% of `tessellate` on the
-    // donut, whose two torus patches carry a 212-id seam over 178k
-    // triangles each at the finest δ. (That range is the review's
-    // independent in-binary reproduction, which is the tighter of the
-    // two measurements; this lane's own rounds put the same three rows
-    // at +8% to +13%. Both are inside the box's noise for anything
-    // smaller, which is why only the donut rows are quoted.) That is at or under the price already paid for
-    // the pole half, and it buys the case a mechanical check.
+    // IDENTIFIED, not pole-incident (issue 897). [`identified_ids`]
+    // carries why a seam double-traversal and a pole corner are one
+    // set; [`pole_columns`]' arithmetic holds the full-2π seam off in
+    // the lane that actually has seams, and this census is the check
+    // that arithmetic stands in for.
+    //
+    // THE PRICE, and where it is paid. A face whose walk identifies
+    // nothing pays one hash-set build over its boundary polygon and
+    // then one branch: `identified_ids` is empty, so no patch is
+    // materialised in mesh ids and no edge is counted. A face that
+    // identifies something pays a copy of its own patch plus a scan of
+    // it, O(triangles) in both. Debug assertions are ON in this
+    // crate's release profile (workspace `Cargo.toml`), so this is the
+    // shipped path and not a test-only one — which is why the empty
+    // case must not allocate.
     let patch = Patch {
         interior,
         triangles,
     };
     #[cfg(debug_assertions)]
     {
-        let over = overused_identified_edge(&polygon, &patch.census_ids(shared));
+        let over = overused_identified_edge(&polygon, || patch.census_ids(shared));
         debug_assert!(
             over.is_none(),
             "face {fk:?}: identified-vertex fan edge {:?} used {} times in one \
@@ -904,16 +903,22 @@ fn identified_ids(polygon: &[UvPoint]) -> std::collections::HashSet<u32> {
 /// is the non-manifold state, and four is #678's own signature.
 ///
 /// Returns the edge and its use count so the caller can name both.
-/// Empty [`identified_ids`] means there is nothing to re-derive and
-/// the scan does not run — a wedge wall or an untrimmed patch pays
-/// nothing.
+///
+/// `triangles` is a THUNK, and that is the whole reason this wrapper
+/// exists: empty [`identified_ids`] means there is nothing to
+/// re-derive, and on that branch the patch is never materialised in
+/// mesh ids at all. A wedge wall or an untrimmed patch pays one hash
+/// set over its boundary and nothing else.
 #[cfg(debug_assertions)]
 fn overused_identified_edge(
     polygon: &[UvPoint],
-    triangles: &[[u32; 3]],
+    triangles: impl FnOnce() -> Vec<[u32; 3]>,
 ) -> Option<((u32, u32), usize)> {
     let identified = identified_ids(polygon);
-    crate::walk::overused_identified_edge_in(&identified, triangles)
+    if identified.is_empty() {
+        return None;
+    }
+    crate::walk::overused_identified_edge_in(&identified, &triangles())
 }
 
 /// The sphere arm's extra sizing margin: it sizes at δ_s divided by
@@ -2313,15 +2318,23 @@ mod tests {
             identified_ids(&one_pole).into_iter().collect::<Vec<_>>(),
             vec![1]
         );
-        // And a walk that identifies nothing costs the census nothing:
-        // the emit pass returns before scanning a triangle.
+        // And a walk that identifies nothing costs the census nothing.
+        // The thunk PANICS if it is called: the empty case must not
+        // materialise the patch in mesh ids, and this is the row that
+        // fails if that regresses (debug assertions are on in the
+        // release profile, so the allocation would ship).
         let plain = vec![
             entry(0.0, 0.0, 1, false),
             entry(1.0, 0.0, 2, false),
             entry(1.0, 1.0, 3, false),
         ];
         assert!(identified_ids(&plain).is_empty());
-        assert_eq!(overused_identified_edge(&plain, &[[1, 2, 3]]), None);
+        assert_eq!(
+            overused_identified_edge(&plain, || {
+                panic!("the patch must not be materialised when nothing is identified")
+            }),
+            None
+        );
     }
 
     #[cfg(debug_assertions)]
@@ -2351,11 +2364,14 @@ mod tests {
             entry(core::f64::consts::TAU, 0.0, 7, false),
         ];
         let fanned = [[8, 9, 7], [9, 8, 10], [8, 9, 11], [9, 8, 12]];
-        assert_eq!(overused_identified_edge(&seam, &fanned), Some(((8, 9), 4)));
+        assert_eq!(
+            overused_identified_edge(&seam, || fanned.to_vec()),
+            Some(((8, 9), 4))
+        );
         // The fan the argument PREDICTS — every identified edge at two
         // uses — is quiet.
         let clean = [[7, 8, 9], [8, 7, 10], [9, 8, 10], [7, 9, 10]];
-        assert_eq!(overused_identified_edge(&seam, &clean), None);
+        assert_eq!(overused_identified_edge(&seam, || clean.to_vec()), None);
     }
 
     /// The census threshold is at THREE uses, not four.
@@ -2378,7 +2394,7 @@ mod tests {
         ];
         let thrice = [[8, 9, 7], [9, 8, 10], [8, 9, 11]];
         assert_eq!(
-            overused_identified_edge(&seam, &thrice),
+            overused_identified_edge(&seam, || thrice.to_vec()),
             Some(((8, 9), 3)),
             "a third use is the defect; a threshold of four would pass this patch"
         );

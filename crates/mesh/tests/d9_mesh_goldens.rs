@@ -22,11 +22,20 @@
 //!   `holed_prism` carries a ring, `wedge`/`axis_wedge` the degenerate
 //!   corners.
 //! - curved (`curved::tessellate_curved`), one body per `ChartKind`:
-//!   `rounded_prism` (Cylinder), `ball` + `sphere_wedge` (Sphere),
-//!   `cone` + `cone_wedge` (Cone), `donut` + `washer` (Torus).
+//!   `rounded_prism` + `washer` (Cylinder — the washer is two full
+//!   cylinder walls closed by planar annuli, not a torus), `ball` +
+//!   `sphere_wedge` (Sphere), `cone` + `cone_wedge` (Cone), `donut`
+//!   (Torus).
 //! - poles and apexes: `ball`'s two poles, `cone`'s apex,
 //!   `pole_crossing_half_cap` and `apex_crossing_bowtie` — the
 //!   witnesses whose meridian sides cross the singularity.
+//!
+//! **What the cylinder rows do NOT pin.** `grid_counts`' cylinder arm
+//! answers `(nu, 1)` — a cylinder is ruled in v, so no interior row
+//! exists — and the interior loop runs `1..nv`. A cylinder face
+//! therefore mints no interior points at all, and its digest says
+//! nothing about how interior ids are numbered. The bodies that do
+//! carry that are the sphere, cone, torus and NURBS rows.
 //! - trimmed (`trimmed::tessellate_trimmed`) on an ANALYTIC carrier:
 //!   `tilted_above` / `tilted_below`, the two halves of a cylinder cut
 //!   by an oblique plane — the cut rim is an ellipse, so
@@ -35,9 +44,10 @@
 //! - trimmed on NURBS: `loft_prism` (walls of degree 1×2) and
 //!   `swept_elbow` (1×3), the described-NURBS lane with its
 //!   hull-derived certificate and its cert-driven refinement. A
-//!   `Surface::Approx` face takes this same lane on its fit, and no
-//!   body in this crate's fixtures carries one — the lane is covered,
-//!   the routing arm is not.
+//!   `Surface::Approx` face shares the `Nurbs` dispatch arm and the
+//!   same lane, on its fit, so these rows cover its code path; what no
+//!   fixture in this crate carries is a body that reaches it through
+//!   the `Approx` half of the arm.
 //! - typed refusals: `keyway`, `slit`, `oblique_lens`,
 //!   `pole_crossing_half_cap` and `apex_crossing_bowtie` mesh to no
 //!   triangles at all. Their digest is the refusal, so a change that

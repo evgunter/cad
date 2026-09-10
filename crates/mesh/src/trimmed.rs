@@ -74,9 +74,10 @@
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
 //! that still certifies above δ after the shared round budget refuses
 //! typed ([`TessellateError::CertificateExceeded`]) — the
-//! certificate, as everywhere, is the guarantee. Positions are staged
-//! per attempt and committed only on acceptance, so a refining retry
-//! leaks no vertices into the shared arena.
+//! certificate, as everywhere, is the guarantee. An attempt's interior
+//! positions belong to that attempt: the patch this lane returns is
+//! the ACCEPTED attempt's, and a retried attempt's points are dropped
+//! with it.
 //!
 //! A BOUNDARY point as intermediate is a
 //! self-touching trim loop, refused typed
@@ -434,14 +435,13 @@ pub(crate) fn tessellate_trimmed(
             let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
             shoelace2(&poly2) < 0.0
         };
-        // Pass 1: which grid candidates the kept triangles use; mint
-        // their mesh ids in (v, u) row-major order over the FINAL kept
-        // set — sorted by coordinates, not by candidate index, so
-        // refinement candidates appended by a later round (below) keep
-        // the same determinism contract. Positions are staged locally
-        // and committed only when this attempt is ACCEPTED: a
-        // refinement retry discards the attempt, and half an attempt's
-        // vertices must not leak into the shared arena.
+        // Pass 1: which grid candidates the kept triangles use; number
+        // them in (v, u) row-major order over the FINAL kept set —
+        // sorted by coordinates, not by candidate index, so refinement
+        // candidates appended by a later round (below) keep the same
+        // determinism contract. The indices are this attempt's own: a
+        // retry starts a fresh `interior` and only the accepted
+        // attempt's becomes the patch.
         let mut used: Vec<usize> = Vec::new();
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
@@ -458,13 +458,13 @@ pub(crate) fn tessellate_trimmed(
             va.total_cmp(&vb).then(ua.total_cmp(&ub))
         });
         used.dedup();
-        let mut staged: Vec<Point3<f64>> = Vec::with_capacity(used.len());
+        let mut interior: Vec<Point3<f64>> = Vec::with_capacity(used.len());
         let mut grid_ids: HashMap<usize, PatchVertex> = HashMap::new();
         for &k in &used {
             let (u, v) = candidates[k];
             #[allow(clippy::cast_possible_truncation)]
-            let id = PatchVertex::Local(staged.len() as u32);
-            staged.push(surface.eval(u, v));
+            let id = PatchVertex::Local(interior.len() as u32);
+            interior.push(surface.eval(u, v));
             grid_ids.insert(k, id);
         }
         // Pass 2: emit and certify.
@@ -537,9 +537,9 @@ pub(crate) fn tessellate_trimmed(
                 continue; // boundary-degenerate sliver
             }
             let tri = [
-                ids[0].position(shared, &staged),
-                ids[1].position(shared, &staged),
-                ids[2].position(shared, &staged),
+                ids[0].position(shared, &interior),
+                ids[1].position(shared, &interior),
+                ids[2].position(shared, &interior),
             ];
             let bound = match lane {
                 Lane::Cylinder {
@@ -664,23 +664,32 @@ pub(crate) fn tessellate_trimmed(
         // reaches it — so on every other face the set is empty and the
         // census returns on one branch.
         let patch = Patch {
-            interior: staged,
+            interior,
             triangles,
         };
         #[cfg(debug_assertions)]
         {
             let identified =
                 crate::walk::ids_at_two_uvs(polygon.iter().map(|&(u, v, id)| (u, v, id)));
-            let over =
-                crate::walk::overused_identified_edge_in(&identified, &patch.census_ids(shared));
-            debug_assert!(
-                over.is_none(),
-                "face {fk:?}: identified-vertex fan edge {:?} used {} times in one trimmed \
-                 patch; the duplicate-id drop left something other than a fan — see \
-                 curved::pole_columns, issue #678",
-                over.map(|(e, _)| e),
-                over.map_or(0, |(_, n)| n)
-            );
+            // NOTHING IDENTIFIED, NOTHING MATERIALISED: `census_ids`
+            // copies the whole patch, and this block runs in every
+            // build with debug assertions on — the shipped release
+            // profile included. On every face but a full-2π seam the
+            // set is empty and this branch is the whole cost.
+            if !identified.is_empty() {
+                let over = crate::walk::overused_identified_edge_in(
+                    &identified,
+                    &patch.census_ids(shared),
+                );
+                debug_assert!(
+                    over.is_none(),
+                    "face {fk:?}: identified-vertex fan edge {:?} used {} times in one trimmed \
+                     patch; the duplicate-id drop left something other than a fan — see \
+                     curved::pole_columns, issue #678",
+                    over.map(|(e, _)| e),
+                    over.map_or(0, |(_, n)| n)
+                );
+            }
         }
         outcome = Some(Ok(patch));
         break 'retry;

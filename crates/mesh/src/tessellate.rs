@@ -17,7 +17,7 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// One corner of a face patch's triangle, named the way the lane that
 /// emitted it can name it.
 ///
-/// A lane tessellates its face from READ-ONLY inputs, so it cannot know
+/// A lane reads the mesh arena but does not write it, so it cannot know
 /// where its own interior points will land in [`Mesh::positions`]: it
 /// names a point it shares with another face — a topology vertex or a
 /// chord point, both minted before any face runs — by that point's mesh
@@ -27,11 +27,12 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 ///
 /// **Two constructors rather than one integer with a threshold.** The
 /// two are different id spaces (`DESIGN.md` D9, engineering convention
-/// 1: tagged, never in-band), and a local index read as a mesh id is
-/// precisely the cross-face renumbering
-/// [`unpaired_chord_segment`] exists to catch — a defect this type
-/// makes unrepresentable instead.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// 1: tagged, never in-band), so a local index cannot be read as a mesh
+/// id: that half of the class is foreclosed by the type.
+/// [`unpaired_chord_segment`]'s class is the OTHER half — two faces
+/// emitting one chord point under different `Shared` ids — and nothing
+/// here forecloses it, which is why that census stays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PatchVertex {
     /// A mesh id minted before any face ran: a topology vertex, or a
     /// point on some edge's chord polyline.
@@ -63,10 +64,13 @@ impl PatchVertex {
 /// One face's tessellation AS A VALUE: the interior points the face
 /// mints for itself, and its triangles in [`PatchVertex`]s.
 ///
-/// Nothing here depends on any other face, which is the property the
+/// Nothing in this value depends on another face, which is what the
 /// per-face memo and the parallel map over faces both need
-/// (`work/perf/plan.md` §5) and the reason the lanes return this rather
-/// than append to a shared arena.
+/// (`work/perf/plan.md` §5). The lanes are not yet pure functions of
+/// their face: the trimmed lane also takes `bounds: &mut FaceBounds`,
+/// a `FaceKey`-keyed certificate memo whose contents are independent of
+/// the order faces fill it in, and that shared mutable borrow is what a
+/// `par_iter` over faces still has to answer for.
 pub(crate) struct Patch {
     /// The face's own grid points, in the order the lane minted them —
     /// which is the order they enter [`Mesh::positions`].
@@ -78,26 +82,40 @@ pub(crate) struct Patch {
 }
 
 impl Patch {
-    /// The patch's triangles as mesh ids, given the base its interior
-    /// was placed at.
-    fn place(&self, base: u32) -> Vec<[u32; 3]> {
+    /// Places the patch in the mesh: its interior appended to
+    /// `positions`, its triangles returned as mesh ids.
+    ///
+    /// Consumes the patch, so the [`PatchVertex`] buffer is released as
+    /// the mesh-id one fills rather than living beside it.
+    pub(crate) fn place(self, positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
+        #[allow(clippy::cast_possible_truncation)]
+        let base = positions.len() as u32;
+        positions.extend(self.interior);
         self.triangles
-            .iter()
-            .map(|t| [t[0].rebase(base), t[1].rebase(base), t[2].rebase(base)])
+            .into_iter()
+            .map(|t| t.map(|v| v.rebase(base)))
             .collect()
     }
 
-    /// The patch renumbered as if it were the FIRST face to be placed,
-    /// for the per-patch censuses the lanes run on their own emission.
+    /// The patch renumbered as if it were the FIRST face placed, for
+    /// the per-patch censuses the lanes run on their own emission.
     ///
     /// Those censuses count uses of the edges incident to a named set
-    /// of vertices, and both quantities are invariant under any
-    /// injective renumbering — so the base is arbitrary and this one is
-    /// merely the cheapest that cannot collide with a shared id.
+    /// of SHARED ids, and both quantities are invariant under any
+    /// injective renumbering THAT FIXES THE SHARED IDS — which this is,
+    /// for any base at or above `shared.len()`. So the base is
+    /// arbitrary within that range and this is the smallest of them.
+    ///
+    /// It materialises a whole copy of the patch, so a caller that has
+    /// nothing to census must not call it (`curved`, `trimmed`).
     #[cfg(debug_assertions)]
     pub(crate) fn census_ids(&self, shared: &[Point3<f64>]) -> Vec<[u32; 3]> {
         #[allow(clippy::cast_possible_truncation)]
-        self.place(shared.len() as u32)
+        let base = shared.len() as u32;
+        self.triangles
+            .iter()
+            .map(|&t| t.map(|v| v.rebase(base)))
+            .collect()
     }
 }
 
@@ -272,15 +290,9 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
                 &tol,
             )?,
         };
-        // THE FOLD. The face's base is where the arena stands at its
-        // turn, and the lanes mint in face-arena order, so this
-        // reproduces exactly the numbering a lane appending to the
-        // arena would have produced — which is what makes the mesh
-        // bit-identical while the lanes stop depending on each other.
-        #[allow(clippy::cast_possible_truncation)]
-        let base = positions.len() as u32;
-        let triangles = patch.place(base);
-        positions.extend(patch.interior);
+        // Each face's interior takes the arena as it stands at that
+        // face's turn, in face-arena order (D9).
+        let triangles = patch.place(&mut positions);
         patches.push(FacePatch {
             face: fk,
             triangles,
@@ -519,5 +531,104 @@ mod tests {
             unpaired_chord_segment(&poly, &[&tris], 2),
             Some(((0, 1), 1))
         );
+    }
+}
+
+// NOT GATED ON `debug_assertions`: the subject is the fold itself,
+// which runs in every profile.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod patch_tests {
+    //! Placing a patch: shared corners keep their mesh ids, local ones
+    //! take the base, and the interior lands at the base.
+    //!
+    //! The 20-body digests in `tests/d9_mesh_goldens.rs` are the
+    //! contract; this row is the arithmetic under them, so a wrong base
+    //! names itself here instead of moving 14 digest slots.
+
+    use super::{Patch, PatchVertex};
+    use geom_core::Point3;
+
+    fn p(x: f64) -> Point3<f64> {
+        Point3::new(x, 0.0, 0.0)
+    }
+
+    #[test]
+    fn a_placed_patch_keeps_shared_ids_and_offsets_local_ones() {
+        // Two faces into one arena that already holds 5 shared points.
+        let mut positions: Vec<Point3<f64>> = (0..5).map(|i| p(f64::from(i))).collect();
+
+        let first = Patch {
+            interior: vec![p(100.0), p(101.0)],
+            triangles: vec![
+                [
+                    PatchVertex::Shared(3),
+                    PatchVertex::Local(0),
+                    PatchVertex::Local(1),
+                ],
+                [
+                    PatchVertex::Shared(0),
+                    PatchVertex::Shared(4),
+                    PatchVertex::Local(1),
+                ],
+            ],
+        };
+        assert_eq!(
+            first.place(&mut positions),
+            vec![[3, 5, 6], [0, 4, 6]],
+            "the first face's interior starts at the arena's length, 5"
+        );
+        assert_eq!(positions.len(), 7, "its two interior points were appended");
+        assert_eq!(positions[5].x, 100.0, "local 0 is the point at base + 0");
+
+        let second = Patch {
+            interior: vec![p(200.0)],
+            triangles: vec![[
+                PatchVertex::Local(0),
+                PatchVertex::Shared(1),
+                PatchVertex::Shared(2),
+            ]],
+        };
+        assert_eq!(
+            second.place(&mut positions),
+            vec![[7, 1, 2]],
+            "the second face's base is the arena AFTER the first face's interior"
+        );
+        assert_eq!(positions[7].x, 200.0);
+    }
+
+    #[test]
+    fn a_patch_with_no_interior_is_placed_unchanged() {
+        // The planar lane's shape: every corner shared, nothing
+        // appended, so the base is unobservable.
+        let mut positions: Vec<Point3<f64>> = (0..4).map(|i| p(f64::from(i))).collect();
+        let patch = Patch {
+            interior: Vec::new(),
+            triangles: vec![[
+                PatchVertex::Shared(0),
+                PatchVertex::Shared(2),
+                PatchVertex::Shared(3),
+            ]],
+        };
+        assert_eq!(patch.place(&mut positions), vec![[0, 2, 3]]);
+        assert_eq!(positions.len(), 4);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn census_ids_fixes_the_shared_ids_and_separates_the_local_ones() {
+        // The census's premise: the renumbering is injective AND
+        // leaves every shared id where it was, so a set of shared ids
+        // still names the same corners in the renumbered patch.
+        let shared: Vec<Point3<f64>> = (0..3).map(|i| p(f64::from(i))).collect();
+        let patch = Patch {
+            interior: vec![p(9.0), p(10.0)],
+            triangles: vec![[
+                PatchVertex::Shared(2),
+                PatchVertex::Local(0),
+                PatchVertex::Local(1),
+            ]],
+        };
+        assert_eq!(patch.census_ids(&shared), vec![[2, 3, 4]]);
     }
 }
