@@ -282,3 +282,19 @@ target dirs, unit branches off main carrying the item and spec.
 Beside the block, no row (Ev: unusually low risk, single review with a
 correctness arm): the probe δ, gate-then-measure, `budget_faces` split,
 and the `gathers_on_this_thread` cfg — dispatched as lanes free up.
+
+## Ev ruled on D1 (PR 2305, 2026-09-10) — PERF-4 cut; block PERF-B2 drawn (BRANCH-SIDE)
+
+Ev: "this change sounds great!" — option 3, once per public door with
+localization recovered on failure; the attach setters join. Ruling
+closed on the `[ev]` branch. PERF-4 (`docs/PERF-4-SPEC.md`, branch
+`perf/4-door-postcondition`) executes it and revises DESIGN.md D1/D9
+and the `euler.rs` docs. Dispatched beside B1's three lanes (four
+builders under the width-1 mutex; disk at 22 GB free): it is the
+kernel-API seat's largest single item and Ev is engaged.
+
+**Block PERF-B2 pre-draw fields, logged before the byte:** PERF-4 =
+M–L / structural (slot 0); slots 1 and 2 are the per-face patch memo
+and the +V sign-certified door, cut after PERF-3 lands and drawn
+here now so the block is a triple.
+Draw: `/dev/urandom` byte **181** (< 252), 181 mod 3 = 1 ⇒ fable position 1. **Slot 0 PERF-4 = OPUS.**
