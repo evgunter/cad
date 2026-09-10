@@ -133,7 +133,8 @@ should be visible on its own.
 | `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** + fix pass |
 | `view/summarised` (a summarised field renders as a summary) | #2148 | style + fix pass — **merged** |
 | `view/labelled` (two of the four bare vocabularies, and the corrected rule) | #2143 | style + fix pass — **merged** |
-| `view/gate-bullets` (the vocab gate's kind scan, anchored) | #2172 | open |
+| `view/gate-bullets` (the vocab gate's kind scan, anchored) | #2172 | style + fix pass — **merged** |
+| `view/wasm-dead-items` (CIW's §6: two items dead at wasm32) | #2272 | style + fix pass — **merged** |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -244,6 +245,98 @@ word proof and overwrote four files of those exact names that another
 lane had left there. Nothing was lost that mattered, and the collision
 is silent by construction — a lane cannot tell whether a scratchpad
 file is its own. Dispatches carry a per-lane prefix now.
+
+**Ask what would have shown the OTHER answer, and the answer that
+matters is often one control over.** #2272 had to choose between
+`#[cfg]`-ing two dead items and hunting a lost caller. The brief asked
+for the choice AND for what had been checked that would have shown the
+other shape — and that second half is what found the live defect: not
+in either item, but in the preferences store beside them, where a
+`usable()` guard makes the palette picker apply and silently not
+persist against prose claiming it is disabled with a reason. A
+justification written to be falsifiable searches; one written to be
+sufficient stops at the first sound argument.
+
+**A sweep shaped like the symptom finds the symptom.** That same unit's
+first framing came from a `cfg(target_family = "wasm")` sweep, so the
+defect it found was filed as a browser defect. It is not: `usable()` is
+`path.is_some()`, and the native build takes the identical silent
+return when neither `XDG_CONFIG_HOME` nor `HOME` is set. A
+`target_family` fix would have repaired the browser and shipped the
+other half. **Re-derive the population from the PROPERTY that fails,
+not from the pattern that surfaced it.** The same unit shows the other
+direction too: a dead symbol in a doc comment in `src/` was the cause
+of a wrong citation in `work/`, and the tracker-shaped sweep found only
+the symptom.
+
+**The orchestrator's own heartbeat is a single point of failure, and a
+one-shot timer is the wrong shape for it.** The check-in was a
+`run_once_at` trigger re-armed by hand at the end of every turn. On
+2026-09-08 it fired, the turn ended without re-arming it, and VIEW sat
+idle for a day — no lane, no PR, 796 commits of drift, one row filed
+onto its slate by another program and unread. None of the rules above
+covers it, because they are all about lanes and evidence and this is
+about the orchestrator's own liveness. It is now a recurring cron
+(`57 */6 * * *`) whose prompt says not to make it a one-shot again, and
+deliberately rare rather than a tight poll: lanes notify this session
+directly when they finish, so the timer is only the backstop for a
+failure to dispatch after a report, and a sub-cache-TTL cadence would
+cost a cold context every firing to buy nothing (Ev, 2026-09-09).
+
+**A measurement can be an artifact of the instrument, and the first
+number out is the one to distrust.** Sizing the tracker's `file:line`
+citations, the first pass reported 49% of them pointing at a file that
+does not exist. It was counting the repo's own `session.rs:1517`
+shorthand as a missing path. Resolved against `git ls-files`, the
+figure is 2.1%. The corrected pass is in
+`work/issues/tracker-file-line-citations-measured`, along with the
+method, so the next reader can see why the numbers differ rather than
+picking whichever they meet first.
+
+**A hold is not a hold until the diagnosis's own repair is tried.**
+#2172 argued that putting the count word inside `KIND_ANCHOR` bought a
+hold the gate lacked: the section could previously say "Four kinds…"
+over three bullets unread. Its reviewer took the resulting red's OWN
+second suggested repair — change `KIND_ANCHOR` to match — and got
+**green, exit 0**, with the `OK` line printing `3 kinds read from
+"Four kinds of list stay hand-written"`. The hold cost one extra edit
+and the error message named that edit. **A guard whose diagnosis offers
+a way around it is a speed bump**, and the only way to find that out is
+to follow the repair the tool prints, not to read the code that prints
+it.
+
+**A `^`-anchored pattern over markdown is a claim about column zero
+that markdown does not make.** The same PR's new reader escaped its
+paragraph state on `/^- /` and swallowed anything indented as a
+continuation. CommonMark lets a list marker sit at one to three spaces
+and interrupt a paragraph, so `  - **A fourth kind**` renders to every
+human as a ratified kind and the gate read three and printed OK — the
+gate's own thesis inverted, in the gate written to prevent it. Four
+spaces is a code block, so the boundary is exact and worth encoding
+rather than approximating; and the reviewer settled the rendering with
+a CommonMark parser rather than by reasoning about it.
+
+**A §6 report filed against a tree a lane is still changing owes a
+re-derivation after that lane lands.** `gate-selftest-cannot-observe-
+the-identity-a-gate-names` was filed from a review report while #2106's
+fix pass was in flight; that fix pass then took the very finding as its
+MINOR-8 and added the name-bearing cases, so the report's worked
+example was false before it reached `main` — twelve rows where there
+were twenty, a line range pointing at a different function, and a
+universal about name-independence that four cases already contradicted.
+The mechanism claim survived; the example did not. **A report is a
+claim about a tree, and naming the tree it is true of is part of making
+it.**
+
+**File to `main` BEFORE dispatching a lane against the file.** The
+`view/gate-bullets` lane could not see its own item: it existed only on
+the orchestrator branch, so the lane had to merge that branch into its
+own to read the row it was closing. This is the second instance —
+#2106 cited two `work/issues/` paths that were likewise orchestrator-
+only, and needed #2107 landed ahead of it to resolve. **The orchestrator
+files and then sits on the file**, which is the same *disclosed but not
+scheduled* shape §Q6 forbids a lane, one level up. State-syncs land
+before the work that depends on them.
 
 **Asserted-somewhere is not asserted-here, and only a MUTATION tells
 them apart.** #2148 shipped a test file whose stated job was to hold
