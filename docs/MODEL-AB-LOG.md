@@ -5062,3 +5062,16 @@ briefs, neither reviewer sees the other's report; the same shared-box
 note applies to both arms (the pair runs beside PERF-3's dual and two
 implementer lanes under the width-1 mutex). Block PERF-B1's draw record
 stays branch-side until the block concludes.
+
+## PERF-2 review ordinal fixed at dispatch (2026-09-10)
+
+PERF-2 (`work/perf/PERF-2.md`, PR #2311 open — frozen head `de5634ef6`):
+**ordinal 3402** (PERF band). Protocol v6 dual: draw = `/dev/urandom`
+byte **240**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method as for
+PERF-3 and PERF-1: concurrent same-head on frozen `de5634ef6`, briefs
+stored with sha256 before dispatch (3d57251d54facbca… r1 / a83fc036c1d91e60… r2 —
+identical modulo lane names, verified by diff), isolation in both
+briefs, neither reviewer sees the other's report; the same shared-box
+note applies to both arms (the pair runs beside two PERF implementer
+lanes and one fix pass under the width-1 mutex). Block PERF-B1's draw
+record stays branch-side until the block concludes with this unit.
