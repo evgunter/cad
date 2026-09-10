@@ -44,12 +44,23 @@
 //! `Drop`**: a `debug_assert` firing while a panic unwinds aborts the
 //! process and takes the original error with it.
 //!
-//! # Release builds carry none of this
+//! # The field is exactly as wide as the postcondition
 //!
-//! The depth is a `#[cfg(debug_assertions)]` field on [`Body`], so a
-//! release [`Body`] does not have it and its layout is the one it had
-//! before this module existed. The guard survives as a borrow with an
-//! empty `Drop`.
+//! The depth is a `#[cfg(debug_assertions)]` field on [`Body`], so it
+//! exists in precisely the builds the postcondition exists in and no
+//! others. A build with debug assertions off — cargo's release
+//! default, and what `benches/` sets — has neither, and its [`Body`]
+//! has the layout it had before this module existed. This workspace's
+//! own `[profile.release]` turns debug assertions ON deliberately
+//! ("the profile that would meet real parts is the one profile
+//! checking nothing" is the thing it refuses), so the shipped release
+//! binary carries both, as it carried the per-operator sweep before.
+//! Nothing about a body's SERIALIZED form moves either way: [`Body`]
+//! has no `Serialize`, and `editor-core` persists documents as
+//! recipes rather than as arenas.
+//!
+//! The guard is a borrow with an empty `Drop` wherever the field is
+//! absent.
 //!
 //! # The scalpel
 //!
@@ -66,11 +77,20 @@ use crate::Body;
 
 /// How many surgery scopes are open on one body.
 ///
-/// Debug builds only, and one `Cell` rather than a `&mut` path
-/// because the operators that read it hold `&self`.
+/// Under `debug_assertions` only, and interior-mutable rather than a
+/// `&mut` path because the operators that read it hold `&self`.
+///
+/// **An atomic and not a `Cell`, and it is not a thread-safety
+/// claim.** [`Body`] is `Sync` and has to stay so — `editor-core`'s
+/// evaluator hands `&Body` to a rayon `par_iter` over one recipe
+/// level — and a `Cell` field would take that away from every body in
+/// the workspace. Nothing here is contended: a scope is opened and
+/// closed by one door on one thread, `Relaxed` is the whole of the
+/// ordering, and a body reached through `&Body` from several threads
+/// has no scope open on it to begin with.
 #[cfg(debug_assertions)]
 #[derive(Debug, Default)]
-pub(crate) struct SurgeryDepth(core::cell::Cell<u32>);
+pub(crate) struct SurgeryDepth(core::sync::atomic::AtomicU32);
 
 #[cfg(debug_assertions)]
 impl Clone for SurgeryDepth {
@@ -92,24 +112,29 @@ impl Clone for SurgeryDepth {
 impl SurgeryDepth {
     /// The current depth.
     fn get(&self) -> u32 {
-        self.0.get()
+        self.0.load(core::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// The depth, written.
+    fn set(&self, depth: u32) {
+        self.0.store(depth, core::sync::atomic::Ordering::Relaxed);
     }
 
     /// Opens a scope.
     fn open(&self) {
-        self.0.set(self.0.get() + 1);
+        self.set(self.get() + 1);
     }
 
     /// Closes a scope, returning the depth it was at.
     fn close(&self) -> u32 {
-        let was = self.0.get();
+        let was = self.get();
         let Some(next) = was.checked_sub(1) else {
             unreachable!(
                 "surgery scope closed at depth 0: a `Surgery` guard exists only between an \
                  open and its close, so the depth cannot have been decremented already"
             )
         };
-        self.0.set(next);
+        self.set(next);
         was
     }
 }
@@ -207,7 +232,7 @@ impl<T: Real> Body<T> {
         let held = self.surgery.get();
         *self = next;
         #[cfg(debug_assertions)]
-        self.surgery.0.set(held);
+        self.surgery.set(held);
     }
 
     /// **Opens a surgery scope without a guard**, for a body a
