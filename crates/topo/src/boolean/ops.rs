@@ -517,7 +517,16 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // (declared union), so undeclared and non-union ops pay nothing.
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
-    let connected = match bool_connect(&mut red, a, b, band, tol) {
+    // The join carves both reduction operands through the Euler
+    // operators; one scope per operand body, and what certifies the
+    // result is `gate` below, over the body they are finished into.
+    // Both are locals of this pipeline: a refusal drops them.
+    red.a.enter_surgery();
+    red.b.enter_surgery();
+    let connected = bool_connect(&mut red, a, b, band, tol);
+    red.a.leave_surgery();
+    red.b.leave_surgery();
+    let connected = match connected {
         Ok(c) => c,
         Err(
             err @ (BooleanError::Join(_)
@@ -547,6 +556,13 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let reduction_contacts = red.contacts.clone();
     let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
     let mut body = fin.body;
+    // The zip, the merge, the re-description and the closing mint are
+    // one door's surgery (`crate::surgery`): the operators inside them
+    // do not each re-derive the whole body, and `gate` below — tier 1
+    // AND tier 2 over the result, on every build — is what this door
+    // pays instead. `body` is a local, so a refusal on the way drops
+    // the scope with it.
+    body.enter_surgery();
     let mut seam_edges = Vec::new();
     let mut vertex_merges = Vec::new();
     let mut desc = Descendants::default();
@@ -584,6 +600,7 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // untouched bit-identically.
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
+    body.leave_surgery();
     gate(&body)?;
     volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);

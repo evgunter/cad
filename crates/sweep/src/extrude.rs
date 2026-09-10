@@ -529,7 +529,12 @@ pub fn extrude<T: Decide>(
     let outer = &loops[0];
     let qs = &points[0];
     let n = outer.len();
-    let mut body = Body::<T>::new();
+    // Under one surgery scope for the whole build: D1's tier-1
+    // postcondition is this door's, paid once over the finished body,
+    // not once per operator inside it (`topo::surgery`). The tier-2
+    // check below is what the door pays, and it subsumes tier 1.
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qs[0])?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
@@ -714,15 +719,16 @@ pub fn extrude<T: Decide>(
         }
     }
 
+    body.close_already_checked();
     #[cfg(debug_assertions)]
     debug_assert_eq!(
-        topo::validate_closed(&body),
+        topo::validate_closed(&built),
         Ok(()),
         "extrude postcondition: result is not tier-2 valid (kernel bug)",
     );
 
     Ok(Extruded {
-        body,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,

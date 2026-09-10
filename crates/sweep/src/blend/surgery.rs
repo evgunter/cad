@@ -614,6 +614,11 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // what makes a narrower set unspellable.
     let sources = SourceFaces::of(source)?;
     let mut body = source.clone();
+    // One surgery scope for the whole blend (`topo::surgery`): tier 1
+    // is this door's postcondition, and the tier-2 check below
+    // subsumes it. `body` is a local, so a refusal on the way drops
+    // the scope with it.
+    body.enter_surgery();
     let mut rec = BlendNaming::default();
     let blank = BlankPlan {
         opens: &planar,
@@ -708,6 +713,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         source,
     })?;
 
+    body.leave_surgery();
     #[cfg(debug_assertions)]
     debug_assert_eq!(
         topo::validate_closed(&body),

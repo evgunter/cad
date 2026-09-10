@@ -187,6 +187,16 @@ pub struct Body<T: Real> {
     // channel is opt-in and every kernel-direct construction leaves it
     // empty. See `crate::param_source`.
     pub(crate) surface_field_sources: SecondaryMap<SurfaceKey, FieldSources>,
+    // D1's tier-1 debug postcondition is paid ONCE PER PUBLIC DOOR
+    // (the ruling on `work/perf/d1-per-op-tier1-sweep-price`), and
+    // this is how an operator knows whether it is inside one: the
+    // number of surgery scopes open on this body (`crate::surgery`).
+    // Debug builds only — a release `Body` does not carry the field
+    // and its layout is unchanged by the rule. The `cfg` is what
+    // makes that true, so `surgery::the_depth_is_debug_only` reads it
+    // back out of this file.
+    #[cfg(debug_assertions)]
+    pub(crate) surgery: crate::surgery::SurgeryDepth,
 }
 
 impl<T: Real> Body<T> {
@@ -216,6 +226,8 @@ impl<T: Real> Body<T> {
             curve_sources: SecondaryMap::new(),
             surface_sources: SecondaryMap::new(),
             surface_field_sources: SecondaryMap::new(),
+            #[cfg(debug_assertions)]
+            surgery: crate::surgery::SurgeryDepth::default(),
         }
     }
 

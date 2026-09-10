@@ -90,11 +90,7 @@ impl<T: Decide> Body<T> {
         }
 
         #[cfg(debug_assertions)]
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "set_face_surface postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        self.assert_tier1_postcondition("set_face_surface");
         Ok(new)
     }
 
@@ -329,11 +325,7 @@ impl<T: Decide> Body<T> {
         self.remove_curve_if_orphaned(old);
 
         #[cfg(debug_assertions)]
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "set_edge_curve postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        self.assert_tier1_postcondition("set_edge_curve");
         Ok(new)
     }
 }

@@ -185,6 +185,11 @@ fn build_lamina<T: Decide>(
     // are transient seam discs (killed by the zip), so the closing mef
     // face keeps an honest Nurbs no-description, like the mvfs seed.
     let mut body = Body::<T>::new();
+    // One surgery scope for the whole build (`topo::surgery`): tier 1
+    // is the door's postcondition, and `build_full` pays it over the
+    // finished body. `body` is a local, so a refusal on the way drops
+    // the scope with it.
+    body.enter_surgery();
     let seed = body.mvfs(qs[0])?;
     let lamina = build_chain(
         &mut body,
@@ -291,6 +296,7 @@ fn build_lamina<T: Decide>(
         rims_c[s.canonical_vertex] = swept.rims[j];
         mer_c[s.canonical_segment] = Some(he_edge(&body, hes[j])?);
     }
+    body.leave_surgery();
     Ok(Revolved {
         body,
         solid: seed.solid,
@@ -354,6 +360,8 @@ fn build_wire<T: Decide>(
     // ---- Phase 1: the open chain (a wire: one face, loop up one side
     // and back the other; no closing mef). ----
     let mut body = Body::<T>::new();
+    // One surgery scope for the whole build — see `build_lamina`.
+    body.enter_surgery();
     let seed = body.mvfs(qw[0])?;
     let mut hes = Vec::with_capacity(k);
     let first = body.mev(
@@ -627,6 +635,7 @@ fn build_wire<T: Decide>(
     let mut poles_c = vec![None; n];
     poles_c[segs[wvert(0)].canonical_vertex] = Some(pole_near);
     poles_c[segs[wvert(k)].canonical_vertex] = Some(pole_far);
+    body.leave_surgery();
     Ok(Revolved {
         body,
         solid: seed.solid,

@@ -1059,20 +1059,29 @@ impl<T: Decide> Body<T> {
         for (rep, rest) in groups {
             match work.group_regime(rep, &rest, &declared_faces)? {
                 GroupRegime::RefusesTheCall => {
-                    outcome.groups.push(work.merge_group(rep, &rest, tol)?);
+                    // One surgery scope per group: the ring surgery
+                    // inside `merge_group` is this door's, and the
+                    // tier-2 gate below is what certifies its result.
+                    let mut surgery = work.begin_surgery();
+                    let group = surgery.merge_group(rep, &rest, tol)?;
+                    surgery.close_already_checked();
+                    outcome.groups.push(group);
                 }
                 GroupRegime::RecordsASkip => {
                     let mut trial = work.clone();
                     // The sub-stage's own tier-2 gate: the group is
                     // adopted only if its trial validates, so a
                     // recorded skip leaves `work` exactly as it was.
-                    let staged =
-                        trial
-                            .merge_group(rep, &rest, tol)
-                            .and_then(|group| match validate_closed(&trial) {
-                                Ok(()) => Ok(group),
-                                Err(errors) => Err(MergeCoplanarError::GroupNotClosed { errors }),
-                            });
+                    let staged = {
+                        let mut surgery = trial.begin_surgery();
+                        let merged = surgery.merge_group(rep, &rest, tol);
+                        surgery.close_already_checked();
+                        merged
+                    }
+                    .and_then(|group| match validate_closed(&trial) {
+                        Ok(()) => Ok(group),
+                        Err(errors) => Err(MergeCoplanarError::GroupNotClosed { errors }),
+                    });
                     match staged {
                         Ok(group) => {
                             work = trial;

@@ -2377,7 +2377,17 @@ impl<T: Decide> Body<T> {
     /// operator, the arena deltas must match the [`ArenaDelta`] the op
     /// declares — a different quantity from its Euler vector, which is
     /// prose here and a `seqgen` ledger entry there — and the body must
-    /// be tier-1 valid. On tier-1-valid input a failure
+    /// be tier-1 valid.
+    ///
+    /// **The delta check is unconditional; the tier-1 sweep is the
+    /// door's.** The delta is O(1) and is this operator's own declared
+    /// contract, so it runs at every call. The sweep re-derives the
+    /// whole body, and inside an open surgery scope
+    /// ([`crate::surgery`]) it is the composing door that runs it, once,
+    /// over the state the caller will see. An operator a consumer calls
+    /// directly is itself a door and sweeps here.
+    ///
+    /// On tier-1-valid input a failure
     /// here is a kernel bug (a per-call violation of the ch. 9
     /// soundness theorem by our transcription) — and with the raw
     /// builder `pub(crate)` since PR 5, every publicly-constructible
@@ -2403,11 +2413,7 @@ impl<T: Decide> Body<T> {
             "{op} postcondition: arena deltas do not match the op's declared \
              arena delta (kernel bug)",
         );
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "{op} postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        self.assert_tier1_postcondition(op);
     }
 }
 

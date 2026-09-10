@@ -222,6 +222,7 @@ pub mod shell;
 pub mod source;
 pub mod split;
 pub mod splitting;
+pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
 // must be compiled wherever any of their three consumers is — the
@@ -275,6 +276,7 @@ pub mod transform;
 pub mod validate;
 
 pub use body::Body;
+pub use surgery::Surgery;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
     BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,

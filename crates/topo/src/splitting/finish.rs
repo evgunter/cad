@@ -232,11 +232,16 @@ pub(super) fn split_finish<T: Decide>(
     tol: Tol,
 ) -> Result<SplitResult<T>, SplitFinishError> {
     let mut body = red.body;
+    // The reassembly is this door's operator sequence: one scope, one
+    // tier-1 sweep over the reassembled body before it is carved into
+    // the two sides. A local, so a refusal drops the scope with it.
+    body.enter_surgery();
     let solid = single_solid(&body)?;
 
     // No section polygons: the plane did not cut — the whole operand
     // is one side (an ON-touching contact mints no null faces).
     if completed.is_empty() {
+        body.leave_surgery_and_sweep();
         return whole_body_side(body, &red.sides);
     }
     let mut naming = SplitNaming {
@@ -343,6 +348,11 @@ pub(super) fn split_finish<T: Decide>(
     }
 
     // ---- Carve the two independent result bodies. ----
+    //
+    // The scope closes here, over the reassembled body — the state
+    // every operator above was checked against. `carve` itself is raw
+    // arena deletion and asserted nothing before this unit either.
+    body.leave_surgery_and_sweep();
     let above = carve(&body, solid, &above_shells)?;
     let below = carve(&body, solid, &below_shells)?;
     Ok(SplitResult {

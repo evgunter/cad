@@ -416,6 +416,11 @@ pub fn split_reduce<T: geom_core::Decide>(
 ) -> Result<SplitReduction<T>, SplitReduceError> {
     let band = geom_core::Band::linear(tol)?;
     let mut body = operand.clone();
+    // The crossing insertion and the null-edge insertion are this
+    // door's operator sequence; tier 1 is paid once, over the reduced
+    // body, rather than once per operator (`crate::surgery`). A local,
+    // so a refusal on the way drops the scope with it.
+    body.enter_surgery();
 
     classify::gate_operand(&body)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
@@ -428,6 +433,7 @@ pub fn split_reduce<T: geom_core::Decide>(
         insert::insert_null_edges(&mut body, v, &entries, &runs, &mut sides, &mut null_edges)?;
     }
 
+    body.leave_surgery_and_sweep();
     Ok(SplitReduction {
         body,
         plane: *plane,
@@ -517,7 +523,11 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 > {
     let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
     let mut red = split_reduce(operand, plane, tol)?;
+    // The section join carves the reduced body through the Euler
+    // operators; one scope, one sweep at the end of the phase.
+    red.body.enter_surgery();
     let (completed, fragments) = join::split_connect(&mut red, band, tol)?;
+    red.body.leave_surgery_and_sweep();
     Ok((red, completed, fragments))
 }
 

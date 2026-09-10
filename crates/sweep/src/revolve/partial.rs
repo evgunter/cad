@@ -78,6 +78,10 @@ pub(super) fn build_partial<T: Decide>(
     let outer = &loops[0];
     let qs = &points[0];
     let mut body = Body::<T>::new();
+    // One surgery scope for the whole build (`topo::surgery`): tier 1
+    // is this door's postcondition and the tier-2 check below subsumes
+    // it. `body` is a local, so a refusal drops the scope with it.
+    body.enter_surgery();
     let seed = body.mvfs(qs[0])?;
     // Start cap plane: the mef face's loop runs the chain reversed;
     // first point kept, rest reversed (extrude's bottom-cap order).
@@ -199,6 +203,7 @@ pub(super) fn build_partial<T: Decide>(
         tol,
     )?;
 
+    body.leave_surgery();
     #[cfg(debug_assertions)]
     debug_assert_eq!(
         topo::validate_closed(&body),

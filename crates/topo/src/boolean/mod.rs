@@ -1873,6 +1873,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 
     let mut a = a_operand.clone();
     let mut b = b_operand.clone();
+    // The reduction carves both operand clones through the Euler
+    // operators; tier 1 is paid once per clone at the end of the
+    // phase rather than once per operator (`crate::surgery`). Both are
+    // locals, so a refusal on the way drops the scopes with them.
+    a.enter_surgery();
+    b.enter_surgery();
 
     // Reduction sweep, both directions (A's edges first — D9 order).
     let mut acc = reduce::ContactAcc::default();
@@ -1971,6 +1977,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_pairs.extend(out.pairs);
     }
 
+    a.leave_surgery_and_sweep();
+    b.leave_surgery_and_sweep();
     Ok(BooleanReduction {
         op,
         a,

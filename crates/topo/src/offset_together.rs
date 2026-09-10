@@ -344,7 +344,12 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     }
 
     // ---- Mutation, on a clone (every decision is done). ----
-    let mut work = body.clone();
+    //
+    // Under a surgery scope for the whole of it: the setters below are
+    // this door's operator sequence, and the tier-2 gate the clone is
+    // adopted on is the door's own whole-body check.
+    let mut staged = body.clone();
+    let mut work = staged.begin_surgery();
     let mut minted: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
     for m in moves {
         let Some(&first) = m.faces.first() else {
@@ -419,10 +424,11 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     // Tier 2 over the WHOLE clone, deliberately, and one of the four
     // reads that stay linear in the body (`Scope`'s docs carry the
     // account and the reason for each).
-    if let Err(errors) = crate::validate::validate_closed(&work) {
+    work.close_already_checked();
+    if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
-    *body = work;
+    *body = staged;
     Ok(())
 }
 
