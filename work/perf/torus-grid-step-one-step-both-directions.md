@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-29
 github: 1260
 refs: [568, 1045, 1217, 1247, 1259]
+parent: PERF-1
 ---
 
 ## From GitHub issue 1260

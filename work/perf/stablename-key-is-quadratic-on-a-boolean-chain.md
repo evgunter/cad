@@ -4,6 +4,7 @@ kind: issue
 title: StableName is a recursively boxed BTreeMap key, so naming a boolean chain is quadratic - 40 percent of die's rebuild
 status: open
 opened: 2026-09-10
+parent: PERF-2
 ---
 
 ## The finding

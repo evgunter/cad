@@ -266,3 +266,19 @@ cross-round spread ±5–8 %.
   document. Not a defect; a fact about those documents.
 - Criterion's six rows do not predict this seat (planar microseconds
   where curved bodies are 100+ ms) — a curved row is owed there.
+
+## Block PERF-B1 drawn (2026-09-10) — BRANCH-SIDE RECORD, merges at block end
+
+Protocol v6, implementer ratio 1:2. Pre-draw fields logged before the
+byte: PERF-3 = S / structural; PERF-1 = M / numeric; PERF-2 = M /
+structural. Draw: `/dev/urandom` byte **64** (< 252), 64 mod 3 = 1 ⇒
+fable position 1. Slots by dispatch order: **slot 0 PERF-3 = OPUS,
+slot 1 PERF-1 = FABLE, slot 2 PERF-2 = OPUS.** Review ordinals claim
+from 3400 at each review dispatch and are recorded on main then; this
+record stays on `perf/orchestrator` until the block concludes, and
+anything that must reach main earlier goes on its own branch off main
+(the SHELL layout). Lanes clone with `local-scripts/new-lane.sh`, own
+target dirs, unit branches off main carrying the item and spec.
+Beside the block, no row (Ev: unusually low risk, single review with a
+correctness arm): the probe δ, gate-then-measure, `budget_faces` split,
+and the `gathers_on_this_thread` cfg — dispatched as lanes free up.
