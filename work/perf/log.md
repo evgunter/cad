@@ -96,3 +96,60 @@ against it; `plan.md` is rewritten once all four are in.
   inside a caller's loop (needs a call graph); traversal cost of the
   `Box` chain; and no wall-clock at all — every class above is read off
   the code.
+
+## GUI lane reported (2026-09-10) — Ev's lag is the index build
+
+Harness `crates/viewer/examples/perf_gui_stages.rs` on branch
+`perf/explore-gui` (raw data beside it); release profile as Ev runs it
+(the workspace's `[profile.release]` keeps `debug-assertions = true`),
+4-vCPU box, medians of 3. It drives the app's own doors:
+`DocSession::perform` → `evaluate` with `prior` → `land` →
+`PickIndex::build` → `scene_focused`.
+
+- **Where the time goes.** On every document that lags, evaluation is
+  noise (0.1–0.3 ms on the million-triangle rings) and **the pick
+  index is 83–97 % of the edit→picture wait**: `PickCache::sync` keys
+  on `(generation, δ)` (`pickcache.rs:266,285`), every committed edit
+  bumps the generation, `PickIndex::build` re-walks every root
+  (`pickindex.rs:742`) and `mesh::tessellate`s each body from scratch
+  (`resolve/pick.rs:354`). No content-keyed memo on that path. Split
+  ≈55/45 tessellator vs BVH+ids (the BVH half is a subtraction, not a
+  direct reading). Numbers: `die_composed_tour` 1375 ms of which index
+  1231; `gallery_ring` 1566/1517; `tube_ring` 2192/2130. Real app under
+  Xvfb on `gallery_ring`: median 3.5 s typed-edit to new picture, the
+  rest being software rasterisation this instrument cannot size.
+- **The memo is wired and works** (`evalseam.rs:238`; `die` 82 → 7.9
+  ms) — except on `die_composed_tour`, where it saves nothing (88 ms
+  either way), confirming `plan.md` §1.2's dev-profile claim at
+  release. Still only 6 % of that document's wait.
+- **`fit_delta`'s probe is worse than its item says.** It probes at
+  8 × the *requested* δ (`scene.rs:952`), so whenever the budget has to
+  coarsen by more than 8× the probe is BIGGER than the picture it sizes:
+  2.1 M triangles on `tube_ring` (2744 ms frozen) and 3.3 M on
+  `hollow_tube_ring` (4080 ms), on the UI thread, before the index is
+  submitted. Once per opened document.
+- **`scene_focused`** (`pickindex.rs:894`) is 49–62 ms per landing and
+  per hide/focus change at 1 M triangles, inside `ui()`. Real but
+  third-order; `app.rs` was touched today — deprioritized.
+- **Refuted:** latency (repaint is requested every busy frame,
+  `app.rs:1270,1302`; the spinner animates unprompted and the picture
+  lands seconds later); the edit door (0.01–0.47 ms); the landing's
+  gather/registry (≤ 13.6 ms worst); the closed twice-gather item.
+- **Release-profile debug assertions cost 3–4.5× on evaluation**
+  (`die` 82 → 28 ms, `die_composed_tour` 88 → 20, `corner_table` 9.0 →
+  2.9) and 1.1–1.2× on tessellation. `Cargo.toml`'s stanza says it
+  comes out before publishing; the per-op tier-1 sweep (D1) is most of
+  it. Whether Ev's own binary should carry it is Ev's call — folded
+  into the `[ev]` question the developer lane's numbers will complete.
+- **Not measured:** the gesture path (a slider drag submits an index
+  build per preview under restart-without-cancel, `evalseam.rs:79` —
+  plausibly several full builds per drag) and `Open` end to end.
+- **The corpus is a vocabulary corpus:** 24 of 29 documents draw under
+  5 000 triangles and finish an edit in under 15 ms; the dev-profile
+  rebuild-latency files are ~13× slower than release and must not be
+  read as lag.
+
+Ranking consequence: the two GUI units are (1) incremental
+re-tessellation keyed on face bit-content, with the torus-sizing item
+upstream of it (fewer triangles before caching any), and (2) the probe
+δ. Both "stop doing this".
