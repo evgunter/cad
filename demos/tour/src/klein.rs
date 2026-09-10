@@ -686,9 +686,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  on, and the straight tube coming back up through that rim's hole) is ONE \
                  full revolve of ONE meridian band; the loop over the top is two thin \
                  elbows, partial revolves of the annulus. All three MEET on coincident \
-                 annular faces and none of them can be joined: every boolean refuses a \
-                 body carrying a cone or a torus. The neck passes through the flare \
-                 uncut for the same reason";
+                 annular faces and none of them can be joined: the operand gate is \
+                 PAIR-scoped, and here the cone and torus faces really do reach the \
+                 other operand, so each join refuses on a named germ pair (union on \
+                 Cone x Plane, subtract on Torus x Torus). The neck passes through the \
+                 flare uncut for the same reason";
     vec![Stop {
         name: "klein",
         caption: "Klein bottle — three bodies the kernel cannot join".to_string(),

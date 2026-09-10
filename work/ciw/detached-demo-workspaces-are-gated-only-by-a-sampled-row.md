@@ -2,10 +2,11 @@
 id: detached-demo-workspaces-are-gated-only-by-a-sampled-row
 kind: issue
 title: demos/tour and demos/wild are detached workspaces, so the clippy a lane runs before pushing cannot see them and CI is the first thing that tells them
-status: review
+status: closed
 opened: 2026-09-04
 branch: ciw/unreachable-roots
 pr: 2263
+closed: 2026-09-09
 ---
 
 
@@ -177,3 +178,31 @@ because the rows are no longer sampled.
 the standing clause CIW writes under; it is one bullet in the
 "When you do run locally" list and changes no rule.
 
+
+## Closed 2026-09-09 — nothing built, and that is the finding
+
+PR 2263. Both gates were already right: `ci-local.sh`'s `demos_hygiene`
+runs fmt and `clippy --all-targets -- -D warnings` in both roots, and the
+hosted `demos tour/wild fmt + clippy` steps have run on every code-tier
+run since PR 1850 un-sampled the k-lint row. So there was no row to add.
+
+What survived was a **habit**, not a mechanism: a lane's own pre-push
+check is `cargo clippy --workspace --all-targets`, which reaches none of
+the excluded cargo roots. The fix is one bullet in
+`docs/prompts/implementer-discipline.md` §2 naming the roots, the two
+demo consumers among them, the instance that cost two lanes an hour, and
+the two-line version of the check.
+
+The first draft of that bullet claimed both halves "cover every root",
+which is false — `benches`' clippy is nightly-only with no local mirror,
+and `interval-transcendentals`' is filter-gated. A sentence written to
+correct a lane's model of coverage, itself wrong about coverage, is the
+defect one level up; it now states coverage per-root and names
+`scripts/doc-gate.sh --print-roots` as the derivation instead of counting.
+
+That correction swept five more stale counts of the same roots inside
+CIW's fence (`ci.yml`'s cache-scope paragraph, `ci-local.sh`'s rustdoc
+note, three lines of `scripts/doc-gate.sh` including a `--selftest`
+failure message) — all now cite the derivation. The prose said five, six
+and seven in different places while `tools/tess-meter` had landed and
+moved none of them.
