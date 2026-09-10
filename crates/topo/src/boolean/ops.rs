@@ -524,8 +524,16 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     red.a.enter_surgery();
     red.b.enter_surgery();
     let connected = bool_connect(&mut red, a, b, band, tol);
-    red.a.leave_surgery_and_sweep();
-    red.b.leave_surgery_and_sweep();
+    // The sweep is the success path's. A refusal mid-join leaves a
+    // partially carved operand that no door undertook to certify —
+    // and the REST lane below puts the pristine clones back over it.
+    if connected.is_ok() {
+        red.a.leave_surgery_and_sweep();
+        red.b.leave_surgery_and_sweep();
+    } else {
+        red.a.leave_surgery();
+        red.b.leave_surgery();
+    }
     let connected = match connected {
         Ok(c) => c,
         Err(
@@ -2078,7 +2086,7 @@ fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
                 }
             }
         }
-        *out = rebuilt.ok_or(corrupt("re-cut produced no body"))?;
+        out.adopt(rebuilt.ok_or(corrupt("re-cut produced no body"))?);
     }
     Ok((out_a, out_b))
 }

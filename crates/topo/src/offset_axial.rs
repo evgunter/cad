@@ -650,7 +650,7 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
     if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
-    *body = staged;
+    body.adopt(staged);
     Ok(())
 }
 

@@ -1138,7 +1138,7 @@ impl<T: Decide> Body<T> {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
-        *self = work;
+        self.adopt(work);
         Ok(outcome)
     }
 

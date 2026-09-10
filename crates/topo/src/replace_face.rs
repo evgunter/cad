@@ -1280,7 +1280,7 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     work.sweep_and_close();
     validate_closed(&staged).map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
 
-    *body = staged;
+    body.adopt(staged);
     Ok(())
 }
 

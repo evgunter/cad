@@ -184,6 +184,32 @@ impl<T: Real> Body<T> {
 }
 
 impl<T: Real> Body<T> {
+    /// **Replaces this body's contents with `next`, keeping the
+    /// surgery scopes open on THIS one.**
+    ///
+    /// The staging doors — mutate a clone, gate it, adopt it — write
+    /// their result back over the destination, and a plain `*self =
+    /// next` would carry the clone's scope depth with it. The
+    /// destination's depth is not the clone's to set: it says how many
+    /// doors up the stack have undertaken to sweep the body this
+    /// reference names, and that is true of it before and after the
+    /// swap, whatever was staged. Overwriting it closes a scope its
+    /// owner still holds — a `Surgery` guard whose depth has already
+    /// been decremented, which announces itself at the guard's close
+    /// rather than silently.
+    ///
+    /// **Crate-internal, and it stays that way.** It replaces a body
+    /// wholesale, which is not a mutation D1 sanctions from outside;
+    /// the staging doors are its whole population and each gates the
+    /// clone before it adopts it.
+    pub(crate) fn adopt(&mut self, next: Self) {
+        #[cfg(debug_assertions)]
+        let held = self.surgery.get();
+        *self = next;
+        #[cfg(debug_assertions)]
+        self.surgery.0.set(held);
+    }
+
     /// **Opens a surgery scope without a guard**, for a body a
     /// [`Surgery`] cannot borrow for the span the scope needs.
     ///
