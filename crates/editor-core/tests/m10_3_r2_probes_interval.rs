@@ -691,6 +691,10 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
             &analyzed,
             &DriveConfig {
                 max_leaves: 1024,
+                // PERF-DEV INSTRUMENTATION (lane perf/explore-dev, NOT for
+                // main): price this row's four serial drives against the
+                // driver's own D9-clean indexed parallel map.
+                parallel: std::env::var_os("PERF_DEV_DRIVE_PAR").is_some(),
                 ..DriveConfig::default()
             },
             Tol::witness(),
