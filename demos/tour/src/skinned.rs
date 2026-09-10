@@ -281,6 +281,154 @@ const S_R: f64 = 2.0;
 /// notice if one moved.
 const ELBOW_H: f64 = 0.25;
 
+/// The twisted tube's stations. Six is enough for a degree-3 skin to
+/// follow the spine and few enough that every one of them is a
+/// number the note can print.
+const TUBE_STATIONS: usize = 6;
+/// The tube's outer half-width at the base: twice the neighbouring
+/// sweep's [`ELBOW_H`], so that at montage scale the HOLE and the
+/// taper are both legible on a 4.4 m spine. What the two cells share
+/// is the spine, not the section.
+const TUBE_OUT: f64 = 2.0 * ELBOW_H;
+/// The inner half-width at the base. `TUBE_IN / TUBE_OUT` is 3/5, so
+/// the hollow ratio `1 − λ²` is 16/25 — exact in binary, which is what
+/// lets the volume oracle be an equality rather than a bracket.
+const TUBE_IN: f64 = 0.3;
+/// What the section tapers TO, as a fraction of the base.
+const TUBE_TAPER_END: f64 = 0.5;
+/// The authored roll, radians over the whole spine. Deliberately not a
+/// multiple of a quarter turn: a square's axis is only defined mod
+/// π/2, so a quarter-turn roll would be indistinguishable from none.
+const TUBE_ROLL: f64 = 1.0;
+
+/// The section's scale at station `i` — linear from 1 to
+/// [`TUBE_TAPER_END`].
+fn tube_taper(i: usize) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let u = i as f64 / (TUBE_STATIONS - 1) as f64;
+    (TUBE_TAPER_END - 1.0).mul_add(u, 1.0)
+}
+
+/// A centred square LOOP of half-width `h` — one loop, so an annular
+/// section is two of them.
+fn square(h: f64, tol: Tol) -> pncad::profile::ProfileLoop<f64> {
+    polygon(&[(-h, -h), (h, -h), (h, h), (-h, h)], tol).expect("the square loop")
+}
+
+/// Station `i`'s placement on `path`: the plane normal to the spine's
+/// tangent there, rolled `roll · u` about it.
+///
+/// The in-plane axes are built off whichever world axis is least
+/// parallel to the tangent — [`normal_start_place`]'s recipe, applied
+/// at every station rather than only the first, because a loft places
+/// each section itself.
+fn tube_place(path: &pncad::geom::NurbsCurve3<f64>, i: usize, roll: f64) -> Affine3<f64> {
+    let (lo, hi) = path.domain();
+    #[allow(clippy::cast_precision_loss)]
+    let u = i as f64 / (TUBE_STATIONS - 1) as f64;
+    let t = (hi - lo).mul_add(u, lo);
+    let d = path.deriv(t);
+    let n = d / d.norm();
+    let helper = if n.z.abs() < 0.9 {
+        Vec3::new(0.0, 0.0, 1.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
+    let a = n.cross(helper);
+    let a = a / a.norm();
+    let b = n.cross(a);
+    let (c, s) = (roll * u).sin_cos();
+    let (sin, cos) = (c, s);
+    Affine3::from_frame(path.eval(t), a * cos + b * sin, b * cos - a * sin)
+}
+
+/// The widths of a body's two END CAPS — the largest distance between
+/// two vertices of one cap face, which for a square annulus is the
+/// outer square's diagonal.
+///
+/// The caps are the two faces carrying a RING: a loft's walls have one
+/// loop each and only an annular section's caps have two.
+fn cap_widths(body: &pncad::topo::Body<f64>) -> (f64, f64) {
+    let mut widths: Vec<f64> = body
+        .faces()
+        .filter(|(_, f)| f.rings.len() == 1)
+        .map(|(k, _)| face_span(body, k))
+        .collect();
+    assert_eq!(
+        widths.len(),
+        2,
+        "an annular loft has exactly two ringed caps"
+    );
+    widths.sort_by(|x, y| y.partial_cmp(x).expect("spans are finite"));
+    (widths[0], widths[1])
+}
+
+/// The largest distance between two vertices of one face.
+fn face_span(body: &pncad::topo::Body<f64>, face: pncad::topo::FaceKey) -> f64 {
+    let ps = face_points(body, face);
+    let mut best = 0.0f64;
+    for (i, p) in ps.iter().enumerate() {
+        for q in &ps[i + 1..] {
+            best = best.max((*p - *q).norm());
+        }
+    }
+    best
+}
+
+/// Every vertex position on a face, through its loops' cycles.
+fn face_points(body: &pncad::topo::Body<f64>, face: pncad::topo::FaceKey) -> Vec<Point3<f64>> {
+    let mut out = Vec::new();
+    let f = body.get_face(face).expect("the face resolves");
+    for &lp in std::iter::once(&f.outer).chain(f.rings.iter()) {
+        let l = body.get_loop(lp).expect("the loop resolves");
+        let pncad::topo::LoopBoundary::Cycle { first } = l.boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first).expect("the cycle walks") {
+            let hed = body.get_half_edge(he).expect("the half-edge resolves");
+            let v = body.get_vertex(hed.start).expect("the vertex resolves");
+            out.push(*body.get_point(v.point).expect("the point resolves"));
+        }
+    }
+    out
+}
+
+/// The body's `(v, e, f)` census and the genus the Euler-Poincaré
+/// identity gives from it — the two neighbouring scenes' spelling,
+/// scene-local as theirs are.
+fn genus(body: &pncad::topo::Body<f64>) -> i64 {
+    let v = body.vertices().count() as i64;
+    let e = body.edges().count() as i64;
+    let f = body.faces().count() as i64;
+    let r: i64 = body.faces().map(|(_, x)| x.rings.len() as i64).sum();
+    let s = body.shells().count() as i64;
+    s - (v - e + f - r) / 2
+}
+
+/// The NARROW cap's own in-plane axis: the direction of its longest
+/// vertex pair, sign-normalised so two frames a roll apart compare.
+fn tip_axis(body: &pncad::topo::Body<f64>) -> Vec3<f64> {
+    let (_, tip) = cap_widths(body);
+    let face = body
+        .faces()
+        .filter(|(_, f)| f.rings.len() == 1)
+        .find(|(k, _)| (face_span(body, *k) - tip).abs() < 1e-12)
+        .expect("the narrow cap is one of the two")
+        .0;
+    let ps = face_points(body, face);
+    let mut best = (0.0f64, Vec3::new(1.0, 0.0, 0.0));
+    for (i, p) in ps.iter().enumerate() {
+        for q in &ps[i + 1..] {
+            let d = *p - *q;
+            if d.norm() > best.0 {
+                best = (d.norm(), d / d.norm());
+            }
+        }
+    }
+    let v = best.1;
+    if v.x < 0.0 { v * -1.0 } else { v }
+}
+
 /// Section placements: pure translations up the world z-axis (also
 /// `common/mod.rs::lofted_at_z`).
 fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
@@ -689,10 +837,176 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         bodies: vec![SceneBody::plain(name, twisted_color, twisted.clone())],
     };
 
+    // ---- The twisted TUBE: the same spine, said as a LOFT --------
+    //
+    // `sweep_body` above takes ONE profile and derives its own frame,
+    // so there is no argument in which a taper or a roll could be
+    // asked for. `loft_body` takes the sections and the placements as
+    // TWO lists, so both are sayable — and a section may carry a HOLE,
+    // which is the third thing this body has and its neighbour cannot.
+    //
+    // Sharing `cubic_path` is the point. The spine's nowhere-zero
+    // torsion is asserted next door and is not re-derived here; what
+    // this body adds on top of it is taper, roll and an annulus, none
+    // of which any extrude or revolve reaches either. A prism has one
+    // section; a solid of revolution has one axis, and a section whose
+    // size varies along the spine has none.
+    let tube_places: Vec<Affine3<f64>> = (0..TUBE_STATIONS)
+        .map(|i| tube_place(&cubic_path, i, TUBE_ROLL))
+        .collect();
+    let unrolled_places: Vec<Affine3<f64>> = (0..TUBE_STATIONS)
+        .map(|i| tube_place(&cubic_path, i, 0.0))
+        .collect();
+    let tube_sections: Vec<Section> = (0..TUBE_STATIONS)
+        .map(|i| {
+            let k = tube_taper(i);
+            vec![square(TUBE_OUT * k, tol), square(TUBE_IN * k, tol)]
+        })
+        .collect();
+    // The same stations with the hole left out: the volume oracle's
+    // other operand, and nothing else.
+    let solid_sections: Vec<Section> = (0..TUBE_STATIONS)
+        .map(|i| vec![square(TUBE_OUT * tube_taper(i), tol)])
+        .collect();
+
+    let twisted_tube = pncad::sweep::loft_body::<f64>(&tube_sections, &tube_places, 3, tol)
+        .expect("the annular sections skin along the twisted cubic")
+        .body;
+    let twisted_solid = pncad::sweep::loft_body::<f64>(&solid_sections, &tube_places, 3, tol)
+        .expect("the same stations without the hole skin too")
+        .body;
+    let unrolled_tube = pncad::sweep::loft_body::<f64>(&tube_sections, &unrolled_places, 3, tol)
+        .expect("the roll-free twin skins")
+        .body;
+
+    // **The hole is real**, and the census is where that is legible: a
+    // capped tube is an annulus swept along an interval, so it is a
+    // solid torus and its genus is 1. The solid twin over the same
+    // stations is genus 0.
+    assert_eq!(genus(&twisted_tube), 1, "a capped tube is a solid torus");
+    assert_eq!(
+        genus(&twisted_solid),
+        0,
+        "…and the hole is what makes it one"
+    );
+    assert_eq!(
+        pncad::topo::validate_geometric(&twisted_tube, tol),
+        Ok(()),
+        "the twisted tube: tier 3"
+    );
+
+    // **The volume, in closed form against the solid twin.** Both
+    // sections are centred and symmetric, so each one's curvature
+    // moment vanishes and each body's volume is ∫A ds along the spine
+    // (the same argument the neighbouring cell states for its own
+    // A·L). Both loops taper by the SAME factor at every station, so
+    // the ratio of the areas is constant along the spine and comes
+    // straight out of the integral: 1 − (TUBE_IN/TUBE_OUT)² = 16/25,
+    // whatever the spine does.
+    let v_tube = pncad::topo::mass_properties(&twisted_tube, tol)
+        .expect("the tube has a volume")
+        .volume;
+    let v_solid = pncad::topo::mass_properties(&twisted_solid, tol)
+        .expect("the solid twin has a volume")
+        .volume;
+    let hollow_ratio = 1.0 - (TUBE_IN / TUBE_OUT) * (TUBE_IN / TUBE_OUT);
+    assert!(
+        ((v_tube - hollow_ratio * v_solid) / v_tube).abs() < 1e-12,
+        "V_tube = {v_tube} against (1 − λ²)·V_solid = {}",
+        hollow_ratio * v_solid
+    );
+
+    // **The taper, measured on the stored body.** The two end caps'
+    // widths are their outer squares' diagonals, and a sweep could
+    // produce neither from the other: one profile goes down the path.
+    let (base_w, tip_w) = cap_widths(&twisted_tube);
+    let want_base = TUBE_OUT * 2.0 * std::f64::consts::SQRT_2;
+    let want_tip = want_base * TUBE_TAPER_END;
+    assert!(
+        (base_w - want_base).abs() < 1e-9 && (tip_w - want_tip).abs() < 1e-9,
+        "cap widths {base_w} / {tip_w} against {want_base} / {want_tip}"
+    );
+
+    // **The roll, ISOLATED.** Comparing this body's own two ends mixes
+    // the authored roll with the spine's own turn, so the comparison
+    // is against the SAME body built with the roll set to zero:
+    // identical spine, identical stations, identical sections, so the
+    // two tip caps are coplanar and their frames differ by the roll
+    // and nothing else. (The instrument is lily's, on a body whose
+    // spine has torsion.)
+    let rolled = tip_axis(&twisted_tube);
+    let unrolled = tip_axis(&unrolled_tube);
+    let measured_roll = rolled.dot(unrolled).clamp(-1.0, 1.0).acos();
+    let quarter = std::f64::consts::FRAC_PI_2;
+    let folded = (measured_roll % quarter).min(quarter - measured_roll % quarter);
+    let want = (TUBE_ROLL % quarter).min(quarter - TUBE_ROLL % quarter);
+    assert!(
+        (folded - want).abs() < 1e-6,
+        "the tip caps differ by {measured_roll} rad, folded to {folded} against the \
+         authored {TUBE_ROLL} folded to {want} — a square's axis is only defined mod \
+         a quarter turn, which is why both sides fold"
+    );
+
+    stops.push(Stop {
+        name: "twisted_tube",
+        caption: "THE SAME SPINE, HOLLOW AND TAPERING (a loft, not a sweep)".to_string(),
+        montage: true,
+        story: "the twisted cubic again — the spine whose torsion is nowhere zero, so \
+                no assembly of revolves reaches it — but said as a LOFT rather than a \
+                sweep. `sweep_body` takes ONE profile and derives its own frame, so \
+                neither a taper nor a roll is sayable to it; `loft_body` takes the \
+                sections and the placements as two lists, so the square shrinks to \
+                half its width down the spine and turns 1 rad about it on the way. \
+                And a section may carry a HOLE: this is a capped tube, genus 1, whose \
+                volume is the solid twin's times 1 − (3/5)^2 = 16/25 exactly. Nothing \
+                extruded reaches it (a prism has one section) and nothing revolved \
+                does either (a section whose size varies along the spine has no axis)",
+        ops: "NurbsCurve3::interpolate(33 points of (2.2t, 1.3t^2, 1.5t^3), degree 3) \
+              -> 6 ANNULAR square sections tapering 1 -> 1/2, placed normal to the \
+              spine and rolled 1 rad -> sweep::loft_body(v_degree 3). The roll is \
+              measured against the SAME body built roll-free, so the spine's own turn \
+              is differenced out",
+        delta: 1e-2,
+        note: Some(format!(
+            "genus 1 (a capped tube is a solid torus; the solid twin over the same \
+             stations is genus 0). V = {v_tube:.9} against the twin's {v_solid:.9} \
+             times 16/25 — an equality, because both loops taper by the same factor \
+             at every station, so the area ratio is constant along the spine and the \
+             curvature moment of each centred symmetric section vanishes. Cap widths \
+             {base_w:.6} -> {tip_w:.6} m (the outer squares' diagonals), the taper \
+             read off the stored body. The tip caps of the rolled and roll-free twins \
+             differ by {measured_roll:.6} rad, folded to {folded:.6} against the \
+             authored {TUBE_ROLL} folded to {want:.6} — a square's axis is defined \
+             only mod a quarter turn, so both sides fold"
+        )),
+        // Looking into the NARROW end, roughly down its own tangent:
+        // the hole reads at the near cap, the section widens as the
+        // body recedes, and the spine's S still crosses the frame.
+        view: View {
+            elev: 38.0,
+            azim: 40.0,
+            up: 'z',
+        },
+        bodies: vec![SceneBody::plain(
+            "twisted_tube",
+            [0.44, 0.55, 0.68],
+            twisted_tube,
+        )],
+    });
+
     stops.push(Stop {
         name: "twisted_duct",
         caption: "twisted_duct (nowhere-zero torsion)".to_string(),
-        montage: true,
+        // Montage cell RETIRED in favour of `twisted_tube` next door,
+        // which is this body's spine with three things added that no
+        // extrude or revolve reaches either — a taper, a roll and a
+        // hole — and none of which a SWEEP can be asked for. The
+        // torsion claim is not lost with the cell: it is this scene's,
+        // it is asserted here, and `twisted_tube`'s story cites it
+        // rather than re-deriving it. Standalone render and both
+        // shadow proofs are untouched, which is where the spine's
+        // non-planarity is looked at.
+        montage: false,
         story: "a 0.5 m square swept along the TWISTED CUBIC (2.2t, 1.3t², 1.5t³), \
                 17 stations, v-degree 3 — a spine with nowhere-zero TORSION and \
                 continuously varying curvature, no arc anywhere. A revolve's spine \
