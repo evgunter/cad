@@ -1868,3 +1868,361 @@ Two of this orchestrator's own dispatch premises were also wrong and the
 lanes corrected both: "`set -e` mid-script" (the script has none, which
 is precisely why the MAJOR was silent) and the non-`actions/*` `uses:`
 inventory. A brief is a hypothesis; these were asserted as facts.
+
+## 2026-09-10 — unit 5 dispatched: mirror parity past argv
+
+`mirror-pairs-env-divergence-unchecked` on `ciw/mirror-env-parity`.
+
+**It starts from an instance rather than a hypothetical**, which is what
+the last unit bought it: `check-ci-mirror-parity.py:1304` slices
+`toks[toks.index("cargo") + 1:]`, so unit 4's mirrored wasm pair passed
+claim 10 with the checker reading none of its
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` prefix — the one flag
+that pair's own comment called load-bearing. Verified still true on
+today's `main`.
+
+**The item's own gate is already answered.** It said to count the
+population first and close if the answer is one. It is not one:
+`ci-local.sh` alone has env-prefixed cargo invocations at `:780`,
+`:783`, `:806`, `:929` and `:1150`, and the hosted half spells its
+equivalents both as prefixes and as `env:` blocks. So the unit is
+authorised by its own clause.
+
+**The difficulty is the two spellings, not the parsing.** A prefix and
+an `env:` block are the same fact written two ways, and a claim that
+reads one and not the other would pass exactly the divergence it was
+built to catch. That is the vocabulary problem the item names and the
+first thing the lane must settle.
+
+**Both lanes**, by the trigger: this widens a gating claim over a
+derived population, in a checker that is now ~2850 lines and has taken a
+new claim in each of the last three units. Accumulation is a live
+concern and the brief says so.
+
+
+## 2026-09-10 — unit 5 delivered: the environment a pair runs under, in claim 10
+
+PR 2295. The lane widened claim 10 rather than minting claim 13, and
+settled the two-spellings question the brief flagged: a prefix and an
+`env:` block are normalised into one map per half before anything is
+compared, because the tree contains a pair that writes the same fact in
+all three spellings at once (`oracle-certify`: job block, step block,
+one local prefix). A prefix-only reader would have red that correct pair
+— and the fix for a false red is an exemption, which is how the table
+becomes a place to put things.
+
+**The accumulation answer was one table, not a fifth.** `FLAG_EXEMPT`
+is now `PAIR_EXEMPT`, keyed `(pair, token)` over flags and variables
+alike, since the expiry arms are the same sentences for both. Its new
+`both` side fixes a latent bug: claim 10 already told the reader to
+"declare the pair in FLAG_EXEMPT with the reason it differs", and doing
+so produced the *expired* error.
+
+**The selftest lesson held, and was paid for once.** The lane published
+a mutant table — nine ways to break the arm, each mapped to the row that
+catches it — and the first pass showed *hosted inline prefixes not read*
+SURVIVING with the selftest green: no case had planted a prefix on the
+hosted half, which is precisely the shape the arm exists for. One row
+added, mutant killed.
+
+Residue filed in the same PR (`mirror-pairs-context-beyond-env`): three
+mirrored pairs carry a `working-directory:` against a local `cd`, and
+nothing compares them.
+
+
+## 2026-09-10 — unit 5 fix pass: an empty map is not a reading
+
+The review returned three MAJORs and they were one behaviour:
+`env_prefixes` read as EMPTY whatever it could not classify, against
+this file's own standing rule that an unreadable input is a refusal.
+Every instance followed from a walk anchored at token 0 — a one-line
+function's `{`, a loop's `do`, an `env NAME=v` wrapper. The fix moved
+the anchor to the command word and made everything still unattributable
+Bail; the three instances were then consequences rather than cases.
+
+**The lesson the program keeps paying for held again**: the lane's own
+selftest had nine rows and the review found seven mutants that survived
+them. The gap was always the same kind — a case planted on ONE half, a
+value with no inner quotes, a row whose argv sits in a function. The
+answer was a row per mutant and a table published with the PR; 25 of 25
+now die.
+
+**Also caught by both lanes, and worth remembering as a shape**: the
+advice in an error message is part of the contract. Claim 10 told the
+reader to declare a pair with side `both`, and the table refused it —
+the same invited-then-refused defect the PR body describes fixing, one
+token class over, in the same diff.
+
+## 2026-09-10 — unit 5 merged and closed; the pattern is now the program's own
+
+PR 2295 (`36bdeb94`). Claim 10 reads the environment now, and the three
+MAJORs its reviews found had one cause: `env_prefixes` read as an empty
+map whatever it could not classify, in a file whose own rule is *a
+refusal rather than a guess*. An empty map is what a half that sets
+nothing looks like — so the reader could not tell "sets nothing" from
+"I did not understand this line", which is the item's own defect
+one level in.
+
+**Verified by the orchestrator on the merged head rather than taken from
+the report**: a variable planted in `rebuild_latency`'s one-line function
+is caught, `env NAME=v cargo …` on one half does not false-red, and a
+name added to `ci.yml`'s workflow-level block reds every affected pair.
+
+**The thing worth carrying out of this week.** Five units, and the same
+mistake in four of them, from both ends:
+
+- units 2, 3 and the apt preamble shipped a selftest that asserted what
+  the author had just built rather than the property the unit claimed;
+- the apt preamble's fix guarded the `mktemp` that bit it, and the
+  identical shape survived forty lines away in the same diff and
+  destroyed a binary;
+- unit 5 built a reader against the spellings that happened to be in
+  front of it, and three live pairs used a fourth;
+- and unit 5's own error text invited a `PAIR_EXEMPT` entry that its
+  loader refused — **the invited-then-expired defect it was fixing,
+  re-created in the same diff**.
+
+Every one of those is one sentence: *the artifact was written against
+the instance rather than the property*. That is also what most of this
+program's ITEMS are about, which is the part worth noticing — a demoted
+row nobody reads, a selftest nothing invokes, a guard outside the reach
+of the rule that names it. The program keeps finding the defect it keeps
+committing.
+
+**What actually catches it is the mutant table**, not care. Every one of
+these was found by injecting the failure and watching the row stay green
+— never by reading. Unit 5 killed 25 of 25 in the end, and twice wrote a
+row only after a mutant survived a pass. That is the practice to keep:
+**write the row by naming the failure it must catch, inject it, and do
+not trust the row until it reds.**
+
+Also worth recording: `rerun-failed-jobs` answered 403 for the lane again
+on an unrelated pip read-timeout, so it merged `origin/main` (owed
+anyway) to get a fresh run. That is the third 403 of this class this
+week, and `nightly-rows-cannot-be-dispatched-by-a-lane` now carries all
+of them.
+
+## 2026-09-10 — unit 6 dispatched: the PIPESTATUS sweep
+
+`pipestatus-after-assignment-in-ci-yml` on `ciw/pipestatus-sweep`.
+
+**Pre-dispatch reading, and it reshapes the unit.** The one instance was
+fixed in PR 1725; a grep for the defect shape (`PIPESTATUS[0]` read after
+an assignment) finds hits **only inside the tombstone comment** at
+`ci.yml`'s k-lint driver step. The other live reads do not follow an
+assignment.
+
+So the sweep may well come back empty, and the discipline doc is explicit
+that this is a real outcome: *a pattern with no hits recorded is a claim;
+a hit list is a receipt*. The brief says to produce the receipt and not
+to manufacture work if there is nothing to fix.
+
+**Which makes the guard the deliverable, not the sweep.** A defect that
+disarms a gate silently, was fixed once, and can return by being retyped
+is exactly the shape this program has spent the week on. The brief asks
+for a mechanical guard so the shape cannot come back — and, if a guard is
+not worth its cost, for that argument in writing at the site rather than
+an unstated absence.
+
+**Style review**, unless the guard grows a derived population, in which
+case the correctness lane attaches by the standing trigger.
+
+## 2026-09-10 — unit 6 in review: the sweep is empty, the guard is built
+
+`pipestatus-after-assignment-in-ci-yml` -> PR 2298, `status: review`.
+Verified on hosted run 34500237390 (head `59031a6dd`), green at STEP
+level in `mirror`.
+
+**The sweep came back empty, as the dispatch expected, and the receipt
+is the instrument rather than a grep.** `scripts/check-status-capture.py`
+splits every shell body under `.github/workflows/` and every tracked
+`*.sh`/`*.bash` into the commands it runs — respecting quotes, comments,
+escapes, line continuations and heredoc bodies — and requires each
+`PIPESTATUS` read to sit on the command immediately after a pipeline. On
+this tree it reports **7 reads across 87 files, all correct**: `ci.yml`
+`:669`, `:3135`, `:3626`, `:3661`, `:3671`, `:4835` and `render.yml`
+`:1183` — re-derived on the head that merges unit 7, which moved every
+one of them. The tombstone comment at `ci.yml:4797-4820` is prose and is
+not counted, which is one of the guard's own mutant rows.
+
+**The guard is the property, not the incident.** It does not look for
+`status=$?`; it looks for *any* intervening command, so an `echo`, a
+`[[ … ]]`, a `let`, a `local`, a function call, a `then`, or nothing at
+all all red — and the index is not read, so `[1]` and `[@]` are covered.
+Twenty-two `--selftest` rows name the failure each must catch, and the
+historical defect re-injected into the real `ci.yml` reds at the right
+line.
+
+**It is a new script, not a claim in `check-ci-mirror-parity.py`.** The
+first draft argued that on subject — the shell inside a row being outside
+that checker — and that is FALSE: its claim 10 already reads argv out of
+`run:` bodies, and its header marks the boundary at exactly that point.
+The real reason is size and blast radius. The file is 4004 lines and has
+taken a claim in each of the last four units; every claim shares one
+tokenizer, so a change made for this property can move any other claim's
+answer. A separate script fails alone. It gains one `TIER_BLIND`
+membership entry and nothing else.
+
+**And it is not shellcheck's job — measured, not assumed.** shellcheck
+0.9.0 reports *nothing at all* on the five-line reproduction. It does
+carry SC2319/SC2320 for the sibling `$?` shapes, and nothing in this repo
+runs shellcheck at all; both facts are the residue
+`shellcheck-is-not-run`, filed in the same PR with the 496-finding
+measurement that says why turning it on is its own unit.
+
+## Unit 6, second fix pass — the carriers were OR'd, so no row could name a route
+
+The claim above that the guard's routes were each load-bearing was
+**false, and it was reported without being injected**. On a pristine tree
+at `7e49567b0`, `SHELL_SUFFIXES = (".zsh",)` — the mutant the PR body
+named as newly dead — left every row green and the selftest at exit 0.
+Two independent causes:
+
+- **The verdict was aggregate.** Each mutant was planted into ONE tree
+  holding every carrier at once, and `RED if failures else GREEN` over
+  that tree answers "did SOME route red". Replacing the whole shell arm
+  of `check_tree` with `for rel in []: pass` cost exactly two rows.
+- **The one `*.sh` fixture carried a shebang**, so it rode the shebang
+  branch of `shell_files` and the suffix branch had no fixture at all.
+  That branch is not decoration: `demos/hosted-render-guard.sh` and
+  `local-scripts/hosted-ci-guard.sh` open with `# shellcheck shell=bash`
+  and are in the population by suffix alone.
+
+Fixed by evaluating **each route on a tree of its own**, with the verdict
+and the violation's `path:line` asserted per route and the route named in
+the failure. The routes are now direct, workflow `run: |`, a tracked
+`*.sh` with no shebang, and a tracked shebang file with no suffix — the
+last folded in from what was a standalone population row, so both
+branches of `shell_files` have a fixture that fails when that branch
+alone is removed. A further row asserts the carrier set still covers one
+branch each, which reds if a fixture regains the convenience shebang that
+caused this.
+
+The row count in the closing line and the PR body is re-derived rather
+than carried: **43 mutants x 4 routes, plus 5 population and refusal
+rows**. (The earlier entry's "twenty-two rows" is superseded twice over.)
+
+Five mutants, each applied alone to a clean tree, all now die:
+`SHELL_SUFFIXES = (".zsh",)`, `SHELL_SUFFIXES = ()`, a never-matching
+`SHEBANG_RE`, the `check_tree` shell arm emptied, and a never-matching
+`BLOCK_SCALAR` (which kills the workflow route alone, so the same
+aggregation bug is not hiding on that side). Each names the route it
+broke and leaves the other three red.
+
+**The lesson is the one units 1-5 closed on, missed inside the unit that
+wrote it down**: write the row by naming the failure it must catch,
+inject that failure, and do not trust the row until you have watched it
+red. A carrier built for convenience — a shebang, so the fixture "looks
+like a script" — is a fixture written against the instance rather than
+the branch it exists to pin.
+
+### Third pass: the route COUNT was printed, not asserted
+
+The blind spot the second pass disclosed was narrower and sharper than
+disclosed. Deleting either `shell_files` carrier already red — the
+branch-coverage row catches both. Deleting the **workflow** carrier did
+not: it is not a `shell_files` branch, so that row cannot reach it, and
+the run went green at `43 mutants x 3 routes … all as specified` while
+specifying one route fewer than the header claims. The route that
+disappeared silently was the one `ci.yml` itself is.
+
+`ROUTE_NAMES` now pins the carrier set by NAME rather than by arithmetic,
+so a route dropped, renamed or duplicated reds saying which. Deleting
+`wf` reds `the carriers are ('shebang', 'suffix'), not ('shebang',
+'suffix', 'wf')`; so does a rename; a duplicate dies on the tree it would
+have shared, loudly but as a traceback rather than a named row.
+
+The shape is the unit's own: **a fact printed in a log is not a fact
+anything reds on.**
+
+## Unit 7 — citations that do not resolve (2026-09-10, `ciw/citations`)
+
+Both items closed; seven comments rewritten; nothing rewritten in
+`crates/**`, `scripts/ci-filter.py` or `docs/`.
+
+**Part A.** The item's twelve-across-nine holds on today's tree (26 raw
+`git grep -o "GUI-LOG.md"` hits less the item's own 10, `STATUS.md`'s 1
+and the ledger's 3). Six were CIW's and are fixed; the sweep was widened
+by one string to `GUI-PLAN.md`, which added a seventh
+(`ci.yml:2086`). Two sites route out — `scripts/ci-filter.py` ×2 to
+S-TCOST, the sweep-5 rename note and `MODEL-AB-LOG.md` to META — and
+both now have a file on the owning slate.
+
+**The third class the item left unswept turned out to be the whole
+sweep.** All five sweep-5 programs were renamed out of `docs/` before
+their directories were deleted, and four of the five under a spelling
+that is not the directory name (`S-BLEND`, `GAUTH`, `PCURVE`, `S-QA`).
+Ten spellings, 51 citations before this unit, 44 after. The ledger's
+Inbound-references paragraph says these "resolve here as before"; they
+do not, and that sentence is what tells a reader not to check.
+
+**Part B closed without a line of code.** Every site in it belongs to a
+sibling that already holds the class: seven are `private_intra_doc_links`
+that `scripts/doc-gate.sh:555` deliberately allows, and the eighth
+(`crate::report`) is a feature-gated link read at the wrong feature
+setting — the second such in one item, after `SweepStrategy::Idealized`,
+and both are already inside `doc-gate-two-unread-axes`'s counted
+`editor-core ×7`. Nothing re-filed there.
+
+The sibling's population was stale by ~3.4x — 82 on 2026-08-15, **278 on
+today's tree** (292 at `--all-features`, which is what the gate documents
+under). Corrected in place with the command and the date. Option 1 is
+unaffected and is stronger at 278 than at 82.
+
+Two method notes worth keeping, both costing an orchestrator a wrong
+number in this session alone: **a `-D warnings` rustdoc run reports a
+floor, not a population** — it aborts at the first crate that fails — and
+**a rustdoc reading is meaningless without its feature selection named**,
+because every "dead link" in this item was alive under the gate's.
+
+## Unit 6 third pass, and merged — the route set is pinned by name
+
+The second pass's own disclosure was that "deleting a whole carrier entry
+still leaves the selftest green with fewer routes; the closing line
+prints the routes it ran, so the drop is visible in the log rather than
+asserted". Measured, that turned out to be **narrower and worse than
+described**: deleting the `suffix` or `shebang` carrier already red — the
+branch-coverage row catches both — but deleting the **workflow** carrier
+went green at exit 0, printing
+
+```
+selftest: 43 mutants x 3 routes (direct; tracked `*.sh`, no shebang;
+tracked shebang file, no suffix), each asserted on its own tree, plus 5
+population and refusal rows — all as specified.
+```
+
+"all as specified", one route fewer than the header specifies, and the
+route dropped is the one `ci.yml` itself is. The branch-coverage row
+reaches only the two `shell_files` branches, and the workflow route is
+not one of them.
+
+Fixed by `ROUTE_NAMES`, asserted against the carrier set: a route
+dropped, renamed or duplicated reds **by name** rather than by
+arithmetic. Rows 5 → 6. One residue stated rather than fixed: a
+DUPLICATED carrier dies as a `FileExistsError` traceback from the tree it
+would have shared, not as a named row — loud, so it cannot pass
+silently, but not a clean message.
+
+**Three passes, and the same sentence each time.** Pass 1 asserted a
+tree's aggregate verdict; pass 2 asserted branch coverage but not the
+route set; both were reported as done without the failing case being
+injected. That is instances **seven and eight** of the program's
+signature defect, inside the unit whose subject is a gate that cannot
+fail — and pass 1's was reported to the orchestrator in the words "your
+`SHELL_SUFFIXES = (\".zsh\",)` mutant now dies", which it did not.
+
+**What actually caught all three was injection by the orchestrator, on a
+pristine worktree, of the exact mutant the report named.** Not review.
+The practice units 1-5 closed on is now load-bearing rather than
+advisory: *do not trust a row until you have watched it red*, and a lane
+report that a row reds is not that.
+
+Merged as `50ac576d3` on run **34510036107** (head `52ddfe1e0`,
+success). Unit 7 landed first, which moved every `PIPESTATUS` read this
+unit cites; the citations were re-derived on the merged head rather than
+carried — `ci.yml:669, :3135, :3626, :3661, :3671, :4835` and
+`render.yml:1183` — and each was re-checked by the orchestrator to land
+exactly on a read. The historical defect re-injected at `ci.yml:4835`
+reds with the site and the clobbering line named, exit 1.
+
+**The second slate is now complete**: units 1-7 all merged.

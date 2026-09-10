@@ -28,12 +28,17 @@ worth stating exactly, because it has twice been written wider than it held:
   raises `Bail`, which fails the check.
 
 Four things that claim does NOT cover, none of them hidden:
-  * Content OUTSIDE `jobs:` is not read at all. A file with no top-level
-    `jobs:` key Bails rather than being half-read.
-  * The body of a block scalar, of `with:` and of `env:` is opaque text. It is
-    scanned for invocations; it is not parsed, and nothing in it can Bail.
+  * `read_workflow` looks only INSIDE `jobs:`, and a file with no top-level
+    `jobs:` key Bails rather than being half-read. The one thing read outside
+    it is the workflow-level `env:` block, by `workflow_env`, because it is
+    the bottom rung of the ladder claim 10's env arm compares.
+  * The body of a block scalar and of `with:` is opaque text: scanned for
+    invocations, never parsed, and nothing in it can Bail. An `env:` block is
+    the exception — claim 10 compares the variables in it, so `_env_block`
+    reads it as `NAME: value` lines and REFUSES any other spelling.
   * A recognised key's VALUE is only interpreted where a claim needs it —
-    `if:`, `needs:`, `continue-on-error:`, `uses:`. Every other value is text.
+    `if:`, `needs:`, `continue-on-error:`, `uses:`, and `env:` as above.
+    Every other value is text.
   * This is not YAML. Anchors, merge keys, flow mappings and multi-document
     files are all refused, not supported. Valid YAML this repo does not use
     reds CI with *I do not understand this file*, and the fix is to teach the
@@ -54,20 +59,58 @@ the hosted step it names.
 
 CLAIM 10 IS WHERE THE ROSTER STOPS AND THE COMMANDS START. It takes the pairs
 claim 9 leaves and asks the one question a roster cannot: do the two halves run
-this check the SAME WAY. It is narrow on purpose — `cargo` invocations only,
-the flags in `SEMANTIC_FLAGS` only, between the two sides of one `HOSTED
-MIRROR` pair only, and only for a cargo subcommand BOTH sides run — so it does
-not turn claim 9's coarse job correspondence into a claim about equal argv,
+this check the SAME WAY. IT HAS TWO ARMS and each is narrow on purpose. The
+FLAG arm: `cargo` invocations only, the flags in `SEMANTIC_FLAGS` only,
+between the two sides of one `HOSTED MIRROR` pair only, and only for a cargo
+subcommand BOTH sides run. The ENV arm, described below, is per PAIR rather
+than per command and reads the names in `SEMANTIC_ENV` only. Neither turns
+claim 9's coarse job correspondence into a claim about equal argv,
 which would be false.
 
-THREE HOLES FOLLOW, all of them by construction. A pair whose halves name
-different cargo subcommands is not compared at all. A flag outside the
-allowlist is not read. And ENVIRONMENT IS NOT A FLAG: render.yml's
-`scene-inputs` and `montage` jobs set
-`CAD_RENDER_LOCAL_OVERRIDE=i-am-the-hosted-renderer` while ci-local.sh's
-`uv_sheet_drift` sets `i-accept-local-render-drift`, and `scene-inputs` is a
-pair this claim reads — so that divergence is live, deliberate, correct, and
-passes here in silence rather than through an exemption.
+TWO HOLES FOLLOW ON THE FLAG ARM, both by construction. A pair whose halves
+name different cargo subcommands is not compared at all, and a flag outside
+the allowlist is not read.
+
+IT HAS A SECOND ARM, OVER THE ENVIRONMENT, because the flag arm reads argv
+from the `cargo` token rightwards and everything to the LEFT of it decides as
+much: `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` rides both halves of the
+wasm pair, and dropping it from one half left the pair green. THE TWO
+SPELLINGS ARE ONE FACT and are read as one — hosted's job-level `env:`, its
+step-level `env:` and an inline prefix on its `run:` line, against the local
+half's prefixes — because an arm that read one spelling and not the other
+would pass exactly the divergence it exists to catch. Its extent is the PAIR
+rather than a shared cargo command, so it reads render rows that run no cargo
+at all; its allowlist is `SEMANTIC_ENV`, so the throughput knobs the local
+half deliberately does not mirror (`CARGO_PROFILE_*`, the mold link flag) are
+out by name at that table rather than by exemption. `CAD_RENDER_LOCAL_OVERRIDE`
+— the divergence that is live, deliberate and correct — is declared in
+`PAIR_EXEMPT` with side `both` and reds if the two halves ever agree.
+
+WHAT THE ENV ARM REFUSES rather than guesses at, because an unread prefix and
+an unset variable are the same empty map: a variable exported through
+`$GITHUB_ENV` by any step of the cited job; one set for the whole shell in
+either half (`export`, `declare -x`, or a bare assignment with no command
+after it); an assignment it cannot attribute to a command; and a mirrored pair
+cited at a `uses:` step, whose behaviour is its `with:` inputs. None of the
+four exists today, each Bails, and each names the site.
+
+WHAT IT GENUINELY CANNOT SEE, four things, none of them hidden:
+  * A variable set OUTSIDE these files — `.cargo/config.toml`, the runner
+    image, a `uses:` action's side effects.
+  * A name outside `SEMANTIC_ENV`, which is an allowlist for the reason
+    `SEMANTIC_FLAGS` is one; the argument is at that table.
+  * A name written INSIDE a `${{ … }}` expression. ci.yml's two archived-test
+    rows build their whole prefix that way, so that half is reported
+    INCOMPLETE and no one-sided verdict is passed against it — rename the
+    variable inside the expression and nothing here says a word.
+  * WHICH command in a row carries the variable. A row's prefixes are unioned,
+    last value winning, so a variable dropped from the command that matters
+    is still reported present if a sibling line in the same row carries it.
+    MEASURED, on the pair this arm was filed over: `uv_sheet_drift` writes
+    `CAD_RENDER_LOCAL_OVERRIDE` twice, and changing ONE of the two to hosted's
+    sentence passes here. The flag arm answers this shape with `_presence`'s
+    every-invocation rule; the env arm has no equivalent, because a variable
+    is a name and a value rather than a per-invocation set.
 
 CLAIM 4 HAS TWO ARMS OVER ONE POPULATION: does a script under `scripts/` or
 `demos/` run at all, and does its `--selftest` mode run. They are one question
@@ -90,17 +133,13 @@ pins from the block through `scripts/ci-pin.py`, the literals from the tracked
 files under `local-scripts/`. The argument, the two arms and the five things it cannot see
 are at `PIN_FREE`.
 
-THAT SCOPE LINE IS A CHOICE, NOT AN ABSENCE OF TOOLING, and saying otherwise
-would be the sort of sentence this file exists to catch: comparing `env:`
-blocks between two halves is already done next door, by
-`scripts/check-cache-prime-parity.py`, which reads a job's whole `env:` block
-as text and requires it to match its primer's. So env parity is a claim
-someone could write today with a vocabulary that exists. It is not written
-here because it is a different question with different declarations — a
-divergence like `CAD_RENDER_LOCAL_OVERRIDE` is deliberate and permanent, and
-folding it into a table whose subject is cargo flags would make that table a
-place to put exceptions. **Nothing checks it in the meantime**, and that hole
-is filed as its own item rather than left in this paragraph. Claim 6 reads
+ONE EXEMPTION TABLE COVERS BOTH ARMS. `PAIR_EXEMPT` is keyed on `(pair,
+token)`, where a token is a flag or a variable name, because the substance of
+an exemption table is its expiry arms and they are the same sentences for
+both: an entry whose asymmetry has closed, inverted, lost its pair or lost
+the token it excused is an error rather than a fossil. Its third side value,
+`both`, is what the env class needed and the flag class had invited without
+having — two halves that are MEANT to set one variable differently. Claim 6 reads
 `.github/workflows/*.yml` and nothing else that can trigger a checkout, so a
 composite action under `.github/actions/` is outside it. And, as everywhere,
 wiring is not execution: a step disabled by an `if:` on the STEP still satisfies
@@ -154,6 +193,12 @@ TIER_BLIND = (
     # `if: run_build` job.
     "scripts/gates/viewer-vocab-declared-once.sh",
     "scripts/check-ci-mirror-parity.py",
+    # The status-capture check. Its inputs are every workflow file and every
+    # tracked shell script — `local-scripts/` among them, a tree that
+    # classifies TIER=docs and that every hosted job but `mirror` deletes at
+    # checkout. Sited under `if: run_build` the change class that can break it
+    # is the class that would skip it.
+    "scripts/check-status-capture.py",
     # Not because its inputs are prose — because a change WIDENING the
     # filter's docs branch classifies itself as docs, so the tier that would
     # skip this self-test is the tier it is about.
@@ -423,19 +468,74 @@ SEMANTIC_FLAGS = {
     "-E": True,
 }
 
-# Declared asymmetries in claim 10. `(marker, flag): (side, reason)`, the same
-# shape and the same expiry rule as MIRROR_EXEMPT: an entry says a flag is
-# carried by one half of a mirrored pair only, and an entry whose asymmetry has
-# closed is an error rather than a fossil.
+# THE SAME ALLOWLIST RULE, ONE TOKEN-CLASS OVER: the environment a mirrored
+# pair's commands run under. A cargo flag and an environment variable are the
+# same kind of fact about a row — what the run MEANS, written outside the
+# subcommand — and `RUSTFLAGS="--cfg nightly_suite"` decides which tests EXIST
+# more thoroughly than any flag in the table above.
 #
-# THREE ENTRIES AND TWO FACTS. The two `--partition` entries are the same fact
-# on two archives: hosted shards each test row across a pair of jobs and the
-# local half runs one row on one tree. The `--features` entry is the other:
-# hosted's interval row executes an ARCHIVE that was already compiled with the
-# feature, so the selection is written on a different command. Both are the
-# shape a per-pair confession is for — not that a half forgot a flag, but that
-# the flag has nothing to mean on that side.
-FLAG_EXEMPT = {
+# WHY AN ALLOWLIST AND NOT A DENY-LIST. The hosted half's `env:` blocks carry
+# ~65 distinct names, and the great majority are workflow plumbing — `TIER`,
+# `SHA`, `GH_TOKEN`, `${{ steps.… }}` outputs handed to a script as input.
+# They have no local analogue and never could, so a deny-list would be a
+# roster of everything GitHub does, maintained here, firing on plumbing. What
+# is left after the plumbing splits in two, and only one half belongs to a
+# parity claim:
+#
+#   * THROUGHPUT KNOBS ARE OUT, BY NAME AND ON PURPOSE. `CARGO_PROFILE_*`,
+#     `CARGO_TARGET_DIR`, `RUSTC_WRAPPER` and the mold link flag change what a
+#     run COSTS, not what it proves. TWO OF THEM ARE RATIFIED NON-MIRRORS and
+#     say so at ci-local.sh's header — the mold flag and `CARGO_PROFILE_*`,
+#     the latter measured across the opt-level sweeps of 2026-08-12 and
+#     2026-08-25. The other two are this table's own judgement, of the same
+#     kind: a target directory is where artefacts land, a compiler wrapper is
+#     a cache. A claim that fired on any of them would be demanding a change
+#     the repo has decided against, or arguing about throughput in the one
+#     place whose subject is meaning.
+#   * SEMANTICS-BEARING NAMES ARE IN. `RUSTFLAGS` and `RUSTDOCFLAGS` select
+#     cfgs, backends and target features; `CAD_*` is this kernel's own
+#     namespace and every member of it is a knob on what the code DOES —
+#     tolerance, fuzz depth, which render acceptor is speaking.
+#
+# `RUSTDOCFLAGS` IS NOT SET ANYWHERE TODAY and is listed anyway, on
+# `SEMANTIC_FLAGS`'s own rule: this is an absence detector, and the population
+# it is about is the variables that are not there yet.
+SEMANTIC_ENV = ("RUSTFLAGS", "RUSTDOCFLAGS")
+SEMANTIC_ENV_PREFIX = "CAD_"
+
+
+def semantic_env(name: str) -> bool:
+    return name in SEMANTIC_ENV or name.startswith(SEMANTIC_ENV_PREFIX)
+
+
+# Declared asymmetries in claim 10, over both of its token classes.
+# `(marker, token): (side, reason)`, where a token is either an allowlisted
+# FLAG (it starts with `-`) or an allowlisted environment VARIABLE — the same
+# shape and the same expiry rule as MIRROR_EXEMPT: an entry says a token is
+# asymmetric across one mirrored pair, and an entry whose asymmetry has closed
+# is an error rather than a fossil.
+#
+# ONE TABLE FOR BOTH CLASSES, not two. The expiry arms are the whole substance
+# of an exemption table and they are identical for a flag and for a variable;
+# a second table means a second set of them, and this file's four exemption
+# tables have already cost it four hand-written expiry arms that a reviewer
+# has to check against each other.
+#
+# THREE SIDES, AND THE THIRD IS WHY THE ENV CLASS NEEDED ONE. `hosted` and
+# `local` say a token is carried by that half ALONE. `both` says the two
+# halves each set the variable and are MEANT to disagree about its value —
+# which the flag class had no spelling for, though its own error text invited
+# one ("declare the pair in FLAG_EXEMPT with the reason it differs" landed the
+# reader on an entry that then reported itself expired).
+#
+# THE FLAG ENTRIES: three of them, two facts. The two `--partition` entries
+# are the same fact on two archives — hosted shards each test row across a
+# pair of jobs and the local half runs one row on one tree. The `--features`
+# entry is the other: hosted's interval row executes an ARCHIVE that was
+# already compiled with the feature, so the selection is written on a
+# different command. Both are the shape a per-pair confession is for — not
+# that a half forgot a token, but that the token has nothing to mean there.
+PAIR_EXEMPT = {
     ("test / run archived tests", "--partition"): (
         "hosted",
         "hosted splits the default archive across two sharded jobs and the "
@@ -458,6 +558,55 @@ FLAG_EXEMPT = {
         "compiles from the tree in front of you, so the selection has to be "
         "on the row itself. Both halves select the same feature; what differs "
         "is which command carries the flag",
+    ),
+    # THE ENV ENTRIES. Four, over two pairs and two facts.
+    ("scene-inputs / demo tour (STL + STEP + UV SVGs + scenes.json)",
+     "CAD_RENDER_LOCAL_OVERRIDE"): (
+        "both",
+        "the two sentences MEAN different things and each half needs its own "
+        "(ratified, PR 1739). The render entry points refuse to run without an "
+        "acceptor and deliberately do not sniff for CI, so hosted says "
+        "i-am-the-hosted-renderer — the frames it draws are the committed ones "
+        "— while the local half says i-accept-local-render-drift, whose "
+        "message (preview only, do not commit what this pass draws) is false "
+        "of every hosted line. Mirroring either value onto the other half "
+        "would be the defect, not the fix",
+    ),
+    # THE SAME FACT ON THE OTHER TWO CITATIONS. One local function
+    # (`uv_sheet_drift`) is cited by three markers, so it is three pairs, and
+    # a per-pair table says it three times. Collapsing them onto the job would
+    # be a different key and a weaker claim: a variable moved from the job
+    # block onto one step would then stop being read.
+    ("scene-inputs / compose (demos/render-uv.sh)", "CAD_RENDER_LOCAL_OVERRIDE"): (
+        "both",
+        "the same deliberate divergence, on the second of the three steps this "
+        "one local row mirrors. Same reason as the `demo tour` entry above",
+    ),
+    ("scene-inputs / publish (demos/render-mc.sh)", "CAD_RENDER_LOCAL_OVERRIDE"): (
+        "both",
+        "the same deliberate divergence, on the third of the three steps this "
+        "one local row mirrors. Same reason as the `demo tour` entry above",
+    ),
+    ("rebuild-latency / per-document full-rebuild + incremental-recompute table",
+     "CAD_LATENCY_EMIT"): (
+        "hosted",
+        "the measurement SINK is the workflow's call and never the test's: "
+        "hosted names a path under RUNNER_TEMP, outside the working tree, and "
+        "uploads it as an artifact. The local row runs the same test for its "
+        "assertions and emits nothing, because there is no history for a "
+        "developer box's numbers to join",
+    ),
+    ("rebuild-latency / per-document full-rebuild + incremental-recompute table",
+     "CAD_LATENCY_COMMIT"): (
+        "hosted",
+        "provenance stamped onto the emitted measurement. Same reason as "
+        "CAD_LATENCY_EMIT above: no emission locally, nothing to stamp",
+    ),
+    ("rebuild-latency / per-document full-rebuild + incremental-recompute table",
+     "CAD_LATENCY_RUNNER"): (
+        "hosted",
+        "the other half of that provenance — which machine produced the "
+        "numbers. Same reason as CAD_LATENCY_EMIT above",
     ),
 }
 
@@ -589,6 +738,11 @@ class Step:
         # and `env:` too, so a step named "rustfmt (benches — its own cargo
         # root)" parses as an invocation of `cargo root`.
         self.run: list[str] = []
+        # This step's own `env:` block, `NAME -> value`. Claim 10's env arm
+        # reads it; nothing else does. Kept SEPARATE from `lines` for the same
+        # reason `run` is: a variable is a name and a value, and the text it
+        # sits in is neither.
+        self.env: dict[str, str] = {}
 
 
 class Job:
@@ -600,6 +754,11 @@ class Job:
         self.needs: list[str] = []
         self.uses: str | None = None
         self.steps: list[Step] = []
+        # The job-level `env:` block. Every step of the job runs under it, so
+        # claim 10's env arm merges it UNDER each step's own — GitHub's
+        # precedence, and the reason a pair can be cited at a step while the
+        # variable that matters is declared forty lines above it.
+        self.env: dict[str, str] = {}
 
 
 def _significant(path: str) -> list[tuple[int, int, str]]:
@@ -674,6 +833,34 @@ def read_workflow(path: str) -> list[Job]:
     return jobs
 
 
+def workflow_env(path: str) -> dict[str, str]:
+    """A workflow file's TOP-LEVEL `env:` block, `NAME -> value`.
+
+    THE BOTTOM RUNG OF THE LADDER. GitHub's precedence is workflow < job <
+    step < inline prefix, and claim 10's env arm merges all four in that
+    order. Reading the top three and calling it "precedence" was this arm's
+    own first defect: one line added to ci.yml's top-level block changes the
+    environment of every hosted pair in the file, and nothing said a word.
+
+    Read here rather than through `read_workflow`, which by construction
+    looks only inside `jobs:` — see this module's docstring. The shape
+    accepted is the one both workflow files write, `env:` at column 0 with
+    `NAME: value` lines under it; `_env_block`'s refusals apply.
+    """
+    rows = _significant(path)
+    out: dict[str, str] = {}
+    for n, (ln, ind, text) in enumerate(rows):
+        if ind != 0 or text.strip() != "env:":
+            continue
+        nested = []
+        for later in rows[n + 1:]:
+            if later[1] == 0:
+                break
+            nested.append(later)
+        out.update(_env_block(path, "the workflow", ln, "", nested))
+    return out
+
+
 def _read_job(path: str, job: Job, body: list[tuple[int, int, str]]) -> None:
     if not body:
         raise Bail(f"{path}:{job.line}: job `{job.name}` has an empty body. A job with no keys cannot "
@@ -713,9 +900,59 @@ def _read_job(path: str, job: Job, body: list[tuple[int, int, str]]) -> None:
             job.uses = value
         elif key == "needs":
             job.needs = _read_needs(path, n, value, nested)
+        elif key == "env":
+            job.env = _env_block(path, f"job `{job.name}`", n, value, nested)
         elif key == "steps":
             _read_steps(path, job, key_indent, nested)
         i = j
+
+
+def _env_block(path: str, where: str, n: int, value: str,
+               nested: list[tuple[int, int, str]]) -> dict[str, str]:
+    """An `env:` block as `NAME -> value`, for claim 10's env arm.
+
+    ONE SPELLING RECOGNISED, and every other one refused. `env:` followed by
+    `NAME: value` lines is what both workflow files write; a flow mapping
+    (`env: {A: b}`), a block scalar value, and a nested mapping under a name
+    are all Bails rather than skips. This feeds an ABSENCE detector, and a
+    block it half-reads is a set of variables it reports as unset — which
+    compares equal to a half that never set them, in silence.
+    """
+    if value:
+        raise Bail(f"{path}:{n}: `env:` on {where} carries a value on its own line ({value!r}). Claim "
+                   "10's env arm reads the block spelling — `env:` and then `NAME: value` lines — and "
+                   "a flow mapping it half-read would report the variables in it as unset, which is "
+                   "indistinguishable from a half that never set them."
+                   + teach("`_env_block`"))
+    out: dict[str, str] = {}
+    indent = nested[0][1] if nested else 0
+    for ln, ind, text in nested:
+        if ind != indent:
+            raise Bail(f"{path}:{ln}: `env:` on {where} carries a line at indent {ind} where its first "
+                       f"variable sits at {indent}: {text.strip()!r}. A value nested under a variable "
+                       "name is a shape this reader does not take apart."
+                       + teach("`_env_block`"))
+        m = KEY_RE.fullmatch(text.strip())
+        if not m:
+            raise Bail(f"{path}:{ln}: not a `NAME: value` line under `env:` on {where}: "
+                       f"{text.strip()!r}." + teach("`_env_block` and `KEY_RE`"))
+        out[m.group(1)] = _env_value(m.group(2) or "")
+    return out
+
+
+def _env_value(raw: str) -> str:
+    """One `env:` value, normalised to what the shell would see.
+
+    `RUSTFLAGS: --cfg nightly_suite` and `RUSTFLAGS="--cfg nightly_suite"` are
+    the same fact written two ways, so YAML's optional quotes come off before
+    anything is compared. A value carrying an expansion — `${{ … }}` or a
+    shell variable — is OPAQUE on the same rule the flag arm uses: only a
+    runner knows what it says, and refusing there reds a correct tree.
+    """
+    v = raw.strip()
+    if len(v) > 1 and v[0] == v[-1] and v[0] in "'\"":
+        v = v[1:-1]
+    return OPAQUE if "$" in v else v
 
 
 def _read_needs(path: str, n: int, value: str, nested: list[tuple[int, int, str]]) -> list[str]:
@@ -799,17 +1036,22 @@ def _read_step(path: str, job: Job, step: Step, item_indent: int,
         # A block scalar's body is opaque text, not keys — `run: |` is where
         # every invocation this file reads actually lives.
         j = k + 1
+        env_rows: list[tuple[int, int, str]] = []
         while j < len(rows) and rows[j][1] > inner:
             if BLOCK_SCALAR_RE.fullmatch(value) or key in ("with", "env"):
                 step.lines.append(rows[j][2])
                 if key == "run":
                     step.run.append(rows[j][2])
+                if key == "env":
+                    env_rows.append(rows[j])
                 j += 1
                 continue
             raise Bail(f"{path}:{rows[j][0]}: content nested under `{key}:` in a step of job "
                        f"`{job.name}`. Nested content is only expected under a block scalar (`|`, `>`), "
                        f"`with:` or `env:`; the nested text is scanned for invocations and never parsed."
                        + teach("`_read_step`'s list of keys that may carry a nested block"))
+        if key == "env":
+            step.env = _env_block(path, f"a step of job `{job.name}`", n, value, env_rows)
         k = j
 
 
@@ -1350,6 +1592,156 @@ def cargo_flags(where: str, lines: list[str]) -> dict[str, list[dict[str, str | 
     return out
 
 
+ASSIGN_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", re.S)
+# Words that may stand BEFORE a command without being one. A one-line shell
+# function is why this list exists rather than being assumed empty:
+# `rebuild_latency() { CAD_X=1 cargo test …; }` reaches this reader as a chunk
+# beginning `{`, and a scan anchored at token 0 read the whole row as setting
+# nothing — on three live pairs, one of them carrying three PAIR_EXEMPT
+# entries. The flag arm never noticed because it finds `cargo` wherever it
+# sits; this arm is positional, and that is the difference.
+CMD_PRELUDE = frozenset({"{", "!", "then", "else", "elif", "do", "time"})
+# Commands that RUN another command and may carry assignments of their own.
+# `env RUSTFLAGS=… cargo check` is the same fact as the bare prefix, and the
+# item's own class list names it.
+CMD_WRAPPERS = frozenset({"env", "exec", "nohup", "command", "stdbuf", "timeout"})
+# Words that make an assignment STANDING rather than a prefix.
+ASSIGN_KEYWORDS = frozenset({"export", "declare", "typeset", "readonly", "local"})
+
+
+def env_prefixes(where: str, lines: list[str]) -> tuple[dict[str, str], bool]:
+    """`(allowlisted variables set as an INLINE PREFIX, is the map incomplete)`.
+
+    `RUSTFLAGS="--cfg nightly_suite" cargo nextest run …` and a workflow's
+
+        env:
+          RUSTFLAGS: --cfg nightly_suite
+
+    ARE THE SAME FACT WRITTEN TWO WAYS, and this reader exists so that claim
+    10's env arm can compare them as one. It handles the shell spelling; the
+    recogniser handles the YAML one (`_env_block`), and both normalise to
+    `NAME -> value` before anything is compared. A reader that saw only one
+    spelling would pass exactly the divergence it was built to catch: hosted
+    declares the variable in a block, local drops the prefix, and two readers
+    that never meet both report "not set here".
+
+    NOT ONLY CARGO COMMANDS, unlike the flag arm. A flag is a cargo flag by
+    construction; an environment variable is a property of the ROW, and the
+    pair this whole arm was filed over sets `CAD_RENDER_LOCAL_OVERRIDE` on
+    `demos/render-uv.sh`.
+
+    AN UNRECOGNISED PREFIX IS A REFUSAL, NEVER AN EMPTY MAP, and that is the
+    whole discipline of this function. An empty map is indistinguishable from
+    "this half sets nothing", which is the silent pass claim 10's env arm
+    exists to close — so every shape this cannot take apart raises rather than
+    returning quietly:
+
+      * a `NAME=value` token for an allowlisted variable that this reader
+        could not attribute to a command — after the command word, or inside
+        a construct it does not know — Bails;
+      * `export NAME=…`, `declare -x NAME=…` and a bare `NAME=…` with no
+        command after it are STANDING assignments, set for everything that
+        follows rather than for one command, and Bail with what to write
+        instead;
+      * a quote that never closes on a line carrying an assignment Bails.
+
+    THE ONE THING IT DOES NOT REFUSE IS A RUNNER EXPRESSION, and the reason is
+    that refusing there would red a correct tree: ci.yml's two archived-test
+    rows write their whole prefix as a `${{ … }}` expression that expands to
+    `CAD_TOLERANCE_EPS=<eps>`, to nothing, or to `env -u CAD_TOLERANCE_EPS`,
+    and only a runner knows which. That is the OPAQUE rule this file already
+    applies to a flag VALUE, lifted to the map: the half is reported
+    INCOMPLETE (the second return value), and claim 10 then declines to call a
+    variable one-sided against it — it cannot know whether the expression sets
+    that name. Values it CAN see are still compared. The cost is stated at the
+    claim and in the module docstring: a variable named only inside such an
+    expression is invisible here.
+    """
+    out: dict[str, str] = {}
+    incomplete = False
+    for line in _join_continuations(lines):
+        line = GH_EXPR_RE.sub("$GHEXPR", line)
+        if "=" not in line and "$GHEXPR" not in line:
+            continue
+        for chunk in _simple_commands(where, line):
+            try:
+                toks = shlex.split(chunk)
+            except ValueError as exc:
+                raise Bail(f"{where}: cannot read this as a command line ({exc}): "
+                           f"{chunk.strip()[:120]!r}. It carries an assignment, so claim 10 has to "
+                           "know whether it sets one of the variables that decide what the run means."
+                           + teach("`env_prefixes`")) from exc
+            if not toks:
+                continue
+            found: list[tuple[str, str]] = []
+            standing = False
+            i = 0
+            while i < len(toks):
+                tok = toks[i]
+                if tok in CMD_PRELUDE:
+                    i += 1
+                    continue
+                if tok in ASSIGN_KEYWORDS:
+                    standing = True
+                    i += 1
+                    while i < len(toks) and toks[i].startswith("-"):
+                        i += 1
+                    continue
+                if tok in CMD_WRAPPERS and not standing:
+                    i += 1
+                    # `env -u NAME` UNSETS, and an unset compares as absent —
+                    # right in both directions: against a half that never set
+                    # the variable they agree, and against one that sets it
+                    # the setting half is one-sided, which is the truth.
+                    while i < len(toks) and toks[i].startswith("-"):
+                        if toks[i] in ("-u", "--unset") and i + 1 < len(toks):
+                            i += 1
+                        i += 1
+                    continue
+                m = ASSIGN_RE.match(tok)
+                if m is not None:
+                    found.append((m.group(1), m.group(2)))
+                    i += 1
+                    continue
+                if "$GHEXPR" in tok or SUB_MASK in tok:
+                    # An expression standing where a prefix would: unreadable,
+                    # and the rest of the chunk may still carry a real one.
+                    incomplete = True
+                    i += 1
+                    continue
+                break                                   # the command word
+            # A prefix is followed by the command it applies to; assignments
+            # with nothing after them are the shell's own scope, which is the
+            # same fact `export` states out loud.
+            standing = standing or i >= len(toks)
+            for name, value in found:
+                if not semantic_env(name):
+                    continue
+                if standing:
+                    raise Bail(f"{where}: `{name}` is set for the rest of the shell here, not as "
+                               f"a prefix on one command: {chunk.strip()[:100]!r}. Claim 10's env arm "
+                               "attributes a variable to the command it prefixes, so a standing "
+                               "assignment would be read as set on nothing and compare equal to a half "
+                               "that never set it. Write it as a prefix on the command that needs it,"
+                               + teach("`env_prefixes`"))
+                out[name] = OPAQUE if "$" in value else value
+            # WHAT THE WALK COULD NOT ATTRIBUTE. Anything left that looks like
+            # an allowlisted assignment sits somewhere this reader does not
+            # understand — after the command word, or inside a construct not
+            # in the lists above. Reading it as absent is the one answer that
+            # cannot be right.
+            for tok in toks[i:]:
+                m = ASSIGN_RE.match(tok)
+                if m is not None and semantic_env(m.group(1)):
+                    raise Bail(f"{where}: `{m.group(1)}` is assigned somewhere claim 10's env arm "
+                               f"cannot attribute it to a command: {chunk.strip()[:100]!r}. It sits "
+                               "after the command word, or inside a construct this reader does not "
+                               "take apart — and an assignment read as absent compares equal to a "
+                               "half that never made it."
+                               + teach("`env_prefixes`'s `CMD_PRELUDE`/`CMD_WRAPPERS` walk"))
+    return out, incomplete
+
+
 def _presence(invocations: list[dict[str, str | None]], flag: str) -> tuple[bool, bool, set[str | None]]:
     """`(on any invocation, on every invocation, the values seen)`.
 
@@ -1366,10 +1758,72 @@ def _presence(invocations: list[dict[str, str | None]], flag: str) -> tuple[bool
     any=True / every=False while the other stays every=True, and the pair reds.
     Its cost is a pair where one half legitimately splits a command into two
     invocations and flags only one — that reds, and reding is the direction to
-    be wrong in here; the fix is a `FLAG_EXEMPT` sentence saying so.
+    be wrong in here; the fix is a `PAIR_EXEMPT` sentence saying so.
     """
     hits = [inv for inv in invocations if flag in inv]
     return bool(hits), len(hits) == len(invocations), {inv[flag] for inv in hits}
+
+
+# ---------------------------------------------- PAIR_EXEMPT's expiry arms
+#
+# ONE TABLE, ONE SET OF ARMS. The header's argument for merging FLAG_EXEMPT
+# and an env table was that the substance of an exemption table is its expiry
+# directions and they are the same sentences for a flag and for a variable —
+# and an argument like that is only worth the diff if the sentences are
+# actually written once. These two functions are where they are written; both
+# arms of claim 10 call them, and the four selftest cases per arm exercise the
+# same code twice over.
+#
+# The two token classes differ by two words and one clause: what the halves DO
+# with the token (`passes` a flag, `sets` a variable) and, for a flag, which
+# command it was read on.
+
+
+def _exempt_unwatched(marker: str, token: str, want: str, reason: str, verb: str) -> str:
+    """The direction MIRROR_EXEMPT had all along and this table went without:
+    an entry that stopped matching anything is not a watched asymmetry, it is
+    an UNWATCHED ABSENCE with a confession sitting on top of it."""
+    return (f"`{token}` is declared {want} for the pair `{marker}` in PAIR_EXEMPT and NEITHER half "
+            f"{verb} it. The confession has nothing left to excuse: either the token was dropped — "
+            "which is the absence this claim exists to catch, and it is now hidden behind the entry "
+            f'— or ("{reason}") describes a row that changed shape. Delete the entry, or say in it '
+            "where the token went")
+
+
+# How each class's verb inflects, because these sentences are read by whoever
+# the gate stopped: `("pass", "passes", "passed")` for a flag, `("set",
+# "sets", "set")` for a variable.
+FLAG_VERB = ("pass", "passes", "passed")
+ENV_VERB = ("set", "sets", "set")
+
+
+def _exempt_present(marker: str, token: str, want: str, reason: str, h_here: bool, l_here: bool,
+                    agree: bool, verb: tuple[str, str, str], where: str = "") -> str | None:
+    """The other three directions, for a token at least one half carries."""
+    plural, singular, past = verb
+    if h_here and l_here:
+        if want != "both":
+            return (f"`{token}`{where} is declared {want}-only for the pair `{marker}` in "
+                    f'PAIR_EXEMPT and BOTH halves now {plural} it. The reason ("{reason}") has '
+                    "expired — delete the entry, so the list stays a record of asymmetries that "
+                    "exist rather than of ones that once did")
+        if agree:
+            return (f"`{token}`{where} is declared to DIFFER across the pair `{marker}` in "
+                    f'PAIR_EXEMPT, and the two halves now agree. The reason ("{reason}") has '
+                    "expired — delete the entry, so the list stays a record of asymmetries that "
+                    "exist rather than of ones that once did")
+        return None
+    side = "hosted" if h_here else "local"
+    if want == "both":
+        return (f"`{token}`{where} is declared to DIFFER across the pair `{marker}` in PAIR_EXEMPT, "
+                f"and only the {side} half {singular} it now. A divergence that became one-sided is a "
+                f'different fact — re-read the reason ("{reason}") and either restore the other half '
+                "or re-declare the entry")
+    if want != side:
+        return (f"`{token}`{where} is declared {want}-only for the pair `{marker}` in PAIR_EXEMPT "
+                f"and is {past} by the {side} half. The exemption now describes the "
+                f'opposite of the tree — re-read the reason ("{reason}") and fix whichever side moved')
+    return None
 
 
 def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> list[str]:
@@ -1711,6 +2165,7 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     # neither this loop nor that roster. There are none, and if one appears
     # the roster is the place to widen, not this walk.
     wf_seeds: set[str] = set()
+    file_env: dict[str, dict[str, str]] = {}
     for wf in sorted(os.listdir(WORKFLOW_DIR)):
         if wf.endswith((".yml", ".yaml")):
             wf_seeds |= invocations(non_comment(f"{WORKFLOW_DIR}/{wf}"))
@@ -1857,6 +2312,7 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
         if wf.endswith((".yml", ".yaml")):
             wf_path = f"{WORKFLOW_DIR}/{wf}"
             file_jobs[wf_path] = {j.name: j for j in read_workflow(wf_path)}
+            file_env[wf_path] = workflow_env(wf_path)
     all_jobs: dict[str, Job] = {}
     job_file: dict[str, str] = {}
     for wf_path, here in file_jobs.items():
@@ -1963,7 +2419,8 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
                 "case spelled legally: it satisfies the check without saying what the check asked "
                 "for. Say what this job does that no local row can do")
 
-    # CLAIM 10 — SEMANTICS-BEARING FLAG PARITY, per mirrored pair.
+    # CLAIM 10 — SEMANTICS-BEARING FLAG AND ENVIRONMENT PARITY, per mirrored
+    # pair.
     #
     # Claims 1, 2 and 9 are about the ROSTER: which checks each half names,
     # which gate modes it runs, that every hosted job is cited or says why it
@@ -1988,6 +2445,24 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     # STATED: a pair whose halves name different cargo subcommands is not
     # compared at all, and neither is a flag drop that also changes the
     # subcommand.
+    #
+    # THE ENV ARM IS THE SAME QUESTION ONE TOKEN-CLASS WIDER, and it is here
+    # rather than in a claim of its own because "do these two halves run the
+    # same command" does not stop at argv. `RUSTFLAGS='--cfg
+    # getrandom_backend="wasm_js"'` rides both halves of the wasm pair and the
+    # flag arm reads NONE of it: `cargo_flags` starts at the `cargo` token and
+    # discards everything before it, so dropping the prefix from one half, or
+    # changing the backend name on one half, left the pair green.
+    #
+    # ITS EXTENT IS THE PAIR, NOT THE CARGO COMMAND, and the two differ in
+    # both directions. Wider: it reads a pair whose halves run no cargo at all
+    # (the `scene-inputs` render steps), and a pair whose halves name
+    # different subcommands, both of which the flag arm skips. Narrower per
+    # name: only `SEMANTIC_ENV`, and the throughput knobs the local half
+    # deliberately does not mirror are out by name at that table rather than
+    # by exemption. Hosted's environment is its job block, then its step
+    # block, then any inline prefix — GitHub's own precedence — and the local
+    # half's is the prefixes on the row under the marker.
     for at, marker in marker_sites:
         if " / " not in marker:
             continue
@@ -2000,36 +2475,78 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
         l_cmds = cargo_flags(f"{LOCAL_HALF}:{at + 1} (the row citing `{marker}`)",
                              marker_row(local_raw, at, local_funcs))
         shared = sorted(set(h_cmds) & set(l_cmds))
-        # THE THIRD EXPIRY DIRECTION, and the one MIRROR_EXEMPT has had all
-        # along at its "NEITHER half names it" branch. Without it an exemption
-        # is not a watched asymmetry but an UNWATCHED ABSENCE: delete
-        # `--features interval` from the local interval row and the entry
-        # excusing that flag simply stops matching anything, so the flag is
-        # gone from both halves and nothing says a word. That is this unit's
-        # own headline defect, reintroduced by its own exemption table, on the
-        # one pair whose confession is about `--features`.
-        for flag in sorted(f for (m, f) in FLAG_EXEMPT if m == marker):
-            want, reason = FLAG_EXEMPT[(marker, flag)]
+        # THE OTHER WAY A HOSTED STEP CAN SET A VARIABLE, refused rather than
+        # missed. A step that appends to `$GITHUB_ENV` sets it for every LATER
+        # step of the job, and nothing in this reader would see it. EVERY step
+        # of the job is read, not only those above the cited row: one above it
+        # sets the variable for this pair, and one below it may be cited by
+        # another marker. The test is a substring — the name of the file
+        # GitHub reads — which is coarse in the safe direction. No job does it
+        # today; a Bail keeps that from changing in silence.
+        for other in job.steps:
+            if any("GITHUB_ENV" in ln for ln in other.run):
+                raise Bail(f"{job_file[job_name]} job `{job_name}` writes to $GITHUB_ENV in step "
+                           f"`{other.name}`, and `{marker}` is a mirrored pair in that job. Claim 10's "
+                           "env arm reads `env:` blocks and inline prefixes; a variable exported this "
+                           "way reaches the pair's step without appearing in either, and would compare "
+                           "equal to a local half that never sets it."
+                           + teach("`check`'s env arm and `env_prefixes`"))
+        # THE FOUR LAYERS, IN GITHUB'S OWN ORDER: workflow, job, step, inline
+        # prefix, each overriding the one before it. The filter is applied to
+        # the block layers here and inside `env_prefixes` for the shell one —
+        # the blocks carry every variable a workflow declares, and comparing
+        # `TIER` or `GH_TOKEN` against a shell script would be a checker of
+        # GitHub rather than of this repo.
+        # A `uses:` STEP RUNS AN ACTION, and what it does is decided by the
+        # `with:` block rather than by any argv or environment this reader
+        # compares. No mirrored pair cites one today; the refusal costs a line
+        # and keeps that from changing in silence, which is the same bargain
+        # the `$GITHUB_ENV` and standing-assignment refusals make.
+        if not step.run and any(ln.strip().startswith("uses:") for ln in step.lines):
+            raise Bail(f"{job_file[job_name]} job `{job_name}` step `{step_name}` is a `uses:` step "
+                       f"and `{marker}` cites it as a mirrored pair. Claim 10 compares argv and "
+                       "environment; an action's behaviour is its `with:` inputs, which this reads "
+                       "as neither — so the pair would be checked by nothing while every roster "
+                       "claim above says the two halves run the same check."
+                       + teach("`check`'s env arm"))
+        h_env = {k: v for k, v in file_env[job_file[job_name]].items() if semantic_env(k)}
+        h_env.update({k: v for k, v in job.env.items() if semantic_env(k)})
+        h_env.update({k: v for k, v in step.env.items() if semantic_env(k)})
+        h_prefix, h_partial = env_prefixes(
+            f"{job_file[job_name]} job `{job_name}` step `{step_name}`", step.run)
+        h_env.update(h_prefix)
+        l_env, l_partial = env_prefixes(f"{LOCAL_HALF}:{at + 1} (the row citing `{marker}`)",
+                                        marker_row(local_raw, at, local_funcs))
+        # THE UNWATCHED-ABSENCE DIRECTION, first for both arms and the one
+        # MIRROR_EXEMPT has had all along at its "NEITHER half names it"
+        # branch. Without it an exemption is not a watched asymmetry but an
+        # UNWATCHED ABSENCE: delete `--features interval` from the local
+        # interval row and the entry excusing it stops matching anything, so
+        # the flag is gone from both halves and nothing says a word — this
+        # claim's own headline defect, reintroduced by its exemption table.
+        for flag in sorted(f for (m, f) in PAIR_EXEMPT if m == marker and f.startswith("-")):
+            want, reason = PAIR_EXEMPT[(marker, flag)]
             if any(_presence(h_cmds[c], flag)[0] or _presence(l_cmds[c], flag)[0] for c in shared):
                 continue
-            err(f"`{flag}` is declared {want}-only for the pair `{marker}` in FLAG_EXEMPT and NEITHER "
-                "half passes it on a command they both run. The confession has nothing left to excuse: "
-                "either the flag was dropped — which is the absence this claim exists to catch, and it "
-                f'is now hidden behind the entry — or ("{reason}") describes a row that changed shape. '
-                "Delete the entry, or say in it which command the flag moved to")
+            err(_exempt_unwatched(marker, flag, want, reason, "passes")
+                + " (read over the commands both halves run)")
         for cmd in shared:
             h_inv, l_inv = h_cmds[cmd], l_cmds[cmd]
             for flag in sorted({f for inv in h_inv + l_inv for f in inv}):
-                declared = FLAG_EXEMPT.get((marker, flag))
+                declared = PAIR_EXEMPT.get((marker, flag))
                 h_any, h_all, h_vals = _presence(h_inv, flag)
                 l_any, l_all, l_vals = _presence(l_inv, flag)
                 if h_any and l_any:
                     if declared is not None:
-                        want, reason = declared
-                        err(f"`{flag}` on `{cmd}` is declared {want}-only for the pair `{marker}` in "
-                            f'FLAG_EXEMPT and BOTH halves now pass it. The reason ("{reason}") has '
-                            "expired — delete the entry, so the list stays a record of asymmetries "
-                            "that exist rather than of ones that once did")
+                        # `both` declares the halves DISAGREE about the value,
+                        # so agreement is its expiry — and an OPAQUE value
+                        # reads as agreement here, where the declaration is
+                        # what is being checked rather than the tree.
+                        agree = OPAQUE in h_vals or OPAQUE in l_vals or h_vals == l_vals
+                        msg = _exempt_present(marker, flag, declared[0], declared[1],
+                                              True, True, agree, FLAG_VERB, f" on `{cmd}`")
+                        if msg:
+                            err(msg)
                         continue
                     if h_all != l_all:
                         side = "hosted" if h_all else "local"
@@ -2037,33 +2554,80 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
                             "on only some of them in the other. Both halves name the flag, so a union "
                             "over the row would call that agreement — and it is how a flag dropped from "
                             "the row's own command hides behind a sibling that still carries it. Put it "
-                            "on every invocation, or declare the pair in FLAG_EXEMPT")
+                            "on every invocation, or declare the pair in PAIR_EXEMPT")
                         continue
                     if OPAQUE in h_vals or OPAQUE in l_vals or h_vals == l_vals:
                         continue
                     err(f"the pair `{marker}` passes `{flag}` on `{cmd}` with different values — hosted "
                         f"{sorted(h_vals)}, local {sorted(l_vals)}. A selection that narrows on one side "
                         "runs fewer tests under the same row name, and nothing else here would say so: "
-                        "mirror the value, or declare the pair in FLAG_EXEMPT with the reason it differs")
+                        "mirror the value, or declare the pair in PAIR_EXEMPT with the reason it "
+                        "differs (side `both`)")
+                    continue
+                if declared is not None:
+                    msg = _exempt_present(marker, flag, declared[0], declared[1],
+                                          h_any, l_any, False, FLAG_VERB, f" on `{cmd}`")
+                    if msg:
+                        err(msg)
                     continue
                 side = "hosted" if h_any else "local"
-                if declared is not None:
-                    want, reason = declared
-                    if want != side:
-                        err(f"`{flag}` on `{cmd}` is declared {want}-only for the pair `{marker}` in "
-                            f"FLAG_EXEMPT and is passed by the {side} half. The exemption now describes "
-                            f'the opposite of the tree — re-read the reason ("{reason}") and fix '
-                            "whichever side moved")
-                    continue
                 err(f"the pair `{marker}` passes `{flag}` on `{cmd}` in the {side} half only. This is one "
                     "of the flags that changes what a run MEANS rather than what it executes "
                     "(SEMANTIC_FLAGS), so the two halves now disagree about what a red run reports while "
                     "every roster claim above still says they run the same check — mirror it, or declare "
-                    "the pair in FLAG_EXEMPT with the reason it is one-sided")
+                    "the pair in PAIR_EXEMPT with the reason it is one-sided")
 
-    for (marker, flag), (want, reason) in sorted(FLAG_EXEMPT.items()):
+        # THE ENV ARM. Same table, same three expiry directions, and the
+        # unwatched-absence one FIRST for the reason it is first above: an
+        # entry that has stopped matching anything is a variable gone from
+        # both halves with a confession sitting on top of it.
+        for name in sorted(v for (m, v) in PAIR_EXEMPT if m == marker and not v.startswith("-")):
+            want, reason = PAIR_EXEMPT[(marker, name)]
+            if name in h_env or name in l_env or h_partial or l_partial:
+                continue
+            err(_exempt_unwatched(marker, name, want, reason, "sets"))
+        for name in sorted(set(h_env) | set(l_env)):
+            declared = PAIR_EXEMPT.get((marker, name))
+            h_val, l_val = h_env.get(name), l_env.get(name)
+            if h_val is not None and l_val is not None:
+                agree = OPAQUE in (h_val, l_val) or h_val == l_val
+                if declared is None:
+                    if not agree:
+                        err(f"the pair `{marker}` sets `{name}` to {h_val!r} hosted and {l_val!r} "
+                            "locally. This is one of the variables that changes what a run MEANS "
+                            "(SEMANTIC_ENV) — a cfg, a backend, a tolerance — so the two halves are "
+                            "running different checks under one row name while every claim above says "
+                            "they run the same one. Mirror the value, or declare the pair in "
+                            "PAIR_EXEMPT with side `both` and the reason they differ")
+                    continue
+                msg = _exempt_present(marker, name, declared[0], declared[1],
+                                      True, True, agree, ENV_VERB)
+                if msg:
+                    err(msg)
+                continue
+            side = "hosted" if h_val is not None else "local"
+            # ONE-SIDEDNESS IS AN ABSENCE CLAIM, and an incomplete map cannot
+            # support one: if the other half writes part of its environment as
+            # a runner expression, this reader does not know whether that
+            # expression sets this name. Reported at the claim rather than
+            # guessed either way.
+            if (h_partial if side == "local" else l_partial):
+                continue
+            if declared is not None:
+                msg = _exempt_present(marker, name, declared[0], declared[1],
+                                      h_val is not None, l_val is not None, False, ENV_VERB)
+                if msg:
+                    err(msg)
+                continue
+            err(f"the pair `{marker}` sets `{name}` in the {side} half only. This is one of the "
+                "variables that changes what a run MEANS rather than what it costs (SEMANTIC_ENV), and "
+                "a prefix dropped from one half is invisible to every other claim here: the row keeps "
+                "its name, its flags and its citation. Set it on both halves, or declare the pair in "
+                "PAIR_EXEMPT with the reason it is one-sided")
+
+    for (marker, token), (want, reason) in sorted(PAIR_EXEMPT.items()):
         if marker not in markers:
-            err(f"FLAG_EXEMPT declares `{flag}` {want}-only for the pair `{marker}`, and "
+            err(f"PAIR_EXEMPT declares `{token}` {want} for the pair `{marker}`, and "
                 f"{LOCAL_HALF} carries no such HOSTED MIRROR marker. Either the pair is gone and the "
                 f'entry should go with it, or ("{reason}") is describing a row that stopped running')
 
@@ -2251,17 +2815,24 @@ def plant_clean(t: str) -> None:
         # is exactly a row with no local half.
         for i, path in enumerate(_exempt_side("hosted")):
             fh.write(f"      - name: hosted only {i}\n        run: {path}\n")
-        # EVERY FLAG_EXEMPT pair, DERIVED, one job per cited job name. These
+        # EVERY PAIR_EXEMPT pair, DERIVED, one job per cited job name. These
         # jobs check nothing out, so claim 6 passes over them; they are cited
         # by the markers the local half writes below, so claim 9 does too.
-        by_job: dict[str, list[tuple[str, str]]] = {}
-        for marker, (hosted_argv, _local_argv) in _flag_exempt_rows().items():
+        # A hosted-side variable is written as a STEP `env:` block, which is
+        # the spelling the real hosted half uses and the one that has to
+        # compare equal to a local prefix.
+        by_job: dict[str, list[tuple[str, str, dict[str, str]]]] = {}
+        for marker, row in _pair_exempt_rows().items():
             job_name, step_name = marker.split(" / ", 1)
-            by_job.setdefault(job_name, []).append((step_name, hosted_argv))
+            by_job.setdefault(job_name, []).append((step_name, row.hosted_argv, row.hosted_env))
         for job_name, rows in sorted(by_job.items()):
             fh.write(f"  {job_name}:\n    steps:\n")
-            for step_name, hosted_argv in rows:
+            for step_name, hosted_argv, hosted_env in rows:
                 fh.write(f"      - name: {step_name}\n        run: {hosted_argv}\n")
+                if hosted_env:
+                    fh.write("        env:\n")
+                    for k, v in sorted(hosted_env.items()):
+                        fh.write(f"          {k}: {v}\n")
     with open(os.path.join(t, LOCAL_HALF), "w") as fh:
         fh.write("#!/usr/bin/env bash\n")
         fh.write(f"# HOSTED MIRROR: {SITING_JOB} / sited rows\n")
@@ -2281,9 +2852,19 @@ def plant_clean(t: str) -> None:
         fh.write(f"# HOSTED MIRROR: discipline / {FIXTURE_CARGO_STEP}\n{FIXTURE_CARGO_ROW}\n")
         fh.write(f"cargo_fn_row() {{\n  {FIXTURE_CARGO_FN_ROW}\n}}\n")
         fh.write(f"# HOSTED MIRROR: discipline / {FIXTURE_CARGO_FN_STEP}\nrun_fixture_row cargo_fn_row\n")
-        for marker, (_hosted_argv, local_argv) in _flag_exempt_rows().items():
-            fh.write(f"# HOSTED MIRROR: {marker}\n{local_argv}\n")
-    for path in MIRROR_EXEMPT:
+        for marker, row in _pair_exempt_rows().items():
+            prefix = "".join(f"{k}={shlex.quote(v)} " for k, v in sorted(row.local_env.items()))
+            fh.write(f"# HOSTED MIRROR: {marker}\n{prefix}{row.local_argv}\n")
+        # A STEP NAME CAN CARRY A SCRIPT PATH — `compose (demos/render-uv.sh)`
+        # — and the fixture plants that name in a workflow, where claims 2 and
+        # 3 read it as an invocation. Naming it here too, and creating the
+        # file below, is what the real repo does for the real row; the
+        # alternative, scrubbing the path out of the fixture's copy of the
+        # marker, would leave the table keyed on a pair the fixture does not
+        # have.
+        for path in _pair_exempt_paths():
+            fh.write(f"{path}\n")
+    for path in list(MIRROR_EXEMPT) + _pair_exempt_paths():
         os.makedirs(os.path.join(t, os.path.dirname(path)), exist_ok=True)
         open(os.path.join(t, path), "w").close()
     # CLAIM 11, the clean shape: one correctly-restated pin in the local half…
@@ -2318,39 +2899,106 @@ def plant_clean(t: str) -> None:
                              "verdict on the tree.")
 
 
-def _flag_spelling(flag: str) -> str:
+def _flag_spelling(flag: str, side: str | None = None) -> str:
     """How the fixture writes one allowlisted flag. A value-taking flag gets a
     literal, never an expansion: an expansion is OPAQUE, and a fixture whose
-    values all compare equal to everything would pass every value case."""
-    return flag if not SEMANTIC_FLAGS[flag] else f"{flag} fixture-value"
+    values all compare equal to everything would pass every value case.
+
+    `side` is for a `both` entry, whose two halves must carry DIFFERENT values
+    — that is what such an entry declares, and a fixture that planted one
+    value would satisfy the entry's expiry arm instead of the entry."""
+    if not SEMANTIC_FLAGS[flag]:
+        return flag
+    return f"{flag} fixture-value" if side is None else f"{flag} fixture-{side}-value"
 
 
-def _flag_exempt_rows() -> dict[str, tuple[str, str]]:
-    """`marker -> (hosted argv, local argv)` for the FLAG_EXEMPT pairs.
+def _pair_exempt_paths() -> list[str]:
+    """Every `scripts/` or `demos/` path named inside a PAIR_EXEMPT marker."""
+    out = set()
+    for marker in PAIR_EXEMPT:
+        out.update(SCRIPT_RE.findall(marker[0]))
+    return sorted(out)
+
+
+def _env_spelling(name: str, side: str) -> str:
+    """The value one exempted variable carries in the fixture.
+
+    A `both` entry has to be planted with the halves DISAGREEING — that is
+    what it declares — so the value carries the side that wrote it. The
+    literals are never expansions: an expansion is OPAQUE and compares equal
+    to anything, so a fixture built out of them would pass every value case.
+    """
+    return f"fixture-{side}-{name.lower()}"
+
+
+class _ExemptRow:
+    """One pair's fixture row: what each half's argv and environment must be
+    for the PAIR_EXEMPT entries on it to be exactly satisfied."""
+
+    def __init__(self, hosted_argv: str, local_argv: str) -> None:
+        self.hosted_argv = hosted_argv
+        self.local_argv = local_argv
+        self.hosted_env: dict[str, str] = {}
+        self.local_env: dict[str, str] = {}
+
+
+def _pair_exempt_rows() -> dict[str, _ExemptRow]:
+    """`marker -> _ExemptRow` for the PAIR_EXEMPT pairs, both token classes.
 
     DERIVED FROM THE TABLE, for the reason `_exempt_side` is: a fixture that
     named an entry would go red against a CLEAN fixture the day that entry
     expired for real, reporting the fixture where the finding is the entry.
     """
-    rows: dict[str, tuple[list[str], list[str]]] = {}
-    for (marker, flag), (side, _reason) in sorted(FLAG_EXEMPT.items()):
-        if side not in ("hosted", "local"):
-            raise Bail(f"FLAG_EXEMPT declares side={side!r} for `{flag}` on the pair `{marker}`, which "
-                       "the selftest's clean fixture does not know how to satisfy — it can put a flag "
-                       "on the hosted row or the local one, and nowhere else."
-                       + teach("`_flag_exempt_rows`"))
+    flags: dict[str, tuple[list[str], list[str]]] = {}
+    envs: dict[str, list[tuple[str, str]]] = {}
+    for (marker, token), (side, _reason) in sorted(PAIR_EXEMPT.items()):
+        is_flag = token.startswith("-")
+        # `both` MEANS THE TWO HALVES CARRY DIFFERENT VALUES, so it is legal
+        # for anything that HAS a value — every variable, and a value-taking
+        # flag. It is refused for a boolean flag because there is no such
+        # state to declare, and the refusal is written here rather than left
+        # implicit: claim 10's own different-values error invites `both`, and
+        # an invitation the table cannot honour is the defect this file exists
+        # to catch, one class over.
+        if side not in ("hosted", "local", "both"):
+            raise Bail(f"PAIR_EXEMPT declares side={side!r} for `{token}` on the pair `{marker}`, "
+                       "which is not one of hosted, local, both."
+                       + teach("`_pair_exempt_rows`"))
+        if side == "both" and is_flag and not SEMANTIC_FLAGS.get(token):
+            raise Bail(f"PAIR_EXEMPT declares `{token}` `both` for the pair `{marker}`, and it is a "
+                       "flag that takes no value. `both` says the halves carry DIFFERENT values; a "
+                       "valueless flag is either passed or not, so what this entry describes cannot "
+                       "exist. Use hosted or local." + teach("`_pair_exempt_rows`"))
         if " / " not in marker:
-            raise Bail(f"FLAG_EXEMPT is keyed on the pair `{marker}`, which is not a "
+            raise Bail(f"PAIR_EXEMPT is keyed on the pair `{marker}`, which is not a "
                        "`<job> / <step name>` citation and so can never name a mirrored pair."
-                       + teach("`_flag_exempt_rows`"))
-        h, ln = rows.setdefault(marker, ([], []))
-        (h if side == "hosted" else ln).append(_flag_spelling(flag))
+                       + teach("`_pair_exempt_rows`"))
+        flags.setdefault(marker, ([], []))
+        envs.setdefault(marker, [])
+        if is_flag:
+            h, ln = flags[marker]
+            if side == "both":
+                h.append(_flag_spelling(token, "hosted"))
+                ln.append(_flag_spelling(token, "local"))
+            else:
+                (h if side == "hosted" else ln).append(_flag_spelling(token))
+        else:
+            envs[marker].append((token, side))
     # A DIFFERENT BASE FROM `FIXTURE_CARGO_ROW`, deliberately: the cases below
     # rewrite one row by its exact text, and two rows spelled identically make
     # every one of them edit both — which is how `flag_value_opaque` first
     # "failed" against a pair it had never touched.
     base = "cargo nextest run --archive-file fixture.tar.zst"
-    return {m: (" ".join([base, *h]), " ".join([base, *ln])) for m, (h, ln) in rows.items()}
+    out: dict[str, _ExemptRow] = {}
+    for marker, (h, ln) in flags.items():
+        row = _ExemptRow(" ".join([base, *h]), " ".join([base, *ln]))
+        for name, side in envs[marker]:
+            if side in ("hosted", "both"):
+                row.hosted_env[name] = _env_spelling(name, "hosted")
+            if side in ("local", "both"):
+                row.local_env[name] = _env_spelling(name, "local")
+        out[marker] = row
+    return out
 
 
 def _exempt_side(side: str) -> list[str]:
@@ -2446,8 +3094,58 @@ def selftest_bail_messages() -> None:
                          "genuinely no shape to learn:\n  " + "\n  ".join(bad))
 
 
+def selftest_both_is_reachable() -> None:
+    """THE ADVICE HAS TO BE ADVICE THE TABLE CAN TAKE.
+
+    Claim 10's different-values error tells the reader to declare the pair
+    with side `both`. Before this was checked, `_pair_exempt_rows` refused
+    exactly that entry for a flag — so a reader who followed the advice got a
+    green run and a RED SELFTEST, which is a hosted row. That is the
+    invited-then-refused defect this file's own header describes, re-created
+    one token class over, in the diff that describes fixing it.
+
+    Asserted here rather than through a fixture pair because the table is
+    production data: there is no live `both` flag entry to derive one from,
+    and inventing one in the table to test the table is a fiction. What the
+    fixture DOES cover is the verdict side, and it covers it for both classes
+    at once: `_exempt_present` is one function, called by both arms.
+    """
+    global PAIR_EXEMPT
+    saved = PAIR_EXEMPT
+    marker = sorted(PAIR_EXEMPT)[0][0]
+    valued = sorted(f for f, takes in SEMANTIC_FLAGS.items() if takes)
+    boolean = sorted(f for f, takes in SEMANTIC_FLAGS.items() if not takes)
+    try:
+        for flag in valued[:1]:
+            PAIR_EXEMPT = {(marker, flag): ("both", "reachability probe")}
+            try:
+                row = _pair_exempt_rows()[marker]
+            except Bail as exc:
+                raise SystemExit(f"SELFTEST FAILED: claim 10 tells the reader to declare a pair with "
+                                 f"side `both`, and the table refuses `{flag}` declared that way "
+                                 f"({exc}). Advice the table cannot take reds this selftest on the "
+                                 "hosted row for anyone who follows it.") from exc
+            if row.hosted_argv == row.local_argv:
+                raise SystemExit(f"SELFTEST FAILED: a `both` entry for `{flag}` planted the SAME "
+                                 "value on both halves of the fixture. `both` declares that the two "
+                                 "halves differ, so such a fixture satisfies the entry's expiry arm "
+                                 "instead of the entry.")
+        for flag in boolean[:1]:
+            PAIR_EXEMPT = {(marker, flag): ("both", "reachability probe")}
+            try:
+                _pair_exempt_rows()
+            except Bail:
+                continue
+            raise SystemExit(f"SELFTEST FAILED: `{flag}` takes no value and was accepted as a `both` "
+                             "entry. `both` says the halves carry DIFFERENT values; for a valueless "
+                             "flag there is no such state, so the entry describes nothing.")
+    finally:
+        PAIR_EXEMPT = saved
+
+
 def selftest() -> None:
     selftest_bail_messages()
+    selftest_both_is_reachable()
     with tempfile.TemporaryDirectory() as t:
         plant_clean(t)
         rc, out = _run(t)
@@ -2652,6 +3350,214 @@ def selftest() -> None:
              f"run: {FIXTURE_CARGO_ROW} --features ${{{{ matrix.feats }}}}\n")
         _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} --features two\n")
 
+    # CLAIM 10'S ENV ARM. Every case below is written from the failure it has
+    # to catch, and the two spellings are the subject of most of them: a
+    # reader that saw only `env:` blocks, or only inline prefixes, would pass
+    # exactly the divergence this arm was built for.
+    _FX_RUSTFLAGS = "--cfg fixture_env"
+
+    # The variable declared on hosted's STEP and nowhere locally. Catches the
+    # arm not reading step blocks at all.
+    def env_hosted_only(t):
+        _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
+             f"        run: {FIXTURE_CARGO_ROW}\n        env:\n          RUSTFLAGS: {_FX_RUSTFLAGS}\n")
+
+    # THE HOSTED HALF'S OTHER SPELLING: an inline prefix in a `run:` block,
+    # which is how the wasm pair carries its backend cfg. A reader that took
+    # the hosted environment from `env:` blocks alone would see nothing here.
+    def env_hosted_prefix_only(t):
+        _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
+             f"        run: RUSTFLAGS='{_FX_RUSTFLAGS}' {FIXTURE_CARGO_ROW}\n")
+
+    # …and the mirror image: a prefix the hosted half does not carry.
+    def env_local_only(t):
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n",
+             f"RUSTFLAGS='{_FX_RUSTFLAGS}' {FIXTURE_CARGO_ROW}\n")
+
+    # Both halves set it, to different cfgs. One row name, two builds.
+    def env_value_diverges(t):
+        _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
+             f"        run: {FIXTURE_CARGO_ROW}\n        env:\n          RUSTFLAGS: --cfg one\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"RUSTFLAGS='--cfg two' {FIXTURE_CARGO_ROW}\n")
+
+    # THE CASE THE WHOLE ARM TURNS ON: a step `env:` block and an inline
+    # prefix are the SAME FACT, and this must pass. A reader that compared one
+    # spelling only would call this pair one-sided; one that compared the
+    # values as written would trip over YAML's optional quotes.
+    def env_block_equals_prefix(t):
+        # QUOTED ON THE HOSTED SIDE, on purpose: YAML's quotes are optional
+        # and the shell's are consumed by the shell, so a reader that compared
+        # the two values as written would call these different.
+        _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
+             f"        run: {FIXTURE_CARGO_ROW}\n        env:\n"
+             f'          RUSTFLAGS: "{_FX_RUSTFLAGS}"\n')
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n",
+             f'RUSTFLAGS="{_FX_RUSTFLAGS}" {FIXTURE_CARGO_ROW}\n')
+
+    # A pair whose hosted half declares the variable at the JOB, forty lines
+    # above the step the marker cites — and the two layers below it, so that
+    # PRECEDENCE is a case rather than a sentence. Planted as its own job so
+    # each case says one thing.
+    def _env_job(name: str, local_prefix: str, job_value: str = _FX_RUSTFLAGS,
+                 step_value: str | None = None, hosted_prefix: str = ""):
+        def go(t: str) -> None:
+            step = f"      - name: env row\n        run: {hosted_prefix}cargo check --workspace\n"
+            if step_value is not None:
+                step += f"        env:\n          RUSTFLAGS: {step_value}\n"
+            _append(HOSTED_HALF,
+                    f"  envjob:\n    env:\n      RUSTFLAGS: {job_value}\n    steps:\n" + step)(t)
+            _append(LOCAL_HALF,
+                    f"# HOSTED MIRROR: envjob / env row\n{local_prefix}cargo check --workspace\n")(t)
+        go.__name__ = name
+        return go
+
+    _FX_PREFIX = f"RUSTFLAGS='{_FX_RUSTFLAGS}' "
+    env_job_block_equals_prefix = _env_job("env_job_block_equals_prefix", _FX_PREFIX)
+    env_job_block_hosted_only = _env_job("env_job_block_hosted_only", "")
+    # THE LADDER, ONE RUNG AT A TIME. Each of these plants the RIGHT value on
+    # the layer that must win and a wrong one on the layer below it, so the
+    # case passes only if precedence runs workflow < job < step < prefix. A
+    # reader that merged them in any other order reds on a correct pair.
+    precedence_step_over_job = _env_job("precedence_step_over_job", _FX_PREFIX,
+                                        job_value="--cfg outranked", step_value=_FX_RUSTFLAGS)
+    precedence_prefix_over_block = _env_job("precedence_prefix_over_block", _FX_PREFIX,
+                                            job_value="--cfg outranked",
+                                            step_value="--cfg also-outranked",
+                                            hosted_prefix=_FX_PREFIX)
+
+    # THE BOTTOM RUNG, in a workflow file of its own so the case touches one
+    # pair rather than every pair in the fixture. Without this layer, one line
+    # added to ci.yml's top-level block changes every hosted row's environment
+    # and nothing says a word.
+    def _env_workflow(name: str, local_prefix: str):
+        def go(t: str) -> None:
+            with open(os.path.join(t, ".github/workflows/envfile.yml"), "w") as fh:
+                fh.write(f"env:\n  RUSTFLAGS: {_FX_RUSTFLAGS}\njobs:\n  envfilejob:\n    steps:\n"
+                         "      - name: env row\n        run: cargo check --workspace\n")
+            _append(LOCAL_HALF, "# HOSTED MIRROR: envfilejob / env row\n"
+                                f"{local_prefix}cargo check --workspace\n")(t)
+        go.__name__ = name
+        return go
+
+    env_workflow_block_equals_prefix = _env_workflow("env_workflow_block_equals_prefix", _FX_PREFIX)
+    env_workflow_block_hosted_only = _env_workflow("env_workflow_block_hosted_only", "")
+
+    # THE LOCAL HALF'S OTHER SHAPES, each of which read as SETTING NOTHING
+    # before the walk in `env_prefixes` learned about them — and reading as
+    # nothing is indistinguishable from a half that never set the variable,
+    # which is the silent pass this whole arm exists to close.
+    def _env_local_shape(name: str, local_row: str, hosted_value: str = _FX_RUSTFLAGS):
+        def go(t: str) -> None:
+            _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
+                 f"        run: {FIXTURE_CARGO_ROW}\n        env:\n"
+                 f"          RUSTFLAGS: '{hosted_value}'\n")
+            _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", local_row)
+        go.__name__ = name
+        return go
+
+    # A ONE-LINE shell function: `f() { NAME=v cargo …; }`. Three live pairs
+    # are written this way, one of them carrying three PAIR_EXEMPT entries.
+    env_one_line_function = _env_local_shape(
+        "env_one_line_function", f"fixture_one_liner() {{ {_FX_PREFIX}{FIXTURE_CARGO_ROW}; }}\n"
+                                 "fixture_one_liner\n")
+    # `env NAME=v cmd`, which the item's own class list names.
+    env_wrapper_command = _env_local_shape(
+        "env_wrapper_command", f"env {_FX_PREFIX}{FIXTURE_CARGO_ROW}\n")
+    # A loop body, and a brace group — the same positional blindness.
+    env_loop_body = _env_local_shape(
+        "env_loop_body", f"for i in 1; do {_FX_PREFIX}{FIXTURE_CARGO_ROW}; done\n")
+    # An opaque value on the LOCAL side. `env_value_opaque` plants on the
+    # hosted side only, so a normaliser that read `$VAR` as text locally kept
+    # passing every case in this file.
+    env_value_opaque_local = _env_local_shape(
+        "env_value_opaque_local", f'RUSTFLAGS="$SOME_LOCAL_VAR" {FIXTURE_CARGO_ROW}\n')
+    # A value carrying INNER quotes — the real wasm cfg's shape. A normaliser
+    # that stripped more than YAML's outer pair would break exactly here.
+    env_inner_quotes = _env_local_shape(
+        "env_inner_quotes", "RUSTFLAGS='--cfg backend=\"wasm_js\"' " + f"{FIXTURE_CARGO_ROW}\n",
+        hosted_value='--cfg backend="wasm_js"')
+
+    # THE ROW WHOSE ARGV LIVES IN A FUNCTION the dispatch line only names.
+    # The flag arm has this case; without it here, a reader that took the
+    # local environment from the marker's first code line passed every env
+    # case in this file.
+    def env_through_function(t):
+        _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_FN_ROW}\n",
+             f"        run: {FIXTURE_CARGO_FN_ROW}\n        env:\n"
+             f"          RUSTFLAGS: '{_FX_RUSTFLAGS}'\n")
+        _sub(t, LOCAL_HALF, f"  {FIXTURE_CARGO_FN_ROW}\n", f"  {_FX_PREFIX}{FIXTURE_CARGO_FN_ROW}\n")
+
+    # A THROUGHPUT KNOB ON THE LOCAL SIDE. The hosted-only case cannot see a
+    # filter applied to one half and not the other.
+    def env_throughput_knob_local(t):
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n",
+             f"CARGO_PROFILE_TEST_DEBUG=line-tables-only {FIXTURE_CARGO_ROW}\n")
+
+    # AN EXPRESSION WHERE A PREFIX WOULD BE. Only a runner knows whether it
+    # sets this name, so the half is INCOMPLETE and a one-sided verdict
+    # against it is withheld — the live shape at ci.yml's archived-test rows.
+    def env_expression_prefix(t):
+        _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
+             "        run: ${{ matrix.envprefix }} " + f"{FIXTURE_CARGO_ROW}\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{_FX_PREFIX}{FIXTURE_CARGO_ROW}\n")
+
+    # A MIRRORED PAIR WHOSE HOSTED HALF IS AN ACTION. There is no argv and no
+    # environment to compare — what such a step does is its `with:` inputs —
+    # so a pair cited at one is a pair checked by nothing.
+    def env_uses_only_pair(t):
+        _append(HOSTED_HALF, "  actionjob:\n    steps:\n      - name: action row\n"
+                             "        uses: ./.github/actions/fixture\n        with:\n"
+                             '          version: "1.2.3"\n')(t)
+        _append(LOCAL_HALF, "# HOSTED MIRROR: actionjob / action row\n"
+                            f"{FIXTURE_CARGO_ROW}\n")(t)
+
+    # AN ASSIGNMENT THE WALK CANNOT ATTRIBUTE: after the command word, where
+    # it is an argument and not a prefix — or in a construct not on the list.
+    def env_unattributed(t):
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n",
+             f"{FIXTURE_CARGO_ROW} && somecmd RUSTFLAGS=x\n")
+
+    # A value only a runner can expand is not a divergence, on the flag arm's
+    # own rule: refusing here reds a correct tree.
+    def env_value_opaque(t):
+        _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
+             f"        run: {FIXTURE_CARGO_ROW}\n        env:\n"
+             "          RUSTFLAGS: ${{ matrix.flags }}\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"RUSTFLAGS='--cfg two' {FIXTURE_CARGO_ROW}\n")
+
+    # A THROUGHPUT KNOB, HOSTED-ONLY, WHICH MUST NOT RED. The local half's
+    # refusal to mirror `CARGO_PROFILE_*` is ratified and measured; an arm
+    # that fired here would be demanding a change the repo decided against,
+    # and the exemption table would become the place to put that decision.
+    def env_throughput_knob(t):
+        _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
+             f"        run: {FIXTURE_CARGO_ROW}\n        env:\n"
+             "          CARGO_PROFILE_TEST_DEBUG: line-tables-only\n")
+
+    # A pair with no cargo command on either half. The flag arm skips it by
+    # construction; the env arm must not, because the pair this whole arm was
+    # filed over is a render row.
+    def env_on_a_row_without_cargo(t):
+        _sub(t, HOSTED_HALF, "      - name: sited rows\n        run: echo sited\n",
+             "      - name: sited rows\n        run: echo sited\n        env:\n"
+             "          CAD_RENDER_ACCEPTOR: fixture\n")
+
+    # THE TWO REFUSALS. A variable set for the rest of the shell is attributed
+    # to no command, and would compare equal to a half that never set it.
+    def env_standing_assignment(t):
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n",
+             f"RUSTFLAGS='{_FX_RUSTFLAGS}'\n{FIXTURE_CARGO_ROW}\n")
+
+    def env_exported(t):
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n",
+             f"export RUSTFLAGS='{_FX_RUSTFLAGS}'\n{FIXTURE_CARGO_ROW}\n")
+
+    # …and the hosted way to set a variable this reader cannot see: a step
+    # that appends to $GITHUB_ENV sets it for every later step of the job.
+    def env_via_github_env(t):
+        _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
+             '        run: echo "RUSTFLAGS=x" >> $GITHUB_ENV\n')
+
     # The union's blind spot: the row's own command loses the flag and a
     # SECOND invocation beside it still carries one.
     def flag_on_only_some(t):
@@ -2753,11 +3659,12 @@ def selftest() -> None:
     if _pin_free_local:
         _ok_case(pin_free_beside_a_tool)
 
-    _flag_exempt = sorted(FLAG_EXEMPT)
+    _flag_exempt = sorted(k for k in PAIR_EXEMPT if k[1].startswith("-"))
     if _flag_exempt:
         _fx_marker, _fx_flag = _flag_exempt[0]
-        _fx_side = FLAG_EXEMPT[(_fx_marker, _fx_flag)][0]
-        _fx_hosted, _fx_local = _flag_exempt_rows()[_fx_marker]
+        _fx_side = PAIR_EXEMPT[(_fx_marker, _fx_flag)][0]
+        _fx_row = _pair_exempt_rows()[_fx_marker]
+        _fx_hosted, _fx_local = _fx_row.hosted_argv, _fx_row.local_argv
 
         def flag_exemption_expired(t):
             """The declared one-sided flag appears on the OTHER half too."""
@@ -2785,6 +3692,59 @@ def selftest() -> None:
             path, argv = ((HOSTED_HALF, _fx_hosted) if _fx_side == "hosted"
                           else (LOCAL_HALF, _fx_local))
             _sub(t, path, f"{argv}\n", f"{argv.replace(' ' + _flag_spelling(_fx_flag), '')}\n")
+
+    # THE ENV ARM'S EXEMPTION DIRECTIONS, derived from the table the same way
+    # the flag ones are. Two subjects: a one-sided entry and a `both` entry,
+    # because their expiry arms are different sentences.
+    _env_exempt = sorted(k for k in PAIR_EXEMPT
+                         if not k[1].startswith("-") and PAIR_EXEMPT[k][0] != "both")
+    _env_both = sorted(k for k in PAIR_EXEMPT
+                       if not k[1].startswith("-") and PAIR_EXEMPT[k][0] == "both")
+    if _env_exempt:
+        _ex_marker, _ex_name = _env_exempt[0]
+        _ex_side = PAIR_EXEMPT[(_ex_marker, _ex_name)][0]
+        _ex_row = _pair_exempt_rows()[_ex_marker]
+        _ex_value = _env_spelling(_ex_name, _ex_side)
+
+        def env_exemption_expired(t):
+            """The declared one-sided variable appears on the OTHER half too."""
+            if _ex_side == "hosted":
+                _sub(t, LOCAL_HALF, f"{_ex_row.local_argv}\n",
+                     f"{_ex_name}={_ex_value} {_ex_row.local_argv}\n")
+            else:
+                _sub(t, HOSTED_HALF, f"        run: {_ex_row.hosted_argv}\n",
+                     f"        run: {_ex_row.hosted_argv}\n        env:\n"
+                     f"          {_ex_name}: {_ex_value}\n")
+
+        def env_exemption_inverted(t):
+            """The variable moved to the half the entry says does not set it."""
+            env_exemption_expired(t)
+            env_exemption_unwatched(t)
+
+        def env_exemption_unwatched(t):
+            """The declared variable DROPPED from the half that set it. The
+            entry then excuses nothing and hides the absence behind itself."""
+            if _ex_side == "hosted":
+                _sub(t, HOSTED_HALF, f"          {_ex_name}: {_ex_value}\n", "")
+            else:
+                _sub(t, LOCAL_HALF, f"{_ex_name}={_ex_value} ", "")
+
+    if _env_both:
+        _bo_marker, _bo_name = _env_both[0]
+        _bo_row = _pair_exempt_rows()[_bo_marker]
+
+        def env_exemption_both_one_sided(t):
+            """A declared divergence where one half simply STOPPED setting the
+            variable. The entry still matches — one side carries it — so an
+            arm that only asked "is it declared?" would pass a real drop."""
+            _sub(t, LOCAL_HALF, f"{_bo_name}={_env_spelling(_bo_name, 'local')} ", "")
+
+        def env_exemption_agreed(t):
+            """A declared divergence that CLOSED. The two halves now say the
+            same thing and the entry is a fossil — the direction an exemption
+            table rots in when nothing reads it back."""
+            _sub(t, LOCAL_HALF, f"{_bo_name}={_env_spelling(_bo_name, 'local')} ",
+                 f"{_bo_name}={_env_spelling(_bo_name, 'hosted')} ")
 
     _case("and local-scripts/ci-local.sh does not", hosted_only)
     _case("and no workflow in .github/workflows/ does", local_only)
@@ -2853,14 +3813,48 @@ def selftest() -> None:
     _case("with different values", substitution_contents_read)
     _case("takes a value", flag_missing_value)
     _case("never closes", unclosed_quote)
+    _case("sets `RUSTFLAGS` in the hosted half only", env_hosted_only)
+    _case("sets `RUSTFLAGS` in the hosted half only", env_hosted_prefix_only)
+    _case("sets `RUSTFLAGS` in the local half only", env_local_only)
+    _case("hosted and '--cfg two' locally", env_value_diverges)
+    _case("sets `RUSTFLAGS` in the hosted half only", env_job_block_hosted_only)
+    _case("sets `RUSTFLAGS` in the hosted half only", env_workflow_block_hosted_only)
+    _case("cannot attribute it to a command", env_unattributed)
+    _case("is a `uses:` step", env_uses_only_pair)
+    _case("sets `CAD_RENDER_ACCEPTOR` in the hosted half only", env_on_a_row_without_cargo)
+    _case("set for the rest of the shell here", env_standing_assignment)
+    _case("set for the rest of the shell here", env_exported)
+    _case("writes to $GITHUB_ENV", env_via_github_env)
+    _ok_case(env_block_equals_prefix)
+    _ok_case(env_job_block_equals_prefix)
+    _ok_case(env_workflow_block_equals_prefix)
+    _ok_case(precedence_step_over_job)
+    _ok_case(precedence_prefix_over_block)
+    _ok_case(env_one_line_function)
+    _ok_case(env_wrapper_command)
+    _ok_case(env_loop_body)
+    _ok_case(env_value_opaque_local)
+    _ok_case(env_inner_quotes)
+    _ok_case(env_through_function)
+    _ok_case(env_throughput_knob_local)
+    _ok_case(env_expression_prefix)
+    _ok_case(env_value_opaque)
+    _ok_case(env_throughput_knob)
+    if _env_exempt:
+        _case("BOTH halves now set it", env_exemption_expired)
+        _case("PAIR_EXEMPT and is set by the", env_exemption_inverted)
+        _case("NEITHER half sets it", env_exemption_unwatched)
+    if _env_both:
+        _case("the two halves now agree", env_exemption_agreed)
+        _case("only the hosted half sets it now", env_exemption_both_one_sided)
     _ok_case(flag_value_opaque)
     _ok_case(redirection_before_flags)
     _ok_case(substitution_before_flags)
     if _flag_exempt:
         _case("BOTH halves now pass it", flag_exemption_expired)
-        _case("FLAG_EXEMPT and is passed by the", flag_exemption_inverted)
+        _case("PAIR_EXEMPT and is passed by the", flag_exemption_inverted)
         _case("carries no such HOSTED MIRROR marker", flag_exemption_orphaned)
-        _case("NEITHER half passes it on a command they both run", flag_exemption_unwatched)
+        _case("NEITHER half passes it", flag_exemption_unwatched)
     print("check-ci-mirror-parity selftest OK: every Bail names the symbol to extend or says there is "
           "none; passes a clean fixture, and refuses the fixture's own `--root` on the gate of "
           "record; fires on a one-sided row, a "
@@ -2880,14 +3874,25 @@ def selftest() -> None:
           "SEMANTIC_FLAGS passed by one half of a mirrored pair and not the other (in each direction, "
           "and through a shell function the local row only names), a flag both halves pass with "
           "different values, a flag one half passes on every invocation and the other on only some, a "
-          "flag read out of a command substitution, an argv whose flag has no value or whose quote never "
-          "closes, a FLAG_EXEMPT entry that expired, inverted, lost its pair or lost the flag it "
+          "flag read out of a command substitution, EVERY spelling of a semantics-bearing "
+          "ENVIRONMENT variable set on one half of a pair and not the other — a workflow, job "
+          "or step `env:` block and an inline prefix, on a pair that runs cargo and on one "
+          "that runs none — the same variable set to two values, a standing, exported or "
+          "unattributable assignment, a $GITHUB_ENV write, a mirrored pair cited at a `uses:` "
+          "step, an argv whose flag has no value or whose quote never "
+          "closes, a PAIR_EXEMPT entry that expired, inverted, lost its pair or lost the token it "
           "excused, a tool pin bumped in ci.yml while the local half went on naming the old version, "
           "a local literal that drifted onto a DIFFERENT pin's value beside the tool it is not, and a "
           "PIN_FREE entry whose literal is gone — while accepting a `--selftest` mode invoked by "
           "a workflow on one line, through a loop over two scripts in one `run:` block, or across a "
           "line continuation, a scripts/gates/ member's uninvoked one, a script whose only mention of the flag is a full-line COMMENT about another script, a value only a runner can "
           "expand, "
+          "a hosted `env:` block and a local prefix that say the same thing in different "
+          "spellings — including a value carrying inner quotes, a prefix inside a one-line "
+          "shell function, a loop body or an `env NAME=v` wrapper, and one reached only "
+          "through a function the local row names — every rung of the precedence ladder "
+          "outranking the one below it, an opaque value on EITHER half, an expression "
+          "standing where a prefix would, a throughput knob on either half, "
           "and a redirection or a substitution sitting between a cargo command and its flags")
 
 
@@ -2984,7 +3989,10 @@ def main() -> int:
           f"workflow in {WORKFLOW_DIR}/, every job in every one of them is either cited by the local "
           "half or says at its own key, in a sentence, why it has no local half, and no mirrored pair "
           "passes an undeclared semantics-bearing flag on one half only, or on only some of one half's "
-          "invocations, of a cargo subcommand both halves run, and every version literal in the "
+          "invocations, of a cargo subcommand both halves run, nor sets a semantics-bearing "
+          "ENVIRONMENT variable on one half only or to a different value on the two halves — "
+          "however each half spells it, an `env:` block on the workflow, the job or the step, "
+          "or an inline prefix on the command — and every version literal in the "
           f"tracked files under {PIN_TREE}/ is a version {HOSTED_HALF} pins today or is declared in "
           "PIN_FREE as something else, with every line that names a pinned tool carrying that "
           "tool\u2019s current pin, and every `--selftest` mode outside scripts/gates/ is passed that "

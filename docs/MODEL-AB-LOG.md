@@ -248,8 +248,13 @@ amended:
      `docs/METER-EXIT-WALK.md` §4 as Ev ratified it that day; INSTR
      inherits METER's posture — infra-only, the band claimed for
      bookkeeping and no protocol run — and whether it ever runs one is
-     left to Ev, which the walk's §8 records as unsettled),
-     with **3400+ unallocated** — the orchestrator opening the next
+     left to Ev, which the walk's §8 records as unsettled) · PERF
+     3400–3499 (claimed 2026-09-10 in the commit that gave `work/perf/`
+     an orchestrator, prefix `perf/`; PERF runs the full v6 dual on
+     every kernel unit, and records no row for a measurement-only or
+     instrument-only unit — the CIW/CHROME posture for those alone;
+     Ev, in-chat, 2026-09-10),
+     with **3500+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.

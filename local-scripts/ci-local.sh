@@ -272,6 +272,11 @@ fi
 # HOSTED MIRROR: mirror / viewer module kinds (vocabulary/driver boundary)
 # HOSTED MIRROR: mirror / viewer vocabularies are declared once (no hand-written ALL)
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
+# The status-capture row belongs here too, and for the tier reason: its inputs
+# are every workflow file AND every tracked shell script, this file among them
+# — local-scripts/ is the tree that classifies TIER=docs and that every hosted
+# job but `mirror` deletes at checkout.
+# HOSTED MIRROR: mirror / status capture (PIPESTATUS is read before anything rewrites it)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
@@ -291,6 +296,8 @@ tier_blind_rows() {
   scripts/gates/viewer-vocab-declared-once.sh || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
+  python3 scripts/check-status-capture.py --selftest || rc=1
+  python3 scripts/check-status-capture.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
@@ -1192,7 +1199,10 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 #
 # UNCONDITIONAL HERE, GATED HOSTED: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
-# (Ev's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27). This half is
+# (Ev's viewer-CI-posture ruling, 2026-08-27, in the closed GUI program's
+# log, which left the tracker with that program's directory in DOC-LEDGER
+# sweep 5 and reads at
+# `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`). This half is
 # not billed by anyone's minute — it is billed in one developer's wall
 # clock, on a run they chose to make — and it runs every point of every
 # dimension. Skipping work here would buy nothing
