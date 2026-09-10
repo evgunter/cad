@@ -31,7 +31,7 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{axis_y, dist_to_surface, eps, p2, validated};
+use crate::common::{axis_y, eps, p2, sampled_deviation, validated};
 use core::f64::consts::{FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Tol};
@@ -100,26 +100,6 @@ fn triangle_uv(chart: &Chart, tri: [Point3<f64>; 3]) -> [[f64; 2]; 3] {
     ]
 }
 
-/// Largest sampled distance from the affine triangle to the surface
-/// (barycentric grid, `n = 6` ⇒ 28 points).
-fn sampled_deviation(surface: &Surface<f64>, tri: [Point3<f64>; 3]) -> f64 {
-    let n = 6u32;
-    let mut worst: f64 = 0.0;
-    for i in 0..=n {
-        for j in 0..=(n - i) {
-            let (li, lj) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
-            let lk = 1.0 - li - lj;
-            let p = Point3::new(
-                tri[0].x * li + tri[1].x * lj + tri[2].x * lk,
-                tri[0].y * li + tri[1].y * lj + tri[2].y * lk,
-                tri[0].z * li + tri[1].z * lj + tri[2].z * lk,
-            );
-            worst = worst.max(dist_to_surface(surface, p));
-        }
-    }
-    worst
-}
-
 /// One sweep row: the three claims over one body.
 fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
     let body = tube(major, sweep);
@@ -152,7 +132,7 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
         for tri in &patch.triangles {
             let pts = tri.map(|i| mesh.positions[i as usize]);
             let cert = cert_torus(major, MINOR, triangle_uv(&chart, pts));
-            let dev = sampled_deviation(surface, pts);
+            let dev = sampled_deviation(surface, pts, 6);
             // Claim 1: sampled deviation within the certificate (the
             // boundary corners sit within ε of the surface), and the
             // certificate within δ.
@@ -250,16 +230,18 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
     }
 }
 
-/// `R/r` from 1.2 to 50, δ over three decades, on a quarter-turn
-/// wedge (caps: meridian edges) and, where the count allows, the full
-/// tube (seams and rims). Sizes stay in the tens of thousands of
-/// triangles per row.
+/// `R/r` from 1.2 to 50, δ/r across three decades (3e-2 down to
+/// 3e-5), on a quarter-turn wedge (caps: meridian edges) — the finest
+/// decade on a sixteenth-turn so the row stays at a few hundred
+/// thousand triangles — and, where the count allows, the full tube
+/// (seams and rims).
 #[test]
 fn torus_sizing_sweep_is_sound_tight_and_on_the_ideal() {
     for major in [1.2, 2.0, 30.0 / 7.0, 10.0, 50.0] {
         for delta in [3e-2, 3e-3, 3e-4] {
             sweep_row(major, delta, Revolution::Partial(PI / 4.0));
         }
+        sweep_row(major, 3e-5, Revolution::Partial(PI / 16.0));
     }
     for major in [1.2, 30.0 / 7.0] {
         for delta in [3e-2, 3e-3] {

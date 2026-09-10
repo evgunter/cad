@@ -506,11 +506,14 @@ pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
 ///
 /// A face avoiding the outer equator would admit `A_W = R + r·max_W
 /// cos φ < A` and a coarser `h_u` (at most `√((R + r)/R)` fewer
-/// columns). The chord pass sizes an edge before any face's walk has
-/// established its window, and a window read on the grid side alone
-/// would put the boundary rows off the grid's; one rule for both keeps
-/// them coincident. The certificate does read each triangle's own
-/// window, so the pin measures the sizing's real slack.
+/// columns), and the sharp joint maximum over φ of the two φ-dependent
+/// terms would buy a few percent more. The chord pass sizes an edge
+/// before any face's walk has established its window, and a window
+/// read on the grid side alone would put the boundary rows off the
+/// grid's; one rule for both keeps them coincident. The certificate
+/// does read each triangle's own window, so the pin measures the
+/// sizing's real slack. The lever and its price are
+/// `work/perf/torus-sizing-reads-no-phi-window.md`.
 ///
 /// Uncapped here, and the two consumers differ on that. The curved
 /// lane steps periodic chart coordinates with these directly and
@@ -535,8 +538,12 @@ pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
 pub(crate) fn torus_grid_steps(delta_s: f64, major: f64, minor: f64) -> (f64, f64) {
     let a = major + minor;
     let beta = (minor / a).sqrt();
-    let share = 4.0 * delta_s / (1.0 + beta);
-    ((share / a).sqrt(), (share / minor).sqrt())
+    // Each direction is the plain second-derivative inversion
+    // (`h² · m / 8 ≤ share`) at a `2(1 + β)`-fold smaller share of
+    // δ_s: the 2 for the coupling of the two pure terms, the `1 + β`
+    // for the mixed one.
+    let share = delta_s / (2.0 * (1.0 + beta));
+    (curvature_step(share, a), curvature_step(share, minor))
 }
 
 /// The torus boundary-step requirement for a circle edge adjacent to
@@ -573,9 +580,9 @@ pub(crate) fn torus_boundary_step(
     else {
         return Ok(None);
     };
-    let chart = topo::chart::Chart::of(surface).ok_or(TessellateError::MissingEntity {
-        what: "torus chart (Chart::of answers every torus)",
-    })?;
+    let Some(chart) = topo::chart::Chart::of(surface) else {
+        unreachable!("Chart::of answers every torus, and this surface is one: {surface:?}")
+    };
     let (hu, hv) = torus_grid_steps(delta_s, major_radius, minor_radius);
     match topo::chart_iso::classify_kind(&chart, curve) {
         Some(topo::chart_iso::TravKind::Rim { .. }) => Ok(Some(hu)),
@@ -830,6 +837,29 @@ mod tests {
                 let beta = (minor / a).sqrt();
                 assert!(((ratio - 2.0 * (1.0 + beta)) / ratio).abs() < 1e-12);
                 assert!(ratio > 2.0 && ratio < 2.0 + core::f64::consts::SQRT_2);
+            }
+        }
+    }
+
+    /// [`torus_grid_steps`] and [`crate::cert::cert_torus`] are an
+    /// INVERSE PAIR through one arithmetic: the certifier's own bound
+    /// (`cert::torus_chord_bound`, which `cert_torus` evaluates at a
+    /// triangle's window sups and extents) on a cell-half of the
+    /// sizing's steps at the whole-tube sups is exactly `delta_s`. A
+    /// loosening of the certifier's constant alone passes every
+    /// per-triangle row and reds this one.
+    #[test]
+    fn torus_grid_steps_and_cert_torus_are_an_inverse_pair() {
+        let cases: &[(f64, f64)] = &[(0.30, 0.07), (2.0, 0.5), (1.2, 1.0), (50.0, 1.0)];
+        for &(major, minor) in cases {
+            for &delta_s in &[1e-6_f64, 1e-4, 1e-2] {
+                let (hu, hv) = torus_grid_steps(delta_s, major, minor);
+                let certified = crate::cert::torus_chord_bound(major + minor, minor, minor, hu, hv);
+                assert!(
+                    ((certified - delta_s) / delta_s).abs() < 1e-12,
+                    "R {major} r {minor} delta_s {delta_s}: the certifier reads {certified} on \
+                     the sizing's own cell-half"
+                );
             }
         }
     }

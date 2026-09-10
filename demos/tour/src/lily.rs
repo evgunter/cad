@@ -3075,14 +3075,11 @@ mod review_probes {
     /// stored, not which torus they describe, so the tessellator sees
     /// the same surface and splits it the same way. The two SWEPT
     /// blade rows are the other half of the finding: a swept skin over
-    /// a 4-vertex section and a torus tube at the same δ are now
-    /// within a factor of two of each other (828 against 454 at
-    /// 2e-3). They were three orders of magnitude apart while the
-    /// torus lane sized BOTH chart directions off one step set by the
-    /// ring's radius — the budget went on the ring, not the tube;
+    /// a 4-vertex section and a torus tube at the same δ cost within a
+    /// factor of two of each other (828 against 454 at 2e-3), because
     /// `mesh::sizing::torus_grid_steps` sizes the tube's direction by
-    /// the tube, and the three torus rows below are that change
-    /// (31 612 -> 392, 76 436 -> 828, 136 076 -> 2 960).
+    /// the tube's radius and the ring's by the ring's — a torus spends
+    /// the chord budget per curvature, not per feature size.
     ///
     /// The LOFTED bodies are deliberately absent from this table. A
     /// loft's wall count and knot structure follow the section list

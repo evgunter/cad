@@ -5,15 +5,12 @@
 //! `SessionOp::Open` are exercised in `doc_io.rs` and always were; the
 //! typed door works, the resolver rebinds, the log replays, the round
 //! trip is byte-stable. What went untested was what opening a document
-//! COSTS, and the answer for the tour's own gallery ring at the δ the
-//! application starts on was four million triangles — tens of seconds
-//! of tessellation and index build with the window frozen, still
-//! showing the previous document. (That count was the torus sizing of
-//! the day, one step for both chart directions; under
-//! `mesh::sizing::torus_grid_steps` the same ring at the same δ is
-//! ~1.6·10⁵ triangles and inside the budget, which the third row
-//! holds. The budget's own rows therefore ask for a δ the ring still
-//! exceeds it at.)
+//! COSTS: a request the budget does not bind must be drawn as asked,
+//! and one it binds must be coarsened to a picture inside the budget
+//! rather than left to freeze the window on millions of triangles.
+//! The tour's gallery ring is the fixture for both: ~1.6·10⁵
+//! triangles at the starting 0.1 mm (inside the budget, drawn as
+//! asked) and ~1.6·10⁶ at 0.01 mm (bound, and coarsened).
 //!
 //! These rows are that gap. Triangle counts are deterministic (D9:
 //! byte-identical mesh for identical `(body, chordal)`), so the cost
@@ -139,9 +136,9 @@ fn the_gallery_ring_is_drawn_inside_the_budget() {
 /// the torus chart sizing: `mesh::sizing::torus_grid_steps` spends the
 /// doubly-curved chord bound with no slack in its constant, and what
 /// that buys the viewer is the gallery ring opening at 0.1 mm rather
-/// than at whatever the budget could afford. A count back over a
-/// quarter of the budget here is the old constant coming back (it put
-/// the ring at 4·10⁶), not noise.
+/// than at whatever the budget could afford. A count over a quarter of
+/// the budget here is the torus sizing gone loose by an order of
+/// magnitude, not noise.
 #[test]
 fn the_gallery_ring_at_the_starting_delta_is_inside_the_budget() {
     let tol = Tol::witness();

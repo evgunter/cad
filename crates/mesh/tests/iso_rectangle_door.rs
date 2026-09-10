@@ -194,8 +194,9 @@ fn receipts(body: &topo::Body<f64>) -> Vec<FaceReceipt> {
 /// unsplit column carries only when its chord schedule happens to
 /// sample that parameter (an even chord count halved lands on it
 /// bitwise — the same `t0 + span·f` the split evaluates), so the
-/// position count is the unsplit's plus one or plus zero, and which
-/// one is read off the unsplit mesh rather than assumed.
+/// position COUNT is the unsplit's plus one or plus zero — read off
+/// the unsplit mesh rather than assumed — while the seam column's
+/// other points still differ in their last ulps either way.
 #[test]
 fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
     let tol = Tol::witness();
