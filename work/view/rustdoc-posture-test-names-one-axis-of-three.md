@@ -4,6 +4,7 @@ kind: issue
 title: the posture ruling says "the host pass" and doc-gate runs two of them, so a link can pass the ruling's test and red the gate
 status: open
 opened: 2026-09-10
+needs_ev: true
 ---
 
 Found by `doc-comments-name-symbols-that-do-not-exist` while applying
