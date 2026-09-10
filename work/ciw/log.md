@@ -1797,3 +1797,16 @@ that this was the third unit in a row with that shape is the useful part: the
 repair is not a longer battery but a different order of writing, name the
 failure first and check the row reds when it is injected. The rewritten
 battery is 31 rows and a 14-mutant harness that all 14 die under.
+
+**A postscript worth more than the bug.** The `mktemp` guard was written
+into the production half and the identical unguarded call was left in the
+selftest harness forty lines below it, in the same diff — and the lane's own
+fix note claimed the guard caught the class, which was true of the half it
+had read. What that cost was not fixture litter: the harness writes a stub
+`apt-get` to `$t/bin/apt-get`, so an empty `$t` wrote it to `/bin/apt-get`
+and a review run on the shared box replaced the real binary. Restored from
+the archive's own `.deb`. The repair in the file is the invariant stated
+generally — no path built from a possibly-empty variable is ever a `mv`,
+`mkdir` or redirection target — rather than a second guard beside the first;
+the narrow spelling is exactly what let the second instance survive a fix
+pass whose subject was the first.

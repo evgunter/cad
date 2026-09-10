@@ -173,6 +173,21 @@ URIs are read. Every caller now `exec`s the script, so a cancel or a
 every caller sits at `timeout-minutes: 8` — the bound the script's header
 derives, below which the inner `timeout` cannot buy a retry.
 
+**And the same shape survived one more round, in the file's other half.**
+The guard went into `set_aside_foreign_sources`; `selftest_main`'s own
+`SELFTEST_TMP="$(mktemp -d)"` was left unguarded in the same diff, so an
+unusable `TMPDIR` re-rooted every fixture path at `/`. Severity is not the
+point — it is the harness, not the transaction — but the CONSEQUENCE was
+worse than the litter it looked like: the battery writes a stub `apt-get`
+to `$t/bin/apt-get`, which with an empty prefix is `/bin/apt-get`, and a
+verification run on the shared box **overwrote the real `apt-get` binary**
+(restored by re-extracting it from `apt_2.8.3_amd64.deb`). The lesson is in
+the header now, as the invariant rather than as a note about one call: *no
+path built from a possibly-empty variable is ever a `mv`, `mkdir` or
+redirection target* — an empty prefix does not fail, it silently re-roots
+the operation at `/`. The harness has no degraded mode worth having, so it
+refuses to run instead.
+
 The selftest grew from five rows to 31, each written against a named mutation:
 14 injected failures, 14 killed, including the eleven the review found
 surviving the first battery. Run 34423995419 is green with `apt preamble
