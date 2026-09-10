@@ -7,6 +7,7 @@ opened: 2026-09-10
 closed: 2026-09-10
 pr: 2287
 branch: view/module-kinds
+refs: [gate-roster-and-probe-census-have-no-reader-guards]
 ---
 
 Found by the §5 sweep for #2282. **Split from a combined row** whose
@@ -68,8 +69,9 @@ read each — the population is larger: `scripts/gates/gate-roster.sh`
 `scripts/gates/probe-suite-census.sh` are filed on **code-quality's**
 slate as `gate-roster-and-probe-census-have-no-reader-guards`, since
 `scripts/gates/*` returned to code-quality when the `gates` program
-closed. Named in prose rather than in `refs:` because that item is not
-on `main` yet and the reference would not resolve.
+closed. It was named in prose when this row was filed, because it was
+not on `main` and the reference would not have resolved; it landed
+2026-09-10 and is in `refs:` now.
 
 ## Confidence
 
