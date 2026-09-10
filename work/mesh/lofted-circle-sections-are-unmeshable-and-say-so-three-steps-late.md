@@ -78,8 +78,13 @@ from ε, and at ε = 1e-12 the chase ran out of budget and the reading
 refused typed. Measured against a target of 1.024e-9, the last round's
 provable width went 2.53e-8 at four arcs, 3.97e-9 at eight, 1.39e-9 at
 sixteen: four times the arcs bought eighteen times the resolution and
-was still short, with the returns collapsing, so the arc count was
-never the binding constraint.
+was still short — by 36%, with decelerating but real returns. That
+is NOT a demonstration that no arc count works: a further doubling
+would probably have cleared the target, and an earlier draft of this
+paragraph overstated the table by saying otherwise. The circle was
+ruled out on COST — 32 arcs is 64 lateral walls before the caps, on
+one montage cell — and because the certificate would stay a chase
+whose margin is whatever round it stops at.
 
 The spout's sections are regular OCTAGONS now. A polygon's sides are
 straight, so its lofted walls are POLYNOMIAL and take the integral

@@ -229,9 +229,13 @@
 //!    enclosure is chased to a width derived from ε, and that chase
 //!    ran out of budget — `mass_properties` refused, typed, naming the
 //!    face and the width it reached. Four times the arcs per section
-//!    bought eighteen times the resolution and was still short, with
-//!    the returns collapsing, so the arc count was never the binding
-//!    constraint; [`SPOUT_SIDES`] carries the measurement. A polygon's
+//!    bought eighteen times the resolution and was still short — by
+//!    36%, with decelerating but real returns, so a further doubling
+//!    would probably have cleared it. The circle was ruled out on
+//!    COST, not on impossibility: 32 arcs is 64 lateral walls before
+//!    the caps, and the certificate would still be a chase whose
+//!    margin is whatever round it stops at. [`SPOUT_SIDES`] carries
+//!    the table and that reading. A polygon's
 //!    sides are STRAIGHT, so these walls are POLYNOMIAL and the
 //!    polynomial lane has an exact per-span shortcut the rational lane
 //!    has none of — which is also why `twisted_tube` next door can be
@@ -459,9 +463,19 @@ const SPOUT_STATIONS: usize = 7;
 /// | 16 | 1.39e-9 |
 ///
 /// Four times the arcs bought eighteen times the resolution and it is
-/// STILL short, with the returns collapsing (6.4× then 2.85×) — so
-/// the arc count is not the binding constraint and no amount of it
-/// would be.
+/// still short — but only by 36%, and the returns, while decelerating
+/// (6.4× then 2.85×), are not collapsing to nothing. **A further
+/// doubling would probably have cleared it**, and this table is not
+/// evidence that no arc count works. An earlier draft of this comment
+/// claimed exactly that; the numbers above never supported it.
+///
+/// What ruled the circle out is COST, and it is worth stating as cost
+/// rather than as impossibility. Thirty-two arcs is 64 lateral walls
+/// over the two loops before the caps, on a body that is one cell of
+/// a montage sheet and eight faces of a tess-budget baseline. And the
+/// certificate would still be a chase: a fixed O(h²) schedule is only
+/// ever as good as the round it stops at, so the margin would be
+/// whatever that round happened to reach, at every ε, forever.
 ///
 /// A POLYGON's sides are straight, so its lofted walls are
 /// POLYNOMIAL and take the integral lane, which does have that
@@ -2102,8 +2116,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // patch is a QUADRATURE face whose certified enclosure is chased
     // down to a width derived from eps; and that chase ran out of
     // budget and `mass_properties` REFUSED, typed, naming the face and
-    // the width it reached. [`SPOUT_SIDES`] carries the measurement
-    // that says no amount of arcs would have fixed it, and why.
+    // the width it reached. [`SPOUT_SIDES`] carries the measured arc
+    // table, and what it does and does not show: more arcs kept
+    // helping, so the circle was ruled out on COST rather than on
+    // impossibility.
     //
     // A polygon's sides are STRAIGHT, so these walls are POLYNOMIAL,
     // and the polynomial lane has an exact per-span shortcut the
@@ -2130,6 +2146,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // SQUARE ROOT: not a polynomial on any patch, however polynomial
     // the patch. So the area can only ever be BRACKETED, and the
     // polygon bought the volume exactness it could not buy the area.
+    //
+    // And the area's bracket is not merely wider — it is not CHASED at
+    // all. `area_midpoint_taylor` is a FIXED-resolution rule that both
+    // patch lanes share, at `QUAD2_AREA_PIECES` cells per axis with a
+    // first-order Lipschitz pad, so its width is set by that
+    // resolution and not by any target derived from ε. Which is worth
+    // knowing before reading anything into the area pad's stability
+    // across the tour's ε sweep: it is fixed BY CONSTRUCTION, so
+    // finding it unchanged at three tolerances is no evidence about
+    // this scene. The GAP's stability across the same sweep is the
+    // real evidence, and it is a fact about the geometry.
     //
     // Which splits the comparison below into two claims that are not
     // the same claim, and the scene makes each one only where it is
@@ -2533,8 +2560,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              chased down to a width derived from eps; and at eps = 1e-12 that chase ran \
              out of budget and mass_properties REFUSED TYPED, naming the face and the \
              width it reached. Four times the arcs per section bought eighteen times the \
-             resolution and was STILL short, with the returns collapsing, so the arc \
-             count was never the binding constraint. A POLYGON's sides are straight, so \
+             resolution and was still short -- by 36%, with decelerating but real \
+             returns, so a further doubling would probably have cleared it. The circle \
+             was ruled out on COST and not on impossibility: 32 arcs is 64 lateral walls \
+             before the caps, and the certificate would still be a chase whose margin is \
+             whatever round it stops at. A POLYGON's sides are straight, so \
              these walls are POLYNOMIAL, and the polynomial lane has an exact per-span \
              shortcut the rational lane has none of — which is also why `twisted_tube` \
              next door can be a loft and be a solid at every eps: its sections are \

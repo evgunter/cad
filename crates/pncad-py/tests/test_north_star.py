@@ -2551,7 +2551,10 @@ class TestTeapot(unittest.TestCase):
     #: chased to a width derived from eps, and at eps = 1e-12 that
     #: chase runs out of budget and `mass_properties` REFUSES, typed.
     #: Four times the arcs per section bought eighteen times the
-    #: resolution and was still short. A polygon's sides are STRAIGHT,
+    #: resolution and was still short -- by 36%, with decelerating but
+    #: real returns, so a further doubling would probably have cleared
+    #: it: the circle was ruled out on COST, not impossibility.
+    #: A polygon's sides are STRAIGHT,
     #: so these walls are POLYNOMIAL and the polynomial lane has an
     #: exact per-span shortcut the rational lane has none of.
     #:
