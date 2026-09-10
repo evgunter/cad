@@ -272,6 +272,11 @@ fi
 # HOSTED MIRROR: mirror / viewer module kinds (vocabulary/driver boundary)
 # HOSTED MIRROR: mirror / viewer vocabularies are declared once (no hand-written ALL)
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
+# The status-capture row belongs here too, and for the tier reason: its inputs
+# are every workflow file AND every tracked shell script, this file among them
+# — local-scripts/ is the tree that classifies TIER=docs and that every hosted
+# job but `mirror` deletes at checkout.
+# HOSTED MIRROR: mirror / status capture (PIPESTATUS is read before anything rewrites it)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
@@ -291,6 +296,8 @@ tier_blind_rows() {
   scripts/gates/viewer-vocab-declared-once.sh || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
+  python3 scripts/check-status-capture.py --selftest || rc=1
+  python3 scripts/check-status-capture.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1

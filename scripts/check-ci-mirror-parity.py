@@ -193,6 +193,12 @@ TIER_BLIND = (
     # `if: run_build` job.
     "scripts/gates/viewer-vocab-declared-once.sh",
     "scripts/check-ci-mirror-parity.py",
+    # The status-capture check. Its inputs are every workflow file and every
+    # tracked shell script — `local-scripts/` among them, a tree that
+    # classifies TIER=docs and that every hosted job but `mirror` deletes at
+    # checkout. Sited under `if: run_build` the change class that can break it
+    # is the class that would skip it.
+    "scripts/check-status-capture.py",
     # Not because its inputs are prose — because a change WIDENING the
     # filter's docs branch classifies itself as docs, so the tier that would
     # skip this self-test is the tier it is about.
