@@ -1966,6 +1966,13 @@ NOT_BOUND = {
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.
     "NameOrigin": SHAPE,
+    # The handle a role segment holds its argument name by — sharing
+    # plus an order cache, both of them facts about how the kernel
+    # STORES a name rather than about what a name is. Same family as
+    # `RolePath`/`RoleSeg` and for their reason: it is the inside of a
+    # name, and a Python caller holds a name as opaque TEXT. Anything
+    # it appears in reaches Python as the name it wraps.
+    "NameRef": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     # The display-unit CODE a `DocParam` carries. A one-byte index into
