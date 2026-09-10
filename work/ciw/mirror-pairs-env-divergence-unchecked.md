@@ -2,11 +2,12 @@
 id: mirror-pairs-env-divergence-unchecked
 kind: issue
 title: no check compares the env a mirrored CI pair runs under, so a deliberate divergence and a dropped variable look the same
-status: review
+status: closed
 pr: 2295
 opened: 2026-09-04
 refs: [mirror-parity-never-compares-flags, 1759, 1739]
 branch: ciw/mirror-env-parity
+closed: 2026-09-10
 ---
 
 
@@ -182,3 +183,63 @@ valueless one, and `selftest_both_is_reachable` asserts both directions.
 
 **24 -> 25 mutants killed**, including the seven the review named. The
 25th (`uses:`-only) needed its own row after it survived the first pass.
+
+## Closed 2026-09-10
+
+PR 2295. Claim 10 was widened rather than joined by a claim 13: it now
+normalises both halves into one `NAME -> value` map — workflow, job and
+step `env:` blocks plus inline prefixes on the hosted side, prefixes on
+the local marker row — and compares over `SEMANTIC_ENV` (`RUSTFLAGS`,
+`RUSTDOCFLAGS`, `CAD_*`). Throughput knobs stay out by name, because the
+local half's refusal to mirror them is ratified and measured. Verified by
+the orchestrator on the merged head: a variable planted in a one-line
+local function is caught, an `env NAME=v cmd` spelling on one half does
+not false-red, and a name added to `ci.yml`'s workflow-level block reds
+every affected pair.
+
+The two spellings were settled by the tree rather than by preference:
+`oracle-certify / certify against the oracle` writes the same class of
+fact in all three spellings at once, so a prefix-only reader would have
+red a correct pair — and the payoff for a false red is an exemption entry
+that hides a real comparison.
+
+`FLAG_EXEMPT` became `PAIR_EXEMPT`, keyed over flags and variables, one
+table rather than a fifth, with `_exempt_unwatched` / `_exempt_present`
+written once and called by both arms.
+
+### What the reviews cost, and it was three MAJORs with one cause
+
+`env_prefixes` read as an **empty map** whatever it could not classify —
+and an empty map is exactly what a half that sets nothing looks like — in
+a file whose own rule is *a refusal rather than a guess*. Three faces:
+
+- a **one-line shell function** (`foo() { NAME=v cargo … }`) read as
+  setting nothing, on **three live cited pairs**, one carrying three
+  `PAIR_EXEMPT` entries; one probe reported the wrong arm entirely
+  ("NEITHER half sets it" while local set it);
+- **`env NAME=v cmd`** unread on both halves — false red on a correct
+  pair, silent pass on a real divergence — a spelling this item's own
+  text names;
+- **workflow-level `env:`** neither read nor disclosed, while the header
+  called the ladder "GitHub's own precedence".
+
+Fixed once, at the cause: the walk starts at the command word, steps over
+a prelude and through wrappers, and everything still unattributable
+refuses and names its site. That single change also absorbed `declare -x`,
+`do`-loop bodies and brace groups.
+
+**The recursive defect both lanes found**: the flag arm's error told
+readers to declare a diverging pair with side `both`, and
+`_pair_exempt_rows` Bailed on that entry — the invited-then-expired
+defect this unit was fixing, re-created one class over in the same diff.
+`both` is now legal for a value-taking flag, refused for a valueless one,
+with a row asserting both directions.
+
+25 of 25 mutants killed, table published. `env_uses_only_pair` was
+written after that mutant survived a pass — the second time this lane
+caught its own gap before review did.
+
+Residue: `mirror-pairs-context-beyond-env` (`working-directory:` versus a
+local `cd`, on three mirrored pairs), and the whole-`${{ }}` prefix half,
+reported INCOMPLETE with no one-sided verdict passing against it because
+refusing it would red a correct tree.

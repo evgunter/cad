@@ -1952,3 +1952,52 @@ advice in an error message is part of the contract. Claim 10 told the
 reader to declare a pair with side `both`, and the table refused it —
 the same invited-then-refused defect the PR body describes fixing, one
 token class over, in the same diff.
+
+## 2026-09-10 — unit 5 merged and closed; the pattern is now the program's own
+
+PR 2295 (`36bdeb94`). Claim 10 reads the environment now, and the three
+MAJORs its reviews found had one cause: `env_prefixes` read as an empty
+map whatever it could not classify, in a file whose own rule is *a
+refusal rather than a guess*. An empty map is what a half that sets
+nothing looks like — so the reader could not tell "sets nothing" from
+"I did not understand this line", which is the item's own defect
+one level in.
+
+**Verified by the orchestrator on the merged head rather than taken from
+the report**: a variable planted in `rebuild_latency`'s one-line function
+is caught, `env NAME=v cargo …` on one half does not false-red, and a
+name added to `ci.yml`'s workflow-level block reds every affected pair.
+
+**The thing worth carrying out of this week.** Five units, and the same
+mistake in four of them, from both ends:
+
+- units 2, 3 and the apt preamble shipped a selftest that asserted what
+  the author had just built rather than the property the unit claimed;
+- the apt preamble's fix guarded the `mktemp` that bit it, and the
+  identical shape survived forty lines away in the same diff and
+  destroyed a binary;
+- unit 5 built a reader against the spellings that happened to be in
+  front of it, and three live pairs used a fourth;
+- and unit 5's own error text invited a `PAIR_EXEMPT` entry that its
+  loader refused — **the invited-then-expired defect it was fixing,
+  re-created in the same diff**.
+
+Every one of those is one sentence: *the artifact was written against
+the instance rather than the property*. That is also what most of this
+program's ITEMS are about, which is the part worth noticing — a demoted
+row nobody reads, a selftest nothing invokes, a guard outside the reach
+of the rule that names it. The program keeps finding the defect it keeps
+committing.
+
+**What actually catches it is the mutant table**, not care. Every one of
+these was found by injecting the failure and watching the row stay green
+— never by reading. Unit 5 killed 25 of 25 in the end, and twice wrote a
+row only after a mutant survived a pass. That is the practice to keep:
+**write the row by naming the failure it must catch, inject it, and do
+not trust the row until it reds.**
+
+Also worth recording: `rerun-failed-jobs` answered 403 for the lane again
+on an unrelated pip read-timeout, so it merged `origin/main` (owed
+anyway) to get a fresh run. That is the third 403 of this class this
+week, and `nightly-rows-cannot-be-dispatched-by-a-lane` now carries all
+of them.
