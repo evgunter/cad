@@ -16,7 +16,7 @@ Found by lane **uv-g**'s §5 sweep for the class "a kernel vocabulary re-spelled
 
 ## What
 
-`crates/viewer/src/app.rs:514` declares `enum PathVerb` and `crates/viewer/src/app.rs:557` gives it
+`crates/viewer/src/app.rs:522` declares `enum PathVerb` and `crates/viewer/src/app.rs:565` gives it
 
 ```rust
 const ALL: [Self; 17] = [ … ];

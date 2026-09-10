@@ -29,7 +29,7 @@ each moved differently since, and that is what has gone unrecorded.
 The title is *"Three doc-comment merge scars in viewer/src/app.rs leave
 apply_status undocumented"*. Both halves of that bullet are fixed:
 
-- `remember_theme`'s doc block opens at `crates/viewer/src/app.rs:999`
+- `remember_theme`'s doc block opens at `crates/viewer/src/app.rs:1007`
   with `/// Write the current theme choice to the preferences store.` —
   its own summary. The three lines describing `apply_status` that the
   row quotes are gone.

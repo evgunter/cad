@@ -152,7 +152,7 @@ pub use pickindex::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgePick, IdMap, IdMapError, PatchId, PickError,
     PickIndex, PickIndexError, PickKinds,
 };
-pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
+pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use revolvetool::RevolveTool;
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};

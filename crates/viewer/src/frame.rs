@@ -173,7 +173,7 @@ use crate::display::{DisplayFault, Withdrawn};
 use crate::generation::Generation;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{IdMap, PickError, PickIndex, PickIndexError};
-use crate::prefs::StoreError;
+use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
@@ -256,6 +256,12 @@ pub enum Subject {
     ///
     /// **No [`StatusUpdate::Expire`] issuer**, for [`Self::Display`]'s
     /// reason.
+    ///
+    /// Like [`Self::Camera`] and [`Self::Display`] it wears both
+    /// channels, and for the same reason: a write that was attempted
+    /// and failed is an outcome ([`store_refusal`]), while a store
+    /// that can never be written at all is a read of held state that
+    /// no write ever retires ([`prefs_badge`]).
     Preferences,
 }
 
@@ -1420,6 +1426,41 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
             CameraError::SUBJECT,
             format!("projection: {error}"),
             Tone::Actionable,
+        )
+    })
+}
+
+/// **What the chrome badges about a store that keeps nothing**, and
+/// `None` while preferences are kept.
+///
+/// **A badge, by the provenance rule**, and by the same argument Ev
+/// ruled on for the absent file chooser: the store's usability is
+/// settled when the store is built and true for the whole run, so the
+/// sentence exists on a frame where nobody acted. That is a read of
+/// held state a reader consults, and a whole-run environmental fact
+/// has no correct sentence on a line that carries one frame's news.
+/// What DOES belong on the line is [`store_refusal`] — a write that
+/// was attempted and failed, which is an outcome and which a store
+/// that keeps nothing never produces.
+///
+/// [`Subject::Preferences`], the settings and the file they are kept
+/// in: the event that would make this the wrong answer is a write of
+/// that file, and a store this badge is drawn for is one no write ever
+/// reaches. It is [`Tone::Advisory`] and the tone is the whole of the
+/// judgement here — the theme still applies on screen, nothing in the
+/// session can give the store somewhere to write, and so there is
+/// nothing for a reader to act on. It is a [`Affordance::Read`] label
+/// for the same reason: there is no window of findings behind it.
+///
+/// The words are [`Unusable`]'s own, rendered unaltered; the
+/// "preferences: " opening is this badge naming itself, as its
+/// siblings do.
+pub fn prefs_badge(unusable: Option<&Unusable>) -> Option<Badge> {
+    unusable.map(|unusable| {
+        Badge::read(
+            Subject::Preferences,
+            format!("preferences: {unusable}"),
+            Tone::Advisory,
         )
     })
 }

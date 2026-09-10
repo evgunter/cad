@@ -35,6 +35,7 @@ use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
 use viewer::pickindex::{self, IdMap, PickIndex};
+use viewer::prefs::{Absent, PrefsStore};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
 use viewer::session::{
@@ -314,6 +315,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         predicted: 1_000,
         requested_cost: Some(9_000_000),
     };
+    let keeps_nothing = Absent.unusable().expect("this store keeps nothing");
 
     // Every badge, and what ends it. The three seam reads first —
     // these are the facts this ruling moved off the line.
@@ -365,6 +367,11 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             frame::Subject::Display,
             "the budget's δ ends when the picture is drawn at another",
         ),
+        (
+            frame::prefs_badge(Some(&keeps_nothing)),
+            frame::Subject::Preferences,
+            "a store that keeps nothing ends when the file is written",
+        ),
     ] {
         assert_eq!(
             badge.expect("this state badges").subject(),
@@ -375,8 +382,9 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
 
     // **The two axes are independent, and here is each of the four
     // corners that this crate populates.** A subject never decided a
-    // channel: `Camera` and `Display` each carry a badge AND a line
-    // message, so neither answer can be read off the other.
+    // channel: `Camera`, `Display` and `Preferences` each carry a
+    // badge AND a line message, so neither answer can be read off the
+    // other.
     let refused_fold = frame::fold_status(&viewer::camera::Folded {
         camera,
         applied: Vec::new(),
@@ -404,6 +412,16 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         "and one seam does not speak with two voices: the click it \
          refused is the line's, the build it refused is the toolbar's, \
          and the subject is the seam's"
+    );
+
+    assert_eq!(
+        frame::store_refusal(&keeps_nothing.refusal()).subject(),
+        frame::prefs_badge(Some(&keeps_nothing))
+            .expect("a store that keeps nothing badges")
+            .subject(),
+        "and the preferences subject is the third: a write that failed \
+         is the line's, a store that can never be written is the \
+         toolbar's"
     );
 
     // The silence of each new member, so the `None` is a row like the
@@ -596,6 +614,11 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
     );
     assert_eq!(frame::delta_badge(None), None, "the user's own δ");
     assert_eq!(frame::product_badge(None), None);
+    assert_eq!(
+        frame::prefs_badge(None),
+        None,
+        "a store that keeps preferences says nothing about keeping them"
+    );
 }
 
 /// The tone split is the actionable-or-not rule, stated by a value
@@ -640,6 +663,31 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         "a fit with nothing to say is the second half of this badge's \
          `None`, and it used to be a second condition at the call site"
     );
+
+    // A store that keeps nothing is the family's purest ADVISORY: the
+    // theme applies on screen either way and nothing a reader can do
+    // inside the session gives the store somewhere to write. It is
+    // also the row that holds the label to the store's own words
+    // rather than to prose the chrome composes about them.
+    let keeps_nothing = Absent.unusable().expect("this store keeps nothing");
+    let kept = frame::prefs_badge(Some(&keeps_nothing)).expect("this state badges");
+    assert_eq!(
+        kept.tone(),
+        frame::Tone::Advisory,
+        "there is nothing to act on: {}",
+        kept.label()
+    );
+    assert_eq!(
+        kept.label(),
+        format!("preferences: {keeps_nothing}"),
+        "the badge names itself and renders the store's own words"
+    );
+    assert!(
+        kept.label().contains(&keeps_nothing.because),
+        "the store's reason reaches the reader: {}",
+        kept.label()
+    );
+    assert_eq!(kept.detail(), None, "a label, and the label says it all");
 }
 
 /// The checks badge is a BUTTON, and that is ratified rather than
@@ -705,6 +753,10 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
         ),
         ("product", frame::product_badge(Some(&collision))),
         ("δ", frame::delta_badge(Some(&budget))),
+        (
+            "preferences",
+            frame::prefs_badge(Some(&Absent.unusable().expect("this store keeps nothing"))),
+        ),
     ] {
         let badge = badge.unwrap_or_else(|| panic!("the {which} badge is drawn for this input"));
         assert_eq!(

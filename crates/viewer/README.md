@@ -704,6 +704,39 @@ population rather than a sample. **This is the argument's one full
 copy**: `frame::NO_CHOOSER_BACKEND`'s own doc and the toolbar comment
 at the two controls point here rather than restating it.
 
+**A store that keeps no preferences is on the toolbar too**, by that
+same rule and with the opposite answer at the control. Whether a
+`prefs::PrefsStore` can hold anything is settled when the store is
+built and true for the whole run — `prefs::Absent` always keeps
+nothing, and the native `file::FileStore` keeps nothing where
+`frame::prefs_path` found no config directory — so it is held state a
+reader consults and `frame::prefs_badge` is that read, with
+`Subject::Preferences` and `Tone::Advisory`. A write that was attempted
+and failed is the other channel's (`frame::store_refusal`), which is
+why the subject wears both. **The control is ANNOTATED rather than
+disabled**, and that is where this parts company with the chooser: a
+file dialog with no backend can do nothing, while the palette picker
+applies the theme to the screen on the frame it is chosen and loses
+only the memory of it, so disabling it would cost a reader the half
+that works to protect the half that does not.
+
+**The condition is worded once**, as `prefs::Unusable`, and the store
+that cannot keep anything is the party that words it. The chrome
+renders those words and `Unusable::refusal` renders the same words for
+a caller that saves without asking, so the two cannot drift; the crate
+carried two hand-written refusals for this condition and no sentence
+for the reader before that. **The sweep rule is over the FIELD, not
+over the string or the target**: the population is every read of
+`app::ViewerApp::store`, this crate's only value of a `PrefsStore`
+type — four, all in `app.rs`, `store.load()` at the constructor,
+`store.unusable()` at the guard in `remember_theme` and at the badge
+beside the picker, and the `store.save` that guard stands in front of.
+It is complete because the field is private to `app` and `prefs_store`
+has that one caller. **Nothing here keys on `target_family`**: the
+`cfg` alias at `app.rs` decides only which store answers, both answers
+can be `Some`, and a browser build given a `web_sys::Storage` store
+would leave the class on its own.
+
 **The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
 (`Advisory` for a report, `Actionable` for a verdict a reader may need
 to act on — the rule `pane::features` argues for poisoned rows, stated
@@ -712,9 +745,15 @@ and a `frame::Affordance`: `Read` for a label, `Opens` for a control,
 which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
-fault, the budget's δ, and the three display seams that hold a refusal
-(scene, pick index, projection) — each a function of the typed value it
-reads, so each one's SILENCE is a row a test can write. A door answers
+fault, the budget's δ, the store that keeps no preferences, and the
+three display seams that hold a refusal (scene, pick index,
+projection) — each a function of the typed value it reads, so each
+one's SILENCE is a row a test can write. **The population is every
+`frame` function returning `Option<Badge>`** — eight — and that rule
+ranges over the property rather than over the `_badge` naming
+convention it happens to agree with today; it is complete because
+`Badge`'s fields and its three constructors are private to `frame`, so
+no badge can be built anywhere else. A door answers
 the subject from the refusal TYPE it was handed, and where one seam's
 refusal arrives as two types both name one constant, so its two
 channels move together. `app::draw_badge` is the single draw; what a
@@ -1270,7 +1309,10 @@ light ground. Preferences live in hand-editable TOML at
 `$XDG_CONFIG_HOME/pncad/viewer.toml` (`src/prefs.rs`); malformed TOML
 refuses, an unknown key reports and the rest applies, an unknown
 value reports and falls back, while a theme name typed on the command
-line is refused rather than defaulted.
+line is refused rather than defaulted. Where the environment names no
+config directory there is no file and the store keeps nothing, which
+the toolbar says beside the picker rather than discovering silently at
+the end of the session (the badge paragraph above).
 
 ## The GUI questions
 

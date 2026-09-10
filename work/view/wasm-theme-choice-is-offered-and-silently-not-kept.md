@@ -2,8 +2,10 @@
 id: wasm-theme-choice-is-offered-and-silently-not-kept
 kind: issue
 title: the theme picker is offered and its choice silently dropped wherever the store is unusable — two builds reach that, and the typed refusal written for the case is dead
-status: open
+status: closed
 opened: 2026-09-09
+closed: 2026-09-10
+refs: [the-guard-that-decides-whether-a-preference-is-kept-has-no-test]
 ---
 
 
@@ -144,3 +146,103 @@ and drop out of the class on its own.
 
 Whichever shape is chosen, **the two doc claims above are false of the
 tree today** and are the minimum this item owes.
+
+## Closed (2026-09-10)
+
+**The body above is a claim about the tree at `ceb6f6c41`** — the merge base
+this close was built on — and its `file:line` citations are left as they
+were written rather than half-repointed onto the tree that replaced
+them. The fix moved `prefs.rs` by ~90 lines and deleted two of the
+sites it names.
+
+### The channel: a badge, and the rule decided it
+
+`crates/viewer/README.md`'s provenance rule (Ev, 2026-09-06) sorts by
+**what caused the sentence to exist**, and `store.usable()` is settled
+when the store is built — `FileStore::new(frame::prefs_path())` or
+`Absent` — and answers the same on every frame of the run. The sentence
+therefore exists on a frame where nobody acted, which is the rule's own
+visible test for a read of held state. Ev's ruling on
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser`
+(2026-09-09) is the same fact one control over and settles the negative
+half: *a whole-run environmental fact has no correct sentence on a line
+that carries one frame's news*. So it is a `frame::Badge`, not a
+`frame::Message` — `frame::prefs_badge`, `Subject::Preferences`,
+`Tone::Advisory`, `Affordance::Read`, drawn beside the palette picker.
+
+**Advisory and not Actionable** because nothing inside the session can
+give the store somewhere to write and the theme applies anyway; it is
+the family's purest report, weaker even than the budget's δ, which at
+least has a field beside it a reader can answer with.
+
+**Where it parts company with the chooser**, and this is the annotation
+the item asked for rather than a disabling: a file dialog with no
+backend can do nothing, so it is disabled with a reason; the picker
+applies the theme on the frame it is chosen and loses only the memory,
+so disabling it would cost the half that works to protect the half that
+does not. The badge is drawn from the first frame rather than after a
+switch, which is a better reading of *once and not on every switch*
+than the item's own — a reader learns it BEFORE spending a choice.
+
+### The two dead refusals: they went, and the read became the statement
+
+The item's fork was *either the guard goes and `save`'s refusal becomes
+the report, or the refusals go and the guard becomes the only
+statement*. The second, and the guard's statement is the badge.
+
+Neither `save` could simply drop its refusal — a store that keeps
+nothing has no honest `Ok(())` — so what went is the two refusals as
+INDEPENDENT PROSE. The condition is now worded once, by the party that
+knows it: `prefs::Unusable`, handed back by `PrefsStore::unusable`
+(which replaces `usable() -> bool`). The chrome renders those words;
+`Unusable::refusal` renders the same words as a `StoreError` for a
+caller that saves without asking. Two hand-written refusals for an
+unspoken condition became zero, and one value the reader actually sees.
+
+`ViewerApp::remember_theme` keeps its early return and it is now
+load-bearing rather than silent: it exists so a whole-run fact does not
+reach the outcome channel once per switch, and it says so. Nothing is
+discarded there because nothing is attempted.
+
+**What this crate's own call site no longer reaches** is either `save`
+refusal, by construction — and that is the decision, not a residue.
+`FileStore` and `Absent` are public with public constructors, so the
+refusal is the public contract for a pathless construction this crate
+never makes, and `tests/prefs.rs` now asserts BOTH (the item noted that
+only `Absent`'s were asserted, and by a test no caller matched).
+
+### The predicate, not the target
+
+Every read keys on `store.unusable()`. The population is every read of
+`app::ViewerApp::store`, a private field of the crate's only
+`PrefsStore` value — four, all in `app.rs`: `load` at the constructor,
+the guard, the badge, and the `save` the guard fronts. Complete because
+the field is private and `prefs_store()` has one caller. `README.md`
+carries that sweep rule beside the chooser's.
+
+### The two false doc claims
+
+Both gone. `prefs::Absent`'s header no longer says a control backed by
+it is disabled — it says annotated, and why. `app::Store`'s header no
+longer names a Save control that does not exist — it says the `cfg`
+decides which store answers and never whether it can keep anything.
+
+### Disclosed rather than fixed
+
+**The door is asserted; the wiring is not.** Four mutations of
+`frame::prefs_badge` and of the two stores each turn the suite red (the
+PR lists them). Nothing reaches `app.rs`'s guard or the `draw_badge`
+call beside the picker, because `ViewerApp` cannot be built in
+`crates/viewer/tests` — the same boundary
+`hover-route-for-an-absent-chooser-has-no-test` names for the chooser
+tooltip, now with a second instance. Filed as
+`the-guard-that-decides-whether-a-preference-is-kept-has-no-test`.
+
+### One correction to the item
+
+Its *"Where the user meets it"* says the picker's change arm is
+`remember_theme`'s one caller, which was true and is the reason the
+guard could hide. It also implies the annotation belongs to the switch.
+It does not: the fact is true before any switch, so tying the sentence
+to the change arm would have re-made the provenance error in a
+quieter place.

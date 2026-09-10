@@ -7669,3 +7669,91 @@ unchanged. Seven errors after, quoted in the PR; `doc-gate.sh
 README-parsing gates green, clippy green at host and wasm32 at
 `-D warnings`, `tests/all.rs` 508/0. The one local red is the WGPU
 adapter row, green hosted.
+
+## 2026-09-10 — `view/theme-store`: the theme picker says what it keeps
+
+`wasm-theme-choice-is-offered-and-silently-not-kept` closed. A user
+picked a theme, it applied, the session ended and the default came
+back; `ViewerApp::remember_theme` returned early on
+`!self.store.usable()` and said nothing, and the reporting arm below
+that guard was reachable only from the `save` the guard had skipped.
+
+**The channel was decided by the ratified rule and not by taste.**
+`store.usable()` is settled when the store is built — either arm of the
+`cfg` can answer false — and answers the same on every frame after, so
+the sentence exists on a frame where nobody acted. That is provenance's
+own visible test, and Ev's ruling on
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser` supplies
+the negative half: a whole-run environmental fact has no correct
+sentence on a line carrying one frame's news. So `frame::prefs_badge`,
+`Subject::Preferences`, `Tone::Advisory`, `Affordance::Read`, drawn
+beside the picker rather than in the badge run above it, because it is
+the only badge about a CONTROL. It is drawn from the first frame, which
+is a better reading of *once and not on every switch* than the item's
+own: a reader learns it before spending a choice, not after.
+
+**Annotated, not disabled**, which is where this parts company with the
+chooser it was filed against: a dialog with no backend can do nothing;
+the picker applies the theme and loses only the memory.
+
+**The fork on the two dead refusals went the second way, and what went
+was the refusals as independent prose.** Neither `save` could drop its
+refusal — a store that keeps nothing has no honest `Ok(())` — so the
+condition is worded once, by the party that knows it. `usable() -> bool`
+became `unusable() -> Option<Unusable>`; the chrome renders those words
+and `Unusable::refusal` renders the same words for a caller that saves
+without asking. Two hand-written refusals for an unspoken condition
+became zero and one value a reader sees. The guard stays and is now
+load-bearing rather than silent — it keeps a whole-run fact off the
+outcome channel — and it says so where it stands.
+
+**A bool could not have carried this.** With `usable() -> bool` the only
+party that knew WHY was the store and the only party with a person to
+tell was the caller, so any sentence a reader saw had to be composed
+where the reason was not. That is the same shape as the census failure
+this program keeps meeting from the other end.
+
+**Mutation, not reading.** Four perturbations, each red: `FileStore`
+claiming it is usable (2 rows), `Absent::save` re-wording its refusal
+(2 rows), the badge's subject and tone (2 rows), and the badge speaking
+for a store that is fine (1 row). What is NOT held is the wiring —
+`ViewerApp` cannot be built in the suite, so the guard and the draw are
+read by eye. Said plainly rather than implied, and filed as
+`the-guard-that-decides-whether-a-preference-is-kept-has-no-test`,
+which is `hover-route-for-an-absent-chooser-has-no-test`'s boundary
+with a second instance that differs in kind: a control-flow decision, not
+a tooltip.
+
+**Both universals carry their sweep rule.** The badge family's
+population is every `frame` fn returning `Option<Badge>` — eight —
+which ranges over the property rather than the `_badge` naming
+convention it agrees with today, and is complete because `Badge`'s
+fields and its three constructors are private to `frame`. The store's
+is every read of `app::ViewerApp::store`, a private field — four, all
+in `app.rs` — complete because `prefs_store()` has one caller. Neither
+ranges over `target_family`, which is the half-fix the item predicted.
+
+**Census of the shifted bands.** The diff moves `app.rs` from `:89`,
+`frame.rs` from `:259`, `prefs.rs` from `:44`, `README.md` from `:707`,
+and both touched suites. Every `file:line` in `work/` landing at or past
+those lines was enumerated, mapped through the diff's own hunks, and
+checked by TEXT IDENTITY at the new line rather than by trusting a
+delta. **19 citations in 12 live rows** repointed, each verified —
+counting one `file:line` or `file:line-line` string as one citation,
+which is why a row like `viewerapp-document-derived-state-has-no-
+boundary` counts three and `doc-comments-name-symbols-that-do-not-
+exist` counts two for one site named twice. Seven more, in five rows
+across `work/chrome/` and `work/fix/`, cite `app.rs` past `:2787`;
+that file is 1,985 lines and has been since the split, so those were
+already past EOF at the merge base and belong to
+`stale-file-citations-after-the-split`, which already names that
+population — not to this diff, and not to a new file. The closed row's
+own body is left as written and names the SHA it is true of, rather
+than being half-repointed onto the tree that replaced it.
+
+**Verification.** fmt clean; clippy `-p viewer --features app
+--all-targets` green; wasm32 clippy green at `-D warnings` (the row CI
+still runs as `cargo check`); `doc-gate.sh` OK; both README-parsing
+gates green — module kinds 10/10 and 9 tabulated vocabularies, vocab
+declared-once 4 ratified; `no-ambient-env` OK; `work.py lint` clean.
+The one local red is the WGPU adapter row, green hosted.
