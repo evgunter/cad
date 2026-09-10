@@ -3107,6 +3107,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     plus_v: PlusVCheck<'_, T>,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
 ) -> (Vec<ValidationError>, Check7Certificate<T>) {
+    // PERF LANE INSTRUMENTATION (perf/explore-kernel, never merged):
+    // the SHARED tier-3 body, so the pseudomanifold (3') door is timed
+    // too — `tier3_local_checks` is only one of its two callers.
+    let _perf = geom_core::perf_probe::Span::start("validate.tier3_body");
     let mut errors = Vec::new();
     let mut certificate: Check7Certificate<T> = None;
 
