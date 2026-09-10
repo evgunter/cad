@@ -2001,3 +2001,28 @@ on an unrelated pip read-timeout, so it merged `origin/main` (owed
 anyway) to get a fresh run. That is the third 403 of this class this
 week, and `nightly-rows-cannot-be-dispatched-by-a-lane` now carries all
 of them.
+
+## 2026-09-10 — unit 6 dispatched: the PIPESTATUS sweep
+
+`pipestatus-after-assignment-in-ci-yml` on `ciw/pipestatus-sweep`.
+
+**Pre-dispatch reading, and it reshapes the unit.** The one instance was
+fixed in PR 1725; a grep for the defect shape (`PIPESTATUS[0]` read after
+an assignment) finds hits **only inside the tombstone comment** at
+`ci.yml:4746-4752`. The live reads at `:666`, `:3081`, `:3572`, `:3607`
+and `:3617` do not follow an assignment.
+
+So the sweep may well come back empty, and the discipline doc is explicit
+that this is a real outcome: *a pattern with no hits recorded is a claim;
+a hit list is a receipt*. The brief says to produce the receipt and not
+to manufacture work if there is nothing to fix.
+
+**Which makes the guard the deliverable, not the sweep.** A defect that
+disarms a gate silently, was fixed once, and can return by being retyped
+is exactly the shape this program has spent the week on. The brief asks
+for a mechanical guard so the shape cannot come back — and, if a guard is
+not worth its cost, for that argument in writing at the site rather than
+an unstated absence.
+
+**Style review**, unless the guard grows a derived population, in which
+case the correctness lane attaches by the standing trigger.
