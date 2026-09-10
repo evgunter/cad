@@ -57,6 +57,8 @@ mod common;
 mod budget_meter;
 #[path = "cert10r1_assembly_accounting.rs"]
 mod cert10r1_assembly_accounting;
+#[path = "d9_mesh_goldens.rs"]
+mod d9_mesh_goldens;
 #[path = "errors.rs"]
 mod errors;
 #[path = "exact_vs_mesh.rs"]
