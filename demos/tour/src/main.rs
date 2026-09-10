@@ -47,6 +47,7 @@ mod diefillet;
 mod fivewall;
 mod gallery;
 mod heatsink;
+mod impeller;
 mod klein;
 mod letterforms;
 mod lily;
@@ -787,6 +788,11 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!("\n-- the project box (the longest boolean-of-boolean chain) --");
     visit(&projectbox::stop(tol));
+
+    println!("\n-- the impeller (the recipe layer's CIRCULAR rule: one parameter, two slots) --");
+    for stop in impeller::stops(tol) {
+        visit(&stop);
+    }
 
     println!("\n-- the heat sink (the M4 recipe layer: edit, recompute, stable names) --");
     for stop in heatsink::stops(tol) {

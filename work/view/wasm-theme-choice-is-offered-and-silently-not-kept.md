@@ -9,9 +9,9 @@ opened: 2026-09-09
 
 Found by `viewer-items-unreferenced-at-wasm32`'s lane while asking that
 item's shape-(2) question — *does the browser build swallow a refusal it
-ought to say?* The answer for `deliver_status` is no. The answer for the
-preferences store is **yes**, and the browser is one instance of it
-rather than its subject.
+ought to say?* The answer for `deliver_status` (since deleted) is no.
+The answer for the preferences store is **yes**, and the browser is one
+instance of it rather than its subject.
 
 **The file name still says `wasm`** because ids are stable
 (`work/README.md`); the subject below is not the target.
@@ -42,12 +42,12 @@ and both answers can be `false`:
   directory.** `Store` is `prefs::file::FileStore` (`app.rs:92-93`),
   constructed as `FileStore::new(frame::prefs_path())` (`app.rs:102`).
   `FileStore::usable` is `self.path.is_some()` (`prefs.rs:426-428`),
-  and `frame::prefs_path` (`frame.rs:1678-1683`) returns `None` when
+  and `frame::prefs_path` (`frame.rs:1681-1686`) returns `None` when
   neither `XDG_CONFIG_HOME` nor `HOME` is set — *"With neither, `None`
   — no path is invented. The caller's store is then unusable and says
   so, which is how a person finds out their preferences are not being
   kept rather than wondering later why nothing was remembered"*
-  (`frame.rs:1703-1706`). A desktop viewer launched from a stripped
+  (`frame.rs:1706-1709`). A desktop viewer launched from a stripped
   environment takes the identical early return and says the identical
   nothing — against that clause, which is written in the imperative
   and describes a store that reports.
@@ -94,9 +94,9 @@ report, or the refusals go and the guard becomes the only statement.
 ## Where the user meets it
 
 `remember_theme`'s one caller is the palette picker: an ordinary
-enabled `egui::ComboBox` over `Theme::ALL` (`app.rs:1419-1425`), whose
+enabled `egui::ComboBox` over `Theme::ALL` (`app.rs:1353-1359`), whose
 change arm applies the theme and calls `remember_theme`
-(`app.rs:1433-1437`). So a user picks a theme, it applies, the session
+(`app.rs:1367-1371`). So a user picks a theme, it applies, the session
 ends, and the default comes back with nothing having said why.
 
 ## Why it is a defect and not a trade
@@ -113,11 +113,15 @@ Two doc claims in this crate assert the opposite, in as many words:
   chooser does where no portal exists."*
 
 The file chooser really does do this, and does it target-blind:
-`chooser_backend()` answers `Absent` on wasm and `chooser_backend_of`
-decides it from the environment elsewhere (`frame.rs:1600-1619`),
-`add_enabled(chooser.usable(), …)` disables Open…/Save As…, and
+`chooser_backend()` answers `Absent` on wasm and delegates to
+`chooser_backend_of` for the environment elsewhere
+(`frame.rs:1603-1622`), `add_enabled(chooser.usable(), …)` disables
+Open…/Save As…, and
 `.on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)` shows the reason
-(`app.rs:1230-1231`, `:1254-1255`). That is #1125's posture, and it is
+(`app.rs:1174-1175`, `:1193-1194`) — which since the ruling on
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser` is the
+chooser's WHOLE surface, the status route beside it having been deleted
+as misclassified. That is #1125's posture, and it is
 stated over a *predicate*, not over a `cfg`. The theme picker is the
 same shape with the braces missing, and `app.rs:88-91` names a *"Save
 control"* that does not exist — nothing in the chrome is disabled by

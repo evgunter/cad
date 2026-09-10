@@ -47,7 +47,7 @@ gradient and a fix pass should not treat it as flat:
 - `session.rs:1638` `add_revolve(profile, axis)`, `display.rs:325`
   `derives_from(doc, node, source)`, `session/refuse.rs:323`
   `self_instance(open: DocumentId, id: DocumentId)`.
-- `frame.rs:1708` `prefs_path_in(config_home: Option<&OsStr>,
+- `frame.rs:1711` `prefs_path_in(config_home: Option<&OsStr>,
   home: Option<&OsStr>)` — swapped, preferences are written under
   `$HOME/pncad/` or `$XDG_CONFIG_HOME/.config/pncad/`, and the
   test row at `crates/viewer/tests/prefs.rs` names its two readings

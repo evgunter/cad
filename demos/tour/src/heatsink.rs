@@ -385,9 +385,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             Stop {
                 name,
                 caption: format!("heat sink ({n} fins)"),
-                // Montage carries only the fullest variant (#91
-                // revision note 5); 5/7 stay in the tour + standalone.
-                montage: n == 9,
+                // Montage cell RETIRED in favour of `impeller12`,
+                // which makes this scene's claim — one recipe
+                // document, a pattern COUNT edited, the instances'
+                // names surviving the edit — and makes it better in
+                // two ways this scene cannot. Its count and its
+                // angular step read the SAME parameter, so the edit
+                // has to hold a relation rather than move one number;
+                // and its instances are fused into one body BY THE
+                // RECIPE (`Node::placed_union`), where this scene must
+                // still union them demo-side because a Boolean node
+                // cannot consume Pattern Instances (F4, the note
+                // below). What is NOT lost with the cell is the LINEAR
+                // pattern itself: `bench` carries one on the sheet
+                // already. All three counts stay in the tour and keep
+                // their standalone renders, and the stable-name
+                // assertion above is untouched — it is this scene's.
+                montage: false,
                 story: "parametric heat-sink strip from ONE recipe document — fin count \
                         is a structural parameter; this render is one evaluation",
                 ops: recipe_ops,
