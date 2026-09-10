@@ -231,18 +231,23 @@ use spade::{
 };
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
+use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 use crate::walk::loop_edges;
 
 /// Tessellates one planar face into outward-wound triangles. The
 /// chart frame comes from [`chart_frame`], not from the face's stored
 /// `Surface::Plane` axes (module docs, issue #284).
+///
+/// This lane mints NO interior points: a planar face's triangles are a
+/// CDT of its own boundary, so every corner is a chord point or a
+/// topology vertex and the patch's `interior` is empty.
 pub(crate) fn tessellate_planar(
     body: &Body<f64>,
     fk: FaceKey,
     chords: &HashMap<EdgeKey, Vec<u32>>,
-    positions: &[Point3<f64>],
-) -> Result<Vec<[u32; 3]>, TessellateError> {
+    shared: &[Point3<f64>],
+) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
@@ -256,14 +261,20 @@ pub(crate) fn tessellate_planar(
     // The frame from the outer boundary alone (rings lie inside the
     // outer loop, so its extent governs the conditioning), then the
     // pure per-point projection of every loop.
-    let frame = chart_frame(&loops[0], positions);
-    let project = |id: &u32| -> [f64; 2] { frame.project(positions[*id as usize]) };
+    let frame = chart_frame(&loops[0], shared);
+    let project = |id: &u32| -> [f64; 2] { frame.project(shared[*id as usize]) };
     let polygons: Vec<Vec<[f64; 2]>> = loops
         .iter()
         .map(|ids| ids.iter().map(project).collect())
         .collect();
 
-    triangulate_chart(fk, &loops, &polygons)
+    Ok(Patch {
+        interior: Vec::new(),
+        triangles: triangulate_chart(fk, &loops, &polygons)?
+            .into_iter()
+            .map(|t| t.map(PatchVertex::Shared))
+            .collect(),
+    })
 }
 
 /// Bit-equality of coordinates, which is NOT the same relation as "the

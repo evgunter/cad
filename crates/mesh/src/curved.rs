@@ -132,19 +132,24 @@ use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
 use crate::cert;
 use crate::sizing::{Eps, SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_step};
+use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
 
-/// Tessellates one curved face into outward-wound triangles,
-/// appending interior grid points to `positions`.
+/// Tessellates one curved face into a [`Patch`]: the interior grid
+/// points the face mints for itself, and its outward-wound triangles.
+///
+/// `shared` is the mesh arena as it stood before ANY face ran — the
+/// topology vertices and the chord points, which is everything a
+/// curved face reads from outside itself.
 pub(crate) fn tessellate_curved(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
     chords: &HashMap<EdgeKey, Vec<u32>>,
-    positions: &mut Vec<Point3<f64>>,
+    shared: &[Point3<f64>],
     tol: &SizingTols,
-) -> Result<Vec<[u32; 3]>, TessellateError> {
+) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
@@ -167,7 +172,7 @@ pub(crate) fn tessellate_curved(
     let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
         what: "curved chart",
     })?;
-    let polygon = loop_polygon(body, &chart, chords, positions, fk, face.outer, tol.eps)?;
+    let polygon = loop_polygon(body, &chart, chords, shared, fk, face.outer, tol.eps)?;
     if polygon.len() < 3 {
         return Err(TessellateError::MissingEntity {
             what: "degenerate curved boundary",
@@ -194,7 +199,7 @@ pub(crate) fn tessellate_curved(
     // cone and a sphere, which is why it reads the entry's own point.
     let levers: Vec<(f64, f64)> = polygon
         .iter()
-        .map(|e| (chart.radial(positions[e.id as usize]), chart.v_lever()))
+        .map(|e| (chart.radial(shared[e.id as usize]), chart.v_lever()))
         .collect();
     require_swept_rectangle(fk, &polygon, &levers, (u0, u1, v0, v1), tol.eps)?;
 
@@ -243,12 +248,12 @@ pub(crate) fn tessellate_curved(
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
         ConstrainedDelaunayTriangulation::new();
     // Per-CDT-vertex metadata, indexed by handle index (insertion order).
-    let mut meta: Vec<(f64, f64, u32, bool)> = Vec::new();
+    let mut meta: Vec<(f64, f64, PatchVertex, bool)> = Vec::new();
     let insert = |cdt: &mut ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
-                  meta: &mut Vec<(f64, f64, u32, bool)>,
+                  meta: &mut Vec<(f64, f64, PatchVertex, bool)>,
                   u: f64,
                   v: f64,
-                  id: u32,
+                  id: PatchVertex,
                   pole: bool|
      -> Result<spade::handles::FixedVertexHandle, TessellateError> {
         let h = cdt
@@ -261,7 +266,14 @@ pub(crate) fn tessellate_curved(
     };
     let mut handles = Vec::with_capacity(polygon.len());
     for e in &polygon {
-        handles.push(insert(&mut cdt, &mut meta, e.u, e.v, e.id, e.pole)?);
+        handles.push(insert(
+            &mut cdt,
+            &mut meta,
+            e.u,
+            e.v,
+            PatchVertex::Shared(e.id),
+            e.pole,
+        )?);
     }
     for i in 0..handles.len() {
         let (a, b) = (handles[i], handles[(i + 1) % handles.len()]);
@@ -290,6 +302,11 @@ pub(crate) fn tessellate_curved(
     // does not build; the tests below pin what spade actually does on
     // a split, which is what that warning turns on.)
     let (uspan, vspan) = (u1 - u0, v1 - v0);
+    // The face's OWN points, numbered from zero: a grid point takes the
+    // next local index, and takes it only if the CDT did not dedupe it
+    // onto a vertex already inserted — the same one-id-per-kept-point
+    // rule the shared arena carried when this lane pushed into it.
+    let mut interior: Vec<Point3<f64>> = Vec::new();
     for j in 1..nv {
         #[allow(clippy::cast_precision_loss)]
         let v = v0 + vspan * (j as f64 / nv as f64);
@@ -298,10 +315,10 @@ pub(crate) fn tessellate_curved(
             let u = u0 + uspan * (i as f64 / nu as f64);
             let p = surface.eval(u, v);
             #[allow(clippy::cast_possible_truncation)]
-            let id = positions.len() as u32;
+            let id = PatchVertex::Local(interior.len() as u32);
             let h = insert(&mut cdt, &mut meta, u, v, id, false)?;
             if h.index() == meta.len() - 1 && meta[meta.len() - 1].2 == id {
-                positions.push(p);
+                interior.push(p);
             }
         }
     }
@@ -311,15 +328,16 @@ pub(crate) fn tessellate_curved(
     let mut worst: f64 = 0.0;
     for f in cdt.inner_faces() {
         let vs = f.vertices();
-        let m: Vec<(f64, f64, u32, bool)> = vs.iter().map(|v| meta[v.fix().index()]).collect();
+        let m: Vec<(f64, f64, PatchVertex, bool)> =
+            vs.iter().map(|v| meta[v.fix().index()]).collect();
         let ids = [m[0].2, m[1].2, m[2].2];
         if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
             continue; // pole-collapsed sliver
         }
         let tri = [
-            positions[ids[0] as usize],
-            positions[ids[1] as usize],
-            positions[ids[2] as usize],
+            ids[0].position(shared, &interior),
+            ids[1].position(shared, &interior),
+            ids[2].position(shared, &interior),
         ];
         let uv = [[m[0].0, m[0].1], [m[1].0, m[1].1], [m[2].0, m[2].1]];
         let pole = [m[0].3, m[1].3, m[2].3];
@@ -368,9 +386,13 @@ pub(crate) fn tessellate_curved(
     // at +8% to +13%. Both are inside the box's noise for anything
     // smaller, which is why only the donut rows are quoted.) That is at or under the price already paid for
     // the pole half, and it buys the case a mechanical check.
+    let patch = Patch {
+        interior,
+        triangles,
+    };
     #[cfg(debug_assertions)]
     {
-        let over = overused_identified_edge(&polygon, &triangles);
+        let over = overused_identified_edge(&polygon, &patch.census_ids(shared));
         debug_assert!(
             over.is_none(),
             "face {fk:?}: identified-vertex fan edge {:?} used {} times in one \
@@ -388,7 +410,7 @@ pub(crate) fn tessellate_curved(
             requested: tol.delta,
         });
     }
-    Ok(triangles)
+    Ok(patch)
 }
 
 /// **The SHAPE door and the BRANCH door**: this face's outer loop,

@@ -102,6 +102,7 @@ use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
+use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 
 /// Retry budget for the rebuild loop (module docs).
@@ -162,10 +163,10 @@ pub(crate) fn tessellate_trimmed(
     fk: FaceKey,
     surface: &Surface<f64>,
     chords: &ChordPass,
-    positions: &mut Vec<Point3<f64>>,
+    shared: &[Point3<f64>],
     tol: &SizingTols,
     bounds: &mut FaceBounds,
-) -> Result<Vec<[u32; 3]>, TessellateError> {
+) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
@@ -322,7 +323,7 @@ pub(crate) fn tessellate_trimmed(
     // including the two typed REFUSALS, which is the case the
     // falsification accumulator above exists for. `None` after the
     // loop is the retries-exhausted path.
-    let mut outcome: Option<Result<Vec<[u32; 3]>, TessellateError>> = None;
+    let mut outcome: Option<Result<Patch, TessellateError>> = None;
     'retry: for attempt in 0..=MAX_GRID_RETRIES {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
@@ -457,26 +458,15 @@ pub(crate) fn tessellate_trimmed(
             va.total_cmp(&vb).then(ua.total_cmp(&ub))
         });
         used.dedup();
-        let base = positions.len();
         let mut staged: Vec<Point3<f64>> = Vec::with_capacity(used.len());
-        let mut grid_ids: HashMap<usize, u32> = HashMap::new();
+        let mut grid_ids: HashMap<usize, PatchVertex> = HashMap::new();
         for &k in &used {
             let (u, v) = candidates[k];
             #[allow(clippy::cast_possible_truncation)]
-            let id = (base + staged.len()) as u32;
+            let id = PatchVertex::Local(staged.len() as u32);
             staged.push(surface.eval(u, v));
             grid_ids.insert(k, id);
         }
-        // A mesh id minted by an earlier face reads from the shared
-        // arena; one staged by THIS attempt reads locally.
-        let vertex = |id: u32| -> Point3<f64> {
-            let id = id as usize;
-            if id < base {
-                positions[id]
-            } else {
-                staged[id - base]
-            }
-        };
         // Pass 2: emit and certify.
         //
         // The meter's arming is read ONCE per face, not per triangle:
@@ -508,13 +498,13 @@ pub(crate) fn tessellate_trimmed(
                 continue;
             }
             let vs = f.vertices();
-            let mut ids = [0u32; 3];
+            let mut ids = [PatchVertex::Shared(0); 3];
             let mut uv = [[0.0f64; 2]; 3];
             for (k, vtx) in vs.iter().enumerate() {
                 let (u, v, slot) = meta[vtx.fix().index()];
                 uv[k] = [u, v];
                 ids[k] = match slot {
-                    Slot::Boundary(id) => id,
+                    Slot::Boundary(id) => PatchVertex::Shared(id),
                     Slot::Grid(c) => grid_ids[&c],
                 };
             }
@@ -546,7 +536,11 @@ pub(crate) fn tessellate_trimmed(
             if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
                 continue; // boundary-degenerate sliver
             }
-            let tri = [vertex(ids[0]), vertex(ids[1]), vertex(ids[2])];
+            let tri = [
+                ids[0].position(shared, &staged),
+                ids[1].position(shared, &staged),
+                ids[2].position(shared, &staged),
+            ];
             let bound = match lane {
                 Lane::Cylinder {
                     origin,
@@ -669,11 +663,16 @@ pub(crate) fn tessellate_trimmed(
         // is the full-2π seam double-traversal — no chart singularity
         // reaches it — so on every other face the set is empty and the
         // census returns on one branch.
+        let patch = Patch {
+            interior: staged,
+            triangles,
+        };
         #[cfg(debug_assertions)]
         {
             let identified =
                 crate::walk::ids_at_two_uvs(polygon.iter().map(|&(u, v, id)| (u, v, id)));
-            let over = crate::walk::overused_identified_edge_in(&identified, &triangles);
+            let over =
+                crate::walk::overused_identified_edge_in(&identified, &patch.census_ids(shared));
             debug_assert!(
                 over.is_none(),
                 "face {fk:?}: identified-vertex fan edge {:?} used {} times in one trimmed \
@@ -683,8 +682,7 @@ pub(crate) fn tessellate_trimmed(
                 over.map_or(0, |(_, n)| n)
             );
         }
-        positions.extend(staged);
-        outcome = Some(Ok(triangles));
+        outcome = Some(Ok(patch));
         break 'retry;
     }
 

@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use geom::Surface;
-use geom_core::{Band, Tol};
+use geom_core::{Band, Point3, Tol};
 use topo::Body;
 
 use crate::chords::{compute_chords, edge_vertices};
@@ -13,6 +13,93 @@ use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
 use crate::sizing::{Eps, SizingTols, sizing_target};
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
+
+/// One corner of a face patch's triangle, named the way the lane that
+/// emitted it can name it.
+///
+/// A lane tessellates its face from READ-ONLY inputs, so it cannot know
+/// where its own interior points will land in [`Mesh::positions`]: it
+/// names a point it shares with another face — a topology vertex or a
+/// chord point, both minted before any face runs — by that point's mesh
+/// id, and one of its own interior points by that point's index in
+/// [`Patch::interior`]. [`Patch::place`] turns the second into the
+/// first once [`tessellate`] has assigned the face its base.
+///
+/// **Two constructors rather than one integer with a threshold.** The
+/// two are different id spaces (`DESIGN.md` D9, engineering convention
+/// 1: tagged, never in-band), and a local index read as a mesh id is
+/// precisely the cross-face renumbering
+/// [`unpaired_chord_segment`] exists to catch — a defect this type
+/// makes unrepresentable instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(crate) enum PatchVertex {
+    /// A mesh id minted before any face ran: a topology vertex, or a
+    /// point on some edge's chord polyline.
+    Shared(u32),
+    /// An index into this patch's own [`Patch::interior`].
+    Local(u32),
+}
+
+impl PatchVertex {
+    /// This corner's position: from the shared prefix, or from the
+    /// patch's own interior. The lane certifies against these.
+    pub(crate) fn position(self, shared: &[Point3<f64>], interior: &[Point3<f64>]) -> Point3<f64> {
+        match self {
+            Self::Shared(id) => shared[id as usize],
+            Self::Local(i) => interior[i as usize],
+        }
+    }
+
+    /// This corner's mesh id once the patch's interior begins at
+    /// `base`.
+    fn rebase(self, base: u32) -> u32 {
+        match self {
+            Self::Shared(id) => id,
+            Self::Local(i) => base + i,
+        }
+    }
+}
+
+/// One face's tessellation AS A VALUE: the interior points the face
+/// mints for itself, and its triangles in [`PatchVertex`]s.
+///
+/// Nothing here depends on any other face, which is the property the
+/// per-face memo and the parallel map over faces both need
+/// (`work/perf/plan.md` §5) and the reason the lanes return this rather
+/// than append to a shared arena.
+pub(crate) struct Patch {
+    /// The face's own grid points, in the order the lane minted them —
+    /// which is the order they enter [`Mesh::positions`].
+    pub(crate) interior: Vec<Point3<f64>>,
+    /// The face's triangles, outward-wound (the [`FacePatch`]
+    /// contract), naming shared points by mesh id and interior points
+    /// by their index in `interior`.
+    pub(crate) triangles: Vec<[PatchVertex; 3]>,
+}
+
+impl Patch {
+    /// The patch's triangles as mesh ids, given the base its interior
+    /// was placed at.
+    fn place(&self, base: u32) -> Vec<[u32; 3]> {
+        self.triangles
+            .iter()
+            .map(|t| [t[0].rebase(base), t[1].rebase(base), t[2].rebase(base)])
+            .collect()
+    }
+
+    /// The patch renumbered as if it were the FIRST face to be placed,
+    /// for the per-patch censuses the lanes run on their own emission.
+    ///
+    /// Those censuses count uses of the edges incident to a named set
+    /// of vertices, and both quantities are invariant under any
+    /// injective renumbering — so the base is arbitrary and this one is
+    /// merely the cheapest that cannot collide with a shared id.
+    #[cfg(debug_assertions)]
+    pub(crate) fn census_ids(&self, shared: &[Point3<f64>]) -> Vec<[u32; 3]> {
+        #[allow(clippy::cast_possible_truncation)]
+        self.place(shared.len() as u32)
+    }
+}
 
 /// Tessellates a closed body into a watertight [`Mesh`] within the
 /// chordal tolerance `chordal` (δ, meters) of its exact surfaces.
@@ -76,14 +163,14 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
     let chords = compute_chords(body, delta_s, &vids, &mut positions, &mut bounds)?;
-    // Every id a face can SHARE with another face is already minted:
+    // Every id a face can SHARE with another face is now minted:
     // topology vertices, then chord points, then (per face, below) that
     // face's own interior grid. So a shared id is exactly an id below
-    // this mark, and the census at the end of this function tests it
-    // with an integer compare rather than a lookup.
-    #[cfg(debug_assertions)]
-    #[allow(clippy::cast_possible_truncation)]
-    let shared_below = positions.len() as u32;
+    // this mark — which is what the census at the end of this function
+    // tests with an integer compare rather than a lookup, and what
+    // makes `positions[..shared_below]` the whole of what a face reads
+    // from outside itself.
+    let shared_below = positions.len();
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
         let (start_vertex, end_vertex) = edge_vertices(body, ek)?;
@@ -116,7 +203,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             eps,
             band,
         };
-        let triangles = match *surface {
+        let patch = match *surface {
             // Described NURBS faces route through the trimmed lane
             // unconditionally (M7 — the flip of the historical
             // first-arm refusal, whose record is on
@@ -137,7 +224,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
                 fk,
                 surface,
                 &chords,
-                &mut positions,
+                &positions[..shared_below],
                 &tol,
                 &mut bounds,
             )?,
@@ -146,7 +233,9 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             // plane axes are deliberately not passed: imported axes
             // carry translator noise that projects valid boundaries
             // below spade's coordinate domain.
-            Surface::Plane { .. } => tessellate_planar(body, fk, &chords.ids, &positions)?,
+            Surface::Plane { .. } => {
+                tessellate_planar(body, fk, &chords.ids, &positions[..shared_below])?
+            }
             // Structural routing (M5 PR 11): a conic/B-spline trim
             // carrier means the face is not an iso-rectangle — the
             // pcurve-driven trimmed lane takes it.
@@ -170,12 +259,28 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
                 fk,
                 surface,
                 &chords,
-                &mut positions,
+                &positions[..shared_below],
                 &tol,
                 &mut bounds,
             )?,
-            _ => tessellate_curved(body, fk, surface, &chords.ids, &mut positions, &tol)?,
+            _ => tessellate_curved(
+                body,
+                fk,
+                surface,
+                &chords.ids,
+                &positions[..shared_below],
+                &tol,
+            )?,
         };
+        // THE FOLD. The face's base is where the arena stands at its
+        // turn, and the lanes mint in face-arena order, so this
+        // reproduces exactly the numbering a lane appending to the
+        // arena would have produced — which is what makes the mesh
+        // bit-identical while the lanes stop depending on each other.
+        #[allow(clippy::cast_possible_truncation)]
+        let base = positions.len() as u32;
+        let triangles = patch.place(base);
+        positions.extend(patch.interior);
         patches.push(FacePatch {
             face: fk,
             triangles,
@@ -234,7 +339,8 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             .iter()
             .map(|p| p.triangles.as_slice())
             .collect();
-        let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below);
+        #[allow(clippy::cast_possible_truncation)]
+        let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below as u32);
         debug_assert!(
             bad.is_none(),
             "chord segment {:?} is used by {} face triangles rather than 2: the \
