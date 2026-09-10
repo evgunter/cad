@@ -7604,3 +7604,68 @@ README: nothing), alongside HTML blocks and block quotes.
 used to red about a table having no rows when it had two. With the
 strip, a one-to-three-space row IS a row and the case cannot arise; a
 four-space one is reported by `!indent`, which is asked before both.
+## 2026-09-10 — `view/wasm-docs`: the repo had already answered this one axis over
+
+`viewer-docs-do-not-build-at-wasm32` offered two shapes over nine broken
+intra-doc links at `wasm32-unknown-unknown`. The split is seven-a-cost,
+two-dead-links, but the unit's substance is that **neither the row nor
+this lane's first close cited the precedent**:
+`scripts/doc-gate.sh:243-262` already rules the isomorphic problem on the
+FEATURE axis — with F off every link into F-gated code is unresolvable BY
+CONSTRUCTION, answered by allowing `rustdoc::broken_intra_doc_links` for
+that pass only (`RUSTDOC_LINTS_INERT`, `:559`), population enumerated
+complete, line numbers deliberately not carried.
+`crates/viewer/README.md`'s **Rustdoc posture** is now that shape with
+`target_family` for `feature`. The first close reached the same verdict
+on the seven by a worse argument — *the browser docs have no reader* —
+where the reason is that the lint cannot tell *this link is broken* from
+*this link's target is in the other half*.
+
+**Re-derived first.** The row's command at `ac4a69dd5` printed nine
+errors whose `-->` lines matched the filed table cell for cell, every
+third-column citation and `doc-gate.sh:555`/`:638` resolving.
+
+**The classifier the first close shipped was a proxy, and a reviewer
+caught it.** It read the `cfg` on the item a doc comment is attached to.
+`WebStartupError` carries that `cfg`; its five variant doc comments carry
+none, so the test called them unconditional and permitted exactly the
+brackets it meant to forbid — #2278's shape again, a rule over an
+attribute where the claim is over existence at a target. The test is now
+page existence in rustdoc's own output, which also dissolves the case the
+dichotomy missed (`app.rs:41` sits on `pub mod app`, `cfg(feature =
+"app")`, which the host pass documents).
+
+**The two `run` links were measured.** Host renders `app/fn.run.html` and
+no `app/fn.run_web.html`; wasm the reverse — the link resolved on no page
+any pass renders. Repaired within the line, so `app.rs` is 1,956 lines
+before and after. `indexer`'s `# Errors` was repaired in four lines for
+the same reason: it does NOT inherit `evaluator`'s infallibility sentence
+(separate rendered section), and a +1 shift there would have broken
+CHROME's and CIW's `app.rs` citations, which §6 forbids fixing from here.
+
+**Two further corrections.** `--bins --examples` at wasm32 does not
+merely add no site, it does not compile (`E0432`,
+`examples/r1_e2e.rs:19:37`); "cannot" was too strong. And the new row's
+class is links, not doc comments — `bin/viewer.rs` has five such doc
+comments and no link.
+
+**The count moved out of this entry and out of a title.** The first close
+claimed it lived only in the closed row; false, since that row's TITLE
+carried the number `work/STATUS.md` renders and the new row carried live
+figures. The README owns the population now, dated, by identifier, no
+line numbers; the row's table is kept as the superseded reading.
+
+**The intermediate was priced and wins.** A browser pass with that one
+lint allowed costs nothing per site, buys what pass 3 buys, and is clean
+today at lib scope; its precondition is the `E0432`. `cfg_attr` is
+refused on precedent, not price: it closes a blind spot the feature axis
+accepts permanently (#1317), and doc-gate's rejected *per-root deny list*
+is the same argument one level coarser.
+
+**Census and verification.** README grew at `:1428` and the highest
+README line cited anywhere is `:1079`, so nothing moved; `app.rs`
+unchanged. Seven errors after, quoted in the PR; `doc-gate.sh
+--selftest` and `--pr --scope '-p viewer'` green, fmt clean, both
+README-parsing gates green, clippy green at host and wasm32 at
+`-D warnings`, `tests/all.rs` 508/0. The one local red is the WGPU
+adapter row, green hosted.

@@ -570,10 +570,10 @@ fn evaluator() -> Result<Box<dyn crate::evalseam::EvalService>, StartupError> {
 ///
 /// # Errors
 ///
-/// [`StartupError::Worker`] if the OS refuses the thread. A viewer
-/// whose index seam never started would draw its opening picture and
-/// then refuse every pick on every document forever, which is a
-/// failure to meet at startup rather than to discover by clicking.
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. A viewer whose index seam never started would draw
+/// its opening picture and refuse every pick on every document
+/// forever — a failure to meet at startup, not to discover by clicking.
 fn indexer() -> Result<Box<dyn crate::evalseam::IndexService>, StartupError> {
     #[cfg(not(target_family = "wasm"))]
     {
@@ -1898,12 +1898,12 @@ impl core::error::Error for WebStartupError {}
 
 /// Run the application on the `<canvas>` carrying `canvas_id`.
 ///
-/// The browser counterpart of [`run`], and deliberately the whole of
+/// The browser counterpart of `run`, and deliberately the whole of
 /// the difference between the two platforms' entry points: everything
 /// downstream — the session, the panes, the camera, the input map —
 /// is the same code the native build runs.
 ///
-/// **No `open` parameter, unlike [`run`].** There is no path to hand
+/// **No `open` parameter, unlike `run`.** There is no path to hand
 /// it: the browser build links no file dialog and has no filesystem
 /// to name, so it opens on the built-in startup document and stays
 /// there. That is the spike's stated scope, not an oversight —

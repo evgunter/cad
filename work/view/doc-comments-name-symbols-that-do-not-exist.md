@@ -94,8 +94,12 @@ Two shapes, and they are not exclusive:
   Cheap, mechanical, and it converts an unchecked claim into a checked
   one rather than merely correcting today's instance. Note that a name
   in a *cfg-gated* configuration cannot always be linked — see
-  `viewer-docs-do-not-build-at-wasm32`, where nine such links are
-  already unresolvable at the browser target — so this is not
+  `crates/viewer/README.md`'s **Rustdoc posture** ruling, and apply its
+  test rather than this bullet: bracket freely on an item the HOST pass
+  renders a page for, and on an item it does NOT, the bracket has to
+  resolve at the browser target instead — which a host-only name cannot.
+  `WebStartupError`'s five variant doc comments are exactly that case,
+  and they carry no `cfg` of their own to warn you. So this is not
   unconditional.
 - **Check the rest by rule.** The residue after bracketing is
   categories 1–3 above, and a gate for them is the `<file>.rs:<line>`

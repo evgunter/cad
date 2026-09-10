@@ -1425,6 +1425,81 @@ setting only the flag fails the build, which is why the feature is
 declared here so the flag is all a builder has to remember
 (`local-scripts/serve-wasm.sh`). The browser lane itself is deferred.
 
+### Rustdoc posture: the host pass is the gate
+
+**At the browser target every link into host-only code is unresolvable
+BY CONSTRUCTION, so a lint that cannot tell that from a broken link is
+the wrong instrument for a browser pass.** This is the shape
+`scripts/doc-gate.sh` already records one axis over, on features: with F
+off, every link into F-gated code is unresolvable by construction, and
+the answer there is to allow `rustdoc::broken_intra_doc_links` for that
+pass ONLY — stated at the site as the cost of the widening rather than a
+tidiness flag (`RUSTDOC_LINTS_INERT`). The target axis gets the same
+answer for the same reason, and the reason is not that the browser docs
+do not matter: it is that the lint cannot tell *this link is broken*
+from *this link's target is in the other half*.
+
+**So the gate is the HOST pass**, at `-D warnings`, which CI runs. It
+holds every page it renders — including the case no by-construction
+argument covers: a link that resolves at NEITHER target is broken on a
+host page and reds there.
+
+**A browser pass, if one is ever run, allows that one lint.** None is
+run today, and the feature axis is better off here than this one:
+doc-gate's pass 3 at least COMPILES the half it widens to, where
+wasm-only items get no doc build at all.
+`work/view/wasm-only-doc-comments-are-checked-by-nothing.md` owns that
+gap.
+
+**The population, dated and by name — with the instrument that takes
+it, which belongs HERE.** A reading whose command is not named cannot be
+re-taken, and the precedent keeps its pass in the same file as its
+enumeration for that reason:
+
+```sh
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
+RUSTDOCFLAGS='-D warnings -A rustdoc::private_intra_doc_links' \
+cargo doc --no-deps --document-private-items \
+  -p viewer --features app --target wasm32-unknown-unknown
+```
+
+Read 2026-09-10 with that lint set: **seven sites over four identifiers
+in two files**, and an identifier is a link SPELLING, so
+`ThreadEvaluator` and
+`crate::evalseam::ThreadEvaluator` count apart. `evalseam.rs`:
+`ThreadEvaluator` ×2, `ThreadIndexer` ×1. `app.rs`: `ThreadEvaluator`
+×1, `crate::evalseam::ThreadEvaluator` ×1, `StartupError::Worker` ×2.
+The enumeration is COMPLETE rather than illustrative, and it is a
+reading of the tree rather than a property of it. **Line numbers are
+deliberately not carried**: doc-gate's header gives the reason and has a
+drifted citation to show for it, and this crate has spent four such
+findings in a day.
+
+**The one shape that is a DEFECT rather than a cost, and how to decide
+it without an attribute grep.** Ask whether the host pass renders a page
+for the item the doc comment sits on — the same `cargo doc` without
+`--target`, then look for the page under `doc/viewer/`; it is there or
+it is not:
+
+- **It does** — the host pass holds that link, and a browser-pass error
+  on it is by construction. Permitted.
+- **It does not** — the item is absent at the host, so the browser pass
+  is that link's ONLY reader and it has to resolve there. A bracket
+  resolving at neither target spells a checked claim nothing anywhere
+  checks; name the item instead, as `WINDOW_TITLE`'s doc does in the
+  other direction (*"`run_web` — absent from this configuration, so
+  named rather than linked"*).
+
+The test is page existence in rustdoc's own output and **not** the `cfg`
+on the item, because the two come apart inside this very file:
+`WebStartupError` is `cfg(target_family = "wasm")` and its variant doc
+comments carry no `cfg` of their own, so an attribute test reads them as
+unconditional and reaches the wrong bullet. It is not a test on the
+LINKED item's `cfg` either, and it needs no special case for the `app`
+feature: `mod app` is `cfg(feature = "app")`, and the host pass
+documents this crate WITH that feature, so its page exists and its links
+are held.
+
 ## Banked post-v1
 
 GUI-5, the threaded web lane, and GUI-6, the history graph: a
