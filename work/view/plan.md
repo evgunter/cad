@@ -463,6 +463,40 @@ pass. `neutral` is a passing conclusion, not a failure —
 `render drift (…)` is a check run posted by the rebaseline action and
 designed to be neutral (`ci.yml:4964-4976`).
 
+**Running the crate's own suite is not running the suite, and the two
+runs are not nested.** #2293 reported 511/0/1 from `cargo test -p viewer
+--features app --test all` and sat red on CI for four hours: its new
+guard reads `frame.rs` and `app.rs` as text, and
+`crates/test-utils/tests/reader_census.rs` keeps a ledger with one line
+per site that does — *"a new one reds until someone writes its line"*.
+That row is a different test binary in a different crate and the local
+command was structurally incapable of seeing it. The shape is broader
+than readers, and one unit hit it three times: a new **reader**
+registers in a ledger, a new **badge** in a README count, a new **store
+read** in another — the crate keeps rosters and the local binary reads
+none of the ones that live elsewhere. The receipt is
+`cargo nextest run --workspace`, **and it is not sufficient either**:
+the workspace run builds `viewer` without `app`, so `gpu.rs` compiles
+out and its adapter row never appears. CI runs both as separate jobs and
+so does a lane. **Report the command, not only the number** — a count
+with no command behind it cannot be re-taken, which is the same defect
+as an enumeration with no instrument.
+
+**When a red belongs to a roster that lives in another program's file,
+registering is the mechanism working and not a fence crossing.** The
+census's own header names the three honest dispositions and tells
+whoever caused the red to write the line. #2293's lane checked that
+independently rather than taking my word: CIW's `keep_out` cedes *the
+Shared ledger row's AUDIT* to S-TCOST, not its registration, and TOPO's
+cedes *"converts topo's own readers and its own census entries only"* —
+direct precedent for a program adding its own line. It announced the
+edit in the PR body and the log rather than landing it silently, which
+is what VIEW's own `keep_out` asks of a test-mechanism change. The rule
+is the reading, not the conclusion: a roster that exists so arrivals
+register themselves is not the same fence as the audit over it, and the
+distinction is written in the clauses rather than inferred from the
+path.
+
 **A receipt is a citation and gets no exemption.** #2278's log entry
 offered two perturbations as evidence and named the wrong line for one
 of them: a multi-line `assert_eq!` panics where the invocation STARTS,
