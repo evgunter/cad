@@ -170,7 +170,7 @@ went whole, both call sites with it, `deliver_status` and #2272's `cfg`
 with them; `frame::deliver` kept its one caller (`pane/viewport.rs:48`),
 `NO_CHOOSER_BACKEND` kept its two (`on_disabled_hover_text` on Open… and
 on Save As…), and the `frame_policy.rs` row went — `app.rs` 2,022 →
-1,961 lines and `#[test]` under `crates/viewer` **539 → 538**, the one
+1,956 lines and `#[test]` under `crates/viewer` **539 → 538**, the one
 deletion and nothing else. That row lost its subject only in PART: its
 `dialog_status` calls had none left, but its three assertions on the
 remedy string's CONTENT still had one, and nothing replaced them — the

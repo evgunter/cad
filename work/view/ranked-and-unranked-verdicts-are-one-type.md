@@ -94,9 +94,9 @@ ranked role entirely and the field-writing door to take the new type)
   (the ruling
   `was-the-status-route-supposed-to-fire-for-an-absent-chooser`).
   `Clear` has exactly one production CONSTRUCTION, `batch_status`'s
-  `(true, None)` arm (`frame.rs:466`) — `frame_status` answers `Clear`
+  `(true, None)` arm (`frame.rs:468`) — `frame_status` answers `Clear`
   too, but only by forwarding that verdict unchanged when
-  `notices.is_empty()` (`frame.rs:513-515`), which is the ranking's
+  `notices.is_empty()` (`frame.rs:515-517`), which is the ranking's
   output and reaches the field through `apply_status`, never through
   this door. `deliver`'s own header argues the arm stays
   regardless — a wildcard there would route a variant added later to

@@ -693,8 +693,8 @@ ranging over readers of `frame::NO_CHOOSER_BACKEND` would leave the
 universal above green while a future route built its own `Message` from
 `chooser.usable()` — so the population is *every read of
 `ViewerApp::chooser`, this crate's only value of type
-`frame::ChooserBackend`*: one, `app.rs:1177`, consumed at `:1179` and
-`:1198` as `add_enabled(chooser.usable(), …)` with
+`frame::ChooserBackend`*: one, `app.rs:1172`, consumed at `:1174` and
+`:1193` as `add_enabled(chooser.usable(), …)` with
 `frame::NO_CHOOSER_BACKEND` as the disabled reason and nowhere else. No
 reader builds a `Message`, a `Badge` or a notice from it. What the rule
 cannot see is a route that re-probes the environment instead of reading

@@ -6936,7 +6936,7 @@ Ev ruled **(c)** on #2275 — *"(c) is right!"* — so `frame::dialog_status`
 is deleted whole, `ViewerApp::deliver_status` with it (no callers left),
 and #2272's `#[cfg(not(target_family = "wasm"))]` and the fifty-line
 paragraph defending the arm's latency go with them. `app.rs` 2,022 →
-1,961. The surface stays the hover text: Ev ratified (c) without asking
+1,956. The surface stays the hover text: Ev ratified (c) without asking
 for a badge, and (c)'s own argument is that a disabled control with its
 reason on hover already IS a read of held state.
 
@@ -6962,8 +6962,8 @@ tell "did not push" from "cleared what was there" — and a sweep is
 exactly the behaviour whose absence the deletion depends on. The block
 now starts non-empty and asserts against a snapshot. Two perturbations
 prove the new assertion falsifiable in both directions: `Keep` made
-`notices.clear()` reds `frame.rs:2167` where the old assertion stayed
-green, and `apply`'s `Keep` made `*status = None` reds `:2171`. This is
+`notices.clear()` reds `frame.rs:2166` where the old assertion stayed
+green, and `apply`'s `Keep` made `*status = None` reds `:2170`. This is
 #2148's rule again — **asserted-somewhere is not asserted-here, and only
 a MUTATION tells them apart** — met before the deletion rather than
 after it.
@@ -7019,6 +7019,18 @@ positive on every row this branch had already re-derived — it cannot
 tell a number written against `origin/main` from one written against
 this head, so nine hits had to be read back by hand before being
 dismissed.
+
+**And the census had to be run TWICE, which is this program's own rule
+arriving on schedule.** The first pass fixed eleven citations; the fix
+pass then shortened three doc comments and lengthened one, moving
+`frame.rs` by +2 below line ~382 and `app.rs` by −5 below 1172 — so
+every number the first pass had just derived was wrong again. *The last
+edit invalidates the earlier sweep* is written in `plan.md` twice, and
+it still cost a second full derivation here. The instrument that closed
+it: find each subject BY REGEX ON ITS OWN TEXT at head, print the line,
+and read all 31 back — never map a delta, and never derive before the
+prose is final. Final: `frame.rs` 2,538 → **2,536**, `app.rs`
+2,022 → **1,956**, `#[test]` 539 → **538**.
 
 **Two of the thirty are not arithmetic and are not this diff's.**
 `chrome/drag-tick-has-three-homes.md:19-22` says the drag tick is

@@ -42,12 +42,12 @@ and both answers can be `false`:
   directory.** `Store` is `prefs::file::FileStore` (`app.rs:92-93`),
   constructed as `FileStore::new(frame::prefs_path())` (`app.rs:102`).
   `FileStore::usable` is `self.path.is_some()` (`prefs.rs:426-428`),
-  and `frame::prefs_path` (`frame.rs:1679-1684`) returns `None` when
+  and `frame::prefs_path` (`frame.rs:1681-1686`) returns `None` when
   neither `XDG_CONFIG_HOME` nor `HOME` is set — *"With neither, `None`
   — no path is invented. The caller's store is then unusable and says
   so, which is how a person finds out their preferences are not being
   kept rather than wondering later why nothing was remembered"*
-  (`frame.rs:1704-1707`). A desktop viewer launched from a stripped
+  (`frame.rs:1706-1709`). A desktop viewer launched from a stripped
   environment takes the identical early return and says the identical
   nothing — against that clause, which is written in the imperative
   and describes a store that reports.
@@ -94,9 +94,9 @@ report, or the refusals go and the guard becomes the only statement.
 ## Where the user meets it
 
 `remember_theme`'s one caller is the palette picker: an ordinary
-enabled `egui::ComboBox` over `Theme::ALL` (`app.rs:1358-1364`), whose
+enabled `egui::ComboBox` over `Theme::ALL` (`app.rs:1353-1359`), whose
 change arm applies the theme and calls `remember_theme`
-(`app.rs:1372-1376`). So a user picks a theme, it applies, the session
+(`app.rs:1367-1371`). So a user picks a theme, it applies, the session
 ends, and the default comes back with nothing having said why.
 
 ## Why it is a defect and not a trade
@@ -115,10 +115,10 @@ Two doc claims in this crate assert the opposite, in as many words:
 The file chooser really does do this, and does it target-blind:
 `chooser_backend()` answers `Absent` on wasm and delegates to
 `chooser_backend_of` for the environment elsewhere
-(`frame.rs:1601-1620`), `add_enabled(chooser.usable(), …)` disables
+(`frame.rs:1603-1622`), `add_enabled(chooser.usable(), …)` disables
 Open…/Save As…, and
 `.on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)` shows the reason
-(`app.rs:1179-1180`, `:1198-1199`) — which since the ruling on
+(`app.rs:1174-1175`, `:1193-1194`) — which since the ruling on
 `was-the-status-route-supposed-to-fire-for-an-absent-chooser` is the
 chooser's WHOLE surface, the status route beside it having been deleted
 as misclassified. That is #1125's posture, and it is

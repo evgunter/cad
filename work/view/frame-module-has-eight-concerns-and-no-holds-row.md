@@ -12,7 +12,7 @@ concern's worth of surface and had no rule to write it against.
 
 ## What is in there
 
-`crates/viewer/src/frame.rs` is **2,537 lines** on this tree (`wc -l`;
+`crates/viewer/src/frame.rs` is **2,536 lines** on this tree (`wc -l`;
 the growth ledger below is where the 984 it was filed at lives) and its
 public surface covers eight unrelated things:
 
@@ -152,7 +152,7 @@ in the ledger kept to watch for it.
 
 2,538 before the ruling on
 `was-the-status-route-supposed-to-fire-for-an-absent-chooser` was
-built, **2,537** after. The unit deleted `dialog_status` whole — Ev
+built, **2,536** after. The unit deleted `dialog_status` whole — Ev
 ruled its `Show` arm misclassified rather than merely unreachable — and
 concern 4 above lost a member without losing the concern. **A ledger
 that finally moves the other way by ONE line is this item's argument,
@@ -173,7 +173,7 @@ extend it — the row was extended in the fix pass, with `deliver`.
 ## Evidence, not work: ~80 lines of environment probing in a per-frame module
 
 Recorded here because it belongs to the split this item owns and to
-nothing else on the board. `crates/viewer/src/frame.rs:1527-1734` —
+nothing else on the board. `crates/viewer/src/frame.rs:1529-1736` —
 `ChooserBackend`, `chooser_backend_of`, `chooser_backend`,
 `zenity_on_path`, `session_bus_hinted`, `prefs_path`, `prefs_path_in`
 and `running_under_wsl`, a 208-line span of which ~80 are code — is

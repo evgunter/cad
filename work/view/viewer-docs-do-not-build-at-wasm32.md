@@ -40,15 +40,15 @@ printed:
 | `app.rs:532` | `ThreadEvaluator` | `evalseam.rs:453` |
 | `app.rs:552` | `StartupError::Worker` | `app.rs:495` |
 | `app.rs:573` | `StartupError::Worker` | `app.rs:495` |
-| `app.rs:1906` | `run` | `app.rs:1801` |
-| `app.rs:1911` | `run` | `app.rs:1801` |
+| `app.rs:1901` | `run` | `app.rs:1796` |
+| `app.rs:1906` | `run` | `app.rs:1796` |
 | `evalseam.rs:18` | `ThreadEvaluator` | `evalseam.rs:453` |
 | `evalseam.rs:38` | `ThreadEvaluator` | `evalseam.rs:453` |
 | `evalseam.rs:74` | `ThreadIndexer` | `evalseam.rs:453` |
 
 The two `run` links are the sharp case: they sit in `run_web`'s own doc
-(`#[cfg(target_family = "wasm")]`, `app.rs:1923`, with `pub async fn
-run_web` at `:1924`), so they are
+(`#[cfg(target_family = "wasm")]`, `app.rs:1918`, with `pub async fn
+run_web` at `:1919`), so they are
 unresolvable in the **only** configuration that compiles the item they
 document, and resolvable in the only configuration that does not.
 
