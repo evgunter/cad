@@ -2038,9 +2038,9 @@ splits every shell body under `.github/workflows/` and every tracked
 escapes, line continuations and heredoc bodies — and requires each
 `PIPESTATUS` read to sit on the command immediately after a pipeline. On
 this tree it reports **7 reads across 87 files, all correct**: `ci.yml`
-`:666`, `:3106`, `:3597`, `:3632`, `:3642`, `:4806` and `render.yml`
-`:1183` — numbered on this branch's head, which inserts 25 lines into
-`ci.yml` above them. The tombstone comment at `ci.yml:4771` is prose and
+`:666`, `:3116`, `:3607`, `:3642`, `:3652`, `:4816` and `render.yml`
+`:1183` — numbered on this branch's head, which inserts 35 lines into
+`ci.yml` above them. The tombstone comment at `ci.yml:4778` is prose and
 is not counted, which is one of the guard's own mutant rows.
 
 **The guard is the property, not the incident.** It does not look for
