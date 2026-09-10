@@ -7887,23 +7887,22 @@ doc comment sits on. Asked that way all 64 answer *it does*, and the
 `scripts/doc-gate.sh` reded on **13**, because it documents `viewer` a
 second time at DEFAULT features under `--skip-viewer-toolkit`, also at
 `-D warnings`, where `app`/`forms`/`pane` do not exist. Chasing that
-found a third case: **7 spans inside `#[cfg(test)]` modules**, which no
-pass renders, so bracketing them is inert — a checked claim nothing
-checks, which is the ruling's own words reached by a route it does not
-name. The test is right and its quantifier is not: it is stated over
-the ITEM, and two of the three ways a page goes missing here are about
-the TARGET and about which passes run. Filed as
+also turned up **7 spans inside `#[cfg(test)]` modules**, which no pass
+renders, so bracketing them is inert. **That one is this lane's own
+mis-reading and not a gap**: `cargo doc` does not set `cfg(test)`, so
+the page is absent and the ruling's literal answer is *it does not* —
+the remedy taken. The reason all 64 first answered *it does* is that
+the question was asked of the MODULE rather than of the ITEM the doc
+comment sits on, which is not what the ruling says. **One** gap
+survives, the feature axis, filed as
 `rustdoc-posture-test-names-one-axis-of-three` rather than edited into
-ratified text that merged this morning.
+ratified text that merged this morning. A row is better for being one
+finding than three.
 
-**The trap itself never fired, and the reason is population.** The host
-pass renders `enum.StartupError.html` and `fn.run.html` and **no** page
-for `WebStartupError` or `run_web`, exactly as described;
-`WebStartupError`'s five variant doc comments carry no `<mod>::<path>`
-span, so the rule never selected them. The receipt for the whole
-disposition is the browser pass: **7 unresolved links over 4
-identifiers** after the diff — the README's dated population, unchanged.
-44 new links, zero new browser-pass errors.
+**The trap never fired, for reasons of population**, and the receipt
+for the whole disposition is the browser pass: **7 unresolved links
+over 4 identifiers** after the diff — the README's dated population,
+unchanged. 44 new links, zero new browser-pass errors.
 
 **A third dead name, and the bracketing found it.** `frame.rs:216`
 named `pane::viewport::viewport_ui`; bracketed, the host pass reded.
@@ -7940,15 +7939,41 @@ honest move would have been to correct it, and correcting it would
 have falsified a true record. The class is *present-tense claim*, not
 *dead name*.
 
-**No line shifts, deliberately.** 58 insertions against 58 deletions
-across 16 source files; every edit is within-line and every file's
-line count is unchanged, so no citation into any of them moved and the
-band census does not arise. The one fix that wanted a second comment
-line fits in 72 characters against a file whose comments already run
-to 89; taking the extra line would have shifted every `app.rs`
-citation below 950 to buy nothing.
+**No line shifts, and the receipt is `origin/main...HEAD`: 11 files,
++40/-40.** Every edit within-line, every file's line count identical to
+the merge base. The figure to quote is that one — an earlier draft said
+58/58 across 16 files, which is the first commit alone and was partly
+reverted by the second; a receipt is a citation and gets no exemption.
+The unconditional argument is better than either: **every changed line
+under `crates/viewer/src` is a comment line**, zero non-comment lines,
+so the diff cannot move a compile result at any target or feature set.
 
-**Two residues filed rather than disclosed**, the ruling gap above and
+**The disposition is durable in a tracker file and nowhere else, and
+that is a defect this lane created.** Eleven of the thirteen
+feature-axis sites now carry a bare span with nothing saying it is
+deliberate — `frame.rs:6,85,216,385,554,1766,1802`, `pickindex.rs:12,13`,
+`props.rs:40`, `tree.rs:278` — in a crate whose `theme.rs:9-12`,
+`vocab.rs:51-52` and `forms.rs:18-20` all explain exactly this choice
+in prose. The sharpest is `pickindex.rs:12-13`, where a bracketed
+`[`crate::marks`]` and a bare `pane::viewport` sit in one sentence and
+a reader repairing the "inconsistency" reds the gate. Not fixed here:
+the note adds lines, and `frame.rs`/`pickindex.rs`/`props.rs`/`tree.rs`
+carry **155** `file:line` citations between them, so it costs a census
+and is its own unit —
+`named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites`.
+
+**The revision the ruling wants is EXISTENTIAL, and getting that
+quantifier wrong is how this lane nearly shipped a rule against its own
+diff.** The first draft proposed *"every rustdoc pass that runs at
+`-D warnings` renders a page … and can resolve the target"*, one line
+after claiming it changed no disposition. It changes 25 of them: only
+**19** of the 44 links are in modules the default-features pass renders
+at all, and the other 25 sit in `app`, `forms`, `pane` and `widgets`,
+which it never renders. A link checked by ONE pass is a checked claim;
+demanding every pass check it forbids linking anything feature-gated.
+The row now proposes *some* pass, and says why.
+
+**Three residues filed rather than disclosed**, the two above and
 `comment-symbol-names-outside-rustdocs-reach-have-no-gate`. Rustdoc
 reads `///` and `//!` and nothing else, so the same dead name at
 `app.rs:950` — a plain `//` comment — could only be corrected by hand

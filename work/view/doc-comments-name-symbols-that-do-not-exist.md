@@ -82,10 +82,23 @@ this file's, not that PR's.
    The decidable set is every own-module prefix, not just the two
    this item happened to look at.
 6. **The definition check is a regex** over `fn|struct|enum|type|
-   const|static|trait|mod|union` declarations, so an enum variant, a
-   struct field, an associated item or a macro-generated name reads as
-   undefined. Every such false positive in this sweep was resolved by
-   hand; a mechanised version needs the compiler, not a regex.
+   const|static|trait|mod|union` declarations, and it is wrong in
+   **both** directions.
+   - It **over-reports**: an enum variant, a struct field, an
+     associated item or a macro-generated name reads as undefined.
+     Every such false positive in this sweep was resolved by hand
+     (`prefs::Notice::UnknownPreset`, `pickcache::IndexLanding::Stale`).
+   - It **under-reports, and that is the direction that hides a dead
+     name.** The regex matches the LEAF, so a span whose leaf is
+     declared somewhere under `crates/viewer/src` reads as live however
+     wrong its PATH is. `pane::viewport::viewport_ui` passed this check
+     and names nothing: `viewport_ui` is an inherent method on
+     `ViewerBehavior`, merely written in that file. Only a resolver
+     that checks the whole path can see it.
+
+   A mechanised version needs the compiler, not a regex, and the
+   under-reporting arm is why — the over-reporting arm only costs a
+   reviewer's time.
 
 ## What resolving it looks like
 
@@ -215,23 +228,33 @@ so a link from a renderer-free module into any of them resolves at
 `--all-features` and nowhere else. The 13 are in `props.rs`,
 `tree.rs`, `vocab.rs`, `pickindex.rs` and `frame.rs`.
 
-Chasing that down surfaced a third case the same test decides: **7
-spans sit inside `#[cfg(test)]` modules** (`frame.rs`'s `mod tests`,
-`pane/viewport.rs`'s), which NO pass renders, so a bracket there is
-inert — never read, never checked, never red. That is the ruling's own
-*"a bracket resolving at neither target spells a checked claim nothing
-anywhere checks"*, reached by a route it does not name.
+Chasing that down surfaced **7 spans inside `#[cfg(test)]` modules**
+(`frame.rs`'s `mod tests`, `pane/viewport.rs`'s), which no pass
+renders, so a bracket there is inert — never read, never checked, never
+red. **That one is this pass's own mistake, not a gap in the ruling.**
+`cargo doc` does not set `cfg(test)`, so such an item has no page under
+`doc/viewer/` and the ruling's literal answer is *it does not* — which
+is the remedy taken. The reason all 64 first answered *it does* is that
+the question was asked of the **module** rather than of the **item**
+the doc comment sits on, which is not what the ruling says.
 
-So the page-existence test is right and its quantifier is not: it is
-stated over the item, and two of the three ways a page goes missing
-here are about the **target** and about **which passes run**. Filed as
+So **one** gap survives, and it is the feature axis: the ruling names
+*"the host pass"* as though there were one, and `doc-gate.sh` runs a
+second at a different feature set. Filed as
 `rustdoc-posture-test-names-one-axis-of-three` rather than edited into
 the README, because that is ratified text and it merged this morning.
+The revision it proposes is **existential** over passes and changes no
+disposition taken here; a universal reading would forbid 25 of the 44
+links this PR ships.
 
 **Per site, with the test applied:**
 
-- **44 bracketed** — item and target both present in both passes that
-  run at `-D warnings`.
+- **44 bracketed** — **some** `-D warnings` pass renders the item and
+  resolves the target. Existential, not universal: only **19** of the
+  44 are in modules the default-features pass renders at all, and the
+  other **25** live in `app`, `forms`, `pane` and `widgets`, which that
+  pass does not render. Demanding every pass check a link would forbid
+  linking anything feature-gated, these 25 included.
 - **13 named** — item present in both passes, target absent at default
   features. The ruling's *"it does not"* remedy on the feature axis.
 - **7 named** — item inside `#[cfg(test)]`, rendered by neither pass.
@@ -287,13 +310,42 @@ was deliberately left:
 |---|---|
 | `frame-module-…-no-holds-row.md:21` | **fixed** → `Withdrawal`. A present-tense census of `frame`'s public surface; every other name in it is live, so this was the single wrong element. The same row already lists `Withdrawal` at `:98` |
 | `rank-one-discards-the-frames-other-news.md:39` | **fixed** → `frame::Withdrawal::superseded` |
-| `free-move-drag-dissolved-by-open.md:54` | **symbol fixed** → `frame::Withdrawal::superseded`; the `app.rs:785` beside it **left as written**, because it was already wrong at this merge base and a fresher wrong number hides the breakage. `stale-file-citations-after-the-split` quoted this row verbatim and is updated so its quote stays true |
+| `free-move-drag-dissolved-by-open.md:54` | **symbol fixed** → `frame::Withdrawal::superseded`; the `app.rs:785` beside it **left as written**, because it was already wrong at this merge base and a fresher wrong number hides the breakage. `stale-file-citations-after-the-split` quotes this row verbatim; its quote is now **dated to `1d29a8eeb`** rather than left silently reading the old text |
 | `frame-module-…-no-holds-row.md:76` | **left as written, and correct.** The sentence is dated *"(#1886, 2026-09-05)"* and all three names it uses were real in `frame.rs` on that date. A dated record of a tree that existed is not a stale citation, and rewriting it to today's names would make it false |
 
 That last row is the finding the *"never existed"* error would have
 destroyed: believing the names were invented, the honest move is to
 correct the sentence, and correcting it would have falsified a true
 record. The class is *present-tense claim*, not *dead name*.
+
+### The scope of that pass, written down
+
+**Open rows only, and the rule is deliberate rather than incidental.**
+By the class just named — *present-tense claim* — closed rows are
+members too, and two of them are:
+
+- `four-badges-five-spellings.md:107-108`: *"`frame::supersession_notice`
+  (`frame.rs:232`) and the new `frame::dropped_hide_notice` (`:269`)
+  **are** free functions returning `Option<String>`"*. Both line
+  numbers were right at `6877a40ff`; the verb is now false.
+- `prune-drops-a-hidden-instance-silently.md:76`: *"and
+  `frame::dropped_hide_notice` renders it"*.
+
+Both are **left as written**, and this is the argument: a closed row is
+a record of a decision made against the tree of its day, not an
+instruction any lane will act on, and `plan.md` says in as many words
+that *a closed item is a record, not a guard*. Editing one rewrites the
+reasoning someone actually used. Open rows are different in kind — a
+lane reads them to decide what to do next, so a dead name in one is a
+live trap, which is why those were repaired.
+
+Recorded rather than silently excluded, because the exclusion is a
+judgement and not an oversight: both are entered in
+`stale-file-citations-after-the-split`, which owns this class. **The
+`four-badges` sentence matters more than the other**, because the
+section above sends readers to `:107` as proof that the citation was
+right when written — and they land on a present-tense verb that is now
+wrong.
 
 One more name fell out of the same commit and is **not** repaired:
 `render_causes`, deleted by #1957 alongside the other two and still
@@ -305,10 +357,19 @@ rather than edited.
 
 ### Line shifts
 
-**None.** Every edit in `crates/viewer/src` is within-line — 58
-insertions against 58 deletions across 16 files, and each file's line
-count is unchanged — so no citation into any of them moved and the
-band census does not arise. This was deliberate: the one fix that
+**None**, and the receipt is `origin/main...HEAD`: **11 files, 40
+insertions against 40 deletions**, every edit within-line and every
+file's line count identical to the merge base. (An earlier draft of
+this section said *"58/58 across 16 files"*, which is
+`5ace0e9eb..ba2046143` — the first commit alone, which the second
+partly reverted. A receipt is a citation and gets no exemption; the
+figure a reader can re-take from the branch is the one above.)
+
+**The stronger argument, and it is unconditional:** *every changed line
+in `crates/viewer/src` is a comment line* — checked mechanically, zero
+non-comment lines changed — so the diff cannot move any compile result
+at any target or feature set. That subsumes a merge-base build rather
+than resting on one. This was deliberate: the one fix that
 wanted a second comment line (`app.rs:950`) fits in 72 characters
 against a file whose comments already run to 89, and taking the extra
 line would have shifted every `app.rs` citation below 950. The one
@@ -317,8 +378,17 @@ whose own citations were re-read after the last edit.
 
 ### Residue
 
-Two files, not one. `rustdoc-posture-test-names-one-axis-of-three`
-carries the ruling gap above.
+Three files. `rustdoc-posture-test-names-one-axis-of-three` carries
+the one ruling gap — the second host pass — with an **existential**
+revision that changes no disposition taken here.
+`named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites`
+carries the eleven bare spans this pass created and did not annotate:
+the crate has a written convention for saying *named, not linked*
+(`theme.rs:9-12`, `vocab.rs:51-52`, `forms.rs:18-20`) and it is applied
+at 2 of 13 sites. Not taken here because every candidate site is a
+module header or item doc, so the note adds lines, and those four files
+carry **155** `file:line` citations between them — a census that is its
+own unit.
 
 `comment-symbol-names-outside-rustdocs-reach-have-no-gate` — blind
 spots 1–3, filed as its own file rather than disclosed here, with the

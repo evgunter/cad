@@ -1,89 +1,121 @@
 ---
 id: rustdoc-posture-test-names-one-axis-of-three
 kind: issue
-title: the host-page test brackets links the gate then reds: it asks about the item, and two of the three ways a page goes missing are about the target
+title: the posture ruling says "the host pass" and doc-gate runs two of them, so a link can pass the ruling's test and red the gate
 status: open
 opened: 2026-09-10
 ---
 
-
 Found by `doc-comments-name-symbols-that-do-not-exist` while applying
-the ruling it was told to apply, on the day that ruling merged.
+the ruling it was told to apply, on the day that ruling merged. **This
+row is a question for Ev**, because the text it proposes to change is
+ratified.
 
-## The ruling, and what it says to do
+## The ruling, and the word that does the damage
 
 `crates/viewer/README.md`'s **Rustdoc posture: the host pass is the
 gate** decides which code spans in this crate may become intra-doc
-links. Its test:
+links. Its instrument:
 
-> Ask whether the host pass renders a page for the item the doc
-> comment sits on […] **It does** — the host pass holds that link, and
-> a browser-pass error on it is by construction. Permitted.
+> Ask whether the host pass renders a page for the item the doc comment
+> sits on — the same `cargo doc` without `--target`, then look for the
+> page under `doc/viewer/`; it is there or it is not
 
-Read as written, *"it does → bracket freely"* is a sufficient
-condition. **It is not**, and following it reds `scripts/doc-gate.sh`.
+**There is no such thing as "the host pass" in this crate.**
+`scripts/doc-gate.sh` documents `viewer` twice at `-D warnings`:
 
-## What happened
+- the workspace pass at `--all-features`, and
+- a second pass at **DEFAULT features**, added by `--skip-viewer-toolkit`
+  (`scripts/doc-gate.sh:897`), whose own error message names itself —
+  *"rustdoc rejected the viewer pass at DEFAULT features — its
+  renderer-free modules are gated on every run"*.
 
-The closing pass bracketed 64 spans, checked every one against the
-host pass at `--all-features` — the configuration the ruling's own
-instrument names — and got zero errors. The gate then reded on **13**
-of them.
+`app`, `drafts`, `forms`, `gpu`, `pane` and `widgets` are all
+`#[cfg(feature = "app")]` (`crates/viewer/src/lib.rs:82-93`), so at
+default features they do not exist. A link **from** a renderer-free
+module **into** any of them resolves at `--all-features` and nowhere
+else: it passes the ruling's test as written and reds the gate.
 
-The reason is that the gate documents `viewer` **twice**. CI's row is
-`scripts/doc-gate.sh --pr --scope … --skip-viewer-toolkit`, and that
-flag documents `viewer` at **DEFAULT features** as well, at
-`-D warnings`; its own error message says so — *"rustdoc rejected the
-viewer pass at DEFAULT features — its renderer-free modules are gated
-on every run"*. `mod app`, `forms`, `pane`, `drafts`, `widgets` and
-`gpu` are all `cfg(feature = "app")`, so at default features they do
-not exist, and a link from a renderer-free module into any of them
-resolves at `--all-features` and nowhere else.
+## What it cost, measured
 
-The 13 were in `props.rs`, `tree.rs`, `vocab.rs`, `pickindex.rs` and
-`frame.rs` — every one a module that is documented at default features
-— pointing at `app::*`, `forms::*` and `pane::viewport::*`.
+The closing pass bracketed 64 spans, checked every one against
+`--all-features` — the configuration the ruling's own instrument names
+— and got **zero errors**. The gate then reded on **13**, in
+`props.rs`, `tree.rs`, `vocab.rs`, `pickindex.rs` and `frame.rs`,
+pointing at `app::*`, `forms::*` and `pane::viewport::*`.
 
-## The three ways a page goes missing, and only one is in the ruling
+**The crate already knew.** Three module headers say it in prose:
+`theme.rs:9-12` (*"both modules sit behind the `app` feature, so an
+intra-doc link to either breaks rustdoc exactly in the headless pass
+this header celebrates — issue #1330"*), `vocab.rs:51-52` (*"because
+`forms` is behind the `app` feature and a link to it does not resolve
+in a default-feature build"*) and `forms.rs:18-20`. The practice is
+established in the code; the ruling that now governs the practice does
+not state it, and one of those 13 reds was a bracket placed **two
+lines above the note explaining why it must not be one**
+(`vocab.rs:50`).
 
-The ruling's test is **page existence**, and that is right. What it
-under-specifies is *whose* page and *in which pass*:
+## Why it is worth Ev's eye rather than a lane's edit
 
-1. **The item is target-gated** (`WebStartupError`, `run_web`). The
-   ruling's case, stated well. Decided by the item the comment sits on.
-2. **The link's target is feature-gated out of a pass that runs at
-   `-D warnings`.** The item has a page in both passes; the TARGET
-   does not exist in one of them. Not the item, and not mentioned.
-3. **Neither pass renders the item at all** — a doc comment inside a
-   `#[cfg(test)]` module. Seven such spans were in the closing pass's
-   population (`frame.rs`'s `mod tests` and `pane/viewport.rs`'s).
-   Bracketing them is silently inert: no pass reads them, so the link
-   is never checked and never reds. This is the ruling's own *"a
-   bracket resolving at neither target spells a checked claim nothing
-   anywhere checks"* — reached by a third route it does not name.
+**The defect fires on someone else's branch, not on the branch that
+writes it.** `scripts/ci-filter.py --files` over the closing PR's own
+diff gives `RUN_VIEWER_TOOLKIT=true`, so `ci.yml:1834` runs
+`--pr --scope` **without** `--skip-viewer-toolkit` — viewer at
+`--all-features` only. The 13 reds that whole finding turns on would
+**never have appeared on that PR's CI.** They surface later, on a
+branch that reaches `viewer` through the dependency closure without
+seeding it, where the author has no reason to look at viewer's doc
+comments at all. A rule whose violations land on a stranger is worth
+more care than one that reds its own author.
 
-Cases 2 and 3 are about the **target** and about **which passes run**;
-case 1 is about the item. A reader applying the ruling literally gets
-case 1 right and cases 2 and 3 wrong, which is what happened.
+## The proposed revision, and its quantifier
 
-## Why this is a ruling question and not a lane fix
+The instrument stays exactly what it is. What changes is what it is
+quantified over — and the quantifier must be **existential**, not
+universal:
 
-The closing pass took the safe disposition — **name, do not link** — at
-all 20 sites, which is the ruling's own remedy for a page that does not
-exist, and the gate is green. So nothing is broken. What is wrong is
-the **test**, and it is ratified text: `docs/DESIGN.md`'s convention
-puts design decisions through Ev rather than through a lane's diff,
-and this one was ratified this morning.
+> Ask whether **some** rustdoc pass that runs at `-D warnings` both
+> renders a page for the item the doc comment sits on **and** resolves
+> the link's target. For this crate that is two passes, `--all-features`
+> and default features. It does → bracket. It does not → name the item
+> instead.
 
-The proposed revision is small and does not change any disposition
-already taken — it states the test over the passes the gate actually
-runs rather than over one of them:
+**Existential, because a link checked by one pass is a checked claim.**
+That is the whole value of bracketing: rustdoc read the name and
+resolved it, somewhere, at `-D warnings`. Demanding that *every* pass
+check it would forbid linking anything behind a feature at all — under
+a universal reading the closing PR's own 25 links inside `app`,
+`forms`, `pane` and `widgets` all become illegal, because the
+default-features pass renders no page for any of those modules. Those
+25 are correct and the gate is green over them. A universal quantifier
+would also make `app.rs`'s many existing internal links illegal, which
+no one intends.
 
-> Ask whether **every rustdoc pass that runs at `-D warnings`** renders
-> a page for the item the doc comment sits on **and can resolve the
-> link's target**. For this crate that is two passes, `--all-features`
-> and default features, and a doc comment inside `#[cfg(test)]` is in
-> neither.
+So the shape is: **the pair (pass, item, target) must exist together in
+at least one pass.** The failure the ruling is actually about — a
+bracket that resolves in NO pass — is exactly the negation of that, and
+the existential form states it without collateral.
 
-The instrument stays what it is; only its quantifier changes. Worth
-Ev's eye because *"bracket freely"* is the half people will quote.
+This revision changes **no disposition already taken** by the closing
+PR: all 44 of its links satisfy the existential form, and all 20 of its
+named spans fail it.
+
+## Not part of this row
+
+The closing pass also named 7 spans inside `#[cfg(test)]` modules.
+**That is not a gap in the ruling** — `cargo doc` does not set
+`cfg(test)`, so such an item has no page under `doc/viewer/` and the
+ruling's literal answer is *it does not*, which is the remedy that was
+taken. The pass reached the right disposition by the wrong reading: it
+asked the question of the **module** rather than of the **item**, which
+is why all 64 first answered *it does*. Recorded so a reader of that
+PR does not inherit the mistake, and deliberately not filed as a defect
+in the ruling, because the ruling is right about it.
+
+One residue of that, left as a taste question rather than a claim: ten
+bracketed links remain in `cfg(test)` doc comments (`frame.rs:2018`,
+`:2019`, `:2148`, `:2228`, `:2232`, `:2347`, `gpu.rs:1466`, `:1467`,
+`:1567`, `:1570`) and are inert by the same argument, so `frame.rs`
+now spells one rule two ways inside a single comment at `:2232-2233`.
+Whether `cfg(test)` prose should link at all is a question for whoever
+answers this row.

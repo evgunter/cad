@@ -334,7 +334,7 @@ must be able to leave alone.**
 
 | File | What it cites | What is actually there | Disposition |
 |---|---|---|---|
-| `free-move-drag-dissolved-by-open.md:53-55` | *"`frame::supersession_notice` already renders it, `app.rs:785`"* | **the symbol is gone, and this row said it had never existed.** `frame::supersession_notice` was a real `pub fn` in `frame.rs` from `6877a40ff` (where it is `frame.rs:232`) until `4db112ada` — #1957, the badge PR, which replaced it and `dropped_hide_notice` with the `Withdrawal` vocabulary and left every prose mention of both behind. So this is **class 1, a subject that is gone**, not a subject that was never there. `app.rs:785` at `1d29a8eeb` was `match index.scene_focused(…)` inside `sync_scene`; at #2272's head it is `let Some(index) = self.picks.index() else {`. The real renderer is `frame::Withdrawal::superseded` through `Withdrawal::notice` | **symbol repaired, line left as written** (`doc-comments-name-symbols-that-do-not-exist`). Naming a dead symbol is repairable without guessing — #1957's own replacement names the successor — so the symbol half is corrected here to `frame::Withdrawal::superseded`. `app.rs:785` is still left as written: it was wrong at that merge base, and a fresher wrong number hides the breakage |
+| `free-move-drag-dissolved-by-open.md:53-55` | as it read at `1d29a8eeb`: *"`frame::supersession_notice` already renders it, `app.rs:785`"* — the symbol half now reads `frame::Withdrawal::superseded`; the quote is kept at its date rather than rewritten, so the finding stays readable | **the symbol is gone, and this row said it had never existed.** `frame::supersession_notice` was a real `pub fn` in `frame.rs` from `6877a40ff` (where it is `frame.rs:232`) until `4db112ada` — #1957, the badge PR, which replaced it and `dropped_hide_notice` with the `Withdrawal` vocabulary and left every prose mention of both behind. So this is **class 1, a subject that is gone**, not a subject that was never there. `app.rs:785` at `1d29a8eeb` was `match index.scene_focused(…)` inside `sync_scene`; at #2272's head it is `let Some(index) = self.picks.index() else {`. The real renderer is `frame::Withdrawal::superseded` through `Withdrawal::notice` | **symbol repaired, line left as written** (`doc-comments-name-symbols-that-do-not-exist`). Naming a dead symbol is repairable without guessing — #1957's own replacement names the successor — so the symbol half is corrected here to `frame::Withdrawal::superseded`. `app.rs:785` is still left as written: it was wrong at that merge base, and a fresher wrong number hides the breakage |
 | `new-document-owes-the-reframe-open-gets.md:18,20` | `app.rs:778` for `let opened = matches!(op, SessionOp::Open(_));`, and `:794-798` for the `None if opened` arm it quotes | both name the wrong subject at the base and at head. `let opened` was `app.rs:918` at `1d29a8eeb` and is `:925` at #2272's head; `app.rs:778` at base was `let Some(index) = self.picks.index() else {`. The quoted `None if opened` block was `945-948` at base and is `952-955` at head; `794-798` at base was `sync_scene`'s `Ok(mesh)` arm | **left as written.** The row is outside #2272's own diff, which is this item's class-2 case: *a citation sweep scoped to a PR's own diff cannot converge*. The correct numbers are in this row, so the next touch of that file re-points from a record rather than a re-derivation |
 
 ### What this member adds
@@ -391,3 +391,23 @@ produced this item's population reads present-tense claims; a dated
 one is evidence about a tree that was, and repairing it destroys the
 record. Both halves of that distinction cost this pass one edit each —
 one made, one deliberately not.
+
+## The same commit's names in CLOSED rows (2026-09-10)
+
+`doc-comments-name-symbols-that-do-not-exist` repaired #1957's dead
+names in the three OPEN rows that carried them and stopped there. The
+scope is deliberate — a closed row is a record of a decision made
+against the tree of its day, and *a closed item is a record, not a
+guard* — but the excluded members are judgements, not oversights, so
+they are named here rather than left to be re-found:
+
+| File | What it says | Why it stands |
+|---|---|---|
+| `four-badges-five-spellings.md:107-108` | *"`frame::supersession_notice` (`frame.rs:232`) and the new `frame::dropped_hide_notice` (`:269`) **are** free functions returning `Option<String>`"* | Both line numbers were exactly right at `6877a40ff`; only the tense is now false. This is the row whose `frame.rs:232` is the proof that #1957 deleted a real function, so the citation is evidence and the sentence around it is stale — a distinction worth leaving visible |
+| `prune-drops-a-hidden-instance-silently.md:76` | *"and `frame::dropped_hide_notice` renders it"*, present tense | Same commit, same class. Closed row, no lane reads it to decide anything |
+| `opoutcome-…:74`, `prune-discards-…:14,66,73,76,88`, `prune-drops-…:46`, `the-news-vocabulary-…:76,126,150` | further present-tense uses of `supersession_notice` | All closed. Listed so the count is not re-derived from scratch by the next reader |
+
+**The general point this member adds:** the repair boundary in a
+tracker sweep is *open vs closed*, not *true vs false*. A closed row
+can be false and still be the right record, and a sweep that does not
+say which boundary it used has not stated its population.

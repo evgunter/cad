@@ -38,12 +38,23 @@ optional trailing `()`, where `<mod>` is one of this crate's own
 modules (`lib.rs`'s `mod` list). Each name is then resolved by hand.
 
 **Read 2026-09-10 at `5ace0e9eb` plus the closing PR's diff: 26 spans,
-and every one of them names a symbol that exists today.** So this is
-a missing gate rather than a live defect — the population is clean and
-nothing is holding it that way. Twelve are in `app.rs`, six in
-`pane/viewport.rs`, and the rest are spread one or two per file across
-`forms.rs`, `gpu.rs`, `pane/create.rs`, `pane/features.rs`,
-`pane/properties.rs`, `pane/probe.rs` and `tree.rs`.
+and every one of them names a symbol that exists today.** So this is a
+missing gate rather than a live defect — the population is clean and
+nothing is holding it that way.
+
+| File | Spans |
+|---|---|
+| `app.rs` | 12 |
+| `pane/viewport.rs` | 7 |
+| `gpu.rs` | 2 |
+| `forms.rs`, `pane/create.rs`, `pane/features.rs`, `pane/properties.rs`, `session/probe.rs` | 1 each |
+
+(An earlier draft of this paragraph said six in `pane/viewport.rs`,
+named a `pane/probe.rs` that does not exist — it is `session/probe.rs`
+— and listed `tree.rs`, which has **none**: its only candidate,
+`tree.rs:337`'s `SolvedPoses::placement`, is type-qualified and outside
+the rule. The total 26 was right. A row whose subject is names that do
+not exist is the last place a path that does not exist belongs.)
 
 One resolved by hand and worth naming, because a mechanised version
 will trip on it the same way: `app.rs:763`'s
@@ -82,10 +93,17 @@ unit with its own selftest, its own roster question and its own
 Two things a builder should settle first, because both decide the
 gate's cost:
 
-1. **Where the resolver comes from.** A regex re-inherits blind spot
-   6 above and will red on variants, fields, associated items and
-   macro-generated names. `cargo doc --output-format json` knows all
-   of them, and `scripts/doc-gate.sh` already runs the doc build the
+1. **Where the resolver comes from, and it must resolve PATHS.** A
+   regex re-inherits blind spot 6 in both directions. It **over**-reports
+   on variants, fields, associated items and macro-generated names —
+   annoying but visible. It **under**-reports on a span whose leaf is
+   declared and whose path is dead, which is the direction that hides a
+   dead name and the one a gate exists to catch: the closing pass's
+   third finding, `pane::viewport::viewport_ui`, passed a leaf regex
+   and names nothing, because `viewport_ui` is an inherent method on
+   `ViewerBehavior` merely written in that file. **A leaf-matching gate
+   would have shipped it.** `cargo doc --output-format json` resolves
+   paths, and `scripts/doc-gate.sh` already runs the doc build such a
    gate would piggyback on.
 2. **Whether it is worth it at 26 clean sites.** The argument for
    building it anyway is that the class it catches is exactly the one
