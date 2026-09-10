@@ -551,10 +551,13 @@ demo-only and test-only units record no A/B row.
 2. **`StableName` keying** — intern or hash-key the naming table so an
    insert is O(1) in chain depth; every emitted and persisted name
    byte-identical.
-3. **Per-face patches in local ids** — `mesh::tessellate` emits each
-   face's patch in local ids and assigns bases in an arena-order fold;
-   bit-identical mesh. The prerequisite of both the per-face memo and
-   the parallel map, so it lands first and alone.
+3. **Per-face patches in local ids** — landed (PR 2308): lanes return
+   `Patch { interior, triangles: [PatchVertex; 3] }` with
+   `PatchVertex::{Shared, Local}`, bases assigned by an arena-order
+   fold, 40 committed mesh digests unchanged across the refactor. The
+   remaining `&mut FaceBounds` borrow in the trimmed lane is the one
+   obstacle left to a `par_iter` over faces; the three lanes' argument
+   lists are not yet one shape (the memo unit's spec takes that).
 
 **Beside the block, low-risk (single review, no row):**
 
@@ -572,7 +575,10 @@ demo-only and test-only units record no A/B row.
   fluxes (idiom 2).
 - Tier 3's +V check with a sign-sufficient door.
 - `assemble`'s aggregate census behind the BVH pre-filter.
-- D1 once-per-door, if ruled.
+- D1 once-per-door — ruled (PR 2305) and implemented as PERF-4 (PR
+  2313, under review): a debug-only surgery depth on `Body`, sweeps at
+  the outermost scope, the `per-op-postcondition` feature as the
+  scalpel.
 
 **On the trigger list, unchanged:** CDT bulk loading (the corpus does
 not reach the quadratic; the `spade` `HashSet` fix precedes adoption

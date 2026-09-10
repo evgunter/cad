@@ -2,9 +2,8 @@
 id: index-rebuilds-every-root-on-every-edit
 kind: issue
 title: the pick index re-tessellates every root on every edit, whether one face moved or all of them
-status: parked
+status: open
 opened: 2026-09-10
-blocked_on: [PERF-3]
 ---
 
 ## The finding

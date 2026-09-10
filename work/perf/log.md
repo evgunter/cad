@@ -319,3 +319,31 @@ brief; not an orchestrator grant, so the pair stands). Residue filed:
 forward: the exact-torus-distance sampler is spelled in four places
 (test side), and history-narrating comments around triangle counts
 are a class — swept in the fix pass with the hit list in the PR body.
+
+## PERF-3 merged (2026-09-10, PR 2308); PERF-4 implemented (PR 2313)
+
+PERF-3 dual: R1 (fable) APPROVE 0/2/4, rubric 5/4/4; R2 (opus)
+APPROVE-WITH-FIXES 0/5/6, rubric 4/4/3. Both held every claim (one
+planted `base = shared_below` and the goldens went red 14/40; one
+built an `Approx` body and got identical digests on both trees). R2's
+sharpest finding was real and in the shipped profile: the new census
+helper copied every patch's triangles before the census's empty-set
+short-circuit. Fix pass (union, 8 items) on `3f3f8ba0a`, CI green;
+merged main (PERF-1) under it with a no-refactor control attributing
+the two moved `donut` digests to the torus grids. Item
+`index-rebuilds-every-root-on-every-edit` un-parked: the per-face
+memo is dispatchable. Carried into the memo unit's spec: the three
+lanes' argument shapes and the trimmed lane's `&mut FaceBounds`.
+
+PERF-4 (Ev's D1 ruling) is implemented on PR 2313, CI green: a
+debug-only `SurgeryDepth` (atomic, so `Body` stays `Sync` for rayon),
+a `Surgery` guard that decrements on drop and sweeps only on explicit
+close at the outermost level, `Body::adopt` for the staging doors, the
+`per-op-postcondition` feature as the scalpel, and the door walk's new
+`SurgeryPosture` needle (48 doors: 16 per-call, 4 once-per-door, 28
+allowlisted). One deviation outside its file fence, judged in the
+rule's spirit: `step_import::build_one_solid` is a public door that
+runs operators directly, and scoping it is what moved `demos/wild`
+(246 → 76 ms). Contended-box readings: `die` 88 → 45 ms in the shipped
+profile, editor-core's test wall 56 → 20 s. Filed by the lane:
+`door-scopes-outside-topo-are-unguarded`. Dual review next.
