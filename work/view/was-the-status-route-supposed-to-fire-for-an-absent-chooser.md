@@ -169,12 +169,17 @@ merge base for a stated reason.
 went whole, both call sites with it, `deliver_status` and #2272's `cfg`
 with them; `frame::deliver` kept its one caller (`pane/viewport.rs:48`),
 `NO_CHOOSER_BACKEND` kept its two (`on_disabled_hover_text` on Open… and
-on Save As…), and the `frame_policy.rs` row went for want of a subject —
-`crates/viewer/src/app.rs` 2,022 → 1,961 lines and `#[test]` under
-`crates/viewer` **539 → 538**, the one deletion and nothing else. The
-`Keep` no-op the deletion rests on was proved before anything was cut,
-three ways. One thing this row got wrong about its own tree: it names the
-defending paragraph as `app.rs:1056-1073` twice above, where the deleted
-item and its doc ran `:1046-1095` — the cited span was the doc's middle,
-not the item — which is this program's re-derive rule biting the row that
-predicted a delete rather than the lane that made it.
+on Save As…), and the `frame_policy.rs` row went — `app.rs` 2,022 →
+1,961 lines and `#[test]` under `crates/viewer` **539 → 538**, the one
+deletion and nothing else. That row lost its subject only in PART: its
+`dialog_status` calls had none left, but its three assertions on the
+remedy string's CONTENT still had one, and nothing replaced them — the
+honest statement of what that costs is
+`hover-route-for-an-absent-chooser-has-no-test`. The `Keep` no-op the
+deletion rests on was proved before anything was cut, three ways.
+
+**This row's own `app.rs:1056-1073` was right** and is left as written:
+on `origin/main` that span is exactly the two paragraphs the row
+describes — *latent, not dead* at `:1056-1063` and *nothing holds
+that reading mechanically* at `:1065-1073`. The whole item and its doc
+ran `:1046-1099`, which is a different span for a different subject.

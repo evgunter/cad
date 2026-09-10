@@ -92,10 +92,13 @@ ranked role entirely and the field-writing door to take the new type)
   call site is `pane::viewport`'s `land` — and it answers `Show` or
   `Expire`; `dialog_status`, the other policy of that shape, is deleted
   (the ruling
-  `was-the-status-route-supposed-to-fire-for-an-absent-chooser`). Only
-  `batch_status` answers `Clear`, and `batch_status` is the ranking's
-  input, so it reaches the field through `apply_status` and never
-  through this door. `deliver`'s own header argues the arm stays
+  `was-the-status-route-supposed-to-fire-for-an-absent-chooser`).
+  `Clear` has exactly one production CONSTRUCTION, `batch_status`'s
+  `(true, None)` arm (`frame.rs:466`) — `frame_status` answers `Clear`
+  too, but only by forwarding that verdict unchanged when
+  `notices.is_empty()` (`frame.rs:513-515`), which is the ranking's
+  output and reaches the field through `apply_status`, never through
+  this door. `deliver`'s own header argues the arm stays
   regardless — a wildcard there would route a variant added later to
   the field by default — and that argument is about the compiler
   carrying the rule, not about the arm having a producer.

@@ -6962,7 +6962,7 @@ tell "did not push" from "cleared what was there" — and a sweep is
 exactly the behaviour whose absence the deletion depends on. The block
 now starts non-empty and asserts against a snapshot. Two perturbations
 prove the new assertion falsifiable in both directions: `Keep` made
-`notices.clear()` reds `frame.rs:2170` where the old assertion stayed
+`notices.clear()` reds `frame.rs:2167` where the old assertion stayed
 green, and `apply`'s `Keep` made `*status = None` reds `:2171`. This is
 #2148's rule again — **asserted-somewhere is not asserted-here, and only
 a MUTATION tells them apart** — met before the deletion rather than
@@ -6983,23 +6983,68 @@ instance was the deleted test's three-`ChooserBackend` loop. That row
 now says three and says why: **the member was removed, not repaired.**
 `ChooserBackend` still has three variants and still has no `ALL`.
 
-**The `frame.rs` growth ledger falls for the first time, and it falls by
-one line.** 2,538 → 2,537. Written into
-`frame-module-has-eight-concerns-and-no-holds-row` with the honest
-caveat rather than as a win: 2,475 → 2,538 is unrecorded because the
-units between #2026 and here did not write the row, so the fall is
-noise inside a gap nobody measured. That file also asserted *"is 984
-lines"* in the present tense at its own head, contradicted by the
-ledger four paragraphs below it; re-derived by `wc -l`, and it was the
-file's only present-tense copy.
+**The `frame.rs` growth ledger falls for the first time, by one line**;
+the entry and its caveat are in
+`frame-module-has-eight-concerns-and-no-holds-row` and are not repeated
+here. What is only here: that file also asserted *"is 984 lines"* in the
+present tense at its own head, contradicted by its own ledger four
+paragraphs below — and it was the file's ONLY present-tense copy, which
+is what made re-deriving it a whole-file fix rather than #2148's
+half-fix.
 
-**The row that predicted the delete miscited its own span.** The ruling
-names the defending paragraph as `app.rs:1056-1073` in two places; the
-deleted item and its doc ran `:1046-1095`, so the cited range was the
-doc's middle rather than the item. Nothing turned on it, and it is
-recorded in the row because **re-derive means find the SUBJECT** applies
-to a prediction as much as to a citation — and this is the first time it
-has caught the predicting row instead of the lane.
+**A correction this lane wrote and then had to withdraw.** The first
+draft of the record above accused the ruling row of misciting its own
+defending paragraph, comparing its `app.rs:1056-1073` against the
+deleted item's `:1046-1099`. Those are two spans of two subjects: read
+on `origin/main`, `:1056-1073` is exactly the two paragraphs the row
+names. **A re-derivation that compares two different subjects invents a
+defect**, which is the same failure as shifting a number by a delta and
+is easier to commit under a rule that says to look for one.
+
+**A diff that shifts a file is the diff that broke the citations in
+it, and this one shifted two.** `frame.rs` moves +1 below ~line 382 and
+−12 below ~1767; `app.rs` moves −61 below 1046. The census: **101
+citations into `app.rs`, `frame.rs` or `frame_policy.rs` across every
+OPEN row in `work/*/`** — 50 unmoved, 30 moved, 21 pointing at a line
+that is gone or past the file's end. Method: build an exact old→new
+line map per file with `difflib.SequenceMatcher` over the `origin/main`
+and head versions, then map every `file:line` a regex finds in an open
+row. **Eleven were mine to fix and are fixed** — the five the review
+named plus `frame-module`'s concern span, `wasm-theme`'s four, and
+`stale-file-citations`' two live derivations. What the method cannot
+see: a citation written as prose (*"the arm at the top of `deliver`"*),
+a range whose END line is stale while its start is not, a citation into
+a file this diff did not touch, and — the one that produced a false
+positive on every row this branch had already re-derived — it cannot
+tell a number written against `origin/main` from one written against
+this head, so nine hits had to be read back by hand before being
+dismissed.
+
+**Two of the thirty are not arithmetic and are not this diff's.**
+`chrome/drag-tick-has-three-homes.md:19-22` says the drag tick is
+answered in three places in `crates/viewer/src/app.rs` and cites
+`app.rs:1093-1099` and four constants at `:1056`-`:1079`; `drag_tick`
+and all four constants are in `crates/viewer/src/forms.rs` (`:391`,
+`:354`), so `app.rs` holds none of them and the row was pointing at the
+wrong FILE before this branch existed. `prune-report-rows-are-nine-
+copies-of-one-assertion.md:21` cites `frame_policy.rs:963` for a
+15-line `outcome.superseded` block; on `origin/main` that line is `);`
+inside a hover-midpoint closure and the block is near `:1893`. Both
+left as written — the first is CHROME's, and the second is one entry of
+a nine-site census whose other eight are unverified, so fixing it alone
+is the half-fix this program has a rule against.
+
+**Nothing asserts `NO_CHOOSER_BACKEND`'s wording now, and the answer is
+a row rather than a test.** The deleted suite carried
+`contains("zenity" / "xdg-desktop-portal" / "command line")`. Restoring
+them would read as coverage for `README.md:35-46`'s promise — that a
+person sees three remedies in a tooltip — while covering none of it: a
+`const &str` is fixed at compile time, and the untested step is the
+const REACHING a tooltip, which `chrome_labels.rs`'s own header says
+this crate cannot test (*"not testable without a window"*). A test that
+looks like it holds a claim it does not hold is worse than a stated
+gap. Filed as `hover-route-for-an-absent-chooser-has-no-test`, with two
+candidate shapes and neither costed.
 
 **§6, across the fence and staying there.** `.github/workflows/ci.yml`'s
 wasm row says in the present tense that the crate carries two dead-code
@@ -7007,5 +7052,6 @@ warnings, `WINDOW_TITLE` and `ViewerApp::deliver_status`, and that
 `-D warnings` would red on them. #2272 `cfg`-ed both and proved the flip
 clean, so the comment named a resolved state before this branch existed;
 now one of its two subjects does not exist at all. The row is CIW's, the
-closed item says CIW will take the edit on request, and the orchestrator
-is filing it on their slate. Reported, not edited.
+closed item says CIW will take the edit on request, and it is filed as
+`work/ciw/wasm-row-warning-debt-comment-names-a-closed-item-and-a-deleted-symbol.md`,
+which names this deletion at `:48-51`. Reported, not edited.

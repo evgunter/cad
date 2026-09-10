@@ -42,12 +42,12 @@ and both answers can be `false`:
   directory.** `Store` is `prefs::file::FileStore` (`app.rs:92-93`),
   constructed as `FileStore::new(frame::prefs_path())` (`app.rs:102`).
   `FileStore::usable` is `self.path.is_some()` (`prefs.rs:426-428`),
-  and `frame::prefs_path` (`frame.rs:1678-1683`) returns `None` when
+  and `frame::prefs_path` (`frame.rs:1679-1684`) returns `None` when
   neither `XDG_CONFIG_HOME` nor `HOME` is set — *"With neither, `None`
   — no path is invented. The caller's store is then unusable and says
   so, which is how a person finds out their preferences are not being
   kept rather than wondering later why nothing was remembered"*
-  (`frame.rs:1703-1706`). A desktop viewer launched from a stripped
+  (`frame.rs:1704-1707`). A desktop viewer launched from a stripped
   environment takes the identical early return and says the identical
   nothing — against that clause, which is written in the imperative
   and describes a store that reports.
@@ -94,9 +94,9 @@ report, or the refusals go and the guard becomes the only statement.
 ## Where the user meets it
 
 `remember_theme`'s one caller is the palette picker: an ordinary
-enabled `egui::ComboBox` over `Theme::ALL` (`app.rs:1419-1425`), whose
+enabled `egui::ComboBox` over `Theme::ALL` (`app.rs:1358-1364`), whose
 change arm applies the theme and calls `remember_theme`
-(`app.rs:1433-1437`). So a user picks a theme, it applies, the session
+(`app.rs:1372-1376`). So a user picks a theme, it applies, the session
 ends, and the default comes back with nothing having said why.
 
 ## Why it is a defect and not a trade

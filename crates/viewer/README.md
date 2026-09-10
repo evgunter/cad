@@ -688,10 +688,21 @@ whole-run environmental fact has no correct sentence on a line that
 carries one frame's news, so the arm and its policy are gone and the
 hover text is the whole surface. An empty-handed dialog under a
 plausibly-present backend is a genuine cancel and was always silent.
-The sweep rule behind *not on the line at all*: every reader of
-`frame::NO_CHOOSER_BACKEND` under `crates/viewer/src` — there are two,
-`on_disabled_hover_text` on Open… and on Save As…, and no third
-spelling of the sentence exists to route anywhere.
+**The sweep rule is over the FACT, not over the string.** A rule
+ranging over readers of `frame::NO_CHOOSER_BACKEND` would leave the
+universal above green while a future route built its own `Message` from
+`chooser.usable()` — so the population is *every read of
+`ViewerApp::chooser`, this crate's only value of type
+`frame::ChooserBackend`*: one, `app.rs:1177`, consumed at `:1179` and
+`:1198` as `add_enabled(chooser.usable(), …)` with
+`frame::NO_CHOOSER_BACKEND` as the disabled reason and nowhere else. No
+reader builds a `Message`, a `Badge` or a notice from it. What the rule
+cannot see is a route that re-probes the environment instead of reading
+the field — `frame::chooser_backend()` has one caller (`app.rs:688`,
+the constructor), which is the fact that makes the field the whole
+population rather than a sample. **This is the argument's one full
+copy**: `frame::NO_CHOOSER_BACKEND`'s own doc and the toolbar comment
+at the two controls point here rather than restating it.
 
 **The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
 (`Advisory` for a report, `Actionable` for a verdict a reader may need

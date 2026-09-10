@@ -99,8 +99,8 @@
 //! # The line: news, ranked
 //!
 //! Every sentence on the line is something that HAPPENED — an action
-//! the document refused, a pick a tool declined, a camera move the
-//! camera refused — and which of a frame's news SHOULD win is
+//! the document refused, a pick a tool declined, a placement a later
+//! edit withdrew — and which of a frame's news SHOULD win is
 //! [`frame_status`]'s ranking. What stops it being the news is an
 //! event about its subject: a camera verdict goes on the next camera
 //! event, what the cursor said on the next cursor move, and what the
@@ -373,8 +373,10 @@ pub enum StatusUpdate {
 /// reach the field directly because a notice cannot un-say anything.
 ///
 /// **This is the door for a policy that may or may not have something
-/// to say** — [`fold_status`] is that shape: its refusal is news and
-/// its clean arm retires the camera sentence. A writer that already
+/// to say**, and [`fold_status`] is the only one there is: its refusal
+/// is news and its clean arm retires the camera sentence. Read off
+/// `deliver`'s callers rather than off the shape — there is one
+/// production call site, `pane::viewport::land`. A writer that already
 /// knows it has a [`Message`] pushes onto `notices` itself; a writer
 /// that assigns the field has no way to say "I have nothing to add",
 /// which is the defect [`apply`]'s docs describe and this door removes
@@ -1737,14 +1739,11 @@ pub fn running_under_wsl() -> bool {
 /// says it: the confident half of the #1097 finding, with the
 /// dialog-free workaround.
 ///
-/// A missing backend is HELD STATE — probed once at startup and true
-/// for the whole run — so by this module's provenance rule it is a
-/// read a reader consults, not the outcome of something that just
-/// happened. The disabled control carrying this as its
-/// `on_disabled_hover_text` IS that read, which is why there is no
-/// status-line route beside it: the line carries one frame's news, and
-/// a fact that was true before the user clicked anything is not news
-/// on the frame they happen to look at it (Ev, 2026-09-09).
+/// A missing backend is held state, so the disabled control carrying
+/// this as its `on_disabled_hover_text` is the read and there is no
+/// status-line route beside it. The argument, its sweep rule and Ev's
+/// ruling live in `crates/viewer/README.md`, under *"A missing
+/// file-chooser backend is not on the line at all"*.
 pub const NO_CHOOSER_BACKEND: &str = "no file chooser backend — install zenity or \
      xdg-desktop-portal; a document path can also be passed on the \
      command line";

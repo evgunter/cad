@@ -1160,20 +1160,15 @@ impl eframe::App for ViewerApp {
                         }
                     }
                 }
-                // The chooser-backend verdict, probed once at startup:
-                // with confidently NO backend (no zenity, no session
-                // bus) the dialogs are disabled UP FRONT with the
-                // reason as their tooltip — a dead click is exactly
-                // the silent failure #1097 reported. That tooltip is
-                // the WHOLE surface, and one channel is all a missing
-                // backend gets: it is held state true for the run, so
-                // the disabled control with its reason is the read a
-                // reader consults, and the status line — which carries
-                // one frame's news — is not where a whole-run
-                // environmental fact goes (Ev, 2026-09-09). Under a
-                // plausibly-present backend a dialog handing back
-                // `None` is a genuine cancel, and a cancel says
-                // nothing at all.
+                // With confidently NO backend the dialogs are disabled
+                // UP FRONT with the reason as their tooltip, because a
+                // dead click is exactly the silent failure #1097
+                // reported. **That tooltip is the whole surface** —
+                // why it is the only one is the viewer README's, under
+                // *"A missing file-chooser backend is not on the line
+                // at all"*. Under a plausibly-present backend a dialog
+                // handing back `None` is a genuine cancel, which says
+                // nothing.
                 let chooser = self.chooser;
                 if ui
                     .add_enabled(chooser.usable(), egui::Button::new("Open…"))
