@@ -6985,6 +6985,15 @@ bare toggle lets a ``` line close a `~~~` block and hands the rest back
 to the heading rule, which is the repaired defect re-minted by the
 cheaper spelling of the repair, so that case is planted.
 
+**The defect was LATENT on the real tree, not firing**, and the item's
+*"live rather than theoretical"* heading does not say so. All fourteen
+fence lines in `crates/viewer/README.md` are at `:3-262` and the section
+opens at `:930`, so every one of them is above the scanned region — the
+defect was one fenced example inside the section away. The tracker runs
+over all fourteen every pass regardless, and they balance; an unclosed
+one would leave the section heading itself fenced and red the gate,
+which is why the closed-fence case is planted rather than argued.
+
 **The negative-control table.** Control = the file at `104f1445b` with
 the new planters spliced in verbatim and a one-case dispatcher in place
 of `gate_selftest`, so the only difference between columns is the

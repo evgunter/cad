@@ -97,6 +97,15 @@ A bare toggle lets a ``` line close a `~~~` block and hands the rest
 of it back to the heading rule — the repaired defect re-minted by the
 cheaper spelling of the repair, so that case is planted.
 
+**Where the real tree actually stood, stated because the item's *"live
+rather than theoretical"* heading leaves it ambiguous.** All fourteen
+fence lines in `crates/viewer/README.md` sit ABOVE the section
+(`:3-262`; the section opens at `:930`), so the defect was **latent, not
+firing** — one fenced example inside the section away. The tracker is
+nonetheless exercised over all fourteen on every pass, and they balance:
+an unclosed one would leave the section heading itself fenced and red
+the gate, which is what the closed-fence case plants.
+
 **Both halves of the mechanism were reproduced against the unfixed
 reader before any edit**, and every new case owes the same: five
 planters at `:1326-1376`, five rows at `:1660-1669`, each run against
