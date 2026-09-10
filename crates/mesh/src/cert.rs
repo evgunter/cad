@@ -165,7 +165,7 @@ pub fn cert_torus(major: f64, minor: f64, uv: [[f64; 2]; 3]) -> f64 {
     let (du, dv) = (u1 - u0, v1 - v0);
     let a = major + minor * cos_max(v0, v1);
     let b = minor * abs_sin_max(v0, v1);
-    (a * du * du + 2.0 * b * du * dv + minor * dv * dv) / 8.0
+    (a * du.powi(2) + 2.0 * b * du * dv + minor * dv.powi(2)) / 8.0
 }
 
 /// `max cos φ` over `[v0, v1]`: 1 if the interval holds a multiple of
