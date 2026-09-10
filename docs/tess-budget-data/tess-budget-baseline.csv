@@ -1,4 +1,3 @@
-# tess-budget-cut: 32e57683 2026-09-10T02:11:22+00:00
 scene,face,name,chart,delta,triangles,u0,u1,v0,v1,nu,nv,muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,opt_cells,span_opt_cells,worst_cert,worst_dev,dev_samples,bands,cap_bands,snap_bands,realized_aspect
 bracket/bracket,0,,plane,1e-2,10,,,,,,,,,,,,,,,,,,,,,,,
 bracket/bracket,1,,plane,1e-2,10,,,,,,,,,,,,,,,,,,,,,,,
@@ -588,14 +587,20 @@ teapot/teapotlid,5,{"kind":"Face";"node":9;"path":[{"FromTarget":{"kind":"Face";
 teapot/teapotlid,6,{"kind":"Face";"node":9;"path":[{"FromTarget":{"kind":"Face";"node":8;"path":[{"FromTarget":{"kind":"Face";"node":7;"path":[{"Band":{"loop_index":0;"segment":0}}]}}]}}]},plane,2e-4,280,,,,,,,,,,,,,,,,,,,,,,,
 teapot/teapotlid,7,{"kind":"Face";"node":9;"path":[{"BandFace":[{"kind":"Edge";"node":8;"path":[{"FromTarget":{"kind":"Edge";"node":7;"path":[{"BandRim":{"loop_index":0;"vertex":4}}]}}]}]}]},torus,2e-4,16200,,,,,,,,,,,,,,,,,,,,,,,
 teapot/teapotlid,8,{"kind":"Face";"node":9;"path":[{"BandFace":[{"kind":"Edge";"node":8;"path":[{"FromTarget":{"kind":"Edge";"node":7;"path":[{"BandRim":{"loop_index":0;"vertex":2}}]}}]}]}]},torus,2e-4,2048,,,,,,,,,,,,,,,,,,,,,,,
-teapot/teapotspout,0,{"kind":"Face";"node":11;"path":[{"Band":{"loop_index":0;"segment":2}}]},plane,2e-4,45,,,,,,,,,,,,,,,,,,,,,,,
-teapot/teapotspout,1,{"kind":"Face";"node":11;"path":[{"Band":{"loop_index":0;"segment":1}}]},cone,2e-4,1907,,,,,,,,,,,,,,,,,,,,,,,
-teapot/teapotspout,2,{"kind":"Face";"node":11;"path":[{"Band":{"loop_index":0;"segment":0}}]},plane,2e-4,66,,,,,,,,,,,,,,,,,,,,,,,
-teapot/teapotspout,3,{"kind":"Face";"node":11;"path":[{"Band":{"loop_index":0;"segment":3}}]},cone,2e-4,1974,,,,,,,,,,,,,,,,,,,,,,,
-teapot/teapothandle,0,{"kind":"Face";"node":14;"path":[{"RevolveCap":"End"}]},plane,2e-4,214,,,,,,,,,,,,,,,,,,,,,,,
-teapot/teapothandle,1,{"kind":"Face";"node":14;"path":[{"RevolveCap":"Start"}]},plane,2e-4,214,,,,,,,,,,,,,,,,,,,,,,,
-teapot/teapothandle,2,{"kind":"Face";"node":14;"path":[{"Band":{"loop_index":0;"segment":1}}]},torus,2e-4,30672,,,,,,,,,,,,,,,,,,,,,,,
-teapot/teapothandle,3,{"kind":"Face";"node":14;"path":[{"Band":{"loop_index":0;"segment":0}}]},torus,2e-4,30672,,,,,,,,,,,,,,,,,,,,,,,
+teapot/teapotspout,0,{"kind":"Face";"node":24;"path":[{"Cap":"End"}]},plane,2e-4,408,,,,,,,,,,,,,,,,,,,,,,,
+teapot/teapotspout,1,{"kind":"Face";"node":24;"path":[{"Cap":"Start"}]},plane,2e-4,408,,,,,,,,,,,,,,,,,,,,,,,
+teapot/teapotspout,2,{"kind":"Face";"node":24;"path":[{"Lateral":{"loop_index":0;"segment":2}}]},nurbs,2e-4,9542,0e0,1e0,0e0,1e0,4.9e1,6e1,7.921940851053408e-2,4.522011906564512e-2,1.2016619241553386e-1,4.192572637053355e-2,1.5226978026115418e-1,1024,4.094e3,2.94e3,2.891e3,2.857e3,2.7921538361543187e-5,7.833819672398884e-6,267176,64,0,0,2.780009474086678e0
+teapot/teapotspout,3,{"kind":"Face";"node":24;"path":[{"Lateral":{"loop_index":0;"segment":3}}]},nurbs,2e-4,9542,0e0,1e0,0e0,1e0,4.9e1,6e1,7.921940851053336e-2,4.522011906564104e-2,1.2016619241574512e-1,4.1925726370533614e-2,1.5226978026115418e-1,1024,4.094e3,2.94e3,2.891e3,2.857e3,2.7921538361542662e-5,7.833819672375194e-6,267176,64,0,0,2.780009474086678e0
+teapot/teapotspout,4,{"kind":"Face";"node":24;"path":[{"Lateral":{"loop_index":0;"segment":0}}]},nurbs,2e-4,9526,0e0,1e0,0e0,1e0,4.9e1,5.8e1,7.856062914463909e-2,4.758925825921824e-2,1.1101662748061064e-1,4.289359193321907e-2,1.369368361894129e-1,1024,4.151e3,2.842e3,2.842e3,2.763e3,2.3387094206910625e-5,5.685715492276386e-6,266728,64,0,0,2.7027869886953813e0
+teapot/teapotspout,5,{"kind":"Face";"node":24;"path":[{"Lateral":{"loop_index":0;"segment":1}}]},nurbs,2e-4,9526,0e0,1e0,0e0,1e0,4.9e1,5.8e1,7.856062914463777e-2,4.7589258259215485e-2,1.1101662748066381e-1,4.289359193321912e-2,1.3693683618941302e-1,1024,4.151e3,2.842e3,2.842e3,2.763e3,2.3387094206910856e-5,5.6857154922833955e-6,266728,64,0,0,2.7027869886953813e0
+teapot/teapotspout,6,{"kind":"Face";"node":24;"path":[{"Lateral":{"loop_index":1;"segment":1}}]},nurbs,2e-4,8083,0e0,1e0,0e0,1e0,4.3e1,5.8e1,6.129646669654675e-2,3.926451523395073e-2,1.1090957150708239e-1,3.292747165767881e-2,1.3672961700454386e-1,1024,3.636e3,2.494e3,2.475e3,2.594e3,2.7993569816906073e-5,7.446928055333846e-6,226324,64,0,0,3.13872037396883e0
+teapot/teapotspout,7,{"kind":"Face";"node":24;"path":[{"Lateral":{"loop_index":1;"segment":0}}]},nurbs,2e-4,8083,0e0,1e0,0e0,1e0,4.3e1,5.8e1,6.1296466696542526e-2,3.926451523395019e-2,1.1090957150706812e-1,3.292747165767872e-2,1.3672961700454375e-1,1024,3.636e3,2.494e3,2.475e3,2.594e3,2.7993569816900324e-5,7.446928055344152e-6,226324,64,0,0,3.13872037396883e0
+teapot/teapotspout,8,{"kind":"Face";"node":24;"path":[{"Lateral":{"loop_index":1;"segment":3}}]},nurbs,2e-4,8234,0e0,1e0,0e0,1e0,4.3e1,5.9e1,6.2020229215758484e-2,3.762445799096051e-2,1.1753946196732128e-1,3.1826312247777114e-2,1.4722640094548084e-1,1024,3.601e3,2.537e3,2.494e3,2.622e3,2.8673796826982443e-5,7.830340573145408e-6,230552,64,0,0,3.13872037396883e0
+teapot/teapotspout,9,{"kind":"Face";"node":24;"path":[{"Lateral":{"loop_index":1;"segment":2}}]},nurbs,2e-4,8234,0e0,1e0,0e0,1e0,4.3e1,5.9e1,6.202022921575657e-2,3.7624457990944854e-2,1.1753946196732101e-1,3.182631224777708e-2,1.4722640094548084e-1,1024,3.601e3,2.537e3,2.494e3,2.622e3,2.8673796826982897e-5,7.830340573153298e-6,230552,64,0,0,3.13872037396883e0
+teapot/teapothandle,0,{"kind":"Face";"node":27;"path":[{"RevolveCap":"End"}]},plane,2e-4,214,,,,,,,,,,,,,,,,,,,,,,,
+teapot/teapothandle,1,{"kind":"Face";"node":27;"path":[{"RevolveCap":"Start"}]},plane,2e-4,214,,,,,,,,,,,,,,,,,,,,,,,
+teapot/teapothandle,2,{"kind":"Face";"node":27;"path":[{"Band":{"loop_index":0;"segment":1}}]},torus,2e-4,30672,,,,,,,,,,,,,,,,,,,,,,,
+teapot/teapothandle,3,{"kind":"Face";"node":27;"path":[{"Band":{"loop_index":0;"segment":0}}]},torus,2e-4,30672,,,,,,,,,,,,,,,,,,,,,,,
 torusvessel/torusvessel,0,,plane,1e-3,17,,,,,,,,,,,,,,,,,,,,,,,
 torusvessel/torusvessel,1,,plane,1e-3,17,,,,,,,,,,,,,,,,,,,,,,,
 torusvessel/torusvessel,2,,cylinder,1e-3,34,,,,,,,,,,,,,,,,,,,,,,,
