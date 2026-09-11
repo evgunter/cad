@@ -15,7 +15,7 @@ use super::role::SideVerdict;
 /// The classification band (kernel-ambient tolerance) for the
 /// `name_frag_*` family.
 pub(crate) fn band(tol: Tol) -> Result<Band, NamingError> {
-    Band::linear(tol).map_err(|source| NamingError::Band { source })
+    Ok(Band::linear(tol)?)
 }
 
 /// Aggregated side-of verdict of face `f` against the oriented plane

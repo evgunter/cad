@@ -190,7 +190,7 @@ pub fn find_flush_candidates<T: Decide>(
     else {
         return Ok(Vec::new());
     };
-    let band = Band::linear(tol).map_err(|source| SelectRefusal::Band { source })?;
+    let band = Band::linear(tol)?;
     let fa = face_candidates(va)?;
     let fb = face_candidates(vb)?;
     let mut out = Vec::new();

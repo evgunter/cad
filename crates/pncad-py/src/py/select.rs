@@ -816,9 +816,9 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
             )
         }
         R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
-        R::Band { source } => format!(
+        R::Band(error) => format!(
             "the ambiguity band itself could not be built from the ambient \
-             tolerance: {source}"
+             tolerance: {error}"
         ),
         // `SelectRefusal` is `#[non_exhaustive]`: a kernel arm this
         // binding does not know crosses with the kernel's own prose

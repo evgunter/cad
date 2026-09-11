@@ -716,7 +716,7 @@ pub fn select_where<T: Decide>(
         return Ok(Vec::new());
     };
     let atoms = geompred::prepare(ev, geom, params)?;
-    let band = Band::linear(tol).map_err(|source| SelectRefusal::Band { source })?;
+    let band = Band::linear(tol)?;
     let mut out: Vec<StableName> = Vec::new();
     for (name, entry) in value.name_table.iter() {
         if !sel.matches(name) {

@@ -59,16 +59,15 @@ pub enum NamingError {
     /// tolerance, so no discriminator below it can be decided.
     ///
     /// The cause is NOT unique — a validated
-    /// [`Tolerance`](geom_core::tolerance::Tolerance) still reaches
-    /// [`BandError::InvalidValue`] when K·ε overflows to infinity and
-    /// [`BandError::Empty`] when K·ε rounds back down onto a subnormal
-    /// ε — so the constructor's own diagnostic rides along rather than
-    /// being relabelled as an emission inconsistency, which this is
-    /// not: nothing about the result body is wrong here.
-    Band {
-        /// The band constructor's own diagnostic.
-        source: BandError,
-    },
+    /// [`Tolerance`](geom_core::tolerance::Tolerance) reaches
+    /// [`BandError::InvalidValue`] when K·ε overflows to infinity, and
+    /// [`BandError::Empty`] when K·ε rounds back down onto ε, which for
+    /// ε = n·2⁻¹⁰⁷⁴ happens exactly when K·n rounds back to n (every K
+    /// below 1.5 at the smallest ε; no admitted K above ε = 2⁻¹⁰²³).
+    /// So the constructor's own diagnostic rides along rather than being
+    /// relabelled as an emission inconsistency, which this is not:
+    /// nothing about the result body is wrong here.
+    Band(BandError),
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
     Escalated {
@@ -118,16 +117,25 @@ impl core::fmt::Display for NamingError {
                 f,
                 "a mint-time emission fact was inconsistent with the result body: {what}"
             ),
-            Self::Band { source } => write!(
+            Self::Band(error) => write!(
                 f,
                 "the N2 classification band could not be built from the ambient tolerance, so \
-                 no discriminator below it can be decided: {source}"
+                 no discriminator below it can be decided: {error}"
             ),
             Self::Escalated { predicate, source } => write!(
                 f,
                 "the discriminator {predicate} escalated (in-band indeterminacy): {source}"
             ),
         }
+    }
+}
+
+// `Band::linear(tol)?` rather than a closure at the band door: one
+// total conversion, so there is no site at which the caught
+// `BandError` could be dropped again.
+impl From<BandError> for NamingError {
+    fn from(e: BandError) -> Self {
+        Self::Band(e)
     }
 }
 

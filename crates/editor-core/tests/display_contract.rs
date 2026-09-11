@@ -16,11 +16,11 @@
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, DeclareError, Diagnosis, Dimension, DimensionError,
     DocParamValue, EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateFault,
-    MateSide, MeshPickError, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError,
-    ProgramFault, RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg,
-    SelectRefusal, SlotId, SnapshotError, StableName, StepArg,
+    MateSide, MeshPickError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault,
+    RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg,
 };
-use geom_core::{Band, BandError, tolerance::DEFAULT_K};
+use geom_core::BandError;
 
 /// Asserts the F6 shape over one rendering: the wanted content is
 /// present, no variant identifier leaks, no Debug punctuation, and the
@@ -262,82 +262,20 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             },
             vec!["distance is a distance", "dimension angle"],
         ),
+        // The F6 shape only; the arm's REACHABILITY and the payload
+        // it must forward are pinned through the real doors in
+        // `wire_band_cause`, which is where a `BandError` can be
+        // obtained from `Band::linear` rather than written down.
         (
-            SelectRefusal::Band {
-                source: BandError::Empty {
-                    zero: COLLAPSE_EPS,
-                    escalate: COLLAPSE_EPS,
-                },
-            },
+            SelectRefusal::Band(BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            }),
             vec!["ambiguity band", "ambient tolerance", "strictly below"],
         ),
     ];
     for (err, wants) in cases {
         assert_f6(&err, &wants, &dumps);
-    }
-}
-
-/// The ε that collapses the band: subnormal, so KÂ·Îµ rounds back onto it.
-const COLLAPSE_EPS: f64 = 5e-324;
-
-/// The K that collapses it with [`COLLAPSE_EPS`]: the smallest `f64`
-/// strictly above 1.
-const COLLAPSE_K: f64 = 1.000_000_000_000_000_2;
-
-/// **The band refusals name the cause they caught, not the fact that
-/// they caught one.**
-///
-/// `Band::linear` has two reachable failures over a tolerance that
-/// passed its own validation (Îµ finite and > 0, K finite and > 1), and
-/// they sit at opposite ends of one axis: KÂ·Îµ overflowing to
-/// infinity at an absurdly LARGE Îµ, and KÂ·Îµ rounding back down
-/// onto Îµ at a subnormal one. The repairs are opposite, so a refusal
-/// that says only "the band could not be built" sends the reader the
-/// wrong way half the time.
-///
-/// The first assertion is the reachability that makes the payload
-/// worth carrying: the second cause is not a theoretical arm of
-/// `BandError` but the exact arithmetic `Band::linear` performs,
-/// `Band::new(Îµ, KÂ·Îµ)`, over inputs the tolerance validator
-/// accepts.
-#[test]
-fn band_refusals_name_which_band_failure_they_caught() {
-    assert!(COLLAPSE_EPS.is_finite() && COLLAPSE_EPS > 0.0);
-    assert!(COLLAPSE_K.is_finite() && COLLAPSE_K > 1.0);
-    let collapse = Band::new(COLLAPSE_EPS, COLLAPSE_K * COLLAPSE_EPS)
-        .expect_err("a band that collapsed onto its own zero threshold is not constructible");
-    assert!(
-        matches!(collapse, BandError::Empty { zero, escalate } if zero == COLLAPSE_EPS
-            && escalate == COLLAPSE_EPS),
-        "expected the collapse arm over a subnormal eps, got {collapse:?}"
-    );
-
-    let huge = f64::MAX / 2.0;
-    let overflow = Band::new(huge, DEFAULT_K * huge)
-        .expect_err("a band whose escalation threshold overflowed is not constructible");
-    assert!(
-        matches!(overflow, BandError::InvalidValue { value, .. } if value.is_infinite()),
-        "expected the overflow arm over a near-maximal eps, got {overflow:?}"
-    );
-
-    assert_ne!(
-        collapse.to_string(),
-        overflow.to_string(),
-        "the two causes must be distinguishable before a refusal can distinguish them"
-    );
-
-    for source in [collapse, overflow] {
-        let inner = source.to_string();
-        let select = SelectRefusal::Band { source };
-        let naming = NamingError::Band { source };
-        assert!(
-            select.to_string().contains(&inner),
-            "the select refusal renders as {select} and does not carry {inner:?}"
-        );
-        assert!(
-            naming.to_string().contains(&inner),
-            "the naming refusal renders as {naming} and does not carry {inner:?}"
-        );
     }
 }
 
