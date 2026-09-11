@@ -477,11 +477,14 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     });
     for dx in [0.02, 0.05] {
         let outcome = session.perform(SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
             frame: Frame::translation([dx, 0.0, 0.0]),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     }
-    let outcome = session.perform(SessionOp::CommitFreeMove);
+    let outcome = session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let committed = session
         .display()
@@ -554,6 +557,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.0, 0.0, 0.3]),
     });
     session.perform(SessionOp::CancelFreeMove);
@@ -594,7 +598,10 @@ fn a_non_rigid_preview_refuses_typed() {
         // Non-finite.
         Frame::translation([f64::NAN, 0.0, 0.0]),
     ] {
-        let outcome = session.perform(SessionOp::PreviewFreeMove { frame: bad });
+        let outcome = session.perform(SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
+            frame: bad,
+        });
         assert!(
             matches!(
                 outcome.refusal,
@@ -606,6 +613,7 @@ fn a_non_rigid_preview_refuses_typed() {
     }
     // A rotation IS admitted (the probe is any rigid motion).
     let outcome = session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.5, [0.01, 0.0, 0.0], common::band())
             .expect("a literal axis has a definite direction"),
     });
@@ -623,9 +631,12 @@ fn a_landing_mate_discards_the_probe_value() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.04, 0.0, 0.0]),
     });
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     assert!(session.display().free_move_of(bench.post_b).is_some());
 
     // The mate lands on post_b: ONE committed edit, and the probe is
@@ -832,13 +843,17 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
             instance: bench.post_b,
         },
         SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
             frame: Frame::translation([0.02, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
         SessionOp::BeginFreeMove {
             instance: bench.shelf_i,
         },
         SessionOp::PreviewFreeMove {
+            instance: bench.shelf_i,
             frame: Frame::translation([0.0, 0.03, 0.0]),
         },
     ] {

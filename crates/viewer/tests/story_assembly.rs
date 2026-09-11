@@ -165,9 +165,10 @@ fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
     for op in [
         SessionOp::BeginFreeMove { instance },
         SessionOp::PreviewFreeMove {
+            instance,
             frame: Frame::translation(at),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove { instance },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -454,6 +455,7 @@ fn the_windmill_story() {
     for op in [
         SessionOp::BeginFreeMove { instance: hub_i },
         SessionOp::PreviewFreeMove {
+            instance: hub_i,
             frame: Frame::translation([0.0, 0.0, 0.2]),
         },
         SessionOp::CancelFreeMove,

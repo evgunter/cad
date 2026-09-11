@@ -8906,3 +8906,123 @@ before either branch existed.
 nobody was watching: the skip-mode pass exited 0 over three intra-doc
 links to items this diff had just deleted, while the full workspace pass
 exited 1. Both passes are owed by a viewer lane. In `plan.md`.
+## 2026-09-11 — `view/gesture-identity`: the driving operations name their gesture
+
+`preview-and-commit-carry-no-gesture-identity` closed. Shape 1 of the
+item's three, spelled as the tree spells the two begins rather than as
+the item wrote it, and the free-move quartet taken with it.
+
+**Costing the fork against the tree moved two of the three.** The
+item's shape 1 — `PreviewGesture { node, slot, value }` — has nothing to
+say for a document-parameter drag, so it is either a union payload (a
+second spelling of a target vocabulary `BeginGesture` and
+`BeginParamGesture` already have between them) or one preview and one
+commit per door. The second is what `BeginParamGesture`'s own docs
+argue for, costs no new public type and no translation at any call
+site, and is what landed: 39 operations became 41.
+
+Shape 3 cannot be built where the item puts it. The chrome queues ops
+and `ViewerApp::perform_batch` performs them after the layout walk, and
+a begin and its first preview reach the same batch — `Refusal::rank`'s
+own worked example says so. Nothing in `widgets::drag_gesture_ops` can
+know a refusal that has not happened yet, and the cheapest form that
+works asks the session which gesture is open, which needs the identity
+public anyway and then sites the decision where no other driver of
+`SessionOp` can reach it.
+
+Shape 2 refuses the one recovery the chrome has. A stranded drag's own
+field, dragged again, names the same slot: its begin is refused and its
+preview and release land the number the user dragged it to, against the
+same base document because nothing that moves the document is permitted
+mid-drag. A per-begin token would refuse that and strand the reader
+twice. `the_open_drags_own_field_dragged_again_lands_its_number` holds
+it, and mutation 7 below is what reds it.
+
+**The refusals are spelled apart from the in-flight ones**, and that is
+the tree's answer rather than taste: `permitted_during_value_gesture`
+is a function of the operation alone and cannot answer a question about
+a payload, so folding the mismatch into `GestureInFlight` would make
+`every_op_behaves_as_the_table_says` unable to tell a table answer from
+a payload answer. `Refusal::WrongGesture` and
+`DisplayFault::WrongFreeMove` rank with the bookkeeping refusals: they
+arrive in a batch behind the `GestureInFlight` that refused the drag's
+begin, and that is the sentence with the remedy in it.
+
+**#2358's precedent followed rather than departed from**: no new
+predicate and no third table. Each check sits in the door of the state
+it is about — `DocSession::preview_gesture`/`commit_gesture` and
+`DisplayState::preview_free_move`/`commit_free_move` — which is the
+same argument that gave the two drags two tables.
+
+**The reachability route holds on today's tree**, re-checked rather
+than assumed: `a_drags_own_preview_can_strand_it_and_the_door_closes_it`
+passes at `dba1afd053`, and its strand half is now a helper two rows
+share — the second continues into the drag a reader makes when the
+panel comes back.
+
+**The free-move half is API-reachable only.** No route to a second
+probe under an open one has been traced; that is
+`free-move-in-flight-refusal-has-no-reachable-producer`'s question and
+is not answered here. What changed for that row is its population:
+`DisplayFault` now has two arms with the same standing, not one.
+
+Residue: `the-two-drags-name-their-gestures-in-two-shapes` — the
+identity is a `(node, slot)`, a name, or an instance, and `drag_ops` is
+generic over the difference with nothing holding the three to each
+other.
+
+## 2026-09-11 — #2361 merged; the sharpest defect on the slate is closed
+
+**`view/gesture-identity` is on main** (#2361, merge `a88eedd036`),
+green at `a578aecb`: 38 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`, `gate ok` success, six change-filter skips, no
+placeholders — read from the job list after waiting for `gate ok` to
+post, which it had not when the lane reported. Six gesture-driving
+operations now name the gesture they drive and are refused on a
+mismatch, so a drag on one field can no longer steer — or commit into —
+another.
+
+**Two of the item's three candidate shapes moved once re-derived
+against the tree, and that is the result.** Shape 1 as written cannot
+be spelled: `PreviewGesture { node, slot, value }` has nothing to say
+for a document-parameter drag, so it is either a union payload or one
+preview and one commit per door — the lane took the second, which is
+`BeginParamGesture`'s own stated argument applied to the two operations
+that lacked it. Shape 3 cannot be built where the item puts it: a begin
+and its first preview reach the SAME batch, so at push time there is no
+refusal to react to. Shape 2 refuses the one recovery the chrome has —
+the stranded drag's own field, dragged again, names the same slot and
+lands the number the user dragged it to; a per-begin token strands the
+reader twice.
+
+**A correction to that reasoning's receipt, which the PR body got
+wrong.** The worked example it leans on for rejecting shape 3 —
+*"`BeginGesture` refuses with the affordance and the same frame's
+`PreviewGesture` refuses `NoGesture` on top of it"* — is real and says
+exactly what the argument needs, but it lives on
+`ViewerApp::perform_batch` (`crates/viewer/src/app.rs:913-914`), not on
+`Refusal::rank` as the body claims. A receipt is a citation and gets no
+exemption. The ratified text is clean: the misattribution never left
+the PR body, so this note is the correction rather than a diff.
+
+**A loop closed on the orchestrator's own earlier finding.** I told
+#2348's lane that `work/chrome/app-rs-doc-comment-merge-scars.md:24`'s
+`app.rs:1722-1723` was *"never about its subject"* because
+`perform_batch` is at `app.rs:918`. The staleness verdict was right and
+the located subject was not: that row's subject is the DOC COMMENT on
+`perform_batch`, the two stacked summaries — *"Perform one operation and
+record what it refused."* immediately above *"Perform one frame's whole
+batch of operations"* — and it sits at **`app.rs:906-907`**, pre-existing
+and untouched by any VIEW diff. So the row is live, its citation is
+stale, and the re-derived location is recorded here for whoever places
+it. That is the `plan.md` rule — *an out-of-fence table is a population,
+and placing it means re-deriving by subject at placing time* — executed
+rather than restated.
+
+**The lane reported before CI finished**, offering an all-local
+evidence table with the PR marked open. The evidence was sound and the
+run went green, but a report that says *here is the PR* without a
+`gate ok` is a report about a tree and not about a merge. Dispatches
+say to wait for it.
+
+**VIEW stands at 71 open / 78 closed, nothing waiting on Ev.**

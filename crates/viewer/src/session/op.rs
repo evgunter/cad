@@ -174,16 +174,67 @@ pub enum SessionOp {
         /// The parameter.
         name: ParamName,
     },
-    /// Move the in-flight gesture. Emits a preview edit against
+    /// Move the in-flight SLOT gesture. Emits a preview edit against
     /// scratch state; commits nothing.
+    ///
+    /// **It names the slot it is dragging**, and is refused
+    /// [`Refusal::WrongGesture`] when that is not the slot the open
+    /// gesture was begun on. The subject of a driving operation is the
+    /// field the user has hold of, never whichever gesture happens to
+    /// be open: a second drag's [`SessionOp::BeginGesture`] is refused
+    /// [`Refusal::GestureInFlight`], and this payload is what refuses
+    /// its preview and its commit with it, so a drag that could not
+    /// open cannot steer the one that did.
     PreviewGesture {
+        /// The node whose slot the gesture is dragging.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
         /// The value under the pointer.
         value: f64,
     },
-    /// Release: commit exactly one edit carrying the gesture's last
-    /// previewed value.
-    CommitGesture,
-    /// Abandon the gesture, leaving the document untouched.
+    /// Release: commit exactly one edit carrying the slot gesture's
+    /// last previewed value. Names its slot for
+    /// [`SessionOp::PreviewGesture`]'s reason, and refuses the same
+    /// way — the commit is the half of the pair that reaches the
+    /// document.
+    CommitGesture {
+        /// The node whose slot the gesture is dragging.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+    },
+    /// [`SessionOp::PreviewGesture`] for a DOCUMENT PARAMETER drag —
+    /// the gesture [`SessionOp::BeginParamGesture`] opens.
+    ///
+    /// A second door rather than one preview naming either target, for
+    /// [`SessionOp::BeginParamGesture`]'s own reason: the two targets
+    /// are addressed differently, and an operation that names its
+    /// gesture names it the way its begin did — one spelling per
+    /// target, so a caller repeats the words it already wrote rather
+    /// than translating them into a second vocabulary.
+    PreviewParamGesture {
+        /// The parameter the gesture is dragging.
+        name: ParamName,
+        /// The value under the pointer.
+        value: f64,
+    },
+    /// Release: commit exactly one edit carrying the parameter
+    /// gesture's last previewed value.
+    CommitParamGesture {
+        /// The parameter the gesture is dragging.
+        name: ParamName,
+    },
+    /// Abandon whichever value gesture is open, leaving the document
+    /// untouched.
+    ///
+    /// **The one value-gesture operation that names no target, and
+    /// deliberately.** It is the chrome's cancel door
+    /// ([`super::DocSession::cancel_doors`]), whose subject is the
+    /// session's state rather than a field: a drag whose field is no
+    /// longer drawn is exactly what it exists to close, so a target it
+    /// had to name would be one the caller can no longer read off the
+    /// panel.
     CancelGesture,
     /// Step the cursor toward the root.
     Undo,
@@ -241,16 +292,30 @@ pub enum SessionOp {
     },
     /// Stream the probe's display frame. Each preview REPLACES the
     /// last; nothing enters the document.
+    ///
+    /// **It names the instance it is probing**, and is refused
+    /// [`crate::display::DisplayFault::WrongFreeMove`] when that is
+    /// not the instance the open probe was begun on — the value
+    /// gesture's rule ([`SessionOp::PreviewGesture`]) on the other
+    /// drag, where the identity is one node rather than a target.
     PreviewFreeMove {
+        /// The instance being probed.
+        instance: RecipeNodeId,
         /// The display frame composed over the instance's drawn
         /// placement.
         frame: Frame,
     },
     /// Land the probe: the last previewed frame becomes the
     /// instance's committed display value. NO history holds it — the
-    /// plan's undo note governs document state only.
-    CommitFreeMove,
-    /// Abandon the probe, restoring the committed picture.
+    /// plan's undo note governs document state only. Names its
+    /// instance for [`SessionOp::PreviewFreeMove`]'s reason.
+    CommitFreeMove {
+        /// The instance being probed.
+        instance: RecipeNodeId,
+    },
+    /// Abandon whichever probe is open, restoring the committed
+    /// picture. Names no instance, for [`SessionOp::CancelGesture`]'s
+    /// reason: it is the other cancel door.
     CancelFreeMove,
     /// Commit **exactly one** `DocEdit` adding a mate node — the mate
     /// tool's single committed edit. Everything before it (the two
@@ -640,8 +705,16 @@ impl SessionOp {
     /// Three shapes of `true` sit in the table:
     ///
     /// - the ops that DRIVE the gesture ([`SessionOp::PreviewGesture`],
-    ///   [`SessionOp::CommitGesture`], [`SessionOp::CancelGesture`]),
-    ///   which a guard would deadlock;
+    ///   [`SessionOp::CommitGesture`],
+    ///   [`SessionOp::PreviewParamGesture`],
+    ///   [`SessionOp::CommitParamGesture`],
+    ///   [`SessionOp::CancelGesture`]), which a guard would deadlock.
+    ///   **Permitted here is not unconditional**: the four that name a
+    ///   target are refused [`Refusal::WrongGesture`] from inside their
+    ///   own arms when the target is not the open gesture's. That is a
+    ///   question about a payload and this table is a function of the
+    ///   operation alone, so it is answered where the gesture's state
+    ///   is and not by a row here;
     /// - layer-3 moves that touch neither the document nor the history
     ///   ([`SessionOp::Select`], [`SessionOp::Hover`], the free-move
     ///   family, [`SessionOp::SetInstanceHidden`]) and the evaluation
@@ -671,7 +744,9 @@ impl SessionOp {
             Self::Select(_)
             | Self::Hover(_)
             | Self::PreviewGesture { .. }
-            | Self::CommitGesture
+            | Self::CommitGesture { .. }
+            | Self::PreviewParamGesture { .. }
+            | Self::CommitParamGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
             | Self::Reevaluate
@@ -679,7 +754,7 @@ impl SessionOp {
             | Self::SetInstanceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
-            | Self::CommitFreeMove
+            | Self::CommitFreeMove { .. }
             | Self::CancelFreeMove => true,
             Self::DeleteNode { .. }
             | Self::SetSlot { .. }
@@ -761,6 +836,14 @@ impl SessionOp {
     /// state, with the same refusal this check raises. A second `false`
     /// row would be a second spelling of one answer.
     ///
+    /// [`SessionOp::PreviewFreeMove`] and [`SessionOp::CommitFreeMove`]
+    /// are `true` here and still refused
+    /// [`crate::display::DisplayFault::WrongFreeMove`] when they name
+    /// an instance that is not the one being probed — the value
+    /// gesture's rule, answered the same way and for the same reason:
+    /// the question is about a payload against a state, and this table
+    /// is a function of the operation alone.
+    ///
     /// [`SessionOp::Save`] is `true`, as it is in the value table and
     /// for a narrower reason: a save writes the committed history and
     /// a free-move probe enters no history at all, so there is nothing
@@ -772,7 +855,9 @@ impl SessionOp {
             Self::Select(_)
             | Self::Hover(_)
             | Self::PreviewGesture { .. }
-            | Self::CommitGesture
+            | Self::CommitGesture { .. }
+            | Self::PreviewParamGesture { .. }
+            | Self::CommitParamGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
             | Self::Reevaluate
@@ -780,7 +865,7 @@ impl SessionOp {
             | Self::SetInstanceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
-            | Self::CommitFreeMove
+            | Self::CommitFreeMove { .. }
             | Self::CancelFreeMove
             | Self::DeleteNode { .. }
             | Self::SetSlot { .. }

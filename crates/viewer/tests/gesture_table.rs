@@ -15,7 +15,7 @@
 //!
 //! [`expected`] is a SECOND, hand-written copy of the answers, so an
 //! accidental edit to the predicate fails here rather than passing by
-//! agreeing with itself. Its match is exhaustive: a fortieth
+//! agreeing with itself. Its match is exhaustive: a forty-second
 //! `SessionOp` does not compile until someone writes down whether a
 //! drag refuses it, which is the property the table exists to buy.
 //! Its index half, checked against `OP_COUNT`, is what makes a MISSING
@@ -62,7 +62,7 @@
 //! sets, so there are two tables and this file checks both.
 //! [`SessionOp::permitted_during_free_move`] has two refusals rather
 //! than 26 and they have a name, so it is NOT restated here as a
-//! second copy of 39 rows: `replaces_the_document` says the property
+//! second copy of 41 rows: `replaces_the_document` says the property
 //! the table encodes — an operation that puts a different document
 //! under the session — and
 //! `the_free_move_table_refuses_exactly_the_replacement_doors` checks
@@ -103,7 +103,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 39;
+const OP_COUNT: usize = 41;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -198,9 +198,23 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             node,
             slot: SlotId::Distance,
         },
-        SessionOp::BeginParamGesture { name: param },
-        SessionOp::PreviewGesture { value: 0.01 },
-        SessionOp::CommitGesture,
+        SessionOp::BeginParamGesture {
+            name: param.clone(),
+        },
+        SessionOp::PreviewGesture {
+            node,
+            slot: SlotId::Distance,
+            value: 0.01,
+        },
+        SessionOp::CommitGesture {
+            node,
+            slot: SlotId::Distance,
+        },
+        SessionOp::PreviewParamGesture {
+            name: param.clone(),
+            value: 0.01,
+        },
+        SessionOp::CommitParamGesture { name: param },
         SessionOp::CancelGesture,
         SessionOp::Undo,
         SessionOp::Redo,
@@ -214,9 +228,10 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         },
         SessionOp::BeginFreeMove { instance: node },
         SessionOp::PreviewFreeMove {
+            instance: node,
             frame: Frame::translation([0.0, 0.0, 0.02]),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove { instance: node },
         SessionOp::CancelFreeMove,
         SessionOp::AddMate {
             a: SitedRef::at_mint(face(node)),
@@ -314,43 +329,49 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::CreateParam { .. } => (8, false),
         SessionOp::BeginGesture { .. } => (9, false),
         SessionOp::BeginParamGesture { .. } => (10, false),
-        // The gesture's own three doors: a guard here would leave a
-        // drag with no way to end.
+        // The gesture's own driving doors: a guard here would leave a
+        // drag with no way to end. Permitted BY THIS TABLE is the
+        // whole of what these rows say — the four that name a target
+        // are refused `WrongGesture` from inside their own arms when
+        // the target is not the open gesture's, which is a question
+        // about a payload and not about an operation.
         SessionOp::PreviewGesture { .. } => (11, true),
-        SessionOp::CommitGesture => (12, true),
-        SessionOp::CancelGesture => (13, true),
-        SessionOp::Undo => (14, false),
-        SessionOp::Redo => (15, false),
-        SessionOp::CancelEvaluation => (16, true),
-        SessionOp::Reevaluate => (17, true),
-        SessionOp::Open(_) => (18, false),
+        SessionOp::CommitGesture { .. } => (12, true),
+        SessionOp::PreviewParamGesture { .. } => (13, true),
+        SessionOp::CommitParamGesture { .. } => (14, true),
+        SessionOp::CancelGesture => (15, true),
+        SessionOp::Undo => (16, false),
+        SessionOp::Redo => (17, false),
+        SessionOp::CancelEvaluation => (18, true),
+        SessionOp::Reevaluate => (19, true),
+        SessionOp::Open(_) => (20, false),
         // Save writes the COMMITTED history, which a preview is not
         // in. Whether a save under an open drag should be permitted at
         // all is an open question; this row records today's answer and
         // makes a change to it visible.
-        SessionOp::Save(_) => (19, true),
-        SessionOp::SetInstanceHidden { .. } => (20, true),
+        SessionOp::Save(_) => (21, true),
+        SessionOp::SetInstanceHidden { .. } => (22, true),
         // The free-move gesture is a SECOND drag with its own state
         // and its own in-flight refusal; a value gesture says nothing
         // about it in either direction.
-        SessionOp::BeginFreeMove { .. } => (21, true),
-        SessionOp::PreviewFreeMove { .. } => (22, true),
-        SessionOp::CommitFreeMove => (23, true),
-        SessionOp::CancelFreeMove => (24, true),
-        SessionOp::AddMate { .. } => (25, false),
-        SessionOp::NewDocument { .. } => (26, false),
-        SessionOp::AddDatum { .. } => (27, false),
-        SessionOp::AddProfile { .. } => (28, false),
-        SessionOp::AddExtrude { .. } => (29, false),
-        SessionOp::AddRevolve { .. } => (30, false),
-        SessionOp::AddBoolean { .. } => (31, false),
-        SessionOp::AddSplit { .. } => (32, false),
-        SessionOp::AddTransform { .. } => (33, false),
-        SessionOp::AddPattern { .. } => (34, false),
-        SessionOp::AddPlacedUnion { .. } => (35, false),
-        SessionOp::AddFillet { .. } => (36, false),
-        SessionOp::AddChamfer { .. } => (37, false),
-        SessionOp::AddInstance { .. } => (38, false),
+        SessionOp::BeginFreeMove { .. } => (23, true),
+        SessionOp::PreviewFreeMove { .. } => (24, true),
+        SessionOp::CommitFreeMove { .. } => (25, true),
+        SessionOp::CancelFreeMove => (26, true),
+        SessionOp::AddMate { .. } => (27, false),
+        SessionOp::NewDocument { .. } => (28, false),
+        SessionOp::AddDatum { .. } => (29, false),
+        SessionOp::AddProfile { .. } => (30, false),
+        SessionOp::AddExtrude { .. } => (31, false),
+        SessionOp::AddRevolve { .. } => (32, false),
+        SessionOp::AddBoolean { .. } => (33, false),
+        SessionOp::AddSplit { .. } => (34, false),
+        SessionOp::AddTransform { .. } => (35, false),
+        SessionOp::AddPattern { .. } => (36, false),
+        SessionOp::AddPlacedUnion { .. } => (37, false),
+        SessionOp::AddFillet { .. } => (38, false),
+        SessionOp::AddChamfer { .. } => (39, false),
+        SessionOp::AddInstance { .. } => (40, false),
     }
 }
 
@@ -525,7 +546,14 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
                 slot,
             },
         );
-        perform(&mut session, SessionOp::PreviewGesture { value: drag_to });
+        perform(
+            &mut session,
+            SessionOp::PreviewGesture {
+                node: pattern,
+                slot,
+                value: drag_to,
+            },
+        );
         // The gesture really is in flight and really is previewing a
         // DIFFERENT document: without that the identity below is a
         // comparison of one document with itself.
@@ -558,18 +586,30 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         // `perform` — and the view, resolved against the SCRATCH
         // document, puts the previewed frame on the pattern root.
         perform(&mut session, SessionOp::BeginFreeMove { instance: post });
-        perform(&mut session, SessionOp::PreviewFreeMove { frame: probe });
+        perform(
+            &mut session,
+            SessionOp::PreviewFreeMove {
+                instance: post,
+                frame: probe,
+            },
+        );
         assert_eq!(
             session.display_view().moved_roots.get(&pattern),
             Some(&probe),
             "{slot:?}: the previewed probe reaches its drawn root under a scratch document"
         );
-        perform(&mut session, SessionOp::CommitFreeMove);
+        perform(&mut session, SessionOp::CommitFreeMove { instance: post });
         assert_eq!(session.display().free_move_of(post), Some(&probe));
 
         // The value gesture lands its own value over a committed
         // probe: one edit, no supersession, probe intact.
-        let outcome = perform(&mut session, SessionOp::CommitGesture);
+        let outcome = perform(
+            &mut session,
+            SessionOp::CommitGesture {
+                node: pattern,
+                slot,
+            },
+        );
         assert_eq!(
             outcome.committed.len(),
             1,
@@ -607,10 +647,18 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         perform(
             &mut session,
             SessionOp::PreviewGesture {
+                node: pattern,
+                slot,
                 value: drag_to + 1.0,
             },
         );
-        perform(&mut session, SessionOp::CommitGesture);
+        perform(
+            &mut session,
+            SessionOp::CommitGesture {
+                node: pattern,
+                slot,
+            },
+        );
         assert_eq!(
             session.display().probing(),
             Some(post),
@@ -623,7 +671,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
 // --- the cancel doors -----------------------------------------------
 
 /// **Which operations cancel a GESTURE**, written down exhaustively so
-/// that a fortieth operation cannot join the enum without answering
+/// that a forty-second operation cannot join the enum without answering
 /// whether the chrome owes it a door.
 ///
 /// The rule ranges over what an operation cancels, NOT over what it is
@@ -649,7 +697,9 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
-        | SessionOp::CommitGesture
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::PreviewParamGesture { .. }
+        | SessionOp::CommitParamGesture { .. }
         | SessionOp::Undo
         | SessionOp::Redo
         | SessionOp::CancelEvaluation
@@ -659,7 +709,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
-        | SessionOp::CommitFreeMove
+        | SessionOp::CommitFreeMove { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::AddDatum { .. }
@@ -753,6 +803,78 @@ fn a_closed_door_says_what_its_own_operation_refuses() {
     }
 }
 
+/// **Strand the fixture's distance drag**, and assert the strand: the
+/// drag's own preview takes the extrude to zero height, the picked
+/// face stops resolving, and the panel is handed no row — so the
+/// release event that is the drag's only ordinary exit has no field to
+/// fire on.
+///
+/// Two rows continue from here and they ask different things of it:
+/// one closes the stranded drag through the chrome's door, the other
+/// drags a second field while it is open.
+fn strand_the_distance_drag(session: &mut DocSession, extrude: RecipeNodeId) {
+    session.pump();
+    let index = common::asm::index_of(session);
+    let face = index
+        .face_at(
+            session.evaluation().expect("the inline seam landed"),
+            &common::asm::down_at(0.0, 0.0),
+        )
+        .expect("the pick is not refused")
+        .expect("the plate is under a ray straight down at the origin");
+    session.perform(SessionOp::Select(Selection::Face(face)));
+    assert!(session.standing().live(), "the picked face resolves");
+    assert_eq!(
+        session.slot_rows().len(),
+        1,
+        "and the extrude's distance row — the field the drag opens on — is drawn"
+    );
+
+    // The drag opens, and its first preview takes the distance to zero.
+    assert!(
+        session
+            .perform(SessionOp::BeginGesture {
+                node: extrude,
+                slot: SlotId::Distance,
+            })
+            .refusal
+            .is_none(),
+        "the drag opens on a literal slot"
+    );
+    assert!(
+        session
+            .perform(SessionOp::PreviewGesture {
+                node: extrude,
+                slot: SlotId::Distance,
+                value: 0.0,
+            })
+            .refusal
+            .is_none(),
+        "a drag through zero is an ordinary drag"
+    );
+    session.pump();
+
+    assert!(
+        !session.standing().live(),
+        "a zero-height extrude has no face for the picked name"
+    );
+    assert!(
+        session.slot_rows().is_empty(),
+        "the panel is handed no row. THIS ROW ASSERTS ONLY THAT: that a \
+         group absent from the list is not drawn, and so reports no \
+         release, is `properties_ui`'s `for group in &groups` and is \
+         read rather than executed here"
+    );
+    assert!(
+        matches!(
+            session.perform(SessionOp::Undo).refusal,
+            Some(Refusal::GestureInFlight)
+        ),
+        "while the drag is still open: every document move now refuses, \
+         naming a remedy the release event can no longer deliver"
+    );
+}
+
 /// **A slot drag can lose its only exit under the pointer still
 /// holding it — traced, not supposed — and the door is what is left.**
 ///
@@ -788,62 +910,7 @@ fn a_closed_door_says_what_its_own_operation_refuses() {
 fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
     let tol = Tol::witness();
     let (mut session, extrude) = fixture(tol);
-    session.pump();
-    let index = common::asm::index_of(&session);
-    let face = index
-        .face_at(
-            session.evaluation().expect("the inline seam landed"),
-            &common::asm::down_at(0.0, 0.0),
-        )
-        .expect("the pick is not refused")
-        .expect("the plate is under a ray straight down at the origin");
-    session.perform(SessionOp::Select(Selection::Face(face)));
-    assert!(session.standing().live(), "the picked face resolves");
-    assert_eq!(
-        session.slot_rows().len(),
-        1,
-        "and the extrude's distance row — the field the drag opens on — is drawn"
-    );
-
-    // The drag opens, and its first preview takes the distance to zero.
-    assert!(
-        session
-            .perform(SessionOp::BeginGesture {
-                node: extrude,
-                slot: SlotId::Distance,
-            })
-            .refusal
-            .is_none(),
-        "the drag opens on a literal slot"
-    );
-    assert!(
-        session
-            .perform(SessionOp::PreviewGesture { value: 0.0 })
-            .refusal
-            .is_none(),
-        "a drag through zero is an ordinary drag"
-    );
-    session.pump();
-
-    assert!(
-        !session.standing().live(),
-        "a zero-height extrude has no face for the picked name"
-    );
-    assert!(
-        session.slot_rows().is_empty(),
-        "the panel is handed no row. THIS ROW ASSERTS ONLY THAT: that a \
-         group absent from the list is not drawn, and so reports no \
-         release, is `properties_ui`'s `for group in &groups` and is \
-         read rather than executed here"
-    );
-    assert!(
-        matches!(
-            session.perform(SessionOp::Undo).refusal,
-            Some(Refusal::GestureInFlight)
-        ),
-        "while the drag is still open: every document move now refuses, \
-         naming a remedy the release event can no longer deliver"
-    );
+    strand_the_distance_drag(&mut session, extrude);
 
     // The door, which is drawn whatever the panel is showing.
     let door = session
@@ -920,7 +987,10 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
     let probe = Frame::translation([0.0, 0.0, 0.011]);
     assert!(
         session
-            .perform(SessionOp::PreviewFreeMove { frame: probe })
+            .perform(SessionOp::PreviewFreeMove {
+                instance: post,
+                frame: probe,
+            })
             .refusal
             .is_none()
     );
@@ -994,7 +1064,7 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// that is wrong or a property that has stopped being the reason, and
 /// both are things to find out.
 ///
-/// **Exhaustive on purpose**, like `expected`: a fortieth `SessionOp`
+/// **Exhaustive on purpose**, like `expected`: a forty-second `SessionOp`
 /// does not compile until someone says whether it replaces the
 /// document.
 fn replaces_the_document(op: &SessionOp) -> bool {
@@ -1015,7 +1085,9 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
-        | SessionOp::CommitGesture
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::PreviewParamGesture { .. }
+        | SessionOp::CommitParamGesture { .. }
         | SessionOp::CancelGesture
         | SessionOp::Undo
         | SessionOp::Redo
@@ -1025,7 +1097,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
-        | SessionOp::CommitFreeMove
+        | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
         | SessionOp::AddDatum { .. }
@@ -1044,7 +1116,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
 }
 
 /// The free-move table is exactly the replacement doors, on the same
-/// sample roster the value table is checked on — so a fortieth
+/// sample roster the value table is checked on — so a forty-second
 /// operation is answered for both drags or does not compile.
 #[test]
 fn the_free_move_table_refuses_exactly_the_replacement_doors() {
@@ -1139,7 +1211,10 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
 
         // The invariant, over the whole roster: the drag is still in
         // flight, or something said where it went.
-        let ends_the_drag = matches!(op, SessionOp::CommitFreeMove | SessionOp::CancelFreeMove);
+        let ends_the_drag = matches!(
+            op,
+            SessionOp::CommitFreeMove { .. } | SessionOp::CancelFreeMove
+        );
         assert!(
             session.display().probing().is_some()
                 || ends_the_drag
@@ -1148,4 +1223,412 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
         );
     }
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// The fixture with a SECOND literal-driven extrude and a document
+/// parameter beside the first: the two shapes a field that is not the
+/// one being dragged can have, and the two doors a value gesture opens
+/// through.
+fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("view-gesture-identity", tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, first) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: len(0.005),
+        },
+        tol,
+    );
+    let (doc, second) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: len(0.003),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    let param = ParamName::new("thickness");
+    assert!(
+        session
+            .perform(SessionOp::CreateParam {
+                name: param.clone(),
+                value: DocParam::continuous(Dimension::Length, 0.004),
+            })
+            .refusal
+            .is_none(),
+        "the fixture's parameter is declared"
+    );
+    (session, first, second, param)
+}
+
+/// One node's committed `Distance`, read the way the panel reads it.
+fn committed_distance(
+    session: &DocSession,
+    node: RecipeNodeId,
+) -> Result<SlotValue, viewer::props::SlotFault> {
+    viewer::props::slot_rows(session.committed_doc(), node)
+        .into_iter()
+        .find(|row| row.slot == SlotId::Distance)
+        .expect("the extrude's distance row")
+        .value
+}
+
+/// **A drag that could not open cannot steer the one that did**, at
+/// both value-gesture doors.
+///
+/// The chrome emits a drag as a triple — begin, previews, commit
+/// (`widgets::drag_gesture_ops`) — and only the begin is refused while
+/// another drag is open (`permitted_during_value_gesture`). The
+/// preview and the commit have to be permitted or a drag could never
+/// end, so what keeps the second field's numbers out of the first
+/// field's slot is that they NAME their field and the open gesture
+/// answers for the name.
+///
+/// The second field is taken twice, because a value gesture has two
+/// doors and they are addressed differently: another node's literal
+/// slot, and a document parameter.
+///
+/// Where it goes red: drop the name check in `preview_gesture` and the
+/// refused rows turn into previews against the open gesture's slot;
+/// drop it in `commit_gesture` and the second field's release commits
+/// the first field's edit.
+#[test]
+fn a_drag_on_another_field_cannot_steer_the_open_one() {
+    let tol = Tol::witness();
+    let (mut session, first, second, param) = two_fields(tol);
+
+    // The drag that is open, moved once so it has a value to land.
+    assert!(
+        session
+            .perform(SessionOp::BeginGesture {
+                node: first,
+                slot: SlotId::Distance,
+            })
+            .refusal
+            .is_none()
+    );
+    assert_eq!(
+        session
+            .perform(SessionOp::PreviewGesture {
+                node: first,
+                slot: SlotId::Distance,
+                value: 0.011,
+            })
+            .previewed
+            .len(),
+        1,
+        "the open drag previews its own value"
+    );
+
+    // The other node's slot: the whole triple, as the widget emits it.
+    assert!(
+        matches!(
+            session
+                .perform(SessionOp::BeginGesture {
+                    node: second,
+                    slot: SlotId::Distance,
+                })
+                .refusal,
+            Some(Refusal::GestureInFlight)
+        ),
+        "the second field cannot open a drag of its own"
+    );
+    let previewed = session.perform(SessionOp::PreviewGesture {
+        node: second,
+        slot: SlotId::Distance,
+        value: 0.012,
+    });
+    assert!(
+        matches!(previewed.refusal, Some(Refusal::WrongGesture)),
+        "and its preview names a drag that is not in flight: {:?}",
+        previewed.refusal
+    );
+    assert!(previewed.previewed.is_empty(), "so it previews nothing");
+    let committed = session.perform(SessionOp::CommitGesture {
+        node: second,
+        slot: SlotId::Distance,
+    });
+    assert!(
+        matches!(committed.refusal, Some(Refusal::WrongGesture)),
+        "and its release lands nothing: {:?}",
+        committed.refusal
+    );
+    assert!(committed.committed.is_empty());
+
+    // The parameter door, the same three ops in the other spelling.
+    assert!(matches!(
+        session
+            .perform(SessionOp::BeginParamGesture {
+                name: param.clone()
+            })
+            .refusal,
+        Some(Refusal::GestureInFlight)
+    ));
+    assert!(matches!(
+        session
+            .perform(SessionOp::PreviewParamGesture {
+                name: param.clone(),
+                value: 0.012,
+            })
+            .refusal,
+        Some(Refusal::WrongGesture)
+    ));
+    assert!(matches!(
+        session
+            .perform(SessionOp::CommitParamGesture {
+                name: param.clone()
+            })
+            .refusal,
+        Some(Refusal::WrongGesture)
+    ));
+
+    // A refused commit is not a release: the drag nobody let go of is
+    // still open, still on its own slot, and still carrying its own
+    // value.
+    let landed = session.perform(SessionOp::CommitGesture {
+        node: first,
+        slot: SlotId::Distance,
+    });
+    assert!(landed.refusal.is_none());
+    assert_eq!(landed.committed.len(), 1, "one edit for the whole drag");
+    assert!(
+        matches!(
+            landed.committed.first(),
+            Some(DocEdit::SetParam { node, slot, .. })
+                if *node == first && *slot == SlotId::Distance
+        ),
+        "and it is the open drag's own slot that moved: {:?}",
+        landed.committed.first()
+    );
+    assert_eq!(
+        committed_distance(&session, first),
+        Ok(SlotValue::Continuous(0.011)),
+        "carrying the value that field was dragged to"
+    );
+    assert_eq!(
+        committed_distance(&session, second),
+        Ok(SlotValue::Continuous(0.003)),
+        "and the field the user dragged second is where the document left it"
+    );
+}
+
+/// **The same field dragged again IS the open drag**, which is the
+/// difference between naming a gesture by its target and minting a
+/// token for it.
+///
+/// A drag stranded by `strand_the_distance_drag` leaves its field
+/// undrawn; when the panel comes back, the natural thing a reader does
+/// is drag that field. Its begin is refused — one gesture at a time —
+/// and its previews and its release go to the drag that is already
+/// open, which is the same slot, against the same base document,
+/// because nothing that moves the document is permitted mid-drag. So
+/// the field lands the number the user dragged it to and the drag
+/// ends.
+#[test]
+fn the_open_drags_own_field_dragged_again_lands_its_number() {
+    let tol = Tol::witness();
+    let (mut session, first, _, _) = two_fields(tol);
+    assert!(
+        session
+            .perform(SessionOp::BeginGesture {
+                node: first,
+                slot: SlotId::Distance,
+            })
+            .refusal
+            .is_none()
+    );
+
+    assert!(matches!(
+        session
+            .perform(SessionOp::BeginGesture {
+                node: first,
+                slot: SlotId::Distance,
+            })
+            .refusal,
+        Some(Refusal::GestureInFlight)
+    ));
+    assert!(
+        session
+            .perform(SessionOp::PreviewGesture {
+                node: first,
+                slot: SlotId::Distance,
+                value: 0.009,
+            })
+            .refusal
+            .is_none(),
+        "the second drag's preview names the drag that is open"
+    );
+    let landed = session.perform(SessionOp::CommitGesture {
+        node: first,
+        slot: SlotId::Distance,
+    });
+    assert!(landed.refusal.is_none());
+    assert_eq!(landed.committed.len(), 1);
+    assert_eq!(
+        committed_distance(&session, first),
+        Ok(SlotValue::Continuous(0.009)),
+    );
+    assert!(session.cancel_doors().iter().all(|door| {
+        !same_variant(&door.op, &SessionOp::CancelGesture) || door.blocked.is_some()
+    }));
+}
+
+/// **The free-move quartet's half of the same rule**: a probe
+/// operation names the instance it is probing.
+///
+/// The identity is one node rather than a target, so there is one door
+/// rather than two, and the refusal is the display layer's own
+/// (`DisplayFault::WrongFreeMove`) because the state it is about is
+/// `DisplayState`'s.
+///
+/// **Reached here through the operation vocabulary and not through the
+/// chrome.** The probe's three fields are drawn off the shown document
+/// rather than the landed evaluation, so the strand that reaches the
+/// value gesture's copy of this defect does not carry over, and no
+/// other route to a second probe under an open one has been traced
+/// (`work/view/free-move-in-flight-refusal-has-no-reachable-producer.md`
+/// owns that question). The rule is owed anyway: `SessionOp` is the
+/// crate's API and every driver of it — this suite included — emits
+/// these ops directly.
+#[test]
+fn a_probe_on_another_instance_cannot_steer_the_open_one() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("view-free-move-identity", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let (open, other) = (bench.post_a, bench.post_b);
+
+    assert!(
+        session
+            .perform(SessionOp::BeginFreeMove { instance: open })
+            .refusal
+            .is_none()
+    );
+    let held = Frame::translation([0.0, 0.0, 0.011]);
+    assert!(
+        session
+            .perform(SessionOp::PreviewFreeMove {
+                instance: open,
+                frame: held,
+            })
+            .refusal
+            .is_none()
+    );
+
+    assert!(
+        matches!(
+            session
+                .perform(SessionOp::BeginFreeMove { instance: other })
+                .refusal,
+            Some(Refusal::Display(DisplayFault::FreeMoveInFlight))
+        ),
+        "the second instance cannot open a probe of its own"
+    );
+    assert!(
+        matches!(
+            session
+                .perform(SessionOp::PreviewFreeMove {
+                    instance: other,
+                    frame: Frame::translation([0.02, 0.0, 0.0]),
+                })
+                .refusal,
+            Some(Refusal::Display(DisplayFault::WrongFreeMove))
+        ),
+        "and its preview names a probe that is not in flight"
+    );
+    assert_eq!(
+        session.display_view().moved.get(&open),
+        Some(&held),
+        "so the open probe still shows its own frame"
+    );
+    assert!(matches!(
+        session
+            .perform(SessionOp::CommitFreeMove { instance: other })
+            .refusal,
+        Some(Refusal::Display(DisplayFault::WrongFreeMove))
+    ));
+    assert_eq!(
+        session.display().probing(),
+        Some(open),
+        "a refused commit leaves the probe it does not name in flight"
+    );
+    assert_eq!(
+        session.display().free_move_of(other),
+        None,
+        "and nothing landed on the instance that was dragged"
+    );
+}
+
+/// **The route the two halves meet on**: the drag that stranded
+/// itself, and the field a reader drags when the panel comes back.
+///
+/// `strand_the_distance_drag` leaves a drag open with no pointer
+/// behind it and its own field undrawn. Every document move then
+/// refuses *"finish the drag first"* — a remedy the toolbar's cancel
+/// door delivers and the panel does not — so the reader's other move
+/// is to drag something else. That drag's begin is refused and its
+/// preview and its release are refused with it, which is the whole of
+/// what this row adds to the two above: the state they assert the rule
+/// in is a state the chrome can actually be in.
+#[test]
+fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = fixture(tol);
+    let param = ParamName::new("thickness");
+    assert!(
+        session
+            .perform(SessionOp::CreateParam {
+                name: param.clone(),
+                value: DocParam::continuous(Dimension::Length, 0.004),
+            })
+            .refusal
+            .is_none()
+    );
+    strand_the_distance_drag(&mut session, extrude);
+
+    // The parameter row is drawn whatever the selection's standing is
+    // — it is the document's, not the selected node's — so it is a
+    // field the reader can still reach.
+    assert!(
+        viewer::props::param_rows(session.doc())
+            .iter()
+            .any(|row| row.name == param),
+        "the parameter the reader drags next is on the panel"
+    );
+    assert!(matches!(
+        session
+            .perform(SessionOp::BeginParamGesture {
+                name: param.clone()
+            })
+            .refusal,
+        Some(Refusal::GestureInFlight)
+    ));
+    assert!(matches!(
+        session
+            .perform(SessionOp::PreviewParamGesture {
+                name: param.clone(),
+                value: 0.012,
+            })
+            .refusal,
+        Some(Refusal::WrongGesture)
+    ));
+    assert!(matches!(
+        session
+            .perform(SessionOp::CommitParamGesture {
+                name: param.clone()
+            })
+            .refusal,
+        Some(Refusal::WrongGesture)
+    ));
+    assert_eq!(
+        committed_distance(&session, extrude),
+        Ok(SlotValue::Continuous(0.005)),
+        "the stranded drag's slot is where the document left it"
+    );
+    assert_eq!(
+        session.history().len(),
+        2,
+        "and the parameter's declaration is the only edit in the history"
+    );
 }

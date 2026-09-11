@@ -25,7 +25,7 @@ A reader cannot tell where the cause list ends and the next notice
 begins, because the inner join and the outer join are the same
 character. The em-dash nests the same way: `DisplayFault`'s own
 `Display` arms contain one (`FusedGeometry`,
-`crates/viewer/src/display.rs:190-200`), and so does each notice's
+`crates/viewer/src/display.rs:199-209`), and so does each notice's
 preamble.
 
 ## Why it is a design question and not a formatting nit

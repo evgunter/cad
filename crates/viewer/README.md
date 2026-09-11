@@ -972,7 +972,7 @@ own.
 The mid-gesture policy is one exhaustive value,
 `SessionOp::permitted_during_value_gesture`, checked once in `perform`
 before dispatch: 26 operations refuse while a value gesture is open and
-13 are permitted. A fortieth operation cannot be added without
+15 are permitted. A forty-second operation cannot be added without
 answering for it, and the whole policy is readable in one place rather
 than inferred from every dispatch target.
 
@@ -995,7 +995,7 @@ a commit that lands under a probe is pruned and reported, and only a
 replacement drops the display state whole with no document left to
 report against (`DisplayState::clear` carries that argument). So the
 free-move table is checked against the property rather than against a
-second copy of 39 rows (`replaces_the_document`, in
+second copy of 41 rows (`replaces_the_document`, in
 `tests/gesture_table.rs`), and `perform` consults both tables in turn,
 value gesture first.
 
@@ -1009,6 +1009,45 @@ The table records behaviour rather than deciding it — `save` is
 permitted mid-gesture and `open` is refused, which is what the code did
 before the table existed. Whether that asymmetry is right is a separate
 question with its own item.
+
+### A driving operation names its own gesture
+
+`PreviewGesture`, `CommitGesture`, `PreviewParamGesture`,
+`CommitParamGesture`, `PreviewFreeMove` and `CommitFreeMove` each carry
+the target they are driving, and each is refused when that is not the
+gesture in flight — `Refusal::WrongGesture` for the value drag,
+`DisplayFault::WrongFreeMove` for the probe, raised where the gesture's
+own state lives.
+
+The chrome emits a drag as a triple (`widgets::drag_gesture_ops`) and a
+second drag's BEGIN is the only member of it the mid-gesture tables
+refuse: the other two drive the gesture and a table that refused them
+would leave every drag with no way to end. So without the target in the
+payload, a field whose begin was refused still previews and still
+commits — into whichever gesture happens to be open, with the new
+field's number. The subject of a driving operation is the field the
+user has hold of, and naming it is what makes the mismatch refusable.
+
+**The two cancels are the exception and name nothing**: their subject
+is the session's state, because the state they exist for is a drag
+whose field is no longer drawn (the cancel-door section below).
+
+**A target, not a token.** A gesture could be named by a handle its
+begin mints, and the difference shows on the one drag the chrome can
+reach here: the field of a stranded drag, dragged again. Its begin is
+refused — one drag at a time — and its preview and its release name the
+same slot, so they land the number the user dragged it to and end the
+drag. A token minted per begin would refuse them and strand the reader a
+second time. The identity that matters is *which field*, and nothing
+that moves the document is permitted mid-drag, so the second drag's base
+document is the first's.
+
+**The table says what it says.** `permitted_during_value_gesture` is a
+function of the operation alone, so it cannot answer a question about a
+payload; the name check lives in `DocSession::preview_gesture` /
+`commit_gesture` and `DisplayState::preview_free_move` /
+`commit_free_move`, and the refusals are spelled apart from
+`GestureInFlight` so the table's answer stays readable from the outcome.
 
 ### Every gesture has a cancel door
 

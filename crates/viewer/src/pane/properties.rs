@@ -99,8 +99,11 @@ impl ViewerBehavior<'_> {
                             &widget,
                             field.authored(value),
                             SessionOp::BeginParamGesture { name: name.clone() },
-                            |value| SessionOp::PreviewGesture { value },
-                            SessionOp::CommitGesture,
+                            |value| SessionOp::PreviewParamGesture {
+                                name: name.clone(),
+                                value,
+                            },
+                            SessionOp::CommitParamGesture { name: name.clone() },
                             |value| {
                                 vec![SessionOp::SetParam {
                                     name: name.clone(),
@@ -386,16 +389,18 @@ impl ViewerBehavior<'_> {
                             value,
                             SessionOp::BeginFreeMove { instance: node },
                             |_| SessionOp::PreviewFreeMove {
+                                instance: node,
                                 frame: frame_of(mm),
                             },
-                            SessionOp::CommitFreeMove,
+                            SessionOp::CommitFreeMove { instance: node },
                             |_| {
                                 vec![
                                     SessionOp::BeginFreeMove { instance: node },
                                     SessionOp::PreviewFreeMove {
+                                        instance: node,
                                         frame: frame_of(mm),
                                     },
-                                    SessionOp::CommitFreeMove,
+                                    SessionOp::CommitFreeMove { instance: node },
                                 ]
                             },
                             self.ops,
@@ -556,8 +561,15 @@ impl ViewerBehavior<'_> {
                 node,
                 slot: row.slot,
             },
-            |value| SessionOp::PreviewGesture { value },
-            SessionOp::CommitGesture,
+            |value| SessionOp::PreviewGesture {
+                node,
+                slot: row.slot,
+                value,
+            },
+            SessionOp::CommitGesture {
+                node,
+                slot: row.slot,
+            },
             self.ops,
         );
         // **Text that says what the slot already says is not an
