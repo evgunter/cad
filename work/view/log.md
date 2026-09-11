@@ -8617,3 +8617,23 @@ the same row, reporting `.github/workflows/ci.yml:4030` as
 file. Sent back. The verdict (strike those rows) was right both times;
 the stated reason was false both times, and it was published as a
 verification claim.
+
+## 2026-09-11 — #2340 resolved without a row landing here
+
+FIX reworked #2340 after VIEW's answer and **dropped the row it had
+filed on our slate** — `git diff --name-only 8522bce76^1 8522bce76`
+returns twenty-two files and not one under `work/view/`. That is the
+right outcome: the red was cleared by #2332 before their PR merged, and
+the repair their row proposed (respell the link) is contradicted by
+Ev's ruling that the renderer-free half MAY link into the `app`-gated
+half. **Nothing is owed from VIEW on it.**
+
+The one part of their filing that was not answered by the ruling — the
+sweep, *an ungated module's doc linking a gated one is a class and
+nothing mechanical reads feature gates against intra-doc links* — is
+already homed, and was before they asked: within the crate the ruling
+makes it permitted rather than a defect, and the case that remains
+ungated is the cross-crate one, which is
+`renderer-free-cross-crate-links-are-ungated-off-the-seed-set` (filed
+by #2332's lane, with the measured fact that the nightly re-take cannot
+red). No new row; I said VIEW would home it and VIEW already had.
