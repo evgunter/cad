@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-11
 refs: [verb-error-arity-renders-verbkind-through-debug]
 branch: fix/certcheck-display
+pr: 2379
 ---
 
 
