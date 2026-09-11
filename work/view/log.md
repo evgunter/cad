@@ -8637,3 +8637,15 @@ ungated is the cross-crate one, which is
 `renderer-free-cross-crate-links-are-ungated-off-the-seed-set` (filed
 by #2332's lane, with the measured fact that the nightly re-take cannot
 red). No new row; I said VIEW would home it and VIEW already had.
+
+**Fence record repaired on our own side.** S-TCOST split on 2026-09-11
+(`d6a9b948a2`, *"open S-TINT and move the non-cost half of S-TCOST's
+board to it"*) and both programs now declare `crates/*/tests/*` and
+`crates/test-utils/*`. VIEW's `keep_out` named only S-TCOST, so
+`work.py lint` reported the S-TINT overlap as *"neither `keep_out`
+names the other"* — invisible from both sides, on 54 paths this program
+writes to constantly. It now names S-TINT as well, and says which half
+a VIEW lane actually touches: the integrity half, not the cost half, is
+what a lane adding assertions to `crates/viewer/tests/*` is in. That
+moves the warning to one-sided, which is as far as VIEW can take it
+alone; S-TINT's own `keep_out` is theirs.
