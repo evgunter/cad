@@ -1185,3 +1185,85 @@ lane more than minutes.
 **Flagged, not actioned:** open PR **#2339** (PERF-6) also edits
 `validate.rs`, at or before ~line 2900 against this diff's ~4163. No
 textual conflict; whoever lands second should look.
+
+### Three more closed (PRs 2366, 2367, 2368, 2026-09-11)
+
+**`path-error-numbers-below-1e-9-render-as-zero` (PR 2366).** `num`'s
+absolute floor is gone: `tol = 1e-9 * x.abs()`, so the shortening is
+the same proposition at every magnitude. The lane went one step past
+the item and was right to. Fixing only the floor renders `1e-12` as
+`0.000000000001` — eleven zeros mid-sentence — so notation now follows
+the `Debug` form's own choice, fixed where `{:?}` is fixed and
+exponential where it is exponential. **That is not taste: the repo had
+already ruled on it in the other direction.**
+`crates/sweep/src/blend/mod.rs:276` records E3 review item 3, where one
+side printing `0.000000001` against a sibling's `1e-9` was the
+divergence that got fixed, **toward** `{:e}`. I checked the citation
+before accepting the widening. It also repairs a latent sibling:
+`num(1e300)` was 301 digits of refusal sentence. No pin moved, and the
+lane grepped for long-zero spellings to establish that rather than
+inferring it from a green run.
+
+**`debug-in-prose-at-blend-and-step-import` (PR 2367) — the live
+panic is closed.** Red-on-base proved in both directions against the
+real `reads_as_prose`, not a copy. The sentence was not invented:
+`prose_census.rs:2018` had already written down the target string for
+this exact site, and the lane took it. `EdgeKey`/`VertexKey` turn out
+to be **tuple**-shaped (`slotmap::new_key_type!`), so every sibling arm
+rendering `{edge:?}` directly is safe — this arm was the only live one
+in the file because it is the only one whose payload is an enum with
+struct variants.
+
+**`verb-error-arity-renders-verbkind-through-debug` (PR 2368), and the
+item was wrong about the defect.** It called `VerbKind` and `Arity`
+"both fieldless". `VerbKind` is not: it carries `Boolean(BooleanOp)`.
+So `{verb:?}` was writing **`Boolean(Subtract)`** into a user's
+sentence — the enum's internal coordinate, naming a `Boolean` door
+that does not exist in the kernel. Those three rows now say `Union` /
+`Intersect` / `Subtract`, which are the production doors. This was a
+wrong word reaching a user, not the style finding the row described.
+
+### The class nobody filed: rosters and pins that sample the safe case
+
+Two lanes found this independently today, in different crates, and it
+is worth more than either instance.
+
+- **PR 2367:** `recourse_tests::seeds()` sampled `Escalated` with
+  `BlendSite::Chain` — the **sole brace-free arm of three**. What
+  decides the rendering is the payload's variant, one level below the
+  variant the roster enumerates, so a roster that looked exhaustive
+  tested only the case that cannot fail. Both rosters in the fence had
+  it; both now seed all three sites.
+- **PR 2368:** `crates/verbs/tests/run_door.rs`'s byte pin covered six
+  sentences, every one a fieldless verb through a fieldless door —
+  **the one axis where `Display` and `Debug` agree exactly**. It could
+  not tell which trait had run. It grew a row that can.
+
+This is the reviewer brief's Q3 (*"a premise that excludes the failing
+mode"*) showing up twice in one wave, and in both cases the roster was
+*complete at its own level* and blind one level down. Neither would
+have been found by asking "is this tested" — only by asking "what
+input makes this row go red".
+
+**Standing instruction for this program's briefs, from here:** when a
+unit changes how a value is RENDERED, the lane owes an answer to *does
+any existing pin discriminate the old rendering from the new one* —
+and if the honest answer is no, the pin is part of the defect, not
+part of the baseline.
+
+### The characterisation drift, now at four of five
+
+Every unit in this wave but one had an item whose *shape* was right
+and whose *characterisation* was wrong, always making the defect
+sound narrower or more exotic than it was: the underflow residue's
+`num()` line, the collapsed-continuation site list, the validate row's
+A5 citation, and the verbkind row's "both fieldless". These rows are
+filed by competent lanes from real sweeps. The failure is not care;
+it is that a disposition line about a site you did **not** take is
+written from a reading, and nothing re-reads it before a lane builds
+on it.
+
+The two brief instructions that caught all four cost minutes each and
+are now standing for this program: **a row citing a clause gets "read
+the clause, not the row's summary"; a row citing a site list gets
+"re-derive it at your merge base".**

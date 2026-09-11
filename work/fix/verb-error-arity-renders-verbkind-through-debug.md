@@ -1,11 +1,12 @@
 ---
 id: verb-error-arity-renders-verbkind-through-debug
 kind: issue
-title: VerbError::Arity renders VerbKind and Arity through Debug at a user surface — the Display class in a seventh crate
-status: review
+title: VerbError::Arity renders VerbKind through Debug and names a Boolean door that does not exist
+status: closed
 opened: 2026-09-11
 branch: fix/verbkind-display
 pr: 2368
+closed: 2026-09-11
 ---
 
 
