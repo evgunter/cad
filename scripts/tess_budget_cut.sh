@@ -145,7 +145,7 @@ selftest() {
   local t u rc=0 out status
   t=$(mktemp -d)
   # A SECOND scratch root, deliberately a sibling of the first rather
-  # than a directory inside it: case (6) needs a tree with no repository
+  # than a directory inside it: case (7) needs a tree with no repository
   # anywhere above it, and one nested in the scratch repo has one.
   u=$(mktemp -d)
   trap 'rm -rf "$t" "$u"' RETURN
@@ -171,13 +171,28 @@ selftest() {
       rc=1
     fi
   }
+  # The same check where the expected text has to be a whole LINE of the
+  # output rather than any part of it. Every diagnostic `stamp` writes
+  # begins `tess_budget_cut: `, which CONTAINS `cut: `, so a substring
+  # test for the announcement is satisfied by every message the script
+  # can emit — including the two that say no cut was recorded. The rows
+  # that pin what the announcement SAYS take this form instead.
+  want_line() {  # want_line <label> <rc> <ERE matching a whole line>
+    if [ "$status" != "$2" ]; then
+      echo "SELFTEST FAILED: $1: exit $status, wanted $2 — $out" >&2
+      rc=1
+    elif ! printf '%s\n' "$out" | grep -Eq "$3"; then
+      echo "SELFTEST FAILED: $1: no output line matches '$3' — $out" >&2
+      rc=1
+    fi
+  }
 
   # (1) BEFORE THE FIRST COMMIT there is no HEAD to name, so the
   # documented skip has to actually happen: `rev-parse HEAD` fails here,
   # and the unguarded spelling exited 1 having said nothing.
   printf 'scene,face\n' > "$csv"
   run "$csv"
-  want "unborn HEAD" 0 "no cut recorded"
+  want "unborn HEAD" 0 "git named no commit"
   head -1 "$csv" | grep -q '^scene' ||
     { echo "SELFTEST FAILED: unborn HEAD: the file was stamped anyway" >&2; rc=1; }
 
@@ -186,7 +201,7 @@ selftest() {
   # compared against.
   git -C "$t" commit -q --allow-empty -m first
   run "$csv"
-  want "fresh sweep" 0 "cut: "
+  want_line "fresh sweep" 0 '^cut: [0-9a-f]{7,40}(-dirty)? [0-9]{4}-[0-9]{2}-[0-9]{2}'
   head -1 "$csv" | grep -Eq "$CUT_RE" ||
     { echo "SELFTEST FAILED: fresh sweep: no valid cut line written" >&2; rc=1; }
   if [ "${out#*-dirty}" != "$out" ]; then
@@ -214,7 +229,7 @@ selftest() {
   printf '# tess-budget-cut: nonsense\nscene,face\n' > "$csv"
   git -C "$t" commit -q -am malformed
   run "$csv"
-  want "malformed repaired" 0 "cut: "
+  want_line "malformed repaired" 0 '^cut: [0-9a-f]{7,40}(-dirty)? [0-9]{4}-[0-9]{2}-[0-9]{2}'
   head -1 "$csv" | grep -Eq "$CUT_RE" ||
     { echo "SELFTEST FAILED: malformed stamp not repaired: $(head -1 "$csv")" >&2; rc=1; }
 
@@ -228,18 +243,25 @@ selftest() {
   printf '# tess-budget-cut: 1a2b3c4 2026-08-30 extra\nscene,face\n' > "$csv"
   git -C "$t" commit -q -am trailing
   run "$csv"
-  want "third field repaired" 0 "cut: "
+  want_line "third field repaired" 0 '^cut: [0-9a-f]{7,40}(-dirty)? [0-9]{4}-[0-9]{2}-[0-9]{2}'
   head -1 "$csv" | grep -Eq "$CUT_RE" ||
     { echo "SELFTEST FAILED: third-field stamp not repaired: $(head -1 "$csv")" >&2; rc=1; }
 
-  # The validator's two ends, asserted directly, because (5) only shows
-  # what a whole run does with one of them. The reader splits on SPACES
-  # and nothing else, so a tail that admits a space admits a line it
-  # refuses (the case above), and a tail that refuses a non-space byte
-  # REFUSES a line it reads — the direction that re-stamps a file over
-  # its own cut, and the one an over-tightened anchor produces.
+  # (6) THE VALIDATOR'S TWO ENDS, asserted directly, because (5) shows
+  # only what a whole run does with one of them. `tess_lint::split_cut`
+  # splits the text after the prefix on SPACES and demands exactly two
+  # fields, so the boundary this regex has to land on is the space and
+  # not whitespace: a tail that admits a space admits a line the reader
+  # refuses (case (5)), and a tail that refuses a non-space byte refuses
+  # a line the reader READS — which is the direction that walks the
+  # record past its rows, since the already-stamped test then misses and
+  # the backfill arm re-stamps. Three lines, one per boundary.
   if printf '# tess-budget-cut: 1a2b3c4 2026-08-30 extra\n' | grep -Eq "$CUT_RE"; then
     echo "SELFTEST FAILED: CUT_RE admits a third field, which the lint refuses" >&2
+    rc=1
+  fi
+  if printf '# tess-budget-cut: 1a2b3c4 2026-08-30 \n' | grep -Eq "$CUT_RE"; then
+    echo "SELFTEST FAILED: CUT_RE admits an EMPTY third field, which the lint refuses" >&2
     rc=1
   fi
   if ! printf '# tess-budget-cut: 1a2b3c4 2026-08-30\textra\n' | grep -Eq "$CUT_RE"; then
@@ -247,25 +269,28 @@ selftest() {
     rc=1
   fi
 
-  # (6) OUTSIDE A GIT CHECKOUT the skip is documented, so it has to
+  # (7) OUTSIDE A GIT CHECKOUT the skip is documented, so it has to
   # happen rather than crash.
   mkdir -p "$u/scripts"
   cp "$root/scripts/tess_budget_cut.sh" "$u/scripts/"
   printf 'scene,face\n' > "$u/b.csv"
   status=0
   out=$("$u/scripts/tess_budget_cut.sh" "$u/b.csv" 2>&1) || status=$?
-  want "outside a checkout" 0 "no cut recorded"
+  want "outside a checkout" 0 "not a git checkout"
   head -1 "$u/b.csv" | grep -q '^scene' ||
     { echo "SELFTEST FAILED: outside a checkout: the file was stamped anyway" >&2; rc=1; }
 
   if [ "$rc" = 0 ]; then
-    echo "tess_budget_cut selftest OK: stamps a fresh sweep from HEAD and leaves the" \
-         "dirty marker off a clean tree; backfills a tracked file, and repairs an" \
-         "unreadable stamp — malformed, or well-formed with a third field the lint" \
-         "refuses — from the commit that wrote its ROWS; REFUSES to re-stamp" \
-         "a tracked, unmodified, already-stamped file and leaves it untouched, which" \
-         "is what stops the record drifting forward past its data; and says so rather" \
-         "than dying where there is no HEAD and where there is no repository"
+    echo "tess_budget_cut selftest OK, 7 cases: stamps a fresh sweep from HEAD and" \
+         "leaves the dirty marker off a clean tree; backfills a tracked file, and" \
+         "repairs an unreadable stamp — malformed, or well-formed with a third field" \
+         "the lint refuses — from the commit that wrote its ROWS, announcing each on" \
+         "a line of its own that carries the record; REFUSES to re-stamp a tracked," \
+         "unmodified, already-stamped file and leaves it untouched, which is what" \
+         "stops the record drifting forward past its data; holds CUT_RE to the" \
+         "reader's own splitting rule at three boundaries (a third field, an EMPTY" \
+         "third field, a non-space tail); and says which skip it took rather than" \
+         "dying where there is no HEAD and where there is no repository"
   fi
   return $rc
 }

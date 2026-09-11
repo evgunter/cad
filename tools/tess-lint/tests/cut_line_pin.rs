@@ -308,13 +308,16 @@ fn reads_as_cut(line: &str) -> bool {
 
 /// The count of executable spellings in the script today.
 ///
-/// Three of them are located by name below, so each drifts into its
-/// own failure; the fourth — the selftest's malformed fixture — is
-/// covered by the sweep alone, and a floor equal to the live count is
-/// what stops that one going missing unnoticed. It is a FLOOR and not
-/// an equality: a fifth executable spelling is swept like the others
-/// and does not need this number moved.
-const EXECUTABLE_SPELLINGS: usize = 4;
+/// Three of them are located by name below — the validator's anchor,
+/// the writer's `echo`, the re-stamp strip — so each drifts into its
+/// own failure. The other five are the selftest's fixtures, covered by
+/// the sweep alone, and a floor EQUAL TO THE LIVE COUNT is what stops
+/// one of those going missing unnoticed: a deleted selftest case takes
+/// its fixture with it, and a floor set below the live count absorbs
+/// the loss silently. So this number is raised whenever the script
+/// gains a spelling, and a `>=` is what makes a spelling ADDED without
+/// it a non-event rather than a failure.
+const EXECUTABLE_SPELLINGS: usize = 8;
 
 /// Every place the script EXECUTES the prefix spells it the way this
 /// crate does.
