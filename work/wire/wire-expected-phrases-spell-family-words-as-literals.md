@@ -2,8 +2,10 @@
 id: wire-expected-phrases-spell-family-words-as-literals
 kind: issue
 title: wire.rs's operand refusals spell family words as string literals in expected: beside the family consts kind_name and node_value_kind share
-status: open
+status: review
 opened: 2026-09-08
+pr: 2376
+branch: wire/family-consts
 ---
 
 

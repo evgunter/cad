@@ -96,3 +96,109 @@ Held for Ev, and why each is a fork rather than a sequencing call:
 identity that survives placement), and `product-gather-…`'s stated rule
 for a tie spanning one root's output bodies, where the recommendation is
 to carry the tie.
+
+## E1 landed green, review upgraded to full (2026-09-11)
+
+`placement-lifts-its-affine-by-hand-beside-affine3-map` → **PR 2375**,
+CI run 34622723038 **green on the full code tier** (twelve `test (…)`
+jobs, five `k-lint (gate, …)` rows, the python suite and all four render
+lanes; the five skips are change-filter opt-ins, nothing narrowed).
+
+**The item's suggested spelling does not compile**, which the lane found
+and the cut did not: `self.affine::<f64>().map(T::from_f64)` as the body
+of `affine` is unbounded recursion at `T = f64`, so the f64 value has to
+come from a non-generic door. The unit mints two private ones
+(`linear_f64`, `affine_f64`) and every public reader is one `map` off
+them. The class estimate **E** holds for the two functions the item
+named; the item's "one construction" did not.
+
+**Review posture raised from light to FULL for this unit**, under the
+rule Ev set at the opening (light except where a unit has a real risk of
+being wrong). The unit went past its item: `compose`'s general arm is now
+`Frame::from_affine(self.affine_f64() * inner.affine_f64())`, retiring a
+hand re-derivation of `Affine3`'s own `Mul`. That arm feeds ASM-4 D-3's
+split/inline bit-level volume identity, where being wrong is silent.
+
+The orchestrator's own check, handed to the reviewer as a claim to
+attack rather than as a premise: `Affine3::mul`
+(`crates/geom-core/src/linalg/affine.rs:169`) is
+`(a.linear * b.linear, a.linear * b.translation + a.translation)` —
+term for term and in the same order as the code it replaces — and
+`Frame::from_affine`'s `is_identity_bits()` snap is a strict no-op
+because `bit_eq` compares `to_bits`, so a product that reads as identity
+already IS `IDENTITY` bitwise and `±0.0` cannot conflate. Bit-exact, as
+far as reading goes; the reviewer is asked to find the input that breaks
+it.
+
+**Residue placed** (implementer-discipline §6 — the lane reports, the
+orchestrator files): `work/props/geom-core-linalg-has-no-array-doors.md`.
+`crates/geom-core/src/linalg/` has no `[f64;3] ↔ Vec3<f64>` and no
+`[[f64;3];3] ↔ Mat3<f64>` conversion in either direction, which is the
+reason `placement.rs`'s two remaining lowerings and `mate.rs:141-143`
+cannot collapse. Filed on PROPS: `crates/geom-core/src/*` is its glob and
+its `keep_out` already names a linalg lane. The `mate.rs` consumer is
+NAMED there rather than filed as its own row — `mate.rs` is claimed by
+both DOCM and MSOLVE, and a finding on contested ground is not one to
+hand over by diff.
+
+## E2 landed green, and it re-counted the item (2026-09-11)
+
+`wire-expected-phrases-spell-family-words-as-literals` → **PR 2376**,
+CI run 34622801050 **green on the full code tier** (twelve `test (…)`,
+five `k-lint (gate, …)`, the python suite; the five skips are
+change-filter opt-ins, correct for a diff confined to `eval/`).
+
+**The item's counts were wrong in both directions and the lane fixed the
+row**, which is the correction `plan.md`'s class paragraph invites.
+Seven bare family words in `expected:`, not nine — and the item's own
+parenthetical enumerated eight for a claimed nine, so it was internally
+inconsistent before the tree moved; the missing "profile" is
+`"profile node"` at `:4191`, a composed phrase on the other list. Eight
+composed SITES (six distinct strings), not seven — three `"datum frame"`
+sites were counted as one. Fifteen literal sites against the item's
+sixteen. `plan.md`'s slate row is corrected.
+
+**No composer, argued three ways** and I accept the argument: the
+composed phrases are not family words (`"datum frame"` names a variant
+*within* a family, and the `found:` beside it answers `kind_name()` =
+`"datum"` on purpose, so a `family::DATUM_FRAME` const would spell
+`"datum"` a second time one level up); `concat!` takes literals not
+consts and the tree carries no compile-time string concatenation; and
+the sync-guard test the lane drafted for `"body or instances"` was
+**deleted on the discipline's own rule** — both sides are fixed at
+compile time, so it is documentation, and `eval6_placers_over_instances`
+already reads that string off a live refusal, which is the receipt that
+can go red.
+
+Refusal text is **byte-identical at all seven sites**, so nothing
+re-baselined. The lane ran the suite anyway rather than resting on a
+build: `cargo test -p editor-core --test all`, 1201 passed, including
+the five suites that assert over these strings.
+
+**Two residues filed on this program's slate**, both found by the sweep:
+
+- `interrogate-writes-the-family-vocabulary-a-third-time` —
+  `names/interrogate.rs:438-446` spells six family words itself, a third
+  copy of `kind_name`'s match in a file that never sees `eval::family`.
+  The lane calls it the largest remaining instance of the class and it
+  is: EVAL-11 gave the vocabulary a home, PR 2376 wired `wire.rs`, and
+  this is the reader neither pass could see. **The file is in no open
+  program's `paths`** — checked against every `program.md` — so WIRE
+  takes it on the vocabulary rather than the file, and the taker draws
+  the fence in its PR, TOPO's stated convention for unowned `src` files.
+- `wire-refusals-answer-found-with-a-negation-of-expected` —
+  `eval/wire.rs:978` and `:4191` answer `found:` with the negation of
+  `expected:` ("carries kind not a datum frame"), where
+  `node_value_kind` would name the family the input actually carries.
+  Inside WIRE's fence, its own unit because it moves user-visible text.
+
+**Not filed, deliberately.** `verbs/split.rs:42` quotes the
+`expected: "profile"` spelling PR 2376 replaces — one stale word, in an
+unowned file, caused by this PR, so it rides 2376's own fix pass rather
+than minting a row. And the composed phrases at `mate/member.rs:716` and
+`verbs/split.rs:157` take PR 2376's prose disposition; they are recorded
+on the `found:`/`expected:` item so the sweep is not re-run.
+
+Review dispatched **light**, per the opening posture: byte-identical
+text, seven one-word substitutions, and the argument this unit actually
+turns on is a documented refusal to build machinery.
