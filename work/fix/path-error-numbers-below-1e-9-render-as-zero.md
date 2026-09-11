@@ -5,6 +5,7 @@ title: every PathError number below ~2e-9 renders as 0 (and a negative one as -0
 status: review
 opened: 2026-09-11
 branch: fix/num-absolute-floor
+pr: 2366
 ---
 
 
