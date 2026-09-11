@@ -7,6 +7,7 @@ opened: 2026-09-04
 refs: [no-parametric-loop-constructor, 948]
 branch: fix/circle-parametric-door
 closed: 2026-09-11
+pr: 2374
 ---
 
 
