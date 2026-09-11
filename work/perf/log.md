@@ -408,3 +408,15 @@ filed (`naming-a-boolean-chain-is-theta-names-per-step`). Final: `die`
 on main; the block record and the three A/B rows go to
 `docs/MODEL-AB-LOG.md` on their own branch off main now that no
 unstarted slot remains to leak.
+
+## Ev's teapot PR rides PERF-6 (2026-09-11)
+
+Ev (in-chat): merge PR 2306 — the teapot's spout goes back to circles
+and exhibits the `VolumeUncomputable` refusal at ε = 1e-12 instead of
+dodging it with octagons — once the fix it requires lands. That fix is
+PERF-6 (the sign-certified volume door). At PERF-6's merge: a lane
+merges main into `demos/teapot-round-spout` (PERF-1 re-cut the same
+tess-budget baseline, so the CSV is re-cut on the merged tree with the
+sweep, never merged by hand), undrafts, confirms the ε sweep green at
+1e-12, and the orchestrator merges. If the sweep stays red after
+PERF-6, that is a PERF-6 gap to report, not a demo to bend.
