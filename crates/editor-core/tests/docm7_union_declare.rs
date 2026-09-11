@@ -104,7 +104,7 @@ fn member_entity(
         node: union,
         path: vec![RoleSeg::FromMember {
             member,
-            of: Box::new(of),
+            of: of.into(),
         }],
     }
 }
@@ -898,7 +898,7 @@ fn a_fold_row_routed_before_the_step_that_mints_it_has_no_step() {
         path: vec![
             RoleSeg::FromMember {
                 member: a,
-                of: Box::new(fname(a, wall(0))),
+                of: fname(a, wall(0)).into(),
             },
             RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
         ],

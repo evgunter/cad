@@ -4400,11 +4400,12 @@ mod route_tests {
             node: union,
             path: vec![RoleSeg::FromMember {
                 member,
-                of: Box::new(StableName {
+                of: StableName {
                     kind: EntityKind::Face,
                     node: member,
                     path: vec![RoleSeg::Cap(CapEnd::Start)],
-                }),
+                }
+                .into(),
             }],
         }
     }
@@ -4634,11 +4635,12 @@ mod route_tests {
             path: vec![
                 RoleSeg::FromMember {
                     member: m0,
-                    of: Box::new(StableName {
+                    of: StableName {
                         kind: EntityKind::Face,
                         node: m0,
                         path: vec![RoleSeg::Cap(CapEnd::Start)],
-                    }),
+                    }
+                    .into(),
                 },
                 RoleSeg::Fragment(crate::names::Qualifier::OrderAlong { rank: 0, of: 2 }),
             ],
