@@ -5,6 +5,7 @@ title: the Python checks door returns a separation refusal as prose only — no 
 status: review
 opened: 2026-09-04
 branch: fix/boolean-kind-python-door
+pr: 2350
 ---
 
 
