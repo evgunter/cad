@@ -1658,6 +1658,10 @@ _USE_SIBLING_RE = re.compile(
     re.M,
 )
 _IDENT_HEAD_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)")
+# An attribute or a doc line, which may sit BETWEEN a `#[path]` and the `mod`
+# it decorates — `crates/mesh/src/lib.rs` writes `#[allow(...)]` there — and
+# must not break the pair for a reader looking for one.
+_ATTRIBUTE_LINE_RE = re.compile(r"^\s*(?:#!?\[|///|//!)")
 _BINARY_ID_RE = re.compile(r"^[A-Za-z0-9_-]+(?:::[A-Za-z0-9_-]+)?$")
 
 # A diff touching one of these empties the whole filter: they are the inputs
@@ -1790,6 +1794,63 @@ def _all_rs_modules(root: str, crate_dir: str) -> dict[str, str]:
             out[pending] = mod.group(1)
         if line.strip():
             pending = None
+    return out
+
+
+def _src_path_mounts(root: str) -> dict[str, str]:
+    """Mounted file -> `"<mounting file>:<line>"`, over `crates/*/src`.
+
+    `_suite_term`'s `src/` arm assumes THE MODULE PATH IS THE FILE PATH, and
+    that is false for a `#[cfg(test)]` module mounted from a sibling with
+    `#[path]`: `crates/topo/src/boolean/r1_probes.rs` is
+    `boolean::solid_contain::r1_probes::`, not `boolean::r1_probes::`. A term
+    built from the file path would match no test at all — and a term matching
+    nothing EXCLUDES nothing, so the suite runs on every pull request while
+    reading, in the file, as a gate. It is also the one direction
+    `--gated-set` cannot catch: the nightly runs what it derives, so such a
+    term quietly SHRINKS the re-take instead of reddening it, and the tree
+    reports two green gates over a suite that is neither gated nor re-taken.
+
+    So a marker on a mounted file is refused, by name, here. Resolving the
+    mount instead was weighed and is the larger fix: a mount can nest, and the
+    module path depends on where the mounting `mod` sits in its own file's
+    module tree, so a reader that resolves one level and stops derives a wrong
+    prefix and goes back to selecting nothing — this defect one level deeper.
+    Refusing is exact; deriving would have to be right.
+
+    INTERVENING ATTRIBUTES ARE THE LIVE SHAPE, not a hypothetical:
+    `crates/mesh/src/lib.rs` writes `#[cfg(test)]`, `#[path = "..."]`,
+    `#[allow(...)]`, then `mod`. A reader that required the two to be adjacent
+    would miss it and report a clean tree.
+    """
+    out: dict[str, str] = {}
+    crates = os.path.join(root, "crates")
+    for crate_dir in sorted(os.listdir(crates)):
+        base = os.path.join(crates, crate_dir, "src")
+        for dirpath, dirs, names in os.walk(base):
+            dirs.sort()
+            for name in sorted(names):
+                if not name.endswith(".rs"):
+                    continue
+                full = os.path.join(dirpath, name)
+                here = os.path.relpath(full, root).replace(os.sep, "/")
+                with open(full, encoding="utf-8", errors="replace") as fh:
+                    lines = _gated_code_only(fh.read()).splitlines()
+                pending: tuple[str, int] | None = None
+                for lineno, line in enumerate(lines, 1):
+                    found = _ALL_RS_PATH_RE.search(line)
+                    if found:
+                        pending = (found.group(1), lineno)
+                        continue
+                    if pending is not None and _ATTRIBUTE_LINE_RE.match(line):
+                        continue
+                    mod = _ALL_RS_MOD_RE.match(line)
+                    if mod and pending is not None:
+                        target = os.path.normpath(os.path.join(dirpath, pending[0]))
+                        rel = os.path.relpath(target, root).replace(os.sep, "/")
+                        out.setdefault(rel, f"{here}:{pending[1]}")
+                    if line.strip():
+                        pending = None
     return out
 
 
@@ -2204,6 +2265,7 @@ def gated_check(root: str) -> int:
                     "one that does"
                 )
 
+    mounts = _src_path_mounts(root)
     suites = _scan_gated(root, dir_of)
     for suite in suites:
         if suite.problem is not None:
@@ -2219,6 +2281,18 @@ def gated_check(root: str) -> int:
                 "The term it derives selects nothing, so the marker gates nothing and "
                 "says otherwise"
             )
+        # A MARKER ON A `#[path]`-MOUNTED FILE. Its term is derived from the
+        # file path and the compiler's module path is the MOUNTING module's,
+        # so the term selects nothing — the suite runs on every run while
+        # reading as gated, and drops out of the nightly re-take silently.
+        if suite.path in mounts:
+            problems.append(
+                f"{suite.path}: carries a marker and is `#[path]`-mounted from "
+                f"{mounts[suite.path]}, so its module path is the MOUNTING module's "
+                "and the term derived from this file's path selects no test. Move the "
+                "gated rows to a file whose path matches its module path, and mark that"
+            )
+
         # A HELPER THE SUITE IMPORTS AND THE MARKER DOES NOT NAME. Everything
         # above asks whether what the marker SAYS resolves; this asks the
         # converse — whether what the suite DEPENDS ON is said — for the one
