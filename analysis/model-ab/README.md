@@ -120,6 +120,24 @@ ways that the dispatch table does not:
 `keys/` is withheld from the coder and committed anyway: the drawn byte is the
 record of the randomization, like a dispatch draw.
 
+**The orchestrators' own verdicts are left in the material, as data** (Ev,
+in-chat 2026-09-11). 93% of the selected rows declare a tally line and 69% label
+a finding TALLY CANDIDATE, so the coder is reading the record of what was
+concluded at merge — which is itself part of what the readout examines, the log's
+running tally being stated inconsistently by four rows and then abandoned. The
+brief tells the coder to audit those claims against the finding descriptions
+rather than inherit them.
+
+Stripping them was measured and rejected. A sentence-level strip removes 20% of
+the prose, but in 77 of 150 pairs a removed sentence carries the finding itself —
+`CERTM2`'s defect is described inside the clause "**MAJOR, UNILATERAL, EXECUTED —
+a v6 tally candidate**: ...". A token-level strip is cheap (3.3% of characters)
+but does not reach the real limit: the row is the orchestrator's SUMMARY, not the
+two reports, so in 43% of pairs the correspondence claim is the only statement of
+how the two reviews line up. Independent correspondence coding would need the
+review reports themselves — the PR threads the rows summarize — which is a
+different material source, not a filter over this one.
+
 **The review instrument is not the protocol version.** Protocol v5 widened the
 review SCOPE (the brief and rubric); protocol v6 is the dual-review DESIGN, and
 its item 1 keeps "the v5 instrument ... unchanged". A row reading "v5 instrument"

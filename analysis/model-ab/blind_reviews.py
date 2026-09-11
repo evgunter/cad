@@ -335,6 +335,17 @@ value; (e) FAIR PAIR — a pair where either review was interrupted or truncated
 is excluded from the tally though still recorded, and unrecoverable counts are
 missing data, never zeros.
 
+**The rows carry the orchestrators' own verdicts, and they are DATA, not your
+coding.** Most cells declare a tally line ("v6 tally after this pair: +1
+candidate"), and many label a finding TALLY CANDIDATE, UNILATERAL, bilateral or
+CONVERGED. These are deliberately left in: they are the record of what the
+orchestrator concluded at merge, and the readout's subject is partly whether
+that record holds up. Read them as claims to audit against the finding
+descriptions beside them, never as an answer to inherit — the log's own running
+tally is stated inconsistently by four different rows and then abandoned, which
+is why this pass exists. Where your coding departs from a row's declared verdict,
+code what you find and say so in the evidence column.
+
 Write findings into the blank forms beside this file. `raiser` takes `A` or `B`,
 never a slot or a model.
 
