@@ -9325,4 +9325,16 @@ targets by hand. That is ground `cfg-test-bare-spans-have-no-stated-
 disposition` and `comment-symbol-names-outside-rustdocs-reach-have-no-
 gate` already own.
 
-**VIEW stands at 73 open / 80 closed, nothing waiting on Ev.**
+**VIEW stands at 71 open / 80 closed, nothing waiting on Ev.**
+
+**A count correction inside the entry about count corrections.** I
+first wrote *73 open* here from arithmetic in my head — previous total,
+minus the row closed, plus the two residues filed. `work.py status`
+said 71. I then miscounted the files by hand and got 72, decided the
+tool and its own item table disagreed, and started reading `work.py`
+for the bug. **There was no bug.** My shell loop globbed
+`work/view/*.md` and `program.md` carries a `status: open` of its own —
+the program's status, not an item's. The tool was right at every step
+and both of my counts were wrong, in two different ways, in the space
+of five minutes. `work.py status` is the count of record; a number
+reached any other way is a guess wearing a number's clothes.
