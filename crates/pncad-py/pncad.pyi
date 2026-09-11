@@ -5499,9 +5499,11 @@ class CheckEvidence:
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,
     which is a fact about the CERTIFICATE and never a claim that the
-    two overlap. `separation_unavailable` (`reason`) — the machinery
-    could not be built over the product, so there is no verdict for any
-    pair."""
+    two overlap. `separation_unavailable` (`reason`,
+    `boolean_variant`) — the machinery could not be built over the
+    product, so there is no verdict for any pair, and
+    `boolean_variant` is which kernel boolean refusal that was, in the
+    vocabulary `EvaluationError.inner_kind` publishes."""
 
     @property
     def variant(self) -> str: ...
@@ -5517,6 +5519,8 @@ class CheckEvidence:
     def reason(self) -> Optional[str]: ...
     @property
     def inner_variant(self) -> Optional[str]: ...
+    @property
+    def boolean_variant(self) -> Optional[str]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class CheckFinding:
