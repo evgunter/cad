@@ -32,6 +32,14 @@ interval = [
     "sweep/interval",
     "topo/interval",
 ]
+# Forwards `topo`'s per-operator postcondition scalpel so a consumer of
+# the façade — the demos, the GUI, a Python caller through `pncad-py` —
+# can localize a door-level tier-1 failure to the operator that caused
+# it without depending on `topo` directly. D1's whole-body sweep runs
+# once per public door; with this on it runs after every operator
+# again, and the panic names the op. Opt-in, never default-on, and it
+# changes no result.
+per-op-postcondition = ["topo/per-op-postcondition"]
 # Forwards `mesh`'s tessellation-budget meter (issue #320) so
 # demos/tour can drive its `tess-budget` sweep. Only `mesh` has the
 # feature — it is per-face telemetry, not a scalar — so this row has
