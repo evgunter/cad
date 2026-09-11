@@ -31,7 +31,7 @@ This program claims **no paths**. `crates/geom-core/src/*` and
 them; `interval-transcendentals/` is in no program's `paths` at all.
 Every unit is announced to PROPS, and a row reaching unowned ground
 draws that fence in the PR that reaches it — the `geom-brep` seam rule
-from `work/code-quality/plan.md`, which this program inherits rather than
+from `docs/CODE-QUALITY-CONVENTIONS.md`, which this program inherits rather than
 restates.
 
 ## The slate

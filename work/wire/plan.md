@@ -73,7 +73,7 @@ grep and a citation.
 Then the lift pair in one sequence — `profile-has-no-scalar-lift-door`
 mints the door, `profile-embed-lift-has-two-homes-anchor-and-loft`
 retires the second home against it — because staffing them apart mints
-the door twice, which is exactly the trap `plan.md`'s ordering rule 5
+the door twice, which is exactly the trap `docs/CODE-QUALITY-CONVENTIONS.md`'s ordering rule 5
 names.
 
 `frame-f64-placement-…` and `D364` follow. `S195` and `S40` are the H

@@ -4,7 +4,7 @@ kind: issue
 title: crates/profile/ carries no map_scalar, so loft's end_profile hand-spells the ProfileLoop lift three rungs deep
 status: open
 opened: 2026-09-04
-refs: [D320, D321, 1782]
+refs: [1782]
 ---
 
 ## Finding
@@ -54,3 +54,9 @@ made by reading the row against the tree on 2026-09-11, not a verdict on
 the finding, and a lane that finds it wrong says so in its PR. The id,
 the `track:` letter where the row carries one, and the body above are
 unchanged by the move.
+
+## Refs at code-quality's sweep (2026-09-11)
+
+`work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
+and its closed rows went with it. `D320` and `D321` are now cited by the
+PR that closed both, 1782 — one entry, not two.

@@ -4,7 +4,7 @@ kind: unit
 title: Delete the CI-Config commit-trailer configuration path
 status: closed
 opened: 2026-09-04
-refs: [reinstate-full-configuration-runs, klint-row-still-sampled, fillet-specs-require-a-narrowing-ci-config, 1850, 1855, 1823]
+refs: [reinstate-full-configuration-runs, klint-row-still-sampled, 1850, 1855, 1823]
 branch: ciw/delete-config-trailer
 closed: 2026-09-06
 pr: 1868
@@ -79,3 +79,12 @@ parser — and `CONFIG_SOURCE`'s vocabulary is `unsampled` or `requested`.
 `parse_config` and the `workflow_dispatch` inputs stay, which is the live way
 to narrow a run deliberately; no row's default changed. The announced
 cross-fence edit to `scripts/ci-filter.py` is S-TCOST's to own.
+
+## Refs at code-quality's sweep (2026-09-11)
+
+`work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
+and its closed rows went with it.
+`fillet-specs-require-a-narrowing-ci-config` was closed BY this unit —
+its §Closed said so in as many words — so the reference is dropped
+rather than re-aimed: this row is the record the dead one pointed at,
+and 1823 in `refs:` already names the PR.
