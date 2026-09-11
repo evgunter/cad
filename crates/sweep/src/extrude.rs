@@ -457,8 +457,11 @@ struct LoopBase {
 /// is classified against the plane normal per the crate docs' direction
 /// conventions. On success the returned body is closed and passes
 /// tiers 1–2 (`topo::validate`, `validate_closed`) by construction —
-/// tier 1 debug-asserted after every operator, tier 2 on the finished
-/// body — and passes tier 3 (`validate_geometric`) except in the two
+/// the door runs its operators under one surgery scope
+/// (`topo::surgery`), so tier 1 is not re-derived per operator and the
+/// tier-2 debug assertion on the finished body, which subsumes it, is
+/// what this door pays — and passes tier 3 (`validate_geometric`)
+/// except in the two
 /// cases [`Extruded::body`] names. The caller re-validates at rest per
 /// the workspace convention.
 ///
@@ -529,7 +532,12 @@ pub fn extrude<T: Decide>(
     let outer = &loops[0];
     let qs = &points[0];
     let n = outer.len();
-    let mut body = Body::<T>::new();
+    // Under one surgery scope for the whole build: D1's tier-1
+    // postcondition is this door's, paid once over the finished body,
+    // not once per operator inside it (`topo::surgery`). The tier-2
+    // check below is what the door pays, and it subsumes tier 1.
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qs[0])?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
@@ -714,15 +722,16 @@ pub fn extrude<T: Decide>(
         }
     }
 
+    body.close_already_checked();
     #[cfg(debug_assertions)]
     debug_assert_eq!(
-        topo::validate_closed(&body),
+        topo::validate_closed(&built),
         Ok(()),
         "extrude postcondition: result is not tier-2 valid (kernel bug)",
     );
 
     Ok(Extruded {
-        body,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,
