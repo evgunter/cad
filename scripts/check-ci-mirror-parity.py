@@ -195,6 +195,7 @@ claims 7 and 8 — only job-level `if:` is read.
 from __future__ import annotations
 
 import importlib.util
+import itertools
 import os
 import re
 import shlex
@@ -1968,7 +1969,7 @@ def work_dirs(where: str, lines: list[str]) -> set[str]:
         if not CD_RE.search(line):
             continue
         hits = list(CD_RE.finditer(line))
-        for first, second in zip(hits, hits[1:]):
+        for first, second in itertools.pairwise(hits):
             if ")" not in line[first.end():second.start()]:
                 raise Bail(f"{where}: two directory changes on one command line with no subshell "
                            f"boundary between them: {line.strip()[:120]!r}. The second may be "
