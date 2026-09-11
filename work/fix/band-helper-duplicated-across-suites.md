@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-04
 refs: [band-derivation-has-a-scalar-twin]
 branch: fix/sweep-band-helper
+pr: 2377
 ---
 
 
