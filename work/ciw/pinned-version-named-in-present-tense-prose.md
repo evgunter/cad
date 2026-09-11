@@ -2,9 +2,11 @@
 id: pinned-version-named-in-present-tense-prose
 kind: issue
 title: prose across both halves asserts what is pinned NOW by restating the value, and goes false on a bump
-status: open
+status: review
 opened: 2026-09-06
 refs: [local-half-restates-ci-pins-as-literals]
+branch: ciw/pin-residue
+pr: 2327
 ---
 
 Turned up by the whole-tree arm of the pin sweep in PR 2070 and deliberately

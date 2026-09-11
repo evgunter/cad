@@ -263,6 +263,77 @@ impl core::fmt::Display for ProductError {
 
 impl core::error::Error for ProductError {}
 
+/// Which arm of [`ProductError`] refused, without the payload.
+///
+/// A [`ProductError`] is neither `Clone` nor `PartialEq` — it carries
+/// validity-finding lists and the kernel's own boolean refusal — so a
+/// consumer that must record, compare or hash the refusal has had only
+/// the rendered prose to substring-match. This projection drops exactly
+/// the part that cannot be cloned or compared, so the class rides where
+/// the error itself cannot: into a `Clone + PartialEq` refusal record,
+/// a hash key, a test assertion.
+///
+/// One variant per [`ProductError`] arm, and [`ProductError::kind`]
+/// matches exhaustively — an arm added to the error reds `kind` itself,
+/// here in this crate.
+///
+/// A variant HERE with no arm behind it is a phantom: nothing
+/// constructs it, so no test can reach it. This module's tests
+/// therefore carry the visit that reds one — an exhaustive match over
+/// this enum, which names the phantom at compile time. The fix at that
+/// red is to delete the phantom, never to give it a label: a name
+/// minted for a phantom publishes a class no refusal can ever carry.
+///
+/// Deliberately NOT `Ord`. The declaration order mirrors
+/// [`ProductError`]'s for reading, and nothing depends on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProductErrorKind {
+    /// [`ProductError::EvaluationOfAnotherDocument`].
+    EvaluationOfAnotherDocument,
+    /// [`ProductError::UnknownNode`].
+    UnknownNode,
+    /// [`ProductError::Naming`].
+    Naming,
+    /// [`ProductError::RootFailed`].
+    RootFailed,
+    /// [`ProductError::RootPoisoned`].
+    RootPoisoned,
+    /// [`ProductError::NoBodyRoots`].
+    NoBodyRoots,
+    /// [`ProductError::Graft`].
+    Graft,
+    /// [`ProductError::SolidInvalid`].
+    SolidInvalid,
+    /// [`ProductError::ProductInvalid`].
+    ProductInvalid,
+    /// [`ProductError::ContactLineage`].
+    ContactLineage,
+}
+
+impl ProductError {
+    /// Which arm refused, without the payload.
+    ///
+    /// Exhaustive over [`ProductError`]: adding an arm there is a
+    /// compile error here and in every consumer that maps this enum.
+    #[must_use]
+    pub fn kind(&self) -> ProductErrorKind {
+        match self {
+            Self::EvaluationOfAnotherDocument { .. } => {
+                ProductErrorKind::EvaluationOfAnotherDocument
+            }
+            Self::UnknownNode { .. } => ProductErrorKind::UnknownNode,
+            Self::Naming { .. } => ProductErrorKind::Naming,
+            Self::RootFailed { .. } => ProductErrorKind::RootFailed,
+            Self::RootPoisoned { .. } => ProductErrorKind::RootPoisoned,
+            Self::NoBodyRoots => ProductErrorKind::NoBodyRoots,
+            Self::Graft { .. } => ProductErrorKind::Graft,
+            Self::SolidInvalid { .. } => ProductErrorKind::SolidInvalid,
+            Self::ProductInvalid { .. } => ProductErrorKind::ProductInvalid,
+            Self::ContactLineage { .. } => ProductErrorKind::ContactLineage,
+        }
+    }
+}
+
 /// The body-denoting sources one root contributes, in gather order,
 /// each tagged with the OUTPUT-BODY INDEX it occupies in the root's own
 /// value (module docs). That index is what a root's name table keys its
@@ -816,4 +887,115 @@ fn carry_names(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{ProductError, ProductErrorKind};
+    use crate::names::{EntityKind, StableName};
+    use crate::node::RecipeNodeId;
+
+    /// One error per [`ProductError`] arm — a CENSUS, not a sample:
+    /// every payload this error carries is constructible from here
+    /// (keys, ids, `&'static str`, empty finding lists, and one unit
+    /// arm of the kernel's own refusal), so no arm is left unbuilt.
+    fn every_arm() -> Vec<ProductError> {
+        let node = RecipeNodeId(3);
+        vec![
+            ProductError::EvaluationOfAnotherDocument {
+                expected: crate::ident::DocumentId::derive("expected"),
+                found: crate::ident::DocumentId::derive("found"),
+            },
+            ProductError::UnknownNode { node },
+            ProductError::Naming {
+                node,
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(1),
+                    path: Vec::new(),
+                }),
+            },
+            ProductError::RootFailed { node },
+            ProductError::RootPoisoned {
+                node,
+                through: RecipeNodeId(1),
+            },
+            ProductError::NoBodyRoots,
+            ProductError::Graft {
+                node,
+                source: Box::new(topo::BooleanError::UnrepresentableResult),
+            },
+            ProductError::SolidInvalid {
+                node,
+                errors: Vec::new(),
+            },
+            ProductError::ProductInvalid { errors: Vec::new() },
+            ProductError::ContactLineage { node, what: "face" },
+        ]
+    }
+
+    /// **The phantom direction, closed by the compiler; the pairing
+    /// direction, closed by construction.**
+    ///
+    /// [`ProductError::kind`] is exhaustive over the ERROR, so an arm
+    /// added there reds this crate. `label` below is exhaustive over
+    /// the KIND, so a variant added to [`ProductErrorKind`] alone reds
+    /// HERE, by name, in the crate that owns both — rather than in
+    /// whatever downstream crate next maps the enum.
+    ///
+    /// Neither exhaustiveness objects to an arm PROJECTED to the wrong
+    /// kind, which type-checks. That is what the errors below are for:
+    /// each is built, projected, and its kind's name compared with the
+    /// variant name `Debug` prints for the error itself, so a
+    /// mis-projected arm and a mis-labelled arm both fail here with no
+    /// expected value written down twice.
+    ///
+    /// The census is complete as measured: every arm of
+    /// [`ProductError`] is built here, so no arm's projection is
+    /// unchecked today. What no guard closes is an arm added to the
+    /// error LATER, projected onto an existing kind and left out of
+    /// [`every_arm`] — neither exhaustiveness reds on that, and this
+    /// row accuses no author of anything it has not measured. The
+    /// distinctness assertion below is what makes the collision half
+    /// of it visible whenever the new arm IS built here.
+    #[test]
+    fn each_kind_has_an_arm_and_each_built_arm_projects_to_its_own_kind() {
+        fn label(kind: ProductErrorKind) -> &'static str {
+            match kind {
+                ProductErrorKind::EvaluationOfAnotherDocument => "EvaluationOfAnotherDocument",
+                ProductErrorKind::UnknownNode => "UnknownNode",
+                ProductErrorKind::Naming => "Naming",
+                ProductErrorKind::RootFailed => "RootFailed",
+                ProductErrorKind::RootPoisoned => "RootPoisoned",
+                ProductErrorKind::NoBodyRoots => "NoBodyRoots",
+                ProductErrorKind::Graft => "Graft",
+                ProductErrorKind::SolidInvalid => "SolidInvalid",
+                ProductErrorKind::ProductInvalid => "ProductInvalid",
+                ProductErrorKind::ContactLineage => "ContactLineage",
+            }
+        }
+        /// The variant name `Debug` opens with.
+        fn variant_of(err: &ProductError) -> String {
+            format!("{err:?}")
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect()
+        }
+        let built = every_arm();
+        let mut seen: Vec<ProductErrorKind> = Vec::new();
+        for err in &built {
+            assert_eq!(
+                label(err.kind()),
+                variant_of(err),
+                "kind() projects each arm to its own kind, and label names it"
+            );
+            assert!(
+                !seen.contains(&err.kind()),
+                "two arms project to {:?}",
+                err.kind()
+            );
+            seen.push(err.kind());
+        }
+    }
 }

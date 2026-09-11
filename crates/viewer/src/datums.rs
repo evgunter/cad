@@ -198,7 +198,7 @@ pub fn grid_pitch(metres_per_pixel: f64) -> f64 {
 /// to zero.
 const PATCH_COVER: f64 = 2.2;
 
-/// **What one grid cell aims to span on screen**/// **What one grid cell aims to span on screen**, in pixels.
+/// **What one grid cell aims to span on screen**, in pixels.
 ///
 /// The pitch ladder picks the rung nearest this. A judgement, and the
 /// range around it is what the ladder's steps are worth: at a 1-2-5
@@ -270,7 +270,7 @@ const FRAME_Y_ARM_FRACTION: f64 = 0.62;
 /// mark.
 const POINT_ARM_PX: f64 = 14.0;
 
-/// Which kind of datum a drawing came from/// Which kind of datum a drawing came from — carried so a consumer can
+/// Which kind of datum a drawing came from — carried so a consumer can
 /// say what it is pointing at without re-reading the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatumKind {

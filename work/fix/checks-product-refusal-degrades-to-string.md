@@ -2,8 +2,10 @@
 id: checks-product-refusal-degrades-to-string
 kind: issue
 title: ChecksError::Product carries product::ProductError as reason: String — the same degradation one door over
-status: open
+status: review
 opened: 2026-09-04
+branch: fix/product-error-kind
+pr: 2344
 ---
 
 
@@ -28,3 +30,29 @@ half is one field and one call site once the kind exists.
 Note the asymmetry the door now has: the SeparationUnavailable arm
 carries its class and the Product arm does not, so a consumer that
 learned to match on one still substring-matches the other.
+
+## What landed
+
+`editor_core::ProductErrorKind` — ten fieldless variants, one per
+`ProductError` arm — plus `ProductError::kind()`, an exhaustive
+projection, both in `crates/editor-core/src/product.rs` and re-exported
+from `editor-core`'s root and `pncad::document`.
+
+`Subject::Unavailable` carries `kind: Option<ProductErrorKind>` beside
+its `reason`, and `ChecksError::Product` carries the same pair.
+Neither is written at a raise site: `Subject::refused(&ProductError)`
+pairs the class and the sentence off ONE error, and
+`ChecksError::product_unavailable` forwards that one pair to the door.
+`None` is the honest answer for the one absence that is not a refusal —
+a run no enabled resident asked a subject for.
+
+Two guard rows. `product.rs`'s
+`each_kind_has_an_arm_and_each_built_arm_projects_to_its_own_kind`
+carries an exhaustive match over `ProductErrorKind` — a phantom variant
+fails to COMPILE, by name, at `error[E0004]`, in the crate that owns
+both enums — plus all ten arms built, projected, and compared against
+the variant name `Debug` prints for the error itself. `checks.rs`'s
+`the_subject_door_carries_the_class_of_the_gather_refusal_it_saw` pins
+both constructors, and
+`a_subject_no_resident_asked_for_carries_no_refusal_class` pins the
+`None`.

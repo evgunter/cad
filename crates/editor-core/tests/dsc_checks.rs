@@ -284,12 +284,17 @@ fn stale_expectation_on_a_nonexistent_root() {
 
 /// The escalation row (the review's P9 fixture, promoted): a slab
 /// whose `V/A` sits INSIDE the ambiguity band — built relative to the
-/// run's ε so the row holds at every ε row. `V/A ≈ dz/2 = 5ε` for a
-/// unit-square slab of thickness `10ε` (band `(ε, Kε)`, K = 10).
+/// run's ε AND its K, so the row holds at every matrix point and at
+/// every `CAD_AMBIGUITY_K`. For a unit-square slab of thickness
+/// `(1 + K)·ε`, `V/A ≈ dz/2 = ((1 + K)/2)·ε`, which is strictly inside
+/// `(ε, K·ε)` for every K > 1 — the only K the tolerance accepts.
+/// Pinned at `10ε` the row was a claim about K = 10: at any K below 3
+/// the same slab is DEFINITE and the escalation it asserts never
+/// happens.
 #[test]
 fn in_band_shell_escalates_typed_never_guessed() {
     let tol = Tol::witness();
-    let dz = 10.0 * tol.eps();
+    let dz = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin", Tol::witness());
     let (doc, root) = slab(doc, 0.0, 0.5, 0.0, dz);
     let report = checks(&doc, &ChecksConfig::default());
