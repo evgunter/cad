@@ -86,8 +86,8 @@ use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanError, CensusContact, CensusSubject, CensusUnsupportedCause, ChartRegionError, EntityId,
-    RingContact, ShellError, StaleDeclaration, TransformError, ValidationError,
+    BooleanErrorKind, CensusContact, CensusSubject, CensusUnsupportedCause, ChartRegionError,
+    EntityId, RingContact, ShellError, StaleDeclaration, TransformError, ValidationError,
 };
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -750,7 +750,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
         NodeErrorKind::Split(inner) => Some(split_op_error_tag(inner)),
         NodeErrorKind::Blend { error, .. } => Some(blend_error_tag(error)),
-        NodeErrorKind::Boolean(inner) => Some(boolean_error_tag(inner)),
+        NodeErrorKind::Boolean(inner) => Some(boolean_error_tag(inner.kind())),
         NodeErrorKind::Transform(inner) => Some(transform_error_tag(inner)),
         NodeErrorKind::Skin(inner) => Some(skin_error_tag(inner)),
         NodeErrorKind::Loft(inner) => Some(loft_error_tag(inner)),
@@ -1088,57 +1088,73 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
     }
 }
 
-/// The stable tag for the BOOLEAN op's refusal — the inner arm of
-/// [`NodeErrorKind::Boolean`].
+/// The stable tag for a BOOLEAN refusal's class, at every door that
+/// carries one.
+///
+/// The FFI spelling is this crate's to own; the DISCRIMINANT is not.
+/// It is `BooleanError::kind`, and this map keys off it — the
+/// [`path_error_tag`] shape — so the word does not depend on holding
+/// the error itself. Two doors publish it and they hold different
+/// things: the evaluation ladder's `inner_kind` has the whole
+/// `BooleanError` behind [`node_inner_kind_tag`], and the advisory
+/// checks' `separation_unavailable` evidence has only the class,
+/// because a finding is `Clone + PartialEq` and the error is neither.
+/// One map answers both.
+///
+/// Over `BooleanErrorKind`'s arms rather than `..`, so a new kernel
+/// refusal stops this build instead of acquiring a silent tag. A kind
+/// with no arm behind it is a phantom, and the fix is to delete it
+/// kernel-side; minting a tag for one would publish an FFI name no
+/// refusal can ever carry.
 ///
 /// `undeclared_coincidence` is here and is NOT the refusal the
 /// detect/declare protocol raises: the document layer lifts that one
 /// to its own `undeclared_contact` carrier word with the candidate
 /// declaration attached, and this arm is what survives when a key
 /// fails to resolve to a name.
-pub fn boolean_error_tag(err: &BooleanError) -> &'static str {
-    match err {
-        BooleanError::Band(_) => "band",
-        BooleanError::CurvedBooleanUnsupported { .. } => "curved_boolean_unsupported",
-        BooleanError::CurvedSectorSideUnsupported { .. } => "curved_sector_side_unsupported",
-        BooleanError::CurvedPierceUnsupported { .. } => "curved_pierce_unsupported",
-        BooleanError::CurvedEdgeUnsupported { .. } => "curved_edge_unsupported",
-        BooleanError::PointSplitCarrierUnsupported { .. } => "point_split_carrier_unsupported",
-        BooleanError::ArcLoopContainmentUnsupported { .. } => "arc_loop_containment_unsupported",
-        BooleanError::ScaffoldingOperand { .. } => "scaffolding_operand",
-        BooleanError::NonMaximalFaces { .. } => "non_maximal_faces",
-        BooleanError::Escalated { .. } => "escalated",
-        BooleanError::UndeclaredCoincidence { .. } => "undeclared_coincidence",
-        BooleanError::DeclarationContradicted { .. } => "declaration_contradicted",
-        BooleanError::ContactContradicted { .. } => "contact_contradicted",
-        BooleanError::UnsupportedDeclarationClass { .. } => "unsupported_declaration_class",
-        BooleanError::RimSeamNotDeclarable { .. } => "rim_seam_not_declarable",
-        BooleanError::RimCuspArmUnbuilt { .. } => "rim_cusp_arm_unbuilt",
-        BooleanError::InvalidDeclaration { .. } => "invalid_declaration",
-        BooleanError::PairingMismatch { .. } => "pairing_mismatch",
-        BooleanError::ClassificationInvariant { .. } => "classification_invariant",
-        BooleanError::CorruptOperand { .. } => "corrupt_operand",
-        BooleanError::CrossingInsertion { .. } => "crossing_insertion",
-        BooleanError::CurvedPairUnsupported { .. } => "curved_pair_unsupported",
-        BooleanError::NurbsExtentUnsupported { .. } => "nurbs_extent_unsupported",
-        BooleanError::FallbackExtentUnsupported { .. } => "fallback_extent_unsupported",
-        BooleanError::GermFrameUnsupported { .. } => "germ_frame_unsupported",
-        BooleanError::GermFrameCylinderPinch { .. } => "germ_frame_cylinder_pinch",
-        BooleanError::Euler(_) => "euler",
-        BooleanError::Pcurves { .. } => "pcurves",
-        BooleanError::Join(_) => "join",
-        BooleanError::RestZipUnsupported { .. } => "rest_zip_unsupported",
-        BooleanError::JoinDesync { .. } => "join_desync",
-        BooleanError::TornComponent { .. } => "torn_component",
-        BooleanError::Containment(_) => "containment",
-        BooleanError::Revert(_) => "revert",
-        BooleanError::SeamOrientation { .. } => "seam_orientation",
-        BooleanError::ZipCorrespondence { .. } => "zip_correspondence",
-        BooleanError::Merge(_) => "merge",
-        BooleanError::ResultInvalid { .. } => "result_invalid",
-        BooleanError::ResultVolumeImplausible { .. } => "result_volume_implausible",
-        BooleanError::UnrepresentableResult => "unrepresentable_result",
-        BooleanError::GraftRecertify(_) => "graft_recertify",
+pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
+    match kind {
+        BooleanErrorKind::Band => "band",
+        BooleanErrorKind::CurvedBooleanUnsupported => "curved_boolean_unsupported",
+        BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
+        BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
+        BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
+        BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
+        BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
+        BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
+        BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
+        BooleanErrorKind::Escalated => "escalated",
+        BooleanErrorKind::UndeclaredCoincidence => "undeclared_coincidence",
+        BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",
+        BooleanErrorKind::ContactContradicted => "contact_contradicted",
+        BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
+        BooleanErrorKind::RimSeamNotDeclarable => "rim_seam_not_declarable",
+        BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
+        BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
+        BooleanErrorKind::PairingMismatch => "pairing_mismatch",
+        BooleanErrorKind::ClassificationInvariant => "classification_invariant",
+        BooleanErrorKind::CorruptOperand => "corrupt_operand",
+        BooleanErrorKind::CrossingInsertion => "crossing_insertion",
+        BooleanErrorKind::CurvedPairUnsupported => "curved_pair_unsupported",
+        BooleanErrorKind::NurbsExtentUnsupported => "nurbs_extent_unsupported",
+        BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
+        BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
+        BooleanErrorKind::GermFrameCylinderPinch => "germ_frame_cylinder_pinch",
+        BooleanErrorKind::Euler => "euler",
+        BooleanErrorKind::Pcurves => "pcurves",
+        BooleanErrorKind::Join => "join",
+        BooleanErrorKind::RestZipUnsupported => "rest_zip_unsupported",
+        BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::TornComponent => "torn_component",
+        BooleanErrorKind::Containment => "containment",
+        BooleanErrorKind::Revert => "revert",
+        BooleanErrorKind::SeamOrientation => "seam_orientation",
+        BooleanErrorKind::ZipCorrespondence => "zip_correspondence",
+        BooleanErrorKind::Merge => "merge",
+        BooleanErrorKind::ResultInvalid => "result_invalid",
+        BooleanErrorKind::ResultVolumeImplausible => "result_volume_implausible",
+        BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
+        BooleanErrorKind::GraftRecertify => "graft_recertify",
     }
 }
 
