@@ -1523,11 +1523,7 @@ impl DocSession {
         // over one discards the probe it constrains.
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
-        OpOutcome {
-            superseded: pruned.superseded,
-            dropped_hides: pruned.dropped_hides,
-            ..OpOutcome::default()
-        }
+        OpOutcome::from_prune(pruned)
     }
 
     /// Refused mid-gesture — the table's answer
@@ -1904,9 +1900,7 @@ impl DocSession {
         self.request_eval();
         OpOutcome {
             committed: edits,
-            superseded: pruned.superseded,
-            dropped_hides: pruned.dropped_hides,
-            ..OpOutcome::default()
+            ..OpOutcome::from_prune(pruned)
         }
     }
 

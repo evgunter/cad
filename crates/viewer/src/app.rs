@@ -952,6 +952,16 @@ impl ViewerApp {
                 frame::Withdrawal::dropped_hide(&outcome.dropped_hides)
                     .map(|withdrawal| withdrawal.notice()),
             );
+            // And the drag the same transition ended under the user's
+            // hand — the third kind of withdrawal, ranked beside the
+            // other two and worded apart from both
+            // (`frame::Withdrawal::killed_gesture` carries the
+            // argument). Without it the only route to the reason is to
+            // begin another gesture and read that refusal.
+            notices.extend(
+                frame::Withdrawal::killed_gesture(outcome.killed_gesture.as_ref())
+                    .map(|withdrawal| withdrawal.notice()),
+            );
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ

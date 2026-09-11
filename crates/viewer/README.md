@@ -553,11 +553,15 @@ rendering either would change what the chrome says — and both carry
 the argument for the drop, `MateToolEvent`'s at its impl (the payload
 stays typed and full in the value; the sentence is what a person
 reads) and `CameraOp`'s at the arm. That is the property this rule is
-after: an omission that is a decision someone made. The rule matched
-two more sites that are not instances, and the distinction is the same
-one: `frame.rs`'s `matches!(w.cause, DisplayFault::FusedGeometry { .. })`
-is a variant test on another type, and its `count =>` arm is a
-catch-all over `withdrawn.len()`, not over the subject.
+after: an omission that is a decision someone made. The rule matches
+one more site that is not an instance, and the distinction is the
+usual one: `frame.rs`'s
+`matches!(w.cause, DisplayFault::FusedGeometry { .. })` is a variant
+test on another type rather than a pattern over the subject. The arm
+that words a withdrawal's count beside it matches an `Option`
+exhaustively — the two kinds that are over a SET carry a plural and the
+kind that is over the one gesture in flight carries `None` — so a
+plural no constructor can reach is never worded.
 
 **What was swept for the writing hat, and what it could not see.**
 Every `fn` under `src/` naming two or more distinct `self.<field>`
