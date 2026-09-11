@@ -2,9 +2,10 @@
 id: stablename-key-is-quadratic-on-a-boolean-chain
 kind: issue
 title: StableName is a recursively boxed BTreeMap key, so naming a boolean chain is quadratic - 40 percent of die's rebuild
-status: open
+status: closed
 opened: 2026-09-10
 parent: PERF-2
+closed: 2026-09-11
 ---
 
 ## The finding
