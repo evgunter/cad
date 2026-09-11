@@ -1531,3 +1531,81 @@ Nothing was lost this time. A lane that writes a PR body to a shared
 `pr.md` and posts it a minute later posts a sibling's text. **Give
 each lane its own scratchpad subdirectory in the brief.** Not filed —
 no program owns it and it is a harness convention, not a repo defect.
+
+### `band-helper-duplicated-across-suites`, sweep half (PR 2377) — and the row's counts were wrong in both directions
+
+**39 wrappers removed, 43 `use` sites now reaching
+`crates/sweep/tests/common/approx.rs`, 47 files.** The item stays
+`open`: the sweep half was cut away from the shared-home decision
+precisely so a mechanical change would not wait on a design question,
+and the decision is still undispatched.
+
+**The re-derivation instruction earned its place again, and this time
+against the orchestrator's own number too.** The item said 24 sweep
+copies and 36 across three crates. The dispatch brief corrected that
+to 30 sweep and 60 across six, from a shape-only grep. The lane, with
+a grep that actually filters on the body, found **42 declarations in
+sweep** and a remaining population of **22 `tests/` sites across six
+crates** — `topo` 9, `geom-core` 7, `geom-brep` 3, `editor-core` 1,
+`mesh` 1, `step-import` 1. The row missed three crates entirely and
+undercounted `geom-core` sevenfold. Three successive counts, each
+closer, none right until someone ran the right pattern.
+
+**A second population the row has never scoped**: 20 more copies in
+`crates/*/src` `#[cfg(test)] mod tests` blocks (`topo` 13,
+`geom-brep` 5, `geom-core` 2). These **cannot reach a `tests/` helper
+tree at all**, so the shared-home question as this row and its sibling
+frame it does not cover them. That is a real re-shaping of what the
+band decision has to answer, and it is now in the item.
+
+**Four things the dispatch did not predict**, all of which the lane
+handled and any of which could have reddened CI:
+
+1. **`Band::new(tol.eps(), tol.k() * tol.eps())` IS `Band::linear(tol)`** —
+   verified through `linear` → `from_zero_threshold(tol, tol.eps())` →
+   `from_thresholds(tol.eps(), tol.k())` → `new(zero, k*zero)`
+   (`crates/geom-core/src/predicate.rs:364-425`). Two copies spelled
+   that way were collapsed. Outside the brief's literal filter, and the
+   lane flagged it as its main judgement call; it is the same class, a
+   spelling of one derivation, which is what the sibling row
+   `band-linear-spelling-not-swept` was about.
+2. **Three copies lived in helper modules, not suites** —
+   `tests/common/cone_nappe.rs` held a second `band()` *inside the
+   shared tree itself*, and `tests/shell8_common.rs` a third that six
+   suites imported.
+3. **Deleting a wrapper orphans its imports — 30 files**, and **the
+   default feature lane cannot see them all**: three surface only under
+   `--features interval`. A lane checking one lane would have pushed
+   red. This is the twelve-job matrix doing exactly what it is for.
+4. **The dead-wrapper re-check found one, not six**, and **the item's
+   premise for it is false on this tree**: no sweep suite and not
+   `all.rs` carries `#![allow(dead_code)]` — only the helper trees do.
+
+**And the lane found the convention the whole class had been breaking.**
+`common/mod.rs` requires a suite that keeps its own copy of something
+the `common` tree holds to say so AT the copy, carrying the literal
+``NOT `common::``. No band copy anywhere carried one. The single
+deliberate survivor — `m9_2_chart_region_loft.rs`, a FIXED 1e-9/1e-8
+band rather than the run's — now does.
+
+### Filed from that sweep: `fixed-band-literals-are-an-unscoped-class`
+
+55 sites decide against a hard-coded `Band::new(1e-9, 1e-8)` rather
+than the run's band, and exactly one of them says why. At eps = 1e-6
+and eps = 1e-12 a fixed band asks a different question from the run's,
+so the class is worth a reading pass; a wrong collapse changes what a
+row decides against, which is never free.
+
+**One framing dropped, because it was checked and is false.** The lane
+suggested these collide with the suites whose header declares *"ε
+posture: no ε literal"*. Measured before filing: **the two populations
+are disjoint** — no file carrying that header carries a fixed band. The
+finding survives weaker than first stated, and the item says so, because
+the stronger version is the more attractive one and would send a taker
+hunting a contradiction that is not in the tree.
+
+That check is the wave's fourth instance of the same thing: a real
+finding whose stated mechanism does not hold. The lane disclosed its
+own uncertainty on exactly this point ("did not verify intent rather
+than inheritance"), which is what the no-review posture asks for and
+what made the check cheap to run.
