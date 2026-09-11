@@ -624,7 +624,7 @@ fn body_operand<T: Decide>(
         }),
         Err(NodeErrorKind::WrongOperand { input, found, .. }) => Err(NodeErrorKind::WrongOperand {
             input,
-            expected: "body",
+            expected: super::family::BODY,
             found,
         }),
         Err(other) => Err(other),
@@ -1469,7 +1469,7 @@ fn wire_swept<
     let ValuePayload::Profile(vp) = &v.payload else {
         return Err(NodeErrorKind::WrongOperand {
             input: profile,
-            expected: "profile",
+            expected: super::family::PROFILE,
             found: v.payload.kind_name(),
         });
     };
@@ -1583,7 +1583,7 @@ fn wire_revolve<
     if !matches!(pv.payload, ValuePayload::Profile(_)) {
         return Err(NodeErrorKind::WrongOperand {
             input: profile,
-            expected: "profile",
+            expected: super::family::PROFILE,
             found: pv.payload.kind_name(),
         });
     }
@@ -2567,7 +2567,7 @@ fn wire_assertion<T: Decide>(
     let ValuePayload::Measure { value, dim } = &mv.payload else {
         return Err(NodeErrorKind::WrongOperand {
             input: measure,
-            expected: "measure",
+            expected: super::family::MEASURE,
             found: mv.payload.kind_name(),
         });
     };
@@ -2767,14 +2767,14 @@ fn wire_part<T: Decide>(
         (PartSelect::SplitHalf(_), other) => {
             return Err(NodeErrorKind::WrongOperand {
                 input: of,
-                expected: "split",
+                expected: super::family::SPLIT,
                 found: other.kind_name(),
             });
         }
         (PartSelect::Instance(_), other) => {
             return Err(NodeErrorKind::WrongOperand {
                 input: of,
-                expected: "instances",
+                expected: super::family::INSTANCES,
                 found: other.kind_name(),
             });
         }
@@ -3109,7 +3109,7 @@ fn declared_pairs<T: Decide>(
     let ValuePayload::Declarations(pairs) = &value.payload else {
         return Err(NodeErrorKind::WrongOperand {
             input: declare,
-            expected: "declarations",
+            expected: super::family::DECLARATIONS,
             found: value.payload.kind_name(),
         });
     };
