@@ -100,7 +100,7 @@ elsewhere in the workspace. A published `BooleanOp::ALL` retires the
 `editor-core` copy as well as this one.
 
 **A third instance inside `crates/viewer/src`**, filed separately as
-`work/view/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum.md`:
+`work/door/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum.md`:
 `pane/properties.rs`'s new-parameter radio row is a complete inline
 mirror of `editor-core`'s `Dimension`. Whoever takes this item should
 take that one — three instances is what the class has in this crate,
@@ -117,3 +117,37 @@ kernel, which is the one place a `pub` list cannot be asked for
 upstream — so it is the instance that most likely wants the "a row
 rather than a mechanism" answer. Not filed separately: it is this
 class, and the file is here.
+
+## Claimed by DOOR (2026-09-11)
+
+Moved from `work/view/` by the DOOR orchestrator, with Ev's direction
+in-chat and VIEW told. The directory is the claim
+(`work/README.md`); the id is unchanged, and the body above is
+unchanged but for the one path citation the move made stale — its
+pointer at the third instance, repointed from `work/view/` to
+`work/door/`.
+
+DOOR opened holding two instances of this item's class —
+`boolean-op-has-a-third-hand-written-complete-list` (the `editor-core`
+third copy) and `viewer-pathverb-all-hand-written-seventeen` — and the
+fix that closes any one of them closes this one too: a published
+`topo::BooleanOp::ALL` retires `forms::BOOLEAN_OPS` and the
+`kernel_wire` copy in the same diff. Landing that from DOOR while this
+item sat on VIEW's slate would have closed another program's row as a
+side effect, which is the crossing DOOR's one-PR-one-row posture does
+not contemplate. Claiming it first is the order `work/README.md`
+prescribes.
+
+`dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum` came with
+it, on that row's own instruction: *"Whoever takes either should take
+both; three instances is what the class actually has inside
+`crates/viewer/src`."*
+
+**What did NOT come with it.** `MATE_PRIMITIVES`
+(`crates/viewer/src/forms.rs:483`) is named by this item and is
+documented at its site as riding it, but it is **deliberately partial**
+— `MatePrimitive` has a fourth variant (`Clocking`) the kernel
+represents so it can refuse it, and a form offering it would offer a
+refusal. It is a mirror no mechanism should force, so the fix this
+class wants does not apply to it, and the PR that lands the class says
+so at the site rather than projecting it.

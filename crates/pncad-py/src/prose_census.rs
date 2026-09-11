@@ -1441,14 +1441,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
          is not a verdict about this payload",
     ),
     (
-        "crates/geom-brep/src/certify.rs",
-        "CertifyError",
-        "check",
-        1,
-        "declared at a type this tree does not declare under that name — an\
-         alias, a re-export, or one out of tree",
-    ),
-    (
         "crates/geom-brep/src/nurbs_iso.rs",
         "IsoRowError",
         "u",
