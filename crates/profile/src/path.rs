@@ -1383,11 +1383,27 @@ impl<T: Real> PathError<T> {
 /// reach its scalars through `{:?}` — the shortest round-tripping form
 /// of an `f64`, which puts an 8 mm radius that arithmetic produced into
 /// a human sentence as `0.008000000000000002 m`. Where the `Debug` form
-/// parses back as an `f64` this renders the shortest decimal that still
-/// names the same number to a relative 1e-9; anything else (an interval,
-/// a dual) passes through untouched. A DISPLAY choice only — the payload
-/// keeps the exact scalar, and every claim a caller branches on reads
-/// the field, never this string.
+/// parses back as an `f64` this renders the shortest spelling that still
+/// names the same number **to a relative 1e-9**; anything else (an
+/// interval, a dual) passes through untouched. A DISPLAY choice only —
+/// the payload keeps the exact scalar, and every claim a caller branches
+/// on reads the field, never this string.
+///
+/// The tolerance is relative with no floor, so the shortening is the
+/// same proposition at every magnitude: a picometre margin is rounded
+/// to nine significant figures of a picometre, never to the nearest
+/// nanometre and never to `0`. `0.0` has no significant figures to
+/// round to and only its exact spelling round-trips, which is `0`;
+/// `-0.0`'s is `-0`, a sign this helper reports because the payload
+/// carries it, not because a magnitude was erased.
+///
+/// Notation follows the `Debug` form's own choice — fixed where `{:?}`
+/// is fixed, exponential where `{:?}` is exponential — so this helper
+/// only ever shortens the mantissa of the spelling Rust already picked,
+/// and never turns one into the other. A metre-scale number keeps its
+/// decimal point and a far-from-unity one keeps its exponent, which is
+/// what makes both of them readable: `1e-12` rather than eleven zeros,
+/// `1e300` rather than 301 digits.
 ///
 /// Every arm below renders its scalars through here. Non-scalar payloads
 /// — a side, a carrier, an index, a `&'static str` site — are not this
@@ -1397,13 +1413,25 @@ fn num<T: core::fmt::Debug>(v: &T) -> String {
     let Ok(x) = raw.parse::<f64>() else {
         return raw;
     };
-    let tol = 1e-9 * x.abs().max(1.0);
+    let tol = 1e-9 * x.abs();
+    let exponential = raw.contains('e');
     for prec in 0..=17 {
-        let short = format!("{x:.prec$}");
+        let short = if exponential {
+            format!("{x:.prec$e}")
+        } else {
+            format!("{x:.prec$}")
+        };
         if short
             .parse::<f64>()
             .is_ok_and(|back| (back - x).abs() <= tol)
         {
+            if exponential {
+                // The first precision that round-trips cannot carry a
+                // trailing zero in its mantissa: dropping one would
+                // name the same `f64`, so the shorter precision would
+                // have been accepted first.
+                return short;
+            }
             let trimmed = if short.contains('.') {
                 short.trim_end_matches('0').trim_end_matches('.')
             } else {
@@ -1412,6 +1440,8 @@ fn num<T: core::fmt::Debug>(v: &T) -> String {
             return trimmed.to_string();
         }
     }
+    // No 18-significant-figure spelling in the chosen notation names
+    // the value: a non-finite payload, whose comparisons are all false.
     raw
 }
 
@@ -4258,5 +4288,196 @@ mod tests {
             .kind(),
             PathErrorKind::NonFiniteDirection
         );
+    }
+
+    /// **A refusal never renders a number it did not measure.**
+    ///
+    /// [`num`] shortens a scalar payload to the shortest spelling that
+    /// still names it to a relative 1e-9. The tolerance being RELATIVE
+    /// is the whole of that promise: with an absolute floor under it,
+    /// every payload below the floor rounds to the floor's own zero —
+    /// and the kernel's unit is the metre, so the picometre and
+    /// nanometre margins a junction refusal exists to report are
+    /// exactly the values erased.
+    ///
+    /// Each row names a magnitude a refusal can carry. A floor at `f`
+    /// makes every row with `|x| < f` read `0` (and every negative one
+    /// `-0`, which reports the sign of a magnitude it just erased), so
+    /// a 1e-9 floor breaks rows 3 onward and a 1e-30 floor still
+    /// breaks the last four.
+    #[test]
+    fn num_renders_a_sub_nanometre_payload_at_its_own_magnitude() {
+        let rows: [(f64, &str); 11] = [
+            (1e-8, "1e-8"),
+            (2e-9, "2e-9"),
+            (1e-9, "1e-9"),
+            (1e-10, "1e-10"),
+            (1e-12, "1e-12"),
+            (3.7e-12, "3.7e-12"),
+            (1e-30, "1e-30"),
+            (-1e-30, "-1e-30"),
+            (1e-180, "1e-180"),
+            (5e-324, "5e-324"),
+            (-5e-324, "-5e-324"),
+        ];
+        for (x, want) in rows {
+            let got = num(&x);
+            assert_eq!(got, want, "num({x:?})");
+            // The two spellings this row exists to forbid, stated
+            // apart from the equality above so that re-baselining a
+            // spelling cannot quietly re-admit them.
+            assert_ne!(got, "0", "num({x:?}) erased the magnitude");
+            assert_ne!(got, "-0", "num({x:?}) kept the sign of an erased magnitude");
+        }
+    }
+
+    /// **The floor's absence is visible at the door, not only in the
+    /// helper.** [`PathError::JunctionTangent`]'s sentence is *"turn
+    /// margin {margin} m on a {arm} m arm"*, and a picometre margin
+    /// rendered `0 m` reads as a claim that the margin IS zero — the
+    /// one thing it is not, since a decided-zero margin takes a
+    /// different arm entirely.
+    ///
+    /// Breaks if `num` regains any absolute floor above 3.7e-12, or if
+    /// an arm stops routing its scalars through it.
+    #[test]
+    fn a_picometre_turn_margin_reaches_the_sentence_as_a_picometre() {
+        let s = PathError::JunctionTangent {
+            margin: 3.7e-12_f64,
+            arm: 2.5e-6_f64,
+        }
+        .to_string();
+        assert!(s.contains("turn margin 3.7e-12 m on a 2.5e-6 m arm"), "{s}");
+        assert!(!s.contains("margin 0 m"), "{s}");
+        let cusp = PathError::JunctionCusp {
+            margin: -4e-11_f64,
+            arm: 1.0_f64,
+        }
+        .to_string();
+        assert!(cusp.contains("turn margin -4e-11 m on a 1 m arm"), "{cusp}");
+        assert!(!cusp.contains("margin -0 m"), "{cusp}");
+    }
+
+    /// **Zero renders as zero.** A relative tolerance at `0.0` is
+    /// `0.0`, so only a spelling that parses back to the payload is
+    /// accepted — which `0` is, at the first precision tried. The row
+    /// exists because the obvious failure of a relative tolerance is
+    /// the one value it cannot scale: were the loop to reject every
+    /// precision here it would fall through to the `{:?}` form and a
+    /// refusal would read `margin 0.0 m`.
+    ///
+    /// `-0.0` keeps its sign, and that is not the defect above: no
+    /// magnitude was erased, the payload IS negative zero, and `-0` is
+    /// the only spelling that names it.
+    #[test]
+    fn num_renders_zero_as_zero_and_negative_zero_as_negative_zero() {
+        assert_eq!(num(&0.0_f64), "0");
+        assert_eq!(num(&-0.0_f64), "-0");
+    }
+
+    /// **The `{:?}` fallback is reached by the non-finite payloads and
+    /// by nothing finite.** The loop tries 18 significant figures in
+    /// the notation `{:?}` itself chose, which names every finite
+    /// `f64` exactly; only `NaN` and the infinities fail every
+    /// comparison — each is false against a `NaN` or infinite
+    /// tolerance — and fall through.
+    ///
+    /// The finite rows are the extremes, the largest magnitude and the
+    /// smallest normal, and each is asserted SHORTENED, which the
+    /// fallback cannot produce: a fall-through returns the full
+    /// 17-significant-figure `Debug` spelling.
+    #[test]
+    fn num_falls_through_to_debug_for_the_non_finite_payloads_only() {
+        assert_eq!(num(&f64::NAN), "NaN");
+        assert_eq!(num(&f64::INFINITY), "inf");
+        assert_eq!(num(&f64::NEG_INFINITY), "-inf");
+        for x in [f64::MAX, -f64::MAX, f64::MIN_POSITIVE, -f64::MIN_POSITIVE] {
+            let got = num(&x);
+            assert_ne!(got, format!("{x:?}"), "num({x:?}) fell through");
+            assert!(
+                (got.parse::<f64>().unwrap() - x).abs() <= 1e-9 * x.abs(),
+                "num({x:?}) = {got} does not name the payload"
+            );
+        }
+        // A payload that is not a scalar at all — an enclosure, a dual
+        // — has no `f64` spelling to shorten and passes through whole.
+        assert_eq!(num(&(1.0_f64, 2.0_f64)), "(1.0, 2.0)");
+    }
+
+    /// **The reason [`num`] exists survives the fix.** `{:?}` on an
+    /// `f64` is the shortest round-tripping spelling, which at
+    /// ordinary scales is the arithmetic's own noise: an 8 mm setback
+    /// that a subtraction produced is `0.008000000000000002`. Every
+    /// row here is a value whose `Debug` form carries that noise, and
+    /// each regresses to it if the shortening search is dropped or its
+    /// tolerance tightened toward the exact spelling.
+    #[test]
+    fn num_still_shortens_arithmetic_noise_at_metre_scale() {
+        let rows: [(f64, &str); 6] = [
+            (0.1 + 0.2, "0.3"),
+            (0.008_000_000_000_000_002, "0.008"),
+            (0.003_499_999_999_999_999_6, "0.0035"),
+            (-0.008_000_000_000_000_002, "-0.008"),
+            (1.0 / 3.0, "0.333333333"),
+            (2.5, "2.5"),
+        ];
+        for (x, want) in rows {
+            assert_eq!(num(&x), want, "num({x:?})");
+        }
+    }
+
+    /// **Notation is the `Debug` form's, never re-chosen.** A
+    /// metre-scale number keeps its decimal point and a far-from-unity
+    /// one keeps its exponent, so the shortening never turns a
+    /// readable `0.0035` into `3.5e-3`, nor a `1e300` into the 301
+    /// digits its fixed-point spelling needs.
+    ///
+    /// The length assertion is the one a re-chosen notation breaks:
+    /// with fixed-point forced, `num(&1e300)` is 301 characters of
+    /// refusal sentence.
+    #[test]
+    fn num_keeps_the_notation_the_debug_form_chose() {
+        assert_eq!(num(&1e300_f64), "1e300");
+        assert_eq!(num(&1e17_f64), "1e17");
+        for x in [0.0035_f64, 0.001, 0.0001, 123_456.789, 1.0, -1.0, 8e-3] {
+            let got = num(&x);
+            assert!(!got.contains('e'), "num({x:?}) = {got} left metre scale");
+        }
+    }
+
+    /// **The spelling names the payload to a relative 1e-9, at every
+    /// magnitude.** This is the property the per-value rows above
+    /// sample; here it is asserted as the invariant, over a ladder
+    /// that spans the exponent range in both signs.
+    ///
+    /// A returning absolute floor breaks it at the bottom of the
+    /// ladder — the rendered `0` has relative error 1, not 1e-9 — and
+    /// a tolerance loosened past 1e-9 breaks it in the middle, where
+    /// the search stops one digit early.
+    #[test]
+    fn num_names_its_payload_to_a_relative_1e_9_at_every_magnitude() {
+        let mut x = 1.234_567_890_123_456_7e-300_f64;
+        let mut rungs = 0;
+        while x.is_finite() && x != 0.0 {
+            for signed in [x, -x] {
+                let got = num(&signed);
+                let back: f64 = got
+                    .parse()
+                    .unwrap_or_else(|e| panic!("num({signed:?}) = {got} does not parse: {e}"));
+                assert!(
+                    (back - signed).abs() <= 1e-9 * signed.abs(),
+                    "num({signed:?}) = {got} is not within a relative 1e-9"
+                );
+                assert!(
+                    got != "0" && got != "-0",
+                    "num({signed:?}) = {got} renders a non-zero payload as zero"
+                );
+            }
+            rungs += 1;
+            x *= 1e17;
+        }
+        // The ladder ran: a `while` whose first test failed would pass
+        // every assertion above vacuously.
+        assert!(rungs >= 30, "the magnitude ladder covered {rungs} rungs");
     }
 }
