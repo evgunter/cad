@@ -2,9 +2,11 @@
 id: literal-k-where-the-runs-k-belongs
 kind: issue
 title: a literal 10 (and one DEFAULT_K) stands in for the run's K at five band thresholds
-status: open
+status: review
 opened: 2026-09-04
 refs: [1732]
+branch: fix/literal-k-sweep
+pr: 2346
 ---
 
 
@@ -71,3 +73,60 @@ escalate edge is unused rather than a number that reads as K; or it
 means "the run's K", in which case it should consult `Tol`. That is a
 judgement per site, not a sweep — which is why this is filed rather
 than swept.
+
+## What landed
+
+Per site, decided rather than swept, with the K-dependence executed
+before it was claimed.
+
+**Consults the run's K now** (the escalate edge is read downstream, and
+the ε is the caller's, so the band wanted "this ε, the run's K"):
+
+- `crates/sweep/tests/common/approx.rs` `reattach_certifies_at` —
+  `Band::new(eps, Tol::witness().get().k * eps)`. The band reaches
+  `EdgeCurve::certify`, whose `decide` classifies a residual in
+  (ε, K·ε) as an escalation rather than a certification, so the width
+  is part of the answer the door reports.
+- `crates/sweep/tests/sf2b_r1_probes.rs` `r1p5` — `is_axial`'s verdict
+  is `Err` exactly when a margin lands in the ambiguity band, which is
+  what the row's `escalations == 0` asserts.
+
+**Arbitrary, and now says so** (the escalate edge is never read; the
+number existed only to satisfy `Band::new`'s `zero < escalate`, and a
+literal 10 read as K):
+
+- `crates/geom-brep/src/ssi/certify.rs` — `tube_ladder` reads
+  `band.zero()` and nothing else.
+- `crates/geom-brep/src/ssi/march.rs` — `MarchTol::from_band` is
+  `Self(band.zero())`.
+
+**Deliberately pinned on both edges, and now says so:**
+
+- `crates/geom-brep/tests/pcurve_p1a_meter.rs` — the rows assert that a
+  cone seam drifting `0.98 ε` escalates because the collapsed meter
+  reads `d·sec α` = 1.1316 ε. Deriving the upper edge from the run's K
+  reds two of the four rows at `CAD_AMBIGUITY_K=1.05`, a legal run
+  (the only floor is K > 1): executed, not reasoned.
+- `crates/geom-brep/tests/tcost_k1_budget_exit.rs` — unchanged; its
+  site already carries the sentence, and `crates/geom-brep/tests/shared/tol.rs`'s
+  census already names it.
+
+**Two defects the shape sweep turned up, both repaired here:**
+
+- `crates/editor-core/tests/dsc_checks.rs` — the in-band slab was
+  `10ε` thick, so `V/A = 5ε` and the escalation it asserts happens only
+  for K > 5. It was RED on the merge base at `CAD_AMBIGUITY_K=3` and at
+  `1.05`. Now `(1 + K)·ε`, in band for every K > 1.
+- `crates/sweep/tests/bool3_torus_doors.rs` — the shell law was
+  measured at the run's band and compared against a law computed from a
+  literal `10·ε`, so it accused the discriminant metering of moving at
+  `CAD_AMBIGUITY_K=100` when nothing had. Now `band().escalate()` —
+  the measuring band's own upper edge. Same repair in
+  `crates/sweep/tests/bool3_r1_probes.rs`, where the figure is printed
+  rather than asserted.
+
+The structural gap the item names — `Band::linear` takes only a `Tol`
+and `from_zero_threshold` is private, so there is no door for "an
+explicit ε with the run's K" — is untouched here: `crates/geom-core/src/`
+is PROPS' ground. Four sites now want that door, not the one the item
+named; reported to the orchestrator rather than filed across the fence.
