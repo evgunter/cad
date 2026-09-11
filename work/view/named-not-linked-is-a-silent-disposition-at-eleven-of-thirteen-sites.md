@@ -111,7 +111,14 @@ are in-place on their own lines, so `frame.rs`, `pickindex.rs`,
 **Category B is NOT dissolved and does not die here.** Its seven
 `#[cfg(test)]` spans are untouched by the ruling, which is about what
 rustdoc renders and these are rendered by nothing. Re-filed as
-`bare-spans-outside-the-path-rule-have-no-stated-disposition`, together
-with a second population this row's own rule could not see — five spans
-that name an `app`-gated item through a possessive two-span spelling
-(`` `app`'s `unit_picker` ``) rather than a path.
+`cfg-test-bare-spans-have-no-stated-disposition`.
+
+**A second population this row's own rule could not see is a SEPARATE
+row**, `possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`:
+five spans that name an `app`-gated item through a possessive two-span
+spelling (`` `app`'s `unit_picker` ``) rather than a path, one of which
+names a symbol that does not exist. Two rows, not one — this row's rule
+is *whole content is `<mod>::<path>`*, and that rule is what makes the
+`cfg(test)` seven a population and the possessive five invisible, so
+they are different findings with different sweep rules and each states
+its own.

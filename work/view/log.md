@@ -8149,3 +8149,68 @@ and does not die in a Closed section: seven `#[cfg(test)]` spans, which
 the ruling cannot reach because nothing renders them, sitting beside ten
 bracketed links in the same two files with no rule saying which is
 right. Re-filed as `cfg-test-bare-spans-have-no-stated-disposition`.
+
+### The review pass on #2332, and both fixes were the same mistake
+
+**A dangling row id inside a CLOSED row.** The dissolved row's prose
+said Category B was *"re-filed as
+`bare-spans-outside-the-path-rule-have-no-stated-disposition`, together
+with a second population"*. Neither half was true of the tree: the row
+is `cfg-test-bare-spans-have-no-stated-disposition`, no row of that
+first name exists, and the possessive population is a **separate** row,
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`.
+The dangling name was this lane's own working title, kept in the prose
+after the row was split in two. `work.py lint` passes over it because
+it resolves `refs:` frontmatter and not prose — so *a receipt is a
+citation and gets no exemption* applies to a row id in a sentence, in a
+file that outlives this program's directory. Both rows are named now,
+and the row says they are two and why the rules differ.
+
+**A universal whose reason did not produce its population, in the
+section that ratifies the rule against exactly that.** The README's new
+*Nowhere* bullet argued no branch can break a renderer-free link
+without taking the all-features pass, because *writing* a link means
+diffing `crates/viewer`. The property is a link being BROKEN, and a
+link breaks when its TARGET moves — on a branch that never touches this
+crate. `cargo_scope` is the dependent closure while
+`run_viewer_toolkit` is seed-keyed (`ci.yml:1833-1836`), so such a
+branch takes skip mode with `viewer` in scope and the now-inert pass is
+the only rustdoc reading the crate. The position the bullet called
+impossible is reachable.
+
+**It is still true, and the reason is a contingency worth writing
+down.** Swept by *every intra-doc link in the renderer-free half whose
+first path segment is an external crate, against
+`VIEWER_TOOLKIT_SEEDS`*: **twelve sites, all into `pncad`**, and
+`pncad` is itself a seed (`ci-filter.py:1428`). So every branch that
+can move one of these targets buys the all-features pass. A first link
+into any crate outside that set opens the hole.
+`renderer-free-cross-crate-links-are-ungated-off-the-seed-set` owns it.
+
+**The count came in at twice the estimate, and the twelfth is the one
+that matters.** The review offered six sites; the derivation gives
+twelve — `blend.rs:425`, `display.rs:262`, `docio.rs:85`,
+`marks.rs:297`, `matetool.rs:33`, `:54`, `:153`, `:220`, `parts.rs:11`,
+`props.rs:652`, `sketch.rs:939`, `tree.rs:143`. The conclusion is
+unchanged and the sweep rule is what moved the number. **`sketch.rs:939`
+is the reason the rule says "intra-doc link" rather than "bracket"**: it
+is the reference form, `` [`ProfileVertex`](pncad::profile::ProfileVertex) ``,
+the only one in the crate and invisible to a bracket-shaped grep — the
+same spelling this unit declined to adopt, reaching up to hide from the
+sweep that would have policed it.
+
+**The backstop the ruling names cannot red, and that is measured.**
+`ci.yml:1821-1825` says the skip's lost coverage is re-taken by
+`nightly.yml`'s `rustdoc (viewer, all features)`. That row is
+`cargo doc -p viewer --all-features --no-deps` (`nightly.yml:291-293`)
+and **`nightly.yml` sets no `RUSTDOCFLAGS` at all**. Planting
+`` [`pncad::document::NoSuchItemAnywhere`] `` in `tree.rs` and running
+that exact command gives **one `warning: unresolved link` and exit 0**.
+It re-takes the RENDER and cannot re-take the LINT — enough for the
+feature-axis coverage the skip gives up, since a page that fails to
+build fails the command, and not enough for this class. So the bullet
+names it for what it is instead of citing it as cover, which is what
+the review asked for and the opposite of what the citation would have
+said. The repairs that would make it a real backstop live in
+`nightly.yml` and `scripts/ci-filter.py` — CIW's and S-TCOST's — and
+are named in the row rather than taken here.

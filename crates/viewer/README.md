@@ -1514,10 +1514,36 @@ where, exhaustively:
 - **At DEFAULT features** — every rustdoc lint EXCEPT
   `broken_intra_doc_links`. The renderer-free half's prose is held to
   all of the rest on every run, which is what that pass is still for.
-- **Nowhere** — a broken link in the renderer-free half written on a
-  branch that never takes the all-features pass. No branch can be in
-  that position: writing the link means diffing `crates/viewer`, and
-  that diff seeds the toolkit.
+- **Nowhere** — a link in the renderer-free half broken by its TARGET
+  moving. Writing a link means diffing `crates/viewer`, which seeds the
+  toolkit; but a link also breaks when the item it points at is renamed
+  or deleted, and that happens on someone else's branch.
+  `cargo_scope` is the dependent closure while `run_viewer_toolkit` is
+  keyed on the SEEDS (`ci.yml:1833-1836`), so a branch seeded elsewhere
+  takes skip mode **with `viewer` in scope** — and the
+  default-features pass, link lint inert, is then the only rustdoc
+  reading this crate.
+
+  **That case is empty today by a contingency, not by construction, and
+  the contingency is the thing to write down.** Every cross-crate link
+  in the renderer-free half targets `pncad` — twelve sites:
+  `blend.rs:425`, `display.rs:262`, `docio.rs:85`, `marks.rs:297`,
+  `matetool.rs:33`, `:54`, `:153`, `:220`, `parts.rs:11`,
+  `props.rs:652`, `sketch.rs:939`, `tree.rs:143` — and `pncad` is itself
+  a toolkit seed (`scripts/ci-filter.py:1428`,
+  `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad", "bvh"}`). So every branch
+  that can break one of these links seeds the toolkit and takes the
+  all-features pass. **A first link into any crate outside that set —
+  `editor-core`, `topo`, anything — opens the hole, and nothing reds
+  when it does.** The ruling's second clause, `nightly.yml:291-293`'s
+  `rustdoc (viewer, all features)`, does not close it: that row is
+  `cargo doc -p viewer --all-features --no-deps` with no `RUSTDOCFLAGS`
+  anywhere in the file, so a broken link there is a warning and the step
+  exits 0 — measured, by planting one. It re-takes the RENDER, not the
+  lint. The sweep rule this bullet owes is *the renderer-free half's
+  cross-crate link targets, against `VIEWER_TOOLKIT_SEEDS`*, and
+  `work/view/renderer-free-cross-crate-links-are-ungated-off-the-seed-set.md`
+  owns it.
 
 Someone who runs `cargo doc` on this crate without `app` — the reader
 the renderer-free half exists for — meets one of those links as the
