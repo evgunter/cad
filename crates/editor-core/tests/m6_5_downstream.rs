@@ -171,17 +171,20 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
     let blend = StableName {
         kind: EntityKind::Face,
         node: blank,
-        path: vec![RoleSeg::BlendFace(Box::new(StableName {
-            kind: EntityKind::Edge,
-            node: cube,
-            path: vec![RoleSeg::RimEdge(
-                CapEnd::End,
-                editor_core::ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: 0,
-                },
-            )],
-        }))],
+        path: vec![RoleSeg::BlendFace(
+            StableName {
+                kind: EntityKind::Edge,
+                node: cube,
+                path: vec![RoleSeg::RimEdge(
+                    CapEnd::End,
+                    editor_core::ProfileEdgeRef {
+                        loop_index: 0,
+                        segment: 0,
+                    },
+                )],
+            }
+            .into(),
+        )],
     };
     assert!(
         table_of(&eval(&doc), blank).lookup(&blend).is_some(),

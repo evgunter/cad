@@ -142,7 +142,7 @@ where
         pat,
         RoleSeg::Instance {
             i: 1,
-            of: Box::new(ranked.clone()),
+            of: ranked.clone().into(),
         },
     );
     let (doc2, _) = step(

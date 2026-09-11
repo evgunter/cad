@@ -104,8 +104,9 @@ HERE = Path(__file__).resolve().parent
 # render-wild.sh). A directory NAMED `renders-wild` runs under the
 # wild lane's rules (matplotlib + wild Author stamp); every other lane
 # demands FreeCAD authorship.
-LANE_DIRS = ("renders", "renders-freecad", "renders-wild")
+LANE_DIRS = ("renders", "renders-freecad", "renders-wild", "renders-gui")
 WILD_LANE = "renders-wild"
+GUI_LANE = "renders-gui"
 
 # The matplotlib-COMPOSED contact sheets — the only exempt names, and
 # they must actually be matplotlib-composed. This set is the exemption
@@ -125,6 +126,21 @@ MATPLOTLIB_SOFTWARE_PREFIX = "Matplotlib"
 # and the selftest compares them, because a signature that drifts turns
 # every committed wild cell into a violation at once.
 WILD_AUTHOR = "pncad wild-corpus lane (kernel tessellation of licensed third-party STEP)"
+# The GUI lane's signature, read back out of `render-gui.sh` the same
+# way the wild one is, and compared by the selftest for the same
+# reason.
+#
+# This lane has NO `Software` chunk to demand. Its cells come from
+# `import`, which stamps nothing identifying, so the `Author` stamp
+# `render_gui.py` writes is the whole signature — and that is exactly
+# why it is written as raw PNG bytes there rather than asked of
+# ImageMagick, whose own text options land in build-dependent keywords.
+#
+# The lane's SHEET is stamped like a cell, so `renders-gui` needs no
+# entry in SHEETS: one rule covers the directory. The older lanes
+# cannot do that because their sheets are matplotlib compositions of
+# FreeCAD frames, and a composition carries neither signature.
+GUI_AUTHOR = "pncad viewer lane (headless Xvfb + lavapipe screenshot of the real app)"
 
 
 def sheet_names_in_scripts(root=None):
@@ -148,6 +164,15 @@ def sheet_names_in_scripts(root=None):
         re.MULTILINE,
     )
     return names | {default}
+
+
+def gui_author_in_script(root=None):
+    """The Author string `render-gui.sh` actually stamps into its cells."""
+    root = root or HERE
+    (author,) = re.findall(
+        r"^AUTHOR='([^']*)'$", (root / "render-gui.sh").read_text(), re.MULTILINE
+    )
+    return author
 
 
 def wild_author_in_script(root=None):
@@ -182,14 +207,26 @@ def describe(text):
     return f"Software: {software!r}, Author: {text.get('Author')!r}"
 
 
-def check_file(path, wild=False):
+def check_file(path, wild=False, gui=False):
     """Return a violation string, or None if the file is in order.
 
     `wild` selects the wild lane's rules: matplotlib + the wild
-    `Author` stamp instead of FreeCAD authorship.
+    `Author` stamp instead of FreeCAD authorship. `gui` selects the
+    viewer lane's: its own Author stamp and nothing else, because a
+    screenshot carries no renderer identification of its own.
     """
     text = text_chunks(path)
     software = text.get("Software", "")
+    if gui:
+        # The viewer lane, SHEET INCLUDED — the sheet is tiled from
+        # cells this lane drew and stamped like one, so there is no
+        # exemption to make and no name to special-case.
+        if text.get("Author") != GUI_AUTHOR:
+            return (
+                f"{path}: not a viewer-lane screenshot ({describe(text)}); "
+                f"expected Author: {GUI_AUTHOR!r} (re-run demos/render-gui.sh)"
+            )
+        return None
     if path.name in SHEETS:
         # Exempt from the per-cell renderer requirement, but not
         # unchecked: a sheet IS a matplotlib composition, so say so.
@@ -243,9 +280,10 @@ def check_dirs(dirs):
             violations.append(f"{d}: no PNGs — a committed render tree is empty")
             continue
         wild = d.name == WILD_LANE
+        gui = d.name == GUI_LANE
         for png in pngs:
             checked += 1
-            bad = check_file(png, wild=wild)
+            bad = check_file(png, wild=wild, gui=gui)
             if bad:
                 violations.append(bad)
     return violations, checked
@@ -292,6 +330,7 @@ FREECAD_TEXTS_STRIPPED = [
     ("Author", FREECAD_AUTHOR),
     ("Software", FREECAD_SOFTWARE),
 ]
+GUI_TEXTS = [("Author", GUI_AUTHOR)]
 MATPLOTLIB_TEXTS = [
     ("Software", "Matplotlib version3.10.3, https://matplotlib.org/")
 ]
@@ -374,12 +413,38 @@ def selftest():
     # make the exemption list wrong (a real sheet refused as a fallback
     # frame), and a drifted Author string would fail every committed
     # wild cell at once.
-    in_scripts = sheet_names_in_scripts()
-    assert in_scripts == SHEETS, (in_scripts, SHEETS)
-    stamped = wild_author_in_script()
-    assert stamped == WILD_AUTHOR, (stamped, WILD_AUTHOR)
+        in_scripts = sheet_names_in_scripts()
+        assert in_scripts == SHEETS, (in_scripts, SHEETS)
+        stamped = wild_author_in_script()
+        assert stamped == WILD_AUTHOR, (stamped, WILD_AUTHOR)
+        # The viewer lane's two spellings, held together the same way and
+    # for the same reason: this lane's Author stamp is its ONLY
+    # signature (a screenshot identifies no renderer), so a drift here
+        # would fail every committed GUI cell at once.
+        gui_stamped = gui_author_in_script()
+        assert gui_stamped == GUI_AUTHOR, (gui_stamped, GUI_AUTHOR)
 
-    print("check_render_provenance --selftest: 11 cases OK")
+    # A viewer-lane cell is accepted on its Author alone, and a frame
+    # from any other lane is refused in it — the pairing that says the
+    # `gui` arm is doing work rather than waving everything through.
+        g = Path(tmp) / "renders-gui"
+        g.mkdir()
+        _tiny_png(g / "instantiatepart.png", GUI_TEXTS)
+        # The SHEET takes the same rule as a cell — no exemption, so
+        # this directory's every file is covered by one arm.
+        _tiny_png(g / "montage-gui.png", GUI_TEXTS)
+        violations, checked = check_dirs([g])
+        assert checked == 2, checked
+        assert violations == [], violations
+
+        # And the arm is not a pass-through: a FreeCAD frame is not a
+        # viewer screenshot, wherever it is sitting.
+        _tiny_png(g / "impostor.png", FREECAD_TEXTS)
+        violations, _ = check_dirs([g])
+        assert len(violations) == 1 and "impostor.png" in violations[0], violations
+        (g / "impostor.png").unlink()
+
+    print("check_render_provenance --selftest: 14 cases OK")
 
 
 def main():
@@ -400,7 +465,8 @@ def main():
         raise SystemExit(1)
     print(
         f"check_render_provenance: {checked} PNG(s) carry their lane's "
-        f"renderer signature (sheets exempt)"
+        f"renderer signature (the matplotlib-composed sheets exempt; "
+        f"{GUI_LANE}'s own sheet is stamped and checked)"
     )
 
 
