@@ -127,7 +127,10 @@ fn r1_the_shell_guard_window_versus_the_rejected_sqrt_law() {
         d /= 1.05;
     }
     let eps = Tol::witness().get().eps;
-    let k = eps * 10.0;
+    // K·ε read off the band the shell above was MEASURED at — the same
+    // `band()` the loop asked `point_in_solid` with. Spelled as a
+    // literal `ε · 10` this was the run's K·ε only at the default K.
+    let k = band().escalate();
     let cube = (k * EXT.powi(2)).cbrt() * 0.143;
     // BOOL-2's law, the one the PR says is ruled out, with the same
     // fitted constant it would need to match at THIS eps.

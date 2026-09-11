@@ -2,8 +2,9 @@
 id: gated-marker-omits-sibling-helper-imports
 kind: issue
 title: nothing checks a marker's path set against its own suite's helper imports
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-11
 ---
 
 
@@ -65,3 +66,63 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Closed (2026-09-11): the arm is in `--gated-check`, and it found three more
+
+Fixed as the item asked: `--gated-check` now reads every marked
+`crates/<c>/tests/<suite>.rs` for `use crate::<h>` / `use super::<h>`,
+resolves `<h>` through that crate's `tests/all.rs`, and requires the
+resolved file to be covered by the marker's path set — by the SAME match
+`GatedSuite.selected_by` makes, so the check cannot accept a spelling the
+filter would not honour.
+
+**One thing the item's fix sketch got wrong, and it was load-bearing.**
+The sketch says to resolve `<h>` "the way `_all_rs_modules` already
+does". That reader records `#[path = "..."] mod x;` PAIRS — it exists
+because a suite's test-id prefix is not derivable from its filename — and
+the helper trees are mounted by a bare `mod common;` with no attribute at
+all. Built on `_all_rs_modules` the check resolves NOTHING and passes
+every tree, silently and in green: the exact failure shape this row is
+about, one level up. So `_tests_sibling_files` is a second reader beside
+it, taking the `#[path]` pairs plus the bare `mod x;` declarations
+resolved by Rust's own rule (`x/mod.rs`, then `x.rs`). `_all_rs_modules`
+is untouched, so no term derivation moved.
+
+**It found three offenders on `main`, and they are not the ten.**
+
+- `crates/sweep/tests/review_chamfer_r1_probes.rs`
+- `crates/sweep/tests/review_verbs_rim_lever_probes.rs`
+- `crates/sweep/tests/verbs_rim_r1_probes.rs`
+
+All three import `use crate::common;` and named no part of
+`crates/sweep/tests/common/`. All three markers were written on
+**2026-09-09** (`8ee8cf1c`) — six days AFTER this row's census swept all
+54 markers and widened the ten it found. So this is not a gap in that
+census: it is the class regrowing at the predicted rate, under the
+review this row said would not catch it, which is the argument for the
+mechanical check rather than another sweep. Eleventh, twelfth and
+thirteenth instances. Fixed in the same commit by naming the directory.
+
+**The planted failure, because a check nobody has seen fail is not a
+check.** Two cases in `scripts/gates/gated-suite-paths.sh`'s selftest:
+`plant_helper_import_unnamed` (the gate must red, and the fixture mounts
+its helper with a BARE `mod common;` — an attributed one would pass
+against a reader that could not resolve the real shape) and the near miss
+this directory's convention owes, `plant_helper_import_named` (the same
+import with the directory named; the gate must pass). The near miss also
+carries `use crate::{common, common as alias};`, which is the brace form
+the head reader splits on top-level commas only.
+
+**What it still cannot see**, restated from this row's own honest list
+and unchanged: a helper reached through a re-export rather than a `use`
+of the module head; a `#[path]`-mounted helper whose `mod` name differs
+from its directory and which `tests/all.rs` does not declare; a fixture
+loaded at run time from a data file; and the whole `src/` marker shape,
+where the question is the ordinary path-set judgement. The check is
+deliberately silent on a head it cannot resolve — over-matching would
+demand a path the suite does not depend on, and that reds a correct tree.
+
+Cross-fence: `scripts/gates/gated-suite-paths.sh` is code-quality Track
+K's and was edited here for the two planters, announced in the PR. The
+shell gate calls `--gated-check` and decides nothing itself, so the rule
+lives in S-TCOST's file where it belongs.

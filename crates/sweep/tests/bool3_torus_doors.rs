@@ -648,7 +648,10 @@ fn the_clamp_floor_clears_the_torus_tangency_shell() {
     // (2) the shell, measured at the band the run drew.
     let shell = tangency_shell(&body, band());
     // The measured law (see [`away`]): `C·(K·ε·ext²)^⅓` with C ≈ 0.143.
-    let k = Tol::witness().get().eps * 10.0; // the ambiguity band's own K·ε
+    // K·ε read off the band the shell above was MEASURED at, so the
+    // law and the measurement are stated at one tolerance. Spelled as
+    // a literal `10 · ε` this was the run's K·ε only at the default K.
+    let k = band().escalate();
     let law = (k * FIXTURE_EXTENT.powi(2)).cbrt() * 0.143;
     assert!(
         shell > law / 2.0 && shell < law * 2.0,

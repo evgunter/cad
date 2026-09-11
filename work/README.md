@@ -166,10 +166,48 @@ only closed items.
   cannot un-park another program's rows in the same PR, so a closing
   PR can red `main` for rows it does not own. The answer is to fix the
   stale rows, not to soften the check.
+
+  **A number reaches the rule too, and only ever as a warning.** Ints
+  in `blocked_on` are PR or issue numbers that the tracker does not
+  resolve against GitHub — but a migrated issue carries its number on
+  the item that replaced it (`github:`), and that mapping is in the
+  tree. A number matching exactly one such item is read as that item,
+  and if it is closed the row is named. It is a **warning** in both
+  shapes above, never the error, because the author wrote a number and
+  the tracker matched it: a naming is a claim about a row, a match is
+  an inference about one, and an inference does not get to red `main`
+  for a program that cannot see it. A number matching no `github:`, or
+  two, stays unchecked as every int did before. The fix a warning asks
+  for is to name the item instead of the number, after which the rule
+  reads it directly and the error applies.
 - **Territory is a glob list** on the program, and every glob matches
   at least one tracked path. `scripts/work.py territory --base main`
   reads a branch's prefix and its diff and names every path another
-  program owns. It warns; it does not block.
+  program owns, **and every path the branch's own program claims that
+  another open program claims too** — those read differently ("owned
+  by X" against "also claimed by X; a double claim, not a crossing")
+  because they are different facts. It warns; it does not block.
+- **Two open programs may claim one path only if BOTH `keep_out`s name
+  the other.** An overlap written on both sides is a handoff a lane can
+  announce; an overlap written on one side or neither is a live
+  conflict, and the program that was there first is the one that cannot
+  see it. `lint` measures this at rest — every open program's globs
+  against `git ls-files` — and names each unrecorded pair with the
+  count of paths it shares.
+
+  This is a **warning today and an error when the tree can carry one.**
+  Most pairs are unrecorded at any moment, the bulk of them the
+  `*/tests/*` family where S-TCOST's and S-TINT's territory is every
+  crate's tests by design, and one-file-one-item means no single program
+  may write the missing clauses. An error would red `main` the day it
+  landed for rows its author may not edit. **No count is stated here —
+  `work.py lint` prints the current one**, and it moves: the figure grew
+  by nine pairs in the ninety minutes between this PR opening and its
+  first merge-forward, when S-TCOST split and S-TINT took half its
+  territory.
+  The flip, and the question of whether the `*/tests/*` seam is written
+  once per program or taught to the check once, is
+  `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md`.
 - **No plan or log outside `work/`.** `docs/*-PLAN.md` and
   `docs/*-LOG.md` are lint errors, so a session writing to the old
   path fails loudly. (`docs/MODEL-AB-LOG.md` is an experiment log, not

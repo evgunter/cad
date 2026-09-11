@@ -102,3 +102,30 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## A live instance, still armed (2026-09-11, from FIX)
+
+Reported by FIX's `checks-product-refusal-degrades-to-string` lane
+(PR 2344) and placed here by the FIX orchestrator — an instance, not a
+claim on the row.
+
+`crates/editor-core/tests/docm5_subject.rs`'s `gathers_in` counts lines
+of `crates/editor-core/src/checks.rs` **source text** containing
+`" product("` and asserts the count is 1. The lane added an ordinary
+method named `ChecksError::product`, and the row went red claiming
+"one gather call in the registry's source" — **a false accusation
+against correct code**, from a declaration that is not a call at all.
+
+The lane renamed its constructor to `product_unavailable` rather than
+patch a scanner in another program's file (it is a better name beside
+`separation_unavailable` anyway, and it matches the published tag). So
+nothing is fixed: **the tripwire is still armed** for the next person
+who names anything `product` in `checks.rs`.
+
+Worth recording for this row's argument specifically: the row's
+existing instances are censuses that scan a *declaration* grammar. This
+one scans for a **call** by matching `" name("` in source text, which
+cannot tell a call from a declaration, a definition, a doc comment or a
+string. That is a second grammar with the same failure mode, and it
+suggests the row's subject is source-text counting as such rather than
+any particular parser's gaps.
