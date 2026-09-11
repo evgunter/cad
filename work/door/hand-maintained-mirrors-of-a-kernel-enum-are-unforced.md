@@ -2,8 +2,11 @@
 id: hand-maintained-mirrors-of-a-kernel-enum-are-unforced
 kind: issue
 title: forms::BOOLEAN_OPS mirrors a kernel enum declared in another crate, and no compiler forces the mirror
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-11
+branch: door/mirror-booleanop-all
+pr: 2387
 refs: [2046, dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum, boolean-op-has-a-third-hand-written-complete-list]
 ---
 
@@ -151,3 +154,50 @@ represents so it can refuse it, and a form offering it would offer a
 refusal. It is a mirror no mechanism should force, so the fix this
 class wants does not apply to it, and the PR that lands the class says
 so at the site rather than projecting it.
+
+## Closed (2026-09-11, branch `door/mirror-booleanop-all`)
+
+The first answer on the table, taken: `topo` publishes
+`BooleanOp::ALL` and the form maps over it. `forms::BOOLEAN_OPS` is
+gone — what is left in `crates/viewer/src/forms.rs` is
+`boolean_op_label`, an exhaustive match giving each operation the word
+its button carries, and `pane/create.rs` draws one button per entry of
+`BooleanOp::ALL`. A fourth operation therefore reaches the form with no
+edit in this crate, and reaches it without a label only by failing to
+compile at that match. The `kernel_wire` copy went in the same diff, so
+the publication bought the two sites this item's appendix priced.
+
+**The button order changed**, and deliberately: the form drew
+union / subtract / intersect and now draws the kernel's declaration
+order, union / intersect / subtract. Nothing in the tree argued for the
+old arrangement, no row asserts it, and preserving it would have meant
+a second hand-written ordering here — the defect this item is about,
+re-minted one field over. Argued at the site.
+
+**`MATE_PRIMITIVES` was not projected**, which this item and the row's
+own doc both called for correctly: it is deliberately partial, and the
+mechanism that fixes `BOOLEAN_OPS` would force the wrong thing there.
+Its doc is corrected only where it mis-stated the disposition — it no
+longer says it "rides the same item", because the item it rode is this
+one. The half it still has no answer for is filed as
+`mate-primitives-is-a-partial-mirror-with-no-growth-alarm`.
+
+**The `egui::PointerButton` instance** this item recorded in its body
+and declined to file separately — the file being here — is filed as
+`viewport-pointer-buttons-mirror-a-toolkit-enum-by-hand`, since this
+file goes.
+
+`crates/viewer/README.md`'s ratified "three kinds of list stay
+hand-written" is amended to two: "a mirror of an enum declared in
+another crate" had one instance, this one, and the answer turned out
+to be the construction one crate over rather than an exception. The
+gate that reads that section
+(`scripts/gates/viewer-vocab-declared-once.sh`) carries the count in
+`KIND_ANCHOR`/`KIND_COUNT` and moves with it, which is the price it
+exists to charge for an amendment.
+
+The class's remaining rows are untouched and stay open:
+`dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum` (the
+second PR of this class) and `viewer-pathverb-all-hand-written-seventeen`
+(a census, not a projection — the GUI legitimately narrows that
+vocabulary).
