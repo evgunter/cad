@@ -2450,3 +2450,78 @@ Filed by the unit: `tier-blind-rationale-has-five-prose-spellings` and
 unguarded is exactly the prose counts), plus
 `verify-lane-set-is-a-property-nothing-declares` and
 `provenance-lane-dirs-is-not-the-lane-roster` from the first pass.
+
+## 2026-09-11 — unit 7 merged: the pins are read, and the hook stops guessing
+
+PR 2327 (`f8b92f53`), run `34560908533` green, 38 jobs. Five items closed
+(the three pin items, the debug-only step title riding along, and the
+`keep_out` row). Six residues filed.
+
+**The blocker was the unit's own subject, one layer in.** `ci_pin()`
+captured the reader with `2>&1`, so any stderr on a **successful** read —
+a deprecation warning, a pyenv shim banner, `PYTHONWARNINGS` — became the
+version. Verified here by running the old and new function side by side
+against four inputs:
+
+| input | old | new |
+|---|---|---|
+| stderr noise + a correct pin | rc=0, value `DeprecationWarning: noise\n0.9.140` | rc=0, `0.9.140` |
+| prints nothing, exit 0 | rc=1 refused | rc=1 refused |
+| `0.9.140 extra` | rc=0, value `0.9.140 extra` | rc=1 refused |
+| correct | rc=0 | rc=0 |
+
+That is **an unreadable input becoming a value instead of a refusal, in
+the file whose entire argument is that it must not** — the same sentence
+as claim 10's env arm two units ago, and the third time this slate a unit
+committed its own defect inside its own diff. Note the old value is
+genuinely multi-line, which is what made the escalation real rather than
+theoretical: `grep -qw "$multi_line"` is an OR across lines, and the lane
+executed it — the pre-fix hook reported `already installed:
+cargo-nextest-cli 0.9.140` on a pattern that is not the pin.
+
+**The second finding is the same defect with the digits removed.** The
+hook's cargo-fetch loop spelled five cargo roots; `scripts/doc-gate.sh
+--print-roots` derives **eight** (`benches`, `tools/tess-lint`,
+`tools/tess-meter` missing), and the comment above it claiming `tools/`
+needs its own fetch was false of two thirds of `tools/`. The unit's sweep
+instrument was digit-shaped and structurally could not see it — which is
+the lesson, not the three roots. `implementer-discipline.md` names this
+exact list as one not to carry in your head, and a root has landed before
+with every prose count in the repo left saying the old number.
+
+**Hosted CI covers none of it.** Every hosted job runs `rm -rf
+local-scripts .claude`, so not one of the four hook changes has hosted
+evidence; all of it is local injection, stated as such in the PR rather
+than reported as green. That gap is now `session-start-hook-is-exercised-
+by-nothing`, and it is the largest thing this unit found.
+
+**A disagreement between the two review lanes, adjudicated.** The style
+lane argued part C is the wrong repair — rewriting *"the pinned 0.9.140"*
+to *"cargo-nextest 0.9.140"* changes the digit's grammar rather than
+removing it, and a durable-looking record is less likely to be re-checked
+than a visibly-false one. The correctness lane checked all seven sites
+and found no record falsified. **Ruling: keep the edits** (the item's
+position is ratified and no record was harmed) **and file the objection**,
+because it names a real gap — `ci.yml:316` states the opposite convention
+outright, *"The version is named once, here, rather than restated in the
+sentence about it"*, while `:219`, `:322`, `:328` and `:334` each restate,
+inside one 40-line block. Both lanes found `:316` independently. The
+finding is the file arguing against itself, and it is
+`prose-digits-are-records-nothing-reconciles`.
+
+**The orchestrator's own error, recorded because it propagated.** Acting
+on unit 2's first draft, this orchestrator told this lane to name GATES
+for `scripts/gates/*` in CIW's `keep_out`. GATES closed 2026-09-08 and
+that half had reverted to code-quality; the instruction would have
+written a closed program into the header. Retracted before the lane acted
+on it. The lane also caught a fence the dispatch missed entirely:
+`scripts/ci-pin.py` is **META's**, so "widen `ci-pin.py` or write a second
+reader" was never the purely technical choice the brief framed it as.
+
+**And the machinery caught the lane in flight**, which is the best
+evidence for it this program has: the lane's first refusal message in
+`seal-oracle.sh` read `TOOLCHAIN=1.97.0 $0`, and
+`check-ci-mirror-parity.py`'s pin-literal claim red with *"names version
+1.97.0, and ci.yml pins no such version"* — the reconciler built by the
+first slate's unit 1 catching a live instance of the defect this unit
+exists to remove, inside the diff removing it. Reproduced at review.
