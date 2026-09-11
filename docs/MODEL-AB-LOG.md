@@ -253,8 +253,14 @@ amended:
      an orchestrator, prefix `perf/`; PERF runs the full v6 dual on
      every kernel unit, and records no row for a measurement-only or
      instrument-only unit — the CIW/CHROME posture for those alone;
-     Ev, in-chat, 2026-09-10),
-     with **3500+ unallocated** — the orchestrator opening the next
+     Ev, in-chat, 2026-09-10) · S-TINT 3500-3599 (claimed 2026-09-11
+     in the commit that opened `work/tint/`, the test-suite-integrity
+     successor to the non-cost half of S-TCOST's board; S-TINT inherits
+     S-TCOST's test-only posture — one style review per unit, no dual
+     and no row recorded — so the band is claimed for bookkeeping, and
+     whether it ever runs a protocol is left to Ev, which
+     `work/tint/plan.md` §Review posture records as unsettled),
+     with **3600+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.

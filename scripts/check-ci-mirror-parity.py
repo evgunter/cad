@@ -199,6 +199,12 @@ TIER_BLIND = (
     # checkout. Sited under `if: run_build` the change class that can break it
     # is the class that would skip it.
     "scripts/check-status-capture.py",
+    # The render-lane parity check. Its inputs are `.github/workflows/render.yml`
+    # and `local-scripts/render-hosted.sh` — the second in a tree that
+    # classifies TIER=docs and that every hosted job but `mirror` deletes at
+    # checkout, so sited under `if: run_build` it could not fire on the half of
+    # its own subject that changes most often.
+    "scripts/check-render-lane-parity.py",
     # Not because its inputs are prose — because a change WIDENING the
     # filter's docs branch classifies itself as docs, so the tier that would
     # skip this self-test is the tier it is about.
@@ -386,11 +392,13 @@ GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 #     inert for it: nothing names it, so nothing is checked and nothing is
 #     said. Arm A still covers its value.
 #   * THE TREE IS `local-scripts/`, tracked files only.
-#     `.claude/hooks/session-start.sh` restates three pins the same way and is
-#     NOT reachable from here: every hosted job deletes `.claude/` at checkout,
-#     so a claim about it would pass hosted and red locally, which is worse
-#     than not making it. `work/ciw/session-start-hook-restates-ci-pins`
-#     carries that one.
+#     `.claude/hooks/session-start.sh` is NOT reachable from here and never
+#     will be: every hosted job deletes `.claude/` at checkout, so a claim
+#     about it would pass hosted and red locally, which is worse than not
+#     making it. That file no longer restates a pin — it READS all three
+#     through `scripts/ci-pin.py` — which is the repair this exemption's
+#     reasoning forces: where a checker cannot follow, the copy has to stop
+#     existing rather than be checked from one side.
 #   * A PIN ci.yml SETS THAT NOTHING IN THE LOCAL TREE NAMES is not an error.
 #     A tool the local half does not mention is not drift.
 #   * ARM B READS ONE LINE. A tool named in a sentence whose version sits on

@@ -277,6 +277,10 @@ fi
 # — local-scripts/ is the tree that classifies TIER=docs and that every hosted
 # job but `mirror` deletes at checkout.
 # HOSTED MIRROR: mirror / status capture (PIPESTATUS is read before anything rewrites it)
+# The render-lane parity row is tier-blind for the same reason and one more of
+# its own: its inputs are render.yml and THIS TREE — the helper it checks is
+# local-scripts/render-hosted.sh, which no hosted job but `mirror` can even see.
+# HOSTED MIRROR: mirror / render lane parity (the helper knows the lanes render.yml declares)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
@@ -298,6 +302,8 @@ tier_blind_rows() {
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/check-status-capture.py --selftest || rc=1
   python3 scripts/check-status-capture.py || rc=1
+  python3 scripts/check-render-lane-parity.py --selftest || rc=1
+  python3 scripts/check-render-lane-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1

@@ -1455,3 +1455,116 @@ flip to carves. A new suite `blend6_ring_clearance.rs` is added.
 ## Announced from LIB (2026-09-09): one row added to `profile/tests/sketch_plane.rs`
 
 LIB-MIRROR (PR #2271) adds `the_partial_eq_impl_is_bit_eq_and_answers_the_same_on_the_two_zeros` beside the existing `bit_eq` row, pinning that `SketchPlane<f64>`'s new `impl PartialEq` answers exactly what `bit_eq` answers; one test, no fixture and no runtime cost.
+
+## Seam: the whole slate re-sorted against the public repo (2026-09-11)
+
+Ev asked, in chat, for every entry on this program's board to be sorted
+three ways now that `evgunter/cad` is public and standard-runner minutes
+are free: still wanted because its subject hurts LATENCY; unwanted
+because it was only ever buying billed MINUTES; and unclear. All 65
+entries were read. The finding that decides most of them is structural
+and worth stating once.
+
+**Latency here is one chain, and it is not the tests.** `ci.yml` has
+exactly two dependency edges — `test` needs `build`, `test-interval`
+needs `build-interval` — and every other job hangs off `filter` in
+parallel. A run's wall is therefore the max over chains, and the max is
+`build + archive (interval)` at **388 s median** plus a test leg at
+**34–74 s**, against a whole-run median of **442 s** / **482 s** at tier
+`all` (`work/ciw/f3-recosting-on-a-public-repo` §M2, 4-vCPU runner;
+`nextest-shard-count-needs-remeasure`'s 2026-09-03 re-measure for the
+legs). So: the BUILD is the pole, the test legs are the short end of it,
+and anything that trims a parallel job returns nothing to the person
+waiting. That is the whole sort, applied per row.
+
+**Three of this program's landed units are minutes and nothing else.**
+TCOST-C1, C2 and C3 each moved a check off the PR gate and each priced
+itself in billed minutes: −2, −2, and 43 s off a 222 s parallel `fmt`
+job. None of the three was ever on the critical path; C1's own nightly
+header records the job at 93 s. What they cost is attribution, plus two
+rows (`review_d18`'s `cfg(not(debug_assertions))` pair) that now compile
+in no PR lane at all. `work/ciw/f3-recosting-on-a-public-repo`
+§*What is therefore open* item 2 named these three for re-costing on
+2026-09-04 and left them to this program; this program never looked.
+Filed as `nightly-demotions-c1-c3-were-bought-with-billed-minutes` — a
+re-cost with a hosted wall reading per row, not a revert on sight, since
+C3's job has never had one and is the one that could plausibly approach
+the pole.
+
+**One open row closed.** `skip-eps-battery-by-observing-oncelock`
+(parked since 2026-08-19 on Ev's *defer, not reject*) is now REJECTED.
+Its entire prize was ~90 cpu-s spread across ε legs that run in
+parallel, so it never shortened anything; and it would take 251 tests
+off two of three ε rows, which were put BACK on every run on 2026-09-04
+for exactly this reason (`scripts/ci-filter.py` §CONFIGURATION
+COVERAGE, `work/ciw/reinstate-full-configuration-runs`). The mechanism's
+design is kept in the file; the cost case is dead.
+
+**One closed row re-opened, and it is the only latency work the billing
+change unlocks.** `nextest-shard-count-needs-remeasure` closed at N=2 on
+2026-09-03 — the day the repo went public, and the fact did not reach
+the verdict. Read in full, that verdict is one quantity: *"every added
+shard costs a full billed minute for a 20–45 % wall cut"*, and for the
+interval rows *"≈1 billed minute per row"* against N=4 at ~40 % less
+wall. The cost side is now zero and the benefit side is untouched, on
+the legs that carry the last job of the critical path. It still needs
+its own measured PR under the program's `keep_out`; what changed is that
+the arithmetic no longer refuses it.
+
+**Everything else on the board survives untouched, and mostly because it
+was never a cost lever.** Of the ~28 open rows, the fourteen Track W
+units (C18, D70, D72, D113, D380–D386, H12, S216, S230) and most of the
+slugs arrived here in the tracker-wide re-home of 2026-09-04 by PATH
+GLOB, not by a cost argument — `malformed-ambient-eps-reds-review-m2-pr7-k`
+says so in its own body. They are test-integrity, dedup and citation
+rows; free minutes change nothing about them, and several (S216's
+compile-per-row gate, D381's missing pin) get slightly EASIER to justify
+now that the compute they would add is free. The four genuine latency
+rows on the board are `rust-cache-never-restores-across-branches` (which
+already re-stated its own case on latency grounds when the repo went
+public), `tcost-area-pad-lever`, `offset-composite-lazy-sign-gate` and
+the re-opened shard count; the first cuts the pole itself and the middle
+two are kernel constant factors that the shipped program pays too.
+
+**Two rows are genuinely unclear and neither is this lane's to settle.**
+`proptest-modules-in-src-ungated` asks Ev to close the gap between
+*"a fuzzer that is not gated is a defect in the fuzzer"* and that rule's
+stated rationale, which is per-run cost — free minutes WIDEN that gap
+rather than close it, so the question is more live, not less, and the
+row stays open unchanged. And the two gate-defect rows
+(`gated-marker-omits-sibling-helper-imports`, `gated-marker-path-mount`)
+are real bugs for exactly as long as the per-file gate stands; whether
+it stands is downstream of the same ruling.
+
+## Seam: the non-cost half of the board leaves for S-TINT (2026-09-11)
+
+Ev's direction in the same conversation as the re-sort above: the fourth
+bucket — the rows that are not cost levers in either currency — gets a
+track of its own rather than sitting on a cost program's slate. **Thirty
+of this program's 42 live rows moved** by `git mv` to `work/tint/`
+(S-TINT — test-suite integrity, band 3500–3599), ids, titles and bodies
+unchanged, each carrying a `## Moved to S-TINT (2026-09-11)` record.
+The fourteen Track W units (`C18`, `D70`, `D72`, `D113`, `D380`–`D386`,
+`H12`, `S216`, `S230`) and sixteen slugs this program's lanes filed while
+measuring. `work/tint/log.md`'s opening entry carries the full split and
+the list of what stayed.
+
+**Twelve rows stay, and they are the whole of this program's live
+board:** the four latency rows (`rust-cache-never-restores-across-branches`,
+the re-opened `nextest-shard-count-needs-remeasure`, `tcost-area-pad-lever`,
+`offset-composite-lazy-sign-gate`), the unmeasured kernel candidate
+(`edge-nurbs-computes-the-chart-image-and-discards-it`), the demotions
+row filed above, the two per-file-gate defects, the two fuzz-gating
+policy rows, the parked proptest question, and the `ci-filter.py`
+citation fix. This program is now what its charter says it is and
+nothing else.
+
+**The territories overlap deliberately.** S-TINT claims
+`crates/*/tests/*` and `crates/test-utils/*` as well, because the fence
+between the two programs is the QUESTION and not the path, and no glob
+expresses it. `work.py territory` will warn on branches of either;
+`work/tint/plan.md` §*The fence with S-TCOST* is the rule a lane reads
+instead of guessing, and it names the three things that stay this
+program's whatever they look like — the gate mechanism, the fuzz-gating
+policy, and everything under `scripts/`. A row on either slate that turns
+out to be on the wrong side moves back by `git mv`, not by a copy.
