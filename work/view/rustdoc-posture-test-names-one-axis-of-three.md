@@ -102,6 +102,45 @@ links are not rendered by the default pass at all.
 Both answer one substantive question: **may a doc comment in the
 renderer-free half link into the toolkit half?**
 
+## What the tool change actually costs (Ev, 2026-09-11)
+
+*"Costs nothing else"* above was true of lint coverage today and false
+of the consequences. Three, and the first is the real one.
+
+**1. The pass stops having a reason to exist.** The default-features
+viewer pass is `-p viewer` alone (`scripts/doc-gate.sh:900-902`), it
+renders a strict SUBSET of the items `--all-features` renders (zero
+`cfg(not(feature = "app"))`), and the doc TEXT of a rendered item is
+identical in both passes (zero `#[doc = …]`, zero `cfg_attr(…, doc)`).
+Every other rustdoc lint is a property of the doc text, so it fires the
+same way in both. **`broken_intra_doc_links` on this class is the pass's
+only unique detection.** Make it inert and the pass can never red on
+anything `--all-features` would not — it is dead weight, and the honest
+follow-on is to delete it rather than quiet it. Deleting it is the
+larger decision: it is the only thing standing between the
+renderer-free half's docs and promises about the toolkit half.
+
+**2. Three module notes become false.** `theme.rs:9-12`,
+`vocab.rs:51-52` and `forms.rs:18-20` each say the link breaks the
+headless pass. After the change that is no longer true, and a false
+comment in code is worse than no comment — so they retire in the same
+change, taking #1330's recorded reason with them.
+
+**3. The superset argument has an expiry date.** It is a property of
+today's tree, not a guarantee. Add one `cfg(not(feature = "app"))` arm
+and the default pass becomes the only renderer of it — with the lint
+inert, its links go unchecked silently. Keeping the pass then wants a
+guard that no such arm exists; deleting the pass leaves such an arm with
+no doc pass at all. Either way the change is not self-maintaining.
+
+A fourth, minor: someone running `cargo doc` on `viewer` without `app`
+— the reader that half of the crate exists for — gets a rendered page
+with a link that goes nowhere. No error, because they are not at
+`-D warnings`; just a dead link.
+
+**This is why I recommend the rule change.** It costs one clause and
+leaves the tool, the notes and #1330's reason alone.
+
 ## The recommendation, corrected
 
 **It is the second, and the quantifier is CONDITIONAL — not existential,
