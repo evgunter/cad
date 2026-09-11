@@ -68,11 +68,12 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::Pcurve;
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
-use topo::{Body, FaceKey, LoopBoundary};
+use topo::{Body, FaceKey};
 
 use crate::chords::ChordPass;
 use crate::tessellate::{Lane, Patch, PatchVertex};
 use crate::types::TessellateError;
+use crate::walk::loop_half_edges;
 
 /// A face's content digest: 128 bits of FNV-1a over its key bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -396,44 +397,33 @@ impl FaceInputs {
             .ok_or(TessellateError::MissingEntity { what: "face" })?;
         let mut loops = Vec::with_capacity(1 + face.rings.len());
         for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-            let lp = body
-                .get_loop(lk)
-                .ok_or(TessellateError::MissingEntity { what: "loop" })?;
-            let LoopBoundary::Cycle { first } = lp.boundary else {
-                return Err(TessellateError::EmptyLoop { face: fk });
-            };
-            let cycle = body
-                .loop_cycle(first)
-                .ok_or(TessellateError::MissingEntity { what: "loop cycle" })?;
-            let mut edges = Vec::with_capacity(cycle.len());
-            for hek in cycle {
-                let he = body
-                    .get_half_edge(hek)
-                    .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
+            let walk = loop_half_edges(body, lk, fk)?;
+            let mut edges = Vec::with_capacity(walk.len());
+            for (hek, ek, forward) in walk {
                 let edge = body
-                    .get_edge(he.edge)
+                    .get_edge(ek)
                     .ok_or(TessellateError::MissingEntity { what: "edge" })?;
                 let curve = body
                     .get_curve_geom(edge.curve)
                     .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
                     .certified()
-                    .ok_or(TessellateError::NullScaffoldEdge { edge: he.edge })?;
+                    .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
                 let ids = chords
                     .ids
-                    .get(&he.edge)
+                    .get(&ek)
                     .ok_or(TessellateError::MissingEntity {
                         what: "edge chords",
                     })?
                     .clone();
                 let chord_params = chords
                     .params
-                    .get(&he.edge)
+                    .get(&ek)
                     .ok_or(TessellateError::MissingEntity {
                         what: "edge chord parameters",
                     })?
                     .clone();
                 edges.push(EdgeInputs {
-                    forward: edge.he_plus == hek,
+                    forward,
                     carrier: curve.carrier().clone(),
                     params: curve.params(),
                     positions: ids.iter().map(|&id| positions[id as usize]).collect(),
