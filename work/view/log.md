@@ -9190,3 +9190,139 @@ citation, and the item's separation held: nothing parses any of them
 back.
 
 **VIEW stands at 72 open / 79 closed, nothing waiting on Ev.**
+
+## 2026-09-11 — `view/free-move-reachability`: the refusal is reachable, and the keyboard is the second hand
+
+`free-move-in-flight-refusal-has-no-reachable-producer` asked whether
+`DisplayFault::FreeMoveInFlight` can be shown to anybody. It can, and
+the answer is a row rather than an argument:
+`crates/viewer/src/widgets.rs`'s
+`a_keyboard_bump_begins_a_second_probe_under_a_held_drag` drives the
+probe field's three `DragValue`s through the real `drag_ops` against a
+headless `egui::Context` and reads the ops back — a pointer press and
+move give `["begin", "preview"]`, and a Tab/ArrowUp pair on a component
+the pointer is not holding gives `["begin", "preview", "commit"]` with
+no commit and no cancel between it and the first begin. The mutation
+the row's own doc comment names as its repair — a typed arm guarded on
+the drag state — turns it red.
+
+**The item's two untraced candidates were the wrong two, and one of
+them is dead structurally.** egui carries `dragged`, `drag_started` and
+`drag_stopped` as a single `Option<Id>` each
+(`egui-0.36.1/src/interaction.rs:24-40`), so no second pointer and no
+touch opens a second drag; multi-touch feeds `MultiTouchInfo`, a
+zoom/rotate aggregate. The hand the search missed is not a pointer at
+all: a `DragValue` enters keyboard-edit mode the frame it takes focus,
+deliberately, for screen readers (`drag_value.rs:462-466`), and egui's
+focus and key handling never consult the pointer. The same blindness
+covers buttons — `Response::clicked` is true from keyboard focus plus
+Space/Enter, or from an AccessKit `Action::Click`, with no pointer
+(`context.rs:1464-1478`, `response.rs:183-184`). **A reachability
+question asked over pointer states is a proxy for one about input**, and
+this program's table gains a twelfth row for it.
+
+**#2358 had already moved the answer and the item predates it.**
+`session.rs:1089-1090` raises the same `DisplayFault::FreeMoveInFlight`
+for every operation `permitted_during_free_move` refuses — `Open` and
+`NewDocument` — so a second `BeginFreeMove` was never the only route,
+and the item's *"every route needs the free-move strand"* was false
+when it was written. #2348's `killed_gesture` cuts the other way and
+closes the strand the item was hunting: `prune` runs on every document
+transition (`session.rs:1611`, `:1994`) with the same predicate that
+takes the field away.
+
+**The honesty inversion does not land on this arm.** Every route above
+has the pointer still holding the drag, so *"finish the free-move
+first"* is followable; and `cancel_doors` draws *"Cancel free-move"*
+enabled exactly while `probing()` is `Some` (`session.rs:660`) anyway.
+What the search did NOT rule out is the selection: `instance_ui` draws
+only for `selection().node()` and no prune covers that, so a `Select`
+under an open probe would strand it. Every `Select` producer in
+`crates/viewer/src/` today is a pointer click and cannot land under the
+same pointer's drag — but the keyboard reaches those controls too. The
+row closed without it, and it is written down rather than left in a
+head.
+
+Two residues, each its own file in the same PR:
+`escape-commits-a-free-move-instead-of-abandoning-it` (egui aborts a
+drag on Escape by clearing `dragged`, so `drag_stopped` fires and the
+chrome commits the probe the user asked to abandon — measured
+`["commit"]`), and
+`a-keyboard-bump-lands-and-closes-the-pointers-own-probe` (all three
+components name one instance, so the typed arm's preview overwrites and
+its commit lands and closes the pointer's own gesture — the user is
+shown a refusal naming a state the same batch destroyed).
+
+## 2026-09-11 — #2388 merged; the twelfth proxy, and the plan's own count was one of them
+
+**#2388 merged** (`dcab0bf2ee`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips (two cache primes, the two interval-backend rows,
+`step import (freecad)`, `python suite`), no unsubstituted
+placeholders. The lane settled its `RUN_VIEWER_TOOLKIT` question by
+**running** `scripts/ci-filter.py` rather than reading `ci.yml`, which
+is the rule as written.
+
+**`DisplayFault::FreeMoveInFlight` is reachable, and the answer is a
+test rather than an argument.** `crates/viewer/src/widgets.rs` now
+carries a row that reproduces the probe field's exact shape — three
+`DragValue`s over one instance, each through the real `drag_ops` with
+the free-move triple — and drives it against a headless
+`egui::Context`: pointer press and move give `["begin", "preview"]`,
+keyboard-only frames answer nothing, and the step the focus reaches
+another component gives `["begin", "preview", "commit"]`. A second
+`BeginFreeMove` under an open one, from the chrome.
+
+**The twelfth proxy instance, and it is the sharpest.** The natural
+sweep for a reachability question is over *pointer* states — can one
+pointer hold two drags, can a click land under a held drag — and that
+sweep is closed, self-consistent, and answers **no**. The property is
+not pointer states; it is **input**. A `DragValue` enters keyboard-edit
+mode the frame it takes focus, deliberately, for screen readers, so the
+keyboard reaches a second component while the pointer still holds the
+first; and `Response::clicked()` is true for a keyboard Space/Enter and
+for an AccessKit `Action::Click` with no pointer anywhere. egui's API is
+*built* to make the three indistinguishable at the widget, which is
+exactly why the pointer-shaped sweep cannot see the other two. The
+dispatch warned against concluding unreachable from a failed search and
+named multi-touch and wasm relayout as the untraced candidates; **both
+of those were wrong** — multi-touch is dead structurally (egui carries
+one `Option<Id>` each for `dragged`/`drag_started`/`drag_stopped`) —
+and the real hand was one neither the item nor I had thought of.
+
+**The item's premise was already false when it was dispatched, and I
+did not catch it.** It said *every* route to the fault needs the
+free-move strand. The fault has a **second producer**: `session.rs:1090`
+raises it for every op `permitted_during_free_move` refuses, which is
+`Open` and `NewDocument` (`op.rs:854`) — added by #2358 four hours
+earlier. I verified the item's three `file:line` citations against main
+before dispatching and they all landed; a premise is not a citation and
+my check did not cover it. `plan.md` now says the dispatch owes a
+re-derivation of the **premise**, not only of the citations.
+
+**And the count in the proxy section was itself a member of the class
+it documents.** The lead-in read *"Eight instances"* over a table of
+nine rows, and then over ten. The table is now declared the population
+of record with the number struck from the prose — this program's
+count-fixed-in-one-place rule applied to the section that tabulates it.
+
+**Two residues filed rather than fixed, both verified here before the
+merge.** `escape-commits-a-free-move-instead-of-abandoning-it`: egui
+aborts a drag on Escape by clearing `dragged`, so `drag_stopped` fires
+and `drag_gesture_ops` (`widgets.rs:95-98`) emits **`CommitFreeMove`** —
+the key every other control spells *abandon* lands the probe. And
+`a-keyboard-bump-lands-and-closes-the-pointers-own-probe`: all three
+components name one instance, so after the second begin is refused the
+same batch's `preview_free_move` passes its instance check
+(`display.rs:778-779`) and `commit_free_move` (`display.rs:806`) lands
+it and closes the gesture — the user is shown a refusal naming a state
+the same batch destroyed. I read both call sites; both hold.
+
+**One hole the lane disclosed rather than let pass.** Its new row's doc
+comment carries two intra-doc links, and rustdoc builds under `cfg(doc)`
+not `cfg(test)`, so **neither doc pass judged them**; it checked both
+targets by hand. That is ground `cfg-test-bare-spans-have-no-stated-
+disposition` and `comment-symbol-names-outside-rustdocs-reach-have-no-
+gate` already own.
+
+**VIEW stands at 73 open / 80 closed, nothing waiting on Ev.**

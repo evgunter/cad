@@ -205,8 +205,12 @@ stands in for the property the claim is about, rather than being it.**
 This is the defect class this program hit most often, and it looks
 complete from the inside every time — a proxy agrees with itself over
 the population it can see, so nothing in the sweep reports the members
-it cannot. Eight instances, each a different proxy for a different
-property:
+it cannot. **The table below is the population of record — do not
+restate its size in prose.** The count has been wrong here twice
+already (it read *"Eight instances"* over nine rows, and then over
+ten), which is this program's own count-fixed-in-one-place hazard
+landing on the very section that tabulates it. Each row is a different
+proxy for a different property:
 
 | the sweep ranged over | the claim was about |
 |---|---|
@@ -219,6 +223,7 @@ property:
 | "the host pass" (#2304) | doc-gate, which runs two |
 | `add_enabled` + `on_disabled_hover_text` (#2320) | a control's DISPOSITION |
 | a bracket-backtick grep (#2332) | an intra-doc link, which has two spellings |
+| pointer states (#2388) | INPUT — a keyboard and an AccessKit action are hands too |
 
 The last is the orchestrator's own: I handed a lane a sweep over the two
 call names, and `pane/properties.rs:348-353` shows a typed ineligibility
@@ -241,6 +246,40 @@ intra-doc link into another crate*; my pattern was *a span shaped like
 `pncad`, which is in `VIEWER_TOOLKIT_SEEDS` — but the population did,
 and the population was the whole argument. Writing the class down does
 not exempt the next sweep from it.
+
+**The twelfth is the sharpest, and it is the one a reachability
+question walks into by default.** #2388 asked whether
+`DisplayFault::FreeMoveInFlight` can be produced by any chrome route.
+The natural sweep is over *pointer* states — can one pointer hold two
+drags, can a click land under a held drag — and that sweep is closed
+and self-consistent and answers **no**. The property is not pointer
+states; it is **input**. A `DragValue` enters keyboard-edit mode the
+frame it takes focus, deliberately, for screen readers
+(`egui-0.36.1/src/drag_value.rs:462-466`), so the keyboard reaches a
+second component while the pointer still holds the first — and
+`Response::clicked()` is true for a keyboard Space/Enter and for an
+AccessKit `Action::Click` with no pointer anywhere
+(`context.rs:1464-1478`). egui's API is *built* to make the three
+indistinguishable at the widget, which is exactly why a pointer-shaped
+sweep cannot see the other two.
+
+Note what this instance does NOT look like: the sweep was not sloppy,
+and no wider grep over the same population would have found it. The
+missing member was in a different population. **A reachability claim is
+a claim about what a USER can cause, and the set of things a user can
+cause is larger than the set of gestures the code names.** When the
+answer is about to be "unreachable", enumerate the input modalities
+before the code paths.
+
+**The same unit also falsified the item's premise outright**, which is
+the second lesson: `free-move-in-flight-refusal-has-no-reachable-
+producer` said *every* route needs the free-move strand, and by the
+time it was dispatched the fault had a **second producer** —
+`session.rs:1090` raises it for every op `permitted_during_free_move`
+refuses, which is `Open` and `NewDocument` (`op.rs:854`), added by
+#2358 four hours earlier. A row's premise ages against the tree exactly
+like a citation does, and the dispatch that says *re-derive the
+citations* has to say *re-derive the premise* too.
 
 **Settle a CI-scope question by RUNNING the filter, not by reading a
 manifest.** The same review reported `prose_census` as possibly sited
