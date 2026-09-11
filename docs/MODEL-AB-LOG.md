@@ -259,8 +259,25 @@ amended:
      S-TCOST's test-only posture — one style review per unit, no dual
      and no row recorded — so the band is claimed for bookkeeping, and
      whether it ever runs a protocol is left to Ev, which
-     `work/tint/plan.md` §Review posture records as unsettled),
-     with **3600+ unallocated** — the orchestrator opening the next
+     `work/tint/plan.md` §Review posture records as unsettled) ·
+     **the eleven programs of the 2026-09-11 cut**, all claimed
+     2026-09-11 in the one commit that opened them
+     (`docs/WORK-TRACKS-2026-09.md` addendum 3, Ev's direction
+     in-chat): GUARD 3600–3699 · WIRE 3700–3799 · DOOR 3800–3899 ·
+     CENSUS 3900–3999 · CITE 4000–4099 · SCALAR 4100–4199 ·
+     SUITE 4200–4299 · COMB 4300–4399 · PRED 4400–4499 ·
+     PIPE 4500–4599 · PORT 4600–4699. Eleven bands in one commit is
+     the largest claim since the joint opening of 2026-09-03 and is
+     the same case: the cut opens the programs together, so the bands
+     are allocated together rather than raced for afterwards. Postures
+     differ and each program's `plan.md` §Review posture states its
+     own — GUARD, CITE, SUITE and COMB are infra-or-prose and claim
+     their bands for bookkeeping (no protocol run is planned, and
+     whether one ever runs is left to Ev); DOOR, CENSUS, WIRE and PORT
+     run style reviews with a correctness arm; SCALAR, PRED and PIPE
+     run the full v6 dual on their kernel units and draw ordinals from
+     their bands from the first such unit,
+     with **4700+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
