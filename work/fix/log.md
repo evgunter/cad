@@ -828,3 +828,71 @@ finished lane is the orchestrator's job and "finished" means *the
 report is in hand*, not *the PR is merged* — a review lane's target is
 pure waste the moment it reports, and a lane's target is waste the
 moment its PR is green.
+
+### `two-d-director-doors-skip-the-finiteness-question` — in review (PR 2356, 2026-09-11)
+
+The unit this program's slate was actually for. Five doors that decided
+a length's SIGN without asking whether it was a finite NUMBER now ask
+first and refuse typed, in the one spelling the homing unit made
+reachable. CI green: 34 success, 4 skipped, all 12 `test (…)` points and
+all 5 `k-lint (gate, …)` unifications.
+
+**The item was wrong in both directions, and only executing it found
+that.** It named five rows and claimed *"every remaining instance is
+below"*:
+
+- **A SIXTH site it never named.** `point_at(origin,(0,0,1),(1e200,0,0))`
+  returned `Ok` with `c0=(0,-0,0)`, `c1=(0,0,-0)` — a second *silent*
+  `Ok`, not a mis-named refusal, in a door the item listed only for its
+  other argument.
+- **Row 3 does not reproduce as filed.** The item argued both
+  `sector_shape` arms collapse after a definite-positive decision.
+  Measured: three of four shapes already *refused* — downstream, at
+  rung 3, with the wrong cause and `COINCIDENCE_RECOURSE` attached —
+  and the one genuinely silent shape needs one chord finite, one not,
+  and `full_circle` set, because `min` hides ONE non-finite chord and
+  rung 0 asks each chord separately. The defect is real; the mechanism
+  the item describes is not the one that produces it.
+- **Row 5 reproduced exactly as argued** and was executed here for the
+  first time by anyone.
+
+Three of the five "measured" rows in that table were argued rather than
+run when filed, and two of those three were wrong. That is the
+strongest instance yet of this program's standing pattern, and it
+lands on the row that mattered most.
+
+**One scope expansion, flagged by the lane rather than absorbed.**
+`sector_shape` needed a refusal **channel**, not just an arm: it
+returned `Result<_, Indeterminate>`, which can say nothing but a band.
+It now returns `Result<_, SectorFault>`, with one new arm each on
+`BooleanError`, `BooleanErrorKind` and `SplitReduceError`. That is the
+same cost rows 4 and 5 were budgeted for (a new public arm, its
+sentence, its kind row, its Python tag), arriving at a door the brief
+did not expect to pay it. A refusal channel that can only say "band" is
+itself a `refusal-text-is-not-cause` defect, so the widening is the fix
+rather than a detour.
+
+**A structural CI blind spot, found by going red.**
+`crates/pncad-py/src/py/place.rs` matches `FrameError` exhaustively and
+sits behind the non-default `python` feature, so
+`cargo build/clippy --workspace` is **structurally blind to it**. A
+lane that verified locally with the natural command would have pushed a
+break. The reviewer is asked whether other exhaustive matches on the
+changed enums hide behind non-default features.
+
+**A correctness reviewer is on it** — the plan's own rule (a unit that
+moves a kernel ANSWER rather than its rendering gets one), and the only
+unit of this wave to need it. The one claim that decides whether the PR
+is what it says it is: *only the order of questions changes*.
+
+**Two more sites filed rather than taken**, on this program's slate as
+`normalize-without-the-length-question-two-more-sites`: a sibling class
+at `topo/src/chart_region.rs` where the norm is in the **denominator**
+of the decided margin, so an infinite lever decides a spurious `Zero`
+and that arm then normalizes — argued, not executed, and the reviewer
+is asked to execute it.
+
+**Disk: this lane could not run `doc-gate.sh` because the box hit 100%.**
+That was this orchestrator's fault, not the lane's — a finished lane's
+19 GB target was still sitting there. The lane pruned its own target and
+never touched another's, which is the right behaviour, and said so.
