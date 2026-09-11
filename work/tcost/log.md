@@ -1603,3 +1603,54 @@ territory both files are:
 The board is eleven live rows: the four latency rows, the demotions row,
 the two gate defects, the two fuzz-policy rows, the parked proptest
 question, and the `ci-filter.py` citation fix.
+
+## Unit: the gate's converse check, and two rulings (2026-09-11)
+
+**`gated-marker-omits-sibling-helper-imports` is closed with the arm
+landed.** `--gated-check` now requires that every sibling helper module a
+gated `tests/` suite imports is covered by its marker's path set, by the
+same match `selected_by` makes. Two findings worth the log:
+
+- **The item's own fix sketch was wrong in the load-bearing place.** It
+  said to resolve `use crate::<h>` "the way `_all_rs_modules` already
+  does" — but that reader records `#[path]` PAIRS, and every helper tree
+  in this repo is mounted by a bare `mod common;`. Built on it the check
+  resolves nothing and passes every tree in green: this row's own defect,
+  one level up. Caught by looking at the output (zero suites resolved on
+  a tree the census said had ten), not by reading. `_tests_sibling_files`
+  is a second reader; `_all_rs_modules` is untouched and no term moved.
+- **It found three offenders on main, and they are not the ten.**
+  `review_chamfer_r1_probes`, `review_verbs_rim_lever_probes` and
+  `verbs_rim_r1_probes` in `crates/sweep`, all importing
+  `use crate::common;` and naming no part of
+  `crates/sweep/tests/common/`. All three markers were written
+  **2026-09-09** (`8ee8cf1c`), six days AFTER the census swept all 54 and
+  widened the ten it found. The class regrew at the predicted rate under
+  the review the row said would not catch it — which is the argument for
+  a mechanical check over another sweep. Fixed in the same commit.
+
+Planted both directions in `scripts/gates/gated-suite-paths.sh` (an
+announced cross-fence edit; that file is code-quality Track K's and calls
+`--gated-check` rather than deciding anything): the gate must red on an
+unnamed helper import, and must pass the near miss this directory's
+convention owes — the same import with the directory named.
+
+**`gated-marker-path-mount` is SIZED, not taken.** Its two candidate
+fixes are now priced against the code: "make the silence loud" is ~15
+lines on the reader just built; "resolve the mount" needs a module-tree
+walk of `crates/*/src` whose nested-mount case would reproduce this row's
+own failure if done by halves. The two buy different things and the
+choice is Ev's; the recommendation on the item is candidate 2 now,
+candidate 1 only when a row genuinely wants gating in a mounted file.
+
+**`consider-proptest-for-randomized-sweeps` is closed on Ev's ruling**
+(in chat, 2026-09-11): *"the fuzzers have found things only rarely and it
+seems like understanding the problem found by the fuzzer hasn't been too
+burdensome."* The whole case for migrating was shrinking — the issue says
+so itself — and shrinking is a tool for making diagnosis cheaper. The
+harness it was parked on already exists (`test_utils::fuzz`), the
+memory's fuzzing rules are untouched, and `r1-probe-seeds-are-not-on-the-
+fuzz-dial` stays open: it is the one place the reproducibility floor this
+ruling assumes is not actually met.
+
+Board: eight live rows.
