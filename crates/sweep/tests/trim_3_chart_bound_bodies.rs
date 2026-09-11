@@ -35,17 +35,14 @@
 
 use std::f64::consts::{PI, TAU};
 
+use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, Tol, Vec2, Vec3};
+use geom_core::{Bounds, Interval, Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, ChartBound, ChartEdge, ChartLoop, FaceKey, LoopBoundary, MetredRect, chart_boundary,
 };
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 fn iv(x: f64) -> Interval {
     Interval::from_f64(x)
 }

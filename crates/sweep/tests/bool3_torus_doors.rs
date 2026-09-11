@@ -64,6 +64,7 @@
 
 use crate::revolve_common;
 
+use crate::common::approx::band;
 use geom_core::{Band, Point3, Tol, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
@@ -183,10 +184,6 @@ fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     extrude(&profile, Extrusion::Distance(z.1 - z.0), Tol::witness())
         .unwrap()
         .body
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
