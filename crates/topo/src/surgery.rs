@@ -27,7 +27,7 @@
 //! is the commoner shape of composition here. `shell_open` calls
 //! `replace_faces_offset`, which clones the destination, mutates the
 //! clone, gates it, and adopts it. The clone starts at depth 0
-//! whatever scope the destination is inside ([`SurgeryDepth`]'s
+//! whatever scope the destination is inside (`SurgeryDepth`'s
 //! `Clone`), so the staging door's own scope on it is outermost and
 //! its close DOES sweep — once per call, not once per setter.
 //! `merge_coplanar_faces_declared` is the same shape per group. That
@@ -70,7 +70,7 @@
 //! `Drop`**: a `debug_assert` firing while a panic unwinds aborts the
 //! process and takes the original error with it.
 //!
-//! [`Body::enter_surgery`] and its two closes are the same three
+//! `Body::enter_surgery` and its two closes are the same three
 //! meanings without the guard, for the two sites in this crate where
 //! a borrow forbids one. They are `pub(crate)` and their obligation is
 //! the caller's; the method docs carry it.
@@ -85,7 +85,7 @@
 //!   only by dropping the guard or consuming it in a close, and both
 //!   decrement. That is every scope in the tree but two.
 //! - **A lexical read** —
-//!   [`crate::source_walk::MutationDoor::surgery_posture`], used by
+//!   `source_walk::MutationDoor::surgery_posture`, used by
 //!   `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
 //!   — reds on a door that opens a scope and closes nothing. Its
 //!   population is the `pub fn … &mut self` doors of `topo/src`, so it
