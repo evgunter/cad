@@ -138,6 +138,12 @@ the direction the clause demands: the buttons now read `length`,
 `angle`, `count`, `scalar` and no longer render capitalised variant
 identifiers to a user.
 
+That word change moves committed pixels: all seven cells of
+`demos/renders-gui/` differ, because the lane photographs the real
+viewer with the properties panel on screen. The new cells are the
+truth and `main`'s own run re-baselines them after the merge; PR 2391
+records the drift rather than restoring anything.
+
 **The order does not move.** `Dimension::ALL` is declaration order and
 the retired array was already in it, so unlike PR 2387's boolean row
 this changes no button's position — only every button's word.
