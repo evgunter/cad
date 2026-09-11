@@ -667,6 +667,27 @@ FIXTURE_CARGO_ROW = "cargo nextest run --workspace"
 FIXTURE_CARGO_FN_STEP = "cargo fn row"
 FIXTURE_CARGO_FN_ROW = "cargo clippy -- -D warnings"
 
+# THE DIRECTORY ARM'S FIXTURE PAIR, and it is deliberately the awkward shape
+# rather than the easy one: ONE local row cited by TWO markers, whose two
+# hosted steps run in two DIFFERENT directories. That is `demos_hygiene`'s
+# shape and `scene_inputs`'s, it is what makes the arm's extent the row rather
+# than the pair, and a fixture built from a single one-directory pair would
+# pass a reader that compared per pair and red a correct tree on the first live
+# row it met. The two directories are named, not derived: what they stand for
+# is the cargo roots the workspace excludes, and there is nothing in a
+# miniature repo to derive that from.
+FIXTURE_WD_STEP = "workdir row"
+FIXTURE_WD_STEP_TWO = "workdir row two"
+FIXTURE_WD_ROW = "cargo check --workspace"
+FIXTURE_WD_DIR = "subcrate"
+FIXTURE_WD_DIR_TWO = "othercrate"
+FIXTURE_WD_FN = "fixture_wd_row"
+# The row's two lines, each written on its own so a case can plant on ONE half
+# of ONE of them — the shape the arm exists for, and the one a case that
+# rewrote the whole row would never reach.
+FIXTURE_WD_LINE = f"  (cd {FIXTURE_WD_DIR} && {FIXTURE_WD_ROW})\n"
+FIXTURE_WD_LINE_TWO = f"  (cd {FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW})\n"
+
 SCRIPT_RE = re.compile(r"(?:^|[^A-Za-z0-9_/.-])((?:scripts|demos)/[A-Za-z0-9_/.-]+\.(?:sh|py))")
 COMMENT_RE = re.compile(r"^\s*#")
 MARKER_RE = re.compile(r"#\s*HOSTED MIRROR:\s*(.*?)\s*$")
@@ -755,6 +776,12 @@ class Step:
         # reason `run` is: a variable is a name and a value, and the text it
         # sits in is neither.
         self.env: dict[str, str] = {}
+        # `working-directory:`, the hosted spelling of the directory the step's
+        # commands run in. Claim 10's directory arm reads it, and it was in
+        # `STEP_KEYS` with its value discarded until that arm existed — the
+        # local half spells the same fact as a `cd`, and two spellings nothing
+        # compares are two facts that can drift.
+        self.workdir: str | None = None
 
 
 class Job:
@@ -771,6 +798,12 @@ class Job:
         # precedence, and the reason a pair can be cited at a step while the
         # variable that matters is declared forty lines above it.
         self.env: dict[str, str] = {}
+        # The line of a `defaults:` block on this job, or None. NOT parsed:
+        # `defaults.run.working-directory` moves every step of the job into
+        # another directory without appearing on any step, so claim 10's
+        # directory arm refuses a pair cited in such a job rather than reading
+        # the step and calling the answer complete.
+        self.defaults_line: int | None = None
 
 
 def _significant(path: str) -> list[tuple[int, int, str]]:
@@ -873,6 +906,23 @@ def workflow_env(path: str) -> dict[str, str]:
     return out
 
 
+def workflow_defaults(path: str) -> int | None:
+    """The line of a top-level `defaults:` key, or None.
+
+    THE OTHER PLACE A WORKING DIRECTORY CAN BE DECLARED, and the one no step
+    shows. `defaults.run.working-directory` at the workflow or job level moves
+    every step under it, so a directory arm that read only `working-directory:`
+    on the cited step would report the repo root for a job that runs somewhere
+    else entirely. Neither file writes one today; the line is not parsed
+    because there is nothing yet to parse — what is recorded is that one
+    EXISTS, and claim 10 refuses the pairs under it.
+    """
+    for ln, ind, text in _significant(path):
+        if ind == 0 and text.strip() == "defaults:":
+            return ln
+    return None
+
+
 def _read_job(path: str, job: Job, body: list[tuple[int, int, str]]) -> None:
     if not body:
         raise Bail(f"{path}:{job.line}: job `{job.name}` has an empty body. A job with no keys cannot "
@@ -910,6 +960,8 @@ def _read_job(path: str, job: Job, body: list[tuple[int, int, str]]) -> None:
             job.continue_on_error = value.lower() in ("true", "'true'", '"true"')
         elif key == "uses":
             job.uses = value
+        elif key == "defaults":
+            job.defaults_line = n
         elif key == "needs":
             job.needs = _read_needs(path, n, value, nested)
         elif key == "env":
@@ -1045,6 +1097,8 @@ def _read_step(path: str, job: Job, step: Step, item_indent: int,
             step.name = value.strip("'\"")
         elif key == "run":
             step.run.append(value)
+        elif key == "working-directory":
+            step.workdir = value.strip("'\"")
         # A block scalar's body is opaque text, not keys — `run: |` is where
         # every invocation this file reads actually lives.
         j = k + 1
@@ -1621,6 +1675,59 @@ CMD_WRAPPERS = frozenset({"env", "exec", "nohup", "command", "stdbuf", "timeout"
 ASSIGN_KEYWORDS = frozenset({"export", "declare", "typeset", "readonly", "local"})
 
 
+def _command_word(toks: list[str]) -> tuple[int, list[tuple[str, str]], bool, bool]:
+    """`(index of the command word, the assignments prefixed to it, is the
+    assignment standing, did a token defeat the walk)`.
+
+    ONE WALK FOR BOTH ARMS THAT NEED ONE. The env arm asks what is set BEFORE
+    the command word and the directory arm asks what the command word IS, and
+    they are the same question read from the two ends — so they are one
+    function. The anchor is the whole point and was this file's own bug: a scan
+    anchored at token 0 read `rebuild_latency() { CAD_X=1 cargo test …; }` as a
+    row that sets nothing, on three live pairs. `i == len(toks)` means the
+    chunk ran off the end without ever reaching a command.
+    """
+    found: list[tuple[str, str]] = []
+    standing = False
+    opaque = False
+    i = 0
+    while i < len(toks):
+        tok = toks[i]
+        if tok in CMD_PRELUDE:
+            i += 1
+            continue
+        if tok in ASSIGN_KEYWORDS:
+            standing = True
+            i += 1
+            while i < len(toks) and toks[i].startswith("-"):
+                i += 1
+            continue
+        if tok in CMD_WRAPPERS and not standing:
+            i += 1
+            # `env -u NAME` UNSETS, and an unset compares as absent — right in
+            # both directions: against a half that never set the variable they
+            # agree, and against one that sets it the setting half is
+            # one-sided, which is the truth.
+            while i < len(toks) and toks[i].startswith("-"):
+                if toks[i] in ("-u", "--unset") and i + 1 < len(toks):
+                    i += 1
+                i += 1
+            continue
+        m = ASSIGN_RE.match(tok)
+        if m is not None:
+            found.append((m.group(1), m.group(2)))
+            i += 1
+            continue
+        if "$GHEXPR" in tok or SUB_MASK in tok:
+            # An expression standing where a prefix would: unreadable, and the
+            # rest of the chunk may still carry a real one.
+            opaque = True
+            i += 1
+            continue
+        break                                           # the command word
+    return i, found, standing, opaque
+
+
 def env_prefixes(where: str, lines: list[str]) -> tuple[dict[str, str], bool]:
     """`(allowlisted variables set as an INLINE PREFIX, is the map incomplete)`.
 
@@ -1685,43 +1792,8 @@ def env_prefixes(where: str, lines: list[str]) -> tuple[dict[str, str], bool]:
                            + teach("`env_prefixes`")) from exc
             if not toks:
                 continue
-            found: list[tuple[str, str]] = []
-            standing = False
-            i = 0
-            while i < len(toks):
-                tok = toks[i]
-                if tok in CMD_PRELUDE:
-                    i += 1
-                    continue
-                if tok in ASSIGN_KEYWORDS:
-                    standing = True
-                    i += 1
-                    while i < len(toks) and toks[i].startswith("-"):
-                        i += 1
-                    continue
-                if tok in CMD_WRAPPERS and not standing:
-                    i += 1
-                    # `env -u NAME` UNSETS, and an unset compares as absent —
-                    # right in both directions: against a half that never set
-                    # the variable they agree, and against one that sets it
-                    # the setting half is one-sided, which is the truth.
-                    while i < len(toks) and toks[i].startswith("-"):
-                        if toks[i] in ("-u", "--unset") and i + 1 < len(toks):
-                            i += 1
-                        i += 1
-                    continue
-                m = ASSIGN_RE.match(tok)
-                if m is not None:
-                    found.append((m.group(1), m.group(2)))
-                    i += 1
-                    continue
-                if "$GHEXPR" in tok or SUB_MASK in tok:
-                    # An expression standing where a prefix would: unreadable,
-                    # and the rest of the chunk may still carry a real one.
-                    incomplete = True
-                    i += 1
-                    continue
-                break                                   # the command word
+            i, found, standing, opaque = _command_word(toks)
+            incomplete = incomplete or opaque
             # A prefix is followed by the command it applies to; assignments
             # with nothing after them are the shell's own scope, which is the
             # same fact `export` states out loud.
@@ -1752,6 +1824,165 @@ def env_prefixes(where: str, lines: list[str]) -> tuple[dict[str, str], bool]:
                                "half that never made it."
                                + teach("`env_prefixes`'s `CMD_PRELUDE`/`CMD_WRAPPERS` walk"))
     return out, incomplete
+
+
+# The shell's own way of saying where a command runs. `pushd`/`popd` are here
+# to be REFUSED: they are a stack, and a reader that recorded the push without
+# the pop would report a directory the row has already left.
+CD_COMMANDS = frozenset({"cd", "pushd", "popd"})
+# A shell invoked on a command STRING. `bash -c 'cd benches && cargo fmt …'` is
+# the local half's spelling of the benches row, so this is not a hypothetical
+# shape: the `cd` inside the quotes is the whole fact the pair is compared on,
+# and a reader that stopped at the command word would find `run_row` there and
+# report a row that names no directory.
+SHELL_C = frozenset({"bash", "sh", "dash", "zsh"})
+CD_RE = re.compile(r"(^|[^A-Za-z0-9_./-])(cd|pushd|popd)([^A-Za-z0-9_./-]|$)")
+
+
+def _norm_dir(where: str, raw: str, chunk: str) -> str | None:
+    """One directory as claim 10 compares it, or None for "the row's own root".
+
+    NORMALISED SO THAT TWO SPELLINGS OF ONE DIRECTORY COMPARE EQUAL — `benches`
+    and `./benches/` are the same place and a set comparison that called them
+    different would red a correct pair. Anything this cannot evaluate to a path
+    RELATIVE TO THE REPO ROOT raises: a directory read wrong is a row compared
+    against the wrong tree, and "I could not tell" must never arrive as "no
+    directory here", which is precisely what a half that stays put looks like.
+    """
+    if "$" in raw or raw.startswith("~"):
+        raise Bail(f"{where}: this changes directory to something only the shell or the runner can "
+                   f"expand: {chunk.strip()[:100]!r}. Claim 10's directory arm compares the two "
+                   "halves' directories as paths, and a name it cannot evaluate would have to be "
+                   "read as EITHER equal to the other half or absent — and absent is what a half "
+                   "that never moves looks like. Write the directory as a literal path,"
+                   + teach("`_norm_dir`"))
+    if raw.startswith("-"):
+        raise Bail(f"{where}: `cd {raw}` names a directory by where the shell has BEEN rather than "
+                   f"by where it is: {chunk.strip()[:100]!r}. This reader records the directories a "
+                   "row names and does not track the shell's history, so it cannot say what this "
+                   "one is. Write the directory as a literal path,"
+                   + teach("`_norm_dir`"))
+    norm = os.path.normpath(raw)
+    if norm == ".":
+        return None
+    if norm == ".." or norm.startswith("../"):
+        raise Bail(f"{where}: this changes directory to {raw!r}, above the directory the row starts "
+                   f"in: {chunk.strip()[:100]!r}. Claim 10's directory arm compares paths relative to "
+                   "the repo root and does not know what the row's own starting directory is, so an "
+                   "ascent out of it resolves to nothing it can compare. Write the directory as a "
+                   "path from the repo root," + teach("`_norm_dir`"))
+    return norm
+
+
+def work_dirs(where: str, lines: list[str]) -> set[str]:
+    """The directories these lines NAME, as paths from the repo root.
+
+    THE THIRD SPELLING OF ONE FACT, and the reason this exists at all: hosted
+    writes `working-directory: interval-transcendentals` on a step, the local
+    half writes `(cd interval-transcendentals && …)`, and until this arm the
+    value of the first was discarded and the second was read by nothing. Two
+    spellings of one fact compared by nothing is exactly what the env arm found
+    between an `env:` block and an inline prefix — change either half and the
+    pair stayed green. This function reads the SHELL spelling, on both halves,
+    because hosted writes `cd demos/tour && cargo run …` inline too; the
+    recogniser reads the YAML one onto `Step.workdir`.
+
+    A SET OF NAMES, NOT A DIRECTORY PER COMMAND, and the choice is what makes
+    the arm cheap enough to be right. A row's commands genuinely run in several
+    directories (`demos_hygiene` lints two cargo roots in two subshells), and
+    attributing each command to one would mean evaluating subshell scope,
+    `&&`-list ordering and a `cd` relative to the last — a shell, in other
+    words. What is compared instead is WHICH directories a row names, which
+    needs no scope at all: a subshell `cd`, a bare one and one inside
+    `bash -c` all name the same thing. The cost is stated at the claim: which
+    command ran where is not read, so swapping two commands between two
+    directories a row already names is invisible — the same shape as the env
+    arm's "which command carries the variable".
+
+    WHAT IT REFUSES rather than reads as "this half stays put", because those
+    two answers are indistinguishable and one of them is the silent pass this
+    arm exists to close: `pushd`/`popd`, a `cd` whose argument is an expansion,
+    `cd -`, an ascent above the row's own root, a `cd` this cannot attribute to
+    a command, and two `cd`s on one logical line with no subshell boundary
+    between them (the second may be relative to the first, and this reader
+    records directories rather than composing them).
+    """
+    out: set[str] = set()
+    for line in _join_continuations(lines):
+        line = GH_EXPR_RE.sub("$GHEXPR", line)
+        if not CD_RE.search(line):
+            continue
+        hits = list(CD_RE.finditer(line))
+        for first, second in zip(hits, hits[1:]):
+            if ")" not in line[first.end():second.start()]:
+                raise Bail(f"{where}: two directory changes on one command line with no subshell "
+                           f"boundary between them: {line.strip()[:120]!r}. The second may be "
+                           "relative to the first, and this reader records the directories a row "
+                           "names rather than composing them — so it would report two places the "
+                           "row never runs in and miss the one it does. Put each in its own "
+                           "subshell, or write the second as a path from the repo root,"
+                           + teach("`work_dirs`'s one-`cd`-per-line rule"))
+        for chunk in _simple_commands(where, line):
+            out |= _chunk_dirs(where, chunk)
+    return out
+
+
+def _chunk_dirs(where: str, chunk: str) -> set[str]:
+    """The directory one simple command names, if it names one."""
+    try:
+        toks = shlex.split(chunk)
+    except ValueError as exc:
+        raise Bail(f"{where}: cannot read this as a command line ({exc}): {chunk.strip()[:120]!r}. "
+                   "It names `cd`, so claim 10 has to know which directory this row runs in."
+                   + teach("`work_dirs`")) from exc
+    if not toks:
+        return set()
+    i, _found, _standing, _opaque = _command_word(toks)
+    # A SHELL ON A COMMAND STRING IS A COMMAND LINE, wherever in the chunk it
+    # sits. The local half's benches row reaches this reader as
+    # `run_row "rustfmt (benches)" bash -c 'cd benches && …'`, whose command
+    # word is the row dispatcher — so anchoring on the command word alone
+    # finds no `cd` and reports the one row in the repo that has to be read.
+    for j in range(i, len(toks) - 1):
+        if toks[j] in SHELL_C and "-c" in toks[j + 1:]:
+            k = toks.index("-c", j + 1)
+            if k + 1 >= len(toks):
+                raise Bail(f"{where}: `{toks[j]} -c` with no command string after it: "
+                           f"{chunk.strip()[:100]!r}. This line names `cd`, so claim 10 has to read "
+                           "the string to know which directory the row runs in."
+                           + teach("`_chunk_dirs`'s `SHELL_C` branch"))
+            return work_dirs(where, [toks[k + 1]])
+    if i >= len(toks):
+        return set()
+    word = toks[i]
+    if word in ("pushd", "popd"):
+        raise Bail(f"{where}: `{word}` is a directory STACK, and this reader records the directories "
+                   f"a row names rather than replaying one: {chunk.strip()[:100]!r}. A push read "
+                   "without its pop reports a directory the row has already left, and reading "
+                   "neither is what a half that stays put looks like. Write the directory change as "
+                   "a subshell `cd`," + teach("`_chunk_dirs`"))
+    if word == "cd":
+        if i + 1 >= len(toks):
+            raise Bail(f"{where}: `cd` with no argument goes to $HOME, which is not a directory in "
+                       f"this repo: {chunk.strip()[:100]!r}. Claim 10's directory arm compares paths "
+                       "from the repo root, and a row that leaves the tree is one it cannot compare "
+                       "against the other half at all. Name the directory,"
+                       + teach("`_chunk_dirs`"))
+        here = _norm_dir(where, toks[i + 1], chunk)
+        return {here} if here is not None else set()
+    # WHAT THE WALK COULD NOT ATTRIBUTE, on `env_prefixes`'s own rule and for
+    # its reason: a `cd` sitting after the command word is either an argument
+    # to something this reader does not know, or a construct it does not take
+    # apart. Reading it as "no directory here" is the one answer that cannot
+    # be right.
+    for tok in toks[i + 1:]:
+        if tok in CD_COMMANDS:
+            raise Bail(f"{where}: `{tok}` appears somewhere claim 10's directory arm cannot "
+                       f"attribute to a command: {chunk.strip()[:100]!r}. It sits after the command "
+                       "word, or inside a construct this reader does not take apart — and a "
+                       "directory change read as absent compares equal to a half that never made "
+                       "one." + teach("`_chunk_dirs`'s walk and `SHELL_C`"))
+    return set()
 
 
 def _presence(invocations: list[dict[str, str | None]], flag: str) -> tuple[bool, bool, set[str | None]]:
@@ -1838,6 +2069,22 @@ def _exempt_present(marker: str, token: str, want: str, reason: str, h_here: boo
     return None
 
 
+def row_anchor(raw: list[str], at: int) -> int:
+    """The index of the first code line below the marker on line `at`, which
+    is `len(raw)` when there is none.
+
+    THE ROW'S IDENTITY, and claim 10's directory arm needs it as well as the
+    row's text: several markers can sit above ONE local row — three do, over
+    `scene_inputs` — and that arm's extent is the row rather than the pair.
+    Two rows that happen to be spelled identically are still two rows, so the
+    grouping is keyed on this and not on the text `marker_row` returns.
+    """
+    i = at + 1
+    while i < len(raw) and (not raw[i].strip() or COMMENT_RE.match(raw[i])):
+        i += 1
+    return i
+
+
 def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> list[str]:
     """The local half's side of the pair a `HOSTED MIRROR` marker on line `at`
     declares: the lines whose argv answers to the hosted step it cites.
@@ -1868,9 +2115,7 @@ def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> li
     sibling that has it, and an any-presence rule returns OK.
     `_presence`'s second rule is what answers that, and it is why there is one.
     """
-    i = at + 1
-    while i < len(raw) and (not raw[i].strip() or COMMENT_RE.match(raw[i])):
-        i += 1
+    i = row_anchor(raw, at)
     if i >= len(raw):
         # WHAT THIS GUARD CATCHES, exactly: a marker with no code line ANYWHERE
         # below it — the end of the file. It is not a check that the row under
@@ -2178,6 +2423,7 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     # the roster is the place to widen, not this walk.
     wf_seeds: set[str] = set()
     file_env: dict[str, dict[str, str]] = {}
+    file_defaults: dict[str, int | None] = {}
     for wf in sorted(os.listdir(WORKFLOW_DIR)):
         if wf.endswith((".yml", ".yaml")):
             wf_seeds |= invocations(non_comment(f"{WORKFLOW_DIR}/{wf}"))
@@ -2325,6 +2571,7 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
             wf_path = f"{WORKFLOW_DIR}/{wf}"
             file_jobs[wf_path] = {j.name: j for j in read_workflow(wf_path)}
             file_env[wf_path] = workflow_env(wf_path)
+            file_defaults[wf_path] = workflow_defaults(wf_path)
     all_jobs: dict[str, Job] = {}
     job_file: dict[str, str] = {}
     for wf_path, here in file_jobs.items():
@@ -2475,6 +2722,40 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     # by exemption. Hosted's environment is its job block, then its step
     # block, then any inline prefix — GitHub's own precedence — and the local
     # half's is the prefixes on the row under the marker.
+    #
+    # AND A THIRD ARM, OVER THE DIRECTORY, for the reason the second one
+    # exists: a pair's execution context is bigger than argv, and the part of
+    # it this file was reading stopped at the environment. `working-directory:`
+    # was in `STEP_KEYS` with its value DISCARDED while the local half spelled
+    # the same fact as `(cd interval-transcendentals && …)` — two spellings of
+    # one fact compared by nothing, which is the shape the env arm found
+    # between an `env:` block and a prefix. The population is what makes it
+    # worth an arm rather than a sentence: every directory either half names
+    # today is one of the cargo roots `Cargo.toml` EXCLUDES from the
+    # workspace, so a row that moves on one half only runs a different check
+    # under the same name, and no roster claim above can see it.
+    #
+    # ITS EXTENT IS THE LOCAL ROW, not the pair, and that is the one place the
+    # three arms differ. A directory is a property of a row and several
+    # markers can cite one row — `scene_inputs` carries three, `demos_hygiene`
+    # two, and the second of those runs its two hosted steps in two different
+    # cargo roots. Compared per pair, the `compose` marker's hosted step names
+    # no directory while the row it cites runs a `cd`, and a correct tree reds.
+    # So the hosted sides of one row's markers are UNIONED and the comparison
+    # is set equality: every directory named on either side must be named on
+    # the other. THE COST, and it is the env arm's own: which command runs
+    # where is not read, so moving a command between two directories the row
+    # already names is invisible here.
+    #
+    # NO EXEMPTION VOCABULARY, deliberately, and it is the one claim-10 arm
+    # with none. The population of deliberate asymmetries is empty: two halves
+    # running one check in two cargo roots is the defect itself, not a
+    # divergence anyone ratifies. `PAIR_EXEMPT`'s key tells a flag from a
+    # variable by its leading `-`, and a directory is neither — so an entry
+    # would cost that table a third token class to serve a population of zero.
+    # If a real one ever appears, the fix is the diff that adds it, which is
+    # the same trade every `Bail` in this file makes.
+    dir_groups: dict[int, dict] = {}
     for at, marker in marker_sites:
         if " / " not in marker:
             continue
@@ -2483,9 +2764,11 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
         step = next((st for st in job.steps if st.name == step_name), None) if job else None
         if step is None:
             continue  # claim 8 has already reported this citation
-        h_cmds = cargo_flags(f"{job_file[job_name]} job `{job_name}` step `{step_name}`", step.run)
-        l_cmds = cargo_flags(f"{LOCAL_HALF}:{at + 1} (the row citing `{marker}`)",
-                             marker_row(local_raw, at, local_funcs))
+        h_where = f"{job_file[job_name]} job `{job_name}` step `{step_name}`"
+        l_where = f"{LOCAL_HALF}:{at + 1} (the row citing `{marker}`)"
+        l_row = marker_row(local_raw, at, local_funcs)
+        h_cmds = cargo_flags(h_where, step.run)
+        l_cmds = cargo_flags(l_where, l_row)
         shared = sorted(set(h_cmds) & set(l_cmds))
         # THE OTHER WAY A HOSTED STEP CAN SET A VARIABLE, refused rather than
         # missed. A step that appends to `$GITHUB_ENV` sets it for every LATER
@@ -2524,11 +2807,44 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
         h_env = {k: v for k, v in file_env[job_file[job_name]].items() if semantic_env(k)}
         h_env.update({k: v for k, v in job.env.items() if semantic_env(k)})
         h_env.update({k: v for k, v in step.env.items() if semantic_env(k)})
-        h_prefix, h_partial = env_prefixes(
-            f"{job_file[job_name]} job `{job_name}` step `{step_name}`", step.run)
+        h_prefix, h_partial = env_prefixes(h_where, step.run)
         h_env.update(h_prefix)
-        l_env, l_partial = env_prefixes(f"{LOCAL_HALF}:{at + 1} (the row citing `{marker}`)",
-                                        marker_row(local_raw, at, local_funcs))
+        l_env, l_partial = env_prefixes(l_where, l_row)
+        # THE DIRECTORY ARM'S TWO REFUSALS, both about a directory declared
+        # where no step shows it. `defaults.run.working-directory` on the job
+        # or on the workflow moves EVERY step under it, so reading the cited
+        # step and calling the answer complete would report the repo root for
+        # a job that runs somewhere else. Neither file writes one today.
+        if job.defaults_line is not None:
+            raise Bail(f"{job_file[job_name]}:{job.defaults_line}: job `{job_name}` carries a "
+                       f"`defaults:` block, and `{marker}` is a mirrored pair in that job. "
+                       "`defaults.run.working-directory` moves every step of the job without "
+                       "appearing on any of them, so claim 10's directory arm would compare the "
+                       "local half against a directory the hosted half is not running in."
+                       + teach("`_read_job`'s `defaults` branch and `check`'s directory arm"))
+        if file_defaults[job_file[job_name]] is not None:
+            raise Bail(f"{job_file[job_name]}:{file_defaults[job_file[job_name]]}: this workflow "
+                       f"carries a top-level `defaults:` block and hosts the mirrored pair "
+                       f"`{marker}`. Same reason as the job-level refusal: "
+                       "`defaults.run.working-directory` moves every step in the file and appears "
+                       "on none of them."
+                       + teach("`workflow_defaults` and `check`'s directory arm"))
+        h_dirs = work_dirs(h_where, step.run)
+        if step.workdir is not None:
+            if h_dirs:
+                raise Bail(f"{h_where} carries `working-directory: {step.workdir}` AND changes "
+                           "directory inside its own `run:` block. The `cd` is relative to the "
+                           "`working-directory:`, so the two compose into a path this reader "
+                           "records as two separate places and the step runs in neither. Write one "
+                           "or the other." + teach("`check`'s directory arm"))
+            here = _norm_dir(h_where, step.workdir, f"working-directory: {step.workdir}")
+            if here is not None:
+                h_dirs = {here}
+        group = dir_groups.setdefault(row_anchor(local_raw, at),
+                                      {"markers": [], "hosted": set(), "local": set()})
+        group["markers"].append(marker)
+        group["hosted"] |= h_dirs
+        group["local"] |= work_dirs(l_where, l_row)
         # THE UNWATCHED-ABSENCE DIRECTION, first for both arms and the one
         # MIRROR_EXEMPT has had all along at its "NEITHER half names it"
         # branch. Without it an exemption is not a watched asymmetry but an
@@ -2636,6 +2952,27 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
                 "a prefix dropped from one half is invisible to every other claim here: the row keeps "
                 "its name, its flags and its citation. Set it on both halves, or declare the pair in "
                 "PAIR_EXEMPT with the reason it is one-sided")
+
+    # THE DIRECTORY ARM'S VERDICT, one row at a time. Read the block comment
+    # above the marker loop for why the unit is the row and the comparison is
+    # set equality.
+    for anchor in sorted(dir_groups):
+        group = dir_groups[anchor]
+        named = ", ".join(f"`{m}`" for m in group["markers"])
+        row_is = f"the local row at {LOCAL_HALF}:{anchor + 1}, cited by {named},"
+        for where in sorted(group["hosted"] - group["local"]):
+            err(f"{row_is} has a hosted half that runs in `{where}` and a local half that never "
+                "names that directory. A working directory decides which CARGO ROOT a row's "
+                "commands run in, and the roots either half names here are the ones the workspace "
+                "EXCLUDES — so the two halves run a different check under one row name, while every "
+                "claim above still says they run the same one. Spell the same directory on both "
+                "halves, as `working-directory:` or as a `cd`")
+        for where in sorted(group["local"] - group["hosted"]):
+            err(f"{row_is} runs in `{where}` and the hosted half never names that directory. Same "
+                "defect as the hosted-only direction and the one that merges more easily: a `cd` "
+                "added or moved locally leaves the row's name, its flags, its environment and its "
+                "citation all unchanged. Spell the same directory on both halves, as "
+                "`working-directory:` or as a `cd`")
 
     for (marker, token), (want, reason) in sorted(PAIR_EXEMPT.items()):
         if marker not in markers:
@@ -2813,6 +3150,13 @@ def plant_clean(t: str) -> None:
         # this repo's local half is written.
         fh.write(f"      - name: {FIXTURE_CARGO_STEP}\n        run: {FIXTURE_CARGO_ROW}\n")
         fh.write(f"      - name: {FIXTURE_CARGO_FN_STEP}\n        run: {FIXTURE_CARGO_FN_ROW}\n")
+        # CLAIM 10'S DIRECTORY PAIR, hosted side: two steps, two directories,
+        # written in the YAML spelling because that is the one whose value was
+        # discarded until this arm read it.
+        for step_name, where in ((FIXTURE_WD_STEP, FIXTURE_WD_DIR),
+                                 (FIXTURE_WD_STEP_TWO, FIXTURE_WD_DIR_TWO)):
+            fh.write(f"      - name: {step_name}\n        working-directory: {where}\n"
+                     f"        run: {FIXTURE_WD_ROW}\n")
         # A job with no local half, confessing at its own key — claim 9's
         # other branch, exercised by the CLEAN fixture so the passing shape is
         # covered as well as the failing ones.
@@ -2864,6 +3208,15 @@ def plant_clean(t: str) -> None:
         fh.write(f"# HOSTED MIRROR: discipline / {FIXTURE_CARGO_STEP}\n{FIXTURE_CARGO_ROW}\n")
         fh.write(f"cargo_fn_row() {{\n  {FIXTURE_CARGO_FN_ROW}\n}}\n")
         fh.write(f"# HOSTED MIRROR: discipline / {FIXTURE_CARGO_FN_STEP}\nrun_fixture_row cargo_fn_row\n")
+        # …and the directory pair's local side: ONE row, cited by both markers,
+        # naming both directories in the shell spelling. Written as a function
+        # the dispatch line only names, which is how most of the local half is
+        # written and the path a reader taking the row from its first code line
+        # would miss.
+        fh.write(f"{FIXTURE_WD_FN}() {{\n{FIXTURE_WD_LINE}{FIXTURE_WD_LINE_TWO}}}\n")
+        fh.write(f"# HOSTED MIRROR: discipline / {FIXTURE_WD_STEP}\n"
+                 f"# HOSTED MIRROR: discipline / {FIXTURE_WD_STEP_TWO}\n"
+                 f"run_fixture_row {FIXTURE_WD_FN}\n")
         for marker, row in _pair_exempt_rows().items():
             prefix = "".join(f"{k}={shlex.quote(v)} " for k, v in sorted(row.local_env.items()))
             fh.write(f"# HOSTED MIRROR: {marker}\n{prefix}{row.local_argv}\n")
@@ -3570,6 +3923,134 @@ def selftest() -> None:
         _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",
              '        run: echo "RUSTFLAGS=x" >> $GITHUB_ENV\n')
 
+    # CLAIM 10'S DIRECTORY ARM. Every case is planted on ONE half of ONE of
+    # the fixture row's two lines, because that is the shape the arm exists
+    # for: the defect it was filed over is a directory that moves on one side
+    # while the row keeps its name, its flags, its environment and its
+    # citation.
+    _WD_HOSTED_TWO = (f"      - name: {FIXTURE_WD_STEP_TWO}\n"
+                      f"        working-directory: {FIXTURE_WD_DIR_TWO}\n")
+
+    # The hosted half stops naming the directory: a `working-directory:` line
+    # deleted, which is one keystroke and reads as tidying.
+    def wd_hosted_stops_naming(t):
+        _sub(t, HOSTED_HALF, _WD_HOSTED_TWO,
+             f"      - name: {FIXTURE_WD_STEP_TWO}\n")
+
+    # …and the local half doing the same, which is the direction that merges
+    # more easily because nothing about the row's text changes shape.
+    def wd_local_stops_naming(t):
+        _sub(t, LOCAL_HALF, FIXTURE_WD_LINE_TWO, f"  {FIXTURE_WD_ROW}\n")
+
+    # THE CASE THE ROW-WIDE EXTENT IS FOR, and the one a per-PAIR comparison
+    # gets wrong in both directions: the row names two directories, and one
+    # hosted step moves onto the other one. A subset rule passes it — hosted's
+    # set is still contained in local's — while the hosted half has stopped
+    # running one of the two checks entirely.
+    def wd_hosted_moves_onto_the_other(t):
+        _sub(t, HOSTED_HALF, _WD_HOSTED_TWO,
+             f"      - name: {FIXTURE_WD_STEP_TWO}\n"
+             f"        working-directory: {FIXTURE_WD_DIR}\n")
+
+    # The local half moving between two directories the row already names is
+    # the same fact from the other side.
+    def wd_local_moves_onto_the_other(t):
+        _sub(t, LOCAL_HALF, FIXTURE_WD_LINE_TWO, FIXTURE_WD_LINE)
+
+    # THE TWO SPELLINGS ARE ONE FACT, and this is where that is proved: hosted
+    # says it with a `cd` in its own `run:` block — which is how the scene and
+    # k-lint rows say it — and the pair must stay green against a local half
+    # that has not changed. A reader that took the hosted directory from
+    # `working-directory:` alone reds here, on a correct tree.
+    def wd_hosted_cd_equals_working_directory(t):
+        _sub(t, HOSTED_HALF,
+             _WD_HOSTED_TWO + f"        run: {FIXTURE_WD_ROW}\n",
+             f"      - name: {FIXTURE_WD_STEP_TWO}\n"
+             f"        run: cd {FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW}\n")
+
+    # …and the same spelling carrying a DIFFERENT directory, so that the case
+    # above is pinned as reading the `cd` rather than as reading nothing.
+    def wd_hosted_cd_diverges(t):
+        _sub(t, HOSTED_HALF,
+             _WD_HOSTED_TWO + f"        run: {FIXTURE_WD_ROW}\n",
+             f"      - name: {FIXTURE_WD_STEP_TWO}\n"
+             f"        run: cd elsewhere && {FIXTURE_WD_ROW}\n")
+
+    # THE LOCAL HALF'S OTHER SHAPES, each of which reads as "this row stays
+    # put" to a reader that stops at the command word — and staying put is
+    # what the other half looks like when it never moved.
+    def _wd_local_shape(name: str, line: str):
+        def go(t: str) -> None:
+            _sub(t, LOCAL_HALF, FIXTURE_WD_LINE_TWO, line)
+        go.__name__ = name
+        return go
+
+    # `bash -c 'cd X && …'`: the local half's spelling of the benches row, and
+    # the one live site where the directory is inside a quoted string.
+    wd_bash_c = _wd_local_shape(
+        "wd_bash_c", f"  bash -c 'cd {FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW}'\n")
+    # …the same, behind the row dispatcher the local half actually writes it
+    # with, where the command word is the dispatcher and not the shell.
+    wd_bash_c_dispatched = _wd_local_shape(
+        "wd_bash_c_dispatched",
+        f"  run_row \"wd\" bash -c 'cd {FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW}'\n")
+    # Two subshells on ONE logical line — `demos_hygiene`'s live shape, which
+    # the one-`cd`-per-line refusal must not fire on.
+    wd_two_subshells_one_line = _wd_local_shape(
+        "wd_two_subshells_one_line",
+        f"  (cd {FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW}) && (cd {FIXTURE_WD_DIR_TWO} && true)\n")
+    # A directory spelled the long way round. Two names for one place must not
+    # read as two places, or the arm reds a correct tree and the fix for that
+    # is an exemption.
+    wd_normalised = _wd_local_shape(
+        "wd_normalised", f"  (cd ./{FIXTURE_WD_DIR_TWO}/ && {FIXTURE_WD_ROW})\n")
+    # `cd .` is a no-op, not a directory the row runs in.
+    wd_cd_dot = _wd_local_shape(
+        "wd_cd_dot", FIXTURE_WD_LINE_TWO + f"  (cd . && {FIXTURE_WD_ROW})\n")
+
+    # THE REFUSALS. Every one of these is a shape whose directory this reader
+    # cannot work out, and the answer it must NOT give is the empty set: "no
+    # `cd` here" and "I could not tell whether there is one" are the same
+    # answer to a set comparison, and one of them is the silent pass.
+    wd_expansion = _wd_local_shape(
+        "wd_expansion", f"  (cd \"$SOME_DIR\" && {FIXTURE_WD_ROW})\n")
+    # One `pushd`, on its own line: a `pushd … && … && popd` is refused one
+    # rule earlier, by the two-directory-changes-on-one-line check, and this
+    # case is about the stack message rather than about that one.
+    wd_pushd = _wd_local_shape(
+        "wd_pushd", f"  pushd {FIXTURE_WD_DIR_TWO}\n  {FIXTURE_WD_ROW}\n")
+    wd_composing_cds = _wd_local_shape(
+        "wd_composing_cds", f"  (cd {FIXTURE_WD_DIR_TWO} && cd deeper && {FIXTURE_WD_ROW})\n")
+    wd_unattributable = _wd_local_shape(
+        "wd_unattributable", f"  ({FIXTURE_WD_ROW} && somecmd cd {FIXTURE_WD_DIR_TWO})\n")
+    wd_no_argument = _wd_local_shape(
+        "wd_no_argument", f"  (cd && {FIXTURE_WD_ROW})\n")
+    wd_ascent = _wd_local_shape(
+        "wd_ascent", f"  (cd ../{FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW})\n")
+    wd_cd_dash = _wd_local_shape(
+        "wd_cd_dash", f"  (cd - && {FIXTURE_WD_ROW})\n")
+
+    # A hosted step that declares BOTH spellings composes them, and this
+    # reader records places rather than composing them — so it would report
+    # two directories the step never runs in.
+    def wd_both_spellings_on_one_step(t):
+        _sub(t, HOSTED_HALF, _WD_HOSTED_TWO + f"        run: {FIXTURE_WD_ROW}\n",
+             _WD_HOSTED_TWO + f"        run: cd deeper && {FIXTURE_WD_ROW}\n")
+
+    # THE DIRECTORY DECLARED WHERE NO STEP SHOWS IT. `defaults.run.working-
+    # directory` on the job moves every step under it; a reader that read the
+    # cited step and called the answer complete would compare the local half
+    # against a directory the hosted half is not in.
+    def wd_job_defaults(t):
+        _sub(t, HOSTED_HALF, "  discipline:\n", "  discipline:\n    defaults:\n      run:\n"
+                             f"        working-directory: {FIXTURE_WD_DIR}\n")
+
+    # …and the same block at the top of a workflow file, which `read_workflow`
+    # never looks at because it reads only inside `jobs:`.
+    def wd_workflow_defaults(t):
+        _sub(t, HOSTED_HALF, "jobs:\n",
+             f"defaults:\n  run:\n    working-directory: {FIXTURE_WD_DIR}\njobs:\n")
+
     # The union's blind spot: the row's own command loses the flag and a
     # SECOND invocation beside it still carries one.
     def flag_on_only_some(t):
@@ -3859,6 +4340,29 @@ def selftest() -> None:
     if _env_both:
         _case("the two halves now agree", env_exemption_agreed)
         _case("only the hosted half sets it now", env_exemption_both_one_sided)
+    # CLAIM 10'S DIRECTORY ARM.
+    _case(f"runs in `{FIXTURE_WD_DIR_TWO}` and the hosted half never names", wd_hosted_stops_naming)
+    _case(f"hosted half that runs in `{FIXTURE_WD_DIR_TWO}`", wd_local_stops_naming)
+    _case(f"runs in `{FIXTURE_WD_DIR_TWO}` and the hosted half never names",
+          wd_hosted_moves_onto_the_other)
+    _case(f"hosted half that runs in `{FIXTURE_WD_DIR_TWO}`", wd_local_moves_onto_the_other)
+    _case("hosted half that runs in `elsewhere`", wd_hosted_cd_diverges)
+    _case("only the shell or the runner can expand", wd_expansion)
+    _case("is a directory STACK", wd_pushd)
+    _case("two directory changes on one command line", wd_composing_cds)
+    _case("cannot attribute to a command", wd_unattributable)
+    _case("`cd` with no argument", wd_no_argument)
+    _case("above the directory the row starts in", wd_ascent)
+    _case("by where the shell has BEEN", wd_cd_dash)
+    _case("AND changes directory inside its own", wd_both_spellings_on_one_step)
+    _case("carries a `defaults:` block", wd_job_defaults)
+    _case("carries a top-level `defaults:` block", wd_workflow_defaults)
+    _ok_case(wd_hosted_cd_equals_working_directory)
+    _ok_case(wd_bash_c)
+    _ok_case(wd_bash_c_dispatched)
+    _ok_case(wd_two_subshells_one_line)
+    _ok_case(wd_normalised)
+    _ok_case(wd_cd_dot)
     _ok_case(flag_value_opaque)
     _ok_case(redirection_before_flags)
     _ok_case(substitution_before_flags)

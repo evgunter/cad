@@ -2,7 +2,7 @@
 id: mirror-pairs-context-beyond-env
 kind: issue
 title: a mirrored pair's working directory and action inputs are still compared by nothing
-status: open
+status: dispatched
 opened: 2026-09-10
 ---
 
