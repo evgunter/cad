@@ -20,9 +20,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use crate::common::approx::band;
 use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
@@ -32,10 +33,6 @@ use topo::{Body, ChartMove, FaceKey, ReplaceFaceError, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {

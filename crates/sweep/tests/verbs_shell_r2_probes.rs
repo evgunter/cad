@@ -6,7 +6,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, Tol, Vec2};
+use crate::common::approx::band;
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
@@ -14,10 +15,6 @@ use topo::{Body, FaceKey, ShellError};
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
 /// **One of NINE copies of this helper across five crates (#1123).**
 /// `demos/tour` is a separate workspace and an integration test cannot
 /// import a binary's module, so no existing home covers them all; the
