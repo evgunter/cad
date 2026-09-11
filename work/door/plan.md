@@ -12,7 +12,7 @@ Away-channel tag `(DOOR orchestrator)`. A/B ordinal band
 
 A row belongs here on one test: **reading it tells you the diff.** Not
 "the problem is understood" — the *fix* is written, in the row, and a
-lane can land it without deciding anything first. Eight of the eleven
+lane can land it without deciding anything first. Seven of the ten
 are `E` on that test; the three `M` rows are here because the fix is
 still written, and what they add is a second file or one small call
 (where a shared helper's home goes, what a refusal's signature becomes),
@@ -51,7 +51,7 @@ one FIX ran on and it is strict:
 
 ## The slate
 
-Eleven rows. Two of the eleven the program opened with are gone and two
+Ten rows. Three of the eleven the program opened with are gone and two
 came in on 2026-09-11, the first day of dispatch — see **Opening
 corrections** below.
 
@@ -61,12 +61,11 @@ corrections** below.
 | `D306` | **E** | Reword one note; collapse two calls into existing bit-identical `ders1_in_span`. | `crates/geom-brep/src/offset_fit.rs` (cert-record note by the fit door — **its cited lines have drifted**, the file is 2232 lines now), `crates/geom-brep/src/props/loop_area.rs:165-166` (eval+deriv pair, exactly as cited) |
 | `S114` | **E** | Two two-line test helpers in one crate; only question is the shared home. | `crates/geom/src/curves.rs:1212`, `crates/geom/src/surfaces.rs:1264` — both `#[cfg(feature="interval")] mod interval` test helpers |
 | `S414` | **E** | Move the finiteness check above the `self_loop` early return; one file | `crates/step-import/src/geometry.rs:86-88` ahead of the check at `:93`, a refusal test in `crates/step-import/tests/` |
-| `run-on-whitespace-in-message-literals` | **E** | Five literal fixes; only cross-fence coordination, no judgement | `crates/viewer/src/pick.rs:1771`, `crates/geom-brep/src/nurbs_iso.rs:112`, `crates/topo/src/boolean/reduce.rs:2126`, `crates/topo/src/chart_region.rs:816`, `crates/topo/src/props.rs:1673`, and the guard in `crates/viewer/tests/error_display.rs` |
 | `boolean-op-has-a-third-hand-written-complete-list` | **E** | Three files; `ContactClass::ALL` is the precedent, so the fix is stated not designed. | `crates/topo/src/boolean/mod.rs`, `crates/editor-core/src/persist/kernel_wire/boolean_op.rs`, `crates/viewer/src/forms.rs:67`; unswept neighbours `crates/topo/src/{query.rs,param_source.rs,contact.rs}`, `crates/editor-core/src/{checks.rs,node.rs,names/role.rs}` |
 | `hand-maintained-mirrors-of-a-kernel-enum-are-unforced` | **E** | The class head, claimed from VIEW. Closed by the same publication as the row above. | `crates/viewer/src/forms.rs:67` (`BOOLEAN_OPS`); `MATE_PRIMITIVES` at `:483` is **deliberately partial** and is argued at the site, not projected |
 | `dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum` | **E** | The class's third instance, claimed from VIEW; an INLINE array, so no table-name scan sees it. | `crates/viewer/src/pane/properties.rs:159-163`, `crates/editor-core/src/expr.rs:33` (`Dimension`, four variants) |
 | `viewer-grid-pitch-nonfinite-fallback` | **M** | Small refusal-shaped signature change, but caller and tests ripple; unowned, fence drawn in the PR | `crates/viewer/src/datums.rs:159-163` (`grid_pitch` + its sole caller), `crates/viewer/tests/datum_draw.rs` |
-| `patherror-display-renders-float-noise` | **M** | Correct the helper's rounding point, give it a home, then sweep the Display arms | `crates/profile/src/path.rs:1411` (`num`), helper home `crates/geom-core/src` beside `Real`, `crates/profile/src/{path.rs,validate.rs}` Display arms |
+| `patherror-display-renders-float-noise` | **M** | **Narrowed**: the `profile` half is done; the cross-crate half and the helper's home are what is left. | `ProfileError` and other crates' error `Display`s; helper home `crates/geom-core/src` beside `Real`. NOT `path.rs`'s arms — all 38 already go through `num`. |
 | `viewer-pathverb-all-hand-written-seventeen` | **M** | The census half only; the hand-list half is closed in the tree. | `crates/viewer/src/forms.rs:145` (`PathVerb`), `crates/viewer/src/sketch.rs:147` (`PathStep`), reads `crates/profile/src/path/program.rs`'s `Verb::ALL` |
 
 ## Opening corrections (2026-09-11)
@@ -92,6 +91,17 @@ belong to pulled in two rows the cut had not seen.
   `PathVerb::ALL` is projected by `vocabulary!` now, so the hand-written
   seventeen is gone; what survives is the kernel-mirror census, which is
   the class below. Its file carries the correction.
+- **`run-on-whitespace-in-message-literals` was a duplicate** of a FIX
+  row closed the same day, PR #2364 — 27 sites, of which this row named
+  five and one of those pointed at a dissolved file. Closed, never
+  dispatched. The guard question it carried is FIX's too, with a
+  measured threshold this row's `rg` would have got wrong.
+- **`patherror-display-renders-float-noise` is narrowed, not
+  dispatched as written.** Its motivating example already renders
+  correctly and all 38 arms in `path.rs` already go through the helper;
+  the cross-crate half is what survives. A NEW defect at the other end
+  of the range — the relative tolerance exceeding ε above a decimetre —
+  was filed on FIX's slate rather than carried here.
 - **Two rows came in from VIEW** — `hand-maintained-mirrors-of-a-kernel-enum-are-unforced`
   and `dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum` —
   claimed with Ev's direction in-chat and VIEW told. See the class rule
@@ -118,20 +128,6 @@ notes:
   `viewer-pathverb-…` is the class's fourth row and is NOT in either PR:
   the GUI legitimately narrows the kernel's verb vocabulary, so its
   answer is a census and not a projection.
-- **`run-on-whitespace-in-message-literals` touches five crates for five
-  literals** and is the one row here that crosses more fences than it
-  edits lines. Take it as five one-line edits announced to five owners in
-  ONE PR, not as five PRs — five PRs for five literals is worse than the
-  crossing they avoid. **No guard is owed** (Ev, 2026-09-11, in-chat):
-  add one only if it is trivial and costless beside
-  `crates/viewer/tests/error_display.rs`'s existing `debug_shaped`
-  predicate — a few lines in the same walk over the same refusal corpus.
-  If it needs its own corpus, its own pattern language, or an argument,
-  it is neither, and the lane fixes the five literals and says in the PR
-  that it judged the guard not costless. The `rg` the row offers is a
-  starting shape and not that guard: it cannot see a run beginning after
-  punctuation or a digit, or a literal assembled from `format!`
-  fragments.
 - **The three viewer rows go early.** This program's `keep_out` binds
   them to CHROME's sequencing rule, and that rule has already fired —
   `viewer-session-god-module-split` closed 2026-09-04 and CHROME's units

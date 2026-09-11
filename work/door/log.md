@@ -133,3 +133,60 @@ so rather than growing the row.
 **The slate stands at eleven rows, eight `E` and three `M`** — the same
 count it opened with, by coincidence and not by conservation. No branch
 exists yet; dispatch follows this entry, viewer rows first.
+
+## Two more rows overtaken, and a finding handed to FIX (2026-09-11)
+
+The liveness check that closed `S190` was run over the rest of the
+slate before dispatching any of it. It found two more.
+
+**`run-on-whitespace-in-message-literals` was closed work.** FIX merged
+PR #2364 at 15:15 UTC — 27 wrapped literals with their `\` restored —
+and closed its row at 15:42. This directory was created at 16:11. The
+row is a duplicate and was never dispatched. Its five-site list was a
+subset of a real 27 with one entry naming a file the pick split had
+already dissolved, which is FIX's own assessment of it: *"a third false
+and missed nine genuine sites."* The guard question I had put to Ev was
+answered there too, with a **measured** threshold — real sites carry
+runs of ≥10 spaces, and the 4 this row's `rg` proposes sits inside the
+deliberate-alignment cluster. Confirmed here before the duplication was
+found: an accurate string-state scanner still returns 1237 hits at a
+threshold of 10, because the population is legitimate multi-line
+literals. That question is withdrawn.
+
+**`patherror-display-renders-float-noise` is narrowed, not
+dispatched.** Its motivating example already renders correctly, and all
+38 call sites in `path.rs` already reach the helper — FIX closed
+`path-error-numbers-below-1e-9-render-as-zero` (PR #2366) on the same
+file today. What survives is the cross-crate half and the helper's
+home.
+
+**A correction to this program's own rounding ruling.** The hazard the
+ruling was written against — an absolute grid flattening sub-ε margins
+to `0` — is not a hypothesis. It is the exact bug #2366 fixed hours
+earlier: `num` read `tol = 1e-9 * x.abs().max(1.0)`, and that
+`.max(1.0)` pinned the tolerance absolute below a metre. The relative
+form this program read and criticised IS that repair. The ruling's
+substance survives because it caps the tolerance rather than flooring
+it and the relative arm still wins below a decimetre — but it was
+written as a derivation when it should have been written as a citation,
+and the tree had already paid for the lesson.
+
+**The surviving half is a real defect and went to FIX**, not onto this
+slate: `num`'s relative 1e-9 crosses ε (a LENGTH, ~1e-9 m) at one metre
+and is coarser above it, so two lengths the kernel can certify as
+different render as one number — measured, 10 ε apart at 100 m and 1000
+ε apart at 10 km both collide. Filed as
+`work/fix/num-relative-tolerance-collides-above-a-decimetre` with the
+table, the fix shape and the assertion it owes. FIX's file, FIX's
+program, two of FIX's rows closed on that helper today.
+
+**Where this leaves the program.** Ten rows, seven `E` and three `M`,
+and five of the cut's original eleven have now been overtaken — three
+of them by FIX and one by VIEW, all on the day DOOR opened. The cut
+read `work/issues/` and `work/code-quality/` against the tree; it did
+not read them against the live slates of the programs already working
+the same ground, and FIX is the program DOOR's own charter names as its
+precedent. **Whether DOOR should hold the remainder at all is a
+question for Ev**, put to them in-chat: the mirror class and the four
+independent rows are coherent here, and the rest may simply be FIX's.
+No lane is dispatched until that is answered.
