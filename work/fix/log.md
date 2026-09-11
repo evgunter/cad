@@ -762,3 +762,259 @@ explains the `mate-member-vocabulary` lane's "0 paths in another
 program's territory" earlier today, which became "1 path, tcost's" the
 moment the work was committed. Every brief from here says: run it
 after committing, never before.
+
+### `census-flattens-the-typed-chart-region-declines` — in review (PR 2354, 2026-09-11)
+
+**The item's own warning was half wrong, and finding that is the
+unit.** It says *"a new variant OR a carried cause moves the
+`AtRest`/`Uncertified` decision with it"*, and treats that as the
+reason the fix is door-shape work. Measured:
+`editor_core::assembly::attribute` keys on the `ValidationError`
+**variant** and on the `CensusSubject` **shape** — `FacePair` →
+`Declined`, every other entity kind → `Unattributed`. A **payload
+participates in neither.** So the warning holds for a new variant,
+which forces a hand classification through an exhaustive match, and is
+**false for a carried cause**. That asymmetry is what chose shape 1,
+and it is why this lands as a rendering change rather than an answer
+change.
+
+The invariance is right on the merits and not merely convenient: the
+decline relation is *the census neither certified nor contradicted this
+declaration*, which holds whichever lane declined. A budget exhaustion
+leaves a mate exactly as unrefuted as a non-planar trim does, and that
+is what `Uncertified` means. Pinned as
+`the_decline_relation_does_not_depend_on_which_lane_declined`.
+
+**The alternative design was rejected on a measurement, not a
+preference.** Shape 2 splits "cannot decide this geometry" from "the
+schedule stopped". The split is **not clean**: of twelve arms, exactly
+**one** (`WitnessBudgetExhausted`) is "stopped looking".
+`RayExhausted` — which this orchestrator's brief flagged as the likely
+second, and told the lane to check rather than assume — is **not** one:
+its schedule is fixed, no extra budget decides it, and the recourse is
+ε or the geometry. `MissingCache` (a body-state fact) and `Corrupt` (a
+kernel-invariant violation) fit **neither** bucket. A two-way split
+would have filed four arms under a label that misnames them, which is
+the `refusal-text-is-not-cause` defect this item exists to remove.
+The item says eleven arms; there are twelve.
+
+**A style review is running on it** — the only review of this wave.
+Not because it moves an answer (the lane argues, with a row, that it
+does not) but because it is the session's largest diff, it crosses four
+fences, and its reach into LIB is a judgement call the lane itself
+flagged as the half a reviewer would most likely want trimmed.
+
+**Two siblings filed from its sweep:**
+
+- `census-containment-flatten-fabricates-its-diagnostic` —
+  `census.rs:819` flattens three `ContainError` arms onto
+  `CensusEscalated` and **synthesizes** the `Indeterminate` it carries,
+  so the message names a margin nothing measured. Worse than a flatten:
+  a fabricated number in the field a reader uses to judge how close the
+  call was. Re-routing those arms **can** move the answer, by the very
+  variant/payload asymmetry this unit established — so it is a unit of
+  its own, not a thread.
+- `validate-drops-the-material-sign-refusal-silently` —
+  `validate.rs:4099` folds `boundary_material_sign`'s `Err` into its
+  `Unencoded` arm and raises nothing. A different class and arguably
+  worse: a flattened refusal is a bad sentence about a real event, a
+  dropped one leaves no record the event occurred, and the validator
+  reports a clean pass over a question it could not answer.
+
+**Disk, and a rule for this orchestrator.** The box hit **1.8 GB free**
+while three lanes were live: this lane's `CARGO_TARGET_DIR` had reached
+**19 GB** and was still there after its PR was open. Reclaiming a
+finished lane is the orchestrator's job and "finished" means *the
+report is in hand*, not *the PR is merged* — a review lane's target is
+pure waste the moment it reports, and a lane's target is waste the
+moment its PR is green.
+
+### `two-d-director-doors-skip-the-finiteness-question` — in review (PR 2356, 2026-09-11)
+
+The unit this program's slate was actually for. Five doors that decided
+a length's SIGN without asking whether it was a finite NUMBER now ask
+first and refuse typed, in the one spelling the homing unit made
+reachable. CI green: 34 success, 4 skipped, all 12 `test (…)` points and
+all 5 `k-lint (gate, …)` unifications.
+
+**The item was wrong in both directions, and only executing it found
+that.** It named five rows and claimed *"every remaining instance is
+below"*:
+
+- **A SIXTH site it never named.** `point_at(origin,(0,0,1),(1e200,0,0))`
+  returned `Ok` with `c0=(0,-0,0)`, `c1=(0,0,-0)` — a second *silent*
+  `Ok`, not a mis-named refusal, in a door the item listed only for its
+  other argument.
+- **Row 3 does not reproduce as filed.** The item argued both
+  `sector_shape` arms collapse after a definite-positive decision.
+  Measured: three of four shapes already *refused* — downstream, at
+  rung 3, with the wrong cause and `COINCIDENCE_RECOURSE` attached —
+  and the one genuinely silent shape needs one chord finite, one not,
+  and `full_circle` set, because `min` hides ONE non-finite chord and
+  rung 0 asks each chord separately. The defect is real; the mechanism
+  the item describes is not the one that produces it.
+- **Row 5 reproduced exactly as argued** and was executed here for the
+  first time by anyone.
+
+Three of the five "measured" rows in that table were argued rather than
+run when filed, and two of those three were wrong. That is the
+strongest instance yet of this program's standing pattern, and it
+lands on the row that mattered most.
+
+**One scope expansion, flagged by the lane rather than absorbed.**
+`sector_shape` needed a refusal **channel**, not just an arm: it
+returned `Result<_, Indeterminate>`, which can say nothing but a band.
+It now returns `Result<_, SectorFault>`, with one new arm each on
+`BooleanError`, `BooleanErrorKind` and `SplitReduceError`. That is the
+same cost rows 4 and 5 were budgeted for (a new public arm, its
+sentence, its kind row, its Python tag), arriving at a door the brief
+did not expect to pay it. A refusal channel that can only say "band" is
+itself a `refusal-text-is-not-cause` defect, so the widening is the fix
+rather than a detour.
+
+**A structural CI blind spot, found by going red.**
+`crates/pncad-py/src/py/place.rs` matches `FrameError` exhaustively and
+sits behind the non-default `python` feature, so
+`cargo build/clippy --workspace` is **structurally blind to it**. A
+lane that verified locally with the natural command would have pushed a
+break. The reviewer is asked whether other exhaustive matches on the
+changed enums hide behind non-default features.
+
+**A correctness reviewer is on it** — the plan's own rule (a unit that
+moves a kernel ANSWER rather than its rendering gets one), and the only
+unit of this wave to need it. The one claim that decides whether the PR
+is what it says it is: *only the order of questions changes*.
+
+**Two more sites filed rather than taken**, on this program's slate as
+`normalize-without-the-length-question-two-more-sites`: a sibling class
+at `topo/src/chart_region.rs` where the norm is in the **denominator**
+of the decided margin, so an infinite lever decides a spurious `Zero`
+and that arm then normalizes — argued, not executed, and the reviewer
+is asked to execute it.
+
+**Disk: this lane could not run `doc-gate.sh` because the box hit 100%.**
+That was this orchestrator's fault, not the lane's — a finished lane's
+19 GB target was still sitting there. The lane pruned its own target and
+never touched another's, which is the right behaviour, and said so.
+
+### `two-d-director-doors-skip-the-finiteness-question` closed (PR 2356, 2026-09-11)
+
+The unit this program's slate existed for, and the only one of the wave
+to get a correctness reviewer. Five doors that decided a length's SIGN
+without asking whether it was a finite NUMBER now ask first and refuse
+typed. CI green on the fix-pass head (34 success, 4 skipped).
+
+**Claim 1 — "only the order of questions changes" — survived a mutation
+test.** The reviewer removed both the `definitely_positive` and the
+`sector_shape` gates and saw exactly the new rows plus the three
+re-pinned NaN rows go red, and nothing else. So the pins are
+load-bearing and discriminate *refused for finiteness* from *refused*.
+That evidence still stands over the fix-pass head: every
+`is_finite_length` line the fix pass touched is a **comment**, and no
+gate call site changed.
+
+**The mechanism behind row 3, which nobody had.** The lane's original
+account was wrong and the reviewer's correction was right, and the fix
+pass found the reason both were half-blind: **`Real::min` propagates
+`NaN` but not infinity.** `min(3, ∞) = 3` hides the overflow end and
+lets rung 1 pass; `min(3, NaN) = NaN` stops the poison end there. That
+single asymmetry generates the whole eight-shape table — two silent
+`Ok`s with `full_circle` set (one of them returning a
+*plausible-looking* non-zero bisector out of a collapsed chord, which
+is the worse of the two because nothing downstream can smell it), rung
+3 spikes with it clear, and the NaN shape refusing at rung 1 in both.
+"`min` hides one chord" was true and silent about **which end**, and
+that silence is exactly the gap the false rung attribution fell
+through.
+
+**m2 was acted on rather than commented.** The dead FFI word came from
+a variant combination the type permitted and the kernel could not
+build. The fix is a new `FrameVector` (four arms — the vectors that can
+actually overflow) as the `NonFiniteLength` payload, with
+`From<FrameVector> for FrameInput` for the shared `Degenerate` arm, so
+the dead combination is **unrepresentable** rather than documented.
+`FrameInput::ReferenceLadder` stays, and its docs now carry the
+straddling-enclosure construction that makes it reachable at the
+generic signature — replacing an orthogonality argument that only holds
+at a point scalar.
+
+**m5 bit harder than it read.** The two rewritten assertions were not
+merely tautological: the NaN shape's rung-1 refusal is a `decide`
+**escalation** and the spike is the body's own `invalid()`, and the two
+**compare equal** — so the rewrite could not distinguish an escalation
+from a spike refusal at all. Literal pins on `predicate`/`margin`/`band`
+restored across the boundary, with that reason at the site.
+
+**Declined, with reasons, and I endorse both**: no end-to-end row
+through `boolean`/`split_reduce` (it needs a >1e154 orbit chord
+surviving body construction) and no Python row for `carrier_tangent`
+(it needs an arc anchor 1e200 from its centre, likely tripping an
+earlier gate). The lane's sentence is the right standard: *I would not
+add a Python row I cannot run locally and cannot confirm exercises the
+door it names.* A row that passes for an unknown reason is worse than
+no row.
+
+**n5 declined and documented rather than silently kept**: binding the
+norm once at `revolve/axis.rs` would swap `Margin::norm2` for
+`Margin::of`, and which dimensional door a decided quantity comes
+through is not cosmetic. Written at the site so nobody "fixes" it.
+
+### `census-flattens-the-typed-chart-region-declines` closed (PR 2354, 2026-09-11)
+
+Twelve typed chart-region refusals stop flattening onto one
+`CensusUnsupported`; the variant carries the refusing lane's own
+refusal and renders its sentence. The style review broke one of three
+claims and the fix pass turned that break into the unit's best work.
+
+**The recourse claim failed, and mechanising the repair found a ninth
+arm.** The unit dropped a blanket recourse tail on the grounds that the
+cause supplies one; **eight of twelve did not**, so a `TouchingBoundary`
+decline rendered strictly less usefully than before. Two repairs were
+available — restore a tail, or give the arms their recourse. The lane
+took the second, because it makes `chart_region.rs:202`'s existing
+claim (*"every arm names its recourse"*) TRUE rather than leaving an
+unenforced invariant behind a compensating wrapper. It then wrote the
+claim as a row, and **the row immediately found a ninth arm**
+(`NonPlanarTrim`) that a careful reading by eye had missed.
+
+The row is documented as a **floor, not a proof**: it is a
+verb-vocabulary check over rendered literals and cannot tell a recourse
+from a sentence with a verb in it. That is the right disclosure — and
+the ninth arm is the argument for writing such a row anyway.
+
+**The contact lane is now carried whole**, which resolved the style
+review's taste finding along with its correctness one. The first draft
+reduced `ContactRefusal` to a `&'static str` and re-prosed it, and the
+new prose appended exactly the two-arm menu `contact.rs:195` says in
+terms is a false lead. Carrying the refusal whole fixes both: the
+ratified composition holds, and `CensusUnsupportedCause` stops being an
+enum that exists to prevent flattening while flattening one of its own
+lanes.
+
+**A CI gate caught the withdrawal's consequence, and the gate's message
+was the useful part.** Pulling the façade carry left
+`CensusUnsupportedCause` an undecided payload rung under a curated
+carrier, and `payload-rung sweep` refused it with two named outs:
+carry it where its carrier is carried, or argue the non-carriage beside
+that carrier. The lane took the second and **wrote the falsifier into
+the argument** — a Python caller who must tell a stopped search from a
+thin overlap gets the sentence and no word. An argument that names what
+would refute it is the shape this repo keeps asking for and rarely
+gets.
+
+**Two judgement calls the lane flagged rather than buried**: it cited
+the argument's home as the carrier's crate rather than the façade's
+(the only such row in that table, and right — the argument is about
+what a façade carry would OWE, so it belongs where whoever carries it
+will be reading), and it registered `argued` rather than `filed`
+because a pointer to an item that did not yet exist would be worse than
+none. The item now exists —
+`work/lib/census-decline-class-not-published-at-the-python-door`, PR
+2357 — so that row can gain its pointer once both are on main.
+
+**Class B, swept and filed**:
+`validation-arms-delegate-a-recourse-their-carriers-do-not-give`. Four
+more `ValidationError` arms make the assumption this unit broke, two of
+them wrappers contributing four words (`"tier 3: {error}"`) over a
+carrier that names no repair in 0 of 2 and 1 of 9 of its literals. Six
+arms carrying `Indeterminate` are sound and are not on the list.

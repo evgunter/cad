@@ -2,10 +2,11 @@
 id: census-flattens-the-typed-chart-region-declines
 kind: issue
 title: the census maps every chart-region refusal onto one CensusUnsupported, so a typed decline is legible at the chart door and invisible at the census
-status: review
+status: closed
 opened: 2026-09-04
 branch: fix/census-typed-chart-declines
 pr: 2354
+closed: 2026-09-11
 ---
 
 
