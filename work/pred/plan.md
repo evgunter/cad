@@ -75,8 +75,9 @@ available here.
 ## Review posture
 
 Full v6 dual with Fable specs on every unification: a wrong margin is
-reachable and silent, so `docs/CODE-QUALITY-CONVENTIONS.md`'s ADV marking
-applies by default rather than by exception.
+reachable and silent, so **the review is adversarial by default here
+rather than by exception** — the standing rule is adversarial review
+wherever a wrong answer is reachable, and on this slate it always is.
 ## How the class column is read
 
 `E` / `M` / `H` is a **dispatch estimate**, made on 2026-09-11 by reading

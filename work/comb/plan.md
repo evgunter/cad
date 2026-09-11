@@ -57,9 +57,10 @@ written down here, because the answer changes weekly.
 
 ## Order
 
-Partition before sweep, and within that, decide before you delete and
-delete before you polish (`docs/CODE-QUALITY-CONVENTIONS.md`'s ordering rule 1,
-which this program inherits).
+Partition before sweep, and within that, **decide before you delete and
+delete before you polish** — the ordering these rows were written under,
+and the reason every one of them says it goes last: they operate on
+files whose fate earlier rows have not settled.
 
 1. **Partition the four roll-ups.** `S43` first — four of its five
    idioms are already discharged and the residue is one crate's
