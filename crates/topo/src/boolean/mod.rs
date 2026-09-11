@@ -711,6 +711,17 @@ pub enum BooleanError {
         /// The shared edge whose two faces coincide.
         edge: EdgeKey,
     },
+    /// A vertex sector's bounding chord has **no finite length**: its
+    /// components overflow the norm (past ~1e154), or one of them is
+    /// not a number. Distinct from [`BooleanError::Escalated`] on
+    /// purpose — nothing about this is a band question, and no
+    /// tolerance lever reaches it.
+    NonFiniteSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
     /// A reduction/classification predicate escalated (in-band margin):
     /// the operand pair is ill-conditioned at this ε — a genuine
     /// sliver (F6). Never a snap, never a guess.
@@ -1213,6 +1224,8 @@ pub enum BooleanErrorKind {
     ScaffoldingOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
+    /// [`BooleanError::NonFiniteSectorChord`].
+    NonFiniteSectorChord,
     /// [`BooleanError::Escalated`].
     Escalated,
     /// [`BooleanError::UndeclaredCoincidence`].
@@ -1302,6 +1315,7 @@ impl BooleanError {
             }
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
+            Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
             Self::Escalated { .. } => BooleanErrorKind::Escalated,
             Self::UndeclaredCoincidence { .. } => BooleanErrorKind::UndeclaredCoincidence,
             Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
@@ -1557,6 +1571,12 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean: the result's pcurve mint pass refused (curved results carry \
                  certified per-half-edge pcurves at rest): {source}"
+            ),
+            Self::NonFiniteSectorChord { vertex, face } => write!(
+                f,
+                "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
+                 finite length \u{2014} its components overflow the norm, or one of them \
+                 is not a number; scale the geometry into the session's range"
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -2533,6 +2553,45 @@ mod tests {
         assert!(!msg.contains("margin is invalid"), "{msg}");
     }
 
+    /// The non-finite chord arm names the lane, the vertex and the
+    /// face, gives the cause and a recourse that can WORK, and offers
+    /// the coincidence recourse ZERO times — no tolerance lever
+    /// reaches an overflowed chord, so naming one would be the
+    /// wrong-recourse defect `memories/refusal-text-is-not-cause.md`
+    /// is about.
+    ///
+    /// This and the `SplitReduceError` twin are the only direct pins
+    /// on the two wrapper arms: there is no end-to-end row that drives
+    /// a real `Body` into `sector_shape`'s rung 0, because that needs
+    /// an orbit chord past ~1e154 surviving body construction. The
+    /// translation itself (`SectorFault::NonFiniteChord` to this arm)
+    /// is held by the exhaustive `map_err` in `sectors.rs` and by
+    /// nothing else.
+    #[test]
+    fn non_finite_sector_chord_names_the_cause_and_no_tolerance_recourse() {
+        let msg = BooleanError::NonFiniteSectorChord {
+            vertex: VertexKey::default(),
+            face: FaceKey::default(),
+        }
+        .to_string();
+        assert!(msg.contains("boolean_reduce:"), "{msg}");
+        assert!(msg.contains("has no finite length"), "{msg}");
+        assert!(
+            msg.contains("scale the geometry into the session's range"),
+            "{msg}"
+        );
+        assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 0, "{msg}");
+        assert!(!msg.contains("zero length"), "{msg}");
+        assert_eq!(
+            BooleanError::NonFiniteSectorChord {
+                vertex: VertexKey::default(),
+                face: FaceKey::default(),
+            }
+            .kind(),
+            BooleanErrorKind::NonFiniteSectorChord
+        );
+    }
+
     /// The M5 S1 sub-frontier refusal follows the two-tolerance
     /// message shape: it names the lane and the precise sub-frontier
     /// and composes the shared recourse exactly once.
@@ -2575,6 +2634,10 @@ mod tests {
                 kind: geom_brep::SurfaceKind::Cone,
             },
             BooleanError::CurvedSectorSideUnsupported { band },
+            BooleanError::NonFiniteSectorChord {
+                vertex: VertexKey::default(),
+                face,
+            },
             BooleanError::CurvedPierceUnsupported {
                 operand: Operand::A,
                 face,
@@ -2728,6 +2791,7 @@ mod tests {
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
+                BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",
                 BooleanErrorKind::Escalated => "Escalated",
                 BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
                 BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",

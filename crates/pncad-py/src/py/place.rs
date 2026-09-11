@@ -109,6 +109,20 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
                     none(),
                 )
             }
+            // Nothing was classified: the door refused before any
+            // margin reached the funnel, so the whole payload is
+            // absent exactly as it is for a definite zero.
+            E::NonFiniteLength { .. } => (
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+            ),
             E::Band(inner) => {
                 let (which, v, z, e) = match inner {
                     BandError::InvalidValue { field, value } => (

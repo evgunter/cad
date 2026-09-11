@@ -253,6 +253,17 @@ pub enum SplitReduceError {
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
+    /// A sector's bounding chord has **no finite length**: its
+    /// components overflow the norm (past ~1e154), or one of them is
+    /// not a number. Distinct from
+    /// [`SplitReduceError::SliverSector`] on purpose — nothing about
+    /// this is a band question, and no tolerance lever reaches it.
+    NonFiniteSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
     /// Two cyclically-consecutive entries remained ON after rule (a) —
     /// the "no consecutive ONs" invariant failed. For a planar operand
     /// this means a coplanar sector escaped the gate (documented
@@ -349,6 +360,12 @@ impl core::fmt::Display for SplitReduceError {
                 f,
                 "split_reduce: sector classification escalated at vertex {vertex:?} \
                  (face {face:?}): {diag}"
+            ),
+            Self::NonFiniteSectorChord { vertex, face } => write!(
+                f,
+                "split_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
+                 finite length \u{2014} its components overflow the norm, or one of them \
+                 is not a number; scale the geometry into the session's range"
             ),
             Self::ConsecutiveOnSectors { vertex } => write!(
                 f,
