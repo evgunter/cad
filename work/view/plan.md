@@ -489,6 +489,45 @@ general item absorbing damage particular branches did, which is how
 `stale-file-citations-after-the-split` reached four classes without
 fixing one.
 
+**An out-of-fence citation table is a statement about ONE diff against
+ONE base, and it expires the moment another diff touches the same
+file.** Implementer-discipline §6 has lanes report another program's
+shifted citations rather than edit them, and the orchestrator places
+them. Two lanes have now reported the same CHROME row —
+`app-rs-doc-comment-merge-scars`, `app.rs:1722-1723` — with different
+answers: #2320 said `1750-1751` (its own `app.rs` band moved +28) and
+#2348 said `1732` (+10). Each is right about its own diff and neither
+is right once both have landed; the true position is the sum, and only
+if nothing else lands first. **So a table is never applied as written:
+placing it means re-deriving at placing time, by subject.** The table's
+value is the POPULATION it identifies — which rows were damaged — not
+the numbers beside it.
+
+**And an out-of-fence entry owes the subject check the in-fence rule
+already demands.** In fence this program leaves a citation that was
+wrong at the merge base alone and discloses it, rather than repointing
+it onto something else
+(`citation-repoint-shifted-a-number-the-lane-knew-was-wrong`). Out of
+fence there was no counterpart, so #2348's table told CHROME that
+`app.rs:1722` *"should read 1732"* for a sentence about
+`perform_batch` — which is at `app.rs:918` at that branch's base and at
+its head both. The number was never about its subject, and shifting it
+makes the row worse while looking like a correction, on this program's
+authority rather than the other program's. An out-of-fence table splits
+in two: entries whose citation names its subject at the old number, and
+entries that do not — the second group disclosed as already stale and
+never presented as a repoint.
+
+**The resolver failure mode, which is the same proxy class one level
+down**: #2348's census mapped a line number belonging to one citation
+onto a filename token found elsewhere in the same row, so
+`.github/workflows/ci.yml:4030` was reported as `README.md:4030`. The
+lane's own correction then mapped it onto a third wrong file. The check
+is that the file token and the line number must come from the SAME
+citation, not merely from the same row — and `README.md` is the most
+ambiguous filename in this repo, with a root one of 84 lines, a viewer
+one of 1676, and `tools/`, `demos/` and more besides.
+
 **An unsubstituted matrix placeholder in a job name means the matrix
 never expanded, so that row is not the row it appears to be.** #2282's
 lane read a run as green on sixteen successes including the three
