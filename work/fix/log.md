@@ -267,56 +267,50 @@ that cut and cannot be merged into anything. This orchestrator works on
 is left alone. Any lane that finds a branch with no merge base against
 `main` is looking at the same thing.
 
-### An inherited red, found by a lane that could not have caused it (2026-09-11)
+### An inherited red, and an orchestrator error on top of it (2026-09-11)
 
-The `compile-fail-blocks-without-error-codes` lane's run is the first
-**code-tier** run over `main` since `c1ea73a2f` (#2320) landed a doc
-link from the ungated `viewer::session` into the `app`-gated
-`viewer::widgets`. Every `main` push in between classified below the
-code tier, so the job that reads intra-doc links was `skipped` on all
-of them and the break sat green for a week. Filed on the owning
-program's slate as
-`work/view/viewer-doc-link-crosses-the-app-feature-gate.md` and VIEW
-summoned on its open PR; FIX does not absorb it.
+Two FIX lanes' runs were the first **code-tier** runs over
+`crates/viewer/src/session/op.rs:773`'s link into the `app`-gated
+`viewer::widgets`, and both came back with
+`rustfmt + rustdoc (gate) + wasm32` and `gate ok` red. Every push to
+`main` in the preceding week had classified below the code tier, so
+that job was `skipped` on all of them — runs `34560796333`,
+`34561272106`, `34561757424`.
 
-Two things follow for this program's remaining waves:
+**This orchestrator then filed it on VIEW's slate and summoned VIEW,
+and both were wrong.** VIEW's PR #2332 was open at that moment with the
+red *already measured, attributed and cleared in its own body*, and it
+merged at 04:37Z. The item and its PR #2340 are withdrawn; the summons
+is retracted on the thread.
 
-- **`gate ok` is red for every code-tier PR in the repo** until VIEW
-  lands the fix. Under Ev's 2026-08-31 ruling that does not block a
-  merge once the red is annotated with its issue — but every FIX lane
-  from here must say, explicitly, that the ONLY failing jobs are that
-  one, and re-check rather than assume it.
-- The silent-coverage class has a third face worth naming beside the
-  two in `memories/agent-lane-operations.md` (a green job name over a
-  skipped step; a run queued with zero jobs): **a run of green `main`
-  pushes none of which executed the step at all.** A red reachable only
-  from a code-tier change is invisible for as long as the repo is
-  landing docs, and `main` being green is not evidence it ran.
+Three things to keep from it, because the mistake is instructive and
+the cheap reading of it is not:
 
-### `compile-fail-blocks-without-error-codes` closed (PR 2335, 2026-09-11)
+- **The check that was skipped was reading the open PR list.** This
+  orchestrator had that list in hand — it was read at session start to
+  find FIX's own in-flight PRs — and #2332's title says *"stop the
+  skip-mode viewer doc pass judging links"*. A red on another program's
+  ground is not filed until that program's open PRs have been read for
+  it, however well the reproduction is established. Reproducing a
+  defect proves the defect, not that it is unowned.
+- **The remedy was a design question already ruled on.** The item
+  proposed three spellings at the link site; Ev had ruled the other way
+  in chat the same day (link them, make `broken_intra_doc_links` inert
+  on the DEFAULT-features viewer pass). An orchestrator proposing
+  repairs on another program's ground is proposing inside a
+  conversation it cannot see.
+- **What was genuinely ours is the complement, and it is small.**
+  #2320's own CI missed the link because a diff touching
+  `crates/viewer` sets `RUN_VIEWER_TOOLKIT=true` and takes the non-skip
+  path; the FIX lanes missed nothing and simply arrived from the other
+  side, where the job is skipped for the whole class of pushes. The
+  window had two independent reasons nothing read that link, one per
+  side of the branch/main divide. A green `main` was evidence of
+  neither — which is the third face of the silent-coverage class, next
+  to a green job name over a skipped step and a run queued with zero
+  jobs.
 
-All eight bare fences in `crates/quantity/src/units.rs` name a code
-**measured off `rustc`** at the pinned 1.97.0, not inferred — and the
-measurement is what the unit was for. The prose around the blocks
-called all three view refusals "a PRIVACY refusal" and the neighbouring
-`UnitDef` rows are `E0451`, so the plausible guess was `E0451`
-throughout; the two tuple-struct mint rows are in fact **`E0423`**,
-because a tuple struct's private field refuses at the constructor path
-rather than at the field list. Stable rustdoc never checks the
-annotation, so that guess would have shipped a wrong code invisibly,
-inside a unit whose whole subject is a block that pins nothing.
-
-Every block already had a legal twin, so none was added and no block
-needed the "cannot" escape; what the doc gained is the honest sentence
-about what the twin catches and what the code annotation does not.
-
-Not taken, deliberately: a per-block twin. Each group shares one today,
-which catches a rename of the type or constant but not a shift in one
-block's subject that leaves the shared symbol intact. That is a
-restructure of the doc's existing shape rather than this unit, and it
-does not earn a row — the limit is now stated at the site, which is
-where a reader meets it.
-
-CI run `34561282277`: 31 success, 5 skipped, 2 failure, the two being
-the inherited viewer rustdoc red filed as VIEW's above. Merged with
-that red annotated, per Ev's 2026-08-31 ruling.
+**Standing instruction for every FIX lane from here**: an inherited red
+is reported with its evidence and NOT acted on — not filed, not
+summoned, not fixed. The orchestrator places it, after reading the open
+PR list.
