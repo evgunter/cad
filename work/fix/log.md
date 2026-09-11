@@ -1267,3 +1267,116 @@ The two brief instructions that caught all four cost minutes each and
 are now standing for this program: **a row citing a clause gets "read
 the clause, not the row's summary"; a row citing a site list gets
 "re-derive it at your merge base".**
+
+## Second orchestrator handoff, 2026-09-11 — the review posture drops, and the slate is triaged whole
+
+### Ev's instruction, and what it changes
+
+**Light style reviews, or none at all; no A/B protocol** (Ev, in-chat,
+2026-09-11). The A/B half was already the standing posture and is
+unchanged. What moves is the style lane: `plan.md` promised every unit
+one, and from here a unit gets one only if the orchestrator asks for it
+off the back of the diff.
+
+The three units `plan.md` named for a second correctness-focused
+reviewer — `transform-rigid-refuses-described-nurbs`, the two census
+declines, `split-crossings-skip-pattern-mate-ends` — are **all
+closed**, so nothing on the live slate invokes that clause and dropping
+it costs nothing that was going to be spent.
+
+**The discipline does not vanish; it moves into the brief.** A lane
+with no reviewer downstream gets the three instructions this log
+earned in the 2026-09-11 wave, as standing text in every dispatch:
+
+1. a row citing a clause gets *"read the clause, not the row's summary"*;
+2. a row citing a site list gets *"re-derive it at your merge base"*;
+3. a unit changing a RENDERING owes *"does any existing pin
+   discriminate the old rendering from the new one?"* — where **no**
+   means the pin is part of the defect.
+
+And one addition that is this posture's own price: **a lane running
+without a reviewer states every place it was unsure, explicitly, in
+the PR body and its report.** Less review bought with more disclosed
+uncertainty is a trade; less review bought with smoother prose is not.
+
+### The board, read whole: nothing is waiting on Ev
+
+Asked directly, and the answer is clean. **Zero `needs_ev: true` in
+`work/fix/`** — the flag appears nowhere in this program's directory —
+and no open `[ev]` PR belongs to FIX (2363 is the fuzzing policy, 2135
+is BOOL-10, 1700 is M10's draft walk). `plan.md`'s one named ruling,
+`nested-pattern-mate-heads-refuse`, closed.
+
+Nineteen items are open and **every open decision on them is an
+agent's, not Ev's.** Read one by one, they fall in four groups:
+
+- **Dispatchable as written** (fix in the body, no decision):
+  `cert-check-renders-through-debug`,
+  `band-helper-duplicated-across-suites` (free half),
+  `pair-subject-witness-strings-unswept`,
+  `circle-constructors-are-literal-only`,
+  `coherence-findings-have-no-consumer`,
+  `error-census-keyed-on-bare-type-name`,
+  `collapsed-continuation-guard-belongs-in-the-prose-census`,
+  `underflow-gate-owed-at-five-more-doors`,
+  `validation-arms-delegate-a-recourse-their-carriers-do-not-give`,
+  `mate-clocking-has-no-gui-path` half (1).
+- **Dispatchable, decision belongs to the lane** — the row names the
+  fork and the lane resolves it at the site:
+  `node-error-kind-has-no-fieldless-projection` (fieldless mirror, or
+  carry `NodeErrorKind` itself),
+  `levered-clash-margins-hide-their-arm` (a typed unit, a second arm
+  in the sentence, or a small-angle argument — and S-MATE is CLOSED,
+  so the "needs S-MATE's assent" line in that row is stale and there
+  is no assent left to get),
+  `census-containment-flatten-fabricates-its-diagnostic`,
+  `normalize-without-the-length-question-two-more-sites`.
+- **Question-first** — the output is an answer, and the diff is
+  downstream of it: `unify-discipline-machinery-onto-registry`
+  (dispatched today as a reading pass),
+  `circle-constructors-are-literal-only` (where a parametric author's
+  dimensions get checked, before the doc sentence),
+  `transform-recertifies-through-the-narrow-lane`.
+- **Two rows sharing one door question, and it is a lane's to settle:**
+  `band-derivation-has-a-scalar-twin` and
+  `band-helper-duplicated-across-suites` — does the
+  `(zero, escalate)` pair get a named door, and on what? The free
+  `crates/sweep` half was cut away from that question today
+  precisely so a mechanical change is not held behind it.
+
+**The three worth naming to Ev anyway, none of them blocking**, on the
+ground that they add or change PUBLIC surface rather than rendering:
+`transform-recertifies-through-the-narrow-lane` (a public generic
+signature change on a kernel door — `transform_rigid` would take a
+`T: Decide + CertifiedBounds` bound); `kind-mirrors-have-no-single-
+declaration` (an `error_kinds!` macro generating four public error/kind
+pairs tree-wide); and the band pair's door, if it lands as new
+vocabulary on `Tolerance`. The kind-mirror row already pre-cleared the
+nearest precedent itself — `scripts/gates/README.md:49` records Ev
+rejecting a PROC-macro for the CI gates, an objection about an opt-in
+rule that must hold everywhere, which does not reach a `macro_rules!`
+that generates a declaration at the one site declaring the type.
+
+### Wave dispatched, 2026-09-11
+
+Five lanes, file-disjoint by construction so the merges do not race:
+
+| unit | branch | ground |
+|---|---|---|
+| `cert-check-renders-through-debug` | `fix/certcheck-display` | `geom-brep/src/certify.rs` |
+| `band-helper-duplicated-across-suites` (sweep half) | `fix/sweep-band-helper` | `crates/sweep/tests/*` |
+| `pair-subject-witness-strings-unswept` | `fix/census-pair-order` | `topo/src/census.rs` |
+| `circle-constructors-are-literal-only` | `fix/circle-parametric-door` | `editor-core/src/program.rs` |
+| `unify-discipline-machinery-onto-registry` (reading pass) | `fix/unify-discipline-triage` | tracker + docs only |
+
+Every lane is told to update **only its own item file** — not this log
+and not `plan.md` — because five concurrent lanes editing one narrative
+file is five merge conflicts, and one-file-one-item exists to make that
+visible rather than to make it happen.
+
+**The band row's counts were already stale at dispatch and the brief
+says so.** The item claims 24 `crates/sweep` copies and 36 overall; a
+shape-only grep on this head finds 30 in sweep and 60 across six
+crates. That is instruction 2 firing before a lane even started, which
+is the argument for keeping it standing.
+
