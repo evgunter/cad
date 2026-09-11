@@ -479,8 +479,11 @@ jobs:
       seeds: ${{ steps.classify.outputs.SEEDS }}
       # Whether this run compiles the GUI toolkit graph (eframe + wgpu +
       # naga + winit). SEED-keyed per Ev's viewer-CI-posture ruling
-      # (docs/GUI-LOG.md, 2026-08-27) — the argument is at
-      # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
+      # (2026-08-27), which was recorded in the closed GUI program's log;
+      # that log left the tracker with the program's directory in
+      # DOC-LEDGER sweep 5 and reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`.
+      # The argument is at `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
       # WHERE THE THREE VALUES ABOVE CAME FROM — `unsampled` for a dimension
       # that runs whole, which since 2026-09-04 is what all three do unless
@@ -1009,6 +1012,54 @@ jobs:
         run: |
           python3 scripts/check-ci-mirror-parity.py --selftest
           python3 scripts/check-ci-mirror-parity.py
+      # A GATE THAT CANNOT FAIL. `PIPESTATUS` names the last pipeline the
+      # shell ran, and EVERY command rewrites it — including the assignment
+      # on the line above the read. A step spelled `... | tee … ||
+      # status=$?` and then `status=${PIPESTATUS[0]:-$status}` reports
+      # success whatever the pipeline said, because the `:-` default never
+      # fires on the assignment's own `0`; the `driver K-telemetry lint`
+      # step below spent eight commits in exactly that state, green over a
+      # lint that was refusing every file it was handed. The failure is
+      # silent by construction: nothing goes red, so no later run finds it.
+      #
+      # SITED HERE, in the job with no `if:`, because its inputs are every
+      # workflow file and every tracked shell script — `local-scripts/`
+      # included, a tree that classifies TIER=docs and that every hosted
+      # job but this one deletes at checkout. Under `if: run_build` the
+      # change class that can break it is the class that would skip it.
+      #
+      # NOT SHELLCHECK'S JOB, measured rather than assumed: shellcheck
+      # 0.9.0 says nothing at all about this shape (it has SC2319/SC2320
+      # for the sibling `$?` reads and no `PIPESTATUS` equivalent), and
+      # nothing in this repo runs shellcheck anyway —
+      # `work/ciw/shellcheck-is-not-run.md` carries that residue.
+      #
+      # AND A SEPARATE SCRIPT RATHER THAN A CLAIM IN THE STEP ABOVE, for
+      # blast radius rather than subject: `check-ci-mirror-parity.py`'s
+      # claim 10 DOES read shell out of `run:` bodies, so the subject is
+      # not foreign to it — but every one of its claims shares one
+      # tokenizer, and a change made for this property could move any
+      # other claim's answer. This reader is its own file so it fails
+      # alone, and its own shell splitter is written against the CMD_BREAK
+      # comment there, which records meeting the `&`-in-a-redirection
+      # defect twice.
+      - name: status capture (PIPESTATUS is read before anything rewrites it)
+        run: |
+          python3 scripts/check-status-capture.py --selftest
+          python3 scripts/check-status-capture.py
+      # THE LANE ROSTER THE HELPER WORKS FROM, HELD AGAINST THE ONE
+      # render.yml DECLARES: every lane fact in
+      # `local-scripts/render-hosted.sh` — the lanes, what `--lane all`
+      # expands to, each artifact, each committed directory, the jobs the
+      # poll waits for — is a statement about render.yml, and this
+      # compares them. Sited here for the same reason as the row above:
+      # its inputs are a workflow file and `local-scripts/`, a tree that
+      # classifies TIER=docs and that every hosted job but this one
+      # deletes at checkout.
+      - name: render lane parity (the helper knows the lanes render.yml declares)
+        run: |
+          python3 scripts/check-render-lane-parity.py --selftest
+          python3 scripts/check-render-lane-parity.py
       # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
       # its own rather than by association. `scripts/ci-filter.py` decides
       # whether every `if: run_build` job below runs at all, and its `docs`
@@ -1770,13 +1821,21 @@ jobs:
       # two findings into one. `!cancelled()` rather than `always()` so
       # a cancelled run still stops here.
       # `--skip-viewer-toolkit` when the change filter's seeds do not buy
-      # the GUI toolkit rows (Ev's viewer-CI-posture ruling,
-      # docs/GUI-LOG.md 2026-08-27). It takes `viewer` out of the
+      # the GUI toolkit rows (Ev's viewer-CI-posture ruling, 2026-08-27,
+      # in the closed GUI program's log, which left the tracker with that
+      # program's directory in DOC-LEDGER sweep 5 and reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
+      # It takes `viewer` out of the
       # --all-features pass and puts it back at DEFAULT features, so its
       # renderer-free modules are gated on every run and only the
       # `app`-gated ones — the ones that drag ~140 eframe/wgpu crates
       # into a rustdoc pass — are skipped. The verdict is printed by the
       # step below, never left to be inferred from a green job name.
+      # THE RULING'S SECOND CLAUSE TRAVELS WITH THE SKIP, so it is named
+      # here too: what this pass stops documenting is re-taken ungated,
+      # once a day, by nightly.yml's `rustdoc (viewer, all features)` row
+      # in the `viewer-toolkit` job. A row that takes the skip without the
+      # re-take is not applying the ruling — it is giving the coverage up.
       - name: rustdoc (gate)
         if: '!cancelled()'
         run: |
@@ -2083,7 +2142,11 @@ jobs:
       # `viewer` is excluded for the SAME reason `pncad` is — it depends
       # on `pncad`, so a leg that excludes the façade cannot include a
       # crate sitting on top of it. GUI-5 owns the real wasm lane for
-      # the GUI (docs/GUI-PLAN.md's unit list); this guard's subject is
+      # the GUI (the closed GUI program's unit list, which left the
+      # tracker with that program's directory in DOC-LEDGER sweep 5 and
+      # reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/plan.md`);
+      # this guard's subject is
       # the kernel plus `editor-core`, and it stays that. What the
       # exclusion leaves uncompiled is picked up by the seed-keyed viewer
       # row below rather than by widening this one.
@@ -2240,7 +2303,11 @@ jobs:
       # `viewer`'s `app` feature (eframe + wgpu + naga + winit) is ~140
       # crates that no other row in this workflow needs. It is not a
       # default feature, and per Ev's viewer-CI-posture ruling
-      # (docs/GUI-LOG.md, 2026-08-27) the rows that compile it run only
+      # (2026-08-27, in the closed GUI program's log, which left the
+      # tracker with that program's directory in DOC-LEDGER sweep 5 and
+      # reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`)
+      # the rows that compile it run only
       # when the change filter's SEEDS intersect {viewer, pncad, bvh} —
       # seed-keyed, NOT closure-keyed, because `pncad` re-exports the
       # kernel and is therefore in nearly every change's closure while
@@ -2410,6 +2477,26 @@ jobs:
             echo '      Every other workspace member is linted at --all-features below.'
             cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
           fi
+
+      # THE SCALPEL, EXERCISED. D1's whole-body tier-1 postcondition
+      # runs once per public door; `topo/per-op-postcondition` puts it
+      # back after every operator, and it is the only way a door-level
+      # failure is localized to the operator that caused it
+      # (work/perf/d1-per-op-tier1-sweep-price, Ev, PR 2305). A scalpel
+      # nothing runs is a scalpel nobody knows is blunt: the two-arm
+      # corruption row asserts the OPERATOR's name in the panic under
+      # this feature and the DOOR's without it, so the arm below is the
+      # only place the first half is ever taken.
+      #
+      # It rides this job because this job already compiles the
+      # workspace with the feature on (`--all-features` includes it),
+      # so the marginal cost is the test binary's link and a handful of
+      # rows. Plain `cargo test`, not nextest: this job installs no
+      # extra tooling and one filtered module does not need a runner.
+      - name: the per-op postcondition scalpel (topo)
+        run: |
+          cargo test -p topo --lib --features topo/per-op-postcondition -- \
+            --nocapture surgery::tests::
 
   # ============================================================
   # CACHE PRIMING — the two jobs below are the ONLY compiling jobs on the

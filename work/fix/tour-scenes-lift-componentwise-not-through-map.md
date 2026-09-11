@@ -4,7 +4,6 @@ kind: issue
 title: The tour's other scenes lift f64 literals componentwise (az, letterforms, bool_bodies, cutaway, curvedcut, twopeg, paths, bossplate, bodies) — lily.rs is the worked example of the layer rule; demos/tour/Cargo.lock is stale on main
 status: open
 opened: 2026-09-05
-track: X
 ---
 
 
@@ -43,3 +42,13 @@ be `Point3::new` / `Vec3::new` now that the constructors are `const fn`.
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/code-quality/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). A Track X style sweep over `demos/tour/src/*` (the body says so); X's ground is code-quality's own to dispatch and its rows live there, so this row takes `track: X` and waits for a lane the way `D403` does. Not enough on X today to open a program for it (three rows, one parked on `L2`).
+
+## Claimed by FIX (2026-09-11)
+
+`demos/tour/src/*` is in no open program's `paths`, and this row is a
+one-PR sweep whose fix is written (`lily.rs` is the worked example) —
+FIX's charter exactly. Moved here from `work/code-quality/`, id
+unchanged; the `track: X` key leaves with the directory, since it is a
+code-quality-only field and the row is no longer waiting on a Track X
+lane. `demos/tour/Cargo.lock`'s staleness is already resolved above and
+is not part of this unit; the `--locked` gap it names stays CIW's.

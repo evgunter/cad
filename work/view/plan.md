@@ -200,6 +200,35 @@ to stop looking. The sweep rule is what makes it falsifiable, and it
 belongs beside the claim rather than in the PR body that gets thrown
 away.
 
+**And the sweep rule's own failure mode is the PROXY: a classifier that
+stands in for the property the claim is about, rather than being it.**
+This is the defect class this program hit most often, and it looks
+complete from the inside every time — a proxy agrees with itself over
+the population it can see, so nothing in the sweep reports the members
+it cannot. Eight instances, each a different proxy for a different
+property:
+
+| the sweep ranged over | the claim was about |
+|---|---|
+| a constant's occurrences (#2278) | a fact about the tree |
+| a boolean `md_fence` (#2282) | a three-way question |
+| `^`-anchored patterns (#2172, re-minted #2287) | markdown, which allows 1–3 spaces of indent |
+| an attribute's presence (#2288, GQ6) | existence at the target |
+| full paths in a census regex (#2293) | what the tracker writes — bare filenames |
+| the NAME `store` (#2293) | the FIELD `ViewerApp::store` |
+| "the host pass" (#2304) | doc-gate, which runs two |
+| `add_enabled` + `on_disabled_hover_text` (#2320) | a control's DISPOSITION |
+
+The last is the orchestrator's own: I handed a lane a sweep over the two
+call names, and `pane/properties.rs:348-353` shows a typed ineligibility
+through `ui.weak(fault.to_string())` and calls neither —
+`pane/create.rs:445`'s `blocked: Option<&'static str>` is a second
+member, sharing a field name with the opposite typing. The lane found
+both and corrected me. **The check is to name the property first and the
+pattern second, then ask what a member could look like that the pattern
+cannot match** — which is a different question from whether the pattern
+finds what it finds.
+
 **Settle a CI-scope question by RUNNING the filter, not by reading a
 manifest.** The same review reported `prose_census` as possibly sited
 where it cannot fire on its own inputs — its subject is every `Display`
@@ -462,6 +491,58 @@ stays pending precisely when a narrowed matrix would otherwise read as a
 pass. `neutral` is a passing conclusion, not a failure —
 `render drift (…)` is a check run posted by the rebaseline action and
 designed to be neutral (`ci.yml:4964-4976`).
+
+**Running the crate's own suite is not running the suite, and the two
+runs are not nested.** #2293 reported 511/0/1 from `cargo test -p viewer
+--features app --test all` and sat red on CI for four hours: its new
+guard reads `frame.rs` and `app.rs` as text, and
+`crates/test-utils/tests/reader_census.rs` keeps a ledger with one line
+per site that does — *"a new one reds until someone writes its line"*.
+That row is a different test binary in a different crate and the local
+command was structurally incapable of seeing it. The shape is broader
+than readers, and one unit hit it three times: a new **reader**
+registers in a ledger, a new **badge** in a README count, a new **store
+read** in another — the crate keeps rosters and the local binary reads
+none of the ones that live elsewhere. The receipt is
+`cargo nextest run --workspace`, **and it is not sufficient either**:
+the workspace run builds `viewer` without `app`, so `gpu.rs` compiles
+out and its adapter row never appears. CI runs both as separate jobs and
+so does a lane. **Report the command, not only the number** — a count
+with no command behind it cannot be re-taken, which is the same defect
+as an enumeration with no instrument.
+
+**And the viewer's own suite has two targets, not one.** #2320 measured
+what #2293's paragraph left implicit: `cargo test -p viewer --features
+app --test all` is 517/0/1 with **no `gpu` row in it at all** — the
+expected WGPU-adapter red lives in the `--lib` target, so a lane that
+runs only `--test all` reads a clean number that means something else.
+`cargo nextest run -p viewer --features app --no-fail-fast` is the
+command that shows it (542 run, 541 passed, 1 failed, green on real
+hardware). Same unit, same shape: the number is only as wide as the
+binary behind it.
+
+**At wasm32 the CI row is `cargo check`, and `clippy --all-targets`
+does not compile there at all** — `ThreadEvaluator` is
+`cfg(not(target_family = "wasm"))` (`crates/viewer/src/lib.rs:139-140`),
+so the test targets reference a type that is not built. Pre-existing,
+not a CI row, and not a lane's to report as a regression. The row CI
+runs is `RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check -p
+viewer --features app --target wasm32-unknown-unknown`.
+
+**When a red belongs to a roster that lives in another program's file,
+registering is the mechanism working and not a fence crossing.** The
+census's own header names the three honest dispositions and tells
+whoever caused the red to write the line. #2293's lane checked that
+independently rather than taking my word: CIW's `keep_out` cedes *the
+Shared ledger row's AUDIT* to S-TCOST, not its registration, and TOPO's
+cedes *"converts topo's own readers and its own census entries only"* —
+direct precedent for a program adding its own line. It announced the
+edit in the PR body and the log rather than landing it silently, which
+is what VIEW's own `keep_out` asks of a test-mechanism change. The rule
+is the reading, not the conclusion: a roster that exists so arrivals
+register themselves is not the same fence as the audit over it, and the
+distinction is written in the clauses rather than inferred from the
+path.
 
 **A receipt is a citation and gets no exemption.** #2278's log entry
 offered two perturbations as evidence and named the wrong line for one

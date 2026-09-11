@@ -57,6 +57,8 @@ mod common;
 mod budget_meter;
 #[path = "cert10r1_assembly_accounting.rs"]
 mod cert10r1_assembly_accounting;
+#[path = "d9_mesh_goldens.rs"]
+mod d9_mesh_goldens;
 #[path = "errors.rs"]
 mod errors;
 #[path = "exact_vs_mesh.rs"]
@@ -113,6 +115,8 @@ mod mesh8r1_probes;
 mod mesh8r2_probes;
 #[path = "newell_probes.rs"]
 mod newell_probes;
+#[path = "perf1_torus_sizing.rs"]
+mod perf1_torus_sizing;
 #[path = "prisms.rs"]
 mod prisms;
 #[path = "probe_review.rs"]

@@ -409,7 +409,7 @@ impl ViewerBehavior<'_> {
     /// One PANEL ROW: a scalar slot on its own, or a 3-vector's three
     /// components on one line.
     ///
-    /// The grouping is `props::SlotGroup`'s and the vocabulary's (see
+    /// The grouping is [`crate::props::SlotGroup`]'s and the vocabulary's (see
     /// its docs); this function only lays it out. What the two arms
     /// share — the value field (numbers AND expressions, one widget),
     /// the gesture mapping, the driven affordance, the range probe —
@@ -482,7 +482,7 @@ impl ViewerBehavior<'_> {
     /// field whose text is not necessarily a number: a parser that
     /// answers `None` rejects the text and leaves the value alone,
     /// which is exactly what an expression needs. So what a user typed
-    /// is read once, by `props::field_edit`, and takes one of two
+    /// is read once, by [`crate::props::field_edit`], and takes one of two
     /// doors: a bare number through `SessionOp::SetSlot`, anything
     /// else — an operator, a parameter, a unit — through
     /// `SessionOp::SetSlotExpression`. The panel parses nothing.

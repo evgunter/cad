@@ -59,6 +59,8 @@ from pathlib import Path
 DEFAULT_ROSTER = (
     "tessellate/washer/1e-4",
     "tessellate/washer/1e-6",
+    "tessellate/torus/1e-3",
+    "tessellate/torus/1e-4",
     "kernel/validate/tier23_washer",
     "kernel/mass_props/washer",
     "kernel/build/extrude",

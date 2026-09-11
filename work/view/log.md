@@ -7858,3 +7858,391 @@ generalises past readers, because this same unit registered a new badge
 in a README count and a new store read in another. The receipt to run
 is the workspace suite as CI runs it, and a report names the COMMAND as
 well as the number.
+
+## `view/dead-symbols` — the doc-comment dead-name class, closed (2026-09-10)
+
+`doc-comments-name-symbols-that-do-not-exist`, closed in place. The
+item's two figures both reproduce exactly at the SHA it states them at
+— 19 spans / 12 names / 2 undefined with `<mod>` restricted to
+`frame`/`session`, and 132 / 97 unrestricted — and the unrestricted
+one needed its wording pinned before it would: *"every module prefix
+is admitted"* means every **module-shaped** (lowercase) prefix. Admit
+type-qualified prefixes as well and it is 284/197; restrict to this
+crate's own modules and it is 66/49. Only the middle reading gives
+132/97, so that is what the sentence means.
+
+**The whole decidable set was taken, not the two names.** 64 spans
+over 47 names at the merge base — every unbracketed `<own-mod>::<path>`
+span in a doc comment under `crates/viewer/src`. 44 are now
+`[`crate::…`]` links; 20 are named rather than linked, and the
+undefined count is **0**. The item scoped its own decidability
+argument to 12 names; it applies to all 49, and blind spot 5's
+*"85 of the 97"* should read 48.
+
+**The ruling's test came back wrong at 20 sites, and the gate is what
+said so.** `crates/viewer/README.md`'s *Rustdoc posture: the host pass
+is the gate* asks whether the HOST pass renders a page for the item the
+doc comment sits on. Asked that way all 64 answer *it does*, and the
+`--all-features` host pass agreed at zero errors — then
+`scripts/doc-gate.sh` reded on **13**, because it documents `viewer` a
+second time at DEFAULT features under `--skip-viewer-toolkit`, also at
+`-D warnings`, where `app`/`forms`/`pane` do not exist. Chasing that
+also turned up **7 spans inside `#[cfg(test)]` modules**, which no pass
+renders, so bracketing them is inert. **That one is this lane's own
+mis-reading and not a gap**: `cargo doc` does not set `cfg(test)`, so
+the page is absent and the ruling's literal answer is *it does not* —
+the remedy taken. The reason all 64 first answered *it does* is that
+the question was asked of the MODULE rather than of the ITEM the doc
+comment sits on, which is not what the ruling says. **One** gap
+survives, the feature axis, filed as
+`rustdoc-posture-test-names-one-axis-of-three` rather than edited into
+ratified text that merged this morning. A row is better for being one
+finding than three.
+
+**The trap never fired, for reasons of population**, and the receipt
+for the whole disposition is the browser pass: **7 unresolved links
+over 4 identifiers** after the diff — the README's dated population,
+unchanged. 44 new links, zero new browser-pass errors.
+
+**A third dead name, and the bracketing found it.** `frame.rs:216`
+named `pane::viewport::viewport_ui`; bracketed, the host pass reded.
+`viewport_ui` is an inherent method on `ViewerBehavior`, an `app`
+item merely written in `pane/viewport.rs:58`, so the module path names
+nothing. The item's own rule could never have found it — the leaf IS
+declared under `crates/viewer/src`, so a declaration regex resolves it
+and it reads as live. Only a resolver that checks the PATH sees it,
+and bracketing borrows rustdoc's. That is candidate 1's argument
+demonstrated rather than asserted.
+
+**The item's central claim is wrong, and correcting it strengthens
+the case.** The title said the two names *"have never existed"*, and
+`stale-file-citations-after-the-split` built a claimed **fourth**
+citation class on it — *a subject that was never there*, distinct from
+class 1, *a subject that is gone*. `git log -S` over `crates/` refutes
+it: `supersession_notice` and `dropped_hide_notice` were both `pub
+fn`s in `frame.rs` from `6877a40ff` until `4db112ada` — **#1957**,
+which replaced them with the `Withdrawal` vocabulary, rewrote the call
+sites and left every prose mention behind. The fourth class does not
+exist. `four-badges-five-spellings.md:107` turns out to be the proof
+rather than the oddity: it cites `frame.rs:232`, and `6877a40ff` puts
+`supersession_notice` at exactly `frame.rs:232`. An invented name is
+one author's slip; a deleted one is a rename that outran its prose,
+and a bracketed link would have reded #1957 on its own branch.
+
+**A dated sentence is not a stale citation.** The tracker count also
+reproduces exactly — 15 occurrences across 8 items, 4 in open rows —
+and three of the four were repaired. The fourth,
+`frame-module-…-no-holds-row.md:76`, is dated *"(#1886, 2026-09-05)"*
+and all three names it uses were real on that date, so it is left as
+written because it is TRUE. Believing the *"never existed"* claim, the
+honest move would have been to correct it, and correcting it would
+have falsified a true record. The class is *present-tense claim*, not
+*dead name*.
+
+**No line shifts, and the receipt is `origin/main...HEAD`: 11 files,
++40/-40.** Every edit within-line, every file's line count identical to
+the merge base. The figure to quote is that one — an earlier draft said
+58/58 across 16 files, which is the first commit alone and was partly
+reverted by the second; a receipt is a citation and gets no exemption.
+The unconditional argument is better than either: **every changed line
+under `crates/viewer/src` is a comment line**, zero non-comment lines,
+so the diff cannot move a compile result at any target or feature set.
+
+**The disposition is durable in a tracker file and nowhere else, and
+that is a defect this lane created.** Eleven of the thirteen
+feature-axis sites now carry a bare span with nothing saying it is
+deliberate — `frame.rs:6,85,216,385,554,1766,1802`, `pickindex.rs:12,13`,
+`props.rs:40`, `tree.rs:278` — in a crate whose `theme.rs:9-12`,
+`vocab.rs:51-52` and `forms.rs:18-20` all explain exactly this choice
+in prose. The sharpest is `pickindex.rs:12-13`, where a bracketed
+`[`crate::marks`]` and a bare `pane::viewport` sit in one sentence and
+a reader repairing the "inconsistency" reds the gate. Not fixed here:
+the note adds lines, and `frame.rs`/`pickindex.rs`/`props.rs`/`tree.rs`
+carry **155** `file:line` citations between them, so it costs a census
+and is its own unit —
+`named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites`.
+
+**The revision the ruling wants is EXISTENTIAL, and getting that
+quantifier wrong is how this lane nearly shipped a rule against its own
+diff.** The first draft proposed *"every rustdoc pass that runs at
+`-D warnings` renders a page … and can resolve the target"*, one line
+after claiming it changed no disposition. It changes 25 of them: only
+**19** of the 44 links are in modules the default-features pass renders
+at all, and the other 25 sit in `app`, `forms`, `pane` and `widgets`,
+which it never renders. A link checked by ONE pass is a checked claim;
+demanding every pass check it forbids linking anything feature-gated.
+The row now proposes *some* pass, and says why.
+
+**Three residues filed rather than disclosed**, the two above and
+`comment-symbol-names-outside-rustdocs-reach-have-no-gate`. Rustdoc
+reads `///` and `//!` and nothing else, so the same dead name at
+`app.rs:950` — a plain `//` comment — could only be corrected by hand
+and is held by nothing afterwards. 26 plain-`//` own-module names under
+`crates/viewer/src`, every one live today, and zero split-span ones: a
+clean population with no gate holding it clean.
+
+## 2026-09-11 — `view/cancel-doors`: both gesture cancels get a door, and the stranding is traced
+
+`gesture-drags-have-no-cancel-door` closed. `SessionOp::CancelGesture`
+and `SessionOp::CancelFreeMove` had an arm in `perform`, coverage in six
+suites and **no emitter in the crate**; they have one each now, composed
+as `DocSession::cancel_doors` and drawn in the toolbar beside Undo and
+Redo.
+
+**The item left reachability open and named three candidates; it is the
+first of them, and it needs nothing a second pointer or a relayout would
+have to supply. The drag's own preview strands it.** `slot_rows`
+answers nothing when `standing().live()` is false, and a face whose name
+did not resolve is not live; every frame a drag moves submits its scratch
+document, so a preview taking an extrude's distance to zero lands an
+evaluation the picked face does not survive, the panel is handed no
+rows, and the field whose `drag_stopped()` is the drag's only exit is
+not drawn on the release frame. The item could not find this because it
+went looking for an OPERATION that changes what the panel draws and
+correctly found all of them click-driven. The drag is not another
+operation. Held end to end at the session layer; the last link — a group
+absent from the list is not drawn, `properties_ui`'s
+`for group in &groups` — is read and not run, because the crate has no
+headless egui harness, and the row says so in as many words.
+
+**The item's sharpest claim names the wrong sentence, and the shape it
+describes is real.** `DisplayFault::FreeMoveInFlight` (*"finish the
+free-move first"*) cannot be shown to a user at all: reaching it needs a
+free-move already in flight, which needs a free-move strand nothing has
+traced — the probe's field is drawn off the shown document, and a
+document change under an in-flight probe is pruned rather than
+stranded. The reachable inverted refusal is `Refusal::GestureInFlight`,
+*"finish the drag first"*, which the trace above reaches with no pointer
+behind the drag. Filed as
+`free-move-in-flight-refusal-has-no-reachable-producer`; the free-move
+door is owed either way, on the emitter count alone.
+
+**Where the door went, and why not a key.** The toolbar, because the
+defect is that the chrome owning the gesture can stop being drawn — a
+cancel sited beside the field would vanish with the exit it replaces.
+`input.rs` could not hold a key for it whatever we decided: it maps what
+the pointer did inside the VIEWPORT, and `input::PRESETS` records that
+this crate binds no key to any operation anywhere and what a keyboard
+vocabulary would have to settle first. So the item's "no Escape binding
+in `input.rs`" points at a module with no room for one, and the key is a
+decision rather than a row.
+
+**Both doors are one composition**, `CancelDoor::of(label, op,
+in_flight, refused)`, and out of flight each carries the `Refusal` its
+own operation answers with rather than a sentence written beside the
+button — the fix `environmental-facts-answer-usable-as-a-bool-with-the-
+reason-elsewhere` is open about one facility over, applied prospectively
+here. Drawn in every state, disabled with that reason when there is
+nothing to cancel, which is the posture the two file-dialog controls
+take. `DisplayState::probing` gains its first production reader.
+
+**The census is a match over `SessionOp`, not a search for `Cancel`.**
+`CancelEvaluation` is spelled `Cancel` and cancels a run, so a
+name-shaped rule would hand it a gesture door and keep agreeing with
+itself. `every_gesture_cancel_has_a_chrome_door` runs the exhaustive
+predicate against the door list both ways, so a third gesture cannot
+join the enum with no door and a door cannot exist with no operation
+behind it.
+
+**Six mutations, each reverted**: the drag's door removed (census +
+strand rows red), `perform`'s cancel arm no longer taking the gesture
+(strand), `blocked` inverted (three rows), the toolbar loop deleted
+(`the_cancel_doors_have_a_reader_in_the_chrome`), `CancelFreeMove`
+marked not-a-gesture-cancel (census), and `slot_rows`' dead-standing
+guard removed — the last so that the reachability half is not green over
+its own absence.
+
+**A new source reader, registered.** The chrome half of the claim cannot
+be executed, so the emitter count is held as text: one read of
+`cancel_doors` under `crates/viewer/src`. That made `gesture_table.rs` a
+source reader and `reader_census.rs` red until its ledger line was
+written — the mechanism working, announced rather than landed quietly,
+and the row's own three dispositions say who writes the line.
+
+**The citation census of the bands this diff shifted, and a refinement
+the rule needs.** `session.rs` +39 from `:595`, `app.rs` **+28** from
+`:1241` (the hunk is `@@ -1238,6 +1238,34 @@`, 28 added and 0 removed —
++26 was the pre-`cargo fmt` figure and is the number this entry first
+carried, fixed here because the log is the artifact that survives),
+`README.md` **+58** from `:977` (+42 before the fix pass grew the
+clause; both figures are of the same one hunk at `:977`, and the only
+in-band `README.md` citations are in a CLOSED row and in this log, so
+neither number reaches a repoint), `reader_census.rs` +4 from `:306`;
+`op.rs` and `gesture_table.rs` grew at EOF and shifted nothing.
+**Re-swept at the merge, and one band moved**: `origin/main` (`9893bdcdb`)
+added a ledger entry of its own, so `reader_census.rs` is **+8** from
+`:306` against `8cf86ec32` — four lines this branch's and four not. The
+out-of-fence rows citing into it are owed the +8, not the +4 this entry
+first carried, which is the *a sweep is accurate as of your merge base,
+not your merge* rule collecting on a lane that ran for one day. The
+instrument was per-citation text identity — `base[i]` against
+`head[i+shift]`, machine-checked — which **certifies the mapping and
+says nothing about the subject**, and that is stated rather than dressed
+up as a re-derivation. **Eleven open rows repointed.** The enumeration
+rule is *files under `work/view/` this branch MODIFIES, less this log
+and less the row being closed* — every one of those eleven was modified
+because a citation in it moved, and nothing else was. Sixteen was the
+POPULATION rather than the count of repoints (the eleven, plus the four
+declared exclusions below, plus the closed row), and stood one line
+above a paragraph saying four were deliberately left — a number
+contradicting its own next sentence. The eleven carry their bare
+`:NNN` continuations and, for
+`four-debug-walks-are-spelled-and-placed-two-ways`, the two prose counts
+its own stated rule derives (`1,780` → `1,819`, `2,000-line` →
+`2,039-line`, title included — a count fixed in one place contradicts
+itself).
+
+**Four rows in the population were deliberately NOT repointed, and this
+is the refinement**: a row whose SUBJECT is citations must be left
+alone. `stale-file-citations-after-the-split` holds a `Was | Now` table
+of numbers that were wrong; `viewer-preview-names-a-verb-by-its-variant-
+identifier` quotes another program's citations and says "at their
+pre-split paths"; `sweep-blind-spots-the-precheck-sweep-could-not-see`
+is a receipt pinned to `8604dfb3`; `the-citation-receipts-summary-
+numbers-are-not-re-derivable` audits a receipt's numbers. Shifting any
+of them re-mints `citation-repoint-shifted-a-number-the-lane-knew-was-
+wrong` — and the first draft of this lane's census did shift all four
+before the diff was read. Closed rows were excluded for the same reason:
+a closed row is a record.
+
+**Out of fence, reported and not filed** (implementer-discipline §6):
+the same shift is owed by in-band citations in `work/chrome/`
+(`app-rs-doc-comment-merge-scars`, `placed-union-has-no-session-op`),
+`work/ciw/` (`gui-wasm-build-is-not-gated-at-all`,
+`tree-wide-guards-outside-the-change-closure`), `work/docm/`
+(`check-registry-gathers-product-twice`,
+`docm1-face-frame-owes-a-reader-census-ledger-line`), `work/fix/`
+(`boolean-error-has-no-fieldless-kind`,
+`verb-and-dimension-render-through-debug`), `work/instr/`
+(`baseline-census-partition-assert-cannot-fail`), `work/tcost/`
+(`source-lacks-an-item-body-carve-and-shared-means-any-mention`) and
+`work/issues/tracker-file-line-citations-measured`. Each is in the PR
+body with its old and new number.
+
+**Residue, filed**: `preview-and-commit-carry-no-gesture-identity` — in
+the stranded state a drag on any OTHER field is refused its begin and
+then previews and commits into the stranded slot, observed with the
+extrude's `Distance` taking a datum origin's number. The door is a way
+out and does not repair that. Plus the `FreeMoveInFlight` row above.
+
+**An operational near-miss worth the line**: `git checkout -- <file>`
+to revert a mutation discarded the lane's own uncommitted work, because
+nothing was staged. Commit before mutating; the mutation evidence here
+was taken against a committed tree.
+
+### Fix pass on #2320 — what the review found, and what it cost
+
+Mergeable on the verdict; five record defects and three reports. The
+review reproduced all six mutations and added two of its own on the
+agreement row (mutating `perform`'s refusal, then the door's), ran the
+citation population sweep independently and got exactly this lane's four
+declared exclusions, and put an instrument on the `input::PRESETS`
+universal rather than reading the prose.
+
+**Four of the five were in the RECORD, not the code, and that is the
+lesson.** A repoint that should have been a revert
+(`four-debug-walks…:33` — `session.rs:1991` is a blank line, the
+`Debug for DocSession` subject is at `:2010`, and `origin/main:1952` was
+blank too, so it was wrong at the merge base and this lane's own stated
+rule says revert; that file's `:46-50` also declares its `std::fmt`
+citations left as written, and this was one of them). The log's own
+`+26` where the PR body carried the corrected `+28`. "Sixteen open rows
+repointed" where eleven were, one line above the paragraph naming the
+other four. And two citations in the closed row left at `properties.rs`
+`:100`/`:557` when the `CommitGesture` pushes are at `:103`/`:560` —
+the half-fixed-file shape, in a row whose other citations this lane DID
+re-derive. **A lane that repoints thirty citations correctly and leaves
+four wrong has produced a file a reader cannot trust**, which is the
+cost the class has always had; the instrument that caught all four was a
+reviewer re-deriving by hand, again.
+
+**The fifth was a false precedent in ratified text.** The README clause
+and `CancelDoor`'s docs both cited `frame::ChooserBackend`'s two dialog
+controls for the whole posture. They are the precedent for *drawn in
+every state* and the **counter-example** for *typed*: they hand
+`frame::NO_CHOOSER_BACKEND`, a `&'static str` composed at each button
+(`app.rs:1198`, `:1217`), to `on_disabled_hover_text`. The precedent for
+the typed half was in this crate and uncited —
+`pane/create.rs:248-259`, *"carrying the op's own refusal — read off
+the entry, not minted here."* Both texts now cite one for each half, and the
+clause says which of its universals is held by a TEST
+(`a_closed_door_says_what_its_own_operation_refuses`) rather than by the
+type, because nothing structural stops a future door composing its own
+sentence.
+
+**The clause's "drawn in every state" is now scoped to the states it was
+checked against** — the selection, the standing and the evaluation. The
+toolbar is one non-wrapping `ui.horizontal` (`app.rs:1148`) and the row
+now holds twelve controls, two of them this unit's, so a narrow window
+can push them out of reach. Nobody measured it and nobody can here;
+`the-toolbar-row-does-not-wrap` holds the question and says in its own
+`## What is NOT established` that the clipping is egui's documented
+rule, not an observation of this toolbar.
+
+**Two reports taken as files rather than as sentences.**
+`a-disabled-control-says-why-in-four-shapes` — the review found the
+cancel door is the fourth spelling of *a control a reader cannot use
+that says why*, and the sweep rule it owes is over that DISPOSITION and
+not over `on_disabled_hover_text`, because two members (a
+`blocked: Option<&'static str>` in `pane/create.rs:445` sharing this
+unit's field name with the opposite typing, and `properties.rs:347-352`)
+do not call it at all. And
+`the-new-document-button-states-its-refusal-twice`, eighteen lines above
+these doors: a comment claiming `Refusal::EmptyName` backs a disabled
+button whose tooltip is a literal saying something else.
+
+**A correction to the dispatch that every later lane needs: the expected
+WGPU red is in the `--lib` target, not `--test all`.**
+`cargo test -p viewer --features app --test all` is **517 passed / 0
+failed / 1 ignored** and carries no `gpu` row at all; the adapter row is
+`cargo test -p viewer --features app --lib`. A lane told to expect one
+red and running only `--test all` gets a clean number that means
+something else entirely — *running the crate's own suite is not running
+the suite*, one target deeper. `cargo nextest run -p viewer --features
+app` covers both (542 = 517 + the lib rows) and is the command to quote.
+Second correction: `clippy --all-targets --target wasm32-unknown-unknown`
+does not compile at all (`ThreadEvaluator` is
+`cfg(not(target_family = "wasm"))`, `lib.rs:139-140`); CI's row is
+`cargo check -p viewer --features app --target wasm32-unknown-unknown`
+under the `getrandom_backend` flag, and that is what this lane ran.
+
+**Out of fence, reported**: `crates/test-utils/tests/reader_census.rs:82`
+says the ledger is "Sorted by path" and nothing enforces it — `found.sort()`
+at `:592` sorts the tree walk, not the ledger.
+
+## 2026-09-11 — #2320 merged; the proxy class is written down
+
+**`view/cancel-doors` is on main** (#2320, merge `4f621cf31`), green on
+the full code tier: 39 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`, `gate ok` success, one `neutral` on
+`render drift (gui)` and five skips that belong to closures this diff
+does not open. Read from the job list rather than a summary. Its two
+lane worktrees and their private target dirs are reclaimed.
+
+**The eighth instance of the proxy class was mine, and the class is now
+a rule in `plan.md` rather than eight scattered post-mortems.** A sweep
+rule fails when its classifier is a PROXY for the property the claim is
+about — and a proxy agrees with itself over the population it can see,
+so it reads complete from the inside every time. The eight are
+tabulated at the sweep-rule paragraph: a constant standing in for a
+fact (#2278), a boolean for a three-way question (#2282), `^`-anchors
+for markdown's 1–3 spaces of indent (#2172, re-minted #2287), an
+attribute's presence for existence at the target (#2288), full paths
+for the bare filenames the tracker writes and the name `store` for the
+field (#2293 twice), "the host pass" for a gate that runs two (#2304),
+and `add_enabled` + `on_disabled_hover_text` for a DISPOSITION (#2320 —
+the dispatch was mine, the correction the lane's). The check that
+catches all eight is the same one: name the property first and the
+pattern second, then ask what a member could look like that the pattern
+cannot match.
+
+**Both of #2320's command corrections are in `plan.md`** — the viewer
+suite has two targets and the WGPU adapter red lives in `--lib`, and at
+wasm32 the CI row is `cargo check` because `clippy --all-targets` does
+not compile there at all.
+
+**Still running**: `view/link-thirteen`, building Ev's rustdoc ruling
+(link the thirteen bare spans with the house `[`crate::X`]` spelling,
+make the lint inert on the skip-mode viewer pass, retire the three
+module notes, amend the README's Rustdoc posture clause). It is the only
+open lane.

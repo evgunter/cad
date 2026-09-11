@@ -15,8 +15,8 @@ this field.
 
 ## What happens
 
-`DocSession::clear_for_new_document` (`crates/viewer/src/session.rs:1591`)
-calls `self.display.clear()` (`:1593`), and `DisplayState::clear`
+`DocSession::clear_for_new_document` (`crates/viewer/src/session.rs:1630`)
+calls `self.display.clear()` (`:1632`), and `DisplayState::clear`
 sets `*free_move = None` (`crates/viewer/src/display.rs:861`). So an
 in-flight FREE-MOVE drag is silently dissolved by `Open` and by
 `NewDocument`.
@@ -51,5 +51,5 @@ Either the door refuses while a free move is open — which means the
 mid-gesture table's subject widens past the value gesture, and its
 name and its README section widen with it — or the dissolution is
 deliberate and gets a report the user can see (`OpOutcome::superseded`
-is the existing channel; `frame::supersession_notice` already renders
-it, `app.rs:785`). What it must not stay is silent and unstated.
+is the existing channel; `frame::Withdrawal::superseded` already
+renders it, `app.rs:785`). What it must not stay is silent and unstated.

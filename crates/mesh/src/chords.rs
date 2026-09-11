@@ -12,10 +12,13 @@
 //!   n = ceil(Δt/φ).
 //! - Adjacent-torus tightening: a face on a torus certifies through
 //!   the UV interpolation bound (crate docs), which needs boundary UV
-//!   steps ≤ its grid step h = √(δ_s/(3(R+2r))); a circle edge's
-//!   carrier parameter *is* the torus chart coordinate along it
-//!   (azimuth for rims, minor angle for meridians), so each adjacent
-//!   torus face adds n ≥ ceil(Δt/h).
+//!   steps within its grid steps `(h_u, h_v)` =
+//!   `sizing::torus_grid_steps`; a circle edge's carrier parameter
+//!   *is* the torus chart coordinate along it (azimuth for rims, minor
+//!   angle for meridians), so each adjacent torus face adds
+//!   n ≥ ceil(Δt/h) with `h` the step of the edge's OWN direction —
+//!   `sizing::torus_boundary_step` classifies it with the walk's own
+//!   rim/meridian rule and says what refuses.
 //! - Adjacent-NURBS tightening (M7, the trimmed-NURBS lane): the same
 //!   shape with a hull-derived Hessian — a described NURBS face
 //!   certifies through `crate::nurbs_cert`'s anisotropic bound, which
@@ -31,7 +34,8 @@
 //!
 //! An adjacent surface reaches a chord count only through
 //! [`adjacent_surface`], and the two tightenings above are its two
-//! call sites — the `Circle` arm's torus step and [`nurbs_tighten`].
+//! call sites — the `Circle` arm's torus boundary step and
+//! [`nurbs_tighten`].
 //! The claim is therefore about one function's callers, which a reader
 //! settles by grepping this file for the name. **Nothing in the tree
 //! checks it**: a third caller compiles green, and it would be a third
@@ -54,7 +58,7 @@ use geom_core::spline::KnotVector;
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
-use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_step};
+use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_boundary_step};
 use crate::types::TessellateError;
 
 /// The chord pass's output: every edge's chord-point ids and the
@@ -101,7 +105,9 @@ pub(crate) fn compute_chords(
                 let mut n =
                     ceil_count(span, sagitta_step(delta_s, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {
-                    if let Some(h) = torus_step(adjacent_surface(body, fk)?, delta_s) {
+                    if let Some(h) =
+                        torus_boundary_step(adjacent_surface(body, fk)?, curve, ek, delta_s)?
+                    {
                         n = n.max(ceil_count(span, h)?);
                     }
                 }

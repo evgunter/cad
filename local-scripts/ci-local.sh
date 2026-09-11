@@ -272,6 +272,15 @@ fi
 # HOSTED MIRROR: mirror / viewer module kinds (vocabulary/driver boundary)
 # HOSTED MIRROR: mirror / viewer vocabularies are declared once (no hand-written ALL)
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
+# The status-capture row belongs here too, and for the tier reason: its inputs
+# are every workflow file AND every tracked shell script, this file among them
+# — local-scripts/ is the tree that classifies TIER=docs and that every hosted
+# job but `mirror` deletes at checkout.
+# HOSTED MIRROR: mirror / status capture (PIPESTATUS is read before anything rewrites it)
+# The render-lane parity row is tier-blind for the same reason and one more of
+# its own: its inputs are render.yml and THIS TREE — the helper it checks is
+# local-scripts/render-hosted.sh, which no hosted job but `mirror` can even see.
+# HOSTED MIRROR: mirror / render lane parity (the helper knows the lanes render.yml declares)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
@@ -291,6 +300,10 @@ tier_blind_rows() {
   scripts/gates/viewer-vocab-declared-once.sh || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
+  python3 scripts/check-status-capture.py --selftest || rc=1
+  python3 scripts/check-status-capture.py || rc=1
+  python3 scripts/check-render-lane-parity.py --selftest || rc=1
+  python3 scripts/check-render-lane-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
@@ -1192,7 +1205,10 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 #
 # UNCONDITIONAL HERE, GATED HOSTED: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
-# (Ev's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27). This half is
+# (Ev's viewer-CI-posture ruling, 2026-08-27, in the closed GUI program's
+# log, which left the tracker with that program's directory in DOC-LEDGER
+# sweep 5 and reads at
+# `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`). This half is
 # not billed by anyone's minute — it is billed in one developer's wall
 # clock, on a run they chose to make — and it runs every point of every
 # dimension. Skipping work here would buy nothing
@@ -1263,6 +1279,14 @@ run_row "test (viewer app)"            cargo nextest run -p viewer --features ap
 # HOSTED MIRROR: clippy-all-features / clippy (--all-features)
 # HOSTED MIRROR: viewer-toolkit / clippy (viewer, all features)
 run_row "clippy (--all-features)"      cargo clippy --workspace --all-targets --all-features -- -D warnings
+# THE SCALPEL, EXERCISED — the mirror of this job's `the per-op
+# postcondition scalpel (topo)` step. D1's tier-1 sweep runs once per
+# public door; `topo/per-op-postcondition` puts it back after every
+# operator, and the two-arm corruption row asserts the OPERATOR's name
+# in the panic under the feature and the DOOR's without it. This is the
+# only place the first arm is ever taken.
+run_row "scalpel (per-op postcondition)" \
+    cargo test -p topo --lib --features topo/per-op-postcondition -- surgery::tests::
 # The same shape one crate over: `crates/pncad-py/src/py/` — the whole
 # PyO3 surface — compiles only under the crate's non-default `python`
 # feature, so the `clippy` row above, which runs at DEFAULT features,

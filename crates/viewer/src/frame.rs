@@ -213,7 +213,7 @@ pub enum Subject {
     /// needs no issuer: it is read from the camera, so a camera that
     /// projects is a camera whose badge is gone. This `Expire` never
     /// reached the projection sentence in any case, because both
-    /// `land` calls run earlier in the same `pane::viewport::viewport_ui`
+    /// `land` calls run earlier in the same `app::ViewerBehavior::viewport_ui`
     /// that writes it.
     Camera,
     /// **The cursor and what lies under it** — retired by the next
@@ -589,8 +589,8 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// [`DisplayFault`] the prune withdrew it on — and they were two free
 /// functions composing prose that differed in four format literals.
 /// They are a typed value with a `Display` here, which is the shape
-/// the crate's other notices already have (`tools::ToolNotice`,
-/// `prefs::Notice`) and the shape `tree::RowStatus` is the model for:
+/// the crate's other notices already have ([`crate::tools::ToolNotice`],
+/// [`crate::prefs::Notice`]) and the shape [`crate::tree::RowStatus`] is the model for:
 /// the payload stays separate from its rendering, and the count-and-join
 /// scaffolding is written once.
 ///
@@ -671,8 +671,8 @@ pub enum WithdrawalKind {
     /// [`crate::session::OpOutcome::superseded`] names the instances
     /// whose COMMITTED free-move placement an operation's document
     /// transition discarded — the G3 supersession, reported by the
-    /// session rather than inferred (`display::DisplayState::prune` is
-    /// where it happens, and `display::free_move_check` is the
+    /// session rather than inferred ([`crate::display::DisplayState::prune`] is
+    /// where it happens, and [`crate::display::free_move_check`] is the
     /// condition). A killed in-flight gesture is NOT in that list, so
     /// it is not this channel's to report; the next gesture op refuses
     /// typed instead.
@@ -1187,7 +1187,7 @@ pub fn pick_refusal(error: &PickError) -> Message {
 /// retired by the next act the document accepts.
 ///
 /// **The one door here that a type does not pin**, because its twelve
-/// sites render through `tools::ToolKind::says`, `tools::ToolNotice`
+/// sites render through [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`]
 /// and the typed forms vocabulary, and arrive as text. What it buys is
 /// that all twelve share one decision: changing the subject of one
 /// changes the subject of all twelve, and a row can see it.

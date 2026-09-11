@@ -163,13 +163,13 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
     let wrapped = name1(
         EntityKind::Face,
         s.union,
-        RoleSeg::FromA(Box::new(cap.clone())),
+        RoleSeg::FromA(cap.clone().into()),
     );
     let cap_b = name1(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End));
     let wrapped_b = name1(
         EntityKind::Face,
         s.union,
-        RoleSeg::FromB(Box::new(cap_b.clone())),
+        RoleSeg::FromB(cap_b.clone().into()),
     );
     let mut constituents = vec![wrapped.clone(), wrapped_b];
     constituents.sort_unstable();
@@ -519,7 +519,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
         pattern,
         RoleSeg::Instance {
             i: 2,
-            of: Box::new(master_body),
+            of: master_body.into(),
         },
     );
     assert!(matches!(
@@ -592,7 +592,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         pattern,
         RoleSeg::Instance {
             i: 1,
-            of: Box::new(master.clone()),
+            of: master.clone().into(),
         },
     );
     assert!(matches!(
@@ -718,7 +718,7 @@ fn rebind_suggestions_offer_wrapping_derivations() {
     // row — the suggestion ladder offers the MERGED name (whose
     // constituents embed the cap's wrap); nothing is followed
     // automatically — these are Rebind candidates only.
-    let wrapped = name1(EntityKind::Face, s.union, RoleSeg::FromA(Box::new(cap)));
+    let wrapped = name1(EntityKind::Face, s.union, RoleSeg::FromA(cap.into()));
     assert!(
         suggestions.iter().any(|n| matches!(
             n.path.first(),
@@ -984,7 +984,7 @@ fn the_phantom_detector_sees_through_the_whole_vocabulary() {
     };
     let blended = fixture::fname(
         RecipeNodeId(3),
-        RoleSeg::BlendFace(Box::new(partner_only.clone())),
+        RoleSeg::BlendFace(partner_only.clone().into()),
     );
 
     assert!(
@@ -999,10 +999,7 @@ fn the_phantom_detector_sees_through_the_whole_vocabulary() {
     );
     // The same segment, carrying the needle structurally: a real
     // derivation, and the detector must not call it a phantom.
-    let derived = fixture::fname(
-        RecipeNodeId(3),
-        RoleSeg::BlendFace(Box::new(needle.clone())),
-    );
+    let derived = fixture::fname(RecipeNodeId(3), RoleSeg::BlendFace(needle.clone().into()));
     assert!(
         !only_sideof_mention(&derived, &needle),
         "a blend OF the name is a derivation, not a phantom"
@@ -1127,7 +1124,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let target = StableName {
         kind: EntityKind::Face,
         node: bl,
-        path: vec![RoleSeg::FromB(Box::new(cap_b.clone()))],
+        path: vec![RoleSeg::FromB(cap_b.clone().into())],
     };
     assert!(
         matches!(
@@ -1186,7 +1183,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let target_c = StableName {
         kind: EntityKind::Face,
         node: bl,
-        path: vec![RoleSeg::FromB(Box::new(cap_c))],
+        path: vec![RoleSeg::FromB(cap_c.into())],
     };
     assert!(
         matches!(
@@ -1288,7 +1285,7 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
         pattern,
         RoleSeg::Instance {
             i: 5,
-            of: Box::new(master_body),
+            of: master_body.into(),
         },
     );
     let res = resolve(
@@ -1333,7 +1330,7 @@ fn sideof_frag(
         kind: EntityKind::Body,
         node,
         path: vec![
-            RoleSeg::FromA(Box::new(f.clone())),
+            RoleSeg::FromA(f.clone().into()),
             RoleSeg::Fragment(Qualifier::SideOf(vec![(p.clone(), v)])),
         ],
     }

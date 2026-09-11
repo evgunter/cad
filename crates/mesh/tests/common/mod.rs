@@ -322,6 +322,26 @@ pub fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
 
 /// A byte-comparable dump (positions as exact bits + full index/key
 /// structure) — the D9 rebuild oracle.
+/// Largest sampled distance from the affine triangle `tri` to
+/// `surface` over the barycentric grid of order `n` (`(n+1)(n+2)/2`
+/// points, corners included), through [`dist_to_surface`].
+pub fn sampled_deviation(surface: &Surface<f64>, tri: [Point3<f64>; 3], n: u32) -> f64 {
+    let mut worst: f64 = 0.0;
+    for i in 0..=n {
+        for j in 0..=(n - i) {
+            let (li, lj) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+            let lk = 1.0 - li - lj;
+            let p = Point3::new(
+                tri[0].x * li + tri[1].x * lj + tri[2].x * lk,
+                tri[0].y * li + tri[1].y * lj + tri[2].y * lk,
+                tri[0].z * li + tri[1].z * lj + tri[2].z * lk,
+            );
+            worst = worst.max(dist_to_surface(surface, p));
+        }
+    }
+    worst
+}
+
 pub fn dump(mesh: &Mesh) -> String {
     let mut s = String::new();
     for p in &mesh.positions {
