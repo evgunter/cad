@@ -113,10 +113,11 @@ impl Frame {
     ///
     /// **The axis is DECIDED here**, through the evaluation layer's
     /// own direction door ([`crate::eval::unit_direction`]) under
-    /// [`PLACEMENT_AXIS_ROLE`] — the same door and the same three
+    /// [`PLACEMENT_AXIS_ROLE`] — the same door and the same four
     /// answers the transform node's axis takes: a zero axis refuses
     /// `DegenerateDirection`, a non-finite one `NonFiniteDirection`,
-    /// an in-band length escalates. So the two constructions agree on
+    /// an underflowed one `UnderflowedDirection`, an in-band length
+    /// escalates. So the two constructions agree on
     /// their REFUSALS as well as on their bits, and a caller reads
     /// which vector of theirs was refused instead of being told the
     /// frame this door built is not finite.
@@ -131,6 +132,7 @@ impl Frame {
     /// [`AxisRefusal`], carrying the direction door's own refusal
     /// unaltered ([`NodeErrorKind::DegenerateDirection`],
     /// [`NodeErrorKind::NonFiniteDirection`],
+    /// [`NodeErrorKind::UnderflowedDirection`],
     /// [`NodeErrorKind::Escalated`]). [`crate::EditError::PlacementAxis`]
     /// is what carries it through the `SetPlacement` door.
     pub fn rotate_then_translate(

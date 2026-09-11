@@ -506,10 +506,12 @@ def audit_gap_ids():
 #:   every other typed refusal does, as tags on `EvaluationError.kind`
 #:   (Python builds datums through
 #:   `Node.datum_plane`/`Node.datum_axis`, never by naming the type).
-#:   Three tags carry them, and all three are Python-visible:
+#:   Four tags carry them, and all four are Python-visible:
 #:   `degenerate_direction` for a zero-length direction,
 #:   `non_finite_direction` for one whose length overflows the norm or
-#:   is not a number, and `escalated` — whose `predicate` payload reads
+#:   is not a number, `underflowed_direction` for one whose components
+#:   are too small for their squares to be represented — a direction
+#:   with no measurable length — and `escalated`, whose `predicate` payload reads
 #:   `datum_unit_norm` for a datum, the kernel constructor's funnel
 #:   name, where the same field reads `eval_direction_norm` for the
 #:   directions the evaluation layer owns.

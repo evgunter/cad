@@ -3962,6 +3962,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "transform",
             "tube",
             "undeclared_contact",
+            "underflowed_direction",
             "union_declare_step",
             "unschedulable_cycle",
             "verb_arity",
