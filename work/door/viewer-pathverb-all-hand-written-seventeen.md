@@ -64,3 +64,55 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+## Half of the premise is stale (2026-09-11, the DOOR orchestrator)
+
+Read against the tree at the program's opening. **The tree moved under
+this row and the title now names a defect that is gone.**
+
+`PathVerb` no longer lives at `crates/viewer/src/app.rs:514` and no
+longer carries a hand-written list. It is declared at
+`crates/viewer/src/forms.rs:145` through `crates/viewer/src/vocab.rs`'s
+`vocabulary!` macro (VIEW's `const ALL` unit, PR 2046), which
+**projects** `PathVerb::ALL` from the declaration — so there is no
+`const ALL: [Self; 17]`, no literal count in an array type, and no way
+for a variant of the viewer's own enum to miss the menu. That is the
+half this row's title is about, and it is closed.
+
+**The half that survives is the one the row actually cares about, and
+it survives whole.** `PathVerb::of` (`forms.rs:199`) is an exhaustive
+match, but its subject is `crates/viewer/src/sketch.rs:147`'s
+`PathStep` — **the viewer's own type**, not the kernel's. So the
+projection and the exhaustive match hold the viewer to itself, and
+nothing in the tree relates either to `profile`'s `Verb`, which
+`transition_table!` (`crates/profile/src/path/program.rs:509`) declares
+and projects `Verb::ALL` from. `CircleSplit`
+(`program.rs:1686`) still has no viewer spelling at all, exactly as the
+2026-09-01 comment recorded.
+
+Two consequences for whoever takes it:
+
+- **The row's fix option 1 is now the larger of the two, not the
+  smaller.** Keying the menu on `profile::Verb::ALL` means replacing
+  the viewer's own `PathStep`/`PathVerb` pair with the kernel
+  vocabulary, which is a much bigger change than it was when
+  `PathVerb::ALL` was a hand-list. Option 2 — the census, a match on
+  `profile::Verb` mapping each kernel verb to a `PathVerb` or to a
+  written "not offered in the GUI, because …" — is the cheaper one now
+  and is also the one the class's other rows want.
+- **This is an instance of a class, not a lone row.** It is the same
+  defect as `hand-maintained-mirrors-of-a-kernel-enum-are-unforced` and
+  `dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum`, both
+  claimed onto this program's slate on the same day: a kernel
+  vocabulary mirrored in a chrome where no compiler sees the mirror.
+  The difference is that those two mirror an enum that can be projected
+  once `topo`/`editor-core` publishes an `ALL`, and this one mirrors a
+  vocabulary the GUI **legitimately narrows** — which is why its answer
+  is a census and theirs is a projection.
+
+The class estimate stands at **M**, and for the reason the cut gave
+(picking a shape needs a call on whether the seventeen are deliberate)
+— but the call is now better informed: the seventeen are deliberate as
+a *viewer* vocabulary, since a projection already forces them; what is
+undecided is only whether each kernel verb the GUI omits is omitted on
+purpose.

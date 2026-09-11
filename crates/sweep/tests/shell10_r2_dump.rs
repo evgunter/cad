@@ -18,7 +18,8 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, SolidKey};
 
-use crate::shell8_common::{band, beside, cap, charts_of, deep_dump, tol};
+use crate::common::approx::band;
+use crate::shell8_common::{beside, cap, charts_of, deep_dump, tol};
 use crate::shell9_rows::rows;
 use crate::verbs_shell::{boxy, tube, vessel};
 

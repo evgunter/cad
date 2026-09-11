@@ -81,6 +81,22 @@ certificate ever reaches an at-rest body, and the tube is required for
 every fitted `Intersection`, not only where several branches were found.
 The witness is `carrier(mid)`, minted from the cache the schedule sees.
 
+**A check's name is the taxonomy's to say, not a rendering each sentence
+picks.** `CertCheck` carries a `Display` on its declaring row, written
+as an exhaustive match so a check the taxonomy gains has no word until
+someone writes one, and `CertifyError`'s three check-naming arms render
+through it. Each word is the phrase a person would write ("the
+out-of-halfplane component"), not the variant identifier: these rows are
+not doors anyone calls, so the identifier buys a reader nothing that the
+typed field does not already give a program, and every neighbouring arm
+of the same `Display` is English prose. The word also carries the KIND
+of quantity the check meters, because the sentence cannot — five of the
+fifteen checks that reach the definite arm meter no residual. The
+censuses beside the taxonomy hold the words apart and hold each away
+from its identifier: two checks saying one phrase makes a refusal
+ambiguous about what it refused, and a phrase that IS the identifier is
+the rendering this contract replaced.
+
 ### Surface–surface intersection
 
 **C3 — March, then certify; the stepper is trusted for nothing.** No

@@ -9,7 +9,7 @@ opened: 2026-09-06
 
 Found by the style review of PR 2046 (`view/const-all`) while checking
 that PR's filed item
-`work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`.
+`work/door/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`.
 Filed here rather than on VIEW's slate because the site is in
 `crates/editor-core` and no program obviously owns it.
 

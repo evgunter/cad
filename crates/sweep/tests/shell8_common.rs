@@ -7,15 +7,11 @@
 
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+use geom_core::{Affine3, Point3, Tol, Vec3};
 use topo::{Body, EdgeKey, FaceKey, ShellKey, SolidKey, SurfaceKey, VertexKey};
 
 pub(crate) fn tol() -> Tol {
     Tol::witness()
-}
-
-pub(crate) fn band() -> Band {
-    Band::linear(tol()).expect("a band")
 }
 
 /// `body` with `other` placed `by` beside it, as a second solid of one

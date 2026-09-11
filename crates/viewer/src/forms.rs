@@ -61,7 +61,7 @@ vocabulary! {
 /// doing so — a fourth operation in `topo` would leave this table
 /// three long and this form three buttons wide, silently. That is the
 /// MIRROR question, tracked as
-/// `work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced`;
+/// `work/door/hand-maintained-mirrors-of-a-kernel-enum-are-unforced`;
 /// it is not the same defect as a table that could have been projected
 /// and was not.
 pub(crate) const BOOLEAN_OPS: [(BooleanOp, &str); 3] = [

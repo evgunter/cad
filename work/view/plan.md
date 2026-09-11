@@ -825,22 +825,39 @@ the tail. Dispatches are written accordingly.
 
 ### Two rules from the delta round-trip dispatch (2026-09-11)
 
-**A round trip that crosses a unit conversion cannot be closed by a
-spelling.** `crates/viewer/src/pane/view.rs`'s δ field seeds its draft
+**A round trip that crosses a unit conversion is not closed by
+tightening a precision — and the reason is narrower than it first
+looks.** `crates/viewer/src/pane/view.rs`'s δ field seeded its draft
 with `format!("{in_force:.3}")` where `in_force = delta * 1.0e3`, and
-that same draft is what `lost_focus` parses and commits — so the seed
-has to round-trip. The obvious reading is that `{:.3}` is too coarse
-and a better format string fixes it. It does not. Measured over ~28,600
-sampled δ: seeding the **shortest round-trip spelling** and parsing it
-back through the `* 1.0e3` / `* 1.0e-3` pair still returns a different
-`f64` for **3,983 of them (~14%)** — e.g. `1e-09` → `1.0000000000000002e-06`
-→ `1.0000000000000003e-09`. The residue is 1 ULP, so it is not a visible
-wrong number, but on a commit path a different δ is a re-tessellation
-for a focus-and-leave that changed nothing. **The lossy step is the
-conversion, not the formatting**, so the only shapes that close it are
-the ones where an untouched field commits nothing. Generalises: before
-tightening a precision to fix a round trip, check whether the round trip
-crosses an operation that is lossy at every precision.
+that same draft was what `lost_focus` parsed and committed — so the
+seed had to round-trip. The obvious reading is that `{:.3}` is too
+coarse and a better format string fixes it. It does not: seeding the
+**shortest round-trip spelling of the product** and parsing it back
+through `* 1.0e-3` still returns a different `f64` for ~14% of sampled
+δ (measured twice, on two grids: 3,983/28,600 and 4,155/28,600 by the
+lane), every one exactly 1 ULP.
+
+**I first wrote that as "unachievable by any spelling", and the lane
+corrected me.** The seed need not be a spelling of the *product*; it
+can be a spelling of a **preimage** — some millimetre value `m` with
+`m * 1.0e-3 == delta` exactly. Such a preimage exists for **97.7%** of
+those δ, always within a ULP or so of the naive product (the lane
+measured 97.66%; I re-measured 97.73% on my own grid, and 2.27% with
+no `f64` preimage at all over ±64 ULP). So the exact-seed shape is dead
+outright only for the ~2.3% where multiplication by `1e-3` is not
+surjective, and merely *expensive* — a ULP-neighbourhood search per
+render — for the rest. The conclusion held; the stated reason did not.
+What actually kills the shape is practical and was the lane's own
+find: a budget δ is `constant / TRIANGLE_BUDGET`
+(`crates/viewer/src/scene.rs`), seventeen significant figures in a
+56-point field.
+
+Generalises twice over. Before tightening a precision to fix a round
+trip, check whether the round trip crosses an operation that is lossy
+at every precision. And when ruling a fix shape out, rule out the shape
+as the reader would actually build it — *"no spelling of X works"* is
+not *"no seed works"*, and the gap between them is where a correction
+lives.
 
 **When the type's own doc already states the invariant, satisfying it
 is not a preference.** `crates/viewer/src/drafts.rs:33-37` documents
