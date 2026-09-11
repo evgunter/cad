@@ -762,3 +762,69 @@ explains the `mate-member-vocabulary` lane's "0 paths in another
 program's territory" earlier today, which became "1 path, tcost's" the
 moment the work was committed. Every brief from here says: run it
 after committing, never before.
+
+### `census-flattens-the-typed-chart-region-declines` — in review (PR 2354, 2026-09-11)
+
+**The item's own warning was half wrong, and finding that is the
+unit.** It says *"a new variant OR a carried cause moves the
+`AtRest`/`Uncertified` decision with it"*, and treats that as the
+reason the fix is door-shape work. Measured:
+`editor_core::assembly::attribute` keys on the `ValidationError`
+**variant** and on the `CensusSubject` **shape** — `FacePair` →
+`Declined`, every other entity kind → `Unattributed`. A **payload
+participates in neither.** So the warning holds for a new variant,
+which forces a hand classification through an exhaustive match, and is
+**false for a carried cause**. That asymmetry is what chose shape 1,
+and it is why this lands as a rendering change rather than an answer
+change.
+
+The invariance is right on the merits and not merely convenient: the
+decline relation is *the census neither certified nor contradicted this
+declaration*, which holds whichever lane declined. A budget exhaustion
+leaves a mate exactly as unrefuted as a non-planar trim does, and that
+is what `Uncertified` means. Pinned as
+`the_decline_relation_does_not_depend_on_which_lane_declined`.
+
+**The alternative design was rejected on a measurement, not a
+preference.** Shape 2 splits "cannot decide this geometry" from "the
+schedule stopped". The split is **not clean**: of twelve arms, exactly
+**one** (`WitnessBudgetExhausted`) is "stopped looking".
+`RayExhausted` — which this orchestrator's brief flagged as the likely
+second, and told the lane to check rather than assume — is **not** one:
+its schedule is fixed, no extra budget decides it, and the recourse is
+ε or the geometry. `MissingCache` (a body-state fact) and `Corrupt` (a
+kernel-invariant violation) fit **neither** bucket. A two-way split
+would have filed four arms under a label that misnames them, which is
+the `refusal-text-is-not-cause` defect this item exists to remove.
+The item says eleven arms; there are twelve.
+
+**A style review is running on it** — the only review of this wave.
+Not because it moves an answer (the lane argues, with a row, that it
+does not) but because it is the session's largest diff, it crosses four
+fences, and its reach into LIB is a judgement call the lane itself
+flagged as the half a reviewer would most likely want trimmed.
+
+**Two siblings filed from its sweep:**
+
+- `census-containment-flatten-fabricates-its-diagnostic` —
+  `census.rs:819` flattens three `ContainError` arms onto
+  `CensusEscalated` and **synthesizes** the `Indeterminate` it carries,
+  so the message names a margin nothing measured. Worse than a flatten:
+  a fabricated number in the field a reader uses to judge how close the
+  call was. Re-routing those arms **can** move the answer, by the very
+  variant/payload asymmetry this unit established — so it is a unit of
+  its own, not a thread.
+- `validate-drops-the-material-sign-refusal-silently` —
+  `validate.rs:4099` folds `boundary_material_sign`'s `Err` into its
+  `Unencoded` arm and raises nothing. A different class and arguably
+  worse: a flattened refusal is a bad sentence about a real event, a
+  dropped one leaves no record the event occurred, and the validator
+  reports a clean pass over a question it could not answer.
+
+**Disk, and a rule for this orchestrator.** The box hit **1.8 GB free**
+while three lanes were live: this lane's `CARGO_TARGET_DIR` had reached
+**19 GB** and was still there after its PR was open. Reclaiming a
+finished lane is the orchestrator's job and "finished" means *the
+report is in hand*, not *the PR is merged* — a review lane's target is
+pure waste the moment it reports, and a lane's target is waste the
+moment its PR is green.
