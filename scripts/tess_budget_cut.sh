@@ -52,12 +52,35 @@ cd "$(dirname "$0")/.."
 root=$(pwd)
 
 # What counts as ALREADY STAMPED. This is the shell's reading of the
-# format `tess_lint::split_cut` parses, and the two are pinned by
-# nothing: there is no cross-language gate here. A drift shows up as
-# this script declining to refuse, never as a wrong cut. `--selftest`
-# covers this side and `tools/tess-lint`'s suite covers the other;
-# neither reads the other's spelling.
-CUT_RE='^# tess-budget-cut: [0-9a-f]{7,40}(-dirty)? [0-9]{4}-[0-9]{2}-[0-9]{2}'
+# format `tess_lint::split_cut` parses, and the two are held to each
+# other by `tools/tess-lint/tests/cut_line_pin.rs`: it reads this file
+# as text, holds every executable spelling of the prefix to
+# `tess_lint::CUT_PREFIX`, and runs this regex under `grep -E` as the
+# oracle for the shell's half of a truth table of candidate lines. That
+# suite is a cargo root OUTSIDE the workspace, so an edit to this
+# regex, to the prefix, or to the `echo`'s field list reds there and
+# not in a `cargo test` at the repo root; hosted CI runs it, and
+# `--selftest` covers what this side can answer on its own.
+#
+# BOTH ENDS are anchored, and the tail is `[^ ]*` rather than `.*`
+# because the reader takes the date by splitting the text after the
+# prefix on SPACES and demanding exactly two fields: any non-space
+# bytes after the calendar day are part of the date it reads (the
+# writer below emits a whole ISO timestamp), and a third field is a
+# line it refuses. A tail that admitted a space would admit a line the
+# reader calls harness breakage, and that line has no repair path —
+# the already-stamped arm refuses it, so the backfill arm below never
+# sees it and the gate stays unreadable.
+#
+# The asymmetry to keep in mind when editing this: a drift that
+# LOOSENS the regex costs a refusal that should not have fired — the
+# file is left alone, never given a wrong cut — while a drift that
+# TIGHTENS it makes the already-stamped test miss, so a stamped file
+# falls into the backfill arm and is re-stamped from the commit that
+# wrote the STAMP, a whole commit newer than its rows. The pin asserts
+# that second direction on its computed answers rather than off its
+# table, but neither half reaches further than the table's rows.
+CUT_RE='^# tess-budget-cut: [0-9a-f]{7,40}(-dirty)? [0-9]{4}-[0-9]{2}-[0-9]{2}[^ ]*$'
 
 stamp() {
   local csv=$1 commit= date= tmp before
@@ -122,7 +145,7 @@ selftest() {
   local t u rc=0 out status
   t=$(mktemp -d)
   # A SECOND scratch root, deliberately a sibling of the first rather
-  # than a directory inside it: case (5) needs a tree with no repository
+  # than a directory inside it: case (6) needs a tree with no repository
   # anywhere above it, and one nested in the scratch repo has one.
   u=$(mktemp -d)
   trap 'rm -rf "$t" "$u"' RETURN
@@ -195,7 +218,36 @@ selftest() {
   head -1 "$csv" | grep -Eq "$CUT_RE" ||
     { echo "SELFTEST FAILED: malformed stamp not repaired: $(head -1 "$csv")" >&2; rc=1; }
 
-  # (5) OUTSIDE A GIT CHECKOUT the skip is documented, so it has to
+  # (5) A WELL-FORMED CUT WITH A THIRD FIELD is REPAIRED too, and this
+  # is the case that decides where `CUT_RE` ends. `tess_lint::split_cut`
+  # takes exactly two fields after the prefix, so it reads this line as
+  # harness breakage and the gate cannot run at all; if the validator
+  # above read it as a stamp instead, the refusal arm would fire and the
+  # backfill arm that repairs case (4) would be unreachable for this
+  # shape — a file nothing in this script could fix.
+  printf '# tess-budget-cut: 1a2b3c4 2026-08-30 extra\nscene,face\n' > "$csv"
+  git -C "$t" commit -q -am trailing
+  run "$csv"
+  want "third field repaired" 0 "cut: "
+  head -1 "$csv" | grep -Eq "$CUT_RE" ||
+    { echo "SELFTEST FAILED: third-field stamp not repaired: $(head -1 "$csv")" >&2; rc=1; }
+
+  # The validator's two ends, asserted directly, because (5) only shows
+  # what a whole run does with one of them. The reader splits on SPACES
+  # and nothing else, so a tail that admits a space admits a line it
+  # refuses (the case above), and a tail that refuses a non-space byte
+  # REFUSES a line it reads — the direction that re-stamps a file over
+  # its own cut, and the one an over-tightened anchor produces.
+  if printf '# tess-budget-cut: 1a2b3c4 2026-08-30 extra\n' | grep -Eq "$CUT_RE"; then
+    echo "SELFTEST FAILED: CUT_RE admits a third field, which the lint refuses" >&2
+    rc=1
+  fi
+  if ! printf '# tess-budget-cut: 1a2b3c4 2026-08-30\textra\n' | grep -Eq "$CUT_RE"; then
+    echo "SELFTEST FAILED: CUT_RE refuses a non-space tail, which the lint reads" >&2
+    rc=1
+  fi
+
+  # (6) OUTSIDE A GIT CHECKOUT the skip is documented, so it has to
   # happen rather than crash.
   mkdir -p "$u/scripts"
   cp "$root/scripts/tess_budget_cut.sh" "$u/scripts/"
@@ -209,7 +261,8 @@ selftest() {
   if [ "$rc" = 0 ]; then
     echo "tess_budget_cut selftest OK: stamps a fresh sweep from HEAD and leaves the" \
          "dirty marker off a clean tree; backfills a tracked file, and repairs an" \
-         "unreadable stamp, from the commit that wrote its ROWS; REFUSES to re-stamp" \
+         "unreadable stamp — malformed, or well-formed with a third field the lint" \
+         "refuses — from the commit that wrote its ROWS; REFUSES to re-stamp" \
          "a tracked, unmodified, already-stamped file and leaves it untouched, which" \
          "is what stops the record drifting forward past its data; and says so rather" \
          "than dying where there is no HEAD and where there is no repository"
