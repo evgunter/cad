@@ -2,8 +2,10 @@
 id: mirror-pairs-context-beyond-env
 kind: issue
 title: a mirrored pair's working directory and action inputs are still compared by nothing
-status: open
+status: review
 opened: 2026-09-10
+pr: 2329
+branch: ciw/mirror-workdir-parity
 ---
 
 
@@ -36,7 +38,15 @@ the rest of it is compared by nothing:
    such a pair as agreeing about nothing. It now refuses, like its two
    siblings — a `Bail` costs a line, and the day someone cites an action
    step the gate says so instead of passing.
-3. **A semantics-bearing variable outside `SEMANTIC_ENV`.** The
+3. **~~A semantics-bearing variable outside `SEMANTIC_ENV`.~~ ANSWERED AT THE
+   TABLE**, in clause (1)'s PR and the way this clause itself proposed: the
+   scope is now written at `SEMANTIC_ENV` rather than widened. The three
+   candidates below were measured on `main` 2026-09-11 and the population is
+   EMPTY — `RUST_MIN_STACK` and `PROPTEST_CASES` appear in neither half, and
+   the only `NEXTEST_*` name in the tree is `NEXTEST_VERSION`, a pin claim 11
+   reads and not a knob on what a run does. Adding names against no subject is
+   how an allowlist becomes a roster, which is the thing this file is about.
+   The original text follows. The
    allowlist is `RUSTFLAGS`, `RUSTDOCFLAGS` and the `CAD_` namespace,
    argued at the table. A name outside it — `RUST_MIN_STACK`,
    `PROPTEST_CASES`, a `NEXTEST_*` knob — set on one half only is
