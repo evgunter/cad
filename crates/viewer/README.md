@@ -419,14 +419,27 @@ could only fire with the session already half-replaced. `path` and
 document, and are the part of the two doors that genuinely differs:
 `Open` sets both, `NewDocument` clears both.
 
-**That table governs value gestures only.** The free-move drag
-`DisplayState` owns is a different value with a different owner, and
-no door refuses a replacement while one is open: `clear`ing the
-display discards an in-flight free move with no refusal and no report,
-which is the walk applying to one gesture kind the opposite of what it
-says about the other. The behaviour is older than the block above and
-has its own item
-(`work/view/free-move-drag-dissolved-by-open.md`).
+**That table governs value gestures only, and there is a second.** The
+free-move drag `DisplayState` owns is a different value with a
+different owner, so it has its own row list
+(`SessionOp::permitted_during_free_move`) rather than a widened one:
+the two drags refuse different sets, and one table could serve both
+only by refusing the union. A value gesture refuses every operation
+that moves the document, because it previews against a snapshot of it;
+a free move does not, because a commit landing under a probe is pruned
+against the new document and REPORTED, which is a better answer than a
+refusal.
+
+**What the two tables agree on is exactly these two doors.** `Open` and
+`NewDocument` REPLACE the document rather than moving it, and
+`clear_for_new_document` then drops the whole display state — so a
+prune has nothing to report against and the drag would go under the
+pointer holding it. Both are refused while either drag is open, and
+neither is ever dissolved in silence
+(`no_operation_dissolves_an_in_flight_free_move_in_silence`). The
+free-move refusal is `DisplayFault::FreeMoveInFlight` — *"finish the
+free-move first"*, which names a door the user has — and not
+`Refusal::GestureInFlight`, which names the other drag.
 
 **The dump is held to the same declaration.** This paragraph is the one
 home for the rule; the four walks that follow it state their own `_`
@@ -505,7 +518,7 @@ whose correctness argument is that its list IS the value's fields —
 crate destructures the value instead of listing its fields by hand, so
 the list cannot fall behind the declaration; which trait the census
 sits in decides only what a missed field COSTS, and the sharpest cost
-is not a dump's. Eight of these are not dumps:
+is not a dump's. Nine of these are not dumps:
 
 | census | costs, if it misses a field |
 |---|---|
@@ -515,6 +528,7 @@ is not a dump's. Eight of these are not dumps:
 | `Display for StoreError` | a store's failure carries a fact the sentence does not say |
 | `Display for Message` | **nothing, by design** — this account is deliberately partial, and that is exactly why the tie is worth having: it makes the NEXT field's omission a decision someone made rather than one nobody noticed |
 | `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
+| `Withdrawal::all` | a KIND of withdrawal reaches the chrome's notices and is never worded — the fan-out from a `PruneReport` that three hand-written `extend` calls in `app`-gated code used to do, where no row could execute it |
 | `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
 | `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
 
@@ -963,15 +977,33 @@ answering for it, and the whole policy is readable in one place rather
 than inferred from every dispatch target.
 
 It says nothing about the free-move gesture, which is a different value
-with a different owner (`display::DisplayState`) and carries its own
-in-flight refusal. The name carries that limit: a predicate reading as
-a general guarantee would be a table that looks complete and is not.
-The two fields are spelled apart for the same reason — `DocSession`
-holds `gesture` and `DisplayState` holds `free_move` — so a reader who
-greps `self.gesture` gets one concept back. What the table's four
-`*FreeMove` rows permit, and the identity that makes the overlap sound,
-is stated at `permitted_during_value_gesture` itself, scoped to the
-tree DI5 has not yet changed.
+with a different owner (`display::DisplayState`) and has a table of its
+own, `SessionOp::permitted_during_free_move`. The name carries that
+limit: a predicate reading as a general guarantee would be a table that
+looks complete and is not. The two fields are spelled apart for the
+same reason — `DocSession` holds `gesture` and `DisplayState` holds
+`free_move` — so a reader who greps `self.gesture` gets one concept
+back. What the value table's four `*FreeMove` rows permit, and the
+identity that makes the overlap sound, is stated at
+`permitted_during_value_gesture` itself, scoped to the tree DI5 has not
+yet changed.
+
+**The second table refuses two rows and has a name for them**:
+`Open` and `NewDocument`, the operations that REPLACE the document
+rather than move it. The asymmetry with the first table is the point —
+a commit that lands under a probe is pruned and reported, and only a
+replacement drops the display state whole with no document left to
+report against (`DisplayState::clear` carries that argument). So the
+free-move table is checked against the property rather than against a
+second copy of 39 rows (`replaces_the_document`, in
+`tests/gesture_table.rs`), and `perform` consults both tables in turn,
+value gesture first.
+
+`BeginFreeMove` is permitted by both tables and refused anyway, one
+layer down: `DisplayState::begin_free_move` answers a second begin off
+its own state with the same `FreeMoveInFlight`. A row in the table
+would be a second spelling of one answer, and the test that exercises
+the doors says so rather than smoothing it over.
 
 The table records behaviour rather than deciding it — `save` is
 permitted mid-gesture and `open` is refused, which is what the code did
@@ -1067,15 +1099,20 @@ copy would be the hand-written list again with nothing forcing it.
 
 ### Closed vocabularies are declared once
 
-**Nine** enums here are closed vocabularies: a fixed set of choices the
+**Ten** enums here are closed vocabularies: a fixed set of choices the
 chrome offers, which something walks in order — a radio row, a combo's
 options, a suite's sweep. Each carried a hand-written `const ALL`
 beside it, and that second copy of the membership was free to fall
 behind the first: adding a variant compiled, the radio row silently
 lost a button, and every sweep keyed on the list quietly narrowed.
-(Ten `const ALL` tables existed under `src/`; nine were of this kind.
-The number is stated twice here because this program's counts have
-gone wrong before, and both figures are the same census.)
+(At the conversion, ten `const ALL` tables existed under `src/` and
+nine were of this kind. The tenth vocabulary is `frame::WithdrawalKind`
+and it is not one of those ten: it carried no membership list at all
+until the fan-out from a `PruneReport` needed holding to it, and the
+list it got was projected rather than written. Both censuses are stated
+because this program's counts have gone wrong before — one is the tree
+at the conversion, the other is the vocabularies today, and nothing
+makes them the same number.)
 
 **The enum and its `ALL` are now one declaration.** `src/vocab.rs`'s
 `vocabulary!` takes one list of variants and expands it into both, so a
@@ -1103,7 +1140,7 @@ the same list as a match, so the closed face of a combo is served
 without a second ordered reading.
 
 **The sweep that produces the population** is a walk of every loop over
-a vocabulary's `ALL` — one of the nine declared by `vocabulary!`, so a
+a vocabulary's `ALL` — one of the ten declared by `vocabulary!`, so a
 loop over `Theme::ALL` or `pncad`'s `Axis3::ALL` is outside it — read
 for what the loop asks each entry for. It reads `src/` **and**
 `tests/`, because the discriminator is about the words and a word read
@@ -1111,8 +1148,8 @@ in a suite is still a word read off the table; a sweep scoped to `src/`
 would have nothing to discriminate on the two vocabularies it rules
 bare, and the first tests-only word-walk would arrive unseen.
 
-**Seven of the nine are walked under `src/`, and all seven ask for the
-word.** Each binds `(value, label)` and puts that label on the control
+**Seven of the ten are walked under `src/` for their words, and all
+seven ask for one.** Each binds `(value, label)` and puts that label on the control
 it draws: `pane::create`'s datum row (`:309`), profile row (`:409`),
 path-verb combo (`:727`), pattern-rule row (`:989`), pattern-output row
 (`:995`) and blend-kind row (`:1093`), and `widgets::arc_fields`' mode
@@ -1122,7 +1159,15 @@ because a table walk reads them. `PathVerb` and `ArcMode` additionally
 declare `fn label;` under their `ALL`, for a combo's closed face; the
 other five are never asked for one value's word and carry no accessor.
 
-**`ToolKind` and `Seat` are the remaining two, and are BARE**, because
+**`ToolKind`, `Seat` and `WithdrawalKind` are the remaining three, and
+are BARE.** `WithdrawalKind` is walked under `src/` and is bare anyway,
+which is the discriminator doing its job rather than an exception to
+it: `frame`'s own `every_withdrawal_kind_has_a_producer` compares the
+KINDS `Withdrawal::all` produced against the list, and reads no word
+off it. A withdrawal's sentence is composed by `Withdrawal`'s `Display`
+from the kind and the faults under it — a count, a consequence clause
+and each cause's own `Display` — so the words were never table data to
+begin with. The other two are bare because
 no loop under `src/` walks their lists at all: a kind's word appears
 inside a sentence `tools` composes, and a seat's inside the refusal
 sentences `seats` and `session::refuse` write — wording read against
@@ -1150,7 +1195,7 @@ un-converting the enum. `src/vocab.rs`'s own doc carries both, and the
 rustfmt cost below.
 
 **rustfmt does not reach inside the invocation**, so the variants and
-variant docs of all nine are formatted by hand. Demonstrated rather
+variant docs of all ten are formatted by hand. Demonstrated rather
 than assumed, and not fixable by making the body parse: `src/vocab.rs`
 records the experiment and
 `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
@@ -1178,7 +1223,7 @@ entries, which is the same list under a different word — and reds on
 one the table does not carry. `static` opens an item in both arms, for
 the same reason the second shape exists. A converted vocabulary is not
 a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
-the nine are quiet without an entry. What the gate reads is this
+the ten are quiet without an entry. What the gate reads is this
 section rather than a list of its own: the ROWS below are the
 allowlist, and the KINDS they may claim are the bullets of the
 three-kinds list above — the list the sentence *"Three kinds of list

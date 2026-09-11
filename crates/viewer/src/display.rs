@@ -917,11 +917,18 @@ impl DisplayState {
     /// otherwise, which is a true sentence about the incoming document
     /// and a false explanation of where the placement went.
     ///
-    /// The IN-FLIGHT gesture this also drops is a different question,
-    /// and not this clause's: a drag dissolved under the pointer is
-    /// the half-acted state the value gesture answers with a REFUSAL
-    /// at the door, not with a report after the fact
-    /// (`work/view/free-move-drag-dissolved-by-open.md`).
+    /// **The in-flight gesture is answered the other way, and not
+    /// here.** A drag dissolved under the pointer is the half-acted
+    /// state a REFUSAL at the door exists to prevent, which is what
+    /// the value gesture already got; the argument above is why a
+    /// report could not have been the answer for it either. So the two
+    /// doors that reach this one refuse while a free move is in flight
+    /// ([`crate::session::SessionOp::permitted_during_free_move`]),
+    /// so a session reaches this with `free_move` already `None`. It
+    /// is still cleared below, unconditionally: this is a `pub` door
+    /// on a `pub` value and its promise is to forget EVERYTHING, which
+    /// a caller holding a [`DisplayState`] of its own is entitled to
+    /// without a session in front of it.
     pub fn clear(&mut self) {
         let Self {
             hidden,

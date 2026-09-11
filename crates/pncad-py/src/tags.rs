@@ -68,7 +68,7 @@ use pncad::document::{
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
     SnapshotError, SplitError, UpdateError,
 };
-use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
+use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{
@@ -130,6 +130,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
         PathErrorKind::ArcContinueOffCarrier => "arc_continue_off_carrier",
         PathErrorKind::ZeroDirection => "zero_direction",
+        PathErrorKind::NonFiniteDirection => "non_finite_direction",
         PathErrorKind::ArcViaCollinear => "arc_via_collinear",
         PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
         PathErrorKind::ArcCenterNotEquidistant => "arc_center_not_equidistant",
@@ -521,7 +522,11 @@ pub fn placement_rule_fault_tag(fault: &PlacementRuleFault) -> &'static str {
 /// kernel's own prose and the tag is the branchable discriminant. The
 /// degenerate arm tags per INPUT: which direction was unusable is what
 /// a caller branches on, and the wrapper arm alone would collapse four
-/// distinct refusals into one.
+/// distinct refusals into one. The non-finite arm tags per input for
+/// the same reason, and stays separate from the degenerate one because
+/// the two carry different recourses — a degenerate direction is a
+/// coincidence at this tolerance, a non-finite one is not a
+/// coincidence at any.
 pub fn frame_error_tag(err: &FrameError) -> &'static str {
     match err {
         FrameError::Degenerate { input, .. } => match input {
@@ -530,6 +535,12 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameInput::RollReference => "degenerate_roll_reference",
             FrameInput::ReferenceLadder => "degenerate_reference_ladder",
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
+        },
+        FrameError::NonFiniteLength { input } => match input {
+            FrameVector::Aim => "non_finite_aim",
+            FrameVector::Tangent => "non_finite_tangent",
+            FrameVector::RollReference => "non_finite_roll_reference",
+            FrameVector::MirrorNormal => "non_finite_mirror_normal",
         },
         FrameError::Band(_) => "band",
     }
@@ -995,6 +1006,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
 pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
     match err {
         RevolveError::Band(_) => "band",
+        RevolveError::NonFiniteAxis => "non_finite_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
         RevolveError::AxisEscalated { .. } => "axis_escalated",
         RevolveError::DegenerateAngle => "degenerate_angle",
@@ -1123,6 +1135,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
+        BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
         BooleanErrorKind::UndeclaredCoincidence => "undeclared_coincidence",
         BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",

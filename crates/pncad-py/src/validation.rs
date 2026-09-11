@@ -82,7 +82,7 @@ pub fn project(err: &ValidationError) -> Finding {
 /// front of the person who then decides what it projects here.
 fn census_subject(err: &ValidationError) -> Option<&CensusSubject> {
     match err {
-        ValidationError::CensusUnsupported { subject }
+        ValidationError::CensusUnsupported { subject, .. }
         | ValidationError::CensusLaneUnsupported { subject } => Some(subject),
         _ => None,
     }

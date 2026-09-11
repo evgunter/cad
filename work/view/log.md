@@ -8798,3 +8798,111 @@ push — which it named as its own worst error of the lane, because it
 had offered a force-push to route around a diagnosis it had not
 checked. It was offered and refused; the merge that was owed on the
 merits was the answer, and it is what fired Actions.
+## 2026-09-11 — `view/gesture-doors`: the two gesture doors, and one fan-out
+
+Two items, both adjacent to what #2348 landed.
+
+**`free-move-drag-dissolved-by-open` — the FREE-MOVE side was wrong.**
+The item asked which of the two drags gets the wrong treatment and
+#2348's `DisplayState::clear` clause had already removed one of the two
+possible answers: a per-instance report cannot be built truthfully at a
+replacement, because a `Withdrawn` carries a `DisplayFault` about a
+document and the only document left to ask is the incoming one. So the
+report half of the item's menu was never available, and the refusal is
+the answer. `SessionOp::permitted_during_free_move` is a SECOND
+exhaustive table rather than a widened first one: the two drags refuse
+different sets, and one predicate could serve both only by refusing the
+union — a commit landing under a probe is pruned and reported, which is
+a better answer than a refusal. The two tables agree on exactly the two
+doors that REPLACE the document.
+
+**`a-fourth-withdrawal-kind-is-forced-…` — both candidates, because
+neither alone is the fix.** `OpOutcome` holds the `PruneReport` (the
+re-declaration and the copy are gone, and with them `from_prune`'s
+destructure — the one site that held and the wrong one), and
+`frame::Withdrawal::all` destructures the report at the RENDERING call,
+with the three constructors made private so nothing outside `frame` can
+fan out by hand. `app.rs`'s three `extend`s are one.
+
+**The defect had a FOURTH instance and it was in a test.**
+`frame_policy.rs`'s hand-written mirror of the `app`-gated loop — the
+one whose own comment warns that a half-mirror passes while the real
+loop drops a kind — listed two producers after #2348 added the third
+beside it. Nobody found it by reading; it fell out of collapsing the
+fan-out and finding a caller that could not be collapsed. A comment
+saying *"this must model every producer"* is not a hold.
+
+**Two operational notes, both costs paid here.**
+
+1. `git checkout -- <file>` on an UNCOMMITTED tree is `git checkout
+   HEAD -- <file>`. A mutation harness that reverted three source files
+   that way discarded every uncommitted edit in them — #2089's clobber
+   in a new shape, and the fix is the same: commit first, or mutate in
+   a throwaway worktree with its own target dir. Nothing was lost
+   because the edits were scripted and re-runnable; that was luck about
+   the method, not a property of the harness.
+2. Adding a tenth `vocabulary!` moves SIX live counts in
+   `crates/viewer/README.md` and three in `src/vocab.rs`, and the
+   README states one HISTORICAL census beside a live one ("Ten `const
+   ALL` tables existed…; nine were of this kind") which must not be
+   bumped with the others. A count that is a claim about the tree at a
+   named moment is not the same count as a claim about the tree.
+
+Residue filed:
+`census-table-in-the-viewer-readme-is-not-its-own-population` — the
+README's non-dump census table says nine and `PruneReport::is_empty`
+(`display.rs:592-599`) is a tenth it does not carry, added by #2348
+after the table was built.
+
+## 2026-09-11 — #2358 merged; a comment that warned about half-mirrors was one
+
+**`view/gesture-doors` is on main** (#2358, merge `6aee1efe96`), green
+on the full code tier at `2b1e69a0`: 38 check runs, twelve `test (…)`,
+five `k-lint (gate, …)`, `rustfmt + rustdoc (gate) + wasm32` and
+`gate ok` all success, six change-filter skips, no placeholders — read
+from the job list. `Open` and `NewDocument` refuse under an in-flight
+free move, and a fourth kind of withdrawal is now E0027 at the call
+that words it.
+
+**The find of this unit is a test that was the thing its own comment
+warned against.** `crates/viewer/tests/frame_policy.rs` carried a
+hand-written mirror of the `app`-gated notice loop whose comment read
+*"it has to model every producer that feeds the notices there — both
+withdrawal channels… A half-mirror would pass while the real loop
+dropped the other."* After #2348 added the third producer beside it, the
+mirror listed two. **The comment named the failure mode exactly and did
+not prevent it**, because a comment is not a hold. Nobody found it by
+reading; it fell out of collapsing the fan-out and meeting a caller that
+could not be collapsed. And #2348 is a PR I reviewed and merged.
+
+**The lane departed from its item on one point and was right.** The item
+said the mid-gesture table's subject widens past the value gesture and
+its name should widen with it. One predicate could serve both drags only
+by refusing the UNION, and the union is wrong in both directions — a
+commit landing under a probe is pruned and REPORTED (`killed_gesture`,
+#2348), which is a better answer than a refusal. So
+`permitted_during_free_move` is a SECOND exhaustive table refusing two
+rows. The README section widened; the name did not.
+
+**Three things the lane asked me to check, and my answers.** The
+`vocabulary!` conversion of `WithdrawalKind` cost six live README counts
+and three in `vocab.rs`: worth it, because it is the house pattern
+rather than a special case — the crate's tenth — and without it the
+reverse direction (a kind with no producer behind it) is held by
+nothing. The re-baselined `a_document_replacement_takes_all_display_
+state_and_reports_none_of_it` is exactly what `CLAUDE.md` asks for: a
+stored bit that changes is not a cost to weigh against making the code
+right; re-baseline and say what moved, which its doc now does. And the
+`git checkout --` clobber is a rule rather than a blocker — see
+`plan.md`, where it now sits, because this is the SECOND lane in a day
+to do it.
+
+**The out-of-fence census came back 0 placeable of 16**, on a
+deliberately different diff from #2348's 1-of-31. Two independent
+measurements, same verdict: those rows are damaged and were damaged
+before either branch existed.
+
+**And #2332's documented cost was paid immediately**, in the direction
+nobody was watching: the skip-mode pass exited 0 over three intra-doc
+links to items this diff had just deleted, while the full workspace pass
+exited 1. Both passes are owed by a viewer lane. In `plan.md`.

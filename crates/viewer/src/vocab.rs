@@ -1,7 +1,7 @@
 //! **One declaration per closed vocabulary, and every list projected
 //! from it.**
 //!
-//! **Nine** enums in this crate are *closed vocabularies*: a fixed set
+//! **Ten** enums in this crate are *closed vocabularies*: a fixed set
 //! of choices the chrome offers, which something has to be able to
 //! walk in order — a radio row, a combo's options, a suite's sweep.
 //! Each of them used to carry a hand-written `const ALL` beside the
@@ -61,9 +61,9 @@
 //! # What this costs: rustfmt stops at the invocation
 //!
 //! **`rustfmt` does not reach inside a `macro_rules!` invocation in
-//! item position**, so the nine enums declared through
+//! item position**, so the ten enums declared through
 //! [`vocabulary!`] — every variant and every variant doc of
-//! `PathVerb` (17), `Seat` (9), `ToolKind` (7), `ArcMode` (6) and five
+//! `PathVerb` (17), `Seat` (9), `ToolKind` (7), `ArcMode` (6) and six
 //! more — are no longer mechanically formatted. Indentation in these
 //! blocks is kept by hand.
 //!
@@ -90,7 +90,7 @@
 //!
 //! **No explicit discriminants.** The labelled arm spends `= …` on the
 //! variant's word, so `Mate = 3` and `#[repr(u8)]` numbering are not
-//! available to these nine enums without un-converting them. **This is
+//! available to these ten enums without un-converting them. **This is
 //! a one-way door** and is the reason to state it here: an enum that
 //! later needs a wire number has to leave the macro to get one.
 //!

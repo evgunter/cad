@@ -18,7 +18,7 @@ the contract underneath it is still unenforced.
 `!busy() && running()`, and the reason that combination is unreachable
 has two mechanisms. The first is local and checkable —
 `DocSession::request_eval` bumps the generation on every submit
-(`crates/viewer/src/session.rs:1921`), so `!busy()` means the newest
+(`crates/viewer/src/session.rs:1948`), so `!busy()` means the newest
 generation submitted is the one that landed. The second is not:
 
 > at most one request is ever outstanding, and a submit while one is

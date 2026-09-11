@@ -61,7 +61,7 @@ use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceErro
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
-use crate::sector_shape::{SectorShape, sector_shape};
+use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
@@ -302,7 +302,14 @@ pub fn classify_neighborhood<T: Decide>(
             arm,
             bisector: wide,
             ..
-        } = sector_shape(dir_a, dir_b, n_face, he == next_he, band).map_err(sliver)?;
+        } = sector_shape(dir_a, dir_b, n_face, he == next_he, band).map_err(
+            |fault| match fault {
+                SectorFault::NonFiniteChord => {
+                    SplitReduceError::NonFiniteSectorChord { vertex, face }
+                }
+                SectorFault::Rung(diag) => sliver(diag),
+            },
+        )?;
         if let Some(bisector) = wide {
             let margin = Margin::levered(bisector.dot(plane.normal), arm);
             let class = match decide("split_bisector_side", margin, band) {

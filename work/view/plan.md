@@ -435,6 +435,17 @@ that had accounted for the other five. A reviewer who runs the stated
 rule catches this in one command; a reviewer who reads the sentence
 does not.
 
+**`git checkout -- <file>` is `git checkout HEAD -- <file>`, and two
+lanes in a row have destroyed their own uncommitted work with it.** Both
+were reverting a planted mutation, and both discarded every uncommitted
+edit in the file along with it — #2089's clobber in a new shape, twice
+in one day. Neither lost anything, because in both cases the edits were
+scripted and re-runnable; that is luck about the method rather than a
+property of the harness, and the second lane said so in exactly those
+words. **So: commit before you mutate.** A mutation harness that reverts
+by `git checkout` is only safe against a committed tree, and a receipt
+taken before the commit is a receipt about a tree nobody can reproduce.
+
 **A base worktree needs its OWN target dir, not the lane's.** The rule
 above says export `CARGO_TARGET_DIR` everywhere; #2148's lane did, and
 exported the SAME one in the throwaway base worktree it made to measure
@@ -601,6 +612,20 @@ warning and exit 0. It re-takes the RENDER, not the LINT —
 enough for a page that fails to build, not for a link that fails to
 resolve. `renderer-free-cross-crate-links-are-ungated-off-the-seed-set`
 owns the repair.
+
+**And the cost #2332 wrote down was paid on the very next viewer diff,
+in the direction nobody was watching.** That change made the skip-mode
+viewer pass stop judging link TARGETS, and the stated cost was that a
+genuinely broken link in the renderer-free half would no longer red
+there. #2358 collapsed `OpOutcome`'s three fields and left three
+intra-doc links to items it had just deleted:
+`doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit` **exited 0
+over them** while the full workspace pass exited 1. So the two passes
+are not redundant in either direction — the skip pass is the only
+rustdoc on a skip-mode run, and the full pass is the only one that
+judges links — and a viewer lane owes BOTH, not whichever one its
+branch happens to take. Running only the skip-mode command because it
+is the one CI cannot reach is the mirror of the #2320 mistake.
 
 **Running the crate's own suite is not running the suite, and the two
 runs are not nested.** #2293 reported 511/0/1 from `cargo test -p viewer

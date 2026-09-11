@@ -936,31 +936,20 @@ impl ViewerApp {
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
             let outcome = self.session.perform(op);
-            // **Where a supersession reaches the user**: the free-move
-            // placements this operation's document transition
-            // discarded, onto the frame's notices like every other
+            // **Where a withdrawal reaches the user**: everything
+            // this operation's document transition took out of the
+            // display state, onto the frame's notices like every other
             // one (`frame::frame_status` carries the argument).
+            //
+            // ONE call, not one per kind. Three hand-written `extend`s
+            // stood here, and the list they fanned out was held to the
+            // report's by nothing — this code is `app`-gated, so no
+            // row can execute it and a kind dropped here is invisible
+            // until a user misses a sentence. `Withdrawal::all`
+            // destructures the report, so the list is the report's and
+            // a fourth kind reds there.
             notices.extend(
-                frame::Withdrawal::superseded(&outcome.superseded)
-                    .map(|withdrawal| withdrawal.notice()),
-            );
-            // And the hides the same transition dropped, ranked
-            // beside them — the same class of fact (display state an
-            // accepted edit withdrew) and a different sentence
-            // (`frame::Withdrawal::dropped_hide` carries the argument).
-            notices.extend(
-                frame::Withdrawal::dropped_hide(&outcome.dropped_hides)
-                    .map(|withdrawal| withdrawal.notice()),
-            );
-            // And the drag the same transition ended under the user's
-            // hand — the third kind of withdrawal, ranked beside the
-            // other two and worded apart from both
-            // (`frame::Withdrawal::killed_gesture` carries the
-            // argument). Without it the only route to the reason is to
-            // begin another gesture and read that refusal.
-            notices.extend(
-                frame::Withdrawal::killed_gesture(outcome.killed_gesture.as_ref())
-                    .map(|withdrawal| withdrawal.notice()),
+                frame::Withdrawal::all(&outcome.withdrawn).map(|withdrawal| withdrawal.notice()),
             );
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),

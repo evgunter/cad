@@ -2,8 +2,11 @@
 id: a-fourth-withdrawal-kind-is-forced-at-one-of-its-three-sites
 kind: issue
 title: PruneReport's kinds are re-declared on OpOutcome and hand-fanned into notices; only the copy between them is exhaustive
-status: open
+status: closed
 opened: 2026-09-11
+closed: 2026-09-11
+branch: view/gesture-doors
+pr: 2358
 ---
 
 
@@ -51,3 +54,33 @@ rendering call and not the copy.
 
 VIEW's: `crates/viewer/src/display.rs`, `crates/viewer/src/session/op.rs`,
 `crates/viewer/src/app.rs`, `crates/viewer/src/frame.rs`.
+
+## Closed — the exhaustiveness moved to the rendering call
+
+Answered by `view/gesture-doors`, taking both candidates this item
+named, because neither alone is the fix.
+
+`OpOutcome` now HOLDS the report (`pub withdrawn: PruneReport`) instead
+of re-declaring its three fields, so the second declaration and the
+copy between them are both gone — and with them `from_prune`'s
+destructure, which was the one site that held and the wrong one.
+
+The fan-out is one call. `frame::Withdrawal::all(&PruneReport)`
+destructures the report and yields one `Withdrawal` per non-empty kind,
+so a fourth field is E0027 *at the call that words it*. The three
+constructors are private, which is the half that makes it stick: a
+caller outside `frame` cannot fan out by hand again. `app.rs`'s three
+`notices.extend` calls are one.
+
+The reverse direction — a `WithdrawalKind` with no producer — is held
+by `every_withdrawal_kind_has_a_producer` against
+`WithdrawalKind::ALL`, which made `WithdrawalKind` the crate's tenth
+`vocabulary!` declaration (the README's nine-counts moved with it).
+
+**The defect had a fourth instance and it was in a test.**
+`frame_policy.rs`'s hand-written mirror of the `app`-gated loop — whose
+own comment says *"it has to model every producer that feeds the
+notices there … A half-mirror would pass while the real loop dropped
+the other"* — listed two producers after #2348 added the third beside
+it. It calls `Withdrawal::all` now, so there is no list there to fall
+behind.
