@@ -75,12 +75,17 @@ Three properties every fuzzer needs, together:
   the crate closure** (Ev, 2026-09-11). A closure reaches every ancestor
   of a file, so depth keyed on one is bought by changes that cannot
   affect the sweep; the marker exists to say which few files it is
-  actually about, and that is the set that buys depth. This also means
-  the fail-open direction INVERTS for depth: a run that cannot resolve
-  the diff runs everything at EFFORT = 1 and nothing deep, because
-  failing open on existence means running more and failing open on depth
-  would mean running everything deep on the tier-`all` runs that are
-  most merges. "The chance it turns up something new isn't
+  actually about, and that is the set that buys depth.
+
+  **DEPTH FAILS CLOSED** (Ev, 2026-09-11), and that is the opposite of
+  how existence fails. A run that cannot resolve the diff — an
+  unreadable file list, an unresolvable marker, tier `all` — runs
+  everything at EFFORT = 1 and nothing deep. Failing OPEN is right for
+  existence because it means running more; failing open on depth would
+  mean running everything deep on the tier-`all` runs that are most
+  merges, which spends exactly what the dial exists to ration. Failing
+  closed costs depth and never existence, which is this rule's whole
+  shape. "The chance it turns up something new isn't
   technically zero" still does not justify paying for DEPTH on every run
   — this is adversarially reviewed code with good suites and no
   safety-critical exposure — but it does not justify paying nothing

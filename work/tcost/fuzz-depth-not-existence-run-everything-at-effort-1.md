@@ -187,6 +187,8 @@ PR touches the files it is about" is `selected_by` unchanged, pointed at
 a different consequence.
 
 **What does have to change is the fail-open direction, and it inverts.**
+Ratified by Ev in chat, 2026-09-11 (*"depth fails closed is good"*), so
+the clause states it as a rule rather than deriving it here.
 Today `gated_filter` fails open — emits no filter, so everything runs —
 on tier `all`, tier `docs`, an unreadable diff, a change to the
 derivation's own inputs, and any exception. That is right for EXISTENCE:
