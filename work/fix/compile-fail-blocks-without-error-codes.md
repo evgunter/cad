@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-05
 refs: [1969]
 branch: fix/compile-fail-error-codes
+pr: 2335
 ---
 
 ## What
