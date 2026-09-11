@@ -1628,13 +1628,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
-        "crates/verbs/src/run.rs",
-        "VerbError",
-        POSITIONAL,
-        1,
-        "a positional `{:?}` over an expression this census does not type",
-    ),
-    (
         "crates/viewer/src/frame.rs",
         "Disagreement",
         POSITIONAL,

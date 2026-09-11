@@ -2,8 +2,10 @@
 id: verb-error-arity-renders-verbkind-through-debug
 kind: issue
 title: VerbError::Arity renders VerbKind and Arity through Debug at a user surface — the Display class in a seventh crate
-status: open
+status: review
 opened: 2026-09-11
+branch: fix/verbkind-display
+pr: 2368
 ---
 
 
