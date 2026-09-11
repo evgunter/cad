@@ -33,20 +33,19 @@
 # `const ALL` — the spelling the nine carried and the one an author
 # reaches for. The UN-NAMED shape is any `const` array literal holding
 # two or more `Type::Variant` entries, whatever it is called. The second
-# arm is not padding: on the tree this gate was written against, THREE
-# of the three hand-written lists are un-named (`MATE_PRIMITIVES`,
-# `SUBJECTS_WITH_AN_EXPIRY_ISSUER`) and one is named (`Theme::ALL`), so
-# a named-only gate would be evaded by calling the
-# next table `KINDS` — which is the same list with a different word on
-# it. `static` opens an item in both arms for the same reason: a `pub
+# arm is not padding: of the three hand-written lists the roster holds,
+# TWO are un-named (`MATE_PRIMITIVES`, `SUBJECTS_WITH_AN_EXPIRY_ISSUER`)
+# and one is named (`Theme::ALL`), so a named-only gate would be evaded
+# by calling the next table `KINDS` — which is the same list with a
+# different word on it. `static` opens an item in both arms for the same reason: a `pub
 # static ALL: [Kind; 3]` is the same list with a different keyword on
 # it, and the diagnosis names whichever it found.
 #
 # WHERE THE ALLOWLIST LIVES, AND WHY IT IS NOT IN THIS FILE. The README
-# section ratifies THREE kinds of list that stay hand-written, and its
-# `#### The lists that stay hand-written` table is the roster: one row
-# per list, naming the module it is declared in and which of the three
-# kinds it is. This file reads that table, and reads it only INSIDE that
+# section ratifies the kinds of list that stay hand-written — `KIND_COUNT`
+# of them — and its `#### The lists that stay hand-written` table is the
+# roster: one row per list, naming the module it is declared in and which
+# of those kinds it is. This file reads that table, and reads it only INSIDE that
 # section, because the README's own word for where the roster sits is
 # "below" and a reader finding it anywhere on the page makes that word
 # decide nothing. It also reads the KINDS from the bolded bullets of the
@@ -71,10 +70,11 @@
 #
 # HOW MANY KINDS is held here and nowhere else, and it is the one number
 # this file does keep. Reading the bullets makes a row's kind be the
-# ratification; it does not make the SET of kinds be one, because a
+# ratification; it does not make the SET of kinds be one, because an
 # extra bullet plus a row claiming it is internally consistent and both
 # green. `KIND_COUNT` below is the assertion that the section still
-# ratifies three, so an amendment costs an edit to this file as well —
+# ratifies the number this file was last amended to, so an amendment
+# costs an edit to this file as well —
 # which is right for an amendment to a ratification and wrong for the
 # docs-tier table edit it would otherwise arrive as.
 #
@@ -92,8 +92,8 @@
 # never touched the roster. That is the class
 # `interval-square-allowlist.sh:102-105` names as its KNOWN GAP 4 and
 # leaves open — a file-granular entry inheriting a second unrelated site
-# silently — closed here rather than inherited, because a roster of four
-# rows can afford the count. One row ratifies one list, and two rows for
+# silently — closed here rather than inherited, because a roster this
+# small can afford the count. One row ratifies one list, and two rows for
 # one list red as well, because the count this gate reports has to name
 # as many lists as the crate holds. The price is stated where it is
 # paid: two same-named lists in one module cannot both be rostered, and
@@ -150,7 +150,7 @@
 #     membership list is hand-written, never that it is right. A row in
 #     the README table claiming "a deliberately partial list" is prose
 #     and nothing computes with it; what the table is checked for is
-#     that the kind it claims is one of the three the section ratifies.
+#     that the kind it claims is one the section ratifies.
 #   * WHETHER THE ROSTER STILL SAYS WHAT WAS RATIFIED. What is held is
 #     the roster's INTERNAL consistency — every row claims a kind the
 #     anchored list's bullets spell, that list holds `KIND_COUNT` of
@@ -171,9 +171,9 @@
 # `lib.sh:246-254`'s, and it is the reason this is written down rather
 # than left implied: a false red is a nudge toward the allowlist rather
 # than the fix, and an `interval-square-allowlist.sh` entry was once
-# justified in writing partly by one. Four rows is a roster a reader can
-# audit; the sentence this replaces claimed a false-positive rate of
-# NIL, which was not true of the population above. `Theme::ALL`'s own
+# justified in writing partly by one. A roster of this size is one a
+# reader can audit; the sentence this replaces claimed a false-positive
+# rate of NIL, which was not true of the population above. `Theme::ALL`'s own
 # entries are bare constants and reach only the named arm, which is why
 # the two arms are not redundant.
 #   * MACRO BODIES AND `include!`d TEXT, per `lib.sh`'s reader block:
@@ -902,10 +902,10 @@ gate() {
   mapfile -t rows < <(table_rows "${block[@]:3}")
   abort_if_reader_failed
 
-  # A row may claim only a kind the section ratifies. Without this a
-  # kind arrives as a table edit — which is a docs-tier change
-  # set, which is why this gate is sited where a docs-tier change set
-  # still runs it.
+  # A row may claim only a kind the section ratifies. Without this an
+  # unratified kind arrives as a table edit — which is a docs-tier
+  # change set, which is why this gate is sited where a docs-tier change
+  # set still runs it.
   for row in ${rows[@]+"${rows[@]}"}; do
     kind=${row##*|}
     if ! contains "$kind" "${kinds[@]}"; then
@@ -1263,7 +1263,8 @@ plant_a_paragraph_between_the_anchor_and_the_list() {
 # hole a column-0 reader was WRONG AND QUIET about: CommonMark indents
 # a marker up to three spaces and lets a list interrupt a paragraph, so
 # both of these render as the FIRST ITEM of the announced list and both
-# went green — the gate read three kinds and printed OK over four. Two
+# went green — the gate read the ratified count and printed OK over one
+# more. Two
 # planters because they are two rules: the first meets state 1's escape
 # from the announcing paragraph (no blank line above it), the second
 # meets state 2's own bullet and the `sed` that extracts the name.
@@ -1342,8 +1343,8 @@ pass_a_fence_closes_so_the_section_still_ends() {
 # THE FALSE GREEN IS THE WORSE HALF and it is planted first. A second
 # announcement sitting DIRECTLY under a closing fence was not read as
 # opening a paragraph, so it was not counted as an announcement: the
-# gate found one anchor, read three kinds under it and printed OK over a
-# duplicate announcement AND the unratified kind bulleted beneath
+# gate found one anchor, read the ratified kinds under it and printed OK
+# over a duplicate announcement AND the unratified kind bulleted beneath
 # it. Exit 0 over exactly what this gate exists to refuse.
 plant_a_second_anchor_under_a_closing_fence() {
   local md=$1/crates/viewer/README.md

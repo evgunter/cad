@@ -62,8 +62,10 @@ vocabulary! {
 /// [`crate::vocab::vocabulary`] list on this page is — but the
 /// declaration publishes `BooleanOp::ALL`, and the form draws one
 /// button per entry of it. A fourth operation therefore arrives in
-/// this form with no edit here, and arrives without a label only by
-/// failing to compile at this match.
+/// this form with no MEMBERSHIP edit here — it gets its button from
+/// the kernel's list — and it cannot arrive silently either, because
+/// it has no word until this match is given one, which is a compile
+/// error and not a missing button.
 ///
 /// **The order is `ALL`'s**, which is the kernel's declaration order,
 /// and the type's own doc says that order carries no meaning. The form

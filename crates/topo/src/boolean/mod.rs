@@ -154,14 +154,17 @@ impl BooleanOp {
     /// writes it by hand; the only question is where. Written here, it
     /// sits in the crate whose exhaustive matches over `BooleanOp`
     /// (`finish::kept_side`, `tables::eq15_3_lump`) fail to compile on
-    /// a fourth operation — so the author adding one is already in
-    /// this module with the list in front of them, and the
-    /// `all_is_every_operation` census below reds until they have
-    /// grown it. A copy in a downstream crate gets neither half. The
-    /// enum is closed, so a consumer's own exhaustive match does fence
-    /// THAT consumer; but nothing ties an array literal to a variant
-    /// list, so a downstream list of three stays three with no error
-    /// anywhere.
+    /// a fourth operation — so the author adding one is already in this
+    /// module with the list in front of them, and the
+    /// `all_is_every_operation` census below puts a second visit right
+    /// beside it. **Neither forces the edit**: what they force is that
+    /// the author is here and has to decide, and the census's own doc
+    /// measures how far short of forcing it stops. A copy in a
+    /// downstream crate gets not even that. The enum is closed, so a
+    /// consumer's own exhaustive match does fence THAT consumer; but
+    /// nothing ties an array literal to a variant list, so a downstream
+    /// list of three stays three with no error anywhere and no author
+    /// standing over it.
     ///
     /// So this is the list downstream reads instead of writing its own
     /// — `crates/editor-core`'s wire table and the viewer's operation
@@ -2528,19 +2531,29 @@ fn validate_declarations<T: Decide>(
 mod tests {
     use super::*;
 
-    /// **[`BooleanOp::ALL`] is every operation**, pinned by a
-    /// compile-time visit rather than by review — the idiom
-    /// `VerbKind::ALL` (`crates/verbs/src/verb.rs`) and
-    /// `SurfaceField::ALL` (`crates/topo/src/param_source.rs`) are
-    /// held to.
+    /// **[`BooleanOp::ALL`] holds each operation once, and an
+    /// operation added to the enum cannot reach a release without
+    /// someone reading this row** — the idiom `VerbKind::ALL`
+    /// (`crates/verbs/src/verb.rs`) and `SurfaceField::ALL`
+    /// (`crates/topo/src/param_source.rs`) are held to.
     ///
-    /// The match below is exhaustive with no wildcard, so an operation
-    /// added to the enum fails this file until it is visited here; and
-    /// every arm names the same total, so visiting it means writing
-    /// the new count, which then reds until `ALL` has grown too. The
-    /// no-repeats half is what makes the count a census: with every
-    /// entry distinct, a `len` equal to the number of operations means
-    /// `ALL` holds each of them exactly once.
+    /// **What is forced**: the match below is exhaustive with no
+    /// wildcard, so an operation added to the enum fails this file
+    /// until it is visited here. And the no-repeats half is what makes
+    /// the count a census rather than a length: with every entry
+    /// distinct, a `len` equal to `ops` means `ALL` holds each of them
+    /// exactly once.
+    ///
+    /// **What is NOT forced, measured**: `ops` itself. Every arm names
+    /// the same total so that visiting means re-deciding it — but
+    /// nothing checks that number against the enum, and the arm an
+    /// author adds is the arm they copied. A fourth variant with the
+    /// arm `Xor => 3` compiles and passes GREEN with `Xor` absent from
+    /// `ALL`. The row forces the visit, not the edit. That is the
+    /// idiom's hole and not this row's alone — it is inherited from the
+    /// two censuses cited above — so it is filed as
+    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`
+    /// rather than patched here in one of three places.
     #[test]
     fn all_is_every_operation() {
         let ops = match BooleanOp::Union {
