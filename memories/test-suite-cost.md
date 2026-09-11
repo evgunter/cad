@@ -1,6 +1,6 @@
 ---
 name: test-suite-cost
-description: Standing rules for what a test may cost the suite — all fuzzing varies its seed, scales on an EFFORT dial and is gated to the code it tests; assertion-free tests never gate
+description: Standing rules for what a test may cost the suite — all fuzzing varies its seed, scales on an EFFORT dial, and runs every time at EFFORT=1 with its DEPTH gated to the code it tests; assertion-free tests never gate
 metadata:
   type: feedback
 ---
@@ -66,14 +66,51 @@ Three properties every fuzzer needs, together:
   unreproducible. Provide an env override for exact replay, and pin a
   genuine counterexample as an ordinary deterministic test alongside
   its fix.
-- **Counts as multiples of a shared EFFORT dial**, shipped at the level
-  a gated run should cost, so depth is one env var away.
-- **MARKED to run only on changes to the code it was written to test.**
-  "The chance it turns up something new isn't technically zero" does
-  not justify paying for it on every run — this is adversarially
-  reviewed code with good suites and no safety-critical exposure, so
-  depth is bought deliberately. A fuzzer that is not gated is a defect
-  in the fuzzer.
+- **Counts as multiples of a shared EFFORT dial**, shipped at the smoke
+  level EVERY run pays, so depth is one env var away.
+- **ALWAYS RUN, at EFFORT = 1. The marker buys DEPTH, not existence**
+  (Ev, 2026-09-11). Every fuzzer runs on every run at the shipped smoke
+  level; the marker naming the code it was written to test selects which
+  ones then run DEEPER. "The chance it turns up something new isn't
+  technically zero" still does not justify paying for DEPTH on every run
+  — this is adversarially reviewed code with good suites and no
+  safety-critical exposure — but it does not justify paying nothing
+  either, and at EFFORT = 1 a sweep costs about what its process costs.
+  A fuzzer whose depth is not keyed to the code it tests is a defect in
+  the fuzzer.
+
+  **Why the smoke level is not skipped.** What a skip saves is wall
+  clock on the test legs, and only that: the test binaries are compiled
+  into the archive whether or not they execute, so the build — the run's
+  longest job — does not move. And a skip fails SILENTLY: a marker that
+  resolves to nothing, omits a helper, or sits on a `#[path]`-mounted
+  file leaves the suite not running while the tree reports a green gate.
+  At EFFORT = 1 the same broken marker costs depth instead of existence,
+  and the row still compiles, still executes, and still catches a panic
+  on every run. **The failure mode is the argument**, not the seconds.
+
+  **EFFORT = 1 is a COUNT, never a timeout.** A time-based cutoff makes
+  what the test explored depend on the machine, so it differs per leg,
+  cannot be reproduced from the logged seed, and manufactures apparent
+  ε-sensitivity (see the last bullet of this file). A wall-clock ceiling
+  over the whole EFFORT = 1 population is a fine TRIPWIRE — it reds when
+  the smoke level stops being one — but it is never the dial.
+
+  **The premise is that the binary is compiled ANYWAY, and there is one
+  place it is not.** A kernel fuzz row costs only execution, because
+  `build + archive` compiles it into the nextest archive whether or not
+  it runs. A sweep in a SEPARATE CARGO ROOT that a pull request does not
+  otherwise build costs its whole compile — `interval-transcendentals/`
+  is ~234 s of build to buy ~7 s of cases at EFFORT = 1. There the
+  job-level gate stands as it is, and the depth argument applies to the
+  LANE rather than to the row: that job already runs at EFFORT = 8 on the
+  changes that reach it, which is this rule's shape and its precedent.
+
+  **This does not reach a shape-3 row.** Where the count IS the coverage
+  claim (*at least K of class C*, C not concisely constructible), it is
+  anti-monotone and EFFORT must not scale it below its floor. That is the
+  mixing trap named above, and it is why the floor's witness is static or
+  the test is split.
 
 # Everything else
 

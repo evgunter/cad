@@ -1693,3 +1693,53 @@ there would red `main` over.
 
 Both gate-defect rows are now closed. Board: six live rows — the four
 latency rows, the demotions row, and `r1-probe-seeds-are-not-on-the-fuzz-dial`.
+
+## Seam: Ev's EFFORT proposal, and the measurement that prices it (2026-09-11)
+
+Ev, in chat: run every fuzzer at EFFORT = 1 always, and let the marker
+select which ones run DEEPER — plus the observation that compilation time
+is a factor. Drafted as an `[ev]` PR
+(`fuzz-depth-not-existence-run-everything-at-effort-1`, `needs_ev`); the
+`memories/test-suite-cost.md` clause rides it and nothing is wired until
+Ev signs off.
+
+**Half of it already exists and the other half exists nowhere.**
+`fuzz::effort()` already defaults to 1 and the harness already calls the
+shipped counts a smoke level, so "run at EFFORT = 1" is what every kernel
+fuzz row already does when it runs at all. And NOTHING in the kernel ever
+runs above 1: the only `CAD_FUZZ_EFFORT` in CI is the
+`interval-transcendentals` oracle job's `"8"`, a different workspace. The
+nightly re-take runs the gated set at EFFORT = 1 too, so it buys breadth,
+not depth. The proposal is two edits, not a redesign.
+
+**The measurement was already being taken and nobody had read it.** The
+nightly's `gated suites (ungated re-take)` runs the whole gated set,
+ungated, at EFFORT = 1 — exactly the population and exactly the dial the
+proposal would add to every PR. Its own header says the reading was owed
+from its first firing and never taken. Two nights:
+
+| night | `Summary` wall | tests | slowest row | 2nd |
+|---|--:|--:|--:|--:|
+| 2026-09-11 | **83.599 s** | 419 | 83.310 s | 23.490 s |
+| 2026-09-08 | **66.359 s** | 419 | 65.896 s | 18.102 s |
+
+**The gated set's entire execution wall is ONE test** — 83.599 against
+83.310 — with the other 418 finishing in its shadow at ~0.007 s each.
+Cost concentrates savagely, measured. So the proposal's price is not a
+policy question but a single row, filed as
+`m10-3-chamber-row-reads-ten-times-its-recorded-cost`: that row reads
+66-83 s against TCOST-6's recorded 6.7 cpu-s, a factor of ten nobody has
+explained, and it is now the largest lever on this program's board.
+
+**Ev's follow-up found the carve-out**: the `interval-transcendentals`
+oracle fuzzer is NOT in the 419 and must not be swept into the rule. That
+root is outside the workspace, so a PR does not compile it anyway —
+~234 s of build to buy ~7 s of cases at EFFORT = 1. The rule's premise is
+that the binary is compiled regardless; where that is false the job-level
+gate stands. That lane is the proposal's precedent rather than its
+exception: it is the only thing in the repo already buying depth on the
+changes that reach it.
+
+Also: `work/tcost/program.md`'s `keep_out` now names S-TINT, making that
+territory overlap two-sided (22 warnings from 23; the rest pre-date this
+and mirror overlaps S-TCOST already had).
