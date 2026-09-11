@@ -169,7 +169,7 @@ use pncad::prelude::StableName;
 
 use crate::camera::CameraError;
 use crate::camera::Folded;
-use crate::display::{DisplayFault, Withdrawn};
+use crate::display::{DisplayFault, PruneReport, Withdrawn};
 use crate::generation::Generation;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{IdMap, PickError, PickIndex, PickIndexError};
@@ -177,6 +177,7 @@ use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
+use crate::vocab::vocabulary;
 
 /// **What something the chrome shows is ABOUT** — carried by a
 /// [`Message`] on the line and by a [`Badge`] on the toolbar alike.
@@ -663,73 +664,123 @@ pub struct Withdrawal<'a> {
     withdrawn: &'a [Withdrawn],
 }
 
-/// Which display state an accepted edit took away.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WithdrawalKind {
-    /// **A SUBSTITUTION.** The user's hand placement answered "where
-    /// does this part go", and the mate that landed answers it better,
-    /// so the probe steps aside and the picture keeps the part.
-    ///
-    /// [`crate::session::OpOutcome::superseded`] names the instances
-    /// whose COMMITTED free-move placement an operation's document
-    /// transition discarded — the G3 supersession, reported by the
-    /// session rather than inferred ([`crate::display::DisplayState::prune`] is
-    /// where it happens, and [`crate::display::free_move_check`] is the
-    /// condition). A killed in-flight gesture is NOT in that list, so
-    /// it is not this channel's to report; the next gesture op refuses
-    /// typed instead.
-    ///
-    /// What it leaves behind is the instance drawn at its landed
-    /// placement, which the picture already says; a badge would keep
-    /// saying it about a document the user has moved on from, and
-    /// nobody consults a toolbar to learn where a part ended up.
-    Superseded,
-    /// **Not superseded by anything.** The user asked for an instance
-    /// not to be DRAWN, and the document did not answer that question
-    /// differently — it made the question unaskable. Nothing takes the
-    /// hide's place.
-    ///
-    /// **What happened to the PICTURE is in the sentence.** The two
-    /// arms leave the drawing in opposite states, and that is the part
-    /// a user needs: on a **fuse** the instance is drawn AGAIN —
-    /// material they took out of the picture is back in it, which is
-    /// exactly the state reported as a bug against hiding — and on a
-    /// **delete** the instance went, and nothing reappears. A preamble
-    /// naming neither is true and useless; a preamble naming one is
-    /// false half the time. So the consequence is said when the
-    /// frame's withdrawals AGREE on it, and dropped when they do not,
-    /// leaving the faults to say the rest. That is not this module
-    /// writing prose about someone else's failure: the fault renders
-    /// itself, unaltered, and what the chrome adds is the chrome's own
-    /// subject — what the drawn scene now shows.
-    DroppedHide,
-    /// **Neither of the above, and the only one the user's hand was
-    /// on.** A drag was in flight and the document stopped admitting
-    /// the instance under it, so the gesture ended where it stood.
-    ///
-    /// Nothing substituted for it: the placement it would have landed
-    /// was never asked of the document, so this is not a
-    /// supersession — and no hide was involved, so it is not that
-    /// either. What it leaves behind is the instance drawn where the
-    /// document puts it, and a hand that was steering something a
-    /// moment ago.
-    ///
-    /// **Exactly one, never a set.** A session holds one free-move
-    /// gesture, so this kind has no plural to word — which is why the
-    /// rendering below counts the other two and not this one, and why
-    /// [`Withdrawal::killed_gesture`] takes an `Option` rather than a
-    /// slice.
-    KilledGesture,
+vocabulary! {
+    /// Which display state an accepted edit took away.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum WithdrawalKind {
+        /// **A SUBSTITUTION.** The user's hand placement answered "where
+        /// does this part go", and the mate that landed answers it better,
+        /// so the probe steps aside and the picture keeps the part.
+        ///
+        /// [`crate::display::PruneReport::superseded`], carried to the
+        /// chrome on [`crate::session::OpOutcome::withdrawn`], names the
+        /// instances whose COMMITTED free-move placement an operation's document
+        /// transition discarded — the G3 supersession, reported by the
+        /// session rather than inferred ([`crate::display::DisplayState::prune`] is
+        /// where it happens, and [`crate::display::free_move_check`] is the
+        /// condition). A killed in-flight gesture is NOT in that list, so
+        /// it is not this channel's to report; the next gesture op refuses
+        /// typed instead.
+        ///
+        /// What it leaves behind is the instance drawn at its landed
+        /// placement, which the picture already says; a badge would keep
+        /// saying it about a document the user has moved on from, and
+        /// nobody consults a toolbar to learn where a part ended up.
+        Superseded,
+        /// **Not superseded by anything.** The user asked for an instance
+        /// not to be DRAWN, and the document did not answer that question
+        /// differently — it made the question unaskable. Nothing takes the
+        /// hide's place.
+        ///
+        /// **What happened to the PICTURE is in the sentence.** The two
+        /// arms leave the drawing in opposite states, and that is the part
+        /// a user needs: on a **fuse** the instance is drawn AGAIN —
+        /// material they took out of the picture is back in it, which is
+        /// exactly the state reported as a bug against hiding — and on a
+        /// **delete** the instance went, and nothing reappears. A preamble
+        /// naming neither is true and useless; a preamble naming one is
+        /// false half the time. So the consequence is said when the
+        /// frame's withdrawals AGREE on it, and dropped when they do not,
+        /// leaving the faults to say the rest. That is not this module
+        /// writing prose about someone else's failure: the fault renders
+        /// itself, unaltered, and what the chrome adds is the chrome's own
+        /// subject — what the drawn scene now shows.
+        DroppedHide,
+        /// **Neither of the above, and the only one the user's hand was
+        /// on.** A drag was in flight and the document stopped admitting
+        /// the instance under it, so the gesture ended where it stood.
+        ///
+        /// Nothing substituted for it: the placement it would have landed
+        /// was never asked of the document, so this is not a
+        /// supersession — and no hide was involved, so it is not that
+        /// either. What it leaves behind is the instance drawn where the
+        /// document puts it, and a hand that was steering something a
+        /// moment ago.
+        ///
+        /// **Exactly one, never a set.** A session holds one free-move
+        /// gesture, so this kind has no plural to word — which is why the
+        /// rendering below counts the other two and not this one, and why
+        /// this kind's producer takes an `Option` rather than a slice.
+        KilledGesture,
+    }
+
+    /// Every kind of withdrawal, in the order [`Withdrawal::all`]
+    /// produces them — the roster
+    /// `every_withdrawal_kind_has_a_producer` holds that fan-out
+    /// against, so a kind cannot join this enum without a report field
+    /// that reaches it. That row is its only reader: the chrome words
+    /// each kind through this type's `Display` and never scans the
+    /// list.
+    pub const ALL;
 }
 
 impl<'a> Withdrawal<'a> {
+    /// **Every withdrawal a prune reported**, in the report's own
+    /// field order — the ONE door from a [`PruneReport`] to the
+    /// sentences the chrome shows, and the only one outside this
+    /// module.
+    ///
+    /// **Destructured rather than field-read**, so a fourth kind of
+    /// withdrawal is E0027 *here*, at the call that words it. That is
+    /// the site the omission actually happens at: the copy onto
+    /// [`crate::session::OpOutcome`] was already exhaustive and the
+    /// fan-out was not, so a fourth field reached the chrome's channel
+    /// and was never worded — twice, once per kind added.
+    ///
+    /// The three producers below are PRIVATE for the same reason. A
+    /// caller that could reach one could fan out by hand again, which
+    /// is a list of kinds nothing holds to the report's; a caller that
+    /// can only reach this one gets the report's list or a compile
+    /// error. The reverse direction — a [`WithdrawalKind`] with no
+    /// report field behind it — is held by
+    /// `every_withdrawal_kind_has_a_producer` against
+    /// [`WithdrawalKind::ALL`].
+    ///
+    /// Empty kinds are absent rather than silent entries, which is
+    /// [`Withdrawal::of`]'s decision and not this one's: a frame that
+    /// withdrew nothing yields nothing to say.
+    pub fn all(report: &'a PruneReport) -> impl Iterator<Item = Self> {
+        let PruneReport {
+            superseded,
+            dropped_hides,
+            killed_gesture,
+        } = report;
+        [
+            Self::superseded(superseded),
+            Self::dropped_hide(dropped_hides),
+            Self::killed_gesture(killed_gesture.as_ref()),
+        ]
+        .into_iter()
+        .flatten()
+    }
+
     /// The frame's supersessions, or `None` when it superseded nothing.
-    pub fn superseded(withdrawn: &'a [Withdrawn]) -> Option<Self> {
+    fn superseded(withdrawn: &'a [Withdrawn]) -> Option<Self> {
         Self::of(WithdrawalKind::Superseded, withdrawn)
     }
 
     /// The frame's dropped hides, or `None` when it dropped none.
-    pub fn dropped_hide(withdrawn: &'a [Withdrawn]) -> Option<Self> {
+    fn dropped_hide(withdrawn: &'a [Withdrawn]) -> Option<Self> {
         Self::of(WithdrawalKind::DroppedHide, withdrawn)
     }
 
@@ -740,7 +791,7 @@ impl<'a> Withdrawal<'a> {
     /// the one-element slice the rendering shares with the other two
     /// kinds, so the cause is rendered by its own `Display` here
     /// exactly as it is there.
-    pub fn killed_gesture(killed: Option<&'a Withdrawn>) -> Option<Self> {
+    fn killed_gesture(killed: Option<&'a Withdrawn>) -> Option<Self> {
         Self::of(
             WithdrawalKind::KilledGesture,
             killed.map_or(&[][..], core::slice::from_ref),
@@ -2654,5 +2705,62 @@ mod tests {
              retirement as its two siblings, which is what lets one line \
              carry all three"
         );
+    }
+
+    /// **The fan-out is the report's list, in both directions.**
+    ///
+    /// One direction is the compiler's and is not asserted here: a
+    /// fourth field on `PruneReport` is E0027 inside `Withdrawal::all`,
+    /// which is the call that words it.
+    ///
+    /// This row holds the OTHER direction, which no compile error
+    /// reaches — a `WithdrawalKind` that `all` never produces. The
+    /// chrome's only door to a withdrawal is `all`, so a kind absent
+    /// from it is a sentence the crate can spell and nothing can ever
+    /// say. Asserting against `WithdrawalKind::ALL` rather than against
+    /// a written list of three is what makes a FOURTH variant red here
+    /// instead of quietly agreeing: `ALL` is projected from the enum's
+    /// own declaration.
+    ///
+    /// Where it goes red: drop any arm from `all` (the kind's entry
+    /// disappears), reorder them (the order is the report's field
+    /// order and the chrome shows them in it), or add a variant to
+    /// `WithdrawalKind` with no report field behind it.
+    #[test]
+    fn every_withdrawal_kind_has_a_producer() {
+        let report = PruneReport {
+            superseded: vec![constrained(7, &[9])],
+            dropped_hides: vec![constrained(11, &[9])],
+            killed_gesture: Some(constrained(3, &[5])),
+        };
+        let produced: Vec<WithdrawalKind> = Withdrawal::all(&report)
+            .map(|withdrawal| withdrawal.kind)
+            .collect();
+        assert_eq!(
+            produced,
+            WithdrawalKind::ALL,
+            "a report carrying every kind fans out to every kind, in the \
+             order the report declares them"
+        );
+
+        // And each kind words itself apart: the notices are what the
+        // user reads off one line, so two kinds rendering alike would
+        // make the fan-out complete and useless.
+        let mut sentences: Vec<String> = Withdrawal::all(&report)
+            .map(|withdrawal| withdrawal.notice().text().to_string())
+            .collect();
+        assert_eq!(sentences.len(), WithdrawalKind::ALL.len());
+        sentences.sort();
+        sentences.dedup();
+        assert_eq!(
+            sentences.len(),
+            WithdrawalKind::ALL.len(),
+            "no two kinds say the same thing"
+        );
+
+        // An empty report is silence, not three empty sentences —
+        // `Withdrawal::of`'s decision, executed through the one door
+        // rather than asserted of each constructor.
+        assert_eq!(Withdrawal::all(&PruneReport::default()).count(), 0);
     }
 }

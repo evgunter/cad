@@ -506,10 +506,10 @@ fn hide_survives_the_mate_that_discards_the_probe() {
 
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(

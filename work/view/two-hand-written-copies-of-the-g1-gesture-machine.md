@@ -21,12 +21,12 @@ preview/commit shape — with the same four operations and the same three
 rules:
 
 - **begin** refuses if one is already in flight, and validates its
-  target first (`session.rs:1415-1441`, `display.rs:731-745`);
+  target first (`session.rs:1434-1460`, `display.rs:731-745`);
 - **preview** replaces the last rather than composing, and refuses if
-  none is in flight (`session.rs:1443-1483`, `display.rs:613-626`);
+  none is in flight (`session.rs:1462-1502`, `display.rs:613-626`);
 - **commit** lands exactly one value, and **a gesture that never
   previewed commits nothing** — the no-move rule, written twice
-  (`session.rs:1489-1502`, `display.rs:638-648`);
+  (`session.rs:1508-1521`, `display.rs:638-648`);
 - **cancel** takes the gesture and restores the prior picture.
 
 They carry two refusal vocabularies for the same three states —
@@ -34,7 +34,7 @@ They carry two refusal vocabularies for the same three states —
 `DisplayFault::NoFreeMove` / `DisplayFault::FreeMoveInFlight` — and the
 relationship between the copies is reconciled in PROSE, by hand, at
 `display.rs:629-630` ("the no-move rule the document gestures follow")
-and `session.rs:1067-1069` ("Same rule as a no-move commit").
+and `session.rs:1086-1088` ("Same rule as a no-move commit").
 
 ## Why it is worth a file
 

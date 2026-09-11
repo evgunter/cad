@@ -209,10 +209,10 @@ fn the_exit_demo_walk() {
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(

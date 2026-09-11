@@ -55,6 +55,26 @@
 //! history) — the assertion is about WHICH refusal, never about
 //! success. `nothing_is_fenced_when_no_gesture_is_in_flight` is the
 //! same shape with the gesture closed.
+//!
+//! # The other drag's table
+//!
+//! The session has TWO independent drags and they refuse different
+//! sets, so there are two tables and this file checks both.
+//! [`SessionOp::permitted_during_free_move`] has two refusals rather
+//! than 26 and they have a name, so it is NOT restated here as a
+//! second copy of 39 rows: `replaces_the_document` says the property
+//! the table encodes — an operation that puts a different document
+//! under the session — and
+//! `the_free_move_table_refuses_exactly_the_replacement_doors` checks
+//! the table against it over the same sample roster. That is a
+//! different row from `expected`'s, and a stronger one, because the
+//! two sides are not one statement written twice.
+//!
+//! `no_operation_dissolves_an_in_flight_free_move_in_silence` is the
+//! behavioural half, and it asserts the INVARIANT over every operation
+//! rather than two rows about the two doors that used to break it: a
+//! probe ends because the user ended it, or because a prune reported
+//! killing it, or the row fails.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -70,6 +90,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
 use pncad::select::ContactClass;
+use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
     BoundsTarget, CancelDoor, DatumSpec, DocSession, FaceSelection, Hovered, PatternRuleSpec,
@@ -441,11 +462,15 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// node graph and the identity block fails outright (`free_move_check`
 /// disagrees across the two documents); leave the identity and break
 /// the prune instead and the last two blocks fail — the committed probe
-/// vanishes, and the in-flight free-move is killed with nothing said (a
-/// killed in-flight gesture is not in `superseded`, which
-/// `review_gui4_r1.rs:815-819` records as current behaviour rather than
-/// endorses). Reversing the table's four rows fails the first block, at
-/// `BeginFreeMove`.
+/// vanishes, and the in-flight free-move is killed. That kill is
+/// REPORTED, in `killed_gesture` and deliberately not in `superseded`,
+/// which `review_gui4_r1.rs:823-855` holds in both directions. (This
+/// sentence used to cite `:815-819` and to call the silence current
+/// behaviour recorded rather than endorsed; the number named a
+/// scene-stats assertion several blocks earlier and was already wrong
+/// when it was written, and the silence it described was ended by the
+/// third withdrawal kind.) Reversing the table's four rows fails the
+/// first block, at `BeginFreeMove`.
 #[test]
 fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     let tol = Tol::witness();
@@ -563,9 +588,9 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             outcome.committed[0]
         );
         assert!(
-            outcome.superseded.is_empty(),
+            outcome.withdrawn.superseded.is_empty(),
             "{slot:?}: a slot drag supersedes no probe: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         );
         assert_eq!(session.display().free_move_of(post), Some(&probe));
 
@@ -953,4 +978,174 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
         1,
         "declared once, so the read above is a read of this door"
     );
+}
+
+/// **The free-move table's answer, restated as the PROPERTY it encodes
+/// rather than as a second copy of its rows.**
+///
+/// `expected` above is a hand-written copy of
+/// `permitted_during_value_gesture` because that table has 26 refusals
+/// with no shorter description than the list itself. The free-move
+/// table has two, and they have a name: an operation that REPLACES the
+/// document the session is about — as against one that moves it, which
+/// a prune answers for by reporting. So this says the name, and
+/// `the_free_move_table_refuses_exactly_the_replacement_doors` checks
+/// the table against it. A row that disagrees is either a table entry
+/// that is wrong or a property that has stopped being the reason, and
+/// both are things to find out.
+///
+/// **Exhaustive on purpose**, like `expected`: a fortieth `SessionOp`
+/// does not compile until someone says whether it replaces the
+/// document.
+fn replaces_the_document(op: &SessionOp) -> bool {
+    match op {
+        // The two doors that put a different document under the
+        // session, dropping the whole of its display state with
+        // `DocSession::clear_for_new_document`.
+        SessionOp::Open(_) | SessionOp::NewDocument { .. } => true,
+        SessionOp::Select(_)
+        | SessionOp::Hover(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::ProbeBounds { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetParam { .. }
+        | SessionOp::CreateParam { .. }
+        | SessionOp::BeginGesture { .. }
+        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture
+        | SessionOp::CancelGesture
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::Reevaluate
+        | SessionOp::Save(_)
+        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove
+        | SessionOp::CancelFreeMove
+        | SessionOp::AddMate { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddRevolve { .. }
+        | SessionOp::AddBoolean { .. }
+        | SessionOp::AddSplit { .. }
+        | SessionOp::AddTransform { .. }
+        | SessionOp::AddPattern { .. }
+        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFillet { .. }
+        | SessionOp::AddChamfer { .. }
+        | SessionOp::AddInstance { .. } => false,
+    }
+}
+
+/// The free-move table is exactly the replacement doors, on the same
+/// sample roster the value table is checked on — so a fortieth
+/// operation is answered for both drags or does not compile.
+#[test]
+fn the_free_move_table_refuses_exactly_the_replacement_doors() {
+    let tol = Tol::witness();
+    let (_, node) = fixture(tol);
+    let dir = common::tempdir("view-free-move-table");
+    for op in every_op(node, &dir.join("saved.pncad")) {
+        assert_eq!(
+            op.permitted_during_free_move(),
+            !replaces_the_document(&op),
+            "the free-move table's answer for {op:?}"
+        );
+    }
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **No operation dissolves an in-flight free move in silence** — the
+/// invariant, over every operation, rather than two rows about the two
+/// doors that used to break it.
+///
+/// A free-move drag can end in exactly three ways and the third is the
+/// defect this row closes: the user ends it (`CommitFreeMove`,
+/// `CancelFreeMove`); the document stops admitting the instance under
+/// it, and the prune says so (`killed_gesture`); or it vanishes with
+/// nothing said. `Open` and `NewDocument` were the third, through
+/// `clear_for_new_document`, and a report could not have been the fix
+/// — a `Withdrawn` names an instance of the OUTGOING document and the
+/// only document left to ask about it is the incoming one
+/// (`DisplayState::clear` carries that argument). So they refuse.
+///
+/// **The refusal is `FreeMoveInFlight` and not `GestureInFlight`.** The
+/// two drags are different values with different vocabularies, and
+/// *"finish the free-move first"* names a door the user has
+/// (`CancelFreeMove`, in the toolbar) where the other sentence names a
+/// drag they are not holding.
+///
+/// `BeginFreeMove` is fenced too and NOT by this table: a second begin
+/// under an open drag is refused by `DisplayState::begin_free_move`
+/// itself, with the same refusal one layer down. The expectation below
+/// says so rather than smoothing it over, because a table row added
+/// there would be a second spelling of one answer.
+///
+/// Where it goes red: delete either `perform` check (the two doors stop
+/// refusing AND the drag disappears, failing both halves); return the
+/// wrong refusal (the first half); or make a permitted operation clear
+/// the display state without reporting (the second half, for whichever
+/// operation did it).
+#[test]
+fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("view-free-move-doors", tol);
+    let dir = common::tempdir("view-free-move-doors-ops");
+    let instance = bench.post_a;
+    for op in every_op(instance, &dir.join("saved.pncad")) {
+        let mut session = common::asm::open_bench(&bench, tol);
+        assert!(
+            session
+                .perform(SessionOp::BeginFreeMove { instance })
+                .refusal
+                .is_none(),
+            "the fixture's probe opens"
+        );
+        assert!(
+            session.display().probing().is_some(),
+            "and is in flight before {op:?} runs"
+        );
+
+        let outcome = session.perform(op.clone());
+        let fenced = matches!(
+            outcome.refusal,
+            Some(Refusal::Display(DisplayFault::FreeMoveInFlight))
+        );
+        let begins_a_second_probe = matches!(op, SessionOp::BeginFreeMove { .. });
+        assert_eq!(
+            fenced,
+            replaces_the_document(&op) || begins_a_second_probe,
+            "{op:?} refused {:?} with a probe in flight",
+            outcome.refusal
+        );
+        if replaces_the_document(&op) {
+            assert!(
+                outcome.committed.is_empty(),
+                "{op:?} committed while fenced"
+            );
+            assert!(
+                session.display().probing().is_some(),
+                "{op:?} was refused, so the drag it refused FOR is still there \
+                 — a refusal that dissolved the gesture anyway would be the \
+                 defect with a sentence in front of it"
+            );
+        }
+
+        // The invariant, over the whole roster: the drag is still in
+        // flight, or something said where it went.
+        let ends_the_drag = matches!(op, SessionOp::CommitFreeMove | SessionOp::CancelFreeMove);
+        assert!(
+            session.display().probing().is_some()
+                || ends_the_drag
+                || outcome.withdrawn.killed_gesture.is_some(),
+            "{op:?} ended the drag under the pointer and said nothing: {outcome:?}"
+        );
+    }
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }

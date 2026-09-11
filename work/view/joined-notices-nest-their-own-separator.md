@@ -85,3 +85,10 @@ type as well as in the prose, and `joined_subject` throws it away to
 pick one `Subject`. Answering the separator without answering that
 would render a structure the value no longer has.
 
+## Note (`view/gesture-doors`, 2026-09-11): the assertion citation is stale
+
+`crates/viewer/src/frame.rs:1186` is named here as *"the assertion"*
+and is a doc-comment line inside `delta_not_a_number` at the merge base
+of this note. The finding is untouched; the pointer was already wrong,
+so it is disclosed rather than moved — a number that was never about
+its subject has no shift to apply.
