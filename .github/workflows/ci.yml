@@ -2212,30 +2212,32 @@ jobs:
       # skipped case is a break that is simultaneously wasm-specific,
       # outside the seed set, and outside a row that just compiled the
       # same crate for the same target. That is not a hole this row is
-      # deferring to a nightly; it is the empty set at this dependency
-      # shape, and it stops being empty the day `viewer` grows an edge
-      # on a crate the workspace row excludes.
+      # deferring to a nightly; it is the empty set for a BREAK at this
+      # dependency shape, and it stops being empty the day `viewer` grows
+      # an edge on a crate the workspace row excludes. FOR A LINT IT IS
+      # NOT EMPTY NOW: the row it leans on denies nothing, so a lint in a
+      # non-seed crate's wasm arm is caught here alone and the axis can
+      # take it away — a property of that row's spelling, held with the
+      # crates it excludes in
+      # `work/ciw/kernel-wasm-row-denies-no-warnings.md`.
       #
-      # WHAT IT COSTS WHEN IT FIRES: one `cargo check` over the toolkit
-      # graph at a SECOND target. Nothing in this job shares artefacts
-      # with it — the rows above are host-target — so it is a cold
-      # metadata build of eframe + wgpu + naga for wasm32 every time it
-      # runs, and `rust-cache` carries the registry but not that graph's
-      # artefacts across runs.
-      #
-      # MEASURED, hosted (ubuntu-latest, 2 vCPU), on this row's own
-      # introducing PR: THE STEP is 55-57 s across four runs. Locally,
-      # 61 s from an empty CARGO_TARGET_DIR on 4 vCPU.
-      #
-      # NO JOB-LEVEL DELTA IS QUOTED, and that is a finding rather than
-      # an omission. Across the same four runs this job ran 307 s, 342 s
-      # and 360 s, and the 307 s reading is the one WITH the row — 35 s
-      # BELOW the no-row reading. `rustdoc (gate)` alone moved 106-126 s
-      # between those runs, so a before/after pair on this job measures
-      # that noise and not this step. Anyone wanting the billed cost has
-      # to take it against a distribution, not a pair; the row above's
-      # comment makes the same point about its own straddling baseline
-      # and is worth reading before quoting any figure here.
+      # WHAT IT COSTS, AND WHY NOTHING HERE IS A BUDGET. One lint pass
+      # over the toolkit graph at a SECOND target; no other row in this
+      # job shares artefacts with it, since they are all host-target.
+      # BIMODAL across runs — `rust-cache` restores this target's
+      # artefacts often enough that both a cold build and a restore are
+      # common — so neither mode is the figure. MEASURED, hosted
+      # (ubuntu-latest, the 4 vCPU public-repo runner this file's header
+      # derives from the provenance step): 17, 43, 43 and 55 s over four
+      # consecutive pushes to one branch, runs 34559116872, 34556713442,
+      # 34560366278, 34557952266. Locally, from an empty
+      # CARGO_TARGET_DIR on 4 vCPU, 65 s — so the 17 s cannot be a cold
+      # build. A JOB-level delta is not quotable at all: this job's own
+      # baseline swings wider than the step (`rustdoc (gate)` alone
+      # moved 106-126 s across four readings), so a before/after pair
+      # measures that noise. Take a cost from here against a
+      # distribution, never a pair, and RE-TAKE IT with the step's own
+      # command below.
       #
       # It buys nothing when the axis is false, which is why it is on
       # the axis rather than beside the row above.
@@ -2271,22 +2273,39 @@ jobs:
       # repo sets none today, so scoping costs nothing and a future entry
       # is not quietly dropped. Same spelling as serve-wasm.sh's build.
       #
-      # `check`, NOT `-D warnings`, AND THAT IS A DEBT WITH A FILE. This
-      # crate's wasm build carries two dead-code warnings today —
-      # `WINDOW_TITLE` and `ViewerApp::deliver_status`, whose users are
-      # all `cfg(not(target_family = "wasm"))` — so denying warnings here
-      # would red on those before it ever reached a real break, and
-      # fixing them is the crate owners' call, not a guard's. It leaves
-      # this as the ONE viewer row in this workflow that cannot fail on a
-      # warning, which is not a resting state:
-      # `work/view/viewer-items-unreferenced-at-wasm32.md` holds the flip,
-      # and this row becomes `-D warnings` when that item closes.
+      # `-D warnings`, THROUGH CLIPPY: the deny every other viewer row
+      # carries — `clippy (viewer app feature - eframe + wgpu)` in this
+      # same job is the host-target sibling — at the one target nothing
+      # else lints. THE VERDICT IS WIDER THAN `viewer`, which is why the
+      # name says so: `-p` scopes what is BUILT, and cargo caps lints on
+      # registry crates only, so every workspace crate in the graph is
+      # denied here too, clippy's own lints included; the crate named in
+      # a red log is the one to go to.
+      # `RUSTFLAGS='-Dwarnings …' cargo check` denies the same set minus
+      # clippy's lints, at the same cost, which is why this is the
+      # spelling. RE-TAKE THAT against the step below and
       #
-      # Mirror: local-scripts/ci-local.sh's `wasm32 check (viewer app)`.
-      - name: wasm32 check (viewer app feature - the browser entry point)
+      #   RUSTFLAGS='-Dwarnings --cfg getrandom_backend="wasm_js"' \
+      #     cargo check -p viewer --features app \
+      #       --target wasm32-unknown-unknown
+      #
+      # planting a `dead_code` item, and then a clippy-only lint, in a
+      # path dependency such as `editor-core`: the first reds both, the
+      # second reds this row alone.
+      #
+      # NO `--all-targets`, and that is not the sibling row's spelling
+      # dropped by accident. Two independent causes, either alone
+      # sufficient: `crates/viewer`'s tests and examples import
+      # `ThreadEvaluator` and `prefs::file`, which `src/lib.rs` and
+      # `src/prefs.rs` gate on `cfg(not(target_family = "wasm"))`, so
+      # building them here ends in E0432 for a reason that has nothing to
+      # do with lints.
+      #
+      # Mirror: local-scripts/ci-local.sh's `wasm32 clippy (viewer app + deps)`.
+      - name: wasm32 clippy (viewer app feature + its workspace deps - the browser entry point)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
         run: |
-          RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check -p viewer --features app --target wasm32-unknown-unknown
+          RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo clippy -p viewer --features app --target wasm32-unknown-unknown -- -D warnings
 
   clippy:
     name: clippy
@@ -2735,7 +2754,10 @@ jobs:
     #   billed                  ~137m  ->  ~72m    (-65 min)
     #
     # The compile penalty is WORSE hosted than locally (4.58x vs 3.24x) —
-    # 2 vCPU parallelises opt-2 codegen badly — and the execution win is
+    # the 2-vCPU runner these were taken on parallelised opt-2 codegen
+    # badly, and nothing has re-taken them on the 4-vCPU public-repo
+    # runner that replaced it, so the RATIO is the stale half here — and
+    # the execution win is
     # much BETTER (7.1x vs the 2.29x measured locally, which was taken on
     # a box with an express-lane job running alongside it and is therefore
     # pessimistic). Both errors happened to point the same way; the trade
@@ -2851,7 +2873,12 @@ jobs:
     #
     # THE HONEST CAVEAT, AND IT IS THE SAME ONE THIS NOTE HAS MADE TWICE
     # ALREADY: that sweep was taken on a 4-core AVX-512 guest, the same class
-    # as the census box and NOT this 2-vCPU runner. A ratio does not transfer
+    # as the census box and NOT the 2-vCPU runner the figures above came from.
+    # (That runner is gone — this repo went public and the standard runner is
+    # 4 vCPU / 16 GB, per this file's header. The caveat did not go with it:
+    # nothing below has been re-taken on the runner of today, so the sweep and
+    # the gate figures are still two machines apart, just different ones.)
+    # A ratio does not transfer
     # between machines — the figures above are themselves a demonstration
     # (3.24x local against 4.58x hosted; 2.29x local against 7.1x hosted). So
     # this flip is made on evidence from a box the calibration lane explicitly

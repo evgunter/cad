@@ -399,11 +399,7 @@ fn lantern<S: Scalar>(
     // flower axis (into the flower), u the in-plane radial — the
     // flower axis turned a quarter turn in the plant's own plane,
     // i.e. crossed with ŷ.
-    let plane = SketchPlane::from_frame(
-        attach.map(S::from_f64),
-        dir.cross(Vec3::unit_y()).map(S::from_f64),
-        dir.map(S::from_f64),
-    );
+    let plane = SketchPlane::from_frame(attach, dir.cross(Vec3::unit_y()), dir).map(S::from_f64);
     revolve(
         &validated(
             plane,
@@ -620,11 +616,7 @@ fn bud<S: Scalar>(
         let u = start.reject_from(a).normalize();
         // All three share the ATTACHMENT: the tilt splays their
         // tips, not their bellies.
-        let plane = SketchPlane::from_frame(
-            attach.map(S::from_f64),
-            u.map(S::from_f64),
-            a.map(S::from_f64),
-        );
+        let plane = SketchPlane::from_frame(attach, u, a).map(S::from_f64);
         revolve(
             &validated(
                 plane,
@@ -666,23 +658,11 @@ struct Kite {
 /// to zero, and measures the roll as the angle between the two. A
 /// re-typed copy of these numbers would let the two drift and the
 /// measurement would quietly stop meaning anything.
-const LEAF_A_BASE: Point3<f64> = Point3 {
-    x: 0.04,
-    y: 0.05,
-    z: 0.03,
-};
+const LEAF_A_BASE: Point3<f64> = Point3::new(0.04, 0.05, 0.03);
 /// See [`LEAF_A_BASE`].
-const LEAF_A_DIR: Vec3<f64> = Vec3 {
-    x: -0.72,
-    y: 0.52,
-    z: 0.16,
-};
+const LEAF_A_DIR: Vec3<f64> = Vec3::new(-0.72, 0.52, 0.16);
 /// See [`LEAF_A_BASE`].
-const LEAF_A_UP: Vec3<f64> = Vec3 {
-    x: 0.0,
-    y: 0.0,
-    z: 1.0,
-};
+const LEAF_A_UP: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
 /// See [`LEAF_A_BASE`].
 const LEAF_A_LEN: f64 = 5.10;
 /// See [`LEAF_A_BASE`]. Negative: the blade arches OVER, which is what
@@ -791,7 +771,7 @@ fn leaf<S: Scalar>(
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
     // The skinning lane's own door is `f64` (`sweep_body` takes an
     // `Affine3<f64>`), so this frame is not lifted at all.
-    let place = SketchPlane::from_frame(base, u, v).placement;
+    let place = Affine3::from_frame(base, u, v);
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
     let loops: Vec<ProfileLoop<f64>> = vec![
@@ -1127,7 +1107,7 @@ fn try_lofted_blade<S: Scalar>(
         let uu = u * ct + vk * st;
         let vv = vk * ct - u * st;
         sections.push(plan.at(s).outline(tol));
-        places.push(SketchPlane::from_frame(p, uu, vv).placement);
+        places.push(Affine3::from_frame(p, uu, vv));
     }
     loft_body::<S>(&sections, &places, LEAF_V_DEGREE, tol)
 }

@@ -992,7 +992,13 @@ mod tests {
     #[test]
     fn a_derived_march_tolerance_is_the_bands_own_zero() {
         for zero in [1.0e-3_f64, 1.0e-6, 1.0e-9, 1.0e-12] {
-            let band = Band::new(zero, 10.0 * zero).unwrap();
+            // The escalate edge is arbitrary here: `MarchTol::from_band`
+            // reads `band.zero()` and nothing else, which is the claim
+            // this row makes. Any value above `zero` satisfies
+            // `Band::new`'s `zero < escalate`; it is deliberately NOT
+            // the run's K·zero, which would read as a quantity the
+            // bridge consults.
+            let band = Band::new(zero, 2.0 * zero).unwrap();
             assert_eq!(MarchTol::from_band(band).meters(), band.zero());
         }
     }

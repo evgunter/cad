@@ -953,7 +953,13 @@ mod tests {
         use geom_core::Band;
 
         for zero in [1.0e-3_f64, 1.0e-6, 1.0e-9, 1.0e-12] {
-            let band = Band::new(zero, 10.0 * zero).unwrap();
+            // The escalate edge is arbitrary here: `tube_ladder` reads
+            // `band.zero()` and nothing else, so this row is a statement
+            // about the coincidence threshold alone. Any value above
+            // `zero` satisfies `Band::new`'s `zero < escalate`; it is
+            // deliberately NOT the run's K·zero, which would read as a
+            // second quantity the ladder consults.
+            let band = Band::new(zero, 2.0 * zero).unwrap();
             let floor = SSI_TUBE_RADIUS * zero;
             // An extent chosen so the floor BINDS: the ladder's last
             // possible rung is below it, so the row is about where the
