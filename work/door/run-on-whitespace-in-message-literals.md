@@ -52,10 +52,10 @@ the record of why the file was parked there.
 **No track letter, deliberately.** The five sites are in `viewer/src`
 (CHROME/VIEW), `geom-brep/src` (Track R), `topo/src/boolean` (Q),
 `topo/src/chart_region.rs` (Q) and `topo/src/props.rs` (M) — a
-cross-cutting prose sweep that collides with every fence, which is the
-`L1`/`L2`/`C21` shape `work/code-quality/plan.md` says goes after the
-tracks empty. It joins the unlettered pile rather than taking a letter
-it would have to break.
+cross-cutting prose sweep that collides with every fence — the `L1` /
+`L2` shape that goes after the tracks empty, and which is COMB's whole
+charter since 2026-09-11. It took no letter rather than one it would
+have to break.
 
 ## Re-homed to DOOR (2026-09-11, the cut in `docs/WORK-TRACKS-2026-09.md` addendum 3)
 

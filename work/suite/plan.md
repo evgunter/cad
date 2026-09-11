@@ -28,9 +28,9 @@ S-TINT's territory in every crate**, by both programs' `paths`. This
 program claims nothing and does not try: it is a **slate of rows on
 S-TINT's ground**, and every unit announces there.
 
-The rule that governs the seam is `docs/CODE-QUALITY-CONVENTIONS.md`'s and is
-not restated differently here: W's rows are about the *test-side
-mechanisms* — the guards, the fixtures, the stand-downs — and where a
+The rule that governs the seam is the one these rows were written
+under: they are about the *test-side mechanisms* — the guards, the
+fixtures, the stand-downs — and where a
 mechanism reaches into a crate's `src/`, the row is filed on that crate's
 owner. A test needed by a `src` change belongs to the PR that makes the
 change, not here.
