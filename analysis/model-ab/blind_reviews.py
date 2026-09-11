@@ -29,13 +29,21 @@ Three things therefore have to happen that dropping a column does not do:
 The mapping is recorded in a key file under `keys/`, which the coder must not
 open. `unblind_adjudication.py` joins the coded findings back against it.
 
-Schema note: the log is not one table. Dispatch rows appear under per-program
-tables carrying 6, 9, 10, 14, 15 and 16 columns, but every one of them starts
-with the same six — id, date, task, difficulty, arm, review — so this reads
-those six positionally and ignores the tail. `blind_extract.py` instead requires
-exactly 14 cells and silently drops anything else, which costs it 54 of the
-log's 311 dispatch rows, PIERCE (the first v6 pair) among them; see
---audit-widths.
+Schema note: the log is not one table, and not every row carries its table's
+width. Rows are read positionally off the six columns every table starts with —
+id, date, task, difficulty, arm, review — and the tail is ignored, so a row that
+is short or long still yields its review prose. Rows whose width does not match
+their own table's separator are REPORTED (see --audit-widths and the run's
+width-anomaly block) rather than dropped: `blind_extract.py` drops them, which
+is how it extracts 257 of the log's 310 body rows with no diagnostic, and
+dropping a pair from a blinded pass silently is the same failure one level up.
+`work/meta/ab-log-rows-do-not-match-their-tables-declared-width` carries the
+census and routes the rows to their owners.
+
+Cells are split on the padded separator " | " rather than a bare pipe, because
+cells carry maths (`|Δ|≤π−δ`). That rule holds whether or not those pipes are
+escaped, so it survives the escaping pass landing on main; once it has, a split
+on unescaped pipes only is exact and this heuristic can go.
 
 Usage:
     python3 blind_reviews.py --src <path to MODEL-AB-LOG.md>   # write material
@@ -96,6 +104,10 @@ ASSIGN_REV_RE = re.compile(
 BYTE_RE = re.compile(r"\bbytes?\s+(\d+)", re.I)
 PARITY_RE = re.compile(r"\bparity\s+([01])\b", re.I)
 INSTRUMENT_RE = re.compile(r"\bv([3-9])\s+instrument\b", re.I)
+SEPARATOR_RE = re.compile(r"^\|[\s:|-]+\|$")
+# Some rows date a unit to a RANGE ("2026-08-27/28", "2026-08-31/09-01") because
+# the work spanned midnight. Reading only a bare YYYY-MM-DD drops them.
+DATE_CELL_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:\s*/\s*(?:(\d{2})-)?(\d{2}))?$")
 DUAL_RE = re.compile(r"\bDUAL\b")
 SINGLE_RE = re.compile(r"\bSINGLE\b")
 
@@ -108,7 +120,7 @@ ADJUDICATION_COLS = [
     "dedup_group", "demonstrated", "fair_pair", "evidence",
 ]
 KEY_COLS = [
-    "row_id", "line_no", "date", "era", "instrument", "recorded_byte",
+    "row_id", "line_no", "date", "date_raw", "era", "era_straddled", "instrument", "recorded_byte",
     "recorded_parity", "blind_byte", "blind_parity", "a_slot", "b_slot",
     "a_model", "b_model", "assignment_source",
 ]
@@ -132,16 +144,56 @@ def split_row(line):
     return cells
 
 
+def parse_date_cell(cell):
+    """(start, end) for a date cell, or None if it is not a date at all."""
+    m = DATE_CELL_RE.match(cell.strip())
+    if not m:
+        return None
+    year, month, day = m.group(1), m.group(2), m.group(3)
+    start = "%s-%s-%s" % (year, month, day)
+    if not m.group(5):
+        return start, start
+    return start, "%s-%s-%s" % (year, m.group(4) or month, m.group(5))
+
+
+def separator_width(line):
+    """Columns a separator row declares. Separators carry no prose, so a bare
+    pipe split is exact here even though it is not for body rows."""
+    return len([c for c in line.strip().strip("|").split("|")])
+
+
+def is_separator(line):
+    s = line.strip()
+    return bool(s.startswith("|") and SEPARATOR_RE.match(s) and len(s) > 4)
+
+
 def parse_rows(path):
-    rows = []
     with open(path) as f:
-        for line_no, line in enumerate(f, 1):
-            cells = split_row(line)
-            if cells is None or len(cells) < ANCHOR:
-                continue
-            if not re.match(r"^\d{4}-\d{2}-\d{2}$", cells[DATE]):
-                continue
-            rows.append((line_no, cells))
+        return parse_lines(f.read().split("\n"))
+
+
+def parse_lines(lines):
+    """Body rows with the width their own table declares.
+
+    A separator row sets the table's width and retroactively marks the line
+    above it as that table's header, not a body row.
+    """
+    rows = []
+    width = None
+    for line_no, line in enumerate(lines, 1):
+        if not line.strip().startswith("|"):
+            continue
+        if is_separator(line):
+            width = separator_width(line)
+            if rows and rows[-1][0] == line_no - 1:
+                rows.pop()          # the line above a separator is its header
+            continue
+        cells = split_row(line)
+        if cells is None or len(cells) < ANCHOR:
+            continue
+        if parse_date_cell(cells[DATE]) is None:
+            continue
+        rows.append((line_no, cells, width))
     return rows
 
 
@@ -198,31 +250,36 @@ def draw_byte():
 
 def select(rows, since, until):
     duals, ambiguous = [], []
-    for line_no, cells in rows:
-        date = cells[DATE]
+    for line_no, cells, width in rows:
+        date = parse_date_cell(cells[DATE])[0]
         if date < since or (until and date > until):
             continue
         review = cells[REVIEW]
         if DUAL_RE.search(review):
-            duals.append((line_no, cells))
+            duals.append((line_no, cells, width))
         elif SLOT_RE.search(review) and not SINGLE_RE.search(review):
-            ambiguous.append((line_no, cells))
+            ambiguous.append((line_no, cells, width))
     return duals, ambiguous
 
 
 def build(rows, seed_bytes=None):
     """Blind each pair. seed_bytes makes the draw deterministic for the selftest."""
     out = []
-    for i, (line_no, cells) in enumerate(rows):
+    for i, (line_no, cells, width) in enumerate(rows):
         byte = seed_bytes[i] if seed_bytes else draw_byte()
         parity = byte % 2
+        start, end = parse_date_cell(cells[DATE])
         r1_model, r2_model, source = parse_assignment(cells[REVIEW])
         a_model, b_model = (r1_model, r2_model) if parity == 0 else (r2_model, r1_model)
         out.append({
             "row_id": cells[ID],
             "line_no": line_no,
-            "date": cells[DATE],
-            "era": era_of(cells[DATE]),
+            "width": len(cells),
+            "table_width": width,
+            "date": start,
+            "date_raw": cells[DATE],
+            "era": era_of(start),
+            "era_straddled": era_of(start) != era_of(end),
             "instrument": (INSTRUMENT_RE.search(cells[REVIEW]).group(0)
                            if INSTRUMENT_RE.search(cells[REVIEW]) else ""),
             "recorded_byte": (BYTE_RE.search(cells[REVIEW]).group(1)
@@ -308,26 +365,31 @@ def write_forms(directory, pairs):
 
 
 def audit_widths(path):
-    """Census of the log's table schemas, and what a fixed-width reader loses."""
-    from collections import Counter
-    naive = Counter()
-    padded = Counter()
-    dropped = []
+    """Census of the log's tables, and of the rows that do not carry their width."""
+    from collections import Counter, defaultdict
     with open(path) as f:
-        for line_no, line in enumerate(f, 1):
-            cells = split_row(line)
-            if cells is None:
-                continue
-            raw = [c.strip() for c in line.strip().strip("|").split("|")]
-            naive[len(raw)] += 1
-            padded[len(cells)] += 1
-            if len(raw) != 14 and len(cells) >= ANCHOR:
-                dropped.append((line_no, cells[ID], len(raw), len(cells)))
-    print("bare-pipe split widths :", sorted(naive.items()))
-    print("padded split widths    :", sorted(padded.items()))
-    print("\nrows a 14-column reader drops but this one keeps: %d" % len(dropped))
-    for line_no, row_id, n_raw, n_pad in dropped:
-        print("  line %-5d %-14s bare=%-3d padded=%d" % (line_no, row_id, n_raw, n_pad))
+        lines = f.read().split("\n")
+    widths = Counter()
+    for line in lines:
+        if is_separator(line):
+            widths[separator_width(line)] += 1
+    rows = parse_rows(path)
+    bad = defaultdict(list)
+    for line_no, cells, width in rows:
+        if width is not None and len(cells) != width:
+            bad[(width, len(cells))].append((line_no, cells[ID]))
+    print("tables declared      : %d  (widths %s)"
+          % (sum(widths.values()), ", ".join("%d x%d" % (w, n)
+                                             for w, n in sorted(widths.items()))))
+    print("body rows            : %d" % len(rows))
+    print("rows off their width : %d" % sum(len(v) for v in bad.values()))
+    for (want, got), entries in sorted(bad.items()):
+        print("  table %d, row %2d (%d): %s"
+              % (want, got, len(entries), ", ".join(e[1] for e in entries)))
+    print("\nA row off its width still yields its review prose — the first six\n"
+          "columns are common to every table — but its later columns are shifted\n"
+          "or absent. work/meta/ab-log-rows-do-not-match-their-tables-declared-width\n"
+          "routes them to their owners.")
 
 
 def selftest():
@@ -373,22 +435,53 @@ def selftest():
     check("leak scan fires on a bare slot label", scan_leaks("R2 disagreed") != [])
 
     # Round trip: a finding the coder attributes to A resolves to the right model.
-    pairs = build([(1, cells)], seed_bytes=[146])   # 146 % 2 == 0 -> A = R1
+    # Table tracking: the header above a separator is not a row, and a row that
+    # is not its table's width is kept and flagged rather than dropped.
+    table = [
+        "| # | date | task | difficulty | arm | review | tail |",
+        "|---|---|---|---|---|---|---|",
+        fixture.rstrip("\n"),
+        "| SHORT-1 | 2026-08-29 | a row that stops early "
+        "| M (pre-draw) | OPUS (slot 1) | **DUAL** R1 vs R2 |",
+    ]
+    parsed = parse_lines(table)
+    check("the header above a separator is not a body row",
+          [r[1][ID] for r in parsed] == ["FIX-1", "SHORT-1"])
+    check("each row carries its table's declared width",
+          all(r[2] == 7 for r in parsed))
+    check("a row off its table's width is kept, not dropped",
+          any(r[1][ID] == "SHORT-1" and len(r[1]) != r[2] for r in parsed))
+    short = build([r for r in parsed if r[1][ID] == "SHORT-1"], seed_bytes=[2])[0]
+    check("the anomaly is visible on the built pair",
+          (short["width"], short["table_width"]) == (6, 7))
+
+    pairs = build([(1, cells, 14)], seed_bytes=[146])   # 146 % 2 == 0 -> A = R1
     p = pairs[0]
     check("key records the mapping", (p["a_slot"], p["a_model"]) == ("R1", "opus"))
     check("key records the counterpart", (p["b_slot"], p["b_model"]) == ("R2", "fable"))
-    pairs_odd = build([(1, cells)], seed_bytes=[147])
+    pairs_odd = build([(1, cells, 14)], seed_bytes=[147])
     q = pairs_odd[0]
     check("odd draw swaps the mapping", (q["a_slot"], q["a_model"]) == ("R2", "fable"))
     check("era split lands on the boundary",
           era_of("2026-08-31") == "pre-5.1" and era_of("2026-09-01") == "post-5.1")
+    check("a plain date parses", parse_date_cell("2026-08-27") == ("2026-08-27", "2026-08-27"))
+    check("a same-month range parses", parse_date_cell("2026-08-27/28")
+          == ("2026-08-27", "2026-08-28"))
+    check("a month-crossing range parses", parse_date_cell("2026-08-31/09-01")
+          == ("2026-08-31", "2026-09-01"))
+    check("a non-date is rejected", parse_date_cell("M (pre-draw)") is None)
+    ranged = list(cells)
+    ranged[DATE] = "2026-08-31/09-01"
+    r = build([(3, ranged, 14)], seed_bytes=[10])[0]
+    check("a ranged row is kept, not dropped", r["date"] == "2026-08-31")
+    check("a range crossing 5.1 is flagged", r["era_straddled"] is True)
     check("instrument recorded", p["instrument"].lower() == "v6 instrument")
     check("recorded draw kept in the key, not the material", p["recorded_byte"] == "146")
 
     # An unparseable assignment is reported, never guessed.
     blank = list(cells)
     blank[REVIEW] = "**DUAL (ordinal 900)**. R1 approved; R2 approved."
-    unknown = build([(2, blank)])[0]
+    unknown = build([(2, blank, 14)])[0]
     check("unparseable assignment is UNKNOWN, not a guess",
           unknown["a_model"] == "UNKNOWN" and unknown["assignment_source"] == "UNKNOWN")
 
@@ -458,6 +551,28 @@ def main():
         print("Fill a_model/b_model in the key by hand from the row, then re-run "
               "unblind_adjudication.py.")
 
+    straddled = [p for p in pairs if p["era_straddled"]]
+    if straddled:
+        print("\nDATED ACROSS THE 5.1 BOUNDARY — the era split cannot place these "
+              "(%d):" % len(straddled))
+        for p in straddled:
+            print("  %-12s %s" % (p["row_id"], p["date_raw"]))
+        print("They are filed under their start date; the instrument note says a "
+              "readout spanning 2026-09-01 reports the eras separately, so say "
+              "which side these were worked on before reading one.")
+
+    anomalous = [p for p in pairs
+                 if p["table_width"] is not None and p["width"] != p["table_width"]]
+    if anomalous:
+        print("\nWIDTH ANOMALY — selected pairs whose row is not its table's width "
+              "(%d):" % len(anomalous))
+        for p in anomalous:
+            print("  %-12s row has %d cells, table declares %d"
+                  % (p["row_id"], p["width"], p["table_width"]))
+        print("Their review prose is blinded as usual (the first six columns are "
+              "common to every table), but anything read from a later column of "
+              "these rows is shifted or missing.")
+
     off_instrument = [(p["row_id"], p["instrument"]) for p in pairs
                       if p["instrument"] and "v6" not in p["instrument"].lower()]
     if off_instrument:
@@ -471,7 +586,7 @@ def main():
     if ambiguous:
         print("\nAMBIGUOUS — reviewer labels but no DUAL marker, not selected (%d):"
               % len(ambiguous))
-        for line_no, cells in ambiguous:
+        for line_no, cells, _ in ambiguous:
             print("  line %-5d %-14s %s" % (line_no, cells[ID], cells[DATE]))
 
     text = open(material).read()

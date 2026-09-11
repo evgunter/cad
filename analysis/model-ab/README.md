@@ -146,15 +146,25 @@ log, not `core-rows.csv`.
 
 ### Known defect in `blind_extract.py`, not fixed here
 
-The log is not one table: dispatch rows appear under per-program tables of 6, 9,
-10, 14, 15 and 16 columns, and cells carry unescaped pipes (`|δ| ≤ π`).
-`blind_extract.py` splits on a bare pipe and keeps rows of exactly 14 cells, so
-it **silently drops 54 of the log's 311 dispatch rows** — PIERCE, the first v6
-pair, among them. `blind_reviews.py --audit-widths` prints the census and names
-every dropped row. The fix is to split on the padded separator and anchor on the
-six leading columns every schema shares, which is what `blind_reviews.py` does;
-it is not applied to `blind_extract.py` because that would change the input to
-labelling passes already run, and re-cutting those is a decision, not a repair.
+`blind_extract.py` splits body rows on a bare pipe and keeps only rows of
+exactly 14 cells, so it **writes 257 of the log's 310 body rows and says nothing
+about the other 53**. Two separate things cost it those rows:
+
+- **Cells carrying pipes.** 21 rows wrote maths as `|Δ|≤π−δ`, which a bare split
+  shreds. Those pipes are escaped now (`\|`), which fixes the rendering and lets
+  a correct reader recover the cells — but escaping does not help a naive
+  `split("|")`, which breaks on the pipe in `\|` just the same. `blind_extract.py`
+  needs the one-line change to `re.split(r"(?<!\\)\|", ...)` to benefit.
+- **Rows that are not their table's width.** 32 rows carry 6, 9, 10, 15 or 16
+  cells under the 14-column header. No reader can repair those; they are filed
+  as `work/meta/ab-log-rows-do-not-match-their-tables-declared-width` and belong
+  to the programs that wrote them.
+
+`blind_reviews.py --audit-widths` prints the census both numbers come from.
+Neither change is applied to `blind_extract.py` here, because its output feeds
+labelling passes already run and re-cutting those is a decision, not a repair —
+the escaping pass was checked against it for exactly that reason and leaves its
+output byte-identical.
 
 ## Reproduce
 
