@@ -134,6 +134,15 @@ ALL_LISTS = ("document", "select", "prelude", "profile", "analysis")
 DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Attr": ("argued", "NOT_CARRIED, the appearance family (crates/pncad/tests/all.rs); "
                        "crates/pncad/src/document.rs says why the record types stay out"),
+    # The one entry whose home is the CARRIER's crate rather than the
+    # façade's: the argument for not publishing this rung is about what
+    # a façade carry would owe (the CUR3 matchability row, and a word
+    # for the Python door), so it is written where the type is declared
+    # and where whoever carries it will be reading.
+    "CensusUnsupportedCause": ("argued", "non-carriage with its falsifier, beside the "
+                               "declaration in crates/topo/src/validate.rs; the carry "
+                               "is the facade crate's row and owes the CUR3 property "
+                               "row plus a Python word"),
     "BandField": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "
                         "declaration under the alias `PlaneRelation` "

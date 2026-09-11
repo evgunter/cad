@@ -405,6 +405,27 @@ impl core::fmt::Display for CensusSubject {
 /// Carrying the arm itself says all of that and pre-judges none of
 /// it.
 ///
+/// **NOT carried to the façade's curated list, and that is a
+/// decision rather than an omission** (`scripts/payload-rung-sweep.py`
+/// names this rung; the disposition table cites this paragraph as its
+/// home). A Rust caller can already name and match this type —
+/// `pncad` re-exports `topo` whole — so what the prelude list would
+/// add is two things it does not yet have: the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude`
+/// extended to cover a new published payload, and a Python word
+/// beside `subject_kind` so the binding's callers branch on the cause
+/// instead of reading it out of a sentence. Both are the façade
+/// crate's to write, and publishing the name without them is what a
+/// review refused: it would add two subjects to the rule that makes
+/// prelude payloads matchable and no row to check them.
+///
+/// **The falsifier is a Python caller who must tell a stopped search
+/// from a thin overlap.** Today that caller gets the whole of the
+/// lane's sentence on the message and no word to match — strictly
+/// more than it had, and less than a Rust caller gets. When the
+/// façade carries the cause, delete this paragraph and the
+/// disposition row with it.
+///
 /// It carries no bearing on ATTRIBUTION:
 /// `editor_core::assembly::attribute` reads which variant refused and
 /// what its [`CensusSubject`] was, and a decline is the census

@@ -117,3 +117,9 @@ that makes "a refusal the prelude names is matchable through the
 prelude" mechanical, and without repairing the six prose copies of the
 premise this unit's own cause doc falsifies. The kernel carries the
 fact; the Python door crosses it in a LIB-owned change.
+
+`scripts/payload-rung-sweep.py` caught the consequence on the first
+run — a new payload rung under a curated carrier, on no curated list —
+and the non-carriage is argued beside the declaration in `validate.rs`
+with its falsifier, registered `argued` in that script's disposition
+table. The row is deleted when the facade carries the cause.
