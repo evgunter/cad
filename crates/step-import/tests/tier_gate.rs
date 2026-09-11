@@ -269,7 +269,19 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
     // The AMBIENT sweep only, at this file's own ε_in: two cells at the
-    // rational-flux stall, one at the ladder's `#389` gap.
+    // ladder's `#389` gap, one at the convergence predicate's
+    // ambiguity band.
+    //
+    // The two gap cells used to be the RATIONAL FLUX STALL — the
+    // at-rest gate refusing this file's rational cylinder wall for
+    // missing the reporting target `1024·ε`. Tier 3's check 7 reads a
+    // SIGN, and this file's volume enclosure excludes zero however far
+    // short of that target it stops, so the gate admits the solid and
+    // the import goes on to meet the `#389` ladder gap the stall used
+    // to mask (filed:
+    // `work/exch/step-import-degree-one-line-promotion.md`, which
+    // names this edge). The gap is unchanged; what moved is that the
+    // thing in front of it stopped firing.
     //
     // It was nine cells until the 2026-08-13 test-time audit — the six
     // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
@@ -280,13 +292,15 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // promoted). That measurement is now RECORDED here rather than
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
-    (DM1, 1e-9, "file", Refused(RATIONAL_FLUX_STALL)),
-    // The coarse band reaches the GATE now and escalates there: the
+    (DM1, 1e-9, "file", Refused(LADDER_POLYLINE_GAP)),
+    // The coarse band reaches the GATE and escalates there: the
     // enclosure lands ~1% under the loose `1024·ε` target, inside the
-    // convergence predicate's ambiguity band. That masks — it does not
-    // fix — the `#389` ladder gap that used to be this cell.
+    // convergence predicate's ambiguity band. An escalation leaves the
+    // face with NO enclosure, so check 7 has no sign to read and
+    // refuses — which is why this is the one cell the sign level does
+    // not move. It masks — it does not fix — the `#389` ladder gap.
     (DM1, 1e-6, "file", Refused(QUAD_CONVERGED_ESCALATED)),
-    (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-12, "file", Refused(LADDER_POLYLINE_GAP)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). The near-pole feature is
@@ -334,13 +348,14 @@ const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward
 /// verdict, so a regression that moves the refusal to another door
 /// fails these cells.
 const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero at sample 1";
-/// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
-/// the exact-B-rep volume of a RATIONAL cylinder wall to target. The
-/// quadrature converges there — it quarters cleanly per refinement
-/// round — and what it runs out of is the FIXED round budget, inside a
-/// factor of two. Named specifically so the gate's preamble (which a
-/// tier-1/2 regression would also match) cannot stand in.
-const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure cannot reach the";
+/// dm1's sub-reason at the two bands whose at-rest gate it clears: the
+/// D7 adoption ladder is offered ZERO candidates for `#389`, a
+/// two-point degree-1 `QUASI_UNIFORM_CURVE` polyline. A GAP, not a
+/// refusal — nothing in the ladder reaches a degree-1 open carrier —
+/// and filed as `work/exch/step-import-degree-one-line-promotion.md`.
+/// Named specifically so the gate's preamble (which a tier-1/2
+/// regression would also match) cannot stand in.
+const LADDER_POLYLINE_GAP: &str = "no intensional description certifies";
 /// dm1's coarse-band sub-reason: the convergence predicate declines to
 /// decide, by name, so a regression that turned this into a silent
 /// answer (or into a different door) fails the cell.

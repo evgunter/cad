@@ -73,24 +73,51 @@ fn dm1_residual_and_wall_time_remeasured() {
     let t0 = std::time::Instant::now();
     let out = import_step(&text, &ImportOptions::default(), Tol::witness());
     let dt = t0.elapsed();
+    let coarse = Tol::witness().get().eps > 1e-9;
     match out {
+        // **The fine band no longer reaches the gate.** Tier 3's check
+        // 7 certifies a SIGN, and this file's enclosure excludes zero
+        // by orders of magnitude however far short of `1024·ε` it
+        // stops — so a valid solid is no longer refused for missing
+        // the REPORTING target, and dm1 goes on to meet the D7 ladder
+        // gap at edge `#389` that the gate used to mask
+        // (`work/exch/step-import-degree-one-line-promotion.md`, and
+        // `r1_dm1_probe` is where that disposition is pinned).
+        //
+        // The residual this row re-measured is therefore no longer
+        // reachable through the IMPORT door at this band. It is still
+        // reachable through the kernel's own: the width the schedule
+        // stops at is what a caller asking for the NUMBER is refused
+        // with, and `reporting_door_bit_digest` is where a moved
+        // width reds.
+        Err(StepImportError::Adoption { id, attempts }) => {
+            assert!(
+                !coarse,
+                "the fine band is the one whose at-rest refusal the sign level retired"
+            );
+            assert_eq!(id, 389, "the ladder gap's edge");
+            assert!(
+                attempts.is_empty(),
+                "the polyline GAP, not a refusal with candidates"
+            );
+            eprintln!("CERT5-R1 dm1: past the at-rest gate in {dt:?}, ladder gap at #389");
+        }
         Err(StepImportError::TierInvalid { solid, errors }) => {
             eprintln!("CERT5-R1 dm1: TierInvalid solid {solid:?} in {dt:?}: {errors:?}");
             let text = format!("{errors:?}");
-            // Band-honest on adoption: at a COARSE ambient band this
-            // file's enclosure lands just under the loose target and
-            // the convergence predicate escalates instead of refusing
-            // on budget. Both are the same lane; only one of them is
-            // reachable at a given ε.
-            let coarse = Tol::witness().get().eps > 1e-9;
+            // What is left at the at-rest gate is the ESCALATION: at a
+            // coarse ambient band this file's enclosure lands just
+            // under the loose target and `props_quad_converged`
+            // declines to call it, which leaves the face with no
+            // enclosure and check 7 with no sign to read.
             assert!(
-                text.contains("QuadratureBudget") || (coarse && text.contains("Escalated")),
-                "dm1's refusal must still be the rational patch-flux lane: {text}"
+                coarse && text.contains("Escalated"),
+                "dm1's at-rest refusal must be the convergence predicate's ambiguity \
+                 band; a budget refusal here would be check 7 consuming a precision \
+                 again: {text}"
             );
-            if coarse {
-                eprintln!("CERT5-R1 dm1: coarse band escalates rather than refusing on budget");
-                return;
-            }
+            eprintln!("CERT5-R1 dm1: coarse band escalates rather than refusing on budget");
+            return;
             // Extract the width from the debug text.
             let w = text
                 .split("width_len:")
@@ -120,7 +147,7 @@ fn dm1_residual_and_wall_time_remeasured() {
                  out rather than the retired 2.7e-4 floor: {w:e}"
             );
         }
-        other => panic!("dm1 must still refuse at the at-rest gate, got {other:?}"),
+        other => panic!("dm1's disposition has moved again, got {other:?}"),
     }
 }
 
