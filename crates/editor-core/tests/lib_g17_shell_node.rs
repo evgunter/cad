@@ -61,12 +61,12 @@ fn cup_names(blank: RecipeNodeId, shell: RecipeNodeId) -> [StableName; 3] {
         shelled(
             shell,
             EntityKind::Face,
-            RoleSeg::Rim(Box::new(cup::top(blank))),
+            RoleSeg::Rim(cup::top(blank).into()),
         ),
         shelled(
             shell,
             EntityKind::Face,
-            RoleSeg::Inner(Box::new(cup::bottom(blank))),
+            RoleSeg::Inner(cup::bottom(blank).into()),
         ),
         editor_core::carried(shell, fixture::fname(blank, fixture::wall(0))),
     ]
@@ -334,7 +334,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let rim = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(editor_core::band(pot, 0, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(editor_core::band(pot, 0, vessel::SEG_MOUTH).into()),
     );
     assert!(
         matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
@@ -343,7 +343,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let other = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH).into()),
     );
     assert!(
         table.lookup(&other).is_none(),
@@ -380,7 +380,7 @@ fn the_designation_order_moves_the_rim_and_the_content_key() {
     let rim_pi = shelled(
         sb,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH).into()),
     );
     assert!(
         matches!(

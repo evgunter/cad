@@ -104,7 +104,7 @@ use crate::doc::Doc;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
 use crate::mate::ClusterMaintenance;
-use crate::names::{Qualifier, RoleSeg, StableName, name_free_seg};
+use crate::names::{NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
@@ -678,7 +678,7 @@ fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNode
 #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
 fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
     use RoleSeg as R;
-    let one = |n: &StableName| remap_name(n, map).map(Box::new);
+    let one = |n: &StableName| remap_name(n, map).map(NameRef::new);
     let set = |v: &[StableName]| -> Result<Vec<StableName>, RecipeNodeId> {
         let mut out = v
             .iter()
@@ -1545,7 +1545,9 @@ pub fn split(
         let to = StableName {
             kind: from.kind,
             node: instance,
-            path: vec![RoleSeg::InPart { of: Box::new(of) }],
+            path: vec![RoleSeg::InPart {
+                of: NameRef::new(of),
+            }],
         };
         rem_apply(
             &mut remainder,
@@ -1833,8 +1835,9 @@ pub fn inline(
                 name: Box::new(from.clone()),
             });
         };
-        let to = remap_name(of, &node_map)
-            .map_err(|_| InlineError::StrandedPartName { name: of.clone() })?;
+        let to = remap_name(of, &node_map).map_err(|_| InlineError::StrandedPartName {
+            name: Box::new((**of).clone()),
+        })?;
         step(
             &mut current,
             DocEdit::Rebind {

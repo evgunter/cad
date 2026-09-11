@@ -116,7 +116,7 @@ fn an_order_swap_changes_only_the_rim_name() {
     let rim = |shell, half: StableName| StableName {
         kind: EntityKind::Face,
         node: shell,
-        path: vec![RoleSeg::Rim(Box::new(half))],
+        path: vec![RoleSeg::Rim(half.into())],
     };
     assert_eq!(
         only_a,
@@ -214,10 +214,7 @@ fn designating_a_side_wall_opens_the_cup_on_its_side() {
                 vec![StableName {
                     kind: EntityKind::Face,
                     node: n,
-                    path: vec![RoleSeg::Rim(Box::new(fixture::fname(
-                        blank,
-                        fixture::wall(0)
-                    )))],
+                    path: vec![RoleSeg::Rim(fixture::fname(blank, fixture::wall(0)).into())],
                 }]
             );
         }
@@ -251,12 +248,12 @@ fn the_rim_follows_a_rebound_designation() {
     let rim = StableName {
         kind: EntityKind::Face,
         node: shell,
-        path: vec![RoleSeg::Rim(Box::new(cup::bottom(blank)))],
+        path: vec![RoleSeg::Rim(cup::bottom(blank).into())],
     };
     let stale = StableName {
         kind: EntityKind::Face,
         node: shell,
-        path: vec![RoleSeg::Rim(Box::new(cup::top(blank)))],
+        path: vec![RoleSeg::Rim(cup::top(blank).into())],
     };
     assert!(table.lookup(&rim).is_some(), "rim followed the rebind");
     assert!(table.lookup(&stale).is_none(), "old rim name is gone");

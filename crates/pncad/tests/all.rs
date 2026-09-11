@@ -3276,11 +3276,12 @@ fn asm_r2a_mated_assembly(
         kind: EntityKind::Face,
         node,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
-            }),
+            }
+            .into(),
         }],
     };
     let axis = |origin: [f64; 3]| MateFrame {
