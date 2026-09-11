@@ -122,7 +122,16 @@ notes:
   literals** and is the one row here that crosses more fences than it
   edits lines. Take it as five one-line edits announced to five owners in
   ONE PR, not as five PRs — five PRs for five literals is worse than the
-  crossing they avoid.
+  crossing they avoid. **No guard is owed** (Ev, 2026-09-11, in-chat):
+  add one only if it is trivial and costless beside
+  `crates/viewer/tests/error_display.rs`'s existing `debug_shaped`
+  predicate — a few lines in the same walk over the same refusal corpus.
+  If it needs its own corpus, its own pattern language, or an argument,
+  it is neither, and the lane fixes the five literals and says in the PR
+  that it judged the guard not costless. The `rg` the row offers is a
+  starting shape and not that guard: it cannot see a run beginning after
+  punctuation or a digit, or a literal assembled from `format!`
+  fragments.
 - **The three viewer rows go early.** This program's `keep_out` binds
   them to CHROME's sequencing rule, and that rule has already fired —
   `viewer-session-god-module-split` closed 2026-09-04 and CHROME's units
@@ -159,21 +168,46 @@ The other rows take the style lane alone.
 
 **`patherror-display` corrects the helper before it propagates it.**
 `crates/profile/src/path.rs:1411`'s `num` rounds at `1e-9 * x.abs()` —
-a *relative* 1e-9, with nothing principled behind it. D4's ε is ~1e-9 m
-**absolute**, so at metre scale that rounding point sits exactly on
-ε_precision and above metre scale it is coarser (1e-6 m at km scale, a
-thousand ε). These sentences mostly report margins *against* ε, which
-makes that the worst band to round. It is also far coarser than the job
-needs: the row's own examples are 1 ULP and 0.5 ULP off their clean
-forms, so killing arithmetic noise wants a few ULP, not seven orders of
-magnitude. The rounding point is therefore the **noise band itself** —
-the shortest spelling within a few ULP of the payload, scale-free and
-provably finer than ε at every magnitude the kernel works at — with a
-row that goes red if the band ever grows toward ε, and its own arm for
-subnormals (`5e-324` is a pinned row today). Propagating the 1e-9 to
-every arm first would have been the expensive order. (Ev, 2026-09-11,
-in-chat: a principled point to round to, not one that could obscure real
-geometry.)
+a *relative* 1e-9, with nothing principled behind the constant. D4's ε
+is ~1e-9 m **absolute**, so at metre scale that rounding point sits
+exactly on ε_precision and above metre scale it is coarser (1e-6 m at
+km scale, a thousand ε). These sentences mostly report margins *against*
+ε, which makes that the worst band to round.
+
+**The rounding point is the finer of two grids, and it needs both.**
+
+- **An absolute floor of `DEFAULT_EPS / 10` = 1e-10 m** — one decade
+  below the ratified ε. Above ε the kernel cannot distinguish finer, so
+  digits past this grid are noise a reader cannot act on. (Ev's
+  proposal, 2026-09-11 in-chat.)
+- **A relative arm, so a sub-ε payload keeps its own magnitude.** The
+  absolute grid alone would destroy the dominant call-site shape: the
+  `margin` of `JunctionTangent`, `JunctionCusp` and their siblings
+  (`path.rs:1460`, `:1473`, `:1486`, `:1501`, `:1590`) is **below the
+  threshold by construction** — that is what makes the junction tangent
+  — so a 1e-10 grid renders the only number in the sentence as `0 m`,
+  which is both false and useless. The helper's own doc already argues
+  this and is right: *"a picometre margin is rounded to nine significant
+  figures of a picometre, never to the nearest nanometre and never to
+  `0`."* What it gets wrong is only the constant it then picks.
+
+So `tol = (DEFAULT_EPS * 0.1).min(x.abs() * RELATIVE)`, the finer grid
+winning at each magnitude. `RELATIVE` replaces today's 1e-9 and is the
+noise band, not a readability knob — the row's own examples are 1 ULP
+and 0.5 ULP off their clean forms, so a few ULP is the defensible floor;
+the lane picks it, argues it at the site, and is constrained by the
+pinned rows in `num_renders_a_sub_nanometre_payload_at_its_own_magnitude`
+(`5e-324` needs its own subnormal arm).
+
+**Use the compile-time `DEFAULT_EPS`, not `Tolerance::eps()`** — one
+call made by the orchestrator, and the reason is the gate. ε is a live
+process value and a code-tier run gates every point of {default, 1e-6,
+1e-12}; reading it here would make every rendered refusal string a
+function of process configuration and every string assertion in the tree
+eps-sensitive across three eps rows. The grid is a **display** choice
+stated once against the ratified default, which is what keeps this row
+an `M` instead of an `H`. A lane that finds this wrong says so rather
+than quietly reading the live tolerance.
 
 **Ordering rule 5 applies hardest here**: the fix mints a fresh instance
 of the defect it closes, and on rows this small the reviewer is the only

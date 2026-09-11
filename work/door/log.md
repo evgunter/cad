@@ -97,11 +97,38 @@ rather than one that could obscure real geometry, and reading the helper
 showed the caution was understated: `path::num` rounds at a *relative*
 1e-9 while D4's ε is ~1e-9 m **absolute**, so at metre scale the
 rounding point sits exactly on ε_precision and above it is coarser — and
-these sentences mostly report margins *against* ε. It is also far
-coarser than the job needs, the row's own examples being 1 and 0.5 ULP
-off their clean forms. The rounding point becomes the noise band itself.
-Propagating the 1e-9 to every arm first, then discovering this, was the
-expensive order available.
+these sentences mostly report margins *against* ε. Propagating that
+constant to every arm first, then discovering this, was the expensive
+order available.
+
+**The rounding point needed both grids, and finding out why took the
+call sites.** Ev's proposal was a fixed absolute quantum one decade
+below ε, and above ε it is exactly right: the kernel cannot distinguish
+finer, so further digits are noise a reader cannot act on. It fails
+below ε, and it fails on the call sites that dominate this family —
+`JunctionTangent` and its siblings report a `margin` that is *below the
+threshold by construction*, since being below it is what makes the
+junction tangent, so a 1e-10 grid renders the only number in the
+sentence as `0 m`. The helper's own doc had already made that argument
+correctly (*"never to the nearest nanometre and never to `0`"*) and then
+undercut it with the constant it picked, which is a tidy example of a
+justification outliving the number it defends. So: the finer of a 1e-10
+absolute floor and a relative noise band, with the relative arm carrying
+the sub-ε payloads.
+
+**One call the orchestrator made on top of that**: the floor reads the
+compile-time `DEFAULT_EPS`, never `Tolerance::eps()`. ε is a live
+process value and a code-tier run gates {default, 1e-6, 1e-12}; reading
+it would make every rendered refusal a function of process
+configuration and every string assertion in the tree eps-sensitive
+across three rows. That is the difference between this row being an `M`
+and an `H`.
+
+**No guard is owed on `run-on-whitespace`** (Ev, in-chat): fixing the
+five literals is the row. A guard rides along only if it is trivial and
+costless beside `error_display.rs`'s existing predicate; if it needs its
+own corpus or its own pattern language it is neither, and the lane says
+so rather than growing the row.
 
 **The slate stands at eleven rows, eight `E` and three `M`** — the same
 count it opened with, by coincidence and not by conservation. No branch
