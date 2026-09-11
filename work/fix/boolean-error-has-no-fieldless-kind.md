@@ -2,12 +2,13 @@
 id: boolean-error-has-no-fieldless-kind
 kind: issue
 title: topo::BooleanError has no fieldless kind, so editor-core's checks door degrades it to reason: String — the PathErrorKind shape, one crate down
-status: review
+status: closed
 opened: 2026-09-01
 github: 1491
 refs: [1490]
 branch: fix/boolean-error-kind
 pr: 1806
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1491
@@ -155,3 +156,14 @@ defect this item describes is still true one door out —
 `boolean-kind-not-published-at-the-python-door`, which names
 `path_error_tag` as the written template and both reasons this unit did
 not carry it (LIB's fence; 41 FFI names is a vocabulary decision).
+
+## Closed
+
+PR 1806, merged 2026-09-04. `topo::BooleanErrorKind` (41 fieldless
+variants) with an exhaustive `kind()`, re-exported from `topo`'s root;
+`CheckEvidence::SeparationUnavailable` carries it beside the prose and
+is built through `CheckEvidence::separation_unavailable(&source)` so
+both halves come off one error. The phantom direction is closed by an
+exhaustive visit in the owning crate; the pairing direction is closed
+for the 34 constructible arms. The row sat at `review` after the merge
+and is closed here by the orchestrator.
