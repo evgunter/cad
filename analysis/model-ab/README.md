@@ -75,6 +75,81 @@ removed and every residual model name redacted, by agents instructed not
 to open the source log. `blind_extract.py` fails loudly if any model name
 survives redaction.
 
+The v6 unilateral-MAJOR adjudication is blinded separately and more strictly,
+because its material is the review prose rather than the dispatch table — see
+the next section.
+
+## The v6 blinded adjudication (protocol v6 item 4)
+
+Separate pass, separate tooling, and it does not feed `report.html`. Protocol v6
+pre-registers a stopping rule (item 2) whose readout is the adjudicated
+unilateral-MAJOR tally under the item-3 instrument, and item 4 requires that
+tally to be coded **attribution-stripped**: the coder sees reviewer A/B with the
+A/B-to-R1/R2 mapping re-randomized per pair. That is a different object from
+what `blind_extract.py` blinds — it strips the *dispatch rows*, this strips the
+*review prose* — so it is a different script.
+
+```
+docs/MODEL-AB-LOG.md
+  │
+  ├─ blind_reviews.py ──→ blinded-reviews.md        R1/R2 -> RA/RB per a byte
+  │                       keys/blind-key-<stamp>.csv    drawn per pair; names,
+  │                       labels/v6-*-BLANK.csv          bytes, parity, block
+  │                                                      and slot records gone
+  │      │
+  │      └─ blinded coding pass ──→ labels/v6-unilateral-adjudication.csv
+  │                                  (raiser is A or B, never a slot or model)
+  │
+  └─ unblind_adjudication.py ──→ the readout
+         joins the coded findings to the key, applies item 3 (a)-(e)
+         mechanically, reports the tally against the item-2 stopping rule,
+         split by model, by slot, and by 5.1 era
+```
+
+Three things beyond dropping a column, because the review prose leaks three
+ways that the dispatch table does not:
+
+- **Slot labels are rewritten, identifiers included.** `r1_dual_probes` names
+  the slot as loudly as `R1` does.
+- **The draw record is redacted, not just the names.** "byte 146 parity 0 => R1
+  OPUS + R2 FABLE" survives name-redaction as "parity 0", which item 1 of the
+  protocol decodes.
+- **Cost and rubric cells are withheld entirely.** Per-reviewer token counts are
+  an arm signal, and item 3 needs the findings, not the price.
+
+`keys/` is withheld from the coder and committed anyway: the drawn byte is the
+record of the randomization, like a dispatch draw.
+
+Neither script rules on anything. `blind_reviews.py` reports pairs whose
+reviewer assignment did not parse rather than guessing one, and reports rows
+selected by date that declare a different instrument rather than quietly
+counting them; `unblind_adjudication.py` stops on a coding inconsistency rather
+than averaging it. Both carry `--selftest`, which executes the blinding claims
+in both directions — including that the leak scan fires when redaction is
+removed.
+
+**This branch's `docs/MODEL-AB-LOG.md` predates the v6 stream** (branch head is
+2026-08-26; the first v6 pair is 2026-08-27), so point `--src` at a current
+checkout:
+
+```sh
+python3 blind_reviews.py --src /path/to/main/docs/MODEL-AB-LOG.md
+python3 unblind_adjudication.py --key keys/blind-key-<stamp>.csv \
+    --coded labels/v6-unilateral-adjudication.csv --coder-model <model>
+```
+
+### Known defect in `blind_extract.py`, not fixed here
+
+The log is not one table: dispatch rows appear under per-program tables of 6, 9,
+10, 14, 15 and 16 columns, and cells carry unescaped pipes (`|δ| ≤ π`).
+`blind_extract.py` splits on a bare pipe and keeps rows of exactly 14 cells, so
+it **silently drops 54 of the log's 311 dispatch rows** — PIERCE, the first v6
+pair, among them. `blind_reviews.py --audit-widths` prints the census and names
+every dropped row. The fix is to split on the padded separator and anchor on the
+six leading columns every schema shares, which is what `blind_reviews.py` does;
+it is not applied to `blind_extract.py` because that would change the input to
+labelling passes already run, and re-cutting those is a decision, not a repair.
+
 ## Reproduce
 
 ```sh
