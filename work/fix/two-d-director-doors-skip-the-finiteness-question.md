@@ -20,7 +20,7 @@ door then reports success. SEAT-DV's review (PR #1564) found this at
 the datum constructor and fixed it there; PR #1738 fixed the same
 order-of-questions at `editor-core`'s `unit()`; SEAT-DN collapsed
 those two into one body, `topo::query::decide_unit_direction`, which
-asks finiteness first through `topo::query::is_finite_length`.
+asks finiteness first through `geom_core::is_finite_length`.
 
 **Every remaining instance is below.** They were measured while
 executing SEAT-DN's DN-3, which sent that unit to
@@ -52,7 +52,7 @@ the right outcome, from a guard that does not know it is the guard.
 
 ## What separates them, and why SEAT-DN fixed none of them
 
-The rule has ONE spelling — `topo::query::is_finite_length` — and
+The rule has ONE spelling — `geom_core::is_finite_length` — and
 reachability decides the cost:
 
 - **`sweep` (row 2) can call it today.** `sweep` depends on `topo`.
@@ -90,6 +90,35 @@ question in front of every decide-then-normalize direction door in the
 workspace, in one spelling, with a typed refusal per door and the
 K/census consequence stated per site. Red-first per row — each of the
 five reproductions above is a test.
+
+## UNBLOCKED 2026-09-11 — the ruling fired (PR 2349)
+
+`is-finite-length-homed-in-the-query-seat` is closed:
+`is_finite_length` now lives in `crates/geom-core/src/real.rs`, beside
+the `Real` trait it is generic over and the `is_poison` it asks
+through, re-exported as `geom_core::is_finite_length`. `topo::query`
+kept **no** re-export — one name, one place.
+
+**"What separates them" is answered, and the section is now one line:**
+every one of the five doors can reach the predicate, because all five
+crates depend on `geom-core`. The per-crate reachability split that
+section describes — `sweep` can call it, `topo` holds it, `geom-core`
+is below it, `profile` cannot reach it at all — is gone. The two
+`profile` rows (4 and 5), which were the expensive half precisely
+because `profile` depends on `geom-core` alone, are now the same cost
+as the rest.
+
+The five reproductions stand unchanged and are still this unit's
+red-first rows. What still differs per door is only the **refusal**:
+each needs its own typed arm, its sentence, and its K/census
+consequence stated at the site — and rows 4 and 5 additionally need a
+new public `PathError` arm with its `PathErrorKind` row and whatever
+the Python tag census pins about that surface.
+
+`Vec2::normalize` and `Vec3::normalize` both gained a doc paragraph in
+PR 2349 saying what the overflow end costs a door that decides the sign
+first, and pointing at the predicate. The 2-D half was written for rows
+4 and 5.
 
 ## What landed
 

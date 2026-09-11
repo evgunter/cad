@@ -2,11 +2,12 @@
 id: verb-and-dimension-render-through-debug
 kind: issue
 title: Verb and Dimension reach a user surface through Debug - the remainder of the Display class
-status: review
+status: closed
 opened: 2026-09-04
 refs: [1111, 1741]
 branch: fix/verb-dimension-display
 pr: 2347
+closed: 2026-09-11
 ---
 
 

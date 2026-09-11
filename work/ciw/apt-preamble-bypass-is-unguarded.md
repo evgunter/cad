@@ -2,8 +2,10 @@
 id: apt-preamble-bypass-is-unguarded
 kind: issue
 title: nothing stops a new workflow step spelling its own apt preamble again
-status: open
+status: review
 opened: 2026-09-09
+branch: ciw/apt-preamble-guard
+pr: 2345
 ---
 
 
