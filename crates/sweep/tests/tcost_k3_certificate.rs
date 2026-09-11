@@ -243,12 +243,14 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 /// records every classification the kernel's one funnel makes, so the
 /// `props_quad_*` verdicts of a call are a deterministic function of
 /// the rounds it ran: one measurement's count is the unit. The gate
-/// pays only the rounds its own certification needs — STRICTLY FEWER
-/// than the measurement, which is the sign level being a level and not
-/// a name — and the continuation pays the rest, so the two together
-/// are the measurement's count exactly. A caller that gated a body and
-/// then measured it used to pay twice the unit; it pays it once, and
-/// a caller that only gates pays less than once.
+/// pays only the rounds its own certification needs — never more than
+/// the measurement — and the continuation pays the rest, so the two
+/// together are the measurement's count exactly. A caller that gated a
+/// body and then measured it used to pay twice the unit; it pays it
+/// once. That the gate is sometimes STRICTLY cheaper is the claim of
+/// `sign_certified_plus_v`, which rosters bodies whose schedules run
+/// past round 0; this prism's do not, and a strict inequality asserted
+/// here would be asserting a property of the fixture.
 #[test]
 fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     let body = prism();
@@ -294,10 +296,9 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
          {one} quadrature verdicts for one measurement"
     );
     assert!(
-        gate < one,
-        "ONE CERTIFICATE: the gate certifies a SIGN, so it must stop before the reporting \
-         target this body's measurement runs to — {gate} gate verdicts against {one} \
-         measurement verdicts"
+        gate <= one,
+        "ONE CERTIFICATE: the gate certifies a SIGN, so it can never pay MORE rounds than \
+         the measurement it stops inside of — {gate} gate verdicts against {one}"
     );
     assert_eq!(
         gate + refine,

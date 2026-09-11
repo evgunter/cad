@@ -418,6 +418,9 @@ mod m8_3_rational_volume;
 #[path = "reporting_door_bit_digest.rs"]
 mod reporting_door_bit_digest;
 
+#[path = "sign_certified_plus_v.rs"]
+mod sign_certified_plus_v;
+
 #[path = "m8_4_intersection_iso.rs"]
 mod m8_4_intersection_iso;
 

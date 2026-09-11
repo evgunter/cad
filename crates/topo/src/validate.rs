@@ -192,6 +192,27 @@
 //! that keep their lanes: [`validate_pseudomanifold`],
 //! [`contact_marks`], [`crate::mass_properties`].
 //!
+//! **What check 7 costs, and what it cannot refuse.** Deciding a sign
+//! is cheaper than measuring a volume, and the tier pays only the
+//! former: the certified quadrature is refined round by round until
+//! the body's volume ENCLOSURE excludes zero, and stops there. So a
+//! valid solid cannot fail check 7 on quadrature budget while its
+//! sign is definite — the refusal that used to arrive when a fitted
+//! rational wall could not reach the REPORTING target `1024·ε` is a
+//! refusal of the caller who asks for the number, not of the body.
+//! Check 7 still refuses `VolumeUncomputable` where the quadrature
+//! produces no enclosure at all (an unsupported chart, a poisoned
+//! bracket, a degenerate face, an escalated funnel decision) and where
+//! the sign is still indefinite when the schedule runs out. The
+//! number, when a caller wants it, is
+//! [`validate_geometric_certificate`]'s continuation.
+//!
+//! **Tier 3′ is not this**, and the difference is visible from
+//! outside: [`validate_pseudomanifold`] and [`contact_marks`] run
+//! their check 7 through the scalar's own lane at the reporting
+//! target, so a body tier 3 admits on a definite sign can still be
+//! refused there on quadrature budget.
+//!
 //! # All failures, not the first
 //!
 //! [`validate`] collects **every** failure before returning: a validator
@@ -2437,21 +2458,34 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedB
 /// so a caller that also wants the enclosure runs the identical
 /// computation again. This door returns what the gate computed.
 ///
-/// **THE value, not a second one.** The returned properties are the
-/// object `plus_v_invariant` decided on — moved out of the check, never
-/// recomputed — so they are bit-identical in all four fields to
-/// [`crate::mass_properties`] on the same body at the same `tol`, and
-/// that is a fact about identity rather than about agreement: this
-/// door's certified quadrature and the measurement door's lane
-/// quadrature are the same computation for every scalar that can reach
-/// here (`crate::props`' lane impls each forward to
-/// `quad_lane::cut_face`), against the same `Band::linear(tol)`, over
-/// the same face-arena order.
+/// **A SIGN, and the number on request.** What comes back is a
+/// [`crate::SignCertificate`]: the enclosure `plus_v_invariant`
+/// decided on, refined exactly as far as THIS check's certification
+/// needed and no further. There is no volume to read off it, by
+/// construction — a quadrature stopped at the round its caller was
+/// finished has not computed one — and
+/// [`crate::SignCertificate::refine_to_target`] is where a caller who
+/// wants the number asks for it, paying only the rounds that were not
+/// already run.
+///
+/// **THE value, not a second one.** That continuation is bit-identical
+/// in all four fields to [`crate::mass_properties`] on the same body
+/// at the same `tol`, and that is a fact about identity rather than
+/// about agreement: this door's certified quadrature and the
+/// measurement door's lane quadrature are the same computation for
+/// every scalar that can reach here (`crate::props`' lane impls each
+/// forward to `quad_lane::cut_face`), against the same
+/// `Band::linear(tol)`, over the same face-arena order, over the same
+/// rounds — a face left open at round `k` resumes at `k + 1`, and the
+/// lanes' rounds are independent recomputations, so a window changes
+/// no arithmetic.
 ///
 /// **What is evidence for that, and at which scalar.** At `f64` the
-/// identity is measured on a real rational-walled body —
+/// identity is measured on real rational-walled bodies —
 /// `sweep`'s `tcost_k3_certificate` compares all four fields as raw
-/// bits. At the other certifying scalars it rests on the lane impls
+/// bits, and `sign_certified_plus_v` does it over a roster whose
+/// schedules run past round 0, where the gate and the continuation
+/// genuinely split the rounds between them. At the other certifying scalars it rests on the lane impls
 /// agreeing, which is a fact about four function bodies rather than a
 /// type-system guarantee, so it is pinned as one:
 /// `topo`'s `quad_lane_is_the_certified_lane` asserts that every
@@ -2462,8 +2496,8 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedB
 /// not re-prove what the quadrature computes, which is the `f64` row's
 /// job.
 ///
-/// **A refusing arm returns no properties**: a refusal carries no
-/// blessed number, so the `Err` is the verdict vector exactly as
+/// **A refusing arm returns no certificate**: a refusal carries no
+/// blessed enclosure, so the `Err` is the verdict vector exactly as
 /// [`validate_geometric`]'s is — same rejections, same typed verdicts,
 /// same order.
 ///
