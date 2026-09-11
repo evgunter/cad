@@ -1102,10 +1102,34 @@ performs each door's operation with no gesture open and compares both
 the rendering and the variant. Nothing structural stops a future door
 composing its own sentence; that row is what would red.
 
-**There is no key for it**: this crate binds no key to any operation at
-all (`input::PRESETS` states what a keyboard vocabulary would have to
-decide first), so an Escape binding is that decision and not a row to
-add.
+**The door cannot be reached during a live pointer drag**, which is the
+half of the defect it does not answer: it is a toolbar control, and
+pressing a toolbar button costs the pointer release that lands the
+value. Enabled and unreachable is the state a drag under the pointer
+leaves it in, so the door is the STRANDED drag's exit and not the held
+drag's.
+
+**The held drag's exit is Escape, and it is read rather than bound.**
+`egui` aborts a drag on Escape and on nothing else, by clearing the
+dragged widget — so the abort arrives at `widgets::drag_gesture_ops` as
+an ordinary `drag_stopped` frame, and the chrome that does not read the
+key reports an abandonment as a release. That branch is the whole of
+what this crate reads a key for: which of the two things the toolkit
+already did is being reported. It decides no key→operation vocabulary
+(`input::PRESETS` states what one would have to decide first), and it
+is read directly from the key rather than inferred from the absence of
+a pointer release, because a long touch also ends a drag with no
+release and means something else.
+
+A drag has two ends and they mean opposite things, so the emitted
+operation is a parameter of the mapping beside the commit — and a
+`SessionOp` rather than an `Option`, because every gesture vocabulary
+has a cancel and `every_gesture_cancel_has_a_chrome_door` is the
+exhaustive match that keeps it so. Both drags the panel maps run
+through that one function, so both ends are the same rule at the slot
+field, the parameter field and the free-move probe; the stake is
+largest at the first two, where a commit reaches the document and costs
+an undo step.
 
 ### One open tool, not seven optional ones
 

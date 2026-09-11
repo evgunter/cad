@@ -235,6 +235,14 @@ pub enum SessionOp {
     /// longer drawn is exactly what it exists to close, so a target it
     /// had to name would be one the caller can no longer read off the
     /// panel.
+    ///
+    /// The field emits it too, when `egui` aborts the drag on Escape
+    /// ([`crate::widgets::drag_gesture_ops`]), and that emitter DOES
+    /// know its field — it is the widget the drag was on. It names it
+    /// no more than the door does, because the target would have to be
+    /// an `Option` for the emitter that cannot have one, and an
+    /// operation that names its gesture only sometimes cannot be
+    /// refused for naming the wrong one.
     CancelGesture,
     /// Step the cursor toward the root.
     Undo,
@@ -315,7 +323,8 @@ pub enum SessionOp {
     },
     /// Abandon whichever probe is open, restoring the committed
     /// picture. Names no instance, for [`SessionOp::CancelGesture`]'s
-    /// reason: it is the other cancel door.
+    /// reason: it is the other cancel door, and the other thing an
+    /// Escape on the field emits.
     CancelFreeMove,
     /// Commit **exactly one** `DocEdit` adding a mate node — the mate
     /// tool's single committed edit. Everything before it (the two

@@ -24,7 +24,7 @@ Six operations now name the gesture they drive, in **three** spellings:
   (`crates/viewer/src/session/op.rs:216-227`)
 - `SessionOp::PreviewFreeMove { instance, frame }` /
   `SessionOp::CommitFreeMove { instance }`
-  (`crates/viewer/src/session/op.rs:301-315`)
+  (`crates/viewer/src/session/op.rs:309-323`)
 
 Each is right for its own door — the first two are the two doors
 `SessionOp::BeginParamGesture` argues for, and the third is a different
@@ -34,12 +34,14 @@ for the value drag's two, and `DisplayState` compares a bare
 `RecipeNodeId` (`crates/viewer/src/display.rs:778-780`, `:806-812`), and nothing
 says these are the same kind of fact.
 
-`crates/viewer/src/widgets.rs:57-100` is where it shows: `drag_ops` is
+`crates/viewer/src/widgets.rs:57-129` is where it shows: `drag_ops` is
 generic over the gesture vocabulary precisely so one mapping serves
-both drags, and it now hands three ops built by the caller with nothing
-holding their targets to each other. The caller does hold them to each
-other — `pane/properties.rs:557-574` builds all three from one `node`
-and one `row.slot` — but that is a convention, not a type.
+both drags, and it now hands four ops built by the caller — the cancel
+joined the triple when Escape stopped reading as a release — with
+nothing holding their targets to each other. The caller does hold them
+to each other: `pane/properties.rs:559-577` builds the three that name
+a target from one `node` and one `row.slot`, and the cancel names
+none. But that is a convention, not a type.
 
 ## Why it is not this unit's
 
