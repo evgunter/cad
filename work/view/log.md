@@ -9430,3 +9430,99 @@ names the name field and catches only the array's first element, and
 CENSUS's names the name field alone. Both were wrong before this diff;
 the +1 is real but repointing either band would move a number that was
 never about its subject.
+
+## 2026-09-11 — #2390 merged; Escape abandons, and the lane beat my argument for it
+
+**#2390 merged** (`6c758dab86`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips (two cache primes, the two interval-backend rows,
+`step import (freecad)`, `python suite`), no unsubstituted
+placeholders. The lane settled the CI-scope question by **running**
+`scripts/ci-filter.py`, which returned `SEEDS=viewer` →
+`RUN_VIEWER_TOOLKIT=true` → the non-skip path, confirming from the tool
+that this PR's own CI could not reach the skip-mode doc pass it ran by
+hand.
+
+**Escape now abandons a drag instead of landing it**, at the slot
+field, the parameter field and the free-move probe alike.
+
+**My dispatch argued the fork the weak way and the lane said so.** I
+wrote that the chrome already draws a *"Cancel free-move"* door, so
+Escape should cancel. That is beatable — a door existing does not
+oblige a second route to it. The argument that actually settles it:
+**`cancel_doors` cannot be reached during a live pointer drag at all.**
+They are toolbar controls; pressing one costs the pointer release, and
+the release ends the drag through the *commit* arm. So for the whole
+life of a held drag the doors are enabled and unoperable — they are the
+STRANDED drag's exit, which is what `crates/viewer/README.md` says they
+were built for. Until this change **a drag under the pointer had no
+abandon at all**, and the only non-release input that could end it was
+being reported as a release. Shape 2 would have had to argue that a
+user holding the button has no business abandoning.
+
+**The value gesture had the same defect and the larger stake**, and the
+lane established it by mutation rather than by reading: with the Escape
+branch replaced by an unconditional commit, both new rows go red
+reporting `["commit"]` where `["cancel"]` belongs. The asymmetry runs
+opposite to the guess — a free-move commit lands a display frame no
+history holds, while a **value-gesture commit reaches the document and
+costs an undo step**.
+
+**Three corrections to the item and to me.** (1) The item said the fix
+needs an `Option` for vocabularies with no cancel; there are none, and
+that is structural — `gesture_table.rs`'s
+`every_gesture_cancel_has_a_chrome_door` matches exhaustively over
+`SessionOp`, so a gesture joining the enum without a cancel reds there
+first. The parameter is a plain `SessionOp`. (2) I flagged
+`PreviewFreeMove`'s *"identity is one node rather than a target"* as
+possibly stale after #2361; it is not — **#2361 wrote that sentence**,
+in the same diff that named the value drags, and it is not what the
+fork turns on, because the cancel side is where the two gestures
+AGREE: both cancels name nothing. (3) The reliability worry was the
+wrong way round. Escape is readable; what is unreliable is the proxy
+the lane nearly used — *"`drag_stopped` with no pointer release"* also
+matches a long-touch context menu and means something else entirely.
+**Named the property, then picked the pattern** — the twelve-row table
+applied before the fact rather than after it.
+
+**Ratified crate prose was amended rather than weaselled, and that is
+worth flagging.** `crates/viewer/README.md` said *"There is no key for
+it: this crate binds no key to any operation at all"*, and
+`input::PRESETS` said *"no key denotes an operation anywhere"*. Shape 1
+makes both false, so the lane rewrote them. What survives is narrower
+and is the honest version: `egui` ends the drag on Escape whatever this
+crate does, so the branch decides **which of two things the toolkit
+already did is reported**, not which operation a key denotes —
+*reading is not binding*. I checked `docs/DESIGN.md` before merging:
+it carries no keyboard-binding claim (its "key" hits are map keys and
+escape hatches), so this is VIEW's own text and not an Ev gate.
+
+**The commit/cancel transposition is now unrepresentable.** The triple
+became a named `GestureVocabulary` struct — not for clippy's
+`too_many_arguments`, which does fire at eight, but because `commit`
+and `cancel` are both bare `SessionOp` and mean opposite things: sitting
+positionally adjacent they are one transposition away from a chrome
+that lands what the user abandoned.
+
+**The sibling residue is unaffected**, checked rather than assumed: the
+second probe in `a-keyboard-bump-lands-and-closes-the-pointers-own-probe`
+is opened by the *typed* arm, which Escape does not reach, because on an
+Escape frame `changed()` is false — egui declines to apply the typed
+edit. Its test row now shares a five-frame preamble helper instead of
+carrying its own copy; what it asserts is unchanged and it still passes.
+
+**Out of fence, reported and not edited** — and the lane's reading of
+them is the sharper half. `work/door/dimension-radio-row-…:14`,
+`work/door/plan.md:66` and `work/census/the-prose-word-…:36` all cite
+bands near a `(Dimension::Length, "Length")` array that this diff moved
+by three lines. **Neither is a true shift**: both were pointing at the
+name field rather than at the array, so they were wrong before this
+diff, and repointing them would be moving a number that was never about
+its subject. Three VIEW rows in the same state were likewise left alone
+rather than shifted (`comment-symbol-names-…`'s `op.rs:828`, whose site
+is deleted; `is-instance-collapses-…`'s `properties.rs:336`;
+`a-disabled-control-…`'s `properties.rs:350-355`) — and `plan.md` cites
+a *third* band for that last subject, which is the census-table rule
+earning itself again.
+
+**VIEW stands at 70 open / 81 closed, nothing waiting on Ev.**
