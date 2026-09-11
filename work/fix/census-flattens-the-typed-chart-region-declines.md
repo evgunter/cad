@@ -5,6 +5,7 @@ title: the census maps every chart-region refusal onto one CensusUnsupported, so
 status: review
 opened: 2026-09-04
 branch: fix/census-typed-chart-declines
+pr: 2354
 ---
 
 
