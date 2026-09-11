@@ -251,8 +251,9 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
 
 /// The certified lane's hook, one home: the windowed
 /// [`quad_lane::cut_face`], which is what makes
-/// [`mass_properties_certified`] and [`sign_certified`] the same
-/// quadrature entered at two levels rather than two quadratures.
+/// [`mass_properties`] at a certifying scalar and [`sign_certified`]
+/// the same quadrature entered at two levels rather than two
+/// quadratures.
 #[allow(clippy::type_complexity)]
 fn certified_hook<T: Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
@@ -287,12 +288,12 @@ fn certified_hook<T: Decide + geom_core::CertifiedBounds>(
 /// **The order, stated, because the bits depend on it.** Faces are
 /// visited in arena order within every round, and the sum accumulates
 /// in that order — so a face's enclosure at round `r` is the
-/// enclosure [`mass_properties_certified`] computes at its round `r`
+/// enclosure the reporting walk computes at its round `r`
 /// (the lanes' rounds are independent recomputations, so a window
 /// changes no arithmetic), and a walk that reaches the target
 /// accumulates the same terms in the same order. A certificate
 /// continued to the target with [`SignCertificate::refine_to_target`]
-/// is therefore bit-identical to [`mass_properties_certified`] on the
+/// is therefore bit-identical to [`mass_properties`] on the
 /// same body, band and `tol`, and pays the same piece evaluations.
 ///
 /// **A face with no enclosure at all stops the walk**: poison, a
@@ -306,7 +307,7 @@ fn certified_hook<T: Decide + geom_core::CertifiedBounds>(
 ///
 /// # Errors
 ///
-/// [`MassPropsError`], as [`mass_properties_certified`].
+/// [`MassPropsError`], as [`mass_properties`].
 pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds>(
     body: &'b Body<T>,
     band: Band,

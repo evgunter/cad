@@ -74,7 +74,17 @@ fn arc_loft(s: f64) -> Body<f64> {
 /// cannot claim is that it exercised that lane itself.
 fn roster() -> Vec<(String, Body<f64>)> {
     let eps = Tol::witness().get().eps;
-    [1.0e11, 1.0e9, 1.0e7]
+    // TWO scales, and the cost is why there are not three. Each member
+    // is a certified quadrature over a rational-walled body and this
+    // suite pays it three times over (gate, continuation, measurement);
+    // a third scale at `1e7·eps` was measured and dropped, because its
+    // split (8 + 4 = 12) says the same thing `1e9·eps`'s (8 + 7 = 15)
+    // does. What the two that remain say and one alone could not: the
+    // coarse one is the body whose schedule runs OUT, so the gate
+    // passes where the number refuses, and the fine one is the body
+    // whose schedule runs ON, so the gate and the continuation split
+    // the rounds between them.
+    [1.0e11, 1.0e9]
         .iter()
         .map(|k| (format!("arc loft @ {k:e}·eps"), arc_loft(k * eps)))
         .collect()

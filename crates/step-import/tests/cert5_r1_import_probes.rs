@@ -99,33 +99,27 @@ fn dm1_residual_and_wall_time_remeasured() {
     let t0 = std::time::Instant::now();
     let out = import_step(&text, &ImportOptions::default(), Tol::witness());
     let dt = t0.elapsed();
-    let coarse = Tol::witness().get().eps > 1e-9;
     match out {
-        // The fine band clears the at-rest gate and meets the ladder.
+        // Every band clears the at-rest gate and meets the ladder.
         Err(StepImportError::Adoption { id, attempts }) => {
             eprintln!("CERT5-R1 dm1: past the at-rest gate in {dt:?}, ladder gap at #{id}");
-            assert!(
-                !coarse,
-                "the fine band is the one whose at-rest refusal the sign level retired"
-            );
             assert_eq!(id, 389, "the ladder gap's edge");
             assert!(
                 attempts.is_empty(),
                 "the polyline GAP, not a refusal with candidates"
             );
         }
-        // The coarse band still stops at the gate, and by ESCALATION:
-        // the enclosure lands just under the loose target and
-        // `props_quad_converged` declines to call it, which leaves the
-        // face with no enclosure and check 7 with no sign to read.
+        // The at-rest gate, which no band stops at now. Kept as an arm
+        // with the claim that makes it one: a BUDGET refusal here is
+        // check 7 consuming a precision again, which is the thing the
+        // sign level removed.
         Err(StepImportError::TierInvalid { solid, errors }) => {
             eprintln!("CERT5-R1 dm1: TierInvalid solid {solid:?} in {dt:?}: {errors:?}");
             let shown = format!("{errors:?}");
             assert!(
-                coarse && shown.contains("Escalated"),
-                "dm1's at-rest refusal must be the convergence predicate's ambiguity \
-                 band; a BUDGET refusal here would be check 7 consuming a precision \
-                 again, which is the thing the sign level removed: {shown}"
+                !shown.contains("QuadratureBudget"),
+                "a BUDGET refusal at the at-rest gate is check 7 back to consuming a \
+                 precision: {shown}"
             );
         }
         other => panic!("dm1's disposition has moved again, got {other:?}"),

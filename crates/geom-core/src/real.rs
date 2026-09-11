@@ -873,6 +873,20 @@ pub mod bounds_allowlist {
     //! dual impl instantiates none of it, and the `quad_lane::*` signatures
     //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
     //!
+    //! **Re-counted when the certified half grew a LEVEL** (tier 3's +V
+    //! check certifying a sign rather than a precision). Nothing about the
+    //! seam's scope moved: the certified quadrature is entered over a round
+    //! WINDOW now, so where one function took the compound bound there are
+    //! a hook, a windowed walk and the certificate type that walk hands
+    //! back — every one of them the same lane, the same bound and the same
+    //! argument, and the `Decide` half is still what the `props_quad_*`
+    //! funnel needs while the bracket half is still what the C9 ring reads.
+    //! The weakest bound that works is unchanged and so is the evidence
+    //! that the next tighter one fails: drop the bracket term and the
+    //! windowed walk cannot form `RingInterval::from_certified`; drop
+    //! `Decide` and no round can be accepted. The certificate type carries
+    //! the bound for the same reason its walk does — it resumes that walk.
+    //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
     //! precedent; retroactive Ev review per the self-merge convention) — the
     //! edge-blend battery**, `sweep::blend::{battery, surgery, build}`: it
@@ -1027,6 +1041,18 @@ pub mod bounds_allowlist {
     //! composition, so its bound is the union and IS the compound one this
     //! file ratifies. `shell`/`shell_open` take the same bound because their
     //! last act is that entry.
+    //!
+    //! **Re-counted when check 7 began certifying a SIGN.** The check's
+    //! decision is now written over the volume ENCLOSURE rather than over
+    //! one number, so its subject is a trait with two implementors — the
+    //! target-level `MassProperties` and the sign-level certificate — and
+    //! the second impl is the added occurrence. It takes the compound
+    //! bound because its subject is the certified half's own certificate:
+    //! reading the bracket out of it is the whole of what it does, and the
+    //! `Decide` half is what the certificate's own walk needs to be able to
+    //! resume. The seam is the one ratified above, unextended: the same
+    //! private certified half, behind the same composition, at the same
+    //! scalars.
     //!
     //! **What it owes "brackets never decide", stated at the substance and
     //! not at the grep.** No `lo`/`hi` call appears in `validate.rs`, and the
