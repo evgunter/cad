@@ -119,7 +119,7 @@ def collect(criterion_dir: Path) -> dict[str, dict]:
         interval = median.get("confidence_interval", {})
         rows[full_id] = {
             "median_ns": median.get("point_estimate"),
-            "median_ci_ns": [interval.get("upper_bound"), interval.get("upper_bound")],
+            "median_ci_ns": [interval.get("lower_bound"), interval.get("upper_bound")],
             "mean_ns": mean.get("point_estimate"),
             "median_abs_dev_ns": estimates.get("median_abs_dev", {}).get("point_estimate"),
             "samples": samples,
