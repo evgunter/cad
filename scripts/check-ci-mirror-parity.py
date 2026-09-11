@@ -244,6 +244,12 @@ TIER_BLIND = (
     # checkout. Sited under `if: run_build` the change class that can break it
     # is the class that would skip it.
     "scripts/check-status-capture.py",
+    # The render-lane parity check. Its inputs are `.github/workflows/render.yml`
+    # and `local-scripts/render-hosted.sh` — the second in a tree that
+    # classifies TIER=docs and that every hosted job but `mirror` deletes at
+    # checkout, so sited under `if: run_build` it could not fire on the half of
+    # its own subject that changes most often.
+    "scripts/check-render-lane-parity.py",
     # Not because its inputs are prose — because a change WIDENING the
     # filter's docs branch classifies itself as docs, so the tier that would
     # skip this self-test is the tier it is about.
